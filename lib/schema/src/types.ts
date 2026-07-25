@@ -639,6 +639,11 @@ export type CollectionContextSchema = {
   itemView?: string;
 };
 
+/** Collection context input accepted before the presentation default is applied. */
+export type CollectionContextSchemaSource = Omit<CollectionContextSchema, "presentation"> & {
+  presentation?: CollectionContextPresentation;
+};
+
 export type CollectionOperationBindingSchema = {
   operation: string;
   label?: string;
@@ -703,6 +708,13 @@ export type EditViewSchema = {
 );
 
 export type ViewSchema = CollectionViewSchema | CreateViewSchema | EditViewSchema;
+
+/** Collection view input accepted before context defaults are applied. */
+export type CollectionViewSchemaSource = Omit<CollectionViewSchema, "context"> & {
+  context?: CollectionContextSchemaSource;
+};
+
+export type ViewSchemaSource = CollectionViewSchemaSource | CreateViewSchema | EditViewSchema;
 
 export type ScreenNavigationSchema = {
   primary: boolean;
@@ -1185,6 +1197,23 @@ export type EntityOperationSchema = {
   policy?: EntityOperationPolicySchema;
 };
 
+/**
+ * Authored operation input accepted before parser-owned defaults are applied.
+ *
+ * Parsing supplies the operation output, built-in mutation effect,
+ * idempotency policy, and audit policy when the operation kind permits their
+ * omission.
+ */
+export type EntityOperationSchemaSource = Omit<
+  EntityOperationSchema,
+  "audit" | "effect" | "idempotency" | "output"
+> & {
+  audit?: EntityOperationAuditSchema;
+  effect?: EntityOperationEffectSchema;
+  idempotency?: EntityOperationIdempotencySchema;
+  output?: EntityOperationOutputContractSchema;
+};
+
 export type UniqueConstraintSchema = {
   kind: "unique";
   fields: string[];
@@ -1198,6 +1227,11 @@ export type EntitySchema = {
   constraints?: Record<string, EntityConstraintSchema>;
   stateMachines?: Record<string, StateMachineSchema>;
   operations?: Record<string, EntityOperationSchema>;
+};
+
+/** Entity input accepted before operation defaults are applied. */
+export type EntitySchemaSource = Omit<EntitySchema, "operations"> & {
+  operations?: Record<string, EntityOperationSchemaSource>;
 };
 
 export type RuntimeSchemaRouteValidationSchema = {
@@ -1244,4 +1278,17 @@ export type AppSchema = {
   views: Record<string, ViewSchema>;
   screens?: Record<string, ScreenSchema>;
   runtime?: RuntimeSchemaMetadata;
+};
+
+/**
+ * Complete, portable App schema parser input.
+ *
+ * This source contract preserves authored omissions. `AppSchema` is the
+ * parser-defaulted runtime model.
+ */
+export type AppSchemaSource = Omit<AppSchema, "entities" | "screens" | "version" | "views"> & {
+  version: 1;
+  entities: Record<string, EntitySchemaSource>;
+  views: Record<string, ViewSchemaSource>;
+  screens: Record<string, ScreenSchema>;
 };

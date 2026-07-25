@@ -4,8 +4,9 @@
 
 Package slices and in-repo app packages define package boundaries under
 `lib/<package>/`. Capability slices own reusable contracts and adapters without
-owning app records. App packages own source schema, seed records, manifests, and
-any package-specific adapters for a bundled app.
+owning app records. App packages own schema authoring source when present,
+portable schema artifacts, seed records, manifests, and any package-specific
+adapters for a bundled app.
 
 ## Requirements
 
@@ -56,10 +57,12 @@ adapters.
 - THEN the package contains package-local `AGENTS.md`, `package.json`,
   `tsconfig.json`, `formless.app.json`, `schema.json`, `seed-records.json`,
   and `src/` entrypoints for public contracts and supported runtime adapters
+- AND a package that uses TypeScript schema authoring owns its declaration
+  under `src/` and a package-local schema materialization command
 - AND the app package is published as a workspace package with documented root,
   React, Worker, and Node subpaths when those adapters exist
-- AND source schema and seed records remain app package source data rather than
-  generated runtime state
+- AND `schema.json` remains the package's portable schema data artifact and seed
+  records remain app package source data rather than runtime state
 - AND app packages without package-specific executable adapters do not need to
   expose unused adapter subpaths
 
@@ -83,7 +86,8 @@ adapters.
 #### Scenario: App package source replaces root app files
 
 - GIVEN an app package such as Site, Tasks, or CRM owns `formless.app.json`,
-  `schema.json`, and `seed-records.json`
+  `schema.json`, `seed-records.json`, and any package-local schema authoring
+  source
 - WHEN runtime code composes bundled package metadata, source schemas, or seed
   records
 - THEN it imports the package root or documented source JSON subpaths
@@ -91,6 +95,40 @@ adapters.
   for that app package
 - AND root `schema/apps/<packageAppKey>` source files are removed for extracted
   app packages
+
+### Requirement: App Package Schema Materialization
+
+An app package that uses TypeScript schema authoring SHALL materialize a
+data-only `schema.json` artifact without making TypeScript evaluation part of
+runtime package resolution.
+
+#### Scenario: Materialize an authored package schema
+
+- GIVEN an app package declares its schema in package-local TypeScript
+- WHEN the package schema materialization command runs
+- THEN it validates the declaration through the public Schema package contract
+- AND it writes the complete deterministic `schema.json` artifact owned by that
+  package
+- AND the artifact remains checked in and included in the package's public
+  files and source JSON export
+
+#### Scenario: Detect materialized schema drift
+
+- GIVEN an app package has TypeScript source, a materialized `schema.json`, and
+  a manifest `sourceSchemaHash`
+- WHEN package checks run
+- THEN they compare canonical schema data rather than source formatting
+- AND they fail when the declaration and JSON artifact differ
+- AND they fail when the JSON artifact and manifest source-schema hash differ
+
+#### Scenario: Keep authoring code outside runtime resolution
+
+- GIVEN Worker, workspace, install, archive, upgrade, or deploy code resolves an
+  app package schema
+- WHEN it loads the package source
+- THEN it consumes the exported `schema.json` artifact
+- AND it does not import or evaluate the TypeScript authoring module or its
+  materialization command
 
 ### Requirement: Minimal Package Documentation
 

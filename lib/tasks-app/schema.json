@@ -1,5 +1,4 @@
 {
-  "version": 1,
   "entities": {
     "task": {
       "label": "Task",
@@ -144,6 +143,40 @@
       }
     }
   },
+  "itemViews": {
+    "taskListItem": {
+      "entity": "task",
+      "fields": {
+        "title": {
+          "editor": "text",
+          "commit": "field-commit"
+        },
+        "dueDate": {
+          "editor": "date",
+          "commit": "field-commit",
+          "presentation": {
+            "visibility": "valueOrInteraction"
+          }
+        },
+        "priority": {
+          "editor": "enum",
+          "commit": "immediate",
+          "presentation": {
+            "list": "both",
+            "mode": "iconOnly",
+            "trigger": "icon"
+          }
+        },
+        "done": {
+          "editor": "boolean",
+          "commit": "immediate",
+          "presentation": {
+            "mode": "completion"
+          }
+        }
+      }
+    }
+  },
   "queries": {
     "taskAll": {
       "label": "All",
@@ -208,41 +241,28 @@
       }
     }
   },
-  "itemViews": {
-    "taskListItem": {
-      "entity": "task",
-      "fields": {
-        "title": {
-          "editor": "text",
-          "commit": "field-commit"
-        },
-        "dueDate": {
-          "editor": "date",
-          "commit": "field-commit",
-          "presentation": {
-            "visibility": "valueOrInteraction"
+  "screens": {
+    "taskHome": {
+      "type": "workspace",
+      "label": "Tasks",
+      "path": "/",
+      "navigation": {
+        "primary": true
+      },
+      "layout": {
+        "type": "stack",
+        "sections": [
+          {
+            "id": "tasks",
+            "type": "collection",
+            "view": "taskHome"
           }
-        },
-        "priority": {
-          "editor": "enum",
-          "commit": "immediate",
-          "presentation": {
-            "list": "both",
-            "mode": "iconOnly",
-            "trigger": "icon"
-          }
-        },
-        "done": {
-          "editor": "boolean",
-          "commit": "immediate",
-          "presentation": {
-            "mode": "completion"
-          }
-        }
+        ]
       }
     }
   },
   "tableViews": {},
+  "version": 1,
   "views": {
     "taskHome": {
       "type": "collection",
@@ -305,26 +325,6 @@
         "priority": {
           "editor": "enum"
         }
-      }
-    }
-  },
-  "screens": {
-    "taskHome": {
-      "type": "workspace",
-      "label": "Tasks",
-      "path": "/",
-      "navigation": {
-        "primary": true
-      },
-      "layout": {
-        "type": "stack",
-        "sections": [
-          {
-            "id": "tasks",
-            "type": "collection",
-            "view": "taskHome"
-          }
-        ]
       }
     }
   }

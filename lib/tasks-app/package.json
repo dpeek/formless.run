@@ -19,7 +19,6 @@
     "./seed-records.json": "./seed-records.json"
   },
   "publishConfig": {
-    "access": "public",
     "exports": {
       ".": {
         "types": "./dist/index.d.mts",
@@ -28,9 +27,18 @@
       "./formless.app.json": "./formless.app.json",
       "./schema.json": "./schema.json",
       "./seed-records.json": "./seed-records.json"
-    }
+    },
+    "access": "public"
   },
   "scripts": {
+    "check": "vp check --fix && vp test --configLoader runner",
+    "schema:materialize": "bun run scripts/materialize-schema.ts",
     "pack": "vp pack src/index.ts"
+  },
+  "dependencies": {
+    "@dpeek/formless-schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@dpeek/formless-installed-apps": "workspace:*"
   }
 }

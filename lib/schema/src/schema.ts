@@ -8,7 +8,12 @@ import { parseScreens } from "./schema-screens.ts";
 import { parseTableViews } from "./schema-table-views.ts";
 import { parseUnions } from "./schema-unions.ts";
 import { parseCollectionQueries, parseItemViews, parseViews } from "./schema-views.ts";
-import type { AppSchema } from "./types.ts";
+import type { AppSchema, AppSchemaSource } from "./types.ts";
+
+export function defineAppSchema<const Source extends AppSchemaSource>(source: Source): Source {
+  parseAppSchema(source);
+  return source;
+}
 
 export function parseAppSchema(value: unknown): AppSchema {
   if (!isRecord(value)) {
@@ -81,9 +86,20 @@ export function stringifySchema(schema: AppSchema) {
   return JSON.stringify(sourceSchemaForStringify(schema), null, 2);
 }
 
+export function formatAppSchemaSource(source: AppSchemaSource): string {
+  parseAppSchema(source);
+  return `${JSON.stringify(stableTopLevelSourceValue(source), null, 2)}\n`;
+}
+
 function sourceSchemaForStringify(schema: AppSchema): unknown {
   return {
     ...schema,
     entities: schema.entities,
   };
+}
+
+function stableTopLevelSourceValue(source: AppSchemaSource): unknown {
+  return Object.fromEntries(
+    Object.entries(source).sort(([left], [right]) => left.localeCompare(right)),
+  );
 }

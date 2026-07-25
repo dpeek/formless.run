@@ -20,6 +20,49 @@ The system SHALL provide source schemas for the current bundled schema keys `tas
 - **THEN** the app schema is available for that schema key
 - **AND** seed records can initialize records without being interpreted as change rows
 
+### Requirement: TypeScript Schema Authoring
+
+The system SHALL allow trusted package-local TypeScript to declare App schema
+source while keeping the materialized schema and parsed runtime model as
+data-only contracts.
+
+#### Scenario: Declare typed App schema source
+
+- GIVEN a package declares App schema source in trusted TypeScript
+- WHEN the source uses the public Schema package authoring contract
+- THEN the declaration is checked against an App schema source type that
+  represents parser input, including optional values for parser-owned defaults
+- AND the same runtime-neutral App schema parser validates the complete
+  declaration and its cross-references
+- AND successful authoring returns the original source data without
+  materializing parser defaults into it
+- AND the authoring contract introduces no filesystem, network, provider,
+  browser, Worker, or app-record dependency
+
+#### Scenario: Materialize TypeScript-authored source
+
+- GIVEN a package owns valid TypeScript-authored App schema source
+- WHEN its schema artifact is materialized
+- THEN the output is a deterministic plain JSON `schema.json` package artifact
+- AND the materialized artifact parses through the same App schema parser as a
+  hand-authored JSON schema
+- AND Worker, workspace, install, archive, upgrade, and deploy runtime paths
+  consume the data artifact without evaluating the TypeScript authoring module
+- AND the artifact contains no executable callback, import reference,
+  credential, provider object, or runtime implementation
+
+#### Scenario: Preserve source-schema hash semantics
+
+- GIVEN TypeScript-authored source omits a value for which parsing supplies a
+  runtime default
+- WHEN the package materializes and hashes its source schema
+- THEN materialization preserves the authored omission in the plain data
+  artifact
+- AND `sourceSchemaHash` is computed from that complete materialized source
+  data rather than from the parser-defaulted runtime model
+- AND package checks reject canonical drift between the TypeScript declaration,
+  the materialized artifact, and the manifest source-schema hash
+
 ### Requirement: App Package Source Manifests
 
 The system SHALL represent installable app package source metadata as app

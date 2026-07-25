@@ -210,6 +210,12 @@
     "lib/tasks-app": {
       "name": "@dpeek/formless-tasks-app",
       "version": "0.1.0",
+      "dependencies": {
+        "@dpeek/formless-schema": "workspace:*",
+      },
+      "devDependencies": {
+        "@dpeek/formless-installed-apps": "workspace:*",
+      },
     },
     "lib/workspace": {
       "name": "@dpeek/formless-workspace",
