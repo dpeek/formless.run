@@ -88,9 +88,10 @@ export type SitePublicOperationNode = {
   entityName: string;
   operationName: string;
   canonicalKey: string;
+  kind: "command" | "create" | "list";
   target?: SitePublicOperationTargetNode;
   route: string;
-  challenge: SitePublicOperationChallengeNode;
+  challenge?: SitePublicOperationChallengeNode;
   fields?: SitePublicOperationInputFieldNode[];
 };
 

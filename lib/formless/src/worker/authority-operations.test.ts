@@ -1994,6 +1994,175 @@ describe("authority operation execution", () => {
     });
   });
 
+  it("executes validated parameterized list queries with fixed filters, caps, and audit rows", async () => {
+    const bootstrap = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const schema = schemaWithParameterizedTaskLookup(bootstrap.body.result.body.schema);
+
+    await executeOperation({
+      method: "POST",
+      path: "/schema",
+      body: { schema },
+    });
+
+    const lookupTasks = [
+      {
+        idempotencyKey: "lookup-task-code",
+        input: {
+          title: "Verification code match",
+          done: false,
+          verificationCode: "CODE-ALPHA",
+          reportNumber: "COMMON",
+        },
+      },
+      {
+        idempotencyKey: "lookup-task-report",
+        input: {
+          title: "Report number match",
+          done: false,
+          verificationCode: "COMMON",
+          reportNumber: "REPORT-BETA",
+        },
+      },
+      {
+        idempotencyKey: "lookup-task-completed",
+        input: {
+          title: "Completed lookup match",
+          done: true,
+          verificationCode: "COMPLETED-ONLY",
+          reportNumber: "COMMON",
+        },
+      },
+      {
+        idempotencyKey: "lookup-task-cap",
+        input: {
+          title: "Third active common match",
+          done: false,
+          verificationCode: "COMMON",
+          reportNumber: "REPORT-DELTA",
+        },
+      },
+    ];
+
+    for (const task of lookupTasks) {
+      const created = await executeOperation<OperationInvocationResponse>({
+        method: "POST",
+        path: "/operations/task/create",
+        body: task,
+      });
+
+      expect(created.response.status).toBe(200);
+    }
+
+    const lookup = (value: string, invocationId: string) =>
+      executeOperation<OperationInvocationResponse>({
+        method: "POST",
+        path: "/operations/task/lookup",
+        body: {
+          input: { lookup: value },
+          invocationId,
+        },
+      });
+    const records = (response: Awaited<ReturnType<typeof lookup>>) => {
+      const output = response.body.result.body.output;
+
+      if (output.type !== "list") {
+        throw new Error("Expected parameterized list operation output.");
+      }
+
+      return output.records;
+    };
+    const byCode = await lookup("CODE-ALPHA", "operation:task.lookup:by-code");
+    const byReport = await lookup("REPORT-BETA", "operation:task.lookup:by-report");
+    const common = await lookup("COMMON", "operation:task.lookup:common");
+    const completedOnly = await lookup("COMPLETED-ONLY", "operation:task.lookup:completed-only");
+    const missing = await lookup("MISSING", "operation:task.lookup:missing");
+    const invalid = await executeOperationFailure({
+      method: "POST",
+      path: "/operations/task/lookup",
+      body: {
+        input: { lookup: 42 },
+        invocationId: "operation:task.lookup:invalid",
+      },
+    });
+    const lookupRows = (await readOperationInvocations()).filter(
+      (row) => row.operationKey === "task.lookup",
+    );
+    const byCodeRow = lookupRows.find(
+      (row) => row.invocationId === "operation:task.lookup:by-code",
+    );
+    const invalidRow = lookupRows.find(
+      (row) => row.invocationId === "operation:task.lookup:invalid",
+    );
+
+    expect(byCode.body.writes).toEqual([]);
+    expect(byCode.body.result.body.invocation.input).toEqual({
+      type: "list",
+      input: { lookup: "CODE-ALPHA" },
+    });
+    expect(records(byCode)).toHaveLength(1);
+    expect(records(byCode)[0]?.values).toMatchObject({
+      done: false,
+      verificationCode: "CODE-ALPHA",
+    });
+    expect(records(byReport)).toHaveLength(1);
+    expect(records(byReport)[0]?.values).toMatchObject({
+      done: false,
+      reportNumber: "REPORT-BETA",
+    });
+    expect(records(common)).toHaveLength(2);
+    expect(
+      records(common).every(
+        (record) =>
+          record.values.done === false &&
+          (record.values.verificationCode === "COMMON" || record.values.reportNumber === "COMMON"),
+      ),
+    ).toBe(true);
+    expect(records(completedOnly)).toEqual([]);
+    expect(records(missing)).toEqual([]);
+    expect(invalid.response.status).toBe(400);
+    expect(invalid.body).toEqual({
+      error: 'Operation input field "lookup" must be text.',
+      writes: [],
+    });
+    expect(lookupRows).toHaveLength(6);
+    expect(byCodeRow).toMatchObject({
+      affectedChangeIds: [],
+      auditInput: {
+        kind: "summary",
+        summary: {
+          inputFields: ["lookup"],
+          inputType: "object",
+          type: "list",
+        },
+      },
+      authDecision: "allowed",
+      operationKind: "list",
+      status: "accepted",
+    });
+    expect(byCodeRow?.statusHistory.map((entry) => entry.status)).toEqual(["accepted"]);
+    expect(byCodeRow?.inputHash).toMatch(/^fnv1a64:[a-f0-9]{16}$/);
+    expect(JSON.stringify(byCodeRow?.auditInput)).not.toContain("CODE-ALPHA");
+    expect(invalidRow).toMatchObject({
+      affectedChangeIds: [],
+      auditInput: {
+        kind: "summary",
+        summary: {
+          inputFields: ["lookup"],
+          inputType: "object",
+          type: "list",
+        },
+      },
+      authDecision: "allowed",
+      errorMessage: 'Operation input field "lookup" must be text.',
+      operationKind: "list",
+      status: "failed",
+    });
+    expect(invalidRow?.statusHistory.map((entry) => entry.status)).toEqual(["accepted", "failed"]);
+  });
+
   it("rejects operation policy before field validation or write notification", async () => {
     const bootstrap = await executeOperation<BootstrapResponse>({
       method: "GET",
@@ -2487,6 +2656,89 @@ function schemaWithOperationOnlyTaskCrud(sourceSchema: AppSchema): AppSchema {
       ...taskEntity.operations,
       ...recordCrudOperations("Task", taskEntity.fields),
       activeList: listOperation("taskActive"),
+    },
+  };
+
+  return schema;
+}
+
+function schemaWithParameterizedTaskLookup(sourceSchema: AppSchema): AppSchema {
+  const schema = cloneSchema(sourceSchema);
+  const taskEntity = requireEntity(schema, "task");
+  const taskFields = {
+    ...taskEntity.fields,
+    verificationCode: {
+      type: "text",
+      required: false,
+      label: "Verification code",
+    },
+    reportNumber: {
+      type: "text",
+      required: false,
+      label: "Report number",
+    },
+  } satisfies EntitySchema["fields"];
+
+  schema.queries.taskLookup = {
+    label: "Task lookup",
+    entity: "task",
+    expression: {
+      kind: "and",
+      expressions: [
+        {
+          kind: "where",
+          ref: { kind: "value", name: "done" },
+          op: "eq",
+          value: false,
+        },
+        {
+          kind: "or",
+          expressions: [
+            {
+              kind: "where",
+              ref: { kind: "value", name: "verificationCode" },
+              op: "eq",
+              value: { kind: "context", name: "lookup" },
+            },
+            {
+              kind: "where",
+              ref: { kind: "value", name: "reportNumber" },
+              op: "eq",
+              value: { kind: "context", name: "lookup" },
+            },
+          ],
+        },
+      ],
+    },
+  };
+  schema.entities.task = {
+    ...taskEntity,
+    fields: taskFields,
+    operations: {
+      ...taskEntity.operations,
+      ...recordCrudOperations("Task", taskFields),
+      lookup: {
+        label: "Lookup tasks",
+        kind: "list",
+        scope: "collection",
+        target: { query: "taskLookup" },
+        input: {
+          fields: {
+            lookup: {
+              type: "text",
+              required: true,
+              label: "Lookup",
+            },
+          },
+        },
+        output: {
+          type: "list",
+          query: "taskLookup",
+          maxResults: 2,
+        },
+        idempotency: { required: false },
+        audit: { input: "summary" },
+      },
     },
   };
 

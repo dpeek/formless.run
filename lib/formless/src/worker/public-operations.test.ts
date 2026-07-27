@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 import type { StoredRecord } from "@dpeek/formless-storage";
+import type { AppSchema } from "@dpeek/formless-schema";
 import { INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID } from "@dpeek/formless-instance-control-plane";
 import type {
   BootstrapResponse,
@@ -245,6 +246,118 @@ describe("public operation runtime", () => {
         values: expect.objectContaining({ contactConsent: true }),
       }),
     ]);
+  });
+
+  it("executes bounded challenge-free public reads with filtered rows and rate limits", async () => {
+    await installTaskPublicLookupSchema();
+    await postAdminRecordOperation(
+      {
+        idempotencyKey: "create-public-lookup-task-alpha",
+        entity: "task",
+        operationName: "create",
+        input: {
+          title: "Alpha certificate",
+          done: false,
+          verificationCode: "CODE-ALPHA",
+          reportNumber: "REPORT-1",
+          publicDeliveryReference: "delivery-alpha",
+          customerName: "Private customer",
+          providerStorageKey: "private/alpha.pdf",
+        },
+      },
+      harness,
+      "/api/tasks",
+    );
+    await postAdminRecordOperation(
+      {
+        idempotencyKey: "create-public-lookup-task-second",
+        entity: "task",
+        operationName: "create",
+        input: {
+          title: "Second certificate",
+          done: false,
+          verificationCode: "CODE-ALPHA",
+          reportNumber: "REPORT-2",
+          publicDeliveryReference: "delivery-second",
+          customerName: "Second private customer",
+          providerStorageKey: "private/second.pdf",
+        },
+      },
+      harness,
+      "/api/tasks",
+    );
+    const before = await getJson<BootstrapResponse>("/api/tasks/bootstrap");
+    const matched = await postPublicOperation(
+      "/api/tasks/public/operations/task/lookup",
+      {
+        input: { lookup: "CODE-ALPHA" },
+      },
+      harness,
+      { "CF-Connecting-IP": "203.0.113.77" },
+    );
+    const empty = await postPublicOperation(
+      "/api/tasks/public/operations/task/lookup",
+      {
+        input: { lookup: "NO-MATCH" },
+      },
+      harness,
+      { "CF-Connecting-IP": "203.0.113.77" },
+    );
+    const limited = await postPublicOperation(
+      "/api/tasks/public/operations/task/lookup",
+      {
+        input: { lookup: "CODE-ALPHA" },
+      },
+      harness,
+      { "CF-Connecting-IP": "203.0.113.77" },
+    );
+    const after = await getJson<BootstrapResponse>("/api/tasks/bootstrap");
+    const matchedBody = (await matched.json()) as Record<string, unknown>;
+    const emptyBody = (await empty.json()) as Record<string, unknown>;
+
+    expect(matched.status).toBe(200);
+    expect(matchedBody).toMatchObject({
+      operation: {
+        entityName: "task",
+        operationName: "lookup",
+        canonicalKey: "task.lookup",
+        kind: "list",
+      },
+      output: {
+        type: "list",
+        records: [
+          {
+            verificationCode: "CODE-ALPHA",
+            reportNumber: "REPORT-1",
+            publicDeliveryReference: "delivery-alpha",
+          },
+        ],
+      },
+      status: "accepted",
+    });
+    expect(empty.status).toBe(200);
+    expect(emptyBody).toMatchObject({
+      output: {
+        type: "list",
+        records: [],
+      },
+      status: "accepted",
+    });
+    expect(limited.status).toBe(429);
+    expect(Number(limited.headers.get("Retry-After"))).toBeGreaterThan(0);
+    expect(await limited.json()).toEqual({
+      error: "Public operation rate limit exceeded.",
+    });
+    expect(after.records).toEqual(before.records);
+    expect(turnstileRequests).toEqual([]);
+
+    const serialized = JSON.stringify(matchedBody);
+    expect(serialized).not.toContain("Private customer");
+    expect(serialized).not.toContain("private/alpha.pdf");
+    expect(serialized).not.toContain(
+      before.records.find((record) => record.values.verificationCode === "CODE-ALPHA")?.id ??
+        "missing-private-record-id",
+    );
   });
 
   it("schedules generic operation input notifications from installed Site forms targeting another app install", async () => {
@@ -550,6 +663,141 @@ async function installAffirmativePublicIntakeSchema(
   await postAdminJson<SchemaUpdateResponse>(`${apiPrefix}/schema`, { schema }, target);
 }
 
+async function installTaskPublicLookupSchema() {
+  const current = await getJson<SchemaResponse>("/api/tasks/schema");
+
+  await postAdminJson<SchemaUpdateResponse>("/api/tasks/schema", {
+    schema: schemaWithPublicTaskLookup(current.schema),
+  });
+}
+
+function schemaWithPublicTaskLookup(sourceSchema: AppSchema): AppSchema {
+  const schema = structuredClone(sourceSchema);
+  const task = schema.entities.task;
+  const create = task?.operations?.create;
+
+  if (!task || !create?.input) {
+    throw new Error("Expected Task create operation.");
+  }
+
+  const fields = {
+    ...task.fields,
+    verificationCode: {
+      type: "text" as const,
+      required: false,
+      label: "Verification code",
+    },
+    reportNumber: {
+      type: "text" as const,
+      required: false,
+      label: "Report number",
+    },
+    publicDeliveryReference: {
+      type: "text" as const,
+      required: false,
+      label: "Public delivery reference",
+    },
+    customerName: {
+      type: "text" as const,
+      required: false,
+      label: "Customer name",
+    },
+    providerStorageKey: {
+      type: "text" as const,
+      required: false,
+      label: "Provider storage key",
+    },
+  };
+
+  schema.queries.publicTaskLookup = {
+    label: "Public task lookup",
+    entity: "task",
+    expression: {
+      kind: "and",
+      expressions: [
+        {
+          kind: "where",
+          ref: { kind: "value", name: "done" },
+          op: "eq",
+          value: false,
+        },
+        {
+          kind: "or",
+          expressions: [
+            {
+              kind: "where",
+              ref: { kind: "value", name: "verificationCode" },
+              op: "eq",
+              value: { kind: "context", name: "lookup" },
+            },
+            {
+              kind: "where",
+              ref: { kind: "value", name: "reportNumber" },
+              op: "eq",
+              value: { kind: "context", name: "lookup" },
+            },
+          ],
+        },
+      ],
+    },
+  };
+  schema.entities.task = {
+    ...task,
+    fields,
+    operations: {
+      ...task.operations,
+      create: {
+        ...create,
+        input: {
+          fields: {
+            ...create.input.fields,
+            verificationCode: { field: "verificationCode" },
+            reportNumber: { field: "reportNumber" },
+            publicDeliveryReference: { field: "publicDeliveryReference" },
+            customerName: { field: "customerName" },
+            providerStorageKey: { field: "providerStorageKey" },
+          },
+        },
+      },
+      lookup: {
+        label: "Lookup certificate",
+        kind: "list",
+        scope: "collection",
+        target: { query: "publicTaskLookup" },
+        input: {
+          fields: {
+            lookup: {
+              type: "text",
+              required: true,
+              label: "Verification code or report number",
+            },
+          },
+        },
+        output: {
+          type: "list",
+          query: "publicTaskLookup",
+          maxResults: 1,
+        },
+        idempotency: { required: false },
+        audit: { input: "summary" },
+        policy: {
+          actors: ["anonymous"],
+          access: {
+            actor: "anonymous",
+            origin: { kind: "same-origin" },
+            rateLimit: { maxRequests: 2, windowSeconds: 60 },
+          },
+          responseFields: {
+            anonymous: ["verificationCode", "reportNumber", "publicDeliveryReference"],
+          },
+        },
+      },
+    },
+  };
+
+  return schema;
+}
+
 function publicSubscribeBody(input: {
   idempotencyKey: string;
   input?: Record<string, unknown>;
@@ -776,12 +1024,18 @@ async function createMappedPublicSiteRoute(target: Harness, host: string, appIns
   );
 }
 
-function postPublicOperation(path: string, body: unknown, target: Harness = harness) {
+function postPublicOperation(
+  path: string,
+  body: unknown,
+  target: Harness = harness,
+  headers: Record<string, string> = {},
+) {
   return target.fetch(path, {
     body: JSON.stringify(body),
     headers: {
       "Content-Type": "application/json",
       Origin: "http://example.com",
+      ...headers,
     },
     method: "POST",
   });

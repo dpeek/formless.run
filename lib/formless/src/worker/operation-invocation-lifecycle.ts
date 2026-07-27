@@ -86,7 +86,10 @@ export async function executePublicOperationInvocationLifecycle(input: {
   try {
     await input.beforeReplay();
 
-    const replay = recordStoredOperationInvocationReplay(input.storage, input.envelope);
+    const replay =
+      input.envelope.idempotency.writeIdentity === undefined
+        ? undefined
+        : recordStoredOperationInvocationReplay(input.storage, input.envelope);
 
     if (replay) {
       return replay;

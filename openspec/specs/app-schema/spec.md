@@ -476,6 +476,33 @@ The system SHALL let collection views select records through schema-declared que
 - THEN matching records can be ordered through the declared rank field
 - AND `list`, `table`, and `tree` results honor result-level ordering
 
+#### Scenario: Bind list operation input into query context
+
+- GIVEN a list operation declares required scalar input and references a query
+  whose equality predicates use context values
+- WHEN the operation is parsed and invoked
+- THEN validated input values are available to query evaluation by declared
+  operation input name
+- AND text, boolean, date, number, and enum input values can satisfy compatible
+  equality predicates over entity value fields
+- AND callers cannot supply a query name, entity name, field reference,
+  expression, ordering, projection, or result limit
+
+#### Scenario: Constrain anonymous list lookup
+
+- GIVEN a list operation declares anonymous public access
+- WHEN the schema is parsed
+- THEN its output declares a positive `maxResults` within the parser-owned
+  public read ceiling
+- AND every matching path through the referenced query contains an exact
+  equality predicate bound to a required declared scalar input
+- AND `responseFields.anonymous` declares one or more value fields on the query
+  entity
+- AND a query branch that can match without required input equality, an
+  undeclared context value, a system-field response, an empty response
+  projection, or an unbounded output is rejected
+- AND these constraints do not expose a generic app query or listing interface
+
 ### Requirement: Screens And Navigation
 
 The system SHALL let app schemas define workspace screens that compose collection views and own app-relative navigation when primary screens exist.
@@ -723,7 +750,7 @@ public forms, automation, audit, and authorization.
 - AND response field filters may be keyed by each declared actor kind
 - AND response field filters select command output payload field names,
   including fields written by record-plan steps whose entity differs from the
-  operation entity
+  operation entity, or value fields projected from public list results
 - AND anonymous public access still requires the explicit anonymous operation
   access policy and public input contract
 
@@ -734,8 +761,8 @@ public forms, automation, audit, and authorization.
 - THEN the referenced field must exist on the containing entity
 - AND field behavior, validation, labels, defaults, and generated editor facts
   can be reused for that operation input
-- AND inline scalar input fields can be declared for command-only input that is
-  not stored directly on the target record
+- AND inline scalar input fields can be declared for command or list input that
+  is not stored directly on the target record
 
 #### Scenario: Declare affirmative boolean operation input
 
@@ -829,7 +856,8 @@ public forms, automation, audit, and authorization.
 
 - GIVEN an entity operation declares an output contract
 - WHEN the schema is parsed
-- THEN `list` operations return records selected by the referenced query
+- THEN `list` operations return records selected by the referenced query up to
+  the declared `maxResults` when present
 - AND `get` operations return one active record selected by record id
 - AND `create` operations return the created record plus affected change ids
 - AND `update` operations return the updated record plus affected change ids
@@ -934,7 +962,7 @@ operation input contracts, and public operation bindings only.
 #### Scenario: Reject unsupported public operation policy
 
 - GIVEN an app schema declares a public operation policy with an unsupported
-  actor mode, challenge, or origin rule
+  actor mode, challenge, origin rule, or rate limit
 - WHEN the schema is parsed
 - THEN parsing fails
 - AND the invalid app schema is not used for generated UI or writes
@@ -945,11 +973,22 @@ operation input contracts, and public operation bindings only.
   decide whether an operation is eligible for anonymous public execution
 - WHEN public operation eligibility is selected
 - THEN the decision is derived from schema-owned operation facts including
-  operation kind, effect, output contract, actor policy, access challenge, and
-  origin policy
+  operation kind, effect, output contract, actor policy, optional access
+  challenge, origin policy, and rate-limit policy
 - AND target route resolution, app storage identity, runtime challenge
-  configuration, provider secrets, request origin evaluation, storage writes,
-  and delivery side effects are not schema facts
+  configuration, provider secrets, request origin evaluation, rate-limit
+  counters, storage writes, and delivery side effects are not schema facts
+
+#### Scenario: Declare challenge-free anonymous list access
+
+- GIVEN an anonymous list operation is an exact input-constrained lookup with
+  bounded output and explicit anonymous response fields
+- WHEN its access policy is parsed
+- THEN the policy requires same-origin access and an explicit rate limit with
+  positive `maxRequests` and `windowSeconds`
+- AND the policy may omit an interactive challenge
+- AND anonymous create and command operations continue to require a Turnstile
+  challenge
 
 #### Scenario: Export operation-named public contracts
 

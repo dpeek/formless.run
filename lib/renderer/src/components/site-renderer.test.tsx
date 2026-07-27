@@ -959,6 +959,7 @@ function genericPublicOperation(
     entityName: "request",
     operationName: "submit",
     canonicalKey: "request.submit",
+    kind: "command",
     route: "/api/site/public/operations/request/submit",
     challenge: {
       kind: "turnstile",
@@ -978,6 +979,7 @@ function fixedPublicOperation(
     entityName,
     operationName,
     canonicalKey: `${entityName}.${operationName}`,
+    kind: kind === "subscribe" ? "command" : "create",
     route: `/api/site/public/operations/${entityName}/${operationName}`,
     challenge: {
       kind: "turnstile",

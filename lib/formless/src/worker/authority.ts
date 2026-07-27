@@ -606,7 +606,7 @@ export class FormlessAuthority extends DurableObject<Env> {
       return jsonResponse({ error: "Not found." }, 404);
     } catch (error) {
       if (error instanceof PublicOperationError) {
-        return jsonResponse({ error: error.message }, error.status);
+        return jsonResponse({ error: error.message }, error.status, error.headers);
       }
 
       if (error instanceof BadRequestError) {

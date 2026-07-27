@@ -4,7 +4,7 @@
 
 Public operation bindings execute schema-declared entity operations for public
 callers through narrow target-scoped routes while preserving protected operation
-write APIs.
+and generic app APIs.
 
 ## Requirements
 
@@ -18,7 +18,8 @@ through an explicit actor policy and public binding.
 - GIVEN a schema-declared operation can be invoked by an anonymous actor
 - WHEN public execution models are selected
 - THEN the public form, target-scoped route, challenge requirement, origin rule,
-  and response filtering are public bindings or operation policy facts
+  rate-limit rule, and response filtering are public bindings or operation
+  policy facts
 - AND those facts do not redefine the operation input, output, effect,
   idempotency, audit, or app storage identity
 - AND public access remains part of the operation interaction model
@@ -58,16 +59,17 @@ through an explicit actor policy and public binding.
 - THEN it consumes the schema-owned public operation eligibility facts for the
   declared operation
 - AND target route resolution, request origin evaluation, Turnstile secret
-  verification, app storage identity selection, Authority writes, audit rows,
-  idempotency, and post-commit delivery side effects remain runtime-owned
+  verification, rate-limit counters, app storage identity selection, Authority
+  reads or writes, audit rows, idempotency, and post-commit delivery side
+  effects remain runtime-owned
 
 #### Scenario: Execute public operations
 
 - GIVEN an entity operation declares anonymous public policy
 - WHEN public execution models are selected
 - THEN public execution invokes the operation envelope and policy model
-- AND public command execution returns operation-native public output rather
-  than adapter-private materialization metadata
+- AND public read, create, and command execution returns operation-native public
+  output rather than adapter-private storage or materialization metadata
 
 #### Scenario: Execute public create operation
 
@@ -92,6 +94,25 @@ through an explicit actor policy and public binding.
 - AND no operation effects are committed
 - AND ordinary required boolean operation inputs without `mustBeTrue` continue
   to accept explicit `false`
+
+#### Scenario: Execute parameterized public list operation
+
+- GIVEN an app declares an anonymous list operation whose input-constrained
+  query, `maxResults`, same-origin rule, rate limit, and anonymous response
+  fields satisfy public read policy
+- WHEN a visitor posts declared scalar lookup input to the target-scoped public
+  operation route
+- THEN the executor validates the declared input and binds it into the
+  operation query context by input name
+- AND query evaluation performs only the source-declared exact lookup and
+  returns no more than `maxResults`
+- AND each public result contains only the explicitly declared anonymous
+  response value fields
+- AND record ids, entity names, system timestamps, undeclared values, customer
+  fields, order fields, query definitions, and generic app records are excluded
+- AND the lookup commits no app record changes and does not run post-commit
+  write side effects
+- AND no match returns an empty public result rather than a generic listing
 
 #### Scenario: Public contact notification side effect
 
@@ -236,6 +257,15 @@ operation endpoints.
 - AND the unavailable response does not expose whether a protected generic write
   route exists for the same entity
 
+#### Scenario: Public list route does not become a query API
+
+- GIVEN a visitor posts to a declared public list operation route
+- WHEN the request includes an entity, query, expression, field selection,
+  ordering, projection, or result limit not declared by the source operation
+- THEN the request is rejected as invalid public input
+- AND the runtime does not expose generic app listing, record get, query, or
+  projection behavior through the public route
+
 ### Requirement: Public Operation Execution Envelope
 
 The system SHALL normalize each public operation request into an operation
@@ -247,12 +277,14 @@ invocation envelope before validating input or committing effects.
 - WHEN the public operation executor builds the envelope
 - THEN the envelope includes actor mode `anonymous`, target app storage identity,
   canonical operation key, request host, request path, source block id when
-  supplied, public input, proof data, idempotency key, and received timestamp
-- AND the public executor builds an auditable unverified envelope before proof
-  parsing or challenge verification using only request source facts, public
-  input, idempotency, and received timestamp
-- AND verified public execution rebuilds the envelope through the same public
-  source-kind boundary with verified proof facts before Authority execution
+  supplied, public input, received timestamp, and proof or idempotency facts
+  only when required by the operation policy
+- AND the public executor builds an auditable public envelope from request
+  source facts, public input, optional idempotency, and received timestamp
+  before optional challenge verification
+- AND challenge-protected public execution rebuilds the envelope through the
+  same public source-kind boundary with verified proof facts before Authority
+  execution
 
 #### Scenario: Source context is preserved
 
@@ -279,9 +311,10 @@ invocation envelope before validating input or committing effects.
 
 - GIVEN browser code submits a public operation from a public form
 - WHEN the browser client helper builds the request body
-- THEN the body contains submitted public input values, a
-  `proof.turnstileToken` value, optional `source.siteBlockId`, and optional
+- THEN the body contains submitted public input values, optional
+  `proof.turnstileToken`, optional `source.siteBlockId`, and optional
   idempotency key using the public operation request envelope
+- AND proof and idempotency are omitted for a challenge-free public read
 - AND generated public operation forms may resolve controlled operation drafts
   into flat public input values before calling the browser client helper
 - AND product-specific forms remain responsible for mapping their own UI fields
@@ -292,7 +325,8 @@ invocation envelope before validating input or committing effects.
 - GIVEN browser code receives a public operation JSON response
 - WHEN the browser client helper validates the response
 - THEN it accepts committed or replayed public operation responses with command
-  or create output shapes
+  or create output shapes and accepted public list responses with projected
+  result rows
 - AND it rejects malformed responses before product-specific form UI treats the
   submission as successful
 - AND public-safe `{ error: string }` response bodies are extracted through one
@@ -301,8 +335,8 @@ invocation envelope before validating input or committing effects.
 #### Scenario: Rejected public attempt is auditable
 
 - GIVEN a target-scoped public operation route resolves a declared operation
-- WHEN anonymous policy, input validation, origin validation, or challenge
-  validation rejects the request
+- WHEN anonymous policy, rate-limit evaluation, input validation, origin
+  validation, or challenge validation rejects the request
 - THEN the operation invocation audit records anonymous actor, rejected or
   failed status, target app storage identity, canonical operation key, source
   host and path, idempotency facts when available, and safe input metadata
@@ -312,8 +346,8 @@ invocation envelope before validating input or committing effects.
 #### Scenario: Public execution uses invocation lifecycle
 
 - GIVEN a target-scoped public operation route resolves a declared operation
-- WHEN the public runtime evaluates origin, input, challenge, replay, and
-  operation execution
+- WHEN the public runtime evaluates origin, rate limit, input, optional
+  challenge, optional replay, and operation execution
 - THEN accepted, rejected, failed, replayed, and committed invocation statuses
   are recorded through the shared operation invocation lifecycle
 - AND target route resolution, request URL fact selection, challenge proof
@@ -326,11 +360,11 @@ invocation envelope before validating input or committing effects.
 - GIVEN a target-scoped public operation route resolves a declared operation
 - WHEN the public operation executor evaluates the request
 - THEN the executor stages operation selection, public request envelope parsing,
-  idempotency derivation, auditable unverified public source-kind envelope
-  construction, origin evaluation, input and proof validation, replay detection,
-  challenge verification, verified public source-kind envelope construction,
-  Authority execution, public response filtering, and after-commit side effects
-  in that order
+  auditable public source-kind envelope construction, origin evaluation,
+  rate-limit evaluation, input validation, optional proof validation, optional
+  idempotency derivation and replay detection, optional challenge verification,
+  Authority execution, public response filtering, and write-only after-commit
+  side effects in that order
 - AND each stage receives only the public request facts, schema facts, storage
   facts, challenge adapter, lifecycle adapter, Authority execution adapter,
   public response adapter, or after-commit adapter it needs
@@ -338,8 +372,9 @@ invocation envelope before validating input or committing effects.
   handling, Turnstile Siteverify provider details, invocation lifecycle rows,
   durable app writes, notification scheduling, and public response shaping
   remain explicit runtime adapters
-- AND failed origin, input, proof, challenge, or execution stages preserve the
-  existing public-safe error, audit, replay, and no-partial-write behavior
+- AND failed origin, rate-limit, input, proof, challenge, or execution stages
+  preserve public-safe errors, audit behavior, replay behavior where
+  applicable, and no-partial-write behavior
 
 ### Requirement: Public Operation Module Contract
 
@@ -364,8 +399,9 @@ a small real-workerd contract portfolio.
 
 #### Scenario: Concrete owned adapter behavior stays local
 
-- GIVEN Turnstile verification, public response shaping, contact notification,
-  or public operation input notification behavior is evaluated
+- GIVEN Turnstile verification, rate-limit evaluation, public response shaping,
+  contact notification, or public operation input notification behavior is
+  evaluated
 - WHEN provider responses, missing configuration, delivery outcomes, filtering,
   or failure containment are exercised
 - THEN the concrete owning Module exposes a Formless-owned Adapter boundary for
@@ -448,6 +484,43 @@ input contract before challenge verification commits records.
 - AND server-side public operation input validation still validates the request
   before challenge verification or successful outcome reservation
 
+### Requirement: Public Read Access Policy
+
+The system SHALL allow bounded anonymous public list operations to use strict
+same-origin and rate-limit policy without requiring an interactive Turnstile
+challenge.
+
+#### Scenario: Require same-origin public read
+
+- GIVEN an anonymous public list operation omits a challenge
+- WHEN its public request is evaluated
+- THEN the request must include an origin matching the effective public request
+  origin
+- AND a missing, malformed, or mismatched origin is rejected before input
+  validation or query evaluation
+
+#### Scenario: Apply declared public read rate limit
+
+- GIVEN an anonymous public list operation declares positive `maxRequests` and
+  `windowSeconds`
+- WHEN a same-origin request resolves that operation
+- THEN the runtime consumes an attempt before input validation or query
+  evaluation
+- AND the counter is scoped by target app storage identity, canonical operation
+  key, and a privacy-safe key derived from trusted client network facts
+- AND the counter does not store submitted lookup values, response fields, or
+  challenge secrets
+- AND an exhausted limit returns a public-safe `429` response with retry timing
+  without evaluating the query
+
+#### Scenario: Reject unsafe challenge-free public operation
+
+- GIVEN an anonymous public operation omits a Turnstile challenge
+- WHEN it is a create, command, unbounded list, input-unconstrained list, or
+  list without explicit anonymous response fields and rate-limit policy
+- THEN schema parsing rejects the operation
+- AND the operation is unavailable through public routes
+
 ### Requirement: Turnstile Challenge
 
 The system SHALL support Turnstile as an anonymous public operation challenge.
@@ -504,6 +577,18 @@ keys and server-side verification secrets.
 - THEN the public widget site key may be included for browser rendering
 - AND the secret key is not included
 
+#### Scenario: Project Site binding by challenge policy
+
+- GIVEN a generic public Site form references an anonymous public operation
+- WHEN the Site tree projects its browser binding
+- THEN a challenge-free bounded list operation is projected without requiring or
+  exposing a Turnstile site key
+- AND its browser session submits declared input without proof or idempotency and
+  exposes only response-guarded projected list rows to product-specific
+  presentation
+- AND public create and command bindings continue to require and project the
+  configured Turnstile site key
+
 #### Scenario: Missing challenge configuration fails closed
 
 - GIVEN a public operation requires Turnstile
@@ -513,7 +598,8 @@ keys and server-side verification secrets.
 
 ### Requirement: Public Operation Idempotency
 
-The system SHALL make public operation execution replay-safe for client retries.
+The system SHALL make public write operation execution replay-safe for client
+retries while keeping public reads free of successful outcome reservation.
 
 #### Scenario: Replay same idempotency key
 
@@ -522,6 +608,13 @@ The system SHALL make public operation execution replay-safe for client retries.
 - WHEN the replay is accepted
 - THEN the runtime returns the existing accepted outcome
 - AND duplicate records are not created
+
+#### Scenario: Public read does not reserve outcome
+
+- GIVEN a challenge-free public list operation is invoked
+- WHEN the exact lookup succeeds or returns no match
+- THEN execution does not require an idempotency key
+- AND the read result is not stored as a replayable successful write outcome
 
 #### Scenario: Failed request does not reserve successful outcome
 

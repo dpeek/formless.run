@@ -66,6 +66,18 @@ describe("schema public operation facts", () => {
             actors: ["anonymous"],
             access: {
               actor: "anonymous",
+              origin: { kind: "same-origin" },
+            },
+          },
+        }),
+        message: "anonymous command access requires a Turnstile challenge",
+      },
+      {
+        operation: publicHandlerOperation({
+          policy: {
+            actors: ["anonymous"],
+            access: {
+              actor: "anonymous",
               challenge: { kind: "turnstile" },
               origin: { kind: "any" },
             },

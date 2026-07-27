@@ -2,6 +2,11 @@ import { describe, expect, it } from "vite-plus/test";
 import rawSiteSourceSchema from "../schema.json";
 import { parseAppSchema, type AppSchema, type EntityOperationSchema } from "@dpeek/formless-schema";
 import {
+  buildPublicOperationRequestBody,
+  isPublicOperationListResponse,
+  submitPublicOperationJson,
+} from "@dpeek/formless-public-operations";
+import {
   projectSitePublicOperationBlock,
   type SitePublicOperationTargetRequest,
   type SitePublicOperationTargetResolver,
@@ -39,6 +44,7 @@ describe("site public operation block projection", () => {
       entityName: "subscription",
       operationName: "subscribe",
       canonicalKey: "subscription.subscribe",
+      kind: "command",
       route: "/api/app-installs/site/site/public/operations/subscription/subscribe",
       challenge: {
         kind: "turnstile",
@@ -49,6 +55,7 @@ describe("site public operation block projection", () => {
       entityName: "contact-message",
       operationName: "submit",
       canonicalKey: "contact-message.submit",
+      kind: "create",
       route: "/api/app-installs/site/site/public/operations/contact-message/submit",
       challenge: {
         kind: "turnstile",
@@ -92,6 +99,7 @@ describe("site public operation block projection", () => {
       entityName: "subscription",
       operationName: "subscribe",
       canonicalKey: "subscription.subscribe",
+      kind: "command",
       target: {
         kind: "appInstall",
         packageAppKey: "crm",
@@ -132,6 +140,7 @@ describe("site public operation block projection", () => {
       entityName: "request",
       operationName: "submit",
       canonicalKey: "request.submit",
+      kind: "create",
       target: {
         kind: "schemaKey",
         schemaKey: "tasks",
@@ -210,6 +219,96 @@ describe("site public operation block projection", () => {
       ],
     });
     expect(result.warnings).toEqual([]);
+  });
+
+  it("projects challenge-free public list bindings for product-specific lookup clients", async () => {
+    const result = projectRecord(
+      blockRecord("rec_site_block_certificate_lookup", {
+        type: "publicOperationForm",
+        label: "Verify certificate",
+        operationTargetKind: "schemaKey",
+        operationTargetSchemaKey: "verifi",
+        operationKey: "certificate.lookup",
+      }),
+      {
+        publicOperationTargetResolver: publicOperationTargetResolver({
+          verifi: publicCertificateLookupSchema,
+        }),
+      },
+    );
+
+    expect(result.publicOperation).toEqual({
+      entityName: "certificate",
+      operationName: "lookup",
+      canonicalKey: "certificate.lookup",
+      kind: "list",
+      target: {
+        kind: "schemaKey",
+        schemaKey: "verifi",
+        apiRoutePrefix: "/api/verifi",
+      },
+      route: "/api/verifi/public/operations/certificate/lookup",
+      fields: [
+        {
+          name: "lookup",
+          label: "Verification code",
+          required: true,
+          control: "text",
+        },
+      ],
+    });
+    expect(result.warnings).toEqual([]);
+
+    const binding = result.publicOperation;
+
+    if (!binding) {
+      throw new Error("Expected projected public certificate lookup binding.");
+    }
+
+    const body = buildPublicOperationRequestBody({
+      input: { lookup: "CODE-ALPHA" },
+      siteBlockId: "rec_site_block_certificate_lookup",
+    });
+    const response = await submitPublicOperationJson({
+      body,
+      fetcher: async () =>
+        Response.json({
+          invocationId: "operation:certificate.lookup:read-1",
+          operation: {
+            entityName: "certificate",
+            operationName: "lookup",
+            canonicalKey: "certificate.lookup",
+            kind: "list",
+          },
+          output: {
+            type: "list",
+            records: [
+              {
+                verificationCode: "CODE-ALPHA",
+                reportNumber: "REPORT-1",
+                publicDeliveryReference: "delivery-alpha",
+              },
+            ],
+          },
+          status: "accepted",
+        }),
+      responseGuard: isPublicOperationListResponse,
+      route: binding.route,
+    });
+
+    expect(body).toEqual({
+      input: { lookup: "CODE-ALPHA" },
+      source: { siteBlockId: "rec_site_block_certificate_lookup" },
+    });
+    expect(response.output.records).toEqual([
+      {
+        verificationCode: "CODE-ALPHA",
+        reportNumber: "REPORT-1",
+        publicDeliveryReference: "delivery-alpha",
+      },
+    ]);
+    expect(JSON.stringify(response)).not.toContain("customerName");
+    expect(JSON.stringify(response)).not.toContain("providerStorageKey");
   });
 
   it("projects generic installed app public operation targets", () => {
@@ -814,6 +913,90 @@ const publicIntakeSchema = {
     },
   },
   queries: {},
+  itemViews: {},
+  tableViews: {},
+  views: {},
+} satisfies AppSchema;
+
+const publicCertificateLookupSchema = {
+  version: 1,
+  entities: {
+    certificate: {
+      label: "Certificate",
+      fields: {
+        verificationCode: {
+          type: "text",
+          required: true,
+          label: "Verification code",
+        },
+        reportNumber: {
+          type: "text",
+          required: true,
+          label: "Report number",
+        },
+        publicDeliveryReference: {
+          type: "text",
+          required: true,
+          label: "Public delivery reference",
+        },
+        customerName: {
+          type: "text",
+          required: true,
+          label: "Customer",
+        },
+        providerStorageKey: {
+          type: "text",
+          required: true,
+          label: "Provider storage key",
+        },
+      },
+      operations: {
+        lookup: {
+          kind: "list",
+          scope: "collection",
+          input: {
+            fields: {
+              lookup: {
+                type: "text",
+                required: true,
+                label: "Verification code",
+              },
+            },
+          },
+          output: {
+            type: "list",
+            query: "certificateLookup",
+            maxResults: 2,
+          },
+          idempotency: { required: false },
+          audit: { input: "summary" },
+          policy: {
+            actors: ["anonymous"],
+            access: {
+              actor: "anonymous",
+              origin: { kind: "same-origin" },
+              rateLimit: { maxRequests: 10, windowSeconds: 60 },
+            },
+            responseFields: {
+              anonymous: ["verificationCode", "reportNumber", "publicDeliveryReference"],
+            },
+          },
+        },
+      },
+    },
+  },
+  queries: {
+    certificateLookup: {
+      label: "Certificate lookup",
+      entity: "certificate",
+      expression: {
+        kind: "where",
+        ref: { kind: "value", name: "verificationCode" },
+        op: "eq",
+        value: { kind: "context", name: "lookup" },
+      },
+    },
+  },
   itemViews: {},
   tableViews: {},
   views: {},

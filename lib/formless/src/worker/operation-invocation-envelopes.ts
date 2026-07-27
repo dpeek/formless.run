@@ -64,7 +64,8 @@ export type VerifiedPublicOperationProofFacts = {
 };
 
 type PublicOperationInvocationBuildInput = OperationInvocationBuildBase & {
-  idempotencyKey: string;
+  idempotencyKey?: string;
+  invocationId?: string;
   publicInput: unknown;
   route: Pick<EntityOperationRoute, "entityName" | "operationName">;
   source: PublicOperationInvocationSourceFacts;
@@ -215,22 +216,28 @@ function publicOperationInvocationEnvelope(
 ): OperationInvocationEnvelope {
   const { operation } = requireOperation(input.schema, input.route);
   const canonicalKey = operationCanonicalKey(input.route);
-  const idempotencyKey = parseNonEmptyString(
+  const idempotencyKey = parseOptionalNonEmptyString(
     "Public operation idempotencyKey",
     input.idempotencyKey,
   );
+  const idempotency = !operation.idempotency.required
+    ? { required: false as const }
+    : idempotencyKey === undefined
+      ? undefined
+      : operationIdempotencyFromKey(canonicalKey, idempotencyKey, "caller");
+
+  if (idempotency === undefined) {
+    throw new BadRequestError(
+      `Operation "${operation.kind}" requires an idempotency key for public execution.`,
+    );
+  }
 
   return operationInvocationEnvelope({
     actor: { kind: "anonymous" },
     identity: input.identity,
-    idempotency: {
-      required: operation.idempotency.required,
-      key: idempotencyKey,
-      source: "caller",
-      writeIdentity: operationWriteIdentity(canonicalKey, idempotencyKey),
-    },
+    idempotency,
     input: publicOperationInvocationInput(operation, input.publicInput, input.proof),
-    invocationId: operationWriteIdentity(canonicalKey, idempotencyKey),
+    invocationId: input.invocationId ?? idempotency.writeIdentity ?? createOperationInvocationId(),
     operation,
     receivedAt: input.receivedAt,
     route: input.route,
@@ -261,6 +268,13 @@ function publicOperationInvocationInput(
   publicInput: unknown,
   proof: PublicOperationProof | undefined,
 ): OperationInvocationInput {
+  if (operation.kind === "list") {
+    return {
+      type: "list",
+      input: publicInput,
+    };
+  }
+
   if (operation.kind === "create") {
     return {
       type: "create",
@@ -297,7 +311,10 @@ function operationInvocationInput(
   const kind = operation.kind;
 
   if (kind === "list") {
-    return { type: "list" };
+    return {
+      type: "list",
+      ...(body.input === undefined ? {} : { input: body.input }),
+    };
   }
 
   if (kind === "get") {

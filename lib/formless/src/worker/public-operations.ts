@@ -3,10 +3,12 @@ import {
   PublicOperationRouteError,
   parsePublicOperationRouteSuffix,
 } from "@dpeek/formless-public-operations";
-import type { PublicOperationResponse } from "../shared/protocol.ts";
 import type { AppSchema } from "@dpeek/formless-schema";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
-import { executeWriteOperationInvocation } from "./entity-operations.ts";
+import {
+  executeReadOperationInvocation,
+  executeWriteOperationInvocation,
+} from "./entity-operations.ts";
 import { BadRequestError } from "./errors.ts";
 import { executePublicOperationInvocationLifecycle } from "./operation-invocation-lifecycle.ts";
 import { validatePublicOperationInputValues } from "./operation-input-validation.ts";
@@ -22,7 +24,11 @@ import {
   type PublicOperationTurnstileChallengeEnv,
   verifyPublicOperationTurnstileChallenge,
 } from "./public-operation-turnstile-challenge.ts";
-import { shapePublicOperationResponse } from "./public-operation-response.ts";
+import { createPublicOperationReadRateLimitAdapter } from "./public-operation-read-rate-limit.ts";
+import {
+  shapePublicOperationResponse,
+  type ShapedPublicOperationResponse,
+} from "./public-operation-response.ts";
 import type { IdentityReferenceTargetResolver } from "./identity-reference-targets.ts";
 import { type WriteOutcome } from "./storage.ts";
 
@@ -35,7 +41,7 @@ export type PublicOperationRoute = PublicOperationExecutorRoute;
 export type PublicOperationResult =
   | PublicOperationExecutorResult
   | {
-      body: PublicOperationResponse | { error: string };
+      body: ShapedPublicOperationResponse["body"] | { error: string };
       headers?: HeadersInit;
       status?: number;
     };
@@ -119,13 +125,19 @@ function publicOperationExecutorAdapters(
     },
     authority: {
       execute: ({ envelope }) =>
-        executeWriteOperationInvocation({
-          envelope,
-          identityReferenceResolver: input.identityReferenceResolver,
-          schema: input.schema,
-          storage: input.storage,
-          writes: input.writes,
-        }),
+        envelope.operation.kind === "list"
+          ? executeReadOperationInvocation({
+              envelope,
+              schema: input.schema,
+              storage: input.storage,
+            })
+          : executeWriteOperationInvocation({
+              envelope,
+              identityReferenceResolver: input.identityReferenceResolver,
+              schema: input.schema,
+              storage: input.storage,
+              writes: input.writes,
+            }),
     },
     challenge: {
       verify: (stage) =>
@@ -143,6 +155,7 @@ function publicOperationExecutorAdapters(
           storage: input.storage,
         }),
     },
+    rateLimit: createPublicOperationReadRateLimitAdapter(input.storage),
     response: {
       shape: ({ response }) => shapePublicOperationResponse(response),
     },

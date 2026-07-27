@@ -14,6 +14,7 @@ import type {
 } from "./types.ts";
 
 export type AnonymousPublicOperationExecutionKind =
+  | "list"
   | "create"
   | "recordPlanCommand"
   | "handlerCommand";
@@ -124,11 +125,11 @@ export function selectAnonymousPublicOperation(
     };
   }
 
-  if (!hasAnonymousTurnstileSameOriginAccess(operation)) {
+  if (!hasAnonymousPublicOperationAccess(operation, executionKind)) {
     return {
       kind: "unavailable",
       reason: "unsupported-policy",
-      message: `Public operation "${canonicalKey}" is not available to anonymous same-origin Turnstile callers.`,
+      message: `Public operation "${canonicalKey}" is not available to anonymous same-origin callers.`,
     };
   }
 
@@ -158,7 +159,7 @@ export function hasAnonymousTurnstileSameOriginAccess(operation: EntityOperation
     operation.policy?.actors.includes("anonymous") === true &&
     access !== undefined &&
     access.actor === "anonymous" &&
-    access.challenge.kind === "turnstile" &&
+    access.challenge?.kind === "turnstile" &&
     access.origin.kind === "same-origin"
   );
 }
@@ -170,6 +171,14 @@ export function isAnonymousPublicOperationExecutable(operation: EntityOperationS
 export function anonymousPublicOperationExecutionKind(
   operation: EntityOperationSchema,
 ): AnonymousPublicOperationExecutionKind | undefined {
+  if (
+    operation.kind === "list" &&
+    operation.scope === "collection" &&
+    operation.output.type === "list"
+  ) {
+    return "list";
+  }
+
   if (
     operation.kind === "create" &&
     operation.scope === "collection" &&
@@ -195,6 +204,37 @@ export function anonymousPublicOperationExecutionKind(
   }
 
   return undefined;
+}
+
+function hasAnonymousPublicOperationAccess(
+  operation: EntityOperationSchema,
+  executionKind: AnonymousPublicOperationExecutionKind,
+): boolean {
+  const access = operation.policy?.access;
+  const hasSameOriginAnonymousAccess =
+    operation.policy?.actors.includes("anonymous") === true &&
+    access !== undefined &&
+    access.actor === "anonymous" &&
+    access.origin.kind === "same-origin";
+
+  if (!hasSameOriginAnonymousAccess || access === undefined) {
+    return false;
+  }
+
+  if (executionKind !== "list") {
+    return access.challenge?.kind === "turnstile";
+  }
+
+  return (
+    operation.output.type === "list" &&
+    operation.output.maxResults !== undefined &&
+    operation.output.maxResults > 0 &&
+    access.rateLimit !== undefined &&
+    access.rateLimit.maxRequests > 0 &&
+    access.rateLimit.windowSeconds > 0 &&
+    (access.challenge === undefined || access.challenge.kind === "turnstile") &&
+    (operation.policy?.responseFields?.anonymous?.length ?? 0) > 0
+  );
 }
 
 export function projectPublicSafeOperationInputFields(input: {

@@ -41,6 +41,7 @@ export type {
   SitePublicFormKind,
   SitePublicFormPresentationState,
   SitePublicFormRetryIntent,
+  SitePublicFormResult,
   SitePublicFormSession,
   SitePublicFormSessionController,
   SitePublicFormStatus,

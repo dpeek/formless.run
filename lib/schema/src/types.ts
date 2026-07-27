@@ -208,10 +208,16 @@ export type OperationOriginPolicySchema = {
   kind: "same-origin";
 };
 
+export type OperationRateLimitPolicySchema = {
+  maxRequests: number;
+  windowSeconds: number;
+};
+
 export type OperationAccessPolicySchema = {
   actor: OperationAccessActorMode;
-  challenge: OperationChallengePolicySchema;
+  challenge?: OperationChallengePolicySchema;
   origin: OperationOriginPolicySchema;
+  rateLimit?: OperationRateLimitPolicySchema;
 };
 
 export type PublicOperationTextInputFieldSchema = {
@@ -1150,6 +1156,7 @@ export type EntityOperationOutputContractSchema =
   | {
       type: "list";
       query: string;
+      maxResults?: number;
     }
   | {
       type: "get";

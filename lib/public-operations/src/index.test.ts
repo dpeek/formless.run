@@ -12,6 +12,7 @@ import {
   encodePublicOperationRouteSegment,
   isPublicOperationCommandResponse,
   isPublicOperationCreateResponse,
+  isPublicOperationListResponse,
   isPublicOperationResponse,
   parsePublicOperationRouteSuffix,
   publicOperationErrorMessage,
@@ -173,6 +174,22 @@ describe("public operation browser client helpers", () => {
         turnstileToken: "token-ok",
       },
     });
+
+    expect(
+      buildPublicOperationRequestBody({
+        input: {
+          lookup: "CODE-ALPHA",
+        },
+        siteBlockId: "lookup-block",
+      }),
+    ).toEqual({
+      input: {
+        lookup: "CODE-ALPHA",
+      },
+      source: {
+        siteBlockId: "lookup-block",
+      },
+    });
   });
 
   it("posts JSON to public operation routes and validates the response", async () => {
@@ -300,6 +317,58 @@ describe("public operation browser client helpers", () => {
     ).toBe(false);
   });
 
+  it("submits challenge-free public reads and guards projected list rows", async () => {
+    const responseBody = listResponse([
+      {
+        verificationCode: "CODE-ALPHA",
+        reportNumber: "REPORT-1",
+        publicDeliveryReference: "delivery-alpha",
+      },
+    ]);
+    const requests: Array<{ url: string; init: RequestInit | undefined }> = [];
+    const body = buildPublicOperationRequestBody({
+      input: { lookup: "CODE-ALPHA" },
+      siteBlockId: "lookup-block",
+    });
+
+    const result = await submitPublicOperationJson({
+      body,
+      fetcher: async (url, init) => {
+        requests.push({ url: requestUrlString(url), init });
+        return Response.json(responseBody);
+      },
+      responseGuard: isPublicOperationListResponse,
+      route: "/api/verifi/public/operations/certificate/lookup",
+    });
+
+    expect(result.output.records).toEqual([
+      {
+        verificationCode: "CODE-ALPHA",
+        reportNumber: "REPORT-1",
+        publicDeliveryReference: "delivery-alpha",
+      },
+    ]);
+    expect(requests[0]?.init?.body).toBe(JSON.stringify(body));
+    expect(JSON.stringify(body)).not.toContain("proof");
+    expect(JSON.stringify(body)).not.toContain("idempotency");
+    expect(isPublicOperationResponse(responseBody)).toBe(true);
+    expect(
+      isPublicOperationListResponse({
+        ...responseBody,
+        output: {
+          type: "list",
+          records: [{ verificationCode: { private: "nested" } }],
+        },
+      }),
+    ).toBe(false);
+    expect(
+      isPublicOperationListResponse({
+        ...responseBody,
+        status: "committed",
+      }),
+    ).toBe(false);
+  });
+
   it("creates public operation idempotency keys from caller purpose and block id", () => {
     expect(
       createPublicOperationIdempotencyKey({
@@ -373,6 +442,23 @@ function createResponse(status: "committed" | "replayed") {
     },
     status,
   };
+}
+
+function listResponse(records: Array<Record<string, string | boolean | number>>) {
+  return {
+    invocationId: "operation-1",
+    operation: {
+      entityName: "certificate",
+      operationName: "lookup",
+      canonicalKey: "certificate.lookup",
+      kind: "list",
+    },
+    output: {
+      type: "list",
+      records,
+    },
+    status: "accepted",
+  } as const;
 }
 
 function requestUrlString(input: RequestInfo | URL): string {

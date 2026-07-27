@@ -155,7 +155,9 @@ function projectedGenericPublicOperationFields(
     return undefined;
   }
 
-  if (input.turnstileSiteKey === undefined) {
+  const challenge = operation.operation.policy?.access?.challenge;
+
+  if (challenge?.kind === "turnstile" && input.turnstileSiteKey === undefined) {
     input.warnings.push({
       code: "missing-public-operation-challenge-config",
       recordId: record.id,
@@ -180,16 +182,21 @@ function projectedGenericPublicOperationFields(
     entityName: operation.entityName,
     operationName: operation.operationName,
     canonicalKey: operation.canonicalKey,
+    kind: publicOperationKind(operation.operation),
     target: target.route,
     route: buildPublicOperationTargetRoute({
       targetApiRoutePrefix: target.route.apiRoutePrefix,
       entityKey: operation.entityName,
       operationKey: operation.operationName,
     }),
-    challenge: {
-      kind: "turnstile",
-      siteKey: input.turnstileSiteKey,
-    },
+    ...(challenge?.kind === "turnstile"
+      ? {
+          challenge: {
+            kind: "turnstile" as const,
+            siteKey: input.turnstileSiteKey,
+          },
+        }
+      : {}),
     fields,
   };
 }
@@ -344,6 +351,14 @@ function projectPublicOperationInputFields(input: {
   }
 
   return projection.fields;
+}
+
+function publicOperationKind(operation: EntityOperationSchema): SitePublicOperationNode["kind"] {
+  if (operation.kind === "command" || operation.kind === "create" || operation.kind === "list") {
+    return operation.kind;
+  }
+
+  throw new Error("Selected public operation has an unsupported kind.");
 }
 
 function stringValue(value: unknown): string | undefined {

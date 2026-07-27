@@ -10,6 +10,7 @@ import {
   isOperationHandlerEffectForKind,
   parseOperationHandlerEffect,
 } from "./schema-operation-execution.ts";
+import { collectQueryContextNames, queryRequiresContextEqualityOnEveryBranch } from "./query.ts";
 import {
   assertExactKeys,
   isFiniteNumber,
@@ -43,7 +44,9 @@ import type {
   OperationAccessPolicySchema,
   OperationChallengePolicySchema,
   OperationOriginPolicySchema,
+  OperationRateLimitPolicySchema,
   PatchRecordEntityOperationEffectSchema,
+  QueryExpression,
   RelationshipSchema,
   RecordPlanActorContextField,
   RecordPlanEntityOperationEffectSchema,
@@ -118,6 +121,8 @@ const recordPlanGeneratedCodeAlphabets = [
 ] as const satisfies readonly RecordPlanGeneratedCodeAlphabet[];
 
 const maxGeneratedCodeLength = 128;
+
+export const PUBLIC_LIST_OPERATION_MAX_RESULTS = 100;
 
 export type ParsedEntityOperationKey = {
   entityKey: string;
@@ -351,7 +356,7 @@ function parseEntityOperation(
   const idempotency = parseOperationIdempotency(`${context} idempotency`, value.idempotency, kind);
   const audit = parseOperationAudit(`${context} audit`, value.audit);
   const policy = parseOperationPolicy(`${context} policy`, value.policy);
-  validateOperationPublicPolicy(context, kind, input, effect, policy);
+  validateOperationPublicPolicy(context, kind, input, effect, output, policy, entity, queries);
 
   return {
     ...(label === undefined ? {} : { label }),
@@ -372,7 +377,10 @@ function validateOperationPublicPolicy(
   kind: EntityOperationKind,
   input: EntityOperationInputContractSchema | undefined,
   effect: EntityOperationEffectSchema | undefined,
+  output: EntityOperationOutputContractSchema,
   policy: EntityOperationPolicySchema | undefined,
+  entity: EntitySchema,
+  queries: Record<string, CollectionQuerySchema>,
 ) {
   if (!policy?.actors.includes("anonymous")) {
     return;
@@ -388,6 +396,150 @@ function validateOperationPublicPolicy(
   if (input === undefined) {
     throw new Error(`${context} anonymous actor policy requires explicit input.`);
   }
+
+  if (kind === "list") {
+    validateAnonymousPublicListOperation(context, input, output, policy, entity, queries);
+    return;
+  }
+
+  if ((kind === "create" || kind === "command") && policy.access?.challenge?.kind !== "turnstile") {
+    throw new Error(`${context} anonymous ${kind} access requires a Turnstile challenge.`);
+  }
+}
+
+function validateAnonymousPublicListOperation(
+  context: string,
+  input: EntityOperationInputContractSchema,
+  output: EntityOperationOutputContractSchema,
+  policy: EntityOperationPolicySchema,
+  entity: EntitySchema,
+  queries: Record<string, CollectionQuerySchema>,
+) {
+  if (output.type !== "list") {
+    throw new Error(`${context} anonymous list access requires list output.`);
+  }
+
+  if (output.maxResults === undefined || output.maxResults > PUBLIC_LIST_OPERATION_MAX_RESULTS) {
+    throw new Error(
+      `${context} anonymous list output maxResults must be at most ${PUBLIC_LIST_OPERATION_MAX_RESULTS}.`,
+    );
+  }
+
+  const access = policy.access;
+  if (access === undefined) {
+    throw new Error(`${context} anonymous list access requires explicit access policy.`);
+  }
+
+  if (access.rateLimit === undefined) {
+    throw new Error(`${context} anonymous list access requires an explicit rate limit.`);
+  }
+
+  const anonymousResponseFields = policy.responseFields?.anonymous;
+  if (anonymousResponseFields === undefined) {
+    throw new Error(`${context} anonymous list access requires anonymous response fields.`);
+  }
+
+  for (const fieldName of anonymousResponseFields) {
+    if (entity.fields[fieldName] === undefined) {
+      throw new Error(
+        `${context} policy responseFields.anonymous references unknown value field "${fieldName}".`,
+      );
+    }
+  }
+
+  const query = queries[output.query];
+  if (!query) {
+    throw new Error(`${context} output query references unknown query "${output.query}".`);
+  }
+
+  const contextNames = collectQueryContextNames(query.expression);
+  for (const contextName of contextNames) {
+    validateAnonymousListQueryContext(context, contextName, query.expression, input, entity);
+  }
+
+  if (!queryRequiresContextEqualityOnEveryBranch(query.expression, contextNames)) {
+    throw new Error(
+      `${context} anonymous list query must require exact equality against declared input on every matching branch.`,
+    );
+  }
+}
+
+function validateAnonymousListQueryContext(
+  context: string,
+  contextName: string,
+  expression: QueryExpression,
+  input: EntityOperationInputContractSchema,
+  entity: EntitySchema,
+) {
+  const inputField = input.fields[contextName];
+  if (inputField === undefined) {
+    throw new Error(
+      `${context} anonymous list query context "${contextName}" references undeclared input.`,
+    );
+  }
+
+  if (!isOperationInputFieldRequired(inputField)) {
+    throw new Error(
+      `${context} anonymous list query context "${contextName}" requires required input.`,
+    );
+  }
+
+  const inputValueField = "field" in inputField ? entity.fields[inputField.field] : inputField;
+  if (
+    inputValueField === undefined ||
+    !["text", "boolean", "date", "number", "enum"].includes(inputValueField.type)
+  ) {
+    throw new Error(
+      `${context} anonymous list query context "${contextName}" requires scalar input.`,
+    );
+  }
+
+  for (const queryFieldName of collectQueryContextFieldNames(expression, contextName)) {
+    const queryField = entity.fields[queryFieldName];
+    if (
+      queryField === undefined ||
+      !areOperationInputAndQueryFieldsCompatible(inputValueField, queryField)
+    ) {
+      throw new Error(
+        `${context} anonymous list query context "${contextName}" is incompatible with value field "${queryFieldName}".`,
+      );
+    }
+  }
+}
+
+function areOperationInputAndQueryFieldsCompatible(
+  inputField: FieldSchema,
+  queryField: FieldSchema,
+): boolean {
+  if (inputField.type !== queryField.type) {
+    return false;
+  }
+
+  if (inputField.type !== "enum" || queryField.type !== "enum") {
+    return true;
+  }
+
+  return Object.keys(inputField.values).every((value) => Object.hasOwn(queryField.values, value));
+}
+
+function collectQueryContextFieldNames(expression: QueryExpression, contextName: string): string[] {
+  if (expression.kind === "and" || expression.kind === "or") {
+    return expression.expressions.flatMap((child) =>
+      collectQueryContextFieldNames(child, contextName),
+    );
+  }
+
+  if (
+    expression.kind === "where" &&
+    expression.ref.kind === "value" &&
+    typeof expression.value === "object" &&
+    expression.value.kind === "context" &&
+    expression.value.name === contextName
+  ) {
+    return [expression.ref.name];
+  }
+
+  return [];
 }
 
 function assertEntityOperationKey(context: string, value: string) {
@@ -480,6 +632,10 @@ function assertOperationInputFieldName(context: string, value: string) {
   }
 }
 
+function isOperationInputFieldRequired(field: EntityOperationInputFieldSchema): boolean {
+  return "field" in field ? field.required === true : field.required;
+}
+
 function parseOperationInputField(
   context: string,
   value: unknown,
@@ -522,8 +678,10 @@ function parseOperationInputField(
     };
   }
 
-  if (kind !== "command") {
-    throw new Error(`${context} inline scalar fields are only supported for command operations.`);
+  if (kind !== "command" && kind !== "list") {
+    throw new Error(
+      `${context} inline scalar fields are only supported for command or list operations.`,
+    );
   }
 
   return parseInlineInputField(context, value);
@@ -671,7 +829,7 @@ function parseOperationOutput(
   }
 
   if (value.type === "list") {
-    assertExactKeys(context, value, ["type", "query"]);
+    assertExactKeys(context, value, ["type", "query"], ["maxResults"]);
     validateOperationOutputKind(context, kind, "list");
     const query = parseOperationQueryReference(
       `${context} query`,
@@ -679,7 +837,12 @@ function parseOperationOutput(
       entityName,
       queries,
     );
-    return { type: "list", query };
+    const maxResults = parseOptionalPositiveInteger(`${context} maxResults`, value.maxResults);
+    return {
+      type: "list",
+      query,
+      ...(maxResults === undefined ? {} : { maxResults }),
+    };
   }
 
   if (value.type === "get") {
@@ -1603,16 +1766,26 @@ function parseOptionalOperationAccessPolicy(
     throw new Error(`${context} must be an object.`);
   }
 
-  assertExactKeys(context, value, ["actor", "challenge", "origin"]);
+  assertExactKeys(context, value, ["actor", "origin"], ["challenge", "rateLimit"]);
 
   if (value.actor !== "anonymous") {
     throw new Error(`${context} actor must be "anonymous".`);
   }
 
+  const challenge =
+    value.challenge === undefined
+      ? undefined
+      : parseOperationChallengePolicy(`${context} challenge`, value.challenge);
+  const rateLimit =
+    value.rateLimit === undefined
+      ? undefined
+      : parseOperationRateLimitPolicy(`${context} rateLimit`, value.rateLimit);
+
   return {
     actor: "anonymous",
-    challenge: parseOperationChallengePolicy(`${context} challenge`, value.challenge),
+    ...(challenge === undefined ? {} : { challenge }),
     origin: parseOperationOriginPolicy(`${context} origin`, value.origin),
+    ...(rateLimit === undefined ? {} : { rateLimit }),
   };
 }
 
@@ -1645,6 +1818,22 @@ function parseOperationOriginPolicy(context: string, value: unknown): OperationO
   }
 
   return { kind: "same-origin" };
+}
+
+function parseOperationRateLimitPolicy(
+  context: string,
+  value: unknown,
+): OperationRateLimitPolicySchema {
+  if (!isRecord(value)) {
+    throw new Error(`${context} must be an object.`);
+  }
+
+  assertExactKeys(context, value, ["maxRequests", "windowSeconds"]);
+
+  return {
+    maxRequests: parsePositiveInteger(`${context} maxRequests`, value.maxRequests),
+    windowSeconds: parsePositiveInteger(`${context} windowSeconds`, value.windowSeconds),
+  };
 }
 
 function parseOperationResponseFields(
@@ -1724,6 +1913,22 @@ function parseOptionalBoolean(context: string, value: unknown): boolean | undefi
 
   if (typeof value !== "boolean") {
     throw new Error(`${context} must be a boolean.`);
+  }
+
+  return value;
+}
+
+function parseOptionalPositiveInteger(context: string, value: unknown): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return parsePositiveInteger(context, value);
+}
+
+function parsePositiveInteger(context: string, value: unknown): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${context} must be a positive integer.`);
   }
 
   return value;

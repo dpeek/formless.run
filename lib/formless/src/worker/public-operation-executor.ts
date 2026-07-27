@@ -1,7 +1,6 @@
 import type { AppStorageIdentity } from "../shared/app-storage-identity.ts";
 import type {
   PublicOperationChallengeVerification,
-  PublicOperationResponse,
   PublicOperationRequestSource,
 } from "../shared/protocol.ts";
 import type {
@@ -22,6 +21,8 @@ import {
   buildVerifiedPublicOperationInvocationEnvelope,
   type PublicOperationInvocationSourceFacts,
 } from "./operation-invocation-envelopes.ts";
+import type { PublicOperationReadRateLimitAdapter } from "./public-operation-read-rate-limit.ts";
+import type { ShapedPublicOperationResponse } from "./public-operation-response.ts";
 
 export type PublicOperationExecutorRoute = {
   entityName: string;
@@ -43,14 +44,16 @@ export type SelectedPublicOperation = {
 
 export type ParsedPublicOperationRequest = {
   input: RecordValues;
-  proof: { turnstileToken: string };
+  proof?: { turnstileToken: string };
   source?: PublicOperationRequestSource;
   idempotencyKey?: string;
 };
 
 export type PublicOperationChallengeAdapterInput = {
   idempotencyKey: string;
-  parsed: ParsedPublicOperationRequest;
+  parsed: ParsedPublicOperationRequest & {
+    proof: { turnstileToken: string };
+  };
   requestUrlFacts: PublicOperationRequestUrlFacts;
   selected: SelectedPublicOperation;
   unverifiedEnvelope: OperationInvocationEnvelope;
@@ -99,12 +102,13 @@ export type PublicOperationExecutorAdapters = {
   authority: PublicOperationAuthorityExecutionAdapter;
   challenge: PublicOperationChallengeAdapter;
   lifecycle: PublicOperationLifecycleAdapter;
+  rateLimit: PublicOperationReadRateLimitAdapter;
   response: PublicOperationResponseAdapter;
   validation: PublicOperationInputValidationAdapter;
 };
 
 export type PublicOperationExecutorResult = {
-  body: PublicOperationResponse;
+  body: ShapedPublicOperationResponse["body"];
   headers?: HeadersInit;
   status?: number;
 };
@@ -129,12 +133,14 @@ const originalRequestHostHeader = "x-formless-original-request-host";
 const originalRequestOriginHeader = "x-formless-original-request-origin";
 
 export class PublicOperationError extends Error {
+  readonly headers?: HeadersInit;
   readonly status: number;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, headers?: HeadersInit) {
     super(message);
     this.name = "PublicOperationError";
     this.status = status;
+    this.headers = headers;
   }
 }
 
@@ -144,18 +150,20 @@ export async function executePublicOperationExecutor(
   const selected = selectPublicOperation(input.schema, input.route);
   const envelopeFields = parsePublicOperationRequestEnvelopeFields(input.body);
   const receivedAt = nowIsoString();
-  const idempotencyKey =
-    envelopeFields.idempotencyKey ??
-    (await derivePublicOperationIdempotencyKey({
-      entityName: input.route.entityName,
-      input: envelopeFields.input,
-      operationName: input.route.operationName,
-      source: envelopeFields.source,
-    }));
+  const challengeFreeRead = isChallengeFreePublicRead(selected.operation);
+  const idempotencyKey = challengeFreeRead
+    ? undefined
+    : (envelopeFields.idempotencyKey ??
+      (await derivePublicOperationIdempotencyKey({
+        entityName: input.route.entityName,
+        input: envelopeFields.input,
+        operationName: input.route.operationName,
+        source: envelopeFields.source,
+      })));
   const requestUrlFacts = publicRequestUrlFacts(input.request);
   const unverifiedEnvelope = buildUnverifiedPublicOperationInvocationEnvelope({
     identity: input.identity,
-    idempotencyKey,
+    ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
     publicInput: envelopeFields.input,
     receivedAt,
     route: {
@@ -173,8 +181,16 @@ export async function executePublicOperationExecutor(
 
   const response = await input.adapters.lifecycle.execute({
     assertAllowed: () => assertPublicOperationInvocationAllowed(unverifiedEnvelope, input.schema),
-    beforeReplay: () => {
+    beforeReplay: async () => {
       assertPublicOperationOrigin(input.request, selected.operation);
+      await consumePublicOperationRateLimit({
+        adapters: input.adapters,
+        identity: input.identity,
+        operation: selected.operation,
+        operationKey: unverifiedEnvelope.operation.canonicalKey,
+        receivedAt,
+        request: input.request,
+      });
       parsed = parsePublicOperationRequest(envelopeFields, selected, input.adapters.validation);
     },
     envelope: unverifiedEnvelope,
@@ -184,9 +200,34 @@ export async function executePublicOperationExecutor(
         throw new Error("Public operation request was not parsed before challenge verification.");
       }
 
+      if (challengeFreeRead) {
+        return buildUnverifiedPublicOperationInvocationEnvelope({
+          identity: input.identity,
+          invocationId: unverifiedEnvelope.invocationId,
+          publicInput: parsed.input,
+          receivedAt,
+          route: {
+            entityName: selected.entityName,
+            operationName: selected.operationName,
+          },
+          schema: input.schema,
+          source: publicOperationSourceFacts({
+            requestUrlFacts,
+            source: parsed.source,
+          }),
+        });
+      }
+
+      if (idempotencyKey === undefined || parsed.proof === undefined) {
+        throw new Error("Public operation challenge facts were not prepared.");
+      }
+
       const stage = {
         idempotencyKey,
-        parsed,
+        parsed: {
+          ...parsed,
+          proof: parsed.proof,
+        },
         receivedAt,
         requestUrlFacts,
         selected,
@@ -197,6 +238,7 @@ export async function executePublicOperationExecutor(
       return buildVerifiedPublicOperationInvocationEnvelope({
         identity: input.identity,
         idempotencyKey,
+        invocationId: unverifiedEnvelope.invocationId,
         proof: {
           turnstileToken: parsed.proof.turnstileToken,
           verification,
@@ -252,10 +294,13 @@ function parsePublicOperationRequest(
     rawInput: envelopeFields.input,
     selected,
   });
+  const challenge = selected.operation.policy?.access?.challenge;
+  const proof =
+    challenge?.kind === "turnstile" ? parsePublicOperationProof(envelopeFields.proof) : undefined;
 
   return {
     input: validatedInput,
-    proof: parsePublicOperationProof(envelopeFields.proof),
+    ...(proof === undefined ? {} : { proof }),
     ...(envelopeFields.source === undefined ? {} : { source: envelopeFields.source }),
     ...(envelopeFields.idempotencyKey === undefined
       ? {}
@@ -336,6 +381,10 @@ function assertPublicOperationOrigin(request: Request, operation: EntityOperatio
 
   const origin = request.headers.get("Origin");
   if (!origin) {
+    if (isChallengeFreePublicRead(operation)) {
+      throw new PublicOperationError("Public operation origin is not allowed.", 403);
+    }
+
     return;
   }
 
@@ -350,6 +399,38 @@ function assertPublicOperationOrigin(request: Request, operation: EntityOperatio
   if (parsedOrigin.origin !== publicRequestUrlFacts(request).origin) {
     throw new PublicOperationError("Public operation origin is not allowed.", 403);
   }
+}
+
+async function consumePublicOperationRateLimit(input: {
+  adapters: PublicOperationExecutorAdapters;
+  identity: AppStorageIdentity;
+  operation: EntityOperationSchema;
+  operationKey: string;
+  receivedAt: string;
+  request: Request;
+}) {
+  const policy = input.operation.policy?.access?.rateLimit;
+  if (policy === undefined) {
+    return;
+  }
+
+  const decision = await input.adapters.rateLimit.consume({
+    identity: input.identity,
+    nowMs: Date.parse(input.receivedAt),
+    operationKey: input.operationKey,
+    policy,
+    request: input.request,
+  });
+
+  if (!decision.allowed) {
+    throw new PublicOperationError("Public operation rate limit exceeded.", 429, {
+      "Retry-After": String(decision.retryAfterSeconds),
+    });
+  }
+}
+
+function isChallengeFreePublicRead(operation: EntityOperationSchema) {
+  return operation.kind === "list" && operation.policy?.access?.challenge === undefined;
 }
 
 function parsePublicOperationSource(value: unknown): PublicOperationRequestSource {

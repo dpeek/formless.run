@@ -42,43 +42,70 @@ export type PublicOperationChallengeVerification = {
 
 export type PublicOperationRequest = {
   input: RecordValues;
-  proof: PublicOperationProofInput;
+  proof?: PublicOperationProofInput;
   source?: PublicOperationRequestSource;
   idempotencyKey?: string;
 };
 
-export type PublicOperationResponse = {
+export type PublicOperationResponseOperation = {
+  entityName: string;
+  operationName: string;
+  canonicalKey: string;
+};
+
+export type PublicOperationCommandResponse = {
   invocationId: string;
-  operation: {
-    entityName: string;
-    operationName: string;
-    canonicalKey: string;
-    kind: "command" | "create";
+  operation: PublicOperationResponseOperation & {
+    kind: "command";
   };
-  output:
-    | {
-        type: "command";
-        affectedChangeIds: string[];
-        cursor: number;
-        recordPlan?: {
-          steps: {
-            name: string;
-            kind: "create" | "patch" | "delete" | "tombstone";
-            entity: EntityName;
-            recordId: string;
-            changeId: string;
-          }[];
-        };
-      }
-    | {
-        type: "create";
-        affectedChangeIds: string[];
-        changes: ChangeRow[];
-        cursor: number;
-        record: StoredRecord;
-      };
+  output: {
+    type: "command";
+    affectedChangeIds: string[];
+    cursor: number;
+    recordPlan?: {
+      steps: {
+        name: string;
+        kind: "create" | "patch" | "delete" | "tombstone";
+        entity: EntityName;
+        recordId: string;
+        changeId: string;
+      }[];
+    };
+  };
   status: "committed" | "replayed";
 };
+
+export type PublicOperationCreateResponse = {
+  invocationId: string;
+  operation: PublicOperationResponseOperation & {
+    kind: "create";
+  };
+  output: {
+    type: "create";
+    affectedChangeIds: string[];
+    changes: ChangeRow[];
+    cursor: number;
+    record: StoredRecord;
+  };
+  status: "committed" | "replayed";
+};
+
+export type PublicOperationListResponse = {
+  invocationId: string;
+  operation: PublicOperationResponseOperation & {
+    kind: "list";
+  };
+  output: {
+    type: "list";
+    records: RecordValues[];
+  };
+  status: "accepted";
+};
+
+export type PublicOperationResponse =
+  | PublicOperationCommandResponse
+  | PublicOperationCreateResponse
+  | PublicOperationListResponse;
 
 export type ChangeRow = {
   seq: number;

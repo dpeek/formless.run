@@ -1,4 +1,5 @@
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
+import type { AppSchema } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 
 import { schemaKeyStorageIdentity } from "../shared/app-storage-identity.ts";
@@ -7,13 +8,18 @@ import type {
   OperationInvocationOutput,
   OperationInvocationResponse,
 } from "../shared/operation-invocation.ts";
-import type { ChangeRow, PublicOperationResponse } from "../shared/protocol.ts";
+import type { ChangeRow } from "../shared/protocol.ts";
 import {
   executePublicOperationExecutor,
   PublicOperationError,
   type PublicOperationChallengeAdapterInput,
   type PublicOperationExecutorAdapters,
 } from "./public-operation-executor.ts";
+import type {
+  PublicOperationReadRateLimitAdapterInput,
+  PublicOperationReadRateLimitDecision,
+} from "./public-operation-read-rate-limit.ts";
+import { shapePublicOperationResponse } from "./public-operation-response.ts";
 import { workerSchemaAppDefinitions } from "./schema-apps.ts";
 
 describe("public operation executor adapters", () => {
@@ -519,6 +525,149 @@ describe("public operation executor adapters", () => {
     expect(events).toEqual(["validation", "challenge", "authority", "shape", "afterCommit"]);
   });
 
+  it("executes bounded public reads without proof, idempotency, or write side effects", async () => {
+    const events: string[] = [];
+    const harness = publicOperationExecutorHarness({
+      events,
+      output: publicListOutput(),
+      recordExecutionStages: true,
+    });
+    const result = await executePublicLookup(harness, {
+      input: { lookup: "CODE-ALPHA" },
+      source: { siteBlockId: "certificate-lookup" },
+    });
+
+    expect(result.body).toEqual({
+      invocationId: expect.stringMatching(/^operation:[0-9a-f-]+$/),
+      operation: {
+        entityName: "certificate",
+        operationName: "lookup",
+        canonicalKey: "certificate.lookup",
+        kind: "list",
+      },
+      output: {
+        type: "list",
+        records: [
+          {
+            code: "CODE-ALPHA",
+            reportNumber: "REPORT-1",
+          },
+        ],
+      },
+      status: "accepted",
+    });
+    expect(events).toEqual(["rateLimit", "validation", "authority", "shape"]);
+    expect(harness.state.challengeCalls).toBe(0);
+    expect(harness.state.afterCommitResponses).toEqual([]);
+    expect(harness.state.authorityEnvelopes[0]).toMatchObject({
+      actor: { kind: "anonymous" },
+      idempotency: { required: false },
+      input: {
+        type: "list",
+        input: { lookup: "CODE-ALPHA" },
+      },
+      operation: {
+        canonicalKey: "certificate.lookup",
+        kind: "list",
+      },
+      source: {
+        host: "example.com",
+        path: "/api/tasks/public/operations/certificate/lookup",
+        protocol: "public",
+        siteBlockId: "certificate-lookup",
+      },
+    });
+    expect(harness.state.authorityEnvelopes[0]?.idempotency).not.toHaveProperty("key");
+    expect(harness.state.authorityEnvelopes[0]?.idempotency).not.toHaveProperty("writeIdentity");
+    expect(harness.state.rateLimitStages).toHaveLength(1);
+    expect(harness.state.rateLimitStages[0]).toMatchObject({
+      identity: schemaKeyStorageIdentity("tasks"),
+      operationKey: "certificate.lookup",
+      policy: { maxRequests: 2, windowSeconds: 60 },
+    });
+    expect(harness.state.rateLimitStages[0]).not.toHaveProperty("input");
+    expect(JSON.stringify(harness.state.rateLimitStages[0])).not.toContain("CODE-ALPHA");
+    expect(JSON.stringify(result)).not.toContain("certificate-private-id");
+    expect(JSON.stringify(result)).not.toContain("Private customer");
+    expect(JSON.stringify(result)).not.toContain("private/provider-key.pdf");
+  });
+
+  it("requires a present matching Origin for challenge-free public reads", async () => {
+    const requests = [
+      new Request("https://example.com/api/tasks/public/operations/certificate/lookup", {
+        method: "POST",
+      }),
+      new Request("https://example.com/api/tasks/public/operations/certificate/lookup", {
+        headers: { Origin: "not an origin" },
+        method: "POST",
+      }),
+      new Request("https://example.com/api/tasks/public/operations/certificate/lookup", {
+        headers: { Origin: "https://other.example" },
+        method: "POST",
+      }),
+    ];
+
+    for (const request of requests) {
+      const events: string[] = [];
+      const harness = publicOperationExecutorHarness({
+        events,
+        output: publicListOutput(),
+        recordExecutionStages: true,
+      });
+      const error = await captureRejection(
+        executePublicLookup(harness, { input: { lookup: "CODE-ALPHA" } }, request),
+      );
+
+      expect(error).toMatchObject({
+        message: "Public operation origin is not allowed.",
+        status: 403,
+      });
+      expect(events).toEqual([]);
+      expect(harness.state.rateLimitStages).toEqual([]);
+      expect(harness.state.validatedInputs).toEqual([]);
+      expect(harness.state.authorityCalls).toBe(0);
+    }
+  });
+
+  it("consumes public-read attempts before validation and returns retry timing at 429", async () => {
+    const validationEvents: string[] = [];
+    const validationError = new Error("invalid lookup");
+    const invalidHarness = publicOperationExecutorHarness({
+      events: validationEvents,
+      output: publicListOutput(),
+      recordExecutionStages: true,
+      validationError,
+    });
+
+    expect(
+      await captureRejection(executePublicLookup(invalidHarness, { input: { lookup: "invalid" } })),
+    ).toBe(validationError);
+    expect(validationEvents).toEqual(["rateLimit", "validation"]);
+    expect(invalidHarness.state.rateLimitStages).toHaveLength(1);
+    expect(invalidHarness.state.authorityCalls).toBe(0);
+
+    const limitedEvents: string[] = [];
+    const limitedHarness = publicOperationExecutorHarness({
+      events: limitedEvents,
+      output: publicListOutput(),
+      rateLimitDecision: { allowed: false, retryAfterSeconds: 23 },
+      recordExecutionStages: true,
+    });
+    const error = await captureRejection(
+      executePublicLookup(limitedHarness, { input: { lookup: "CODE-ALPHA" } }),
+    );
+
+    expect(error).toMatchObject({
+      message: "Public operation rate limit exceeded.",
+      status: 429,
+      headers: { "Retry-After": "23" },
+    });
+    expect(limitedEvents).toEqual(["rateLimit"]);
+    expect(limitedHarness.state.validatedInputs).toEqual([]);
+    expect(limitedHarness.state.authorityCalls).toBe(0);
+    expect(limitedHarness.state.challengeCalls).toBe(0);
+  });
+
   it("propagates validation, Authority, response, and after-commit Adapter errors", async () => {
     const failures = [
       {
@@ -563,7 +712,8 @@ function publicOperationExecutorHarness(input: {
   authorityError?: Error;
   challengeError?: Error;
   events: string[];
-  output: Extract<OperationInvocationOutput, { type: "create" | "command" }>;
+  output: Extract<OperationInvocationOutput, { type: "create" | "command" | "list" }>;
+  rateLimitDecision?: PublicOperationReadRateLimitDecision;
   recordExecutionStages?: boolean;
   replayBeforeChallenge?: boolean;
   responseError?: Error;
@@ -575,6 +725,7 @@ function publicOperationExecutorHarness(input: {
     authorityCalls: 0,
     challengeCalls: 0,
     challengeStages: [] as PublicOperationChallengeAdapterInput[],
+    rateLimitStages: [] as PublicOperationReadRateLimitAdapterInput[],
     shapedResponses: [] as OperationInvocationResponse[],
     validatedInputs: [] as Array<{ rawInput: unknown }>,
   };
@@ -601,7 +752,11 @@ function publicOperationExecutorHarness(input: {
           throw input.authorityError;
         }
 
-        return operationInvocationResponse(envelope, input.output, "committed");
+        return operationInvocationResponse(
+          envelope,
+          input.output,
+          input.output.type === "list" ? "accepted" : "committed",
+        );
       },
     },
     challenge: {
@@ -637,6 +792,16 @@ function publicOperationExecutorHarness(input: {
         return stage.execute(envelope);
       },
     },
+    rateLimit: {
+      consume: (stage) => {
+        if (input.recordExecutionStages) {
+          input.events.push("rateLimit");
+        }
+        state.rateLimitStages.push(stage);
+
+        return input.rateLimitDecision ?? { allowed: true };
+      },
+    },
     response: {
       shape: ({ response }) => {
         input.events.push("shape");
@@ -646,9 +811,7 @@ function publicOperationExecutorHarness(input: {
           throw input.responseError;
         }
 
-        return {
-          body: publicOperationResponse(response),
-        };
+        return shapePublicOperationResponse(response);
       },
     },
     validation: {
@@ -689,6 +852,25 @@ function executeContactMessage(
   });
 }
 
+function executePublicLookup(
+  harness: ReturnType<typeof publicOperationExecutorHarness>,
+  body: unknown,
+  request = publicOperationRequest("/api/tasks/public/operations/certificate/lookup"),
+) {
+  return executePublicOperationExecutor({
+    adapters: harness.adapters,
+    body,
+    identity: schemaKeyStorageIdentity("tasks"),
+    request,
+    route: {
+      entityName: "certificate",
+      operationName: "lookup",
+      path: "/api/tasks/public/operations/certificate/lookup",
+    },
+    schema: publicReadSchema(),
+  });
+}
+
 function captureRejection<T>(promise: Promise<T>): Promise<unknown> {
   return promise.then(
     () => undefined,
@@ -698,8 +880,8 @@ function captureRejection<T>(promise: Promise<T>): Promise<unknown> {
 
 function operationInvocationResponse(
   invocation: OperationInvocationResponse["invocation"],
-  output: Extract<OperationInvocationOutput, { type: "create" | "command" }>,
-  status: "committed" | "replayed",
+  output: Extract<OperationInvocationOutput, { type: "create" | "command" | "list" }>,
+  status: "accepted" | "committed" | "replayed",
 ): OperationInvocationResponse {
   return {
     invocation,
@@ -708,54 +890,10 @@ function operationInvocationResponse(
   };
 }
 
-function publicOperationResponse(response: OperationInvocationResponse): PublicOperationResponse {
-  if (response.output.type === "create" && response.invocation.operation.kind === "create") {
-    return {
-      invocationId: response.invocation.invocationId,
-      operation: {
-        entityName: response.invocation.operation.entityName,
-        operationName: response.invocation.operation.operationName,
-        canonicalKey: response.invocation.operation.canonicalKey,
-        kind: "create",
-      },
-      output: {
-        type: "create",
-        affectedChangeIds: response.output.affectedChangeIds,
-        changes: response.output.changes,
-        cursor: response.output.cursor,
-        record: response.output.record,
-      },
-      status: response.status === "replayed" ? "replayed" : "committed",
-    };
-  }
-
-  if (response.output.type === "command" && response.invocation.operation.kind === "command") {
-    return {
-      invocationId: response.invocation.invocationId,
-      operation: {
-        entityName: response.invocation.operation.entityName,
-        operationName: response.invocation.operation.operationName,
-        canonicalKey: response.invocation.operation.canonicalKey,
-        kind: "command",
-      },
-      output: {
-        type: "command",
-        affectedChangeIds: response.output.affectedChangeIds,
-        cursor: response.output.cursor,
-        ...(response.output.recordPlan === undefined
-          ? {}
-          : { recordPlan: response.output.recordPlan }),
-      },
-      status: response.status === "replayed" ? "replayed" : "committed",
-    };
-  }
-
-  throw new Error("Unexpected public operation response.");
-}
-
 function publicOperationRequest(path: string): Request {
   return new Request(`https://example.com${path}`, {
     headers: {
+      "CF-Connecting-IP": "203.0.113.10",
       Origin: "https://example.com",
     },
     method: "POST",
@@ -790,6 +928,91 @@ function publicCommandOutput(): Extract<OperationInvocationOutput, { type: "comm
     changes: [],
     cursor: 0,
   };
+}
+
+function publicListOutput(): Extract<OperationInvocationOutput, { type: "list" }> {
+  return {
+    type: "list",
+    records: [
+      {
+        id: "certificate-private-id",
+        entity: "certificate",
+        values: {
+          code: "CODE-ALPHA",
+          reportNumber: "REPORT-1",
+          customer: "Private customer",
+          providerStorageKey: "private/provider-key.pdf",
+        },
+        createdAt: "2026-06-26T00:00:00.000Z",
+        updatedAt: "2026-06-26T00:00:00.000Z",
+      },
+    ],
+  };
+}
+
+function publicReadSchema(): AppSchema {
+  const schema = structuredClone(workerSchemaAppDefinitions.tasks.sourceSchema);
+
+  schema.entities.certificate = {
+    label: "Certificate",
+    fields: {
+      code: { type: "text", required: true, label: "Code" },
+      reportNumber: { type: "text", required: true, label: "Report number" },
+      customer: { type: "text", required: true, label: "Customer" },
+      providerStorageKey: {
+        type: "text",
+        required: true,
+        label: "Provider storage key",
+      },
+    },
+    operations: {
+      lookup: {
+        label: "Lookup certificate",
+        kind: "list",
+        scope: "collection",
+        target: { query: "certificateLookup" },
+        input: {
+          fields: {
+            lookup: {
+              type: "text",
+              required: true,
+              label: "Lookup",
+            },
+          },
+        },
+        output: {
+          type: "list",
+          query: "certificateLookup",
+          maxResults: 2,
+        },
+        idempotency: { required: false },
+        audit: { input: "summary" },
+        policy: {
+          actors: ["anonymous"],
+          access: {
+            actor: "anonymous",
+            origin: { kind: "same-origin" },
+            rateLimit: { maxRequests: 2, windowSeconds: 60 },
+          },
+          responseFields: {
+            anonymous: ["code", "reportNumber"],
+          },
+        },
+      },
+    },
+  };
+  schema.queries.certificateLookup = {
+    label: "Certificate lookup",
+    entity: "certificate",
+    expression: {
+      kind: "where",
+      ref: { kind: "value", name: "code" },
+      op: "eq",
+      value: { kind: "context", name: "lookup" },
+    },
+  };
+
+  return schema;
 }
 
 function createPublicCreateOutput(): Extract<OperationInvocationOutput, { type: "create" }> {

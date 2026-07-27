@@ -5,9 +5,10 @@ import {
   collectQueryContextNames,
   matchesQuery,
   parseQueryExpression,
+  queryRequiresContextEqualityOnEveryBranch,
 } from "./index.ts";
 import type { StoredRecord } from "./index.ts";
-import type { QueryCapabilities } from "./index.ts";
+import type { QueryCapabilities, QueryExpression } from "./index.ts";
 import type { EntitySchema } from "./index.ts";
 
 describe("field catalog", () => {
@@ -566,13 +567,37 @@ describe("query parsing", () => {
     }
   });
 
-  it("rejects context values outside reference equality predicates", () => {
+  it("parses context values for scalar and reference equality predicates", () => {
     for (const ref of [
       { kind: "value" as const, name: "title" },
       { kind: "value" as const, name: "done" },
       { kind: "value" as const, name: "dueDate" },
       { kind: "value" as const, name: "estimate" },
       { kind: "value" as const, name: "kind" },
+      { kind: "value" as const, name: "resource" },
+    ]) {
+      expect(
+        parseQueryExpression(
+          {
+            kind: "where",
+            ref,
+            op: "eq",
+            value: { kind: "context", name: "lookup" },
+          },
+          catalog,
+          "bound query",
+        ),
+      ).toEqual({
+        kind: "where",
+        ref,
+        op: "eq",
+        value: { kind: "context", name: "lookup" },
+      });
+    }
+  });
+
+  it("rejects context values for system fields and non-equality predicates", () => {
+    for (const ref of [
       { kind: "system" as const, name: "id" as const },
       { kind: "system" as const, name: "createdAt" as const },
     ]) {
@@ -582,12 +607,12 @@ describe("query parsing", () => {
             kind: "where",
             ref,
             op: "eq",
-            value: { kind: "context", name: "resource" },
+            value: { kind: "context", name: "lookup" },
           },
           catalog,
           "bad query",
         ),
-      ).toThrow("context values require a reference field");
+      ).toThrow("context values require a scalar value or reference field");
     }
 
     expect(() =>
@@ -664,6 +689,50 @@ describe("query parsing", () => {
       }),
     ).toEqual(["resource"]);
   });
+
+  it("detects exact context equality on every matching branch", () => {
+    const lookupByTitleOrEstimate: QueryExpression = {
+      kind: "or",
+      expressions: [
+        {
+          kind: "where",
+          ref: { kind: "value", name: "title" },
+          op: "eq",
+          value: { kind: "context", name: "lookup" },
+        },
+        {
+          kind: "and",
+          expressions: [
+            {
+              kind: "where",
+              ref: { kind: "value", name: "done" },
+              op: "eq",
+              value: false,
+            },
+            {
+              kind: "where",
+              ref: { kind: "value", name: "estimate" },
+              op: "eq",
+              value: { kind: "context", name: "lookup" },
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(queryRequiresContextEqualityOnEveryBranch(lookupByTitleOrEstimate, ["lookup"])).toBe(
+      true,
+    );
+    expect(
+      queryRequiresContextEqualityOnEveryBranch(
+        {
+          ...lookupByTitleOrEstimate,
+          expressions: [...lookupByTitleOrEstimate.expressions, { kind: "all" }],
+        },
+        ["lookup"],
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("query evaluation", () => {
@@ -711,26 +780,29 @@ describe("query evaluation", () => {
     ).toBe(true);
   });
 
-  it("matches reference equality against context values", () => {
-    const query = {
-      kind: "where",
-      ref: { kind: "value", name: "resource" },
-      op: "eq",
-      value: { kind: "context", name: "resource" },
-    } as const;
+  it("matches scalar and reference equality against context values", () => {
+    for (const [name, value] of [
+      ["title", "Plan week"],
+      ["done", false],
+      ["dueDate", "2026-05-01"],
+      ["estimate", 2],
+      ["kind", "role"],
+      ["resource", "record-resource-1"],
+    ] as const) {
+      const query = {
+        kind: "where",
+        ref: { kind: "value", name },
+        op: "eq",
+        value: { kind: "context", name: "lookup" },
+      } as const;
 
-    expect(
-      matchesQuery(record, query, {
-        today: "2026-05-01",
-        values: { resource: "record-resource-1" },
-      }),
-    ).toBe(true);
-    expect(
-      matchesQuery(record, query, {
-        today: "2026-05-01",
-        values: { resource: "record-resource-2" },
-      }),
-    ).toBe(false);
+      expect(
+        matchesQuery(record, query, {
+          today: "2026-05-01",
+          values: { lookup: value },
+        }),
+      ).toBe(true);
+    }
   });
 
   it("throws when context equality is evaluated without the required value", () => {

@@ -3,9 +3,11 @@ import {
   createPublicOperationIdempotencyKey,
   isPublicOperationCommandResponse,
   isPublicOperationCreateResponse,
+  isPublicOperationListResponse,
   isPublicOperationResponse,
   publicOperationErrorMessage,
   type PublicOperationInputValues,
+  type PublicOperationResultRow,
 } from "@dpeek/formless-public-operations";
 
 import {
@@ -17,6 +19,7 @@ import {
 } from "./public-operation-form-draft.ts";
 import type {
   SiteBlockNode,
+  SitePublicOperationNode,
   SitePublicOperationInputFieldNode,
   SitePublicOperationInputFieldOptionNode,
   SitePublicOperationTextFormatNode,
@@ -94,6 +97,11 @@ export type SitePublicFormFeedback = {
   message: string;
 };
 
+export type SitePublicFormResult = {
+  kind: "list";
+  records: PublicOperationResultRow[];
+};
+
 export type SitePublicFormSession = {
   blockId: string;
   formId: string;
@@ -106,6 +114,7 @@ export type SitePublicFormSession = {
   challenge?: SitePublicFormChallenge;
   submit: SitePublicFormSubmit;
   feedback?: SitePublicFormFeedback;
+  result?: SitePublicFormResult;
   retryIntent?: SitePublicFormRetryIntent;
 };
 
@@ -130,6 +139,7 @@ export type SitePublicFormPresentationState = {
   challengeResetSignal?: number;
   failureMessage?: string;
   fieldErrors?: Readonly<Record<string, string>>;
+  result?: SitePublicFormResult;
   status: SitePublicFormStatus;
   values?: Readonly<Record<string, SitePublicFormFieldValue>>;
 };
@@ -142,6 +152,7 @@ type SitePublicFormConfig = {
   formId: string;
   heading: string;
   kind: SitePublicFormKind;
+  operationKind?: SitePublicOperationNode["kind"];
   operationRoute?: string;
   siteKey?: string;
   submitLabel: string;
@@ -155,6 +166,7 @@ type SitePublicFormState = {
   draft: PublicOperationFormDraftSessionState;
   failureMessage?: string;
   idempotencyKey?: string;
+  result?: SitePublicFormResult;
   status: SitePublicFormStatus;
   touchedOccurrences: Set<string>;
   turnstileToken: string;
@@ -163,9 +175,9 @@ type SitePublicFormState = {
 type SitePublicFormSubmissionInput = {
   config: SitePublicFormConfig;
   fetcher?: typeof fetch;
-  idempotencyKey: string;
+  idempotencyKey?: string;
   input: PublicOperationInputValues;
-  turnstileToken: string;
+  turnstileToken?: string;
 };
 
 class SitePublicFormSubmissionError extends Error {
@@ -203,6 +215,7 @@ export function projectSitePublicFormSession(
     draft,
     failureMessage: state.failureMessage,
     fieldErrors: state.fieldErrors ?? {},
+    result: state.result,
     status: state.status,
   });
 }
@@ -217,7 +230,7 @@ export function createSitePublicFormSessionController({
   let state: SitePublicFormState = {
     challengeResetSignal: 0,
     draft: initialPublicOperationFormDraftSessionState({ fields: config.fields }),
-    ...(config.available
+    ...(config.available && config.operationKind !== "list"
       ? {
           idempotencyKey: idempotencyKeyFactory({
             blockId: config.blockId,
@@ -328,7 +341,7 @@ export function createSitePublicFormSessionController({
       return;
     }
 
-    if (state.turnstileToken.trim() === "") {
+    if (config.siteKey !== undefined && state.turnstileToken.trim() === "") {
       commit({
         ...state,
         failureMessage: "Complete the challenge.",
@@ -339,7 +352,7 @@ export function createSitePublicFormSessionController({
 
     const idempotencyKey = state.idempotencyKey;
 
-    if (!idempotencyKey) {
+    if (config.operationKind !== "list" && !idempotencyKey) {
       return;
     }
 
@@ -350,16 +363,17 @@ export function createSitePublicFormSessionController({
     });
 
     try {
-      await submitSitePublicFormSession({
+      const result = await submitSitePublicFormSession({
         config,
         fetcher,
-        idempotencyKey,
+        ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
         input: draftSession.input,
-        turnstileToken: state.turnstileToken,
+        ...(config.siteKey === undefined ? {} : { turnstileToken: state.turnstileToken }),
       });
       commit({
         ...state,
         failureMessage: undefined,
+        ...(result === undefined ? {} : { result }),
         status: "success",
       });
     } catch (error) {
@@ -414,6 +428,7 @@ function selectSitePublicFormSession(
     draft: state.draft,
     failureMessage: state.failureMessage,
     fieldErrors,
+    result: state.result,
     status: state.status,
   });
 }
@@ -427,6 +442,7 @@ function projectSitePublicFormSessionFacts(
     draft: PublicOperationFormDraftSessionState;
     failureMessage?: string;
     fieldErrors: Readonly<Record<string, string>>;
+    result?: SitePublicFormResult;
     status: SitePublicFormStatus;
   },
 ): SitePublicFormSession {
@@ -487,7 +503,10 @@ function projectSitePublicFormSessionFacts(
       label: config.submitLabel,
       pendingLabel: config.pendingLabel,
       ready:
-        state.status === "ready" && config.available && state.canSubmit && state.challengeReady,
+        state.status === "ready" &&
+        config.available &&
+        state.canSubmit &&
+        (config.siteKey === undefined || state.challengeReady),
       intent: {
         type: "submit",
         formId: config.formId,
@@ -496,6 +515,14 @@ function projectSitePublicFormSessionFacts(
     ...(sitePublicFormFeedback(config, state) === undefined
       ? {}
       : { feedback: sitePublicFormFeedback(config, state) }),
+    ...(state.result === undefined
+      ? {}
+      : {
+          result: {
+            kind: "list" as const,
+            records: state.result.records.map((record) => ({ ...record })),
+          },
+        }),
     ...(state.status === "failed"
       ? {
           retryIntent: {
@@ -512,14 +539,16 @@ function sitePublicFormConfig(block: SiteBlockNode): SitePublicFormConfig {
   const formId = `site-public-form:${block.id}`;
   const operation = block.publicOperation;
   const siteKey =
-    operation?.challenge.kind === "turnstile" && operation.challenge.siteKey?.trim()
+    operation?.challenge?.kind === "turnstile" && operation.challenge.siteKey?.trim()
       ? operation.challenge.siteKey
       : undefined;
   const fields = sitePublicFormFields(block, kind);
   const available =
     operation !== undefined &&
     operation.route.trim() !== "" &&
-    siteKey !== undefined &&
+    (operation.kind === "list"
+      ? operation.challenge === undefined || siteKey !== undefined
+      : siteKey !== undefined) &&
     (kind !== "publicOperation" || operation.fields !== undefined);
 
   return {
@@ -530,6 +559,7 @@ function sitePublicFormConfig(block: SiteBlockNode): SitePublicFormConfig {
     formId,
     heading: block.label,
     kind,
+    ...(operation?.kind === undefined ? {} : { operationKind: operation.kind }),
     ...(operation?.route === undefined ? {} : { operationRoute: operation.route }),
     ...(siteKey === undefined ? {} : { siteKey }),
     submitLabel: block.buttonLabel || sitePublicFormDefaultSubmitLabel(kind),
@@ -637,7 +667,7 @@ async function submitSitePublicFormSession({
   idempotencyKey,
   input,
   turnstileToken,
-}: SitePublicFormSubmissionInput): Promise<void> {
+}: SitePublicFormSubmissionInput): Promise<SitePublicFormResult | undefined> {
   const route = config.operationRoute;
 
   if (!route) {
@@ -650,10 +680,10 @@ async function submitSitePublicFormSession({
     response = await fetcher(route, {
       body: JSON.stringify(
         buildPublicOperationRequestBody({
-          idempotencyKey,
+          ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
           input,
           siteBlockId: config.blockId,
-          turnstileToken,
+          ...(turnstileToken === undefined ? {} : { turnstileToken }),
         }),
       ),
       headers: {
@@ -685,11 +715,20 @@ async function submitSitePublicFormSession({
       ? isPublicOperationCommandResponse(body)
       : config.kind === "contact"
         ? isPublicOperationCreateResponse(body)
-        : isPublicOperationResponse(body);
+        : config.operationKind === "list"
+          ? isPublicOperationListResponse(body)
+          : isPublicOperationResponse(body);
 
   if (!valid) {
     throw new SitePublicFormSubmissionError(sitePublicFormInvalidResponseMessage(config.kind));
   }
+
+  return isPublicOperationListResponse(body)
+    ? {
+        kind: "list",
+        records: body.output.records.map((record) => ({ ...record })),
+      }
+    : undefined;
 }
 
 function defaultSitePublicFormIdempotencyKey({

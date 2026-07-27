@@ -50,6 +50,7 @@ export type OperationInvocationSource = {
 export type OperationInvocationInput =
   | {
       type: "list";
+      input?: unknown;
     }
   | {
       type: "get";

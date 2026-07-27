@@ -9,6 +9,39 @@ export type ShapedPublicOperationResponse = {
 export function shapePublicOperationResponse(
   response: OperationInvocationResponse,
 ): ShapedPublicOperationResponse {
+  if (response.output.type === "list" && response.invocation.operation.kind === "list") {
+    const allowedFields = response.invocation.operation.policy?.responseFields?.anonymous;
+
+    if (!allowedFields?.length) {
+      throw new BadRequestError("Public operation response is not available.");
+    }
+
+    return {
+      body: {
+        invocationId: response.invocation.invocationId,
+        operation: {
+          entityName: response.invocation.operation.entityName,
+          operationName: response.invocation.operation.operationName,
+          canonicalKey: response.invocation.operation.canonicalKey,
+          kind: "list",
+        },
+        output: {
+          type: "list",
+          records: response.output.records.map((record) =>
+            Object.fromEntries(
+              allowedFields.flatMap((fieldName) =>
+                Object.hasOwn(record.values, fieldName)
+                  ? [[fieldName, record.values[fieldName]]]
+                  : [],
+              ),
+            ),
+          ),
+        },
+        status: "accepted",
+      },
+    };
+  }
+
   if (response.output.type === "create" && response.invocation.operation.kind === "create") {
     return {
       body: {

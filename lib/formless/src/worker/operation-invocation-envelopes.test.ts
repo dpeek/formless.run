@@ -261,6 +261,52 @@ describe("operation invocation envelope construction", () => {
     expect(JSON.stringify(envelope)).not.toContain("proof");
   });
 
+  it("builds challenge-free public list envelopes without idempotency reservation", () => {
+    const envelope = buildUnverifiedPublicOperationInvocationEnvelope({
+      identity: schemaKeyStorageIdentity("tasks"),
+      invocationId: "operation:public-read-1",
+      publicInput: {
+        lookup: "CODE-ALPHA",
+      },
+      receivedAt: "2026-06-27T01:02:00.000Z",
+      route: {
+        entityName: "task",
+        operationName: "publicLookup",
+      },
+      schema: publicEnvelopeSchema(),
+      source: {
+        host: "example.com",
+        path: "/api/tasks/public/operations/task/publicLookup",
+      },
+    });
+
+    expect(envelope).toMatchObject({
+      actor: { kind: "anonymous" },
+      idempotency: {
+        required: false,
+      },
+      input: {
+        type: "list",
+        input: {
+          lookup: "CODE-ALPHA",
+        },
+      },
+      invocationId: "operation:public-read-1",
+      operation: {
+        canonicalKey: "task.publicLookup",
+        kind: "list",
+      },
+      source: {
+        protocol: "public",
+        host: "example.com",
+        path: "/api/tasks/public/operations/task/publicLookup",
+      },
+    });
+    expect(envelope.idempotency).not.toHaveProperty("key");
+    expect(envelope.idempotency).not.toHaveProperty("writeIdentity");
+    expect(JSON.stringify(envelope)).not.toContain("proof");
+  });
+
   it("builds verified public handler command envelopes with verified proof facts", () => {
     const proofFacts = publicTurnstileProofFacts();
     const proof = publicTurnstileProof(proofFacts);
@@ -368,6 +414,43 @@ function publicEnvelopeSchema(): AppSchema {
 
   task.operations = {
     ...task.operations,
+    publicLookup: {
+      label: "Public lookup",
+      kind: "list",
+      scope: "collection",
+      target: { query: "taskActive" },
+      input: {
+        fields: {
+          lookup: {
+            type: "text",
+            required: true,
+            label: "Lookup",
+          },
+        },
+      },
+      output: {
+        type: "list",
+        query: "taskActive",
+        maxResults: 2,
+      },
+      idempotency: {
+        required: false,
+      },
+      audit: {
+        input: "summary",
+      },
+      policy: {
+        actors: ["anonymous"],
+        access: {
+          actor: "anonymous",
+          origin: { kind: "same-origin" },
+          rateLimit: { maxRequests: 10, windowSeconds: 60 },
+        },
+        responseFields: {
+          anonymous: ["title"],
+        },
+      },
+    },
     publicCreate: {
       label: "Public create",
       kind: "create",

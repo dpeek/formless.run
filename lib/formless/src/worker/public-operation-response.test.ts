@@ -12,6 +12,59 @@ import type { ChangeRow } from "../shared/protocol.ts";
 import { shapePublicOperationResponse } from "./public-operation-response.ts";
 
 describe("public operation response shaping", () => {
+  it("projects anonymous list rows without stored-record or undeclared values", () => {
+    const response = {
+      invocation: publicListInvocation(),
+      output: {
+        type: "list",
+        records: [
+          {
+            id: "certificate-private-id",
+            entity: "certificate",
+            values: {
+              code: "CODE-ALPHA",
+              reportNumber: "REPORT-1",
+              customer: "Private customer",
+              providerStorageKey: "private/provider-key.pdf",
+            },
+            createdAt: "2026-07-15T00:00:00.000Z",
+            updatedAt: "2026-07-15T00:00:00.000Z",
+          },
+        ],
+      },
+      status: "accepted",
+    } satisfies OperationInvocationResponse;
+
+    expect(shapePublicOperationResponse(response)).toEqual({
+      body: {
+        invocationId: "operation:certificate.lookup:read-1",
+        operation: {
+          entityName: "certificate",
+          operationName: "lookup",
+          canonicalKey: "certificate.lookup",
+          kind: "list",
+        },
+        output: {
+          type: "list",
+          records: [
+            {
+              code: "CODE-ALPHA",
+              reportNumber: "REPORT-1",
+            },
+          ],
+        },
+        status: "accepted",
+      },
+    });
+
+    const serialized = JSON.stringify(shapePublicOperationResponse(response));
+    expect(serialized).not.toContain("certificate-private-id");
+    expect(serialized).not.toContain("Private customer");
+    expect(serialized).not.toContain("provider-key");
+    expect(serialized).not.toContain("createdAt");
+    expect(serialized).not.toContain('"entity":"certificate"');
+  });
+
   it("allowlists committed create output without exposing private execution facts", () => {
     const output = createOutput();
     const response = {
@@ -172,6 +225,60 @@ function publicInvocation(kind: "create" | "command"): OperationInvocationEnvelo
       kind,
       scope: "collection",
       effect: operation.effect,
+      output: operation.output,
+      policy: operation.policy,
+    },
+    receivedAt: "2026-07-15T00:00:00.000Z",
+    schemaOperation: operation,
+  };
+}
+
+function publicListInvocation(): OperationInvocationEnvelope {
+  const operation: EntityOperationSchema = {
+    kind: "list",
+    scope: "collection",
+    target: { query: "certificateLookup" },
+    input: {
+      fields: {
+        lookup: { type: "text", required: true, label: "Lookup" },
+      },
+    },
+    output: { type: "list", query: "certificateLookup", maxResults: 2 },
+    idempotency: { required: false },
+    audit: { input: "summary" },
+    policy: {
+      actors: ["anonymous"],
+      access: {
+        actor: "anonymous",
+        origin: { kind: "same-origin" },
+        rateLimit: { maxRequests: 10, windowSeconds: 60 },
+      },
+      responseFields: {
+        anonymous: ["code", "reportNumber"],
+      },
+    },
+  };
+
+  return {
+    invocationId: "operation:certificate.lookup:read-1",
+    appStorageIdentity: schemaKeyStorageIdentity("tasks"),
+    actor: { kind: "anonymous" },
+    source: {
+      protocol: "public",
+      host: "example.com",
+      path: "/api/tasks/public/operations/certificate/lookup",
+    },
+    input: {
+      type: "list",
+      input: { lookup: "CODE-ALPHA" },
+    },
+    idempotency: { required: false },
+    operation: {
+      entityName: "certificate",
+      operationName: "lookup",
+      canonicalKey: "certificate.lookup",
+      kind: "list",
+      scope: "collection",
       output: operation.output,
       policy: operation.policy,
     },

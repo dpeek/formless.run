@@ -17,6 +17,7 @@ export type PublicOperationRouteErrorCode = "empty-segment" | "invalid-escape" |
 
 export type PublicOperationInputValue = string | boolean | number;
 export type PublicOperationInputValues = Record<string, PublicOperationInputValue>;
+export type PublicOperationResultRow = Record<string, PublicOperationInputValue>;
 
 export type PublicOperationProofInput = {
   turnstileToken: string;
@@ -28,7 +29,7 @@ export type PublicOperationRequestSource = {
 
 export type PublicOperationRequestEnvelope = {
   input: PublicOperationInputValues;
-  proof: PublicOperationProofInput;
+  proof?: PublicOperationProofInput;
   source?: PublicOperationRequestSource;
   idempotencyKey?: string;
 };
@@ -37,16 +38,17 @@ export type PublicOperationRequestBodyInput = {
   idempotencyKey?: string;
   input: PublicOperationInputValues;
   siteBlockId?: string;
-  turnstileToken: string;
+  turnstileToken?: string;
 };
 
-export type PublicOperationResponseStatus = "committed" | "replayed";
+export type PublicOperationResponseStatus = "accepted" | "committed" | "replayed";
+export type PublicOperationWriteResponseStatus = Exclude<PublicOperationResponseStatus, "accepted">;
 
 export type PublicOperationResponseOperation = {
   canonicalKey: string;
   entityName: string;
   operationName: string;
-  kind: "command" | "create";
+  kind: "command" | "create" | "list";
 };
 
 export type PublicOperationCommandOutput = {
@@ -64,13 +66,18 @@ export type PublicOperationCreateOutput = {
   type: "create";
 };
 
+export type PublicOperationListOutput = {
+  records: PublicOperationResultRow[];
+  type: "list";
+};
+
 export type PublicOperationCommandResponse = {
   invocationId: string;
   operation: PublicOperationResponseOperation & {
     kind: "command";
   };
   output: PublicOperationCommandOutput;
-  status: PublicOperationResponseStatus;
+  status: PublicOperationWriteResponseStatus;
 };
 
 export type PublicOperationCreateResponse = {
@@ -79,12 +86,22 @@ export type PublicOperationCreateResponse = {
     kind: "create";
   };
   output: PublicOperationCreateOutput;
-  status: PublicOperationResponseStatus;
+  status: PublicOperationWriteResponseStatus;
+};
+
+export type PublicOperationListResponse = {
+  invocationId: string;
+  operation: PublicOperationResponseOperation & {
+    kind: "list";
+  };
+  output: PublicOperationListOutput;
+  status: "accepted";
 };
 
 export type PublicOperationResponse =
   | PublicOperationCommandResponse
-  | PublicOperationCreateResponse;
+  | PublicOperationCreateResponse
+  | PublicOperationListResponse;
 
 export type SubmitPublicOperationJsonInput<ResponseBody extends PublicOperationResponse> = {
   body: PublicOperationRequestEnvelope;
@@ -149,9 +166,13 @@ export function buildPublicOperationRequestBody(
 ): PublicOperationRequestEnvelope {
   return {
     input: input.input,
-    proof: {
-      turnstileToken: input.turnstileToken,
-    },
+    ...(input.turnstileToken === undefined
+      ? {}
+      : {
+          proof: {
+            turnstileToken: input.turnstileToken,
+          },
+        }),
     ...(input.siteBlockId === undefined
       ? {}
       : {
@@ -203,7 +224,11 @@ export function publicOperationErrorMessage(value: unknown): string | undefined 
 }
 
 export function isPublicOperationResponse(value: unknown): value is PublicOperationResponse {
-  return isPublicOperationCommandResponse(value) || isPublicOperationCreateResponse(value);
+  return (
+    isPublicOperationCommandResponse(value) ||
+    isPublicOperationCreateResponse(value) ||
+    isPublicOperationListResponse(value)
+  );
 }
 
 export function isPublicOperationCommandResponse(
@@ -211,6 +236,7 @@ export function isPublicOperationCommandResponse(
 ): value is PublicOperationCommandResponse {
   return (
     hasPublicOperationResponseBasics(value, "command") &&
+    isPublicOperationWriteResponseStatus(value.status) &&
     hasPublicOperationOutputBasics(value.output, "command")
   );
 }
@@ -220,8 +246,21 @@ export function isPublicOperationCreateResponse(
 ): value is PublicOperationCreateResponse {
   return (
     hasPublicOperationResponseBasics(value, "create") &&
+    isPublicOperationWriteResponseStatus(value.status) &&
     hasPublicOperationOutputBasics(value.output, "create") &&
     "record" in value.output
+  );
+}
+
+export function isPublicOperationListResponse(
+  value: unknown,
+): value is PublicOperationListResponse {
+  return (
+    hasPublicOperationResponseBasics(value, "list") &&
+    value.status === "accepted" &&
+    value.output.type === "list" &&
+    Array.isArray(value.output.records) &&
+    value.output.records.every(isPublicOperationResultRow)
   );
 }
 
@@ -285,7 +324,7 @@ function invalidShape(): PublicOperationRouteError {
 
 function hasPublicOperationResponseBasics(
   value: unknown,
-  kind: "command" | "create",
+  kind: PublicOperationResponseOperation["kind"],
 ): value is {
   invocationId: string;
   operation: PublicOperationResponseOperation;
@@ -295,7 +334,7 @@ function hasPublicOperationResponseBasics(
   return (
     isRecord(value) &&
     typeof value.invocationId === "string" &&
-    (value.status === "committed" || value.status === "replayed") &&
+    (value.status === "accepted" || value.status === "committed" || value.status === "replayed") &&
     isRecord(value.operation) &&
     typeof value.operation.entityName === "string" &&
     typeof value.operation.operationName === "string" &&
@@ -320,6 +359,24 @@ function hasPublicOperationOutputBasics(
     output.affectedChangeIds.every((changeId) => typeof changeId === "string") &&
     (!("changes" in output) || Array.isArray(output.changes))
   );
+}
+
+function isPublicOperationResultRow(value: unknown): value is PublicOperationResultRow {
+  return (
+    isRecord(value) &&
+    Object.values(value).every(
+      (fieldValue) =>
+        typeof fieldValue === "string" ||
+        typeof fieldValue === "boolean" ||
+        typeof fieldValue === "number",
+    )
+  );
+}
+
+function isPublicOperationWriteResponseStatus(
+  value: PublicOperationResponseStatus,
+): value is PublicOperationWriteResponseStatus {
+  return value === "committed" || value === "replayed";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

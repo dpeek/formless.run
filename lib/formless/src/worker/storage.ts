@@ -3215,7 +3215,15 @@ function summarizeOperationInvocationInput(
   input: OperationInvocationInput,
 ): OperationInvocationInputSummary {
   if (input.type === "list") {
-    return { type: "list" };
+    return {
+      type: "list",
+      ...(input.input === undefined
+        ? {}
+        : {
+            inputFields: recordFieldNames(input.input),
+            inputType: auditValueType(input.input),
+          }),
+    };
   }
 
   if (input.type === "get" || input.type === "delete") {

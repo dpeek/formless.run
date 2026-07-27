@@ -25,7 +25,12 @@ type SubscribeContactPublicOperationProjectionInput = {
 };
 
 type SubscribeContactPublicOperationSelection =
-  | { kind: "available"; entityName: string; canonicalKey: string }
+  | {
+      kind: "available";
+      entityName: string;
+      canonicalKey: string;
+      operationKind: "command" | "create";
+    }
   | { kind: "unavailable"; code: string; message: string };
 
 type SubscribeContactPublicOperationAdapter = {
@@ -88,6 +93,7 @@ export function projectSubscribeContactPublicOperation(
     entityName: operation.entityName,
     operationName: input.operationName,
     canonicalKey: operation.canonicalKey,
+    kind: operation.operationKind,
     ...(input.target ? { target: input.target } : {}),
     route: buildPublicOperationTargetRoute({
       targetApiRoutePrefix: input.publicOperationApiRoutePrefix,
@@ -122,7 +128,7 @@ function selectPublicContactOperation(
 
     const operation = selectAnonymousPublicOperation(schema, { entityName, operationName });
 
-    return operation.kind === "available" ? [operation] : [];
+    return operation.kind === "available" && operation.executionKind !== "list" ? [operation] : [];
   });
 
   if (publicContactOperations.length !== 1) {
@@ -143,6 +149,7 @@ function selectPublicContactOperation(
     kind: "available",
     entityName: publicOperation.entityName,
     canonicalKey: publicOperation.canonicalKey,
+    operationKind: publicOperation.operation.kind === "create" ? "create" : "command",
   };
 }
 
@@ -186,6 +193,7 @@ function selectPublicSubscribeOperation(
     kind: "available",
     entityName: publicOperation.entityName,
     canonicalKey: publicOperation.canonicalKey,
+    operationKind: publicOperation.operation.kind === "create" ? "create" : "command",
   };
 }
 

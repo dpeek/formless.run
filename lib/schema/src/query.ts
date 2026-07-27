@@ -132,6 +132,37 @@ export function collectQueryContextNames(query: QueryExpression): string[] {
   return [...names];
 }
 
+export function queryRequiresContextEqualityOnEveryBranch(
+  query: QueryExpression,
+  contextNames: readonly string[],
+): boolean {
+  const acceptedNames = new Set(contextNames);
+
+  if (query.kind === "all") {
+    return false;
+  }
+
+  if (query.kind === "and") {
+    return query.expressions.some((expression) =>
+      queryRequiresContextEqualityOnEveryBranch(expression, contextNames),
+    );
+  }
+
+  if (query.kind === "or") {
+    return query.expressions.every((expression) =>
+      queryRequiresContextEqualityOnEveryBranch(expression, contextNames),
+    );
+  }
+
+  return (
+    query.ref.kind === "value" &&
+    query.op === "eq" &&
+    isQueryDynamicValue(query.value) &&
+    query.value.kind === "context" &&
+    acceptedNames.has(query.value.name)
+  );
+}
+
 export function matchesQuery(
   record: StoredRecord,
   query: QueryExpression,
@@ -303,9 +334,12 @@ function parseContextQueryValue(
     );
   }
 
-  if (field.type !== "reference") {
+  if (
+    ref.kind !== "value" ||
+    !["text", "boolean", "date", "number", "enum", "reference"].includes(field.type)
+  ) {
     throw new Error(
-      `Query "${contextLabel}" field "${formatFieldRef(ref)}" context values require a reference field.`,
+      `Query "${contextLabel}" field "${formatFieldRef(ref)}" context values require a scalar value or reference field.`,
     );
   }
 

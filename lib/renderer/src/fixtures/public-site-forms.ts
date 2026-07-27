@@ -423,6 +423,7 @@ function formBlock(
             entityName,
             operationName,
             canonicalKey: `${entityName}.${operationName}`,
+            kind: kind === "subscribe" ? "command" : kind === "contact" ? "create" : "command",
             route: `/api/site/public/operations/${entityName}/${operationName}`,
             challenge: {
               kind: "turnstile",

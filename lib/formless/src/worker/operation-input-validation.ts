@@ -54,6 +54,14 @@ export function validateOperationInvocationRecordWriteValues(
   return projection.recordWritePatchValues;
 }
 
+export function validateOperationInvocationListInputValues(
+  input: OperationEnvelopeInputValidationRequest,
+): RecordValues {
+  const { projection } = validateWorkerOperationInputValues(input);
+
+  return projection.operationInputValues;
+}
+
 export function validateOperationInvocationRecordPlanInputValues(
   input: OperationEnvelopeInputValidationRequest,
 ): RecordValues {

@@ -1,4 +1,5 @@
 import {
+  defaultQueryEvaluationContext,
   isEntityOperationWriteKind,
   matchesQuery,
   type AppSchema,
@@ -25,6 +26,7 @@ import { validateRecordWriteRequestAsync } from "./authority-validation.ts";
 import type { IdentityReferenceTargetResolver } from "./identity-reference-targets.ts";
 import {
   validateOperationInvocationCommandHandlerInputValues,
+  validateOperationInvocationListInputValues,
   validateOperationInvocationRecordWriteValues,
 } from "./operation-input-validation.ts";
 import {
@@ -203,8 +205,8 @@ function executeListOperationInvocation(input: {
   storage: DurableObjectStorage;
 }): OperationInvocationResponse {
   const { envelope } = input;
-  const queryName =
-    envelope.operation.output.type === "list" ? envelope.operation.output.query : undefined;
+  const output = envelope.operation.output;
+  const queryName = output.type === "list" ? output.query : undefined;
   const query = queryName === undefined ? undefined : input.schema.queries[queryName];
 
   if (!query) {
@@ -213,9 +215,28 @@ function executeListOperationInvocation(input: {
     );
   }
 
-  const records = getActiveRecordsByEntity(input.storage, query.entity).filter((record) =>
-    matchesQuery(record, query.expression),
+  if (envelope.input.type !== "list") {
+    throw new BadRequestError(
+      `Operation "${envelope.operation.canonicalKey}" requires list input.`,
+    );
+  }
+
+  const queryContext = {
+    ...defaultQueryEvaluationContext(),
+    values: validateOperationInvocationListInputValues({
+      envelope,
+      rawInput: envelope.input.input,
+      schema: input.schema,
+      storage: input.storage,
+    }),
+  };
+  const matchingRecords = getActiveRecordsByEntity(input.storage, query.entity).filter((record) =>
+    matchesQuery(record, query.expression, queryContext),
   );
+  const records =
+    output.type === "list" && output.maxResults !== undefined
+      ? matchingRecords.slice(0, output.maxResults)
+      : matchingRecords;
 
   return {
     invocation: envelope,

@@ -421,6 +421,76 @@ describe("public Site form sessions", () => {
     expect(serialized).not.toContain("output");
   });
 
+  it("submits challenge-free list input without write identity and publishes projected results", async () => {
+    const requestBodies: unknown[] = [];
+    const controller = createSitePublicFormSessionController({
+      block: formBlock("certificate-lookup", "publicOperationForm", {
+        publicOperation: publicOperation({
+          challenge: false,
+          fields: [{ name: "lookup", label: "Verification code", required: true, control: "text" }],
+          kind: "list",
+          operationName: "lookup",
+        }),
+        successLabel: "Certificate found.",
+      }),
+      fetcher: async (_input, init) => {
+        if (typeof init?.body !== "string") {
+          throw new Error("Expected a JSON request body.");
+        }
+
+        requestBodies.push(JSON.parse(init.body));
+
+        return Response.json(
+          publicListResponse([
+            {
+              verificationCode: "CODE-ALPHA",
+              reportNumber: "REPORT-1",
+              publicDeliveryReference: "delivery-alpha",
+            },
+          ]),
+        );
+      },
+      idempotencyKeyFactory: () => {
+        throw new Error("Public reads must not create idempotency keys.");
+      },
+    });
+
+    expect(controller.getSnapshot()).toMatchObject({
+      status: "ready",
+      submit: { ready: false },
+    });
+    expect(controller.getSnapshot()).not.toHaveProperty("challenge");
+
+    await changeField(controller, "lookup", "CODE-ALPHA");
+
+    expect(controller.getSnapshot().submit.ready).toBe(true);
+
+    await controller.dispatch(controller.getSnapshot().submit.intent);
+
+    expect(requestBodies).toEqual([
+      {
+        input: { lookup: "CODE-ALPHA" },
+        source: { siteBlockId: "certificate-lookup" },
+      },
+    ]);
+    expect(controller.getSnapshot()).toMatchObject({
+      status: "success",
+      feedback: { kind: "success", message: "Certificate found." },
+      result: {
+        kind: "list",
+        records: [
+          {
+            verificationCode: "CODE-ALPHA",
+            reportNumber: "REPORT-1",
+            publicDeliveryReference: "delivery-alpha",
+          },
+        ],
+      },
+    });
+    expect(JSON.stringify(controller.getSnapshot())).not.toContain("customerName");
+    expect(JSON.stringify(controller.getSnapshot())).not.toContain("providerStorageKey");
+  });
+
   it("projects display-safe failure, challenge reset, retry, and successful replay", async () => {
     let attempt = 0;
     const requestBodies: string[] = [];
@@ -700,8 +770,10 @@ function formBlock(
 
 function publicOperation(
   options: {
+    challenge?: boolean;
     entityName?: string;
     fields?: SitePublicOperationInputFieldNode[];
+    kind?: SitePublicOperationNode["kind"];
     operationName?: string;
     siteKey?: string;
   } = {},
@@ -715,11 +787,16 @@ function publicOperation(
     entityName,
     operationName,
     canonicalKey: `${entityName}.${operationName}`,
+    kind: options.kind ?? "create",
     route: `/api/site/public/operations/${entityName}/${operationName}`,
-    challenge: {
-      kind: "turnstile",
-      ...(siteKey === undefined ? {} : { siteKey }),
-    },
+    ...(options.challenge === false
+      ? {}
+      : {
+          challenge: {
+            kind: "turnstile" as const,
+            ...(siteKey === undefined ? {} : { siteKey }),
+          },
+        }),
     ...(fields === undefined ? {} : { fields }),
   };
 }
@@ -760,6 +837,23 @@ function publicCreateResponse({ record }: { record: unknown }) {
       record,
     },
     status: "committed",
+  };
+}
+
+function publicListResponse(records: Array<Record<string, string | boolean | number>>) {
+  return {
+    invocationId: "operation-1",
+    operation: {
+      entityName: "example",
+      operationName: "lookup",
+      canonicalKey: "example.lookup",
+      kind: "list",
+    },
+    output: {
+      type: "list",
+      records,
+    },
+    status: "accepted",
   };
 }
 

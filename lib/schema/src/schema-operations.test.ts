@@ -1036,7 +1036,7 @@ describe("schema entity operations", () => {
             input: { fields: { note: { type: "text", required: true } } },
           },
         },
-        message: "inline scalar fields are only supported for command operations",
+        message: "inline scalar fields are only supported for command or list operations",
       },
       {
         operations: {
