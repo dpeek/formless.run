@@ -383,6 +383,98 @@ describe("workspace gateway auto-save", () => {
     ]);
   });
 
+  it("saves referenced public and private documents with manifest metadata", async () => {
+    const workspaceRoot = await makeTempDir();
+    const requests: CapturedRequest[] = [];
+    const privateBytes = new TextEncoder().encode("%PDF-1.7\nprivate workspace document");
+    const publicBytes = new TextEncoder().encode("%PDF-1.7\npublic workspace document");
+    const unreferencedBytes = new TextEncoder().encode("%PDF-1.7\nunreferenced document");
+    const scheduler = createDefaultWorkspaceAutoSaveScheduler(
+      autoSaveDeps(workspaceRoot, {
+        fetch: workspaceDocumentSaveFetch(requests, {
+          privateBytes,
+          publicBytes,
+          unreferencedBytes,
+        }),
+        operationIds: ["op_document_save_00000001"],
+        timestamps: [
+          "2026-06-02T02:45:00.000Z",
+          "2026-06-02T02:45:01.000Z",
+          "2026-06-02T02:45:02.000Z",
+          "2026-06-02T02:45:03.000Z",
+          "2026-06-02T02:45:04.000Z",
+        ],
+      }),
+    );
+
+    await writeWorkspaceManifest(workspaceRoot);
+    await writeLocalDevEnv(workspaceRoot);
+    await scheduler.enqueue({
+      source: "media-reference",
+      storageIdentity: "app:reports",
+      workspaceRoot,
+    });
+    await expect(scheduler.runNow(workspaceRoot)).resolves.toMatchObject({
+      displayState: "saved",
+      savedGeneration: 1,
+    });
+
+    const mediaManifest = JSON.parse(
+      await readFile(path.join(workspaceRoot, "state/media/manifest.json"), "utf8"),
+    ) as {
+      objects: Array<{
+        archivePath: string;
+        asset: { access: string; contentType: string; filename: string };
+      }>;
+    };
+
+    expect(mediaManifest.objects).toMatchObject([
+      {
+        archivePath: "media/reports/media/app-installs/reports/documents/private-report.pdf",
+        asset: {
+          access: "private",
+          contentType: "application/pdf",
+          filename: "private-report.pdf",
+        },
+      },
+      {
+        archivePath: "media/reports/media/app-installs/reports/documents/public-report.pdf",
+        asset: {
+          access: "public",
+          contentType: "application/pdf",
+          filename: "public-report.pdf",
+        },
+      },
+    ]);
+    await expect(
+      readFile(
+        path.join(
+          workspaceRoot,
+          "state/media/media/reports/media/app-installs/reports/documents/private-report.pdf",
+        ),
+      ),
+    ).resolves.toEqual(Buffer.from(privateBytes));
+    await expect(
+      readFile(
+        path.join(
+          workspaceRoot,
+          "state/media/media/reports/media/app-installs/reports/documents/public-report.pdf",
+        ),
+      ),
+    ).resolves.toEqual(Buffer.from(publicBytes));
+    await expect(
+      stat(
+        path.join(
+          workspaceRoot,
+          "state/media/media/reports/media/app-installs/reports/documents/unreferenced.pdf",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    expect(requests.map((request) => request.url)).not.toContain(
+      "http://localhost:5173/api/app-installs/site/reports/media/documents/unreferenced.pdf",
+    );
+  });
+
   it("lets manual gateway save flush failed dirty auto-save state", async () => {
     const workspaceRoot = await makeTempDir();
     const requests: CapturedRequest[] = [];
@@ -578,6 +670,97 @@ function workspaceSaveFetch(requests: CapturedRequest[], installId: string): typ
   };
 }
 
+function workspaceDocumentSaveFetch(
+  requests: CapturedRequest[],
+  input: {
+    privateBytes: Uint8Array;
+    publicBytes: Uint8Array;
+    unreferencedBytes: Uint8Array;
+  },
+): typeof fetch {
+  const installId = "reports";
+  const assets = [
+    workspaceDocumentAsset(installId, "private-report.pdf", "private", input.privateBytes),
+    workspaceDocumentAsset(installId, "public-report.pdf", "public", input.publicBytes),
+    workspaceDocumentAsset(installId, "unreferenced.pdf", "public", input.unreferencedBytes),
+  ];
+  const bytesByAssetId = new Map([
+    ["private-report.pdf", input.privateBytes],
+    ["public-report.pdf", input.publicBytes],
+    ["unreferenced.pdf", input.unreferencedBytes],
+  ]);
+
+  return async (url, init) => {
+    const requestUrl =
+      typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+    const parsedUrl = new URL(requestUrl);
+
+    requests.push({
+      body: typeof init?.body === "string" ? init.body : undefined,
+      headers: normalizeHeaders(init?.headers),
+      method: init?.method ?? "GET",
+      url: requestUrl,
+    });
+
+    if (parsedUrl.pathname === "/api/formless/app-installs") {
+      return Response.json({
+        installs: [installedSite(installId, "Reports")],
+        packages: listInstallableAppPackages(bundledAppPackageResolver),
+      });
+    }
+
+    if (parsedUrl.pathname === "/api/formless/control-plane/snapshot") {
+      return Response.json(controlPlaneSnapshot(gatewayControlPlaneRecords(installId)));
+    }
+
+    if (parsedUrl.pathname === `/api/app-installs/site/${installId}/snapshot`) {
+      return Response.json({
+        ...snapshot(
+          [
+            {
+              createdAt: "2026-06-02T02:44:00.000Z",
+              entity: "block",
+              id: "documents",
+              updatedAt: "2026-06-02T02:44:00.000Z",
+              values: {
+                privateDocument: "private-report.pdf",
+                publicDocument: "public-report.pdf",
+                type: "group",
+              },
+            },
+          ],
+          `app:${installId}`,
+        ),
+        schema: workspaceDocumentSchema(),
+      });
+    }
+
+    if (parsedUrl.pathname === `/api/app-installs/site/${installId}/media/documents`) {
+      const field = parsedUrl.searchParams.get("field");
+      const access = field === "privateDocument" ? "private" : "public";
+
+      return Response.json({ assets: assets.filter((asset) => asset.access === access) });
+    }
+
+    const deliveryMatch = parsedUrl.pathname.match(
+      /^\/api\/app-installs\/site\/reports\/media\/documents\/([^/]+)$/,
+    );
+
+    if (deliveryMatch) {
+      const assetId = deliveryMatch[1] ?? "";
+      const bytes = bytesByAssetId.get(assetId);
+
+      return bytes
+        ? new Response(Buffer.from(bytes), {
+            headers: { "content-type": "application/pdf" },
+          })
+        : Response.json({ error: "not found" }, { status: 404 });
+    }
+
+    return Response.json({ error: "not found" }, { status: 404 });
+  };
+}
+
 function installedSite(installId: string, label: string) {
   const facts = packageAppFactsForKey("site", bundledAppPackageResolver);
 
@@ -615,6 +798,64 @@ function snapshot(
     sourceCursor: 1,
     storageIdentity,
     version: STORAGE_SNAPSHOT_VERSION,
+  };
+}
+
+function workspaceDocumentSchema() {
+  const schema = structuredClone(siteSourceSchema);
+  const block = schema.entities.block;
+
+  if (!block) {
+    throw new Error("Expected Site block schema.");
+  }
+
+  block.fields.privateDocument = {
+    asset: {
+      acceptedMimeTypes: ["application/pdf"],
+      access: "private",
+      kind: "document",
+      maxBytes: 1024 * 1024,
+    },
+    label: "Private document",
+    required: false,
+    type: "text",
+  };
+  block.fields.publicDocument = {
+    asset: {
+      acceptedMimeTypes: ["application/pdf"],
+      access: "public",
+      kind: "document",
+      maxBytes: 1024 * 1024,
+    },
+    label: "Public document",
+    required: false,
+    type: "text",
+  };
+
+  return schema;
+}
+
+function workspaceDocumentAsset(
+  installId: string,
+  assetId: string,
+  access: "private" | "public",
+  bytes: Uint8Array,
+) {
+  const storageKey = `media/app-installs/${installId}/documents/${assetId}`;
+
+  return {
+    access,
+    byteSize: bytes.byteLength,
+    contentType: "application/pdf",
+    deliveryHref: `/api/app-installs/site/${installId}/media/documents/${assetId}`,
+    filename: assetId,
+    id: assetId,
+    kind: "document",
+    label: assetId,
+    ownerAppInstallId: installId,
+    provider: "r2",
+    status: "ready",
+    storageKey,
   };
 }
 

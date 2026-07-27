@@ -1,12 +1,22 @@
 import { useId, useState } from "react";
 import * as stylex from "@stylexjs/stylex";
+import { Button } from "@astryxdesign/core/Button";
+import { Card } from "@astryxdesign/core/Card";
 import { FileInput } from "@astryxdesign/core";
 import { Field, type FieldStatusInput } from "@astryxdesign/core/Field";
 import { Grid } from "@astryxdesign/core/Grid";
+import { HStack } from "@astryxdesign/core/HStack";
+import { Link } from "@astryxdesign/core/Link";
 import { Popover } from "@astryxdesign/core/Popover";
 import { SelectableCard } from "@astryxdesign/core/SelectableCard";
+import { Text } from "@astryxdesign/core/Text";
 import { Thumbnail } from "@astryxdesign/core/Thumbnail";
+import { VStack } from "@astryxdesign/core/VStack";
 import { borderVars, radiusVars, spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
+import type {
+  MediaDocumentPresentation,
+  MissingMediaAsset,
+} from "@dpeek/formless-presentation/contract";
 import type { AstryxInputDensity } from "./input-density.ts";
 
 export type MediaInputOption = {
@@ -34,6 +44,38 @@ export type MediaInputProps = {
   previewUrl?: string;
   status?: FieldStatusInput;
   width?: number | string;
+  onSelectOption?: (value: string) => void;
+  onUploadFile?: (file: File) => void;
+};
+
+export type DocumentMediaInputOption = {
+  byteSize: number;
+  contentType: string;
+  filename: string;
+  label: string;
+  value: string;
+};
+
+export type DocumentMediaInputProps = {
+  accept?: string;
+  description?: string;
+  document?: MediaDocumentPresentation;
+  id?: string;
+  isDisabled?: boolean;
+  isLabelHidden?: boolean;
+  isLoading?: boolean;
+  isReadOnly?: boolean;
+  isRequired?: boolean;
+  label: string;
+  labelTooltip?: string;
+  maxSize?: number;
+  missingDocument?: MissingMediaAsset;
+  options?: readonly DocumentMediaInputOption[];
+  removalEnabled?: boolean;
+  selectedValue: string;
+  status?: FieldStatusInput;
+  width?: number | string;
+  onRemove?: () => void;
   onSelectOption?: (value: string) => void;
   onUploadFile?: (file: File) => void;
 };
@@ -160,6 +202,258 @@ export function MediaValueDisplay({
   );
 }
 
+export function DocumentMediaInput({
+  accept = "application/pdf",
+  description,
+  document,
+  id,
+  isDisabled = false,
+  isLabelHidden = false,
+  isLoading = false,
+  isReadOnly = false,
+  isRequired = false,
+  label,
+  labelTooltip,
+  maxSize,
+  missingDocument,
+  onRemove,
+  onSelectOption,
+  onUploadFile,
+  options = [],
+  removalEnabled = false,
+  selectedValue,
+  status,
+  width,
+}: DocumentMediaInputProps) {
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
+  const [isOpen, setIsOpen] = useState(false);
+  const interactionDisabled = isDisabled || isReadOnly || isLoading;
+  const hasValue = selectedValue.trim() !== "";
+  const showsPicker = options.length > 0 && Boolean(onSelectOption);
+  const showsUpload = Boolean(onUploadFile);
+  const showsRemove = hasValue && removalEnabled && Boolean(onRemove) && !isRequired;
+  const canPick = showsPicker && !interactionDisabled;
+
+  return (
+    <Field
+      description={description}
+      inputID={inputId}
+      isDisabled={isDisabled || isReadOnly}
+      isLabelHidden={isLabelHidden}
+      isRequired={isRequired}
+      label={label}
+      labelTooltip={labelTooltip}
+      status={status}
+      width={width}
+    >
+      <VStack gap={2} width="100%">
+        <DocumentMediaValue
+          document={document}
+          missingDocument={missingDocument}
+          selectedValue={selectedValue}
+        />
+        {showsPicker || showsUpload || showsRemove ? (
+          <HStack gap={2} wrap="wrap" vAlign="center">
+            {showsPicker ? (
+              canPick ? (
+                <Popover
+                  alignment="start"
+                  content={
+                    <DocumentMediaLibrary
+                      options={options}
+                      selectedValue={selectedValue}
+                      onSelect={(nextValue) => {
+                        onSelectOption?.(nextValue);
+                        setIsOpen(false);
+                      }}
+                    />
+                  }
+                  isOpen={isOpen}
+                  label={`${label} document library`}
+                  onOpenChange={setIsOpen}
+                  placement="below"
+                  width="min(420px, calc(100vw - 64px))"
+                  xstyle={styles.libraryPopover}
+                >
+                  <Button
+                    id={inputId}
+                    label={hasValue ? `Choose another ${label}` : `Choose ${label}`}
+                    size="sm"
+                    variant="secondary"
+                  />
+                </Popover>
+              ) : (
+                <Button
+                  id={inputId}
+                  isDisabled
+                  label={hasValue ? `Choose another ${label}` : `Choose ${label}`}
+                  size="sm"
+                  variant="secondary"
+                />
+              )
+            ) : null}
+            {showsUpload ? (
+              <FileInput
+                accept={accept}
+                isDisabled={interactionDisabled}
+                isLabelHidden
+                isLoading={isLoading}
+                label={hasValue ? `Replace ${label}` : `Upload ${label}`}
+                maxSize={maxSize}
+                mode="input"
+                placeholder={hasValue ? "Replace file" : "Upload file"}
+                value={null}
+                width="auto"
+                onChange={(file) => {
+                  if (file instanceof File) {
+                    onUploadFile?.(file);
+                  }
+                }}
+              />
+            ) : null}
+            {showsRemove ? (
+              <Button
+                isDisabled={interactionDisabled}
+                label={`Remove ${label}`}
+                onClick={onRemove}
+                size="sm"
+                variant="ghost"
+              />
+            ) : null}
+          </HStack>
+        ) : null}
+      </VStack>
+    </Field>
+  );
+}
+
+export function DocumentMediaValueDisplay({
+  document,
+  missingDocument,
+  selectedValue,
+}: Pick<DocumentMediaInputProps, "document" | "missingDocument" | "selectedValue">) {
+  return (
+    <DocumentMediaValue
+      document={document}
+      missingDocument={missingDocument}
+      selectedValue={selectedValue}
+    />
+  );
+}
+
+function DocumentMediaValue({
+  document,
+  missingDocument,
+  selectedValue,
+}: Pick<DocumentMediaInputProps, "document" | "missingDocument" | "selectedValue">) {
+  if (document) {
+    return (
+      <Card padding={3} variant="muted" width="100%">
+        <VStack gap={1} width="100%">
+          <Text maxLines={2} type="body" weight="medium">
+            {document.filename}
+          </Text>
+          <Text color="secondary" type="label">
+            {document.contentType} · {formatByteSize(document.byteSize)}
+          </Text>
+          <HStack gap={3} wrap="wrap">
+            <Link
+              href={document.openIntent.href}
+              isStandalone
+              rel="noopener noreferrer"
+              target={document.openIntent.target === "newTab" ? "_blank" : undefined}
+            >
+              Open
+            </Link>
+            <Link download={document.filename} href={document.downloadIntent.href} isStandalone>
+              Download
+            </Link>
+          </HStack>
+        </VStack>
+      </Card>
+    );
+  }
+
+  if (missingDocument) {
+    return (
+      <Card padding={3} variant="muted" width="100%">
+        <VStack gap={1} width="100%">
+          <Text type="body" weight="medium">
+            Document unavailable
+          </Text>
+          <Text color="secondary" type="label">
+            {missingDocument.reason ?? "The selected document could not be loaded."}
+          </Text>
+        </VStack>
+      </Card>
+    );
+  }
+
+  return (
+    <Card padding={3} variant="muted" width="100%">
+      <Text color="secondary" type="body">
+        {selectedValue.trim() === "" ? "No document selected" : "Document unavailable"}
+      </Text>
+    </Card>
+  );
+}
+
+function DocumentMediaLibrary({
+  onSelect,
+  options,
+  selectedValue,
+}: {
+  onSelect: (value: string) => void;
+  options: readonly DocumentMediaInputOption[];
+  selectedValue: string;
+}) {
+  return (
+    <VStack gap={1} padding={2} width="100%" xstyle={styles.documentLibrary}>
+      {options.map((option) => (
+        <SelectableCard
+          key={option.value}
+          isSelected={option.value === selectedValue}
+          label={option.label}
+          onChange={(selected) => {
+            if (selected) {
+              onSelect(option.value);
+            }
+          }}
+          padding={2}
+          variant="transparent"
+        >
+          <VStack gap={0.5} width="100%">
+            <Text maxLines={2} type="body" weight="medium">
+              {option.filename}
+            </Text>
+            <Text color="secondary" type="label">
+              {option.contentType} · {formatByteSize(option.byteSize)}
+            </Text>
+          </VStack>
+        </SelectableCard>
+      ))}
+    </VStack>
+  );
+}
+
+function formatByteSize(byteSize: number) {
+  if (byteSize < 1024) {
+    return `${byteSize} B`;
+  }
+
+  const kibibytes = byteSize / 1024;
+  if (kibibytes < 1024) {
+    return `${formatByteUnit(kibibytes)} KiB`;
+  }
+
+  return `${formatByteUnit(kibibytes / 1024)} MiB`;
+}
+
+function formatByteUnit(value: number) {
+  return value >= 10 ? Math.round(value).toString() : value.toFixed(1);
+}
+
 function MediaLibrary({
   accept,
   fieldLabel,
@@ -272,6 +566,13 @@ const styles = stylex.create({
     padding: spacingVars["--spacing-3"],
     scrollbarGutter: "stable",
     width: "100%",
+  },
+  documentLibrary: {
+    boxSizing: "border-box",
+    maxHeight: "min(320px, 50dvh)",
+    overflowY: "auto",
+    overscrollBehavior: "contain",
+    scrollbarGutter: "stable",
   },
   uploadTile: {
     aspectRatio: "1",

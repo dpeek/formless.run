@@ -1,17 +1,26 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  appDocumentMediaCollectionHref,
   coreImageMediaAssetOptionForId,
+  DOCUMENT_UPLOAD_ACCEPT,
+  documentMediaDownloadHref,
   IMAGE_UPLOAD_ACCEPT,
+  listAppDocumentMediaAssets,
   listCoreImageMediaAssets,
+  parseDocumentMediaListResponse,
+  parseDocumentMediaUploadResponse,
   parseImageMediaListResponse,
   parseImageMediaUploadResponse,
+  uploadAppDocumentMediaFile,
   uploadCoreImageMediaFile,
 } from "./client.ts";
+import type { DocumentMediaAsset } from "./types.ts";
 
 describe("Media client adapter", () => {
   it("exposes client adapter behavior through the public package subpath", async () => {
     const mediaClient = await import("@dpeek/formless-media/client");
 
+    expect(mediaClient.DOCUMENT_UPLOAD_ACCEPT).toBe(DOCUMENT_UPLOAD_ACCEPT);
     expect(mediaClient.IMAGE_UPLOAD_ACCEPT).toBe(IMAGE_UPLOAD_ACCEPT);
     expect(mediaClient.coreImageMediaAssetOptionForId("hero.webp")).toEqual({
       href: "/api/formless/media/media/images/hero.webp",
@@ -139,4 +148,134 @@ describe("Media client adapter", () => {
       "Media asset list returned an invalid response.",
     );
   });
+
+  it("uploads app-scoped documents with field identity but no caller-owned policy", async () => {
+    const file = new File([new TextEncoder().encode("%PDF-1.7\nbody")], "unsafe/report.pdf", {
+      type: " APPLICATION/PDF ; charset=binary ",
+    });
+    const target = {
+      documentsPath: "/api/app-installs/verifi/verifi-prod/media/documents" as const,
+      field: {
+        entityName: "certificate",
+        fieldName: "report asset",
+      },
+    };
+    const asset = documentMediaAsset();
+
+    expect(DOCUMENT_UPLOAD_ACCEPT).toBe("application/pdf");
+    expect(appDocumentMediaCollectionHref(target)).toBe(
+      "/api/app-installs/verifi/verifi-prod/media/documents?entity=certificate&field=report+asset",
+    );
+
+    await expect(
+      uploadAppDocumentMediaFile(file, target, {
+        fetcher: async (input, init) => {
+          expect(input).toBe(appDocumentMediaCollectionHref(target));
+          expect(init?.method).toBe("POST");
+          expect(init?.headers).toEqual({ Accept: "application/json" });
+          expect(init?.body).toBeInstanceOf(FormData);
+
+          if (!(init?.body instanceof FormData)) {
+            throw new Error("Expected multipart form data.");
+          }
+
+          expect([...init.body.keys()]).toEqual(["file"]);
+          expect(init.body.get("file")).toBe(file);
+
+          return Response.json({
+            asset,
+            assetId: asset.id,
+            contentType: asset.contentType,
+            href: asset.deliveryHref,
+            key: asset.storageKey,
+            size: asset.byteSize,
+          });
+        },
+      }),
+    ).resolves.toEqual({
+      asset,
+      assetId: asset.id,
+      contentType: asset.contentType,
+      href: asset.deliveryHref,
+      key: asset.storageKey,
+      size: asset.byteSize,
+    });
+  });
+
+  it("lists compatible documents and projects open and download intents", async () => {
+    const target = {
+      documentsPath: "/api/app-installs/verifi/verifi-prod/media/documents" as const,
+      field: {
+        entityName: "certificate",
+        fieldName: "report",
+      },
+    };
+    const asset = documentMediaAsset();
+
+    await expect(
+      listAppDocumentMediaAssets(target, {
+        fetcher: async (input, init) => {
+          expect(input).toBe(
+            "/api/app-installs/verifi/verifi-prod/media/documents?entity=certificate&field=report",
+          );
+          expect(init?.headers).toEqual({ Accept: "application/json" });
+
+          return Response.json({ assets: [asset] });
+        },
+      }),
+    ).resolves.toEqual([
+      {
+        access: "private",
+        byteSize: 13,
+        contentType: "application/pdf",
+        downloadHref:
+          "/api/app-installs/verifi/verifi-prod/media/documents/coa-fixed.pdf?download=1",
+        filename: "coa.pdf",
+        href: "/api/app-installs/verifi/verifi-prod/media/documents/coa-fixed.pdf",
+        id: "coa-fixed.pdf",
+        label: "Certificate of analysis",
+      },
+    ]);
+    expect(documentMediaDownloadHref(`${asset.deliveryHref}?source=record#page=2`)).toBe(
+      `${asset.deliveryHref}?source=record&download=1#page=2`,
+    );
+  });
+
+  it("rejects invalid document upload and list responses", async () => {
+    await expect(
+      parseDocumentMediaUploadResponse(
+        Response.json({ error: "Document denied." }, { status: 403 }),
+      ),
+    ).rejects.toThrow("Document denied.");
+    await expect(
+      parseDocumentMediaUploadResponse(
+        Response.json({
+          contentType: "text/plain",
+          href: "/document",
+          key: "document",
+          size: 1,
+        }),
+      ),
+    ).rejects.toThrow("Document upload returned an invalid response.");
+    await expect(parseDocumentMediaListResponse(Response.json({ assets: [{}] }))).rejects.toThrow(
+      "Document asset list returned an invalid response.",
+    );
+  });
 });
+
+function documentMediaAsset(): DocumentMediaAsset {
+  return {
+    access: "private",
+    byteSize: 13,
+    contentType: "application/pdf",
+    deliveryHref: "/api/app-installs/verifi/verifi-prod/media/documents/coa-fixed.pdf",
+    filename: "coa.pdf",
+    id: "coa-fixed.pdf",
+    kind: "document",
+    label: "Certificate of analysis",
+    ownerAppInstallId: "verifi-prod",
+    provider: "r2",
+    status: "ready",
+    storageKey: "media/app-installs/verifi-prod/documents/coa-fixed.pdf",
+  };
+}

@@ -66,6 +66,56 @@ export function mediaPickerOptions(options: FieldOptions | undefined) {
     }));
 }
 
+export function documentMediaPickerOptions(options: FieldOptions | undefined) {
+  return (options?.mediaAssetOptions ?? [])
+    .filter(
+      (
+        option,
+      ): option is MediaAssetOption & {
+        byteSize: number;
+        contentType: string;
+        filename: string;
+      } =>
+        option.missing !== true &&
+        typeof option.byteSize === "number" &&
+        typeof option.contentType === "string" &&
+        typeof option.filename === "string",
+    )
+    .map((option) => ({
+      byteSize: option.byteSize,
+      contentType: option.contentType,
+      filename: option.filename,
+      label: option.label,
+      value: option.id,
+    }));
+}
+
+export function fieldPresentsDocumentMedia(field: FieldContract) {
+  if (field.media?.document !== undefined) {
+    return true;
+  }
+
+  if (
+    field.options?.mediaAssetOptions?.some(
+      (option) =>
+        option.filename !== undefined ||
+        option.contentType !== undefined ||
+        option.downloadHref !== undefined,
+    )
+  ) {
+    return true;
+  }
+
+  return (
+    field.mode === "editor" &&
+    field.media?.accept !== undefined &&
+    field.media.accept
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .every((value) => value !== "" && !value.startsWith("image/"))
+  );
+}
+
 export function selectedMediaAsset(field: FieldContract): MediaAssetOption | undefined {
   const value =
     field.mode === "display"

@@ -29,6 +29,9 @@ import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formles
 import {
   DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT,
   WORKSPACE_AUTO_SAVE_STATE_FILE,
+  WORKSPACE_MEDIA_MANIFEST_FILE,
+  WORKSPACE_MEDIA_MANIFEST_KIND,
+  WORKSPACE_MEDIA_MANIFEST_VERSION,
   WORKSPACE_RECORD_STATE_FILE_KIND,
   WORKSPACE_RECORD_STATE_FILE_VERSION,
   WORKSPACE_OPERATION_STATE_ROOT,
@@ -139,6 +142,7 @@ export type InstanceWorkspaceMediaFile = {
   byteSize: number;
   bytes: Uint8Array;
   contentType: string;
+  object: unknown;
 };
 
 export type ReadInstanceWorkspaceMediaFilesResult = {
@@ -230,6 +234,16 @@ export function instanceWorkspaceMediaFilePath(
   return path.join(
     instanceWorkspaceMediaRootPath(workspaceRoot, manifest),
     parseWorkspaceMediaArchivePath(archivePath),
+  );
+}
+
+export function instanceWorkspaceMediaManifestPath(
+  workspaceRoot: string,
+  manifest: InstanceWorkspaceManifest,
+): string {
+  return path.join(
+    instanceWorkspaceMediaRootPath(workspaceRoot, manifest),
+    WORKSPACE_MEDIA_MANIFEST_FILE,
   );
 }
 
@@ -373,10 +387,24 @@ export async function readInstanceWorkspaceMediaFiles(input: {
 }): Promise<ReadInstanceWorkspaceMediaFilesResult> {
   const mediaFiles: InstanceWorkspaceMediaFile[] = [];
   const missingMediaFiles: string[] = [];
-
-  for (const archivePath of [...new Set(input.archivePaths)].sort((left, right) =>
+  const archivePaths = [...new Set(input.archivePaths)].sort((left, right) =>
     left.localeCompare(right),
-  )) {
+  );
+
+  if (archivePaths.length === 0) {
+    return { mediaFiles, missingMediaFiles };
+  }
+
+  const objectsByArchivePath = await readWorkspaceMediaObjects(input);
+
+  for (const archivePath of archivePaths) {
+    const object = objectsByArchivePath.get(archivePath);
+
+    if (object === undefined) {
+      missingMediaFiles.push(archivePath);
+      continue;
+    }
+
     try {
       const bytes = new Uint8Array(
         await readFile(
@@ -388,7 +416,8 @@ export async function readInstanceWorkspaceMediaFiles(input: {
         archivePath,
         byteSize: bytes.byteLength,
         bytes,
-        contentType: contentTypeForWorkspaceMediaArchivePath(archivePath),
+        contentType: workspaceMediaObjectContentType(object),
+        object,
       });
     } catch (error) {
       if (isNodeError(error) && error.code === "ENOENT") {
@@ -412,10 +441,45 @@ export async function replaceInstanceWorkspaceMediaFiles(input: {
   workspaceRoot: string;
 }): Promise<void> {
   const mediaRoot = instanceWorkspaceMediaRootPath(input.workspaceRoot, input.manifest);
+  const mediaFiles = [...input.mediaFiles].sort((left, right) =>
+    left.archivePath.localeCompare(right.archivePath),
+  );
+  const seenArchivePaths = new Set<string>();
+
+  for (const file of mediaFiles) {
+    const object = parseWorkspaceMediaObject(
+      file.object,
+      `Workspace media object "${file.archivePath}"`,
+    );
+
+    if (object.archivePath !== file.archivePath) {
+      throw new Error(
+        `Workspace media object "${file.archivePath}" archivePath must match its payload path.`,
+      );
+    }
+
+    if (object.contentType !== file.contentType) {
+      throw new Error(
+        `Workspace media object "${file.archivePath}" contentType must match its payload content type.`,
+      );
+    }
+
+    if (file.byteSize !== file.bytes.byteLength || object.byteSize !== file.byteSize) {
+      throw new Error(
+        `Workspace media object "${file.archivePath}" byteSize must match its payload bytes.`,
+      );
+    }
+
+    if (seenArchivePaths.has(file.archivePath)) {
+      throw new Error(`Workspace media includes duplicate payload "${file.archivePath}".`);
+    }
+
+    seenArchivePaths.add(file.archivePath);
+  }
 
   await rm(mediaRoot, { force: true, recursive: true });
 
-  for (const file of input.mediaFiles) {
+  for (const file of mediaFiles) {
     const filePath = instanceWorkspaceMediaFilePath(
       input.workspaceRoot,
       input.manifest,
@@ -424,6 +488,13 @@ export async function replaceInstanceWorkspaceMediaFiles(input: {
 
     await mkdir(path.dirname(filePath), { recursive: true });
     await writeFile(filePath, file.bytes);
+  }
+
+  if (mediaFiles.length > 0) {
+    await writeFile(
+      instanceWorkspaceMediaManifestPath(input.workspaceRoot, input.manifest),
+      formatWorkspaceMediaManifest(mediaFiles.map((file) => file.object)),
+    );
   }
 }
 
@@ -1198,20 +1269,107 @@ function parseWorkspaceMediaArchivePath(value: string): string {
   return parseInstanceWorkspaceRelativePath("workspace media archive path", value);
 }
 
-function contentTypeForWorkspaceMediaArchivePath(archivePath: string): string {
-  if (archivePath.endsWith(".png")) {
-    return "image/png";
+async function readWorkspaceMediaObjects(input: {
+  manifest: InstanceWorkspaceManifest;
+  workspaceRoot: string;
+}): Promise<Map<string, Record<string, unknown>>> {
+  const manifestPath = instanceWorkspaceMediaManifestPath(input.workspaceRoot, input.manifest);
+  let value: unknown;
+
+  try {
+    value = parseWorkspaceStateJson(
+      await readFile(manifestPath, "utf8"),
+      "Workspace media manifest",
+    );
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return new Map();
+    }
+
+    throw error;
   }
 
-  if (archivePath.endsWith(".jpg") || archivePath.endsWith(".jpeg")) {
-    return "image/jpeg";
+  if (
+    !isRecord(value) ||
+    value.kind !== WORKSPACE_MEDIA_MANIFEST_KIND ||
+    value.version !== WORKSPACE_MEDIA_MANIFEST_VERSION ||
+    !Array.isArray(value.objects) ||
+    Object.keys(value).some((key) => !["kind", "version", "objects"].includes(key))
+  ) {
+    throw new Error("Workspace media manifest is invalid.");
   }
 
-  if (archivePath.endsWith(".webp")) {
-    return "image/webp";
+  const objects = new Map<string, Record<string, unknown>>();
+
+  for (const [index, candidate] of value.objects.entries()) {
+    const object = parseWorkspaceMediaObject(
+      candidate,
+      `Workspace media manifest objects[${index}]`,
+    );
+
+    if (objects.has(object.archivePath)) {
+      throw new Error(
+        `Workspace media manifest includes duplicate object "${object.archivePath}".`,
+      );
+    }
+
+    objects.set(object.archivePath, object);
   }
 
-  return "application/octet-stream";
+  return objects;
+}
+
+function formatWorkspaceMediaManifest(objects: readonly unknown[]): string {
+  const sortedObjects = objects
+    .map((object, index) => parseWorkspaceMediaObject(object, `Workspace media object ${index}`))
+    .sort((left, right) => left.archivePath.localeCompare(right.archivePath));
+
+  return `${JSON.stringify(
+    stableJsonValue({
+      kind: WORKSPACE_MEDIA_MANIFEST_KIND,
+      version: WORKSPACE_MEDIA_MANIFEST_VERSION,
+      objects: sortedObjects,
+    }),
+    null,
+    2,
+  )}\n`;
+}
+
+function parseWorkspaceMediaObject(
+  value: unknown,
+  context: string,
+): Record<string, unknown> & {
+  archivePath: string;
+  byteSize: number;
+  contentType: string;
+} {
+  if (
+    !isRecord(value) ||
+    typeof value.archivePath !== "string" ||
+    typeof value.contentType !== "string" ||
+    value.contentType.trim() === "" ||
+    typeof value.byteSize !== "number" ||
+    !Number.isSafeInteger(value.byteSize) ||
+    value.byteSize < 0
+  ) {
+    throw new Error(`${context} is invalid.`);
+  }
+
+  parseWorkspaceMediaArchivePath(value.archivePath);
+
+  return value as Record<string, unknown> & {
+    archivePath: string;
+    byteSize: number;
+    contentType: string;
+  };
+}
+
+function workspaceMediaObjectContentType(object: Record<string, unknown>): string {
+  if (typeof object.contentType !== "string" || object.contentType.trim() === "") {
+    throw new Error("Workspace media object contentType is invalid.");
+  }
+
+  return object.contentType;
 }
 
 function parseOptionalEnvValue(value: string | null | undefined): string | undefined {

@@ -1,5 +1,5 @@
 import rawSiteSourceSchema from "@dpeek/formless-site-app/schema.json";
-import { parseAppSchema } from "@dpeek/formless-schema";
+import { parseAppSchema, type TextFieldSchema } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 
 import type { CreateFieldConfig, RecordFieldConfig } from "../../client/views.ts";
@@ -191,6 +191,157 @@ describe("generated media presentation conformance", () => {
     }
 
     expect(fieldIds.size).toBe(siteMediaOccurrenceConformance.length);
+  });
+
+  it("projects document facts and constraints across create, list, record, table, and tree authoring", () => {
+    const documentField: TextFieldSchema = {
+      asset: {
+        acceptedMimeTypes: ["application/pdf"],
+        access: "private",
+        kind: "document",
+        maxBytes: 4 * 1024 * 1024,
+      },
+      required: false,
+      type: "text",
+    };
+    const createConfig = {
+      editor: "media",
+      field: documentField,
+      fieldName: "reportAssetId",
+    } satisfies CreateFieldConfig;
+    const recordConfig = {
+      commit: "field-commit",
+      editor: "media",
+      field: documentField,
+      fieldName: "reportAssetId",
+    } satisfies RecordFieldConfig;
+    const documentOption = {
+      access: "private",
+      byteSize: 42_000,
+      contentType: "application/pdf",
+      downloadHref: "/api/app-installs/reports/private/media/documents/report.pdf?download=1",
+      filename: "Quarterly report.pdf",
+      href: "/api/app-installs/reports/private/media/documents/report.pdf",
+      id: "report.pdf",
+      label: "Quarterly report.pdf",
+    } as const;
+    const projected = [
+      projectGeneratedCreateField({
+        fieldConfig: createConfig,
+        isPending: true,
+        mediaAssetOptions: [documentOption],
+        occurrence: {
+          owner: { kind: "createSurface", surfaceId: "reports:create" },
+          placementId: "reportAssetId",
+        },
+        value: documentOption.id,
+      }),
+      projectGeneratedRecordField({
+        canPatch: true,
+        entityName: "report",
+        fieldConfig: recordConfig,
+        isPending: true,
+        mediaAssetOptions: [documentOption],
+        occurrence: {
+          owner: { kind: "listItem", listId: "reports:list", recordId: "report-1" },
+          placementId: "reportAssetId",
+        },
+        recordId: "report-1",
+        recordValue: documentOption.id,
+        surface: "record",
+      }),
+      projectGeneratedRecordField({
+        canPatch: true,
+        entityName: "report",
+        fieldConfig: recordConfig,
+        isPending: true,
+        mediaAssetOptions: [documentOption],
+        occurrence: {
+          owner: { kind: "recordResult", recordId: "report-1", resultId: "reports:detail" },
+          placementId: "reportAssetId",
+        },
+        recordId: "report-1",
+        recordValue: documentOption.id,
+        surface: "detail",
+      }),
+      projectGeneratedRecordField({
+        canPatch: true,
+        density: "compact",
+        entityName: "report",
+        fieldConfig: recordConfig,
+        isPending: true,
+        mediaAssetOptions: [documentOption],
+        occurrence: {
+          owner: { cellId: "report-1", kind: "tableCell", tableId: "reports:table" },
+          placementId: "reportAssetId",
+        },
+        recordId: "report-1",
+        recordValue: documentOption.id,
+        surface: "table-cell",
+      }),
+      projectGeneratedRecordField({
+        canPatch: true,
+        entityName: "report",
+        fieldConfig: recordConfig,
+        isPending: true,
+        mediaAssetOptions: [documentOption],
+        occurrence: {
+          owner: {
+            kind: "recordResult",
+            recordId: "report-1",
+            resultId: "reports:tree:fields",
+          },
+          placementId: "reportAssetId",
+        },
+        recordId: "report-1",
+        recordValue: documentOption.id,
+        surface: "record",
+      }),
+    ];
+
+    for (const field of projected) {
+      expect(field).toMatchObject({
+        control: { controlKind: "media" },
+        media: {
+          accept: "application/pdf",
+          document: {
+            byteSize: 42_000,
+            contentType: "application/pdf",
+            downloadIntent: {
+              href: documentOption.downloadHref,
+              type: "mediaDocumentDownload",
+            },
+            filename: "Quarterly report.pdf",
+            openIntent: {
+              href: documentOption.href,
+              target: "newTab",
+              type: "mediaDocumentOpen",
+            },
+          },
+          fileSelectEnabled: true,
+          maxSize: 4 * 1024 * 1024,
+          removalEnabled: true,
+          selectedAssetId: documentOption.id,
+          uploadEnabled: true,
+          uploadPatchFields: { mediaAssetFieldName: "reportAssetId" },
+        },
+        options: {
+          mediaAssetOptions: [
+            {
+              byteSize: 42_000,
+              contentType: "application/pdf",
+              downloadHref: documentOption.downloadHref,
+              filename: "Quarterly report.pdf",
+              href: documentOption.href,
+              id: documentOption.id,
+              label: "Quarterly report.pdf",
+            },
+          ],
+        },
+        pending: { isPending: true },
+      });
+      expect(field.value).toBe(documentOption.id);
+    }
   });
 });
 

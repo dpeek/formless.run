@@ -11,9 +11,12 @@ import {
   APP_ARCHIVE_KIND,
   ARCHIVE_VERSION,
   INSTANCE_ARCHIVE_KIND,
+  appArchiveMediaReferences,
   archiveApps,
   archiveRecordCount,
+  parseAppArchive,
   type AppArchive,
+  type AppArchiveMediaReference,
   type InstanceArchive,
   type PortableArchive,
 } from "@dpeek/formless-archive";
@@ -22,13 +25,11 @@ import {
   type ArchiveDiskMediaFile,
 } from "@dpeek/formless-archive/node";
 import {
-  CORE_IMAGE_KEY_PREFIX,
-  CORE_MEDIA_ROUTE_PREFIX,
   coreImageMediaDeliveryFactsForAssetId,
-  coreMediaHrefForKey,
-  imageMediaContentTypeForKey,
-  isRestorableImageMediaKey,
-  type MediaAsset,
+  documentMediaAssetIsCompatible,
+  documentMediaDeliveryFactsForAssetId,
+  isDocumentMediaAsset,
+  validatePdfDocumentMediaFile,
 } from "@dpeek/formless-media";
 import { packageAppFactsForKey } from "@dpeek/formless-installed-apps";
 import { findResolvedAppPackage, type AppPackageResolver } from "../shared/app-packages.ts";
@@ -44,6 +45,7 @@ import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formles
 import {
   DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT as DEFAULT_FORMLESS_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT,
   INSTANCE_WORKSPACE_MANIFEST_FILE as FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE,
+  WORKSPACE_MEDIA_MANIFEST_FILE,
   formatInstanceWorkspaceManifest as formatFormlessInstanceWorkspaceManifest,
   nextWorkspaceAutoSaveSavedState,
   normalizeInstanceWorkspaceTargetUrl as normalizeFormlessInstanceWorkspaceTargetUrl,
@@ -467,7 +469,7 @@ export async function pullFormlessInstanceWorkspace(
     });
     await replaceInstanceWorkspaceMediaFiles({
       manifest,
-      mediaFiles: pulledInstanceArchive.mediaFiles,
+      mediaFiles: workspaceMediaFilesWithObjects(pulledInstanceArchive),
       workspaceRoot,
     });
 
@@ -1288,7 +1290,7 @@ async function writeSavedWorkspaceSource(input: {
   });
   await replaceInstanceWorkspaceMediaFiles({
     manifest: input.nextManifest,
-    mediaFiles: input.exported.mediaFiles,
+    mediaFiles: workspaceMediaFilesWithObjects(input.exported),
     workspaceRoot: input.workspaceRoot,
   });
 
@@ -1410,40 +1412,26 @@ async function workspaceAppArchiveMediaFromSnapshot(input: {
   missingMediaFiles: string[];
   objects: AppArchive["media"]["objects"];
 }> {
-  const references = appMediaReferences(input.archive.data.records);
-  const archivePaths = references.map(
-    (reference) => `media/${input.archive.app.installId}/${reference.storageKey}`,
-  );
+  const references = appMediaReferences(input.archive);
+  const archivePaths = references.map((reference) => reference.archivePath);
   const diskMedia = await readInstanceWorkspaceMediaFiles({
     archivePaths,
     manifest: input.manifest,
     workspaceRoot: input.workspaceRoot,
   });
-  const filesByPath = new Map(diskMedia.mediaFiles.map((file) => [file.archivePath, file]));
-  const objects = references.map((reference) => {
-    const archivePath = `media/${input.archive.app.installId}/${reference.storageKey}`;
-    const file = filesByPath.get(archivePath);
-    const byteSize = file?.byteSize ?? 0;
+  const objects = parseAppArchive({
+    ...input.archive,
+    media: { objects: diskMedia.mediaFiles.map((file) => file.object) },
+  }).media.objects;
 
-    return {
-      archivePath,
-      ...(reference.asset === undefined
-        ? {}
-        : { asset: { ...reference.asset, byteSize } satisfies MediaAsset }),
-      byteSize,
-      contentType: reference.contentType,
-      deliveryHref: reference.deliveryHref,
-      storageKey: reference.storageKey,
-    };
+  validateWorkspaceMediaObjects({
+    files: diskMedia.mediaFiles,
+    objects,
+    references,
   });
 
   return {
-    mediaFiles: diskMedia.mediaFiles.map((file) => ({
-      ...file,
-      contentType:
-        objects.find((object) => object.archivePath === file.archivePath)?.contentType ??
-        file.contentType,
-    })),
+    mediaFiles: diskMedia.mediaFiles.map(({ object: _, ...file }) => file),
     missingMediaFiles: diskMedia.missingMediaFiles,
     objects,
   };
@@ -1528,6 +1516,9 @@ async function pullWorkspaceReplacementPlan(input: {
       path.posix.join(input.manifest.media.root, file.archivePath),
     ),
   );
+  if (input.remoteArchive.mediaFiles.length > 0) {
+    remoteMediaPaths.add(path.posix.join(input.manifest.media.root, WORKSPACE_MEDIA_MANIFEST_FILE));
+  }
   const localMediaPaths = await listWorkspaceRelativeFiles(
     path.join(input.workspaceRoot, input.manifest.media.root),
     input.manifest.media.root,
@@ -1547,6 +1538,12 @@ async function pullWorkspaceReplacementPlan(input: {
         changedStatePaths.add(path.posix.join(input.manifest.media.root, file.archivePath));
       }
     }
+  }
+
+  if (changedMediaInstalls.size > 0 && input.remoteArchive.mediaFiles.length > 0) {
+    changedStatePaths.add(
+      path.posix.join(input.manifest.media.root, WORKSPACE_MEDIA_MANIFEST_FILE),
+    );
   }
 
   for (const mediaPath of localMediaPaths) {
@@ -1618,89 +1615,116 @@ function workspaceAppArchiveMediaFiles(
   return directory.mediaFiles.filter((file) => archivePaths.has(file.archivePath));
 }
 
-function appMediaReferences(records: readonly StoredRecord[]): AppArchive["media"]["objects"] {
-  const referencesByKey = new Map<string, AppArchive["media"]["objects"][number]>();
+type WorkspaceMediaReference = {
+  archivePath: string;
+  ownerAppInstallId: string;
+  reference: AppArchiveMediaReference;
+  storageKey: string;
+};
 
-  for (const record of records) {
-    if (record.deletedAt !== undefined) {
-      continue;
+function appMediaReferences(archive: AppArchive): WorkspaceMediaReference[] {
+  const references: WorkspaceMediaReference[] = [];
+
+  for (const reference of appArchiveMediaReferences(archive.data.schema, archive.data.records)) {
+    const facts =
+      reference.kind === "image"
+        ? coreImageMediaDeliveryFactsForAssetId(reference.assetId)
+        : documentMediaDeliveryFactsForAssetId(reference.assetId, {
+            hrefForAssetId: (assetId) =>
+              `/api/app-installs/${archive.app.packageAppKey}/${archive.app.installId}/media/documents/${assetId}`,
+            ownerAppInstallId: archive.app.installId,
+          });
+
+    if (!facts) {
+      throw new Error(
+        `Workspace app state ${archive.app.installId} references invalid ${reference.kind} asset "${reference.assetId}".`,
+      );
     }
 
-    for (const [fieldName, value] of Object.entries(record.values)) {
-      if (fieldName === "mediaAssetId" && typeof value === "string") {
-        const facts = coreImageMediaDeliveryFactsForAssetId(value);
-
-        if (facts) {
-          referencesByKey.set(facts.storageKey, coreMediaReference(facts.storageKey, facts.href));
-        }
-      }
-
-      if (typeof value === "string") {
-        const coreStorageKey = storageKeyFromDeliveryHref(value, CORE_MEDIA_ROUTE_PREFIX);
-
-        if (
-          coreStorageKey &&
-          isRestorableImageMediaKey(coreStorageKey, {
-            keyPrefix: mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX),
-          }) &&
-          !referencesByKey.has(coreStorageKey)
-        ) {
-          referencesByKey.set(
-            coreStorageKey,
-            coreMediaReference(coreStorageKey, coreMediaHrefForKey(coreStorageKey)),
-          );
-          continue;
-        }
-      }
-    }
+    references.push({
+      archivePath: `media/${archive.app.installId}/${facts.storageKey}`,
+      ownerAppInstallId: archive.app.installId,
+      reference,
+      storageKey: facts.storageKey,
+    });
   }
 
-  return [...referencesByKey.values()].sort((left, right) =>
-    left.storageKey.localeCompare(right.storageKey),
+  return references.sort(
+    (left, right) =>
+      left.storageKey.localeCompare(right.storageKey) ||
+      left.reference.entity.localeCompare(right.reference.entity) ||
+      left.reference.field.localeCompare(right.reference.field) ||
+      left.reference.recordId.localeCompare(right.reference.recordId),
   );
 }
 
-function coreMediaReference(
-  storageKey: string,
-  deliveryHref: string,
-): AppArchive["media"]["objects"][number] {
-  const contentType = imageMediaContentTypeForKey(storageKey);
-  const assetId = storageKey.startsWith(mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX))
-    ? storageKey.slice(mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX).length)
-    : storageKey;
+function validateWorkspaceMediaObjects(input: {
+  files: Awaited<ReturnType<typeof readInstanceWorkspaceMediaFiles>>["mediaFiles"];
+  objects: AppArchive["media"]["objects"];
+  references: WorkspaceMediaReference[];
+}) {
+  const objectsByArchivePath = new Map(input.objects.map((object) => [object.archivePath, object]));
+  const filesByArchivePath = new Map(input.files.map((file) => [file.archivePath, file]));
 
-  if (!contentType) {
-    throw new Error(`Media key "${storageKey}" has unsupported content type.`);
+  for (const reference of input.references) {
+    const object = objectsByArchivePath.get(reference.archivePath);
+    const file = filesByArchivePath.get(reference.archivePath);
+
+    if (!object || !file) {
+      continue;
+    }
+
+    if (object.storageKey !== reference.storageKey) {
+      throw new Error(
+        `Workspace media metadata for referenced asset "${reference.reference.assetId}" is unavailable or incompatible.`,
+      );
+    }
+
+    if (reference.reference.kind !== "document") {
+      continue;
+    }
+
+    const asset = object.asset;
+
+    if (
+      !isDocumentMediaAsset(asset) ||
+      asset.id !== reference.reference.assetId ||
+      asset.storageKey !== object.storageKey ||
+      asset.deliveryHref !== object.deliveryHref ||
+      asset.contentType !== object.contentType ||
+      asset.byteSize !== object.byteSize ||
+      !documentMediaAssetIsCompatible(asset, {
+        acceptedMimeTypes: reference.reference.policy.acceptedMimeTypes,
+        access: reference.reference.policy.access,
+        maxBytes: reference.reference.policy.maxBytes,
+        ownerAppInstallId: reference.ownerAppInstallId,
+      }) ||
+      asset.ownerAppInstallId !== reference.ownerAppInstallId
+    ) {
+      throw new Error(
+        `Workspace document metadata for referenced asset "${reference.reference.assetId}" is incompatible with its schema field.`,
+      );
+    }
+
+    const validation = validatePdfDocumentMediaFile(
+      {
+        bytes: file.bytes,
+        contentType: file.contentType,
+        filename: asset.filename,
+        size: file.byteSize,
+      },
+      {
+        acceptedMimeTypes: reference.reference.policy.acceptedMimeTypes,
+        maxBytes: reference.reference.policy.maxBytes,
+      },
+    );
+
+    if (!validation.ok) {
+      throw new Error(
+        `Workspace document payload for referenced asset "${reference.reference.assetId}" is invalid.`,
+      );
+    }
   }
-
-  return {
-    archivePath: "",
-    asset: {
-      byteSize: 0,
-      contentType,
-      deliveryHref,
-      id: assetId,
-      kind: "image",
-      label: assetId,
-      provider: "r2",
-      status: "ready",
-      storageKey,
-    },
-    byteSize: 0,
-    contentType,
-    deliveryHref,
-    storageKey,
-  };
-}
-
-function storageKeyFromDeliveryHref(href: string, routePrefix: string): string | undefined {
-  const prefix = routePrefix.endsWith("/") ? routePrefix : `${routePrefix}/`;
-
-  return href.startsWith(prefix) ? href.slice(prefix.length) : undefined;
-}
-
-function mediaKeyPrefix(prefix: string): string {
-  return prefix.endsWith("/") ? prefix : `${prefix}/`;
 }
 
 function workspaceAppStateMatches(
@@ -2300,6 +2324,7 @@ function comparableAppMediaJson(
       contentType: object.contentType,
       deliveryHref: object.deliveryHref,
       missing: missing.has(object.archivePath),
+      ...(object.asset === undefined ? {} : { asset: object.asset }),
       storageKey: object.storageKey,
     }))
     .sort((left, right) => {
@@ -2311,6 +2336,26 @@ function comparableAppMediaJson(
     });
 
   return JSON.stringify(stableValue(media));
+}
+
+function workspaceMediaFilesWithObjects(
+  directory: WorkspaceArchiveDirectory,
+): Array<ArchiveDiskMediaFile & { object: AppArchive["media"]["objects"][number] }> {
+  const objectsByArchivePath = new Map(
+    archiveApps(directory.archive).flatMap((app) =>
+      app.media.objects.map((object) => [object.archivePath, object] as const),
+    ),
+  );
+
+  return directory.mediaFiles.map((file) => {
+    const object = objectsByArchivePath.get(file.archivePath);
+
+    if (!object) {
+      throw new Error(`Workspace media file "${file.archivePath}" is missing object metadata.`);
+    }
+
+    return { ...file, object };
+  });
 }
 
 function normalizeGeneratedArchiveTimestamps<T extends PortableArchive>(archive: T): T {

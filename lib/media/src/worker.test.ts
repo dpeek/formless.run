@@ -2,22 +2,47 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   CORE_MEDIA_ROUTE_PREFIX,
   MEDIA_OBJECT_CACHE_CONTROL,
+  MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL,
+  deliveryFactsForDocumentMediaObject,
   deliveryFactsForMediaObject,
+  documentMediaRouteFromPathname,
+  handleDocumentMediaRequest,
   handleMediaRequest,
   imageMediaRouteFromPathname,
+  listDocumentMediaAssets,
   listImageMediaAssets,
+  restoreDocumentMedia,
   restoreImageMedia,
+  uploadDocumentMedia,
   uploadImageMedia,
 } from "./worker.ts";
-import type { MediaAsset, MediaObjectMetadata, MediaObjectStore } from "./types.ts";
+import type {
+  DocumentMediaAsset,
+  DocumentMediaCompatibility,
+  MediaAsset,
+  MediaObjectMetadata,
+  MediaObjectStore,
+} from "./types.ts";
 
 const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+const pdfBytes = new TextEncoder().encode("%PDF-1.7\nbody");
+const documentCompatibility = {
+  acceptedMimeTypes: ["application/pdf"],
+  access: "private",
+  maxBytes: 1024,
+  ownerAppInstallId: "verifi-prod",
+} satisfies DocumentMediaCompatibility;
+const documentMedia = {
+  documentsPath: "/api/app-installs/verifi/verifi-prod/media/documents",
+  ownerAppInstallId: "verifi-prod",
+} as const;
 
 describe("Media Worker adapter", () => {
   it("exposes Worker adapter route behavior through the public package subpath", async () => {
     const mediaWorker = await import("@dpeek/formless-media/worker");
 
     expect(mediaWorker.CORE_MEDIA_ROUTE_PREFIX).toBe(CORE_MEDIA_ROUTE_PREFIX);
+    expect(mediaWorker.handleDocumentMediaRequest).toBe(handleDocumentMediaRequest);
     expect(mediaWorker.imageMediaRouteFromPathname("/api/formless/media/images")).toEqual({
       media: {
         imageKeyPrefix: "media/images",
@@ -308,6 +333,304 @@ describe("Media Worker adapter", () => {
     expect(memory.objects.size).toBe(0);
   });
 
+  it("uploads, compatibly lists, restores, and delivers app-scoped PDF documents", async () => {
+    const memory = createMemoryStore();
+    const upload = await uploadDocumentMedia({
+      compatibility: documentCompatibility,
+      file: {
+        bytes: pdfBytes,
+        contentType: " APPLICATION/PDF ; charset=binary ",
+        filename: '../../bad"\r\nname',
+        size: pdfBytes.byteLength,
+      },
+      hrefForAssetId: documentHref,
+      provider: "fake-r2",
+      randomId: () => "coa-fixed",
+      store: memory.store,
+    });
+
+    expect(upload).toEqual({
+      ok: true,
+      upload: {
+        asset: {
+          access: "private",
+          byteSize: pdfBytes.byteLength,
+          contentType: "application/pdf",
+          deliveryHref: documentHref("coa-fixed.pdf"),
+          filename: "bad___name.pdf",
+          id: "coa-fixed.pdf",
+          kind: "document",
+          label: "bad___name.pdf",
+          ownerAppInstallId: "verifi-prod",
+          provider: "fake-r2",
+          status: "ready",
+          storageKey: "media/app-installs/verifi-prod/documents/coa-fixed.pdf",
+        },
+        assetId: "coa-fixed.pdf",
+        contentType: "application/pdf",
+        href: documentHref("coa-fixed.pdf"),
+        key: "media/app-installs/verifi-prod/documents/coa-fixed.pdf",
+        size: pdfBytes.byteLength,
+      },
+    });
+    const stored = memory.objects.get("media/app-installs/verifi-prod/documents/coa-fixed.pdf");
+
+    expect(stored?.cacheControl).toBe(MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL);
+    expect(stored?.customMetadata).toMatchObject({
+      "formless-media-asset-id": "coa-fixed.pdf",
+      "formless-media-content-type": "application/pdf",
+      "formless-media-document-access": "private",
+      "formless-media-filename": "bad___name.pdf",
+      "formless-media-kind": "document",
+      "formless-media-owner-app-install-id": "verifi-prod",
+      "formless-media-provider": "fake-r2",
+      "formless-media-storage-key": "media/app-installs/verifi-prod/documents/coa-fixed.pdf",
+    });
+
+    await expect(
+      listDocumentMediaAssets({
+        compatibility: documentCompatibility,
+        hrefForAssetId: documentHref,
+        store: memory.store,
+      }),
+    ).resolves.toEqual([upload.ok ? upload.upload.asset : undefined]);
+    await expect(
+      listDocumentMediaAssets({
+        compatibility: { ...documentCompatibility, access: "public" },
+        hrefForAssetId: documentHref,
+        store: memory.store,
+      }),
+    ).resolves.toEqual([]);
+
+    const delivery = await deliveryFactsForDocumentMediaObject({
+      assetId: "coa-fixed.pdf",
+      hrefForAssetId: documentHref,
+      ownerAppInstallId: "verifi-prod",
+      store: memory.store,
+    });
+
+    expect(delivery?.asset).toEqual(upload.ok ? upload.upload.asset : undefined);
+    expect(delivery?.headers.get("Cache-Control")).toBe(MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL);
+    expect(delivery?.headers.get("Content-Disposition")).toBe('inline; filename="bad___name.pdf"');
+    expect(delivery?.headers.get("Content-Type")).toBe("application/pdf");
+    expect(delivery?.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(new Uint8Array(await new Response(delivery?.body).arrayBuffer())).toEqual(pdfBytes);
+    await expect(
+      deliveryFactsForDocumentMediaObject({
+        assetId: "coa-fixed.pdf",
+        hrefForAssetId: (assetId) =>
+          `/api/app-installs/verifi/other-install/media/documents/${assetId}`,
+        ownerAppInstallId: "other-install",
+        store: memory.store,
+      }),
+    ).resolves.toBeUndefined();
+
+    if (!upload.ok || upload.upload.asset?.kind !== "document") {
+      throw new Error("Expected document upload.");
+    }
+
+    await expect(
+      restoreDocumentMedia({
+        asset: upload.upload.asset,
+        bytes: pdfBytes,
+        compatibility: documentCompatibility,
+        contentType: "application/pdf; charset=binary",
+        hrefForAssetId: documentHref,
+        store: memory.store,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      upload: {
+        assetId: "coa-fixed.pdf",
+        contentType: "application/pdf",
+      },
+    });
+  });
+
+  it("applies the effective document limit and validates PDF bytes before provider writes", async () => {
+    const memory = createMemoryStore();
+
+    await expect(
+      uploadDocumentMedia({
+        compatibility: documentCompatibility,
+        file: {
+          bytes: pdfBytes,
+          contentType: "application/pdf",
+          filename: "report.pdf",
+          size: pdfBytes.byteLength,
+        },
+        hrefForAssetId: documentHref,
+        maxBytes: pdfBytes.byteLength - 1,
+        provider: "fake-r2",
+        randomId: () => "too-large",
+        store: memory.store,
+      }),
+    ).resolves.toEqual({
+      error: `Document file is larger than the ${pdfBytes.byteLength - 1} byte limit.`,
+      ok: false,
+      status: 413,
+    });
+    await expect(
+      uploadDocumentMedia({
+        compatibility: documentCompatibility,
+        file: {
+          bytes: new TextEncoder().encode("not a pdf"),
+          contentType: "application/pdf",
+          filename: "report.pdf",
+          size: 9,
+        },
+        hrefForAssetId: documentHref,
+        provider: "fake-r2",
+        randomId: () => "invalid",
+        store: memory.store,
+      }),
+    ).resolves.toEqual({
+      error: "Document file is not a valid PDF.",
+      ok: false,
+      status: 415,
+    });
+    expect(memory.objects.size).toBe(0);
+  });
+
+  it("uses immutable public cache and attachment headers for public document delivery", async () => {
+    const memory = createMemoryStore();
+    const upload = await uploadDocumentMedia({
+      compatibility: { ...documentCompatibility, access: "public" },
+      file: {
+        bytes: pdfBytes,
+        contentType: "application/pdf",
+        filename: "public-coa.pdf",
+        size: pdfBytes.byteLength,
+      },
+      hrefForAssetId: documentHref,
+      provider: "fake-r2",
+      randomId: () => "public-coa",
+      store: memory.store,
+    });
+
+    expect(upload.ok).toBe(true);
+    expect(
+      memory.objects.get("media/app-installs/verifi-prod/documents/public-coa.pdf")?.cacheControl,
+    ).toBe(MEDIA_OBJECT_CACHE_CONTROL);
+
+    const delivery = await deliveryFactsForDocumentMediaObject({
+      assetId: "public-coa.pdf",
+      download: true,
+      hrefForAssetId: documentHref,
+      includeBody: false,
+      ownerAppInstallId: "verifi-prod",
+      store: memory.store,
+    });
+
+    expect(delivery?.body).toBeNull();
+    expect(delivery?.headers.get("Cache-Control")).toBe(MEDIA_OBJECT_CACHE_CONTROL);
+    expect(delivery?.headers.get("Content-Disposition")).toBe(
+      'attachment; filename="public-coa.pdf"',
+    );
+  });
+
+  it("handles route-neutral document upload, list, GET, HEAD, download, and restore requests", async () => {
+    const memory = createMemoryStore();
+    const authorizations: Array<{
+      assetId?: string;
+      operation: string;
+    }> = [];
+    let restoredAsset: DocumentMediaAsset | undefined;
+    const dispatch = async (path: string, init: RequestInit = {}) => {
+      const response = await handleDocumentMediaRequest(
+        new Request(`https://example.test${path}`, init),
+        {
+          authorizeRequest({ asset, operation }) {
+            authorizations.push({
+              ...(asset ? { assetId: asset.id } : {}),
+              operation,
+            });
+
+            return { authorized: true };
+          },
+          compatibility: documentCompatibility,
+          media: documentMedia,
+          provider: "fake-r2",
+          randomId: () => "route-fixed",
+          resolveRestoreAsset: () => restoredAsset,
+          store: memory.store,
+        },
+      );
+
+      if (!response) {
+        throw new Error(`Expected document media response for ${path}.`);
+      }
+
+      return response;
+    };
+
+    expect(documentMediaRouteFromPathname(documentMedia.documentsPath, documentMedia)).toEqual({
+      media: documentMedia,
+    });
+    expect(
+      documentMediaRouteFromPathname(
+        `${documentMedia.documentsPath}/route-fixed.pdf`,
+        documentMedia,
+      ),
+    ).toEqual({
+      assetId: "route-fixed.pdf",
+      media: documentMedia,
+    });
+    expect(
+      documentMediaRouteFromPathname(`${documentMedia.documentsPath}/../other.pdf`, documentMedia),
+    ).toBeUndefined();
+
+    const uploadResponse = await dispatch(
+      `${documentMedia.documentsPath}?entity=coa&field=report`,
+      {
+        body: multipartFormData([
+          { body: pdfBytes, contentType: "application/pdf", filename: "issued.pdf" },
+        ]),
+        headers: { "Content-Type": "multipart/form-data; boundary=formless-media-test" },
+        method: "POST",
+      },
+    );
+    const uploaded = (await uploadResponse.json()) as { asset: DocumentMediaAsset };
+
+    expect(uploadResponse.status).toBe(200);
+    expect(uploaded.asset.ownerAppInstallId).toBe("verifi-prod");
+
+    const listResponse = await dispatch(documentMedia.documentsPath);
+
+    expect(listResponse.headers.get("Cache-Control")).toBe("no-store");
+    expect((await listResponse.json()) as unknown).toEqual({ assets: [uploaded.asset] });
+
+    const getResponse = await dispatch(`${documentMedia.documentsPath}/${uploaded.asset.id}`);
+    const headResponse = await dispatch(
+      `${documentMedia.documentsPath}/${uploaded.asset.id}?download=1`,
+      { method: "HEAD" },
+    );
+
+    expect(getResponse.headers.get("Content-Disposition")).toBe('inline; filename="issued.pdf"');
+    expect(new Uint8Array(await getResponse.arrayBuffer())).toEqual(pdfBytes);
+    expect(headResponse.headers.get("Content-Disposition")).toBe(
+      'attachment; filename="issued.pdf"',
+    );
+    expect(headResponse.headers.get("Cache-Control")).toBe(MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL);
+    expect((await headResponse.arrayBuffer()).byteLength).toBe(0);
+
+    restoredAsset = uploaded.asset;
+    const restoreResponse = await dispatch(`${documentMedia.documentsPath}/${uploaded.asset.id}`, {
+      body: pdfBytes,
+      headers: { "Content-Type": "application/pdf" },
+      method: "PUT",
+    });
+
+    expect(restoreResponse.status).toBe(200);
+    expect(authorizations).toEqual([
+      { operation: "upload" },
+      { operation: "list" },
+      { assetId: "route-fixed.pdf", operation: "delivery" },
+      { assetId: "route-fixed.pdf", operation: "delivery" },
+      { operation: "restore" },
+    ]);
+  });
+
   it("preserves media miss and authorization response behavior", async () => {
     const harness = createMediaRequestHarness({
       authorizeWrite: () => ({
@@ -466,4 +789,8 @@ function concatBytes(chunks: Uint8Array[]) {
   }
 
   return output;
+}
+
+function documentHref(assetId: string) {
+  return `${documentMedia.documentsPath}/${assetId}`;
 }

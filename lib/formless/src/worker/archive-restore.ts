@@ -18,8 +18,16 @@ import {
   type InstalledAppStorageIdentity,
 } from "../shared/app-storage-identity.ts";
 import { listResolvedAppPackages, type AppPackageResolver } from "../shared/app-packages.ts";
-import { CORE_IMAGE_KEY_PREFIX, coreMediaHrefForKey } from "@dpeek/formless-media";
 import {
+  CORE_IMAGE_KEY_PREFIX,
+  MEDIA_DOCUMENT_UPLOAD_MAX_BYTES,
+  MEDIA_PDF_CONTENT_TYPE,
+  coreMediaHrefForKey,
+  isDocumentMediaAsset,
+  mediaAssetFromObjectMetadata,
+} from "@dpeek/formless-media";
+import {
+  restoreDocumentMedia,
   restoreImageMedia,
   type MediaObjectStore,
   type MediaWriteResponse,
@@ -45,6 +53,11 @@ export type ArchiveRestoreMediaAdapter = {
     identity: InstalledAppStorageIdentity;
     object: AppArchiveMediaObject;
   }) => Promise<MediaWriteResponse>;
+  validateObject?: (input: {
+    bytes: Uint8Array;
+    identity: InstalledAppStorageIdentity;
+    object: AppArchiveMediaObject;
+  }) => Promise<void>;
 };
 
 export type ArchiveRestoreApplyTarget = {
@@ -140,6 +153,31 @@ export async function dryRunPortableArchiveRestore(
     return planned;
   }
 
+  const mediaReads = await prepareMediaReads(planned.plan.steps, target.media);
+
+  if (!mediaReads.ok) {
+    return {
+      errors: mediaReads.errors,
+      ok: false,
+      plan: planned.plan,
+    };
+  }
+
+  const mediaValidation = await validatePreparedMediaRestores(
+    planned.archive,
+    planned.plan.steps,
+    mediaReads.files,
+    target,
+  );
+
+  if (!mediaValidation.ok) {
+    return {
+      errors: mediaValidation.errors,
+      ok: false,
+      plan: planned.plan,
+    };
+  }
+
   return {
     ok: true,
     plan: planned.plan,
@@ -179,6 +217,21 @@ export async function applyPortableArchiveRestore(
   if (!mediaReads.ok) {
     return {
       errors: mediaReads.errors,
+      ok: false,
+      plan: planned.plan,
+    };
+  }
+
+  const mediaValidation = await validatePreparedMediaRestores(
+    planned.archive,
+    planned.plan.steps,
+    mediaReads.files,
+    target,
+  );
+
+  if (!mediaValidation.ok) {
+    return {
+      errors: mediaValidation.errors,
       ok: false,
       plan: planned.plan,
     };
@@ -261,6 +314,7 @@ export async function applyPortableArchiveRestore(
           identity,
           object: {
             archivePath: step.archivePath,
+            ...(step.asset === undefined ? {} : { asset: step.asset }),
             byteSize: step.byteSize,
             contentType: step.contentType,
             deliveryHref: step.deliveryHref,
@@ -373,6 +427,12 @@ export async function restoreArchiveMediaObjectToStore(
   const coreKeyPrefix = mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX);
 
   if (object.storageKey.startsWith(coreKeyPrefix)) {
+    if (object.asset?.kind === "document") {
+      throw new Error(
+        `Archive media key "${object.storageKey}" cannot use document metadata for a core image.`,
+      );
+    }
+
     const result = await restoreImageMedia({
       asset: object.asset ?? coreMediaAssetForObject(object),
       bytes,
@@ -394,9 +454,132 @@ export async function restoreArchiveMediaObjectToStore(
     return result.upload;
   }
 
+  if (object.asset?.kind === "document") {
+    const asset = object.asset;
+    const expectedHref = documentArchiveDeliveryHref(identity, asset.id);
+    const existing = await compatibleExistingArchiveDocument(store, object, bytes);
+
+    if (existing) {
+      return {
+        asset,
+        assetId: asset.id,
+        contentType: asset.contentType,
+        href: asset.deliveryHref,
+        key: asset.storageKey,
+        size: asset.byteSize,
+      };
+    }
+
+    const result = await restoreDocumentMedia({
+      asset,
+      bytes,
+      compatibility: {
+        acceptedMimeTypes: [MEDIA_PDF_CONTENT_TYPE],
+        access: asset.access,
+        maxBytes: MEDIA_DOCUMENT_UPLOAD_MAX_BYTES,
+        ownerAppInstallId: identity.installId,
+      },
+      contentType: object.contentType,
+      hrefForAssetId: (assetId) => documentArchiveDeliveryHref(identity, assetId),
+      store,
+    });
+
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+
+    if (
+      result.upload.href !== expectedHref ||
+      result.upload.key !== object.storageKey ||
+      result.upload.size !== object.byteSize
+    ) {
+      throw new Error(`Restored document for "${object.storageKey}" did not match the archive.`);
+    }
+
+    return result.upload;
+  }
+
   throw new Error(
-    `Archive media key "${object.storageKey}" is not core image media for "${identity.installId}".`,
+    `Archive media key "${object.storageKey}" is not restorable media for "${identity.installId}".`,
   );
+}
+
+export async function validateArchiveMediaObjectRestoreToStore(
+  store: MediaObjectStore,
+  object: AppArchiveMediaObject,
+  bytes: Uint8Array,
+): Promise<void> {
+  if (object.asset?.kind === "document") {
+    await compatibleExistingArchiveDocument(store, object, bytes);
+  }
+}
+
+async function compatibleExistingArchiveDocument(
+  store: MediaObjectStore,
+  object: AppArchiveMediaObject,
+  bytes: Uint8Array,
+): Promise<boolean> {
+  if (object.asset?.kind !== "document") {
+    return false;
+  }
+
+  const existing = await store.getObject(object.storageKey);
+
+  if (!existing) {
+    return false;
+  }
+
+  const existingAsset = mediaAssetFromObjectMetadata(existing.customMetadata);
+  const existingBytes =
+    existing.body === null
+      ? undefined
+      : new Uint8Array(await new Response(existing.body).arrayBuffer());
+
+  if (
+    !existingBytes ||
+    !existingAsset ||
+    existingAsset.kind !== "document" ||
+    !sameDocumentMediaAsset(existingAsset, object.asset) ||
+    !sameBytes(existingBytes, bytes)
+  ) {
+    throw new Error(
+      `Archive document "${object.storageKey}" collides with incompatible immutable media.`,
+    );
+  }
+
+  return true;
+}
+
+function documentArchiveDeliveryHref(
+  identity: InstalledAppStorageIdentity,
+  assetId: string,
+): string {
+  return `${identity.apiRoutePrefix}/media/documents/${assetId}`;
+}
+
+function sameDocumentMediaAsset(
+  left: NonNullable<AppArchiveMediaObject["asset"]>,
+  right: NonNullable<AppArchiveMediaObject["asset"]>,
+): boolean {
+  return (
+    isDocumentMediaAsset(left) &&
+    isDocumentMediaAsset(right) &&
+    left.access === right.access &&
+    left.byteSize === right.byteSize &&
+    left.contentType === right.contentType &&
+    left.deliveryHref === right.deliveryHref &&
+    left.filename === right.filename &&
+    left.id === right.id &&
+    left.label === right.label &&
+    left.ownerAppInstallId === right.ownerAppInstallId &&
+    left.provider === right.provider &&
+    left.status === right.status &&
+    left.storageKey === right.storageKey
+  );
+}
+
+function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
+  return left.byteLength === right.byteLength && left.every((byte, index) => byte === right[index]);
 }
 
 function coreMediaAssetForObject(object: AppArchiveMediaObject) {
@@ -543,6 +726,84 @@ async function prepareMediaReads(
   }
 
   return errors.length > 0 ? { errors, ok: false } : { files, ok: true };
+}
+
+async function validatePreparedMediaRestores(
+  archive: PortableArchive,
+  steps: readonly ArchiveRestorePlanStep[],
+  files: Map<string, ArchiveRestoreMediaRead>,
+  target: ArchiveRestoreApplyTarget,
+): Promise<
+  | {
+      ok: true;
+    }
+  | {
+      errors: ArchiveRestoreExecutionError[];
+      ok: false;
+    }
+> {
+  if (!target.media?.validateObject) {
+    return { ok: true };
+  }
+
+  const apps = archiveAppsByInstallId(archive);
+  const errors: ArchiveRestoreExecutionError[] = [];
+
+  for (const step of steps) {
+    if (step.kind !== "restoreMedia") {
+      continue;
+    }
+
+    const app = apps.get(step.appInstallId);
+    const identity =
+      app &&
+      installedAppStorageIdentity(
+        {
+          installId: app.app.installId,
+          packageAppKey: app.app.packageAppKey,
+        },
+        target.packageResolver,
+      );
+    const file = files.get(step.archivePath);
+
+    if (!identity || !file) {
+      errors.push({
+        appInstallId: step.appInstallId,
+        archivePath: step.archivePath,
+        code: !identity ? "missing-app-storage-identity" : "media-read-failed",
+        message: !identity
+          ? `Archive app "${step.appInstallId}" does not resolve to installed app storage.`
+          : `Archive media file "${step.archivePath}" was not prepared for restore.`,
+        storageKey: step.storageKey,
+      });
+      continue;
+    }
+
+    try {
+      await target.media.validateObject({
+        bytes: file.bytes,
+        identity,
+        object: {
+          archivePath: step.archivePath,
+          ...(step.asset === undefined ? {} : { asset: step.asset }),
+          byteSize: step.byteSize,
+          contentType: step.contentType,
+          deliveryHref: step.deliveryHref,
+          storageKey: step.storageKey,
+        },
+      });
+    } catch (error) {
+      errors.push({
+        appInstallId: step.appInstallId,
+        archivePath: step.archivePath,
+        code: "media-restore-failed",
+        message: error instanceof Error ? error.message : "Archive media restore is incompatible.",
+        storageKey: step.storageKey,
+      });
+    }
+  }
+
+  return errors.length === 0 ? { ok: true } : { errors, ok: false };
 }
 
 function archiveAppsByInstallId(archive: PortableArchive): Map<string, AppArchive> {

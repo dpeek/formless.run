@@ -412,6 +412,10 @@ describe("instance archive restore API", () => {
       }),
     );
     await bucket.put("media/images/orphan.png", new Uint8Array([1, 2, 3]));
+    await bucket.put(
+      "media/app-installs/personal/documents/orphan.pdf",
+      new TextEncoder().encode("%PDF-1.7\norphan"),
+    );
 
     const applied = await postArchiveRestore(
       exactTasksInstanceArchive({
@@ -425,6 +429,7 @@ describe("instance archive restore API", () => {
     const tasks = await getJson<BootstrapResponse>("/api/app-installs/tasks/work/bootstrap");
     const personal = await getJson<BootstrapResponse>("/api/app-installs/site/personal/bootstrap");
     const media = await bucket.list({ prefix: "media/images/" });
+    const documents = await bucket.list({ prefix: "media/app-installs/" });
 
     expect(applied.response.status).toBe(200);
     expect(applied.body).toMatchObject({
@@ -457,6 +462,7 @@ describe("instance archive restore API", () => {
     );
     expect(personal.body.records.every((record) => record.deletedAt !== undefined)).toBe(true);
     expect(media.objects.map((object) => object.key)).toEqual([]);
+    expect(documents.objects.map((object) => object.key)).toEqual([]);
   });
 
   it("requires write authorization", async () => {

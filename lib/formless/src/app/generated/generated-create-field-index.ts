@@ -28,7 +28,7 @@ export function resolveGeneratedCreateFieldIntent(
   fieldId: string,
   intent: FieldIntent,
 ): CreateFieldContract | undefined {
-  if (intent.type !== "createDraftChange") {
+  if (intent.type !== "createDraftChange" && intent.type !== "mediaFileSelect") {
     return undefined;
   }
 

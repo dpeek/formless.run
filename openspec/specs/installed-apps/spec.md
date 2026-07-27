@@ -364,7 +364,7 @@ The system MUST keep installed app storage, APIs, browser replicas, broadcast ch
 - THEN the API prefix is `/api/app-installs/site/personal`, the Authority name is `app:personal`, and browser database and broadcast channel names use `formless:app:personal`
 - AND those names are distinct from schema-key Site storage and from other installed Sites
 - AND storage snapshots for that install use storage identity `app:personal`
-- AND the storage identity does not expose a Site-owned media scope
+- AND Authority storage does not own media object bytes or provider metadata
 
 #### Scenario: Installed app API routes
 
@@ -372,6 +372,18 @@ The system MUST keep installed app storage, APIs, browser replicas, broadcast ch
 - WHEN app data is read, synced, reset, snapshotted, restored, mutated, or acted on
 - THEN operations use that install-scoped prefix
 - AND Site public tree reads use `/api/app-installs/site/:installId/tree/:slug` for installed Sites
+
+#### Scenario: Installed app document media route
+
+- GIVEN an installed app has document-backed text fields
+- WHEN a client lists, uploads, restores, or delivers its owned documents
+- THEN document media routes use
+  `/api/app-installs/:packageAppKey/:installId/media/documents`
+- AND the route resolves the same validated package app key and install id as
+  the installed app API target
+- AND media bytes and provider metadata remain outside Authority app records
+- AND a document route for one install cannot browse or deliver private
+  documents owned by another install
 
 ### Requirement: Schema-Owned App Install Registry
 

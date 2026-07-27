@@ -223,6 +223,10 @@ export type ReferenceFacts =
     };
 
 export type MediaAssetOption = {
+  byteSize?: number;
+  contentType?: string;
+  downloadHref?: string;
+  filename?: string;
   height?: number;
   href: string;
   id: string;
@@ -242,7 +246,27 @@ export type MissingMediaAsset = {
   reason?: string;
 };
 
+export type MediaDocumentOpenIntent = {
+  href: string;
+  target: "newTab";
+  type: "mediaDocumentOpen";
+};
+
+export type MediaDocumentDownloadIntent = {
+  href: string;
+  type: "mediaDocumentDownload";
+};
+
+export type MediaDocumentPresentation = {
+  byteSize: number;
+  contentType: string;
+  downloadIntent: MediaDocumentDownloadIntent;
+  filename: string;
+  openIntent: MediaDocumentOpenIntent;
+};
+
 export type MediaPresentation = {
+  document?: MediaDocumentPresentation;
   missingSelectedAsset?: MissingMediaAsset;
   previewHref?: string;
   selectedAssetId?: string;
@@ -250,6 +274,7 @@ export type MediaPresentation = {
 
 export type MediaPickerFacts = MediaPresentation & {
   fileSelectEnabled: boolean;
+  removalEnabled?: boolean;
   uploadEnabled: boolean;
   uploadPatchFields: MediaUploadPatchFields;
 };

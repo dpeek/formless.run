@@ -501,6 +501,138 @@ describe("archive restore planner", () => {
     ).toEqual(["media/images/hero.png"]);
   });
 
+  it("discovers image references from schema media editors rather than field names", () => {
+    const schema = imageAliasSourceSchema();
+    const plan = expectPlan(
+      planAppArchiveRestore(
+        appArchive({
+          capabilities: ["app-store-snapshots", "core-media-assets"],
+          data: {
+            ...storageSnapshot({
+              schema,
+              records: [
+                siteRecord("rec_site_settings_media", "media"),
+                blockRecord("rec_block_hero", "Hero", {
+                  assetReference: "hero.png",
+                }),
+              ],
+            }),
+          },
+          media: {
+            objects: [coreMediaObject("hero")],
+          },
+        }),
+        {
+          packages: archiveTestInstallablePackages,
+          mediaFiles: [coreMediaFile("hero")],
+          sourceSchemas: { site: schema },
+        },
+      ),
+    );
+
+    expect(plan.summary.mediaCountsByApp).toEqual({ personal: 1 });
+    expect(plan.steps[1]).toMatchObject({
+      kind: "restoreMedia",
+      storageKey: "media/images/hero.png",
+    });
+  });
+
+  it("plans schema-referenced document restores before app records", () => {
+    const schema = documentSourceSchema();
+    const bytes = pdfBytes("private report");
+    const plan = expectPlan(
+      planAppArchiveRestore(
+        appArchive({
+          capabilities: ["app-store-snapshots", "core-media-assets"],
+          data: {
+            ...storageSnapshot({
+              schema,
+              records: [
+                siteRecord("rec_site_settings_media", "media"),
+                blockRecord("rec_block_report", "Report", {
+                  documentAssetId: "report.pdf",
+                }),
+              ],
+            }),
+          },
+          media: {
+            objects: [documentMediaObject("report", "private", bytes.byteLength)],
+          },
+        }),
+        {
+          packages: archiveTestInstallablePackages,
+          mediaFiles: [documentMediaFile("report", bytes)],
+          sourceSchemas: { site: schema },
+        },
+      ),
+    );
+
+    expect(plan.steps.map((step) => step.kind)).toEqual([
+      "createInstall",
+      "restoreMedia",
+      "restoreAppData",
+    ]);
+    expect(plan.steps[1]).toMatchObject({
+      appInstallId: "personal",
+      asset: expect.objectContaining({
+        access: "private",
+        filename: "report.pdf",
+        ownerAppInstallId: "personal",
+      }),
+      storageKey: "media/app-installs/personal/documents/report.pdf",
+    });
+  });
+
+  it("rejects document metadata and PDF payload mismatches before restore", () => {
+    const schema = documentSourceSchema();
+    const bytes = pdfBytes("issued report");
+    const archive = appArchive({
+      capabilities: ["app-store-snapshots", "core-media-assets"],
+      data: {
+        ...storageSnapshot({
+          schema,
+          records: [
+            siteRecord("rec_site_settings_media", "media"),
+            blockRecord("rec_block_report", "Report", {
+              documentAssetId: "report.pdf",
+            }),
+          ],
+        }),
+      },
+      media: {
+        objects: [documentMediaObject("report", "private", bytes.byteLength)],
+      },
+    });
+    const metadataMismatch = structuredClone(archive);
+    const metadataAsset = metadataMismatch.media.objects[0]?.asset;
+
+    if (!metadataAsset || metadataAsset.kind !== "document") {
+      throw new Error("Expected document media fixture.");
+    }
+
+    metadataAsset.byteSize += 1;
+
+    const metadataErrors = expectFailure(
+      planAppArchiveRestore(metadataMismatch, {
+        packages: archiveTestInstallablePackages,
+        mediaFiles: [documentMediaFile("report", bytes)],
+        sourceSchemas: { site: schema },
+      }),
+    );
+    const payloadErrors = expectFailure(
+      planAppArchiveRestore(archive, {
+        packages: archiveTestInstallablePackages,
+        mediaFiles: [documentMediaFile("report", new Uint8Array(bytes.byteLength).fill(1))],
+        sourceSchemas: { site: schema },
+      }),
+    );
+
+    expect(metadataErrors.map((error) => error.code)).toContain("invalid-media");
+    expect(payloadErrors.map((error) => error.message)).toContain(
+      'Archive app "personal" document file "media/personal/media/app-installs/personal/documents/report.pdf" has invalid PDF payload.',
+    );
+  });
+
   it("preserves app install registration policy in restore plans", () => {
     const plan = expectPlan(
       planAppArchiveRestore(
@@ -728,6 +860,100 @@ function coreMediaFile(name: string): ArchiveRestoreMediaFile {
     byteSize: 8,
     contentType: "image/png",
   };
+}
+
+function documentSourceSchema() {
+  const schema = structuredClone(siteSourceSchema);
+  const block = schema.entities.block;
+
+  if (!block) {
+    throw new Error("Expected block schema.");
+  }
+
+  block.fields.documentAssetId = {
+    type: "text",
+    required: false,
+    label: "Document",
+    asset: {
+      kind: "document",
+      acceptedMimeTypes: ["application/pdf"],
+      maxBytes: 1024 * 1024,
+      access: "private",
+    },
+  };
+
+  return schema;
+}
+
+function imageAliasSourceSchema() {
+  const schema = structuredClone(siteSourceSchema);
+  const block = schema.entities.block;
+
+  if (!block) {
+    throw new Error("Expected block schema.");
+  }
+
+  block.fields.assetReference = {
+    type: "text",
+    required: false,
+    label: "Asset",
+  };
+  schema.itemViews.blockMedia = {
+    entity: "block",
+    fields: {
+      assetReference: {
+        editor: "media",
+        commit: "field-commit",
+      },
+    },
+  };
+
+  return schema;
+}
+
+function documentMediaObject(
+  name: string,
+  access: "public" | "private",
+  byteSize: number,
+): AppArchiveMediaObject {
+  const id = `${name}.pdf`;
+  const storageKey = `media/app-installs/personal/documents/${id}`;
+  const deliveryHref = `/api/app-installs/site/personal/media/documents/${id}`;
+
+  return {
+    archivePath: `media/personal/${storageKey}`,
+    asset: {
+      access,
+      byteSize,
+      contentType: "application/pdf",
+      deliveryHref,
+      filename: id,
+      id,
+      kind: "document",
+      label: id,
+      ownerAppInstallId: "personal",
+      provider: "r2",
+      status: "ready",
+      storageKey,
+    },
+    byteSize,
+    contentType: "application/pdf",
+    deliveryHref,
+    storageKey,
+  };
+}
+
+function documentMediaFile(name: string, bytes: Uint8Array): ArchiveRestoreMediaFile {
+  return {
+    archivePath: `media/personal/media/app-installs/personal/documents/${name}.pdf`,
+    byteSize: bytes.byteLength,
+    bytes,
+    contentType: "application/pdf",
+  };
+}
+
+function pdfBytes(body: string): Uint8Array {
+  return new TextEncoder().encode(`%PDF-1.7\n${body}`);
 }
 
 function siteInstall(installId: string): AppInstall {

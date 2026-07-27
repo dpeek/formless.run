@@ -1,6 +1,8 @@
 import {
   coreImageMediaAssetOptionForId,
+  type DocumentMediaUploadResponse,
   type ImageMediaAssetOption,
+  type MediaAssetOption,
   type UploadedImageMedia,
 } from "@dpeek/formless-media/client";
 import {
@@ -63,6 +65,7 @@ export type GeneratedUpdateDraftResolution = {
 
 export type GeneratedRecordFieldMediaAuthoring = {
   mediaPreviewHref?: string;
+  selectedAsset?: MediaAssetOption;
   uploadEnabled: boolean;
   uploadPatchFields: GeneratedRecordFieldMediaUploadPatchFields;
 };
@@ -320,7 +323,7 @@ export function resolveGeneratedMediaUploadUpdateDraftPatchValues({
   fields: RecordFieldConfig[];
   schema: AppSchema | null;
   union?: RecordUnionPresentationConfig;
-  upload: UploadedImageMedia;
+  upload: DocumentMediaUploadResponse | UploadedImageMedia;
   uploadPatchFields: GeneratedRecordFieldMediaUploadPatchFields;
 }): GeneratedUpdateDraftResolution {
   const uploadDraftValues = generatedMediaUploadDraftValues(uploadPatchFields, upload);
@@ -573,17 +576,21 @@ export function selectGeneratedRecordFieldMediaAuthoring({
   draft: string;
   entityName: string;
   fieldConfig: RecordFieldConfig;
-  mediaAssetOptions: ImageMediaAssetOption[];
+  mediaAssetOptions: MediaAssetOption[];
   schema: AppSchema | null;
 }): GeneratedRecordFieldMediaAuthoring {
+  const documentPolicy = fieldConfig.field.type === "text" ? fieldConfig.field.asset : undefined;
   const mediaPreview =
     draft !== ""
       ? (mediaAssetOptions.find((asset) => asset.id === draft) ??
-        coreImageMediaAssetOptionForId(draft))
+        (documentPolicy?.kind === "document" ? undefined : coreImageMediaAssetOptionForId(draft)))
       : undefined;
 
   return {
-    mediaPreviewHref: mediaPreview?.href,
+    ...(mediaPreview === undefined ? {} : { selectedAsset: mediaPreview }),
+    ...(mediaPreview !== undefined && !("downloadHref" in mediaPreview)
+      ? { mediaPreviewHref: mediaPreview.href }
+      : {}),
     uploadEnabled: true,
     uploadPatchFields: selectMediaAssetUploadPatchFields(schema, entityName, fieldConfig.fieldName),
   };
@@ -595,6 +602,11 @@ export function selectMediaAssetUploadPatchFields(
   fieldName: string,
 ): GeneratedRecordFieldMediaUploadPatchFields {
   const fields = schema?.entities[entityName]?.fields;
+  const field = fields?.[fieldName];
+
+  if (field?.type === "text" && field.asset?.kind === "document") {
+    return { mediaAssetFieldName: fieldName };
+  }
 
   if (fields?.width?.type === "number" && fields.height?.type === "number") {
     return {
@@ -629,9 +641,9 @@ export function imageMediaAssetOptionFromUpload(
 }
 
 export function upsertMediaAssetOption(
-  options: ImageMediaAssetOption[],
-  option: ImageMediaAssetOption,
-): ImageMediaAssetOption[] {
+  options: MediaAssetOption[],
+  option: MediaAssetOption,
+): MediaAssetOption[] {
   return [option, ...options.filter((candidate) => candidate.id !== option.id)].sort(
     (left, right) => left.label.localeCompare(right.label) || left.id.localeCompare(right.id),
   );
@@ -665,12 +677,12 @@ function appendGeneratedValueUnitPatchField(
 
 function generatedMediaUploadDraftValues(
   uploadPatchFields: GeneratedRecordFieldMediaUploadPatchFields,
-  upload: UploadedImageMedia,
+  upload: DocumentMediaUploadResponse | UploadedImageMedia,
 ): Record<string, GeneratedUpdateDraftFieldInput> {
   const values: Record<string, GeneratedUpdateDraftFieldInput> = {};
   const { heightFieldName, mediaAssetFieldName, widthFieldName } = uploadPatchFields;
 
-  if (upload.dimensions && widthFieldName && heightFieldName) {
+  if ("dimensions" in upload && upload.dimensions && widthFieldName && heightFieldName) {
     values[widthFieldName] = { kind: "value", value: upload.dimensions.width };
     values[heightFieldName] = { kind: "value", value: upload.dimensions.height };
   }

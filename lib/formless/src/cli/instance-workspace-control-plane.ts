@@ -6,6 +6,7 @@ import {
   parsePortableArchive,
   PORTABLE_ARCHIVE_MANIFEST_FILE,
   type AppArchive,
+  type AppArchiveMediaObject,
   type InstanceArchive,
   type InstanceArchiveControlPlane as ArchiveControlPlaneSnapshot,
   type PortableArchive,
@@ -331,8 +332,8 @@ export function appInstallControlPlaneRecords(install: AppInstall): StoredRecord
 export async function readArchiveMediaFiles(
   archiveDir: string,
   archive: PortableArchive,
-): Promise<ArchiveDiskMediaFile[]> {
-  const files: ArchiveDiskMediaFile[] = [];
+): Promise<Array<ArchiveDiskMediaFile & { object: AppArchiveMediaObject }>> {
+  const files: Array<ArchiveDiskMediaFile & { object: AppArchiveMediaObject }> = [];
 
   for (const app of archiveApps(archive)) {
     for (const object of app.media.objects) {
@@ -346,6 +347,7 @@ export async function readArchiveMediaFiles(
           byteSize: bytes.byteLength,
           bytes,
           contentType: object.contentType,
+          object,
         });
       } catch (error) {
         if (!isNodeError(error) || error.code !== "ENOENT") {

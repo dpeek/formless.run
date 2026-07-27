@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  DOCUMENT_ASSET_POLICY_MAX_BYTES,
   defineAppSchema,
   formatAppSchemaSource,
   parseAppSchema,
@@ -48,6 +49,42 @@ describe("App schema source authoring", () => {
         },
       }),
     ).toThrow('Query "taskAll" references unknown entity "missing".');
+  });
+
+  it("authors document-backed text fields without changing their value type", () => {
+    const source = taskSource();
+    const authored = defineAppSchema({
+      ...source,
+      entities: {
+        task: {
+          ...source.entities.task,
+          fields: {
+            ...source.entities.task.fields,
+            report: {
+              type: "text",
+              required: false,
+              asset: {
+                kind: "document",
+                acceptedMimeTypes: ["application/pdf"],
+                maxBytes: DOCUMENT_ASSET_POLICY_MAX_BYTES,
+                access: "public",
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(authored.entities.task.fields.report).toEqual({
+      type: "text",
+      required: false,
+      asset: {
+        kind: "document",
+        acceptedMimeTypes: ["application/pdf"],
+        maxBytes: DOCUMENT_ASSET_POLICY_MAX_BYTES,
+        access: "public",
+      },
+    });
   });
 
   it("formats deterministic source data that round-trips through parsing", () => {

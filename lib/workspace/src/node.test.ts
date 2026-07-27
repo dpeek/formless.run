@@ -39,6 +39,7 @@ import {
   INSTANCE_WORKSPACE_LOCAL_DEV_SECRET_STATE_PATH,
   INSTANCE_WORKSPACE_OWNER_SESSION_SECRET_ENV_NAME,
   INSTANCE_WORKSPACE_SECRET_STATE_PATH,
+  WORKSPACE_MEDIA_MANIFEST_FILE,
   WORKSPACE_RECORD_STATE_FILE_KIND,
   createWorkspaceAppPackageResolver,
   createWorkspaceOperationState,
@@ -49,6 +50,8 @@ import {
   formatInstanceWorkspaceSecretState,
   initialWorkspaceAutoSaveState,
   instanceWorkspaceAutoSaveStatePath,
+  instanceWorkspaceMediaFilePath,
+  instanceWorkspaceMediaManifestPath,
   instanceWorkspaceLocalDevSecretStatePath,
   instanceWorkspaceSecretStatePath,
   nextWorkspaceAutoSaveEnqueuedState,
@@ -59,8 +62,10 @@ import {
   readInstanceWorkspaceControlPlaneStorageSnapshot,
   readWorkspaceOperationState,
   readInstanceWorkspaceLocalDevSecretState,
+  readInstanceWorkspaceMediaFiles,
   readInstanceWorkspaceSecretState,
   resolveInstanceWorkspaceAdminToken,
+  replaceInstanceWorkspaceMediaFiles,
   listWorkspaceOperationStates,
   updateWorkspaceOperationState,
   workspaceOperationStatePath,
@@ -801,6 +806,97 @@ describe("workspace record state node files", () => {
   });
 });
 
+describe("workspace media source node files", () => {
+  it("round-trips deterministic payload paths and validated document metadata", async () => {
+    const workspaceRoot = await makeTempDir();
+    const manifest = defaultInstanceWorkspaceManifest({ name: "documents" });
+    const privateBytes = new TextEncoder().encode("%PDF-1.7\nprivate");
+    const publicBytes = new TextEncoder().encode("%PDF-1.7\npublic");
+    const privateObject = workspaceDocumentObject(
+      "private.pdf",
+      "private",
+      privateBytes.byteLength,
+    );
+    const publicObject = workspaceDocumentObject("public.pdf", "public", publicBytes.byteLength);
+
+    await replaceInstanceWorkspaceMediaFiles({
+      manifest,
+      mediaFiles: [
+        {
+          archivePath: publicObject.archivePath,
+          byteSize: publicBytes.byteLength,
+          bytes: publicBytes,
+          contentType: "application/pdf",
+          object: publicObject,
+        },
+        {
+          archivePath: privateObject.archivePath,
+          byteSize: privateBytes.byteLength,
+          bytes: privateBytes,
+          contentType: "application/pdf",
+          object: privateObject,
+        },
+      ],
+      workspaceRoot,
+    });
+
+    const writtenManifest = JSON.parse(
+      await readFile(instanceWorkspaceMediaManifestPath(workspaceRoot, manifest), "utf8"),
+    ) as {
+      kind: string;
+      objects: Array<{ archivePath: string; asset: { access: string; filename: string } }>;
+      version: number;
+    };
+
+    expect(path.basename(instanceWorkspaceMediaManifestPath(workspaceRoot, manifest))).toBe(
+      WORKSPACE_MEDIA_MANIFEST_FILE,
+    );
+    expect(writtenManifest).toMatchObject({
+      kind: "formless.workspaceMedia",
+      version: 1,
+    });
+    expect(writtenManifest.objects.map((object) => object.archivePath)).toEqual([
+      privateObject.archivePath,
+      publicObject.archivePath,
+    ]);
+    expect(writtenManifest.objects.map((object) => object.asset)).toMatchObject([
+      { access: "private", filename: "private.pdf" },
+      { access: "public", filename: "public.pdf" },
+    ]);
+
+    const read = await readInstanceWorkspaceMediaFiles({
+      archivePaths: [publicObject.archivePath, privateObject.archivePath],
+      manifest,
+      workspaceRoot,
+    });
+
+    expect(read.missingMediaFiles).toEqual([]);
+    expect(read.mediaFiles.map((file) => [file.archivePath, file.contentType])).toEqual([
+      [privateObject.archivePath, "application/pdf"],
+      [publicObject.archivePath, "application/pdf"],
+    ]);
+    expect(read.mediaFiles.map((file) => file.object)).toEqual([privateObject, publicObject]);
+
+    await replaceInstanceWorkspaceMediaFiles({
+      manifest,
+      mediaFiles: [
+        {
+          archivePath: privateObject.archivePath,
+          byteSize: privateBytes.byteLength,
+          bytes: privateBytes,
+          contentType: "application/pdf",
+          object: privateObject,
+        },
+      ],
+      workspaceRoot,
+    });
+
+    await expect(
+      readFile(instanceWorkspaceMediaFilePath(workspaceRoot, manifest, publicObject.archivePath)),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+});
+
 describe("workspace operation node state", () => {
   it("creates, updates, reads, and lists ignored operation state files", async () => {
     const workspaceRoot = await makeTempDir();
@@ -1089,5 +1185,32 @@ function workspaceTestPackageManifest(input: {
           ]
         : []),
     ],
+  };
+}
+
+function workspaceDocumentObject(assetId: string, access: "private" | "public", byteSize: number) {
+  const storageKey = `media/app-installs/reports/documents/${assetId}`;
+  const deliveryHref = `/api/app-installs/reports/reports/media/documents/${assetId}`;
+
+  return {
+    archivePath: `media/reports/${storageKey}`,
+    asset: {
+      access,
+      byteSize,
+      contentType: "application/pdf",
+      deliveryHref,
+      filename: assetId,
+      id: assetId,
+      kind: "document",
+      label: assetId,
+      ownerAppInstallId: "reports",
+      provider: "r2",
+      status: "ready",
+      storageKey,
+    },
+    byteSize,
+    contentType: "application/pdf",
+    deliveryHref,
+    storageKey,
   };
 }

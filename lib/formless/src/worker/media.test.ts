@@ -1,6 +1,13 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
+import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-identity-control-plane";
+import type { DocumentMediaAsset } from "@dpeek/formless-media";
 
-import type { OwnerIdentity } from "../shared/protocol.ts";
+import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
+import type { OwnerIdentity, SchemaResponse } from "../shared/protocol.ts";
+import { recordOperationRequest } from "../test/authority-write.ts";
 import { ensureTestIdentityOwner, resetTestIdentityStorage } from "../test/identity-owner.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import {
@@ -8,7 +15,10 @@ import {
   CORE_MEDIA_ROUTE_PREFIX,
   MEDIA_IMAGE_UPLOAD_MAX_BYTES,
   MEDIA_OBJECT_CACHE_CONTROL,
+  MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL,
 } from "@dpeek/formless-media/worker";
+import { CENTRAL_AUTH_SESSION_COOKIE_NAME } from "./central-auth-session.ts";
+import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { createOwnerSessionCookie } from "./owner-session.ts";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
@@ -19,6 +29,9 @@ const sessionSecret = "test-session-secret";
 const mediaBinding = "FORMLESS_MEDIA";
 const mediaBuckets = [mediaBinding];
 const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+const pdfBytes = new TextEncoder().encode("%PDF-1.7\nFormless document media test\n%%EOF");
+const privateDocumentField = "privateReport";
+const publicDocumentField = "publicReport";
 const owner: OwnerIdentity = {
   id: "owner-1",
   name: "Ada Owner",
@@ -34,6 +47,7 @@ type TestFile = {
 
 let harness: Harness;
 let guardedHarness: Harness;
+let guardedHarnessDir: string;
 
 beforeAll(async () => {
   harness = await createWorkerHarness(
@@ -45,10 +59,12 @@ beforeAll(async () => {
       r2Buckets: mediaBuckets,
     },
   );
+  guardedHarnessDir = await mkdtemp(join(tmpdir(), "formless-media-worker-harness-"));
+  const guardedHarnessPath = await writeMediaWorkerHarness(guardedHarnessDir);
   guardedHarness = await createWorkerHarness(
-    "src/worker/index.ts",
+    guardedHarnessPath,
     {
-      FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true },
+      FORMLESS_AUTHORITY: { className: "MediaWorkerHarnessAuthority", useSQLite: true },
     },
     {
       bindings: {
@@ -69,6 +85,7 @@ beforeEach(async () => {
 afterAll(async () => {
   await harness.dispose();
   await guardedHarness.dispose();
+  await rm(guardedHarnessDir, { force: true, recursive: true });
 });
 
 describe("media worker routes", () => {
@@ -334,7 +351,444 @@ describe("media worker routes", () => {
     expect(headResponse.headers.get("ETag")).toBe(getResponse.headers.get("ETag"));
     expect((await headResponse.arrayBuffer()).byteLength).toBe(0);
   });
+
+  it("uses active field policy and isolates document list and upload by app-admin install", async () => {
+    const firstInstallId = "documents-first";
+    const secondInstallId = "documents-second";
+
+    await configureDocumentSchema(firstInstallId);
+    await configureDocumentSchema(secondInstallId);
+
+    const firstAdmin = await createPrincipalSession({
+      appInstallId: firstInstallId,
+      displayName: "First App Admin",
+      role: "app.admin",
+    });
+    const secondAdmin = await createPrincipalSession({
+      appInstallId: secondInstallId,
+      displayName: "Second App Admin",
+      role: "app.admin",
+    });
+    const instanceAdmin = await createPrincipalSession({
+      displayName: "Instance Admin",
+      role: "instance.admin",
+    });
+    const uploaded = await uploadAppDocument(
+      firstInstallId,
+      privateDocumentField,
+      documentFile("first-private.pdf"),
+      firstAdmin.headers,
+    );
+
+    await expectResponseStatus(uploaded, 200);
+
+    const uploadedBody = (await uploaded.json()) as { asset: DocumentMediaAsset };
+    const crossInstallUpload = await uploadAppDocument(
+      secondInstallId,
+      privateDocumentField,
+      documentFile("cross-install.pdf"),
+      firstAdmin.headers,
+    );
+    const instanceAdminUpload = await uploadAppDocument(
+      firstInstallId,
+      privateDocumentField,
+      documentFile("instance-admin.pdf"),
+      instanceAdmin.headers,
+    );
+    const adminBearerUpload = await uploadAppDocument(
+      firstInstallId,
+      privateDocumentField,
+      documentFile("admin-bearer.pdf"),
+      adminHeaders(),
+    );
+    const unsupportedTypeUpload = await uploadAppDocument(
+      firstInstallId,
+      privateDocumentField,
+      {
+        content: pdfBytes,
+        name: "wrong-type.pdf",
+        type: "text/plain",
+      },
+      firstAdmin.headers,
+    );
+    const oversizedUpload = await uploadAppDocument(
+      firstInstallId,
+      privateDocumentField,
+      {
+        content: concatBytes([pdfBytes, new Uint8Array(1024)]),
+        name: "too-large.pdf",
+        type: "application/pdf",
+      },
+      firstAdmin.headers,
+    );
+    const anonymousList = await listAppDocuments(firstInstallId, privateDocumentField);
+    const firstList = await listAppDocuments(
+      firstInstallId,
+      privateDocumentField,
+      firstAdmin.headers,
+    );
+    const secondList = await listAppDocuments(
+      secondInstallId,
+      privateDocumentField,
+      secondAdmin.headers,
+    );
+    const crossInstallList = await listAppDocuments(
+      secondInstallId,
+      privateDocumentField,
+      firstAdmin.headers,
+    );
+    const archiveExportHeaders = adminHeaders({
+      "X-Formless-Archive-Export": "1",
+    });
+    const archiveExportList = await listAppDocuments(
+      firstInstallId,
+      privateDocumentField,
+      archiveExportHeaders,
+    );
+    const archiveExportRead = await guardedHarness.fetch(
+      documentDeliveryPath(firstInstallId, uploadedBody.asset.id),
+      { headers: archiveExportHeaders },
+    );
+
+    expect(uploadedBody.asset).toMatchObject({
+      access: "private",
+      byteSize: pdfBytes.byteLength,
+      contentType: "application/pdf",
+      filename: "first-private.pdf",
+      kind: "document",
+      ownerAppInstallId: firstInstallId,
+    });
+    expect(uploadedBody.asset.deliveryHref).toBe(
+      documentDeliveryPath(firstInstallId, uploadedBody.asset.id),
+    );
+    expect(crossInstallUpload.status).toBe(403);
+    expect(instanceAdminUpload.status).toBe(403);
+    expect(adminBearerUpload.status).toBe(401);
+    expect(unsupportedTypeUpload.status).toBe(415);
+    expect(oversizedUpload.status).toBe(413);
+    expect(anonymousList.status).toBe(401);
+    expect(anonymousList.headers.get("WWW-Authenticate")).toBe('Bearer realm="formless-app-admin"');
+    expect((await firstList.json()) as unknown).toEqual({ assets: [uploadedBody.asset] });
+    expect((await secondList.json()) as unknown).toEqual({ assets: [] });
+    expect(crossInstallList.status).toBe(403);
+    expect((await archiveExportList.json()) as unknown).toEqual({
+      assets: [uploadedBody.asset],
+    });
+    expect(archiveExportRead.status).toBe(200);
+    expect(new Uint8Array(await archiveExportRead.arrayBuffer())).toEqual(pdfBytes);
+    await expectMediaBucketKeys(guardedHarness, [uploadedBody.asset.storageKey]);
+  });
+
+  it("protects private document delivery by stored owner and allows current owner override", async () => {
+    const firstInstallId = "private-first";
+    const secondInstallId = "private-second";
+
+    await configureDocumentSchema(firstInstallId);
+    await configureDocumentSchema(secondInstallId);
+
+    const firstAdmin = await createPrincipalSession({
+      appInstallId: firstInstallId,
+      displayName: "Private First Admin",
+      role: "app.admin",
+    });
+    const secondAdmin = await createPrincipalSession({
+      appInstallId: secondInstallId,
+      displayName: "Private Second Admin",
+      role: "app.admin",
+    });
+    const ownerIdentity = await ensureTestIdentityOwner(guardedHarness, adminToken, owner);
+    const ownerHeaders = await centralSessionHeaders(ownerIdentity.id);
+    const upload = await uploadAppDocument(
+      firstInstallId,
+      privateDocumentField,
+      documentFile("private-report.pdf"),
+      firstAdmin.headers,
+    );
+
+    await expectResponseStatus(upload, 200);
+
+    const asset = ((await upload.json()) as { asset: DocumentMediaAsset }).asset;
+    const deliveryPath = documentDeliveryPath(firstInstallId, asset.id);
+    const anonymous = await guardedHarness.fetch(deliveryPath);
+    const wrongAdmin = await guardedHarness.fetch(deliveryPath, {
+      headers: secondAdmin.headers,
+    });
+    const wrongRoute = await guardedHarness.fetch(documentDeliveryPath(secondInstallId, asset.id), {
+      headers: secondAdmin.headers,
+    });
+    const ownerList = await listAppDocuments(firstInstallId, privateDocumentField, ownerHeaders);
+    const ownerUpload = await uploadAppDocument(
+      secondInstallId,
+      privateDocumentField,
+      documentFile("owner-upload.pdf"),
+      ownerHeaders,
+    );
+    const ownerGet = await guardedHarness.fetch(deliveryPath, { headers: ownerHeaders });
+    const ownerHead = await guardedHarness.fetch(deliveryPath, {
+      headers: ownerHeaders,
+      method: "HEAD",
+    });
+
+    expect(anonymous.status).toBe(401);
+    expect(wrongAdmin.status).toBe(403);
+    expect(wrongRoute.status).toBe(404);
+    expect((await ownerList.json()) as unknown).toEqual({ assets: [asset] });
+    await expectResponseStatus(ownerUpload, 200);
+    expect(ownerGet.status).toBe(200);
+    expect(ownerGet.headers.get("Cache-Control")).toBe(MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL);
+    expect(ownerGet.headers.get("Content-Disposition")).toBe(
+      'inline; filename="private-report.pdf"',
+    );
+    expect(new Uint8Array(await ownerGet.arrayBuffer())).toEqual(pdfBytes);
+    expect(ownerHead.status).toBe(200);
+    expect(ownerHead.headers.get("Cache-Control")).toBe(MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL);
+    expect((await ownerHead.arrayBuffer()).byteLength).toBe(0);
+  });
+
+  it("delivers stored-public documents anonymously by opaque id without public listing", async () => {
+    const installId = "public-documents";
+
+    await configureDocumentSchema(installId);
+
+    const admin = await createPrincipalSession({
+      appInstallId: installId,
+      displayName: "Public Document Admin",
+      role: "app.admin",
+    });
+    const upload = await uploadAppDocument(
+      installId,
+      publicDocumentField,
+      documentFile("issued-coa.pdf"),
+      admin.headers,
+    );
+
+    await expectResponseStatus(upload, 200);
+
+    const asset = ((await upload.json()) as { asset: DocumentMediaAsset }).asset;
+    const deliveryPath = documentDeliveryPath(installId, asset.id);
+    const anonymousList = await listAppDocuments(installId, publicDocumentField);
+    const getResponse = await guardedHarness.fetch(deliveryPath);
+    const headResponse = await guardedHarness.fetch(`${deliveryPath}?download=1`, {
+      method: "HEAD",
+    });
+    const wrongOwnerRoute = await guardedHarness.fetch(
+      documentDeliveryPath("public-documents-other", asset.id),
+    );
+
+    expect(asset.access).toBe("public");
+    expect(anonymousList.status).toBe(401);
+    expect(getResponse.status).toBe(200);
+    expect(getResponse.headers.get("Cache-Control")).toBe(MEDIA_OBJECT_CACHE_CONTROL);
+    expect(getResponse.headers.get("Content-Type")).toBe("application/pdf");
+    expect(getResponse.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(getResponse.headers.get("Content-Disposition")).toBe(
+      'inline; filename="issued-coa.pdf"',
+    );
+    expect(new Uint8Array(await getResponse.arrayBuffer())).toEqual(pdfBytes);
+    expect(headResponse.status).toBe(200);
+    expect(headResponse.headers.get("Cache-Control")).toBe(MEDIA_OBJECT_CACHE_CONTROL);
+    expect(headResponse.headers.get("Content-Disposition")).toBe(
+      'attachment; filename="issued-coa.pdf"',
+    );
+    expect((await headResponse.arrayBuffer()).byteLength).toBe(0);
+    expect(wrongOwnerRoute.status).toBe(404);
+  });
 });
+
+async function configureDocumentSchema(installId: string) {
+  const schemaPath = `/api/app-installs/tasks/${installId}/schema`;
+  const current = await guardedHarness.fetch(schemaPath, {
+    headers: adminHeaders(),
+  });
+
+  expect(current.status).toBe(200);
+
+  const body = (await current.json()) as SchemaResponse;
+  const schema = structuredClone(body.schema);
+  const task = schema.entities.task;
+
+  if (!task) {
+    throw new Error("Expected Tasks active schema.");
+  }
+
+  task.fields[privateDocumentField] = {
+    asset: {
+      acceptedMimeTypes: ["application/pdf"],
+      access: "private",
+      kind: "document",
+      maxBytes: 1024,
+    },
+    label: "Private report",
+    required: false,
+    type: "text",
+  };
+  task.fields[publicDocumentField] = {
+    asset: {
+      acceptedMimeTypes: ["application/pdf"],
+      access: "public",
+      kind: "document",
+      maxBytes: 1024,
+    },
+    label: "Public report",
+    required: false,
+    type: "text",
+  };
+
+  const update = await guardedHarness.fetch(schemaPath, {
+    body: JSON.stringify({ schema }),
+    headers: adminHeaders({ "Content-Type": "application/json" }),
+    method: "POST",
+  });
+
+  expect({
+    body: await update.clone().text(),
+    status: update.status,
+  }).toEqual({
+    body: expect.any(String),
+    status: 200,
+  });
+}
+
+async function createPrincipalSession(input: {
+  appInstallId?: string;
+  displayName: string;
+  role: "app.admin" | "instance.admin";
+}) {
+  const key = input.displayName.replace(/\W+/g, "-").toLowerCase();
+  const principal = await postIdentityRecordOperation({
+    entity: "principal",
+    idempotencyKey: `document-media-principal-${key}`,
+    operationName: "create",
+    input: {
+      displayName: input.displayName,
+      kind: "human",
+      status: "active",
+    },
+  });
+
+  await postIdentityRecordOperation({
+    entity: "role-assignment",
+    idempotencyKey: `document-media-role-${key}`,
+    operationName: "create",
+    input:
+      input.role === "app.admin"
+        ? {
+            appInstallId: input.appInstallId,
+            role: "role:app.admin",
+            scopeKind: "app-install",
+            status: "active",
+            targetKind: "principal",
+            targetPrincipal: principal.id,
+          }
+        : {
+            role: "role:instance.admin",
+            scopeKind: "instance",
+            status: "active",
+            targetKind: "principal",
+            targetPrincipal: principal.id,
+          },
+  });
+  return {
+    headers: await centralSessionHeaders(principal.id),
+    principalId: principal.id,
+  };
+}
+
+async function postIdentityRecordOperation(input: Parameters<typeof recordOperationRequest>[0]) {
+  const operation = recordOperationRequest(input);
+  const response = await guardedHarness.fetch(
+    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}${operation.path.slice("/api".length)}`,
+    {
+      body: JSON.stringify(operation.body),
+      headers: adminHeaders({ "Content-Type": "application/json" }),
+      method: "POST",
+    },
+  );
+
+  expect({
+    body: await response.clone().text(),
+    status: response.status,
+  }).toEqual({
+    body: expect.any(String),
+    status: 200,
+  });
+
+  return operation.response((await response.json()) as OperationInvocationResponse).record;
+}
+
+async function centralSessionHeaders(principalId: string) {
+  const response = await guardedHarness.durableObjectFetch(
+    "FORMLESS_AUTHORITY",
+    FORMLESS_INSTANCE_AUTHORITY_NAME,
+    "/harness/auth/central-session",
+    {
+      body: JSON.stringify({ principalId }),
+      headers: {
+        "Content-Type": "application/json",
+        "x-forwarded-host": "example.com",
+        "x-forwarded-proto": "https",
+      },
+      method: "POST",
+    },
+  );
+
+  expect(response.status).toBe(200);
+
+  const cookie = response.headers.get("Set-Cookie");
+
+  if (!cookie || !cookie.includes(`${CENTRAL_AUTH_SESSION_COOKIE_NAME}=`)) {
+    throw new Error("Central auth session harness did not return a session cookie.");
+  }
+
+  return {
+    Cookie: cookiePair(cookie),
+    "x-forwarded-host": "example.com",
+    "x-forwarded-proto": "https",
+  };
+}
+
+async function uploadAppDocument(
+  installId: string,
+  fieldName: string,
+  file: TestFile,
+  headers: Record<string, string> = {},
+) {
+  return uploadForm(
+    guardedHarness,
+    multipartFormData([file]),
+    headers,
+    documentCollectionPath(installId, fieldName),
+  );
+}
+
+function listAppDocuments(
+  installId: string,
+  fieldName: string,
+  headers: Record<string, string> = {},
+) {
+  return guardedHarness.fetch(documentCollectionPath(installId, fieldName), { headers });
+}
+
+function documentCollectionPath(installId: string, fieldName: string) {
+  const query = new URLSearchParams({
+    entity: "task",
+    field: fieldName,
+  });
+
+  return `/api/app-installs/tasks/${installId}/media/documents?${query.toString()}`;
+}
+
+function documentDeliveryPath(installId: string, assetId: string) {
+  return `/api/app-installs/tasks/${installId}/media/documents/${assetId}`;
+}
+
+function documentFile(name: string): TestFile {
+  return {
+    content: pdfBytes,
+    name,
+    type: "application/pdf",
+  };
+}
 
 async function uploadCoreImage(
   harness: Harness,
@@ -483,4 +937,59 @@ async function ownerSessionHeaders() {
 
 function cookiePair(cookie: string) {
   return cookie.split(";")[0] ?? cookie;
+}
+
+function adminHeaders(headers: Record<string, string> = {}) {
+  return {
+    ...headers,
+    Authorization: `Bearer ${adminToken}`,
+  };
+}
+
+async function writeMediaWorkerHarness(directory: string) {
+  const path = join(directory, "media-worker-harness.ts");
+
+  await writeFile(
+    path,
+    `
+      import worker, { FormlessAuthority } from "${process.cwd()}/src/worker/index.ts";
+      import { createCentralAuthSessionCookie } from "${process.cwd()}/src/worker/central-auth-session.ts";
+      import { writeInstanceAuthConfig } from "${process.cwd()}/src/worker/instance-auth-state.ts";
+
+      export class MediaWorkerHarnessAuthority extends FormlessAuthority {
+        async fetch(request) {
+          const url = new URL(request.url);
+
+          if (url.pathname === "/harness/auth/central-session" && request.method === "POST") {
+            const body = await request.json();
+
+            writeInstanceAuthConfig(this.ctx.storage, {
+              canonicalOrigin: "https://example.com",
+              relyingPartyId: url.hostname,
+              relyingPartyName: "Formless Test",
+            });
+
+            const created = await createCentralAuthSessionCookie(this.ctx.storage, {
+              env: this.env,
+              maxAgeSeconds: 60,
+              now: "2999-01-01T00:00:00.000Z",
+              principalId: body.principalId,
+              request,
+            });
+
+            return Response.json(
+              { session: created.session },
+              { headers: { "Set-Cookie": created.cookie } },
+            );
+          }
+
+          return super.fetch(request);
+        }
+      }
+
+      export default worker;
+    `,
+  );
+
+  return path;
 }

@@ -1,4 +1,4 @@
-import type { ImageMediaAssetOption } from "@dpeek/formless-media/client";
+import type { MediaAssetOption } from "@dpeek/formless-media/client";
 import type {
   FieldContract,
   FieldIntent,
@@ -168,7 +168,10 @@ export type SelectGeneratedWorkspaceTableFoundationOptions = {
   entityName: string;
   fieldStateByContextId?: Readonly<Record<string, GeneratedTableFieldContextState | undefined>>;
   id: string;
-  mediaAssetOptions?: readonly ImageMediaAssetOption[];
+  mediaAssetOptionsForField?: (
+    entityName: string,
+    fieldName: string,
+  ) => readonly MediaAssetOption[];
   query: HomeQueryTabConfig["query"];
   queryContext?: QueryEvaluationContext;
   queryName: string;
@@ -186,7 +189,7 @@ export function selectGeneratedWorkspaceTableFoundation({
   entityName,
   fieldStateByContextId = {},
   id,
-  mediaAssetOptions = [],
+  mediaAssetOptionsForField = () => [],
   query,
   queryContext,
   queryName,
@@ -229,7 +232,7 @@ export function selectGeneratedWorkspaceTableFoundation({
     entity,
     entityName,
     fieldStateByContextId,
-    mediaAssetOptions: [...mediaAssetOptions],
+    mediaAssetOptionsForField,
     presentation,
     query,
     queryContext,
@@ -250,7 +253,7 @@ export function projectGeneratedRecordTable({
   entity,
   entityName,
   fieldStateByContextId,
-  mediaAssetOptions,
+  mediaAssetOptionsForField,
   presentation,
   query,
   queryContext,
@@ -266,7 +269,7 @@ export function projectGeneratedRecordTable({
   entity: EntitySchema;
   entityName: string;
   fieldStateByContextId: Readonly<Record<string, GeneratedTableFieldContextState | undefined>>;
-  mediaAssetOptions: readonly ImageMediaAssetOption[];
+  mediaAssetOptionsForField: (entityName: string, fieldName: string) => readonly MediaAssetOption[];
   presentation: GeneratedTablePresentation;
   query: HomeQueryTabConfig["query"];
   queryContext?: QueryEvaluationContext;
@@ -300,7 +303,7 @@ export function projectGeneratedRecordTable({
             entityName,
             fieldContexts,
             fieldStateByContextId,
-            mediaAssetOptions,
+            mediaAssetOptionsForField,
             record,
             recordsById,
             result,
@@ -506,7 +509,7 @@ function projectGeneratedTableCell({
   entityName,
   fieldContexts,
   fieldStateByContextId,
-  mediaAssetOptions,
+  mediaAssetOptionsForField,
   record,
   recordsById,
   result,
@@ -521,7 +524,7 @@ function projectGeneratedTableCell({
   entityName: string;
   fieldContexts: Map<string, GeneratedTableFieldContext>;
   fieldStateByContextId: Readonly<Record<string, GeneratedTableFieldContextState | undefined>>;
-  mediaAssetOptions: readonly ImageMediaAssetOption[];
+  mediaAssetOptionsForField: (entityName: string, fieldName: string) => readonly MediaAssetOption[];
   record: StoredRecord;
   recordsById: Readonly<Record<string, StoredRecord>>;
   result: TableCollectionResultModel;
@@ -591,7 +594,7 @@ function projectGeneratedTableCell({
               dialogOpenById,
               fieldContexts,
               fieldStateByContextId,
-              mediaAssetOptions,
+              mediaAssetOptionsForField,
               record,
               recordsById,
               runtimePlan,
@@ -700,7 +703,7 @@ function projectGeneratedTableCell({
         fieldConfig: column,
         fieldContexts,
         fieldStateByContextId,
-        mediaAssetOptions,
+        mediaAssetOptionsForField,
         record: referenceRecord,
         recordsById,
         schema,
@@ -720,7 +723,7 @@ function projectGeneratedTableCell({
       fieldConfig: column,
       fieldContexts,
       fieldStateByContextId,
-      mediaAssetOptions,
+      mediaAssetOptionsForField,
       record,
       recordsById,
       schema,
@@ -752,7 +755,7 @@ function projectGeneratedTableCell({
         context,
         { fieldSetId: context.id, kind: "tableEditFieldSet", tableId },
         fieldStateByContextId[context.id],
-        mediaAssetOptions,
+        mediaAssetOptionsForField,
         recordsById,
         schema,
       );
@@ -796,7 +799,7 @@ function projectTableRecordField({
   fieldConfig,
   fieldContexts,
   fieldStateByContextId,
-  mediaAssetOptions,
+  mediaAssetOptionsForField,
   record,
   recordsById,
   schema,
@@ -812,7 +815,7 @@ function projectTableRecordField({
   fieldConfig: RecordFieldConfig & { display?: "editor" | "readOnly" | "hidden"; suffix?: string };
   fieldContexts: Map<string, GeneratedTableFieldContext>;
   fieldStateByContextId: Readonly<Record<string, GeneratedTableFieldContextState | undefined>>;
-  mediaAssetOptions: readonly ImageMediaAssetOption[];
+  mediaAssetOptionsForField: (entityName: string, fieldName: string) => readonly MediaAssetOption[];
   record: StoredRecord;
   recordsById: Readonly<Record<string, StoredRecord>>;
   schema: AppSchema | null;
@@ -837,7 +840,7 @@ function projectTableRecordField({
       ? projectGeneratedDisplayField({
           density: "compact",
           fieldConfig,
-          mediaAssetOptions,
+          mediaAssetOptions: mediaAssetOptionsForField(entityName, fieldConfig.fieldName),
           occurrence: {
             owner: { cellId: contextId, kind: "tableCell", tableId },
             placementId: fieldConfig.fieldName,
@@ -852,7 +855,7 @@ function projectTableRecordField({
           context,
           { cellId: contextId, kind: "tableCell", tableId },
           fieldStateByContextId[context.id],
-          mediaAssetOptions,
+          mediaAssetOptionsForField,
           recordsById,
           schema,
           transitionOperations?.length
@@ -877,7 +880,7 @@ function projectTableEditAction({
   dialogOpenById,
   fieldContexts,
   fieldStateByContextId,
-  mediaAssetOptions,
+  mediaAssetOptionsForField,
   record,
   recordsById,
   runtimePlan,
@@ -890,7 +893,7 @@ function projectTableEditAction({
   dialogOpenById: Readonly<Record<string, boolean | undefined>>;
   fieldContexts: Map<string, GeneratedTableFieldContext>;
   fieldStateByContextId: Readonly<Record<string, GeneratedTableFieldContextState | undefined>>;
-  mediaAssetOptions: readonly ImageMediaAssetOption[];
+  mediaAssetOptionsForField: (entityName: string, fieldName: string) => readonly MediaAssetOption[];
   record: StoredRecord;
   recordsById: Readonly<Record<string, StoredRecord>>;
   runtimePlan: GeneratedTableRuntimePlan;
@@ -935,7 +938,7 @@ function projectTableEditAction({
     context,
     { fieldSetId: context.id, kind: "tableEditFieldSet", tableId },
     fieldStateByContextId[context.id],
-    mediaAssetOptions,
+    mediaAssetOptionsForField,
     recordsById,
     schema,
     {
@@ -999,7 +1002,7 @@ function projectFieldContext(
   context: GeneratedTableFieldContext,
   owner: GeneratedRecordFieldOwner,
   currentState: GeneratedTableFieldContextState | undefined,
-  mediaAssetOptions: readonly ImageMediaAssetOption[],
+  mediaAssetOptionsForField: (entityName: string, fieldName: string) => readonly MediaAssetOption[],
   recordsById: Readonly<Record<string, StoredRecord>>,
   schema: AppSchema | null,
   transitionRuntime?: {
@@ -1020,7 +1023,10 @@ function projectFieldContext(
   const mediaAssetOptionsByFieldName = Object.fromEntries(
     context.fields
       .filter((field) => field.editor === "media")
-      .map((field) => [field.fieldName, mediaAssetOptions]),
+      .map((field) => [
+        field.fieldName,
+        mediaAssetOptionsForField(context.entityName, field.fieldName),
+      ]),
   );
   const transitionOperationsByFieldName = transitionRuntime
     ? groupTransitionOperationsByFieldName(transitionRuntime.transitionOperations, context.fields)

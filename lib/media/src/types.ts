@@ -1,9 +1,10 @@
 /**
  * Public Media contract version.
  *
- * Version 1 covers first-party image media assets, upload/list/restore transfer
- * shapes, delivery facts, storage keys, object metadata, and the provider store
- * seam. App-specific usage metadata remains owned by app schemas and runtimes.
+ * Version 1 covers first-party image and app-scoped document media assets,
+ * transfer shapes, delivery facts, storage keys, object metadata, and the
+ * provider store seam. App-specific usage metadata remains owned by app schemas
+ * and runtimes.
  *
  * This file is intentionally import-free so runtime-neutral, client, and Worker
  * entrypoints can share the same documented contract without pulling in adapter
@@ -14,11 +15,23 @@ export const MEDIA_PUBLIC_CONTRACT_VERSION = 1;
 /** Maximum accepted image upload size for the core media API. */
 export const MEDIA_IMAGE_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
 
+/** Runtime ceiling available to app-scoped document upload policy. */
+export const MEDIA_DOCUMENT_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
+
+/** Document content type currently accepted by Media adapters. */
+export const MEDIA_PDF_CONTENT_TYPE = "application/pdf";
+
 /** Cache policy applied to immutable stored media object responses. */
 export const MEDIA_OBJECT_CACHE_CONTROL = "public, max-age=31536000, immutable";
 
+/** Cache policy applied to private app-scoped document responses. */
+export const MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL = "private, no-store";
+
 /** Provider object-key prefix for owned core image media. */
 export const CORE_IMAGE_KEY_PREFIX = "media/images";
+
+/** Provider object-key prefix for app-install-owned document media. */
+export const APP_DOCUMENT_MEDIA_KEY_PREFIX = "media/app-installs";
 
 /** Core image upload endpoint owned by the Media API. */
 export const CORE_IMAGE_UPLOAD_PATH = "/api/formless/media/images";
@@ -32,10 +45,12 @@ export const MEDIA_ASSET_METADATA_KEYS = {
   byteSize: "formless-media-byte-size",
   contentType: "formless-media-content-type",
   deliveryHref: "formless-media-delivery-href",
+  documentAccess: "formless-media-document-access",
   filename: "formless-media-filename",
   height: "formless-media-height",
   kind: "formless-media-kind",
   label: "formless-media-label",
+  ownerAppInstallId: "formless-media-owner-app-install-id",
   provider: "formless-media-provider",
   status: "formless-media-status",
   storageKey: "formless-media-storage-key",
@@ -54,10 +69,9 @@ export type MediaObjectMetadata = Record<string, string>;
 
 /**
  * Metadata required to reconstruct a ready image media asset from provider
- * object metadata. Usage facts such as alt text, caption, crop, or focal point
- * are not part of this contract.
+ * object metadata.
  */
-export type MediaAssetMetadata = MediaObjectMetadata & {
+export type ImageMediaAssetMetadata = MediaObjectMetadata & {
   "formless-media-asset-id": string;
   "formless-media-byte-size": string;
   "formless-media-content-type": string;
@@ -72,6 +86,25 @@ export type MediaAssetMetadata = MediaObjectMetadata & {
   "formless-media-width"?: string;
 };
 
+/** Metadata required to reconstruct one ready app-scoped document asset. */
+export type DocumentMediaAssetMetadata = MediaObjectMetadata & {
+  "formless-media-asset-id": string;
+  "formless-media-byte-size": string;
+  "formless-media-content-type": string;
+  "formless-media-delivery-href": string;
+  "formless-media-document-access": DocumentMediaAccess;
+  "formless-media-filename": string;
+  "formless-media-kind": "document";
+  "formless-media-label": string;
+  "formless-media-owner-app-install-id": string;
+  "formless-media-provider": string;
+  "formless-media-status": "ready";
+  "formless-media-storage-key": MediaStorageKey;
+};
+
+/** Metadata for any ready Media-owned asset. */
+export type MediaAssetMetadata = ImageMediaAssetMetadata | DocumentMediaAssetMetadata;
+
 /** Normalized image file payload accepted by media upload and restore helpers. */
 export type MediaImageFile = {
   bytes: Uint8Array;
@@ -79,6 +112,33 @@ export type MediaImageFile = {
   filename?: string;
   size: number;
 };
+
+/** Normalized document file payload accepted by media validation helpers. */
+export type MediaDocumentFile = {
+  bytes: Uint8Array;
+  contentType: string;
+  filename: string;
+  size: number;
+};
+
+export type DocumentMediaAccess = "public" | "private";
+
+export type DocumentMediaFileValidationError =
+  | "empty"
+  | "invalid-pdf"
+  | "invalid-size"
+  | "too-large"
+  | "unsupported-content-type";
+
+export type DocumentMediaFileValidationResult =
+  | {
+      ok: true;
+      contentType: typeof MEDIA_PDF_CONTENT_TYPE;
+    }
+  | {
+      ok: false;
+      error: DocumentMediaFileValidationError;
+    };
 
 /** Object-store write request used by provider adapters. */
 export type MediaObjectWrite = {
@@ -128,7 +188,7 @@ export type MediaObjectStore = {
  * App records should store flat asset ids or usage fields. Provider storage
  * facts stay in Media-owned metadata and adapter contracts.
  */
-export type MediaAsset = {
+export type ImageMediaAsset = {
   byteSize: number;
   contentType: string;
   deliveryHref: string;
@@ -143,9 +203,28 @@ export type MediaAsset = {
   width?: number;
 };
 
+/** Immutable app-install-owned document media asset. */
+export type DocumentMediaAsset = {
+  access: DocumentMediaAccess;
+  byteSize: number;
+  contentType: typeof MEDIA_PDF_CONTENT_TYPE;
+  deliveryHref: string;
+  filename: string;
+  id: string;
+  kind: "document";
+  label: string;
+  ownerAppInstallId: string;
+  provider: string;
+  status: "ready";
+  storageKey: MediaStorageKey;
+};
+
+/** Public discriminated union for all Media-owned assets. */
+export type MediaAsset = ImageMediaAsset | DocumentMediaAsset;
+
 /** Response shape returned when an image upload creates or restores an asset. */
 export type ImageMediaUploadResponse = {
-  asset?: MediaAsset;
+  asset?: ImageMediaAsset;
   assetId?: string;
   contentType: string;
   href: string;
@@ -158,11 +237,29 @@ export type ImageMediaRestoreResponse = ImageMediaUploadResponse;
 
 /** Response shape for listing ready image media assets. */
 export type ImageMediaListResponse = {
-  assets: MediaAsset[];
+  assets: ImageMediaAsset[];
 };
 
-/** Successful media write response currently used by image uploads. */
-export type MediaWriteResponse = ImageMediaUploadResponse;
+/** Response shape returned when a document upload creates or restores an asset. */
+export type DocumentMediaUploadResponse = {
+  asset?: DocumentMediaAsset;
+  assetId?: string;
+  contentType: typeof MEDIA_PDF_CONTENT_TYPE;
+  href: string;
+  key: MediaStorageKey;
+  size: number;
+};
+
+/** Restore response matches upload response for restored document objects. */
+export type DocumentMediaRestoreResponse = DocumentMediaUploadResponse;
+
+/** Response shape for listing compatible ready document assets. */
+export type DocumentMediaListResponse = {
+  assets: DocumentMediaAsset[];
+};
+
+/** Successful media write response for image or document uploads. */
+export type MediaWriteResponse = ImageMediaUploadResponse | DocumentMediaUploadResponse;
 
 /** Result union returned by write helpers before Worker response mapping. */
 export type MediaWriteResult =
@@ -183,9 +280,38 @@ export type MediaDeliveryFacts = {
 };
 
 /** Routeable delivery facts derived from an image media asset id. */
-export type MediaAssetDeliveryFacts = {
+export type ImageMediaAssetDeliveryFacts = {
   assetId: string;
   href: string;
   kind: "image";
   storageKey: MediaStorageKey;
+};
+
+/** Routeable delivery facts derived from an app-scoped document asset id. */
+export type DocumentMediaAssetDeliveryFacts = {
+  assetId: string;
+  href: string;
+  kind: "document";
+  ownerAppInstallId: string;
+  storageKey: MediaStorageKey;
+};
+
+export type MediaAssetDeliveryFacts =
+  | ImageMediaAssetDeliveryFacts
+  | DocumentMediaAssetDeliveryFacts;
+
+/** Header facts for inline or downloaded document delivery. */
+export type DocumentMediaResponseFacts = {
+  cacheControl: string;
+  contentDisposition: string;
+  contentType: typeof MEDIA_PDF_CONTENT_TYPE;
+  xContentTypeOptions: "nosniff";
+};
+
+/** Compatibility facts supplied by a trusted app runtime. */
+export type DocumentMediaCompatibility = {
+  acceptedMimeTypes: readonly string[];
+  access: DocumentMediaAccess;
+  maxBytes: number;
+  ownerAppInstallId: string;
 };

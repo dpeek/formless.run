@@ -23,10 +23,12 @@ capability, metadata, app data, and media payload information.
 
 #### Scenario: Media capability
 
-- GIVEN an archive includes owned media
+- GIVEN an archive includes owned image or app-scoped document media
 - WHEN capabilities are parsed
 - THEN `core-media-assets` is accepted
 - AND `app-scoped-media` is rejected
+- AND image and document asset metadata remain distinguished inside the one
+  current core media capability
 
 ### Requirement: Current Archive Input Only
 
@@ -76,8 +78,10 @@ browser replica state.
 - GIVEN one installed app is selected
 - WHEN an app archive is exported
 - THEN one app archive directory is written
-- AND referenced core image media objects are included when records reference
-  them
+- AND referenced core image and document media objects are included when
+  schema-declared asset fields reference them
+- AND document objects preserve filename, MIME type, byte size, access policy,
+  asset id, and source owner install id without exposing provider credentials
 - AND protected target reads use owner session or admin bearer authorization
   supplied by the caller
 
@@ -99,6 +103,9 @@ state.
 - WHEN the archive contains schemas, records, install metadata, or media
 - THEN schema, records, references, unique constraints, app install policy,
   media metadata, and media files are validated before mutation
+- AND document validation checks asset kind, filename, normalized MIME type,
+  byte size, access policy, owner install id, archive path, storage key, and
+  payload before mutation
 
 ### Requirement: Restore Execution
 
@@ -133,6 +140,17 @@ restore command supports retargeting.
   install id
 - THEN the app archive can be restored to that install id
 - AND install-scoped storage and routes use the target install id
+
+#### Scenario: Retarget app-scoped document media
+
+- GIVEN an app archive contains referenced document assets
+- WHEN the archive is restored to a selected target install id
+- THEN each document keeps its flat asset id, filename, MIME type, byte size,
+  and public or private access policy
+- AND its owner install id, provider storage key, and delivery href are
+  recomputed for the target install
+- AND a target collision with incompatible immutable bytes or metadata is
+  rejected before mutation
 
 ### Requirement: Archive Package Boundary
 
@@ -213,7 +231,7 @@ workspaces.
 #### Scenario: Save from local Authority
 
 - **WHEN** workspace save runs against local Authority state containing active
-  app records, control-plane intent, and referenced core media
+  app records, control-plane intent, and referenced core image or document media
 - **THEN** the system writes deterministic record state files, schema
   provenance, and referenced media payloads from Authority-backed state
 - **AND** instance control-plane records are written to `state/instance.json`
@@ -275,6 +293,11 @@ payloads, not portable archive directories or duplicated schema source bodies.
 
 - **WHEN** workspace source contains core media referenced by app records
 - **THEN** media payloads are stored under `state/media`
+- **AND** document payload content types and metadata come from validated media
+  manifest facts rather than filename-only inference
+- **AND** referenced private document payloads are included in authorized
+  workspace source flows without being encrypted or redacted by runtime access
+  policy
 - **AND** media bytes, object metadata, and provider storage metadata are not
   nested into storage snapshots
 

@@ -2,9 +2,10 @@
 
 ## Purpose
 
-The Media package owns reusable media contracts, pure helpers, and runtime
-adapters for Formless core media behavior. App schemas and runtimes keep app
-records, usage metadata, and generic generated UI behavior outside the package.
+The Media package owns reusable image and document media contracts, pure
+helpers, and runtime adapters for Formless core media behavior. App schemas and
+runtimes keep app records, trusted field policy, usage metadata, authorization,
+and generic generated UI behavior outside the package.
 
 ## Requirements
 
@@ -28,13 +29,13 @@ The system SHALL provide a Media package under `lib/media/`.
 
 ### Requirement: Media Public Contract
 
-The Media package public contract SHALL own media asset and image media transfer
-shapes.
+The Media package public contract SHALL own image and document media asset,
+transfer, ownership, access, and delivery shapes.
 
 #### Scenario: Contract owns media shapes
 
-- GIVEN code needs media asset, image upload, image list, image restore,
-  delivery fact, storage key, metadata, or provider seam contracts
+- GIVEN code needs media asset, image or document upload, list, restore,
+  delivery, ownership, access, storage key, metadata, or provider seam contracts
 - WHEN it imports the documented contract
 - THEN the declarations come from `lib/media/src/types.ts`
 
@@ -66,7 +67,8 @@ public type re-exports.
 
 ### Requirement: Media Client Adapter
 
-The Media client adapter SHALL own browser/client HTTP behavior for image media.
+The Media client adapter SHALL own browser/client HTTP behavior for image and
+document media.
 
 #### Scenario: Client uploads and lists images
 
@@ -74,6 +76,17 @@ The Media client adapter SHALL own browser/client HTTP behavior for image media.
 - WHEN it needs the HTTP adapter
 - THEN it imports the adapter from the Media client subpath
 - AND the adapter returns the public upload and asset option shapes
+
+#### Scenario: Client uses app-scoped documents
+
+- GIVEN browser code lists, uploads, opens, or downloads a document for an
+  installed app
+- WHEN it needs the HTTP adapter
+- THEN it imports the adapter from the Media client subpath
+- AND the caller supplies the target installed-app media route and
+  schema-resolved field identity
+- AND the adapter does not accept caller-invented access, MIME, size, or owner
+  policy as authoritative
 
 #### Scenario: Client adapter has no React dependency
 
@@ -93,6 +106,18 @@ provider store adapters.
 - WHEN it handles core media
 - THEN it uses the Media Worker adapter through the public package subpath
 
+#### Scenario: Worker handles app-scoped document routes
+
+- GIVEN a Worker handles document upload, list, restore, `GET`, or `HEAD`
+  requests under an installed-app API prefix
+- WHEN it delegates reusable document parsing, validation, metadata, storage,
+  listing, or delivery behavior
+- THEN it uses the Media Worker adapter through the public package subpath
+- AND Formless runtime supplies trusted owner, field policy, authorization
+  result, and target route facts
+- AND the Media package does not read App schemas, principals, roles, sessions,
+  Authority records, or route registries directly
+
 #### Scenario: Provider seam stays outside app records
 
 - GIVEN a provider adapter stores or reads media objects
@@ -107,8 +132,8 @@ Worker adapters renderer-independent and SHALL NOT expose a React adapter.
 
 #### Scenario: Media presentation stays with the selected renderer
 
-- GIVEN generated authoring needs media asset selection, image upload, preview,
-  or broken-asset display
+- GIVEN generated authoring needs media asset selection, image upload or
+  preview, document upload or file actions, or broken-asset display
 - WHEN the selected renderer renders media-specific controls
 - THEN generated UI passes selected asset state, media asset options, preview
   hrefs, display-safe labels, missing selected asset facts, upload availability,
@@ -118,6 +143,18 @@ Worker adapters renderer-independent and SHALL NOT expose a React adapter.
   without importing renderer code from the Media package
 - AND asset-backed Media behavior does not introduce an Image field kind or URL
   authoring mode
+
+#### Scenario: Document presentation stays with the selected renderer
+
+- GIVEN a document-backed Media field is rendered
+- WHEN the field offers choose, upload, open, download, replace, or remove
+- THEN generated UI projects compatible document options, selected document
+  facts, filename, MIME type, byte size, access-safe delivery intents, upload
+  constraints, pending state, and file intents through the renderer-neutral
+  field contract
+- AND the selected renderer presents file-oriented controls without importing
+  Media runtime or provider code
+- AND the Media package exposes no React document editor
 
 #### Scenario: Generic layout stays outside Media
 
@@ -152,6 +189,16 @@ generated form layout, generic UI primitives, or Site usage metadata.
 - WHEN parsing runs
 - THEN parsing remains outside the Media package
 
+#### Scenario: App authorization remains runtime behavior
+
+- GIVEN app-scoped document list, upload, restore, or delivery requires an
+  authorization decision
+- WHEN the route is handled
+- THEN current app-install role, owner, session, public access, and target facts
+  are resolved by Formless runtime
+- AND the Media package consumes an explicit decision without owning instance
+  auth policy
+
 ### Requirement: Media Behavior Preservation
 
 The Media extraction SHALL preserve existing user-visible media behavior.
@@ -165,7 +212,7 @@ The Media extraction SHALL preserve existing user-visible media behavior.
 
 #### Scenario: Existing app records remain flat
 
-- GIVEN an app references owned image media
+- GIVEN an app references owned image or document media
 - WHEN the app stores media usage
 - THEN the app stores flat media asset ids or usage fields
 - AND provider-specific storage details remain outside app records

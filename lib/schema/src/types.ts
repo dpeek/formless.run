@@ -119,12 +119,31 @@ export type NumericExpression =
       right: NumericExpression;
     };
 
+/** Current runtime ceiling for one schema-declared document upload. */
+export const DOCUMENT_ASSET_POLICY_MAX_BYTES = 25 * 1024 * 1024;
+
+/** Document MIME types currently supported by the App schema language. */
+export const documentAssetMimeTypes = ["application/pdf"] as const;
+
+export type DocumentAssetMimeType = (typeof documentAssetMimeTypes)[number];
+export type DocumentAssetAccess = "public" | "private";
+
+export type TextFieldDocumentAssetPolicySchema = {
+  kind: "document";
+  acceptedMimeTypes: DocumentAssetMimeType[];
+  maxBytes: number;
+  access: DocumentAssetAccess;
+};
+
+export type TextFieldAssetPolicySchema = TextFieldDocumentAssetPolicySchema;
+
 export type TextFieldSchema = {
   type: "text";
   required: boolean;
   label?: string;
   format?: TextFieldFormat;
   suggestions?: string[];
+  asset?: TextFieldAssetPolicySchema;
 };
 
 export type ContactTextFieldFormat = "email" | "phone";

@@ -2,6 +2,7 @@
  * Runtime-neutral Archive package entrypoint.
  */
 export * from "./types.ts";
+export * from "./media-references.ts";
 export * from "./restore-plan.ts";
 
 import {

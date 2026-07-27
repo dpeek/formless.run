@@ -1,4 +1,4 @@
-import type { ImageMediaAssetOption } from "@dpeek/formless-media/client";
+import type { MediaAssetOption } from "@dpeek/formless-media/client";
 import type {
   FieldContract,
   FieldIntent,
@@ -129,7 +129,7 @@ export type GeneratedListReferenceOptionsByRecordId = Readonly<
 >;
 
 export type GeneratedListMediaAssetOptionsByRecordId = Readonly<
-  Record<string, Readonly<Record<string, readonly ImageMediaAssetOption[]>> | undefined>
+  Record<string, Readonly<Record<string, readonly MediaAssetOption[]>> | undefined>
 >;
 
 export function selectGeneratedListFoundation({
@@ -369,7 +369,7 @@ function projectGeneratedListFields({
   entityName: string;
   fieldState: GeneratedListFieldAuthoringState;
   listId: string;
-  mediaAssetOptionsByFieldName?: Readonly<Record<string, readonly ImageMediaAssetOption[]>>;
+  mediaAssetOptionsByFieldName?: Readonly<Record<string, readonly MediaAssetOption[]>>;
   record: StoredRecord;
   referenceOptionsByFieldName?: Readonly<Record<string, readonly GeneratedReferenceOption[]>>;
   result: ListResultModel;

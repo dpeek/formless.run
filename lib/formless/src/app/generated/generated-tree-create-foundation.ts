@@ -4,7 +4,7 @@ import type {
   TreeEditingAvailability,
   TreeParentIdentity,
 } from "@dpeek/formless-presentation/contract";
-import type { ImageMediaAssetOption } from "@dpeek/formless-media/client";
+import type { MediaAssetOption } from "@dpeek/formless-media/client";
 import type { QueryEvaluationContext } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type {
@@ -40,7 +40,7 @@ export type GeneratedTreeChildCreationProjectionOptions = {
   fieldStateBySurfaceId?: Readonly<
     Record<string, GeneratedTreeCreateFieldProjectionState | undefined>
   >;
-  mediaAssetOptionsByFieldName?: Readonly<Record<string, readonly ImageMediaAssetOption[]>>;
+  mediaAssetOptionsByFieldName?: Readonly<Record<string, readonly MediaAssetOption[]>>;
   operationStateByExecutionKey?: Readonly<
     Record<string, GeneratedOperationExecutionState | undefined>
   >;

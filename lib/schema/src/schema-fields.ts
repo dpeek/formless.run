@@ -11,6 +11,7 @@ import type {
   BooleanFieldSchema,
   ContactTextFieldFormat,
   DateFieldSchema,
+  DocumentAssetMimeType,
   EntityConstraintSchema,
   EntitySchema,
   EnumFieldSchema,
@@ -20,8 +21,10 @@ import type {
   NumberFieldSchema,
   ReferenceFieldSchema,
   TextFieldFormat,
+  TextFieldDocumentAssetPolicySchema,
   TextFieldSchema,
 } from "./types.ts";
+import { DOCUMENT_ASSET_POLICY_MAX_BYTES, documentAssetMimeTypes } from "./types.ts";
 
 const textFieldFormats = [
   "plain",
@@ -308,13 +311,18 @@ function parseField(entityName: string, fieldName: string, value: unknown): Fiel
   }
 
   const label = parseFieldLabel(entityName, fieldName, value.label);
+  const context = `Field "${entityName}.${fieldName}"`;
+
+  if ("asset" in value && value.type !== "text") {
+    throw new Error(`${context} asset policy is only supported on text fields.`);
+  }
 
   if (value.type === "text") {
     assertExactKeys(
-      `Field "${entityName}.${fieldName}"`,
+      context,
       value,
       ["type", "required"],
-      ["label", "format", "suggestions"],
+      ["label", "format", "suggestions", "asset"],
     );
 
     const field: TextFieldSchema = {
@@ -340,6 +348,11 @@ function parseField(entityName: string, fieldName: string, value: unknown): Fiel
     );
     if (suggestions !== undefined) {
       field.suggestions = suggestions;
+    }
+
+    const asset = parseOptionalTextFieldAssetPolicy(`${context} asset policy`, value.asset);
+    if (asset !== undefined) {
+      field.asset = asset;
     }
 
     return field;
@@ -508,6 +521,79 @@ function parseField(entityName: string, fieldName: string, value: unknown): Fiel
   throw new Error(
     `Field "${entityName}.${fieldName}" has unsupported type "${String(value.type)}".`,
   );
+}
+
+function parseOptionalTextFieldAssetPolicy(
+  context: string,
+  value: unknown,
+): TextFieldDocumentAssetPolicySchema | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(value)) {
+    throw new Error(`${context} must be an object.`);
+  }
+
+  assertExactKeys(context, value, ["kind", "acceptedMimeTypes", "maxBytes", "access"]);
+
+  if (value.kind !== "document") {
+    throw new Error(`${context} kind must be "document".`);
+  }
+
+  const acceptedMimeTypes = parseDocumentAssetMimeTypes(
+    `${context} acceptedMimeTypes`,
+    value.acceptedMimeTypes,
+  );
+  const maxBytes = value.maxBytes;
+  if (!Number.isSafeInteger(maxBytes) || (maxBytes as number) <= 0) {
+    throw new Error(`${context} maxBytes must be a positive integer.`);
+  }
+  if ((maxBytes as number) > DOCUMENT_ASSET_POLICY_MAX_BYTES) {
+    throw new Error(`${context} maxBytes must be at most ${DOCUMENT_ASSET_POLICY_MAX_BYTES}.`);
+  }
+
+  const access = value.access;
+  if (access !== "public" && access !== "private") {
+    throw new Error(`${context} access must be "public" or "private".`);
+  }
+
+  return {
+    kind: "document",
+    acceptedMimeTypes,
+    maxBytes: maxBytes as number,
+    access,
+  };
+}
+
+function parseDocumentAssetMimeTypes(context: string, value: unknown): DocumentAssetMimeType[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${context} must be a non-empty array.`);
+  }
+
+  const mimeTypes = value.map((mimeType, index) => {
+    if (typeof mimeType !== "string" || mimeType.trim() === "") {
+      throw new Error(`${context}[${index}] must be a non-empty string.`);
+    }
+
+    if (mimeType !== mimeType.trim().toLowerCase() || mimeType.includes(";")) {
+      throw new Error(`${context}[${index}] must be a normalized MIME type.`);
+    }
+
+    if (!(documentAssetMimeTypes as readonly string[]).includes(mimeType)) {
+      throw new Error(
+        `${context}[${index}] must be a supported document MIME type (${documentAssetMimeTypes.join(", ")}).`,
+      );
+    }
+
+    return mimeType as DocumentAssetMimeType;
+  });
+
+  if (new Set(mimeTypes).size !== mimeTypes.length) {
+    throw new Error(`${context} must not contain duplicates.`);
+  }
+
+  return mimeTypes;
 }
 
 function assertNumberFieldValue(

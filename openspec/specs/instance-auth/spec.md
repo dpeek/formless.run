@@ -1570,6 +1570,8 @@ instance management and owner authority separate.
   the target app install id
 - THEN the target app admin browser route and its authorized app data APIs
   accept the request
+- AND private document list, upload, open, download, and replacement APIs for
+  that exact app install accept the request
 - AND active `instance.owner` authority also satisfies the app admin boundary
 - AND authorization uses current identity-control-plane principal and role
   assignment records rather than stale cookie or handoff facts
@@ -1580,6 +1582,8 @@ instance management and owner authority separate.
 - WHEN the principal requests another app install, instance settings, or an
   owner-only route or operation
 - THEN the app role does not authorize the request
+- AND the principal cannot list, read, upload, replace, or inspect private
+  documents owned by another app install
 - AND active `instance.admin` authority alone does not authorize installed app
   data
 

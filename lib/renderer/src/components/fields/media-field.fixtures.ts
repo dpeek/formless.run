@@ -7,6 +7,7 @@ import type {
   FieldScenarioGroup,
   FieldScenarioProjectionContext,
 } from "../field-scenario-model.ts";
+import type { FieldSchema } from "@dpeek/formless-schema";
 import type { FieldSurface } from "@dpeek/formless-presentation/contract";
 import {
   createField,
@@ -20,11 +21,36 @@ import {
 
 const mediaPreviewUrl = publicMediaFixtureUrl("01");
 const missingMediaId = "media-missing-hero";
+const missingDocumentId = "document-missing-report";
 const mediaAccept = "image/jpeg,image/png,image/webp,image/gif";
 const mediaMaxSize = 5 * 1024 * 1024;
+const documentAccept = "application/pdf";
+const documentMaxSize = 4 * 1024 * 1024;
 
-const mediaField = { type: "text", required: true, label: "Hero Media" } as const;
-const optionalMediaField = { ...mediaField, required: false } as const;
+const mediaField = {
+  type: "text",
+  required: true,
+  label: "Hero Media",
+} satisfies Extract<FieldSchema, { type: "text" }>;
+const optionalMediaField = {
+  ...mediaField,
+  required: false,
+} satisfies Extract<FieldSchema, { type: "text" }>;
+const documentField = {
+  asset: {
+    access: "private",
+    acceptedMimeTypes: ["application/pdf"],
+    kind: "document",
+    maxBytes: documentMaxSize,
+  },
+  label: "Report",
+  required: true,
+  type: "text",
+} satisfies Extract<FieldSchema, { type: "text" }>;
+const optionalDocumentField = {
+  ...documentField,
+  required: false,
+} satisfies Extract<FieldSchema, { type: "text" }>;
 
 const mediaOptions = [
   ...Array.from({ length: 20 }, (_, index) => {
@@ -46,6 +72,27 @@ const mediaOptions = [
   },
 ] as const;
 
+const documentOptions = [
+  {
+    byteSize: 42_000,
+    contentType: "application/pdf",
+    downloadHref: "/api/app-installs/reports/private/media/documents/report-quarterly?download=1",
+    filename: "Quarterly report.pdf",
+    href: "/api/app-installs/reports/private/media/documents/report-quarterly",
+    id: "document-quarterly-report",
+    label: "Quarterly report.pdf",
+  },
+  {
+    byteSize: 720_000,
+    contentType: "application/pdf",
+    downloadHref: "/api/app-installs/reports/private/media/documents/report-draft?download=1",
+    filename: "Report draft.pdf",
+    href: "/api/app-installs/reports/private/media/documents/report-draft",
+    id: "document-report-draft",
+    label: "Report draft.pdf",
+  },
+] as const;
+
 function publicMediaFixtureUrl(seed: string) {
   return `https://picsum.photos/seed/formless-media-${seed}/240/180`;
 }
@@ -53,6 +100,10 @@ function publicMediaFixtureUrl(seed: string) {
 const requirednessAxis = composeScenarioAxis("requiredness", "Requiredness", [
   scenarioOption("required", "Required"),
   scenarioOption("optional", "Optional"),
+]);
+const mediaFormatAxis = composeScenarioAxis("format", "Asset", [
+  scenarioOption("image", "Image"),
+  scenarioOption("document", "Document"),
 ]);
 const mediaCreateValueAxis = composeScenarioAxis("value", "Value", [
   scenarioOption("selected", "Selected Asset"),
@@ -70,6 +121,7 @@ const modeAxis = composeScenarioAxis("mode", "Mode", [
 const runtimeAxis = composeScenarioAxis("runtime", "Runtime", [
   scenarioOption("ready", "Ready"),
   scenarioOption("uploading", "Uploading"),
+  scenarioOption("error", "Error"),
 ]);
 
 export const mediaScenarioGroups = [
@@ -77,7 +129,7 @@ export const mediaScenarioGroups = [
   projectScenarioGroup({
     id: "media-record",
     kind: "media",
-    axes: [modeAxis, requirednessAxis, mediaValueAxis, runtimeAxis],
+    axes: [mediaFormatAxis, modeAxis, requirednessAxis, mediaValueAxis, runtimeAxis],
     include: mediaRecordCombinationIsValid,
     projectField: (context) => projectExistingMediaField("record", context),
   }),
@@ -89,7 +141,8 @@ function createMediaGroup() {
   return projectScenarioGroup({
     id: "media-create",
     kind: "media",
-    axes: [requirednessAxis, mediaCreateValueAxis],
+    axes: [mediaFormatAxis, requirednessAxis, mediaCreateValueAxis, runtimeAxis],
+    include: ({ facets }) => facets.runtime === "ready" || facets.value === "selected",
     projectField: projectCreateMediaField,
   });
 }
@@ -98,7 +151,7 @@ function existingMediaGroup(surface: Extract<FieldSurface, "detail" | "table-cel
   return projectScenarioGroup({
     id: `media-${surface}`,
     kind: "media",
-    axes: [modeAxis, requirednessAxis, mediaValueAxis],
+    axes: [mediaFormatAxis, modeAxis, requirednessAxis, mediaValueAxis],
     projectField: (context) => projectExistingMediaField(surface, context),
   });
 }
@@ -109,11 +162,24 @@ function mediaRecordCombinationIsValid({ facets }: FieldScenarioProjectionContex
 
 function projectCreateMediaField({ facets }: FieldScenarioProjectionContext) {
   const required = facets.requiredness === "required";
-  const field = required ? mediaField : optionalMediaField;
-  const value = facets.value === "selected" ? "media-homepage-hero" : "";
+  const document = facets.format === "document";
+  const field = document
+    ? required
+      ? documentField
+      : optionalDocumentField
+    : required
+      ? mediaField
+      : optionalMediaField;
+  const value =
+    facets.value === "selected"
+      ? document
+        ? "document-quarterly-report"
+        : "media-homepage-hero"
+      : "";
+  const documentOption = documentOptions.find((option) => option.id === value);
 
   return createField({
-    fieldName: "heroMediaId",
+    fieldName: document ? "reportAssetId" : "heroMediaId",
     field,
     editor: "media",
     control: textControl(field, {
@@ -123,19 +189,35 @@ function projectCreateMediaField({ facets }: FieldScenarioProjectionContext) {
     draftInput: draftInput(value),
     labelVisibility: "visible",
     media: {
-      accept: mediaAccept,
+      accept: document ? documentAccept : mediaAccept,
+      ...(documentOption === undefined ? {} : { document: documentPresentation(documentOption) }),
       fileSelectEnabled: true,
-      maxSize: mediaMaxSize,
-      previewHref: value ? mediaPreviewUrl : undefined,
+      maxSize: document ? documentMaxSize : mediaMaxSize,
+      previewHref: !document && value ? mediaPreviewUrl : undefined,
+      removalEnabled: !required,
       selectedAssetId: value || undefined,
       uploadEnabled: true,
-      uploadPatchFields: { mediaAssetFieldName: "heroMediaId" },
+      uploadPatchFields: { mediaAssetFieldName: document ? "reportAssetId" : "heroMediaId" },
     },
-    options: { mediaAssetOptions: mediaAssetOptions(mediaOptions) },
+    options: {
+      mediaAssetOptions: mediaAssetOptions(document ? documentOptions : mediaOptions),
+    },
     occurrence: {
       ownerId: `media-create-${facets.requiredness}-${facets.value}`,
-      placementId: "heroMediaId",
+      placementId: document ? "reportAssetId" : "heroMediaId",
     },
+    errors:
+      facets.runtime === "error"
+        ? [
+            {
+              fieldName: document ? "reportAssetId" : "heroMediaId",
+              message: document
+                ? "The PDF could not be uploaded."
+                : "The image could not be uploaded.",
+            },
+          ]
+        : undefined,
+    pending: facets.runtime === "uploading" ? { isPending: true, label: "Uploading" } : undefined,
     recordId: `media-create-${facets.requiredness}-${facets.value}`,
     value: value || undefined,
   });
@@ -146,22 +228,34 @@ function projectExistingMediaField(
   { facets }: FieldScenarioProjectionContext,
 ) {
   const required = facets.requiredness === "required";
-  const field = required ? mediaField : optionalMediaField;
+  const document = facets.format === "document";
+  const field = document
+    ? required
+      ? documentField
+      : optionalDocumentField
+    : required
+      ? mediaField
+      : optionalMediaField;
   const value =
     facets.value === "selected"
-      ? "media-homepage-hero"
+      ? document
+        ? "document-quarterly-report"
+        : "media-homepage-hero"
       : facets.value === "missing"
-        ? missingMediaId
+        ? document
+          ? missingDocumentId
+          : missingMediaId
         : "";
-  const previewHref = facets.value === "selected" ? mediaPreviewUrl : undefined;
+  const previewHref = !document && facets.value === "selected" ? mediaPreviewUrl : undefined;
+  const documentOption = documentOptions.find((option) => option.id === value);
   const common = {
-    fieldName: "heroMediaId",
+    fieldName: document ? "reportAssetId" : "heroMediaId",
     field,
     editor: "media" as const,
     labelVisibility: surface === "detail" ? ("visible" as const) : ("hidden" as const),
     occurrence: {
       ownerId: `media-${surface}-${facets.mode}-${facets.requiredness}-${facets.value}-${facets.runtime ?? "ready"}`,
-      placementId: "heroMediaId",
+      placementId: document ? "reportAssetId" : "heroMediaId",
     },
     recordId: `media-${surface}-${facets.mode}-${facets.requiredness}-${facets.value}-${facets.runtime ?? "ready"}`,
     surface,
@@ -174,18 +268,25 @@ function projectExistingMediaField(
         density: surface === "table-cell" ? "compact" : "default",
         formatting: { displayValue: value },
         media: {
+          ...(documentOption === undefined
+            ? {}
+            : { document: documentPresentation(documentOption) }),
           ...(facets.value === "missing"
             ? {
                 missingSelectedAsset: {
-                  assetId: missingMediaId,
-                  reason: "Media asset is unavailable.",
+                  assetId: document ? missingDocumentId : missingMediaId,
+                  reason: document
+                    ? "The selected document is unavailable."
+                    : "Media asset is unavailable.",
                 },
               }
             : {}),
           previewHref,
           selectedAssetId: value || undefined,
         },
-        options: { mediaAssetOptions: mediaAssetOptions(mediaOptions) },
+        options: {
+          mediaAssetOptions: mediaAssetOptions(document ? documentOptions : mediaOptions),
+        },
         value: value || undefined,
       })
     : recordField({
@@ -196,26 +297,64 @@ function projectExistingMediaField(
         drafts: recordDrafts({ recordValue: value || undefined }),
         formatting: { displayValue: value },
         media: {
-          accept: mediaAccept,
+          accept: document ? documentAccept : mediaAccept,
+          ...(documentOption === undefined
+            ? {}
+            : { document: documentPresentation(documentOption) }),
           fileSelectEnabled: true,
-          maxSize: mediaMaxSize,
+          maxSize: document ? documentMaxSize : mediaMaxSize,
           mediaPreviewHref: previewHref,
           ...(facets.value === "missing"
             ? {
                 missingSelectedAsset: {
-                  assetId: missingMediaId,
-                  reason: "Media asset is unavailable.",
+                  assetId: document ? missingDocumentId : missingMediaId,
+                  reason: document
+                    ? "The selected document is unavailable."
+                    : "Media asset is unavailable.",
                 },
               }
             : {}),
           previewHref,
+          removalEnabled: !required,
           selectedAssetId: value || undefined,
           uploadEnabled: true,
-          uploadPatchFields: { mediaAssetFieldName: "heroMediaId" },
+          uploadPatchFields: {
+            mediaAssetFieldName: document ? "reportAssetId" : "heroMediaId",
+          },
         },
-        options: { mediaAssetOptions: mediaAssetOptions(mediaOptions) },
+        options: {
+          mediaAssetOptions: mediaAssetOptions(document ? documentOptions : mediaOptions),
+        },
+        errors:
+          facets.runtime === "error"
+            ? [
+                {
+                  fieldName: document ? "reportAssetId" : "heroMediaId",
+                  message: document
+                    ? "The PDF could not be uploaded."
+                    : "The image could not be uploaded.",
+                },
+              ]
+            : undefined,
         pending:
           facets.runtime === "uploading" ? { isPending: true, label: "Uploading" } : undefined,
         rendererKind: "media",
       });
+}
+
+function documentPresentation(option: (typeof documentOptions)[number]) {
+  return {
+    byteSize: option.byteSize,
+    contentType: option.contentType,
+    downloadIntent: {
+      href: option.downloadHref,
+      type: "mediaDocumentDownload" as const,
+    },
+    filename: option.filename,
+    openIntent: {
+      href: option.href,
+      target: "newTab" as const,
+      type: "mediaDocumentOpen" as const,
+    },
+  };
 }

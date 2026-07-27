@@ -31,6 +31,7 @@ import type {
 import {
   listInstallableAppPackages,
   packageAppFactsForKey,
+  type AppInstall,
   type InstallableAppPackage,
 } from "@dpeek/formless-installed-apps";
 import {
@@ -88,9 +89,9 @@ import {
 } from "./cli-command.ts";
 import {
   instanceWorkspaceInstanceStatePath,
-  instanceWorkspaceMediaFilePath,
   createWorkspaceAppPackageResolver,
   readInstanceWorkspaceControlPlaneStorageSnapshot,
+  replaceInstanceWorkspaceMediaFiles,
   writeInstanceWorkspaceAppStorageSnapshot,
   writeInstanceWorkspaceControlPlaneStorageSnapshot,
 } from "@dpeek/formless-workspace/node";
@@ -962,6 +963,186 @@ describe("Formless CLI", () => {
     await expect(
       readFile(path.join(workspaceRoot, "state/apps/david.json")),
     ).resolves.not.toContain("stored-archive-token");
+  });
+
+  it("pulls, pushes, and rebuilds referenced document workspace source", async () => {
+    const tempDir = await makeTempDir();
+    const workspaceRoot = path.join(tempDir, "document-workspace");
+    const targetUrl = "https://documents.dpeek.workers.dev";
+    const privateBytes = new TextEncoder().encode("%PDF-1.7\nprivate report");
+    const publicBytes = new TextEncoder().encode("%PDF-1.7\npublic report");
+    const unreferencedBytes = new TextEncoder().encode("%PDF-1.7\nunreferenced report");
+    const remoteRequests: CapturedFetchRequest[] = [];
+    const packageRoot = path.join(tempDir, "document-package");
+    const sourceSchema = documentArchiveSourceSchema();
+    const sourceSchemaHash = await computeSourceSchemaHash(sourceSchema);
+
+    await writeWorkspaceManifest(workspaceRoot, { apps: [] });
+    await writeWorkspacePackageLinks(workspaceRoot, "../document-package/formless.app.json");
+    await writePrivatePackageFixture(packageRoot, sourceSchemaHash, sourceSchema);
+    const activePackages = await createWorkspaceAppPackageResolver({
+      bundledManifests: bundledAppPackageManifests,
+      manifest: parseFormlessInstanceWorkspaceManifestJson(
+        await readFile(path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE), "utf8"),
+      ),
+      workspaceRoot,
+    });
+    const documentPackage = activePackages.resolver.findPackage("private-labs");
+
+    if (!documentPackage) {
+      throw new Error("Missing linked document package.");
+    }
+
+    const fetcher = documentWorkspaceFetch(remoteRequests, {
+      appPackage: documentPackage,
+      privateBytes,
+      publicBytes,
+      sourceSchemaHash,
+      targetUrl,
+      unreferencedBytes,
+    });
+
+    await writeWorkspaceControlPlaneStorageSnapshot(
+      workspaceRoot,
+      controlPlaneRecords({ targetUrl }).filter((record) => record.entity === "deployment-config"),
+    );
+    await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, ".formless/instance.env"),
+      "FORMLESS_ADMIN_TOKEN=document-admin-token\n",
+    );
+
+    await runFormlessCli(
+      ["pull", "--workspace", workspaceRoot],
+      cliDeps(tempDir, { fetch: fetcher, logs: [] }),
+    );
+
+    const mediaManifest = JSON.parse(
+      await readFile(path.join(workspaceRoot, "state/media/manifest.json"), "utf8"),
+    ) as {
+      objects: Array<{
+        archivePath: string;
+        asset: { access: string; contentType: string; filename: string };
+      }>;
+    };
+
+    expect(mediaManifest.objects).toMatchObject([
+      {
+        archivePath: "media/reports/media/app-installs/reports/documents/private-report.pdf",
+        asset: {
+          access: "private",
+          contentType: "application/pdf",
+          filename: "private-report.pdf",
+        },
+      },
+      {
+        archivePath: "media/reports/media/app-installs/reports/documents/public-report.pdf",
+        asset: {
+          access: "public",
+          contentType: "application/pdf",
+          filename: "public-report.pdf",
+        },
+      },
+    ]);
+    expect(JSON.stringify(mediaManifest)).not.toContain("unreferenced.pdf");
+
+    const workspaceManifest = parseFormlessInstanceWorkspaceManifestJson(
+      await readFile(path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE), "utf8"),
+    );
+
+    await writeInstanceWorkspaceAppStorageSnapshot({
+      installId: "reports",
+      manifest: workspaceManifest,
+      schemaProvenance: {
+        kind: "package-app",
+        packageAppKey: documentPackage.packageAppKey,
+        packageRevision: documentPackage.packageRevision,
+        sourceSchemaHash: documentPackage.sourceSchemaHash,
+      },
+      snapshot: {
+        ...snapshot(
+          [
+            ...workspaceDocumentRecords(),
+            block("local-note", "2026-05-05T00:00:04.000Z", {
+              label: "Local note",
+              type: "group",
+            }),
+          ],
+          "app:reports",
+        ),
+        schema: sourceSchema,
+        schemaKey: documentPackage.sourceSchemaKey,
+      },
+      workspaceRoot,
+    });
+
+    await runFormlessCli(
+      ["push", "--workspace", workspaceRoot, "--dry-run"],
+      cliDeps(tempDir, { fetch: fetcher, logs: [] }),
+    );
+
+    const pushRestoreRequest = remoteRequests.find(
+      (request) =>
+        request.method === "POST" && request.url === `${targetUrl}/api/formless/archive/restore`,
+    );
+    const pushRestoreBody = capturedRequestJson<{
+      archive: InstanceArchive;
+      mediaFiles: Array<{ archivePath: string; bytesBase64: string; contentType: string }>;
+    }>(pushRestoreRequest);
+
+    expect(pushRestoreBody.archive.apps[0]?.media.objects).toMatchObject(mediaManifest.objects);
+    expect(pushRestoreBody.mediaFiles.map((file) => file.archivePath)).toEqual([
+      "media/reports/media/app-installs/reports/documents/private-report.pdf",
+      "media/reports/media/app-installs/reports/documents/public-report.pdf",
+    ]);
+    expect(pushRestoreBody.mediaFiles.map((file) => file.contentType)).toEqual([
+      "application/pdf",
+      "application/pdf",
+    ]);
+    expect(pushRestoreBody.mediaFiles.map((file) => file.bytesBase64)).toEqual([
+      Buffer.from(privateBytes).toString("base64"),
+      Buffer.from(publicBytes).toString("base64"),
+    ]);
+
+    const child = new FakeCliDevChild();
+    const localRequests: CapturedFetchRequest[] = [];
+    const logs: string[] = [];
+    const run = runFormlessCli(
+      ["dev", "--workspace", workspaceRoot, "--reset"],
+      cliDeps(tempDir, {
+        env: { PORT: "4450" },
+        fetch: localInstanceDevFetch(localRequests, []),
+        logs,
+        spawn: ((_command: string, _args: string[], options: CapturedSpawnOptions) => {
+          announceFakeCliDevServer(child, options.env);
+
+          return child as unknown as ReturnType<typeof spawn>;
+        }) as typeof spawn,
+      }),
+    );
+
+    await waitUntil(() => logs.some((line) => line.includes(LOCAL_SESSION_BOOTSTRAP_API_PATH)));
+    child.close(0);
+    await run;
+
+    const localRestoreRequest = localRequests.find(
+      (request) =>
+        request.method === "POST" &&
+        request.url === "http://localhost:4450/api/formless/archive/restore",
+    );
+    const localRestoreBody = capturedRequestJson<{
+      archive: InstanceArchive;
+      mediaFiles: Array<{ archivePath: string; bytesBase64: string; contentType: string }>;
+    }>(localRestoreRequest);
+
+    expect(localRestoreBody.archive.apps[0]?.media.objects).toMatchObject(mediaManifest.objects);
+    expect(localRestoreBody.mediaFiles.map((file) => file.bytesBase64)).toEqual([
+      Buffer.from(privateBytes).toString("base64"),
+      Buffer.from(publicBytes).toString("base64"),
+    ]);
+    expect(
+      remoteRequests.some((request) => request.url.endsWith("/documents/unreferenced.pdf")),
+    ).toBe(false);
   });
 
   it("emits output for repeat pull without mutation", async () => {
@@ -3819,6 +4000,159 @@ describe("Formless CLI", () => {
     expect(restoreBody.mediaFiles[0]?.bytesBase64).toBe(Buffer.from([4, 5, 6]).toString("base64"));
   });
 
+  it("exports protected public and private documents and retargets their ownership", async () => {
+    const tempDir = await makeTempDir();
+    const outDir = path.join(tempDir, "document-backup");
+    const requests: CapturedFetchRequest[] = [];
+    const responses = responseQueue();
+    const privateBytes = new TextEncoder().encode("%PDF-1.7\nprivate draft");
+    const publicBytes = new TextEncoder().encode("%PDF-1.7\nissued document");
+    const schema = documentArchiveSourceSchema();
+    const records = [
+      block("block-documents", "2026-05-05T00:00:01.000Z", {
+        type: "image",
+        label: "Documents",
+        privateDocument: "private.pdf",
+        publicDocument: "public.pdf",
+      }),
+    ];
+    const privateAsset = appDocumentAsset(
+      "personal",
+      "private",
+      "private",
+      privateBytes.byteLength,
+    );
+    const publicAsset = appDocumentAsset("personal", "public", "public", publicBytes.byteLength);
+
+    responses.queueJson({
+      packages: listInstallableAppPackages(bundledAppPackageResolver),
+      installs: [installedSite("personal", "Personal")],
+    });
+    responses.queueJson({
+      ...snapshot(records),
+      schema,
+    });
+    responses.queueJson({ assets: [privateAsset] });
+    responses.queueJson({ assets: [publicAsset] });
+    responses.queueBinary(privateBytes, "application/pdf");
+    responses.queueBinary(publicBytes, "application/pdf");
+
+    await exportAppArchive(
+      {
+        installId: "personal",
+        outDir,
+        target: "https://instance.example",
+      },
+      cliDeps(tempDir, {
+        env: { FORMLESS_ADMIN_TOKEN: "protected-export" },
+        fetch: responses.fetcher(requests),
+      }),
+    );
+
+    const archive = parsePortableArchive(
+      JSON.parse(
+        await readFile(path.join(outDir, PORTABLE_ARCHIVE_MANIFEST_FILE), "utf8"),
+      ) as unknown,
+      { packageResolver: bundledAppPackageResolver },
+    );
+
+    if (archive.kind !== APP_ARCHIVE_KIND) {
+      throw new Error("Expected app archive.");
+    }
+
+    expect(archive.media.objects.map((object) => object.asset)).toEqual([
+      expect.objectContaining({
+        access: "private",
+        filename: "private.pdf",
+        ownerAppInstallId: "personal",
+      }),
+      expect.objectContaining({
+        access: "public",
+        filename: "public.pdf",
+        ownerAppInstallId: "personal",
+      }),
+    ]);
+    expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
+      "GET https://instance.example/api/formless/app-installs",
+      "GET https://instance.example/api/app-installs/site/personal/snapshot",
+      "GET https://instance.example/api/app-installs/site/personal/media/documents?entity=block&field=privateDocument",
+      "GET https://instance.example/api/app-installs/site/personal/media/documents?entity=block&field=publicDocument",
+      "GET https://instance.example/api/app-installs/site/personal/media/documents/private.pdf",
+      "GET https://instance.example/api/app-installs/site/personal/media/documents/public.pdf",
+    ]);
+    expect(requests.map((request) => request.headers.authorization)).toEqual(
+      Array.from({ length: 6 }, () => "Bearer protected-export"),
+    );
+    expect(requests.map((request) => request.headers["x-formless-archive-export"])).toEqual([
+      undefined,
+      undefined,
+      "1",
+      "1",
+      "1",
+      "1",
+    ]);
+
+    responses.queueJson({
+      ok: true,
+      report: {
+        applied: true,
+        summary: {
+          appCount: 1,
+          createdInstalls: ["personal-copy"],
+          mediaCountsByApp: { "personal-copy": 2 },
+          recordCountsByApp: { "personal-copy": { total: records.length } },
+          replacedInstalls: [],
+        },
+      },
+    });
+
+    await restoreAppArchive(
+      {
+        adminToken: "restore-token",
+        apply: true,
+        archiveDir: outDir,
+        installId: "personal-copy",
+        replace: false,
+        target: "https://instance.example",
+      },
+      cliDeps(tempDir, {
+        fetch: responses.fetcher(requests),
+      }),
+    );
+
+    const restoreBody = capturedRequestJson<{
+      archive: AppArchive;
+      mediaFiles: { archivePath: string; bytesBase64: string }[];
+    }>(requests.at(-1));
+
+    expect(restoreBody.archive.app.installId).toBe("personal-copy");
+    expect(restoreBody.archive.media.objects).toEqual([
+      expect.objectContaining({
+        archivePath: "media/personal/media/app-installs/personal/documents/private.pdf",
+        asset: expect.objectContaining({
+          access: "private",
+          id: "private.pdf",
+          ownerAppInstallId: "personal-copy",
+          storageKey: "media/app-installs/personal-copy/documents/private.pdf",
+          deliveryHref: "/api/app-installs/site/personal-copy/media/documents/private.pdf",
+        }),
+        storageKey: "media/app-installs/personal-copy/documents/private.pdf",
+        deliveryHref: "/api/app-installs/site/personal-copy/media/documents/private.pdf",
+      }),
+      expect.objectContaining({
+        asset: expect.objectContaining({
+          access: "public",
+          id: "public.pdf",
+          ownerAppInstallId: "personal-copy",
+        }),
+      }),
+    ]);
+    expect(restoreBody.mediaFiles.map((file) => file.archivePath)).toEqual([
+      "media/personal/media/app-installs/personal/documents/private.pdf",
+      "media/personal/media/app-installs/personal/documents/public.pdf",
+    ]);
+  });
+
   it("exports installed Tasks app archives without media requests", async () => {
     const tempDir = await makeTempDir();
     const outDir = path.join(tempDir, "tasks-backup");
@@ -4340,11 +4674,15 @@ async function writeWorkspacePackageLinks(workspaceRoot: string, manifest: strin
   );
 }
 
-async function writePrivatePackageFixture(packageRoot: string, sourceSchemaHash: SourceSchemaHash) {
+async function writePrivatePackageFixture(
+  packageRoot: string,
+  sourceSchemaHash: SourceSchemaHash,
+  sourceSchema: StorageSnapshot["schema"] = taskSourceSchema,
+) {
   const sourceRoot = path.join(packageRoot, "source");
 
   await mkdir(sourceRoot, { recursive: true });
-  await writeJsonFile(path.join(sourceRoot, "schema.json"), taskSourceSchema);
+  await writeJsonFile(path.join(sourceRoot, "schema.json"), sourceSchema);
   await writeJsonFile(path.join(sourceRoot, "seed-records.json"), []);
   await writeJsonFile(
     path.join(packageRoot, "formless.app.json"),
@@ -4555,6 +4893,63 @@ function privateControlPlaneRecords(sourceSchemaHash: SourceSchemaHash): StoredR
         surface: "admin",
         createdAt: now,
         updatedAt: now,
+      },
+      createdAt: now,
+      updatedAt: now,
+    },
+  ];
+}
+
+function documentControlPlaneRecords(input: {
+  install: AppInstall;
+  targetUrl: string;
+}): StoredRecord[] {
+  const now = "2026-05-26T00:00:00.000Z";
+  const install = input.install;
+
+  return [
+    {
+      id: install.installId,
+      entity: "app-install",
+      values: {
+        installId: install.installId,
+        packageAppKey: install.packageAppKey,
+        packageRevision: install.packageRevision,
+        sourceSchemaHash: install.sourceSchemaHash,
+        label: install.label,
+        registrationPolicy: install.registrationPolicy,
+        status: install.status,
+        storageIdentity: `app:${install.installId}`,
+      },
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: `route:${install.installId}:admin`,
+      entity: "route",
+      values: {
+        enabled: true,
+        matchPath: `/apps/${install.installId}`,
+        kind: "mount",
+        targetProfile: "app",
+        appInstall: install.installId,
+        surface: "admin",
+      },
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: "instance.primary",
+      entity: "deployment-config",
+      values: {
+        targetId: "instance.primary",
+        targetKind: "instance",
+        label: "Primary",
+        enabled: true,
+        targetUrl: input.targetUrl,
+        providerFamily: "cloudflare",
+        accountId: "account-123",
+        workerName: "documents",
       },
       createdAt: now,
       updatedAt: now,
@@ -4777,15 +5172,24 @@ async function writeWorkspaceAppStateFromArchive(
     throw new Error(`Expected media object for ${archive.app.installId}.`);
   }
 
-  const mediaPath = instanceWorkspaceMediaFilePath(workspaceRoot, manifest, object.archivePath);
-
-  await mkdir(path.dirname(mediaPath), { recursive: true });
-  await writeFile(mediaPath, mediaBytes);
+  await replaceInstanceWorkspaceMediaFiles({
+    manifest,
+    mediaFiles: [
+      {
+        archivePath: object.archivePath,
+        byteSize: mediaBytes.byteLength,
+        bytes: mediaBytes,
+        contentType: object.contentType,
+        object,
+      },
+    ],
+    workspaceRoot,
+  });
 }
 
 function archiveFetch(
   requests: CapturedFetchRequest[],
-  installs: ReturnType<typeof installedApp>[],
+  installs: AppInstall[],
   dataByInstall: Record<string, { mediaBytes?: Uint8Array; records: StoredRecord[] }>,
   extraPackages: InstallableAppPackage[] = [],
   controlPlaneRecords?: StoredRecord[],
@@ -4961,6 +5365,150 @@ function archiveFetch(
     }
 
     return Response.json({ error: "not found" }, { status: 404 });
+  };
+}
+
+function documentWorkspaceFetch(
+  requests: CapturedFetchRequest[],
+  input: {
+    appPackage: InstallableAppPackage;
+    privateBytes: Uint8Array;
+    publicBytes: Uint8Array;
+    sourceSchemaHash: SourceSchemaHash;
+    targetUrl: string;
+    unreferencedBytes: Uint8Array;
+  },
+): typeof fetch {
+  const install: AppInstall = {
+    adminRoute: "/apps/reports",
+    createdAt: "2026-05-01T00:00:00.000Z",
+    installId: "reports",
+    label: "Reports",
+    packageAppKey: input.appPackage.packageAppKey,
+    packageRevision: input.appPackage.packageRevision,
+    registrationPolicy: "closed",
+    sourceSchemaHash: input.sourceSchemaHash,
+    status: "installed",
+    updatedAt: "2026-05-01T00:00:00.000Z",
+  };
+  const records = workspaceDocumentRecords();
+  const controlPlane = documentControlPlaneRecords({
+    install,
+    targetUrl: input.targetUrl,
+  });
+  const delegate = archiveFetch(
+    requests,
+    [install],
+    { reports: { records } },
+    [input.appPackage],
+    controlPlane,
+  );
+  const assets = [
+    appDocumentAsset(
+      install.installId,
+      "private-report",
+      "private",
+      input.privateBytes.byteLength,
+      install.packageAppKey,
+    ),
+    appDocumentAsset(
+      install.installId,
+      "public-report",
+      "public",
+      input.publicBytes.byteLength,
+      install.packageAppKey,
+    ),
+    appDocumentAsset(
+      install.installId,
+      "unreferenced",
+      "public",
+      input.unreferencedBytes.byteLength,
+      install.packageAppKey,
+    ),
+  ];
+  const bytesByAssetId = new Map([
+    ["private-report.pdf", input.privateBytes],
+    ["public-report.pdf", input.publicBytes],
+    ["unreferenced.pdf", input.unreferencedBytes],
+  ]);
+
+  return async (url, init) => {
+    const requestUrl =
+      typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+    const parsedUrl = new URL(requestUrl);
+    const method = init?.method ?? "GET";
+
+    if (
+      method === "GET" &&
+      parsedUrl.pathname ===
+        `/api/app-installs/${install.packageAppKey}/${install.installId}/snapshot`
+    ) {
+      requests.push({
+        body: init?.body,
+        headers: normalizeHeaders(init?.headers),
+        method,
+        url: requestUrl,
+      });
+
+      return Response.json({
+        ...snapshot(records, `app:${install.installId}`),
+        schema: documentArchiveSourceSchema(),
+        schemaKey: input.appPackage.sourceSchemaKey,
+      });
+    }
+
+    if (
+      method === "GET" &&
+      parsedUrl.pathname ===
+        `/api/app-installs/${install.packageAppKey}/${install.installId}/media/documents`
+    ) {
+      requests.push({
+        body: init?.body,
+        headers: normalizeHeaders(init?.headers),
+        method,
+        url: requestUrl,
+      });
+      const access =
+        parsedUrl.searchParams.get("field") === "privateDocument" ? "private" : "public";
+
+      return Response.json({ assets: assets.filter((asset) => asset.access === access) });
+    }
+
+    const deliveryMatch = parsedUrl.pathname.match(
+      /^\/api\/app-installs\/private-labs\/reports\/media\/documents\/([^/]+)$/,
+    );
+
+    if (method === "GET" && deliveryMatch) {
+      requests.push({
+        body: init?.body,
+        headers: normalizeHeaders(init?.headers),
+        method,
+        url: requestUrl,
+      });
+      const bytes = bytesByAssetId.get(deliveryMatch[1] ?? "");
+
+      return bytes
+        ? new Response(Buffer.from(bytes), {
+            headers: { "content-type": "application/pdf" },
+          })
+        : Response.json({ error: "not found" }, { status: 404 });
+    }
+
+    if (method === "POST" && parsedUrl.pathname === "/api/formless/archive/restore") {
+      requests.push({
+        body: init?.body,
+        headers: normalizeHeaders(init?.headers),
+        method,
+        url: requestUrl,
+      });
+
+      return Response.json({
+        errors: [{ message: 'Installed app "reports" already exists.' }],
+        ok: false,
+      });
+    }
+
+    return delegate(url, init);
   };
 }
 
@@ -5685,6 +6233,66 @@ function snapshot(
   };
 }
 
+function documentArchiveSourceSchema() {
+  const schema = structuredClone(siteSourceSchema);
+  const block = schema.entities.block;
+
+  if (!block) {
+    throw new Error("Expected Site block schema.");
+  }
+
+  block.fields.privateDocument = {
+    type: "text",
+    required: false,
+    label: "Private document",
+    asset: {
+      kind: "document",
+      acceptedMimeTypes: ["application/pdf"],
+      maxBytes: 1024 * 1024,
+      access: "private",
+    },
+  };
+  block.fields.publicDocument = {
+    type: "text",
+    required: false,
+    label: "Public document",
+    asset: {
+      kind: "document",
+      acceptedMimeTypes: ["application/pdf"],
+      maxBytes: 1024 * 1024,
+      access: "public",
+    },
+  };
+
+  return schema;
+}
+
+function appDocumentAsset(
+  installId: string,
+  name: string,
+  access: "public" | "private",
+  byteSize: number,
+  packageAppKey = "site",
+) {
+  const id = `${name}.pdf`;
+  const storageKey = `media/app-installs/${installId}/documents/${id}`;
+
+  return {
+    access,
+    byteSize,
+    contentType: "application/pdf" as const,
+    deliveryHref: `/api/app-installs/${packageAppKey}/${installId}/media/documents/${id}`,
+    filename: id,
+    id,
+    kind: "document" as const,
+    label: id,
+    ownerAppInstallId: installId,
+    provider: "r2",
+    status: "ready" as const,
+    storageKey,
+  };
+}
+
 function controlPlaneSnapshot(records: StoredRecord[]): StorageSnapshot {
   return {
     kind: STORAGE_SNAPSHOT_KIND,
@@ -5764,6 +6372,17 @@ function mediaRecords(): StoredRecord[] {
       type: "image",
       label: "Cover",
       mediaAssetId: "cover.png",
+    }),
+  ];
+}
+
+function workspaceDocumentRecords(): StoredRecord[] {
+  return [
+    block("block-documents", "2026-05-05T00:00:01.000Z", {
+      label: "Reports",
+      privateDocument: "private-report.pdf",
+      publicDocument: "public-report.pdf",
+      type: "group",
     }),
   ];
 }

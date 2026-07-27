@@ -3,6 +3,7 @@
 import { act, render, type RenderResult } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { TreeItemContract, TreeResultContract } from "@dpeek/formless-presentation/contract";
+import type { AppSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { ChangeRow } from "../../shared/protocol.ts";
 import type { OperationInvocationResponse } from "../../shared/operation-invocation.ts";
@@ -22,9 +23,12 @@ import {
   type GeneratedWorkspaceRuntimeController,
 } from "./generated-workspace-runtime.tsx";
 import { SchemaAppProvider } from "./schema-app-context.tsx";
+import { installedAppStorageIdentity } from "../../shared/app-storage-identity.ts";
 
 const submitOperationMock = vi.hoisted(() => vi.fn());
+const listAppDocumentMediaAssetsMock = vi.hoisted(() => vi.fn());
 const listCoreImageMediaAssetsMock = vi.hoisted(() => vi.fn());
+const uploadAppDocumentMediaFileMock = vi.hoisted(() => vi.fn());
 const uploadCoreImageMediaFileMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../client/sync.ts", async (importOriginal) => ({
@@ -34,7 +38,9 @@ vi.mock("../../client/sync.ts", async (importOriginal) => ({
 
 vi.mock("@dpeek/formless-media/client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@dpeek/formless-media/client")>()),
+  listAppDocumentMediaAssets: listAppDocumentMediaAssetsMock,
   listCoreImageMediaAssets: listCoreImageMediaAssetsMock,
+  uploadAppDocumentMediaFile: uploadAppDocumentMediaFileMock,
   uploadCoreImageMediaFile: uploadCoreImageMediaFileMock,
 }));
 
@@ -43,8 +49,11 @@ vi.mock("@dpeek/formless-media/client", async (importOriginal) => ({
 beforeEach(() => {
   resetClientStore();
   submitOperationMock.mockReset();
+  listAppDocumentMediaAssetsMock.mockReset();
+  listAppDocumentMediaAssetsMock.mockResolvedValue([]);
   listCoreImageMediaAssetsMock.mockReset();
   listCoreImageMediaAssetsMock.mockResolvedValue([]);
+  uploadAppDocumentMediaFileMock.mockReset();
   uploadCoreImageMediaFileMock.mockReset();
 });
 
@@ -542,6 +551,155 @@ describe("generated workspace tree selection runtime", () => {
       href: "/media/create.webp",
       id: "create.webp",
       label: "create.webp",
+    });
+
+    await act(async () => {
+      required(renderer).unmount();
+    });
+  });
+
+  it("loads compatible app documents and replaces a tree record with a new flat asset id", async () => {
+    const appTarget = required(
+      installedAppStorageIdentity({ installId: "private", packageAppKey: "site" }),
+    );
+    const documentSchema = siteSchemaWithDocumentMedia();
+    applyBootstrapResponse(bootstrapResponse(documentSchema, testSiteSeedRecords), appTarget);
+    const image = typedBlock("block-tree-document", "image", "Tree document", {
+      mediaAssetId: "old-report.pdf",
+    });
+    const imagePlacement = placement("placement-tree-document", image.id);
+    applyRecordMerge([image, imagePlacement], undefined, appTarget);
+    const existingOption = {
+      access: "private",
+      byteSize: 1200,
+      contentType: "application/pdf",
+      downloadHref: "/api/app-installs/site/private/media/documents/existing.pdf?download=1",
+      filename: "Existing report.pdf",
+      href: "/api/app-installs/site/private/media/documents/existing.pdf",
+      id: "existing.pdf",
+      label: "Existing report.pdf",
+    } as const;
+    listAppDocumentMediaAssetsMock.mockResolvedValue([existingOption]);
+    const screen = required(
+      selectScreenModels(documentSchema).find((candidate) => candidate.screenName === "siteEditor"),
+    );
+    let controller: GeneratedWorkspaceRuntimeController | undefined;
+    let renderer: RenderResult | undefined;
+
+    function RuntimeProbe() {
+      controller = useGeneratedWorkspaceRuntimeController({
+        getSectionSelection: () => ({ selectedContextRecordId: "rec_site_content_home" }),
+        onSelectContext: () => {},
+        onSelectQuery: () => {},
+        screen,
+        today: "2026-07-19",
+      });
+      return null;
+    }
+
+    await act(async () => {
+      renderer = render(
+        <SchemaAppProvider schemaKey="site" target={appTarget}>
+          <RuntimeProbe />
+        </SchemaAppProvider>,
+      );
+    });
+
+    const documentTarget = {
+      documentsPath: "/api/app-installs/site/private/media/documents",
+      field: { entityName: "block", fieldName: "mediaAssetId" },
+    };
+    expect(listCoreImageMediaAssetsMock).not.toHaveBeenCalled();
+    expect(listAppDocumentMediaAssetsMock).toHaveBeenCalledWith(documentTarget);
+
+    const imageItem = required(
+      flattenTreeItems(currentTree(required(controller)).items).find(
+        (item) => item.placementId === imagePlacement.id,
+      ),
+    );
+    await dispatchTreeIntent(required(controller), imageItem.selectionIntent);
+    let tree = currentTree(required(controller));
+    let editor = required(tree.selectedEditor);
+    let mediaField = required(
+      editor.childFields?.fields.find((field) => field.fieldName === "mediaAssetId"),
+    );
+    expect(mediaField.media).toMatchObject({
+      accept: "application/pdf",
+      maxSize: 4 * 1024 * 1024,
+      removalEnabled: true,
+    });
+    expect(mediaField.options?.mediaAssetOptions).toContainEqual({
+      byteSize: 1200,
+      contentType: "application/pdf",
+      downloadHref: existingOption.downloadHref,
+      filename: "Existing report.pdf",
+      href: existingOption.href,
+      id: existingOption.id,
+      label: existingOption.label,
+    });
+
+    const replacementFile = new File(["%PDF-1.7 replacement"], "replacement.pdf", {
+      type: "application/pdf",
+    });
+    const replacementId = "replacement.pdf";
+    uploadAppDocumentMediaFileMock.mockResolvedValue({
+      asset: {
+        access: "private",
+        byteSize: replacementFile.size,
+        contentType: "application/pdf",
+        deliveryHref: `/api/app-installs/site/private/media/documents/${replacementId}`,
+        filename: "replacement.pdf",
+        id: replacementId,
+        kind: "document",
+        label: "replacement.pdf",
+        ownerAppInstallId: "private",
+        provider: "r2",
+        status: "ready",
+        storageKey: `media/app-installs/private/documents/${replacementId}`,
+      },
+      assetId: replacementId,
+      contentType: "application/pdf",
+      href: `/api/app-installs/site/private/media/documents/${replacementId}`,
+      key: `media/app-installs/private/documents/${replacementId}`,
+      size: replacementFile.size,
+    });
+    await dispatchTreeIntent(required(controller), {
+      fieldId: mediaField.fieldId,
+      intent: { fieldName: "mediaAssetId", file: replacementFile, type: "mediaFileSelect" },
+      resultId: tree.id,
+      target: {
+        fieldSetId: required(editor.childFields).id,
+        itemId: editor.itemId,
+        kind: "child",
+      },
+      type: "treeField",
+    });
+
+    expect(uploadAppDocumentMediaFileMock).toHaveBeenCalledWith(replacementFile, documentTarget);
+    expect(submitOperationMock).toHaveBeenCalledWith(
+      appTarget,
+      "block",
+      "update",
+      {
+        input: { mediaAssetId: replacementId },
+        recordId: image.id,
+      },
+      undefined,
+      { autoSaveSource: "media-reference" },
+    );
+    tree = currentTree(required(controller));
+    editor = required(tree.selectedEditor);
+    mediaField = required(
+      editor.childFields?.fields.find((field) => field.fieldName === "mediaAssetId"),
+    );
+    expect(mediaField.options?.mediaAssetOptions).toContainEqual({
+      byteSize: replacementFile.size,
+      contentType: "application/pdf",
+      downloadHref: `/api/app-installs/site/private/media/documents/${replacementId}?download=1`,
+      filename: "replacement.pdf",
+      href: `/api/app-installs/site/private/media/documents/${replacementId}`,
+      id: replacementId,
+      label: "replacement.pdf",
     });
 
     await act(async () => {
@@ -1116,6 +1274,36 @@ function selectedTreeItem(items: readonly TreeItemContract[]): TreeItemContract 
 
 function flattenTreeItems(items: readonly TreeItemContract[]): TreeItemContract[] {
   return items.flatMap((item) => [item, ...flattenTreeItems(item.children)]);
+}
+
+function siteSchemaWithDocumentMedia(): AppSchema {
+  const blockEntity = required(siteSourceSchema.entities.block);
+  const mediaField = required(blockEntity.fields.mediaAssetId);
+  if (mediaField.type !== "text") {
+    throw new Error("Expected Site mediaAssetId to be text-backed.");
+  }
+
+  return {
+    ...siteSourceSchema,
+    entities: {
+      ...siteSourceSchema.entities,
+      block: {
+        ...blockEntity,
+        fields: {
+          ...blockEntity.fields,
+          mediaAssetId: {
+            ...mediaField,
+            asset: {
+              acceptedMimeTypes: ["application/pdf"],
+              access: "private",
+              kind: "document",
+              maxBytes: 4 * 1024 * 1024,
+            },
+          },
+        },
+      },
+    },
+  };
 }
 
 function block(id: string, label: string): StoredRecord {

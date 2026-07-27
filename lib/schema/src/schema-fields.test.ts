@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { parseAppSchema, stringifySchema } from "./index.ts";
+import {
+  DOCUMENT_ASSET_POLICY_MAX_BYTES,
+  fieldEditorControl,
+  fieldSupportsEditor,
+  inputValueToFieldValue,
+  isValidStoredFieldValue,
+  parseAppSchema,
+  stringifySchema,
+  validateAuthorityFieldValue,
+} from "./index.ts";
 import { taskEntity, taskSchema } from "./schema-test-fixtures.ts";
 
 describe("schema fields", () => {
@@ -177,6 +186,146 @@ describe("schema fields", () => {
       suggestions: ["Support", "Sales"],
     });
     expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+  });
+
+  it("parses document asset policy while preserving flat text asset ids", () => {
+    const source = taskSchema();
+    const schema = parseAppSchema({
+      ...source,
+      entities: {
+        task: taskEntity({
+          fields: {
+            ...taskEntity().fields,
+            report: {
+              type: "text",
+              required: false,
+              label: "Report",
+              asset: {
+                kind: "document",
+                acceptedMimeTypes: ["application/pdf"],
+                maxBytes: DOCUMENT_ASSET_POLICY_MAX_BYTES,
+                access: "private",
+              },
+            },
+          },
+        }),
+      },
+    });
+    const report = schema.entities.task?.fields.report;
+
+    expect(report).toEqual({
+      type: "text",
+      required: false,
+      label: "Report",
+      asset: {
+        kind: "document",
+        acceptedMimeTypes: ["application/pdf"],
+        maxBytes: DOCUMENT_ASSET_POLICY_MAX_BYTES,
+        access: "private",
+      },
+    });
+    expect(report && fieldSupportsEditor(report, "media")).toBe(true);
+    expect(report && fieldEditorControl(report, "media")).toEqual({ kind: "mediaUpload" });
+    expect(report && inputValueToFieldValue(report, "document-asset.pdf")).toBe(
+      "document-asset.pdf",
+    );
+    expect(report && isValidStoredFieldValue("document-asset.pdf", report)).toBe(true);
+    expect(
+      report && validateAuthorityFieldValue("report", report, "document-asset.pdf", true),
+    ).toEqual({
+      kind: "set",
+      value: "document-asset.pdf",
+    });
+    expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+  });
+
+  it("rejects invalid document asset policies", () => {
+    const parseReportPolicy = (asset: unknown, type = "text") => {
+      const source = taskSchema();
+
+      return parseAppSchema({
+        ...source,
+        entities: {
+          task: taskEntity({
+            fields: {
+              ...taskEntity().fields,
+              report: {
+                type,
+                required: false,
+                asset,
+              },
+            },
+          }),
+        },
+      });
+    };
+
+    expect(() =>
+      parseReportPolicy({
+        kind: "document",
+        acceptedMimeTypes: [],
+        maxBytes: 1,
+        access: "private",
+      }),
+    ).toThrow("acceptedMimeTypes must be a non-empty array");
+    expect(() =>
+      parseReportPolicy({
+        kind: "document",
+        acceptedMimeTypes: ["APPLICATION/PDF"],
+        maxBytes: 1,
+        access: "private",
+      }),
+    ).toThrow("must be a normalized MIME type");
+    expect(() =>
+      parseReportPolicy({
+        kind: "document",
+        acceptedMimeTypes: ["text/plain"],
+        maxBytes: 1,
+        access: "private",
+      }),
+    ).toThrow("must be a supported document MIME type (application/pdf)");
+    expect(() =>
+      parseReportPolicy({
+        kind: "document",
+        acceptedMimeTypes: ["application/pdf"],
+        maxBytes: 0,
+        access: "private",
+      }),
+    ).toThrow("maxBytes must be a positive integer");
+    expect(() =>
+      parseReportPolicy({
+        kind: "document",
+        acceptedMimeTypes: ["application/pdf"],
+        maxBytes: DOCUMENT_ASSET_POLICY_MAX_BYTES + 1,
+        access: "private",
+      }),
+    ).toThrow(`maxBytes must be at most ${DOCUMENT_ASSET_POLICY_MAX_BYTES}`);
+    expect(() =>
+      parseReportPolicy({
+        kind: "document",
+        acceptedMimeTypes: ["application/pdf"],
+        maxBytes: 1,
+      }),
+    ).toThrow('asset policy must include "access"');
+    expect(() =>
+      parseReportPolicy({
+        kind: "document",
+        acceptedMimeTypes: ["application/pdf"],
+        maxBytes: 1,
+        access: "authenticated",
+      }),
+    ).toThrow('access must be "public" or "private"');
+    expect(() =>
+      parseReportPolicy(
+        {
+          kind: "document",
+          acceptedMimeTypes: ["application/pdf"],
+          maxBytes: 1,
+          access: "public",
+        },
+        "number",
+      ),
+    ).toThrow("asset policy is only supported on text fields");
   });
 
   it("rejects invalid text format and suggestion declarations", () => {

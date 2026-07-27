@@ -19,6 +19,7 @@ import {
 } from "@dpeek/formless-workspace";
 import {
   readInstanceWorkspaceControlPlaneStorageSnapshot,
+  replaceInstanceWorkspaceMediaFiles,
   writeInstanceWorkspaceAppStorageSnapshot,
   writeInstanceWorkspaceControlPlaneStorageSnapshot,
 } from "@dpeek/formless-workspace/node";
@@ -1522,15 +1523,42 @@ async function writeWorkspaceMediaFile(
   installId: string,
   bytes: Uint8Array,
 ) {
-  const mediaPath = path.join(
-    workspaceRoot,
-    "state/media/media",
-    installId,
-    "media/images/cover.png",
-  );
+  const manifest = defaultFormlessInstanceWorkspaceManifest({ name: "personal-sites" });
+  const storageKey = "media/images/cover.png";
+  const archivePath = `media/${installId}/${storageKey}`;
+  const deliveryHref = "/api/formless/media/media/images/cover.png";
+  const object = {
+    archivePath,
+    asset: {
+      byteSize: bytes.byteLength,
+      contentType: "image/png",
+      deliveryHref,
+      id: "cover.png",
+      kind: "image",
+      label: "cover.png",
+      provider: "r2",
+      status: "ready",
+      storageKey,
+    },
+    byteSize: bytes.byteLength,
+    contentType: "image/png",
+    deliveryHref,
+    storageKey,
+  };
 
-  await mkdir(path.dirname(mediaPath), { recursive: true });
-  await writeFile(mediaPath, bytes);
+  await replaceInstanceWorkspaceMediaFiles({
+    manifest,
+    mediaFiles: [
+      {
+        archivePath,
+        byteSize: bytes.byteLength,
+        bytes,
+        contentType: "image/png",
+        object,
+      },
+    ],
+    workspaceRoot,
+  });
 }
 
 type CapturedRequest = {

@@ -25,6 +25,7 @@ import {
   applyPortableArchiveRestore,
   dryRunPortableArchiveRestore,
   restoreArchiveMediaObjectToStore,
+  validateArchiveMediaObjectRestoreToStore,
   type ArchiveRestoreApplyTarget,
   type ArchiveRestoreMediaRead,
 } from "./archive-restore.ts";
@@ -39,7 +40,7 @@ import {
   type ActiveRuntimeAppPackageEnv,
 } from "./runtime-app-packages.ts";
 import { mediaObjectStoreFromR2Bucket } from "@dpeek/formless-media/worker";
-import { CORE_IMAGE_KEY_PREFIX } from "@dpeek/formless-media";
+import { APP_DOCUMENT_MEDIA_KEY_PREFIX, CORE_IMAGE_KEY_PREFIX } from "@dpeek/formless-media";
 
 export const INSTANCE_ARCHIVE_RESTORE_API_PATH = "/api/formless/archive/restore";
 
@@ -144,8 +145,14 @@ function archiveRestoreApiTarget(
   return {
     listInstalledApps: () => readControlPlaneAppInstallsForRequest(env, request.url),
     media: {
-      listFiles: async () => [...mediaFilesByPath.values()].map(mediaFileMetadata),
+      listFiles: async () => [...mediaFilesByPath.values()],
       readFile: async (archivePath) => mediaFilesByPath.get(archivePath),
+      validateObject: async ({ bytes, object }) =>
+        validateArchiveMediaObjectRestoreToStore(
+          mediaObjectStoreFromR2Bucket(env.FORMLESS_MEDIA),
+          object,
+          bytes,
+        ),
       restoreObject: async ({ bytes, identity, object }) =>
         restoreArchiveMediaObjectToStore(
           mediaObjectStoreFromR2Bucket(env.FORMLESS_MEDIA),
@@ -248,24 +255,29 @@ async function pruneCoreMediaObjects(
   bucket: R2Bucket,
   desiredStorageKeys: ReadonlySet<string>,
 ): Promise<void> {
-  const prefix = mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX);
+  const prefixes = [
+    mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX),
+    mediaKeyPrefix(APP_DOCUMENT_MEDIA_KEY_PREFIX),
+  ];
   const keysToDelete: string[] = [];
-  let cursor: string | undefined;
+  for (const prefix of prefixes) {
+    let cursor: string | undefined;
 
-  do {
-    const listing = await bucket.list({
-      prefix,
-      ...(cursor === undefined ? {} : { cursor }),
-    });
+    do {
+      const listing = await bucket.list({
+        prefix,
+        ...(cursor === undefined ? {} : { cursor }),
+      });
 
-    for (const object of listing.objects) {
-      if (!desiredStorageKeys.has(object.key)) {
-        keysToDelete.push(object.key);
+      for (const object of listing.objects) {
+        if (!desiredStorageKeys.has(object.key)) {
+          keysToDelete.push(object.key);
+        }
       }
-    }
 
-    cursor = listing.truncated ? listing.cursor : undefined;
-  } while (cursor !== undefined);
+      cursor = listing.truncated ? listing.cursor : undefined;
+    } while (cursor !== undefined);
+  }
 
   for (let index = 0; index < keysToDelete.length; index += 1000) {
     const chunk = keysToDelete.slice(index, index + 1000);
@@ -279,11 +291,14 @@ async function pruneCoreMediaObjects(
 function archiveCoreMediaKeys(archive: PortableArchive): ReadonlySet<string> {
   const keys = new Set<string>();
   const apps = archive.kind === INSTANCE_ARCHIVE_KIND ? archive.apps : [archive];
-  const prefix = mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX);
+  const prefixes = [
+    mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX),
+    mediaKeyPrefix(APP_DOCUMENT_MEDIA_KEY_PREFIX),
+  ];
 
   for (const app of apps) {
     for (const object of app.media.objects) {
-      if (object.storageKey.startsWith(prefix)) {
+      if (prefixes.some((prefix) => object.storageKey.startsWith(prefix))) {
         keys.add(object.storageKey);
       }
     }
@@ -488,14 +503,6 @@ function parseArchiveRestoreMediaFile(context: string, value: unknown): ArchiveR
     byteSize,
     bytes,
     contentType,
-  };
-}
-
-function mediaFileMetadata(file: ArchiveRestoreMediaRead) {
-  return {
-    archivePath: file.archivePath,
-    byteSize: file.byteSize,
-    contentType: file.contentType,
   };
 }
 

@@ -12,11 +12,7 @@ import type {
   WorkspaceLinkActionContract,
 } from "@dpeek/formless-presentation/contract";
 import { PresentationHostProvider } from "@dpeek/formless-presentation/host/react";
-import {
-  listCoreImageMediaAssets,
-  uploadCoreImageMediaFile,
-  type ImageMediaAssetOption,
-} from "@dpeek/formless-media/client";
+import type { MediaAssetOption } from "@dpeek/formless-media/client";
 import type { QueryEvaluationContext, RecordValues } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import {
@@ -105,7 +101,6 @@ import {
 } from "./operation-control-runtime.ts";
 import { executeRecordDeleteOperation } from "./record-delete-runtime.ts";
 import {
-  imageMediaAssetOptionFromUpload,
   resolveGeneratedMediaUploadUpdateDraftPatchValues,
   selectGeneratedRecordFieldMediaAuthoring,
   upsertMediaAssetOption,
@@ -115,6 +110,16 @@ import { useSchemaAppTarget, useSchemaAppWriteOptions } from "./schema-app-conte
 import { executeTransitionStateOperation } from "./state-machine-operation-runtime.ts";
 import type { OperationCommandOutput } from "../../shared/operation-invocation.ts";
 import { selectRecordFieldsForActiveUnion } from "./union-presentation.ts";
+import {
+  collectCreatePresentationFields,
+  collectGeneratedWorkspaceMediaFields,
+  collectRecordPresentationFields,
+  generatedMediaAssetOptionsForField,
+  generatedMediaFieldKey,
+  type GeneratedMediaAssetOptionsByFieldKey,
+  type GeneratedMediaField,
+} from "./media-field-model.ts";
+import { loadGeneratedMediaAssetOptions, uploadGeneratedMediaFile } from "./media-field-runtime.ts";
 
 const GENERATED_TREE_CREATE_FAILURE_MESSAGE = "Create failed. Try again.";
 const GENERATED_TREE_MOVE_FAILURE_MESSAGE = "Move failed. Try again.";
@@ -256,10 +261,13 @@ export function useGeneratedWorkspaceRuntimeController({
   const [treeCreateErrorBySurfaceId, setTreeCreateErrorBySurfaceId] = useState<
     Record<string, string | undefined>
   >({});
-  const [treeCreateFieldStateBySurfaceId, setTreeCreateFieldStateBySurfaceId] = useState<
+  const [createFieldStateBySurfaceId, setCreateFieldStateBySurfaceId] = useState<
     Record<string, GeneratedTreeCreateFieldProjectionState | undefined>
   >({});
-  const [mediaAssetOptions, setMediaAssetOptions] = useState<ImageMediaAssetOption[]>([]);
+  const [mediaAssetOptionsByFieldKey, setMediaAssetOptionsByFieldKey] = useState<
+    Record<string, MediaAssetOption[] | undefined>
+  >({});
+  const mediaFields = useMemo(() => collectGeneratedWorkspaceMediaFields(screen), [screen]);
   const idleController = useGeneratedOperationController([]);
   const sectionSelection = Object.fromEntries(
     screen.layout.sections.map((section) => [section.id, getSectionSelection(section)]),
@@ -281,10 +289,10 @@ export function useGeneratedWorkspaceRuntimeController({
     today,
     treeActiveChildVariantIdByCreationId,
     treeCreateErrorBySurfaceId,
-    treeCreateFieldStateBySurfaceId,
+    createFieldStateBySurfaceId,
     treeDisclosureOpenByItemId,
     treeSelectedPlacementIdByResultId,
-    mediaAssetOptions,
+    mediaAssetOptionsByFieldKey,
     workspaceActions,
   });
   const bindings = useMemo(() => base.bindings, [base.bindingKey]);
@@ -307,40 +315,81 @@ export function useGeneratedWorkspaceRuntimeController({
     today,
     treeActiveChildVariantIdByCreationId,
     treeCreateErrorBySurfaceId,
-    treeCreateFieldStateBySurfaceId,
+    createFieldStateBySurfaceId,
     treeDisclosureOpenByItemId,
     treeSelectedPlacementIdByResultId,
-    mediaAssetOptions,
+    mediaAssetOptionsByFieldKey,
     workspaceActions,
   });
   const appTarget = useSchemaAppTarget();
   const writeOptions = useSchemaAppWriteOptions();
-  const hasTreeMediaFields = generatedWorkspaceHasTreeMediaFields(screen);
 
   useEffect(() => {
     let cancelled = false;
 
-    if (!hasTreeMediaFields) {
-      setMediaAssetOptions([]);
+    if (mediaFields.length === 0) {
+      setMediaAssetOptionsByFieldKey({});
       return;
     }
 
-    void listCoreImageMediaAssets()
-      .then((assets) => {
+    void loadGeneratedMediaAssetOptions(mediaFields, appTarget)
+      .then((optionsByFieldKey) => {
         if (!cancelled) {
-          setMediaAssetOptions(assets);
+          setMediaAssetOptionsByFieldKey(optionsByFieldKey);
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setMediaAssetOptions([]);
+          setMediaAssetOptionsByFieldKey({});
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [hasTreeMediaFields]);
+  }, [appTarget, mediaFields]);
+
+  async function uploadAndStoreGeneratedMediaFile(
+    entityName: string,
+    fieldConfig: Pick<RecordFieldConfig, "field" | "fieldName">,
+    file: File,
+  ) {
+    const field = fieldConfig.field;
+
+    if (field.type !== "text") {
+      throw new Error("Media fields must be text-backed.");
+    }
+
+    const result = await uploadGeneratedMediaFile({
+      appTarget,
+      entityName,
+      field,
+      fieldName: fieldConfig.fieldName,
+      file,
+    });
+    storeUploadedMediaOption(
+      { entityName, field, fieldName: fieldConfig.fieldName },
+      result.option,
+    );
+    return result;
+  }
+
+  function storeUploadedMediaOption(field: GeneratedMediaField, option: MediaAssetOption) {
+    setMediaAssetOptionsByFieldKey((current) => {
+      const targetFields =
+        field.field.asset?.kind === "document"
+          ? [field]
+          : mediaFields.filter((candidate) => candidate.field.asset === undefined);
+      const next = { ...current };
+
+      for (const targetField of targetFields) {
+        const key = generatedMediaFieldKey(targetField.entityName, targetField.fieldName);
+        next[key] = upsertMediaAssetOption([...(current[key] ?? [])], option);
+      }
+
+      return next;
+    });
+  }
 
   useEffect(() => {
     for (const section of selected.foundation?.runtimePlan.sections ?? []) {
@@ -441,7 +490,7 @@ export function useGeneratedWorkspaceRuntimeController({
         ...current,
         [resolved.runtime.surfaceId]: undefined,
       }));
-      setTreeCreateFieldStateBySurfaceId((current) => ({
+      setCreateFieldStateBySurfaceId((current) => ({
         ...current,
         [resolved.runtime.surfaceId]: undefined,
       }));
@@ -462,7 +511,7 @@ export function useGeneratedWorkspaceRuntimeController({
         return;
       }
       if (intent.intent.intent.type === "mediaFileSelect") {
-        await handleTreeCreateMediaFileSelect(
+        await handleCreateMediaFileSelect(
           resolved.runtime,
           resolved.field.fieldName,
           intent.intent.intent.file,
@@ -486,7 +535,7 @@ export function useGeneratedWorkspaceRuntimeController({
         ...errors,
         [resolved.runtime.surfaceId]: undefined,
       }));
-      setTreeCreateFieldStateBySurfaceId((states) => ({
+      setCreateFieldStateBySurfaceId((states) => ({
         ...states,
         [resolved.runtime.surfaceId]: clearGeneratedTreeCreateFieldError(
           states[resolved.runtime.surfaceId],
@@ -616,6 +665,14 @@ export function useGeneratedWorkspaceRuntimeController({
           intent.type === "workspaceField" &&
           resolved.field !== undefined
         ) {
+          if (intent.intent.type === "mediaFileSelect") {
+            await handleCreateMediaFileSelect(
+              runtime,
+              resolved.field.fieldName,
+              intent.intent.file,
+            );
+            return;
+          }
           const current =
             createStateBySurfaceId[runtime.surfaceId] ?? initialCreateState(runtime.operation);
           const next = adaptGeneratedCreateDraftChange(
@@ -661,6 +718,10 @@ export function useGeneratedWorkspaceRuntimeController({
           ...current,
           [runtime.surfaceId]: initialCreateState(runtime.operation),
         }));
+        setCreateFieldStateBySurfaceId((current) => ({
+          ...current,
+          [runtime.surfaceId]: undefined,
+        }));
       }
       return;
     }
@@ -694,6 +755,10 @@ export function useGeneratedWorkspaceRuntimeController({
     setCreateStateBySurfaceId((states) => ({
       ...states,
       [runtime.surfaceId]: initialCreateState(runtime.operation),
+    }));
+    setCreateFieldStateBySurfaceId((states) => ({
+      ...states,
+      [runtime.surfaceId]: undefined,
     }));
     if (recordId) {
       runtime.onSuccess?.(recordId);
@@ -799,7 +864,7 @@ export function useGeneratedWorkspaceRuntimeController({
       ...current,
       [runtime.surfaceId]: undefined,
     }));
-    setTreeCreateFieldStateBySurfaceId((current) => ({
+    setCreateFieldStateBySurfaceId((current) => ({
       ...current,
       [runtime.surfaceId]: undefined,
     }));
@@ -809,20 +874,34 @@ export function useGeneratedWorkspaceRuntimeController({
     }));
   }
 
-  async function handleTreeCreateMediaFileSelect(
-    runtime: GeneratedTreeChildCreateRuntime,
+  async function handleCreateMediaFileSelect(
+    runtime: {
+      operation: CreateHomeOperationConfig;
+      queryContext?: QueryEvaluationContext;
+      surfaceId: string;
+    },
     fieldName: string,
     file: File | undefined,
   ) {
-    const fieldConfig = runtime.operation.fields.find(
+    const current =
+      createStateBySurfaceId[runtime.surfaceId] ?? initialCreateState(runtime.operation);
+    const session = selectGeneratedCreateDraftSession({
+      defaults: runtime.operation.defaults,
+      enabled: runtime.operation.enabled,
+      fields: runtime.operation.fields,
+      queryContext: runtime.queryContext,
+      state: current,
+      union: runtime.operation.union,
+    });
+    const fieldConfig = session.visibleFields.find(
       (field) => field.fieldName === fieldName && field.editor === "media",
     );
-    const fieldState = treeCreateFieldStateBySurfaceId[runtime.surfaceId];
+    const fieldState = createFieldStateBySurfaceId[runtime.surfaceId];
     if (!file || !fieldConfig || fieldState?.pendingByFieldName[fieldName] === true) {
       return;
     }
 
-    setTreeCreateFieldStateBySurfaceId((states) => ({
+    setCreateFieldStateBySurfaceId((states) => ({
       ...states,
       [runtime.surfaceId]: updateGeneratedTreeCreateFieldState(
         states[runtime.surfaceId],
@@ -830,22 +909,20 @@ export function useGeneratedWorkspaceRuntimeController({
         { error: undefined, pending: true },
       ),
     }));
-    setSyncStatus({ state: "syncing", message: "Uploading image..." });
+    setSyncStatus({ state: "syncing", message: "Uploading media..." });
 
     try {
-      const upload = await uploadCoreImageMediaFile(file);
-      const uploadedOption = imageMediaAssetOptionFromUpload(upload);
-      if (!uploadedOption) {
-        throw new Error("Image upload did not return a media asset id.");
-      }
-
-      setMediaAssetOptions((options) => upsertMediaAssetOption(options, uploadedOption));
+      const { option } = await uploadAndStoreGeneratedMediaFile(
+        runtime.operation.entityName,
+        fieldConfig,
+        file,
+      );
       setCreateStateBySurfaceId((states) => ({
         ...states,
         [runtime.surfaceId]: adaptGeneratedCreateDraftChange(
           {
             fieldName,
-            fieldValue: { kind: "input", value: uploadedOption.id },
+            fieldValue: { kind: "input", value: option.id },
             type: "createDraftChange",
           },
           {
@@ -853,10 +930,10 @@ export function useGeneratedWorkspaceRuntimeController({
           },
         ).state,
       }));
-      setSyncStatus({ state: "idle", message: "Image uploaded." });
+      setSyncStatus({ state: "idle", message: "Media uploaded." });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Image upload failed.";
-      setTreeCreateFieldStateBySurfaceId((states) => ({
+      const message = error instanceof Error ? error.message : "Media upload failed.";
+      setCreateFieldStateBySurfaceId((states) => ({
         ...states,
         [runtime.surfaceId]: updateGeneratedTreeCreateFieldState(
           states[runtime.surfaceId],
@@ -868,7 +945,7 @@ export function useGeneratedWorkspaceRuntimeController({
       return;
     }
 
-    setTreeCreateFieldStateBySurfaceId((states) => ({
+    setCreateFieldStateBySurfaceId((states) => ({
       ...states,
       [runtime.surfaceId]: updateGeneratedTreeCreateFieldState(
         states[runtime.surfaceId],
@@ -1148,20 +1225,22 @@ export function useGeneratedWorkspaceRuntimeController({
         },
       },
     }));
-    setSyncStatus({ state: "syncing", message: "Uploading image..." });
+    setSyncStatus({ state: "syncing", message: "Uploading media..." });
 
     try {
-      const upload = await uploadCoreImageMediaFile(file);
-      const uploadedOption = imageMediaAssetOptionFromUpload(upload);
-      if (!uploadedOption) {
-        throw new Error("Image upload did not return a media asset id.");
-      }
+      const { upload } = await uploadAndStoreGeneratedMediaFile(record.entity, fieldConfig, file);
 
       const mediaAuthoring = selectGeneratedRecordFieldMediaAuthoring({
         draft: current.editorDraftByFieldName[fieldName] ?? "",
         entityName: record.entity,
         fieldConfig,
-        mediaAssetOptions,
+        mediaAssetOptions: [
+          ...generatedMediaAssetOptionsForField(
+            mediaAssetOptionsByFieldKey,
+            record.entity,
+            fieldName,
+          ),
+        ],
         schema,
       });
       const resolution = resolveGeneratedMediaUploadUpdateDraftPatchValues({
@@ -1175,7 +1254,6 @@ export function useGeneratedWorkspaceRuntimeController({
         upload,
         uploadPatchFields: mediaAuthoring.uploadPatchFields,
       });
-      setMediaAssetOptions((options) => upsertMediaAssetOption(options, uploadedOption));
       await commitGeneratedWorkspaceRecordFieldPatch({
         autoSaveSource: "media-reference",
         current,
@@ -1186,7 +1264,7 @@ export function useGeneratedWorkspaceRuntimeController({
         updateOperation,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Image upload failed.";
+      const message = error instanceof Error ? error.message : "Media upload failed.";
       setRecordStateByResultId((states) => ({
         ...states,
         [resultId]: {
@@ -1314,6 +1392,100 @@ export function useGeneratedWorkspaceRuntimeController({
     const record = snapshot.recordsById[recordId];
     const current = result.foundation.fieldStateByRecordId[recordId];
     if (!record || !current) {
+      return;
+    }
+    if (intent.intent.type === "mediaFileSelect") {
+      const fieldName = intent.intent.fieldName;
+      const file = intent.intent.file;
+      const fieldConfig = selectRecordFieldsForActiveUnion(
+        [...model.recordFields],
+        model.recordUnion,
+        record,
+      ).find((field) => field.fieldName === fieldName && field.editor === "media");
+      if (
+        !file ||
+        !fieldConfig ||
+        !model.updateOperation ||
+        current.pendingByFieldName[fieldName] === true
+      ) {
+        return;
+      }
+
+      setListStateByResultId((states) => ({
+        ...states,
+        [result.contract.id]: {
+          ...states[result.contract.id],
+          [recordId]: updateGeneratedRecordMediaPendingState(
+            states[result.contract.id]?.[recordId] ?? current,
+            fieldName,
+            true,
+          ),
+        },
+      }));
+      setSyncStatus({ state: "syncing", message: "Uploading media..." });
+
+      try {
+        const { upload } = await uploadAndStoreGeneratedMediaFile(record.entity, fieldConfig, file);
+        const mediaAuthoring = selectGeneratedRecordFieldMediaAuthoring({
+          draft: current.editorDraftByFieldName[fieldName] ?? "",
+          entityName: record.entity,
+          fieldConfig,
+          mediaAssetOptions: [
+            ...generatedMediaAssetOptionsForField(
+              mediaAssetOptionsByFieldKey,
+              record.entity,
+              fieldName,
+            ),
+          ],
+          schema,
+        });
+        const resolution = resolveGeneratedMediaUploadUpdateDraftPatchValues({
+          baselineValues: current.session.baselineValues,
+          draft: current.session.draft,
+          entityName: record.entity,
+          fieldConfig,
+          fields: [...model.recordFields],
+          schema,
+          union: model.recordUnion,
+          upload,
+          uploadPatchFields: mediaAuthoring.uploadPatchFields,
+        });
+        await submitOperation(
+          appTarget,
+          record.entity,
+          model.updateOperation.operationName,
+          { input: resolution.patchValues, recordId },
+          undefined,
+          { ...writeOptions, autoSaveSource: "media-reference" },
+        );
+        setListStateByResultId((states) => ({
+          ...states,
+          [result.contract.id]: {
+            ...states[result.contract.id],
+            [recordId]: updateGeneratedRecordMediaPendingState(
+              states[result.contract.id]?.[recordId] ?? current,
+              fieldName,
+              false,
+            ),
+          },
+        }));
+        setSyncStatus({ state: "idle", message: "Media uploaded and synced." });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Media upload failed.";
+        setListStateByResultId((states) => ({
+          ...states,
+          [result.contract.id]: {
+            ...states[result.contract.id],
+            [recordId]: updateGeneratedRecordMediaPendingState(
+              states[result.contract.id]?.[recordId] ?? current,
+              fieldName,
+              false,
+              message,
+            ),
+          },
+        }));
+        setSyncStatus({ state: "error", message });
+      }
       return;
     }
     if (intent.intent.type === "stateTransitionInvoke") {
@@ -1448,6 +1620,107 @@ export function useGeneratedWorkspaceRuntimeController({
       context,
       tableStateByResultId[result.contract.id]?.[context.id],
     );
+    if (intent.intent.type === "mediaFileSelect") {
+      const fieldName = intent.intent.fieldName;
+      const file = intent.intent.file;
+      const record = snapshot.recordsById[context.recordId];
+      const fieldConfig =
+        record === undefined
+          ? undefined
+          : selectRecordFieldsForActiveUnion([...context.fields], context.union, record).find(
+              (field) => field.fieldName === fieldName && field.editor === "media",
+            );
+      if (
+        !file ||
+        !record ||
+        !fieldConfig ||
+        !context.updateOperation ||
+        current.pendingByFieldName[fieldName] === true
+      ) {
+        return;
+      }
+
+      setTableStateByResultId((states) => ({
+        ...states,
+        [result.contract.id]: {
+          ...states[result.contract.id],
+          [context.id]: updateGeneratedRecordMediaPendingState(
+            states[result.contract.id]?.[context.id] ?? current,
+            fieldName,
+            true,
+          ),
+        },
+      }));
+      setSyncStatus({ state: "syncing", message: "Uploading media..." });
+
+      try {
+        const { upload } = await uploadAndStoreGeneratedMediaFile(
+          context.entityName,
+          fieldConfig,
+          file,
+        );
+        const mediaAuthoring = selectGeneratedRecordFieldMediaAuthoring({
+          draft: current.editorDraftByFieldName[fieldName] ?? "",
+          entityName: context.entityName,
+          fieldConfig,
+          mediaAssetOptions: [
+            ...generatedMediaAssetOptionsForField(
+              mediaAssetOptionsByFieldKey,
+              context.entityName,
+              fieldName,
+            ),
+          ],
+          schema,
+        });
+        const resolution = resolveGeneratedMediaUploadUpdateDraftPatchValues({
+          baselineValues: current.session.baselineValues,
+          draft: current.session.draft,
+          entityName: context.entityName,
+          fieldConfig,
+          fields: [...context.fields],
+          schema,
+          union: context.union,
+          upload,
+          uploadPatchFields: mediaAuthoring.uploadPatchFields,
+        });
+        await submitOperation(
+          appTarget,
+          context.entityName,
+          context.updateOperation.operationName,
+          { input: resolution.patchValues, recordId: context.recordId },
+          undefined,
+          { ...writeOptions, autoSaveSource: "media-reference" },
+        );
+        setTableStateByResultId((states) => ({
+          ...states,
+          [result.contract.id]: {
+            ...states[result.contract.id],
+            [context.id]: updateGeneratedRecordMediaPendingState(
+              states[result.contract.id]?.[context.id] ?? current,
+              fieldName,
+              false,
+            ),
+          },
+        }));
+        setSyncStatus({ state: "idle", message: "Media uploaded and synced." });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Media upload failed.";
+        setTableStateByResultId((states) => ({
+          ...states,
+          [result.contract.id]: {
+            ...states[result.contract.id],
+            [context.id]: updateGeneratedRecordMediaPendingState(
+              states[result.contract.id]?.[context.id] ?? current,
+              fieldName,
+              false,
+              message,
+            ),
+          },
+        }));
+        setSyncStatus({ state: "error", message });
+      }
+      return;
+    }
     const applied = applyWorkspaceRecordFieldIntent(
       current,
       context.fields,
@@ -1608,6 +1881,25 @@ type GeneratedWorkspaceRecordFieldState = {
   session: GeneratedListFieldAuthoringState["session"];
 };
 
+function updateGeneratedRecordMediaPendingState<T extends GeneratedWorkspaceRecordFieldState>(
+  current: T,
+  fieldName: string,
+  pending: boolean,
+  error?: string,
+): T {
+  return {
+    ...current,
+    errorsByFieldName: {
+      ...current.errorsByFieldName,
+      [fieldName]: error,
+    },
+    pendingByFieldName: {
+      ...current.pendingByFieldName,
+      [fieldName]: pending,
+    },
+  };
+}
+
 function applyWorkspaceRecordFieldIntent<T extends GeneratedWorkspaceRecordFieldState>(
   current: T,
   fields: readonly RecordFieldConfig[],
@@ -1684,10 +1976,10 @@ function selectWorkspaceRuntimeFoundation({
   today,
   treeActiveChildVariantIdByCreationId,
   treeCreateErrorBySurfaceId,
-  treeCreateFieldStateBySurfaceId,
+  createFieldStateBySurfaceId,
   treeDisclosureOpenByItemId,
   treeSelectedPlacementIdByResultId,
-  mediaAssetOptions,
+  mediaAssetOptionsByFieldKey,
   workspaceActions,
 }: {
   confirmationOpenByControlId: Readonly<Record<string, boolean | undefined>>;
@@ -1718,12 +2010,12 @@ function selectWorkspaceRuntimeFoundation({
   today: string;
   treeActiveChildVariantIdByCreationId: Readonly<Record<string, string | null | undefined>>;
   treeCreateErrorBySurfaceId: Readonly<Record<string, string | undefined>>;
-  treeCreateFieldStateBySurfaceId: Readonly<
+  createFieldStateBySurfaceId: Readonly<
     Record<string, GeneratedTreeCreateFieldProjectionState | undefined>
   >;
   treeDisclosureOpenByItemId: Readonly<Record<string, boolean | undefined>>;
   treeSelectedPlacementIdByResultId: Readonly<Record<string, string | null | undefined>>;
-  mediaAssetOptions: readonly ImageMediaAssetOption[];
+  mediaAssetOptionsByFieldKey: GeneratedMediaAssetOptionsByFieldKey;
   workspaceActions: readonly WorkspaceLinkActionContract[];
 }) {
   const bindings: GeneratedOperationControlBinding[] = [];
@@ -1746,10 +2038,10 @@ function selectWorkspaceRuntimeFoundation({
         tableStateByResultId,
         treeActiveChildVariantIdByCreationId,
         treeCreateErrorBySurfaceId,
-        treeCreateFieldStateBySurfaceId,
+        createFieldStateBySurfaceId,
         treeDisclosureOpenByItemId,
         treeSelectedPlacementIdByResultId,
-        mediaAssetOptions,
+        mediaAssetOptionsByFieldKey,
       });
       collectWorkspaceBindings(input, bindings);
       return input;
@@ -1806,10 +2098,10 @@ function selectWorkspaceSectionRuntimeInput({
   tableStateByResultId,
   treeActiveChildVariantIdByCreationId,
   treeCreateErrorBySurfaceId,
-  treeCreateFieldStateBySurfaceId,
+  createFieldStateBySurfaceId,
   treeDisclosureOpenByItemId,
   treeSelectedPlacementIdByResultId,
-  mediaAssetOptions,
+  mediaAssetOptionsByFieldKey,
 }: {
   confirmationOpenByControlId: Readonly<Record<string, boolean | undefined>>;
   controller: GeneratedOperationController;
@@ -1835,12 +2127,12 @@ function selectWorkspaceSectionRuntimeInput({
   >;
   treeActiveChildVariantIdByCreationId: Readonly<Record<string, string | null | undefined>>;
   treeCreateErrorBySurfaceId: Readonly<Record<string, string | undefined>>;
-  treeCreateFieldStateBySurfaceId: Readonly<
+  createFieldStateBySurfaceId: Readonly<
     Record<string, GeneratedTreeCreateFieldProjectionState | undefined>
   >;
   treeDisclosureOpenByItemId: Readonly<Record<string, boolean | undefined>>;
   treeSelectedPlacementIdByResultId: Readonly<Record<string, string | null | undefined>>;
-  mediaAssetOptions: readonly ImageMediaAssetOption[];
+  mediaAssetOptionsByFieldKey: GeneratedMediaAssetOptionsByFieldKey;
 }): GeneratedWorkspaceSectionFoundationInput {
   const operationStateByExecutionKey = new Proxy(
     {} as Record<string, ReturnType<GeneratedOperationController["getStateByExecutionKey"]>>,
@@ -1870,11 +2162,42 @@ function selectWorkspaceSectionRuntimeInput({
     list: {
       confirmationOpenByControlId,
       fieldStateByRecordId: listStateByResultId[facts.resultId],
+      mediaAssetOptionsByRecordId:
+        facts.section.collection.result.type === "list"
+          ? Object.fromEntries(
+              facts.recordIds.map((recordId) => [
+                recordId,
+                selectWorkspaceRecordMediaOptions(
+                  collectRecordPresentationFields(
+                    facts.section.collection.result.type === "list"
+                      ? facts.section.collection.result.recordFields
+                      : [],
+                    facts.section.collection.result.type === "list"
+                      ? facts.section.collection.result.recordUnion
+                      : undefined,
+                  ),
+                  facts.section.collection.entityName,
+                  mediaAssetOptionsByFieldKey,
+                ),
+              ]),
+            )
+          : {},
       operationStateByExecutionKey,
       schema,
     },
     recordResult: {
       confirmationOpenByControlId,
+      mediaAssetOptionsByFieldName:
+        facts.section.collection.result.type === "record"
+          ? selectWorkspaceRecordMediaOptions(
+              collectRecordPresentationFields(
+                facts.section.collection.result.recordFields,
+                facts.section.collection.result.recordUnion,
+              ),
+              facts.section.collection.entityName,
+              mediaAssetOptionsByFieldKey,
+            )
+          : {},
       operationStateByExecutionKey,
       recordState: recordStateByResultId[facts.resultId],
       schema,
@@ -1886,7 +2209,7 @@ function selectWorkspaceSectionRuntimeInput({
         createErrorBySurfaceId: treeCreateErrorBySurfaceId,
         createOpenBySurfaceId,
         createStateBySurfaceId,
-        fieldStateBySurfaceId: treeCreateFieldStateBySurfaceId,
+        fieldStateBySurfaceId: createFieldStateBySurfaceId,
         mediaAssetOptionsByFieldName: selectWorkspaceRecordMediaOptions(
           collectRecordPresentationFields(
             facts.section.collection.result.type === "tree"
@@ -1896,7 +2219,10 @@ function selectWorkspaceSectionRuntimeInput({
               ? facts.section.collection.result.childRecordUnion
               : undefined,
           ),
-          mediaAssetOptions,
+          facts.section.collection.result.type === "tree"
+            ? facts.section.collection.result.childEntityName
+            : "",
+          mediaAssetOptionsByFieldKey,
         ),
         operationStateByExecutionKey,
         queryContext: facts.actionQueryContext,
@@ -1922,7 +2248,10 @@ function selectWorkspaceSectionRuntimeInput({
               ? facts.section.collection.result.childRecordUnion
               : undefined,
           ),
-          mediaAssetOptions,
+          facts.section.collection.result.type === "tree"
+            ? facts.section.collection.result.childEntityName
+            : "",
+          mediaAssetOptionsByFieldKey,
         ),
         referenceOptionsByFieldName: selectWorkspaceRecordReferenceOptions(
           collectRecordPresentationFields(
@@ -1947,7 +2276,10 @@ function selectWorkspaceSectionRuntimeInput({
               ? facts.section.collection.result.placementRecordUnion
               : undefined,
           ),
-          mediaAssetOptions,
+          facts.section.collection.result.type === "tree"
+            ? facts.section.collection.result.placementEntityName
+            : "",
+          mediaAssetOptionsByFieldKey,
         ),
         referenceOptionsByFieldName: selectWorkspaceRecordReferenceOptions(
           collectRecordPresentationFields(
@@ -1976,9 +2308,11 @@ function selectWorkspaceSectionRuntimeInput({
     selectWorkspaceCollectionAction({
       confirmationOpenByControlId,
       controller,
+      createFieldStateBySurfaceId,
       createOpenBySurfaceId,
       createStateBySurfaceId,
       facts,
+      mediaAssetOptionsByFieldKey,
       operation,
       snapshot,
     }),
@@ -1989,9 +2323,11 @@ function selectWorkspaceSectionRuntimeInput({
   if (context?.createOperation) {
     const selected = selectWorkspaceCreateAction({
       controller,
+      createFieldStateBySurfaceId,
       createOpenBySurfaceId,
       createStateBySurfaceId,
       facts,
+      mediaAssetOptionsByFieldKey,
       onSuccess: undefined,
       operation: context.createOperation,
       snapshot,
@@ -2007,6 +2343,11 @@ function selectWorkspaceSectionRuntimeInput({
     );
     input.contextDetail = {
       confirmationOpenByControlId,
+      mediaAssetOptionsByFieldName: selectWorkspaceRecordMediaOptions(
+        collectRecordPresentationFields(context.recordFields ?? [], context.recordUnion),
+        context.entityName,
+        mediaAssetOptionsByFieldKey,
+      ),
       operationStateByExecutionKey,
       recordState: recordStateByResultId[contextResultId],
       schema,
@@ -2022,6 +2363,8 @@ function selectWorkspaceSectionRuntimeInput({
       entityName: facts.section.collection.entityName,
       fieldStateByContextId: tableStateByResultId[facts.resultId],
       id: facts.resultId,
+      mediaAssetOptionsForField: (entityName, fieldName) =>
+        generatedMediaAssetOptionsForField(mediaAssetOptionsByFieldKey, entityName, fieldName),
       query: facts.selectedQuery.query,
       queryContext: facts.queryContext,
       queryName: facts.selectedQuery.queryName,
@@ -2043,49 +2386,47 @@ function selectWorkspaceSectionRuntimeInput({
   return input;
 }
 
-function collectRecordPresentationFields(
-  fields: readonly RecordFieldConfig[],
-  union: RecordUnionPresentationConfig | undefined,
-): RecordFieldConfig[] {
-  const byName = new Map(fields.map((field) => [field.fieldName, field]));
-  for (const presentation of [
-    ...(union?.variants ?? []),
-    ...(union?.fallback ? [union.fallback] : []),
-  ]) {
-    if (presentation.presentation.type !== "fields") {
-      continue;
-    }
-    for (const field of presentation.presentation.fields) {
-      byName.set(field.fieldName, field);
-    }
-  }
-  return [...byName.values()];
-}
-
-function generatedWorkspaceHasTreeMediaFields(screen: HomeScreenModel): boolean {
-  return screen.layout.sections.some(({ collection }) => {
-    const result = collection.result;
-    if (result.type !== "tree") {
-      return false;
-    }
-
-    return [
-      ...collectRecordPresentationFields(result.childRecordFields, result.childRecordUnion),
-      ...collectRecordPresentationFields(
-        result.placementRecordFields ?? [],
-        result.placementRecordUnion,
-      ),
-    ].some((field) => field.editor === "media");
-  });
-}
-
 function selectWorkspaceRecordMediaOptions(
   fields: readonly RecordFieldConfig[],
-  mediaAssetOptions: readonly ImageMediaAssetOption[],
+  entityName: string,
+  mediaAssetOptionsByFieldKey: GeneratedMediaAssetOptionsByFieldKey,
 ) {
   return Object.fromEntries(
     fields.flatMap((field) =>
-      field.editor === "media" ? [[field.fieldName, mediaAssetOptions] as const] : [],
+      field.editor === "media"
+        ? [
+            [
+              field.fieldName,
+              generatedMediaAssetOptionsForField(
+                mediaAssetOptionsByFieldKey,
+                entityName,
+                field.fieldName,
+              ),
+            ] as const,
+          ]
+        : [],
+    ),
+  );
+}
+
+function selectWorkspaceCreateMediaOptions(
+  operation: CreateHomeOperationConfig,
+  mediaAssetOptionsByFieldKey: GeneratedMediaAssetOptionsByFieldKey,
+) {
+  return Object.fromEntries(
+    collectCreatePresentationFields(operation.fields, operation.union).flatMap((field) =>
+      field.editor === "media"
+        ? [
+            [
+              field.fieldName,
+              generatedMediaAssetOptionsForField(
+                mediaAssetOptionsByFieldKey,
+                operation.entityName,
+                field.fieldName,
+              ),
+            ] as const,
+          ]
+        : [],
     ),
   );
 }
@@ -2110,26 +2451,34 @@ function selectWorkspaceRecordReferenceOptions(
 function selectWorkspaceCollectionAction({
   confirmationOpenByControlId,
   controller,
+  createFieldStateBySurfaceId,
   createOpenBySurfaceId,
   createStateBySurfaceId,
   facts,
+  mediaAssetOptionsByFieldKey,
   operation,
   snapshot,
 }: {
   confirmationOpenByControlId: Readonly<Record<string, boolean | undefined>>;
   controller: GeneratedOperationController;
+  createFieldStateBySurfaceId: Readonly<
+    Record<string, GeneratedTreeCreateFieldProjectionState | undefined>
+  >;
   createOpenBySurfaceId: Readonly<Record<string, boolean | undefined>>;
   createStateBySurfaceId: Readonly<Record<string, GeneratedCreateDraftSessionState | undefined>>;
   facts: GeneratedWorkspaceSectionSelectionFacts;
+  mediaAssetOptionsByFieldKey: GeneratedMediaAssetOptionsByFieldKey;
   operation: HomeOperationConfig;
   snapshot: BrowserReplicaProjectionSnapshot;
 }) {
   if (operation.type === "create") {
     const selected = selectWorkspaceCreateAction({
       controller,
+      createFieldStateBySurfaceId,
       createOpenBySurfaceId,
       createStateBySurfaceId,
       facts,
+      mediaAssetOptionsByFieldKey,
       operation,
       snapshot,
       surfaceLocalId: `collection:${operation.operation.canonicalKey}`,
@@ -2178,18 +2527,24 @@ function selectWorkspaceCollectionAction({
 
 function selectWorkspaceCreateAction({
   controller,
+  createFieldStateBySurfaceId,
   createOpenBySurfaceId,
   createStateBySurfaceId,
   facts,
+  mediaAssetOptionsByFieldKey,
   onSuccess,
   operation,
   snapshot,
   surfaceLocalId,
 }: {
   controller: GeneratedOperationController;
+  createFieldStateBySurfaceId: Readonly<
+    Record<string, GeneratedTreeCreateFieldProjectionState | undefined>
+  >;
   createOpenBySurfaceId: Readonly<Record<string, boolean | undefined>>;
   createStateBySurfaceId: Readonly<Record<string, GeneratedCreateDraftSessionState | undefined>>;
   facts: GeneratedWorkspaceSectionSelectionFacts;
+  mediaAssetOptionsByFieldKey: GeneratedMediaAssetOptionsByFieldKey;
   onSuccess?: (recordId: string) => void;
   operation: CreateHomeOperationConfig;
   snapshot: BrowserReplicaProjectionSnapshot;
@@ -2218,12 +2573,21 @@ function selectWorkspaceCreateAction({
     }),
   );
   const operationState = controller.getStateByExecutionKey(binding.executionKey);
+  const fieldState = createFieldStateBySurfaceId[surfaceId];
   const surface: CreateSurfaceContract = projectGeneratedCreateSurface({
     enabled: operation.enabled,
     entityLabel: operation.entity.label,
+    errorsByFieldName: fieldState?.errorsByFieldName,
     id: surfaceId,
     isSubmitting: operationState?.status === "pending",
+    mediaAssetOptionsByFieldName: selectWorkspaceCreateMediaOptions(
+      operation,
+      mediaAssetOptionsByFieldKey,
+    ),
     open: createOpenBySurfaceId[surfaceId] ?? false,
+    pendingByFieldName: fieldState?.pendingByFieldName as
+      | Readonly<Record<string, boolean>>
+      | undefined,
     referenceOptionsByFieldName,
     session,
     state,

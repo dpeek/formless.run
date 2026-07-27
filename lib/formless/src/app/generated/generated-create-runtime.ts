@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import type { MediaAssetOption } from "@dpeek/formless-media/client";
 import type {
   ButtonContent,
   CreateFieldIntentHandler,
@@ -39,6 +40,16 @@ import {
   useGeneratedOperationControllerVersion,
 } from "./operation-control-runtime.ts";
 import { shouldUseAppReplicaReferenceOptions } from "./reference-field-options.ts";
+import { useSchemaAppTarget } from "./schema-app-context.tsx";
+import {
+  collectCreatePresentationFields,
+  generatedMediaAssetOptionsForField,
+  generatedMediaFieldKey,
+  type GeneratedMediaAssetOptionsByFieldKey,
+  type GeneratedMediaField,
+} from "./media-field-model.ts";
+import { loadGeneratedMediaAssetOptions, uploadGeneratedMediaFile } from "./media-field-runtime.ts";
+import { upsertMediaAssetOption } from "./record-field-authoring.ts";
 
 export type CreateHomeOperationConfig = Extract<HomeOperationConfig, { type: "create" }>;
 
@@ -95,7 +106,16 @@ export function useGeneratedCreateRuntime({
 }: GeneratedCreateRuntimeOptions): GeneratedCreateRuntime {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | undefined>();
+  const [mediaFieldState, setMediaFieldState] = useState<{
+    errorsByFieldName: Readonly<Record<string, string | undefined>>;
+    pendingByFieldName: Readonly<Record<string, boolean | undefined>>;
+  }>({ errorsByFieldName: {}, pendingByFieldName: {} });
+  const [mediaAssetOptionsByFieldKey, setMediaAssetOptionsByFieldKey] = useState<
+    Record<string, MediaAssetOption[] | undefined>
+  >({});
   const [draftSessionState, setDraftSessionState] = useState(() => initialCreateState(operation));
+  const appTarget = useSchemaAppTarget();
+  const mediaFields = useMemo(() => collectGeneratedCreateMediaFields(operation), [operation]);
   const draftSession = selectGeneratedCreateDraftSession({
     defaults: operation.defaults,
     enabled: operation.enabled,
@@ -118,10 +138,16 @@ export function useGeneratedCreateRuntime({
   const surface = projectGeneratedCreateSurface({
     enabled: operation.enabled,
     entityLabel: operation.entity.label,
+    errorsByFieldName: mediaFieldState.errorsByFieldName,
     ...(submissionError === undefined ? {} : { formErrors: [submissionError] }),
     id: surfaceId,
     isSubmitting: submitPending,
+    mediaAssetOptionsByFieldName: selectGeneratedCreateMediaOptions(
+      operation,
+      mediaAssetOptionsByFieldKey,
+    ),
     open,
+    pendingByFieldName: mediaFieldState.pendingByFieldName as Readonly<Record<string, boolean>>,
     referenceOptionsByFieldName,
     session: draftSession,
     state: draftSessionState,
@@ -133,20 +159,99 @@ export function useGeneratedCreateRuntime({
 
   useEffect(() => {
     setDraftSessionState(initialCreateState(operation));
+    setMediaFieldState({ errorsByFieldName: {}, pendingByFieldName: {} });
     setSubmissionError(undefined);
   }, [operation.defaults, operation.fields, operation.union]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    void loadGeneratedMediaAssetOptions(mediaFields, appTarget).then((options) => {
+      if (!cancelled) {
+        setMediaAssetOptionsByFieldKey(options);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appTarget, mediaFields]);
+
+  useEffect(() => {
     if (!open && closeOnSuccess) {
       setDraftSessionState(initialCreateState(operation));
+      setMediaFieldState({ errorsByFieldName: {}, pendingByFieldName: {} });
     }
   }, [closeOnSuccess, open, operation.defaults, operation.fields, operation.union]);
 
-  function onFieldIntent(fieldId: string, intent: Parameters<CreateFieldIntentHandler>[1]) {
-    if (
-      intent.type !== "createDraftChange" ||
-      resolveGeneratedCreateFieldIntent(fieldsById, fieldId, intent) === undefined
-    ) {
+  async function onFieldIntent(fieldId: string, intent: Parameters<CreateFieldIntentHandler>[1]) {
+    const projectedField = resolveGeneratedCreateFieldIntent(fieldsById, fieldId, intent);
+    if (projectedField === undefined) {
+      return;
+    }
+
+    if (intent.type === "mediaFileSelect") {
+      const fieldConfig = collectCreatePresentationFields(operation.fields, operation.union).find(
+        (field) =>
+          field.fieldName === intent.fieldName &&
+          field.editor === "media" &&
+          field.field.type === "text",
+      );
+      const mediaField = fieldConfig?.field;
+      if (
+        !intent.file ||
+        !fieldConfig ||
+        mediaField?.type !== "text" ||
+        mediaFieldState.pendingByFieldName[intent.fieldName] === true
+      ) {
+        return;
+      }
+
+      setMediaFieldState((current) => updateCreateMediaFieldState(current, intent.fieldName, true));
+      setSyncStatus({ state: "syncing", message: "Uploading media..." });
+
+      try {
+        const result = await uploadGeneratedMediaFile({
+          appTarget,
+          entityName: operation.entityName,
+          field: mediaField,
+          fieldName: fieldConfig.fieldName,
+          file: intent.file,
+        });
+        setMediaAssetOptionsByFieldKey((current) =>
+          storeGeneratedCreateMediaOption(
+            current,
+            mediaFields,
+            { field: mediaField, fieldName: fieldConfig.fieldName },
+            result.option,
+          ),
+        );
+        setDraftSessionState(
+          (state) =>
+            adaptGeneratedCreateDraftChange(
+              {
+                fieldName: fieldConfig.fieldName,
+                fieldValue: { kind: "input", value: result.option.id },
+                type: "createDraftChange",
+              },
+              { state },
+            ).state ?? state,
+        );
+        setMediaFieldState((current) =>
+          updateCreateMediaFieldState(current, intent.fieldName, false),
+        );
+        setSyncStatus({ state: "idle", message: "Media uploaded." });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Media upload failed.";
+        setMediaFieldState((current) =>
+          updateCreateMediaFieldState(current, intent.fieldName, false, message),
+        );
+        setSyncStatus({ state: "error", message });
+      }
+      return;
+    }
+
+    if (intent.type !== "createDraftChange") {
       return;
     }
 
@@ -308,6 +413,75 @@ export function selectCreateReferenceOptionsByFieldName(
       ];
     }),
   );
+}
+
+function collectGeneratedCreateMediaFields(
+  operation: CreateHomeOperationConfig,
+): GeneratedMediaField[] {
+  return collectCreatePresentationFields(operation.fields, operation.union).flatMap((fieldConfig) =>
+    fieldConfig.editor === "media" && fieldConfig.field.type === "text"
+      ? [
+          {
+            entityName: operation.entityName,
+            field: fieldConfig.field,
+            fieldName: fieldConfig.fieldName,
+          },
+        ]
+      : [],
+  );
+}
+
+function selectGeneratedCreateMediaOptions(
+  operation: CreateHomeOperationConfig,
+  optionsByFieldKey: GeneratedMediaAssetOptionsByFieldKey,
+) {
+  return Object.fromEntries(
+    collectGeneratedCreateMediaFields(operation).map((field) => [
+      field.fieldName,
+      generatedMediaAssetOptionsForField(optionsByFieldKey, field.entityName, field.fieldName),
+    ]),
+  );
+}
+
+function storeGeneratedCreateMediaOption(
+  current: Record<string, MediaAssetOption[] | undefined>,
+  mediaFields: readonly GeneratedMediaField[],
+  fieldConfig: Pick<GeneratedMediaField, "field" | "fieldName">,
+  option: MediaAssetOption,
+): Record<string, MediaAssetOption[] | undefined> {
+  const targetFields =
+    fieldConfig.field.asset?.kind === "document"
+      ? mediaFields.filter((field) => field.fieldName === fieldConfig.fieldName)
+      : mediaFields.filter((field) => field.field.asset === undefined);
+  const next = { ...current };
+
+  for (const field of targetFields) {
+    const key = generatedMediaFieldKey(field.entityName, field.fieldName);
+    next[key] = upsertMediaAssetOption([...(current[key] ?? [])], option);
+  }
+
+  return next;
+}
+
+function updateCreateMediaFieldState(
+  current: {
+    errorsByFieldName: Readonly<Record<string, string | undefined>>;
+    pendingByFieldName: Readonly<Record<string, boolean | undefined>>;
+  },
+  fieldName: string,
+  pending: boolean,
+  error?: string,
+) {
+  return {
+    errorsByFieldName: {
+      ...current.errorsByFieldName,
+      [fieldName]: error,
+    },
+    pendingByFieldName: {
+      ...current.pendingByFieldName,
+      [fieldName]: pending,
+    },
+  };
 }
 
 function initialCreateState(

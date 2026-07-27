@@ -2,7 +2,7 @@ import { MEDIA_IMAGE_UPLOAD_MAX_BYTES } from "@dpeek/formless-media";
 import {
   coreImageMediaAssetOptionForId,
   IMAGE_UPLOAD_ACCEPT,
-  type ImageMediaAssetOption,
+  type MediaAssetOption as ClientMediaAssetOption,
 } from "@dpeek/formless-media/client";
 import type {
   AppSchema,
@@ -172,7 +172,7 @@ export type ProjectGeneratedCreateFieldsOptions = ProjectGeneratedCreateSessionO
   iconParseErrorByFieldName?: Readonly<Record<string, string | undefined>>;
   pendingByFieldName?: Readonly<Record<string, boolean>>;
   pendingLabelByFieldName?: Readonly<Record<string, string | undefined>>;
-  mediaAssetOptionsByFieldName?: Readonly<Record<string, readonly ImageMediaAssetOption[]>>;
+  mediaAssetOptionsByFieldName?: Readonly<Record<string, readonly ClientMediaAssetOption[]>>;
   referenceOptionsByFieldName?: Readonly<Record<string, readonly GeneratedReferenceOption[]>>;
   owner: GeneratedCreateFieldOwner;
 };
@@ -203,7 +203,7 @@ export type ProjectGeneratedCreateFieldOptions = {
   iconDialogOpen?: boolean;
   iconParseError?: string;
   isPending?: boolean;
-  mediaAssetOptions?: readonly ImageMediaAssetOption[];
+  mediaAssetOptions?: readonly ClientMediaAssetOption[];
   occurrence: GeneratedFieldOccurrence & {
     owner: GeneratedCreateFieldOwner;
   };
@@ -230,7 +230,7 @@ export type ProjectGeneratedRecordFieldsOptions = ProjectGeneratedRecordSessionO
   iconDialogDraftByFieldName?: Readonly<Record<string, string | undefined>>;
   iconDialogOpenByFieldName?: Readonly<Record<string, boolean | undefined>>;
   iconParseErrorByFieldName?: Readonly<Record<string, string | undefined>>;
-  mediaAssetOptionsByFieldName?: Readonly<Record<string, readonly ImageMediaAssetOption[]>>;
+  mediaAssetOptionsByFieldName?: Readonly<Record<string, readonly ClientMediaAssetOption[]>>;
   owner: GeneratedRecordFieldOwner;
   pendingByFieldName?: Readonly<Record<string, boolean>>;
   pendingLabelByFieldName?: Readonly<Record<string, string | undefined>>;
@@ -262,7 +262,7 @@ export type ProjectGeneratedRecordFieldOptions = {
   iconDialogOpen?: boolean;
   iconParseError?: string;
   isPending?: boolean;
-  mediaAssetOptions?: readonly ImageMediaAssetOption[];
+  mediaAssetOptions?: readonly ClientMediaAssetOption[];
   occurrence: GeneratedFieldOccurrence & {
     owner: GeneratedRecordFieldOwner;
   };
@@ -283,7 +283,7 @@ export type ProjectGeneratedRecordFieldOptions = {
 export type ProjectGeneratedDisplayFieldOptions = {
   density?: FieldDensity;
   fieldConfig: GeneratedRecordFieldConfig;
-  mediaAssetOptions?: readonly ImageMediaAssetOption[];
+  mediaAssetOptions?: readonly ClientMediaAssetOption[];
   occurrence: GeneratedFieldOccurrence & {
     owner: GeneratedRecordFieldOwner;
   };
@@ -1151,7 +1151,7 @@ function projectFieldOptions({
 }: {
   field: FieldSchema;
   includeIconOptions?: boolean;
-  mediaAssetOptions?: readonly ImageMediaAssetOption[];
+  mediaAssetOptions?: readonly ClientMediaAssetOption[];
   referenceOptions?: readonly GeneratedReferenceOption[];
 }): FieldOptions | undefined {
   if (field.type === "enum") {
@@ -1304,18 +1304,21 @@ function projectCreateMediaAuthoring({
 }: {
   control: FieldControl;
   fieldName: string;
-  mediaAssetOptions: readonly ImageMediaAssetOption[];
+  mediaAssetOptions: readonly ClientMediaAssetOption[];
   value: FieldValue | undefined;
 }): MediaAuthoring | undefined {
   if (control.controlKind !== "media") {
     return undefined;
   }
 
+  const constraints = mediaUploadConstraints(control);
+
   return {
     ...projectMediaPresentation({ control, mediaAssetOptions, value }),
-    accept: IMAGE_UPLOAD_ACCEPT,
+    accept: constraints.accept,
     fileSelectEnabled: true,
-    maxSize: MEDIA_IMAGE_UPLOAD_MAX_BYTES,
+    maxSize: constraints.maxSize,
+    removalEnabled: !control.required,
     uploadEnabled: true,
     uploadPatchFields: { mediaAssetFieldName: fieldName },
   };
@@ -1327,7 +1330,7 @@ function projectMediaPresentation({
   value,
 }: {
   control: FieldControl;
-  mediaAssetOptions: readonly ImageMediaAssetOption[];
+  mediaAssetOptions: readonly ClientMediaAssetOption[];
   value: FieldValue | undefined;
 }): MediaPresentation | undefined {
   if (control.controlKind !== "media") {
@@ -1340,9 +1343,12 @@ function projectMediaPresentation({
     return {};
   }
 
+  const documentPolicy = control.field.type === "text" ? control.field.asset : undefined;
   const selectedAsset =
     mediaAssetOptions.find((asset) => asset.id === selectedValue) ??
-    coreImageMediaAssetOptionForId(selectedValue);
+    (documentPolicy?.kind === "document"
+      ? undefined
+      : coreImageMediaAssetOptionForId(selectedValue));
 
   return {
     ...(selectedAsset === undefined
@@ -1352,7 +1358,7 @@ function projectMediaPresentation({
             reason: "Selected media asset is unavailable.",
           },
         }
-      : { previewHref: selectedAsset.href }),
+      : projectSelectedMediaAsset(selectedAsset)),
     selectedAssetId: selectedValue,
   };
 }
@@ -1368,7 +1374,7 @@ function selectProjectedMediaAuthoring({
   draft: string;
   entityName: string;
   fieldConfig: GeneratedRecordFieldConfig;
-  mediaAssetOptions: readonly ImageMediaAssetOption[];
+  mediaAssetOptions: readonly ClientMediaAssetOption[];
   rendererKind: RecordFieldRendererKind;
   schema: AppSchema | null;
 }): MediaAuthoring | undefined {
@@ -1384,9 +1390,12 @@ function selectProjectedMediaAuthoring({
     schema,
   });
   const selectedAssetId = draft !== "" ? draft : undefined;
-  const previewHref = mediaAuthoring.mediaPreviewHref;
+  const constraints = mediaUploadConstraints({
+    field: fieldConfig.field,
+    required: fieldConfig.field.required,
+  });
   const missingSelectedAsset =
-    selectedAssetId !== undefined && mediaAuthoring.mediaPreviewHref === undefined
+    selectedAssetId !== undefined && mediaAuthoring.selectedAsset === undefined
       ? {
           assetId: selectedAssetId,
           reason: "Selected media asset is unavailable.",
@@ -1394,13 +1403,62 @@ function selectProjectedMediaAuthoring({
       : undefined;
 
   return {
-    ...mediaAuthoring,
-    accept: IMAGE_UPLOAD_ACCEPT,
+    ...(mediaAuthoring.selectedAsset === undefined
+      ? {}
+      : projectSelectedMediaAsset(mediaAuthoring.selectedAsset)),
+    ...(mediaAuthoring.mediaPreviewHref === undefined
+      ? {}
+      : { mediaPreviewHref: mediaAuthoring.mediaPreviewHref }),
+    accept: constraints.accept,
     fileSelectEnabled: mediaAuthoring.uploadEnabled,
-    maxSize: MEDIA_IMAGE_UPLOAD_MAX_BYTES,
+    maxSize: constraints.maxSize,
+    removalEnabled: !fieldConfig.field.required,
+    uploadEnabled: mediaAuthoring.uploadEnabled,
+    uploadPatchFields: mediaAuthoring.uploadPatchFields,
     ...(missingSelectedAsset === undefined ? {} : { missingSelectedAsset }),
-    ...(previewHref === undefined ? {} : { previewHref }),
     ...(selectedAssetId === undefined ? {} : { selectedAssetId }),
+  };
+}
+
+function mediaUploadConstraints({ field }: Pick<FieldControl, "field" | "required">): {
+  accept: string;
+  maxSize: number;
+} {
+  const documentPolicy = field.type === "text" ? field.asset : undefined;
+
+  return documentPolicy?.kind === "document"
+    ? {
+        accept: documentPolicy.acceptedMimeTypes.join(","),
+        maxSize: documentPolicy.maxBytes,
+      }
+    : {
+        accept: IMAGE_UPLOAD_ACCEPT,
+        maxSize: MEDIA_IMAGE_UPLOAD_MAX_BYTES,
+      };
+}
+
+function projectSelectedMediaAsset(
+  asset: ClientMediaAssetOption,
+): Pick<MediaPresentation, "document" | "previewHref"> {
+  if (!("downloadHref" in asset)) {
+    return { previewHref: asset.href };
+  }
+
+  return {
+    document: {
+      byteSize: asset.byteSize,
+      contentType: asset.contentType,
+      downloadIntent: {
+        href: asset.downloadHref,
+        type: "mediaDocumentDownload",
+      },
+      filename: asset.filename,
+      openIntent: {
+        href: asset.href,
+        target: "newTab",
+        type: "mediaDocumentOpen",
+      },
+    },
   };
 }
 
@@ -1604,13 +1662,17 @@ function referenceValueStatus(
     : { kind: "missing", value };
 }
 
-function projectMediaAssetOption(option: ImageMediaAssetOption): MediaAssetOption {
+function projectMediaAssetOption(option: ClientMediaAssetOption): MediaAssetOption {
   return {
-    ...(option.height === undefined ? {} : { height: option.height }),
+    ...("byteSize" in option ? { byteSize: option.byteSize } : {}),
+    ...("contentType" in option ? { contentType: option.contentType } : {}),
+    ...("downloadHref" in option ? { downloadHref: option.downloadHref } : {}),
+    ...("filename" in option ? { filename: option.filename } : {}),
+    ...(!("height" in option) || option.height === undefined ? {} : { height: option.height }),
     href: option.href,
     id: option.id,
     label: option.label,
-    ...(option.width === undefined ? {} : { width: option.width }),
+    ...(!("width" in option) || option.width === undefined ? {} : { width: option.width }),
   };
 }
 

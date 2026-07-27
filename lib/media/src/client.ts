@@ -1,9 +1,30 @@
-import { CORE_IMAGE_UPLOAD_PATH, coreImageMediaDeliveryFactsForAssetId } from "./index.ts";
-import type { ImageMediaListResponse, ImageMediaUploadResponse, MediaAsset } from "./types.ts";
+import {
+  CORE_IMAGE_UPLOAD_PATH,
+  coreImageMediaDeliveryFactsForAssetId,
+  isDocumentMediaAsset,
+} from "./index.ts";
+import {
+  MEDIA_PDF_CONTENT_TYPE,
+  type DocumentMediaAsset,
+  type DocumentMediaListResponse,
+  type DocumentMediaUploadResponse,
+  type ImageMediaAsset,
+  type ImageMediaListResponse,
+  type ImageMediaUploadResponse,
+} from "./types.ts";
 
-export type { ImageMediaListResponse, ImageMediaUploadResponse, MediaAsset } from "./types.ts";
+export type {
+  DocumentMediaAsset,
+  DocumentMediaListResponse,
+  DocumentMediaUploadResponse,
+  ImageMediaAsset,
+  ImageMediaListResponse,
+  ImageMediaUploadResponse,
+  MediaAsset,
+} from "./types.ts";
 
 export const IMAGE_UPLOAD_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
+export const DOCUMENT_UPLOAD_ACCEPT = MEDIA_PDF_CONTENT_TYPE;
 
 export type ImageDimensions = {
   height: number;
@@ -22,12 +43,39 @@ export type ImageMediaAssetOption = {
   width?: number;
 };
 
+export type DocumentMediaFieldIdentity = {
+  entityName: string;
+  fieldName: string;
+};
+
+export type AppDocumentMediaTarget = {
+  documentsPath: `/api/${string}/media/documents`;
+  field: DocumentMediaFieldIdentity;
+};
+
+export type DocumentMediaAssetOption = {
+  access: DocumentMediaAsset["access"];
+  byteSize: number;
+  contentType: typeof MEDIA_PDF_CONTENT_TYPE;
+  downloadHref: string;
+  filename: string;
+  href: string;
+  id: string;
+  label: string;
+};
+
+export type MediaAssetOption = ImageMediaAssetOption | DocumentMediaAssetOption;
+
 export type UploadImageMediaFileOptions = {
   fetcher?: typeof fetch;
   readDimensions?: (file: File) => Promise<ImageDimensions | undefined>;
 };
 
 export type ListCoreImageMediaAssetsOptions = {
+  fetcher?: typeof fetch;
+};
+
+export type AppDocumentMediaClientOptions = {
   fetcher?: typeof fetch;
 };
 
@@ -64,6 +112,59 @@ export async function listCoreImageMediaAssets(
   const body = await parseImageMediaListResponse(response);
 
   return body.assets.map(mediaAssetOptionFromAsset);
+}
+
+export async function uploadAppDocumentMediaFile(
+  file: File,
+  target: AppDocumentMediaTarget,
+  options: AppDocumentMediaClientOptions = {},
+): Promise<DocumentMediaUploadResponse> {
+  const fetcher = options.fetcher ?? fetch;
+  const formData = new FormData();
+
+  formData.set("file", file);
+
+  const response = await fetcher(appDocumentMediaCollectionHref(target), {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+    },
+    body: formData,
+  });
+
+  return parseDocumentMediaUploadResponse(response);
+}
+
+export async function listAppDocumentMediaAssets(
+  target: AppDocumentMediaTarget,
+  options: AppDocumentMediaClientOptions = {},
+): Promise<DocumentMediaAssetOption[]> {
+  const fetcher = options.fetcher ?? fetch;
+  const response = await fetcher(appDocumentMediaCollectionHref(target), {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+  const body = await parseDocumentMediaListResponse(response);
+
+  return body.assets.map(documentMediaAssetOptionFromAsset);
+}
+
+export function appDocumentMediaCollectionHref(target: AppDocumentMediaTarget): string {
+  const query = new URLSearchParams({
+    entity: target.field.entityName,
+    field: target.field.fieldName,
+  });
+
+  return `${target.documentsPath}?${query.toString()}`;
+}
+
+export function documentMediaDownloadHref(href: string): string {
+  const url = new URL(href, "https://formless.local");
+
+  url.searchParams.set("download", "1");
+
+  return `${url.pathname}${url.search}${url.hash}`;
 }
 
 export async function readImageDimensions(file: File): Promise<ImageDimensions | undefined> {
@@ -140,13 +241,68 @@ export async function parseImageMediaListResponse(
   return body;
 }
 
-export function mediaAssetOptionFromAsset(asset: MediaAsset): ImageMediaAssetOption {
+export async function parseDocumentMediaUploadResponse(
+  response: Response,
+): Promise<DocumentMediaUploadResponse> {
+  const body = (await response.json()) as unknown;
+
+  if (!response.ok) {
+    const message = isErrorResponse(body)
+      ? body.error
+      : `Document upload failed with status ${response.status}.`;
+
+    throw new Error(message);
+  }
+
+  if (!isDocumentMediaUploadResponse(body)) {
+    throw new Error("Document upload returned an invalid response.");
+  }
+
+  return body;
+}
+
+export async function parseDocumentMediaListResponse(
+  response: Response,
+): Promise<DocumentMediaListResponse> {
+  const body = (await response.json()) as unknown;
+
+  if (!response.ok) {
+    const message = isErrorResponse(body)
+      ? body.error
+      : `Document asset list failed with status ${response.status}.`;
+
+    throw new Error(message);
+  }
+
+  if (!isDocumentMediaAssetListResponse(body)) {
+    throw new Error("Document asset list returned an invalid response.");
+  }
+
+  return body;
+}
+
+export function mediaAssetOptionFromAsset(asset: ImageMediaAsset): ImageMediaAssetOption {
   return {
     ...(asset.height === undefined ? {} : { height: asset.height }),
     href: asset.deliveryHref,
     id: asset.id,
     label: asset.label,
     ...(asset.width === undefined ? {} : { width: asset.width }),
+  };
+}
+
+export function documentMediaAssetOptionFromAsset(
+  asset: DocumentMediaAsset,
+): DocumentMediaAssetOption {
+  return {
+    access: asset.access,
+    byteSize: asset.byteSize,
+    contentType: asset.contentType,
+    downloadHref: documentMediaDownloadHref(asset.deliveryHref),
+    filename: asset.filename,
+    href: asset.deliveryHref,
+    id: asset.id,
+    label: asset.label,
   };
 }
 
@@ -188,7 +344,7 @@ function isImageMediaUploadResponse(value: unknown): value is ImageMediaUploadRe
     typeof value.key === "string" &&
     typeof value.size === "number" &&
     (!("assetId" in value) || typeof value.assetId === "string") &&
-    (!("asset" in value) || isMediaAsset(value.asset))
+    (!("asset" in value) || isImageMediaAsset(value.asset))
   );
 }
 
@@ -196,11 +352,47 @@ function isImageMediaAssetListResponse(value: unknown): value is ImageMediaListR
   return (
     isRecord(value) &&
     Array.isArray(value.assets) &&
-    value.assets.every((asset) => isMediaAsset(asset))
+    value.assets.every((asset) => isImageMediaAsset(asset))
   );
 }
 
-function isMediaAsset(value: unknown): value is MediaAsset {
+function isDocumentMediaUploadResponse(value: unknown): value is DocumentMediaUploadResponse {
+  if (
+    !isRecord(value) ||
+    value.contentType !== MEDIA_PDF_CONTENT_TYPE ||
+    typeof value.href !== "string" ||
+    typeof value.key !== "string" ||
+    typeof value.size !== "number" ||
+    ("assetId" in value && typeof value.assetId !== "string")
+  ) {
+    return false;
+  }
+
+  const asset = value.asset;
+
+  if (asset !== undefined && !isDocumentMediaAsset(asset)) {
+    return false;
+  }
+
+  return (
+    asset === undefined ||
+    (asset.contentType === value.contentType &&
+      asset.deliveryHref === value.href &&
+      asset.storageKey === value.key &&
+      asset.byteSize === value.size &&
+      (value.assetId === undefined || asset.id === value.assetId))
+  );
+}
+
+function isDocumentMediaAssetListResponse(value: unknown): value is DocumentMediaListResponse {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.assets) &&
+    value.assets.every((asset) => isDocumentMediaAsset(asset))
+  );
+}
+
+function isImageMediaAsset(value: unknown): value is ImageMediaAsset {
   return (
     isRecord(value) &&
     typeof value.byteSize === "number" &&

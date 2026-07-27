@@ -596,12 +596,29 @@ The system SHALL use field behavior to define validation, defaults, conversion, 
 
 #### Scenario: Declare asset-backed media authoring
 
-- GIVEN a text field stores a reference to an owned image media asset
+- GIVEN a text field stores a reference to an owned image or document media
+  asset
 - WHEN schema field behavior selects editor and control metadata
 - THEN the field uses the `media` editor and asset-backed media control
 - AND the stored field value remains a flat media asset id
 - AND the field editor vocabulary does not define a separate image editor or
   raw image URL authoring mode
+
+#### Scenario: Declare document asset policy
+
+- GIVEN a text field is authored for owned document media
+- WHEN the source schema declares document asset policy
+- THEN the policy declares kind `document`, a non-empty list of normalized
+  accepted MIME types, a positive maximum byte size, and access `public` or
+  `private`
+- AND the `media` editor is available for that text field
+- AND current document support accepts `application/pdf` while rejecting
+  unsupported document MIME types
+- AND the maximum byte size cannot exceed the runtime-owned document upload
+  ceiling
+- AND the parsed field policy is trusted runtime input for app-scoped upload and
+  selection rather than browser-owned policy
+- AND document asset policy is rejected on non-text fields
 
 #### Scenario: Validate contact-shaped text formats
 

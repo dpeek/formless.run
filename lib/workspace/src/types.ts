@@ -20,6 +20,9 @@ export const INSTANCE_WORKSPACE_SITE_PUBLIC_RENDERER_EXTENSION = "site.publicRen
 
 export const WORKSPACE_RECORD_STATE_FILE_KIND = "formless.workspaceRecordState";
 export const WORKSPACE_RECORD_STATE_FILE_VERSION = 1;
+export const WORKSPACE_MEDIA_MANIFEST_FILE = "manifest.json";
+export const WORKSPACE_MEDIA_MANIFEST_KIND = "formless.workspaceMedia";
+export const WORKSPACE_MEDIA_MANIFEST_VERSION = 1;
 
 export const INSTANCE_WORKSPACE_CONTROL_PLANE_SCHEMA_KEY = "instance-control-plane";
 export const INSTANCE_WORKSPACE_CONTROL_PLANE_BOUNDARY_SCHEMA_KEY = "instance";

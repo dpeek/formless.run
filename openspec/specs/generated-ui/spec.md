@@ -1198,9 +1198,13 @@ The system SHALL render generated field displays and editors from field behavior
 - GIVEN text fields use `icon` or `media` editor metadata
 - WHEN generated editors render
 - THEN icon fields use a catalog-first picker with custom SVG mode
-- AND media fields browse existing core image media assets, select by
+- AND image media fields browse existing core image media assets, select by
   display-safe label, upload images, preview thumbnails, and remove optional
   selections without raw image URL authoring
+- AND document media fields browse compatible current-app documents, select by
+  display-safe filename, upload files, show MIME type and byte size, open or
+  download the selection, replace it, and remove optional selections without
+  raw provider URL authoring
 
 #### Scenario: Markdown source editor
 
@@ -1574,15 +1578,19 @@ while delegating media-specific controls to the Formless Renderer.
 
 - GIVEN a text field declares the `media` editor
 - WHEN generated UI renders the field
-- THEN generated UI projects media asset options, selected asset state, preview
-  facts, upload availability, and file-select intent routing through the
+- THEN generated UI projects media kind, compatible asset options, selected
+  asset state, image preview or document file facts, upload constraints,
+  availability, delivery intents, and file-select intent routing through the
   Presentation field contract
-- AND the active renderer handles asset selection, upload file selection,
-  preview, and broken-asset display through projected facts and intent callbacks
+- AND the active renderer handles asset selection, upload file selection, image
+  preview, document open or download, replacement, removal, and broken-asset
+  display through projected facts and intent callbacks
 - AND media editors, media libraries, and media displays render image thumbnails
-  and display-safe labels without exposing raw asset ids or URLs for authoring
+  or document filename, MIME type, and byte size without exposing raw asset ids,
+  provider keys, or provider URLs for authoring
 - AND generated and renderer contracts expose one Media control and renderer
-  kind without an Image field kind or asset-versus-URL mode discriminator
+  kind without Image or Document field kinds or an asset-versus-URL mode
+  discriminator
 - AND the Media package exposes no React presentation adapter and selected
   Media presentation stays in `@dpeek/formless-renderer`
 - AND the field value remains a flat media asset id committed as text by

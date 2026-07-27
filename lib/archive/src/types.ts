@@ -20,7 +20,13 @@ import {
 import { STORAGE_SNAPSHOT_KIND, parseStorageSnapshot } from "@dpeek/formless-storage";
 import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import type { AppSchema } from "@dpeek/formless-schema";
-import type { MediaAsset } from "@dpeek/formless-media";
+import {
+  MEDIA_PDF_CONTENT_TYPE,
+  isDocumentMediaAsset,
+  isImageMediaAsset,
+  safeDocumentMediaFilename,
+  type MediaAsset,
+} from "@dpeek/formless-media";
 
 export const INSTANCE_ARCHIVE_KIND = "formless.instanceArchive";
 export const APP_ARCHIVE_KIND = "formless.appArchive";
@@ -375,7 +381,7 @@ function parseInstanceArchiveControlPlane(
 
 function parseMediaAsset(context: string, value: unknown): MediaAsset {
   const object = parseObject(context, value);
-  const requiredKeys = [
+  const baseKeys = [
     "byteSize",
     "contentType",
     "deliveryHref",
@@ -386,41 +392,85 @@ function parseMediaAsset(context: string, value: unknown): MediaAsset {
     "status",
     "storageKey",
   ];
-  const optionalKeys = ["filename", "height", "width"];
-
-  assertExactKeys(context, object, [
-    ...requiredKeys,
-    ...optionalKeys.filter((key) => key in object),
-  ]);
-
-  if (object.kind !== "image") {
-    throw new Error(`${context} kind must be "image".`);
-  }
 
   if (object.status !== "ready") {
     throw new Error(`${context} status must be "ready".`);
   }
 
-  return {
-    byteSize: parseNonNegativeInteger(`${context} byteSize`, object.byteSize),
-    contentType: parseContentType(`${context} contentType`, object.contentType),
-    deliveryHref: parseDeliveryHref(`${context} deliveryHref`, object.deliveryHref),
-    ...("filename" in object
-      ? { filename: parseTrimmedNonEmptyString(`${context} filename`, object.filename) }
-      : {}),
-    ...("height" in object
-      ? { height: parseNonNegativeInteger(`${context} height`, object.height) }
-      : {}),
-    id: parseTrimmedNonEmptyString(`${context} id`, object.id),
-    kind: "image",
-    label: parseTrimmedNonEmptyString(`${context} label`, object.label),
-    provider: parseTrimmedNonEmptyString(`${context} provider`, object.provider),
-    status: "ready",
-    storageKey: parseRelativeKey(`${context} storageKey`, object.storageKey),
-    ...("width" in object
-      ? { width: parseNonNegativeInteger(`${context} width`, object.width) }
-      : {}),
-  };
+  if (object.kind === "document") {
+    assertExactKeys(context, object, [...baseKeys, "access", "filename", "ownerAppInstallId"]);
+
+    const asset = {
+      access: parseDocumentAccess(`${context} access`, object.access),
+      byteSize: parseNonNegativeInteger(`${context} byteSize`, object.byteSize),
+      contentType: parseContentType(`${context} contentType`, object.contentType),
+      deliveryHref: parseDeliveryHref(`${context} deliveryHref`, object.deliveryHref),
+      filename: parseTrimmedNonEmptyString(`${context} filename`, object.filename),
+      id: parseTrimmedNonEmptyString(`${context} id`, object.id),
+      kind: "document" as const,
+      label: parseTrimmedNonEmptyString(`${context} label`, object.label),
+      ownerAppInstallId: parseTrimmedNonEmptyString(
+        `${context} ownerAppInstallId`,
+        object.ownerAppInstallId,
+      ),
+      provider: parseTrimmedNonEmptyString(`${context} provider`, object.provider),
+      status: "ready" as const,
+      storageKey: parseRelativeKey(`${context} storageKey`, object.storageKey),
+    };
+
+    if (
+      asset.contentType !== MEDIA_PDF_CONTENT_TYPE ||
+      safeDocumentMediaFilename(asset.filename) !== asset.filename ||
+      !isDocumentMediaAsset(asset)
+    ) {
+      throw new Error(`${context} must be valid document media metadata.`);
+    }
+
+    return asset;
+  }
+
+  if (object.kind === "image") {
+    const optionalKeys = ["filename", "height", "width"];
+
+    assertExactKeys(context, object, [...baseKeys, ...optionalKeys.filter((key) => key in object)]);
+
+    const asset = {
+      byteSize: parseNonNegativeInteger(`${context} byteSize`, object.byteSize),
+      contentType: parseContentType(`${context} contentType`, object.contentType),
+      deliveryHref: parseDeliveryHref(`${context} deliveryHref`, object.deliveryHref),
+      ...("filename" in object
+        ? { filename: parseTrimmedNonEmptyString(`${context} filename`, object.filename) }
+        : {}),
+      ...("height" in object
+        ? { height: parseNonNegativeInteger(`${context} height`, object.height) }
+        : {}),
+      id: parseTrimmedNonEmptyString(`${context} id`, object.id),
+      kind: "image" as const,
+      label: parseTrimmedNonEmptyString(`${context} label`, object.label),
+      provider: parseTrimmedNonEmptyString(`${context} provider`, object.provider),
+      status: "ready" as const,
+      storageKey: parseRelativeKey(`${context} storageKey`, object.storageKey),
+      ...("width" in object
+        ? { width: parseNonNegativeInteger(`${context} width`, object.width) }
+        : {}),
+    };
+
+    if (!isImageMediaAsset(asset)) {
+      throw new Error(`${context} must be valid image media metadata.`);
+    }
+
+    return asset;
+  }
+
+  throw new Error(`${context} kind must be "image" or "document".`);
+}
+
+function parseDocumentAccess(context: string, value: unknown): "public" | "private" {
+  if (value !== "public" && value !== "private") {
+    throw new Error(`${context} must be "public" or "private".`);
+  }
+
+  return value;
 }
 
 function parseRestorePolicy(context: string, value: unknown): ArchiveRestorePolicy {
@@ -726,6 +776,23 @@ function canonicalMediaObject(media: AppArchiveMediaObject): AppArchiveMediaObje
 }
 
 function canonicalMediaAsset(asset: MediaAsset): MediaAsset {
+  if (asset.kind === "document") {
+    return {
+      access: asset.access,
+      byteSize: asset.byteSize,
+      contentType: asset.contentType,
+      deliveryHref: asset.deliveryHref,
+      filename: asset.filename,
+      id: asset.id,
+      kind: asset.kind,
+      label: asset.label,
+      ownerAppInstallId: asset.ownerAppInstallId,
+      provider: asset.provider,
+      status: asset.status,
+      storageKey: asset.storageKey,
+    };
+  }
+
   return {
     byteSize: asset.byteSize,
     contentType: asset.contentType,

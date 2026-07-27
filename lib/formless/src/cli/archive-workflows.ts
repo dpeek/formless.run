@@ -2,12 +2,14 @@ import {
   APP_ARCHIVE_KIND,
   ARCHIVE_VERSION,
   INSTANCE_ARCHIVE_KIND,
+  appArchiveMediaReferences,
   formatPortableArchive,
   parseAppArchive,
   parsePortableArchive,
   type AppArchive,
   type AppArchiveMediaObject,
   type ArchiveRestorePolicy,
+  type AppArchiveMediaReference,
   type InstanceArchive,
   type InstanceArchiveControlPlane,
   type PortableArchive,
@@ -36,11 +38,14 @@ import {
 } from "@dpeek/formless-instance-control-plane";
 import {
   CORE_IMAGE_KEY_PREFIX,
-  CORE_MEDIA_ROUTE_PREFIX,
+  MEDIA_DOCUMENT_UPLOAD_MAX_BYTES,
+  MEDIA_PDF_CONTENT_TYPE,
   coreImageMediaDeliveryFactsForAssetId,
-  coreMediaHrefForKey,
+  documentMediaStorageKeyForAssetId,
   imageMediaContentTypeForKey,
-  isRestorableImageMediaKey,
+  isDocumentMediaAsset,
+  validatePdfDocumentMediaFile,
+  type DocumentMediaAsset,
   type MediaAsset,
 } from "@dpeek/formless-media";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
@@ -62,6 +67,7 @@ export {
 export type { ArchiveDiskMediaFile, ArchiveDiskWriteResult } from "@dpeek/formless-archive/node";
 
 const INSTANCE_ARCHIVE_RESTORE_API_PATH = "/api/formless/archive/restore";
+const ARCHIVE_EXPORT_MEDIA_READ_HEADER = "X-Formless-Archive-Export";
 
 export type ArchiveWorkflowDependencies = {
   cwd: string;
@@ -420,6 +426,7 @@ async function buildRemoteAppArchiveEntry(input: {
     fetcher: input.fetcher,
     install: input.install,
     records: snapshot.records,
+    schema: snapshot.schema,
     target: input.target,
   });
   const archive: AppArchive = {
@@ -460,15 +467,18 @@ async function exportRemoteAppMedia(input: {
   fetcher: typeof fetch;
   install: AppInstall;
   records: readonly StoredRecord[];
+  schema: StorageSnapshot["schema"];
   target: string;
 }): Promise<{ files: ArchiveDiskMediaFile[]; objects: AppArchiveMediaObject[] }> {
-  const references = appMediaReferences(input.records);
+  const references = await resolveAppMediaReferences(input);
   const files: ArchiveDiskMediaFile[] = [];
   const objects: AppArchiveMediaObject[] = [];
 
   for (const reference of references) {
     const response = await input.fetcher(apiUrl(input.target, reference.deliveryHref), {
-      headers: archiveExportRequestHeaders(input.auth, reference.contentType),
+      headers: archiveExportRequestHeaders(input.auth, reference.contentType, {
+        mediaRead: true,
+      }),
     });
 
     if (!response.ok) {
@@ -481,6 +491,8 @@ async function exportRemoteAppMedia(input: {
 
     const bytes = new Uint8Array(await response.arrayBuffer());
     const archivePath = `media/${input.install.installId}/${reference.storageKey}`;
+
+    validateExportedDocumentPayload(reference, response, bytes);
 
     objects.push({
       archivePath,
@@ -503,41 +515,50 @@ async function exportRemoteAppMedia(input: {
   return { files, objects };
 }
 
-function appMediaReferences(records: readonly StoredRecord[]): AppArchiveMediaObject[] {
+async function resolveAppMediaReferences(input: {
+  auth?: ArchiveExportAuth;
+  fetcher: typeof fetch;
+  install: AppInstall;
+  records: readonly StoredRecord[];
+  schema: StorageSnapshot["schema"];
+  target: string;
+}): Promise<AppArchiveMediaObject[]> {
   const referencesByKey = new Map<string, AppArchiveMediaObject>();
+  const references = appArchiveMediaReferences(input.schema, input.records);
+  const documentAssetsByField = await fetchReferencedDocumentAssets(input, references);
 
-  for (const record of records) {
-    if (record.deletedAt !== undefined) {
+  for (const reference of references) {
+    if (reference.kind === "image") {
+      const facts = coreImageMediaDeliveryFactsForAssetId(reference.assetId);
+
+      if (!facts) {
+        throw new Error(
+          `Installed app "${input.install.installId}" media field "${reference.entity}.${reference.field}" references invalid image asset "${reference.assetId}".`,
+        );
+      }
+
+      referencesByKey.set(facts.storageKey, coreMediaReference(facts.storageKey, facts.href));
       continue;
     }
 
-    for (const [fieldName, value] of Object.entries(record.values)) {
-      if (fieldName === "mediaAssetId" && typeof value === "string") {
-        const facts = coreImageMediaDeliveryFactsForAssetId(value);
+    const asset = documentAssetsByField
+      .get(documentReferenceFieldKey(reference))
+      ?.get(reference.assetId);
 
-        if (facts) {
-          referencesByKey.set(facts.storageKey, coreMediaReference(facts.storageKey, facts.href));
-        }
-      }
-
-      if (typeof value === "string") {
-        const coreStorageKey = storageKeyFromDeliveryHref(value, CORE_MEDIA_ROUTE_PREFIX);
-
-        if (
-          coreStorageKey &&
-          isRestorableImageMediaKey(coreStorageKey, {
-            keyPrefix: mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX),
-          }) &&
-          !referencesByKey.has(coreStorageKey)
-        ) {
-          referencesByKey.set(
-            coreStorageKey,
-            coreMediaReference(coreStorageKey, coreMediaHrefForKey(coreStorageKey)),
-          );
-          continue;
-        }
-      }
+    if (
+      !asset ||
+      asset.ownerAppInstallId !== input.install.installId ||
+      asset.access !== reference.policy.access ||
+      !reference.policy.acceptedMimeTypes.includes(asset.contentType) ||
+      asset.byteSize > reference.policy.maxBytes ||
+      asset.deliveryHref !== `${appApiPath(input.install, "/media/documents")}/${asset.id}`
+    ) {
+      throw new Error(
+        `Installed app "${input.install.installId}" document field "${reference.entity}.${reference.field}" references unavailable or incompatible asset "${reference.assetId}".`,
+      );
     }
+
+    referencesByKey.set(asset.storageKey, documentMediaReference(asset));
   }
 
   return [...referencesByKey.values()].sort((left, right) =>
@@ -545,10 +566,82 @@ function appMediaReferences(records: readonly StoredRecord[]): AppArchiveMediaOb
   );
 }
 
+async function fetchReferencedDocumentAssets(
+  input: {
+    auth?: ArchiveExportAuth;
+    fetcher: typeof fetch;
+    install: AppInstall;
+    target: string;
+  },
+  references: readonly AppArchiveMediaReference[],
+): Promise<Map<string, Map<string, DocumentMediaAsset>>> {
+  const documentReferences = references.filter(
+    (reference): reference is Extract<AppArchiveMediaReference, { kind: "document" }> =>
+      reference.kind === "document",
+  );
+  const referencesByField = new Map<
+    string,
+    Extract<AppArchiveMediaReference, { kind: "document" }>
+  >();
+
+  for (const reference of documentReferences) {
+    referencesByField.set(documentReferenceFieldKey(reference), reference);
+  }
+
+  const assetsByField = new Map<string, Map<string, DocumentMediaAsset>>();
+
+  for (const [fieldKey, reference] of [...referencesByField.entries()].sort(([left], [right]) =>
+    left.localeCompare(right),
+  )) {
+    const search = new URLSearchParams({
+      entity: reference.entity,
+      field: reference.field,
+    });
+    const response = await fetchJson<unknown>(
+      input.fetcher,
+      apiUrl(input.target, `${appApiPath(input.install, "/media/documents")}?${search.toString()}`),
+      {
+        headers: archiveExportRequestHeaders(input.auth, "application/json", {
+          mediaRead: true,
+        }),
+      },
+    );
+    const assets = parseDocumentMediaList(
+      `Installed app "${input.install.installId}" document list`,
+      response,
+    );
+
+    assetsByField.set(fieldKey, new Map(assets.map((asset) => [asset.id, asset])));
+  }
+
+  return assetsByField;
+}
+
+function parseDocumentMediaList(context: string, value: unknown): DocumentMediaAsset[] {
+  if (typeof value !== "object" || value === null || !("assets" in value)) {
+    throw new Error(`${context} must include assets.`);
+  }
+
+  const assets = (value as { assets?: unknown }).assets;
+
+  if (!Array.isArray(assets) || !assets.every(isDocumentMediaAsset)) {
+    throw new Error(`${context} assets must contain valid document media.`);
+  }
+
+  return assets;
+}
+
+function documentReferenceFieldKey(
+  reference: Pick<AppArchiveMediaReference, "entity" | "field">,
+): string {
+  return `${reference.entity}\u0000${reference.field}`;
+}
+
 function coreMediaReference(storageKey: string, deliveryHref: string): AppArchiveMediaObject {
   const contentType = imageMediaContentTypeForKey(storageKey);
-  const assetId = storageKey.startsWith(mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX))
-    ? storageKey.slice(mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX).length)
+  const keyPrefix = `${CORE_IMAGE_KEY_PREFIX}/`;
+  const assetId = storageKey.startsWith(keyPrefix)
+    ? storageKey.slice(keyPrefix.length)
     : storageKey;
 
   if (!contentType) {
@@ -575,21 +668,55 @@ function coreMediaReference(storageKey: string, deliveryHref: string): AppArchiv
   };
 }
 
+function documentMediaReference(asset: DocumentMediaAsset): AppArchiveMediaObject {
+  return {
+    archivePath: "",
+    asset,
+    byteSize: asset.byteSize,
+    contentType: asset.contentType,
+    deliveryHref: asset.deliveryHref,
+    storageKey: asset.storageKey,
+  };
+}
+
 function mediaAssetForArchiveObject(asset: MediaAsset, byteSize: number): MediaAsset {
+  if (asset.kind === "document") {
+    return asset;
+  }
+
   return {
     ...asset,
     byteSize,
   };
 }
 
-function storageKeyFromDeliveryHref(href: string, routePrefix: string): string | undefined {
-  const prefix = routePrefix.endsWith("/") ? routePrefix : `${routePrefix}/`;
+function validateExportedDocumentPayload(
+  reference: AppArchiveMediaObject,
+  response: Response,
+  bytes: Uint8Array,
+) {
+  if (reference.asset?.kind !== "document") {
+    return;
+  }
 
-  return href.startsWith(prefix) ? href.slice(prefix.length) : undefined;
-}
+  const validation = validatePdfDocumentMediaFile(
+    {
+      bytes,
+      contentType: response.headers.get("Content-Type") ?? "",
+      filename: reference.asset.filename,
+      size: bytes.byteLength,
+    },
+    {
+      acceptedMimeTypes: [MEDIA_PDF_CONTENT_TYPE],
+      maxBytes: MEDIA_DOCUMENT_UPLOAD_MAX_BYTES,
+    },
+  );
 
-function mediaKeyPrefix(prefix: string): string {
-  return prefix.endsWith("/") ? prefix : `${prefix}/`;
+  if (!validation.ok || bytes.byteLength !== reference.asset.byteSize) {
+    throw new Error(
+      `Document asset "${reference.asset.id}" payload does not match its immutable metadata.`,
+    );
+  }
 }
 
 async function fetchRemoteAppRegistry(
@@ -608,11 +735,21 @@ type ArchiveExportAuth = {
   env?: NodeJS.ProcessEnv;
 };
 
-function archiveExportRequestHeaders(auth: ArchiveExportAuth | undefined, accept: string): Headers {
-  return formlessCliTargetFetchHeaders({
+function archiveExportRequestHeaders(
+  auth: ArchiveExportAuth | undefined,
+  accept: string,
+  options: { mediaRead?: boolean } = {},
+): Headers {
+  const headers = formlessCliTargetFetchHeaders({
     accept,
     adminToken: archiveExportAdminToken(auth),
   });
+
+  if (options.mediaRead) {
+    headers.set(ARCHIVE_EXPORT_MEDIA_READ_HEADER, "1");
+  }
+
+  return headers;
 }
 
 function archiveExportAdminToken(auth: ArchiveExportAuth | undefined): string | undefined {
@@ -695,6 +832,33 @@ function retargetAppArchive(archive: AppArchive, installId: string): AppArchive 
   nextArchive.app.installId = nextIdentity.installId;
 
   nextArchive.data.storageIdentity = nextIdentity.authorityName;
+  nextArchive.media.objects = nextArchive.media.objects.map((object) => {
+    if (object.asset?.kind !== "document") {
+      return object;
+    }
+
+    const storageKey = documentMediaStorageKeyForAssetId(object.asset.id, {
+      ownerAppInstallId: nextIdentity.installId,
+    });
+
+    if (!storageKey) {
+      throw new Error(`Document asset "${object.asset.id}" cannot be retargeted.`);
+    }
+
+    const deliveryHref = `${nextIdentity.apiRoutePrefix}/media/documents/${object.asset.id}`;
+
+    return {
+      ...object,
+      asset: {
+        ...object.asset,
+        deliveryHref,
+        ownerAppInstallId: nextIdentity.installId,
+        storageKey,
+      },
+      deliveryHref,
+      storageKey,
+    };
+  });
 
   return nextArchive;
 }

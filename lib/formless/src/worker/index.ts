@@ -14,6 +14,7 @@ import {
   handleMediaRequest as handleMediaPackageRequest,
   mediaObjectStoreFromR2Bucket,
 } from "@dpeek/formless-media/worker";
+import { handleAppDocumentMediaRequest } from "./app-document-media.ts";
 import { handleInstanceDomainProviderApiRequest } from "./domain-provider-api.ts";
 import { handleInstanceDeploymentRuntimeApiRequest } from "./deployment-runtime-api.ts";
 import {
@@ -225,6 +226,27 @@ export default {
 
     if (mediaResponse) {
       return mediaResponse;
+    }
+
+    const appDocumentMediaResponse = await handleAppDocumentMediaRequest(
+      request,
+      env,
+      authorityRoute,
+      {
+        pathname: requestTopology.pathname,
+        target:
+          authorityRoute?.identity.kind === "appInstall"
+            ? installedAppApiRouteAccessFromFacts({
+                requestOrigin: requestOriginForAuth(request),
+                runtimeRoute,
+                storageIdentity: authorityRoute.identity.authorityName,
+              }).target
+            : undefined,
+      },
+    );
+
+    if (appDocumentMediaResponse) {
+      return appDocumentMediaResponse;
     }
 
     const siteIconResponse = await handlePublicSiteIconRequest(request, env, {

@@ -19,6 +19,7 @@ import {
   instanceControlPlaneSchema,
 } from "@dpeek/formless-instance-control-plane";
 import { siteSourceSchema } from "../test/schema-apps.ts";
+import { mediaObjectMetadataForAsset } from "@dpeek/formless-media";
 import {
   applyPortableArchiveRestore,
   dryRunPortableArchiveRestore,
@@ -29,6 +30,7 @@ import {
 
 const now = "2026-05-23T00:00:00.000Z";
 const pngBytes = new Uint8Array([1, 2, 3, 4]);
+const documentBytes = new TextEncoder().encode("%PDF-1.7\nprivate report");
 
 describe("archive restore execution", () => {
   it("dry-runs restore plans without mutating the target", async () => {
@@ -227,6 +229,116 @@ describe("archive restore execution", () => {
       }),
     ]);
   });
+
+  it("restores immutable documents and rejects incompatible target collisions", async () => {
+    const identity = installedAppStorageIdentity({
+      installId: "personal",
+      packageAppKey: "site",
+    });
+    const object = documentMediaObject("report", "private");
+    const writes: unknown[] = [];
+
+    if (!identity || object.asset?.kind !== "document") {
+      throw new Error("Expected installed app document fixture.");
+    }
+    const asset = object.asset;
+
+    const response = await restoreArchiveMediaObjectToStore(
+      {
+        getObject: async () => undefined,
+        putObject: async (write) => {
+          writes.push(write);
+        },
+      },
+      identity,
+      object,
+      documentBytes,
+    );
+
+    expect(response).toMatchObject({
+      assetId: "report.pdf",
+      href: "/api/app-installs/site/personal/media/documents/report.pdf",
+      key: "media/app-installs/personal/documents/report.pdf",
+    });
+    expect(writes).toEqual([
+      expect.objectContaining({
+        contentType: "application/pdf",
+        key: "media/app-installs/personal/documents/report.pdf",
+        customMetadata: expect.objectContaining({
+          "formless-media-document-access": "private",
+          "formless-media-owner-app-install-id": "personal",
+        }),
+      }),
+    ]);
+
+    await expect(
+      restoreArchiveMediaObjectToStore(
+        {
+          getObject: async () => ({
+            body: new Uint8Array(documentBytes.byteLength).fill(1),
+            customMetadata: mediaObjectMetadataForAsset(asset),
+            httpEtag: "incompatible",
+            writeHttpMetadata() {},
+          }),
+          putObject: async () => {
+            throw new Error("Incompatible immutable media must not be overwritten.");
+          },
+        },
+        identity,
+        object,
+        documentBytes,
+      ),
+    ).rejects.toThrow(
+      'Archive document "media/app-installs/personal/documents/report.pdf" collides with incompatible immutable media.',
+    );
+  });
+
+  it("preflights immutable document collisions before install or record mutation", async () => {
+    const schema = documentSourceSchema();
+    const object = documentMediaObject("report", "private");
+    const events: string[] = [];
+    const result = await applyPortableArchiveRestore(
+      appArchive({
+        restorePolicy: { dryRun: false, installCollisions: "reject" },
+        data: {
+          ...storageSnapshot(),
+          schema,
+          records: [siteRecord("rec_site_settings_personal", "personal"), documentBlock("report")],
+        },
+        media: { objects: [object] },
+      }),
+      memoryRestoreTarget({
+        events,
+        mediaFiles: [
+          {
+            archivePath: object.archivePath,
+            byteSize: documentBytes.byteLength,
+            bytes: documentBytes,
+            contentType: "application/pdf",
+          },
+        ],
+        sourceSchemas: { site: schema },
+        validateObject: async () => {
+          throw new Error("Immutable document collision.");
+        },
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(events).toEqual([]);
+
+    if (result.ok) {
+      throw new Error("Expected immutable collision preflight to fail.");
+    }
+
+    expect(result.errors).toEqual([
+      expect.objectContaining({
+        code: "media-restore-failed",
+        message: "Immutable document collision.",
+        storageKey: object.storageKey,
+      }),
+    ]);
+  });
 });
 
 function memoryRestoreTarget(input: {
@@ -234,6 +346,8 @@ function memoryRestoreTarget(input: {
   installedApps?: AppInstall[];
   mediaFiles?: ArchiveRestoreMediaRead[];
   restoreControlPlane?: boolean;
+  sourceSchemas?: Partial<Record<string, StorageSnapshot["schema"]>>;
+  validateObject?: NonNullable<ArchiveRestoreApplyTarget["media"]>["validateObject"];
 }): ArchiveRestoreApplyTarget {
   return {
     listInstalledApps: () => input.installedApps ?? [],
@@ -241,6 +355,7 @@ function memoryRestoreTarget(input: {
       listFiles: async () => input.mediaFiles ?? [],
       readFile: async (archivePath) =>
         input.mediaFiles?.find((file) => file.archivePath === archivePath),
+      ...(input.validateObject === undefined ? {} : { validateObject: input.validateObject }),
       restoreObject: async ({ identity, object }) => {
         input.events.push(`media:${identity.authorityName}:${object.storageKey}`);
 
@@ -267,6 +382,7 @@ function memoryRestoreTarget(input: {
     restoreInstall: ({ action, install }) => {
       input.events.push(`install:${action}:${install.installId}`);
     },
+    ...(input.sourceSchemas === undefined ? {} : { sourceSchemas: input.sourceSchemas }),
   };
 }
 
@@ -385,6 +501,20 @@ function coreImageBlock(name: string): StoredRecord {
   };
 }
 
+function documentBlock(name: string): StoredRecord {
+  return {
+    id: `rec_block_${name}`,
+    entity: "block",
+    values: {
+      type: "image",
+      label: `${name} document`,
+      documentAssetId: `${name}.pdf`,
+    },
+    createdAt: "2026-05-23T00:00:02.000Z",
+    updatedAt: "2026-05-23T00:00:02.000Z",
+  };
+}
+
 function coreMediaObject(name: string): AppArchiveMediaObject {
   const storageKey = `media/images/${name}.png`;
 
@@ -415,6 +545,57 @@ function coreMediaFile(name: string): ArchiveRestoreMediaRead {
     bytes: pngBytes,
     contentType: "image/png",
   };
+}
+
+function documentMediaObject(name: string, access: "public" | "private"): AppArchiveMediaObject {
+  const id = `${name}.pdf`;
+  const storageKey = `media/app-installs/personal/documents/${id}`;
+  const deliveryHref = `/api/app-installs/site/personal/media/documents/${id}`;
+
+  return {
+    archivePath: `media/personal/${storageKey}`,
+    asset: {
+      access,
+      byteSize: documentBytes.byteLength,
+      contentType: "application/pdf",
+      deliveryHref,
+      filename: id,
+      id,
+      kind: "document",
+      label: id,
+      ownerAppInstallId: "personal",
+      provider: "r2",
+      status: "ready",
+      storageKey,
+    },
+    byteSize: documentBytes.byteLength,
+    contentType: "application/pdf",
+    deliveryHref,
+    storageKey,
+  };
+}
+
+function documentSourceSchema() {
+  const schema = structuredClone(siteSourceSchema);
+  const block = schema.entities.block;
+
+  if (!block) {
+    throw new Error("Expected Site block schema.");
+  }
+
+  block.fields.documentAssetId = {
+    type: "text",
+    required: false,
+    label: "Document",
+    asset: {
+      kind: "document",
+      acceptedMimeTypes: ["application/pdf"],
+      maxBytes: 1024 * 1024,
+      access: "private",
+    },
+  };
+
+  return schema;
 }
 
 function siteInstall(installId: string): AppInstall {

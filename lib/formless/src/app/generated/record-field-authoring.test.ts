@@ -219,6 +219,11 @@ describe("generated record field authoring", () => {
 
     expect(authoring).toEqual({
       mediaPreviewHref: "/media/hero.webp",
+      selectedAsset: {
+        href: "/media/hero.webp",
+        id: "hero.webp",
+        label: "Hero",
+      },
       uploadEnabled: true,
       uploadPatchFields: {
         heightFieldName: "height",
@@ -254,6 +259,71 @@ describe("generated record field authoring", () => {
       mediaAsset: "uploaded.webp",
       width: 400,
     });
+  });
+
+  it("keeps document replacement immutable and patches only the flat asset id", () => {
+    const option = {
+      access: "private",
+      byteSize: 1200,
+      contentType: "application/pdf",
+      downloadHref: "/api/app-installs/reports/private/media/documents/report.pdf?download=1",
+      filename: "Report.pdf",
+      href: "/api/app-installs/reports/private/media/documents/report.pdf",
+      id: "report.pdf",
+      label: "Report.pdf",
+    } as const;
+    const authoring = selectGeneratedRecordFieldMediaAuthoring({
+      draft: option.id,
+      entityName: "block",
+      fieldConfig: documentAssetFieldConfig,
+      mediaAssetOptions: [option],
+      schema: documentBlockSchema,
+    });
+
+    expect(authoring).toEqual({
+      selectedAsset: option,
+      uploadEnabled: true,
+      uploadPatchFields: { mediaAssetFieldName: "mediaAsset" },
+    });
+
+    const replacementId = "replacement.pdf";
+    const resolution = resolveGeneratedMediaUploadUpdateDraftPatchValues({
+      baselineValues: {
+        height: 200,
+        mediaAsset: option.id,
+        width: 300,
+      },
+      draft: { values: {} },
+      entityName: "block",
+      fieldConfig: documentAssetFieldConfig,
+      fields: [documentAssetFieldConfig],
+      schema: documentBlockSchema,
+      upload: {
+        asset: {
+          access: "private",
+          byteSize: 1500,
+          contentType: "application/pdf",
+          deliveryHref: `/api/app-installs/reports/private/media/documents/${replacementId}`,
+          filename: "Replacement.pdf",
+          id: replacementId,
+          kind: "document",
+          label: "Replacement.pdf",
+          ownerAppInstallId: "private",
+          provider: "r2",
+          status: "ready",
+          storageKey: `media/app-installs/private/documents/${replacementId}`,
+        },
+        assetId: replacementId,
+        contentType: "application/pdf",
+        href: `/api/app-installs/reports/private/media/documents/${replacementId}`,
+        key: `media/app-installs/private/documents/${replacementId}`,
+        size: 1500,
+      },
+      uploadPatchFields: authoring.uploadPatchFields,
+    });
+
+    expect(resolution.fieldErrors).toEqual({});
+    expect(resolution.patchValues).toEqual({ mediaAsset: replacementId });
   });
 
   it("builds uploaded media asset options and keeps selector options sorted", () => {
@@ -606,6 +676,24 @@ const mediaAssetFieldConfig = {
   commit: "field-commit",
 } satisfies RecordFieldConfig;
 
+const documentAssetField: Extract<FieldSchema, { type: "text" }> = {
+  asset: {
+    acceptedMimeTypes: ["application/pdf"],
+    access: "private",
+    kind: "document",
+    maxBytes: 4 * 1024 * 1024,
+  },
+  required: false,
+  type: "text",
+};
+
+const documentAssetFieldConfig = {
+  fieldName: "mediaAsset",
+  field: documentAssetField,
+  editor: "media",
+  commit: "field-commit",
+} satisfies RecordFieldConfig;
+
 const markdownFieldConfig = {
   fieldName: "body",
   field: { type: "text", required: false, format: "markdown" },
@@ -643,4 +731,18 @@ const blockSchema = {
   itemViews: {},
   tableViews: {},
   views: {},
+} as unknown as AppSchema;
+
+const documentBlockSchema = {
+  ...blockSchema,
+  entities: {
+    ...blockSchema.entities,
+    block: {
+      ...blockSchema.entities.block,
+      fields: {
+        ...blockSchema.entities.block?.fields,
+        mediaAsset: documentAssetField,
+      },
+    },
+  },
 } as unknown as AppSchema;

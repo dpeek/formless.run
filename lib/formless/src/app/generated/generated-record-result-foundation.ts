@@ -1,4 +1,4 @@
-import type { ImageMediaAssetOption } from "@dpeek/formless-media/client";
+import type { MediaAssetOption } from "@dpeek/formless-media/client";
 import type {
   FieldContract,
   FieldIntent,
@@ -105,7 +105,7 @@ export type SelectGeneratedRecordResultFoundationOptions = {
   fieldState?: GeneratedRecordResultFieldAuthoringState;
   fieldPresentation?: "contextDetail" | "recordResult" | "treeChild" | "treePlacement";
   id: string;
-  mediaAssetOptionsByFieldName?: Readonly<Record<string, readonly ImageMediaAssetOption[]>>;
+  mediaAssetOptionsByFieldName?: Readonly<Record<string, readonly MediaAssetOption[]>>;
   operationStateByExecutionKey?: Readonly<
     Record<string, GeneratedOperationExecutionState | undefined>
   >;

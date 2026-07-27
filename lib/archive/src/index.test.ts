@@ -515,6 +515,49 @@ describe("portable archive protocol", () => {
     ).toEqual(["rec_site_settings_alpha", "rec_site_settings_zeta"]);
   });
 
+  it("parses and formats public and private document asset metadata", () => {
+    const archive = appArchive({
+      media: {
+        objects: [documentMediaObject("issued", "public"), documentMediaObject("draft", "private")],
+      },
+    });
+    const reparsed = parseAppArchive(JSON.parse(formatAppArchive(archive)));
+
+    expect(reparsed.media.objects.map((object) => object.asset)).toEqual([
+      expect.objectContaining({
+        access: "private",
+        filename: "draft.pdf",
+        id: "draft.pdf",
+        kind: "document",
+        ownerAppInstallId: "personal",
+      }),
+      expect.objectContaining({
+        access: "public",
+        filename: "issued.pdf",
+        id: "issued.pdf",
+        kind: "document",
+        ownerAppInstallId: "personal",
+      }),
+    ]);
+
+    expect(() =>
+      parseAppArchive({
+        ...archive,
+        media: {
+          objects: [
+            {
+              ...documentMediaObject("draft", "private"),
+              asset: {
+                ...documentMediaObject("draft", "private").asset,
+                ownerAppInstallId: "other",
+              },
+            },
+          ],
+        },
+      }),
+    ).toThrow("must be valid document media metadata");
+  });
+
   it("formats instance archives deterministically by install id", () => {
     const archive = instanceArchive({
       capabilities: ["core-media-assets", "installed-app-registry"],
@@ -720,6 +763,34 @@ function mediaObject(name: string): AppArchiveMediaObject {
       storageKey,
     },
     contentType: "image/png",
+    byteSize: name.length,
+    deliveryHref,
+  };
+}
+
+function documentMediaObject(name: string, access: "public" | "private"): AppArchiveMediaObject {
+  const id = `${name}.pdf`;
+  const storageKey = `media/app-installs/personal/documents/${id}`;
+  const deliveryHref = `/api/app-installs/site/personal/media/documents/${id}`;
+
+  return {
+    storageKey,
+    archivePath: `media/personal/${storageKey}`,
+    asset: {
+      access,
+      byteSize: name.length,
+      contentType: "application/pdf",
+      deliveryHref,
+      filename: id,
+      id,
+      kind: "document",
+      label: id,
+      ownerAppInstallId: "personal",
+      provider: "r2",
+      status: "ready",
+      storageKey,
+    },
+    contentType: "application/pdf",
     byteSize: name.length,
     deliveryHref,
   };
