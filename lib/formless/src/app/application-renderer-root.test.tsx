@@ -2,6 +2,7 @@
 
 import { act, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { StrictMode } from "react";
 import {
   SitePageRouteView,
   type SitePublicRendererProps,
@@ -13,10 +14,17 @@ import { ApplicationRendererRoot } from "./application-renderer-root.tsx";
 import {
   applicationThemeReference,
   bootstrapBrowserApplicationTheme,
+  browserApplicationTheme,
   createApplicationThemeController,
   type ApplicationThemeBrowser,
 } from "./application-theme-runtime.ts";
 import { useApplicationRootThemeRuntime } from "./application-root-context.tsx";
+import { ApplicationShellRuntimeBoundary } from "./application-shell-runtime.tsx";
+import { applyBootstrapResponse, resetClientStore } from "../client/store.ts";
+import { resetSyncStatus } from "../client/sync-status.ts";
+import { bootstrapResponse } from "../test/protocol-builders.ts";
+import { taskSourceSchema } from "../test/schema-apps.ts";
+import { createDevRuntimeProfile, findRuntimeWorldMountByRoute } from "./runtime-profile.ts";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -24,12 +32,151 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   document.documentElement.classList.remove("dark", "light");
+  document.documentElement.removeAttribute("data-theme");
   document.documentElement.removeAttribute("data-site-theme");
   document.documentElement.removeAttribute("data-formless-application-theme");
   document.documentElement.style.removeProperty("color-scheme");
+  window.localStorage.clear();
+  resetClientStore();
+  resetSyncStatus();
 });
 
 describe("application root runtime", () => {
+  it("updates the production subscribed application shell and document when theme mode changes", async () => {
+    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), "tasks");
+    const runtimeProfile = createDevRuntimeProfile();
+    const routeWorld = required(findRuntimeWorldMountByRoute(runtimeProfile, "/tasks"));
+    const mediaQuery = matchMediaFixture(true);
+    vi.stubGlobal("matchMedia", () => mediaQuery);
+    window.localStorage.setItem("formless:application:theme", "dark");
+
+    let currentNestedHost: PresentationHost | undefined;
+    let selectionCount = 0;
+    const firstController = createApplicationThemeController(browserApplicationTheme());
+    const observedController = {
+      ...firstController,
+      selectPreference: (preference: "dark" | "light" | "system") => {
+        selectionCount += 1;
+        firstController.selectPreference(preference);
+      },
+    };
+
+    function NestedHostProbe() {
+      currentNestedHost = usePresentationHost();
+      return <div>Workspace</div>;
+    }
+
+    function ConnectedAdminShell() {
+      const applicationTheme = useApplicationRootThemeRuntime();
+      return (
+        <ApplicationShellRuntimeBoundary
+          applicationTheme={applicationTheme}
+          currentPath="/tasks"
+          accountSession={{ authenticated: false, setupComplete: true }}
+          routeWorld={routeWorld}
+          runtimeProfile={runtimeProfile}
+          screenModels={[]}
+        >
+          <NestedHostProbe />
+        </ApplicationShellRuntimeBoundary>
+      );
+    }
+
+    const mounted = render(
+      <StrictMode>
+        <ApplicationRendererRoot navigate={() => undefined} themeController={observedController}>
+          <ConnectedAdminShell />
+        </ApplicationRendererRoot>
+      </StrictMode>,
+    );
+
+    expect(firstController.getSnapshot().activeMode).toBe("dark");
+    expect(required(currentNestedHost).read(applicationThemeReference)?.activeMode).toBe("dark");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(document.documentElement.dataset.formlessApplicationTheme).toBe("dark");
+    expect(document.documentElement.style.getPropertyValue("color-scheme")).toBe("dark");
+
+    await act(async () => {
+      required(
+        mounted.container.querySelector<HTMLButtonElement>('[aria-label="Switch to light mode"]'),
+      ).click();
+    });
+
+    expect(selectionCount).toBe(1);
+    expect(firstController.getSnapshot().activeMode).toBe("light");
+    expect(required(currentNestedHost).read(applicationThemeReference)?.activeMode).toBe("light");
+    expect(mounted.container.querySelector('[aria-label="Switch to dark mode"]')).not.toBeNull();
+    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(document.documentElement.dataset.formlessApplicationTheme).toBe("light");
+    expect(document.documentElement.style.getPropertyValue("color-scheme")).toBe("light");
+
+    mounted.unmount();
+    firstController.destroy();
+
+    const reloadedController = createApplicationThemeController(browserApplicationTheme());
+    const remounted = render(
+      <StrictMode>
+        <ApplicationRendererRoot navigate={() => undefined} themeController={reloadedController}>
+          <ConnectedAdminShell />
+        </ApplicationRendererRoot>
+      </StrictMode>,
+    );
+
+    expect(reloadedController.getSnapshot().activeMode).toBe("light");
+    expect(required(currentNestedHost).read(applicationThemeReference)?.activeMode).toBe("light");
+    expect(remounted.container.querySelector('[aria-label="Switch to dark mode"]')).not.toBeNull();
+    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(document.documentElement.dataset.formlessApplicationTheme).toBe("light");
+    expect(document.documentElement.style.getPropertyValue("color-scheme")).toBe("light");
+
+    await act(async () => {
+      required(
+        remounted.container.querySelector<HTMLButtonElement>('[aria-label="Switch to dark mode"]'),
+      ).click();
+    });
+
+    expect(reloadedController.getSnapshot()).toMatchObject({
+      activeMode: "dark",
+      selectionControl: { selectedMode: "dark" },
+    });
+    expect(required(currentNestedHost).read(applicationThemeReference)?.activeMode).toBe("dark");
+    expect(remounted.container.querySelector('[aria-label="Switch to light mode"]')).not.toBeNull();
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(document.documentElement.dataset.formlessApplicationTheme).toBe("dark");
+    expect(document.documentElement.style.getPropertyValue("color-scheme")).toBe("dark");
+
+    const systemIntent = required(
+      reloadedController
+        .getSnapshot()
+        .selectionControl.options.find((option) => option.mode === "system"),
+    ).selectionIntent;
+    await act(async () => {
+      await required(currentNestedHost).dispatch(systemIntent);
+    });
+
+    expect(reloadedController.getSnapshot()).toMatchObject({
+      activeMode: "dark",
+      selectionControl: { selectedMode: "system" },
+    });
+
+    await act(async () => {
+      mediaQuery.setMatches(false);
+    });
+
+    expect(reloadedController.getSnapshot()).toMatchObject({
+      activeMode: "light",
+      selectionControl: { selectedMode: "system" },
+    });
+    expect(required(currentNestedHost).read(applicationThemeReference)?.activeMode).toBe("light");
+    expect(remounted.container.querySelector('[aria-label="Switch to dark mode"]')).not.toBeNull();
+    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(document.documentElement.dataset.formlessApplicationTheme).toBe("light");
+    expect(document.documentElement.style.getPropertyValue("color-scheme")).toBe("light");
+
+    remounted.unmount();
+    reloadedController.destroy();
+  });
+
   it("keeps one host while publishing theme changes and managing navigation lifecycle", async () => {
     const fixture = themeBrowserFixture("dark");
     const controller = createApplicationThemeController(fixture.browser);
@@ -168,6 +315,29 @@ function eventTargetFixture() {
   } as Pick<Document, "addEventListener" | "removeEventListener"> & {
     listenerCount(): number;
   };
+}
+
+function matchMediaFixture(initialMatches: boolean) {
+  const listeners = new Set<(event: MediaQueryListEvent) => void>();
+  let matches = initialMatches;
+
+  return {
+    addEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+      listeners.add(listener);
+    },
+    get matches() {
+      return matches;
+    },
+    removeEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+      listeners.delete(listener);
+    },
+    setMatches(nextMatches: boolean) {
+      matches = nextMatches;
+      for (const listener of listeners) {
+        listener({ matches } as MediaQueryListEvent);
+      }
+    },
+  } as MediaQueryList & { setMatches(nextMatches: boolean): void };
 }
 
 function required<Value>(value: Value | null | undefined): Value {

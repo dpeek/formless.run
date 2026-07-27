@@ -85,6 +85,7 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
     environments: {
       client: {
         build: {
+          cssMinify: "esbuild" as const,
           manifest: "assets/formless-client-manifest.json",
           rollupOptions: {
             input: {
