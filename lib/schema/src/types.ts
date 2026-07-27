@@ -1012,6 +1012,7 @@ export type SubscribeOperationHandlerConfigSchema = Record<string, never>;
 export type TransitionStateOperationHandlerConfigSchema = {
   machine: string;
   transition: string;
+  sideEffects?: TransitionSideEffectRecordPlanSchema;
 };
 
 export type OperationHandlerConfigSchemaByKind = {
@@ -1157,6 +1158,44 @@ export type RecordPlanStepSchema =
 export type RecordPlanEntityOperationEffectSchema = {
   type: "recordPlan";
   steps: RecordPlanStepSchema[];
+};
+
+export type TransitionTargetRecordIdExpressionSchema = {
+  kind: "targetRecordId";
+};
+
+export type TransitionTargetFieldExpressionSchema = {
+  kind: "targetField";
+  field: string;
+};
+
+export type TransitionSideEffectRecordIdExpressionSchema =
+  | RecordPlanRecordIdExpressionSchema
+  | TransitionTargetRecordIdExpressionSchema;
+
+export type TransitionSideEffectReferenceValueExpressionSchema = {
+  kind: "reference";
+  entity: string;
+  id: TransitionSideEffectRecordIdExpressionSchema;
+};
+
+export type TransitionSideEffectValueExpressionSchema =
+  | Exclude<RecordPlanValueExpressionSchema, RecordPlanReferenceValueExpressionSchema>
+  | TransitionTargetRecordIdExpressionSchema
+  | TransitionTargetFieldExpressionSchema
+  | TransitionSideEffectReferenceValueExpressionSchema;
+
+export type TransitionSideEffectCreateStepSchema = {
+  name: string;
+  kind: "create";
+  entity: string;
+  recordId?: TransitionSideEffectRecordIdExpressionSchema;
+  values: Record<string, TransitionSideEffectValueExpressionSchema>;
+};
+
+export type TransitionSideEffectRecordPlanSchema = {
+  type: "recordPlan";
+  steps: TransitionSideEffectCreateStepSchema[];
 };
 
 export type EntityOperationCommandEffectSchema =

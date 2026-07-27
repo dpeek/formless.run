@@ -1,0 +1,526 @@
+import { describe, expect, it } from "vite-plus/test";
+import { parseAppSchema, type AppSchema, type CollectionViewSchema } from "@dpeek/formless-schema";
+import type { StoredRecord } from "@dpeek/formless-storage";
+import { selectHomeResultModel } from "../../client/collection-result-model.ts";
+import {
+  createGeneratedOperationController,
+  type GeneratedOperationAuthoritySubmitter,
+} from "../../client/views.ts";
+import type {
+  OperationInvocationRequest,
+  OperationInvocationResponse,
+} from "../../shared/operation-invocation.ts";
+import type { ChangeRow } from "../../shared/protocol.ts";
+import {
+  executeGeneratedTableRuntimeOperation,
+  selectGeneratedWorkspaceTableFoundation,
+} from "./generated-table-foundation.tsx";
+import { selectGeneratedRecordResultFoundation } from "./generated-record-result-foundation.ts";
+import { executeTransitionStateOperation } from "./state-machine-operation-runtime.ts";
+
+describe("generated transition side-effect controls", () => {
+  it("keeps table-row and record-detail controls classified by transition and current state", () => {
+    const fixture = transitionControlFixture();
+    const projectionController = createGeneratedOperationController({ bindings: [] });
+    const table = selectGeneratedWorkspaceTableFoundation({
+      controller: projectionController,
+      entity: fixture.entity,
+      entityName: "intake",
+      id: "intakes:table",
+      query: fixture.query.expression,
+      queryName: "intakeAll",
+      recordIds: [fixture.pending.id, fixture.converted.id],
+      recordsById: fixture.recordsById,
+      result: fixture.tableResult,
+      schema: fixture.schema,
+    });
+    const rowTransitions = table.runtimePlan.operations.filter(
+      (operation) => operation.kind === "transition",
+    );
+
+    expect(
+      rowTransitions.map((runtime) => ({
+        availability: runtime.binding.availability,
+        bindingKind: runtime.binding.kind,
+        inputKind: runtime.binding.input.kind,
+        recordId: runtime.recordId,
+        runtimeKind: runtime.kind,
+      })),
+    ).toEqual([
+      {
+        availability: { state: "enabled" },
+        bindingKind: "stateTransition",
+        inputKind: "stateTransition",
+        recordId: "intake-pending",
+        runtimeKind: "transition",
+      },
+      {
+        availability: { state: "disabled", reason: "Requires Pending." },
+        bindingKind: "stateTransition",
+        inputKind: "stateTransition",
+        recordId: "intake-converted",
+        runtimeKind: "transition",
+      },
+    ]);
+    expect(
+      Object.fromEntries(
+        [...table.fieldsById.values()]
+          .filter((runtime) => runtime.fieldConfig.fieldName === "status")
+          .map((runtime) => {
+            const interaction = runtime.field.stateMachineFacts?.interaction;
+            return [
+              runtime.recordId,
+              interaction?.kind === "transitions"
+                ? interaction.transitions[0]?.availability
+                : undefined,
+            ];
+          }),
+      ),
+    ).toEqual({
+      "intake-converted": {
+        disabledReason: "Requires Pending.",
+        valid: false,
+      },
+      "intake-pending": { valid: true },
+    });
+    expect(rowTransitions[0]?.operation.operation.operation.effect).toMatchObject({
+      handler: "transition-state",
+      config: {
+        sideEffects: {
+          type: "recordPlan",
+          steps: [{ entity: "order", kind: "create", name: "createOrder" }],
+        },
+      },
+    });
+
+    const detail = selectGeneratedRecordResultFoundation({
+      entity: fixture.entity,
+      entityName: "intake",
+      id: "intakes:detail",
+      recordIds: [fixture.pending.id],
+      recordsById: fixture.recordsById,
+      result: fixture.detailResult,
+      schema: fixture.schema,
+    });
+    const detailTransition = detail.runtimePlan.operations.find(
+      (operation) => operation.kind === "transition",
+    );
+
+    expect(detailTransition).toMatchObject({
+      binding: {
+        availability: { state: "enabled" },
+        input: {
+          fieldName: "status",
+          kind: "stateTransition",
+          machineName: "conversion",
+          targetState: "converted",
+          transitionName: "convert",
+        },
+        kind: "stateTransition",
+      },
+      kind: "transition",
+      recordId: "intake-pending",
+    });
+    expect(detail.recordResult.actions.primary).toMatchObject([
+      {
+        control: {
+          trigger: { disabled: false },
+        },
+        kind: "operationAction",
+        role: "transition",
+      },
+    ]);
+    expect(detail.recordResult.actions.primary).toHaveLength(1);
+  });
+
+  it("returns side-effect create ids for committed row and replayed detail invocations", async () => {
+    const fixture = transitionControlFixture();
+    const projectionController = createGeneratedOperationController({ bindings: [] });
+    const table = selectGeneratedWorkspaceTableFoundation({
+      controller: projectionController,
+      entity: fixture.entity,
+      entityName: "intake",
+      id: "intakes:table",
+      query: fixture.query.expression,
+      queryName: "intakeAll",
+      recordIds: [fixture.pending.id],
+      recordsById: fixture.recordsById,
+      result: fixture.tableResult,
+      schema: fixture.schema,
+    });
+    const rowTransition = table.runtimePlan.operations.find(
+      (operation) => operation.kind === "transition",
+    );
+    const detail = selectGeneratedRecordResultFoundation({
+      entity: fixture.entity,
+      entityName: "intake",
+      id: "intakes:detail",
+      recordIds: [fixture.pending.id],
+      recordsById: fixture.recordsById,
+      result: fixture.detailResult,
+      schema: fixture.schema,
+    });
+    const detailTransition = detail.runtimePlan.operations.find(
+      (operation) => operation.kind === "transition",
+    );
+
+    if (rowTransition?.kind !== "transition" || detailTransition?.kind !== "transition") {
+      throw new Error("Missing generated transition controls.");
+    }
+
+    const output = transitionCommandOutput();
+    const rowSubmit = captureAuthoritySubmitter(operationResponse(output));
+    const rowController = createGeneratedOperationController({
+      bindings: [rowTransition.binding],
+      submitAuthorityOperation: rowSubmit.submit,
+      target: "tasks",
+    });
+
+    await expect(
+      executeGeneratedTableRuntimeOperation(rowTransition, rowController, "menuItem"),
+    ).resolves.toEqual({
+      affectedCount: 2,
+      createdRecordIds: ["order-1"],
+      output,
+      type: "committed",
+    });
+    expect(rowSubmit.calls).toEqual([
+      {
+        entityName: "intake",
+        operationName: "convert",
+        request: {
+          recordId: "intake-pending",
+          source: { protocol: "generated-ui", surface: "menuItem" },
+        },
+        target: "tasks",
+      },
+    ]);
+
+    const detailSubmit = captureAuthoritySubmitter(operationResponse(output, "replayed"));
+    const detailController = createGeneratedOperationController({
+      bindings: [detailTransition.binding],
+      submitAuthorityOperation: detailSubmit.submit,
+      target: "tasks",
+    });
+
+    await expect(
+      executeTransitionStateOperation({
+        binding: detailTransition.binding,
+        controller: detailController,
+        operation: detailTransition.operation,
+        recordId: detailTransition.recordId,
+        setStatus: () => {},
+        source: "button",
+      }),
+    ).resolves.toEqual({
+      affectedCount: 2,
+      createdRecordIds: ["order-1"],
+      output,
+      type: "replayed",
+    });
+    expect(detailSubmit.calls).toEqual([
+      {
+        entityName: "intake",
+        operationName: "convert",
+        request: {
+          recordId: "intake-pending",
+          source: { protocol: "generated-ui", surface: "button" },
+        },
+        target: "tasks",
+      },
+    ]);
+  });
+});
+
+function transitionControlFixture() {
+  const schema = transitionSideEffectSchema();
+  const entity = schema.entities.intake;
+  const query = schema.queries.intakeAll;
+  const tableResult = selectHomeResultModel(
+    schema,
+    requiredCollectionView(schema, "intakeTable"),
+    entity,
+  );
+  const detailResult = selectHomeResultModel(
+    schema,
+    requiredCollectionView(schema, "intakeDetail"),
+    entity,
+  );
+
+  if (tableResult.type !== "table" || detailResult.type !== "record") {
+    throw new Error("Missing generated transition test results.");
+  }
+
+  const pending = intakeRecord("intake-pending", "pending");
+  const converted = intakeRecord("intake-converted", "converted");
+
+  return {
+    converted,
+    detailResult,
+    entity,
+    pending,
+    query,
+    recordsById: {
+      [converted.id]: converted,
+      [pending.id]: pending,
+    },
+    schema,
+    tableResult,
+  };
+}
+
+function transitionSideEffectSchema() {
+  return parseAppSchema({
+    version: 1,
+    entities: {
+      intake: {
+        label: "Intake",
+        fields: {
+          title: { type: "text", required: true },
+          status: {
+            type: "enum",
+            required: true,
+            default: "pending",
+            values: {
+              pending: { label: "Pending" },
+              converted: { label: "Converted" },
+            },
+          },
+        },
+        stateMachines: {
+          conversion: {
+            field: "status",
+            initial: "pending",
+            terminal: ["converted"],
+            transitions: {
+              convert: {
+                label: "Convert",
+                from: ["pending"],
+                to: "converted",
+              },
+            },
+          },
+        },
+        operations: {
+          convert: {
+            label: "Convert",
+            kind: "command",
+            scope: "record",
+            effect: {
+              type: "operationHandler",
+              handler: "transition-state",
+              config: {
+                machine: "conversion",
+                transition: "convert",
+                sideEffects: {
+                  type: "recordPlan",
+                  steps: [
+                    {
+                      name: "createOrder",
+                      kind: "create",
+                      entity: "order",
+                      recordId: { kind: "generatedId", prefix: "order" },
+                      values: {
+                        intake: {
+                          kind: "reference",
+                          entity: "intake",
+                          id: { kind: "targetRecordId" },
+                        },
+                        title: { kind: "targetField", field: "title" },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+            output: { type: "command" },
+            idempotency: { required: true },
+            audit: { input: "summary" },
+            policy: { actors: ["owner"] },
+          },
+        },
+      },
+      order: {
+        label: "Order",
+        fields: {
+          intake: { type: "reference", required: true, to: "intake" },
+          title: { type: "text", required: true },
+        },
+      },
+    },
+    queries: {
+      intakeAll: {
+        label: "All intakes",
+        entity: "intake",
+        expression: { kind: "all" },
+      },
+    },
+    itemViews: {
+      intakeItem: {
+        entity: "intake",
+        fields: {
+          title: { editor: "text", commit: "field-commit" },
+          status: { editor: "enum", commit: "immediate" },
+        },
+      },
+    },
+    tableViews: {
+      intakeTable: {
+        entity: "intake",
+        columns: [
+          { type: "field", field: "title" },
+          { type: "field", field: "status" },
+        ],
+      },
+    },
+    views: {
+      intakeTable: {
+        type: "collection",
+        label: "Intakes",
+        entity: "intake",
+        queries: [{ query: "intakeAll" }],
+        defaultQuery: "intakeAll",
+        result: { type: "table", tableView: "intakeTable" },
+      },
+      intakeDetail: {
+        type: "collection",
+        label: "Intake",
+        entity: "intake",
+        queries: [{ query: "intakeAll" }],
+        defaultQuery: "intakeAll",
+        result: { type: "record", itemView: "intakeItem" },
+      },
+    },
+    screens: {
+      home: {
+        type: "workspace",
+        label: "Intakes",
+        navigation: { primary: true },
+        layout: {
+          type: "stack",
+          sections: [
+            { id: "intakes", type: "collection", view: "intakeTable" },
+            { id: "intake", type: "collection", view: "intakeDetail" },
+          ],
+        },
+      },
+    },
+  });
+}
+
+function requiredCollectionView(schema: AppSchema, viewName: string): CollectionViewSchema {
+  const view = schema.views[viewName];
+
+  if (view?.type !== "collection") {
+    throw new Error(`Missing collection view "${viewName}".`);
+  }
+
+  return view;
+}
+
+function intakeRecord(id: string, status: "pending" | "converted"): StoredRecord {
+  return {
+    id,
+    entity: "intake",
+    values: {
+      status,
+      title: `Intake ${id}`,
+    },
+    createdAt: "2026-07-27T00:00:00.000Z",
+    updatedAt: "2026-07-27T00:00:00.000Z",
+  };
+}
+
+function transitionCommandOutput(): Extract<
+  OperationInvocationResponse["output"],
+  { type: "command" }
+> {
+  const transitioned = intakeRecord("intake-pending", "converted");
+  const order: StoredRecord = {
+    id: "order-1",
+    entity: "order",
+    values: {
+      intake: "intake-pending",
+      title: "Intake intake-pending",
+    },
+    createdAt: "2026-07-27T00:00:01.000Z",
+    updatedAt: "2026-07-27T00:00:01.000Z",
+  };
+
+  return {
+    type: "command",
+    affectedChangeIds: ["write-transition", "write-order"],
+    changes: [
+      change(1, transitioned, "update", "write-transition"),
+      change(2, order, "create", "write-order"),
+    ],
+    cursor: 2,
+    recordPlan: {
+      steps: [
+        {
+          name: "createOrder",
+          kind: "create",
+          entity: "order",
+          recordId: "order-1",
+          changeId: "write-order",
+        },
+      ],
+    },
+  };
+}
+
+function change(
+  seq: number,
+  record: StoredRecord,
+  operationKind: ChangeRow["operationKind"],
+  writeId: string,
+): ChangeRow {
+  return {
+    seq,
+    writeId,
+    operationKind,
+    entity: record.entity,
+    recordId: record.id,
+    payload: record,
+    createdAt: "2026-07-27T00:00:01.000Z",
+  };
+}
+
+type AuthoritySubmitCall = {
+  entityName: string;
+  operationName: string;
+  request: OperationInvocationRequest;
+  target: string;
+};
+
+function captureAuthoritySubmitter(response: OperationInvocationResponse): {
+  calls: AuthoritySubmitCall[];
+  submit: GeneratedOperationAuthoritySubmitter;
+} {
+  const calls: AuthoritySubmitCall[] = [];
+
+  return {
+    calls,
+    submit: async (target, entityName, operationName, request) => {
+      calls.push({
+        entityName,
+        operationName,
+        request,
+        target: typeof target === "string" ? target : target.browserDatabaseName,
+      });
+
+      return response;
+    },
+  };
+}
+
+function operationResponse(
+  output: OperationInvocationResponse["output"],
+  status: OperationInvocationResponse["status"] = "committed",
+): OperationInvocationResponse {
+  return {
+    invocation: {} as OperationInvocationResponse["invocation"],
+    output,
+    status,
+  };
+}

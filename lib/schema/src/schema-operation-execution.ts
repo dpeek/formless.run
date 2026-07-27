@@ -22,7 +22,13 @@ import type {
   OperationHandlerKindBySelectionCapability,
   OperationHandlerSelectionCapability,
   RelationshipSchema,
+  TransitionSideEffectRecordPlanSchema,
 } from "./types.ts";
+
+export type TransitionSideEffectParser = (
+  context: string,
+  value: unknown,
+) => TransitionSideEffectRecordPlanSchema;
 
 export const operationHandlerKinds = [
   "clear-completed",
@@ -228,6 +234,7 @@ export function parseOperationHandlerEffect(
   entity: EntitySchema,
   queries: Record<string, CollectionQuerySchema>,
   relationships: Record<string, RelationshipSchema> | undefined,
+  parseTransitionSideEffects: TransitionSideEffectParser,
 ): OperationHandlerEntityOperationEffectSchema {
   assertExactKeys(context, value, ["type", "handler", "config"]);
 
@@ -241,6 +248,7 @@ export function parseOperationHandlerEffect(
     entity,
     queries,
     relationships,
+    parseTransitionSideEffects,
   );
 
   return {
@@ -267,6 +275,7 @@ function parseOperationHandlerConfig<Kind extends OperationHandlerKind>(
   entity: EntitySchema,
   queries: Record<string, CollectionQuerySchema>,
   relationships: Record<string, RelationshipSchema> | undefined,
+  parseTransitionSideEffects: TransitionSideEffectParser,
 ): OperationHandlerConfigSchemaByKind[Kind] {
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
@@ -335,11 +344,12 @@ function parseOperationHandlerConfig<Kind extends OperationHandlerKind>(
     return {} as OperationHandlerConfigSchemaByKind[Kind];
   }
 
-  assertExactKeys(context, value, ["machine", "transition"]);
+  assertExactKeys(context, value, ["machine", "transition"], ["sideEffects"]);
   return parseTransitionStateHandlerConfig(
     context,
     value,
     entity,
+    parseTransitionSideEffects,
   ) as OperationHandlerConfigSchemaByKind[Kind];
 }
 
@@ -429,6 +439,7 @@ function parseTransitionStateHandlerConfig(
   context: string,
   value: Record<string, unknown>,
   entity: EntitySchema,
+  parseTransitionSideEffects: TransitionSideEffectParser,
 ): OperationHandlerConfigSchemaByKind["transition-state"] {
   const machineName = parseRequiredNonEmptyString(`${context} machine`, value.machine);
   const transitionName = parseRequiredNonEmptyString(`${context} transition`, value.transition);
@@ -442,7 +453,16 @@ function parseTransitionStateHandlerConfig(
     throw new Error(`${context} references unknown transition "${machineName}.${transitionName}".`);
   }
 
-  return { machine: machineName, transition: transitionName };
+  const sideEffects =
+    value.sideEffects === undefined
+      ? undefined
+      : parseTransitionSideEffects(`${context} sideEffects`, value.sideEffects);
+
+  return {
+    machine: machineName,
+    transition: transitionName,
+    ...(sideEffects === undefined ? {} : { sideEffects }),
+  };
 }
 
 function parseOptionalHandlerQueryReference(

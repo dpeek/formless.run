@@ -6,6 +6,10 @@ import {
   type RecordPlanRecordIdExpressionSchema,
   type RecordPlanStepSchema,
   type RecordPlanValueExpressionSchema,
+  type TransitionSideEffectCreateStepSchema,
+  type TransitionSideEffectRecordIdExpressionSchema,
+  type TransitionSideEffectRecordPlanSchema,
+  type TransitionSideEffectValueExpressionSchema,
 } from "@dpeek/formless-schema";
 import type { FieldValue, RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import type { AppPackageResolver } from "../shared/app-packages.ts";
@@ -32,10 +36,31 @@ import { getStoredRecord, type OperationRecordWritePlan } from "./storage.ts";
 
 export type RecordPlanInputValues = Partial<Record<string, FieldValue>>;
 
-export type RecordPlanStepMaterialization = Pick<
-  RecordPlanStepSchema,
-  "name" | "kind" | "entity"
-> & {
+type MaterializableRecordPlanEffectSchema =
+  | RecordPlanEntityOperationEffectSchema
+  | TransitionSideEffectRecordPlanSchema;
+
+type MaterializableRecordPlanStepSchema =
+  | RecordPlanStepSchema
+  | TransitionSideEffectCreateStepSchema;
+
+type MaterializableRecordPlanRecordIdExpressionSchema =
+  | RecordPlanRecordIdExpressionSchema
+  | TransitionSideEffectRecordIdExpressionSchema;
+
+type MaterializableRecordPlanValueExpressionSchema =
+  | RecordPlanValueExpressionSchema
+  | TransitionSideEffectValueExpressionSchema;
+
+type MaterializableRecordPlanValuedStepSchema = Extract<
+  MaterializableRecordPlanStepSchema,
+  { kind: "create" | "patch" }
+>;
+
+export type RecordPlanStepMaterialization = {
+  name: string;
+  kind: MaterializableRecordPlanStepSchema["kind"];
+  entity: string;
   recordId: string;
 };
 
@@ -45,7 +70,7 @@ export type RecordPlanMaterialization = {
 };
 
 export type RecordPlanMaterializerInput = {
-  effect: RecordPlanEntityOperationEffectSchema;
+  effect: MaterializableRecordPlanEffectSchema;
   envelope: OperationInvocationEnvelope;
   identityReferenceResolver?: IdentityReferenceTargetResolver;
   inputValues: RecordPlanInputValues;
@@ -54,6 +79,7 @@ export type RecordPlanMaterializerInput = {
   plannedRecords?: Iterable<StoredRecord>;
   schema: AppSchema;
   storage: DurableObjectStorage;
+  targetRecord?: StoredRecord;
 };
 
 type RecordPlanPlanningState = {
@@ -65,6 +91,7 @@ type RecordPlanPlanningState = {
   schema: AppSchema;
   stepOutputs: Map<string, StoredRecord>;
   storage: DurableObjectStorage;
+  targetRecord?: StoredRecord;
 };
 
 type RecordPlanStepPlan = {
@@ -112,6 +139,7 @@ export function materializeRecordPlan(
     schema: input.schema,
     stepOutputs: new Map(),
     storage: input.storage,
+    targetRecord: immutableStoredRecordSnapshot(input.targetRecord),
   };
   const steps: RecordPlanStepMaterialization[] = [];
   const plans: OperationRecordWritePlan[] = [];
@@ -137,6 +165,7 @@ export async function materializeRecordPlanAsync(
     schema: input.schema,
     stepOutputs: new Map(),
     storage: input.storage,
+    targetRecord: immutableStoredRecordSnapshot(input.targetRecord),
   };
   const steps: RecordPlanStepMaterialization[] = [];
   const plans: OperationRecordWritePlan[] = [];
@@ -155,8 +184,11 @@ export async function materializeRecordPlanAsync(
 export function recordPlanOperationOutput(
   output: OperationCommandOutput,
   materialization: Pick<RecordPlanMaterialization, "steps">,
+  options: { changeOffset?: number } = {},
 ): OperationCommandOutput {
-  if (output.changes.length !== materialization.steps.length) {
+  const changeOffset = options.changeOffset ?? 0;
+
+  if (output.changes.length !== changeOffset + materialization.steps.length) {
     throw new Error("Record plan output change count does not match step count.");
   }
 
@@ -164,7 +196,7 @@ export function recordPlanOperationOutput(
     ...output,
     recordPlan: {
       steps: materialization.steps.map((step, index) => {
-        const change = output.changes[index];
+        const change = output.changes[changeOffset + index];
 
         if (!change) {
           throw new Error(`Record plan step "${step.name}" has no committed change.`);
@@ -182,6 +214,17 @@ export function recordPlanOperationOutput(
   };
 }
 
+function immutableStoredRecordSnapshot(record: StoredRecord | undefined): StoredRecord | undefined {
+  if (record === undefined) {
+    return undefined;
+  }
+
+  return Object.freeze({
+    ...record,
+    values: Object.freeze({ ...record.values }),
+  }) as StoredRecord;
+}
+
 function initialRecordPlanRecords(records: Iterable<StoredRecord> | undefined) {
   const recordsById = new Map<string, StoredRecord>();
 
@@ -193,7 +236,7 @@ function initialRecordPlanRecords(records: Iterable<StoredRecord> | undefined) {
 }
 
 function recordPlanWritePlanForStep(
-  step: RecordPlanStepSchema,
+  step: MaterializableRecordPlanStepSchema,
   state: RecordPlanPlanningState,
 ): RecordPlanStepPlan {
   if (step.kind === "create") {
@@ -307,7 +350,7 @@ function recordPlanWritePlanForStep(
 }
 
 async function recordPlanWritePlanForStepAsync(
-  step: RecordPlanStepSchema,
+  step: MaterializableRecordPlanStepSchema,
   state: RecordPlanPlanningState,
   options: { identityReferenceResolver?: IdentityReferenceTargetResolver },
 ): Promise<RecordPlanStepPlan> {
@@ -429,7 +472,7 @@ async function recordPlanWritePlanForStepAsync(
 }
 
 function validateRecordPlanStepWrite(
-  step: RecordPlanStepSchema,
+  step: MaterializableRecordPlanStepSchema,
   state: RecordPlanPlanningState,
   recordWrite: CreateRecordWriteRequest | PatchRecordWriteRequest | DeleteRecordWriteRequest,
 ) {
@@ -456,7 +499,7 @@ function validateRecordPlanStepWrite(
 }
 
 function validateRecordPlanStepWriteWithGeneratedCodeRetries(
-  step: Extract<RecordPlanStepSchema, { values: Record<string, RecordPlanValueExpressionSchema> }>,
+  step: MaterializableRecordPlanValuedStepSchema,
   state: RecordPlanPlanningState,
   recordWriteForValues: (
     values: RecordValues,
@@ -486,7 +529,7 @@ function validateRecordPlanStepWriteWithGeneratedCodeRetries(
 }
 
 async function validateRecordPlanStepWriteAsync(
-  step: RecordPlanStepSchema,
+  step: MaterializableRecordPlanStepSchema,
   state: RecordPlanPlanningState,
   recordWrite: CreateRecordWriteRequest | PatchRecordWriteRequest | DeleteRecordWriteRequest,
   options: { identityReferenceResolver?: IdentityReferenceTargetResolver },
@@ -548,7 +591,7 @@ function assertRecordPlanStepUniqueConstraints(
 }
 
 async function validateRecordPlanStepWriteWithGeneratedCodeRetriesAsync(
-  step: Extract<RecordPlanStepSchema, { values: Record<string, RecordPlanValueExpressionSchema> }>,
+  step: MaterializableRecordPlanValuedStepSchema,
   state: RecordPlanPlanningState,
   recordWriteForValues: (
     values: RecordValues,
@@ -580,7 +623,7 @@ async function validateRecordPlanStepWriteWithGeneratedCodeRetriesAsync(
 }
 
 function recordPlanGeneratedCodeFields(
-  values: Record<string, RecordPlanValueExpressionSchema>,
+  values: Record<string, MaterializableRecordPlanValueExpressionSchema>,
 ): Set<string> {
   return new Set(
     Object.entries(values)
@@ -591,7 +634,7 @@ function recordPlanGeneratedCodeFields(
 
 function shouldRetryGeneratedCodeCollision(
   error: unknown,
-  step: Pick<RecordPlanStepSchema, "entity">,
+  step: Pick<MaterializableRecordPlanStepSchema, "entity">,
   state: RecordPlanPlanningState,
   generatedCodeFields: ReadonlySet<string>,
 ): boolean {
@@ -623,7 +666,7 @@ function uniqueConstraintViolationName(message: string, entityName: string): str
 }
 
 function generatedCodeCollisionExhaustedError(
-  step: Pick<RecordPlanStepSchema, "name">,
+  step: Pick<MaterializableRecordPlanStepSchema, "name">,
   lastError: unknown,
 ) {
   if (lastError instanceof Error) {
@@ -638,7 +681,7 @@ function generatedCodeCollisionExhaustedError(
 }
 
 function evaluateRecordPlanValues(
-  values: Record<string, RecordPlanValueExpressionSchema>,
+  values: Record<string, MaterializableRecordPlanValueExpressionSchema>,
   state: RecordPlanPlanningState,
 ): RecordValues {
   const evaluated: RecordValues = {};
@@ -655,7 +698,7 @@ function evaluateRecordPlanValues(
 }
 
 function evaluateRecordPlanValueExpression(
-  expression: RecordPlanValueExpressionSchema,
+  expression: MaterializableRecordPlanValueExpressionSchema,
   state: RecordPlanPlanningState,
 ): { kind: "omit" } | { kind: "set"; value: FieldValue } {
   if (expression.kind === "reference") {
@@ -684,6 +727,18 @@ function evaluateRecordPlanValueExpression(
 
   if (expression.kind === "generatedTimestamp") {
     return { kind: "set", value: state.envelope.receivedAt };
+  }
+
+  if (expression.kind === "targetRecordId") {
+    return { kind: "set", value: requireRecordPlanTargetSnapshot(state).id };
+  }
+
+  if (expression.kind === "targetField") {
+    const targetRecord = requireRecordPlanTargetSnapshot(state);
+
+    return Object.hasOwn(targetRecord.values, expression.field)
+      ? { kind: "set", value: targetRecord.values[expression.field] }
+      : { kind: "omit" };
   }
 
   if (expression.kind === "actor") {
@@ -727,7 +782,7 @@ function evaluateRecordPlanSourceExpression(
 }
 
 function evaluateRecordPlanRecordIdExpression(
-  expression: RecordPlanRecordIdExpressionSchema,
+  expression: MaterializableRecordPlanRecordIdExpressionSchema,
   state: RecordPlanPlanningState,
 ): string {
   const value = evaluateRecordPlanOptionalRecordIdExpression(expression, state);
@@ -740,7 +795,7 @@ function evaluateRecordPlanRecordIdExpression(
 }
 
 function evaluateRecordPlanOptionalRecordIdExpression(
-  expression: RecordPlanRecordIdExpressionSchema,
+  expression: MaterializableRecordPlanRecordIdExpressionSchema,
   state: RecordPlanPlanningState,
 ): string | undefined {
   if (expression.kind === "input") {
@@ -771,7 +826,19 @@ function evaluateRecordPlanOptionalRecordIdExpression(
     return createRecordPlanGeneratedId(expression.prefix);
   }
 
+  if (expression.kind === "targetRecordId") {
+    return requireRecordPlanTargetSnapshot(state).id;
+  }
+
   return requireRecordPlanStepOutput(expression.step, state).id;
+}
+
+function requireRecordPlanTargetSnapshot(state: RecordPlanPlanningState): StoredRecord {
+  if (state.targetRecord === undefined) {
+    throw new BadRequestError("Record plan target expression requires a stored target snapshot.");
+  }
+
+  return state.targetRecord;
 }
 
 function createRecordPlanGeneratedId(prefix: string | undefined) {
@@ -828,7 +895,7 @@ function randomGeneratedCodeSegment(length: number, alphabet: string) {
 }
 
 function assertRecordPlanCreateIdAvailable(
-  step: RecordPlanStepSchema,
+  step: MaterializableRecordPlanStepSchema,
   recordId: string,
   state: RecordPlanPlanningState,
 ) {
@@ -840,7 +907,7 @@ function assertRecordPlanCreateIdAvailable(
 }
 
 function requireRecordPlanTargetRecord(
-  step: RecordPlanStepSchema,
+  step: MaterializableRecordPlanStepSchema,
   recordId: string,
   state: RecordPlanPlanningState,
 ): StoredRecord {
@@ -891,7 +958,7 @@ function requireRecordPlanStepOutput(
 }
 
 function recordPlanRecordWritten(
-  step: RecordPlanStepSchema,
+  step: MaterializableRecordPlanStepSchema,
   record: StoredRecord,
   state: RecordPlanPlanningState,
 ) {
@@ -900,7 +967,7 @@ function recordPlanRecordWritten(
 }
 
 function recordPlanStepMaterialization(
-  step: RecordPlanStepSchema,
+  step: MaterializableRecordPlanStepSchema,
   recordId: string,
 ): RecordPlanStepMaterialization {
   return {

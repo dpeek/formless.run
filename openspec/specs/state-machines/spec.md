@@ -56,6 +56,21 @@ operations instead of generic status patches.
 - AND the write commits through normal operation idempotency and write-log behavior
 - AND the operation response includes the committed record change
 
+#### Scenario: Execute transition with record creates
+
+- GIVEN a record-scoped transition operation declares a create-only side-effect
+  record plan
+- WHEN an authorized caller invokes the transition for an active record in an
+  accepted current state
+- THEN Authority evaluates target-record expressions from the stored
+  pre-transition record
+- AND the transition patch, optional transition event, and declared record
+  creates commit as one operation outcome
+- AND failure of transition, field, reference, unique constraint, generated
+  value, or record validation commits none of those writes
+- AND the operation response identifies records created by declared
+  side-effect steps
+
 #### Scenario: Recover undeclared state to initial
 
 - GIVEN an active record has a non-empty current state string that is not
@@ -72,7 +87,8 @@ operations instead of generic status patches.
   selected transition
 - WHEN a caller invokes the transition operation
 - THEN the request is rejected before commit
-- AND no record changes, transition events, or command replay rows are written
+- AND no record changes, transition events, side-effect records, or command
+  replay rows are written
 
 ### Requirement: Protected Machine Fields
 

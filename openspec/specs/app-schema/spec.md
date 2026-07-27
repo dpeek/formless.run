@@ -954,6 +954,31 @@ fields without adding nested stored workflow state.
 - AND anonymous public access is rejected unless a later transition operation
   policy explicitly supports it
 
+#### Scenario: Parse transition side-effect creates
+
+- GIVEN a record-scoped transition-state operation needs to create related
+  records when the transition commits
+- WHEN the handler config declares `sideEffects` with type `recordPlan`
+- THEN the side-effect plan contains a non-empty ordered list of named create
+  steps
+- AND each step creates one flat record in a declared entity from the same app
+  schema
+- AND create values may use the existing record-plan input, literal, generated
+  id, generated code, generated timestamp, actor, source, reference, and earlier
+  step-output expressions
+- AND `targetRecordId` resolves to the invocation target record id
+- AND `targetField` resolves a declared field from the stored pre-transition
+  target record
+- AND an absent optional target field omits the destination value
+- AND target-field source and destination field types, text formats, enum value
+  coverage, requiredness, and reference targets are validated from schema facts
+- AND target expressions are rejected in ordinary record plans and outside a
+  transition side-effect plan
+- AND side-effect patch, delete, tombstone, transition, query fan-out, loop,
+  arbitrary code, provider call, and cross-app write steps are rejected
+- AND side effects do not change operation actor policy, idempotency, audit, or
+  anonymous public eligibility
+
 #### Scenario: Preserve flat lifecycle records
 
 - GIVEN a record belongs to an entity with a state machine

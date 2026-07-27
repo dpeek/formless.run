@@ -21,6 +21,7 @@ import type {
   EntitySchema,
   EntityOperationSchema,
   RecordPlanStepSchema,
+  TransitionSideEffectCreateStepSchema,
 } from "@dpeek/formless-schema";
 import type { StoredOperationInvocation } from "./storage.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
@@ -33,6 +34,10 @@ type ExecuteOperationInput = {
   actorKind?: "admin" | "cliDeployer" | "owner" | "runner";
   appKey?: SchemaKey;
   body?: unknown;
+  beforeWriteRecordValues?: {
+    recordId: string;
+    values: Record<string, unknown>;
+  };
   headers?: Record<string, string>;
   identity?: OperationInvocationEnvelope["appStorageIdentity"];
   method: string;
@@ -1549,6 +1554,437 @@ describe("authority operation execution", () => {
     });
   });
 
+  it("atomically commits transition side-effect creates and replays their record metadata", async () => {
+    const bootstrap = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const schema = schemaWithTransitionSideEffects(bootstrap.body.result.body.schema);
+
+    await executeOperation({
+      method: "POST",
+      path: "/schema",
+      body: { schema },
+    });
+    const created = await createTaskForTransition("side-effect-success", {
+      title: "Accepted intake",
+      done: false,
+    });
+    const createdOutput = created.body.result.body.output;
+
+    if (createdOutput.type !== "create") {
+      throw new Error("Expected create operation output.");
+    }
+
+    const baseline = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const body = {
+      idempotencyKey: "transition-side-effect-success",
+      recordId: createdOutput.record.id,
+      input: { note: "Reviewed by staff" },
+      source: {
+        protocol: "generated-ui",
+        surface: "taskDetail",
+      },
+    };
+    const committed = await executeOperation<OperationInvocationResponse>({
+      method: "POST",
+      path: "/operations/task/startTask",
+      body,
+    });
+    const replayed = await executeOperation<OperationInvocationResponse>({
+      method: "POST",
+      path: "/operations/task/startTask",
+      body,
+    });
+    const output = committed.body.result.body.output;
+    const sync = await executeOperation<SyncResponse>({
+      method: "GET",
+      path: "/sync",
+      search: `after=${baseline.body.result.body.cursor}&schemaUpdatedAt=${encodeURIComponent(baseline.body.result.body.schemaUpdatedAt)}`,
+    });
+
+    if (output.type !== "command") {
+      throw new Error("Expected command operation output.");
+    }
+
+    const orderChange = output.changes[2];
+    const receiptChange = output.changes[3];
+
+    expect(committed.body.writes.map((write) => write.kind)).toEqual(["committed"]);
+    expect(output.changes.map((change) => change.entity)).toEqual([
+      "task",
+      "task-event",
+      "order",
+      "order-receipt",
+    ]);
+    expect(sync.body.result.body.changes).toEqual(output.changes);
+    expect(orderChange?.payload).toMatchObject({
+      entity: "order",
+      values: {
+        task: createdOutput.record.id,
+        sourceTaskId: createdOutput.record.id,
+        title: "Accepted intake",
+        note: "Reviewed by staff",
+        actorMode: "owner",
+        sourcePath: "/operations/task/startTask",
+        code: expect.stringMatching(/^ORD-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/),
+        occurredAt: committed.body.result.body.invocation.receivedAt,
+      },
+    });
+    expect(orderChange?.payload.values).not.toHaveProperty("details");
+    expect(orderChange?.payload.values).not.toHaveProperty("actorPrincipalId");
+    expect(receiptChange?.payload).toMatchObject({
+      entity: "order-receipt",
+      values: {
+        order: orderChange?.recordId,
+        label: "Accepted intake",
+      },
+    });
+    expect(output.recordPlan?.steps).toEqual([
+      {
+        name: "createOrder",
+        kind: "create",
+        entity: "order",
+        recordId: orderChange?.recordId,
+        changeId: String(orderChange?.seq),
+      },
+      {
+        name: "createReceipt",
+        kind: "create",
+        entity: "order-receipt",
+        recordId: receiptChange?.recordId,
+        changeId: String(receiptChange?.seq),
+      },
+    ]);
+    expect(replayed.body.writes.map((write) => write.kind)).toEqual(["replay"]);
+    expect(replayed.body.result.body.status).toBe("replayed");
+    expect(replayed.body.result.body.output).toEqual(output);
+
+    const transitionRow = (await readOperationInvocations()).find(
+      (row) => row.operationKey === "task.startTask",
+    );
+    expect(transitionRow).toMatchObject({
+      affectedChangeIds: output.affectedChangeIds,
+      output,
+      status: "replayed",
+    });
+    expect(transitionRow?.statusHistory.map((entry) => entry.status)).toEqual([
+      "accepted",
+      "committed",
+      "replayed",
+    ]);
+  });
+
+  it("rolls back transition, event, and side effects when side-effect validation fails", async () => {
+    const bootstrap = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const schema = schemaWithTransitionSideEffects(
+      bootstrap.body.result.body.schema,
+      invalidReferenceTransitionSideEffects(),
+    );
+
+    await executeOperation({
+      method: "POST",
+      path: "/schema",
+      body: { schema },
+    });
+    const created = await createTaskForTransition("side-effect-reference-failure", {
+      title: "Rejected intake",
+      done: false,
+    });
+    const createdOutput = created.body.result.body.output;
+
+    if (createdOutput.type !== "create") {
+      throw new Error("Expected create operation output.");
+    }
+
+    const baseline = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const failed = await executeOperationFailure({
+      method: "POST",
+      path: "/operations/task/startTask",
+      body: {
+        idempotencyKey: "transition-side-effect-reference-failure",
+        recordId: createdOutput.record.id,
+      },
+    });
+    const after = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const sync = await executeOperation<SyncResponse>({
+      method: "GET",
+      path: "/sync",
+      search: `after=${baseline.body.result.body.cursor}&schemaUpdatedAt=${encodeURIComponent(baseline.body.result.body.schemaUpdatedAt)}`,
+    });
+
+    expect(failed.response.status).toBe(400);
+    expect(failed.body.error).toBe('Field "task" references unknown task record "missing-task".');
+    expect(failed.body.writes).toEqual([]);
+    expect(sync.body.result.body.changes).toEqual([]);
+    expect(
+      after.body.result.body.records.find((record) => record.id === createdOutput.record.id)
+        ?.values,
+    ).toMatchObject({ status: "todo" });
+    expect(
+      after.body.result.body.records.filter((record) =>
+        ["task-event", "order", "order-receipt"].includes(record.entity),
+      ),
+    ).toEqual([]);
+  });
+
+  it("rejects missing, tombstoned, invalid-state, and stale transition targets without side effects", async () => {
+    const bootstrap = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const schema = schemaWithTransitionSideEffects(bootstrap.body.result.body.schema);
+
+    await executeOperation({
+      method: "POST",
+      path: "/schema",
+      body: { schema },
+    });
+
+    const missing = await executeOperationFailure({
+      method: "POST",
+      path: "/operations/task/startTask",
+      body: {
+        idempotencyKey: "transition-side-effect-missing",
+        recordId: "missing-task",
+      },
+    });
+    const tombstoned = await createTaskForTransition("side-effect-tombstoned", {
+      title: "Tombstoned intake",
+      done: false,
+    });
+    const tombstonedOutput = tombstoned.body.result.body.output;
+
+    if (tombstonedOutput.type !== "create") {
+      throw new Error("Expected create operation output.");
+    }
+
+    await executeOperation({
+      method: "POST",
+      path: "/operations/task/delete",
+      body: {
+        idempotencyKey: "delete-side-effect-tombstoned",
+        recordId: tombstonedOutput.record.id,
+      },
+    });
+    const tombstoneFailure = await executeOperationFailure({
+      method: "POST",
+      path: "/operations/task/startTask",
+      body: {
+        idempotencyKey: "transition-side-effect-tombstoned",
+        recordId: tombstonedOutput.record.id,
+      },
+    });
+    const transitioned = await createTaskForTransition("side-effect-invalid-state", {
+      title: "Already transitioned",
+      done: false,
+    });
+    const transitionedOutput = transitioned.body.result.body.output;
+
+    if (transitionedOutput.type !== "create") {
+      throw new Error("Expected create operation output.");
+    }
+
+    await executeOperation({
+      method: "POST",
+      path: "/operations/task/startTask",
+      body: {
+        idempotencyKey: "transition-side-effect-first-transition",
+        recordId: transitionedOutput.record.id,
+      },
+    });
+    const invalidBaseline = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const invalidState = await executeOperationFailure({
+      method: "POST",
+      path: "/operations/task/startTask",
+      body: {
+        idempotencyKey: "transition-side-effect-invalid-state",
+        recordId: transitionedOutput.record.id,
+      },
+    });
+    const invalidSync = await executeOperation<SyncResponse>({
+      method: "GET",
+      path: "/sync",
+      search: `after=${invalidBaseline.body.result.body.cursor}&schemaUpdatedAt=${encodeURIComponent(invalidBaseline.body.result.body.schemaUpdatedAt)}`,
+    });
+    const stale = await createTaskForTransition("side-effect-stale", {
+      title: "Stale intake",
+      done: false,
+    });
+    const staleOutput = stale.body.result.body.output;
+
+    if (staleOutput.type !== "create") {
+      throw new Error("Expected create operation output.");
+    }
+
+    const staleBaseline = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const staleFailure = await executeOperationFailure({
+      method: "POST",
+      path: "/operations/task/startTask",
+      beforeWriteRecordValues: {
+        recordId: staleOutput.record.id,
+        values: {
+          ...staleOutput.record.values,
+          status: "doing",
+        },
+      },
+      body: {
+        idempotencyKey: "transition-side-effect-stale",
+        recordId: staleOutput.record.id,
+      },
+    });
+    const staleSync = await executeOperation<SyncResponse>({
+      method: "GET",
+      path: "/sync",
+      search: `after=${staleBaseline.body.result.body.cursor}&schemaUpdatedAt=${encodeURIComponent(staleBaseline.body.result.body.schemaUpdatedAt)}`,
+    });
+
+    expect(missing.body.error).toContain('references unknown task record "missing-task"');
+    expect(tombstoneFailure.body.error).toContain("cannot transition tombstoned task record");
+    expect(invalidState.body.error).toContain("cannot transition record");
+    expect(invalidSync.body.result.body.changes).toEqual([]);
+    expect(staleFailure.body.error).toContain("changed before commit");
+    expect(staleFailure.body.writes).toEqual([]);
+    expect(staleSync.body.result.body.changes).toEqual([]);
+  });
+
+  it("keeps a unique target reference as an independent transition duplicate guard", async () => {
+    const bootstrap = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const schema = schemaWithTransitionSideEffects(bootstrap.body.result.body.schema);
+
+    await executeOperation({
+      method: "POST",
+      path: "/schema",
+      body: { schema },
+    });
+    const created = await createTaskForTransition("side-effect-duplicate-target", {
+      title: "Duplicate intake",
+      done: false,
+    });
+    const createdOutput = created.body.result.body.output;
+
+    if (createdOutput.type !== "create") {
+      throw new Error("Expected create operation output.");
+    }
+
+    await createOrderForTransition("existing-order", {
+      task: createdOutput.record.id,
+      sourceTaskId: createdOutput.record.id,
+      title: "Existing order",
+      code: "EXISTING",
+      actorMode: "owner",
+      occurredAt: "2026-07-27T00:00:00.000Z",
+    });
+    const baseline = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const failed = await executeOperationFailure({
+      method: "POST",
+      path: "/operations/task/startTask",
+      body: {
+        idempotencyKey: "transition-side-effect-duplicate-target",
+        recordId: createdOutput.record.id,
+      },
+    });
+    const sync = await executeOperation<SyncResponse>({
+      method: "GET",
+      path: "/sync",
+      search: `after=${baseline.body.result.body.cursor}&schemaUpdatedAt=${encodeURIComponent(baseline.body.result.body.schemaUpdatedAt)}`,
+    });
+
+    expect(failed.body.error).toBe('Unique constraint "order.uniqueTask" would be violated.');
+    expect(failed.body.writes).toEqual([]);
+    expect(sync.body.result.body.changes).toEqual([]);
+  });
+
+  it("exhausts bounded generated-code retries before committing the transition", async () => {
+    const bootstrap = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const schema = schemaWithTransitionSideEffects(
+      bootstrap.body.result.body.schema,
+      generatedDigitCodeTransitionSideEffects(),
+      {
+        orderConstraints: {
+          uniqueCode: { kind: "unique", fields: ["code"] },
+        },
+      },
+    );
+
+    await executeOperation({
+      method: "POST",
+      path: "/schema",
+      body: { schema },
+    });
+    const target = await createTaskForTransition("side-effect-code-target", {
+      title: "Code collision intake",
+      done: false,
+    });
+    const targetOutput = target.body.result.body.output;
+
+    if (targetOutput.type !== "create") {
+      throw new Error("Expected create operation output.");
+    }
+
+    for (let code = 0; code < 10; code += 1) {
+      await createOrderForTransition(`code-${code}`, {
+        task: targetOutput.record.id,
+        sourceTaskId: targetOutput.record.id,
+        title: `Existing code ${code}`,
+        code: String(code),
+        actorMode: "owner",
+        occurredAt: "2026-07-27T00:00:00.000Z",
+      });
+    }
+
+    const baseline = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const failed = await executeOperationFailure({
+      method: "POST",
+      path: "/operations/task/startTask",
+      body: {
+        idempotencyKey: "transition-side-effect-code-exhaustion",
+        recordId: targetOutput.record.id,
+      },
+    });
+    const sync = await executeOperation<SyncResponse>({
+      method: "GET",
+      path: "/sync",
+      search: `after=${baseline.body.result.body.cursor}&schemaUpdatedAt=${encodeURIComponent(baseline.body.result.body.schemaUpdatedAt)}`,
+    });
+
+    expect(failed.body.error).toBe(
+      'Record plan step "createOrder" generated code collided after 32 attempts: Unique constraint "order.uniqueCode" would be violated.',
+    );
+    expect(failed.body.writes).toEqual([]);
+    expect(sync.body.result.body.changes).toEqual([]);
+  });
+
   it("rejects invalid operation handler input shape before command materialization", async () => {
     const bootstrap = await executeOperation<BootstrapResponse>({
       method: "GET",
@@ -2458,6 +2894,242 @@ function schemaWithTransitionCommandOperation(sourceSchema: AppSchema): AppSchem
   return schema;
 }
 
+function schemaWithTransitionSideEffects(
+  sourceSchema: AppSchema,
+  sideEffects: TransitionSideEffectCreateStepSchema[] = successfulTransitionSideEffects(),
+  options: {
+    orderConstraints?: NonNullable<EntitySchema["constraints"]>;
+  } = {},
+): AppSchema {
+  const schema = schemaWithTransitionCommandOperation(sourceSchema);
+  const taskEntity = requireEntity(schema, "task");
+  const startTask = taskEntity.operations?.startTask;
+
+  if (
+    !startTask ||
+    startTask.effect?.type !== "operationHandler" ||
+    startTask.effect.handler !== "transition-state"
+  ) {
+    throw new Error("Expected transition-state task.startTask operation.");
+  }
+
+  const taskFields = {
+    ...taskEntity.fields,
+    details: {
+      type: "text",
+      required: false,
+      label: "Details",
+    },
+  } satisfies EntitySchema["fields"];
+  const orderFields = {
+    task: {
+      type: "reference",
+      required: true,
+      label: "Task",
+      to: "task",
+      displayField: "title",
+    },
+    sourceTaskId: {
+      type: "text",
+      required: true,
+      label: "Source task id",
+    },
+    title: {
+      type: "text",
+      required: true,
+      label: "Title",
+    },
+    details: {
+      type: "text",
+      required: false,
+      label: "Details",
+    },
+    note: {
+      type: "text",
+      required: false,
+      label: "Note",
+    },
+    code: {
+      type: "text",
+      required: true,
+      label: "Code",
+    },
+    actorMode: {
+      type: "text",
+      required: true,
+      label: "Actor mode",
+    },
+    actorPrincipalId: {
+      type: "text",
+      required: false,
+      label: "Actor principal id",
+    },
+    sourcePath: {
+      type: "text",
+      required: false,
+      label: "Source path",
+    },
+    occurredAt: {
+      type: "text",
+      required: true,
+      label: "Occurred at",
+    },
+  } satisfies EntitySchema["fields"];
+
+  schema.entities.task = {
+    ...taskEntity,
+    fields: taskFields,
+    operations: {
+      ...taskEntity.operations,
+      ...recordCrudOperations("Task", taskFields),
+      startTask: {
+        ...startTask,
+        input: {
+          fields: {
+            note: {
+              type: "text",
+              required: false,
+              label: "Note",
+            },
+          },
+        },
+        effect: {
+          ...startTask.effect,
+          config: {
+            ...startTask.effect.config,
+            sideEffects: {
+              type: "recordPlan",
+              steps: sideEffects,
+            },
+          },
+        },
+      },
+    },
+  };
+  schema.entities.order = {
+    label: "Order",
+    fields: orderFields,
+    constraints: options.orderConstraints ?? {
+      uniqueTask: { kind: "unique", fields: ["task"] },
+      uniqueCode: { kind: "unique", fields: ["code"] },
+    },
+    operations: recordCrudOperations("Order", orderFields),
+  } as EntitySchema;
+  schema.entities["order-receipt"] = {
+    label: "Order receipt",
+    fields: {
+      order: {
+        type: "reference",
+        required: true,
+        label: "Order",
+        to: "order",
+        displayField: "title",
+      },
+      label: {
+        type: "text",
+        required: true,
+        label: "Label",
+      },
+    },
+  } as EntitySchema;
+
+  return schema;
+}
+
+function successfulTransitionSideEffects(): TransitionSideEffectCreateStepSchema[] {
+  return [
+    {
+      name: "createOrder",
+      kind: "create",
+      entity: "order",
+      recordId: { kind: "generatedId", prefix: "order" },
+      values: {
+        task: {
+          kind: "reference",
+          entity: "task",
+          id: { kind: "targetRecordId" },
+        },
+        sourceTaskId: { kind: "targetRecordId" },
+        title: { kind: "targetField", field: "title" },
+        details: { kind: "targetField", field: "details" },
+        note: { kind: "input", field: "note" },
+        code: {
+          kind: "generatedCode",
+          alphabet: "upperAlphaNumericNoConfusables",
+          length: 6,
+          prefix: "ORD-",
+        },
+        actorMode: { kind: "actor", field: "mode" },
+        actorPrincipalId: { kind: "actor", field: "principalId" },
+        sourcePath: { kind: "source", field: "route" },
+        occurredAt: { kind: "generatedTimestamp" },
+      },
+    },
+    {
+      name: "createReceipt",
+      kind: "create",
+      entity: "order-receipt",
+      values: {
+        order: {
+          kind: "reference",
+          entity: "order",
+          id: { kind: "stepOutput", step: "createOrder", output: "id" },
+        },
+        label: {
+          kind: "stepOutput",
+          step: "createOrder",
+          output: "field",
+          field: "title",
+        },
+      },
+    },
+  ];
+}
+
+function invalidReferenceTransitionSideEffects(): TransitionSideEffectCreateStepSchema[] {
+  const [createOrder] = successfulTransitionSideEffects();
+
+  if (!createOrder) {
+    throw new Error("Expected createOrder transition side effect.");
+  }
+
+  return [
+    {
+      ...createOrder,
+      values: {
+        ...createOrder.values,
+        task: {
+          kind: "reference",
+          entity: "task",
+          id: { kind: "literal", value: "missing-task" },
+        },
+      },
+    },
+  ];
+}
+
+function generatedDigitCodeTransitionSideEffects(): TransitionSideEffectCreateStepSchema[] {
+  const [createOrder] = successfulTransitionSideEffects();
+
+  if (!createOrder) {
+    throw new Error("Expected createOrder transition side effect.");
+  }
+
+  return [
+    {
+      ...createOrder,
+      values: {
+        ...createOrder.values,
+        code: {
+          kind: "generatedCode",
+          alphabet: "digits",
+          length: 1,
+        },
+      },
+    },
+  ];
+}
+
 function schemaWithRecordPlanOperation(
   sourceSchema: AppSchema,
   operationName: string,
@@ -2880,6 +3552,22 @@ function listOperation(query: string): EntityOperationSchema {
   };
 }
 
+function createTaskForTransition(idempotencyKey: string, values: Record<string, unknown>) {
+  return executeOperation<OperationInvocationResponse>({
+    method: "POST",
+    path: "/operations/task/create",
+    body: { idempotencyKey, input: values },
+  });
+}
+
+function createOrderForTransition(idempotencyKey: string, values: Record<string, unknown>) {
+  return executeOperation<OperationInvocationResponse>({
+    method: "POST",
+    path: "/operations/order/create",
+    body: { idempotencyKey, input: values },
+  });
+}
+
 async function executeOperation<TBody>(input: ExecuteOperationInput) {
   const response = await fetchOperationHarness(input);
   const body = (await response.json()) as ExecuteOperationSuccess<TBody>;
@@ -2981,11 +3669,22 @@ async function writeAuthorityOperationHarness() {
             schema: app.sourceSchema,
             records: app.seedRecords,
             changeWritePrefix: app.seedChangeWritePrefix,
-          };
-          const writes = [];
-          const writeNotifier = {
-            apply(write) {
-              const outcome = write();
+	          };
+	          const writes = [];
+	          const storage = this.ctx.storage;
+	          let beforeWriteApplied = false;
+	          const writeNotifier = {
+	            apply(write) {
+	              if (!beforeWriteApplied && input.beforeWriteRecordValues) {
+	                beforeWriteApplied = true;
+	                storage.sql.exec(
+	                  "UPDATE records SET values_json = ? WHERE id = ?",
+	                  JSON.stringify(input.beforeWriteRecordValues.values),
+	                  input.beforeWriteRecordValues.recordId,
+	                );
+	              }
+
+	              const outcome = write();
               writes.push({ kind: outcome.kind, response: outcome.response });
               return outcome;
             },

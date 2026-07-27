@@ -11,7 +11,9 @@ import type {
   ToManyRelationshipSchema,
 } from "@dpeek/formless-schema";
 import { fieldCreateDefaultValue, matchesQuery } from "@dpeek/formless-schema";
+import type { AppPackageResolver } from "../shared/app-packages.ts";
 import { nowIsoString } from "../shared/clock.ts";
+import { createRecordId } from "../shared/ids.ts";
 import type {
   OperationCommandOutput,
   OperationInvocationEnvelope,
@@ -21,6 +23,7 @@ import { authorityStorageRecordValidationReader } from "./authority-record-valid
 import { validateRecordValues } from "./authority-validation.ts";
 import { assertUniqueConstraints } from "./constraints.ts";
 import { BadRequestError } from "./errors.ts";
+import type { IdentityReferenceTargetResolver } from "./identity-reference-targets.ts";
 import {
   validateOperationHandlerInputValues,
   type OperationHandlerInputValuesByKind,
@@ -28,12 +31,18 @@ import {
 import {
   getActiveRecordsByEntity,
   getStoredRecord,
+  mapWriteOutcome,
   type OperationRecordWritePlan,
   type CreateRecordWriteSideEffectRecordCreator,
   type RecordConstraintValidator,
   type WriteOutcome,
   writeRecordSetForCommandOperationOutcome,
 } from "./storage.ts";
+import {
+  materializeRecordPlanAsync,
+  recordPlanCommandInput,
+  recordPlanOperationOutput,
+} from "./record-plan-materializer.ts";
 
 export type OperationHandlerExecutionContext = {
   storage: DurableObjectStorage;
@@ -107,6 +116,60 @@ export function executeOperationHandlerOutcome(
   context: OperationHandlerExecutionContext,
 ): WriteOutcome<OperationCommandOutput> {
   return operationHandlerModules[context.effect.handler].execute(context);
+}
+
+export async function prepareTransitionStateSideEffectHandlerOutcome(
+  context: OperationHandlerExecutionContext,
+  options: {
+    identityReferenceResolver?: IdentityReferenceTargetResolver;
+    packageResolver?: AppPackageResolver;
+  } = {},
+): Promise<() => WriteOutcome<OperationCommandOutput>> {
+  const effect = requireHandlerEffect(context, "transition-state");
+  const sideEffects = effect.config.sideEffects;
+
+  if (sideEffects === undefined) {
+    throw new Error(
+      `Operation "${context.envelope.operation.canonicalKey}" requires transition side effects.`,
+    );
+  }
+
+  const transition = selectTransitionStateWritePlans(context.storage, context, effect, {
+    receivedAt: context.envelope.receivedAt,
+  });
+  const operationId = requiredOperationWriteIdentity(context.envelope);
+  const materialization = await materializeRecordPlanAsync({
+    effect: sideEffects,
+    envelope: context.envelope,
+    identityReferenceResolver: options.identityReferenceResolver,
+    inputValues: recordPlanCommandInput({
+      envelope: context.envelope,
+      schema: context.schema,
+      storage: context.storage,
+    }),
+    operationId,
+    packageResolver: options.packageResolver,
+    plannedRecords: transition.plannedRecords,
+    schema: context.schema,
+    storage: context.storage,
+    targetRecord: transition.targetRecord,
+  });
+  const plans = [...transition.plans, ...materialization.plans];
+
+  return () =>
+    mapWriteOutcome(
+      writeRecordSetForCommandOperationOutcome(
+        context.storage,
+        operationId,
+        plans,
+        operationHandlerRecordConstraintValidator(context),
+        { allowStoredReplay: false, now: context.envelope.receivedAt },
+      ),
+      (output) =>
+        recordPlanOperationOutput(output, materialization, {
+          changeOffset: transition.plans.length,
+        }),
+    );
 }
 
 export function executeOperationHandlerCreateTriggers(
@@ -314,11 +377,11 @@ function executeSubscribeHandler(context: OperationHandlerExecutionContext) {
 
 function executeTransitionStateHandler(context: OperationHandlerExecutionContext) {
   const effect = requireHandlerEffect(context, "transition-state");
-  const plans = selectTransitionStateWritePlans(context.storage, context, effect, {
+  const planning = selectTransitionStateWritePlans(context.storage, context, effect, {
     receivedAt: context.envelope.receivedAt,
   });
 
-  return writePlansForOperationHandler(context, plans);
+  return writePlansForOperationHandler(context, planning.plans);
 }
 
 function executeCreateMissingJoinRecordsCreateTrigger(
@@ -822,7 +885,11 @@ function selectTransitionStateWritePlans(
   context: OperationHandlerExecutionContext,
   effect: OperationHandlerEffectSchemaForKind<"transition-state">,
   options: { receivedAt?: string } = {},
-): OperationRecordWritePlan[] {
+): {
+  plannedRecords: StoredRecord[];
+  plans: OperationRecordWritePlan[];
+  targetRecord: StoredRecord;
+} {
   const input = requireTransitionStateInput(context);
   const entityName = context.envelope.operation.entityName;
   const entity = context.schema.entities[entityName];
@@ -864,8 +931,25 @@ function selectTransitionStateWritePlans(
       schema: context.schema,
     },
   );
+  const transitionedRecord = {
+    ...record,
+    values: nextValues,
+    updatedAt: context.envelope.receivedAt,
+  } satisfies StoredRecord;
+  const plannedRecords = [transitionedRecord];
 
-  const plans: OperationRecordWritePlan[] = [{ kind: "patch", record, values: nextValues }];
+  operationHandlerRecordConstraintValidator(context)(entityName, nextValues, {
+    ignoreRecordId: record.id,
+  });
+
+  const plans: OperationRecordWritePlan[] = [
+    {
+      kind: "patch",
+      record: () =>
+        requireTransitionTargetAtCommit(storage, context, record, machine.field, previousState),
+      values: nextValues,
+    },
+  ];
 
   const event = machine.event;
   if (event) {
@@ -886,19 +970,51 @@ function selectTransitionStateWritePlans(
       transition.to,
       options.receivedAt,
     );
+    const validatedEventValues = validateRecordValues(eventValues, eventEntity, validationReader, {
+      entityName: event.entity,
+      schema: context.schema,
+    });
+    const eventRecord = {
+      id: createRecordId(),
+      entity: event.entity,
+      values: validatedEventValues,
+      createdAt: context.envelope.receivedAt,
+      updatedAt: context.envelope.receivedAt,
+    } satisfies StoredRecord;
+
+    operationHandlerRecordConstraintValidator(context)(event.entity, validatedEventValues, {
+      additionalRecords: [...plannedRecords],
+    });
+    plannedRecords.push(eventRecord);
 
     plans.push({
       kind: "create",
       entity: event.entity,
-      values: () =>
-        validateRecordValues(eventValues, eventEntity, validationReader, {
-          entityName: event.entity,
-          schema: context.schema,
-        }),
+      id: eventRecord.id,
+      values: validatedEventValues,
     });
   }
 
-  return plans;
+  return { plannedRecords, plans, targetRecord: record };
+}
+
+function requireTransitionTargetAtCommit(
+  storage: DurableObjectStorage,
+  context: OperationHandlerExecutionContext,
+  snapshot: StoredRecord,
+  machineField: string,
+  expectedSourceState: string,
+): StoredRecord {
+  const record = requireActiveTransitionTargetRecord(storage, context, snapshot.id);
+  const sourceState = record.values[machineField];
+
+  if (record.entity !== snapshot.entity || sourceState !== expectedSourceState) {
+    throw new BadRequestError(
+      `Operation "${context.envelope.operation.canonicalKey}" target record "${record.id}" changed before commit.`,
+    );
+  }
+
+  return record;
 }
 
 function stateTransitionCanApply(

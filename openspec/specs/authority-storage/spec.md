@@ -255,14 +255,46 @@ The system MUST commit writes only when Authority validation succeeds.
 - AND operation idempotency and write-log cursor behavior match other committed
   operation writes
 
+#### Scenario: Atomic transition side-effect creates
+
+- GIVEN an authorized caller invokes a record-scoped transition operation whose
+  handler declares a create-only side-effect record plan
+- WHEN Authority validates and materializes the operation
+- THEN transition validity is checked against the stored target record's
+  current state
+- AND target record id and field expressions resolve from that same stored
+  pre-transition record
+- AND side-effect creates may target any declared entity in the same app schema
+  and reference outputs from earlier side-effect create steps
+- AND the transition patch, optional transition event, and all side-effect
+  creates commit in one storage transaction under the operation write identity
+- AND all committed changes use the invocation actor, source, idempotency,
+  received timestamp, audit root, and write-log behavior
+- AND unique constraints are enforced for generated codes and target
+  references, including planned records in the same operation
+- AND any failed transition, generated-code exhaustion, field validation,
+  reference validation, unique constraint, or record materialization rolls back
+  the complete operation write set
+
+#### Scenario: Recheck transition target before commit
+
+- GIVEN transition side-effect planning reads a stored target record before the
+  storage transaction begins
+- WHEN the target record changes before the combined write set materializes
+- THEN Authority rechecks the target identity and transition source state at the
+  commit boundary
+- AND stale target values are not copied into created records
+- AND the operation fails without a transition patch, event, side-effect
+  record, or sync change
+
 #### Scenario: Invalid state machine transition
 
 - GIVEN a caller invokes a transition operation for a missing, tombstoned, or
   incompatible-state record
 - WHEN Authority validates the operation
 - THEN the operation is rejected before materialization
-- AND no partial record patch, event record, write-log change, or operation
-  invocation output is stored
+- AND no partial record patch, event record, side-effect record, write-log
+  change, or operation invocation output is stored
 
 ### Requirement: Operation Invocation Boundary
 
@@ -514,6 +546,24 @@ The system SHALL materialize command behavior through operation handler modules.
   writes through operation-named storage materializers
 - AND handler execution uses operation input, effect configuration, and
   operation invocation output
+
+#### Scenario: Materialize transition side-effect creates
+
+- GIVEN an accepted transition-state handler declares a side-effect record plan
+- WHEN Authority prepares the handler outcome
+- THEN record-plan input validation and expression evaluation remain behind the
+  focused record-plan materializer boundary
+- AND the materializer receives the validated operation input, invocation
+  envelope, stored transition target snapshot, active schema, and explicit
+  storage and reference validation adapters
+- AND generated codes retry bounded unique collisions before the combined
+  commit
+- AND the handler combines transition, optional event, and side-effect create
+  plans without invoking another operation
+- AND the command output reuses record-plan step metadata to report each
+  side-effect step name, kind, entity, record id, and committed change id
+- AND replay returns the stored created-record identifiers and values without
+  regenerating ids or codes
 
 #### Scenario: Validate handler input shape from capability facts
 

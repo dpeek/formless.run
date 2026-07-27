@@ -249,11 +249,243 @@ describe("schema state machines", () => {
       ),
     ).toThrow("command effect is not eligible for public execution");
   });
+
+  it("parses and stringifies create-only transition side effects with target snapshots", () => {
+    const schema = parseAppSchema(stateMachineSchemaWithTransitionSideEffects());
+    const effect = schema.entities.task?.operations?.startWork.effect;
+
+    expect(effect).toEqual({
+      type: "operationHandler",
+      handler: "transition-state",
+      config: {
+        machine: "statusFlow",
+        transition: "start",
+        sideEffects: transitionSideEffects(),
+      },
+    });
+    expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+  });
+
+  it("rejects invalid transition side-effect plans and target expressions", () => {
+    const invalidCases: {
+      entities?: Record<string, unknown>;
+      message: string;
+      sideEffects: unknown;
+    }[] = [
+      {
+        sideEffects: { type: "recordPlan", steps: [] },
+        message: "sideEffects steps must be a non-empty array",
+      },
+      {
+        sideEffects: { type: "providerCall", steps: transitionSideEffects().steps },
+        message: "sideEffects type must be recordPlan",
+      },
+      {
+        sideEffects: transitionSideEffects({
+          steps: [{ ...createOrderStep(), name: "" }],
+        }),
+        message: "steps[0] name must be a non-empty string",
+      },
+      {
+        sideEffects: transitionSideEffects({
+          steps: [createOrderStep(), { ...createOrderStep(), name: "createOrder" }],
+        }),
+        message: "steps[1] name must be unique",
+      },
+      ...(["patch", "delete", "tombstone"] as const).map((kind) => ({
+        sideEffects: transitionSideEffects({
+          steps: [
+            {
+              ...createOrderStep(),
+              kind,
+              recordId: { kind: "targetRecordId" },
+            },
+          ],
+        }),
+        message: "kind must be create in transition side-effect plans",
+      })),
+      {
+        sideEffects: transitionSideEffects({
+          steps: [{ ...createOrderStep(), kind: "transition" }],
+        }),
+        message: "kind must be create, patch, delete, or tombstone",
+      },
+      {
+        sideEffects: transitionSideEffects({
+          steps: [{ ...createOrderStep(), entity: "crm:external-order" }],
+        }),
+        message: "must target an entity from the same schema",
+      },
+      {
+        sideEffects: transitionSideEffects({
+          steps: [
+            {
+              ...createOrderStep(),
+              values: { title: { kind: "targetField", field: "missing" } },
+            },
+          ],
+        }),
+        message: 'references unknown target field "missing"',
+      },
+      {
+        sideEffects: transitionSideEffects({
+          steps: [
+            {
+              ...createOrderStep(),
+              values: { done: { kind: "targetField", field: "title" } },
+            },
+          ],
+        }),
+        message: 'target field type "text" is incompatible with destination type "boolean"',
+      },
+      {
+        sideEffects: transitionSideEffects({
+          steps: [
+            {
+              ...createOrderStep(),
+              values: { title: { kind: "targetField", field: "contactEmail" } },
+            },
+          ],
+        }),
+        message: "optional target field requires an optional or defaulted destination",
+      },
+      {
+        sideEffects: transitionSideEffects({
+          steps: [
+            {
+              ...createOrderStep(),
+              values: { contactEmail: { kind: "targetField", field: "title" } },
+            },
+          ],
+        }),
+        message: 'target text format "plain" is incompatible with destination format "email"',
+      },
+      {
+        sideEffects: transitionSideEffects({
+          steps: [
+            {
+              ...createOrderStep(),
+              values: { status: { kind: "targetField", field: "status" } },
+            },
+          ],
+        }),
+        entities: {
+          order: {
+            ...orderEntity(),
+            fields: {
+              ...orderEntity().fields,
+              status: {
+                type: "enum",
+                required: true,
+                values: { todo: { label: "Todo" } },
+              },
+            },
+          },
+        },
+        message: 'destination enum does not accept target value "doing"',
+      },
+      {
+        sideEffects: transitionSideEffects({
+          steps: [
+            {
+              ...createOrderStep(),
+              values: { reviewer: { kind: "targetField", field: "parentTask" } },
+            },
+          ],
+        }),
+        message: 'target reference entity "task" is incompatible with destination entity "person"',
+      },
+      {
+        sideEffects: transitionSideEffects({
+          steps: [
+            {
+              ...createOrderStep(),
+              values: {
+                reviewer: {
+                  kind: "reference",
+                  entity: "person",
+                  id: { kind: "targetRecordId" },
+                },
+              },
+            },
+          ],
+        }),
+        message: 'targetRecordId must reference transition target entity "task"',
+      },
+    ];
+
+    for (const invalidCase of invalidCases) {
+      expect(() =>
+        parseAppSchema(
+          stateMachineSchemaWithTransitionSideEffects({
+            entities: invalidCase.entities,
+            sideEffects: invalidCase.sideEffects,
+          }),
+        ),
+      ).toThrow(invalidCase.message);
+    }
+
+    expect(() =>
+      parseAppSchema(
+        stateMachineSchemaWithTransitionSideEffects({
+          operation: { scope: "collection" },
+        }),
+      ),
+    ).toThrow("sideEffects requires a record-scoped transition operation");
+
+    for (const expression of [
+      { kind: "targetRecordId" },
+      { kind: "targetField", field: "title" },
+    ]) {
+      expect(() =>
+        parseAppSchema(
+          stateMachineSchemaWithTransitionSideEffects({
+            operation: {
+              effect: {
+                type: "recordPlan",
+                steps: [
+                  {
+                    name: "createOrder",
+                    kind: "create",
+                    entity: "order",
+                    values: { title: expression },
+                  },
+                ],
+              },
+            },
+          }),
+        ),
+      ).toThrow("is only valid in transition side-effect plans");
+    }
+
+    expect(() =>
+      parseAppSchema(
+        stateMachineSchemaWithTransitionSideEffects({
+          operation: {
+            input: {
+              fields: {
+                reason: { type: "text", required: true },
+              },
+            },
+            policy: {
+              actors: ["anonymous"],
+              access: {
+                actor: "anonymous",
+                challenge: { kind: "turnstile" },
+                origin: { kind: "same-origin" },
+              },
+            },
+          },
+        }),
+      ),
+    ).toThrow("command effect is not eligible for public execution");
+  });
 });
 
 function stateMachineSchema(
   overrides: {
     eventFields?: Record<string, unknown>;
+    extraEntities?: Record<string, unknown>;
     extraStateMachines?: Record<string, unknown>;
     fields?: Record<string, unknown>;
     machine?: Record<string, unknown>;
@@ -300,6 +532,7 @@ function stateMachineSchema(
           ...overrides.eventFields,
         },
       },
+      ...overrides.extraEntities,
     },
     queries: {
       taskAll: { label: "All", entity: "task", expression: { kind: "all" } },
@@ -338,6 +571,38 @@ function stateMachineSchema(
   };
 }
 
+function stateMachineSchemaWithTransitionSideEffects(
+  overrides: {
+    entities?: Record<string, unknown>;
+    operation?: Record<string, unknown>;
+    sideEffects?: unknown;
+  } = {},
+) {
+  return stateMachineSchema({
+    extraEntities: {
+      person: personEntity(),
+      order: orderEntity(),
+      "order-note": orderNoteEntity(),
+      ...overrides.entities,
+    },
+    fields: {
+      contactEmail: { type: "text", required: false, format: "email" },
+      reviewer: { type: "reference", required: false, to: "person" },
+      parentTask: { type: "reference", required: false, to: "task" },
+    },
+    operation: {
+      effect: {
+        ...transitionEffect(),
+        config: {
+          ...transitionEffect().config,
+          sideEffects: overrides.sideEffects ?? transitionSideEffects(),
+        },
+      },
+      ...overrides.operation,
+    },
+  });
+}
+
 function transitionEffect() {
   return {
     type: "operationHandler",
@@ -345,6 +610,61 @@ function transitionEffect() {
     config: {
       machine: "statusFlow",
       transition: "start",
+    },
+  };
+}
+
+function transitionSideEffects(overrides: Record<string, unknown> = {}) {
+  return {
+    type: "recordPlan",
+    steps: [createOrderStep(), createOrderNoteStep()],
+    ...overrides,
+  };
+}
+
+function createOrderStep() {
+  return {
+    name: "createOrder",
+    kind: "create",
+    entity: "order",
+    recordId: { kind: "generatedId", prefix: "order" },
+    values: {
+      task: {
+        kind: "reference",
+        entity: "task",
+        id: { kind: "targetRecordId" },
+      },
+      title: { kind: "targetField", field: "title" },
+      done: { kind: "targetField", field: "done" },
+      status: { kind: "targetField", field: "status" },
+      contactEmail: { kind: "targetField", field: "contactEmail" },
+      reviewer: { kind: "targetField", field: "reviewer" },
+    },
+  };
+}
+
+function createOrderNoteStep() {
+  return {
+    name: "createOrderNote",
+    kind: "create",
+    entity: "order-note",
+    values: {
+      order: {
+        kind: "reference",
+        entity: "order",
+        id: { kind: "stepOutput", step: "createOrder", output: "id" },
+      },
+      title: {
+        kind: "stepOutput",
+        step: "createOrder",
+        output: "field",
+        field: "title",
+      },
+      task: {
+        kind: "reference",
+        entity: "task",
+        id: { kind: "targetRecordId" },
+      },
     },
   };
 }
@@ -364,6 +684,49 @@ function taskFields() {
       },
     },
   } as const;
+}
+
+function personEntity() {
+  return {
+    label: "Person",
+    fields: {
+      name: { type: "text", required: true },
+    },
+  };
+}
+
+function orderEntity() {
+  return {
+    label: "Order",
+    fields: {
+      task: { type: "reference", required: true, to: "task" },
+      title: { type: "text", required: true },
+      done: { type: "boolean", required: true, default: false },
+      status: {
+        type: "enum",
+        required: true,
+        values: {
+          todo: { label: "Todo" },
+          doing: { label: "Doing" },
+          done: { label: "Done" },
+          cancelled: { label: "Cancelled" },
+        },
+      },
+      contactEmail: { type: "text", required: false, format: "email" },
+      reviewer: { type: "reference", required: false, to: "person" },
+    },
+  };
+}
+
+function orderNoteEntity() {
+  return {
+    label: "Order note",
+    fields: {
+      order: { type: "reference", required: true, to: "order" },
+      title: { type: "text", required: true },
+      task: { type: "reference", required: true, to: "task" },
+    },
+  };
 }
 
 function statusFlowMachine() {

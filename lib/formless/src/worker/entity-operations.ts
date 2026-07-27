@@ -20,6 +20,7 @@ import { BadRequestError } from "./errors.ts";
 import {
   executeOperationHandlerCreateTriggers,
   executeOperationHandlerOutcome,
+  prepareTransitionStateSideEffectHandlerOutcome,
 } from "./operation-handlers.ts";
 import { authorityStorageRecordValidationReader } from "./authority-record-validation-reader.ts";
 import { validateRecordWriteRequestAsync } from "./authority-validation.ts";
@@ -537,6 +538,31 @@ async function prepareCommandOperationInvocationOutcome(
     envelope.actor.kind === "anonymous"
       ? publicCommandOperationPayload(envelope).input
       : privateCommandOperationInput(envelope, schema, storage);
+
+  if (
+    commandEffect.handler === "transition-state" &&
+    commandEffect.config.sideEffects !== undefined
+  ) {
+    const execute = await prepareTransitionStateSideEffectHandlerOutcome(
+      {
+        storage,
+        envelope,
+        schema,
+        effect: commandEffect,
+        ...(commandInput === undefined ? {} : { input: commandInput }),
+        ...(validateConstraints === undefined ? {} : { validateConstraints }),
+      },
+      {
+        ...(identityReferenceResolver === undefined ? {} : { identityReferenceResolver }),
+        ...(packageResolver === undefined ? {} : { packageResolver }),
+      },
+    );
+
+    return () =>
+      mapWriteOutcome(execute(), (response) =>
+        filterCommandOperationOutputForActor(response, envelope),
+      );
+  }
 
   return () =>
     mapWriteOutcome(

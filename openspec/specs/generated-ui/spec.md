@@ -2034,6 +2034,19 @@ status fields.
 - AND submitting a transition invokes the matching operation through the normal
   Authority operation boundary
 
+#### Scenario: Render transition with side-effect creates
+
+- GIVEN a transition-state operation declares create-only side effects
+- WHEN generated UI selects row, list, record, or detail transition controls
+- THEN the operation remains classified from its transition-state handler facts
+- AND availability continues to reflect the record's current machine state
+- AND invocation sends the target record id through the existing operation
+  boundary
+- AND committed or replayed command output exposes side-effect create record ids
+  through normal generated operation result facts
+- AND generated UI does not require a separate composite-operation control or
+  infer automatic navigation to a created record
+
 #### Scenario: Render table state transition menu
 
 - GIVEN a generated table includes a visible enum field owned by a state machine
