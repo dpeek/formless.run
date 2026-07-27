@@ -1293,3 +1293,30 @@ export type AppSchemaSource = Omit<AppSchema, "entities" | "screens" | "version"
   views: Record<string, ViewSchemaSource>;
   screens: Record<string, ScreenSchema>;
 };
+
+/**
+ * Package-local contribution to a complete App schema source.
+ *
+ * Module identity and dependencies are authoring metadata. Each registry entry
+ * is a whole declaration and is flattened by `composeAppSchema`.
+ */
+export type AppSchemaModuleSource = {
+  key: string;
+  requires?: readonly AppSchemaModuleSource[];
+  entities?: AppSchemaSource["entities"];
+  relationships?: NonNullable<AppSchemaSource["relationships"]>;
+  queries?: AppSchemaSource["queries"];
+  readModels?: NonNullable<AppSchemaSource["readModels"]>;
+  unions?: NonNullable<AppSchemaSource["unions"]>;
+  itemViews?: AppSchemaSource["itemViews"];
+  tableViews?: AppSchemaSource["tableViews"];
+  views?: AppSchemaSource["views"];
+  screens?: AppSchemaSource["screens"];
+};
+
+/** Explicit root input for composing one complete App schema source. */
+export type AppSchemaCompositionSource = {
+  version: AppSchemaSource["version"];
+  runtime?: AppSchemaSource["runtime"];
+  modules: readonly AppSchemaModuleSource[];
+};

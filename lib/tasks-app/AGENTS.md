@@ -7,7 +7,7 @@ Read this when editing `lib/tasks-app/*`.
 ## Owns
 
 - Tasks app package manifest in `formless.app.json`.
-- Tasks schema authoring source in `src/schema.ts`.
+- Tasks schema authoring modules composed in `src/schema.ts`.
 - Materialized Tasks source schema in `schema.json`.
 - Tasks source seed records in `seed-records.json`.
 - Runtime-neutral Tasks package contracts in `src/`.
@@ -25,7 +25,9 @@ Read this when editing `lib/tasks-app/*`.
 - `schema.json`: materialized flat Tasks app schema source.
 - `seed-records.json`: stored-record shaped Tasks starter records.
 - `scripts/materialize-schema.ts`: package-local schema materialization command.
-- `src/schema.ts`: authoritative TypeScript Tasks schema declaration.
+- `src/schema-records.ts`: Tasks record and query declarations.
+- `src/schema-presentation.ts`: Tasks item view, view, and screen declarations.
+- `src/schema.ts`: authoritative Tasks schema composition entrypoint.
 - `src/types.ts`: versioned public Tasks package constants.
 - `src/index.ts`: runtime-neutral Tasks package exports.
 

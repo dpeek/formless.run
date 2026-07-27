@@ -63,6 +63,56 @@ data-only contracts.
 - AND package checks reject canonical drift between the TypeScript declaration,
   the materialized artifact, and the manifest source-schema hash
 
+### Requirement: TypeScript Schema Module Composition
+
+The system SHALL allow trusted TypeScript schema modules to compose one
+complete App schema source without changing the portable source schema or
+parsed runtime contracts.
+
+#### Scenario: Compose declaration modules
+
+- GIVEN package-local schema modules contribute whole declarations to the
+  existing entity, relationship, query, read-model, union, item-view,
+  table-view, view, or screen namespaces
+- AND a composition root explicitly lists the modules in source order
+- WHEN the modules are composed
+- THEN their declarations are flattened in listed order into one complete App
+  schema source
+- AND modules may reference declarations owned by other modules
+- AND the complete composition is validated once through the same
+  runtime-neutral App schema parser
+- AND an individual module is not required to be a valid App schema in
+  isolation
+
+#### Scenario: Enforce explicit module dependencies
+
+- GIVEN a schema module declares another module as a dependency
+- WHEN the composition root omits that dependency or lists it after the
+  dependent module
+- THEN composition fails with an error identifying both module keys
+- AND composition does not automatically include or reorder modules
+- AND duplicate module keys fail before App schema parsing
+
+#### Scenario: Reject declaration collisions
+
+- GIVEN two schema modules contribute the same declaration path
+- WHEN the modules are composed
+- THEN composition fails rather than overwriting, extending, or deep-merging
+  the declaration
+- AND the error identifies the declaration path and both owning module keys
+- AND declaration keys in different App schema namespaces remain independent
+
+#### Scenario: Preserve the portable schema artifact
+
+- GIVEN valid modules compose an App schema source
+- WHEN that source is materialized and hashed
+- THEN the output contains only the existing App schema source data
+- AND module keys, dependencies, module references, and provenance are absent
+  from the materialized artifact and parsed runtime model
+- AND authored omissions and nested declaration order remain source data
+- AND equivalent composed and monolithic sources produce the same canonical
+  schema data and source-schema hash
+
 ### Requirement: App Package Source Manifests
 
 The system SHALL represent installable app package source metadata as app
