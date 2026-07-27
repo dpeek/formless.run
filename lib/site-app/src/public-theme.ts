@@ -7,6 +7,7 @@ export const PUBLIC_SITE_THEME_DOCUMENT_DATASET_KEY = "siteTheme";
 export const PUBLIC_SITE_THEME_BOOT_SCRIPT_ID = "formless-public-site-theme";
 export const PUBLIC_SITE_THEME_BOOT_STYLE_ID = "formless-public-site-theme-style";
 export const PUBLIC_SITE_THEME_SSR_MODE: PublicSiteThemeMode = "light";
+export const PUBLIC_SITE_THEME_RELEASE_EVENT = "formless:public-site-theme-release";
 
 export type PublicSiteThemeMode = "light" | "dark";
 export type PublicSiteThemePreference = PublicSiteThemeMode | "system";
@@ -48,16 +49,41 @@ export function publicSiteThemePreferenceFromStoredValue(
 }
 
 export function resolvePublicSiteThemeMode(input: {
+  initialThemeMode?: PublicSiteThemePreference;
   storedValue?: string | null;
   systemPrefersDark: boolean;
+  themeSwitchable?: boolean;
 }): PublicSiteThemeMode {
-  const preference = publicSiteThemePreferenceFromStoredValue(input.storedValue);
+  const configuredPreference = publicSiteThemePreferenceFromStoredValue(input.initialThemeMode);
+  const storedPreference = publicSiteThemePreferenceFromStoredValue(input.storedValue);
+  const preference =
+    (input.themeSwitchable ?? true) && storedPreference !== "system"
+      ? storedPreference
+      : configuredPreference;
 
   if (preference !== "system") {
     return preference;
   }
 
   return input.systemPrefersDark ? "dark" : "light";
+}
+
+export function publicSiteInitialThemePreference(
+  site: SiteSettingsNode | undefined,
+): PublicSiteThemePreference {
+  return publicSiteThemePreferenceFromStoredValue(site?.initialThemeMode);
+}
+
+export function publicSiteThemeSwitchable(site: SiteSettingsNode | undefined): boolean {
+  return site?.themeSwitchable ?? true;
+}
+
+export function publicSiteThemeSsrMode(site: SiteSettingsNode | undefined): PublicSiteThemeMode {
+  return resolvePublicSiteThemeMode({
+    initialThemeMode: publicSiteInitialThemePreference(site),
+    systemPrefersDark: false,
+    themeSwitchable: false,
+  });
 }
 
 export function nextPublicSiteThemeMode(mode: PublicSiteThemeMode): PublicSiteThemeMode {
@@ -97,24 +123,34 @@ export function publicSiteThemePalette(
   };
 }
 
-export const PUBLIC_SITE_THEME_BOOT_SCRIPT = `<script id="${PUBLIC_SITE_THEME_BOOT_SCRIPT_ID}">
+export function renderPublicSiteThemeBootScript(site: SiteSettingsNode | undefined): string {
+  const initialThemeMode = publicSiteInitialThemePreference(site);
+  const themeSwitchable = publicSiteThemeSwitchable(site);
+
+  return `<script id="${PUBLIC_SITE_THEME_BOOT_SCRIPT_ID}">
 (() => {
   const storageKey = ${JSON.stringify(PUBLIC_SITE_THEME_STORAGE_KEY)};
   const root = document.documentElement;
-  let theme = ${JSON.stringify(PUBLIC_SITE_THEME_SSR_MODE)};
+  const switchable = ${JSON.stringify(themeSwitchable)};
+  let preference = ${JSON.stringify(initialThemeMode)};
 
-  try {
-    const stored = window.localStorage.getItem(storageKey);
+  if (switchable) {
+    try {
+      const stored = window.localStorage.getItem(storageKey);
 
-    if (stored === "dark" || stored === "light") {
-      theme = stored;
-    } else if (window.matchMedia?.(${JSON.stringify(PUBLIC_SITE_THEME_SYSTEM_QUERY)}).matches) {
-      theme = "dark";
-    }
-  } catch {
+      if (stored === "dark" || stored === "light") {
+        preference = stored;
+      }
+    } catch {}
+  }
+
+  let theme = preference === "system" ? "light" : preference;
+  if (preference === "system") {
     try {
       if (window.matchMedia?.(${JSON.stringify(PUBLIC_SITE_THEME_SYSTEM_QUERY)}).matches) {
         theme = "dark";
+      } else {
+        theme = "light";
       }
     } catch {}
   }
@@ -125,11 +161,16 @@ export const PUBLIC_SITE_THEME_BOOT_SCRIPT = `<script id="${PUBLIC_SITE_THEME_BO
   root.style.setProperty("color-scheme", theme);
 })();
 </script>`;
+}
 
-export const PUBLIC_SITE_THEME_BOOT_STYLE = `<style id="${PUBLIC_SITE_THEME_BOOT_STYLE_ID}">
+export function renderPublicSiteThemeBootStyle(site: SiteSettingsNode | undefined): string {
+  const lightPalette = publicSiteThemePalette(site, "light");
+  const darkPalette = publicSiteThemePalette(site, "dark");
+
+  return `<style id="${PUBLIC_SITE_THEME_BOOT_STYLE_ID}">
 html.light,
 html.light body {
-  background: #ffffff;
+  background: ${lightPalette.background};
   color: #09090b;
   color-scheme: light;
 }
@@ -138,11 +179,15 @@ html.dark,
 html.dark body,
 html.dark #app,
 html.dark [data-site-theme] {
-  background: #09090b;
+  background: ${darkPalette.background};
   color: #f4f4f5;
   color-scheme: dark;
 }
 </style>`;
+}
+
+export const PUBLIC_SITE_THEME_BOOT_SCRIPT = renderPublicSiteThemeBootScript(undefined);
+export const PUBLIC_SITE_THEME_BOOT_STYLE = renderPublicSiteThemeBootStyle(undefined);
 
 function parseHexColor(value: string | undefined): Rgb | undefined {
   if (!value || !hexColorPattern.test(value.trim())) {

@@ -144,7 +144,7 @@ const sha256DigestPattern = /^sha256:[a-f0-9]{64}$/;
 
 export const bundledSourceSchemaHashFixtures = {
   tasks: "sha256:51428cbdf236029c81d97bafffcdad039be062472226b6adea7a249333081c56",
-  site: "sha256:50996f719192275b771a33ef067103fdf76a0b648dc85d73c934b52a3350f791",
+  site: "sha256:2ecd6fad0b28b689f5117dd9e5a50c5b6831b682727a8adf6acb6e88d9bdf223",
   crm: "sha256:d3e2c4de62f3c69dc15ab73217581bd271660fc85bf316d156ac2d5a880b218a",
 } as const satisfies Record<SchemaKey, SourceSchemaHash>;
 

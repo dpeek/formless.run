@@ -5,6 +5,7 @@ import { sitePagePathForSlug, type SitePageLinkMode } from "../public-links.ts";
 import type { SitePublicSystemStateRendererComponent } from "../public-system-state.ts";
 import type { SitePageTree, SitePageTreeResponse } from "../types.ts";
 import { normalizeSitePageSlug } from "./slug.ts";
+import { PublicSiteThemeProvider } from "./theme.ts";
 
 export { normalizeSitePageSlug } from "./slug.ts";
 
@@ -222,13 +223,15 @@ export function SitePageRouteView({
   switch (state.status) {
     case "ready":
       return (
-        <SitePublicRenderer
-          builtInRenderer={builtInRenderer}
-          linkMode={linkMode}
-          routeBase={routeBase}
-          tree={state.tree}
-          workspaceRenderer={workspaceRenderer}
-        />
+        <PublicSiteThemeProvider site={state.tree.site}>
+          <SitePublicRenderer
+            builtInRenderer={builtInRenderer}
+            linkMode={linkMode}
+            routeBase={routeBase}
+            tree={state.tree}
+            workspaceRenderer={workspaceRenderer}
+          />
+        </PublicSiteThemeProvider>
       );
     case "not-found":
       return (

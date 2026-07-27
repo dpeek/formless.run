@@ -2125,6 +2125,8 @@ describe("home view model collections", () => {
       "icon",
       "accentColor",
       "backgroundColor",
+      "initialThemeMode",
+      "themeSwitchable",
     ]);
     expect(
       fields.map((field) => ({
@@ -2145,6 +2147,16 @@ describe("home view model collections", () => {
         fieldName: "backgroundColor",
         editor: "color",
         commit: "field-commit",
+      },
+      {
+        fieldName: "initialThemeMode",
+        editor: "enum",
+        commit: "immediate",
+      },
+      {
+        fieldName: "themeSwitchable",
+        editor: "boolean",
+        commit: "immediate",
       },
     ]);
   });

@@ -82,6 +82,36 @@ describe("published Site document rendering", () => {
     expect(html).not.toContain("data-custom-public-site-renderer");
   });
 
+  it.each([
+    ["light", false, "light"],
+    ["dark", false, "dark"],
+    ["system", true, "light"],
+  ] as const)(
+    "derives the SSR document theme from %s Site settings",
+    async (initialThemeMode, themeSwitchable, serverMode) => {
+      const response = await renderPublishedSiteDocumentResponse({
+        builtInRenderer: PageRendererProbe,
+        builtInSystemStateRenderer: SystemStateRendererProbe,
+        clientAssets: { body: "", head: "" },
+        requestUrl: new URL("https://example.com/"),
+        treeResult: {
+          kind: "found",
+          tree: sitePageTree("home", { initialThemeMode, themeSwitchable }),
+        },
+      });
+      const html = await response.text();
+
+      expect(html).toContain(
+        `<html lang="en" class="${serverMode}" data-site-theme="${serverMode}" style="color-scheme: ${serverMode};">`,
+      );
+      expect(html).toContain(`<meta name="color-scheme" content="${serverMode}" />`);
+      expect(html).toContain(`const switchable = ${String(themeSwitchable)};`);
+      expect(html).toContain(`let preference = "${initialThemeMode}";`);
+      expect(html).toContain("background: rgb(248 248 248)");
+      expect(html).toContain("background: rgb(9 9 11)");
+    },
+  );
+
   it("uses the built-in system-state renderer for not-found documents", async () => {
     const CustomRenderer = () => <article data-custom-public-site-renderer="should-not-render" />;
     const SystemStateRenderer = (props: SitePublicSystemStateRendererProps) => (
@@ -153,12 +183,17 @@ function SystemStateRendererProbe(props: SitePublicSystemStateRendererProps) {
   return <section data-system-state={props.kind}>{props.slug}</section>;
 }
 
-function sitePageTree(slug: string): SitePageTree {
+function sitePageTree(
+  slug: string,
+  theme: Pick<NonNullable<SitePageTree["site"]>, "initialThemeMode" | "themeSwitchable"> = {},
+): SitePageTree {
   return {
     site: {
       id: "site",
       label: "Example Site",
       description: "Example public site.",
+      backgroundColor: "#09090B",
+      ...theme,
     },
     page: pageNode(slug),
     frame: {},

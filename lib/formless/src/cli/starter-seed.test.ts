@@ -27,6 +27,8 @@ describe("Site starter seed", () => {
       icon: expect.stringMatching(/^<svg[\s\S]*<\/svg>$/),
       accentColor: "#C98A2E",
       backgroundColor: "#09090B",
+      initialThemeMode: "system",
+      themeSwitchable: true,
     });
     expect(settings[0]?.values).not.toHaveProperty("png");
     expect(settings[0]?.values).not.toHaveProperty("ico");

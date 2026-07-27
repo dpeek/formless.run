@@ -5,10 +5,11 @@ import { renderInitialSitePageTreeScript } from "../react/initial-tree.ts";
 import { normalizeSitePageSlug } from "../react/slug.ts";
 import {
   publicSiteThemeDocumentMarker,
-  PUBLIC_SITE_THEME_BOOT_SCRIPT,
-  PUBLIC_SITE_THEME_BOOT_STYLE,
-  PUBLIC_SITE_THEME_SSR_MODE,
+  publicSiteThemeSsrMode,
+  renderPublicSiteThemeBootScript,
+  renderPublicSiteThemeBootStyle,
 } from "../public-theme.ts";
+import { PublicSiteThemeProvider } from "../react/theme.ts";
 import {
   buildPublicDocumentMetadata,
   type PublicDocumentMetadata,
@@ -89,7 +90,9 @@ export async function renderPublishedSiteDocumentResponse(
     });
     const appHtml = await renderReactToString(
       <PublishedSiteDocumentShell>
-        <Renderer linkMode="published" routeBase={input.routeBase} tree={tree} />
+        <PublicSiteThemeProvider site={tree.site}>
+          <Renderer linkMode="published" routeBase={input.routeBase} tree={tree} />
+        </PublicSiteThemeProvider>
       </PublishedSiteDocumentShell>,
     );
 
@@ -104,6 +107,7 @@ export async function renderPublishedSiteDocumentResponse(
           tree,
         }),
         runtimeHints: input.runtimeHints,
+        site: tree.site,
       }),
     );
   } catch {
@@ -187,9 +191,10 @@ function renderDocument(
     initialTree?: SitePageTree;
     metadata: PublicDocumentMetadata;
     runtimeHints?: readonly PublicSiteDocumentRuntimeHint[];
+    site?: SitePageTree["site"];
   },
 ): string {
-  const themeMarker = publicSiteThemeDocumentMarker(PUBLIC_SITE_THEME_SSR_MODE);
+  const themeMarker = publicSiteThemeDocumentMarker(publicSiteThemeSsrMode(options.site));
   const initialTreeScript = options.initialTree
     ? `\n    ${renderInitialSitePageTreeScript(options.initialTree)}`
     : "";
@@ -205,11 +210,11 @@ function renderDocument(
     <link rel="icon" sizes="any" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 	    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	    <meta name="color-scheme" content="light dark" />
+	    <meta name="color-scheme" content="${themeMarker.colorScheme}" />
 	    ${renderRuntimeHints(options.runtimeHints)}
 	    ${metadataTags}
-	    ${PUBLIC_SITE_THEME_BOOT_SCRIPT}${clientAssetHeadTags}
-    ${PUBLIC_SITE_THEME_BOOT_STYLE}
+	    ${renderPublicSiteThemeBootScript(options.site)}${clientAssetHeadTags}
+    ${renderPublicSiteThemeBootStyle(options.site)}
   </head>
   <body>
     <div id="app">${appHtml}</div>${initialTreeScript}${clientAssetBodyTags}

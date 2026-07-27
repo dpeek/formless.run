@@ -207,7 +207,24 @@ function projectSiteSettings(
     ...optionalStringField("icon", settings.values.icon),
     ...optionalStringField("accentColor", settings.values.accentColor),
     ...optionalStringField("backgroundColor", settings.values.backgroundColor),
+    ...optionalThemeMode(settings.values.initialThemeMode),
+    ...optionalBooleanField("themeSwitchable", settings.values.themeSwitchable),
   };
+}
+
+function optionalThemeMode(
+  value: StoredRecord["values"][string] | undefined,
+): Pick<SiteSettingsNode, "initialThemeMode"> {
+  return value === "system" || value === "light" || value === "dark"
+    ? { initialThemeMode: value }
+    : {};
+}
+
+function optionalBooleanField<Name extends string>(
+  name: Name,
+  value: StoredRecord["values"][string] | undefined,
+): Partial<Record<Name, boolean>> {
+  return typeof value === "boolean" ? ({ [name]: value } as Partial<Record<Name, boolean>>) : {};
 }
 
 function buildSitePageFrame(context: SiteTreeBuildContext): SitePageFrame {

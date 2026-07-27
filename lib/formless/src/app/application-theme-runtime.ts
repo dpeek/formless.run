@@ -5,6 +5,7 @@ import type {
   DocumentThemeSelectionControlContract,
 } from "@dpeek/formless-presentation/contract";
 import { documentThemeReference, isDocumentThemeIntent } from "@dpeek/formless-presentation/host";
+import { PUBLIC_SITE_THEME_DOCUMENT_ATTRIBUTE } from "@dpeek/formless-site-app";
 import type { ApplicationRuntimeContractPublication } from "./generated/application-runtime-contract-host.tsx";
 
 export const APPLICATION_THEME_STORAGE_KEY = "formless:application:theme";
@@ -26,6 +27,7 @@ export type ApplicationThemeBrowser = {
 export type ApplicationThemeController = {
   destroy(): void;
   getSnapshot(): ApplicationThemeContract;
+  reapply(): void;
   selectPreference(preference: DocumentThemeMode): void;
   subscribe(listener: () => void): () => void;
 };
@@ -109,6 +111,7 @@ export function createApplicationThemeController(
       listeners.clear();
     },
     getSnapshot: () => snapshot,
+    reapply: () => browser.applyResolvedMode(snapshot.activeMode),
     selectPreference: (nextPreference) => {
       browser.persistPreference(nextPreference);
       update(nextPreference, systemPrefersDark);
@@ -176,7 +179,9 @@ export function browserApplicationTheme(): ApplicationThemeBrowser {
     applyResolvedMode: (mode) => {
       const root = document.documentElement;
       root.dataset[APPLICATION_THEME_DOCUMENT_DATASET_KEY] = mode;
-      root.style.setProperty("color-scheme", mode);
+      if (!root.hasAttribute(PUBLIC_SITE_THEME_DOCUMENT_ATTRIBUTE)) {
+        root.style.setProperty("color-scheme", mode);
+      }
     },
     persistPreference: (preference) => {
       try {

@@ -139,6 +139,7 @@ export function AstryxSitePresentation({
                     isMobile={isMobile}
                     secondaryGroup={headerNavigation.find((group) => group.kind === "secondary")}
                     themeMode={theme.mode}
+                    themeSwitchable={theme.switchable}
                     onOpenMobileNav={() => setIsMobileNavOpen(true)}
                     onToggleTheme={theme.toggleMode}
                   />
@@ -428,6 +429,7 @@ type FormlessSiteHeaderActionsProps = {
   isMobile: boolean;
   secondaryGroup?: ProjectedNavigationGroup;
   themeMode: "light" | "dark";
+  themeSwitchable: boolean;
   onOpenMobileNav: () => void;
   onToggleTheme: () => void;
 };
@@ -436,6 +438,7 @@ function FormlessSiteHeaderActions({
   isMobile,
   secondaryGroup,
   themeMode,
+  themeSwitchable,
   onOpenMobileNav,
   onToggleTheme,
 }: FormlessSiteHeaderActionsProps) {
@@ -445,15 +448,17 @@ function FormlessSiteHeaderActions({
   return (
     <HStack gap={2} vAlign="center" wrap="wrap">
       {!isMobile ? <FormlessSiteDesktopNav group={secondaryGroup} /> : null}
-      <IconButton
-        aria-pressed={themeMode === "dark"}
-        data-site-theme-control={themeMode}
-        label={`Switch to ${nextThemeMode} mode`}
-        tooltip={`Switch to ${nextThemeMode} mode`}
-        variant="ghost"
-        icon={<ThemeIcon aria-hidden="true" />}
-        onClick={onToggleTheme}
-      />
+      {themeSwitchable ? (
+        <IconButton
+          aria-pressed={themeMode === "dark"}
+          data-site-theme-control={themeMode}
+          label={`Switch to ${nextThemeMode} mode`}
+          tooltip={`Switch to ${nextThemeMode} mode`}
+          variant="ghost"
+          icon={<ThemeIcon aria-hidden="true" />}
+          onClick={onToggleTheme}
+        />
+      ) : null}
       {isMobile ? (
         <IconButton
           label="Open navigation"

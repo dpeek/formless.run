@@ -33,6 +33,8 @@ export type SiteSettingsNode = {
   icon?: string;
   accentColor?: string;
   backgroundColor?: string;
+  initialThemeMode?: "system" | "light" | "dark";
+  themeSwitchable?: boolean;
 };
 
 export type SitePageFrame = {

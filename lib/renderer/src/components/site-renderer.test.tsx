@@ -15,6 +15,7 @@ import type {
   SitePublicRendererProps,
 } from "@dpeek/formless-site-app";
 import { projectSitePublicFormSession } from "@dpeek/formless-site-app";
+import { PublicSiteThemeProvider } from "@dpeek/formless-site-app/public/react";
 
 import {
   createSiteBlockFixture,
@@ -140,6 +141,30 @@ describe("Astryx public Site page shell", () => {
         .querySelector('[aria-label="Switch to light mode"]')
         ?.getAttribute("aria-pressed"),
     ).toBe("true");
+
+    await unmount(renderer);
+  });
+
+  it("renders no theme toggle when Site settings disable switching", async () => {
+    viewport.isMobile = false;
+    const props = shellRendererProps();
+    const renderer = await renderPage({
+      ...props,
+      tree: {
+        ...props.tree,
+        site: {
+          ...required(props.tree.site),
+          initialThemeMode: "light",
+          themeSwitchable: false,
+        },
+      },
+    });
+
+    expect(renderer.container.querySelector("[data-site-theme-control]")).toBeNull();
+    expect(renderer.container.querySelector('[aria-label^="Switch to "]')).toBeNull();
+    expect(
+      renderer.container.querySelector("[data-site-theme]")?.getAttribute("data-site-theme"),
+    ).toBe("light");
 
     await unmount(renderer);
   });
@@ -919,10 +944,12 @@ function renderProjectedFormSession(formBlock: SiteBlockNode, session: SitePubli
     subscribe: () => () => undefined,
   };
   const renderer = render(
-    <AstryxSitePresentation
-      formSessionControllers={new Map([[formBlock.id, controller]])}
-      rendererProps={fixedFormRendererProps(formBlock)}
-    />,
+    <PublicSiteThemeProvider site={fixedFormRendererProps(formBlock).tree.site}>
+      <AstryxSitePresentation
+        formSessionControllers={new Map([[formBlock.id, controller]])}
+        rendererProps={fixedFormRendererProps(formBlock)}
+      />
+    </PublicSiteThemeProvider>,
   );
 
   return { intents, renderer };
@@ -992,7 +1019,11 @@ function withExternalHeaderLink(props: SitePublicRendererProps): SitePublicRende
 }
 
 async function renderPage(props: SitePublicRendererProps) {
-  return render(<FormlessSitePageRenderer {...props} />);
+  return render(
+    <PublicSiteThemeProvider site={props.tree.site}>
+      <FormlessSitePageRenderer {...props} />
+    </PublicSiteThemeProvider>,
+  );
 }
 
 function componentLabels(renderer: RenderResult, component: string): string[] {

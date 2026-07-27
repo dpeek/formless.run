@@ -7,6 +7,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { FormlessApplicationRendererProvider } from "@dpeek/formless-renderer/application/provider";
+import { PUBLIC_SITE_THEME_RELEASE_EVENT } from "@dpeek/formless-site-app";
 import "@dpeek/formless-renderer/application/global.css";
 import {
   ApplicationRuntimeContractHostProvider,
@@ -75,6 +76,17 @@ export function ApplicationRendererRoot({
     },
     [ownedThemeController],
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const reapplyApplicationTheme = () => themeController.reapply();
+    window.addEventListener(PUBLIC_SITE_THEME_RELEASE_EVENT, reapplyApplicationTheme);
+    return () =>
+      window.removeEventListener(PUBLIC_SITE_THEME_RELEASE_EVENT, reapplyApplicationTheme);
+  }, [themeController]);
 
   return (
     <ApplicationRootThemeRuntimeProvider runtime={rootThemeRuntime}>

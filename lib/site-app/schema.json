@@ -37,6 +37,29 @@
           "required": false,
           "label": "Background color",
           "format": "color"
+        },
+        "initialThemeMode": {
+          "type": "enum",
+          "required": false,
+          "label": "Initial theme",
+          "default": "system",
+          "values": {
+            "system": {
+              "label": "System"
+            },
+            "light": {
+              "label": "Light"
+            },
+            "dark": {
+              "label": "Dark"
+            }
+          }
+        },
+        "themeSwitchable": {
+          "type": "boolean",
+          "required": false,
+          "label": "Allow visitors to switch theme",
+          "default": true
         }
       },
       "constraints": {
@@ -69,6 +92,12 @@
               },
               "backgroundColor": {
                 "field": "backgroundColor"
+              },
+              "initialThemeMode": {
+                "field": "initialThemeMode"
+              },
+              "themeSwitchable": {
+                "field": "themeSwitchable"
               }
             }
           },
@@ -1650,6 +1679,14 @@
         "backgroundColor": {
           "editor": "color",
           "commit": "field-commit"
+        },
+        "initialThemeMode": {
+          "editor": "enum",
+          "commit": "immediate"
+        },
+        "themeSwitchable": {
+          "editor": "boolean",
+          "commit": "immediate"
         }
       }
     },

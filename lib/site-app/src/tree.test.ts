@@ -31,6 +31,8 @@ describe("site page tree projection", () => {
       icon: expect.stringContaining("<svg"),
       accentColor: "#C98A2E",
       backgroundColor: "#09090B",
+      initialThemeMode: "system",
+      themeSwitchable: true,
     });
     expect(tree.route).toEqual({
       kind: "page",

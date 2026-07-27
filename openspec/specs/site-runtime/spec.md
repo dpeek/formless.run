@@ -792,6 +792,53 @@ shell.
   provider, StyleX integration, and CSS boundaries without importing application
   provider or CSS assembly
 
+### Requirement: Schema-backed Public Site Theme
+
+The system SHALL derive public Site document theming from the primary Site
+settings record on preview, installed, published, and mapped-host surfaces.
+
+The Site settings fields are:
+
+- `initialThemeMode`: optional enum `system`, `light`, or `dark`; missing values
+  resolve as `system`.
+- `themeSwitchable`: optional boolean; missing values resolve as `true`.
+
+#### Scenario: Site route owns the public document theme
+
+- GIVEN a public Site route has resolved its page tree
+- WHEN the selected built-in or workspace `site.publicRenderer` is mounted
+- THEN the Site route boundary resolves and applies the Site document theme
+- AND a stored visitor light or dark preference takes precedence only when
+  `themeSwitchable` is true
+- AND the application document theme does not overwrite the Site theme while the
+  public route remains mounted
+- AND leaving an in-application Site route restores or reapplies the current
+  application document theme
+- AND Site theme storage, preference resolution, document ownership, and browser
+  runtime behavior remain owned by `@dpeek/formless-site-app`
+
+#### Scenario: Built-in theme control follows Site policy
+
+- GIVEN the built-in Formless Renderer renders a public Site page
+- WHEN `themeSwitchable` resolves to true
+- THEN the renderer presents its concrete Astryx theme toggle
+- AND selecting the toggle persists and applies the visitor preference
+- WHEN `themeSwitchable` resolves to false
+- THEN the renderer presents no theme toggle
+- AND stored visitor overrides are neither read nor persisted
+
+#### Scenario: Worker document theme follows Site settings
+
+- GIVEN Worker SSR renders a published Site page with a built-in or workspace
+  renderer
+- WHEN the public document shell is produced
+- THEN the initial HTML theme class, Site theme data attribute, `color-scheme`,
+  browser bootstrap, and fallback background derive from the projected Site
+  settings
+- AND fixed light or dark settings ignore stored visitor preferences
+- AND system settings start from deterministic light SSR output before the
+  browser resolves the system preference
+
 #### Scenario: Public Site assets exclude admin-only code
 
 - GIVEN a visitor opens a published Site page, mapped public Site host, or

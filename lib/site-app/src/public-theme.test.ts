@@ -15,6 +15,8 @@ import {
   PUBLIC_SITE_THEME_SSR_MODE,
   PUBLIC_SITE_THEME_STORAGE_KEY,
   PUBLIC_SITE_THEME_SYSTEM_QUERY,
+  renderPublicSiteThemeBootScript,
+  renderPublicSiteThemeBootStyle,
   resolvePublicSiteThemeMode,
 } from "./public-theme.ts";
 
@@ -61,6 +63,32 @@ describe("public Site theme facts", () => {
     expect(nextPublicSiteThemeMode("dark")).toBe("light");
   });
 
+  it("uses configured initial mode and only gives storage precedence when switchable", () => {
+    expect(
+      resolvePublicSiteThemeMode({
+        initialThemeMode: "dark",
+        storedValue: null,
+        systemPrefersDark: false,
+      }),
+    ).toBe("dark");
+    expect(
+      resolvePublicSiteThemeMode({
+        initialThemeMode: "light",
+        storedValue: "dark",
+        systemPrefersDark: true,
+        themeSwitchable: false,
+      }),
+    ).toBe("light");
+    expect(
+      resolvePublicSiteThemeMode({
+        initialThemeMode: "dark",
+        storedValue: "light",
+        systemPrefersDark: false,
+        themeSwitchable: true,
+      }),
+    ).toBe("light");
+  });
+
   it("shares stored and system behavior with the browser boot script", () => {
     expect(PUBLIC_SITE_THEME_BOOT_SCRIPT).toContain(
       `<script id="${PUBLIC_SITE_THEME_BOOT_SCRIPT_ID}">`,
@@ -93,6 +121,29 @@ describe("public Site theme facts", () => {
     });
   });
 
+  it("generates fixed light and dark bootstraps that ignore visitor storage", () => {
+    expect(
+      runBootstrap({
+        site: siteSettings("#000000", "#FFFFFF", {
+          initialThemeMode: "light",
+          themeSwitchable: false,
+        }),
+        storedValue: "dark",
+        systemPrefersDark: true,
+      }),
+    ).toMatchObject({ colorScheme: "light", dataTheme: "light" });
+    expect(
+      runBootstrap({
+        site: siteSettings("#FFFFFF", "#000000", {
+          initialThemeMode: "dark",
+          themeSwitchable: false,
+        }),
+        storedValue: "light",
+        systemPrefersDark: false,
+      }),
+    ).toMatchObject({ colorScheme: "dark", dataTheme: "dark" });
+  });
+
   it("maps authored colors to contrast-safe light and dark palettes", () => {
     const light = publicSiteThemePalette(siteSettings("#000000", "#FFFFFF"), "light");
     const dark = publicSiteThemePalette(siteSettings("#FFFFFF", "#000000"), "dark");
@@ -119,18 +170,31 @@ describe("public Site theme facts", () => {
       publicSiteThemePalette(undefined, "dark"),
     );
   });
+
+  it("uses the authored Site background in the document fallback style", () => {
+    const style = renderPublicSiteThemeBootStyle(siteSettings("#000000", "#FFFFFF"));
+
+    expect(style).toContain("background: rgb(255 255 255)");
+    expect(style).toContain("background: rgb(107 107 107)");
+  });
 });
 
-function siteSettings(accentColor: string, backgroundColor: string): SiteSettingsNode {
+function siteSettings(
+  accentColor: string,
+  backgroundColor: string,
+  theme: Pick<SiteSettingsNode, "initialThemeMode" | "themeSwitchable"> = {},
+): SiteSettingsNode {
   return {
     accentColor,
     backgroundColor,
     id: "site:theme-test",
     label: "Theme test",
+    ...theme,
   };
 }
 
 function runBootstrap(input: {
+  site?: SiteSettingsNode;
   storageUnavailable?: boolean;
   storedValue?: string | null;
   systemPrefersDark: boolean;
@@ -173,10 +237,9 @@ function runBootstrap(input: {
       },
     },
   };
-  const source = PUBLIC_SITE_THEME_BOOT_SCRIPT.replace(/^<script[^>]*>\n?/, "").replace(
-    /\n?<\/script>$/,
-    "",
-  );
+  const source = renderPublicSiteThemeBootScript(input.site)
+    .replace(/^<script[^>]*>\n?/, "")
+    .replace(/\n?<\/script>$/, "");
 
   runInNewContext(source, { document: documentValue, window: windowValue });
 
