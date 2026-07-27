@@ -1106,6 +1106,7 @@ describe("instance control-plane schema contracts", () => {
       {
         enabled: true,
         matchPath: "/apps/personal",
+        matchPrefix: "/apps/personal/",
         kind: "mount",
         targetProfile: "app",
         appInstall: "personal",

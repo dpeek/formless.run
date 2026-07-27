@@ -62,8 +62,13 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 
 - GIVEN the runtime profile is `instance`
 - WHEN a browser navigates to `/`, `/deployments`, `/access`,
-  `/apps/<installId>`, `/sites/<installId>`, or `/sites/<installId>/*`
+  `/apps/<installId>`, `/apps/<installId>/*`, `/sites/<installId>`, or
+  `/sites/<installId>/*`
 - THEN the request is eligible for the client shell
+- AND a default installed-app admin route matches its exact base and generated
+  nested screen paths through `/apps/<installId>/`
+- AND a more-specific exact path or longer nested route outranks that base
+  admin prefix
 - AND source app routes such as `/tasks`, `/crm/audiences`, `/site/schema`, and
   `/pages/home` are not eligible instance browser routes
 

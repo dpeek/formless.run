@@ -466,6 +466,7 @@ describe("instance app install API routes", () => {
         recordId: "route:personal:admin",
         input: {
           matchPath: "/apps/personal-admin",
+          matchPrefix: "/apps/personal-admin/",
         },
       },
     );
@@ -547,7 +548,7 @@ describe("instance app install API routes", () => {
     expect(conflictingRoute.response.status).toBe(200);
     expect(rejected.response.status).toBe(400);
     expect(rejected.body.error).toContain(
-      'Enabled route match "<hostless>/apps/personal" conflicts with enabled route',
+      'Enabled route match "<hostless>/apps/personal /apps/personal/" conflicts with enabled route',
     );
     expect(after.body.installs).toEqual([]);
   });
@@ -565,6 +566,7 @@ describe("instance app install API routes", () => {
         recordId: "route:personal:admin",
         input: {
           matchPath: "/apps/personal-admin",
+          matchPrefix: "/apps/personal-admin/",
         },
       },
     );

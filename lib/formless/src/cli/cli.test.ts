@@ -126,6 +126,7 @@ import {
   type FormlessCloudflareOAuthAdapter,
   type FormlessCloudflareOAuthTokenSet,
 } from "./cloudflare-oauth.ts";
+import { appArchiveControlPlaneRecords } from "./instance-workspace-control-plane.ts";
 
 const tempDirs: string[] = [];
 const setupToken = "abcDEF0123456789_-abcDEF0123456789_-";
@@ -516,6 +517,17 @@ describe("Formless CLI", () => {
 
     expect(manifest).toEqual(layoutWorkspaceManifest("personal-sites"));
     expect(result.archiveSourcePath).toBe("archives/instance");
+  });
+
+  it("projects archive app admin routes over generated nested screens", () => {
+    expect(
+      appArchiveControlPlaneRecords(appArchive("david", "David Peek")).find(
+        (record) => record.id === "route:david:admin",
+      )?.values,
+    ).toMatchObject({
+      matchPath: "/apps/david",
+      matchPrefix: "/apps/david/",
+    });
   });
 
   it("discovers nearest Formless workspace manifest", async () => {

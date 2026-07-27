@@ -1,12 +1,41 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import type { AppInstall } from "@dpeek/formless-installed-apps";
+import { instanceControlPlaneDefaultRoutesForInstall } from "@dpeek/formless-instance-control-plane";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { SchemaKey } from "../shared/schema-apps.ts";
 import { bundledSourceSchemaHashFixtures } from "../shared/upgrade-migrations.ts";
 import { resolveInstanceRuntimeRouteFromRecords } from "./instance-runtime-routes.ts";
 
 describe("instance runtime route resolution", () => {
+  it("resolves a generated installed-app admin route for its nested screens", () => {
+    const appInstalls = [appInstall("personal", "site")];
+    const records = instanceControlPlaneDefaultRoutesForInstall({
+      installId: "personal",
+      packageAppKey: "site",
+      now: "2026-06-02T00:00:00.000Z",
+    });
+
+    expect(
+      resolveInstanceRuntimeRouteFromRecords({
+        appInstalls,
+        records,
+        request: { host: "formless.local", pathname: "/apps/personal/settings" },
+      }),
+    ).toMatchObject({
+      access: "authenticated",
+      id: "route:personal:admin",
+      matchPath: "/apps/personal",
+      matchPrefix: "/apps/personal/",
+      requiredRole: "app.admin",
+      target: {
+        installId: "personal",
+        kind: "appInstall",
+        packageAppKey: "site",
+      },
+    });
+  });
+
   it("orders exact host, exact path, redirect, mount, and hostless matches deterministically", () => {
     const route = resolveInstanceRuntimeRouteFromRecords({
       appInstalls: [],
@@ -311,6 +340,7 @@ describe("instance runtime route resolution", () => {
         access: "owner",
         enabled: true,
         matchPath: "/apps/tasks",
+        matchPrefix: "/apps/tasks/",
         kind: "mount",
         targetProfile: "app",
         appInstall: "tasks",
@@ -322,6 +352,19 @@ describe("instance runtime route resolution", () => {
         access: "authenticated",
         enabled: true,
         matchPath: "/apps/tasks/members",
+        kind: "mount",
+        targetProfile: "app",
+        appInstall: "tasks",
+        requiredRole: "app.admin",
+        surface: "admin",
+        createdAt: "2026-06-02T00:00:00.000Z",
+        updatedAt: "2026-06-02T00:00:00.000Z",
+      }),
+      routeRecord("route:tasks:settings", {
+        access: "authenticated",
+        enabled: true,
+        matchPath: "/apps/tasks/settings",
+        matchPrefix: "/apps/tasks/settings/",
         kind: "mount",
         targetProfile: "app",
         appInstall: "tasks",
@@ -417,6 +460,16 @@ describe("instance runtime route resolution", () => {
       surface: "admin",
       target: { installId: "tasks", kind: "appInstall", packageAppKey: "tasks" },
       targetProfile: "app",
+    });
+    expect(
+      resolveInstanceRuntimeRouteFromRecords({
+        appInstalls,
+        records,
+        request: { host: "formless.local", pathname: "/apps/tasks/settings/profile" },
+      }),
+    ).toMatchObject({
+      id: "route:tasks:settings",
+      matchPrefix: "/apps/tasks/settings/",
     });
     expect(
       resolveInstanceRuntimeRouteFromRecords({

@@ -467,6 +467,7 @@ describe("instance control-plane API routes", () => {
         recordId: "route:personal:admin",
         input: {
           matchPath: "/apps/personal-admin",
+          matchPrefix: "/apps/personal-admin/",
         },
       },
     );

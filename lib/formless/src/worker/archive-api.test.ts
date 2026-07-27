@@ -704,6 +704,7 @@ function controlPlaneArchiveRecords(): StoredRecord[] {
   adminRoute.values = {
     ...adminRoute.values,
     matchPath: "/apps/personal-dashboard",
+    matchPrefix: "/apps/personal-dashboard/",
   };
 
   return [

@@ -481,6 +481,102 @@ describe("installed Site custom-domain Worker routing", () => {
     });
   });
 
+  it("continues install-scoped app admins to nested generated app screens", async () => {
+    await withWorkersDevAuthHarness(async (deploymentOrigin) => {
+      await resetWorkerState(harness, ["controlPlane", "auth"]);
+
+      await configureHarnessAuth(deploymentOrigin);
+      await postAdminJson("/api/formless/app-installs", {
+        packageAppKey: "site",
+        installId,
+        label: "Personal",
+      });
+      await postAdminJson("/api/formless/app-installs", {
+        packageAppKey: "tasks",
+        installId: "verifi",
+        label: "Verifi",
+      });
+
+      const matching = await createAccountReadyPrincipalSessionCookie(
+        "Nested Site App Admin",
+        deploymentOrigin,
+      );
+      await assignIdentityAppRole(matching.principalId, installId);
+      const wrongInstall = await createAccountReadyPrincipalSessionCookie(
+        "Nested Verifi App Admin",
+        deploymentOrigin,
+      );
+      await assignIdentityAppRole(wrongInstall.principalId, "verifi");
+      const ordinary = await createAccountReadyPrincipalSessionCookie(
+        "Nested Ordinary Principal",
+        deploymentOrigin,
+      );
+      const returnTo = `/apps/${installId}/settings`;
+      const accountPath = `${runtimeTopologyRoutes.authAccountRoute}?returnTo=${encodeURIComponent(returnTo)}`;
+
+      const unauthenticated = await harness.mf.dispatchFetch(`${deploymentOrigin}${accountPath}`, {
+        headers: { Accept: "text/html" },
+        redirect: "manual",
+      });
+      const matchingAccount = await harness.mf.dispatchFetch(`${deploymentOrigin}${accountPath}`, {
+        headers: { Accept: "text/html", Cookie: matching.cookie },
+        redirect: "manual",
+      });
+      const matchingBase = await harness.mf.dispatchFetch(`${deploymentOrigin}/apps/${installId}`, {
+        headers: { Accept: "text/html", Cookie: matching.cookie },
+        redirect: "manual",
+      });
+      const matchingNested = await harness.mf.dispatchFetch(`${deploymentOrigin}${returnTo}`, {
+        headers: { Accept: "text/html", Cookie: matching.cookie },
+        redirect: "manual",
+      });
+      const wrongInstallStatus = await harness.mf.dispatchFetch(
+        `${deploymentOrigin}${accountPath}`,
+        {
+          headers: { Accept: "application/json", Cookie: wrongInstall.cookie },
+          redirect: "manual",
+        },
+      );
+      const ordinaryStatus = await harness.mf.dispatchFetch(`${deploymentOrigin}${accountPath}`, {
+        headers: { Accept: "application/json", Cookie: ordinary.cookie },
+        redirect: "manual",
+      });
+      const publicSite = await harness.mf.dispatchFetch(`${deploymentOrigin}/sites/${installId}`, {
+        headers: { Accept: "text/html" },
+        redirect: "manual",
+      });
+      const wrongInstallBody = (await wrongInstallStatus.json()) as {
+        gate?: { kind?: string; roleKey?: string; scopeKind?: string };
+      };
+      const ordinaryBody = (await ordinaryStatus.json()) as {
+        gate?: { kind?: string; roleKey?: string; scopeKind?: string };
+      };
+
+      expect(unauthenticated.status).toBe(302);
+      expect(unauthenticated.headers.get("Location")).toBe(
+        accountRedirectLocationForRoute(accountPath),
+      );
+      expect(matchingAccount.status).toBe(302);
+      expect(matchingAccount.headers.get("Location")).toBe(returnTo);
+      expect(matchingBase.status).toBe(200);
+      expect(matchingNested.status).toBe(200);
+      expect(wrongInstallStatus.status).toBe(409);
+      expect(wrongInstallBody.gate).toMatchObject({
+        kind: "role-review",
+        roleKey: "app.admin",
+        scopeKind: "app-install",
+      });
+      expect(ordinaryStatus.status).toBe(409);
+      expect(ordinaryBody.gate).toMatchObject({
+        kind: "role-review",
+        roleKey: "app.admin",
+        scopeKind: "app-install",
+      });
+      expect(publicSite.status).toBe(200);
+      expect(publicSite.headers.get("Location")).toBeNull();
+    });
+  });
+
   it("returns owners and instance admins through account continuation to instance management", async () => {
     await resetWorkerState(harness, ["controlPlane", "auth"]);
     await setupPrimaryProductionIdentity();
@@ -3466,8 +3562,11 @@ async function createCompletionReadyPrincipalSessionCookie(displayName: string) 
   return principal;
 }
 
-async function createAccountReadyPrincipalSessionCookie(displayName: string) {
-  const principal = await createActivePrincipalSessionCookie(displayName);
+async function createAccountReadyPrincipalSessionCookie(
+  displayName: string,
+  origin = "https://www.example.com",
+) {
+  const principal = await createActivePrincipalSessionCookie(displayName, origin);
 
   await createVerifiedPrimaryEmail(
     principal.principalId,

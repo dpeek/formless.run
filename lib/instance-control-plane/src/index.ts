@@ -1610,22 +1610,24 @@ export function instanceControlPlaneDefaultRoutesForInstall(input: {
     ? findResolvedAppPackage(input.packageAppKey, input.packageResolver)
     : undefined;
   const adminRouteBase = packageApp?.adminRouteBase ?? "/apps";
+  const adminRoute = `${adminRouteBase}/${input.installId}` as `/${string}`;
   const publicRouteBase = packageApp?.publicRouteBase;
   const routeInput = { install: { installId: input.installId }, now: input.now };
-  const adminRoute = mountRouteRecord(routeInput, {
+  const adminRouteRecord = mountRouteRecord(routeInput, {
     access: "authenticated",
-    matchPath: `${adminRouteBase}/${input.installId}`,
+    matchPath: adminRoute,
+    matchPrefix: `${adminRoute}/`,
     requiredRole: "app.admin",
     surface: "admin",
     targetProfile: "app",
   });
 
   if (publicRouteBase === undefined) {
-    return [adminRoute];
+    return [adminRouteRecord];
   }
 
   return [
-    adminRoute,
+    adminRouteRecord,
     mountRouteRecord(routeInput, {
       matchPath: `${publicRouteBase}/${input.installId}`,
       matchPrefix: `${publicRouteBase}/${input.installId}/`,
@@ -1646,6 +1648,7 @@ export function instanceControlPlaneRouteRecordsForAppInstall(input: {
     mountRouteRecord(input, {
       access: "authenticated",
       matchPath: input.install.adminRoute,
+      matchPrefix: `${input.install.adminRoute}/`,
       requiredRole: "app.admin",
       surface: "admin",
       targetProfile: "app",

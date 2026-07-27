@@ -146,7 +146,8 @@ instance `route` records.
 - **THEN** its app install metadata stores package app key `site`, label
   `Personal Site`, and status `installed`
 - **AND** route records target the install for admin route `/apps/personal`,
-  public route `/sites/personal`, and public route prefix `/sites/personal/`
+  admin route prefix `/apps/personal/`, public route `/sites/personal`, and
+  public route prefix `/sites/personal/`
 - **AND** app install API metadata can include route summaries derived from route
   records
 
@@ -157,6 +158,8 @@ instance `route` records.
 - **WHEN** an install is created from that package
 - **THEN** route records target the install for an admin route under
   `/apps/<installId>`
+- **AND** the admin route prefix `/apps/<installId>/` covers generated nested
+  app screen paths
 - **AND** public Site route records use `/sites/<installId>` and
   `/sites/<installId>/`
 - **AND** the install metadata keeps the private package app key rather than
@@ -169,6 +172,8 @@ instance `route` records.
 - **THEN** the app install metadata stores package app key, label, and status
 - **AND** route records target the install for an admin route under
   `/apps/<installId>`
+- **AND** the admin route prefix `/apps/<installId>/` covers generated nested
+  app screen paths
 - **AND** no public Site route record is created for that install
 
 #### Scenario: App install registration policy metadata
@@ -402,8 +407,8 @@ The system SHALL represent app admin and public Site routes as schema-owned
 - **GIVEN** a Site app install with install id `personal` is created
 - **WHEN** default route records are created
 - **THEN** route records target the `personal` app install for admin route
-  `/apps/personal`, public route `/sites/personal`, and public route prefix
-  `/sites/personal/`
+  `/apps/personal`, admin route prefix `/apps/personal/`, public route
+  `/sites/personal`, and public route prefix `/sites/personal/`
 - **AND** Site public route metadata is scoped to that app install record
 
 #### Scenario: Non-Site install route records
@@ -412,6 +417,8 @@ The system SHALL represent app admin and public Site routes as schema-owned
 - **WHEN** default route records are created
 - **THEN** route records target the app install for an admin route under
   `/apps/<installId>`
+- **AND** the admin route prefix `/apps/<installId>/` covers generated nested
+  app screen paths
 - **AND** the admin route uses authenticated access with required role
   `app.admin` scoped through that app install target
 - **AND** no public Site route record is created for that install
@@ -422,6 +429,8 @@ The system SHALL represent app admin and public Site routes as schema-owned
 - **WHEN** route access is projected
 - **THEN** the admin route uses authenticated access with required role
   `app.admin` scoped through that app install target
+- **AND** its exact base and nested screen paths use the same install-scoped
+  authorization
 - **AND** the public Site routes retain anonymous access without a required app
   role
 

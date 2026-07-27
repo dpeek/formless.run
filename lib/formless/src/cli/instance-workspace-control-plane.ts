@@ -293,6 +293,7 @@ export function appInstallControlPlaneRecords(install: AppInstall): StoredRecord
         enabled: true,
         kind: "mount",
         matchPath: install.adminRoute,
+        matchPrefix: `${install.adminRoute}/`,
         surface: "admin",
         targetProfile: "app",
         updatedAt: install.updatedAt,
