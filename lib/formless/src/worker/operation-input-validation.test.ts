@@ -453,6 +453,41 @@ describe("operation input validation", () => {
     ).toThrow('Field "title" cannot be empty.');
   });
 
+  it("rejects false affirmative public operation input before materialization", () => {
+    const operation = createTaskOperation({
+      fields: {
+        ordinaryBoolean: { field: "done", required: true },
+        consent: { field: "done", required: true, mustBeTrue: true },
+      },
+    });
+
+    expect(() =>
+      validatePublicOperationInputValues(
+        publicOperationInputRequest({
+          operation,
+          rawInput: {
+            ordinaryBoolean: false,
+            consent: false,
+          },
+        }),
+      ),
+    ).toThrow('Operation input field "consent" must be accepted.');
+    expect(
+      validatePublicOperationInputValues(
+        publicOperationInputRequest({
+          operation,
+          rawInput: {
+            ordinaryBoolean: false,
+            consent: true,
+          },
+        }),
+      ),
+    ).toEqual({
+      ordinaryBoolean: false,
+      consent: true,
+    });
+  });
+
   it("maps entity-backed create and update input to stored entity field names", () => {
     const createOperation = createTaskOperation({
       fields: {

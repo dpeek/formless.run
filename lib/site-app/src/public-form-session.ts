@@ -62,6 +62,7 @@ export type SitePublicFormField = {
   name: string;
   label: string;
   required: boolean;
+  mustBeTrue?: true;
   control: SitePublicOperationInputFieldNode["control"];
   format?: SitePublicOperationTextFormatNode;
   suggestions?: string[];
@@ -440,6 +441,7 @@ function projectSitePublicFormSessionFacts(
       name: field.name,
       label: field.label,
       required: field.required,
+      ...(field.mustBeTrue ? { mustBeTrue: field.mustBeTrue } : {}),
       control: field.control,
       ...(field.format === undefined ? {} : { format: field.format }),
       ...(field.suggestions === undefined ? {} : { suggestions: [...field.suggestions] }),

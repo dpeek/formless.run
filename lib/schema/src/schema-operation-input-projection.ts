@@ -166,6 +166,10 @@ function projectEntityBackedOperationInputField(input: {
     return { kind: "omit", inputName: input.inputName, entityFieldName: input.field.field };
   }
 
+  if (input.field.mustBeTrue && result.value !== true) {
+    throw new Error(`${input.context} field "${input.inputName}" must be accepted.`);
+  }
+
   return {
     kind: "set",
     inputName: input.inputName,

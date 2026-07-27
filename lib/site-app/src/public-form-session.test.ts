@@ -530,6 +530,77 @@ describe("public Site form sessions", () => {
     expect(field(controller, "quantity").error).toBe('Field "quantity" cannot be empty.');
     expect(field(controller, "category").error).toBe('Field "category" cannot be empty.');
   });
+
+  it("requires affirmative boolean acceptance while ordinary required booleans accept false", async () => {
+    const requestBodies: unknown[] = [];
+    const controller = createSitePublicFormSessionController({
+      block: formBlock("affirmative-consent", "publicOperationForm", {
+        publicOperation: publicOperation({
+          fields: [
+            {
+              name: "ordinaryBoolean",
+              label: "Ordinary boolean",
+              required: true,
+              control: "boolean",
+            },
+            {
+              name: "contactConsent",
+              label: "I agree to be contacted",
+              required: true,
+              mustBeTrue: true,
+              control: "boolean",
+            },
+          ],
+        }),
+      }),
+      fetcher: async (_input, init) => {
+        if (typeof init?.body !== "string") {
+          throw new Error("Expected a JSON request body.");
+        }
+        requestBodies.push(JSON.parse(init.body));
+        return Response.json(publicCreateResponse({ record: { id: "request-1" } }));
+      },
+      idempotencyKeyFactory: () => "affirmative-consent-key",
+    });
+
+    await challengeToken(controller, "turnstile-token");
+
+    expect(field(controller, "ordinaryBoolean")).toMatchObject({
+      required: true,
+      value: false,
+    });
+    expect(field(controller, "ordinaryBoolean")).not.toHaveProperty("mustBeTrue");
+    expect(field(controller, "contactConsent")).toMatchObject({
+      required: true,
+      mustBeTrue: true,
+      value: false,
+    });
+    expect(controller.getSnapshot().submit.ready).toBe(false);
+
+    await controller.dispatch(controller.getSnapshot().submit.intent);
+
+    expect(field(controller, "ordinaryBoolean")).not.toHaveProperty("error");
+    expect(field(controller, "contactConsent").error).toBe(
+      'Field "contactConsent" must be accepted.',
+    );
+    expect(requestBodies).toEqual([]);
+
+    await changeField(controller, "contactConsent", true);
+
+    expect(field(controller, "contactConsent")).not.toHaveProperty("error");
+    expect(controller.getSnapshot().submit.ready).toBe(true);
+
+    await controller.dispatch(controller.getSnapshot().submit.intent);
+
+    expect(requestBodies).toEqual([
+      expect.objectContaining({
+        input: {
+          ordinaryBoolean: false,
+          contactConsent: true,
+        },
+      }),
+    ]);
+  });
 });
 
 const genericFields: SitePublicOperationInputFieldNode[] = [

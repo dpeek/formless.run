@@ -331,6 +331,80 @@ describe("schema entity operations", () => {
     expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
   });
 
+  it("parses affirmative boolean entity operation input constraints", () => {
+    const schema = parseAppSchema(
+      schemaWithTaskOperations({
+        create: {
+          kind: "create",
+          scope: "collection",
+          input: {
+            fields: {
+              consent: {
+                field: "done",
+                required: true,
+                mustBeTrue: true,
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    expect(schema.entities.task?.operations?.create.input?.fields.consent).toEqual({
+      field: "done",
+      required: true,
+      mustBeTrue: true,
+    });
+    expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+  });
+
+  it("rejects affirmative operation input constraints outside required boolean entity fields", () => {
+    const invalidCases = [
+      {
+        field: { field: "title", required: true, mustBeTrue: true },
+        message: "mustBeTrue requires a boolean entity field",
+      },
+      {
+        field: { field: "done", required: false, mustBeTrue: true },
+        message: "mustBeTrue requires required to be true",
+      },
+      {
+        field: { field: "done", required: true, mustBeTrue: false },
+        message: "mustBeTrue must be true when declared",
+      },
+      {
+        field: { type: "boolean", required: true, mustBeTrue: true },
+        message: 'has unsupported key "mustBeTrue"',
+      },
+    ];
+
+    for (const invalidCase of invalidCases) {
+      expect(() =>
+        parseAppSchema(
+          schemaWithTaskOperations({
+            create:
+              "field" in invalidCase.field
+                ? {
+                    kind: "create",
+                    scope: "collection",
+                    input: { fields: { consent: invalidCase.field } },
+                  }
+                : {
+                    kind: "command",
+                    scope: "collection",
+                    input: { fields: { consent: invalidCase.field } },
+                    effect: {
+                      type: "operationHandler",
+                      handler: "clear-completed",
+                      config: { query: "taskCompleted" },
+                    },
+                  },
+          }),
+        ),
+      ).toThrow(invalidCase.message);
+    }
+  });
+
   it("rejects invalid inline operation text format and suggestion declarations", () => {
     expect(() =>
       parseAppSchema(

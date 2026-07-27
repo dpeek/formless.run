@@ -790,6 +790,58 @@ describe("Astryx public Site form contract mapping", () => {
 
     await unmount(renderer);
   });
+
+  it("maps affirmative checkbox acceptance to native required and projected invalid state", async () => {
+    const fields: SitePublicOperationInputFieldNode[] = [
+      {
+        name: "ordinaryBoolean",
+        label: "Ordinary boolean",
+        required: true,
+        control: "boolean",
+      },
+      {
+        name: "contactConsent",
+        label: "I agree to be contacted",
+        required: true,
+        mustBeTrue: true,
+        control: "boolean",
+      },
+    ];
+    const formBlock = block("affirmative-consent", "publicOperationForm", "Send enquiry", {
+      buttonLabel: "Send enquiry",
+      publicOperation: genericPublicOperation(fields),
+    });
+    const projectedSession = projectSitePublicFormSession(formBlock, {
+      challengeReady: true,
+      fieldErrors: {
+        contactConsent: 'Field "contactConsent" must be accepted.',
+      },
+      status: "ready",
+      values: {
+        ordinaryBoolean: false,
+        contactConsent: false,
+      },
+    });
+    const session = { ...projectedSession, challenge: undefined };
+    const { renderer } = renderProjectedFormSession(formBlock, session);
+    const queries = within(renderer.container);
+    const ordinaryBoolean = queries.getByRole<HTMLInputElement>("checkbox", {
+      name: /^Ordinary boolean/,
+    });
+    const contactConsent = queries.getByRole<HTMLInputElement>("checkbox", {
+      name: /^I agree to be contacted/,
+    });
+
+    expect(ordinaryBoolean.required).toBe(false);
+    expect(ordinaryBoolean.getAttribute("aria-invalid")).toBeNull();
+    expect(contactConsent.required).toBe(true);
+    expect(contactConsent.getAttribute("aria-invalid")).toBe("true");
+    expect(queries.getByRole<HTMLButtonElement>("button", { name: "Send enquiry" }).disabled).toBe(
+      true,
+    );
+
+    await unmount(renderer);
+  });
 });
 
 describe("Astryx public Site system states", () => {

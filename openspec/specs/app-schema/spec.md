@@ -687,6 +687,16 @@ public forms, automation, audit, and authorization.
 - AND inline scalar input fields can be declared for command-only input that is
   not stored directly on the target record
 
+#### Scenario: Declare affirmative boolean operation input
+
+- GIVEN an entity-backed operation input references a boolean entity field
+- WHEN the input declares `required: true` and `mustBeTrue: true`
+- THEN parsing preserves the affirmative acceptance constraint
+- AND the constraint is rejected for non-boolean entity fields, inline scalar
+  inputs, non-required inputs, or values other than literal `true`
+- AND ordinary required boolean fields without `mustBeTrue` continue to accept
+  explicit `false`
+
 #### Scenario: Keep operation input names as the interaction contract
 
 - GIVEN an operation declares input fields
@@ -706,6 +716,8 @@ public forms, automation, audit, and authorization.
   contract
 - AND projection derives required flags, inline scalar validation, entity-backed
   field targets, and storage-free scalar field behavior from the parsed schema
+- AND entity-backed input with `mustBeTrue: true` rejects any submitted value
+  other than `true`
 - AND inline scalar operation input validation uses the same field behavior
   validators as entity-backed operation input validation
 - AND projection can return operation-input keyed values for command handlers
@@ -922,6 +934,7 @@ anonymous public bindings.
 - AND entity-backed operation input fields reuse public-safe entity field
   labels, required flags, scalar types, enum values, text formats, and text
   suggestions
+- AND affirmative boolean entity-backed inputs also expose `mustBeTrue: true`
 - AND inline operation input fields expose only their declared labels, required
   flags, scalar types, enum values, public text formats, and public text
   suggestions

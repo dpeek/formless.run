@@ -82,6 +82,17 @@ through an explicit actor policy and public binding.
 - AND Turnstile proof values are not stored in the created record or returned in
   the public response
 
+#### Scenario: Reject missing affirmative acceptance
+
+- GIVEN a public operation input declares an entity-backed boolean with
+  `required: true` and `mustBeTrue: true`
+- WHEN a direct public operation request submits `false` for that input
+- THEN schema-owned operation input validation rejects the request before
+  Turnstile verification
+- AND no operation effects are committed
+- AND ordinary required boolean operation inputs without `mustBeTrue` continue
+  to accept explicit `false`
+
 #### Scenario: Public contact notification side effect
 
 - GIVEN a Site contact message public operation commits successfully

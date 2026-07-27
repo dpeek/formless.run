@@ -491,20 +491,34 @@ function parseOperationInputField(
   }
 
   if ("field" in value) {
-    assertExactKeys(context, value, ["field"], ["required", "label"]);
+    assertExactKeys(context, value, ["field"], ["required", "label", "mustBeTrue"]);
 
     const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
-    if (!entity.fields[fieldName]) {
+    const entityField = entity.fields[fieldName];
+    if (!entityField) {
       throw new Error(`${context} references unknown field "${fieldName}".`);
     }
 
     const required = parseOptionalBoolean(`${context} required`, value.required);
     const label = parseOptionalNonEmptyString(`${context} label`, value.label);
+    const mustBeTrue = parseOptionalAffirmativeConstraint(
+      `${context} mustBeTrue`,
+      value.mustBeTrue,
+    );
+
+    if (mustBeTrue && entityField.type !== "boolean") {
+      throw new Error(`${context} mustBeTrue requires a boolean entity field.`);
+    }
+
+    if (mustBeTrue && required !== true) {
+      throw new Error(`${context} mustBeTrue requires required to be true.`);
+    }
 
     return {
       field: fieldName,
       ...(required === undefined ? {} : { required }),
       ...(label === undefined ? {} : { label }),
+      ...(mustBeTrue === undefined ? {} : { mustBeTrue }),
     };
   }
 
@@ -513,6 +527,18 @@ function parseOperationInputField(
   }
 
   return parseInlineInputField(context, value);
+}
+
+function parseOptionalAffirmativeConstraint(context: string, value: unknown): true | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value !== true) {
+    throw new Error(`${context} must be true when declared.`);
+  }
+
+  return true;
 }
 
 function parseInlineInputField(

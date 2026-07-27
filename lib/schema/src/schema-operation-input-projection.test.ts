@@ -374,6 +374,50 @@ describe("schema operation input projection", () => {
       }),
     ).toThrow('Field "done" must be a boolean.');
   });
+
+  it("requires affirmative entity-backed booleans without changing required boolean semantics", () => {
+    const ordinaryRequiredBoolean = createTaskOperation({
+      fields: {
+        taskDone: { field: "done", required: true },
+      },
+    });
+    const affirmativeBoolean = createTaskOperation({
+      fields: {
+        consent: { field: "done", required: true, mustBeTrue: true },
+      },
+    });
+
+    expect(
+      projectOperationInputValues({
+        canonicalOperationKey: "task.create",
+        entity: taskEntity,
+        operation: ordinaryRequiredBoolean,
+        rawInput: { taskDone: false },
+      }),
+    ).toMatchObject({
+      operationInputValues: { taskDone: false },
+      recordWriteValues: { done: false },
+    });
+    expect(() =>
+      projectOperationInputValues({
+        canonicalOperationKey: "task.create",
+        entity: taskEntity,
+        operation: affirmativeBoolean,
+        rawInput: { consent: false },
+      }),
+    ).toThrow('Operation input field "consent" must be accepted.');
+    expect(
+      projectOperationInputValues({
+        canonicalOperationKey: "task.create",
+        entity: taskEntity,
+        operation: affirmativeBoolean,
+        rawInput: { consent: true },
+      }),
+    ).toMatchObject({
+      operationInputValues: { consent: true },
+      recordWriteValues: { done: true },
+    });
+  });
 });
 
 const taskEntity = {

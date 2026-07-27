@@ -237,6 +237,11 @@ describe("schema public operation facts", () => {
               field: "acceptedTerms",
               required: false,
             },
+            consent: {
+              field: "done",
+              required: true,
+              mustBeTrue: true,
+            },
             neededBy: {
               field: "neededBy",
               required: false,
@@ -327,6 +332,13 @@ describe("schema public operation facts", () => {
           name: "acceptedTerms",
           label: "Accepted terms",
           required: false,
+          control: "boolean",
+        },
+        {
+          name: "consent",
+          label: "Done",
+          required: true,
+          mustBeTrue: true,
           control: "boolean",
         },
         {

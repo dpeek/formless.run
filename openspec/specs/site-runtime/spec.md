@@ -348,8 +348,9 @@ runtime secrets.
   public-safe operation input field metadata
 - AND the target may be a schema-key app route or an installed app route
 - AND projected field metadata uses the schema-owned public-safe operation input
-  projection and includes only field names, labels, required flags, supported
-  scalar control types, text formats, text suggestions, and enum option labels
+  projection and includes only field names, labels, required flags, affirmative
+  boolean acceptance flags, supported scalar control types, text formats, text
+  suggestions, and enum option labels
 - AND the target public operation route is built through the shared public
   operation route contract from the runtime-owned target API route prefix,
   entity key, and operation key
@@ -689,6 +690,21 @@ forms on preview, installed, and mapped public Site routes.
   session while rendered controls consume only session presentation facts and
   intents
 
+#### Scenario: Require affirmative boolean acceptance
+
+- GIVEN a projected public operation boolean field carries `mustBeTrue: true`
+- WHEN its controlled draft value is `false`
+- THEN the Site public form session keeps submit unavailable after Turnstile is
+  ready
+- AND an attempted submit exposes a display-safe field error
+- AND changing the controlled value to `true` clears that error and can make
+  submit available
+- AND an ordinary required boolean without `mustBeTrue` continues to accept
+  explicit `false`
+- AND the built-in Formless Renderer maps affirmative checkbox required and
+  projected invalid facts to native and accessibility semantics while the Site
+  session remains the source of truth
+
 #### Scenario: Render successful public operation form outcome
 
 - GIVEN a public operation form submission succeeds
@@ -729,7 +745,8 @@ operation execution behavior.
 - AND Turnstile presentation carries only its public site key, readiness, reset
   signal, and token-change intent
 - AND generic public operation fields carry public-safe scalar control, format,
-  suggestion, enum-option, required, and occurrence facts
+  suggestion, enum-option, required, affirmative boolean acceptance, and
+  occurrence facts
 - AND `@dpeek/formless-renderer` may adapt generic fields to canonical
   `FieldContract` controls inside the renderer package
 - AND the Site package does not import `@dpeek/formless-renderer` field or

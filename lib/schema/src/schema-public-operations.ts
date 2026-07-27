@@ -59,6 +59,7 @@ export type PublicSafeOperationInputField = {
   name: string;
   label: string;
   required: boolean;
+  mustBeTrue?: true;
   control: PublicSafeOperationInputControl;
   format?: ContactTextFieldFormat;
   suggestions?: string[];
@@ -236,6 +237,7 @@ export function projectPublicSafeOperationInputField(
       field.label,
       field.required ?? false,
       entityField,
+      field.mustBeTrue,
     );
   }
 
@@ -247,6 +249,7 @@ function projectScalarPublicSafeOperationInputField(
   label: string | undefined,
   required: boolean,
   field: FieldSchema,
+  mustBeTrue?: true,
 ): PublicSafeOperationInputField | undefined {
   const fieldLabel = label ?? field.label ?? inputName;
 
@@ -269,6 +272,7 @@ function projectScalarPublicSafeOperationInputField(
       name: inputName,
       label: fieldLabel,
       required,
+      ...(field.type === "boolean" && mustBeTrue ? { mustBeTrue } : {}),
       control: field.type,
     };
   }

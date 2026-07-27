@@ -1905,6 +1905,7 @@ function ProjectedPublicOperationField({
       data-public-field-name={field.inputName}
     >
       {renderPublicOperationFieldControl(field, {
+        mustBeTrue: sessionField.mustBeTrue,
         sharedProps,
         updateDraftValue,
       })}
@@ -1915,6 +1916,7 @@ function ProjectedPublicOperationField({
 function renderPublicOperationFieldControl(
   field: ProjectedPublicOperationFieldData,
   input: {
+    mustBeTrue?: true;
     sharedProps: {
       description?: string;
       isDisabled: boolean;
@@ -1928,7 +1930,7 @@ function renderPublicOperationFieldControl(
     updateDraftValue: (value: SitePublicFormFieldValue) => void;
   },
 ) {
-  const { sharedProps, updateDraftValue } = input;
+  const { mustBeTrue, sharedProps, updateDraftValue } = input;
 
   if (field.input.control === "longText") {
     return (
@@ -1948,7 +1950,7 @@ function renderPublicOperationFieldControl(
         description={sharedProps.description}
         isDisabled={sharedProps.isDisabled}
         isLoading={sharedProps.isLoading}
-        isRequired={sharedProps.isRequired}
+        isRequired={mustBeTrue === true}
         label={sharedProps.label}
         status={sharedProps.status}
         value={field.draftInput?.value === true}

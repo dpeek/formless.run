@@ -196,7 +196,7 @@ function resolvePublicOperationFormInputFieldValue(
 ): PublicOperationFormInputFieldValueResolution {
   if (value === undefined) {
     if (fieldConfig.field.type === "boolean") {
-      return { kind: "set", value: false };
+      return resolvePublicOperationFormBooleanInputFieldValue(fieldConfig, false);
     }
 
     return fieldConfig.required
@@ -215,15 +215,7 @@ function resolvePublicOperationFormInputFieldValue(
     case "longText":
       return resolvePublicOperationFormTextInputFieldValue(fieldConfig, value);
     case "boolean":
-      return typeof value === "boolean"
-        ? { kind: "set", value }
-        : {
-            kind: "error",
-            error: publicOperationFormInputFieldError(
-              fieldConfig.inputName,
-              `Field "${fieldConfig.inputName}" must be a boolean.`,
-            ),
-          };
+      return resolvePublicOperationFormBooleanInputFieldValue(fieldConfig, value);
     case "date":
       return resolvePublicOperationFormDateInputFieldValue(fieldConfig, value);
     case "number":
@@ -231,6 +223,33 @@ function resolvePublicOperationFormInputFieldValue(
     case "enum":
       return resolvePublicOperationFormEnumInputFieldValue(fieldConfig, value);
   }
+}
+
+function resolvePublicOperationFormBooleanInputFieldValue(
+  fieldConfig: PublicOperationFormInputFieldConfig,
+  value: FieldValue,
+): PublicOperationFormInputFieldValueResolution {
+  if (typeof value !== "boolean") {
+    return {
+      kind: "error",
+      error: publicOperationFormInputFieldError(
+        fieldConfig.inputName,
+        `Field "${fieldConfig.inputName}" must be a boolean.`,
+      ),
+    };
+  }
+
+  if (fieldConfig.mustBeTrue && !value) {
+    return {
+      kind: "error",
+      error: publicOperationFormInputFieldError(
+        fieldConfig.inputName,
+        `Field "${fieldConfig.inputName}" must be accepted.`,
+      ),
+    };
+  }
+
+  return { kind: "set", value };
 }
 
 function resolvePublicOperationFormTextInputFieldValue(

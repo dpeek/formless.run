@@ -196,6 +196,57 @@ describe("public operation runtime", () => {
     ]);
   });
 
+  it("rejects false affirmative consent before public operation effects", async () => {
+    await installAffirmativePublicIntakeSchema();
+    const block = await postAdminRecordOperation({
+      idempotencyKey: "write-create-affirmative-public-intake-form",
+      entity: "block",
+      operationName: "create",
+      input: emailStylePublicIntakeFormBlockValues,
+    });
+    const before = await getJson<BootstrapResponse>("/api/site/bootstrap");
+    const rejected = await postPublicOperation(
+      "/api/site/public/operations/intake-request/submit",
+      publicEmailStyleIntakeBody({
+        idempotencyKey: "affirmative-consent-false",
+        input: {
+          ...emailStylePublicIntakeInput,
+          contactConsent: false,
+        },
+        sourceBlockId: block.record.id,
+      }),
+    );
+    const afterRejected = await getJson<BootstrapResponse>("/api/site/bootstrap");
+
+    expect(rejected.status).toBe(400);
+    expect(await rejected.json()).toEqual({
+      error: 'Public operation input field "contactConsent" must be accepted.',
+    });
+    expect(afterRejected.records).toEqual(before.records);
+    expect(emailStyleIntakeRecords(afterRejected.records)).toEqual([]);
+    expect(turnstileRequests).toEqual([]);
+
+    const accepted = await postPublicOperation(
+      "/api/site/public/operations/intake-request/submit",
+      publicEmailStyleIntakeBody({
+        idempotencyKey: "affirmative-consent-true",
+        input: {
+          ...emailStylePublicIntakeInput,
+          contactConsent: true,
+        },
+        sourceBlockId: block.record.id,
+      }),
+    );
+    const afterAccepted = await getJson<BootstrapResponse>("/api/site/bootstrap");
+
+    expect(accepted.status).toBe(200);
+    expect(emailStyleIntakeRecords(afterAccepted.records)).toEqual([
+      expect.objectContaining({
+        values: expect.objectContaining({ contactConsent: true }),
+      }),
+    ]);
+  });
+
   it("schedules generic operation input notifications from installed Site forms targeting another app install", async () => {
     const publicIdempotencyKey = "cross-app-operation-input-notify";
     const targetApiPrefix = `/api/app-installs/tasks/${recordPlanInstallId}`;
@@ -468,6 +519,33 @@ async function installEmailStylePublicIntakeSchema(
 ) {
   const current = await getJson<SchemaResponse>(`${apiPrefix}/schema`, target);
   const schema = schemaWithEmailStylePublicIntake(current.schema);
+
+  await postAdminJson<SchemaUpdateResponse>(`${apiPrefix}/schema`, { schema }, target);
+}
+
+async function installAffirmativePublicIntakeSchema(
+  target: Harness = harness,
+  apiPrefix = "/api/site",
+) {
+  const current = await getJson<SchemaResponse>(`${apiPrefix}/schema`, target);
+  const schema = schemaWithEmailStylePublicIntake(current.schema);
+  const entity = schema.entities["intake-request"];
+  const operation = entity?.operations?.submit;
+
+  if (!entity || !operation?.input) {
+    throw new Error("Expected public intake operation input.");
+  }
+
+  entity.fields.contactConsent = {
+    type: "boolean",
+    required: true,
+    label: "I agree to be contacted",
+  };
+  operation.input.fields.contactConsent = {
+    field: "contactConsent",
+    required: true,
+    mustBeTrue: true,
+  };
 
   await postAdminJson<SchemaUpdateResponse>(`${apiPrefix}/schema`, { schema }, target);
 }

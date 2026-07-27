@@ -191,7 +191,8 @@ describe("site public operation block projection", () => {
         {
           name: "acceptedTerms",
           label: "Accepted terms",
-          required: false,
+          required: true,
+          mustBeTrue: true,
           control: "boolean",
         },
         {
@@ -727,7 +728,7 @@ const publicIntakeSchema = {
         },
         acceptedTerms: {
           type: "boolean",
-          required: false,
+          required: true,
           label: "Accepted terms",
         },
         neededBy: {
@@ -781,6 +782,8 @@ const publicIntakeSchema = {
               },
               acceptedTerms: {
                 field: "acceptedTerms",
+                required: true,
+                mustBeTrue: true,
               },
               neededBy: {
                 field: "neededBy",

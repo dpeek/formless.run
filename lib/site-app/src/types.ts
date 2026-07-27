@@ -77,6 +77,7 @@ export type SitePublicOperationInputFieldNode = {
   name: string;
   label: string;
   required: boolean;
+  mustBeTrue?: true;
   control: "text" | "longText" | "boolean" | "date" | "number" | "enum";
   format?: SitePublicOperationTextFormatNode;
   suggestions?: string[];

@@ -843,6 +843,7 @@ export type EntityOperationFieldInputSchema = {
   field: string;
   required?: boolean;
   label?: string;
+  mustBeTrue?: true;
 };
 
 export type EntityOperationInlineInputFieldSchema = PublicOperationInputFieldSchema;
