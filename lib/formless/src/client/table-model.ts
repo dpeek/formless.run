@@ -151,8 +151,9 @@ function selectTableColumns(
 ): TableColumnConfig[] {
   const columns: TableColumnConfig[] = view.columns.flatMap((column): TableColumnConfig[] => {
     if (column.type === "computed") {
-      const computedValue = schema.readModels?.computedValues?.[column.computedValue];
-
+      const computedValue = schema.readModels?.computedValues?.find(
+        (definition) => definition.key === column.computedValue,
+      );
       if (!computedValue) {
         throw new Error(`Missing computed value "${column.computedValue}".`);
       }
@@ -178,15 +179,16 @@ function selectTableColumns(
         },
       ];
     }
-
     if (column.type === "referenceField") {
-      const sourceReferenceField = entity.fields[column.referenceField] as FieldSchema;
-
+      const sourceReferenceField = entity.fields.find(
+        (definition) => definition.key === column.referenceField,
+      )! as FieldSchema;
       if (sourceReferenceField.type !== "reference") {
         throw new Error(`Missing reference field "${column.referenceField}".`);
       }
-
-      const referencedEntity = schema.entities[sourceReferenceField.to] as EntitySchema;
+      const referencedEntity = schema.entities.find(
+        (definition) => definition.key === sourceReferenceField.to,
+      )! as EntitySchema;
       const selectedField = selectAddressableRecordFieldConfig(referencedEntity, column.field);
       const stateMachine =
         selectedField.fieldRef.kind === "value"
@@ -462,9 +464,8 @@ function selectBoundTableOperation(
     "Table operation binding",
     canonicalKey,
   );
-  const entity = schema.entities[entityName];
-  const operation = entity?.operations?.[operationName];
-
+  const entity = schema.entities.find((definition) => definition.key === entityName)!;
+  const operation = entity?.operations?.find((definition) => definition.key === operationName);
   if (!entity || !operation) {
     throw new Error(`Missing table operation binding "${canonicalKey}".`);
   }
@@ -478,51 +479,46 @@ function selectEditRecordTarget(
   schema: AppSchema,
   tableView: TableViewSchema,
   binding: TableOperationBindingSchema,
-): Extract<TableOperationControlConfig, { type: "editRecord" }>["target"] {
-  const tableEntity = schema.entities[tableView.entity];
-
+): Extract<
+  TableOperationControlConfig,
+  {
+    type: "editRecord";
+  }
+>["target"] {
+  const tableEntity = schema.entities.find((definition) => definition.key === tableView.entity)!;
   if (!tableEntity) {
     throw new Error(`Missing table entity "${tableView.entity}".`);
   }
-
-  if (binding.target === undefined || binding.target.kind === "row") {
+  const target = binding.target;
+  if (target === undefined || target.kind === "row") {
     return {
       kind: "row",
       entityName: tableView.entity,
       entity: tableEntity,
     };
   }
-
-  const field = tableEntity.fields[binding.target.field];
-
+  const field = tableEntity.fields.find((definition) => definition.key === target.field);
   if (field?.type !== "reference") {
-    throw new Error(`Missing reference field "${tableView.entity}.${binding.target.field}".`);
+    throw new Error(`Missing reference field "${tableView.entity}.${target.field}".`);
   }
-
-  const referencedEntity = schema.entities[field.to];
-
+  const referencedEntity = schema.entities.find((definition) => definition.key === field.to)!;
   if (!referencedEntity) {
     throw new Error(`Missing referenced entity "${field.to}".`);
   }
-
   return {
     kind: "reference",
-    fieldName: binding.target.field,
+    fieldName: target.field,
     field,
     entityName: field.to,
     entity: referencedEntity,
   };
 }
-
 function selectEditViewConfig(schema: AppSchema, editViewName: string): EditViewConfig {
-  const view = schema.views[editViewName];
-
+  const view = schema.views.find((definition) => definition.key === editViewName)!;
   if (!view || view.type !== "edit") {
     throw new Error(`Missing edit view "${editViewName}".`);
   }
-
-  const entity = schema.entities[view.entity];
-
+  const entity = schema.entities.find((definition) => definition.key === view.entity)!;
   if (!entity) {
     throw new Error(`Missing edit view entity "${view.entity}".`);
   }
@@ -539,11 +535,10 @@ function selectEditViewConfig(schema: AppSchema, editViewName: string): EditView
     ...(union === undefined ? {} : { union }),
   };
 }
-
 function selectEditFields(view: EditViewSchema, entity: EntitySchema): RecordFieldConfig[] {
-  return Object.entries(view.fields).flatMap(([fieldName, viewField]) => {
+  return view.fields.flatMap((viewField) => {
+    const fieldName = viewField.field;
     const selectedField = selectAddressableRecordFieldConfig(entity, fieldName);
-
     if (!selectedField.writable) {
       return [];
     }
@@ -566,9 +561,9 @@ function selectEditFields(view: EditViewSchema, entity: EntitySchema): RecordFie
     ];
   });
 }
-
 function selectRecordFields(view: ItemViewSchema, entity: EntitySchema): RecordFieldConfig[] {
-  return Object.entries(view.fields).map(([fieldName, viewField]) => {
+  return view.fields.map((viewField) => {
+    const fieldName = viewField.field;
     const selectedField = selectAddressableRecordFieldConfig(entity, fieldName);
     const stateMachine =
       selectedField.fieldRef.kind === "value"
@@ -591,9 +586,13 @@ function selectRecordFields(view: ItemViewSchema, entity: EntitySchema): RecordF
     };
   });
 }
-
 function operationControlBindingNames(
-  column: Extract<TableViewSchema["columns"][number], { type: "operationControl" }>,
+  column: Extract<
+    TableViewSchema["columns"][number],
+    {
+      type: "operationControl";
+    }
+  >,
 ): string[] {
   return column.operation === undefined ? (column.operations ?? []) : [column.operation];
 }
@@ -613,9 +612,7 @@ function selectValueUnitField(
   if (unitFieldName === undefined) {
     return undefined;
   }
-
-  const unitField = entity.fields[unitFieldName];
-
+  const unitField = entity.fields.find((definition) => definition.key === unitFieldName)!;
   if (!unitField || unitField.type !== "enum") {
     return undefined;
   }
@@ -634,10 +631,8 @@ function selectReferenceItem(
   if (itemViewName === undefined || field.type !== "reference") {
     return undefined;
   }
-
-  const entity = schema.entities[field.to];
-  const itemView = schema.itemViews[itemViewName];
-
+  const entity = schema.entities.find((definition) => definition.key === field.to)!;
+  const itemView = schema.itemViews.find((definition) => definition.key === itemViewName)!;
   if (!entity || !itemView) {
     return undefined;
   }

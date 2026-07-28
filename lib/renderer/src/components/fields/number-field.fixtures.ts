@@ -37,7 +37,10 @@ const requiredUnitField = {
   type: "enum",
   required: true,
   label: "Unit",
-  values: { h: { label: "h" }, d: { label: "d" } },
+  values: [
+    { key: "h", label: "h" },
+    { key: "d", label: "d" },
+  ],
   default: "h",
 } as const;
 const optionalUnitField = { ...requiredUnitField, required: false } as const;
@@ -366,17 +369,16 @@ function valueUnitFacts(
   unitField: typeof requiredUnitField | typeof optionalUnitField,
   currentValue: string,
 ): ValueUnitField {
-  const declaredOptions = Object.entries(unitField.values).map(([value, option]) => ({
+  const declaredOptions = unitField.values.map((option) => ({
     label: option.label,
     status: "declared" as const,
-    value,
+    value: option.key,
   }));
-
   return {
     clearable: !unitField.required,
     options:
       currentValue !== "" &&
-      unitField.values[currentValue as keyof typeof unitField.values] === undefined
+      unitField.values.find((definition) => definition.key === currentValue) === undefined
         ? [
             { label: currentValue, status: "undeclaredCurrent" as const, value: currentValue },
             ...declaredOptions,

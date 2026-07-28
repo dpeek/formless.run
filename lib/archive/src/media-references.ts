@@ -1,4 +1,8 @@
-import type { AppSchema, TextFieldDocumentAssetPolicySchema } from "@dpeek/formless-schema";
+import {
+  getAppSchemaDefinitionIndex,
+  type AppSchema,
+  type TextFieldDocumentAssetPolicySchema,
+} from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 
 export type AppArchiveImageMediaReference = {
@@ -81,10 +85,10 @@ export function appArchiveMediaReferences(
 function schemaMediaFields(schema: AppSchema): Map<string, MediaField> {
   const fields = new Map<string, MediaField>();
 
-  for (const [entityName, entity] of Object.entries(schema.entities)) {
-    for (const [fieldName, field] of Object.entries(entity.fields)) {
+  for (const entity of schema.entities) {
+    for (const field of entity.fields) {
       if (field.type === "text" && field.asset?.kind === "document") {
-        fields.set(mediaFieldKey(entityName, fieldName), {
+        fields.set(mediaFieldKey(entity.key, field.key), {
           kind: "document",
           policy: field.asset,
         });
@@ -92,10 +96,10 @@ function schemaMediaFields(schema: AppSchema): Map<string, MediaField> {
     }
   }
 
-  for (const itemView of Object.values(schema.itemViews)) {
+  for (const itemView of schema.itemViews) {
     addMediaEditorFields(fields, schema, itemView.entity, itemView.fields);
 
-    for (const variant of Object.values(itemView.variants ?? {})) {
+    for (const variant of itemView.variants ?? []) {
       if (variant.presentation === "fields") {
         addMediaEditorFields(fields, schema, itemView.entity, variant.fields);
       }
@@ -106,7 +110,7 @@ function schemaMediaFields(schema: AppSchema): Map<string, MediaField> {
     }
   }
 
-  for (const tableView of Object.values(schema.tableViews)) {
+  for (const tableView of schema.tableViews) {
     for (const column of tableView.columns) {
       if (column.type === "field" && column.editor === "media") {
         addMediaEditorField(fields, schema, tableView.entity, column.field);
@@ -114,14 +118,14 @@ function schemaMediaFields(schema: AppSchema): Map<string, MediaField> {
     }
   }
 
-  for (const view of Object.values(schema.views)) {
+  for (const view of schema.views) {
     if (view.type === "collection") {
       continue;
     }
 
     addMediaEditorFields(fields, schema, view.entity, view.fields);
 
-    for (const variant of Object.values(view.variants ?? {})) {
+    for (const variant of view.variants ?? []) {
       addMediaEditorFields(fields, schema, view.entity, variant.fields);
     }
 
@@ -137,11 +141,11 @@ function addMediaEditorFields(
   fields: Map<string, MediaField>,
   schema: AppSchema,
   entityName: string,
-  viewFields: Record<string, { editor: string }>,
+  viewFields: readonly { editor: string; field: string }[],
 ) {
-  for (const [fieldName, field] of Object.entries(viewFields)) {
+  for (const field of viewFields) {
     if (field.editor === "media") {
-      addMediaEditorField(fields, schema, entityName, fieldName);
+      addMediaEditorField(fields, schema, entityName, field.field);
     }
   }
 }
@@ -152,7 +156,9 @@ function addMediaEditorField(
   entityName: string,
   fieldName: string,
 ) {
-  const schemaField = schema.entities[entityName]?.fields[fieldName];
+  const schemaField = getAppSchemaDefinitionIndex(schema)
+    .fieldsByEntity.get(entityName)
+    ?.byKey.get(fieldName);
 
   if (schemaField?.type !== "text") {
     return;

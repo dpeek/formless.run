@@ -1,4 +1,9 @@
-import { assertExactKeys, isRecord, parseRequiredNonEmptyString } from "./schema-parse-helpers.ts";
+import {
+  assertExactKeys,
+  definitionsToRecord,
+  isRecord,
+  parseRequiredNonEmptyString,
+} from "./schema-parse-helpers.ts";
 import type {
   EntitySchema,
   ResultOrderingPresentation,
@@ -19,12 +24,9 @@ export function parseOptionalResultOrdering(
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
-
   assertExactKeys(context, value, ["field"], ["scope", "presentations"]);
-
   const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
-  const field = entity.fields[fieldName];
-
+  const field = definitionsToRecord(entity.fields)[fieldName];
   if (!field) {
     throw new Error(`${context} references unknown field "${entityName}.${fieldName}".`);
   }
@@ -101,16 +103,12 @@ function parseResultOrderingScopeField(
   if (value.kind !== "field") {
     throw new Error(`${context} kind must be "field".`);
   }
-
   const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
-
-  if (!entity.fields[fieldName]) {
+  if (!definitionsToRecord(entity.fields)[fieldName]) {
     throw new Error(`${context} references unknown field "${entityName}.${fieldName}".`);
   }
-
   return { kind: "field", field: fieldName };
 }
-
 function parseOptionalResultOrderingPresentations(
   context: string,
   value: unknown,

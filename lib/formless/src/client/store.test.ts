@@ -222,22 +222,21 @@ function record(id: string, title: string, done = false, entity = "task"): Store
     updatedAt: timestamp,
   };
 }
-
 function schemaWithSummary() {
-  const fields = {
-    ...appSchema.entities.task.fields,
-    notes: { type: "text", required: false },
-  } satisfies AppSchema["entities"][string]["fields"];
-
+  const fields = [
+    ...appSchema.entities.find((definition) => definition.key === "task")!.fields,
+    { type: "text", required: false, key: "notes" },
+  ] satisfies AppSchema["entities"][number]["fields"];
   return parseAppSchema({
     version: 1,
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         label: "Planner task",
         fields,
         operations: taskOperations("Planner task", fields),
       },
-    },
+    ],
     queries: appSchema.queries,
     itemViews: appSchema.itemViews,
     tableViews: appSchema.tableViews,
@@ -245,15 +244,16 @@ function schemaWithSummary() {
     screens: appSchema.screens,
   });
 }
-
-function taskOperations(label: string, fields: AppSchema["entities"][string]["fields"]) {
+function taskOperations(label: string, fields: AppSchema["entities"][number]["fields"]) {
   const input = {
-    fields: Object.fromEntries(Object.keys(fields).map((field) => [field, { field }])),
+    fields: fields.map(({ key }) => ({ key, field: key })),
   };
-  const clearCompletedTasks = appSchema.entities.task.operations?.clearCompletedTasks;
-
-  return {
-    create: {
+  const clearCompletedTasks = appSchema.entities
+    .find((definition) => definition.key === "task")!
+    .operations!.find((definition) => definition.key === "clearCompletedTasks")!;
+  return [
+    {
+      key: "create",
       label: `Create ${label}`,
       kind: "create",
       scope: "collection",
@@ -263,7 +263,8 @@ function taskOperations(label: string, fields: AppSchema["entities"][string]["fi
       idempotency: { required: true },
       audit: { input: "summary" },
     },
-    update: {
+    {
+      key: "update",
       label: `Update ${label}`,
       kind: "update",
       scope: "record",
@@ -273,6 +274,6 @@ function taskOperations(label: string, fields: AppSchema["entities"][string]["fi
       idempotency: { required: true },
       audit: { input: "summary" },
     },
-    ...(clearCompletedTasks === undefined ? {} : { clearCompletedTasks }),
-  };
+    ...(clearCompletedTasks === undefined ? [] : [clearCompletedTasks]),
+  ];
 }

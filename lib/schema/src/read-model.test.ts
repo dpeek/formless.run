@@ -277,10 +277,10 @@ describe("read model aggregates", () => {
 describe("schema read models", () => {
   it("parses computed values and aggregates through the app schema boundary", () => {
     const schema = parseAppSchema(readModelSchema());
-
     expect(schema.readModels).toEqual({
-      computedValues: {
-        doubledEstimate: {
+      computedValues: [
+        {
+          key: "doubledEstimate",
           entity: "task",
           type: "number",
           expression: {
@@ -290,20 +290,22 @@ describe("schema read models", () => {
             right: { kind: "literal", value: 2 },
           },
         },
-      },
-      aggregates: {
-        taskCount: { query: "taskAll", function: "count" },
-        totalEstimate: {
+      ],
+      aggregates: [
+        { key: "taskCount", query: "taskAll", function: "count" },
+        {
+          key: "totalEstimate",
           query: "taskAll",
           function: "sum",
           value: { kind: "field", field: "estimate" },
         },
-        averageDoubledEstimate: {
+        {
+          key: "averageDoubledEstimate",
           query: "taskAll",
           function: "average",
           value: { kind: "computed", computedValue: "doubledEstimate" },
         },
-      },
+      ],
     });
     expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
   });
@@ -313,13 +315,14 @@ describe("schema read models", () => {
       parseAppSchema({
         ...readModelSchema(),
         readModels: {
-          computedValues: {
-            invalid: {
+          computedValues: [
+            {
+              key: "invalid",
               entity: "task",
               type: "number",
               expression: { kind: "field", field: "title" },
             },
-          },
+          ],
         },
       }),
     ).toThrow('field "task.title" must be a number field');
@@ -328,13 +331,14 @@ describe("schema read models", () => {
       parseAppSchema({
         ...readModelSchema(),
         readModels: {
-          aggregates: {
-            invalid: {
+          aggregates: [
+            {
+              key: "invalid",
               query: "missing",
               function: "sum",
               value: { kind: "field", field: "estimate" },
             },
-          },
+          ],
         },
       }),
     ).toThrow('references unknown query "missing"');
@@ -344,8 +348,9 @@ describe("schema read models", () => {
 function readModelSchema() {
   return taskSchema({
     readModels: {
-      computedValues: {
-        doubledEstimate: {
+      computedValues: [
+        {
+          key: "doubledEstimate",
           entity: "task",
           type: "number",
           expression: {
@@ -355,20 +360,22 @@ function readModelSchema() {
             right: { kind: "literal", value: 2 },
           },
         },
-      },
-      aggregates: {
-        taskCount: { query: "taskAll", function: "count" },
-        totalEstimate: {
+      ],
+      aggregates: [
+        { key: "taskCount", query: "taskAll", function: "count" },
+        {
+          key: "totalEstimate",
           query: "taskAll",
           function: "sum",
           value: { kind: "field", field: "estimate" },
         },
-        averageDoubledEstimate: {
+        {
+          key: "averageDoubledEstimate",
           query: "taskAll",
           function: "average",
           value: { kind: "computed", computedValue: "doubledEstimate" },
         },
-      },
+      ],
     },
   });
 }

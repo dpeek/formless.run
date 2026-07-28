@@ -235,12 +235,29 @@ describe("client db", () => {
     expect(snapshot.cursor).toBe(3);
     expect(replicaVersion).toBe(2);
   });
-
+  it("deletes an incompatible Formless schema cache without touching other databases", async () => {
+    await createLegacyReplica("formless:tasks", {
+      recordsKeyPath: "id",
+      storedSchema: {
+        ...appSchema,
+        entities: Object.fromEntries(appSchema.entities.map(({ key, ...entity }) => [key, entity])),
+      },
+    });
+    await createRawDatabase("notes");
+    expect(await readLocalSnapshot("tasks")).toEqual({
+      schema: null,
+      schemaProvenance: null,
+      schemaUpdatedAt: null,
+      records: [],
+      cursor: 0,
+      lastSyncedAt: null,
+    });
+    expect(await rawDatabaseNames()).not.toContain("formless:tasks");
+    expect(await rawDatabaseNames()).toContain("notes");
+  });
   it("deletes unsafe local replica cache when IndexedDB migration fails", async () => {
     await createLegacyReplica("formless:tasks", { recordsKeyPath: null });
-
     const snapshot = await readLocalSnapshot("tasks");
-
     expect(snapshot).toMatchObject({
       schema: null,
       records: [],
@@ -261,21 +278,21 @@ describe("client db", () => {
     expect(snapshot.cursor).toBe(2);
     expect(await readCursor("tasks")).toBe(2);
   });
-
   it("updates the cached schema without replacing records", async () => {
-    const fields = {
-      ...appSchema.entities.task.fields,
-      notes: { type: "text", required: false },
-    } satisfies AppSchema["entities"][string]["fields"];
+    const fields = [
+      ...appSchema.entities.find((definition) => definition.key === "task")!.fields,
+      { type: "text", required: false, key: "notes" },
+    ] satisfies AppSchema["entities"][number]["fields"];
     const nextSchema = parseAppSchema({
       version: 1,
-      entities: {
-        task: {
+      entities: [
+        {
+          key: "task",
           label: "Planner task",
           fields,
           operations: taskOperations("Planner task", fields),
         },
-      },
+      ],
       queries: appSchema.queries,
       itemViews: appSchema.itemViews,
       tableViews: appSchema.tableViews,
@@ -373,10 +390,12 @@ async function rawDatabaseNames() {
     .filter((name): name is string => typeof name === "string")
     .toSorted();
 }
-
 function createLegacyReplica(
   name: string,
-  options: { recordsKeyPath: "id" | null },
+  options: {
+    recordsKeyPath: "id" | null;
+    storedSchema?: unknown;
+  },
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(name, 1);
@@ -398,8 +417,7 @@ function createLegacyReplica(
       const meta = transaction.objectStore("meta");
       const records = transaction.objectStore("records");
       const legacyRecord = record("record-1", "Legacy");
-
-      meta.put(appSchema, "schema");
+      meta.put(options.storedSchema ?? appSchema, "schema");
       meta.put("2026-04-28T00:00:00.000Z", "schemaUpdatedAt");
       meta.put(3, "cursor");
       if (options.recordsKeyPath === "id") {
@@ -455,18 +473,18 @@ function recordWithEstimate(id: string, title: string, estimate: number): Stored
     values: { title, done: false, estimate },
   };
 }
-
 function taskOperations(
   label: string,
-  fields: AppSchema["entities"][string]["fields"],
-): NonNullable<AppSchema["entities"][string]["operations"]> {
+  fields: AppSchema["entities"][number]["fields"],
+): NonNullable<AppSchema["entities"][number]["operations"]> {
   const input = {
-    fields: Object.fromEntries(Object.keys(fields).map((field) => [field, { field }])),
+    fields: fields.map(({ key }) => ({ key, field: key })),
   };
-  const clearCompletedTasks = appSchema.entities.task.operations?.clearCompletedTasks;
-
-  return {
-    create: {
+  const clearCompletedTasks = appSchema.entities
+    .find((definition) => definition.key === "task")!
+    .operations!.find((definition) => definition.key === "clearCompletedTasks")!;
+  return [
+    {
       label: `Create ${label}`,
       kind: "create",
       scope: "collection",
@@ -475,8 +493,9 @@ function taskOperations(
       output: { type: "create" },
       idempotency: { required: true },
       audit: { input: "summary" },
+      key: "create",
     },
-    update: {
+    {
       label: `Update ${label}`,
       kind: "update",
       scope: "record",
@@ -485,11 +504,11 @@ function taskOperations(
       output: { type: "update" },
       idempotency: { required: true },
       audit: { input: "summary" },
+      key: "update",
     },
-    ...(clearCompletedTasks === undefined ? {} : { clearCompletedTasks }),
-  };
+    ...(clearCompletedTasks === undefined ? [] : [clearCompletedTasks]),
+  ];
 }
-
 function change(seq: number, recordId: string, title: string, done = false): ChangeRow {
   return {
     seq,

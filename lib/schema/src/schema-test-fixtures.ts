@@ -1,39 +1,36 @@
 export function taskSchema(overrides: Record<string, unknown> = {}) {
   return {
     version: 1,
-    entities: {
-      task: taskEntity(),
-    },
-    queries: {
-      taskAll: {
+    entities: [{ key: "task", ...taskEntity() }],
+    queries: [
+      {
+        key: "taskAll",
         label: "All tasks",
         entity: "task",
         expression: { kind: "all" },
       },
-    },
-    itemViews: {
-      taskItem: {
+    ],
+    itemViews: [
+      {
+        key: "taskItem",
         entity: "task",
-        fields: {
-          title: { editor: "text", commit: "field-commit" },
-          done: { editor: "boolean", commit: "immediate" },
-        },
+        fields: [
+          { field: "title", editor: "text", commit: "field-commit" },
+          { field: "done", editor: "boolean", commit: "immediate" },
+        ],
       },
-    },
-    tableViews: {},
-    views: {
-      taskHome: taskCollectionView(),
-      taskCreate: {
+    ],
+    tableViews: [],
+    views: [
+      { key: "taskHome", ...taskCollectionView() },
+      {
+        key: "taskCreate",
         type: "create",
         entity: "task",
-        fields: {
-          title: { editor: "text" },
-        },
+        fields: [{ field: "title", editor: "text" }],
       },
-    },
-    screens: {
-      home: taskScreen(),
-    },
+    ],
+    screens: [{ key: "home", ...taskScreen() }],
     ...overrides,
   };
 }
@@ -41,44 +38,53 @@ export function taskSchema(overrides: Record<string, unknown> = {}) {
 export function taskEntity(overrides: Record<string, unknown> = {}) {
   return {
     label: "Task",
-    fields: {
-      title: { type: "text", required: true, label: "Title" },
-      details: { type: "text", required: false, label: "Details", format: "markdown" },
-      done: { type: "boolean", required: true, label: "Done", default: false },
-      dueDate: { type: "date", required: false, label: "Due date" },
-      estimate: { type: "number", required: false, label: "Estimate", min: 0 },
-      priority: {
+    fields: [
+      { key: "title", type: "text", required: true, label: "Title" },
+      {
+        key: "details",
+        type: "text",
+        required: false,
+        label: "Details",
+        format: "markdown",
+      },
+      { key: "done", type: "boolean", required: true, label: "Done", default: false },
+      { key: "dueDate", type: "date", required: false, label: "Due date" },
+      { key: "estimate", type: "number", required: false, label: "Estimate", min: 0 },
+      {
+        key: "priority",
         type: "enum",
         required: true,
         label: "Priority",
         default: "normal",
-        values: {
-          normal: { label: "Normal" },
-          high: { label: "High" },
-        },
+        values: [
+          { key: "normal", label: "Normal" },
+          { key: "high", label: "High" },
+        ],
       },
-    },
-    operations: {
-      create: {
+    ],
+    operations: [
+      {
+        key: "create",
         label: "Create task",
         kind: "create",
         scope: "collection",
         input: {
-          fields: {
-            title: { field: "title" },
-            details: { field: "details" },
-            done: { field: "done" },
-            dueDate: { field: "dueDate" },
-            estimate: { field: "estimate" },
-            priority: { field: "priority" },
-          },
+          fields: [
+            { key: "title", field: "title" },
+            { key: "details", field: "details" },
+            { key: "done", field: "done" },
+            { key: "dueDate", field: "dueDate" },
+            { key: "estimate", field: "estimate" },
+            { key: "priority", field: "priority" },
+          ],
         },
         effect: { type: "createRecord" },
         output: { type: "create" },
         idempotency: { required: true },
         audit: { input: "summary" },
       },
-      update: {
+      {
+        key: "update",
         label: "Update task",
         kind: "update",
         scope: "record",
@@ -87,7 +93,7 @@ export function taskEntity(overrides: Record<string, unknown> = {}) {
         idempotency: { required: true },
         audit: { input: "summary" },
       },
-    },
+    ],
     ...overrides,
   };
 }
@@ -109,7 +115,6 @@ export function taskScreen(overrides: Record<string, unknown> = {}) {
   return {
     type: "workspace",
     label: "Tasks",
-    navigation: { primary: true },
     layout: {
       type: "stack",
       sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
@@ -123,36 +128,41 @@ export function rateSchema(overrides: Record<string, unknown> = {}) {
     version: 1,
     entities: rateEntities(),
     relationships: rateRelationships(),
-    queries: {
-      resourceAll: {
+    queries: [
+      {
+        key: "resourceAll",
         label: "All resources",
         entity: "resource",
         expression: { kind: "all" },
       },
-      cardAll: {
+      {
+        key: "cardAll",
         label: "All cards",
         entity: "card",
         expression: { kind: "all" },
       },
-      rateAll: {
+      {
+        key: "rateAll",
         label: "All rates",
         entity: "rate",
         expression: { kind: "all" },
       },
-    },
-    itemViews: {
-      rateItem: {
+    ],
+    itemViews: [
+      {
+        key: "rateItem",
         entity: "rate",
-        fields: {
-          resource: { editor: "reference", commit: "immediate" },
-          card: { editor: "reference", commit: "immediate" },
-          cost: { editor: "number", commit: "field-commit" },
-        },
+        fields: [
+          { field: "resource", editor: "reference", commit: "immediate" },
+          { field: "card", editor: "reference", commit: "immediate" },
+          { field: "cost", editor: "number", commit: "field-commit" },
+        ],
       },
-    },
-    tableViews: {},
-    views: {
-      rateHome: {
+    ],
+    tableViews: [],
+    views: [
+      {
+        key: "rateHome",
         type: "collection",
         label: "Rates",
         entity: "rate",
@@ -160,83 +170,86 @@ export function rateSchema(overrides: Record<string, unknown> = {}) {
         defaultQuery: "rateAll",
         result: { type: "list", itemView: "rateItem" },
       },
-    },
-    screens: {
-      home: {
+    ],
+    screens: [
+      {
+        key: "home",
         type: "workspace",
         label: "Rates",
-        navigation: { primary: true },
         layout: {
           type: "stack",
           sections: [{ id: "rates", type: "collection", view: "rateHome" }],
         },
       },
-    },
+    ],
     ...overrides,
   };
 }
-
 export function rateEntities(rateOverrides: Record<string, unknown> = {}) {
-  return {
-    resource: {
+  return [
+    {
+      key: "resource",
       label: "Resource",
-      fields: {
-        name: { type: "text", required: true, label: "Name" },
-      },
+      fields: [{ key: "name", type: "text", required: true, label: "Name" }],
     },
-    card: {
+    {
+      key: "card",
       label: "Rate card",
-      fields: {
-        name: { type: "text", required: true, label: "Name" },
-      },
+      fields: [{ key: "name", type: "text", required: true, label: "Name" }],
     },
-    rate: {
+    {
+      key: "rate",
       label: "Rate",
-      fields: {
-        resource: {
+      fields: [
+        {
+          key: "resource",
           type: "reference",
           required: true,
           label: "Resource",
           to: "resource",
           displayField: "name",
         },
-        card: {
+        {
+          key: "card",
           type: "reference",
           required: true,
           label: "Rate card",
           to: "card",
           displayField: "name",
         },
-        cost: { type: "number", required: true, label: "Cost", default: 0, min: 0 },
-      },
-      constraints: {
-        uniqueRatePair: {
+        { key: "cost", type: "number", required: true, label: "Cost", default: 0, min: 0 },
+      ],
+      constraints: [
+        {
+          key: "uniqueRatePair",
           kind: "unique",
           fields: ["resource", "card"],
         },
-      },
+      ],
       ...rateOverrides,
     },
-  };
+  ];
 }
-
 export function rateRelationships() {
-  return {
-    rateCard: {
+  return [
+    {
+      key: "rateCard",
       kind: "toOne",
       label: "Rate card",
       from: { entity: "rate", field: "card" },
       to: { entity: "card" },
       inverse: "cardRates",
     },
-    cardRates: {
+    {
+      key: "cardRates",
       kind: "toMany",
       label: "Rates",
       from: { entity: "card" },
       to: { entity: "rate", field: "card" },
       inverse: "rateCard",
     },
-    cardResources: {
+    {
+      key: "cardResources",
       kind: "manyToMany",
       label: "Resources",
       from: { entity: "card" },
@@ -249,7 +262,8 @@ export function rateRelationships() {
       },
       inverse: "resourceCards",
     },
-    resourceCards: {
+    {
+      key: "resourceCards",
       kind: "manyToMany",
       label: "Rate cards",
       from: { entity: "resource" },
@@ -262,5 +276,5 @@ export function rateRelationships() {
       },
       inverse: "cardResources",
     },
-  };
+  ];
 }

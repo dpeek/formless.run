@@ -85,6 +85,56 @@ browser replica state.
 - AND protected target reads use owner session or admin bearer authorization
   supplied by the caller
 
+### Requirement: Schema-Aware Record Formatting
+
+The system SHALL format stored-record output deterministically from App schema
+declaration order while treating input object property order as semantically
+irrelevant.
+
+#### Scenario: Format flat record values
+
+- GIVEN a stored record has flat `values`
+- WHEN the record is formatted for source seed data, a storage snapshot,
+  portable archive, workspace state, or CLI-readable output
+- THEN known value properties are written in the containing entity's field
+  declaration order
+- AND absent fields are omitted without placeholders
+- AND unexpected or forward-version value properties are preserved after known
+  fields in locale-independent ordinal key order
+- AND record ids, entity keys, lifecycle metadata, and flat value shape remain
+  unchanged
+
+#### Scenario: Ignore input value property order
+
+- GIVEN two record inputs contain equivalent flat values with different object
+  property insertion order
+- WHEN schema-aware record validation, restore planning, import validation, or
+  workspace validation runs
+- THEN both inputs have the same record meaning and validation outcome
+- AND validation continues to reject undeclared, incompatible, or invalid
+  values according to the resolved current schema
+- AND object insertion order is not used as record identity, field order, or
+  write intent
+
+#### Scenario: Format record arrays by schema order
+
+- GIVEN a snapshot, archive, workspace state file, or seed-record artifact
+  contains records from more than one entity
+- WHEN deterministic output is written
+- THEN records are grouped in entity declaration order
+- AND records within one entity are ordered by record id using the same
+  locale-independent ordinal comparison
+- AND tombstone state does not change a record's ordering key
+
+#### Scenario: Reorder entity fields
+
+- GIVEN an App schema changes only the declaration order of fields on an entity
+- WHEN canonical schema and record artifacts are written
+- THEN the schema hash and canonical record artifact bytes change
+- AND each record retains the same flat field names and values
+- AND archive or workspace input with the previous object property order still
+  validates independently of that property order
+
 ### Requirement: Restore Planning
 
 The system MUST validate an archive before mutating Authority storage or media

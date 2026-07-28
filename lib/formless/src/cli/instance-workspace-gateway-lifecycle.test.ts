@@ -164,10 +164,12 @@ describe("local gateway lifecycle sidecar and session entry", () => {
     };
     const fetcher: typeof fetch = async () => Response.json({ ok: true });
     const randomToken = tokenSequence("local-session-token", "sidecar-proxy-token");
-    const startInputs: Array<{ env?: NodeJS.ProcessEnv; workspaceRoot: string }> = [];
+    const startInputs: Array<{
+      env?: NodeJS.ProcessEnv;
+      workspaceRoot: string;
+    }> = [];
     let capturedDependencies: StartWorkspaceGatewaySidecarDependencies | undefined;
     let closed = false;
-
     const lifecycle = await startFormlessInstanceWorkspaceGatewayLifecycle(
       { workspaceRoot },
       lifecycleDependencies({

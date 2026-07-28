@@ -19,7 +19,11 @@ import {
   type IdentityAccessPersonRoleReplacementResponse,
 } from "@dpeek/formless-identity-control-plane";
 import { INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-instance-control-plane";
-import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
+import {
+  STORAGE_SNAPSHOT_KIND,
+  STORAGE_SNAPSHOT_VERSION,
+  formatStoredRecordsForArtifact,
+} from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import type { EmailDeliveryRecord } from "../shared/email-runtime.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
@@ -177,7 +181,9 @@ describe("identity control-plane API routes", () => {
       sourceCursor: bootstrap.body.cursor,
       schema: identityControlPlaneSchema,
     });
-    expect(snapshot.body.records).toEqual(bootstrap.body.records);
+    expect(snapshot.body.records).toEqual(
+      formatStoredRecordsForArtifact(identityControlPlaneSchema, bootstrap.body.records),
+    );
   });
 
   it("rejects duplicate selected-target role assignments through runtime writes", async () => {
@@ -1971,8 +1977,11 @@ async function getAccessSummaryResponse(headers: Record<string, string> = {}) {
     `${identityApi}${IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH}`,
     { headers },
   );
-  const body = (await response.json()) as IdentityAccessManagementSummary | { error: string };
-
+  const body = (await response.json()) as
+    | IdentityAccessManagementSummary
+    | {
+        error: string;
+      };
   return {
     body,
     response,
@@ -2036,18 +2045,17 @@ function operationRecord(response: { body: OperationInvocationResponse }): Store
   if (output.type !== "create" && output.type !== "update") {
     throw new Error(`Expected create or update operation output, received "${output.type}".`);
   }
-
   return output.record;
 }
-
 async function postRecordOperation(input: Parameters<typeof recordOperationRequest>[0]) {
   const result = await postRecordOperationResponse(input);
-
   expect(result.response.status).toBe(200);
-
-  return (result.body as { record: StoredRecord }).record;
+  return (
+    result.body as {
+      record: StoredRecord;
+    }
+  ).record;
 }
-
 async function createIdentityPrincipal(displayName: string) {
   return await postRecordOperation({
     entity: "principal",

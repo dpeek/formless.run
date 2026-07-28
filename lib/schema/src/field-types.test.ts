@@ -322,10 +322,10 @@ const fields = {
     type: "enum",
     required: false,
     default: "normal",
-    values: {
-      normal: { label: "Normal" },
-      high: { label: "High" },
-    },
+    values: [
+      { key: "normal", label: "Normal" },
+      { key: "high", label: "High" },
+    ],
   },
   resource: { type: "reference", required: true, to: "resource", displayField: "name" },
 } satisfies Record<string, FieldSchema>;

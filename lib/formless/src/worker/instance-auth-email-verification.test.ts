@@ -43,13 +43,15 @@ describe("instance auth email verification API", () => {
       verificationRequestBody({ email: "Ada.Verified@Example.com" }),
       setup.cookie,
     );
-    const deliveries = await getHarnessJson<{ deliveries: EmailDeliveryRecord[] }>(
-      "/harness/deliveries",
-    );
-    const queueJobs = await getHarnessJson<{ jobs: unknown[] }>("/harness/queue-jobs");
-    const message = await getHarnessJson<{ message?: EmailDeliveryRenderedMessage }>(
-      `/harness/internal-message/${requested.delivery.deliveryId}`,
-    );
+    const deliveries = await getHarnessJson<{
+      deliveries: EmailDeliveryRecord[];
+    }>("/harness/deliveries");
+    const queueJobs = await getHarnessJson<{
+      jobs: unknown[];
+    }>("/harness/queue-jobs");
+    const message = await getHarnessJson<{
+      message?: EmailDeliveryRenderedMessage;
+    }>(`/harness/internal-message/${requested.delivery.deliveryId}`);
     const token = verificationTokenFromMessage(message.message);
     const tokenHash = sha256Base64Url(token);
     const publicState = JSON.stringify([requested, deliveries, queueJobs, await identityRecords()]);
@@ -134,9 +136,9 @@ describe("instance auth email verification API", () => {
     harness = await createEmailVerificationHarness();
     const setup = await setupOwnerSession();
     const requested = await requestChallenge(setup.cookie, "Pending.Verify@example.com");
-    const message = await getHarnessJson<{ message?: EmailDeliveryRenderedMessage }>(
-      `/harness/internal-message/${requested.delivery.deliveryId}`,
-    );
+    const message = await getHarnessJson<{
+      message?: EmailDeliveryRenderedMessage;
+    }>(`/harness/internal-message/${requested.delivery.deliveryId}`);
     const token = verificationTokenFromMessage(message.message);
     const wrongToken = await postAuthJsonFailure(
       "/formless/auth/email-verification/verify",
@@ -194,13 +196,12 @@ describe("instance auth email verification API", () => {
       verificationRequestBody({ email: "missing.config@example.com" }),
       setup.cookie,
     );
-    const deliveries = await getHarnessJson<{ deliveries: EmailDeliveryRecord[] }>(
-      "/harness/deliveries",
-    );
-    const challenges = await getHarnessJson<{ challenges: StoredEmailVerificationChallenge[] }>(
-      "/harness/challenges",
-    );
-
+    const deliveries = await getHarnessJson<{
+      deliveries: EmailDeliveryRecord[];
+    }>("/harness/deliveries");
+    const challenges = await getHarnessJson<{
+      challenges: StoredEmailVerificationChallenge[];
+    }>("/harness/challenges");
     expect(rejected.status).toBe(503);
     expect(rejected.body).toEqual({
       error: "Email verification delivery is not configured.",
@@ -217,11 +218,10 @@ describe("instance auth email verification API", () => {
       email: "taken@example.com",
       principalId: "principal:taken",
     });
-
     const requested = await requestChallenge(setup.cookie, "taken@example.com");
-    const message = await getHarnessJson<{ message?: EmailDeliveryRenderedMessage }>(
-      `/harness/internal-message/${requested.delivery.deliveryId}`,
-    );
+    const message = await getHarnessJson<{
+      message?: EmailDeliveryRenderedMessage;
+    }>(`/harness/internal-message/${requested.delivery.deliveryId}`);
     const token = verificationTokenFromMessage(message.message);
     const rejected = await postAuthJsonFailure(
       "/formless/auth/email-verification/verify",
@@ -249,9 +249,10 @@ describe("instance auth email verification API", () => {
     ).toBe("principal:taken");
   });
 });
-
 async function createEmailVerificationHarness(
-  options: { emailConfig?: "configured" | "missing-auth-sender" } = {},
+  options: {
+    emailConfig?: "configured" | "missing-auth-sender";
+  } = {},
 ): Promise<Harness> {
   return createWorkerHarness(
     await writeEmailVerificationHarness(),
@@ -266,9 +267,11 @@ async function createEmailVerificationHarness(
     },
   );
 }
-
 async function setupOwnerSession() {
-  return postHarnessJson<{ cookie: string; principalId: string }>("/harness/setup", {
+  return postHarnessJson<{
+    cookie: string;
+    principalId: string;
+  }>("/harness/setup", {
     email: ownerEmail,
     name: "Ada Owner",
     principalId: ownerId,
@@ -304,19 +307,16 @@ function accountTarget() {
     targetProfile: "app",
   };
 }
-
 async function identityRecords() {
-  return getHarnessJson<{ records: StoredRecord[] }>("/harness/identity-records");
+  return getHarnessJson<{
+    records: StoredRecord[];
+  }>("/harness/identity-records");
 }
-
 async function getHarnessJson<T>(path: string): Promise<T> {
   const response = await fetchHarness(path);
-
   expect(response.status).toBe(200);
-
   return (await response.json()) as T;
 }
-
 async function postHarnessJson<T>(path: string, body: unknown): Promise<T> {
   const response = await fetchHarness(path, {
     body: JSON.stringify(body),
@@ -353,9 +353,10 @@ async function postAuthJsonFailure(path: string, body: unknown, cookie: string) 
     },
     method: "POST",
   });
-
   return {
-    body: (await response.json()) as { error: string },
+    body: (await response.json()) as {
+      error: string;
+    },
     status: response.status,
   };
 }

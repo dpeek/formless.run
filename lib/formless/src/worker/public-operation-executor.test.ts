@@ -1,3 +1,4 @@
+import { setKeyedDefinition } from "../test/schema-definition-test-helpers.ts";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import type { AppSchema } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
@@ -223,8 +224,9 @@ describe("public operation executor adapters", () => {
       }),
     );
     const nonPublicSchema = structuredClone(workerSchemaAppDefinitions.site.sourceSchema);
-    const submit = nonPublicSchema.entities["contact-message"]?.operations?.submit;
-
+    const submit = nonPublicSchema.entities
+      .find((definition) => definition.key === "contact-message")
+      ?.operations!.find((definition) => definition.key === "submit")!;
     if (!submit) {
       throw new Error("Expected contact-message.submit operation.");
     }
@@ -258,9 +260,11 @@ describe("public operation executor adapters", () => {
     expect(harness.state.shapedResponses).toEqual([]);
     expect(harness.state.afterCommitResponses).toEqual([]);
   });
-
   it("parses request and source envelopes with exact public-safe errors", async () => {
-    const cases: Array<{ body: unknown; message: string }> = [
+    const cases: Array<{
+      body: unknown;
+      message: string;
+    }> = [
       {
         body: null,
         message: "Public operation request must be an object.",
@@ -712,7 +716,12 @@ function publicOperationExecutorHarness(input: {
   authorityError?: Error;
   challengeError?: Error;
   events: string[];
-  output: Extract<OperationInvocationOutput, { type: "create" | "command" | "list" }>;
+  output: Extract<
+    OperationInvocationOutput,
+    {
+      type: "create" | "command" | "list";
+    }
+  >;
   rateLimitDecision?: PublicOperationReadRateLimitDecision;
   recordExecutionStages?: boolean;
   replayBeforeChallenge?: boolean;
@@ -727,7 +736,9 @@ function publicOperationExecutorHarness(input: {
     challengeStages: [] as PublicOperationChallengeAdapterInput[],
     rateLimitStages: [] as PublicOperationReadRateLimitAdapterInput[],
     shapedResponses: [] as OperationInvocationResponse[],
-    validatedInputs: [] as Array<{ rawInput: unknown }>,
+    validatedInputs: [] as Array<{
+      rawInput: unknown;
+    }>,
   };
   const adapters = {
     afterCommit: {
@@ -877,10 +888,14 @@ function captureRejection<T>(promise: Promise<T>): Promise<unknown> {
     (error: unknown) => error,
   );
 }
-
 function operationInvocationResponse(
   invocation: OperationInvocationResponse["invocation"],
-  output: Extract<OperationInvocationOutput, { type: "create" | "command" | "list" }>,
+  output: Extract<
+    OperationInvocationOutput,
+    {
+      type: "create" | "command" | "list";
+    }
+  >,
   status: "accepted" | "committed" | "replayed",
 ): OperationInvocationResponse {
   return {
@@ -920,8 +935,12 @@ function publicContactMessageBodyWithoutIdempotency(input: RecordValues) {
     source: { siteBlockId: "rec_site_contact_form" },
   };
 }
-
-function publicCommandOutput(): Extract<OperationInvocationOutput, { type: "command" }> {
+function publicCommandOutput(): Extract<
+  OperationInvocationOutput,
+  {
+    type: "command";
+  }
+> {
   return {
     type: "command",
     affectedChangeIds: [],
@@ -929,8 +948,12 @@ function publicCommandOutput(): Extract<OperationInvocationOutput, { type: "comm
     cursor: 0,
   };
 }
-
-function publicListOutput(): Extract<OperationInvocationOutput, { type: "list" }> {
+function publicListOutput(): Extract<
+  OperationInvocationOutput,
+  {
+    type: "list";
+  }
+> {
   return {
     type: "list",
     records: [
@@ -949,36 +972,37 @@ function publicListOutput(): Extract<OperationInvocationOutput, { type: "list" }
     ],
   };
 }
-
 function publicReadSchema(): AppSchema {
   const schema = structuredClone(workerSchemaAppDefinitions.tasks.sourceSchema);
-
-  schema.entities.certificate = {
+  setKeyedDefinition(schema.entities, "certificate", {
     label: "Certificate",
-    fields: {
-      code: { type: "text", required: true, label: "Code" },
-      reportNumber: { type: "text", required: true, label: "Report number" },
-      customer: { type: "text", required: true, label: "Customer" },
-      providerStorageKey: {
+    fields: [
+      { key: "code", type: "text", required: true, label: "Code" },
+      { key: "reportNumber", type: "text", required: true, label: "Report number" },
+      { key: "customer", type: "text", required: true, label: "Customer" },
+      {
+        key: "providerStorageKey",
         type: "text",
         required: true,
         label: "Provider storage key",
       },
-    },
-    operations: {
-      lookup: {
+    ],
+    operations: [
+      {
+        key: "lookup",
         label: "Lookup certificate",
         kind: "list",
         scope: "collection",
         target: { query: "certificateLookup" },
         input: {
-          fields: {
-            lookup: {
+          fields: [
+            {
+              key: "lookup",
               type: "text",
               required: true,
               label: "Lookup",
             },
-          },
+          ],
         },
         output: {
           type: "list",
@@ -999,9 +1023,9 @@ function publicReadSchema(): AppSchema {
           },
         },
       },
-    },
-  };
-  schema.queries.certificateLookup = {
+    ],
+  });
+  setKeyedDefinition(schema.queries, "certificateLookup", {
     label: "Certificate lookup",
     entity: "certificate",
     expression: {
@@ -1010,12 +1034,15 @@ function publicReadSchema(): AppSchema {
       op: "eq",
       value: { kind: "context", name: "lookup" },
     },
-  };
-
+  });
   return schema;
 }
-
-function createPublicCreateOutput(): Extract<OperationInvocationOutput, { type: "create" }> {
+function createPublicCreateOutput(): Extract<
+  OperationInvocationOutput,
+  {
+    type: "create";
+  }
+> {
   const record: StoredRecord = {
     id: "contact-message-1",
     entity: "contact-message",

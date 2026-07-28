@@ -296,9 +296,10 @@ function authorizationSetup(
     status: "running",
   };
 }
-
 function readySetup(
-  input: { selectedAccountId?: string } = {},
+  input: {
+    selectedAccountId?: string;
+  } = {},
 ): AlchemyCloudflareCredentialSetupResult {
   return {
     result: {

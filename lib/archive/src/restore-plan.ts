@@ -16,7 +16,7 @@ import {
   type AppPackageResolver,
   type InstallableAppPackage,
 } from "@dpeek/formless-installed-apps";
-import { isValidStoredFieldValue } from "@dpeek/formless-schema";
+import { getAppSchemaDefinitionIndex, isValidStoredFieldValue } from "@dpeek/formless-schema";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import type { AppSchema, FieldSchema } from "@dpeek/formless-schema";
 import {
@@ -487,7 +487,8 @@ function validateRecord(
   recordsById: Map<string, StoredRecord>,
   errors: ArchiveRestorePlanError[],
 ) {
-  const entity = schema.entities[record.entity];
+  const schemaIndex = getAppSchemaDefinitionIndex(schema);
+  const entity = schemaIndex.entities.byKey.get(record.entity);
 
   if (!entity) {
     errors.push(
@@ -502,7 +503,7 @@ function validateRecord(
   }
 
   for (const fieldName of Object.keys(record.values)) {
-    if (!entity.fields[fieldName]) {
+    if (!schemaIndex.fieldsByEntity.get(record.entity)?.byKey.has(fieldName)) {
       errors.push(
         planError("invalid-record", {
           appInstallId,
@@ -515,16 +516,16 @@ function validateRecord(
     }
   }
 
-  for (const [fieldName, field] of Object.entries(entity.fields)) {
-    const value = record.values[fieldName];
+  for (const field of entity.fields) {
+    const value = record.values[field.key];
 
     if (!isValidStoredFieldValue(value, field)) {
       errors.push(
         planError("invalid-record", {
           appInstallId,
           entity: record.entity,
-          field: `${record.entity}.${fieldName}`,
-          message: `Archive app "${appInstallId}" record "${record.id}" has invalid field "${record.entity}.${fieldName}".`,
+          field: `${record.entity}.${field.key}`,
+          message: `Archive app "${appInstallId}" record "${record.id}" has invalid field "${record.entity}.${field.key}".`,
           recordId: record.id,
         }),
       );
@@ -532,7 +533,7 @@ function validateRecord(
     }
 
     if (field.type === "reference" && value !== undefined) {
-      validateReferenceField(appInstallId, record, fieldName, field, value, recordsById, errors);
+      validateReferenceField(appInstallId, record, field.key, field, value, recordsById, errors);
     }
   }
 }
@@ -597,12 +598,13 @@ function validateUniqueConstraints(
   records: StoredRecord[],
   errors: ArchiveRestorePlanError[],
 ) {
-  for (const [entityName, entity] of Object.entries(schema.entities)) {
+  for (const entity of schema.entities) {
+    const entityName = entity.key;
     const activeRecords = records.filter(
       (record) => record.entity === entityName && !record.deletedAt,
     );
 
-    for (const [constraintName, constraint] of Object.entries(entity.constraints ?? {})) {
+    for (const constraint of entity.constraints ?? []) {
       if (constraint.kind !== "unique") {
         continue;
       }
@@ -618,7 +620,7 @@ function validateUniqueConstraints(
             planError("unique-constraint", {
               appInstallId,
               entity: entityName,
-              message: `Archive app "${appInstallId}" violates unique constraint "${entityName}.${constraintName}".`,
+              message: `Archive app "${appInstallId}" violates unique constraint "${entityName}.${constraint.key}".`,
               recordId: record.id,
             }),
           );

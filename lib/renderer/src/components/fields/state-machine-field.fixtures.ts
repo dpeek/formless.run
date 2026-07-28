@@ -44,18 +44,18 @@ const stateStatusField = {
   type: "enum",
   required: true,
   label: "Status",
-  values: {
-    open: {
+  values: [
+    {
+      key: "open",
       label: "Open",
       presentation: { color: "blue", icon: "priority-marker" },
     },
-    waiting: { label: "Waiting", presentation: { color: "orange" } },
-    blocked: { label: "Blocked", presentation: { color: "red", icon: "close" } },
-    done: { label: "Done", presentation: { color: "green", icon: "confirm" } },
-  },
+    { key: "waiting", label: "Waiting", presentation: { color: "orange" } },
+    { key: "blocked", label: "Blocked", presentation: { color: "red", icon: "close" } },
+    { key: "done", label: "Done", presentation: { color: "green", icon: "confirm" } },
+  ],
   default: "open",
 } as const;
-
 const stateStatusOptions = enumOptions(stateStatusField, {
   blocked: { iconSource: closeIconSource },
   done: { iconSource: confirmIconSource },
@@ -66,18 +66,18 @@ const taskWorkflowMachine = {
   field: "status",
   initial: "open",
   terminal: ["done"],
-  transitions: {
-    complete: { label: "Complete", from: ["open", "waiting", "blocked"], to: "done" },
-    sendWaiting: { label: "Send to waiting", from: ["open", "blocked"], to: "waiting" },
-    reopen: {
+  transitions: [
+    { key: "complete", label: "Complete", from: ["open", "waiting", "blocked"], to: "done" },
+    { key: "sendWaiting", label: "Send to waiting", from: ["open", "blocked"], to: "waiting" },
+    {
+      key: "reopen",
       label: "Reopen",
       from: ["waiting", "blocked"],
       to: "open",
     },
-    block: { label: "Block", from: ["open", "waiting"], to: "blocked" },
-  },
+    { key: "block", label: "Block", from: ["open", "waiting"], to: "blocked" },
+  ],
 } satisfies StateMachineSchema;
-
 const operationNames = {
   block: "tasks.block",
   complete: "tasks.complete",
@@ -270,7 +270,12 @@ function stateMachineDisplayField(input: {
 function applyStateMachineFacts(
   field: FieldContract,
   input: {
-    field?: Extract<FieldSchema, { type: "enum" }>;
+    field?: Extract<
+      FieldSchema,
+      {
+        type: "enum";
+      }
+    >;
     interaction?: "display" | "transitions";
     machine?: StateMachineSchema;
     value?: unknown;
@@ -322,12 +327,26 @@ function applyStateMachineFacts(
     value,
   };
 }
-
-function displayOption(field: Extract<FieldSchema, { type: "enum" }>, value: string) {
-  return field.values[value]?.label ?? value;
+function displayOption(
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
+  value: string,
+) {
+  return field.values.find((definition) => definition.key === value)?.label ?? value;
 }
-
-function stateValuePresentation(field: Extract<FieldSchema, { type: "enum" }>, value: string) {
+function stateValuePresentation(
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
+  value: string,
+) {
   const iconSource =
     value === "open"
       ? priorityMarkerIconSource

@@ -717,32 +717,35 @@ const anonymousTurnstilePolicy = {
 const ownerPolicy = {
   actors: ["owner"],
 } satisfies NonNullable<EntityOperationSchema["policy"]>;
-
 const crmPublicSubscribeSchema = {
   version: 1,
-  entities: {
-    subscription: {
+  entities: [
+    {
+      key: "subscription",
       label: "Subscription",
-      fields: {
-        email: {
+      fields: [
+        {
+          key: "email",
           type: "text",
           required: true,
           label: "Email",
         },
-      },
-      operations: {
-        subscribe: {
+      ],
+      operations: [
+        {
+          key: "subscribe",
           label: "Subscribe",
           kind: "command",
           scope: "collection",
           input: {
-            fields: {
-              email: {
+            fields: [
+              {
+                key: "email",
                 type: "text",
                 required: true,
                 label: "Email",
               },
-            },
+            ],
           },
           effect: {
             type: "operationHandler",
@@ -760,140 +763,164 @@ const crmPublicSubscribeSchema = {
           },
           policy: anonymousTurnstilePolicy,
         },
-      },
+      ],
     },
-  },
-  queries: {},
-  itemViews: {},
-  tableViews: {},
-  views: {},
+  ],
+  queries: [],
+  itemViews: [],
+  tableViews: [],
+  views: [],
+  screens: fixtureScreens(),
 } satisfies AppSchema;
-
 const publicIntakeSchema = {
   version: 1,
-  entities: {
-    owner: {
+  entities: [
+    {
+      key: "owner",
       label: "Owner",
-      fields: {
-        label: {
+      fields: [
+        {
+          key: "label",
           type: "text",
           required: true,
           label: "Label",
         },
-      },
+      ],
     },
-    request: {
+    {
+      key: "request",
       label: "Request",
-      fields: {
-        name: {
+      fields: [
+        {
+          key: "name",
           type: "text",
           required: true,
           label: "Name",
         },
-        details: {
+        {
+          key: "details",
           type: "text",
           required: true,
           label: "Request details",
           format: "longText",
         },
-        email: {
+        {
+          key: "email",
           type: "text",
           required: true,
           label: "Email",
           format: "email",
           suggestions: ["hello@example.com"],
         },
-        phone: {
+        {
+          key: "phone",
           type: "text",
           required: false,
           label: "Phone",
           format: "phone",
           suggestions: ["+1 555 123 4567"],
         },
-        inquiryType: {
+        {
+          key: "inquiryType",
           type: "text",
           required: false,
           label: "Inquiry type",
           suggestions: ["Support", "Sales"],
         },
-        tier: {
+        {
+          key: "tier",
           type: "enum",
           required: true,
           label: "Tier",
-          values: {
-            standard: { label: "Standard" },
-            priority: { label: "Priority" },
-          },
+          values: [
+            { key: "standard", label: "Standard" },
+            { key: "priority", label: "Priority" },
+          ],
         },
-        acceptedTerms: {
+        {
+          key: "acceptedTerms",
           type: "boolean",
           required: true,
           label: "Accepted terms",
         },
-        neededBy: {
+        {
+          key: "neededBy",
           type: "date",
           required: false,
           label: "Needed by",
         },
-        quantity: {
+        {
+          key: "quantity",
           type: "number",
           required: false,
           label: "Quantity",
         },
-        owner: {
+        {
+          key: "owner",
           type: "reference",
           required: false,
           label: "Owner",
           to: "owner",
           displayField: "label",
         },
-      },
-      operations: {
-        submit: {
+      ],
+      operations: [
+        {
+          key: "submit",
           label: "Submit request",
           kind: "create",
           scope: "collection",
           input: {
-            fields: {
-              fullName: {
+            fields: [
+              {
+                key: "fullName",
                 field: "name",
                 required: true,
                 label: "Your name",
               },
-              replyEmail: {
+              {
+                key: "replyEmail",
                 field: "email",
                 required: true,
                 label: "Reply email",
               },
-              phone: {
+              {
+                key: "phone",
                 field: "phone",
               },
-              inquiryType: {
+              {
+                key: "inquiryType",
                 field: "inquiryType",
               },
-              details: {
+              {
+                key: "details",
                 field: "details",
                 required: true,
               },
-              tier: {
+              {
+                key: "tier",
                 field: "tier",
                 required: true,
               },
-              acceptedTerms: {
+              {
+                key: "acceptedTerms",
                 field: "acceptedTerms",
                 required: true,
                 mustBeTrue: true,
               },
-              neededBy: {
+              {
+                key: "neededBy",
                 field: "neededBy",
               },
-              quantity: {
+              {
+                key: "quantity",
                 field: "quantity",
               },
-              owner: {
+              {
+                key: "owner",
                 field: "owner",
               },
-            },
+            ],
           },
           effect: {
             type: "createRecord",
@@ -909,59 +936,67 @@ const publicIntakeSchema = {
           },
           policy: anonymousTurnstilePolicy,
         },
-      },
+      ],
     },
-  },
-  queries: {},
-  itemViews: {},
-  tableViews: {},
-  views: {},
+  ],
+  queries: [],
+  itemViews: [],
+  tableViews: [],
+  views: [],
+  screens: fixtureScreens(),
 } satisfies AppSchema;
-
 const publicCertificateLookupSchema = {
   version: 1,
-  entities: {
-    certificate: {
+  entities: [
+    {
+      key: "certificate",
       label: "Certificate",
-      fields: {
-        verificationCode: {
+      fields: [
+        {
+          key: "verificationCode",
           type: "text",
           required: true,
           label: "Verification code",
         },
-        reportNumber: {
+        {
+          key: "reportNumber",
           type: "text",
           required: true,
           label: "Report number",
         },
-        publicDeliveryReference: {
+        {
+          key: "publicDeliveryReference",
           type: "text",
           required: true,
           label: "Public delivery reference",
         },
-        customerName: {
+        {
+          key: "customerName",
           type: "text",
           required: true,
           label: "Customer",
         },
-        providerStorageKey: {
+        {
+          key: "providerStorageKey",
           type: "text",
           required: true,
           label: "Provider storage key",
         },
-      },
-      operations: {
-        lookup: {
+      ],
+      operations: [
+        {
+          key: "lookup",
           kind: "list",
           scope: "collection",
           input: {
-            fields: {
-              lookup: {
+            fields: [
+              {
+                key: "lookup",
                 type: "text",
                 required: true,
                 label: "Verification code",
               },
-            },
+            ],
           },
           output: {
             type: "list",
@@ -982,11 +1017,12 @@ const publicCertificateLookupSchema = {
             },
           },
         },
-      },
+      ],
     },
-  },
-  queries: {
-    certificateLookup: {
+  ],
+  queries: [
+    {
+      key: "certificateLookup",
       label: "Certificate lookup",
       entity: "certificate",
       expression: {
@@ -996,67 +1032,76 @@ const publicCertificateLookupSchema = {
         value: { kind: "context", name: "lookup" },
       },
     },
-  },
-  itemViews: {},
-  tableViews: {},
-  views: {},
+  ],
+  itemViews: [],
+  tableViews: [],
+  views: [],
+  screens: fixtureScreens(),
 } satisfies AppSchema;
-
 const privateIntakeSchema = {
   version: 1,
-  entities: {
-    request: {
-      ...publicIntakeSchema.entities.request,
-      operations: {
-        privateSubmit: {
-          ...publicIntakeSchema.entities.request.operations.submit,
+  entities: [
+    {
+      ...publicIntakeSchema.entities.find(({ key }) => key === "request")!,
+      operations: [
+        {
+          ...publicIntakeSchema.entities
+            .find(({ key }) => key === "request")!
+            .operations!.find(({ key }) => key === "submit")!,
+          key: "privateSubmit",
           policy: ownerPolicy,
         },
-      },
+      ],
     },
-  },
-  queries: {},
-  itemViews: {},
-  tableViews: {},
-  views: {},
+  ],
+  queries: [],
+  itemViews: [],
+  tableViews: [],
+  views: [],
+  screens: fixtureScreens(),
 } satisfies AppSchema;
-
 const requiredReferenceIntakeSchema = {
   version: 1,
-  entities: {
-    owner: {
+  entities: [
+    {
+      key: "owner",
       label: "Owner",
-      fields: {
-        label: {
+      fields: [
+        {
+          key: "label",
           type: "text",
           required: true,
           label: "Label",
         },
-      },
+      ],
     },
-    request: {
+    {
+      key: "request",
       label: "Request",
-      fields: {
-        owner: {
+      fields: [
+        {
+          key: "owner",
           type: "reference",
           required: true,
           label: "Owner",
           to: "owner",
           displayField: "label",
         },
-      },
-      operations: {
-        submit: {
+      ],
+      operations: [
+        {
+          key: "submit",
           label: "Submit request",
           kind: "create",
           scope: "collection",
           input: {
-            fields: {
-              owner: {
+            fields: [
+              {
+                key: "owner",
                 field: "owner",
                 required: true,
               },
-            },
+            ],
           },
           effect: {
             type: "createRecord",
@@ -1072,11 +1117,25 @@ const requiredReferenceIntakeSchema = {
           },
           policy: anonymousTurnstilePolicy,
         },
+      ],
+    },
+  ],
+  queries: [],
+  itemViews: [],
+  tableViews: [],
+  views: [],
+  screens: fixtureScreens(),
+} satisfies AppSchema;
+function fixtureScreens(): AppSchema["screens"] {
+  return [
+    {
+      key: "fixture",
+      type: "workspace",
+      label: "Fixture",
+      layout: {
+        type: "stack",
+        sections: [{ id: "fixture", type: "collection", view: "fixture" }],
       },
     },
-  },
-  queries: {},
-  itemViews: {},
-  tableViews: {},
-  views: {},
-} satisfies AppSchema;
+  ];
+}

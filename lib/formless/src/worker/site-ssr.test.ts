@@ -470,8 +470,11 @@ describe("published Site Worker SSR", () => {
         Accept: "text/html",
       },
     });
-    const body = (await response.json()) as { meta: { slug: string } };
-
+    const body = (await response.json()) as {
+      meta: {
+        slug: string;
+      };
+    };
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toContain("application/json");
     expect(body.meta.slug).toBe("home");
@@ -604,9 +607,7 @@ async function headDocumentWithoutFollowingRedirect(path: string) {
 async function postAdminRecordOperation(body: Parameters<typeof recordOperationRequest>[0]) {
   const request = recordOperationRequest(body);
   const response = await harness.fetch(
-    `/api/app-installs/${publishedPackageAppKey}/${publishedInstallId}${request.path.slice(
-      "/api".length,
-    )}`,
+    `/api/app-installs/${publishedPackageAppKey}/${publishedInstallId}${request.path.slice("/api".length)}`,
     {
       body: JSON.stringify(request.body),
       headers: adminHeaders(),
@@ -631,8 +632,12 @@ function initialTreePayload(html: string) {
     kind: string;
     version: number;
     tree: {
-      meta: { slug: string };
-      page: { label: string };
+      meta: {
+        slug: string;
+      };
+      page: {
+        label: string;
+      };
     };
   };
 }

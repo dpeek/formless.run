@@ -204,7 +204,7 @@ describe("generated operation controls", () => {
   it("keeps destructive delete confirmation labels while executing through controller state", async () => {
     const deleteOperation = selectEntityOperationByKind(
       "block",
-      siteSourceSchema.entities.block,
+      siteSourceSchema.entities.find((definition) => definition.key === "block")!,
       "delete",
       "record",
     );
@@ -283,7 +283,7 @@ describe("generated operation controls", () => {
   it("retains failed confirmations and closes with callbacks only after committed or replayed results", async () => {
     const deleteOperation = selectEntityOperationByKind(
       "block",
-      siteSourceSchema.entities.block,
+      siteSourceSchema.entities.find((definition) => definition.key === "block")!,
       "delete",
       "record",
     );
@@ -324,7 +324,14 @@ describe("generated operation controls", () => {
     const openChanges: boolean[] = [];
     const successes: string[] = [];
     const dispatch = (
-      result: { type: "committed" | "replayed" } | { type: "failed"; displayError: string },
+      result:
+        | {
+            type: "committed" | "replayed";
+          }
+        | {
+            type: "failed";
+            displayError: string;
+          },
     ) =>
       handleGeneratedOperationIntent({
         binding,
@@ -640,12 +647,13 @@ type AuthoritySubmitCall = {
   request: OperationInvocationRequest;
   target: string;
 };
-
 function captureAuthoritySubmitter(
   response: OperationInvocationResponse | Promise<OperationInvocationResponse>,
-): { calls: AuthoritySubmitCall[]; submit: GeneratedOperationAuthoritySubmitter } {
+): {
+  calls: AuthoritySubmitCall[];
+  submit: GeneratedOperationAuthoritySubmitter;
+} {
   const calls: AuthoritySubmitCall[] = [];
-
   return {
     calls,
     submit: async (target, entityName, operationName, request, _fetcher, options) => {
@@ -661,12 +669,16 @@ function captureAuthoritySubmitter(
     },
   };
 }
-
-function requiredClearCompletedOperation(): Extract<HomeOperationConfig, { type: "command" }> {
+function requiredClearCompletedOperation(): Extract<
+  HomeOperationConfig,
+  {
+    type: "command";
+  }
+> {
   const model = selectCollectionModels(taskSourceSchema).find(
     (candidate) => candidate.viewName === "taskHome",
   );
-  const operation = model?.operations.find(
+  const operation = model?.operations!.find(
     (candidate) =>
       candidate.type === "command" && candidate.operationName === "clearCompletedTasks",
   );
@@ -674,13 +686,12 @@ function requiredClearCompletedOperation(): Extract<HomeOperationConfig, { type:
   if (operation?.type !== "command") {
     throw new Error("Missing clear completed operation.");
   }
-
   return operation;
 }
-
 function requiredTreeRemoveBinding() {
-  const treeView = siteSourceSchema.views.siteCompositionHome;
-
+  const treeView = siteSourceSchema.views.find(
+    (definition) => definition.key === "siteCompositionHome",
+  )!;
   if (treeView === undefined || treeView.type !== "collection" || treeView.result.type !== "tree") {
     throw new Error("Missing Site composition tree view.");
   }
@@ -689,7 +700,7 @@ function requiredTreeRemoveBinding() {
     siteSourceSchema,
     treeView.result,
     "block-placement",
-    siteSourceSchema.entities["block-placement"],
+    siteSourceSchema.entities.find((definition) => definition.key === "block-placement")!,
   );
   const binding = projectTreeCompositionOperationControlBindings(treeResult.composition, {
     executionTargetKey: "placement-1",
@@ -715,10 +726,12 @@ function operationResponse(
     status,
   };
 }
-
-function commandOutput(
-  affectedChangeIds: string[],
-): Extract<OperationInvocationResponse["output"], { type: "command" }> {
+function commandOutput(affectedChangeIds: string[]): Extract<
+  OperationInvocationResponse["output"],
+  {
+    type: "command";
+  }
+> {
   return {
     type: "command",
     affectedChangeIds,
@@ -792,7 +805,7 @@ function recordCommandOperation(
     operation: {
       kind: "command",
       scope: "record",
-      input: { fields: {} },
+      input: { fields: [] },
       effect: {
         type: "operationHandler",
         handler: "clear-completed",
@@ -820,7 +833,7 @@ function recordUpdateOperation(
     operation: {
       kind: "update",
       scope: "record",
-      input: { fields: {} },
+      input: { fields: [] },
       effect: { type: "patchRecord" },
       output: { type: "update" },
       idempotency: { required: true },

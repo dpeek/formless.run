@@ -73,10 +73,11 @@ type OwnerSetupCompleteResponse = {
     id: string;
     name: string;
   };
-  session: { expiresAt: string };
+  session: {
+    expiresAt: string;
+  };
   setupComplete: true;
 };
-
 const authOrigin = "https://auth.example.com";
 const authEmail = "email-sender:auth@mail.example.com";
 const setupToken = "abcDEF0123456789_-abcDEF0123456789_-";
@@ -857,9 +858,12 @@ async function createOwnerSetupHarness(
     },
   );
 }
-
 async function configureOwnerSetup(
-  overrides: Partial<{ expiresAt: string; instanceId: string; setupToken: string }> = {},
+  overrides: Partial<{
+    expiresAt: string;
+    instanceId: string;
+    setupToken: string;
+  }> = {},
 ) {
   return postHarnessJson("/harness/configure", {
     expiresAt: overrides.expiresAt ?? futureExpiresAt,
@@ -867,9 +871,12 @@ async function configureOwnerSetup(
     setupToken: overrides.setupToken ?? setupToken,
   });
 }
-
 async function startOwnerSetup(
-  overrides: Partial<{ displayName: string; email: string; setupToken: string }> = {},
+  overrides: Partial<{
+    displayName: string;
+    email: string;
+    setupToken: string;
+  }> = {},
 ) {
   return postAuthJson<OwnerSetupStartResponse>("/formless/auth/setup/start", {
     displayName: overrides.displayName ?? "Ada Owner",
@@ -963,37 +970,31 @@ async function createConflictingIdentityEmail(email: string) {
 async function expireOwnerSetupProof(challengeId: string) {
   return postHarnessJson("/harness/expire-proof", { challengeId });
 }
-
 async function ownerSetupProofs() {
-  return getHarnessJson<{ proofs: StoredOwnerSetupEmailProof[] }>("/harness/proofs").then(
-    (result) => result.proofs,
-  );
+  return getHarnessJson<{
+    proofs: StoredOwnerSetupEmailProof[];
+  }>("/harness/proofs").then((result) => result.proofs);
 }
-
 async function ownerSetupProof(challengeId: string) {
-  return getHarnessJson<{ proof: StoredOwnerSetupEmailProof | null }>(
-    `/harness/proof/${encodeURIComponent(challengeId)}`,
-  ).then((result) => result.proof);
+  return getHarnessJson<{
+    proof: StoredOwnerSetupEmailProof | null;
+  }>(`/harness/proof/${encodeURIComponent(challengeId)}`).then((result) => result.proof);
 }
-
 async function ownerSetupPasskeyChallenges() {
-  return getHarnessJson<{ challenges: StoredOwnerSetupPasskeyChallenge[] }>(
-    "/harness/passkey-challenges",
-  ).then((result) => result.challenges);
+  return getHarnessJson<{
+    challenges: StoredOwnerSetupPasskeyChallenge[];
+  }>("/harness/passkey-challenges").then((result) => result.challenges);
 }
-
 async function ownerSetupPasskeyPreparations() {
-  return getHarnessJson<{ preparations: StoredOwnerSetupPasskeyPreparation[] }>(
-    "/harness/passkey-preparations",
-  ).then((result) => result.preparations);
+  return getHarnessJson<{
+    preparations: StoredOwnerSetupPasskeyPreparation[];
+  }>("/harness/passkey-preparations").then((result) => result.preparations);
 }
-
 async function ownerSetupCompletions() {
-  return getHarnessJson<{ completions: StoredOwnerSetupCompletion[] }>("/harness/completions").then(
-    (result) => result.completions,
-  );
+  return getHarnessJson<{
+    completions: StoredOwnerSetupCompletion[];
+  }>("/harness/completions").then((result) => result.completions);
 }
-
 async function centralAuthSessions() {
   return getHarnessJson<{
     sessions: Array<{
@@ -1005,13 +1006,11 @@ async function centralAuthSessions() {
     }>;
   }>("/harness/central-sessions").then((result) => result.sessions);
 }
-
 async function ownerSetupCapability() {
-  return getHarnessJson<{ capability: unknown }>("/harness/capability").then(
-    (result) => result.capability,
-  );
+  return getHarnessJson<{
+    capability: unknown;
+  }>("/harness/capability").then((result) => result.capability);
 }
-
 async function setCompletionFault(fault: "none" | "session") {
   return postHarnessJson("/harness/completion-fault", { fault });
 }
@@ -1019,35 +1018,33 @@ async function setCompletionFault(fault: "none" | "session") {
 async function createActivePasskeyCredential(credentialId: string) {
   return postHarnessJson("/harness/active-credential", { credentialId });
 }
-
 async function passkeyCredential(credentialId: string) {
-  return getHarnessJson<{ credential: StoredPasskeyCredential | null }>(
-    `/harness/credential/${encodeURIComponent(credentialId)}`,
-  ).then((result) => result.credential);
+  return getHarnessJson<{
+    credential: StoredPasskeyCredential | null;
+  }>(`/harness/credential/${encodeURIComponent(credentialId)}`).then((result) => result.credential);
 }
-
 async function deliveryRecords() {
-  return getHarnessJson<{ deliveries: EmailDeliveryRecord[] }>("/harness/deliveries").then(
-    (result) => result.deliveries,
-  );
+  return getHarnessJson<{
+    deliveries: EmailDeliveryRecord[];
+  }>("/harness/deliveries").then((result) => result.deliveries);
 }
-
 async function queueJobRecords() {
-  return getHarnessJson<{ jobs: unknown[] }>("/harness/queue-jobs").then((result) => result.jobs);
+  return getHarnessJson<{
+    jobs: unknown[];
+  }>("/harness/queue-jobs").then((result) => result.jobs);
 }
-
 async function renderedMessage(deliveryId: string) {
-  return getHarnessJson<{ message?: EmailDeliveryRenderedMessage }>(
-    `/harness/internal-message/${encodeURIComponent(deliveryId)}`,
-  ).then((result) => result.message);
-}
-
-async function identityRecords() {
-  return getHarnessJson<{ records: StoredRecord[] }>("/harness/identity-records").then(
-    (result) => result.records,
+  return getHarnessJson<{
+    message?: EmailDeliveryRenderedMessage;
+  }>(`/harness/internal-message/${encodeURIComponent(deliveryId)}`).then(
+    (result) => result.message,
   );
 }
-
+async function identityRecords() {
+  return getHarnessJson<{
+    records: StoredRecord[];
+  }>("/harness/identity-records").then((result) => result.records);
+}
 function authorizingIdentityRecords(records: StoredRecord[]) {
   return records.filter((record) =>
     ["app-registration", "principal", "principal-email", "role-assignment"].includes(record.entity),
@@ -1107,9 +1104,10 @@ async function postAuthJsonFailure(path: string, body: unknown) {
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
-
   return {
-    body: (await response.json()) as { error: string },
+    body: (await response.json()) as {
+      error: string;
+    },
     status: response.status,
   };
 }
@@ -1161,10 +1159,13 @@ class VirtualPasskey {
     this.credentialId = credentialIdValue;
     this.publicKey = pair.publicKey;
   }
-
   registrationResponse(
     options: PublicKeyCredentialCreationOptionsJSON,
-    input: { origin: string; rpId: string; userVerified?: boolean },
+    input: {
+      origin: string;
+      rpId: string;
+      userVerified?: boolean;
+    },
   ): RegistrationResponseJSON {
     const clientDataJSON = clientDataJson("webauthn.create", options.challenge, input.origin);
     const authData = registrationAuthenticatorData({

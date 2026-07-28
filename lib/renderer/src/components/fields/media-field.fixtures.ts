@@ -31,11 +31,21 @@ const mediaField = {
   type: "text",
   required: true,
   label: "Hero Media",
-} satisfies Extract<FieldSchema, { type: "text" }>;
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const optionalMediaField = {
   ...mediaField,
   required: false,
-} satisfies Extract<FieldSchema, { type: "text" }>;
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const documentField = {
   asset: {
     access: "private",
@@ -46,12 +56,21 @@ const documentField = {
   label: "Report",
   required: true,
   type: "text",
-} satisfies Extract<FieldSchema, { type: "text" }>;
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const optionalDocumentField = {
   ...documentField,
   required: false,
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const mediaOptions = [
   ...Array.from({ length: 20 }, (_, index) => {
     const number = String(index + 1).padStart(2, "0");
@@ -71,10 +90,9 @@ const mediaOptions = [
     missing: true,
   },
 ] as const;
-
 const documentOptions = [
   {
-    byteSize: 42_000,
+    byteSize: 42000,
     contentType: "application/pdf",
     downloadHref: "/api/app-installs/reports/private/media/documents/report-quarterly?download=1",
     filename: "Quarterly report.pdf",
@@ -83,7 +101,7 @@ const documentOptions = [
     label: "Quarterly report.pdf",
   },
   {
-    byteSize: 720_000,
+    byteSize: 720000,
     contentType: "application/pdf",
     downloadHref: "/api/app-installs/reports/private/media/documents/report-draft?download=1",
     filename: "Report draft.pdf",

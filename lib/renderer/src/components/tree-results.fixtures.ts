@@ -940,32 +940,48 @@ const placementLabelSchema = {
   label: "Placement label",
   required: false,
   type: "text",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const navigationLabelSchema = {
   label: "Navigation label",
   required: true,
   type: "text",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const targetModeSchema = {
   default: "block",
   label: "Target mode",
   required: true,
   type: "enum",
-  values: {
-    block: { label: "Block" },
-    url: { label: "URL" },
-  },
-} as const satisfies Extract<FieldSchema, { type: "enum" }>;
-
+  values: [
+    { key: "block", label: "Block" },
+    { key: "url", label: "URL" },
+  ],
+} as const satisfies Extract<
+  FieldSchema,
+  {
+    type: "enum";
+  }
+>;
 const targetBlockSchema = {
   label: "Target block",
   required: false,
   to: "block",
   type: "reference",
-} satisfies Extract<FieldSchema, { type: "reference" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "reference";
+  }
+>;
 const targetBlockOptions = [
   { id: "block:home", label: "Home" },
   { id: "block:about", label: "About" },
@@ -1082,7 +1098,9 @@ function fieldSet<TField extends FieldContract = FieldContract>(
   label: string,
   fields: readonly TField[] = [],
   editing: TreeSelectedEditorContract["editing"] = { enabled: true },
-): Omit<FieldSetContract, "fields"> & { fields: readonly TField[] } {
+): Omit<FieldSetContract, "fields"> & {
+  fields: readonly TField[];
+} {
   return {
     disabled: !editing.enabled,
     ...(editing.enabled ? {} : { disabledReason: editing.disabledReason }),

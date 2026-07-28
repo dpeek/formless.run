@@ -1,8 +1,10 @@
 import type { NumericExpression, NumericExpressionOperator } from "./types.ts";
 import {
   assertExactKeys,
+  definitionsToRecord,
   isFiniteNumber,
   isRecord,
+  parseKeyedDefinitionArray,
   parseRequiredNonEmptyString,
 } from "./schema-parse-helpers.ts";
 import type {
@@ -13,9 +15,9 @@ import type {
   ComputedValueSchema,
   EntitySchema,
   FieldSchema,
+  KeyedDefinition,
   ReadModelSchema,
 } from "./types.ts";
-
 const numericExpressionOperators = [
   "add",
   "subtract",
@@ -37,12 +39,14 @@ export function parseReadModels(
   if (!isRecord(value)) {
     throw new Error("Schema readModels must be an object.");
   }
-
   assertExactKeys("Schema readModels", value, [], ["computedValues", "aggregates"]);
-
   const computedValues = parseComputedValues(value.computedValues, entities);
-  const aggregates = parseAggregates(value.aggregates, entities, queries, computedValues ?? {});
-
+  const aggregates = parseAggregates(
+    value.aggregates,
+    entities,
+    queries,
+    definitionsToRecord(computedValues),
+  );
   return {
     ...(computedValues === undefined ? {} : { computedValues }),
     ...(aggregates === undefined ? {} : { aggregates }),
@@ -52,26 +56,17 @@ export function parseReadModels(
 function parseComputedValues(
   value: unknown,
   entities: Record<string, EntitySchema>,
-): Record<string, ComputedValueSchema> | undefined {
+): KeyedDefinition<ComputedValueSchema>[] | undefined {
   if (value === undefined) {
     return undefined;
   }
-
-  if (!isRecord(value)) {
-    throw new Error("Schema readModels.computedValues must be an object.");
-  }
-
-  return Object.fromEntries(
-    Object.entries(value).map(([computedValueName, computedValue]) => {
-      if (computedValueName.trim() === "") {
-        throw new Error("Computed value names must be non-empty.");
-      }
-
-      return [computedValueName, parseComputedValue(computedValueName, computedValue, entities)];
-    }),
+  return parseKeyedDefinitionArray(
+    "Schema readModels.computedValues",
+    value,
+    (computedValueName, computedValue) =>
+      parseComputedValue(computedValueName, computedValue, entities),
   );
 }
-
 function parseComputedValue(
   computedValueName: string,
   value: unknown,
@@ -82,12 +77,9 @@ function parseComputedValue(
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
-
-  assertExactKeys(context, value, ["entity", "type", "expression"]);
-
+  assertExactKeys(context, value, ["key", "entity", "type", "expression"]);
   const entityName = parseRequiredNonEmptyString(`${context} entity`, value.entity);
   const entity = entities[entityName];
-
   if (!entity) {
     throw new Error(`${context} references unknown entity "${entityName}".`);
   }
@@ -103,7 +95,7 @@ function parseComputedValue(
       `${context} expression`,
       value.expression,
       entityName,
-      entity.fields,
+      definitionsToRecord(entity.fields),
     ),
   };
 }
@@ -172,29 +164,17 @@ function parseAggregates(
   entities: Record<string, EntitySchema>,
   queries: Record<string, CollectionQuerySchema>,
   computedValues: Record<string, ComputedValueSchema>,
-): Record<string, AggregateSchema> | undefined {
+): KeyedDefinition<AggregateSchema>[] | undefined {
   if (value === undefined) {
     return undefined;
   }
-
-  if (!isRecord(value)) {
-    throw new Error("Schema readModels.aggregates must be an object.");
-  }
-
-  return Object.fromEntries(
-    Object.entries(value).map(([aggregateName, aggregate]) => {
-      if (aggregateName.trim() === "") {
-        throw new Error("Aggregate names must be non-empty.");
-      }
-
-      return [
-        aggregateName,
-        parseAggregate(aggregateName, aggregate, entities, queries, computedValues),
-      ];
-    }),
+  return parseKeyedDefinitionArray(
+    "Schema readModels.aggregates",
+    value,
+    (aggregateName, aggregate) =>
+      parseAggregate(aggregateName, aggregate, entities, queries, computedValues),
   );
 }
-
 function parseAggregate(
   aggregateName: string,
   value: unknown,
@@ -207,12 +187,9 @@ function parseAggregate(
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
-
-  assertExactKeys(context, value, ["query", "function"], ["value"]);
-
+  assertExactKeys(context, value, ["key", "query", "function"], ["value"]);
   const queryName = parseRequiredNonEmptyString(`${context} query`, value.query);
   const query = queries[queryName];
-
   if (!query) {
     throw new Error(`${context} references unknown query "${queryName}".`);
   }
@@ -246,7 +223,7 @@ function parseAggregate(
       `${context} value`,
       value.value,
       query.entity,
-      entity.fields,
+      definitionsToRecord(entity.fields),
       computedValues,
     ),
   };

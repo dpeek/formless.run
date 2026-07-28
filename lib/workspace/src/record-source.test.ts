@@ -6,9 +6,37 @@ import {
   createAppPackageResolver,
 } from "@dpeek/formless-installed-apps";
 import type { StoredRecord } from "@dpeek/formless-storage";
-import { parseInstanceWorkspaceControlPlaneRecordSourceControlPlane } from "./record-source.ts";
+import {
+  formatInstanceWorkspaceControlPlaneRecordSourceFile,
+  parseInstanceWorkspaceControlPlaneRecordSourceControlPlane,
+} from "./record-source.ts";
 
 describe("workspace control-plane record source validation", () => {
+  it("formats records by id and values by control-plane field declaration", () => {
+    const records = [
+      appInstallRecord("zeta", "2026-06-18T00:00:01.000Z"),
+      appInstallRecord("alpha", "2026-06-18T00:00:02.000Z"),
+    ];
+    const formatted = JSON.parse(
+      formatInstanceWorkspaceControlPlaneRecordSourceFile({
+        entity: "app-install",
+        records,
+        schemaUpdatedAt: "2026-06-18T00:00:03.000Z",
+      }),
+    ) as { records: StoredRecord[] };
+
+    expect(formatted.records.map((record) => record.id)).toEqual(["alpha", "zeta"]);
+    expect(formatted.records[0]!.entity).toBe("instance:app-install");
+    expect(Object.keys(formatted.records[0]!.values)).toEqual([
+      "installId",
+      "packageAppKey",
+      "label",
+      "registrationPolicy",
+      "status",
+      "storageIdentity",
+    ]);
+  });
+
   it("validates public Site routes through the active package resolver", () => {
     const packageResolver = createAppPackageResolver([
       packageManifest({
@@ -85,6 +113,23 @@ describe("workspace control-plane record source validation", () => {
     );
   });
 });
+
+function appInstallRecord(id: string, createdAt: string): StoredRecord {
+  return {
+    id,
+    entity: "app-install",
+    values: {
+      storageIdentity: `app:${id}`,
+      status: "installed",
+      registrationPolicy: "closed",
+      label: id,
+      packageAppKey: id,
+      installId: id,
+    },
+    createdAt,
+    updatedAt: createdAt,
+  };
+}
 
 function packageManifest(input: {
   label: string;

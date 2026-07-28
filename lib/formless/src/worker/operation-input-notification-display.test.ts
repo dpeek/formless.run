@@ -148,11 +148,19 @@ describe("operation input notification display rows", () => {
         }),
         schema: {
           version: 1,
-          entities: {},
-          queries: {},
-          itemViews: {},
-          tableViews: {},
-          views: {},
+          entities: [],
+          queries: [],
+          itemViews: [],
+          tableViews: [],
+          views: [],
+          screens: [
+            {
+              key: "empty",
+              type: "workspace",
+              label: "Empty",
+              layout: { type: "stack", sections: [] },
+            },
+          ],
         },
       }),
     ).toEqual([]);
@@ -162,49 +170,61 @@ describe("operation input notification display rows", () => {
 function requestSchema(operation: EntityOperationSchema): AppSchema {
   return {
     version: 1,
-    entities: {
-      request: {
+    entities: [
+      {
+        key: "request",
         label: "Request",
-        fields: {
-          fullName: { type: "text", required: true, label: "Full name" },
-          tier: {
+        fields: [
+          { key: "fullName", type: "text", required: true, label: "Full name" },
+          {
+            key: "tier",
             type: "enum",
             required: true,
             label: "Tier",
-            values: {
-              priority: { label: "Priority" },
-              standard: { label: "Standard" },
-            },
+            values: [
+              { key: "priority", label: "Priority" },
+              { key: "standard", label: "Standard" },
+            ],
           },
-          acceptedTerms: { type: "boolean", required: false, label: "Accepted terms" },
-          quantity: { type: "number", required: false, label: "Quantity" },
-          ownerId: { type: "reference", required: false, label: "Owner", to: "user" },
-        },
-        operations: {
-          submit: operation,
-        },
+          { key: "acceptedTerms", type: "boolean", required: false, label: "Accepted terms" },
+          { key: "quantity", type: "number", required: false, label: "Quantity" },
+          { key: "ownerId", type: "reference", required: false, label: "Owner", to: "user" },
+        ],
+        operations: [
+          {
+            key: "submit",
+            ...operation,
+          },
+        ],
       },
-    },
-    queries: {},
-    itemViews: {},
-    tableViews: {},
-    views: {},
+    ],
+    queries: [],
+    itemViews: [],
+    tableViews: [],
+    views: [],
+    screens: [
+      {
+        key: "requests",
+        type: "workspace",
+        label: "Requests",
+        layout: { type: "stack", sections: [] },
+      },
+    ],
   };
 }
-
 function createRequestOperation(): EntityOperationSchema {
   return {
     label: "Submit request",
     kind: "create",
     scope: "collection",
     input: {
-      fields: {
-        applicantName: { field: "fullName", required: true, label: "Applicant" },
-        tier: { field: "tier", required: true },
-        acceptedTerms: { field: "acceptedTerms", required: false },
-        quantity: { field: "quantity", required: false },
-        owner: { field: "ownerId", required: false },
-      },
+      fields: [
+        { key: "applicantName", field: "fullName", required: true, label: "Applicant" },
+        { key: "tier", field: "tier", required: true },
+        { key: "acceptedTerms", field: "acceptedTerms", required: false },
+        { key: "quantity", field: "quantity", required: false },
+        { key: "owner", field: "ownerId", required: false },
+      ],
     },
     effect: { type: "createRecord" },
     output: { type: "create" },
@@ -228,10 +248,10 @@ function handlerRequestOperation(): EntityOperationSchema {
     kind: "command",
     scope: "collection",
     input: {
-      fields: {
-        email: { type: "text", required: true, label: "Email" },
-        wantsNewsletter: { type: "boolean", required: false, label: "Wants newsletter" },
-      },
+      fields: [
+        { key: "email", type: "text", required: true, label: "Email" },
+        { key: "wantsNewsletter", type: "boolean", required: false, label: "Wants newsletter" },
+      ],
     },
     effect: { type: "operationHandler", handler: "subscribe", config: {} },
     output: { type: "command" },

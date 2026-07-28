@@ -8,8 +8,12 @@ import type {
   RecordFieldContract,
 } from "@dpeek/formless-presentation/contract";
 import type { AstryxInputDensity } from "../input-density.ts";
-
-export type EditorField = Extract<FieldContract, { mode: "editor" }>;
+export type EditorField = Extract<
+  FieldContract,
+  {
+    mode: "editor";
+  }
+>;
 export type FieldInputSize = "sm" | "md" | "lg";
 export type ISODateInputValue =
   `${number}${number}${number}${number}-${number}${number}-${number}${number}`;

@@ -28,12 +28,11 @@ describe("generated operation control model", () => {
     const view = requiredCollectionView(schema, "taskHome");
     const shell = selectHomeCollectionShell(
       schema,
-      Object.entries(schema.views),
+      schema.views.map((definition) => [definition.key, definition]),
       view,
-      schema.entities.task,
+      schema.entities.find((definition) => definition.key === "task")!,
     );
     const bindings = projectCollectionOperationControlBindings(shell.operations);
-
     expect(createIdleGeneratedOperationExecutionState("task.create")).toEqual({
       executionKey: "task.create",
       status: "idle",
@@ -74,11 +73,11 @@ describe("generated operation control model", () => {
     const state = {
       executionKey: "workspace.source.push",
       status: "pending",
-      startedAt: 1_000,
+      startedAt: 1000,
       progress: {
         title: "Pushing workspace",
         detail: "Preparing source changes.",
-        updatedAt: 1_100,
+        updatedAt: 1100,
         steps: [
           {
             id: "prepare",
@@ -98,7 +97,7 @@ describe("generated operation control model", () => {
     expect(state.progress).toEqual({
       title: "Pushing workspace",
       detail: "Preparing source changes.",
-      updatedAt: 1_100,
+      updatedAt: 1100,
       steps: [
         {
           id: "prepare",
@@ -114,11 +113,11 @@ describe("generated operation control model", () => {
       ],
     });
   });
-
   it("omits hidden table controls and projects disabled destructive confirmations", () => {
     const schema = sourceLikeSiteSchema();
-    const tableView = schema.tableViews.blockPlacementTable;
-
+    const tableView = schema.tableViews.find(
+      (definition) => definition.key === "blockPlacementTable",
+    )!;
     tableView.operations = [
       {
         operation: "block.update",
@@ -150,10 +149,9 @@ describe("generated operation control model", () => {
       schema,
       tableView,
       "block-placement",
-      schema.entities["block-placement"],
+      schema.entities.find((definition) => definition.key === "block-placement")!,
     );
     const column = result.columns.find((candidate) => candidate.type === "operationControl");
-
     if (column?.type !== "operationControl") {
       throw new Error("Missing operation-control column.");
     }
@@ -163,7 +161,7 @@ describe("generated operation control model", () => {
     });
     const deleteOperation = selectEntityOperationByKind(
       "block",
-      schema.entities.block,
+      schema.entities.find((definition) => definition.key === "block")!,
       "delete",
       "record",
     );
@@ -198,28 +196,28 @@ describe("generated operation control model", () => {
     expect(standaloneDelete?.executionKey).toBe(bindings[0]?.executionKey);
     expect(standaloneDelete?.canonicalOperationKey).toBe("block.delete");
   });
-
   it("projects transition, tree, ordering, public, and workspace operation facts", () => {
     const taskSchema = sourceLikeTaskSchema();
-    const taskEntity = taskSchema.entities.task;
-
-    taskEntity.stateMachines = {
-      priorityFlow: {
+    const taskEntity = taskSchema.entities.find((definition) => definition.key === "task")!;
+    taskEntity.stateMachines = [
+      {
         field: "priority",
         initial: "low",
         terminal: ["high"],
-        transitions: {
-          escalate: {
+        transitions: [
+          {
+            key: "escalate",
             label: "Escalate",
             from: ["low"],
             to: "normal",
           },
-        },
+        ],
+        key: "priorityFlow",
       },
-    };
-    taskEntity.operations = {
-      ...taskEntity.operations,
-      escalatePriority: {
+    ];
+    taskEntity.operations = [
+      ...(taskEntity.operations ?? []),
+      {
         label: "Escalate",
         kind: "command",
         scope: "record",
@@ -234,11 +232,10 @@ describe("generated operation control model", () => {
         output: { type: "command" },
         idempotency: { required: true },
         audit: { input: "summary" },
+        key: "escalatePriority",
       },
-    };
-
+    ];
     const transition = selectTransitionStateOperations("task", taskEntity)[0];
-
     if (!transition) {
       throw new Error("Missing transition operation.");
     }
@@ -278,7 +275,7 @@ describe("generated operation control model", () => {
       siteSchema,
       treeView.result,
       "block-placement",
-      siteSchema.entities["block-placement"],
+      siteSchema.entities.find((definition) => definition.key === "block-placement")!,
     );
     const treeBindings = projectTreeCompositionOperationControlBindings(treeResult.composition, {
       executionTargetKey: "placement-1",
@@ -354,10 +351,8 @@ describe("generated operation control model", () => {
     });
   });
 });
-
 function requiredCollectionView(schema: AppSchema, viewName: string): CollectionViewSchema {
-  const view = schema.views[viewName];
-
+  const view = schema.views.find((definition) => definition.key === viewName)!;
   if (!view || view.type !== "collection") {
     throw new Error(`Missing collection view "${viewName}".`);
   }

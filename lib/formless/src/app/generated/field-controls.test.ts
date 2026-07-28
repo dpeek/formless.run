@@ -195,18 +195,18 @@ const fields = {
     type: "enum",
     required: false,
     default: "normal",
-    values: {
-      normal: { label: "Normal" },
-      high: { label: "High" },
-    },
+    values: [
+      { key: "normal", label: "Normal" },
+      { key: "high", label: "High" },
+    ],
   },
   optionalPriority: {
     type: "enum",
     required: false,
-    values: {
-      low: { label: "Low" },
-      high: { label: "High" },
-    },
+    values: [
+      { key: "low", label: "Low" },
+      { key: "high", label: "High" },
+    ],
   },
   resource: { type: "reference", required: true, to: "resource", displayField: "name" },
 } satisfies Record<string, FieldSchema>;

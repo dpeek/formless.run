@@ -124,7 +124,12 @@ function ValueUnitSelector({
   field,
   onIntent,
 }: {
-  field: Extract<EditorField, { surface: "detail" | "record" | "table-cell" }>;
+  field: Extract<
+    EditorField,
+    {
+      surface: "detail" | "record" | "table-cell";
+    }
+  >;
   onIntent: FieldIntentHandler | undefined;
 }) {
   const valueUnit = field.valueUnit;

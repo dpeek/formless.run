@@ -35,11 +35,19 @@ const crmSourceSchemaHash =
   "sha256:3333333333333333333333333333333333333333333333333333333333333333";
 const privateSourceSchemaHash =
   "sha256:4444444444444444444444444444444444444444444444444444444444444444";
-
 type SourceSchemaHashFixture = ReturnType<typeof sourceSchemaHashFixture>;
-type CreateAppInstallSuccess = Extract<CreateAppInstallResult, { ok: true }>;
-type CreateAppInstallFailure = Extract<CreateAppInstallResult, { ok: false }>;
-
+type CreateAppInstallSuccess = Extract<
+  CreateAppInstallResult,
+  {
+    ok: true;
+  }
+>;
+type CreateAppInstallFailure = Extract<
+  CreateAppInstallResult,
+  {
+    ok: false;
+  }
+>;
 describe("app package manifests", () => {
   it("parses runtime-neutral package source facts", () => {
     expect(parseAppPackageManifest(privatePackageManifest())).toEqual({
@@ -619,6 +627,14 @@ describe("source schema hash contracts", () => {
     expect(sourceSchemaCanonicalJson({ a: 1, b: [2, { d: 4, c: 3 }] })).toBe(
       sourceSchemaCanonicalJson({ b: [2, { c: 3, d: 4 }], a: 1 }),
     );
+    expect(sourceSchemaCanonicalJson({ ä: 3, a: 2, Z: 1 })).toBe('{"Z":1,"a":2,"ä":3}');
+
+    const declared = { registry: [{ key: "first" }, { key: "second" }] };
+    const reordered = { registry: [...declared.registry].reverse() };
+    expect(sourceSchemaCanonicalJson(reordered)).not.toBe(sourceSchemaCanonicalJson(declared));
+    await expect(computeSourceSchemaHash(reordered)).resolves.not.toBe(
+      await computeSourceSchemaHash(declared),
+    );
 
     await expect(computeSourceSchemaHash({ b: { d: 4, c: 3 }, a: 1 })).resolves.toBe(
       "sha256:8d463b4d44d84c3a5f01c287245d254181e5d88e0f520c14c325a33422ed9331",
@@ -635,31 +651,33 @@ describe("source schema hash contracts", () => {
       [
         "view",
         (schema) => {
-          schema.views.taskList.label = "Open Tasks";
+          definition(schema.views, "taskList").label = "Open Tasks";
         },
       ],
       [
         "table view",
         (schema) => {
-          schema.tableViews.taskTable.columns[0]!.label = "Task title";
+          definition(schema.tableViews, "taskTable").columns[0]!.label = "Task title";
         },
       ],
       [
         "item view",
         (schema) => {
-          schema.itemViews.taskItem.fields.done.commit = "field-commit";
+          definition(schema.itemViews, "taskItem").fields.find(
+            ({ field }) => field === "done",
+          )!.commit = "field-commit";
         },
       ],
       [
         "screen",
         (schema) => {
-          schema.screens.home.label = "Task Home";
+          definition(schema.screens, "home").label = "Task Home";
         },
       ],
       [
         "query",
         (schema) => {
-          schema.queries.taskDone.expression = {
+          definition(schema.queries, "taskDone").expression = {
             kind: "where",
             ref: { kind: "value", name: "done" },
             op: "eq",
@@ -670,19 +688,19 @@ describe("source schema hash contracts", () => {
       [
         "read model",
         (schema) => {
-          schema.readModels.computedValues.effortScore.expression.right.value = 3;
+          definition(schema.readModels.computedValues, "effortScore").expression.right.value = 3;
         },
       ],
       [
         "operation",
         (schema) => {
-          schema.entities.task.operations.create.audit.input = "hash";
+          definition(definition(schema.entities, "task").operations, "create").audit.input = "hash";
         },
       ],
       [
         "operation label",
         (schema) => {
-          schema.entities.task.operations.create.label = "Add task";
+          definition(definition(schema.entities, "task").operations, "create").label = "Add task";
         },
       ],
       [
@@ -701,10 +719,15 @@ describe("source schema hash contracts", () => {
     }
   });
 });
-
+function definition<T extends { key: string }>(definitions: T[], key: string): T {
+  const value = definitions.find((candidate) => candidate.key === key);
+  if (!value) {
+    throw new Error(`Missing definition "${key}".`);
+  }
+  return value;
+}
 function expectSuccess(result: CreateAppInstallResult): CreateAppInstallSuccess {
   expect(result.ok).toBe(true);
-
   if (!result.ok) {
     throw new Error(result.error.message);
   }
@@ -847,37 +870,40 @@ function packageManifest(input: {
 function sourceSchemaHashFixture() {
   return {
     version: 1,
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         label: "Task",
-        fields: {
-          title: { type: "text", required: true, label: "Title" },
-          done: { type: "boolean", required: true, label: "Done", default: false },
-          effort: { type: "number", required: true, label: "Effort", default: 1 },
-        },
-        operations: {
-          create: {
+        fields: [
+          { key: "title", type: "text", required: true, label: "Title" },
+          { key: "done", type: "boolean", required: true, label: "Done", default: false },
+          { key: "effort", type: "number", required: true, label: "Effort", default: 1 },
+        ],
+        operations: [
+          {
+            key: "create",
             label: "Create Task",
             kind: "create",
             scope: "collection",
             input: {
-              fields: {
-                title: { field: "title", required: true },
-                done: { field: "done" },
-                effort: { field: "effort" },
-              },
+              fields: [
+                { key: "title", field: "title", required: true },
+                { key: "done", field: "done" },
+                { key: "effort", field: "effort" },
+              ],
             },
             effect: { type: "createRecord" },
             output: { type: "create" },
             idempotency: { required: true },
             audit: { input: "summary" },
           },
-        },
+        ],
       },
-    },
-    queries: {
-      taskAll: { label: "Tasks", entity: "task", expression: { kind: "all" } },
-      taskDone: {
+    ],
+    queries: [
+      { key: "taskAll", label: "Tasks", entity: "task", expression: { kind: "all" } },
+      {
+        key: "taskDone",
         label: "Completed",
         entity: "task",
         expression: {
@@ -887,10 +913,11 @@ function sourceSchemaHashFixture() {
           value: true,
         },
       },
-    },
+    ],
     readModels: {
-      computedValues: {
-        effortScore: {
+      computedValues: [
+        {
+          key: "effortScore",
           entity: "task",
           type: "number",
           expression: {
@@ -900,28 +927,29 @@ function sourceSchemaHashFixture() {
             right: { kind: "literal", value: 2 },
           },
         },
-      },
-      aggregates: {
-        doneTasks: { query: "taskDone", function: "count" },
-      },
+      ],
+      aggregates: [{ key: "doneTasks", query: "taskDone", function: "count" }],
     },
-    itemViews: {
-      taskItem: {
+    itemViews: [
+      {
+        key: "taskItem",
         entity: "task",
-        fields: {
-          title: { editor: "text", commit: "field-commit" },
-          done: { editor: "boolean", commit: "immediate" },
-        },
+        fields: [
+          { field: "title", editor: "text", commit: "field-commit" },
+          { field: "done", editor: "boolean", commit: "immediate" },
+        ],
       },
-    },
-    tableViews: {
-      taskTable: {
+    ],
+    tableViews: [
+      {
+        key: "taskTable",
         entity: "task",
         columns: [{ type: "field", field: "title", label: "Title" }],
       },
-    },
-    views: {
-      taskList: {
+    ],
+    views: [
+      {
+        key: "taskList",
         type: "collection",
         label: "Tasks",
         entity: "task",
@@ -929,9 +957,10 @@ function sourceSchemaHashFixture() {
         defaultQuery: "taskAll",
         result: { type: "table", tableView: "taskTable" },
       },
-    },
-    screens: {
-      home: {
+    ],
+    screens: [
+      {
+        key: "home",
         type: "workspace",
         label: "Home",
         layout: {
@@ -939,7 +968,7 @@ function sourceSchemaHashFixture() {
           sections: [{ id: "tasks", type: "collection", view: "taskList" }],
         },
       },
-    },
+    ],
     runtime: {
       owner: "runtime",
       builder: { editable: false },

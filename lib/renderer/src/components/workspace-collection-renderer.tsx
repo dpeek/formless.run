@@ -578,7 +578,12 @@ function AstryxSubscribedWorkspaceNonTreeMainResult({
   reference,
   scope,
 }: {
-  reference: Exclude<MainResultReference, { kind: "treeResultReference" }>;
+  reference: Exclude<
+    MainResultReference,
+    {
+      kind: "treeResultReference";
+    }
+  >;
   scope: WorkspaceIntentScope;
 }) {
   const onIntent = useWorkspaceIntentHandler();
@@ -733,7 +738,12 @@ function AstryxWorkspaceRecordResult({
 }: {
   contextId?: string;
   onIntent: WorkspaceIntentHandler;
-  recordResult: Extract<WorkspaceResultContract, { kind: "recordResult" }>;
+  recordResult: Extract<
+    WorkspaceResultContract,
+    {
+      kind: "recordResult";
+    }
+  >;
   scope: WorkspaceIntentScope;
 }) {
   return (
@@ -808,7 +818,11 @@ export function dispatchAstryxWorkspaceOperationIntent(
   scope: WorkspaceIntentScope,
   controlId: string,
   intent: OperationPresentationIntent,
-  identities: { contextId?: string; recordId?: string; resultId?: string } = {},
+  identities: {
+    contextId?: string;
+    recordId?: string;
+    resultId?: string;
+  } = {},
 ) {
   return handler({
     ...scope,
@@ -866,18 +880,26 @@ function astryxWorkspaceContextSelectorOption(
 function workspaceCollectionActionId(action: WorkspaceCollectionActionContract) {
   return action.kind === "createAction" ? action.surface.id : action.control.id;
 }
-
 function workspaceListActionRecordId(
-  list: Extract<WorkspaceResultContract, { kind: "list" }>,
+  list: Extract<
+    WorkspaceResultContract,
+    {
+      kind: "list";
+    }
+  >,
   action: ListOperationActionContract,
 ) {
   return list.items.find((item) =>
     [...item.actions.primary, ...item.actions.secondary].includes(action),
   )?.id;
 }
-
 function workspaceTableActionRecordId(
-  table: Extract<WorkspaceResultContract, { kind: "table" }>,
+  table: Extract<
+    WorkspaceResultContract,
+    {
+      kind: "table";
+    }
+  >,
   action: TableOperationActionContract,
 ) {
   return table.rows.find((row) =>

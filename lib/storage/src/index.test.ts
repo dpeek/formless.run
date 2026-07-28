@@ -4,6 +4,8 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   STORAGE_SNAPSHOT_KIND,
   STORAGE_SNAPSHOT_VERSION,
+  formatStoredRecordForArtifact,
+  formatStoredRecordsForArtifact,
   isFieldValue,
   isRecordValues,
   isStoredRecord,
@@ -11,42 +13,55 @@ import {
   type StorageSnapshot,
   type StoredRecord,
 } from "./index.ts";
-
 const appSchema = parseAppSchema({
   version: 1,
-  entities: {
-    task: {
+  entities: [
+    {
+      key: "project",
+      label: "Project",
+      fields: [
+        {
+          key: "label",
+          type: "text",
+          required: true,
+          label: "Label",
+        },
+      ],
+      operations: writeOperations("Project", ["label"]),
+    },
+    {
+      key: "task",
       label: "Task",
-      fields: {
-        title: {
+      fields: [
+        {
+          key: "title",
           type: "text",
           required: true,
           label: "Title",
         },
-        done: {
+        {
+          key: "done",
           type: "boolean",
           required: true,
           label: "Done",
           default: false,
         },
-      },
+      ],
       operations: writeOperations("Task", ["title", "done"]),
     },
-  },
-  queries: {
-    taskAll: { label: "Tasks", entity: "task", expression: { kind: "all" } },
-  },
-  itemViews: {
-    taskItem: {
+  ],
+  queries: [{ key: "taskAll", label: "Tasks", entity: "task", expression: { kind: "all" } }],
+  itemViews: [
+    {
+      key: "taskItem",
       entity: "task",
-      fields: {
-        title: { editor: "text", commit: "field-commit" },
-      },
+      fields: [{ field: "title", editor: "text", commit: "field-commit" }],
     },
-  },
-  tableViews: {},
-  views: {
-    taskList: {
+  ],
+  tableViews: [],
+  views: [
+    {
+      key: "taskList",
       type: "collection",
       label: "Tasks",
       entity: "task",
@@ -54,9 +69,10 @@ const appSchema = parseAppSchema({
       defaultQuery: "taskAll",
       result: { type: "list", itemView: "taskItem" },
     },
-  },
-  screens: {
-    home: {
+  ],
+  screens: [
+    {
+      key: "home",
       type: "workspace",
       label: "Home",
       layout: {
@@ -64,16 +80,15 @@ const appSchema = parseAppSchema({
         sections: [{ id: "tasks", type: "collection", view: "taskList" }],
       },
     },
-  },
+  ],
 });
-
 function writeOperations(label: string, fields: string[]) {
   const input = {
-    fields: Object.fromEntries(fields.map((field) => [field, { field }])),
+    fields: fields.map((field) => ({ key: field, field })),
   };
-
-  return {
-    create: {
+  return [
+    {
+      key: "create",
       label: `Create ${label}`,
       kind: "create",
       scope: "collection",
@@ -83,7 +98,8 @@ function writeOperations(label: string, fields: string[]) {
       idempotency: { required: true },
       audit: { input: "summary" },
     },
-    update: {
+    {
+      key: "update",
       label: `Update ${label}`,
       kind: "update",
       scope: "record",
@@ -93,10 +109,69 @@ function writeOperations(label: string, fields: string[]) {
       idempotency: { required: true },
       audit: { input: "summary" },
     },
-  };
+  ];
 }
-
 describe("storage snapshot package", () => {
+  it("formats records by schema declaration and id with schema-ordered values", () => {
+    const records = formatStoredRecordsForArtifact(appSchema, [
+      {
+        ...record("task-z"),
+        values: { zeta: "forward", done: false, alpha: "forward", title: "Last" },
+      },
+      {
+        ...record("task-a"),
+        values: { done: true, title: "First" },
+        deletedAt: "2026-04-29T00:00:00.000Z",
+      },
+      {
+        ...record("project-z"),
+        entity: "project",
+        values: { label: "Project" },
+      },
+      {
+        ...record("unknown-z"),
+        entity: "unknown-z",
+        values: { zeta: "last", alpha: "first" },
+      },
+      {
+        ...record("unknown-a"),
+        entity: "unknown-a",
+        values: {},
+      },
+    ]);
+
+    expect(records.map(({ entity, id }) => `${entity}:${id}`)).toEqual([
+      "project:project-z",
+      "task:task-a",
+      "task:task-z",
+      "unknown-a:unknown-a",
+      "unknown-z:unknown-z",
+    ]);
+    expect(Object.keys(records[2]!.values)).toEqual(["title", "done", "alpha", "zeta"]);
+    expect(Object.keys(records[3]!.values)).toEqual([]);
+    expect(Object.keys(records[4]!.values)).toEqual(["alpha", "zeta"]);
+    expect(records[1]!.deletedAt).toBe("2026-04-29T00:00:00.000Z");
+  });
+
+  it("omits absent fields and ignores input value property order", () => {
+    const left = formatStoredRecordForArtifact(appSchema, {
+      ...record("record-1"),
+      values: { done: false, title: "First" },
+    });
+    const right = formatStoredRecordForArtifact(appSchema, {
+      ...record("record-1"),
+      values: { title: "First", done: false },
+    });
+    const missing = formatStoredRecordForArtifact(appSchema, {
+      ...record("record-1"),
+      values: { title: "First" },
+    });
+
+    expect(left).toEqual(right);
+    expect(Object.keys(left.values)).toEqual(["title", "done"]);
+    expect(Object.keys(missing.values)).toEqual(["title"]);
+  });
+
   it("parses the supported version 1 envelope", () => {
     const snapshot = storageSnapshot({
       records: [

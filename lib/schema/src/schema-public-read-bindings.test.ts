@@ -35,13 +35,13 @@ describe("schema public read bindings", () => {
           type: "enum",
           required: true,
           label: "Status",
-          values: { published: { label: "Published" } },
+          values: [{ key: "published", label: "Published" }],
         },
         input: {
           type: "enum",
           required: true,
           label: "Status",
-          values: { published: { label: "Published" } },
+          values: [{ key: "published", label: "Published" }],
         },
       },
     ] as const;
@@ -54,9 +54,12 @@ describe("schema public read bindings", () => {
           input: scalarCase.input,
         }),
       );
-
-      expect(schema.entities.certificate.operations?.lookup).toMatchObject({
-        input: { fields: { lookup: scalarCase.input } },
+      expect(
+        schema.entities
+          .find((definition) => definition.key === "certificate")!
+          .operations?.find((definition) => definition.key === "lookup"),
+      ).toMatchObject({
+        input: { fields: [{ key: "lookup", ...scalarCase.input }] },
         output: { type: "list", query: "publicLookup", maxResults: 5 },
         policy: {
           actors: ["anonymous"],
@@ -98,21 +101,22 @@ describe("schema public read bindings", () => {
     const schema = parseAppSchema(
       publicLookupSchema({
         expression,
-        extraFields: {
-          alternateCode: { type: "text", required: true, label: "Alternate code" },
-          status: {
+        extraFields: [
+          { key: "alternateCode", type: "text", required: true, label: "Alternate code" },
+          {
+            key: "status",
             type: "enum",
             required: true,
             label: "Status",
-            values: { published: { label: "Published" } },
+            values: [{ key: "published", label: "Published" }],
           },
-        },
+        ],
       }),
     );
-
-    expect(schema.queries.publicLookup.expression).toEqual(expression);
+    expect(
+      schema.queries.find((definition) => definition.key === "publicLookup")!.expression,
+    ).toEqual(expression);
   });
-
   it("rejects unbounded, over-ceiling, or input-independent public list output", () => {
     const invalidCases = [
       {
@@ -195,13 +199,13 @@ describe("schema public read bindings", () => {
             type: "enum",
             required: true,
             label: "Status",
-            values: { published: { label: "Published" } },
+            values: [{ key: "published", label: "Published" }],
           },
           input: {
             type: "enum",
             required: true,
             label: "Status",
-            values: { draft: { label: "Draft" } },
+            values: [{ key: "draft", label: "Draft" }],
           },
         }),
         message: 'context "lookup" is incompatible with value field "status"',
@@ -278,7 +282,7 @@ describe("schema public read bindings", () => {
 function publicLookupSchema(
   overrides: {
     expression?: unknown;
-    extraFields?: Record<string, unknown>;
+    extraFields?: Array<Record<string, unknown>>;
     field?: unknown;
     fieldName?: string;
     input?: unknown;
@@ -288,56 +292,67 @@ function publicLookupSchema(
 ) {
   const fieldName = overrides.fieldName ?? "code";
   const field = overrides.field ?? { type: "text", required: true, label: "Code" };
-
   return {
     version: 1,
-    entities: {
-      certificate: {
+    entities: [
+      {
+        key: "certificate",
         label: "Certificate",
-        fields: {
-          [fieldName]: field,
-          published: { type: "boolean", required: true, label: "Published" },
-          ...overrides.extraFields,
-        },
-        operations: {
-          lookup: {
+        fields: [
+          {
+            key: fieldName,
+            ...field,
+          },
+          ...(fieldName === "published"
+            ? []
+            : [{ key: "published", type: "boolean", required: true, label: "Published" }]),
+          ...(overrides.extraFields ?? []),
+        ],
+        operations: [
+          {
+            key: "lookup",
             kind: "list",
             scope: "collection",
             input: {
-              fields: {
-                lookup: overrides.input ?? { type: "text", required: true, label: "Lookup value" },
-              },
+              fields: [
+                {
+                  key: "lookup",
+                  ...(overrides.input ?? { type: "text", required: true, label: "Lookup value" }),
+                },
+              ],
             },
             output: overrides.output ?? { type: "list", query: "publicLookup", maxResults: 5 },
             policy:
               overrides.policy ?? publicReadPolicy({ responseFields: { anonymous: [fieldName] } }),
           },
-        },
+        ],
       },
-    },
-    queries: {
-      certificates: {
+    ],
+    queries: [
+      {
+        key: "certificates",
         label: "Certificates",
         entity: "certificate",
         expression: { kind: "all" },
       },
-      publicLookup: {
+      {
+        key: "publicLookup",
         label: "Public lookup",
         entity: "certificate",
         expression: overrides.expression ?? inputEquality(fieldName),
       },
-    },
-    itemViews: {
-      certificateItem: {
+    ],
+    itemViews: [
+      {
+        key: "certificateItem",
         entity: "certificate",
-        fields: {
-          published: { editor: "boolean", commit: "immediate" },
-        },
+        fields: [{ field: "published", editor: "boolean", commit: "immediate" }],
       },
-    },
-    tableViews: {},
-    views: {
-      certificateHome: {
+    ],
+    tableViews: [],
+    views: [
+      {
+        key: "certificateHome",
         type: "collection",
         label: "Certificates",
         entity: "certificate",
@@ -345,21 +360,20 @@ function publicLookupSchema(
         defaultQuery: "certificates",
         result: { type: "list", itemView: "certificateItem" },
       },
-    },
-    screens: {
-      home: {
+    ],
+    screens: [
+      {
+        key: "home",
         type: "workspace",
         label: "Certificates",
-        navigation: { primary: true },
         layout: {
           type: "stack",
           sections: [{ id: "certificates", type: "collection", view: "certificateHome" }],
         },
       },
-    },
+    ],
   };
 }
-
 function inputEquality(fieldName: string) {
   return {
     kind: "where",

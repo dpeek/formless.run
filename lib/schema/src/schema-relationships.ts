@@ -1,6 +1,8 @@
 import {
   assertExactKeys,
+  definitionsToRecord,
   isRecord,
+  parseKeyedDefinitionArray,
   parseOptionalNonEmptyString,
   parseRequiredNonEmptyString,
 } from "./schema-parse-helpers.ts";
@@ -8,6 +10,7 @@ import { assertSchemaLocalEntityKey, parseQualifiedEntityName } from "./entity-n
 import type {
   EntitySchema,
   FieldSchema,
+  KeyedDefinition,
   ManyToManyRelationshipSchema,
   ReferenceFieldSchema,
   RelationshipSchema,
@@ -19,30 +22,18 @@ import type {
 export function parseRelationships(
   value: unknown,
   entities: Record<string, EntitySchema>,
-): Record<string, RelationshipSchema> | undefined {
+): KeyedDefinition<RelationshipSchema>[] | undefined {
   if (value === undefined) {
     return undefined;
   }
-
-  if (!isRecord(value)) {
-    throw new Error("Schema relationships must be an object.");
-  }
-
-  const relationships = Object.fromEntries(
-    Object.entries(value).map(([relationshipName, relationship]) => {
-      if (relationshipName.trim() === "") {
-        throw new Error("Relationship names must be non-empty.");
-      }
-
-      return [relationshipName, parseRelationship(relationshipName, relationship, entities)];
-    }),
+  const relationships = parseKeyedDefinitionArray(
+    "Schema relationships",
+    value,
+    (relationshipName, relationship) => parseRelationship(relationshipName, relationship, entities),
   );
-
   validateInverseRelationships(relationships);
-
   return relationships;
 }
-
 function parseRelationship(
   relationshipName: string,
   value: unknown,
@@ -74,8 +65,7 @@ function parseToOneRelationship(
   value: Record<string, unknown>,
   entities: Record<string, EntitySchema>,
 ): ToOneRelationshipSchema {
-  assertExactKeys(context, value, ["kind", "from", "to"], ["label", "inverse"]);
-
+  assertExactKeys(context, value, ["key", "kind", "from", "to"], ["label", "inverse"]);
   const label = parseOptionalNonEmptyString(`${context} label`, value.label);
   const from = parseReferenceFieldEndpoint(`${context} from`, value.from, entities);
   const to = parseEntityEndpoint(`${context} to`, value.to, entities);
@@ -101,8 +91,7 @@ function parseToManyRelationship(
   value: Record<string, unknown>,
   entities: Record<string, EntitySchema>,
 ): ToManyRelationshipSchema {
-  assertExactKeys(context, value, ["kind", "from", "to"], ["label", "inverse"]);
-
+  assertExactKeys(context, value, ["key", "kind", "from", "to"], ["label", "inverse"]);
   const label = parseOptionalNonEmptyString(`${context} label`, value.label);
   const from = parseEntityEndpoint(`${context} from`, value.from, entities);
   const to = parseReferenceFieldEndpoint(`${context} to`, value.to, entities);
@@ -128,8 +117,7 @@ function parseManyToManyRelationship(
   value: Record<string, unknown>,
   entities: Record<string, EntitySchema>,
 ): ManyToManyRelationshipSchema {
-  assertExactKeys(context, value, ["kind", "from", "to", "through"], ["label", "inverse"]);
-
+  assertExactKeys(context, value, ["key", "kind", "from", "to", "through"], ["label", "inverse"]);
   const label = parseOptionalNonEmptyString(`${context} label`, value.label);
   const from = parseEntityEndpoint(`${context} from`, value.from, entities);
   const to = parseEntityEndpoint(`${context} to`, value.to, entities);
@@ -150,7 +138,9 @@ function parseEntityEndpoint(
   context: string,
   value: unknown,
   entities: Record<string, EntitySchema>,
-): { entity: string } {
+): {
+  entity: string;
+} {
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
@@ -166,7 +156,11 @@ function parseReferenceFieldEndpoint(
   context: string,
   value: unknown,
   entities: Record<string, EntitySchema>,
-): { entity: string; fieldName: string; field: ReferenceFieldSchema } {
+): {
+  entity: string;
+  fieldName: string;
+  field: ReferenceFieldSchema;
+} {
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
@@ -283,8 +277,7 @@ function requireField(
   fieldName: string,
   entity: EntitySchema,
 ): FieldSchema {
-  const field = entity.fields[fieldName];
-
+  const field = definitionsToRecord(entity.fields)[fieldName];
   if (!field) {
     throw new Error(`${context} references unknown field "${entityName}.${fieldName}".`);
   }
@@ -315,8 +308,7 @@ function validateThroughUniqueConstraint(
   fromField: string,
   toField: string,
 ) {
-  const constraint = entity.constraints?.[constraintName];
-
+  const constraint = definitionsToRecord(entity.constraints)[constraintName];
   if (!constraint) {
     throw new Error(`${context} references unknown constraint "${entityName}.${constraintName}".`);
   }
@@ -330,14 +322,14 @@ function validateThroughUniqueConstraint(
     );
   }
 }
-
-function validateInverseRelationships(relationships: Record<string, RelationshipSchema>) {
-  for (const [relationshipName, relationship] of Object.entries(relationships)) {
+function validateInverseRelationships(relationships: KeyedDefinition<RelationshipSchema>[]) {
+  const relationshipsByKey = definitionsToRecord(relationships);
+  for (const relationship of relationships) {
+    const relationshipName = relationship.key;
     if (relationship.inverse === undefined) {
       continue;
     }
-
-    const inverse = relationships[relationship.inverse];
+    const inverse = relationshipsByKey[relationship.inverse];
     if (!inverse) {
       throw new Error(
         `Relationship "${relationshipName}" inverse references unknown relationship "${relationship.inverse}".`,

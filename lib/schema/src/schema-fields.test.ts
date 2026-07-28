@@ -17,53 +17,66 @@ describe("schema fields", () => {
     const source = taskSchema();
     const schema = parseAppSchema({
       ...source,
-      entities: {
-        task: taskEntity({
-          fields: {
-            ...taskEntity().fields,
-            estimate: {
-              type: "number",
-              required: true,
-              label: "Estimate",
-              default: 1,
-              min: 0,
-              max: 10,
-              integer: true,
-            },
-            priority: {
-              type: "enum",
-              required: true,
-              label: "Priority",
-              default: "normal",
-              values: {
-                normal: {
-                  label: "Normal",
-                  presentation: { icon: "priority", color: "priority.normal" },
-                },
-                high: {
-                  label: "High",
-                  presentation: { icon: "priority", color: "priority.high" },
-                },
+      entities: [
+        {
+          key: "task",
+          ...taskEntity({
+            fields: replaceDefinition(
+              replaceDefinition(taskEntity().fields, "estimate", {
+                key: "estimate",
+                type: "number",
+                required: true,
+                label: "Estimate",
+                default: 1,
+                min: 0,
+                max: 10,
+                integer: true,
+              }),
+              "priority",
+              {
+                key: "priority",
+                type: "enum",
+                required: true,
+                label: "Priority",
+                default: "normal",
+                values: [
+                  {
+                    key: "normal",
+                    label: "Normal",
+                    presentation: { icon: "priority", color: "priority.normal" },
+                  },
+                  {
+                    key: "high",
+                    label: "High",
+                    presentation: { icon: "priority", color: "priority.high" },
+                  },
+                ],
               },
-            },
-          },
-        }),
-      },
-      itemViews: {
-        taskItem: {
+            ),
+          }),
+        },
+      ],
+      itemViews: [
+        {
+          key: "taskItem",
           entity: "task",
-          fields: {
-            priority: {
+          fields: [
+            {
+              field: "priority",
               editor: "enum",
               commit: "immediate",
               presentation: { list: "both", mode: "iconOnly", trigger: "icon" },
             },
-          },
+          ],
         },
-      },
+      ],
     });
-
-    expect(schema.entities.task?.fields.estimate).toEqual({
+    expect(
+      schema.entities
+        .find((definition) => definition.key === "task")!
+        .fields.find((definition) => definition.key === "estimate")!,
+    ).toEqual({
+      key: "estimate",
       type: "number",
       required: true,
       label: "Estimate",
@@ -72,14 +85,20 @@ describe("schema fields", () => {
       max: 10,
       integer: true,
     });
-    expect(schema.entities.task?.fields.priority).toMatchObject({
-      type: "enum",
-      default: "normal",
-      values: {
-        high: { presentation: { icon: "priority", color: "priority.high" } },
-      },
+    const priority = schema.entities
+      .find((definition) => definition.key === "task")!
+      .fields.find((definition) => definition.key === "priority")!;
+    expect(priority).toMatchObject({ type: "enum", default: "normal" });
+    expect(
+      priority.type === "enum" && priority.values.find(({ key }) => key === "high"),
+    ).toMatchObject({
+      presentation: { icon: "priority", color: "priority.high" },
     });
-    expect(schema.itemViews.taskItem.fields.priority).toMatchObject({
+    expect(
+      schema.itemViews
+        .find((definition) => definition.key === "taskItem")!
+        .fields.find((definition) => definition.field === "priority"),
+    ).toMatchObject({
       presentation: { list: "both", mode: "iconOnly", trigger: "icon" },
     });
     expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
@@ -89,51 +108,58 @@ describe("schema fields", () => {
     expect(() =>
       parseAppSchema({
         ...taskSchema(),
-        entities: {
-          task: taskEntity({
-            fields: {
-              ...taskEntity().fields,
-              priority: {
+        entities: [
+          {
+            key: "task",
+            ...taskEntity({
+              fields: replaceDefinition(taskEntity().fields, "priority", {
+                key: "priority",
                 type: "enum",
                 required: true,
                 default: "missing",
-                values: { normal: { label: "Normal" } },
-              },
-            },
-          }),
-        },
+                values: [{ key: "normal", label: "Normal" }],
+              }),
+            }),
+          },
+        ],
       }),
     ).toThrow("enum default must match one of its values");
-
     expect(() =>
       parseAppSchema({
         ...taskSchema(),
-        entities: {
-          task: taskEntity({
-            fields: {
-              ...taskEntity().fields,
-              estimate: { type: "number", required: false, min: 10, max: 1 },
-            },
-          }),
-        },
+        entities: [
+          {
+            key: "task",
+            ...taskEntity({
+              fields: replaceDefinition(taskEntity().fields, "estimate", {
+                key: "estimate",
+                type: "number",
+                required: false,
+                min: 10,
+                max: 1,
+              }),
+            }),
+          },
+        ],
       }),
     ).toThrow("number min must be less than or equal to max");
-
     expect(() =>
       parseAppSchema({
         ...taskSchema(),
-        itemViews: {
-          taskItem: {
+        itemViews: [
+          {
+            key: "taskItem",
             entity: "task",
-            fields: {
-              title: {
+            fields: [
+              {
+                field: "title",
                 editor: "text",
                 commit: "field-commit",
                 presentation: { mode: "iconOnly" },
               },
-            },
+            ],
           },
-        },
+        ],
       }),
     ).toThrow("iconOnly presentation requires an enum field");
   });
@@ -142,45 +168,58 @@ describe("schema fields", () => {
     const source = identityReferenceSourceSchema();
     const schema = parseAppSchema({
       ...source,
-      entities: {
-        ...source.entities,
-        account: {
-          ...source.entities.account,
-          fields: {
-            ...source.entities.account.fields,
-            email: {
-              type: "text",
-              required: false,
-              format: "email",
-              suggestions: ["hello@example.com"],
-            },
-            phone: {
-              type: "text",
-              required: false,
-              format: "phone",
-            },
-            inquiryType: {
-              type: "text",
-              required: false,
-              suggestions: ["Support", "Sales"],
-            },
+      entities: replaceDefinition(source.entities, "account", {
+        fields: [
+          ...source.entities.find((definition) => definition.key === "account")!.fields,
+          {
+            key: "email",
+            type: "text",
+            required: false,
+            format: "email",
+            suggestions: ["hello@example.com"],
           },
-        },
-      },
+          {
+            key: "phone",
+            type: "text",
+            required: false,
+            format: "phone",
+          },
+          {
+            key: "inquiryType",
+            type: "text",
+            required: false,
+            suggestions: ["Support", "Sales"],
+          },
+        ],
+      }),
     });
-
-    expect(schema.entities.account?.fields.email).toEqual({
+    expect(
+      schema.entities
+        .find((definition) => definition.key === "account")!
+        .fields.find((definition) => definition.key === "email")!,
+    ).toEqual({
+      key: "email",
       type: "text",
       required: false,
       format: "email",
       suggestions: ["hello@example.com"],
     });
-    expect(schema.entities.account?.fields.phone).toEqual({
+    expect(
+      schema.entities
+        .find((definition) => definition.key === "account")!
+        .fields.find((definition) => definition.key === "phone")!,
+    ).toEqual({
+      key: "phone",
       type: "text",
       required: false,
       format: "phone",
     });
-    expect(schema.entities.account?.fields.inquiryType).toEqual({
+    expect(
+      schema.entities
+        .find((definition) => definition.key === "account")!
+        .fields.find((definition) => definition.key === "inquiryType")!,
+    ).toEqual({
+      key: "inquiryType",
       type: "text",
       required: false,
       suggestions: ["Support", "Sales"],
@@ -192,28 +231,34 @@ describe("schema fields", () => {
     const source = taskSchema();
     const schema = parseAppSchema({
       ...source,
-      entities: {
-        task: taskEntity({
-          fields: {
-            ...taskEntity().fields,
-            report: {
-              type: "text",
-              required: false,
-              label: "Report",
-              asset: {
-                kind: "document",
-                acceptedMimeTypes: ["application/pdf"],
-                maxBytes: DOCUMENT_ASSET_POLICY_MAX_BYTES,
-                access: "private",
+      entities: [
+        {
+          key: "task",
+          ...taskEntity({
+            fields: [
+              ...taskEntity().fields,
+              {
+                key: "report",
+                type: "text",
+                required: false,
+                label: "Report",
+                asset: {
+                  kind: "document",
+                  acceptedMimeTypes: ["application/pdf"],
+                  maxBytes: DOCUMENT_ASSET_POLICY_MAX_BYTES,
+                  access: "private",
+                },
               },
-            },
-          },
-        }),
-      },
+            ],
+          }),
+        },
+      ],
     });
-    const report = schema.entities.task?.fields.report;
-
+    const report = schema.entities
+      .find((definition) => definition.key === "task")!
+      .fields.find((definition) => definition.key === "report")!;
     expect(report).toEqual({
+      key: "report",
       type: "text",
       required: false,
       label: "Report",
@@ -242,24 +287,26 @@ describe("schema fields", () => {
   it("rejects invalid document asset policies", () => {
     const parseReportPolicy = (asset: unknown, type = "text") => {
       const source = taskSchema();
-
       return parseAppSchema({
         ...source,
-        entities: {
-          task: taskEntity({
-            fields: {
-              ...taskEntity().fields,
-              report: {
-                type,
-                required: false,
-                asset,
-              },
-            },
-          }),
-        },
+        entities: [
+          {
+            key: "task",
+            ...taskEntity({
+              fields: [
+                ...taskEntity().fields,
+                {
+                  key: "report",
+                  type,
+                  required: false,
+                  asset,
+                },
+              ],
+            }),
+          },
+        ],
       });
     };
-
     expect(() =>
       parseReportPolicy({
         kind: "document",
@@ -334,16 +381,12 @@ describe("schema fields", () => {
     expect(() =>
       parseAppSchema({
         ...source,
-        entities: {
-          ...source.entities,
-          account: {
-            ...source.entities.account,
-            fields: {
-              ...source.entities.account.fields,
-              email: { type: "text", required: false, format: "unsupported" },
-            },
-          },
-        },
+        entities: replaceDefinition(source.entities, "account", {
+          fields: [
+            ...source.entities.find((definition) => definition.key === "account")!.fields,
+            { key: "email", type: "text", required: false, format: "unsupported" },
+          ],
+        }),
       }),
     ).toThrow(
       'Field "account.email" text format must be "plain", "longText", "markdown", "href", "slug", "color", "icon", "email", or "phone".',
@@ -352,53 +395,60 @@ describe("schema fields", () => {
     expect(() =>
       parseAppSchema({
         ...source,
-        entities: {
-          ...source.entities,
-          account: {
-            ...source.entities.account,
-            fields: {
-              ...source.entities.account.fields,
-              inquiryType: { type: "text", required: false, suggestions: [] },
-            },
-          },
-        },
+        entities: replaceDefinition(source.entities, "account", {
+          fields: [
+            ...source.entities.find((definition) => definition.key === "account")!.fields,
+            { key: "inquiryType", type: "text", required: false, suggestions: [] },
+          ],
+        }),
       }),
     ).toThrow('Field "account.inquiryType" text suggestions must be a non-empty array.');
-
     expect(() =>
       parseAppSchema({
         ...source,
-        entities: {
-          ...source.entities,
-          account: {
-            ...source.entities.account,
-            fields: {
-              ...source.entities.account.fields,
-              inquiryType: { type: "text", required: false, suggestions: ["Support", ""] },
-            },
-          },
-        },
+        entities: replaceDefinition(source.entities, "account", {
+          fields: [
+            ...source.entities.find((definition) => definition.key === "account")!.fields,
+            { key: "inquiryType", type: "text", required: false, suggestions: ["Support", ""] },
+          ],
+        }),
       }),
     ).toThrow('Field "account.inquiryType" text suggestions[1] must be a non-empty string.');
   });
-
   it("accepts supported identity reference targets and local unqualified references", () => {
     const schema = parseAppSchema(identityReferenceSourceSchema());
-
-    expect(schema.entities.account?.fields.ownerPrincipal).toEqual({
+    expect(
+      schema.entities
+        .find((definition) => definition.key === "account")!
+        .fields.find((definition) => definition.key === "ownerPrincipal")!,
+    ).toEqual({
+      key: "ownerPrincipal",
       type: "reference",
       required: false,
       to: "auth:principal",
     });
-    expect(schema.entities.account?.fields.organization).toMatchObject({
+    expect(
+      schema.entities
+        .find((definition) => definition.key === "account")!
+        .fields.find((definition) => definition.key === "organization")!,
+    ).toMatchObject({
       type: "reference",
       to: "auth:organization",
     });
-    expect(schema.entities.account?.fields.group).toMatchObject({
+    expect(
+      schema.entities
+        .find((definition) => definition.key === "account")!
+        .fields.find((definition) => definition.key === "group")!,
+    ).toMatchObject({
       type: "reference",
       to: "auth:group",
     });
-    expect(schema.entities.account?.fields.profile).toEqual({
+    expect(
+      schema.entities
+        .find((definition) => definition.key === "account")!
+        .fields.find((definition) => definition.key === "profile")!,
+    ).toEqual({
+      key: "profile",
       type: "reference",
       required: false,
       to: "profile",
@@ -411,10 +461,13 @@ describe("schema fields", () => {
     expect(() =>
       parseAppSchema({
         ...identityReferenceSourceSchema(),
-        entities: {
+        entities: [
           ...identityReferenceSourceSchema().entities,
-          principal: textEntity("Principal"),
-        },
+          {
+            key: "principal",
+            ...textEntity("Principal"),
+          },
+        ],
       }),
     ).toThrow('Use local entity key "principal"');
   });
@@ -423,13 +476,14 @@ describe("schema fields", () => {
     expect(() =>
       parseAppSchema({
         ...identityReferenceSourceSchema(),
-        relationships: {
-          accountPrincipal: {
+        relationships: [
+          {
+            key: "accountPrincipal",
             kind: "toOne",
             from: { entity: "account", field: "ownerPrincipal" },
             to: { entity: "auth:principal" },
           },
-        },
+        ],
       }),
     ).toThrow('Relationship "accountPrincipal" to references unknown entity "auth:principal"');
   });
@@ -438,15 +492,16 @@ describe("schema fields", () => {
     expect(() =>
       parseAppSchema({
         ...identityReferenceSourceSchema(),
-        tableViews: {
-          accountTable: {
+        tableViews: [
+          {
+            key: "accountTable",
             entity: "account",
             columns: [
               { type: "field", field: "name" },
               { type: "referenceField", referenceField: "ownerPrincipal", field: "displayName" },
             ],
           },
-        },
+        ],
       }),
     ).toThrow(
       'Table view "accountTable" column 1 referenceField "account.ownerPrincipal" targets unknown entity "auth:principal"',
@@ -457,34 +512,41 @@ describe("schema fields", () => {
 function identityReferenceSourceSchema() {
   return {
     version: 1,
-    entities: {
-      account: {
+    entities: [
+      {
+        key: "account",
         label: "Account",
-        fields: {
-          name: { type: "text", required: true },
-          ownerPrincipal: { type: "reference", required: false, to: "auth:principal" },
-          organization: { type: "reference", required: false, to: "auth:organization" },
-          group: { type: "reference", required: false, to: "auth:group" },
-          profile: {
+        fields: [
+          { key: "name", type: "text", required: true },
+          { key: "ownerPrincipal", type: "reference", required: false, to: "auth:principal" },
+          { key: "organization", type: "reference", required: false, to: "auth:organization" },
+          { key: "group", type: "reference", required: false, to: "auth:group" },
+          {
+            key: "profile",
             type: "reference",
             required: false,
             to: "profile",
             displayField: "name",
           },
-        },
+        ],
       },
-      profile: textEntity("Profile"),
-    },
-    queries: {
-      accounts: {
+      {
+        key: "profile",
+        ...textEntity("Profile"),
+      },
+    ],
+    queries: [
+      {
+        key: "accounts",
         label: "Accounts",
         entity: "account",
         expression: { kind: "all" },
       },
-    },
-    itemViews: {},
-    tableViews: {
-      accountTable: {
+    ],
+    itemViews: [],
+    tableViews: [
+      {
+        key: "accountTable",
         entity: "account",
         columns: [
           { type: "field", field: "name" },
@@ -494,9 +556,10 @@ function identityReferenceSourceSchema() {
           { type: "field", field: "profile" },
         ],
       },
-    },
-    views: {
-      accountHome: {
+    ],
+    views: [
+      {
+        key: "accountHome",
         type: "collection",
         label: "Accounts",
         entity: "account",
@@ -504,9 +567,10 @@ function identityReferenceSourceSchema() {
         defaultQuery: "accounts",
         result: { type: "table", tableView: "accountTable" },
       },
-    },
-    screens: {
-      home: {
+    ],
+    screens: [
+      {
+        key: "home",
         type: "workspace",
         label: "Home",
         layout: {
@@ -514,15 +578,21 @@ function identityReferenceSourceSchema() {
           sections: [{ id: "accounts", type: "collection", view: "accountHome" }],
         },
       },
-    },
+    ],
   };
 }
-
 function textEntity(label: string) {
   return {
     label,
-    fields: {
-      name: { type: "text", required: true },
-    },
+    fields: [{ key: "name", type: "text", required: true }],
   };
+}
+function replaceDefinition<T extends { key: string }>(
+  definitions: readonly T[],
+  key: string,
+  patch: Record<string, unknown>,
+): T[] {
+  return definitions.map((definition) =>
+    definition.key === key ? { ...definition, ...patch } : definition,
+  );
 }

@@ -385,12 +385,11 @@ const hrefField = { type: "text", required: false, format: "href" } satisfies Fi
 const costUnitField = {
   type: "enum",
   required: false,
-  values: {
-    day: { label: "Day" },
-    hour: { label: "Hour" },
-  },
+  values: [
+    { key: "day", label: "Day" },
+    { key: "hour", label: "Hour" },
+  ],
 } satisfies FieldSchema;
-
 const titleFieldConfig = recordField("title", textField, "text");
 const estimateFieldConfig = recordField("estimate", numberField, "number");
 const costFieldConfig = recordField("cost", numberField, "number", {

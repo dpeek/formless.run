@@ -87,7 +87,7 @@ describe("generated operation projection", () => {
         { id: "sync", label: "Sync changes", status: "pending" },
       ],
       title: "Clearing completed tasks",
-      updatedAt: 1_010,
+      updatedAt: 1010,
     });
     expect(control.feedback).toMatchObject({
       activeProgress: {
@@ -145,7 +145,7 @@ describe("generated operation projection", () => {
       presentation: deletePresentation,
       state: {
         executionKey: binding.executionKey,
-        startedAt: 1_000,
+        startedAt: 1000,
         status: "pending",
       },
     });
@@ -154,10 +154,10 @@ describe("generated operation projection", () => {
       confirmationOpen: true,
       presentation: deletePresentation,
       state: {
-        completedAt: 2_010,
+        completedAt: 2010,
         executionKey: binding.executionKey,
         result: { type: "failed", displayError: "Active references block deletion." },
-        startedAt: 2_000,
+        startedAt: 2000,
         status: "failed",
       },
     });
@@ -218,15 +218,14 @@ describe("generated operation projection", () => {
       binding,
       confirmationOpen: false,
       presentation: deletePresentation,
-      state: completedState(binding.executionKey, "committed", 3_000),
+      state: completedState(binding.executionKey, "committed", 3000),
     });
     const replayed = projectGeneratedOperationControl({
       binding,
       confirmationOpen: false,
       presentation: deletePresentation,
-      state: completedState(binding.executionKey, "replayed", 4_000),
+      state: completedState(binding.executionKey, "replayed", 4000),
     });
-
     expect(committed.confirmation?.open).toBe(false);
     expect(committed.feedback).toMatchObject({
       intent: "success",
@@ -245,13 +244,12 @@ describe("generated operation projection", () => {
   it("projects affected counts and explicit feedback copy from normalized results", () => {
     const binding = collectionCommandBinding();
     const committedState = {
-      completedAt: 5_010,
+      completedAt: 5010,
       executionKey: binding.executionKey,
       result: { type: "committed", affectedCount: 3 },
-      startedAt: 5_000,
+      startedAt: 5000,
       status: "committed",
     } satisfies GeneratedOperationExecutionState;
-
     expect(projectGeneratedOperationFeedback(binding, committedState)).toMatchObject({
       detail: "3 affected.",
       status: "committed",
@@ -362,9 +360,9 @@ function pendingState(): GeneratedOperationExecutionState {
         { id: "sync", label: "Sync changes", status: "pending" },
       ],
       title: "Clearing completed tasks",
-      updatedAt: 1_010,
+      updatedAt: 1010,
     },
-    startedAt: 1_000,
+    startedAt: 1000,
     status: "pending",
   };
 }

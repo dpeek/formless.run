@@ -24,5 +24,8 @@
   "scripts": {
     "check": "vp check --fix && vp test --configLoader runner",
     "pack": "vp pack src/index.ts"
+  },
+  "dependencies": {
+    "@dpeek/formless-schema": "workspace:*"
   }
 }

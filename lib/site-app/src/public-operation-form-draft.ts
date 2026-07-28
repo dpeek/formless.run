@@ -431,7 +431,10 @@ function publicOperationFormInputFieldSchema(
     type: "enum",
     required: field.required,
     label: field.label,
-    values: Object.fromEntries((field.options ?? []).map((option) => [option.value, option])),
+    values: (field.options ?? []).map((option) => ({
+      key: option.value,
+      label: option.label,
+    })),
   };
 }
 

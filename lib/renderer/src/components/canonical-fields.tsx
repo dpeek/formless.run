@@ -42,85 +42,120 @@ const textField = {
   type: "text",
   required: true,
   label: "Title",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const textareaField = {
   type: "text",
   required: false,
   label: "Summary",
   format: "longText",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const iconField = {
   type: "text",
   required: false,
   label: "Icon",
   format: "icon",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const imageMediaField = {
   type: "text",
   required: false,
   label: "Hero image",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const completedField = {
   type: "boolean",
   required: false,
   label: "Completed",
   default: false,
-} satisfies Extract<FieldSchema, { type: "boolean" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "boolean";
+  }
+>;
 const estimateField = {
   type: "number",
   required: false,
   label: "Estimate",
   min: 0,
   integer: false,
-} satisfies Extract<FieldSchema, { type: "number" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "number";
+  }
+>;
 const statusField = {
   type: "enum",
   required: true,
   label: "Status",
-  values: {
-    draft: { label: "Draft", presentation: { color: "neutral" } },
-    review: { label: "Review", presentation: { color: "warning" } },
-    published: { label: "Published", presentation: { color: "success" } },
-    archived: { label: "Archived", presentation: { color: "danger" } },
-  },
+  values: [
+    { key: "draft", label: "Draft", presentation: { color: "neutral" } },
+    { key: "review", label: "Review", presentation: { color: "warning" } },
+    { key: "published", label: "Published", presentation: { color: "success" } },
+    { key: "archived", label: "Archived", presentation: { color: "danger" } },
+  ],
   default: "draft",
-} satisfies Extract<FieldSchema, { type: "enum" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "enum";
+  }
+>;
 const ownerField = {
   type: "reference",
   required: true,
   label: "Owner",
   to: "principal",
-} satisfies Extract<FieldSchema, { type: "reference" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "reference";
+  }
+>;
 const unitField = {
   type: "enum",
   required: true,
   label: "Unit",
-  values: {
-    h: { label: "h" },
-    d: { label: "d" },
-  },
+  values: [
+    { key: "h", label: "h" },
+    { key: "d", label: "d" },
+  ],
   default: "h",
-} satisfies Extract<FieldSchema, { type: "enum" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "enum";
+  }
+>;
 const statusMachine = {
   field: "status",
   initial: "draft",
   terminal: ["published", "archived"],
-  transitions: {
-    submit: { label: "Submit", from: ["draft"], to: "review" },
-    publish: { label: "Publish", from: ["review"], to: "published" },
-    archive: { label: "Archive", from: ["draft", "review"], to: "archived" },
-  },
+  transitions: [
+    { key: "submit", label: "Submit", from: ["draft"], to: "review" },
+    { key: "publish", label: "Publish", from: ["review"], to: "published" },
+    { key: "archive", label: "Archive", from: ["draft", "review"], to: "archived" },
+  ],
 } satisfies StateMachineField["machine"];
-
 const statusStateMachine = {
   fieldName: "status",
   machineName: "publishing",
@@ -133,8 +168,7 @@ const statusTransitionOperationNames = {
   archive: "archivePage",
   publish: "publishPage",
   submit: "submitPage",
-} satisfies Record<keyof typeof statusMachine.transitions, string>;
-
+} satisfies Record<(typeof statusMachine.transitions)[number]["key"], string>;
 const mediaAssetOptions = [
   {
     id: "asset-hero",
@@ -595,21 +629,39 @@ function baseField({
     surface,
   };
 }
-
 function textControl(
-  field: Extract<FieldSchema, { type: "text" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "text";
+    }
+  >,
   label: string,
   editor: Extract<FieldEditor, "text" | "textarea" | "icon" | "media">,
   controlKind: Extract<FieldControl["controlKind"], "text" | "textarea" | "icon" | "media">,
   control: FieldEditorControl,
-): Extract<FieldControl, { kind: "text" }> {
+): Extract<
+  FieldControl,
+  {
+    kind: "text";
+  }
+> {
   return controlFacts({ control, controlKind, editor, field, kind: "text", label });
 }
-
 function booleanControl(
-  field: Extract<FieldSchema, { type: "boolean" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "boolean";
+    }
+  >,
   label: string,
-): Extract<FieldControl, { kind: "boolean" }> {
+): Extract<
+  FieldControl,
+  {
+    kind: "boolean";
+  }
+> {
   return controlFacts({
     control: { kind: "checkbox" },
     controlKind: "checkbox",
@@ -619,11 +671,20 @@ function booleanControl(
     label,
   });
 }
-
 function numberControl(
-  field: Extract<FieldSchema, { type: "number" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "number";
+    }
+  >,
   label: string,
-): Extract<FieldControl, { kind: "number" }> {
+): Extract<
+  FieldControl,
+  {
+    kind: "number";
+  }
+> {
   return controlFacts({
     control: { kind: "formattedNumber" },
     controlKind: "number",
@@ -638,11 +699,20 @@ function numberControl(
     label,
   });
 }
-
 function enumControl(
-  field: Extract<FieldSchema, { type: "enum" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
   label: string,
-): Extract<FieldControl, { kind: "enum" }> {
+): Extract<
+  FieldControl,
+  {
+    kind: "enum";
+  }
+> {
   return controlFacts({
     control: { kind: "select" },
     controlKind: "select",
@@ -653,11 +723,20 @@ function enumControl(
     label,
   });
 }
-
 function referenceControl(
-  field: Extract<FieldSchema, { type: "reference" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "reference";
+    }
+  >,
   label: string,
-): Extract<FieldControl, { kind: "reference" }> {
+): Extract<
+  FieldControl,
+  {
+    kind: "reference";
+  }
+> {
   return controlFacts({
     control: { kind: "reference" },
     controlKind: "reference",
@@ -700,9 +779,15 @@ function controlFacts<TControl extends FieldControl>({
     required: field.required,
   } as TControl;
 }
-
-function enumOptions(field: Extract<FieldSchema, { type: "enum" }>): EnumOption[] {
-  return Object.entries(field.values).map(([value, option]) => ({
+function enumOptions(
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
+): EnumOption[] {
+  return field.values.map((option) => ({
     label: option.label,
     presentation: {
       color: {
@@ -721,10 +806,9 @@ function enumOptions(field: Extract<FieldSchema, { type: "enum" }>): EnumOption[
       label: option.label,
     },
     status: "declared",
-    value,
+    value: option.key,
   }));
 }
-
 function applyCanonicalFixtureIntent(
   fields: readonly FieldContract[],
   intent: FieldIntent,
@@ -980,14 +1064,19 @@ function applyCanonicalFixtureIntent(
       };
     });
   }
-
   return Array.from(fields);
 }
-
-function displayEnumValue(field: Extract<FieldSchema, { type: "enum" }>, value: string) {
-  return field.values[value]?.label ?? value;
+function displayEnumValue(
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
+  value: string,
+) {
+  return field.values.find((definition) => definition.key === value)?.label ?? value;
 }
-
 function statusStateMachineFacts(currentValue: string): StateMachineFacts {
   return {
     currentValue,
@@ -995,13 +1084,13 @@ function statusStateMachineFacts(currentValue: string): StateMachineFacts {
     interaction: {
       invocationSource: "menuItem",
       kind: "transitions",
-      transitions: Object.entries(statusMachine.transitions).map(([transitionName, transition]) => {
+      transitions: statusMachine.transitions.map((transition) => {
+        const transitionName = transition.key;
         const valid =
           transition.from.includes(currentValue) ||
           (currentValue.trim() !== "" &&
-            !Object.hasOwn(statusField.values, currentValue) &&
+            statusField.values.every((definition) => definition.key !== currentValue) &&
             transition.to === statusStateMachine.initialState);
-
         return {
           operationName:
             statusTransitionOperationNames[
@@ -1030,7 +1119,7 @@ function statusStateMachineFacts(currentValue: string): StateMachineFacts {
     valueStatus:
       currentValue.trim() === ""
         ? { kind: "unset", message: "Current state is missing." }
-        : Object.hasOwn(statusField.values, currentValue)
+        : statusField.values.some((definition) => definition.key === currentValue)
           ? { kind: "declared", value: currentValue }
           : {
               kind: "undeclared",

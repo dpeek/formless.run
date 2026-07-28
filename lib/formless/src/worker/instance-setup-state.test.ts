@@ -49,12 +49,14 @@ afterAll(async () => {
     instanceSetupHarnessDir = undefined;
   }
 });
-
 describe("instance setup state", () => {
   it("hashes setup tokens without preserving the raw URL capability", async () => {
-    const first = await getJson<{ hash: string }>(`/hash?token=${setupToken}`);
-    const second = await getJson<{ hash: string }>(`/hash?token=${setupToken}`);
-
+    const first = await getJson<{
+      hash: string;
+    }>(`/hash?token=${setupToken}`);
+    const second = await getJson<{
+      hash: string;
+    }>(`/hash?token=${setupToken}`);
     expect(first.hash).toBe(second.hash);
     expect(first.hash).not.toBe(setupToken);
     expect(first.hash).toMatch(/^[A-Za-z0-9_-]+$/);

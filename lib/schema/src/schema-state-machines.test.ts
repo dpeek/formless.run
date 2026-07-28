@@ -11,21 +11,26 @@ import {
 describe("schema state machines", () => {
   it("parses enum-backed state machines, transition operations, events, and stringify output", () => {
     const schema = parseAppSchema(stateMachineSchema());
-
-    expect(schema.entities.task?.stateMachines?.statusFlow).toEqual({
+    expect(
+      schema.entities
+        .find((definition) => definition.key === "task")!
+        .stateMachines?.find((definition) => definition.key === "statusFlow"),
+    ).toEqual({
+      key: "statusFlow",
       field: "status",
       initial: "todo",
       states: ["todo", "doing", "done"],
       terminal: ["done"],
-      transitions: {
-        start: { label: "Start", from: ["todo"], to: "doing" },
-        finish: { label: "Finish", from: ["doing"], to: "done" },
-        reopen: {
+      transitions: [
+        { key: "start", label: "Start", from: ["todo"], to: "doing" },
+        { key: "finish", label: "Finish", from: ["doing"], to: "done" },
+        {
+          key: "reopen",
           label: "Reopen",
           from: ["doing"],
           to: "todo",
         },
-      },
+      ],
       event: {
         entity: "task-event",
         fields: {
@@ -39,7 +44,11 @@ describe("schema state machines", () => {
         },
       },
     });
-    expect(schema.entities.task?.operations?.startWork.effect).toEqual({
+    expect(
+      schema.entities
+        .find((definition) => definition.key === "task")!
+        .operations?.find((definition) => definition.key === "startWork")?.effect,
+    ).toEqual({
       type: "operationHandler",
       handler: "transition-state",
       config: {
@@ -47,7 +56,11 @@ describe("schema state machines", () => {
         transition: "start",
       },
     });
-    expect(schema.entities.task?.operations?.startWork).toMatchObject({
+    expect(
+      schema.entities
+        .find((definition) => definition.key === "task")!
+        .operations?.find((definition) => definition.key === "startWork"),
+    ).toMatchObject({
       label: "Start work",
       kind: "command",
       policy: { actors: ["owner"] },
@@ -111,9 +124,7 @@ describe("schema state machines", () => {
       parseAppSchema(
         stateMachineSchema({
           machine: {
-            transitions: {
-              reopen: { label: "Reopen", from: ["done"], to: "doing" },
-            },
+            transitions: [{ key: "reopen", label: "Reopen", from: ["done"], to: "doing" }],
           },
         }),
       ),
@@ -123,14 +134,15 @@ describe("schema state machines", () => {
       parseAppSchema(
         stateMachineSchema({
           machine: {
-            transitions: {
-              reopen: {
+            transitions: [
+              {
+                key: "reopen",
                 label: "Reopen",
                 from: ["doing"],
                 to: "todo",
                 allowTerminalRecovery: true,
               },
-            },
+            ],
           },
         }),
       ),
@@ -240,20 +252,18 @@ describe("schema state machines", () => {
               },
             },
             input: {
-              fields: {
-                reason: { type: "text", required: true },
-              },
+              fields: [{ key: "reason", type: "text", required: true }],
             },
           },
         }),
       ),
     ).toThrow("command effect is not eligible for public execution");
   });
-
   it("parses and stringifies create-only transition side effects with target snapshots", () => {
     const schema = parseAppSchema(stateMachineSchemaWithTransitionSideEffects());
-    const effect = schema.entities.task?.operations?.startWork.effect;
-
+    const effect = schema.entities
+      .find((definition) => definition.key === "task")!
+      .operations?.find((definition) => definition.key === "startWork")?.effect;
     expect(effect).toEqual({
       type: "operationHandler",
       handler: "transition-state",
@@ -372,14 +382,16 @@ describe("schema state machines", () => {
         entities: {
           order: {
             ...orderEntity(),
-            fields: {
-              ...orderEntity().fields,
-              status: {
-                type: "enum",
-                required: true,
-                values: { todo: { label: "Todo" } },
-              },
-            },
+            fields: orderEntity().fields.map((field) =>
+              field.key === "status"
+                ? {
+                    key: "status",
+                    type: "enum",
+                    required: true,
+                    values: [{ key: "todo", label: "Todo" }],
+                  }
+                : field,
+            ),
           },
         },
         message: 'destination enum does not accept target value "doing"',
@@ -463,9 +475,7 @@ describe("schema state machines", () => {
         stateMachineSchemaWithTransitionSideEffects({
           operation: {
             input: {
-              fields: {
-                reason: { type: "text", required: true },
-              },
+              fields: [{ key: "reason", type: "text", required: true }],
             },
             policy: {
               actors: ["anonymous"],
@@ -494,22 +504,22 @@ function stateMachineSchema(
 ) {
   return {
     version: 1,
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         label: "Task",
-        fields: {
-          ...taskFields(),
-          ...overrides.fields,
-        },
-        stateMachines: {
-          statusFlow: {
+        fields: keyed({ ...taskFields(), ...overrides.fields }),
+        stateMachines: [
+          {
+            key: "statusFlow",
             ...statusFlowMachine(),
             ...overrides.machine,
           },
-          ...overrides.extraStateMachines,
-        },
-        operations: {
-          startWork: {
+          ...keyed(overrides.extraStateMachines),
+        ],
+        operations: [
+          {
+            key: "startWork",
             label: "Start work",
             kind: "command",
             scope: "record",
@@ -517,11 +527,12 @@ function stateMachineSchema(
             policy: { actors: ["owner"] },
             ...overrides.operation,
           },
-        },
+        ],
       },
-      "task-event": {
+      {
+        key: "task-event",
         label: "Task event",
-        fields: {
+        fields: keyed({
           sourceEntity: { type: "text", required: true },
           sourceRecordId: { type: "text", required: true },
           transitionKey: { type: "text", required: true },
@@ -530,25 +541,25 @@ function stateMachineSchema(
           actorMode: { type: "text", required: true },
           occurredAt: { type: "date", required: true },
           ...overrides.eventFields,
-        },
+        }),
       },
-      ...overrides.extraEntities,
-    },
-    queries: {
-      taskAll: { label: "All", entity: "task", expression: { kind: "all" } },
-    },
-    itemViews: {
-      taskItem: {
+      ...keyed(overrides.extraEntities),
+    ],
+    queries: [{ key: "taskAll", label: "All", entity: "task", expression: { kind: "all" } }],
+    itemViews: [
+      {
+        key: "taskItem",
         entity: "task",
-        fields: {
-          title: { editor: "text", commit: "field-commit" },
-          status: { editor: "enum", commit: "immediate" },
-        },
+        fields: [
+          { field: "title", editor: "text", commit: "field-commit" },
+          { field: "status", editor: "enum", commit: "immediate" },
+        ],
       },
-    },
-    tableViews: {},
-    views: {
-      taskHome: {
+    ],
+    tableViews: [],
+    views: [
+      {
+        key: "taskHome",
         type: "collection",
         label: "Tasks",
         entity: "task",
@@ -556,21 +567,20 @@ function stateMachineSchema(
         defaultQuery: "taskAll",
         result: { type: "list", itemView: "taskItem" },
       },
-    },
-    screens: {
-      home: {
+    ],
+    screens: [
+      {
+        key: "home",
         type: "workspace",
         label: "Home",
-        navigation: { primary: true },
         layout: {
           type: "stack",
           sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
         },
       },
-    },
+    ],
   };
 }
-
 function stateMachineSchemaWithTransitionSideEffects(
   overrides: {
     entities?: Record<string, unknown>;
@@ -677,11 +687,11 @@ function taskFields() {
       type: "enum",
       required: true,
       default: "todo",
-      values: {
-        todo: { label: "Todo" },
-        doing: { label: "Doing" },
-        done: { label: "Done" },
-      },
+      values: [
+        { key: "todo", label: "Todo" },
+        { key: "doing", label: "Doing" },
+        { key: "done", label: "Done" },
+      ],
     },
   } as const;
 }
@@ -689,68 +699,70 @@ function taskFields() {
 function personEntity() {
   return {
     label: "Person",
-    fields: {
-      name: { type: "text", required: true },
-    },
+    fields: [{ key: "name", type: "text", required: true }],
   };
 }
-
 function orderEntity() {
   return {
     label: "Order",
-    fields: {
-      task: { type: "reference", required: true, to: "task" },
-      title: { type: "text", required: true },
-      done: { type: "boolean", required: true, default: false },
-      status: {
+    fields: [
+      { key: "task", type: "reference", required: true, to: "task" },
+      { key: "title", type: "text", required: true },
+      { key: "done", type: "boolean", required: true, default: false },
+      {
+        key: "status",
         type: "enum",
         required: true,
-        values: {
-          todo: { label: "Todo" },
-          doing: { label: "Doing" },
-          done: { label: "Done" },
-          cancelled: { label: "Cancelled" },
-        },
+        values: [
+          { key: "todo", label: "Todo" },
+          { key: "doing", label: "Doing" },
+          { key: "done", label: "Done" },
+          { key: "cancelled", label: "Cancelled" },
+        ],
       },
-      contactEmail: { type: "text", required: false, format: "email" },
-      reviewer: { type: "reference", required: false, to: "person" },
-    },
+      { key: "contactEmail", type: "text", required: false, format: "email" },
+      { key: "reviewer", type: "reference", required: false, to: "person" },
+    ],
   };
 }
-
 function orderNoteEntity() {
   return {
     label: "Order note",
-    fields: {
-      order: { type: "reference", required: true, to: "order" },
-      title: { type: "text", required: true },
-      task: { type: "reference", required: true, to: "task" },
-    },
+    fields: [
+      { key: "order", type: "reference", required: true, to: "order" },
+      { key: "title", type: "text", required: true },
+      { key: "task", type: "reference", required: true, to: "task" },
+    ],
   };
 }
-
 function statusFlowMachine() {
   return {
     field: "status",
     initial: "todo",
     states: ["todo", "doing", "done"],
     terminal: ["done"],
-    transitions: {
-      start: { label: "Start", from: ["todo"], to: "doing" },
-      finish: { label: "Finish", from: ["doing"], to: "done" },
-      reopen: {
+    transitions: [
+      { key: "start", label: "Start", from: ["todo"], to: "doing" },
+      { key: "finish", label: "Finish", from: ["doing"], to: "done" },
+      {
+        key: "reopen",
         label: "Reopen",
         from: ["doing"],
         to: "todo",
       },
-    },
+    ],
     event: {
       entity: "task-event",
       fields: transitionEventFields(),
     },
   } as const;
 }
-
+function keyed(value: Record<string, unknown> | undefined) {
+  return Object.entries(value ?? {}).map(([key, definition]) => ({
+    key,
+    ...(definition as Record<string, unknown>),
+  }));
+}
 function transitionEventFields() {
   return {
     sourceEntity: "sourceEntity",

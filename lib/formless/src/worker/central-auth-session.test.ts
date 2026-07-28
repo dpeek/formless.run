@@ -47,19 +47,22 @@ afterAll(async () => {
 describe("central auth session cookies", () => {
   it("creates, validates, clears, and revokes auth-origin cookies backed by central rows", async () => {
     await writeConfig(authOrigin);
-
     const created = await createSession();
     const setCookie = requiredHeader(created, "Set-Cookie");
-    const createBody = (await created.json()) as { session: CentralAuthSessionBody };
+    const createBody = (await created.json()) as {
+      session: CentralAuthSessionBody;
+    };
     const stored = await readCentralSession(createBody.session.sessionIdHash);
     const validated = await validateSession(cookiePair(setCookie));
     const clear = await fetchCentralAuth("/session/clear", {
       headers: originHeaders(authOrigin),
     });
     const revoked = await revokeSession(cookiePair(setCookie));
-    const revokedBody = (await revoked.json()) as { ok: true; session: CentralAuthSessionBody };
+    const revokedBody = (await revoked.json()) as {
+      ok: true;
+      session: CentralAuthSessionBody;
+    };
     const rejectedAfterRevoke = await validateSession(cookiePair(setCookie));
-
     expect(createBody.session).toEqual({
       expiresAt,
       instanceId: "auth.example.com",
@@ -156,11 +159,14 @@ async function writeConfig(origin: string) {
     headers: originHeaders(origin),
     method: "POST",
   });
-
   expect(response.status).toBe(200);
 }
-
-async function createSession(input: { origin?: string; principalId?: string } = {}) {
+async function createSession(
+  input: {
+    origin?: string;
+    principalId?: string;
+  } = {},
+) {
   const response = await fetchCentralAuth("/session/create", {
     body: JSON.stringify({
       maxAgeSeconds: 60,
@@ -224,12 +230,11 @@ async function readCentralSession(sessionIdHash: string) {
       headers: originHeaders(authOrigin),
     },
   );
-
   expect(response.status).toBe(200);
-
-  return (await response.json()) as { session: CentralAuthSessionBody | null };
+  return (await response.json()) as {
+    session: CentralAuthSessionBody | null;
+  };
 }
-
 function fetchCentralAuth(path: string, init: Parameters<Harness["fetch"]>[1] = {}) {
   return harness.fetch(path, {
     ...init,

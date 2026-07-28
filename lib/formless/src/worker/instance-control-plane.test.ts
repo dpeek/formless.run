@@ -1121,8 +1121,13 @@ async function getOwnerJson<T>(path: string) {
     response,
   };
 }
-
-async function postAdminJson<T>(path: string, body: unknown, options: { actorKind?: string } = {}) {
+async function postAdminJson<T>(
+  path: string,
+  body: unknown,
+  options: {
+    actorKind?: string;
+  } = {},
+) {
   return postJson<T>(path, body, {
     ...adminHeaders(),
     ...(options.actorKind === undefined
@@ -1228,14 +1233,13 @@ async function readControlPlaneOperationInvocations(): Promise<StoredOperationIn
     `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}${INTERNAL_READ_OPERATION_INVOCATIONS_PATH}`,
     { method: "GET" },
   );
-  const body = (await response.json()) as { invocations?: StoredOperationInvocation[] };
-
+  const body = (await response.json()) as {
+    invocations?: StoredOperationInvocation[];
+  };
   expect(response.status).toBe(200);
   expect(Array.isArray(body.invocations)).toBe(true);
-
   return body.invocations ?? [];
 }
-
 function adminHeaders(headers: Record<string, string> = {}) {
   return {
     ...headers,

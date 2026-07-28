@@ -1,6 +1,8 @@
 import {
   assertExactKeys,
+  definitionsToRecord,
   isRecord,
+  parseKeyedDefinitionArray,
   parseOptionalNonEmptyString,
   parseRequiredNonEmptyString,
 } from "./schema-parse-helpers.ts";
@@ -13,6 +15,7 @@ import type {
   EntitySchema,
   FieldSchema,
   ItemViewSchema,
+  KeyedDefinition,
   ReadModelSchema,
   TableColumnAlign,
   TableColumnDisplay,
@@ -35,31 +38,18 @@ const systemDisplayField = {
   type: "text",
   required: false,
 } satisfies FieldSchema;
-
 export function parseTableViews(
   value: unknown,
-  entities: Record<string, EntitySchema>,
-  itemViews: Record<string, ItemViewSchema>,
+  entities: readonly KeyedDefinition<EntitySchema>[],
+  itemViews: readonly KeyedDefinition<ItemViewSchema>[],
   readModels?: ReadModelSchema,
-): Record<string, TableViewSchema> {
-  if (!isRecord(value)) {
-    throw new Error("Schema tableViews must be an object.");
-  }
-
-  return Object.fromEntries(
-    Object.entries(value).map(([tableViewName, tableView]) => {
-      if (tableViewName.trim() === "") {
-        throw new Error("Table view names must be non-empty.");
-      }
-
-      return [
-        tableViewName,
-        parseTableView(tableViewName, tableView, entities, itemViews, readModels),
-      ];
-    }),
+): KeyedDefinition<TableViewSchema>[] {
+  const entitiesByKey = definitionsToRecord(entities);
+  const itemViewsByKey = definitionsToRecord(itemViews);
+  return parseKeyedDefinitionArray("Schema tableViews", value, (tableViewName, tableView) =>
+    parseTableView(tableViewName, tableView, entitiesByKey, itemViewsByKey, readModels),
   );
 }
-
 function parseTableView(
   tableViewName: string,
   value: unknown,
@@ -74,10 +64,9 @@ function parseTableView(
   assertExactKeys(
     `Table view "${tableViewName}"`,
     value,
-    ["entity", "columns"],
+    ["key", "entity", "columns"],
     ["operations", "ordering"],
   );
-
   const entityName = parseRequiredNonEmptyString(
     `Table view "${tableViewName}" entity`,
     value.entity,
@@ -108,7 +97,7 @@ function parseTableView(
     entity,
     itemViews,
     entities,
-    readModels?.computedValues ?? {},
+    definitionsToRecord(readModels?.computedValues),
     operations,
     ordering,
   );
@@ -170,11 +159,11 @@ function parseTableOperationBinding(
     ["operation"],
     ["label", "variant", "availability", "target", "editView"],
   );
-
   const parsedOperationKey = parseEntityOperationKey(`${context} operation`, value.operation);
   const operationEntity = entities[parsedOperationKey.entityKey];
-  const operation = operationEntity?.operations?.[parsedOperationKey.operationKey];
-
+  const operation = definitionsToRecord(operationEntity?.operations)[
+    parsedOperationKey.operationKey
+  ];
   if (!operationEntity || !operation) {
     throw new Error(`${context} references unknown operation "${String(value.operation)}".`);
   }
@@ -223,9 +212,7 @@ function selectTableOperationTargetEntityName(
   if (target === undefined || target.kind === "row") {
     return entityName;
   }
-
-  const field = entity.fields[target.field];
-
+  const field = definitionsToRecord(entity.fields)[target.field];
   if (field?.type !== "reference") {
     throw new Error(`Missing reference field "${entityName}.${target.field}".`);
   }
@@ -242,19 +229,14 @@ function parseTableEditRecordTarget(
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
-
   if (value.kind === "row") {
     assertExactKeys(context, value, ["kind"]);
-
     return { kind: "row" };
   }
-
   if (value.kind === "reference") {
     assertExactKeys(context, value, ["kind", "field"]);
-
     const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
-    const field = entity.fields[fieldName];
-
+    const field = definitionsToRecord(entity.fields)[fieldName];
     if (!field) {
       throw new Error(`${context} references unknown field "${entityName}.${fieldName}".`);
     }
@@ -372,11 +354,9 @@ function parseFieldTableColumn(
   if (value.type !== "field") {
     throw new Error(`${context} type must be "field".`);
   }
-
   const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
-  const field = entity.fields[fieldName];
+  const field = definitionsToRecord(entity.fields)[fieldName];
   const systemField = field === undefined && isSystemFieldName(fieldName);
-
   if (!field && !systemField) {
     throw new Error(`${context} references unknown field "${entityName}.${fieldName}".`);
   }
@@ -460,8 +440,7 @@ function parseReferenceFieldTableColumn(
     `${context} referenceField`,
     value.referenceField,
   );
-  const sourceField = entity.fields[referenceFieldName];
-
+  const sourceField = definitionsToRecord(entity.fields)[referenceFieldName];
   if (!sourceField) {
     throw new Error(
       `${context} references unknown referenceField "${entityName}.${referenceFieldName}".`,
@@ -480,11 +459,9 @@ function parseReferenceFieldTableColumn(
       `${context} referenceField "${entityName}.${referenceFieldName}" targets unknown entity "${sourceField.to}".`,
     );
   }
-
   const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
-  const field = referencedEntity.fields[fieldName];
+  const field = definitionsToRecord(referencedEntity.fields)[fieldName];
   const systemField = field === undefined && isSystemFieldName(fieldName);
-
   if (!field && !systemField) {
     throw new Error(`${context} references unknown field "${sourceField.to}.${fieldName}".`);
   }
@@ -1028,9 +1005,7 @@ function parseOptionalValueUnitEditor(
   if (unitFieldName === valueFieldName) {
     throw new Error(`${context} unitField must reference a different field.`);
   }
-
-  const unitField = entity.fields[unitFieldName];
-
+  const unitField = definitionsToRecord(entity.fields)[unitFieldName];
   if (!unitField) {
     throw new Error(`${context} references unknown unitField "${entityName}.${unitFieldName}".`);
   }

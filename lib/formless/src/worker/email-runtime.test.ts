@@ -30,9 +30,10 @@ afterEach(async () => {
     harnessDir = undefined;
   }
 });
-
 function emailDefaultControlPlaneRecords(
-  options: { defaultAuthSender?: string } = {},
+  options: {
+    defaultAuthSender?: string;
+  } = {},
 ): StoredRecord[] {
   const createdAt = "2026-06-24T00:00:00.000Z";
   const defaultAuthSender =
@@ -136,16 +137,20 @@ describe("email runtime default sender resolution", () => {
 describe("email runtime delivery scheduling", () => {
   it("queues pending deliveries and replays idempotency keys without duplicate handoff", async () => {
     harness = await createEmailRuntimeHarness();
-
     const first = await postSchedule();
     const second = await postSchedule();
-    const queueJobs = await getJson<{ jobs: EmailDeliverySendRuntimeJob[] }>("/queue-jobs");
-    const sends = await getJson<{ sends: CloudflareSendEmailMessage[] }>("/sends");
-    const deliveries = await getJson<{ deliveries: EmailDeliveryRecord[] }>("/deliveries");
-    const internalMessage = await getJson<{ message?: EmailDeliveryRenderedMessage }>(
-      `/internal-message/${first.delivery.id}`,
-    );
-
+    const queueJobs = await getJson<{
+      jobs: EmailDeliverySendRuntimeJob[];
+    }>("/queue-jobs");
+    const sends = await getJson<{
+      sends: CloudflareSendEmailMessage[];
+    }>("/sends");
+    const deliveries = await getJson<{
+      deliveries: EmailDeliveryRecord[];
+    }>("/deliveries");
+    const internalMessage = await getJson<{
+      message?: EmailDeliveryRenderedMessage;
+    }>(`/internal-message/${first.delivery.id}`);
     expect(first).toMatchObject({
       replayed: false,
       queued: true,
@@ -223,9 +228,10 @@ describe("email runtime delivery scheduling", () => {
         recordId: "invitation:ada",
       },
     });
-    const queueJobs = await getJson<{ jobs: EmailDeliverySendRuntimeJob[] }>("/queue-jobs");
+    const queueJobs = await getJson<{
+      jobs: EmailDeliverySendRuntimeJob[];
+    }>("/queue-jobs");
     const publicDeliveryState = JSON.stringify([scheduled.delivery, queueJobs.jobs]);
-
     expect(scheduled.delivery).toMatchObject({
       canonicalOrigin: "https://auth.example.com",
       idempotencyKey: "invitation:ada:delivery",
@@ -253,9 +259,12 @@ describe("email runtime delivery scheduling", () => {
       idempotencyKey: "retry-message-1",
     });
     const retried = await postSchedule({ idempotencyKey: "retry-message-1" });
-    const queueJobs = await getJson<{ jobs: EmailDeliverySendRuntimeJob[] }>("/queue-jobs");
-    const sends = await getJson<{ sends: CloudflareSendEmailMessage[] }>("/sends");
-
+    const queueJobs = await getJson<{
+      jobs: EmailDeliverySendRuntimeJob[];
+    }>("/queue-jobs");
+    const sends = await getJson<{
+      sends: CloudflareSendEmailMessage[];
+    }>("/sends");
     expect(failed).toEqual({ error: "Email delivery queue handoff failed." });
     expect(retried).toMatchObject({
       replayed: true,
@@ -281,9 +290,12 @@ describe("email runtime delivery scheduling", () => {
       idempotencyKey: "configured-sender-message-1",
       senderId: "email-sender:updates@mail.example.com",
     });
-    const sends = await getJson<{ sends: CloudflareSendEmailMessage[] }>("/sends");
-    const deliveries = await getJson<{ deliveries: EmailDeliveryRecord[] }>("/deliveries");
-
+    const sends = await getJson<{
+      sends: CloudflareSendEmailMessage[];
+    }>("/sends");
+    const deliveries = await getJson<{
+      deliveries: EmailDeliveryRecord[];
+    }>("/deliveries");
     expect(result).toMatchObject({
       replayed: false,
       queued: true,
@@ -304,16 +316,20 @@ describe("email runtime delivery scheduling", () => {
 describe("email runtime delivery consumer", () => {
   it("sends queued deliveries once and no-ops duplicate accepted messages", async () => {
     harness = await createEmailRuntimeHarness();
-
     const scheduled = await postSchedule({ idempotencyKey: "duplicate-message-1" });
-    const queueJobs = await getJson<{ jobs: EmailDeliverySendRuntimeJob[] }>("/queue-jobs");
+    const queueJobs = await getJson<{
+      jobs: EmailDeliverySendRuntimeJob[];
+    }>("/queue-jobs");
     const queueResult = await dispatchEmailDeliveryQueue(
       [queueJobs.jobs[0], queueJobs.jobs[0]],
       ["duplicate-a", "duplicate-b"],
     );
-    const sends = await getJson<{ sends: CloudflareSendEmailMessage[] }>("/sends");
-    const deliveries = await getJson<{ deliveries: EmailDeliveryRecord[] }>("/deliveries");
-
+    const sends = await getJson<{
+      sends: CloudflareSendEmailMessage[];
+    }>("/sends");
+    const deliveries = await getJson<{
+      deliveries: EmailDeliveryRecord[];
+    }>("/deliveries");
     expect(queueResult.explicitAcks).toEqual(["duplicate-a", "duplicate-b"]);
     expect(queueResult.retryMessages).toEqual([]);
     expect(sends.sends).toHaveLength(1);
@@ -340,14 +356,19 @@ describe("email runtime delivery consumer", () => {
       idempotencyKey: "batch-retry-message-1",
       recipientAddress: "retry@example.com",
     });
-    const queueJobs = await getJson<{ jobs: EmailDeliverySendRuntimeJob[] }>("/queue-jobs");
+    const queueJobs = await getJson<{
+      jobs: EmailDeliverySendRuntimeJob[];
+    }>("/queue-jobs");
     const queueResult = await dispatchEmailDeliveryQueue(queueJobs.jobs, [
       "batch-accepted",
       "batch-retry",
     ]);
-    const sends = await getJson<{ sends: CloudflareSendEmailMessage[] }>("/sends");
-    const deliveries = await getJson<{ deliveries: EmailDeliveryRecord[] }>("/deliveries");
-
+    const sends = await getJson<{
+      sends: CloudflareSendEmailMessage[];
+    }>("/sends");
+    const deliveries = await getJson<{
+      deliveries: EmailDeliveryRecord[];
+    }>("/deliveries");
     expect(queueResult.explicitAcks).toEqual(["batch-accepted"]);
     expect(queueResult.retryMessages).toEqual([{ msgId: "batch-retry" }]);
     expect(sends.sends).toHaveLength(2);
@@ -363,17 +384,20 @@ describe("email runtime delivery consumer", () => {
       status: "failed",
     });
   });
-
   it("acknowledges permanent configuration failures after marking delivery failed", async () => {
     harness = await createEmailRuntimeHarness();
-
     await setSendMode("missing-binding");
     const scheduled = await postSchedule({ idempotencyKey: "missing-binding-message-1" });
-    const queueJobs = await getJson<{ jobs: EmailDeliverySendRuntimeJob[] }>("/queue-jobs");
+    const queueJobs = await getJson<{
+      jobs: EmailDeliverySendRuntimeJob[];
+    }>("/queue-jobs");
     const queueResult = await dispatchEmailDeliveryQueue([queueJobs.jobs[0]], ["missing-binding"]);
-    const sends = await getJson<{ sends: CloudflareSendEmailMessage[] }>("/sends");
-    const deliveries = await getJson<{ deliveries: EmailDeliveryRecord[] }>("/deliveries");
-
+    const sends = await getJson<{
+      sends: CloudflareSendEmailMessage[];
+    }>("/sends");
+    const deliveries = await getJson<{
+      deliveries: EmailDeliveryRecord[];
+    }>("/deliveries");
     expect(queueResult.explicitAcks).toEqual(["missing-binding"]);
     expect(queueResult.retryMessages).toEqual([]);
     expect(sends.sends).toEqual([]);
@@ -701,25 +725,25 @@ async function postScheduleFailure(overrides: ScheduleBodyOverrides = {}) {
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
-
   expect(response.status).toBe(400);
-
-  return (await response.json()) as { error: string };
+  return (await response.json()) as {
+    error: string;
+  };
 }
-
 function deliveryById(deliveries: EmailDeliveryRecord[], deliveryId: string) {
   return deliveries.find((delivery) => delivery.id === deliveryId);
 }
-
 async function setSendMode(mode: "accept" | "missing-binding" | "retryable-failure") {
-  return postJson<{ mode: string }>("/send-mode", { mode });
+  return postJson<{
+    mode: string;
+  }>("/send-mode", { mode });
 }
-
 type QueueDispatchResult = {
   explicitAcks: string[];
-  retryMessages: { msgId: string }[];
+  retryMessages: {
+    msgId: string;
+  }[];
 };
-
 async function dispatchEmailDeliveryQueue(
   jobs: EmailDeliverySendRuntimeJob[],
   messageIds: string[],

@@ -16,20 +16,18 @@ export function composeAppSchema<const Composition extends AppSchemaCompositionS
 ): AppSchemaSource {
   assertUniqueModuleKeys(composition.modules);
   assertDependenciesPrecedeConsumers(composition.modules);
-
   const declarationOwners = new Map<string, string>();
-  const entities: AppSchemaSource["entities"] = {};
-  const relationships: NonNullable<AppSchemaSource["relationships"]> = {};
-  const queries: AppSchemaSource["queries"] = {};
+  const entities: AppSchemaSource["entities"] = [];
+  const relationships: NonNullable<AppSchemaSource["relationships"]> = [];
+  const queries: AppSchemaSource["queries"] = [];
   const computedValues: NonNullable<NonNullable<AppSchemaSource["readModels"]>["computedValues"]> =
-    {};
-  const aggregates: NonNullable<NonNullable<AppSchemaSource["readModels"]>["aggregates"]> = {};
-  const unions: NonNullable<AppSchemaSource["unions"]> = {};
-  const itemViews: AppSchemaSource["itemViews"] = {};
-  const tableViews: AppSchemaSource["tableViews"] = {};
-  const views: AppSchemaSource["views"] = {};
-  const screens: AppSchemaSource["screens"] = {};
-
+    [];
+  const aggregates: NonNullable<NonNullable<AppSchemaSource["readModels"]>["aggregates"]> = [];
+  const unions: NonNullable<AppSchemaSource["unions"]> = [];
+  const itemViews: AppSchemaSource["itemViews"] = [];
+  const tableViews: AppSchemaSource["tableViews"] = [];
+  const views: AppSchemaSource["views"] = [];
+  const screens: AppSchemaSource["screens"] = [];
   let hasRelationships = false;
   let hasReadModels = false;
   let hasComputedValues = false;
@@ -105,9 +103,9 @@ export function composeAppSchema<const Composition extends AppSchemaCompositionS
     tableViews,
     views,
     screens,
+    ...(composition.navigation === undefined ? {} : { navigation: composition.navigation }),
     ...(composition.runtime === undefined ? {} : { runtime: composition.runtime }),
   };
-
   parseAppSchema(source);
   return source;
 }
@@ -146,10 +144,13 @@ function assertDependenciesPrecedeConsumers(modules: readonly AppSchemaModuleSou
     }
   }
 }
-
-function appendDeclarations<Declaration>(
-  target: Record<string, Declaration>,
-  declarations: Record<string, Declaration> | undefined,
+function appendDeclarations<
+  Declaration extends {
+    key: string;
+  },
+>(
+  target: Declaration[],
+  declarations: readonly Declaration[] | undefined,
   registryPath: string,
   moduleKey: string,
   declarationOwners: Map<string, string>,
@@ -157,23 +158,16 @@ function appendDeclarations<Declaration>(
   if (declarations === undefined) {
     return;
   }
-
-  for (const [declarationKey, declaration] of Object.entries(declarations)) {
+  for (const declaration of declarations) {
+    const declarationKey = declaration.key;
     const declarationPath = `${registryPath}.${declarationKey}`;
     const currentOwner = declarationOwners.get(declarationPath);
-
     if (currentOwner !== undefined) {
       throw new Error(
         `Schema declaration "${declarationPath}" is contributed by both modules "${currentOwner}" and "${moduleKey}".`,
       );
     }
-
     declarationOwners.set(declarationPath, moduleKey);
-    Object.defineProperty(target, declarationKey, {
-      value: declaration,
-      enumerable: true,
-      configurable: true,
-      writable: true,
-    });
+    target.push(declaration);
   }
 }

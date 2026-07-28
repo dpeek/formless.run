@@ -10,10 +10,14 @@ export type ResultOrderingScopeConfig = {
   fieldName: string;
   field: FieldSchema;
 };
-
 export type ResultOrderingConfig = {
   fieldName: string;
-  field: Extract<FieldSchema, { type: "number" }>;
+  field: Extract<
+    FieldSchema,
+    {
+      type: "number";
+    }
+  >;
   scope: ResultOrderingScopeConfig[];
   presentations: ResultOrderingPresentation[];
 };
@@ -25,9 +29,7 @@ export function selectResultOrderingConfig(
   if (!ordering) {
     return undefined;
   }
-
-  const field = entity.fields[ordering.field];
-
+  const field = entity.fields.find((definition) => definition.key === ordering.field)!;
   if (!field || field.type !== "number") {
     throw new Error(`Missing ordering field "${ordering.field}".`);
   }
@@ -36,8 +38,7 @@ export function selectResultOrderingConfig(
     fieldName: ordering.field,
     field,
     scope: (ordering.scope ?? []).map((scopeField) => {
-      const field = entity.fields[scopeField.field];
-
+      const field = entity.fields.find((definition) => definition.key === scopeField.field)!;
       if (!field) {
         throw new Error(`Missing ordering scope field "${scopeField.field}".`);
       }

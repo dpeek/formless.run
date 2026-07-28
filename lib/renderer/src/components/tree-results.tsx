@@ -405,10 +405,14 @@ export function applyTreeResultFixtureIntent(
   const reordered = reorderTreeItem(tree.items, intent.itemId, intent.direction);
   return reordered === tree.items ? tree : { ...tree, items: reordered };
 }
-
 function updateTreeChildCreation(
   tree: TreeResultContract,
-  parent: Extract<TreeIntent, { type: "treeChildVariantSelection" }>["parent"],
+  parent: Extract<
+    TreeIntent,
+    {
+      type: "treeChildVariantSelection";
+    }
+  >["parent"],
   update: (creation: TreeChildCreationContract) => TreeChildCreationContract,
 ) {
   if (parent.kind === "root") {
@@ -554,7 +558,12 @@ function removeTreeItem(
 function reorderTreeItem(
   items: readonly TreeItemContract[],
   itemId: string,
-  direction: Extract<TreeIntent, { type: "treeReorder" }>["direction"],
+  direction: Extract<
+    TreeIntent,
+    {
+      type: "treeReorder";
+    }
+  >["direction"],
 ): readonly TreeItemContract[] {
   const index = items.findIndex((item) => item.id === itemId);
   if (index >= 0) {

@@ -173,19 +173,17 @@ function projectWorkerOperationInputValues(
 function operationInputValidationEntity(
   request: NormalizedOperationInputValidationRequest,
 ): EntitySchema {
-  const entity = request.schema.entities[request.entityName];
-
+  const entity = request.schema.entities.find(
+    (definition) => definition.key === request.entityName,
+  )!;
   if (entity) {
     return entity;
   }
-
   if (!request.operation.input) {
-    return { label: request.entityName, fields: {} };
+    return { label: request.entityName, fields: [] };
   }
-
   throw new BadRequestError(`Unknown entity "${request.entityName}".`);
 }
-
 function assertStorageBackedOperationInputValues(
   request: NormalizedOperationInputValidationRequest,
   recordWriteValues: RecordValues,
@@ -195,18 +193,17 @@ function assertStorageBackedOperationInputValues(
   if (!inputContract) {
     return;
   }
-
-  const entity = request.schema.entities[request.entityName];
+  const entity = request.schema.entities.find(
+    (definition) => definition.key === request.entityName,
+  )!;
   if (!entity) {
     throw new BadRequestError(`Unknown entity "${request.entityName}".`);
   }
-
-  for (const field of Object.values(inputContract.fields)) {
+  for (const field of inputContract.fields) {
     if (!("field" in field) || !Object.hasOwn(recordWriteValues, field.field)) {
       continue;
     }
-
-    const entityField = entity.fields[field.field];
+    const entityField = entity.fields.find((definition) => definition.key === field.field)!;
     if (!entityField) {
       continue;
     }
@@ -219,12 +216,12 @@ function assertStorageBackedOperationInputValues(
       { [field.field]: recordWriteValues[field.field] },
       {
         ...entity,
-        fields: {
-          [field.field]: {
+        fields: [
+          {
             ...entityField,
             required: field.required ?? false,
           },
-        },
+        ],
       },
       authorityStorageRecordValidationReader(request.storage),
     );

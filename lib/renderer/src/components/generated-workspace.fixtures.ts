@@ -49,8 +49,12 @@ const createTitleSchema = {
   label: "Task",
   required: true,
   type: "text",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 export function createFormlessGeneratedWorkspaceFixtures(): FormlessGeneratedWorkspaceFixture[] {
   return [
     { id: "tasks", label: "Tasks", workspace: tasksWorkspace() },
@@ -427,7 +431,9 @@ function queryNavigation(scope: WorkspaceFixtureScope): WorkspaceQueryNavigation
 function populatedContext<P extends WorkspaceContextContract["presentation"]>(
   scope: WorkspaceFixtureScope,
   presentation: P,
-): WorkspaceContextContract & { presentation: P } {
+): WorkspaceContextContract & {
+  presentation: P;
+} {
   const contextId = scopedId(scope, "context", "projects");
   const launchId = scopedId(scope, "contextOption", "projects:project-launch");
   const docsId = scopedId(scope, "contextOption", "projects:project-docs");
@@ -480,7 +486,9 @@ function populatedContext<P extends WorkspaceContextContract["presentation"]>(
 function siteRootContext<P extends "localListDetail" | "localTabs">(
   scope: WorkspaceFixtureScope,
   presentation: P,
-): WorkspaceContextContract & { presentation: P } {
+): WorkspaceContextContract & {
+  presentation: P;
+} {
   const contextId = scopedId(scope, "context", "site-roots");
   const homepageId = scopedId(scope, "contextOption", "homepage");
   const headerId = scopedId(scope, "contextOption", "header");
@@ -812,7 +820,13 @@ function scopedOperationControl(
   control: OperationControlContract,
   id: string,
 ): OperationControlContract {
-  const withControlId = <T extends { controlId: string }>(intent: T): T => ({
+  const withControlId = <
+    T extends {
+      controlId: string;
+    },
+  >(
+    intent: T,
+  ): T => ({
     ...intent,
     controlId: id,
   });

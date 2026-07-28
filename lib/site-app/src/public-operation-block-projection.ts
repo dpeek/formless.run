@@ -327,7 +327,7 @@ function projectPublicOperationInputFields(input: {
   schema: AppSchema;
   warnings: SiteTreeWarning[];
 }): SitePublicOperationInputFieldNode[] | undefined {
-  const entity = input.schema.entities[input.entityName];
+  const entity = input.schema.entities.find(({ key }) => key === input.entityName);
 
   if (!entity) {
     return undefined;

@@ -298,7 +298,13 @@ function adapterDeps(
       })),
     cwd: workspaceRoot,
     deploymentAdapter: {
-      deploy: async (input: { plan: { expectedUrl: { url: string } } }) => ({
+      deploy: async (input: {
+        plan: {
+          expectedUrl: {
+            url: string;
+          };
+        };
+      }) => ({
         url: input.plan.expectedUrl.url,
       }),
     },

@@ -62,7 +62,9 @@ describe("Formless Renderer Astryx StyleX root build integration", () => {
       env: { NODE_ENV: "production", VITEST: "true" },
       packageRoot,
       workspaceRoot: repoRoot,
-    }) as { plugins?: PluginOption[] };
+    }) as {
+      plugins?: PluginOption[];
+    };
     const result = await build({
       build: {
         cssCodeSplit: true,
@@ -139,8 +141,7 @@ describe("Formless Renderer Astryx StyleX root build integration", () => {
     expect(emittedCss).toMatch(/\.x[a-z0-9]+/);
     expect(emittedCss).not.toContain("stylex.create");
     expect(emittedJavaScript).not.toContain("createTheme");
-  }, 30_000);
-
+  }, 30000);
   it("shares React with a hook-using browser renderer from an external workspace", async () => {
     const workspaceRoot = await makeExternalRendererWorkspace();
     const rendererEntrypoint = "renderers/site-public.browser.js";
@@ -217,11 +218,9 @@ export function renderWorkspaceRenderer() {
     const builtModule = (await import(`${pathToFileURL(outputPath).href}?build`)) as {
       renderWorkspaceRenderer: () => string;
     };
-
     expect(builtModule.renderWorkspaceRenderer()).toContain("shared React runtime");
-  }, 30_000);
+  }, 30000);
 });
-
 async function makeExternalRendererWorkspace(): Promise<string> {
   const workspaceRoot = await mkdtemp(join(tmpdir(), "formless-react-singleton-"));
   const rendererDirectory = join(workspaceRoot, "renderers");

@@ -25,8 +25,7 @@ export function selectAddressableRecordFieldConfig(
   entity: EntitySchema,
   fieldName: string,
 ): AddressableRecordFieldConfig {
-  const valueField = entity.fields[fieldName];
-
+  const valueField = entity.fields.find((definition) => definition.key === fieldName)!;
   if (valueField !== undefined) {
     return {
       fieldName,

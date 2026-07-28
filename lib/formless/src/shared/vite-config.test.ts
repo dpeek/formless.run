@@ -31,11 +31,9 @@ type ViteConfigWithEnvironments = {
     alias?: Record<string, string>;
   };
 };
-
-type WorkerConfigCustomizer = (config: {
+type WorkerConfigCustomizer = (config: { vars?: Record<string, string> }) => {
   vars?: Record<string, string>;
-}) => { vars?: Record<string, string> } | void;
-
+} | void;
 describe("Runtime Vite config", () => {
   it("scopes client-only HTML entries to the client environment", () => {
     const config = runtimeViteConfig() as ViteConfigWithEnvironments;

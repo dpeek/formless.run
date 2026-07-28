@@ -172,10 +172,10 @@ describe("generated operation draft session", () => {
         field: {
           required: true,
           type: "enum",
-          values: {
-            sales: { label: "Sales" },
-            support: { label: "Support" },
-          },
+          values: [
+            { key: "sales", label: "Sales" },
+            { key: "support", label: "Support" },
+          ],
         },
       },
     ]);

@@ -144,10 +144,10 @@ const fields = {
   priority: {
     type: "enum",
     required: false,
-    values: {
-      low: { label: "Low" },
-      high: { label: "High" },
-    },
+    values: [
+      { key: "low", label: "Low" },
+      { key: "high", label: "High" },
+    ],
   },
   resource: { type: "reference", required: true, to: "resource", displayField: "name" },
 } satisfies Record<string, FieldSchema>;

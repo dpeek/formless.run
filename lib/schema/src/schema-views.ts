@@ -15,7 +15,9 @@ import { parseCollectionResult } from "./schema-collection-results.ts";
 import { parseCountDisplay } from "./schema-count-display.ts";
 import {
   assertExactKeys,
+  definitionsToRecord,
   isRecord,
+  parseKeyedDefinitionArray,
   parseOptionalNonEmptyString,
   parseRequiredNonEmptyString,
 } from "./schema-parse-helpers.ts";
@@ -48,6 +50,7 @@ import type {
   EntitySchema,
   EntityUnionSchema,
   ItemViewSchema,
+  KeyedDefinition,
   RelationshipSchema,
   ReadModelSchema,
   TableViewSchema,
@@ -57,22 +60,11 @@ import type {
 export function parseCollectionQueries(
   value: unknown,
   entities: Record<string, EntitySchema>,
-): Record<string, CollectionQuerySchema> {
-  if (!isRecord(value)) {
-    throw new Error("Schema queries must be an object.");
-  }
-
-  return Object.fromEntries(
-    Object.entries(value).map(([queryName, query]) => {
-      if (queryName.trim() === "") {
-        throw new Error("Query names must be non-empty.");
-      }
-
-      return [queryName, parseCollectionQuery(queryName, query, entities)];
-    }),
+): KeyedDefinition<CollectionQuerySchema>[] {
+  return parseKeyedDefinitionArray("Schema queries", value, (queryName, query) =>
+    parseCollectionQuery(queryName, query, entities),
   );
 }
-
 function parseCollectionQuery(
   queryName: string,
   value: unknown,
@@ -81,9 +73,7 @@ function parseCollectionQuery(
   if (!isRecord(value)) {
     throw new Error(`Query "${queryName}" must be an object.`);
   }
-
-  assertExactKeys(`Query "${queryName}"`, value, ["label", "entity", "expression"]);
-
+  assertExactKeys(`Query "${queryName}"`, value, ["key", "label", "entity", "expression"]);
   if (typeof value.label !== "string" || value.label.trim() === "") {
     throw new Error(`Query "${queryName}" label must be a non-empty string.`);
   }
@@ -112,22 +102,11 @@ export function parseItemViews(
   value: unknown,
   entities: Record<string, EntitySchema>,
   unions?: Record<string, EntityUnionSchema>,
-): Record<string, ItemViewSchema> {
-  if (!isRecord(value)) {
-    throw new Error("Schema itemViews must be an object.");
-  }
-
-  return Object.fromEntries(
-    Object.entries(value).map(([itemViewName, itemView]) => {
-      if (itemViewName.trim() === "") {
-        throw new Error("Item view names must be non-empty.");
-      }
-
-      return [itemViewName, parseItemView(itemViewName, itemView, entities, unions)];
-    }),
+): KeyedDefinition<ItemViewSchema>[] {
+  return parseKeyedDefinitionArray("Schema itemViews", value, (itemViewName, itemView) =>
+    parseItemView(itemViewName, itemView, entities, unions),
   );
 }
-
 function parseItemView(
   itemViewName: string,
   value: unknown,
@@ -141,10 +120,9 @@ function parseItemView(
   assertExactKeys(
     `Item view "${itemViewName}"`,
     value,
-    ["entity", "fields"],
+    ["key", "entity", "fields"],
     ["union", "variants", "fallback"],
   );
-
   if (typeof value.entity !== "string" || value.entity.trim() === "") {
     throw new Error(`Item view "${itemViewName}" must include an entity.`);
   }
@@ -181,38 +159,28 @@ export function parseViews(
   relationships: Record<string, RelationshipSchema> | undefined,
   readModels?: ReadModelSchema,
   unions?: Record<string, EntityUnionSchema>,
-): Record<string, ViewSchema> {
-  if (!isRecord(value)) {
-    throw new Error("Schema views must be an object.");
-  }
-
-  const views = Object.fromEntries(
-    Object.entries(value).map(([viewName, view]) => [
+): KeyedDefinition<ViewSchema>[] {
+  const views = parseKeyedDefinitionArray("Schema views", value, (viewName, view) =>
+    parseView(
       viewName,
-      parseView(
-        viewName,
-        view,
-        entities,
-        queries,
-        itemViews,
-        tableViews,
-        relationships,
-        readModels,
-        unions,
-      ),
-    ]),
+      view,
+      entities,
+      queries,
+      itemViews,
+      tableViews,
+      relationships,
+      readModels,
+      unions,
+    ),
   );
-
-  if (Object.keys(views).length === 0) {
+  if (views.length === 0) {
     throw new Error("Schema must define at least one view.");
   }
-
-  assertCollectionViews(views, entities, relationships);
-  assertTableOperationEditViews(views, tableViews, entities);
-
+  const viewsByKey = definitionsToRecord(views);
+  assertCollectionViews(viewsByKey, entities, relationships);
+  assertTableOperationEditViews(viewsByKey, tableViews, entities);
   return views;
 }
-
 function assertCollectionViews(
   views: Record<string, ViewSchema>,
   entities: Record<string, EntitySchema>,
@@ -359,8 +327,7 @@ function validateCreateOperationContextDefaults(
         `${context} requires context "${defaultValue.name}" but the collection context is "${collectionContext.name}".`,
       );
     }
-
-    const field = entity.fields[fieldName];
+    const field = definitionsToRecord(entity.fields)[fieldName];
     if (field?.type !== "reference" || field.to !== collectionContext.entity) {
       throw new Error(
         `${context} default field "${fieldName}" must reference entity "${collectionContext.entity}".`,
@@ -419,10 +386,9 @@ function parseView(
   assertExactKeys(
     `View "${viewName}"`,
     value,
-    ["type", "entity", "fields"],
+    ["key", "type", "entity", "fields"],
     ["defaults", "union", "variants", "fallback"],
   );
-
   if (typeof value.entity !== "string" || value.entity.trim() === "") {
     throw new Error(`View "${viewName}" must include an entity.`);
   }
@@ -463,10 +429,9 @@ function parseEditView(
   assertExactKeys(
     `View "${viewName}"`,
     value,
-    ["type", "entity", "fields"],
+    ["key", "type", "entity", "fields"],
     ["union", "variants", "fallback"],
   );
-
   if (typeof value.entity !== "string" || value.entity.trim() === "") {
     throw new Error(`View "${viewName}" must include an entity.`);
   }
@@ -509,10 +474,9 @@ function parseCollectionView(
   assertExactKeys(
     `Collection view "${viewName}"`,
     value,
-    ["type", "label", "entity", "queries", "defaultQuery", "result"],
+    ["key", "type", "label", "entity", "queries", "defaultQuery", "result"],
     ["navigation", "context", "operations", "summary"],
   );
-
   if (typeof value.label !== "string" || value.label.trim() === "") {
     throw new Error(`Collection view "${viewName}" label must be a non-empty string.`);
   }
@@ -567,7 +531,7 @@ function parseCollectionView(
     querySlots,
     context,
     relationships,
-    readModels?.aggregates ?? {},
+    definitionsToRecord(readModels?.aggregates),
     unions,
   );
   const operations = parseCollectionOperationBindings(viewName, value.operations, entities);
@@ -576,9 +540,8 @@ function parseCollectionView(
     value.entity,
     value.summary,
     querySlots,
-    readModels?.aggregates ?? {},
+    definitionsToRecord(readModels?.aggregates),
   );
-
   return {
     type: "collection",
     label: value.label,
@@ -647,13 +610,10 @@ function parseCollectionOperationBinding(
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
-
   assertExactKeys(context, value, ["operation"], ["label", "createView", "count"]);
-
   const operationKey = parseEntityOperationKey(`${context} operation`, value.operation);
   const entity = entities[operationKey.entityKey];
-  const operation = entity?.operations?.[operationKey.operationKey];
-
+  const operation = definitionsToRecord(entity?.operations)[operationKey.operationKey];
   if (!entity || !operation) {
     throw new Error(`${context} references unknown operation "${String(value.operation)}".`);
   }

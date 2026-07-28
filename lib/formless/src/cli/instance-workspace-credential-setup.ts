@@ -336,7 +336,12 @@ async function writeFormlessOAuthDeploymentConfigSource(input: {
   now: string;
   targetAlias?: string | null;
   workspaceRoot: string;
-}): Promise<{ accountId: string; targetId: string; targetUrl: string; workerName: string }> {
+}): Promise<{
+  accountId: string;
+  targetId: string;
+  targetUrl: string;
+  workerName: string;
+}> {
   const { manifest } = await readWorkspaceManifest(input.workspaceRoot);
   const activePackages = await createActiveWorkspaceAppPackages(input.workspaceRoot, manifest);
   const current = await readInstanceWorkspaceControlPlaneStorageSnapshot({
@@ -413,7 +418,12 @@ function formlessOAuthCredentialSetupReadyResult(input: {
   account: FormlessCloudflareOAuthAccount;
   accountCount: number;
   credentialRef: string;
-  deploymentConfig: { accountId: string; targetId: string; targetUrl: string; workerName: string };
+  deploymentConfig: {
+    accountId: string;
+    targetId: string;
+    targetUrl: string;
+    workerName: string;
+  };
   source: "oauth" | "stored-credential";
 }): WorkspaceOperationResult {
   return {
@@ -856,19 +866,18 @@ function nodeAlchemyCloudflareProfileStore(): AlchemyCloudflareProfileStore {
 async function listCloudflareAccountsWithOAuthCredentials(
   credentials: AlchemyCloudflareOAuthCredentials,
 ): Promise<FormlessInstanceDeploymentAccount[]> {
-  const accounts = await readCloudflareApiResult<Array<{ id?: string; name?: string }>>(
-    "/accounts",
-    credentials,
-  );
-
+  const accounts = await readCloudflareApiResult<
+    Array<{
+      id?: string;
+      name?: string;
+    }>
+  >("/accounts", credentials);
   return Promise.all(
     accounts.map(async (account) => {
       const id = parseRequiredString(account.id, "Cloudflare account id");
-      const subdomain = await readCloudflareApiResult<{ subdomain?: string }>(
-        `/accounts/${id}/workers/subdomain`,
-        credentials,
-      );
-
+      const subdomain = await readCloudflareApiResult<{
+        subdomain?: string;
+      }>(`/accounts/${id}/workers/subdomain`, credentials);
       return {
         id,
         ...(account.name === undefined ? {} : { name: account.name }),
@@ -896,11 +905,15 @@ async function readCloudflareApiResult<T>(
   if (!response.ok) {
     throw new Error(`Cloudflare API request failed: HTTP ${response.status}.`);
   }
-
-  let body: Partial<{ result: T; success: boolean }>;
-
+  let body: Partial<{
+    result: T;
+    success: boolean;
+  }>;
   try {
-    body = JSON.parse(text) as Partial<{ result: T; success: boolean }>;
+    body = JSON.parse(text) as Partial<{
+      result: T;
+      success: boolean;
+    }>;
   } catch {
     throw new Error("Cloudflare API response is invalid JSON.");
   }

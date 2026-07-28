@@ -7,13 +7,14 @@ describe("schema collection views", () => {
   it("parses query slots, list results, navigation, and operation bindings", () => {
     const schema = parseAppSchema({
       ...taskSchema(),
-      views: {
-        ...taskSchema().views,
-        taskHome: taskCollectionView({ navigation: { primary: true } }),
-      },
+      views: replaceDefinition(
+        taskSchema().views,
+        "taskHome",
+        taskCollectionView({ navigation: { primary: true } }),
+      ),
     });
-
-    expect(schema.views.taskHome).toEqual({
+    expect(schema.views.find((definition) => definition.key === "taskHome")!).toEqual({
+      key: "taskHome",
       type: "collection",
       label: "Tasks",
       entity: "task",
@@ -31,30 +32,31 @@ describe("schema collection views", () => {
     expect(() =>
       parseAppSchema({
         ...source,
-        views: {
-          ...source.views,
-          taskHome: taskCollectionView({ queries: [{ query: "noteAll" }] }),
-        },
+        views: replaceDefinition(
+          source.views,
+          "taskHome",
+          taskCollectionView({ queries: [{ query: "noteAll" }] }),
+        ),
       }),
     ).toThrow('query "noteAll" must use entity "task"');
-
     expect(() =>
       parseAppSchema({
         ...source,
-        views: {
-          ...source.views,
-          taskHome: taskCollectionView({ result: { type: "list", itemView: "noteItem" } }),
-        },
+        views: replaceDefinition(
+          source.views,
+          "taskHome",
+          taskCollectionView({ result: { type: "list", itemView: "noteItem" } }),
+        ),
       }),
     ).toThrow('item view "noteItem" must use entity "task"');
-
     expect(() =>
       parseAppSchema({
         ...source,
-        views: {
-          ...source.views,
-          taskHome: taskCollectionView({ operations: [{ operation: "task.missing" }] }),
-        },
+        views: replaceDefinition(
+          source.views,
+          "taskHome",
+          taskCollectionView({ operations: [{ operation: "task.missing" }] }),
+        ),
       }),
     ).toThrow('references unknown operation "task.missing"');
   });
@@ -62,8 +64,7 @@ describe("schema collection views", () => {
   it("parses relationship-backed context and context-bound create defaults", () => {
     const source = projectTaskSchema();
     const schema = parseAppSchema(source);
-
-    expect(schema.views.taskHome).toMatchObject({
+    expect(schema.views.find((definition) => definition.key === "taskHome")!).toMatchObject({
       type: "collection",
       entity: "task",
       context: {
@@ -87,89 +88,81 @@ describe("schema collection views", () => {
     expect(() =>
       parseAppSchema({
         ...source,
-        views: {
-          ...source.views,
-          taskHome: {
-            ...source.views.taskHome,
-            context: {
-              name: "selection",
-              entity: "project",
-              query: "projectAll",
-              labelField: "name",
-              presentation: "listDetail",
-              relationship: "projectTasks",
-              itemView: "projectItem",
-              createView: "projectCreate",
-            },
+        views: replaceDefinition(source.views, "taskHome", {
+          context: {
+            name: "selection",
+            entity: "project",
+            query: "projectAll",
+            labelField: "name",
+            presentation: "listDetail",
+            relationship: "projectTasks",
+            itemView: "projectItem",
+            createView: "projectCreate",
           },
-        },
+        }),
       }),
     ).toThrow('query "tasksForProject" requires context "project"');
-
     expect(() =>
       parseAppSchema({
         ...source,
-        views: {
-          ...source.views,
-          taskCreate: {
-            ...source.views.taskCreate,
-            defaults: { project: { kind: "context", name: "selection" } },
-          },
-        },
+        views: replaceDefinition(source.views, "taskCreate", {
+          defaults: { project: { kind: "context", name: "selection" } },
+        }),
       }),
     ).toThrow('requires context "selection" but the collection context is "project"');
   });
 });
-
 function schemaWithNotes() {
   const source = taskSchema();
-
   return {
     ...source,
-    entities: {
+    entities: [
       ...source.entities,
-      note: {
+      {
+        key: "note",
         label: "Note",
-        fields: { title: { type: "text", required: true } },
+        fields: [{ key: "title", type: "text", required: true }],
       },
-    },
-    queries: {
+    ],
+    queries: [
       ...source.queries,
-      noteAll: { label: "Notes", entity: "note", expression: { kind: "all" } },
-    },
-    itemViews: {
+      { key: "noteAll", label: "Notes", entity: "note", expression: { kind: "all" } },
+    ],
+    itemViews: [
       ...source.itemViews,
-      noteItem: {
+      {
+        key: "noteItem",
         entity: "note",
-        fields: { title: { editor: "text", commit: "field-commit" } },
+        fields: [{ field: "title", editor: "text", commit: "field-commit" }],
       },
-    },
+    ],
   };
 }
-
 function projectTaskSchema() {
   const source = taskSchema();
   const task = taskEntity({
-    fields: {
+    fields: [
       ...taskEntity().fields,
-      project: {
+      {
+        key: "project",
         type: "reference",
         required: true,
         to: "project",
         displayField: "name",
       },
-    },
+    ],
   });
-
   return {
     ...source,
-    entities: {
-      task,
-      project: {
+    entities: [
+      { key: "task", ...task },
+      {
+        key: "project",
         label: "Project",
-        fields: { name: { type: "text", required: true, label: "Name" } },
-        operations: {
-          create: {
+        fields: [{ key: "name", type: "text", required: true, label: "Name" }],
+        operations: [
+          {
+            key: "create",
             label: "Create project",
             kind: "create",
             scope: "collection",
@@ -178,19 +171,21 @@ function projectTaskSchema() {
             idempotency: { required: true },
             audit: { input: "summary" },
           },
-        },
+        ],
       },
-    },
-    relationships: {
-      projectTasks: {
+    ],
+    relationships: [
+      {
+        key: "projectTasks",
         kind: "toMany",
         from: { entity: "project" },
         to: { entity: "task", field: "project" },
       },
-    },
-    queries: {
-      projectAll: { label: "Projects", entity: "project", expression: { kind: "all" } },
-      tasksForProject: {
+    ],
+    queries: [
+      { key: "projectAll", label: "Projects", entity: "project", expression: { kind: "all" } },
+      {
+        key: "tasksForProject",
         label: "Tasks",
         entity: "task",
         expression: {
@@ -200,41 +195,56 @@ function projectTaskSchema() {
           value: { kind: "context", name: "project" },
         },
       },
-    },
-    itemViews: {
+    ],
+    itemViews: [
       ...source.itemViews,
-      projectItem: {
+      {
+        key: "projectItem",
         entity: "project",
-        fields: { name: { editor: "text", commit: "field-commit" } },
+        fields: [{ field: "name", editor: "text", commit: "field-commit" }],
       },
-    },
-    views: {
-      taskHome: taskCollectionView({
-        context: {
-          name: "project",
-          entity: "project",
-          query: "projectAll",
-          labelField: "name",
-          presentation: "listDetail",
-          relationship: "projectTasks",
-          itemView: "projectItem",
-          createView: "projectCreate",
-        },
-        queries: [{ query: "tasksForProject" }],
-        defaultQuery: "tasksForProject",
-      }),
-      taskCreate: {
+    ],
+    views: [
+      {
+        key: "taskHome",
+        ...taskCollectionView({
+          context: {
+            name: "project",
+            entity: "project",
+            query: "projectAll",
+            labelField: "name",
+            presentation: "listDetail",
+            relationship: "projectTasks",
+            itemView: "projectItem",
+            createView: "projectCreate",
+          },
+          queries: [{ query: "tasksForProject" }],
+          defaultQuery: "tasksForProject",
+        }),
+      },
+      {
+        key: "taskCreate",
         type: "create",
         entity: "task",
-        fields: { title: { editor: "text" } },
+        fields: [{ field: "title", editor: "text" }],
         defaults: { project: { kind: "context", name: "project" } },
       },
-      projectCreate: {
+      {
+        key: "projectCreate",
         type: "create",
         entity: "project",
-        fields: { name: { editor: "text" } },
+        fields: [{ field: "name", editor: "text" }],
       },
-    },
-    screens: { home: taskScreen() },
+    ],
+    screens: [{ key: "home", ...taskScreen() }],
   };
+}
+function replaceDefinition<T extends { key: string }>(
+  definitions: readonly T[],
+  key: string,
+  patch: Record<string, unknown>,
+): T[] {
+  return definitions.map((definition) =>
+    definition.key === key ? { ...definition, ...patch } : definition,
+  );
 }

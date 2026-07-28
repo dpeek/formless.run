@@ -1,72 +1,88 @@
 {
   "version": 1,
-  "entities": {
-    "resource": {
+  "entities": [
+    {
+      "key": "resource",
       "label": "Resource",
-      "fields": {
-        "name": {
+      "fields": [
+        {
+          "key": "name",
           "type": "text",
           "required": true,
           "label": "Name"
         },
-        "kind": {
+        {
+          "key": "kind",
           "type": "enum",
           "required": true,
           "label": "Kind",
           "default": "role",
-          "values": {
-            "generic": {
+          "values": [
+            {
+              "key": "generic",
               "label": "Generic"
             },
-            "role": {
+            {
+              "key": "role",
               "label": "Role"
             },
-            "stream": {
+            {
+              "key": "stream",
               "label": "Stream"
             },
-            "product": {
+            {
+              "key": "product",
               "label": "Product"
             }
-          }
+          ]
         },
-        "unit": {
+        {
+          "key": "unit",
           "type": "enum",
           "required": true,
           "label": "Unit",
           "default": "day",
-          "values": {
-            "hour": {
+          "values": [
+            {
+              "key": "hour",
               "label": "Hour"
             },
-            "day": {
+            {
+              "key": "day",
               "label": "Day"
             },
-            "week": {
+            {
+              "key": "week",
               "label": "Week"
             },
-            "month": {
+            {
+              "key": "month",
               "label": "Month"
             }
-          }
+          ]
         }
-      },
-      "operations": {
-        "create": {
+      ],
+      "operations": [
+        {
+          "key": "create",
           "label": "Create Resource",
           "kind": "create",
           "scope": "collection",
           "input": {
-            "fields": {
-              "name": {
+            "fields": [
+              {
+                "key": "name",
                 "field": "name"
               },
-              "kind": {
+              {
+                "key": "kind",
                 "field": "kind"
               },
-              "unit": {
+              {
+                "key": "unit",
                 "field": "unit"
               }
-            }
+            ]
           },
           "effect": {
             "type": "createRecord"
@@ -81,22 +97,26 @@
             "input": "summary"
           }
         },
-        "update": {
+        {
+          "key": "update",
           "label": "Update Resource",
           "kind": "update",
           "scope": "record",
           "input": {
-            "fields": {
-              "name": {
+            "fields": [
+              {
+                "key": "name",
                 "field": "name"
               },
-              "kind": {
+              {
+                "key": "kind",
                 "field": "kind"
               },
-              "unit": {
+              {
+                "key": "unit",
                 "field": "unit"
               }
-            }
+            ]
           },
           "effect": {
             "type": "patchRecord"
@@ -111,67 +131,79 @@
             "input": "summary"
           }
         }
-      }
+      ]
     },
-    "card": {
+    {
+      "key": "card",
       "label": "Rate card",
-      "fields": {
-        "name": {
+      "fields": [
+        {
+          "key": "name",
           "type": "text",
           "required": true,
           "label": "Name"
         },
-        "isDefault": {
+        {
+          "key": "isDefault",
           "type": "boolean",
           "required": true,
           "label": "Default",
           "default": false
         },
-        "marginMin": {
+        {
+          "key": "marginMin",
           "type": "number",
           "required": true,
           "label": "Minimum margin",
           "default": 0.4,
           "min": 0
         },
-        "marginMed": {
+        {
+          "key": "marginMed",
           "type": "number",
           "required": true,
           "label": "Medium margin",
           "default": 0.5,
           "min": 0
         },
-        "marginMax": {
+        {
+          "key": "marginMax",
           "type": "number",
           "required": true,
           "label": "Maximum margin",
           "default": 0.6,
           "min": 0
         }
-      },
-      "operations": {
-        "create": {
+      ],
+      "operations": [
+        {
+          "key": "create",
           "label": "Create Rate card",
           "kind": "create",
           "scope": "collection",
           "input": {
-            "fields": {
-              "name": {
+            "fields": [
+              {
+                "key": "name",
                 "field": "name"
               },
-              "isDefault": {
+              {
+                "key": "isDefault",
                 "field": "isDefault"
               },
-              "marginMin": {
+              {
+                "key": "marginMin",
                 "field": "marginMin"
               },
-              "marginMed": {
+              {
+                "key": "marginMed",
                 "field": "marginMed"
               },
-              "marginMax": {
+              {
+                "key": "marginMax",
                 "field": "marginMax"
               }
-            }
+            ]
           },
           "effect": {
             "type": "createRecord"
@@ -186,28 +218,34 @@
             "input": "summary"
           }
         },
-        "update": {
+        {
+          "key": "update",
           "label": "Update Rate card",
           "kind": "update",
           "scope": "record",
           "input": {
-            "fields": {
-              "name": {
+            "fields": [
+              {
+                "key": "name",
                 "field": "name"
               },
-              "isDefault": {
+              {
+                "key": "isDefault",
                 "field": "isDefault"
               },
-              "marginMin": {
+              {
+                "key": "marginMin",
                 "field": "marginMin"
               },
-              "marginMed": {
+              {
+                "key": "marginMed",
                 "field": "marginMed"
               },
-              "marginMax": {
+              {
+                "key": "marginMax",
                 "field": "marginMax"
               }
-            }
+            ]
           },
           "effect": {
             "type": "patchRecord"
@@ -222,118 +260,142 @@
             "input": "summary"
           }
         }
-      }
+      ]
     },
-    "rate": {
+    {
+      "key": "rate",
       "label": "Rate",
-      "fields": {
-        "resource": {
+      "fields": [
+        {
+          "key": "resource",
           "type": "reference",
           "required": true,
           "label": "Resource",
           "to": "resource",
           "displayField": "name"
         },
-        "card": {
+        {
+          "key": "card",
           "type": "reference",
           "required": true,
           "label": "Rate card",
           "to": "card",
           "displayField": "name"
         },
-        "cost": {
+        {
+          "key": "cost",
           "type": "number",
           "required": true,
           "label": "Cost",
           "default": 0,
           "min": 0
         },
-        "costUnit": {
+        {
+          "key": "costUnit",
           "type": "enum",
           "required": true,
           "label": "Cost unit",
           "default": "day",
-          "values": {
-            "hour": {
+          "values": [
+            {
+              "key": "hour",
               "label": "Hour"
             },
-            "day": {
+            {
+              "key": "day",
               "label": "Day"
             },
-            "year": {
+            {
+              "key": "year",
               "label": "Year"
             }
-          }
+          ]
         },
-        "price": {
+        {
+          "key": "price",
           "type": "number",
           "required": true,
           "label": "Price",
           "default": 0,
           "min": 0
         },
-        "priceSet": {
+        {
+          "key": "priceSet",
           "type": "boolean",
           "required": true,
           "label": "Price set",
           "default": true
         },
-        "currency": {
+        {
+          "key": "currency",
           "type": "enum",
           "required": true,
           "label": "Currency",
           "default": "usd",
-          "values": {
-            "usd": {
+          "values": [
+            {
+              "key": "usd",
               "label": "USD"
             },
-            "aud": {
+            {
+              "key": "aud",
               "label": "AUD"
             },
-            "eur": {
+            {
+              "key": "eur",
               "label": "EUR"
             },
-            "gbp": {
+            {
+              "key": "gbp",
               "label": "GBP"
             }
-          }
+          ]
         }
-      },
-      "constraints": {
-        "uniqueRatePair": {
+      ],
+      "constraints": [
+        {
+          "key": "uniqueRatePair",
           "kind": "unique",
           "fields": ["resource", "card"]
         }
-      },
-      "operations": {
-        "create": {
+      ],
+      "operations": [
+        {
+          "key": "create",
           "label": "Create Rate",
           "kind": "create",
           "scope": "collection",
           "input": {
-            "fields": {
-              "resource": {
+            "fields": [
+              {
+                "key": "resource",
                 "field": "resource"
               },
-              "card": {
+              {
+                "key": "card",
                 "field": "card"
               },
-              "cost": {
+              {
+                "key": "cost",
                 "field": "cost"
               },
-              "costUnit": {
+              {
+                "key": "costUnit",
                 "field": "costUnit"
               },
-              "price": {
+              {
+                "key": "price",
                 "field": "price"
               },
-              "priceSet": {
+              {
+                "key": "priceSet",
                 "field": "priceSet"
               },
-              "currency": {
+              {
+                "key": "currency",
                 "field": "currency"
               }
-            }
+            ]
           },
           "effect": {
             "type": "createRecord"
@@ -348,34 +410,42 @@
             "input": "summary"
           }
         },
-        "update": {
+        {
+          "key": "update",
           "label": "Update Rate",
           "kind": "update",
           "scope": "record",
           "input": {
-            "fields": {
-              "resource": {
+            "fields": [
+              {
+                "key": "resource",
                 "field": "resource"
               },
-              "card": {
+              {
+                "key": "card",
                 "field": "card"
               },
-              "cost": {
+              {
+                "key": "cost",
                 "field": "cost"
               },
-              "costUnit": {
+              {
+                "key": "costUnit",
                 "field": "costUnit"
               },
-              "price": {
+              {
+                "key": "price",
                 "field": "price"
               },
-              "priceSet": {
+              {
+                "key": "priceSet",
                 "field": "priceSet"
               },
-              "currency": {
+              {
+                "key": "currency",
                 "field": "currency"
               }
-            }
+            ]
           },
           "effect": {
             "type": "patchRecord"
@@ -390,7 +460,8 @@
             "input": "summary"
           }
         },
-        "regenerateMissingRates": {
+        {
+          "key": "regenerateMissingRates",
           "label": "Regenerate missing rates",
           "kind": "command",
           "scope": "collection",
@@ -420,11 +491,12 @@
             "input": "summary"
           }
         }
-      }
+      ]
     }
-  },
-  "relationships": {
-    "rateCard": {
+  ],
+  "relationships": [
+    {
+      "key": "rateCard",
       "kind": "toOne",
       "label": "Rate card",
       "from": {
@@ -436,7 +508,8 @@
       },
       "inverse": "cardRates"
     },
-    "cardRates": {
+    {
+      "key": "cardRates",
       "kind": "toMany",
       "label": "Rates",
       "from": {
@@ -448,7 +521,8 @@
       },
       "inverse": "rateCard"
     },
-    "rateResource": {
+    {
+      "key": "rateResource",
       "kind": "toOne",
       "label": "Resource",
       "from": {
@@ -460,7 +534,8 @@
       },
       "inverse": "resourceRates"
     },
-    "resourceRates": {
+    {
+      "key": "resourceRates",
       "kind": "toMany",
       "label": "Rates",
       "from": {
@@ -472,7 +547,8 @@
       },
       "inverse": "rateResource"
     },
-    "cardResources": {
+    {
+      "key": "cardResources",
       "kind": "manyToMany",
       "label": "Resources",
       "from": {
@@ -489,7 +565,8 @@
       },
       "inverse": "resourceCards"
     },
-    "resourceCards": {
+    {
+      "key": "resourceCards",
       "kind": "manyToMany",
       "label": "Rate cards",
       "from": {
@@ -506,30 +583,34 @@
       },
       "inverse": "cardResources"
     }
-  },
-  "queries": {
-    "resourceAll": {
+  ],
+  "queries": [
+    {
+      "key": "resourceAll",
       "label": "All",
       "entity": "resource",
       "expression": {
         "kind": "all"
       }
     },
-    "cardAll": {
+    {
+      "key": "cardAll",
       "label": "All",
       "entity": "card",
       "expression": {
         "kind": "all"
       }
     },
-    "rateAll": {
+    {
+      "key": "rateAll",
       "label": "All",
       "entity": "rate",
       "expression": {
         "kind": "all"
       }
     },
-    "ratesForSelectedCard": {
+    {
+      "key": "ratesForSelectedCard",
       "label": "Selected card",
       "entity": "rate",
       "expression": {
@@ -545,10 +626,11 @@
         }
       }
     }
-  },
+  ],
   "readModels": {
-    "computedValues": {
-      "rateMargin": {
+    "computedValues": [
+      {
+        "key": "rateMargin",
         "entity": "rate",
         "type": "number",
         "expression": {
@@ -572,9 +654,10 @@
           }
         }
       }
-    },
-    "aggregates": {
-      "selectedCardAverageCost": {
+    ],
+    "aggregates": [
+      {
+        "key": "selectedCardAverageCost",
         "query": "ratesForSelectedCard",
         "function": "average",
         "value": {
@@ -582,7 +665,8 @@
           "field": "cost"
         }
       },
-      "selectedCardAveragePrice": {
+      {
+        "key": "selectedCardAveragePrice",
         "query": "ratesForSelectedCard",
         "function": "average",
         "value": {
@@ -590,7 +674,8 @@
           "field": "price"
         }
       },
-      "selectedCardAverageMargin": {
+      {
+        "key": "selectedCardAverageMargin",
         "query": "ratesForSelectedCard",
         "function": "average",
         "value": {
@@ -598,96 +683,117 @@
           "computedValue": "rateMargin"
         }
       }
-    }
+    ]
   },
-  "itemViews": {
-    "resourceListItem": {
+  "itemViews": [
+    {
+      "key": "resourceListItem",
       "entity": "resource",
-      "fields": {
-        "name": {
+      "fields": [
+        {
+          "field": "name",
           "editor": "text",
           "commit": "field-commit"
         },
-        "kind": {
+        {
+          "field": "kind",
           "editor": "enum",
           "commit": "immediate"
         },
-        "unit": {
+        {
+          "field": "unit",
           "editor": "enum",
           "commit": "immediate"
         }
-      }
+      ]
     },
-    "cardListItem": {
+    {
+      "key": "cardListItem",
       "entity": "card",
-      "fields": {
-        "name": {
+      "fields": [
+        {
+          "field": "name",
           "editor": "text",
           "commit": "field-commit"
         },
-        "isDefault": {
+        {
+          "field": "isDefault",
           "editor": "boolean",
           "commit": "immediate"
         },
-        "marginMin": {
+        {
+          "field": "marginMin",
           "editor": "number",
           "commit": "field-commit"
         },
-        "marginMed": {
+        {
+          "field": "marginMed",
           "editor": "number",
           "commit": "field-commit"
         },
-        "marginMax": {
+        {
+          "field": "marginMax",
           "editor": "number",
           "commit": "field-commit"
         }
-      }
+      ]
     },
-    "rateCardContextItem": {
+    {
+      "key": "rateCardContextItem",
       "entity": "card",
-      "fields": {
-        "marginMin": {
+      "fields": [
+        {
+          "field": "marginMin",
           "editor": "number",
           "commit": "field-commit"
         },
-        "marginMed": {
+        {
+          "field": "marginMed",
           "editor": "number",
           "commit": "field-commit"
         },
-        "marginMax": {
+        {
+          "field": "marginMax",
           "editor": "number",
           "commit": "field-commit"
         }
-      }
+      ]
     },
-    "rateListItem": {
+    {
+      "key": "rateListItem",
       "entity": "rate",
-      "fields": {
-        "resource": {
+      "fields": [
+        {
+          "field": "resource",
           "editor": "reference",
           "commit": "immediate"
         },
-        "cost": {
+        {
+          "field": "cost",
           "editor": "number",
           "commit": "field-commit"
         },
-        "costUnit": {
+        {
+          "field": "costUnit",
           "editor": "enum",
           "commit": "immediate"
         },
-        "price": {
+        {
+          "field": "price",
           "editor": "number",
           "commit": "field-commit"
         },
-        "currency": {
+        {
+          "field": "currency",
           "editor": "enum",
           "commit": "immediate"
         }
-      }
+      ]
     }
-  },
-  "tableViews": {
-    "rateTable": {
+  ],
+  "tableViews": [
+    {
+      "key": "rateTable",
       "entity": "rate",
       "columns": [
         {
@@ -740,9 +846,10 @@
         }
       ]
     }
-  },
-  "views": {
-    "resourceHome": {
+  ],
+  "views": [
+    {
+      "key": "resourceHome",
       "type": "collection",
       "label": "Resources",
       "entity": "resource",
@@ -766,7 +873,8 @@
         }
       ]
     },
-    "cardHome": {
+    {
+      "key": "cardHome",
       "type": "collection",
       "label": "Rate cards",
       "entity": "card",
@@ -790,7 +898,8 @@
         }
       ]
     },
-    "rateHome": {
+    {
+      "key": "rateHome",
       "type": "collection",
       "label": "Rates",
       "entity": "rate",
@@ -847,62 +956,77 @@
         }
       ]
     },
-    "resourceCreate": {
+    {
+      "key": "resourceCreate",
       "type": "create",
       "entity": "resource",
-      "fields": {
-        "name": {
+      "fields": [
+        {
+          "field": "name",
           "editor": "text"
         }
-      }
+      ]
     },
-    "cardCreate": {
+    {
+      "key": "cardCreate",
       "type": "create",
       "entity": "card",
-      "fields": {
-        "name": {
+      "fields": [
+        {
+          "field": "name",
           "editor": "text"
         }
-      }
+      ]
     },
-    "rateCreate": {
+    {
+      "key": "rateCreate",
       "type": "create",
       "entity": "rate",
-      "fields": {
-        "resource": {
+      "fields": [
+        {
+          "field": "resource",
           "editor": "reference"
         },
-        "card": {
+        {
+          "field": "card",
           "editor": "reference"
         },
-        "cost": {
+        {
+          "field": "cost",
           "editor": "number"
         },
-        "costUnit": {
+        {
+          "field": "costUnit",
           "editor": "enum"
         },
-        "price": {
+        {
+          "field": "price",
           "editor": "number"
         }
-      }
+      ]
     },
-    "rateCreateForCard": {
+    {
+      "key": "rateCreateForCard",
       "type": "create",
       "entity": "rate",
-      "fields": {
-        "resource": {
+      "fields": [
+        {
+          "field": "resource",
           "editor": "reference"
         },
-        "cost": {
+        {
+          "field": "cost",
           "editor": "number"
         },
-        "costUnit": {
+        {
+          "field": "costUnit",
           "editor": "enum"
         },
-        "price": {
+        {
+          "field": "price",
           "editor": "number"
         }
-      },
+      ],
       "defaults": {
         "card": {
           "kind": "context",
@@ -910,15 +1034,13 @@
         }
       }
     }
-  },
-  "screens": {
-    "rateHome": {
+  ],
+  "screens": [
+    {
+      "key": "rateHome",
       "type": "workspace",
       "label": "Rates",
       "path": "/",
-      "navigation": {
-        "primary": true
-      },
       "layout": {
         "type": "stack",
         "sections": [
@@ -930,13 +1052,11 @@
         ]
       }
     },
-    "rateSetup": {
+    {
+      "key": "rateSetup",
       "type": "workspace",
       "label": "Setup",
       "path": "/setup",
-      "navigation": {
-        "primary": true
-      },
       "layout": {
         "type": "stack",
         "sections": [
@@ -953,5 +1073,5 @@
         ]
       }
     }
-  }
+  ]
 }

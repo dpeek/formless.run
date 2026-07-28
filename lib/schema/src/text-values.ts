@@ -3,15 +3,21 @@ import type { TextFieldFormat } from "./types.ts";
 export const TEXT_EMAIL_FORMAT_INVALID_MESSAGE = "Enter an email address like name@example.com.";
 export const TEXT_PHONE_FORMAT_INVALID_MESSAGE =
   "Enter a phone number using digits and common separators.";
-
-export type TextValueValidationResult = { kind: "set"; value: string } | { kind: "omit" };
-
+export type TextValueValidationResult =
+  | {
+      kind: "set";
+      value: string;
+    }
+  | {
+      kind: "omit";
+    };
 export function textFormatValidatesStoredValue(format: TextFieldFormat | undefined): boolean {
   return format === "email" || format === "phone";
 }
-
 export function validateTextValueForStorage(
-  field: { format?: TextFieldFormat },
+  field: {
+    format?: TextFieldFormat;
+  },
   value: string,
 ): TextValueValidationResult {
   if (field.format === "email") {
@@ -39,13 +45,14 @@ export function validateTextValueForStorage(
   if (value === "") {
     return { kind: "omit" };
   }
-
   return { kind: "set", value };
 }
-
 export function isValidStoredTextValue(
   value: string,
-  field: { required: boolean; format?: TextFieldFormat },
+  field: {
+    required: boolean;
+    format?: TextFieldFormat;
+  },
 ): boolean {
   if (!textFormatValidatesStoredValue(field.format)) {
     return !field.required || value.trim() !== "";

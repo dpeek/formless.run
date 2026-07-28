@@ -1,6 +1,7 @@
 import { parseOptionalResultOrdering, resultOrderingsAreEquivalent } from "./schema-ordering.ts";
 import {
   assertExactKeys,
+  definitionsToRecord,
   isRecord,
   parseOptionalNonEmptyString,
   parseRequiredNonEmptyString,
@@ -216,8 +217,7 @@ export function parseCollectionResult(
       `Collection view "${viewName}" result childField`,
       value.childField,
     );
-    const childField = entity.fields[childFieldName];
-
+    const childField = definitionsToRecord(entity.fields)[childFieldName];
     if (!childField) {
       throw new Error(
         `Collection view "${viewName}" result childField references unknown field "${entityName}.${childFieldName}".`,
@@ -405,8 +405,7 @@ function parseTreeBranchVariantPolicy(
       if (variantName.trim() === "") {
         throw new Error(`${context} variant keys must be non-empty strings.`);
       }
-
-      if (union.variants[variantName] === undefined) {
+      if (definitionsToRecord(union.variants)[variantName] === undefined) {
         throw new Error(
           `${context} variant "${variantName}" must match a variant in union "${union.entity}.${union.discriminator}".`,
         );
@@ -561,8 +560,7 @@ function parseTreeBranchChildVariantName(
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(`${context} must be a non-empty string.`);
   }
-
-  if (union.variants[value] === undefined) {
+  if (definitionsToRecord(union.variants)[value] === undefined) {
     throw new Error(
       `${context} variant "${value}" must match a variant in union "${union.entity}.${union.discriminator}".`,
     );
@@ -590,11 +588,9 @@ function parseOptionalTreeBranchChildPlacementValues(
   if (entries.length === 0) {
     throw new Error(`${context} must not be empty.`);
   }
-
   return Object.fromEntries(
     entries.map(([fieldName, fieldValue]) => {
-      const field = placementEntity.fields[fieldName];
-
+      const field = definitionsToRecord(placementEntity.fields)[fieldName];
       if (!field) {
         throw new Error(`${context} field "${fieldName}" must reference a placement field.`);
       }
@@ -647,10 +643,8 @@ function parseOptionalTreeCompositionActions(
     if (operationKey.entityKey !== entityName) {
       throw new Error(`${context} createOperation must use entity "${entityName}".`);
     }
-
-    const operation = entity.operations?.[operationKey.operationKey];
+    const operation = definitionsToRecord(entity.operations)[operationKey.operationKey];
     const effect = operation?.effect;
-
     if (
       !operation ||
       operation.scope !== "record" ||
@@ -674,10 +668,8 @@ function parseOptionalTreeCompositionActions(
     if (operationKey.entityKey !== entityName) {
       throw new Error(`${context} removeOperation must use entity "${entityName}".`);
     }
-
-    const operation = entity.operations?.[operationKey.operationKey];
+    const operation = definitionsToRecord(entity.operations)[operationKey.operationKey];
     const effect = operation?.effect;
-
     if (
       !operation ||
       operation.scope !== "record" ||

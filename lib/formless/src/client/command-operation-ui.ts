@@ -4,7 +4,10 @@ import type {
   EntityOperationSchema,
   QueryExpression,
 } from "@dpeek/formless-schema";
-import { isOperationHandlerEffectForSelectionCapability } from "@dpeek/formless-schema";
+import {
+  getAppSchemaDefinitionIndex,
+  isOperationHandlerEffectForSelectionCapability,
+} from "@dpeek/formless-schema";
 
 export type CommandOperationTargetCountConfig = {
   display: CountDisplaySchema;
@@ -42,7 +45,7 @@ export function selectCommandOperationUi(
     return ui;
   }
 
-  const targetQuery = schema.queries[targetQueryName];
+  const targetQuery = getAppSchemaDefinitionIndex(schema).queries.byKey.get(targetQueryName);
 
   if (!targetQuery) {
     throw new Error(`Missing command operation target query "${targetQueryName}".`);

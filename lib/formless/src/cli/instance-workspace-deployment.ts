@@ -1917,13 +1917,13 @@ function formlessInstanceWorkspaceDeployStateRoot(
 ): string {
   return path.join(workspaceRoot, ".formless/deploy", plan.resources.worker.name);
 }
-
 async function readWorkspaceAdminToken(
   workspaceRoot: string,
-  dependencies: { env?: NodeJS.ProcessEnv },
+  dependencies: {
+    env?: NodeJS.ProcessEnv;
+  },
 ): Promise<string | null> {
   const secretState = await readFormlessInstanceWorkspaceSecretState(workspaceRoot);
-
   return resolveFormlessInstanceWorkspaceAdminToken({
     env: dependencies.env,
     secretState,

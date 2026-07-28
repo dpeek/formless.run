@@ -11,85 +11,83 @@ describe("schema table views", () => {
       schema.itemViews,
       schema.readModels,
     );
-
-    expect(tableViews.rateTable).toMatchObject({ entity: "rate" });
-    expect(tableViews.rateTable?.columns.map((column) => column.type)).toEqual([
-      "referenceField",
-      "field",
-      "field",
-      "field",
-      "computed",
-    ]);
-    expect(tableViews.blockPlacementTable).toMatchObject({
-      entity: "block-placement",
-      operations: [
-        {
-          operation: "block.update",
-          target: { kind: "reference", field: "block" },
-          editView: "blockEdit",
-        },
-      ],
-      ordering: {
-        field: "order",
-        scope: [
-          { kind: "field", field: "parent" },
-          { kind: "field", field: "slot" },
-        ],
-        presentations: ["dragHandle", "moveMenu"],
-      },
+    expect(tableViews.find((definition) => definition.key === "rateTable")).toMatchObject({
+      entity: "rate",
     });
+    expect(
+      tableViews
+        .find((definition) => definition.key === "rateTable")
+        ?.columns.map((column) => column.type),
+    ).toEqual(["referenceField", "field", "field", "field", "computed"]);
+    expect(tableViews.find((definition) => definition.key === "blockPlacementTable")).toMatchObject(
+      {
+        entity: "block-placement",
+        operations: [
+          {
+            operation: "block.update",
+            target: { kind: "reference", field: "block" },
+            editView: "blockEdit",
+          },
+        ],
+        ordering: {
+          field: "order",
+          scope: [
+            { kind: "field", field: "parent" },
+            { kind: "field", field: "slot" },
+          ],
+          presentations: ["dragHandle", "moveMenu"],
+        },
+      },
+    );
   });
-
   it("rejects invalid table parser cases without mutating fixed fixtures", () => {
     const invalidSchema = tableParserSourceSchema();
-    invalidSchema.tableViews.rateTable.columns = [{ type: "field", field: "missing" }];
-
+    invalidSchema.tableViews.find((definition) => definition.key === "rateTable")!.columns = [
+      { type: "field", field: "missing" },
+    ];
     expect(() => parseAppSchema(invalidSchema)).toThrow('references unknown field "rate.missing"');
-    expect(tableParserSchema().tableViews.rateTable.columns.map((column) => column.type)).toEqual([
-      "referenceField",
-      "field",
-      "field",
-      "field",
-      "computed",
-    ]);
+    expect(
+      tableParserSchema()
+        .tableViews.find((definition) => definition.key === "rateTable")!
+        .columns.map((column) => column.type),
+    ).toEqual(["referenceField", "field", "field", "field", "computed"]);
   });
-
   it("rejects table-local control declarations and unknown command columns", () => {
     expect(() =>
       parseAppSchema({
         ...tableParserSourceSchema(),
-        tableViews: {
-          ...tableParserSourceSchema().tableViews,
-          rateTable: {
-            ...tableParserSourceSchema().tableViews.rateTable,
-            controls: {
-              inspect: { label: "Inspect" },
-            },
-          },
-        },
+        tableViews: tableParserSourceSchema().tableViews.map((definition) =>
+          definition.key === "rateTable"
+            ? {
+                ...definition,
+                controls: {
+                  inspect: { label: "Inspect" },
+                },
+              }
+            : definition,
+        ),
       }),
     ).toThrow('Table view "rateTable" has unsupported key "controls"');
-
     expect(() =>
       parseAppSchema({
         ...tableParserSourceSchema(),
-        tableViews: {
-          ...tableParserSourceSchema().tableViews,
-          rateTable: {
-            ...tableParserSourceSchema().tableViews.rateTable,
-            columns: [{ type: "invokeCommand", command: "inspect" }],
-          },
-        },
+        tableViews: tableParserSourceSchema().tableViews.map((definition) =>
+          definition.key === "rateTable"
+            ? {
+                ...definition,
+                columns: [{ type: "invokeCommand", command: "inspect" }],
+              }
+            : definition,
+        ),
       }),
     ).toThrow(
       'Table view "rateTable" column 0 type must be "field", "referenceField", "computed", "operationControl", or "orderingHandle".',
     );
   });
-
   it("parses system field display columns without requiring value fields", () => {
     const schema = tableParserSchema();
-    schema.tableViews.rateTable.columns = [
-      ...schema.tableViews.rateTable.columns,
+    schema.tableViews.find((definition) => definition.key === "rateTable")!.columns = [
+      ...schema.tableViews.find((definition) => definition.key === "rateTable")!.columns,
       { type: "field", field: "updatedAt", display: "editor" },
       { type: "referenceField", referenceField: "resource", field: "createdAt" },
     ];
@@ -100,8 +98,9 @@ describe("schema table views", () => {
       schema.itemViews,
       schema.readModels,
     );
-
-    expect(tableViews.rateTable?.columns.slice(-2)).toEqual([
+    expect(
+      tableViews.find((definition) => definition.key === "rateTable")?.columns.slice(-2),
+    ).toEqual([
       { type: "field", field: "updatedAt", display: "editor" },
       { type: "referenceField", referenceField: "resource", field: "createdAt" },
     ]);
@@ -111,58 +110,75 @@ describe("schema table views", () => {
 function tableParserSchema(): AppSchema {
   return parseAppSchema(tableParserSourceSchema());
 }
-
 function tableParserSourceSchema() {
-  const entities = {
-    resource: entity("Resource", {
-      name: { type: "text", required: true, label: "Name" },
-    }),
-    card: entity("Card", {
-      label: { type: "text", required: true, label: "Label" },
-    }),
-    rate: entity("Rate", {
-      resource: { type: "reference", required: true, to: "resource", displayField: "name" },
-      card: { type: "reference", required: true, to: "card", displayField: "label" },
-      cost: { type: "number", required: true, label: "Cost" },
-      price: { type: "number", required: true, label: "Price" },
-      active: { type: "boolean", required: true, label: "Active", default: true },
-    }),
-    block: entity(
-      "Block",
-      {
+  const entities = [
+    {
+      key: "resource",
+      ...entity("Resource", {
+        name: { type: "text", required: true, label: "Name" },
+      }),
+    },
+    {
+      key: "card",
+      ...entity("Card", {
         label: { type: "text", required: true, label: "Label" },
-      },
-      {
-        operations: {
-          update: updateOperation("Update Block"),
+      }),
+    },
+    {
+      key: "rate",
+      ...entity("Rate", {
+        resource: { type: "reference", required: true, to: "resource", displayField: "name" },
+        card: { type: "reference", required: true, to: "card", displayField: "label" },
+        cost: { type: "number", required: true, label: "Cost" },
+        price: { type: "number", required: true, label: "Price" },
+        active: { type: "boolean", required: true, label: "Active", default: true },
+      }),
+    },
+    {
+      key: "block",
+      ...entity(
+        "Block",
+        {
+          label: { type: "text", required: true, label: "Label" },
         },
-      },
-    ),
-    "block-placement": entity("Block placement", {
-      parent: { type: "reference", required: true, to: "block", displayField: "label" },
-      block: { type: "reference", required: true, to: "block", displayField: "label" },
-      slot: {
-        type: "enum",
-        required: true,
-        values: {
-          main: { label: "Main" },
-          sidebar: { label: "Sidebar" },
+        {
+          operations: [{ key: "update", ...updateOperation("Update Block") }],
         },
-      },
-      order: { type: "number", required: true },
-    }),
-  };
-
+      ),
+    },
+    {
+      key: "block-placement",
+      ...entity("Block placement", {
+        parent: { type: "reference", required: true, to: "block", displayField: "label" },
+        block: { type: "reference", required: true, to: "block", displayField: "label" },
+        slot: {
+          type: "enum",
+          required: true,
+          values: [
+            { key: "main", label: "Main" },
+            { key: "sidebar", label: "Sidebar" },
+          ],
+        },
+        order: { type: "number", required: true },
+      }),
+    },
+  ];
   return {
     version: 1,
     entities,
-    queries: {
-      rates: { label: "Rates", entity: "rate", expression: { kind: "all" } },
-      placements: { label: "Placements", entity: "block-placement", expression: { kind: "all" } },
-    },
+    queries: [
+      { key: "rates", label: "Rates", entity: "rate", expression: { kind: "all" } },
+      {
+        key: "placements",
+        label: "Placements",
+        entity: "block-placement",
+        expression: { kind: "all" },
+      },
+    ],
     readModels: {
-      computedValues: {
-        margin: {
+      computedValues: [
+        {
+          key: "margin",
           entity: "rate",
           type: "number",
           expression: {
@@ -172,25 +188,26 @@ function tableParserSourceSchema() {
             right: { kind: "field", field: "cost" },
           },
         },
-      },
+      ],
     },
-    itemViews: {
-      blockItem: {
+    itemViews: [
+      {
+        key: "blockItem",
         entity: "block",
-        fields: {
-          label: { editor: "text", commit: "field-commit" },
-        },
+        fields: [{ field: "label", editor: "text", commit: "field-commit" }],
       },
-      rateItem: {
+      {
+        key: "rateItem",
         entity: "rate",
-        fields: {
-          resource: { editor: "reference", commit: "immediate" },
-          cost: { editor: "number", commit: "field-commit" },
-        },
+        fields: [
+          { field: "resource", editor: "reference", commit: "immediate" },
+          { field: "cost", editor: "number", commit: "field-commit" },
+        ],
       },
-    },
-    tableViews: {
-      rateTable: {
+    ],
+    tableViews: [
+      {
+        key: "rateTable",
         entity: "rate",
         columns: [
           { type: "referenceField", referenceField: "resource", field: "name" },
@@ -200,7 +217,8 @@ function tableParserSourceSchema() {
           { type: "computed", computedValue: "margin" },
         ],
       },
-      blockPlacementTable: {
+      {
+        key: "blockPlacementTable",
         entity: "block-placement",
         operations: [
           {
@@ -225,9 +243,10 @@ function tableParserSourceSchema() {
           { type: "operationControl", operation: "block.update", label: "Actions" },
         ],
       },
-    },
-    views: {
-      rates: {
+    ],
+    views: [
+      {
+        key: "rates",
         type: "collection",
         label: "Rates",
         entity: "rate",
@@ -235,7 +254,8 @@ function tableParserSourceSchema() {
         defaultQuery: "rates",
         result: { type: "table", tableView: "rateTable" },
       },
-      placements: {
+      {
+        key: "placements",
         type: "collection",
         label: "Placements",
         entity: "block-placement",
@@ -243,19 +263,18 @@ function tableParserSourceSchema() {
         defaultQuery: "placements",
         result: { type: "table", tableView: "blockPlacementTable" },
       },
-      blockEdit: {
+      {
+        key: "blockEdit",
         type: "edit",
         entity: "block",
-        fields: {
-          label: { editor: "text", commit: "field-commit" },
-        },
+        fields: [{ field: "label", editor: "text", commit: "field-commit" }],
       },
-    },
-    screens: {
-      home: {
+    ],
+    screens: [
+      {
+        key: "home",
         type: "workspace",
         label: "Home",
-        navigation: { primary: true },
         layout: {
           type: "stack",
           sections: [
@@ -264,23 +283,23 @@ function tableParserSourceSchema() {
           ],
         },
       },
-    },
+    ],
   };
 }
-
 function entity(
   label: string,
-  fields: EntitySchema["fields"],
+  fields: Record<string, Record<string, unknown>>,
   overrides: Record<string, unknown> = {},
 ) {
   return {
     label,
-    fields,
+    fields: Object.entries(fields).map(([key, definition]) => ({ key, ...definition })),
     ...overrides,
   };
 }
-
-function updateOperation(label: string): NonNullable<EntitySchema["operations"]>[string] {
+function updateOperation(
+  label: string,
+): Omit<NonNullable<EntitySchema["operations"]>[number], "key"> {
   return {
     label,
     kind: "update",

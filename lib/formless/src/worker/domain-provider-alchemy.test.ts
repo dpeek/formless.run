@@ -11,11 +11,17 @@ import {
   runAlchemyDeployResourceGraph,
   runAlchemyDomainProviderPlan,
 } from "./domain-provider-alchemy.ts";
-
 describe("Alchemy domain provider adapter", () => {
   it("runs planned resources through injected Alchemy factories and state store", async () => {
-    const calls: Array<{ id: string; kind: string; props: unknown }> = [];
-    const runnerCalls: Array<{ appName: string; options: unknown }> = [];
+    const calls: Array<{
+      id: string;
+      kind: string;
+      props: unknown;
+    }> = [];
+    const runnerCalls: Array<{
+      appName: string;
+      options: unknown;
+    }> = [];
     const stateStore = () => {
       throw new Error("The fake state store is only passed through.");
     };
@@ -109,13 +115,18 @@ describe("Alchemy domain provider adapter", () => {
       }),
     ).rejects.toThrow("Domain provider plan has blockers: missing-zone.");
   });
-
   it("converts deployment resource graphs through tracked Alchemy declarations and evidence", async () => {
-    const calls: Array<{ id: string; kind: string; props: unknown }> = [];
-    const runnerCalls: Array<{ appName: string; options: Record<string, unknown> }> = [];
+    const calls: Array<{
+      id: string;
+      kind: string;
+      props: unknown;
+    }> = [];
+    const runnerCalls: Array<{
+      appName: string;
+      options: Record<string, unknown>;
+    }> = [];
     const runner: AlchemyDomainProviderRunner = async (appName, options, apply) => {
       runnerCalls.push({ appName, options: options as Record<string, unknown> });
-
       return apply();
     };
     const factories: AlchemyDomainProviderFactories = {
@@ -272,9 +283,12 @@ describe("Alchemy domain provider adapter", () => {
       },
     ]);
   });
-
   it("omits removed route resources from the next tracked deploy run", async () => {
-    const destroyed: Array<{ appName: string; logicalId: string; stage: string }> = [];
+    const destroyed: Array<{
+      appName: string;
+      logicalId: string;
+      stage: string;
+    }> = [];
     const declaredByRun: string[][] = [];
     const trackedResourcesByScope = new Map<string, Set<string>>();
     let currentDeclarationIds: string[] = [];
@@ -393,9 +407,12 @@ describe("Alchemy domain provider adapter", () => {
       "primary-custom-domain-app-example-com-instance",
     ]);
   });
-
   it("applies Cloudflare email sending domain and constrained send-email bindings", async () => {
-    const calls: Array<{ id: string; kind: string; props: unknown }> = [];
+    const calls: Array<{
+      id: string;
+      kind: string;
+      props: unknown;
+    }> = [];
     const runner: AlchemyDomainProviderRunner = async (_appName, _options, apply) => apply();
     const factories: AlchemyDomainProviderFactories = {
       CustomDomain: async () => {

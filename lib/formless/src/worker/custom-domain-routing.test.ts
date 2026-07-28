@@ -381,7 +381,9 @@ describe("installed Site custom-domain Worker routing", () => {
         redirect: "manual",
       },
     );
-    const missingHandoffSessionBody = (await missingHandoffSession.json()) as { error?: string };
+    const missingHandoffSessionBody = (await missingHandoffSession.json()) as {
+      error?: string;
+    };
     const {
       account: authenticated,
       grant,
@@ -546,12 +548,19 @@ describe("installed Site custom-domain Worker routing", () => {
         redirect: "manual",
       });
       const wrongInstallBody = (await wrongInstallStatus.json()) as {
-        gate?: { kind?: string; roleKey?: string; scopeKind?: string };
+        gate?: {
+          kind?: string;
+          roleKey?: string;
+          scopeKind?: string;
+        };
       };
       const ordinaryBody = (await ordinaryStatus.json()) as {
-        gate?: { kind?: string; roleKey?: string; scopeKind?: string };
+        gate?: {
+          kind?: string;
+          roleKey?: string;
+          scopeKind?: string;
+        };
       };
-
       expect(unauthenticated.status).toBe(302);
       expect(unauthenticated.headers.get("Location")).toBe(
         accountRedirectLocationForRoute(accountPath),
@@ -620,7 +629,10 @@ describe("installed Site custom-domain Worker routing", () => {
       redirect: "manual",
     });
     const forbiddenBody = (await forbiddenStatus.json()) as {
-      principal?: { displayName?: string; principalId?: string };
+      principal?: {
+        displayName?: string;
+        principalId?: string;
+      };
       status?: string;
     };
     const forbiddenBrowser = await fetchAuth(accountPath, {
@@ -662,8 +674,12 @@ describe("installed Site custom-domain Worker routing", () => {
     });
     const centralStatusBody = (await centralStatus.json()) as {
       authenticated?: boolean;
-      principal?: { principalId?: string };
-      session?: { expiresAt?: string };
+      principal?: {
+        principalId?: string;
+      };
+      session?: {
+        expiresAt?: string;
+      };
       setupComplete?: boolean;
     };
     const deployedOwnerStatus = await fetchHost("www.example.com", "/api/formless/session", {
@@ -671,20 +687,26 @@ describe("installed Site custom-domain Worker routing", () => {
     });
     const deployedOwnerStatusBody = (await deployedOwnerStatus.json()) as {
       authenticated?: boolean;
-      principal?: { principalId?: string };
+      principal?: {
+        principalId?: string;
+      };
       setupComplete?: boolean;
     };
     const logout = await fetchHost("www.example.com", "/api/formless/session/logout", {
       headers: { Cookie: centralCookie },
       method: "POST",
     });
-    const logoutBody = (await logout.json()) as { authenticated?: boolean };
+    const logoutBody = (await logout.json()) as {
+      authenticated?: boolean;
+    };
     const afterLogout = await fetchHost("www.example.com", "/api/formless/session", {
       headers: { Cookie: centralCookie },
     });
     const afterLogoutBody = (await afterLogout.json()) as {
       authenticated?: boolean;
-      principal?: { principalId?: string };
+      principal?: {
+        principalId?: string;
+      };
       setupComplete?: boolean;
     };
     const logoutSetCookie = requiredHeader(logout, "Set-Cookie");
@@ -726,9 +748,12 @@ describe("installed Site custom-domain Worker routing", () => {
     const ordinaryRead = await fetchHost("www.example.com", `${controlPlaneApi}/bootstrap`, {
       headers: { Cookie: ordinary.cookie },
     });
-    const adminReadBody = (await adminRead.json()) as { records?: unknown[] };
-    const ordinaryReadBody = (await ordinaryRead.json()) as { error?: string };
-
+    const adminReadBody = (await adminRead.json()) as {
+      records?: unknown[];
+    };
+    const ordinaryReadBody = (await ordinaryRead.json()) as {
+      error?: string;
+    };
     expect(adminRead.status).toBe(200);
     expect(Array.isArray(adminReadBody.records)).toBe(true);
     expect(ordinaryRead.status).toBe(401);
@@ -770,7 +795,9 @@ describe("installed Site custom-domain Worker routing", () => {
       headers: { Cookie: accepted.cookie },
     });
     const registryBody = (await registry.json()) as {
-      installs?: Array<{ installId?: string }>;
+      installs?: Array<{
+        installId?: string;
+      }>;
     };
     const appBootstrap = await fetchAuth(`/api/app-installs/tasks/${taskInstallId}/bootstrap`, {
       headers: { Cookie: accepted.cookie },
@@ -796,8 +823,7 @@ describe("installed Site custom-domain Worker routing", () => {
     expect(appBootstrap.status).toBe(401);
     expect(appSync.status).toBe(401);
     expect(ownerRecovery.status).toBe(401);
-  }, 10_000);
-
+  }, 10000);
   it("consumes mapped app auth callbacks into host-local session cookies", async () => {
     await resetWorkerState(harness, ["controlPlane", "auth"]);
     await setupPrimaryProductionIdentity();
@@ -1007,7 +1033,10 @@ describe("installed Site custom-domain Worker routing", () => {
       redirect: "manual",
     });
     const ownerOnlyStatusBody = (await ownerOnlyStatus.json()) as {
-      principal?: { displayName?: string; principalId?: string };
+      principal?: {
+        displayName?: string;
+        principalId?: string;
+      };
       status?: string;
     };
     const handoffStartUrl = new URL(
@@ -1022,10 +1051,11 @@ describe("installed Site custom-domain Worker routing", () => {
       redirect: "manual",
     });
     const ownerOnlyGrantBody = (await ownerOnlyGrant.json()) as {
-      principal?: { principalId?: string };
+      principal?: {
+        principalId?: string;
+      };
       status?: string;
     };
-
     expect(ownerOnlyAccount.status).toBe(200);
     expect(ownerOnlyAccount.headers.get("Location")).toBeNull();
     expect(ownerOnlyStatus.status).toBe(403);
@@ -1077,7 +1107,11 @@ describe("installed Site custom-domain Worker routing", () => {
       redirect: "manual",
     });
     const ordinaryBody = (await ordinaryStatus.json()) as {
-      gate?: { kind?: string; roleKey?: string; scopeKind?: string };
+      gate?: {
+        kind?: string;
+        roleKey?: string;
+        scopeKind?: string;
+      };
     };
     const { grant } = await issueHandoffGrantFromAuthAccount(accountUrl, matching.cookie);
     const callback = await harness.mf.dispatchFetch(requiredHeader(grant, "Location"), {
@@ -1137,10 +1171,13 @@ describe("installed Site custom-domain Worker routing", () => {
     const schemaResponse = await fetchMappedHost(`${dataApi}/schema`, {
       headers: adminHeaders(),
     });
-    const schemaBody = (await schemaResponse.json()) as { schema: AppSchema };
+    const schemaBody = (await schemaResponse.json()) as {
+      schema: AppSchema;
+    };
     const schema = structuredClone(schemaBody.schema);
-    const createOperation = schema.entities.task?.operations?.create;
-
+    const createOperation = schema.entities
+      .find((definition) => definition.key === "task")
+      ?.operations!.find((definition) => definition.key === "create")!;
     if (!createOperation) {
       throw new Error("Expected the installed Tasks schema create operation.");
     }
@@ -1537,7 +1574,9 @@ describe("installed Site custom-domain Worker routing", () => {
       headers: { Cookie: removed.cookie },
     });
     const centralRegistryBody = (await centralRegistry.json()) as {
-      installs: Array<{ installId: string }>;
+      installs: Array<{
+        installId: string;
+      }>;
     };
     const centralSync = await fetchAuth(`${dataApi}/sync?after=0`, {
       headers: { Cookie: removed.cookie },
@@ -1567,7 +1606,9 @@ describe("installed Site custom-domain Worker routing", () => {
       headers: { Cookie: removedHostSession.cookie },
     });
     const hostRegistryBody = (await hostRegistry.json()) as {
-      installs: Array<{ installId: string }>;
+      installs: Array<{
+        installId: string;
+      }>;
     };
     const wrongTarget = await fetchHost(
       mappedAppHost,
@@ -1624,7 +1665,9 @@ describe("installed Site custom-domain Worker routing", () => {
       headers: { Cookie: removed.cookie },
     });
     const removedRegistryBody = (await removedRegistry.json()) as {
-      installs: Array<{ installId: string }>;
+      installs: Array<{
+        installId: string;
+      }>;
     };
     const removedSync = await fetchHost(mappedAppHost, `${dataApi}/sync?after=0`, {
       headers: { Cookie: removedHostSession.cookie },
@@ -1721,8 +1764,7 @@ describe("installed Site custom-domain Worker routing", () => {
     expect(disabledRegistry.status).toBe(401);
     expect(disabledSync.status).toBe(401);
     expect(disabledCreateResponse.status).toBe(401);
-  }, 20_000);
-
+  }, 20000);
   it("blocks authenticated handoff grants until target account gates are satisfied", async () => {
     await resetWorkerState(harness, ["controlPlane", "auth"]);
     await setupPrimaryProductionIdentity();
@@ -1775,24 +1817,34 @@ describe("installed Site custom-domain Worker routing", () => {
       redirect: "manual",
     });
     const missingEmailBody = (await missingEmail.json()) as {
-      gate?: { kind?: string };
+      gate?: {
+        kind?: string;
+      };
       status?: string;
-      target?: { returnTo?: string };
+      target?: {
+        returnTo?: string;
+      };
     };
     const missingEmailHandoffBody = (await missingEmailHandoff.json()) as {
-      gate?: { kind?: string };
+      gate?: {
+        kind?: string;
+      };
       status?: string;
-      target?: { returnTo?: string };
+      target?: {
+        returnTo?: string;
+      };
     };
     const accountStatusBody = (await accountStatus.json()) as {
-      gate?: { kind?: string };
+      gate?: {
+        kind?: string;
+      };
       status?: string;
-      target?: { returnTo?: string };
+      target?: {
+        returnTo?: string;
+      };
     };
-
     await createVerifiedPrimaryEmail(principal.principalId, "blocked-authenticated@example.com");
     await createPrivateCredentialForPrincipal(principal.principalId, "blocked-authenticated");
-
     const missingRegistration = await harness.mf.dispatchFetch(startLocation, {
       headers: {
         Accept: "application/json",
@@ -1801,12 +1853,14 @@ describe("installed Site custom-domain Worker routing", () => {
       redirect: "manual",
     });
     const missingRegistrationBody = (await missingRegistration.json()) as {
-      gate?: { appInstallId?: string; kind?: string; registrationPolicy?: string };
+      gate?: {
+        appInstallId?: string;
+        kind?: string;
+        registrationPolicy?: string;
+      };
       status?: string;
     };
-
     await createAppRegistration(principal.principalId, taskInstallId);
-
     const completeStatus = await harness.mf.dispatchFetch(accountSurfaceUrl.toString(), {
       headers: {
         Accept: "application/json",
@@ -1817,7 +1871,10 @@ describe("installed Site custom-domain Worker routing", () => {
     const completeStatusBody = (await completeStatus.json()) as {
       continueTo?: string;
       status?: string;
-      target?: { returnTo?: string; targetOrigin?: string };
+      target?: {
+        returnTo?: string;
+        targetOrigin?: string;
+      };
     };
     const accountContinue = await harness.mf.dispatchFetch(startLocation, {
       headers: {
@@ -2008,8 +2065,7 @@ describe("installed Site custom-domain Worker routing", () => {
     expect(replay.status).toBe(400);
     expect(continued.status).toBe(200);
     expect(assetRequests).toEqual(["/index.html"]);
-  }, 10_000);
-
+  }, 10000);
   it("executes authenticated operations for app admins from matched host-local sessions", async () => {
     await resetWorkerState(harness, ["controlPlane", "taskStorage", "auth"]);
     await setupPrimaryProductionIdentity();
@@ -2032,29 +2088,37 @@ describe("installed Site custom-domain Worker routing", () => {
         headers: { Cookie: cookie },
       },
     );
-    const bootstrapBody = (await bootstrap.json()) as { schema: AppSchema };
-    const taskEntity = bootstrapBody.schema.entities.task;
-    const createOperation = taskEntity?.operations?.create;
-
+    const bootstrapBody = (await bootstrap.json()) as {
+      schema: AppSchema;
+    };
+    const taskEntity = bootstrapBody.schema.entities.find(
+      (definition) => definition.key === "task",
+    )!;
+    const createOperation = taskEntity?.operations!.find(
+      (definition) => definition.key === "create",
+    )!;
     if (!taskEntity || !createOperation) {
       throw new Error("Expected task create operation.");
     }
-
     const schema: AppSchema = {
       ...bootstrapBody.schema,
-      entities: {
-        ...bootstrapBody.schema.entities,
-        task: {
-          ...taskEntity,
-          operations: {
-            ...taskEntity.operations,
-            create: {
-              ...createOperation,
-              policy: { actors: ["authenticated"] },
-            },
-          },
-        },
-      },
+      entities: bootstrapBody.schema.entities.map((entity) =>
+        entity.key === "task"
+          ? {
+              ...taskEntity,
+              operations: (taskEntity.operations ?? []).map((operation) =>
+                operation.key === "create"
+                  ? {
+                      ...createOperation,
+                      policy: { actors: ["authenticated"] },
+                      key: "create",
+                    }
+                  : operation,
+              ),
+              key: "task",
+            }
+          : entity,
+      ),
     };
     const schemaWrite = await harness.fetch(`/api/app-installs/tasks/${taskInstallId}/schema`, {
       body: JSON.stringify({ schema }),
@@ -2131,12 +2195,15 @@ describe("installed Site custom-domain Worker routing", () => {
     });
     const blockedShellLocation = new URL(requiredHeader(blockedShell, "Location"));
     const blockedBody = (await blocked.json()) as {
-      gate?: { kind?: string; policies?: Array<{ accountPolicyId?: string }> };
+      gate?: {
+        kind?: string;
+        policies?: Array<{
+          accountPolicyId?: string;
+        }>;
+      };
       status?: string;
     };
-
     await acceptPolicy(principalId, policy.id);
-
     const continued = await fetchHost(
       mappedAppHost,
       `/api/app-installs/tasks/${taskInstallId}/bootstrap`,
@@ -2285,17 +2352,22 @@ describe("installed Site custom-domain Worker routing", () => {
     });
     const sessionStatusBody = (await sessionStatus.json()) as {
       authenticated?: boolean;
-      principal?: { principalId?: string };
-      session?: { expiresAt?: string };
+      principal?: {
+        principalId?: string;
+      };
+      session?: {
+        expiresAt?: string;
+      };
       setupComplete?: boolean;
     };
     const logout = await fetchHost(mappedInstanceHost, "/api/formless/session/logout", {
       headers: { Cookie: hostSessionCookie },
       method: "POST",
     });
-    const logoutBody = (await logout.json()) as { authenticated?: boolean };
+    const logoutBody = (await logout.json()) as {
+      authenticated?: boolean;
+    };
     const logoutSetCookie = requiredHeader(logout, "Set-Cookie");
-
     expect(setCookie).toContain(`${HOST_AUTH_SESSION_COOKIE_NAME}=`);
     expect(setCookie).toContain(`${HOST_AUTH_NONCE_COOKIE_NAME}=;`);
     expect(setCookie).not.toContain(`${OWNER_SESSION_COOKIE_NAME}=`);
@@ -2388,7 +2460,9 @@ describe("installed Site custom-domain Worker routing", () => {
         redirect: "manual",
       },
     );
-    const unsafeAccountReturnBody = (await unsafeAccountReturn.json()) as { error?: string };
+    const unsafeAccountReturnBody = (await unsafeAccountReturn.json()) as {
+      error?: string;
+    };
     const setupCapability = await fetchHost(mappedInstanceHost, "/api/formless/setup/capability", {
       body: JSON.stringify({ setupToken }),
       headers: adminHeaders({ "Content-Type": "application/json" }),
@@ -2453,7 +2527,9 @@ describe("installed Site custom-domain Worker routing", () => {
     const bootstrap = await fetchHost(mappedInstanceHost, `${controlPlaneApi}/bootstrap`, {
       headers: { Cookie: cookie },
     });
-    const bootstrapBody = (await bootstrap.json()) as { records?: unknown[] };
+    const bootstrapBody = (await bootstrap.json()) as {
+      records?: unknown[];
+    };
     const routeWrite = await fetchHost(
       mappedInstanceHost,
       `${controlPlaneApi}/operations/route/create`,
@@ -2497,7 +2573,9 @@ describe("installed Site custom-domain Worker routing", () => {
       headers: { Cookie: cookie },
     });
     const appInstallsBody = (await appInstalls.json()) as {
-      installs?: Array<{ installId?: string }>;
+      installs?: Array<{
+        installId?: string;
+      }>;
     };
     const installedAppBootstrap = await fetchHost(
       mappedInstanceHost,
@@ -2591,10 +2669,11 @@ describe("installed Site custom-domain Worker routing", () => {
         method: "POST",
       },
     );
-    const adminReadBody = (await adminRead.json()) as { records?: unknown[] };
+    const adminReadBody = (await adminRead.json()) as {
+      records?: unknown[];
+    };
     const adminWriteBody = (await adminWrite.json()) as OperationInvocationResponse;
     const ownerWriteBody = (await ownerWrite.json()) as OperationInvocationResponse;
-
     expect(adminRead.status).toBe(200);
     expect(Array.isArray(adminReadBody.records)).toBe(true);
     expect(adminWrite.status).toBe(200);
@@ -2673,8 +2752,9 @@ describe("installed Site custom-domain Worker routing", () => {
       headers: { Accept: "text/html" },
       redirect: "manual",
     });
-    const body = (await callback.json()) as { error: string };
-
+    const body = (await callback.json()) as {
+      error: string;
+    };
     expect(callback.status).toBe(400);
     expect(body.error).toBe("Handoff callback is invalid.");
     expect(assetRequests).toEqual([]);
@@ -2693,12 +2773,17 @@ describe("installed Site custom-domain Worker routing", () => {
         });
         const robots = await fetchMappedHost("/robots.txt");
         const favicon = await fetchMappedHost("/favicon.svg");
-        const documentBody = (await document.json()) as { error: string };
-        const robotsBody = (await robots.json()) as { error: string };
-        const faviconBody = (await favicon.json()) as { error: string };
+        const documentBody = (await document.json()) as {
+          error: string;
+        };
+        const robotsBody = (await robots.json()) as {
+          error: string;
+        };
+        const faviconBody = (await favicon.json()) as {
+          error: string;
+        };
         const expectedError =
           'Package app "private-site" declares public Site runtime support, but no public Site Worker adapter is registered.';
-
         expect(document.status).toBe(400);
         expect(robots.status).toBe(400);
         expect(favicon.status).toBe(400);
@@ -2806,9 +2891,11 @@ async function expectAuthConfigRp(targetHarness: Harness, host: string, expected
     "/harness/auth/config",
   );
   const body = (await configResponse.json()) as {
-    config: { relyingPartyId: string; relyingPartyName: string } | null;
+    config: {
+      relyingPartyId: string;
+      relyingPartyName: string;
+    } | null;
   };
-
   expect(status.status).toBe(200);
   expect(configResponse.status).toBe(200);
   expect(body.config).toMatchObject({
@@ -2823,8 +2910,9 @@ async function expectAuthConfigMissing(targetHarness: Harness) {
     FORMLESS_INSTANCE_AUTHORITY_NAME,
     "/harness/auth/config",
   );
-  const body = (await response.json()) as { config: unknown };
-
+  const body = (await response.json()) as {
+    config: unknown;
+  };
   expect(response.status).toBe(200);
   expect(body.config).toBeUndefined();
 }
@@ -2963,7 +3051,9 @@ async function inviteAndAcceptCollaborator(input: {
   );
   const invitationBody = (await invitationResponse.json()) as {
     delivery?: {
-      delivery?: { id?: string };
+      delivery?: {
+        id?: string;
+      };
       status?: string;
     };
   };
@@ -3033,10 +3123,13 @@ async function allowTaskAdminCreates() {
   const schemaResponse = await harness.fetch(`${dataApi}/schema`, {
     headers: adminHeaders(),
   });
-  const schemaBody = (await schemaResponse.json()) as { schema?: AppSchema };
+  const schemaBody = (await schemaResponse.json()) as {
+    schema?: AppSchema;
+  };
   const schema = schemaBody.schema;
-  const createOperation = schema?.entities.task?.operations?.create;
-
+  const createOperation = schema?.entities
+    .find((definition) => definition.key === "task")
+    ?.operations!.find((definition) => definition.key === "create")!;
   if (!schema || !createOperation) {
     throw new Error("Expected installed Tasks create operation.");
   }
@@ -3070,10 +3163,10 @@ async function instanceSettingsRecordId(): Promise<string> {
   const response = await harness.fetch(`${controlPlaneApi}/bootstrap`, {
     headers: adminHeaders(),
   });
-
   expect(response.status).toBe(200);
-
-  const body = (await response.json()) as { records?: StoredRecord[] };
+  const body = (await response.json()) as {
+    records?: StoredRecord[];
+  };
   const settings = body.records?.find(
     (record) =>
       record.entity === "instance-settings" &&
@@ -3433,15 +3526,13 @@ async function readRenderedEmailMessage(deliveryId: string) {
     FORMLESS_INSTANCE_AUTHORITY_NAME,
     `/harness/internal-message/${encodeURIComponent(deliveryId)}`,
   );
-
   expect(response.status).toBe(200);
-
-  return (await response.json()) as { message?: EmailDeliveryRenderedMessage };
+  return (await response.json()) as {
+    message?: EmailDeliveryRenderedMessage;
+  };
 }
-
 function verificationTokenFromMessage(message: EmailDeliveryRenderedMessage | undefined): string {
   const match = message?.text.match(/[?&]token=([A-Za-z0-9_-]+)/);
-
   if (!match?.[1]) {
     throw new Error("Verification token was not rendered.");
   }
@@ -3865,7 +3956,10 @@ type SignupPasskeyVerifyResponse = {
     target: AccountCompletionGateTarget;
   };
   continueTo?: `/${string}`;
-  handoff?: { returnTo: `/${string}`; targetOrigin: string };
+  handoff?: {
+    returnTo: `/${string}`;
+    targetOrigin: string;
+  };
   principal: {
     displayName: string;
     principalId: string;
@@ -3886,10 +3980,12 @@ class VirtualPasskey {
     this.credentialId = credentialIdValue;
     this.publicKey = pair.publicKey;
   }
-
   registrationResponse(
     options: PublicKeyCredentialCreationOptionsJSON,
-    input: { origin: string; rpId: string },
+    input: {
+      origin: string;
+      rpId: string;
+    },
   ): RegistrationResponseJSON {
     const clientDataJSON = clientDataJson("webauthn.create", options.challenge, input.origin);
     const authData = registrationAuthenticatorData({
@@ -4141,12 +4237,14 @@ async function signString(value: string, secret: string) {
     ["sign"],
   );
   const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value));
-
   return base64UrlEncode(new Uint8Array(signature));
 }
-
 function requiredHeader(
-  response: { headers: { get(name: string): string | null } },
+  response: {
+    headers: {
+      get(name: string): string | null;
+    };
+  },
   name: string,
 ): string {
   const value = response.headers.get(name);

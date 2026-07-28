@@ -408,7 +408,7 @@ export function createWorkspacePushOperationControlFixture({
     settled,
     timeline: [
       {
-        delayMs: 1_000,
+        delayMs: 1000,
         snapshot: workspacePushPendingSnapshot({
           base,
           id,
@@ -417,7 +417,7 @@ export function createWorkspacePushOperationControlFixture({
         }),
       },
       {
-        delayMs: 1_000,
+        delayMs: 1000,
         snapshot: workspacePushPendingSnapshot({
           base,
           id,
@@ -425,7 +425,7 @@ export function createWorkspacePushOperationControlFixture({
           runningStep: 2,
         }),
       },
-      { delayMs: 1_000, snapshot: settled },
+      { delayMs: 1000, snapshot: settled },
     ],
   });
 }
@@ -526,7 +526,12 @@ function operationControl({
   countBadge?: OperationButtonContract["countBadge"];
   density?: OperationButtonContract["density"];
   disabledReason?: string;
-  icon?: Extract<ButtonContent, { icon: unknown }>["icon"];
+  icon?: Extract<
+    ButtonContent,
+    {
+      icon: unknown;
+    }
+  >["icon"];
   id: string;
   label: string;
   prominence: OperationButtonContract["prominence"];

@@ -114,7 +114,10 @@ export function FormlessFixtureSelector<OptionId extends string>({
 }: {
   label: string;
   onSelectionChange: (optionId: OptionId) => void;
-  options: readonly { id: OptionId; label: string }[];
+  options: readonly {
+    id: OptionId;
+    label: string;
+  }[];
   selectedId: OptionId;
 }) {
   return (

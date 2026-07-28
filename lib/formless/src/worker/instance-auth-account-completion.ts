@@ -770,8 +770,9 @@ async function readTargetAppInstallSchema(
       },
     ),
   );
-  const body = (await response.json()) as Partial<SchemaResponse> & { error?: string };
-
+  const body = (await response.json()) as Partial<SchemaResponse> & {
+    error?: string;
+  };
   if (!response.ok || !isSchemaResponseBody(body)) {
     throw new Error(body.error ?? `App install "${installId}" schema lookup failed.`);
   }
@@ -791,9 +792,12 @@ function customOperationAppRegistrationCompletionOperation(input: {
     `App install "${input.appInstallId}" registration operation`,
     input.registrationOperation,
   );
-  const entity = input.schema.entities[operationKey.entityKey];
-  const operation = entity?.operations?.[operationKey.operationKey];
-
+  const entity = input.schema.entities.find(
+    (definition) => definition.key === operationKey.entityKey,
+  )!;
+  const operation = entity?.operations?.find(
+    (definition) => definition.key === operationKey.operationKey,
+  );
   if (entity === undefined || operation === undefined) {
     throw new Error(`App install "${input.appInstallId}" registration operation does not resolve.`);
   }
@@ -911,8 +915,10 @@ async function readTargetAppInstallRegistrationGate(
       },
     ),
   );
-  const body = (await response.json()) as { error?: string; records?: StoredRecord[] };
-
+  const body = (await response.json()) as {
+    error?: string;
+    records?: StoredRecord[];
+  };
   if (!response.ok || !Array.isArray(body.records)) {
     throw new Error(body.error ?? "Control-plane app install policy lookup failed.");
   }
@@ -1090,7 +1096,10 @@ async function validatedCurrentProfileCompletionTarget(
   env: AccountCompletionApiEnv,
 ): Promise<{
   packageAppKey: string;
-  target: AccountCompletionGateTarget & { appInstallId: string; storageIdentity: string };
+  target: AccountCompletionGateTarget & {
+    appInstallId: string;
+    storageIdentity: string;
+  };
 }> {
   const target = await validatedCurrentAppRegistrationCompletionTarget(value, request, env);
   const records = await readControlPlaneRecords({ env, requestUrl: request.url });
@@ -1115,10 +1124,14 @@ async function validatedCurrentAppRegistrationCompletionTarget(
   value: AccountCompletionGateTarget,
   request: Request,
   env: AccountCompletionApiEnv,
-): Promise<AccountCompletionGateTarget & { appInstallId: string; storageIdentity: string }> {
+): Promise<
+  AccountCompletionGateTarget & {
+    appInstallId: string;
+    storageIdentity: string;
+  }
+> {
   const records = await readControlPlaneRecords({ env, requestUrl: request.url });
   const target = parseAccountCompletionGateTarget(value);
-
   if (target.targetProfile !== "app") {
     throw new Error("App-registration completion target must be an app route.");
   }
@@ -1198,10 +1211,11 @@ async function validatedCurrentAppRegistrationCompletionTarget(
     storageIdentity,
   };
 }
-
 function assertAppRegistrationCompletionRouteMatchesTarget(
   route: StoredRecord,
-  target: AccountCompletionGateTarget & { appInstallId: string },
+  target: AccountCompletionGateTarget & {
+    appInstallId: string;
+  },
   request: Request,
 ) {
   const returnTo = parseAccountRedirectTarget(target.returnTo);
@@ -1330,7 +1344,10 @@ async function executeProfileCompletionOperation(
     principalId: string;
     recordId?: string;
     sessionInstanceId: string;
-    target: AccountCompletionGateTarget & { appInstallId: string; storageIdentity: string };
+    target: AccountCompletionGateTarget & {
+      appInstallId: string;
+      storageIdentity: string;
+    };
   },
 ): Promise<void> {
   const entityName = parseNonEmptyString(
@@ -1374,8 +1391,9 @@ async function executeProfileCompletionOperation(
       },
     ),
   );
-  const body = (await response.json()) as { error?: string };
-
+  const body = (await response.json()) as {
+    error?: string;
+  };
   if (!response.ok) {
     throw new Error(body.error ?? "Profile-completion operation failed.");
   }

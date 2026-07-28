@@ -270,14 +270,19 @@ type CollaboratorInvitationTokenRevocationInput = {
   invitationId: string;
   now: string;
 };
-
 type CollaboratorInvitationTokenRevocationResult =
-  | { ok: true }
+  | {
+      ok: true;
+    }
   | {
       ok: false;
-      reason: Extract<RevokeCollaboratorInvitationTokenResult, { ok: false }>["reason"];
+      reason: Extract<
+        RevokeCollaboratorInvitationTokenResult,
+        {
+          ok: false;
+        }
+      >["reason"];
     };
-
 type CollaboratorInvitationTargetFacts = {
   targetAppInstallId?: string;
   targetOrganization?: string;
@@ -905,8 +910,10 @@ export async function readIdentityOwner(env: IdentityOwnerEnv): Promise<OwnerIde
   const response = await fetchIdentityOwnerInternal(env, INTERNAL_IDENTITY_OWNER_PATH, {
     method: "GET",
   });
-  const body = (await response.json()) as { owner?: OwnerIdentity | null; error?: string };
-
+  const body = (await response.json()) as {
+    owner?: OwnerIdentity | null;
+    error?: string;
+  };
   if (!response.ok) {
     throw new Error(body.error ?? "Identity owner lookup failed.");
   }
@@ -923,8 +930,10 @@ export async function ensureIdentityOwner(
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
-  const body = (await response.json()) as { owner?: OwnerIdentity; error?: string };
-
+  const body = (await response.json()) as {
+    owner?: OwnerIdentity;
+    error?: string;
+  };
   if (!response.ok || !body.owner) {
     throw new Error(body.error ?? "Identity owner creation failed.");
   }
@@ -936,8 +945,9 @@ export async function resetIdentityOwner(env: IdentityOwnerEnv): Promise<void> {
   const response = await fetchIdentityOwnerInternal(env, INTERNAL_IDENTITY_OWNER_RESET_PATH, {
     method: "POST",
   });
-  const body = (await response.json()) as { error?: string };
-
+  const body = (await response.json()) as {
+    error?: string;
+  };
   if (!response.ok) {
     throw new Error(body.error ?? "Identity owner reset failed.");
   }
@@ -983,9 +993,9 @@ export async function resolveIdentityAppReferenceTarget(
   if (!response.ok) {
     return { kind: "unavailable" };
   }
-
-  const body = (await response.json()) as { resolution?: unknown };
-
+  const body = (await response.json()) as {
+    resolution?: unknown;
+  };
   return isIdentityReferenceTargetResolution(body.resolution)
     ? body.resolution
     : { kind: "unavailable" };
@@ -1006,8 +1016,9 @@ export async function acceptIdentityCollaboratorInvitation(
   );
   const body = (await response.json()) as
     | IdentityCollaboratorInvitationAcceptanceCommitResult
-    | { error?: string };
-
+    | {
+        error?: string;
+      };
   if (!response.ok || !isIdentityCollaboratorInvitationAcceptanceCommitResult(body)) {
     throw new Error(
       responseBodyError(body) ?? "Identity collaborator invitation acceptance failed.",
@@ -1032,8 +1043,9 @@ export async function commitIdentityEmailVerification(
   );
   const body = (await response.json()) as
     | IdentityEmailVerificationCommitResult
-    | { error?: string };
-
+    | {
+        error?: string;
+      };
   if (!response.ok || !isIdentityEmailVerificationCommitResult(body)) {
     throw new Error(responseBodyError(body) ?? "Identity email verification commit failed.");
   }
@@ -1056,8 +1068,9 @@ export async function commitIdentityEmailVerifiedSignup(
   );
   const body = (await response.json()) as
     | IdentityEmailVerifiedSignupCommitResult
-    | { error?: string };
-
+    | {
+        error?: string;
+      };
   if (!response.ok || !isIdentityEmailVerifiedSignupCommitResult(body)) {
     throw new Error(responseBodyError(body) ?? "Identity email-verified signup commit failed.");
   }
@@ -1080,8 +1093,9 @@ export async function commitIdentityOwnerSetupActivation(
   );
   const body = (await response.json()) as
     | IdentityOwnerSetupActivationCommitResult
-    | { error?: string };
-
+    | {
+        error?: string;
+      };
   if (!response.ok || !isIdentityOwnerSetupActivationCommitResult(body)) {
     throw new Error(responseBodyError(body) ?? "Identity owner setup activation failed.");
   }
@@ -1104,8 +1118,9 @@ export async function commitIdentityEmailVerifiedAppRegistration(
   );
   const body = (await response.json()) as
     | IdentityEmailVerifiedAppRegistrationCommitResult
-    | { error?: string };
-
+    | {
+        error?: string;
+      };
   if (!response.ok || !isIdentityEmailVerifiedAppRegistrationCommitResult(body)) {
     throw new Error(
       responseBodyError(body) ?? "Identity email-verified app-registration commit failed.",
@@ -1405,9 +1420,11 @@ function identityAppReferenceTargetEntity(
 function ensureIdentityOwnerRecords(
   storage: DurableObjectStorage,
   input: EnsureIdentityOwnerInput,
-): { created: boolean; owner: OwnerIdentity } {
+): {
+  created: boolean;
+  owner: OwnerIdentity;
+} {
   const existingOwner = readActiveIdentityOwner(storage);
-
   if (existingOwner) {
     return { created: false, owner: existingOwner };
   }
@@ -1457,7 +1474,9 @@ function ensureIdentityOwnerRecords(
 function identityAccessGrantAuthorityFromAuthorization(
   storage: DurableObjectStorage,
   authorization: {
-    session?: { principalId?: string };
+    session?: {
+      principalId?: string;
+    };
     via: "admin-bearer" | "central-session" | "host-session" | "owner-session" | "open";
   },
 ): IdentityAccessInvitationGrantAuthoritySummary {
@@ -1853,9 +1872,10 @@ function identityAccessRoleLevelLabel(roleKey: IdentityControlPlaneRoleKey): str
 function identityAccessFieldLabel(value: string): string {
   return value.replaceAll(/[-_]/g, " ").replace(/^\w/, (match) => match.toUpperCase());
 }
-
 function identityAccessMutationActorFromAuthorization(authorization: {
-  session?: { principalId?: string };
+  session?: {
+    principalId?: string;
+  };
   via: "admin-bearer" | "central-session" | "host-session" | "owner-session" | "open";
 }): IdentityAccessMutationActor {
   return {
@@ -2033,7 +2053,10 @@ async function removeIdentityAccessPerson(
   storage: DurableObjectStorage,
   value: unknown,
   actor: IdentityAccessMutationActor,
-  options: { env: IdentityControlPlaneApiEnv; requestUrl: string },
+  options: {
+    env: IdentityControlPlaneApiEnv;
+    requestUrl: string;
+  },
 ): Promise<IdentityAccessPersonRemovalResponse> {
   const input = parseIdentityAccessPersonRemovalRequest(value);
   const records = getBootstrapRecords(storage);
@@ -2200,7 +2223,9 @@ function resolveActiveIdentityAuthorityForPrincipal(
 function currentIdentityAccessMutationPrincipal(
   records: readonly StoredRecord[],
   principalId: string,
-  options: { activeOnly: boolean },
+  options: {
+    activeOnly: boolean;
+  },
 ): StoredRecord {
   const principal = records.find(
     (record) => record.id === principalId && record.entity === "principal",
@@ -2633,7 +2658,10 @@ function identityAccessPersonMutationError(
 function createCollaboratorInvitation(
   storage: DurableObjectStorage,
   value: unknown,
-  options: { grantAuthorityPrincipalId?: string; inviterPrincipalId?: string },
+  options: {
+    grantAuthorityPrincipalId?: string;
+    inviterPrincipalId?: string;
+  },
   installedAppSurfaces: readonly IdentityAccessInstalledAppSurface[],
 ): CreateCollaboratorInvitationWriteResponse {
   const input = resolveCreateCollaboratorInvitationInput(
@@ -2894,7 +2922,10 @@ function collaboratorInvitationTargetKey(target: CollaboratorInvitationTargetFac
 async function revokeCollaboratorInvitationFromAccessManagement(
   storage: DurableObjectStorage,
   value: unknown,
-  options: { env: IdentityControlPlaneApiEnv; requestUrl: string },
+  options: {
+    env: IdentityControlPlaneApiEnv;
+    requestUrl: string;
+  },
 ): Promise<RevokeCollaboratorInvitationResult> {
   const input = parseCollaboratorInvitationRevokeRequest(value);
   const revokedAt = input.now ?? nowIsoString();
@@ -2956,13 +2987,20 @@ async function revokeCollaboratorInvitationFromAccessManagement(
     ok: true,
   };
 }
-
 function collaboratorInvitationRevocationCandidate(
   records: readonly StoredRecord[],
-  input: IdentityCollaboratorInvitationRevokeRequest & { now: string },
+  input: IdentityCollaboratorInvitationRevokeRequest & {
+    now: string;
+  },
 ):
-  | { invitation: StoredRecord; ok: true }
-  | { ok: false; reason: IdentityCollaboratorInvitationRevokeFailureReason } {
+  | {
+      invitation: StoredRecord;
+      ok: true;
+    }
+  | {
+      ok: false;
+      reason: IdentityCollaboratorInvitationRevokeFailureReason;
+    } {
   const invitation = records.find(
     (record) => record.id === input.invitationId && record.entity === "invitation",
   );
@@ -2996,13 +3034,16 @@ function collaboratorInvitationRevocationCandidate(
   ) {
     return { ok: false, reason: "expired-invitation" };
   }
-
   return { invitation, ok: true };
 }
-
 function identityCollaboratorInvitationRevokeFailure(
   reason: IdentityCollaboratorInvitationRevokeFailureReason,
-): Extract<RevokeCollaboratorInvitationResult, { ok: false }> {
+): Extract<
+  RevokeCollaboratorInvitationResult,
+  {
+    ok: false;
+  }
+> {
   return {
     body: {
       error:
@@ -3184,8 +3225,16 @@ function collaboratorInvitationAcceptanceRecordWritePlans(
   records: readonly StoredRecord[],
   input: IdentityCollaboratorInvitationAcceptanceCommitInput,
 ):
-  | { ok: true; plans: OperationRecordWritePlan[] }
-  | Extract<IdentityCollaboratorInvitationAcceptanceCommitResult, { ok: false }> {
+  | {
+      ok: true;
+      plans: OperationRecordWritePlan[];
+    }
+  | Extract<
+      IdentityCollaboratorInvitationAcceptanceCommitResult,
+      {
+        ok: false;
+      }
+    > {
   const invitation = records.find(
     (record) =>
       record.id === input.invitationId && record.entity === "invitation" && !record.deletedAt,
@@ -3451,8 +3500,16 @@ function emailVerificationPrincipalEmailWritePlans(
   records: readonly StoredRecord[],
   input: IdentityEmailVerificationCommitInput,
 ):
-  | { ok: true; plans: OperationRecordWritePlan[] }
-  | Extract<IdentityEmailVerificationCommitResult, { ok: false }> {
+  | {
+      ok: true;
+      plans: OperationRecordWritePlan[];
+    }
+  | Extract<
+      IdentityEmailVerificationCommitResult,
+      {
+        ok: false;
+      }
+    > {
   const principal = records.find(
     (record) => record.entity === "principal" && record.id === input.principalId,
   );
@@ -3575,10 +3632,14 @@ function parseIdentityEmailVerificationCommitRequest(
     verifiedAt: parseIsoTimestamp("Identity email verification verifiedAt", object.verifiedAt),
   };
 }
-
 function identityEmailVerificationCommitFailure(
   reason: IdentityEmailVerificationCommitFailureReason,
-): Extract<IdentityEmailVerificationCommitResult, { ok: false }> {
+): Extract<
+  IdentityEmailVerificationCommitResult,
+  {
+    ok: false;
+  }
+> {
   return {
     error:
       reason === "missing-principal"
@@ -3708,8 +3769,16 @@ function emailVerifiedSignupWritePlans(
   records: readonly StoredRecord[],
   input: IdentityEmailVerifiedSignupCommitInput,
 ):
-  | { ok: true; plans: OperationRecordWritePlan[] }
-  | Extract<IdentityEmailVerifiedSignupCommitResult, { ok: false }> {
+  | {
+      ok: true;
+      plans: OperationRecordWritePlan[];
+    }
+  | Extract<
+      IdentityEmailVerifiedSignupCommitResult,
+      {
+        ok: false;
+      }
+    > {
   const principal = records.find(
     (record) => record.entity === "principal" && record.id === input.principalId,
   );
@@ -3927,10 +3996,14 @@ function parseIdentityEmailVerifiedSignupCommitRequest(
     verifiedAt: parseIsoTimestamp("Identity email-verified signup verifiedAt", object.verifiedAt),
   };
 }
-
 function identityEmailVerifiedSignupCommitFailure(
   reason: IdentityEmailVerifiedSignupCommitFailureReason,
-): Extract<IdentityEmailVerifiedSignupCommitResult, { ok: false }> {
+): Extract<
+  IdentityEmailVerifiedSignupCommitResult,
+  {
+    ok: false;
+  }
+> {
   return {
     error:
       reason === "inactive-principal"
@@ -4036,8 +4109,16 @@ function ownerSetupActivationWritePlans(
   records: readonly StoredRecord[],
   input: IdentityOwnerSetupActivationCommitInput,
 ):
-  | { ok: true; plans: OperationRecordWritePlan[] }
-  | Extract<IdentityOwnerSetupActivationCommitResult, { ok: false }> {
+  | {
+      ok: true;
+      plans: OperationRecordWritePlan[];
+    }
+  | Extract<
+      IdentityOwnerSetupActivationCommitResult,
+      {
+        ok: false;
+      }
+    > {
   const ownerRole = activeRoleRecord(records, "instance.owner");
   const activeOwnerAssignment = records.find(
     (record) =>
@@ -4240,10 +4321,14 @@ function parseIdentityOwnerSetupActivationCommitRequest(
     ),
   };
 }
-
 function identityOwnerSetupActivationCommitFailure(
   reason: IdentityOwnerSetupActivationCommitFailureReason,
-): Extract<IdentityOwnerSetupActivationCommitResult, { ok: false }> {
+): Extract<
+  IdentityOwnerSetupActivationCommitResult,
+  {
+    ok: false;
+  }
+> {
   return {
     error: "Owner setup activation could not be committed.",
     ok: false,
@@ -4317,8 +4402,16 @@ function emailVerifiedAppRegistrationWritePlans(
   records: readonly StoredRecord[],
   input: IdentityEmailVerifiedAppRegistrationCommitInput,
 ):
-  | { ok: true; plans: OperationRecordWritePlan[] }
-  | Extract<IdentityEmailVerifiedAppRegistrationCommitResult, { ok: false }> {
+  | {
+      ok: true;
+      plans: OperationRecordWritePlan[];
+    }
+  | Extract<
+      IdentityEmailVerifiedAppRegistrationCommitResult,
+      {
+        ok: false;
+      }
+    > {
   const principal = records.find(
     (record) => record.entity === "principal" && record.id === input.principalId,
   );
@@ -4441,10 +4534,14 @@ function parseIdentityEmailVerifiedAppRegistrationCommitRequest(
         }),
   };
 }
-
 function identityEmailVerifiedAppRegistrationCommitFailure(
   reason: IdentityEmailVerifiedAppRegistrationCommitFailureReason,
-): Extract<IdentityEmailVerifiedAppRegistrationCommitResult, { ok: false }> {
+): Extract<
+  IdentityEmailVerifiedAppRegistrationCommitResult,
+  {
+    ok: false;
+  }
+> {
   return {
     error:
       reason === "inactive-principal"
@@ -4524,8 +4621,16 @@ function termsAcceptanceWritePlans(
   records: readonly StoredRecord[],
   input: IdentityTermsAcceptanceCommitInput,
 ):
-  | { ok: true; plans: OperationRecordWritePlan[] }
-  | Extract<IdentityTermsAcceptanceCommitResult, { ok: false }> {
+  | {
+      ok: true;
+      plans: OperationRecordWritePlan[];
+    }
+  | Extract<
+      IdentityTermsAcceptanceCommitResult,
+      {
+        ok: false;
+      }
+    > {
   const principal = records.find(
     (record) => record.entity === "principal" && record.id === input.principalId,
   );
@@ -4626,10 +4731,14 @@ function termsAcceptanceSummary(record: StoredRecord): IdentityTermsAcceptanceSu
     status: "accepted",
   };
 }
-
 function identityTermsAcceptanceCommitFailure(
   reason: IdentityTermsAcceptanceCommitFailureReason,
-): Extract<IdentityTermsAcceptanceCommitResult, { ok: false }> {
+): Extract<
+  IdentityTermsAcceptanceCommitResult,
+  {
+    ok: false;
+  }
+> {
   return {
     error:
       reason === "inactive-principal"
@@ -4674,10 +4783,14 @@ function parseIdentityCollaboratorInvitationAcceptanceCommitRequest(
     ),
   };
 }
-
 function identityCollaboratorInvitationAcceptanceFailure(
   reason: IdentityCollaboratorInvitationAcceptanceCommitFailureReason,
-): Extract<IdentityCollaboratorInvitationAcceptanceCommitResult, { ok: false }> {
+): Extract<
+  IdentityCollaboratorInvitationAcceptanceCommitResult,
+  {
+    ok: false;
+  }
+> {
   return {
     error:
       reason === "accepted-invitation"
@@ -4866,8 +4979,11 @@ async function requestCollaboratorInvitationDelivery(input: {
       method: "POST",
     }),
   );
-  const body = (await response.json()) as CollaboratorInvitationDeliveryResult | { error?: string };
-
+  const body = (await response.json()) as
+    | CollaboratorInvitationDeliveryResult
+    | {
+        error?: string;
+      };
   if (!response.ok || !isCollaboratorInvitationDeliveryResult(body)) {
     return {
       reason: "email-delivery-scheduling-failed",
@@ -5028,8 +5144,14 @@ async function createFreshCollaboratorInvitationToken(
   storage: DurableObjectStorage,
   input: CollaboratorInvitationDeliveryInput,
 ): Promise<
-  | { ok: true; rawToken: string }
-  | { ok: false; reason: "duplicate-invitation-id" | "email-delivery-scheduling-failed" }
+  | {
+      ok: true;
+      rawToken: string;
+    }
+  | {
+      ok: false;
+      reason: "duplicate-invitation-id" | "email-delivery-scheduling-failed";
+    }
 > {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const rawToken = generateCollaboratorInvitationToken();
@@ -5256,10 +5378,11 @@ function htmlAttributeEscape(value: string): string {
 function htmlTextEscape(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
-
 function collaboratorInvitationRecordWritePlans(
   input: CreateCollaboratorInvitationInput,
-  options: { inviterPrincipalId?: string },
+  options: {
+    inviterPrincipalId?: string;
+  },
 ): OperationRecordWritePlan[] {
   const invitedPrincipalId =
     input.invitedPrincipal === undefined
@@ -6494,7 +6617,11 @@ function candidateIdentityRecord(
   records: readonly StoredRecord[],
   entity: string,
   values: RecordValues,
-  options: { ignoreRecordId?: string } | undefined,
+  options:
+    | {
+        ignoreRecordId?: string;
+      }
+    | undefined,
 ): StoredRecord {
   const existing = options?.ignoreRecordId
     ? records.find((record) => record.id === options.ignoreRecordId)

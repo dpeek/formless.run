@@ -9,9 +9,11 @@ import { ProtectedRouteGuard, startProtectedRouteGuardSession } from "../app.tsx
 vi.mock("./routes/application-system-state-runtime.tsx", () => ({
   ApplicationSystemStateRuntime: () => <output data-route-state="loading" />,
 }));
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
+(
+  globalThis as {
+    IS_REACT_ACT_ENVIRONMENT?: boolean;
+  }
+).IS_REACT_ACT_ENVIRONMENT = true;
 describe("protected route guard", () => {
   it("accepts management navigation only after the protected control-plane boundary accepts it", async () => {
     const accepted = await runGuard("management", {

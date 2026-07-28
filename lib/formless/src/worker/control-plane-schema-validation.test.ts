@@ -522,26 +522,40 @@ async function createControlPlaneAppInstall(packageAppKey: "site" | "tasks", lab
     },
   });
 }
-
 function instanceRouteRuntimeSchema(): AppSchema {
   const controlPlaneSchema: AppSchema = instanceControlPlaneSchema;
-
   const sourceSchema = {
     ...taskSourceSchema,
-    entities: {
+    entities: [
       ...taskSourceSchema.entities,
-      "app-install": controlPlaneSchema.entities["app-install"],
-      route: controlPlaneSchema.entities.route,
-      "deployment-config": controlPlaneSchema.entities["deployment-config"],
-    },
+      {
+        ...controlPlaneSchema.entities.find((definition) => definition.key === "app-install")!,
+        key: "app-install",
+      },
+      {
+        ...controlPlaneSchema.entities.find((definition) => definition.key === "route")!,
+        key: "route",
+      },
+      {
+        ...controlPlaneSchema.entities.find(
+          (definition) => definition.key === "deployment-config",
+        )!,
+        key: "deployment-config",
+      },
+    ],
     runtime: {
       owner: "runtime",
       controlPlane: {
         entities: {
-          "app-install": controlPlaneSchema.runtime!.controlPlane!.entities["app-install"]!,
-          route: controlPlaneSchema.runtime!.controlPlane!.entities.route!,
-          "deployment-config":
-            controlPlaneSchema.runtime!.controlPlane!.entities["deployment-config"]!,
+          "app-install": {
+            ...controlPlaneSchema.runtime!.controlPlane!.entities["app-install"]!,
+          },
+          route: {
+            ...controlPlaneSchema.runtime!.controlPlane!.entities.route!,
+          },
+          "deployment-config": {
+            ...controlPlaneSchema.runtime!.controlPlane!.entities["deployment-config"]!,
+          },
         },
       },
     },
@@ -576,17 +590,15 @@ function redirectRouteValues(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
-
 function writeOperations(
   label: string,
-  fields: AppSchema["entities"][string]["fields"],
-): NonNullable<AppSchema["entities"][string]["operations"]> {
+  fields: AppSchema["entities"][number]["fields"],
+): NonNullable<AppSchema["entities"][number]["operations"]> {
   const input = {
-    fields: Object.fromEntries(Object.keys(fields).map((field) => [field, { field }])),
+    fields: fields.map(({ key }) => ({ key, field: key })),
   };
-
-  return {
-    create: {
+  return [
+    {
       label: `Create ${label}`,
       kind: "create",
       scope: "collection",
@@ -595,8 +607,9 @@ function writeOperations(
       output: { type: "create" },
       idempotency: { required: true },
       audit: { input: "summary" },
+      key: "create",
     },
-    update: {
+    {
       label: `Update ${label}`,
       kind: "update",
       scope: "record",
@@ -605,8 +618,9 @@ function writeOperations(
       output: { type: "update" },
       idempotency: { required: true },
       audit: { input: "summary" },
+      key: "update",
     },
-    delete: {
+    {
       label: `Delete ${label}`,
       kind: "delete",
       scope: "record",
@@ -614,89 +628,97 @@ function writeOperations(
       output: { type: "delete" },
       idempotency: { required: true },
       audit: { input: "summary" },
+      key: "delete",
     },
-  };
+  ];
 }
-
 function controlPlaneRuntimeSchema(): AppSchema {
-  const task = taskSourceSchema.entities.task;
-  const appInstallFields = {
-    label: { type: "text", required: true, label: "Label" },
-  } satisfies AppSchema["entities"][string]["fields"];
-  const appRouteFields = {
-    appInstall: {
+  const task = taskSourceSchema.entities.find((definition) => definition.key === "task")!;
+  const appInstallFields = [
+    { type: "text", required: true, label: "Label", key: "label" },
+  ] satisfies AppSchema["entities"][number]["fields"];
+  const appRouteFields = [
+    {
       type: "reference",
       required: true,
       label: "App install",
       to: "app-install",
       displayField: "label",
+      key: "appInstall",
     },
-    routeKind: {
+    {
       type: "enum",
       required: true,
-      values: {
-        admin: { label: "Admin" },
-        publicSite: { label: "Public Site" },
-      },
+      values: [
+        { key: "admin", label: "Admin" },
+        { key: "publicSite", label: "Public Site" },
+      ],
+      key: "routeKind",
     },
-    path: { type: "text", required: true, label: "Path" },
-    prefix: { type: "text", required: false, label: "Prefix" },
-    packageCapability: {
+    { type: "text", required: true, label: "Path", key: "path" },
+    { type: "text", required: false, label: "Prefix", key: "prefix" },
+    {
       type: "enum",
       required: true,
-      values: {
-        generatedApp: { label: "Generated app" },
-        publicSite: { label: "Public Site" },
-      },
+      values: [
+        { key: "generatedApp", label: "Generated app" },
+        { key: "publicSite", label: "Public Site" },
+      ],
+      key: "packageCapability",
     },
-    enabled: { type: "boolean", required: true, default: true },
-  } satisfies AppSchema["entities"][string]["fields"];
-
+    { type: "boolean", required: true, default: true, key: "enabled" },
+  ] satisfies AppSchema["entities"][number]["fields"];
   const sourceSchema = {
     ...taskSourceSchema,
-    entities: {
-      ...taskSourceSchema.entities,
-      task: {
-        ...task,
-        operations: {
-          ...task.operations,
-          runnerClear: {
-            label: "Runner clear",
-            kind: "command",
-            scope: "collection",
-            target: { query: "taskCompleted" },
-            effect: {
-              type: "operationHandler",
-              handler: "clear-completed",
-              config: { query: "taskCompleted" },
-            },
-            output: { type: "command" },
-            idempotency: { required: true },
-            audit: { input: "summary" },
-            policy: {
-              actors: ["runner"],
-              responseFields: { runner: ["done"] },
-            },
-          },
-        },
-      },
-      "app-install": {
+    entities: [
+      ...taskSourceSchema.entities.map((entity) =>
+        entity.key === "task"
+          ? {
+              ...task,
+              operations: [
+                ...(task.operations ?? []),
+                {
+                  key: "runnerClear",
+                  label: "Runner clear",
+                  kind: "command" as const,
+                  scope: "collection" as const,
+                  target: { query: "taskCompleted" },
+                  effect: {
+                    type: "operationHandler" as const,
+                    handler: "clear-completed",
+                    config: { query: "taskCompleted" },
+                  },
+                  output: { type: "command" as const },
+                  idempotency: { required: true },
+                  audit: { input: "summary" as const },
+                  policy: {
+                    actors: ["runner" as const],
+                    responseFields: { runner: ["done"] },
+                  },
+                },
+              ],
+              key: "task",
+            }
+          : entity,
+      ),
+      {
+        key: "app-install",
         label: "App install",
         fields: appInstallFields,
         operations: writeOperations("App install", appInstallFields),
       },
-      "app-route": {
+      {
+        key: "app-route",
         label: "App route",
         fields: appRouteFields,
         operations: writeOperations("App route", appRouteFields),
       },
-      "deploy-attempt": {
+      {
+        key: "deploy-attempt",
         label: "Deploy attempt",
-        fields: {
-          label: { type: "text", required: true, label: "Label" },
-        },
+        fields: [{ key: "label", type: "text", required: true, label: "Label" }],
       },
-    },
+    ],
     runtime: {
       owner: "runtime",
       controlPlane: {

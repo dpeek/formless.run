@@ -1,3 +1,4 @@
+import { setKeyedDefinition } from "../test/schema-definition-test-helpers.ts";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -135,8 +136,13 @@ describe("workspace source sync operation domain", () => {
       },
     });
     expect(
-      (result.details?.syncPlan as { changedStatePathCount?: number } | undefined)
-        ?.changedStatePathCount,
+      (
+        result.details?.syncPlan as
+          | {
+              changedStatePathCount?: number;
+            }
+          | undefined
+      )?.changedStatePathCount,
     ).toBeGreaterThan(0);
     expect(JSON.stringify(result)).not.toContain("stored-archive-token");
     expect(JSON.stringify(pulledControlPlaneRecords)).not.toContain("observedStatus");
@@ -388,10 +394,16 @@ describe("workspace source sync operation domain", () => {
     );
     const restoreRequest = requestByPath(requests, "/api/formless/archive/restore");
     const restoreBody = capturedRequestJson<{
-      archive: { apps: Array<{ app: { installId: string } }>; restorePolicy: unknown };
+      archive: {
+        apps: Array<{
+          app: {
+            installId: string;
+          };
+        }>;
+        restorePolicy: unknown;
+      };
       exactInstanceReplacement: boolean;
     }>(restoreRequest);
-
     expect(result).toMatchObject({
       details: {
         dryRunRestore: {
@@ -437,12 +449,10 @@ describe("workspace source sync operation domain", () => {
     const changedRemoteSchema = JSON.parse(
       JSON.stringify(siteSourceSchema),
     ) as typeof siteSourceSchema;
-
-    changedRemoteSchema.entities.site = {
-      ...changedRemoteSchema.entities.site!,
+    setKeyedDefinition(changedRemoteSchema.entities, "site", {
+      ...changedRemoteSchema.entities.find((definition) => definition.key === "site")!,
       label: "Changed remote schema body",
-    };
-
+    });
     const fetcher = sourceSyncFetch(requests, {
       appData: { david: { records: [], schema: changedRemoteSchema } },
       installs: [installedSite("david", "David Peek")],
@@ -894,10 +904,14 @@ describe("deployment runtime domain", () => {
         new URL(request.url).pathname === "/api/formless/archive/restore",
     );
     const restoreBody = capturedRequestJson<{
-      archive: { controlPlane?: { records: StoredRecord[] }; restorePolicy: unknown };
+      archive: {
+        controlPlane?: {
+          records: StoredRecord[];
+        };
+        restorePolicy: unknown;
+      };
       exactInstanceReplacement: boolean;
     }>(restoreRequests[0]!);
-
     expect(deployInputs).toHaveLength(1);
     expect(result.forcedRecovery).toMatchObject({
       action: "replace-unreadable-target",
@@ -993,9 +1007,12 @@ describe("deployment runtime domain", () => {
     );
     const restoreRequest = requestByPath(requests, "/api/formless/archive/restore");
     const restoreBody = capturedRequestJson<{
-      archive: { controlPlane?: { records: StoredRecord[] } };
+      archive: {
+        controlPlane?: {
+          records: StoredRecord[];
+        };
+      };
     }>(restoreRequest);
-
     expect(deployInputs).toHaveLength(1);
     expect(deployInputs[0]?.deploymentResourceGraph?.resources).toEqual([]);
     expect(restoreBody.archive.controlPlane?.records.map((record) => record.id)).not.toContain(
@@ -1456,10 +1473,11 @@ function timestampSequence(...timestamps: string[]): () => string {
   return () =>
     timestamps[index++ % timestamps.length] ?? timestamps.at(-1) ?? new Date(0).toISOString();
 }
-
 async function writeWorkspaceManifest(
   workspaceRoot: string,
-  options: { runtime?: FormlessInstanceWorkspaceManifest["runtime"] } = {},
+  options: {
+    runtime?: FormlessInstanceWorkspaceManifest["runtime"];
+  } = {},
 ) {
   const manifest = {
     version: 1 as const,
@@ -1573,7 +1591,11 @@ function sourceSyncFetch(
   options: {
     appData?: Record<
       string,
-      { mediaBytes?: Uint8Array; records?: StoredRecord[]; schema?: typeof siteSourceSchema }
+      {
+        mediaBytes?: Uint8Array;
+        records?: StoredRecord[];
+        schema?: typeof siteSourceSchema;
+      }
     >;
     controlPlaneRecords?: StoredRecord[];
     installs?: ReturnType<typeof installedSite>[];
@@ -1724,7 +1746,11 @@ function deployFetch(
   options: {
     appData?: Record<
       string,
-      { mediaBytes?: Uint8Array; records?: StoredRecord[]; schema?: typeof siteSourceSchema }
+      {
+        mediaBytes?: Uint8Array;
+        records?: StoredRecord[];
+        schema?: typeof siteSourceSchema;
+      }
     >;
     controlPlaneRecords?: StoredRecord[];
     installs?: ReturnType<typeof installedSite>[];
@@ -1799,12 +1825,16 @@ function deployFetch(
         { status: 500 },
       );
     }
-
     if (parsedUrl.pathname === "/api/formless/archive/restore") {
-      const body = parseCapturedBody<{ archive?: { restorePolicy?: { dryRun?: boolean } } }>(init);
+      const body = parseCapturedBody<{
+        archive?: {
+          restorePolicy?: {
+            dryRun?: boolean;
+          };
+        };
+      }>(init);
       const dryRun = body.archive?.restorePolicy?.dryRun !== false;
       const response = options.restoreResponse?.({ dryRun, request: requests.at(-1)! });
-
       return Response.json(
         response ??
           (dryRun

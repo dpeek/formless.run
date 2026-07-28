@@ -35,7 +35,8 @@ export function selectAvailableEntityOperations(
   entity: EntitySchema,
   scope: EntityOperationScope,
 ): EntityOperationPresentationConfig[] {
-  return Object.entries(entity.operations ?? {}).flatMap(([operationName, operation]) => {
+  return (entity.operations ?? []).flatMap((operation) => {
+    const operationName = operation.key;
     if (operation.scope !== scope || !isEntityOperationVisibleToBrowser(operation)) {
       return [];
     }

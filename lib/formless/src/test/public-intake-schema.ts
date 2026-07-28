@@ -24,85 +24,97 @@ export const emailStylePublicIntakeFormBlockValues = {
   operationNotificationMode: "email",
   operationNotificationReplyToField: "email",
 } satisfies Record<string, unknown>;
-
 export function schemaWithEmailStylePublicIntake(sourceSchema: AppSchema): AppSchema {
   const schema = structuredClone(sourceSchema);
-
-  schema.entities["intake-request"] = {
+  schema.entities.push({
+    key: "intake-request",
     label: "Intake request",
-    fields: {
-      name: {
+    fields: [
+      {
+        key: "name",
         type: "text",
         required: true,
         label: "Name",
       },
-      email: {
+      {
+        key: "email",
         type: "text",
         required: true,
         label: "Email",
       },
-      message: {
+      {
+        key: "message",
         type: "text",
         required: true,
         label: "Request details",
         format: "longText",
       },
-      requestType: {
+      {
+        key: "requestType",
         type: "enum",
         required: false,
         label: "Request type",
-        values: {
-          general: { label: "General" },
-          priority: { label: "Priority" },
-        },
+        values: [
+          { key: "general", label: "General" },
+          { key: "priority", label: "Priority" },
+        ],
       },
-      neededBy: {
+      {
+        key: "neededBy",
         type: "date",
         required: false,
         label: "Needed by",
       },
-      quantity: {
+      {
+        key: "quantity",
         type: "number",
         required: false,
         label: "Quantity",
         min: 1,
       },
-    },
-    operations: {
-      submit: {
+    ],
+    operations: [
+      {
+        key: "submit",
         label: "Submit intake request",
         kind: "create",
         scope: "collection",
         input: {
-          fields: {
-            name: {
+          fields: [
+            {
+              key: "name",
               field: "name",
               required: true,
               label: "Your name",
             },
-            email: {
+            {
+              key: "email",
               field: "email",
               required: true,
               label: "Email",
             },
-            message: {
+            {
+              key: "message",
               field: "message",
               required: true,
               label: "Request details",
             },
-            requestType: {
+            {
+              key: "requestType",
               field: "requestType",
               label: "Request type",
             },
-            neededBy: {
+            {
+              key: "neededBy",
               field: "neededBy",
               label: "Needed by",
             },
-            quantity: {
+            {
+              key: "quantity",
               field: "quantity",
               label: "Quantity",
             },
-          },
+          ],
         },
         effect: {
           type: "createRecord",
@@ -129,8 +141,7 @@ export function schemaWithEmailStylePublicIntake(sourceSchema: AppSchema): AppSc
           input: "summary",
         },
       },
-    },
-  };
-
+    ],
+  });
   return schema;
 }

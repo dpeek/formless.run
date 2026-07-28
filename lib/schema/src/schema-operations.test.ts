@@ -42,10 +42,10 @@ describe("schema entity operations", () => {
           kind: "create",
           scope: "collection",
           input: {
-            fields: {
-              title: { field: "title", required: true },
-              dueDate: { field: "dueDate" },
-            },
+            fields: [
+              { key: "title", field: "title", required: true },
+              { key: "dueDate", field: "dueDate" },
+            ],
           },
           effect: { type: "createRecord" },
           policy: { actors: ["owner"], visible: true },
@@ -56,11 +56,11 @@ describe("schema entity operations", () => {
           kind: "update",
           scope: "record",
           input: {
-            fields: {
-              title: { field: "title" },
-              done: { field: "done" },
-              dueDate: { field: "dueDate" },
-            },
+            fields: [
+              { key: "title", field: "title" },
+              { key: "done", field: "done" },
+              { key: "dueDate", field: "dueDate" },
+            ],
           },
           effect: { type: "patchRecord" },
         },
@@ -86,17 +86,18 @@ describe("schema entity operations", () => {
           scope: "collection",
           target: { query: "taskCompleted" },
           input: {
-            fields: {
-              note: { type: "text", required: true, label: "Note" },
-              severity: {
+            fields: [
+              { key: "note", type: "text", required: true, label: "Note" },
+              {
+                key: "severity",
                 type: "enum",
                 required: false,
-                values: {
-                  low: { label: "Low" },
-                  high: { label: "High" },
-                },
+                values: [
+                  { key: "low", label: "Low" },
+                  { key: "high", label: "High" },
+                ],
               },
-            },
+            ],
           },
           effect: {
             type: "operationHandler",
@@ -110,8 +111,7 @@ describe("schema entity operations", () => {
         },
       }),
     );
-    const operations = schema.entities.task?.operations;
-
+    const operations = schema.entities.find((definition) => definition.key === "task")?.operations;
     expect(formatEntityOperationKey({ entityKey: "task", operationKey: "create" })).toBe(
       "task.create",
     );
@@ -119,14 +119,14 @@ describe("schema entity operations", () => {
       entityKey: "task",
       operationKey: "clearCompletedTasks",
     });
-    expect(operations?.activeList).toMatchObject({
+    expect(operation(operations, "activeList")).toMatchObject({
       kind: "list",
       scope: "collection",
       target: { query: "taskActive" },
       output: { type: "list", query: "taskActive" },
       idempotency: { required: false },
     });
-    expect(operations?.create).toMatchObject({
+    expect(operation(operations, "create")).toMatchObject({
       kind: "create",
       scope: "collection",
       output: { type: "create" },
@@ -134,14 +134,14 @@ describe("schema entity operations", () => {
       idempotency: { required: true, source: "caller" },
       audit: { input: "hash" },
     });
-    expect(operations?.delete).toMatchObject({
+    expect(operation(operations, "delete")).toMatchObject({
       kind: "delete",
       scope: "record",
       output: { type: "delete" },
       effect: { type: "tombstoneRecord", entity: "task" },
       idempotency: { required: true, source: "runtime" },
     });
-    expect(operations?.clearCompletedTasks).toMatchObject({
+    expect(operation(operations, "clearCompletedTasks")).toMatchObject({
       kind: "command",
       scope: "collection",
       target: { query: "taskCompleted" },
@@ -152,18 +152,19 @@ describe("schema entity operations", () => {
       },
       output: { type: "command" },
     });
-    expect(operations?.annotate.input).toEqual({
-      fields: {
-        note: { type: "text", required: true, label: "Note" },
-        severity: {
+    expect(operation(operations, "annotate").input).toEqual({
+      fields: [
+        { key: "note", type: "text", required: true, label: "Note" },
+        {
+          key: "severity",
           type: "enum",
           required: false,
-          values: {
-            low: { label: "Low" },
-            high: { label: "High" },
-          },
+          values: [
+            { key: "low", label: "Low" },
+            { key: "high", label: "High" },
+          ],
         },
-      },
+      ],
     });
     expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
   });
@@ -190,9 +191,9 @@ describe("schema entity operations", () => {
         submitIntake: recordPlanOperation(),
       }),
     );
-    const operations = schema.entities.task?.operations;
-    const clearCompletedEffect = operations?.clearCompletedTasks.effect;
-    const submitIntakeEffect = operations?.submitIntake.effect;
+    const operations = schema.entities.find((definition) => definition.key === "task")?.operations;
+    const clearCompletedEffect = operation(operations, "clearCompletedTasks").effect;
+    const submitIntakeEffect = operation(operations, "submitIntake").effect;
     const binding = classifyCollectionOperationBinding({
       operation: "task.clearCompletedTasks",
       count: { type: "count" },
@@ -276,26 +277,29 @@ describe("schema entity operations", () => {
           kind: "command",
           scope: "collection",
           input: {
-            fields: {
-              email: {
+            fields: [
+              {
+                key: "email",
                 type: "text",
                 required: true,
                 label: "Email",
                 format: "email",
                 suggestions: ["hello@example.com"],
               },
-              phone: {
+              {
+                key: "phone",
                 type: "text",
                 required: false,
                 label: "Phone",
                 format: "phone",
               },
-              topic: {
+              {
+                key: "topic",
                 type: "text",
                 required: false,
                 suggestions: ["Support", "Sales"],
               },
-            },
+            ],
           },
           effect: {
             type: "operationHandler",
@@ -305,28 +309,35 @@ describe("schema entity operations", () => {
         },
       }),
     );
-
-    expect(schema.entities.task?.operations?.submitContact.input).toEqual({
-      fields: {
-        email: {
+    expect(
+      operation(
+        schema.entities.find((definition) => definition.key === "task")!.operations,
+        "submitContact",
+      ).input,
+    ).toEqual({
+      fields: [
+        {
+          key: "email",
           type: "text",
           required: true,
           label: "Email",
           format: "email",
           suggestions: ["hello@example.com"],
         },
-        phone: {
+        {
+          key: "phone",
           type: "text",
           required: false,
           label: "Phone",
           format: "phone",
         },
-        topic: {
+        {
+          key: "topic",
           type: "text",
           required: false,
           suggestions: ["Support", "Sales"],
         },
-      },
+      ],
     });
     expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
   });
@@ -338,19 +349,25 @@ describe("schema entity operations", () => {
           kind: "create",
           scope: "collection",
           input: {
-            fields: {
-              consent: {
+            fields: [
+              {
+                key: "consent",
                 field: "done",
                 required: true,
                 mustBeTrue: true,
               },
-            },
+            ],
           },
         },
       }),
     );
-
-    expect(schema.entities.task?.operations?.create.input?.fields.consent).toEqual({
+    expect(
+      operation(
+        schema.entities.find((definition) => definition.key === "task")!.operations,
+        "create",
+      ).input?.fields?.find((definition) => definition.key === "consent"),
+    ).toEqual({
+      key: "consent",
       field: "done",
       required: true,
       mustBeTrue: true,
@@ -387,12 +404,12 @@ describe("schema entity operations", () => {
                 ? {
                     kind: "create",
                     scope: "collection",
-                    input: { fields: { consent: invalidCase.field } },
+                    input: { fields: [{ key: "consent", ...invalidCase.field }] },
                   }
                 : {
                     kind: "command",
                     scope: "collection",
-                    input: { fields: { consent: invalidCase.field } },
+                    input: { fields: [{ key: "consent", ...invalidCase.field }] },
                     effect: {
                       type: "operationHandler",
                       handler: "clear-completed",
@@ -413,9 +430,7 @@ describe("schema entity operations", () => {
             kind: "command",
             scope: "collection",
             input: {
-              fields: {
-                email: { type: "text", required: true, format: "href" },
-              },
+              fields: [{ key: "email", type: "text", required: true, format: "href" }],
             },
           },
         }),
@@ -431,9 +446,9 @@ describe("schema entity operations", () => {
             kind: "command",
             scope: "collection",
             input: {
-              fields: {
-                topic: { type: "text", required: false, suggestions: ["Support", ""] },
-              },
+              fields: [
+                { key: "topic", type: "text", required: false, suggestions: ["Support", ""] },
+              ],
             },
           },
         }),
@@ -472,39 +487,43 @@ describe("schema entity operations", () => {
     expect(() =>
       parseAppSchema(
         baseTaskSchema({
-          entities: {
-            task: taskEntity({
-              operationPolicies: {
-                create: {
-                  access: anonymousPublicAccess(),
+          entities: [
+            {
+              key: "task",
+              ...taskEntity({
+                operationPolicies: {
+                  create: {
+                    access: anonymousPublicAccess(),
+                  },
                 },
-              },
-            }),
-          },
+              }),
+            },
+          ],
         }),
       ),
     ).toThrow('Entity "task" has unsupported key "operationPolicies"');
   });
-
   it("does not synthesize operation bindings without source-declared operations", () => {
     const schema = parseAppSchema(baseTaskSchema());
-    const view = schema.views.taskHome;
-
+    const view = schema.views.find((definition) => definition.key === "taskHome")!;
     if (view?.type !== "collection") {
       throw new Error("Missing taskHome collection view.");
     }
-
-    expect(schema.entities.task?.operations).toBeUndefined();
+    expect(
+      schema.entities.find((definition) => definition.key === "task")?.operations,
+    ).toBeUndefined();
     expect(view.operations).toBeUndefined();
-
     expect(() =>
       parseAppSchema(
         baseTaskSchema({
-          views: {
-            taskHome: taskHomeCollectionView({
-              operations: [{ operation: "task.clearCompletedTasks" }],
-            }),
-          },
+          views: [
+            {
+              key: "taskHome",
+              ...taskHomeCollectionView({
+                operations: [{ operation: "task.clearCompletedTasks" }],
+              }),
+            },
+          ],
         }),
       ),
     ).toThrow('references unknown operation "task.clearCompletedTasks"');
@@ -536,8 +555,12 @@ describe("schema entity operations", () => {
         },
       }),
     );
-
-    expect(schema.entities.task?.operations?.clearCompletedTasks.effect).toEqual({
+    expect(
+      operation(
+        schema.entities.find((definition) => definition.key === "task")!.operations,
+        "clearCompletedTasks",
+      ).effect,
+    ).toEqual({
       type: "operationHandler",
       handler: "clear-completed",
       config: { query: "taskCompleted" },
@@ -566,8 +589,12 @@ describe("schema entity operations", () => {
         },
       }),
     );
-
-    expect(schema.entities.task?.operations?.clearCompletedTasks.policy).toEqual({
+    expect(
+      operation(
+        schema.entities.find((definition) => definition.key === "task")!.operations,
+        "clearCompletedTasks",
+      ).policy,
+    ).toEqual({
       actors: ["authenticated"],
       responseFields: {
         authenticated: ["title"],
@@ -578,11 +605,13 @@ describe("schema entity operations", () => {
   it("keeps browser-hidden collection operation bindings parseable for client selection", () => {
     const schema = parseAppSchema(
       baseTaskSchema({
-        entities: {
-          task: {
+        entities: [
+          {
+            key: "task",
             ...taskEntity(),
-            operations: {
-              hiddenOwner: {
+            operations: [
+              {
+                key: "hiddenOwner",
                 label: "Hidden owner",
                 kind: "command",
                 scope: "collection",
@@ -593,7 +622,8 @@ describe("schema entity operations", () => {
                 },
                 policy: { actors: ["owner"], visible: false },
               },
-              runnerOnly: {
+              {
+                key: "runnerOnly",
                 label: "Runner only",
                 kind: "command",
                 scope: "collection",
@@ -604,11 +634,12 @@ describe("schema entity operations", () => {
                 },
                 policy: { actors: ["runner"] },
               },
-            },
+            ],
           },
-        },
-        views: {
-          taskHome: {
+        ],
+        views: [
+          {
+            key: "taskHome",
             type: "collection",
             label: "Tasks",
             entity: "task",
@@ -617,11 +648,10 @@ describe("schema entity operations", () => {
             result: { type: "list", itemView: "taskItem" },
             operations: [{ operation: "task.hiddenOwner" }, { operation: "task.runnerOnly" }],
           },
-        },
+        ],
       }),
     );
-    const view = schema.views.taskHome;
-
+    const view = schema.views.find((definition) => definition.key === "taskHome")!;
     if (view?.type !== "collection") {
       throw new Error("Missing taskHome collection view.");
     }
@@ -638,8 +668,10 @@ describe("schema entity operations", () => {
         submitIntake: recordPlanOperation(),
       }),
     );
-    const effect = schema.entities.task?.operations?.submitIntake.effect;
-
+    const effect = operation(
+      schema.entities.find((definition) => definition.key === "task")!.operations,
+      "submitIntake",
+    ).effect;
     expect(effect).toEqual({
       type: "recordPlan",
       steps: [
@@ -699,7 +731,7 @@ describe("schema entity operations", () => {
           submitIntake: {
             kind: "create",
             scope: "collection",
-            input: { fields: { title: { field: "title" } } },
+            input: { fields: [{ key: "title", field: "title" }] },
             effect: recordPlanEffect(),
           },
         },
@@ -1023,7 +1055,7 @@ describe("schema entity operations", () => {
           create: {
             kind: "create",
             scope: "collection",
-            input: { fields: { missing: { field: "missing" } } },
+            input: { fields: [{ key: "missing", field: "missing" }] },
           },
         },
         message: 'references unknown field "missing"',
@@ -1033,7 +1065,7 @@ describe("schema entity operations", () => {
           create: {
             kind: "create",
             scope: "collection",
-            input: { fields: { note: { type: "text", required: true } } },
+            input: { fields: [{ key: "note", type: "text", required: true }] },
           },
         },
         message: "inline scalar fields are only supported for command or list operations",
@@ -1104,39 +1136,48 @@ describe("schema entity operations", () => {
     }
   });
 });
-
+function operation<T extends { key: string }>(
+  definitions: readonly T[] | undefined,
+  key: string,
+): T {
+  const definition = definitions?.find((candidate) => candidate.key === key);
+  if (!definition) {
+    throw new Error(`Missing operation "${key}".`);
+  }
+  return definition;
+}
 function schemaWithTaskOperations(operations: Record<string, unknown>) {
   return baseTaskSchema({
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         ...taskEntity(),
-        operations,
+        operations: keyed(operations),
       },
-    },
+    ],
   });
 }
-
 function schemaWithTaskLogOperations(operations: Record<string, unknown>) {
   return baseTaskSchema({
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         ...taskEntity(),
-        operations,
+        operations: keyed(operations),
       },
-      "task-log": taskLogEntity(),
-    },
+      { key: "task-log", ...taskLogEntity() },
+    ],
   });
 }
-
 function recordPlanOperation(overrides: Record<string, unknown> = {}) {
   return {
     kind: "command",
     scope: "collection",
     input: {
-      fields: {
-        title: { type: "text", required: true, label: "Title" },
-        note: { type: "text", required: false, label: "Note" },
-      },
+      fields: [
+        { key: "title", type: "text", required: true, label: "Title" },
+        { key: "note", type: "text", required: false, label: "Note" },
+      ],
     },
     effect: recordPlanEffect(),
     ...overrides,
@@ -1207,32 +1248,36 @@ function touchTaskStep() {
 function taskLogEntity() {
   return {
     label: "Task log",
-    fields: {
-      task: {
+    fields: [
+      {
+        key: "task",
         type: "reference",
         required: true,
         label: "Task",
         to: "task",
         displayField: "title",
       },
-      label: { type: "text", required: true, label: "Label" },
-      actorMode: { type: "text", required: true, label: "Actor mode" },
-      actorPrincipalId: { type: "text", required: false, label: "Actor principal" },
-      sourcePath: { type: "text", required: false, label: "Source path" },
-      occurredAt: { type: "date", required: true, label: "Occurred at" },
-    },
+      { key: "label", type: "text", required: true, label: "Label" },
+      { key: "actorMode", type: "text", required: true, label: "Actor mode" },
+      { key: "actorPrincipalId", type: "text", required: false, label: "Actor principal" },
+      { key: "sourcePath", type: "text", required: false, label: "Source path" },
+      { key: "occurredAt", type: "date", required: true, label: "Occurred at" },
+    ],
   };
 }
-
 function baseTaskSchema(overrides: Record<string, unknown> = {}) {
   return {
     version: 1,
-    entities: {
-      task: taskEntity(),
-    },
-    queries: {
-      taskAll: { label: "All", entity: "task", expression: { kind: "all" } },
-      taskActive: {
+    entities: [
+      {
+        key: "task",
+        ...taskEntity(),
+      },
+    ],
+    queries: [
+      { key: "taskAll", label: "All", entity: "task", expression: { kind: "all" } },
+      {
+        key: "taskActive",
         label: "Active",
         entity: "task",
         expression: {
@@ -1242,7 +1287,8 @@ function baseTaskSchema(overrides: Record<string, unknown> = {}) {
           value: false,
         },
       },
-      taskCompleted: {
+      {
+        key: "taskCompleted",
         label: "Completed",
         entity: "task",
         expression: {
@@ -1252,32 +1298,36 @@ function baseTaskSchema(overrides: Record<string, unknown> = {}) {
           value: true,
         },
       },
-    },
-    itemViews: {
-      taskItem: {
+    ],
+    itemViews: [
+      {
+        key: "taskItem",
         entity: "task",
-        fields: {
-          title: { editor: "text", commit: "field-commit" },
-          done: { editor: "boolean", commit: "immediate" },
-          dueDate: { editor: "date", commit: "field-commit" },
-        },
+        fields: [
+          { field: "title", editor: "text", commit: "field-commit" },
+          { field: "done", editor: "boolean", commit: "immediate" },
+          { field: "dueDate", editor: "date", commit: "field-commit" },
+        ],
       },
-    },
-    tableViews: {},
-    views: {
-      taskHome: taskHomeCollectionView(),
-    },
-    screens: {
-      home: {
+    ],
+    tableViews: [],
+    views: [
+      {
+        key: "taskHome",
+        ...taskHomeCollectionView(),
+      },
+    ],
+    screens: [
+      {
+        key: "home",
         type: "workspace",
         label: "Tasks",
-        navigation: { primary: true },
         layout: {
           type: "stack",
           sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
         },
       },
-    },
+    ],
     ...overrides,
   };
 }
@@ -1297,12 +1347,12 @@ function taskHomeCollectionView(overrides: Record<string, unknown> = {}) {
 function taskEntity(overrides: Record<string, unknown> = {}) {
   return {
     label: "Task",
-    fields: {
-      title: { type: "text", required: true, label: "Title" },
-      done: { type: "boolean", required: true, label: "Done", default: false },
-      marker: { type: "text", required: false, label: "Marker" },
-      dueDate: { type: "date", required: false, label: "Due date" },
-    },
+    fields: [
+      { key: "title", type: "text", required: true, label: "Title" },
+      { key: "done", type: "boolean", required: true, label: "Done", default: false },
+      { key: "marker", type: "text", required: false, label: "Marker" },
+      { key: "dueDate", type: "date", required: false, label: "Due date" },
+    ],
     ...overrides,
   };
 }
@@ -1313,4 +1363,10 @@ function anonymousPublicAccess() {
     challenge: { kind: "turnstile" },
     origin: { kind: "same-origin" },
   };
+}
+function keyed(value: Record<string, unknown>) {
+  return Object.entries(value).map(([key, definition]) => ({
+    key,
+    ...(definition as Record<string, unknown>),
+  }));
 }

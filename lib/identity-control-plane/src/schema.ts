@@ -1,4 +1,10 @@
-import type { AppSchema, FieldEditor, FieldSchema } from "@dpeek/formless-schema";
+import type {
+  AppSchema,
+  FieldEditor,
+  FieldSchema,
+  ToManyRelationshipSchema,
+  ToOneRelationshipSchema,
+} from "@dpeek/formless-schema";
 import {
   identityControlPlaneEntityNames,
   identityControlPlaneImmutableFields,
@@ -34,9 +40,11 @@ type IdentityControlPlaneViewField =
   | string
   | {
       field: string;
-      visibleWhen?: { field: string; values: Array<string | boolean | number> };
+      visibleWhen?: {
+        field: string;
+        values: Array<string | boolean | number>;
+      };
     };
-
 const principalKindLabels = {
   human: "Human",
   service: "Service",
@@ -360,36 +368,63 @@ const entityViewConfig = {
     tableFields: readonly IdentityControlPlaneTableField[];
   }
 >;
-
 export const identityControlPlaneSourceSchema = {
   version: 1,
-  entities: {
-    principal: {
+  entities: [
+    {
+      key: "principal",
       label: "Principal",
-      fields: {
-        displayName: textField("Display name"),
-        kind: enumField("Kind", principalKindLabels),
-        status: enumField("Status", principalStatusLabels, "active"),
-      },
+      fields: [
+        {
+          key: "displayName",
+          ...textField("Display name"),
+        },
+        {
+          key: "kind",
+          ...enumField("Kind", principalKindLabels),
+        },
+        {
+          key: "status",
+          ...enumField("Status", principalStatusLabels, "active"),
+        },
+      ],
       operations: writeOperations("principal", ["displayName", "kind", "status"], {
         updateFields: ["displayName", "status"],
       }),
     },
-    "principal-email": {
+    {
+      key: "principal-email",
       label: "Principal email",
-      fields: {
-        principal: referenceField("Principal", "principal", "displayName"),
-        displayEmail: textField("Display email"),
-        normalizedEmail: textField("Normalized email"),
-        verificationStatus: enumField(
-          "Verification status",
-          emailVerificationStatusLabels,
-          "unverified",
-        ),
-        primary: booleanField("Primary", false),
-        recovery: booleanField("Recovery", false),
-        verifiedAt: optionalTextField("Verified at"),
-      },
+      fields: [
+        {
+          key: "principal",
+          ...referenceField("Principal", "principal", "displayName"),
+        },
+        {
+          key: "displayEmail",
+          ...textField("Display email"),
+        },
+        {
+          key: "normalizedEmail",
+          ...textField("Normalized email"),
+        },
+        {
+          key: "verificationStatus",
+          ...enumField("Verification status", emailVerificationStatusLabels, "unverified"),
+        },
+        {
+          key: "primary",
+          ...booleanField("Primary", false),
+        },
+        {
+          key: "recovery",
+          ...booleanField("Recovery", false),
+        },
+        {
+          key: "verifiedAt",
+          ...optionalTextField("Verified at"),
+        },
+      ],
       operations: writeOperations(
         "principal email",
         [
@@ -405,43 +440,67 @@ export const identityControlPlaneSourceSchema = {
           updateFields: ["displayEmail", "verificationStatus", "primary", "recovery", "verifiedAt"],
         },
       ),
-      constraints: {
-        uniqueNormalizedEmail: { kind: "unique", fields: ["normalizedEmail"] },
-      },
+      constraints: [{ key: "uniqueNormalizedEmail", kind: "unique", fields: ["normalizedEmail"] }],
     },
-    group: {
+    {
+      key: "group",
       label: "Group",
-      fields: {
-        displayName: textField("Display name"),
-        status: enumField("Status", containerStatusLabels, "active"),
-      },
+      fields: [
+        {
+          key: "displayName",
+          ...textField("Display name"),
+        },
+        {
+          key: "status",
+          ...enumField("Status", containerStatusLabels, "active"),
+        },
+      ],
       operations: writeOperations("group", ["displayName", "status"], {
         updateFields: ["status"],
       }),
     },
-    organization: {
+    {
+      key: "organization",
       label: "Organization",
-      fields: {
-        displayName: textField("Display name"),
-        status: enumField("Status", containerStatusLabels, "active"),
-      },
+      fields: [
+        {
+          key: "displayName",
+          ...textField("Display name"),
+        },
+        {
+          key: "status",
+          ...enumField("Status", containerStatusLabels, "active"),
+        },
+      ],
       operations: writeOperations("organization", ["displayName", "status"], {
         updateFields: ["status"],
       }),
     },
-    membership: {
+    {
+      key: "membership",
       label: "Membership",
-      fields: {
-        principal: referenceField("Principal", "principal", "displayName"),
-        targetKind: enumField("Target kind", membershipTargetKindLabels),
-        targetGroup: optionalReferenceField("Target group", "group", "displayName"),
-        targetOrganization: optionalReferenceField(
-          "Target organization",
-          "organization",
-          "displayName",
-        ),
-        status: enumField("Status", membershipStatusLabels, "active"),
-      },
+      fields: [
+        {
+          key: "principal",
+          ...referenceField("Principal", "principal", "displayName"),
+        },
+        {
+          key: "targetKind",
+          ...enumField("Target kind", membershipTargetKindLabels),
+        },
+        {
+          key: "targetGroup",
+          ...optionalReferenceField("Target group", "group", "displayName"),
+        },
+        {
+          key: "targetOrganization",
+          ...optionalReferenceField("Target organization", "organization", "displayName"),
+        },
+        {
+          key: "status",
+          ...enumField("Status", membershipStatusLabels, "active"),
+        },
+      ],
       operations: writeOperations(
         "membership",
         ["principal", "targetKind", "targetGroup", "targetOrganization", "status"],
@@ -450,41 +509,69 @@ export const identityControlPlaneSourceSchema = {
         },
       ),
     },
-    role: {
+    {
+      key: "role",
       label: "Role",
-      fields: {
-        key: enumField("Key", roleKeyLabels),
-        displayLabel: textField("Display label"),
-        status: enumField("Status", roleStatusLabels, "active"),
-      },
+      fields: [
+        {
+          key: "key",
+          ...enumField("Key", roleKeyLabels),
+        },
+        {
+          key: "displayLabel",
+          ...textField("Display label"),
+        },
+        {
+          key: "status",
+          ...enumField("Status", roleStatusLabels, "active"),
+        },
+      ],
       operations: writeOperations("role", ["key", "displayLabel", "status"], {
         updateFields: ["displayLabel", "status"],
       }),
-      constraints: {
-        uniqueKey: { kind: "unique", fields: ["key"] },
-      },
+      constraints: [{ key: "uniqueKey", kind: "unique", fields: ["key"] }],
     },
-    "role-assignment": {
+    {
+      key: "role-assignment",
       label: "Role assignment",
-      fields: {
-        role: referenceField("Role", "role", "displayLabel"),
-        targetKind: enumField("Target kind", roleAssignmentTargetKindLabels),
-        targetPrincipal: optionalReferenceField("Target principal", "principal", "displayName"),
-        targetGroup: optionalReferenceField("Target group", "group", "displayName"),
-        targetOrganization: optionalReferenceField(
-          "Target organization",
-          "organization",
-          "displayName",
-        ),
-        scopeKind: enumField("Scope kind", roleAssignmentScopeKindLabels),
-        appInstallId: optionalTextField("App install id"),
-        scopeOrganization: optionalReferenceField(
-          "Scope organization",
-          "organization",
-          "displayName",
-        ),
-        status: enumField("Status", roleAssignmentStatusLabels, "active"),
-      },
+      fields: [
+        {
+          key: "role",
+          ...referenceField("Role", "role", "displayLabel"),
+        },
+        {
+          key: "targetKind",
+          ...enumField("Target kind", roleAssignmentTargetKindLabels),
+        },
+        {
+          key: "targetPrincipal",
+          ...optionalReferenceField("Target principal", "principal", "displayName"),
+        },
+        {
+          key: "targetGroup",
+          ...optionalReferenceField("Target group", "group", "displayName"),
+        },
+        {
+          key: "targetOrganization",
+          ...optionalReferenceField("Target organization", "organization", "displayName"),
+        },
+        {
+          key: "scopeKind",
+          ...enumField("Scope kind", roleAssignmentScopeKindLabels),
+        },
+        {
+          key: "appInstallId",
+          ...optionalTextField("App install id"),
+        },
+        {
+          key: "scopeOrganization",
+          ...optionalReferenceField("Scope organization", "organization", "displayName"),
+        },
+        {
+          key: "status",
+          ...enumField("Status", roleAssignmentStatusLabels, "active"),
+        },
+      ],
       operations: writeOperations(
         "role assignment",
         [
@@ -504,24 +591,35 @@ export const identityControlPlaneSourceSchema = {
         },
       ),
     },
-    "app-registration": {
+    {
+      key: "app-registration",
       label: "App registration",
-      fields: {
-        appInstallId: textField("App install id"),
-        targetKind: enumField("Target kind", appRegistrationTargetKindLabels),
-        targetPrincipal: optionalReferenceField("Target principal", "principal", "displayName"),
-        targetOrganization: optionalReferenceField(
-          "Target organization",
-          "organization",
-          "displayName",
-        ),
-        status: enumField("Status", appRegistrationStatusLabels, "pending"),
-        selectedOrganization: optionalReferenceField(
-          "Selected organization",
-          "organization",
-          "displayName",
-        ),
-      },
+      fields: [
+        {
+          key: "appInstallId",
+          ...textField("App install id"),
+        },
+        {
+          key: "targetKind",
+          ...enumField("Target kind", appRegistrationTargetKindLabels),
+        },
+        {
+          key: "targetPrincipal",
+          ...optionalReferenceField("Target principal", "principal", "displayName"),
+        },
+        {
+          key: "targetOrganization",
+          ...optionalReferenceField("Target organization", "organization", "displayName"),
+        },
+        {
+          key: "status",
+          ...enumField("Status", appRegistrationStatusLabels, "pending"),
+        },
+        {
+          key: "selectedOrganization",
+          ...optionalReferenceField("Selected organization", "organization", "displayName"),
+        },
+      ],
       operations: writeOperations(
         "app registration",
         [
@@ -537,23 +635,47 @@ export const identityControlPlaneSourceSchema = {
         },
       ),
     },
-    invitation: {
+    {
+      key: "invitation",
       label: "Invitation",
-      fields: {
-        targetEmail: textField("Target email"),
-        targetSurface: enumField("Target surface", invitationTargetSurfaceLabels),
-        targetAppInstallId: optionalTextField("Target app install id"),
-        targetOrganization: optionalReferenceField(
-          "Target organization",
-          "organization",
-          "displayName",
-        ),
-        invitedPrincipal: optionalReferenceField("Invited principal", "principal", "displayName"),
-        inviterPrincipal: optionalReferenceField("Inviter principal", "principal", "displayName"),
-        status: enumField("Status", invitationStatusLabels, "pending"),
-        expiresAt: textField("Expires at"),
-        acceptedAt: optionalTextField("Accepted at"),
-      },
+      fields: [
+        {
+          key: "targetEmail",
+          ...textField("Target email"),
+        },
+        {
+          key: "targetSurface",
+          ...enumField("Target surface", invitationTargetSurfaceLabels),
+        },
+        {
+          key: "targetAppInstallId",
+          ...optionalTextField("Target app install id"),
+        },
+        {
+          key: "targetOrganization",
+          ...optionalReferenceField("Target organization", "organization", "displayName"),
+        },
+        {
+          key: "invitedPrincipal",
+          ...optionalReferenceField("Invited principal", "principal", "displayName"),
+        },
+        {
+          key: "inviterPrincipal",
+          ...optionalReferenceField("Inviter principal", "principal", "displayName"),
+        },
+        {
+          key: "status",
+          ...enumField("Status", invitationStatusLabels, "pending"),
+        },
+        {
+          key: "expiresAt",
+          ...textField("Expires at"),
+        },
+        {
+          key: "acceptedAt",
+          ...optionalTextField("Accepted at"),
+        },
+      ],
       operations: writeOperations(
         "invitation",
         [
@@ -572,24 +694,51 @@ export const identityControlPlaneSourceSchema = {
         },
       ),
     },
-    "account-policy": {
+    {
+      key: "account-policy",
       label: "Account policy",
-      fields: {
-        displayName: textField("Display name"),
-        policyKey: textField("Policy key"),
-        version: textField("Version"),
-        scopeKind: enumField("Scope kind", accountPolicyScopeKindLabels),
-        appInstallId: optionalTextField("App install id"),
-        scopeOrganization: optionalReferenceField(
-          "Scope organization",
-          "organization",
-          "displayName",
-        ),
-        status: enumField("Status", accountPolicyStatusLabels, "active"),
-        publishedAt: optionalTextField("Published at"),
-        policyDocumentUrl: optionalTextField("Policy document URL", "href"),
-        policyContentRef: optionalTextField("Policy content ref"),
-      },
+      fields: [
+        {
+          key: "displayName",
+          ...textField("Display name"),
+        },
+        {
+          key: "policyKey",
+          ...textField("Policy key"),
+        },
+        {
+          key: "version",
+          ...textField("Version"),
+        },
+        {
+          key: "scopeKind",
+          ...enumField("Scope kind", accountPolicyScopeKindLabels),
+        },
+        {
+          key: "appInstallId",
+          ...optionalTextField("App install id"),
+        },
+        {
+          key: "scopeOrganization",
+          ...optionalReferenceField("Scope organization", "organization", "displayName"),
+        },
+        {
+          key: "status",
+          ...enumField("Status", accountPolicyStatusLabels, "active"),
+        },
+        {
+          key: "publishedAt",
+          ...optionalTextField("Published at"),
+        },
+        {
+          key: "policyDocumentUrl",
+          ...optionalTextField("Policy document URL", "href"),
+        },
+        {
+          key: "policyContentRef",
+          ...optionalTextField("Policy content ref"),
+        },
+      ],
       operations: writeOperations(
         "account policy",
         [
@@ -609,14 +758,27 @@ export const identityControlPlaneSourceSchema = {
         },
       ),
     },
-    "principal-policy-acceptance": {
+    {
+      key: "principal-policy-acceptance",
       label: "Principal policy acceptance",
-      fields: {
-        principal: referenceField("Principal", "principal", "displayName"),
-        accountPolicy: referenceField("Account policy", "account-policy", "displayName"),
-        status: enumField("Status", principalPolicyAcceptanceStatusLabels, "accepted"),
-        acceptedAt: textField("Accepted at"),
-      },
+      fields: [
+        {
+          key: "principal",
+          ...referenceField("Principal", "principal", "displayName"),
+        },
+        {
+          key: "accountPolicy",
+          ...referenceField("Account policy", "account-policy", "displayName"),
+        },
+        {
+          key: "status",
+          ...enumField("Status", principalPolicyAcceptanceStatusLabels, "accepted"),
+        },
+        {
+          key: "acceptedAt",
+          ...textField("Accepted at"),
+        },
+      ],
       operations: writeOperations(
         "principal policy acceptance",
         ["principal", "accountPolicy", "status", "acceptedAt"],
@@ -625,235 +787,283 @@ export const identityControlPlaneSourceSchema = {
         },
       ),
     },
-  },
-  relationships: {
-    principalEmailPrincipal: toOne(
-      "Principal email principal",
-      "principal-email",
-      "principal",
-      "principal",
-      "principalEmails",
-    ),
-    principalEmails: toMany(
-      "Principal emails",
-      "principal",
-      "principal-email",
-      "principal",
-      "principalEmailPrincipal",
-    ),
-    membershipPrincipal: toOne(
-      "Membership principal",
-      "membership",
-      "principal",
-      "principal",
-      "principalMemberships",
-    ),
-    principalMemberships: toMany(
-      "Principal memberships",
-      "principal",
-      "membership",
-      "principal",
-      "membershipPrincipal",
-    ),
-    membershipGroup: toOne(
-      "Membership group",
-      "membership",
-      "targetGroup",
-      "group",
-      "groupMemberships",
-    ),
-    groupMemberships: toMany(
-      "Group memberships",
-      "group",
-      "membership",
-      "targetGroup",
-      "membershipGroup",
-    ),
-    membershipOrganization: toOne(
-      "Membership organization",
-      "membership",
-      "targetOrganization",
-      "organization",
-      "organizationMemberships",
-    ),
-    organizationMemberships: toMany(
-      "Organization memberships",
-      "organization",
-      "membership",
-      "targetOrganization",
-      "membershipOrganization",
-    ),
-    roleAssignmentRole: toOne(
-      "Role assignment role",
-      "role-assignment",
-      "role",
-      "role",
-      "roleAssignments",
-    ),
-    roleAssignments: toMany(
-      "Role assignments",
-      "role",
-      "role-assignment",
-      "role",
-      "roleAssignmentRole",
-    ),
-    roleAssignmentTargetPrincipal: toOne(
-      "Role assignment principal target",
-      "role-assignment",
-      "targetPrincipal",
-      "principal",
-    ),
-    roleAssignmentTargetGroup: toOne(
-      "Role assignment group target",
-      "role-assignment",
-      "targetGroup",
-      "group",
-    ),
-    roleAssignmentTargetOrganization: toOne(
-      "Role assignment organization target",
-      "role-assignment",
-      "targetOrganization",
-      "organization",
-    ),
-    roleAssignmentScopeOrganization: toOne(
-      "Role assignment scope organization",
-      "role-assignment",
-      "scopeOrganization",
-      "organization",
-    ),
-    appRegistrationTargetPrincipal: toOne(
-      "App registration principal target",
-      "app-registration",
-      "targetPrincipal",
-      "principal",
-    ),
-    appRegistrationTargetOrganization: toOne(
-      "App registration organization target",
-      "app-registration",
-      "targetOrganization",
-      "organization",
-    ),
-    appRegistrationSelectedOrganization: toOne(
-      "App registration selected organization",
-      "app-registration",
-      "selectedOrganization",
-      "organization",
-    ),
-    invitationTargetOrganization: toOne(
-      "Invitation target organization",
-      "invitation",
-      "targetOrganization",
-      "organization",
-    ),
-    invitationInvitedPrincipal: toOne(
-      "Invitation invited principal",
-      "invitation",
-      "invitedPrincipal",
-      "principal",
-    ),
-    invitationInviterPrincipal: toOne(
-      "Invitation inviter principal",
-      "invitation",
-      "inviterPrincipal",
-      "principal",
-    ),
-    accountPolicyScopeOrganization: toOne(
-      "Account policy scope organization",
-      "account-policy",
-      "scopeOrganization",
-      "organization",
-    ),
-    principalPolicyAcceptancePrincipal: toOne(
-      "Principal policy acceptance principal",
-      "principal-policy-acceptance",
-      "principal",
-      "principal",
-      "principalPolicyAcceptances",
-    ),
-    principalPolicyAcceptances: toMany(
-      "Principal policy acceptances",
-      "principal",
-      "principal-policy-acceptance",
-      "principal",
-      "principalPolicyAcceptancePrincipal",
-    ),
-    principalPolicyAcceptancePolicy: toOne(
-      "Principal policy acceptance policy",
-      "principal-policy-acceptance",
-      "accountPolicy",
-      "account-policy",
-      "policyAcceptances",
-    ),
-    policyAcceptances: toMany(
-      "Policy acceptances",
-      "account-policy",
-      "principal-policy-acceptance",
-      "accountPolicy",
-      "principalPolicyAcceptancePolicy",
-    ),
-  },
-  queries: Object.fromEntries(
-    identityControlPlaneEntityNames.map((entityName) => [
-      `${camelEntityName(entityName)}All`,
-      allQuery(entityViewConfig[entityName].label, entityName),
-    ]),
-  ),
-  itemViews: Object.fromEntries(
-    identityControlPlaneEntityNames.map((entityName) => [
-      `${camelEntityName(entityName)}Item`,
-      itemView(entityName, entityViewConfig[entityName].itemFields),
-    ]),
-  ),
-  tableViews: Object.fromEntries(
-    identityControlPlaneEntityNames.map((entityName) => [
-      `${camelEntityName(entityName)}Table`,
-      tableView(entityName, entityViewConfig[entityName].tableFields, {
-        editView: `${camelEntityName(entityName)}Edit`,
-        operationLabel: `${entityLabel(entityName)} operations`,
-      }),
-    ]),
-  ),
-  views: Object.fromEntries(
-    identityControlPlaneEntityNames.flatMap((entityName) => {
-      const viewName = camelEntityName(entityName);
-
-      return [
-        [`${viewName}Create`, createView(entityName, entityViewConfig[entityName].createFields)],
-        [`${viewName}Edit`, editView(entityName, entityViewConfig[entityName].editFields)],
-        [
-          `${viewName}List`,
-          collectionView(
-            entityViewConfig[entityName].label,
-            entityName,
-            `${viewName}All`,
-            `${viewName}Table`,
-            `${viewName}Create`,
-          ),
-        ],
-      ];
+  ],
+  relationships: [
+    {
+      key: "principalEmailPrincipal",
+      ...toOne(
+        "Principal email principal",
+        "principal-email",
+        "principal",
+        "principal",
+        "principalEmails",
+      ),
+    },
+    {
+      key: "principalEmails",
+      ...toMany(
+        "Principal emails",
+        "principal",
+        "principal-email",
+        "principal",
+        "principalEmailPrincipal",
+      ),
+    },
+    {
+      key: "membershipPrincipal",
+      ...toOne(
+        "Membership principal",
+        "membership",
+        "principal",
+        "principal",
+        "principalMemberships",
+      ),
+    },
+    {
+      key: "principalMemberships",
+      ...toMany(
+        "Principal memberships",
+        "principal",
+        "membership",
+        "principal",
+        "membershipPrincipal",
+      ),
+    },
+    {
+      key: "membershipGroup",
+      ...toOne("Membership group", "membership", "targetGroup", "group", "groupMemberships"),
+    },
+    {
+      key: "groupMemberships",
+      ...toMany("Group memberships", "group", "membership", "targetGroup", "membershipGroup"),
+    },
+    {
+      key: "membershipOrganization",
+      ...toOne(
+        "Membership organization",
+        "membership",
+        "targetOrganization",
+        "organization",
+        "organizationMemberships",
+      ),
+    },
+    {
+      key: "organizationMemberships",
+      ...toMany(
+        "Organization memberships",
+        "organization",
+        "membership",
+        "targetOrganization",
+        "membershipOrganization",
+      ),
+    },
+    {
+      key: "roleAssignmentRole",
+      ...toOne("Role assignment role", "role-assignment", "role", "role", "roleAssignments"),
+    },
+    {
+      key: "roleAssignments",
+      ...toMany("Role assignments", "role", "role-assignment", "role", "roleAssignmentRole"),
+    },
+    {
+      key: "roleAssignmentTargetPrincipal",
+      ...toOne(
+        "Role assignment principal target",
+        "role-assignment",
+        "targetPrincipal",
+        "principal",
+      ),
+    },
+    {
+      key: "roleAssignmentTargetGroup",
+      ...toOne("Role assignment group target", "role-assignment", "targetGroup", "group"),
+    },
+    {
+      key: "roleAssignmentTargetOrganization",
+      ...toOne(
+        "Role assignment organization target",
+        "role-assignment",
+        "targetOrganization",
+        "organization",
+      ),
+    },
+    {
+      key: "roleAssignmentScopeOrganization",
+      ...toOne(
+        "Role assignment scope organization",
+        "role-assignment",
+        "scopeOrganization",
+        "organization",
+      ),
+    },
+    {
+      key: "appRegistrationTargetPrincipal",
+      ...toOne(
+        "App registration principal target",
+        "app-registration",
+        "targetPrincipal",
+        "principal",
+      ),
+    },
+    {
+      key: "appRegistrationTargetOrganization",
+      ...toOne(
+        "App registration organization target",
+        "app-registration",
+        "targetOrganization",
+        "organization",
+      ),
+    },
+    {
+      key: "appRegistrationSelectedOrganization",
+      ...toOne(
+        "App registration selected organization",
+        "app-registration",
+        "selectedOrganization",
+        "organization",
+      ),
+    },
+    {
+      key: "invitationTargetOrganization",
+      ...toOne(
+        "Invitation target organization",
+        "invitation",
+        "targetOrganization",
+        "organization",
+      ),
+    },
+    {
+      key: "invitationInvitedPrincipal",
+      ...toOne("Invitation invited principal", "invitation", "invitedPrincipal", "principal"),
+    },
+    {
+      key: "invitationInviterPrincipal",
+      ...toOne("Invitation inviter principal", "invitation", "inviterPrincipal", "principal"),
+    },
+    {
+      key: "accountPolicyScopeOrganization",
+      ...toOne(
+        "Account policy scope organization",
+        "account-policy",
+        "scopeOrganization",
+        "organization",
+      ),
+    },
+    {
+      key: "principalPolicyAcceptancePrincipal",
+      ...toOne(
+        "Principal policy acceptance principal",
+        "principal-policy-acceptance",
+        "principal",
+        "principal",
+        "principalPolicyAcceptances",
+      ),
+    },
+    {
+      key: "principalPolicyAcceptances",
+      ...toMany(
+        "Principal policy acceptances",
+        "principal",
+        "principal-policy-acceptance",
+        "principal",
+        "principalPolicyAcceptancePrincipal",
+      ),
+    },
+    {
+      key: "principalPolicyAcceptancePolicy",
+      ...toOne(
+        "Principal policy acceptance policy",
+        "principal-policy-acceptance",
+        "accountPolicy",
+        "account-policy",
+        "policyAcceptances",
+      ),
+    },
+    {
+      key: "policyAcceptances",
+      ...toMany(
+        "Policy acceptances",
+        "account-policy",
+        "principal-policy-acceptance",
+        "accountPolicy",
+        "principalPolicyAcceptancePolicy",
+      ),
+    },
+  ],
+  queries: identityControlPlaneEntityNames.map((entityName) => ({
+    key: `${camelEntityName(entityName)}All`,
+    ...allQuery(entityViewConfig[entityName].label, entityName),
+  })),
+  itemViews: identityControlPlaneEntityNames.map((entityName) => ({
+    key: `${camelEntityName(entityName)}Item`,
+    ...itemView(entityName, entityViewConfig[entityName].itemFields),
+  })),
+  tableViews: identityControlPlaneEntityNames.map((entityName) => ({
+    key: `${camelEntityName(entityName)}Table`,
+    ...tableView(entityName, entityViewConfig[entityName].tableFields, {
+      editView: `${camelEntityName(entityName)}Edit`,
+      operationLabel: `${entityLabel(entityName)} operations`,
     }),
-  ),
-  screens: {
-    principals: screen("Principals", "/", [
-      ["principals", "principalList"],
-      ["principal-emails", "principalEmailList"],
-    ]),
-    organizations: screen("Organizations", "/organizations", [
-      ["organizations", "organizationList"],
-      ["groups", "groupList"],
-      ["memberships", "membershipList"],
-    ]),
-    access: screen("Access", "/access", [
-      ["roles", "roleList"],
-      ["role-assignments", "roleAssignmentList"],
-    ]),
-    apps: screen("Apps", "/apps", [["app-registrations", "appRegistrationList"]]),
-    invitations: screen("Invitations", "/invitations", [["invitations", "invitationList"]]),
-    policies: screen("Policies", "/policies", [
-      ["account-policies", "accountPolicyList"],
-      ["policy-acceptances", "principalPolicyAcceptanceList"],
-    ]),
-  },
+  })),
+  views: identityControlPlaneEntityNames.flatMap((entityName) => {
+    const viewName = camelEntityName(entityName);
+    return [
+      {
+        key: `${viewName}Create`,
+        ...createView(entityName, entityViewConfig[entityName].createFields),
+      },
+      { key: `${viewName}Edit`, ...editView(entityName, entityViewConfig[entityName].editFields) },
+      {
+        key: `${viewName}List`,
+        ...collectionView(
+          entityViewConfig[entityName].label,
+          entityName,
+          `${viewName}All`,
+          `${viewName}Table`,
+          `${viewName}Create`,
+        ),
+      },
+    ];
+  }),
+  screens: [
+    {
+      key: "principals",
+      ...screen("Principals", "/", [
+        ["principals", "principalList"],
+        ["principal-emails", "principalEmailList"],
+      ]),
+    },
+    {
+      key: "organizations",
+      ...screen("Organizations", "/organizations", [
+        ["organizations", "organizationList"],
+        ["groups", "groupList"],
+        ["memberships", "membershipList"],
+      ]),
+    },
+    {
+      key: "access",
+      ...screen("Access", "/access", [
+        ["roles", "roleList"],
+        ["role-assignments", "roleAssignmentList"],
+      ]),
+    },
+    {
+      key: "apps",
+      ...screen("Apps", "/apps", [["app-registrations", "appRegistrationList"]]),
+    },
+    {
+      key: "invitations",
+      ...screen("Invitations", "/invitations", [["invitations", "invitationList"]]),
+    },
+    {
+      key: "policies",
+      ...screen("Policies", "/policies", [
+        ["account-policies", "accountPolicyList"],
+        ["policy-acceptances", "principalPolicyAcceptanceList"],
+      ]),
+    },
+  ],
   runtime: {
     owner: "runtime",
     controlPlane: {
@@ -888,9 +1098,7 @@ function enumField(
     type: "enum",
     required: true,
     label,
-    values: Object.fromEntries(
-      Object.entries(values).map(([value, valueLabel]) => [value, { label: valueLabel }]),
-    ),
+    values: Object.entries(values).map(([key, valueLabel]) => ({ key, label: valueLabel })),
     ...(defaultValue === undefined ? {} : { default: defaultValue }),
   };
 }
@@ -909,7 +1117,7 @@ function toOne(
   fromField: string,
   toEntity: string,
   inverse?: string,
-): NonNullable<AppSchema["relationships"]>[string] {
+): ToOneRelationshipSchema {
   return {
     kind: "toOne",
     label,
@@ -925,7 +1133,7 @@ function toMany(
   toEntity: string,
   toField: string,
   inverse?: string,
-): NonNullable<AppSchema["relationships"]>[string] {
+): ToManyRelationshipSchema {
   return {
     kind: "toMany",
     label,
@@ -940,16 +1148,14 @@ function allQuery(label: string, entity: IdentityControlPlaneEntityName) {
     label,
     entity,
     expression: { kind: "all" },
-  } satisfies AppSchema["queries"][string];
+  } satisfies Omit<AppSchema["queries"][number], "key">;
 }
-
 function itemView(entity: IdentityControlPlaneEntityName, fields: readonly string[]) {
   return {
     entity,
-    fields: Object.fromEntries(fields.map((field) => [field, viewField(editorForField(field))])),
-  } satisfies AppSchema["itemViews"][string];
+    fields: fields.map((field) => ({ field, ...viewField(editorForField(field)) })),
+  } satisfies Omit<AppSchema["itemViews"][number], "key">;
 }
-
 function tableView(
   entity: IdentityControlPlaneEntityName,
   fields: readonly IdentityControlPlaneTableField[],
@@ -979,9 +1185,8 @@ function tableView(
         presentation: "dropdown",
       },
     ],
-  } satisfies AppSchema["tableViews"][string];
+  } satisfies Omit<AppSchema["tableViews"][number], "key">;
 }
-
 function tableFieldColumn(fieldInput: IdentityControlPlaneTableField) {
   const field = typeof fieldInput === "string" ? fieldInput : fieldInput.field;
   const display = typeof fieldInput === "string" ? "readOnly" : (fieldInput.display ?? "readOnly");
@@ -990,9 +1195,8 @@ function tableFieldColumn(fieldInput: IdentityControlPlaneTableField) {
     type: "field",
     field,
     display,
-  } satisfies AppSchema["tableViews"][string]["columns"][number];
+  } satisfies AppSchema["tableViews"][number]["columns"][number];
 }
-
 function createView(
   entity: IdentityControlPlaneEntityName,
   fields: readonly IdentityControlPlaneViewField[],
@@ -1000,10 +1204,9 @@ function createView(
   return {
     type: "create",
     entity,
-    fields: Object.fromEntries(fields.map(createFieldEntry)),
-  } satisfies AppSchema["views"][string];
+    fields: fields.map(createFieldEntry),
+  } satisfies Omit<Extract<AppSchema["views"][number], { type: "create" }>, "key">;
 }
-
 function editView(
   entity: IdentityControlPlaneEntityName,
   fields: readonly IdentityControlPlaneViewField[],
@@ -1011,10 +1214,9 @@ function editView(
   return {
     type: "edit",
     entity,
-    fields: Object.fromEntries(fields.map(viewFieldEntry)),
-  } satisfies AppSchema["views"][string];
+    fields: fields.map(viewFieldEntry),
+  } satisfies Omit<Extract<AppSchema["views"][number], { type: "edit" }>, "key">;
 }
-
 function collectionView(
   label: string,
   entity: IdentityControlPlaneEntityName,
@@ -1033,9 +1235,8 @@ function collectionView(
       tableView: tableViewName,
     },
     operations: [{ operation: `${entity}.create`, createView: createViewName }],
-  } satisfies AppSchema["views"][string];
+  } satisfies Omit<Extract<AppSchema["views"][number], { type: "collection" }>, "key">;
 }
-
 function screen(
   label: string,
   path: `/${string}`,
@@ -1045,28 +1246,29 @@ function screen(
     type: "workspace",
     label,
     path,
-    navigation: { primary: true },
     layout: {
       type: "stack",
       sections: sections.map(([id, view]) => ({ id, type: "collection", view })),
     },
-  } satisfies NonNullable<AppSchema["screens"]>[string];
+  } satisfies Omit<AppSchema["screens"][number], "key">;
 }
-
 function writeOperations(
   label: string,
   fields: readonly string[],
-  options: { delete?: boolean; updateFields?: readonly string[] } = {},
-) {
+  options: {
+    delete?: boolean;
+    updateFields?: readonly string[];
+  } = {},
+): NonNullable<AppSchema["entities"][number]["operations"]> {
   const input = {
-    fields: Object.fromEntries(fields.map((field) => [field, { field }])),
+    fields: fields.map((field) => ({ key: field, field })),
   };
   const updateInput = {
-    fields: Object.fromEntries((options.updateFields ?? fields).map((field) => [field, { field }])),
+    fields: (options.updateFields ?? fields).map((field) => ({ key: field, field })),
   };
-
-  return {
-    create: {
+  return [
+    {
+      key: "create",
       label: `Create ${label}`,
       kind: "create",
       scope: "collection",
@@ -1076,7 +1278,8 @@ function writeOperations(
       idempotency: { required: true },
       audit: { input: "summary" },
     },
-    update: {
+    {
+      key: "update",
       label: `Update ${label}`,
       kind: "update",
       scope: "record",
@@ -1087,8 +1290,9 @@ function writeOperations(
       audit: { input: "summary" },
     },
     ...(options.delete
-      ? {
-          delete: {
+      ? [
+          {
+            key: "delete",
             label: `Delete ${label}`,
             kind: "delete",
             scope: "record",
@@ -1096,12 +1300,11 @@ function writeOperations(
             output: { type: "delete" },
             idempotency: { required: true },
             audit: { input: "summary" },
-          },
-        }
-      : {}),
-  } satisfies NonNullable<AppSchema["entities"][string]["operations"]>;
+          } as const,
+        ]
+      : []),
+  ] satisfies NonNullable<AppSchema["entities"][number]["operations"]>;
 }
-
 function viewField(editor: FieldEditor) {
   return {
     editor,
@@ -1109,43 +1312,41 @@ function viewField(editor: FieldEditor) {
       editor === "boolean" || editor === "enum" || editor === "reference"
         ? "immediate"
         : "field-commit",
-  } satisfies AppSchema["itemViews"][string]["fields"][string];
+  } satisfies Omit<AppSchema["itemViews"][number]["fields"][number], "field">;
 }
-
 function createField(editor: FieldEditor) {
-  return { editor } satisfies NonNullable<
-    Extract<AppSchema["views"][string], { type: "create" }>["fields"]
-  >[string];
+  return { editor } satisfies Omit<
+    NonNullable<
+      Extract<
+        AppSchema["views"][number],
+        {
+          type: "create";
+        }
+      >["fields"]
+    >[number],
+    "field"
+  >;
 }
-
 function createFieldEntry(fieldInput: IdentityControlPlaneViewField) {
   const field = typeof fieldInput === "string" ? fieldInput : fieldInput.field;
-
-  return [
+  return {
     field,
-    {
-      ...createField(editorForField(field)),
-      ...(typeof fieldInput === "string" || fieldInput.visibleWhen === undefined
-        ? {}
-        : { visibleWhen: fieldInput.visibleWhen }),
-    },
-  ] as const;
+    ...createField(editorForField(field)),
+    ...(typeof fieldInput === "string" || fieldInput.visibleWhen === undefined
+      ? {}
+      : { visibleWhen: fieldInput.visibleWhen }),
+  } as const;
 }
-
 function viewFieldEntry(fieldInput: IdentityControlPlaneViewField) {
   const field = typeof fieldInput === "string" ? fieldInput : fieldInput.field;
-
-  return [
+  return {
     field,
-    {
-      ...viewField(editorForField(field)),
-      ...(typeof fieldInput === "string" || fieldInput.visibleWhen === undefined
-        ? {}
-        : { visibleWhen: fieldInput.visibleWhen }),
-    },
-  ] as const;
+    ...viewField(editorForField(field)),
+    ...(typeof fieldInput === "string" || fieldInput.visibleWhen === undefined
+      ? {}
+      : { visibleWhen: fieldInput.visibleWhen }),
+  } as const;
 }
-
 function editorForField(field: string): FieldEditor {
   if (field === "primary" || field === "recovery") {
     return "boolean";

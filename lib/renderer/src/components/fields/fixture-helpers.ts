@@ -285,9 +285,13 @@ export function displayField<TControl extends FieldControl>({
     value,
   };
 }
-
 export function textControl(
-  field: Extract<FieldSchema, { type: "text" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "text";
+    }
+  >,
   input: {
     controlKind?: Extract<
       FieldControl["controlKind"],
@@ -300,10 +304,14 @@ export function textControl(
     label?: string;
     control?: FieldEditorControl;
   } = {},
-): Extract<FieldControl, { kind: "text" }> {
+): Extract<
+  FieldControl,
+  {
+    kind: "text";
+  }
+> {
   const editor = input.editor ?? textEditorFromField(field);
   const controlKind = input.controlKind ?? textControlKind(editor);
-
   return controlFacts({
     control: input.control ?? textEditorControl(editor),
     controlKind,
@@ -313,11 +321,20 @@ export function textControl(
     label: input.label ?? field.label ?? "Text",
   });
 }
-
 export function booleanControl(
-  field: Extract<FieldSchema, { type: "boolean" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "boolean";
+    }
+  >,
   label = field.label ?? "Boolean",
-): Extract<FieldControl, { kind: "boolean" }> {
+): Extract<
+  FieldControl,
+  {
+    kind: "boolean";
+  }
+> {
   return controlFacts({
     control: { kind: "checkbox" },
     controlKind: "checkbox",
@@ -327,11 +344,20 @@ export function booleanControl(
     label,
   });
 }
-
 export function dateControl(
-  field: Extract<FieldSchema, { type: "date" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "date";
+    }
+  >,
   label = field.label ?? "Date",
-): Extract<FieldControl, { kind: "date" }> {
+): Extract<
+  FieldControl,
+  {
+    kind: "date";
+  }
+> {
   return controlFacts({
     control: { kind: "input", inputType: "date" },
     controlKind: "date",
@@ -341,11 +367,20 @@ export function dateControl(
     label,
   });
 }
-
 export function numberControl(
-  field: Extract<FieldSchema, { type: "number" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "number";
+    }
+  >,
   label = field.label ?? "Number",
-): Extract<FieldControl, { kind: "number" }> {
+): Extract<
+  FieldControl,
+  {
+    kind: "number";
+  }
+> {
   return controlFacts({
     control: { kind: "formattedNumber" },
     controlKind: "number",
@@ -360,11 +395,20 @@ export function numberControl(
     label,
   });
 }
-
 export function enumControl(
-  field: Extract<FieldSchema, { type: "enum" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
   label = field.label ?? "Enum",
-): Extract<FieldControl, { kind: "enum" }> {
+): Extract<
+  FieldControl,
+  {
+    kind: "enum";
+  }
+> {
   return controlFacts({
     control: { kind: "select" },
     controlKind: "select",
@@ -375,11 +419,20 @@ export function enumControl(
     label,
   });
 }
-
 export function referenceControl(
-  field: Extract<FieldSchema, { type: "reference" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "reference";
+    }
+  >,
   label = field.label ?? "Reference",
-): Extract<FieldControl, { kind: "reference" }> {
+): Extract<
+  FieldControl,
+  {
+    kind: "reference";
+  }
+> {
   return controlFacts({
     control: { kind: "reference" },
     controlKind: "reference",
@@ -389,25 +442,40 @@ export function referenceControl(
     label,
   });
 }
-
 export function enumOptions(
-  field: Extract<FieldSchema, { type: "enum" }>,
-  input: Partial<Record<string, { iconSource?: string }>> = {},
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
+  input: Partial<
+    Record<
+      string,
+      {
+        iconSource?: string;
+      }
+    >
+  > = {},
 ): EnumOption[] {
-  return Object.entries(field.values).map(([value, option]) => ({
+  return field.values.map((option) => ({
     label: option.label,
-    presentation: enumValuePresentation(field, value, input[value]?.iconSource),
+    presentation: enumValuePresentation(field, option.key, input[option.key]?.iconSource),
     status: "declared",
-    value,
+    value: option.key,
   }));
 }
-
 export function enumValuePresentation(
-  field: Extract<FieldSchema, { type: "enum" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
   value: string,
   iconSource?: string,
 ): EnumOption["presentation"] {
-  const option = field.values[value];
+  const option = field.values.find((definition) => definition.key === value);
   const color = option?.presentation?.color;
   const colorIntent = fixturePresentationColorIntent(color);
   const iconToken = option?.presentation?.icon;
@@ -428,9 +496,13 @@ export function enumValuePresentation(
 export function referenceOptions(options: readonly ReferenceOption[]) {
   return options;
 }
-
 export function referenceEditorFacts(
-  field: Extract<FieldSchema, { type: "reference" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "reference";
+    }
+  >,
   value: FieldValue | undefined,
   options: readonly ReferenceOption[],
 ): ReferenceFacts {
@@ -483,10 +555,14 @@ export function stateMachineField(input: {
     terminalStates: input.machine.terminal ?? [],
   };
 }
-
 export function stateMachineFacts(input: {
   currentValue: FieldValue | undefined;
-  field: Extract<FieldSchema, { type: "enum" }>;
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >;
   interaction?: "display" | "transitions";
   operationNames: Record<string, string>;
   stateMachine: StateMachineField;
@@ -495,8 +571,11 @@ export function stateMachineFacts(input: {
 }): StateMachineFacts {
   const transitions = input.transitions ?? input.stateMachine.machine.transitions;
   const currentValue = typeof input.currentValue === "string" ? input.currentValue : "";
-  const transitionFacts = Object.entries(transitions).map(([transitionName, transition]) => {
-    const undeclared = currentValue.trim() !== "" && input.field.values[currentValue] === undefined;
+  const transitionFacts = transitions.map((transition) => {
+    const transitionName = transition.key;
+    const undeclared =
+      currentValue.trim() !== "" &&
+      input.field.values.find((definition) => definition.key === currentValue) === undefined;
     const valid =
       transition.from.includes(currentValue) ||
       (undeclared && transition.to === input.stateMachine.initialState);
@@ -516,7 +595,11 @@ export function stateMachineFacts(input: {
             disabledReason: undeclared
               ? `Current state "${currentValue}" is not declared.`
               : `Requires ${transition.from
-                  .map((value) => input.field.values[value]?.label ?? value)
+                  .map(
+                    (value) =>
+                      input.field.values.find((definition) => definition.key === value)?.label ??
+                      value,
+                  )
                   .join(", ")}.`,
           },
     } satisfies StateTransitionOperation;
@@ -543,7 +626,7 @@ export function stateMachineFacts(input: {
     valueStatus:
       currentValue.trim() === ""
         ? { kind: "unset", message: "Current state is missing." }
-        : input.field.values[currentValue] === undefined
+        : input.field.values.find((definition) => definition.key === currentValue) === undefined
           ? {
               kind: "undeclared",
               message: `Current state "${currentValue}" is not declared.`,
@@ -747,14 +830,11 @@ export function displayFieldValue(field: FieldSchema, value: FieldValue | undefi
   if (field.type === "boolean") {
     return value === true ? "Yes" : "No";
   }
-
   if (field.type === "enum" && typeof value === "string") {
-    return field.values[value]?.label ?? value;
+    return field.values.find((definition) => definition.key === value)?.label ?? value;
   }
-
   return String(value);
 }
-
 export function applyScenarioFieldSubmit(field: FieldContract): FieldContract {
   if (!isCreateField(field) && !isOperationField(field)) {
     return field;
@@ -789,9 +869,10 @@ export function applyScenarioFieldSubmit(field: FieldContract): FieldContract {
     value: validation.kind === "set" ? validation.value : undefined,
   };
 }
-
 function baseField<TControl extends FieldControl>(
-  input: CommonFieldInput<TControl> & { inputName?: string },
+  input: CommonFieldInput<TControl> & {
+    inputName?: string;
+  },
   surface: FieldContract["surface"],
 ): BaseFieldFacts {
   return {
@@ -881,16 +962,19 @@ function fixtureEnumDisplayFacts({
     valueStatus: fixtureEnumValueStatus(field, value),
   };
 }
-
 function fixtureEnumValueStatus(
-  field: Extract<FieldSchema, { type: "enum" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
   value: FieldValue | undefined,
 ): EnumFacts["valueStatus"] {
   if (typeof value !== "string" || value === "") {
     return { kind: "unset" };
   }
-
-  return Object.hasOwn(field.values, value)
+  return field.values.some((definition) => definition.key === value)
     ? { kind: "declared", value }
     : { kind: "undeclared", value };
 }
@@ -945,8 +1029,14 @@ function controlFacts<TControl extends FieldControl>({
     required: field.required,
   } as TControl;
 }
-
-function textEditorFromField(field: Extract<FieldSchema, { type: "text" }>) {
+function textEditorFromField(
+  field: Extract<
+    FieldSchema,
+    {
+      type: "text";
+    }
+  >,
+) {
   if (field.format === "longText") {
     return "textarea";
   }
@@ -992,14 +1082,16 @@ function textEditorControl(editor: FieldEditor): FieldEditorControl {
   if (editor === "textarea" || editor === "markdown") {
     return { kind: "textarea" };
   }
-
   return { kind: "input", inputType: "text" };
 }
-
-function editableAccess(): Extract<FieldAccess, { kind: "editable" }> {
+function editableAccess(): Extract<
+  FieldAccess,
+  {
+    kind: "editable";
+  }
+> {
   return { kind: "editable", canPatch: true, writable: true };
 }
-
 function publicSafeOperationInputField({
   controlKind,
   field,
@@ -1487,7 +1579,10 @@ function scenarioPlainNumber(value: number) {
 function applyRecordValueUnitCommit(
   field: FieldContract,
   fieldName: string,
-  commit: { fieldDraftInput: GeneratedFieldDraftInput; unitDraftInput: GeneratedFieldDraftInput },
+  commit: {
+    fieldDraftInput: GeneratedFieldDraftInput;
+    unitDraftInput: GeneratedFieldDraftInput;
+  },
 ) {
   if (!isRecordField(field) || field.fieldName !== fieldName || !field.valueUnit) {
     return field;
@@ -1640,7 +1735,18 @@ function validateScenarioFieldValue(
   value: FieldValue | undefined,
   provided: boolean,
   draftValue?: GeneratedFieldDraftInput,
-): { kind: "error"; message: string } | { kind: "omit" } | { kind: "set"; value: FieldValue } {
+):
+  | {
+      kind: "error";
+      message: string;
+    }
+  | {
+      kind: "omit";
+    }
+  | {
+      kind: "set";
+      value: FieldValue;
+    } {
   try {
     const draftResolution =
       draftValue === undefined
@@ -1741,7 +1847,11 @@ function withFixtureEnumEditorValue(
 function withFixtureReferenceValue(
   field: FieldContract,
   value: FieldValue | undefined,
-  { updateFormatting = false }: { updateFormatting?: boolean } = {},
+  {
+    updateFormatting = false,
+  }: {
+    updateFormatting?: boolean;
+  } = {},
 ): FieldContract {
   if (field.field.type !== "reference") {
     return field;

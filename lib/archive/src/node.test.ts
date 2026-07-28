@@ -19,30 +19,29 @@ const siteSourceSchemaHash =
   "sha256:1111111111111111111111111111111111111111111111111111111111111111";
 const siteSourceSchema = parseAppSchema({
   version: 1,
-  entities: {
-    site: {
+  entities: [
+    {
+      key: "site",
       label: "Site",
-      fields: {
-        key: { type: "text", required: true, label: "Key" },
-        label: { type: "text", required: true, label: "Label" },
-      },
+      fields: [
+        { key: "key", type: "text", required: true, label: "Key" },
+        { key: "label", type: "text", required: true, label: "Label" },
+      ],
       operations: writeOperations("Site", ["key", "label"], { delete: true }),
     },
-  },
-  queries: {
-    siteAll: { label: "Sites", entity: "site", expression: { kind: "all" } },
-  },
-  itemViews: {
-    siteItem: {
+  ],
+  queries: [{ key: "siteAll", label: "Sites", entity: "site", expression: { kind: "all" } }],
+  itemViews: [
+    {
+      key: "siteItem",
       entity: "site",
-      fields: {
-        label: { editor: "text", commit: "field-commit" },
-      },
+      fields: [{ field: "label", editor: "text", commit: "field-commit" }],
     },
-  },
-  tableViews: {},
-  views: {
-    siteList: {
+  ],
+  tableViews: [],
+  views: [
+    {
+      key: "siteList",
       type: "collection",
       label: "Sites",
       entity: "site",
@@ -50,9 +49,10 @@ const siteSourceSchema = parseAppSchema({
       defaultQuery: "siteAll",
       result: { type: "list", itemView: "siteItem" },
     },
-  },
-  screens: {
-    home: {
+  ],
+  screens: [
+    {
+      key: "home",
       type: "workspace",
       label: "Home",
       layout: {
@@ -60,16 +60,21 @@ const siteSourceSchema = parseAppSchema({
         sections: [{ id: "sites", type: "collection", view: "siteList" }],
       },
     },
-  },
+  ],
 });
-
-function writeOperations(label: string, fields: string[], options: { delete?: boolean } = {}) {
+function writeOperations(
+  label: string,
+  fields: string[],
+  options: {
+    delete?: boolean;
+  } = {},
+) {
   const input = {
-    fields: Object.fromEntries(fields.map((field) => [field, { field }])),
+    fields: fields.map((field) => ({ key: field, field })),
   };
-
-  return {
-    create: {
+  return [
+    {
+      key: "create",
       label: `Create ${label}`,
       kind: "create",
       scope: "collection",
@@ -79,7 +84,8 @@ function writeOperations(label: string, fields: string[], options: { delete?: bo
       idempotency: { required: true },
       audit: { input: "summary" },
     },
-    update: {
+    {
+      key: "update",
       label: `Update ${label}`,
       kind: "update",
       scope: "record",
@@ -90,8 +96,9 @@ function writeOperations(label: string, fields: string[], options: { delete?: bo
       audit: { input: "summary" },
     },
     ...(options.delete
-      ? {
-          delete: {
+      ? [
+          {
+            key: "delete",
             label: `Delete ${label}`,
             kind: "delete",
             scope: "record",
@@ -100,11 +107,10 @@ function writeOperations(label: string, fields: string[], options: { delete?: bo
             idempotency: { required: true },
             audit: { input: "summary" },
           },
-        }
-      : {}),
-  };
+        ]
+      : []),
+  ];
 }
-
 describe("archive node adapter", () => {
   it("writes and reads portable archive directories with media files", async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "formless-archive-node-test-"));

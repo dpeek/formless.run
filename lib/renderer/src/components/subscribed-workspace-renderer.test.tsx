@@ -24,9 +24,11 @@ import {
   AstryxSubscribedWorkspaceScreenRenderer,
   AstryxWorkspaceScreenRenderer,
 } from "./workspace-screen-renderer.tsx";
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
+(
+  globalThis as {
+    IS_REACT_ACT_ENVIRONMENT?: boolean;
+  }
+).IS_REACT_ACT_ENVIRONMENT = true;
 const workspaceReference = workspaceManifestReference("workspace:tasks");
 const taskSectionReference = workspaceSectionShellReference(
   workspaceReference.workspaceId,

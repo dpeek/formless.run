@@ -88,7 +88,11 @@ describe("client domain provider API helpers", () => {
 function jsonFetcher(
   expectedPath: string,
   body: unknown,
-  options: { expectedBody?: unknown; expectedMethod?: string; status?: number } = {},
+  options: {
+    expectedBody?: unknown;
+    expectedMethod?: string;
+    status?: number;
+  } = {},
 ): typeof fetch {
   return async (input, init) => {
     expect(requestUrl(input)).toBe(expectedPath);

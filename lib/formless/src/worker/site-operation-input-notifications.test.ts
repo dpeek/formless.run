@@ -77,8 +77,14 @@ describe("Site operation input notification scheduling", () => {
         },
       },
     ]);
-    const message = (scheduled[0] as { message: { html: string; text: string } }).message;
-
+    const message = (
+      scheduled[0] as {
+        message: {
+          html: string;
+          text: string;
+        };
+      }
+    ).message;
     expect(message.text).toContain("Request details <safe label>: Need <testing> & review.");
     expect(message.text).toContain("Tier: Priority");
     expect(message.text).toContain("Accepted terms: Yes");
@@ -136,15 +142,17 @@ describe("Site operation input notification scheduling", () => {
       }),
       schema: operationInputSchema(operation),
     });
-
     expect(scheduled).toHaveLength(1);
-
     const delivery = scheduled[0] as {
-      message: { html: string; text: string };
-      replyTo: { address: string };
+      message: {
+        html: string;
+        text: string;
+      };
+      replyTo: {
+        address: string;
+      };
       source: Record<string, unknown>;
     };
-
     expect(delivery.message.text).toContain("Email: Ada@Example.COM");
     expect(delivery.message.text).toContain("Wants newsletter: No");
     expect(delivery.message.html).toMatch(
@@ -180,11 +188,15 @@ describe("Site operation input notification scheduling", () => {
       }),
       schema: operationInputSchema(operation),
     });
-
     expect(scheduled).toHaveLength(1);
-
-    const message = (scheduled[0] as { message: { html: string; text: string } }).message;
-
+    const message = (
+      scheduled[0] as {
+        message: {
+          html: string;
+          text: string;
+        };
+      }
+    ).message;
     expect(message.text).toContain("Operation output");
     expect(message.text).toContain("Request code: 7K2Q-9D3A");
     expect(message.html).toMatch(
@@ -332,10 +344,19 @@ describe("Site operation input notification scheduling", () => {
       response,
       schema: operationInputSchema(),
     });
-
     expect(scheduled).toHaveLength(2);
-    expect((scheduled[0] as { idempotencyKey: string }).idempotencyKey).toBe(
-      (scheduled[1] as { idempotencyKey: string }).idempotencyKey,
+    expect(
+      (
+        scheduled[0] as {
+          idempotencyKey: string;
+        }
+      ).idempotencyKey,
+    ).toBe(
+      (
+        scheduled[1] as {
+          idempotencyKey: string;
+        }
+      ).idempotencyKey,
     );
   });
 });
@@ -427,57 +448,70 @@ function operationInputSchema(
 ): AppSchema {
   return {
     version: 1,
-    entities: {
-      request: {
+    entities: [
+      {
+        key: "request",
         label: "Request",
-        fields: {
-          fullName: { type: "text", required: true, label: "Full name" },
-          email: { type: "text", required: false, label: "Email" },
-          details: {
+        fields: [
+          { key: "fullName", type: "text", required: true, label: "Full name" },
+          { key: "email", type: "text", required: false, label: "Email" },
+          {
+            key: "details",
             type: "text",
             required: true,
             label: "Request details <safe label>",
             format: "longText",
           },
-          tier: {
+          {
+            key: "tier",
             type: "enum",
             required: true,
             label: "Tier",
-            values: {
-              standard: { label: "Standard" },
-              priority: { label: "Priority" },
-            },
+            values: [
+              { key: "standard", label: "Standard" },
+              { key: "priority", label: "Priority" },
+            ],
           },
-          acceptedTerms: { type: "boolean", required: false, label: "Accepted terms" },
-          quantity: { type: "number", required: false, label: "Quantity" },
-          requestCode: { type: "text", required: false, label: "Request code" },
-        },
-        operations: {
-          submit: operation,
-        },
+          { key: "acceptedTerms", type: "boolean", required: false, label: "Accepted terms" },
+          { key: "quantity", type: "number", required: false, label: "Quantity" },
+          { key: "requestCode", type: "text", required: false, label: "Request code" },
+        ],
+        operations: [
+          {
+            key: "submit",
+            ...operation,
+          },
+        ],
       },
-    },
-    queries: {},
-    itemViews: {},
-    tableViews: {},
-    views: {},
+    ],
+    queries: [],
+    itemViews: [],
+    tableViews: [],
+    views: [],
+    screens: [
+      {
+        key: "requests",
+        type: "workspace",
+        label: "Requests",
+        layout: { type: "stack", sections: [] },
+      },
+    ],
   };
 }
-
 function requestSubmitOperation(): EntityOperationSchema {
   return {
     label: "Submit request",
     kind: "create",
     scope: "collection",
     input: {
-      fields: {
-        fullName: { field: "fullName", required: true },
-        email: { field: "email", required: false },
-        details: { field: "details", required: true },
-        tier: { field: "tier", required: true },
-        acceptedTerms: { field: "acceptedTerms", required: false },
-        quantity: { field: "quantity", required: false },
-      },
+      fields: [
+        { key: "fullName", field: "fullName", required: true },
+        { key: "email", field: "email", required: false },
+        { key: "details", field: "details", required: true },
+        { key: "tier", field: "tier", required: true },
+        { key: "acceptedTerms", field: "acceptedTerms", required: false },
+        { key: "quantity", field: "quantity", required: false },
+      ],
     },
     effect: { type: "createRecord" },
     output: { type: "create" },
@@ -492,10 +526,10 @@ function requestSubmitCommandHandlerOperation(): EntityOperationSchema {
     kind: "command",
     scope: "collection",
     input: {
-      fields: {
-        email: { field: "email", required: true },
-        wantsNewsletter: { type: "boolean", required: false, label: "Wants newsletter" },
-      },
+      fields: [
+        { key: "email", field: "email", required: true },
+        { key: "wantsNewsletter", type: "boolean", required: false, label: "Wants newsletter" },
+      ],
     },
     effect: { type: "operationHandler", handler: "subscribe", config: {} },
     output: { type: "command" },
@@ -510,9 +544,7 @@ function recordPlanRequestOperation(): EntityOperationSchema {
     kind: "command",
     scope: "collection",
     input: {
-      fields: {
-        email: { field: "email", required: true },
-      },
+      fields: [{ key: "email", field: "email", required: true }],
     },
     effect: { type: "recordPlan", steps: [] },
     output: { type: "command" },

@@ -1,3 +1,4 @@
+import { setKeyedDefinition } from "../test/schema-definition-test-helpers.ts";
 import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -44,7 +45,11 @@ import {
   FORMLESS_RUNTIME_PROTOCOL_VERSION,
   FORMLESS_STORAGE_MIGRATION_SET_ID,
 } from "../shared/deploy-metadata.ts";
-import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
+import {
+  STORAGE_SNAPSHOT_KIND,
+  STORAGE_SNAPSHOT_VERSION,
+  formatStoredRecordsForArtifact,
+} from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
   INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
@@ -1022,10 +1027,13 @@ describe("Formless CLI", () => {
     ) as {
       objects: Array<{
         archivePath: string;
-        asset: { access: string; contentType: string; filename: string };
+        asset: {
+          access: string;
+          contentType: string;
+          filename: string;
+        };
       }>;
     };
-
     expect(mediaManifest.objects).toMatchObject([
       {
         archivePath: "media/reports/media/app-installs/reports/documents/private-report.pdf",
@@ -1087,9 +1095,12 @@ describe("Formless CLI", () => {
     );
     const pushRestoreBody = capturedRequestJson<{
       archive: InstanceArchive;
-      mediaFiles: Array<{ archivePath: string; bytesBase64: string; contentType: string }>;
+      mediaFiles: Array<{
+        archivePath: string;
+        bytesBase64: string;
+        contentType: string;
+      }>;
     }>(pushRestoreRequest);
-
     expect(pushRestoreBody.archive.apps[0]?.media.objects).toMatchObject(mediaManifest.objects);
     expect(pushRestoreBody.mediaFiles.map((file) => file.archivePath)).toEqual([
       "media/reports/media/app-installs/reports/documents/private-report.pdf",
@@ -1132,9 +1143,12 @@ describe("Formless CLI", () => {
     );
     const localRestoreBody = capturedRequestJson<{
       archive: InstanceArchive;
-      mediaFiles: Array<{ archivePath: string; bytesBase64: string; contentType: string }>;
+      mediaFiles: Array<{
+        archivePath: string;
+        bytesBase64: string;
+        contentType: string;
+      }>;
     }>(localRestoreRequest);
-
     expect(localRestoreBody.archive.apps[0]?.media.objects).toMatchObject(mediaManifest.objects);
     expect(localRestoreBody.mediaFiles.map((file) => file.bytesBase64)).toEqual([
       Buffer.from(privateBytes).toString("base64"),
@@ -1523,7 +1537,9 @@ describe("Formless CLI", () => {
     const requests: CapturedFetchRequest[] = [];
     const logs: string[] = [];
     const openedUrls: string[] = [];
-    const accountDiscoveryInputs: Array<{ credentialProfile: string | null }> = [];
+    const accountDiscoveryInputs: Array<{
+      credentialProfile: string | null;
+    }> = [];
     const deployInputs: DeployFormlessInstanceInput[] = [];
     const localDavid = appArchive("david", "David Peek");
     const cloudflareAccount = {
@@ -2414,8 +2430,9 @@ describe("Formless CLI", () => {
         request.method === "POST" &&
         request.url === "https://personal.dpeek.workers.dev/api/formless/archive/restore",
     );
-    const restoreBody = capturedRequestJson<{ archive: InstanceArchive }>(restoreRequest);
-
+    const restoreBody = capturedRequestJson<{
+      archive: InstanceArchive;
+    }>(restoreRequest);
     expect(
       restoreBody.archive.controlPlane?.records.map((record) => `${record.entity}:${record.id}`),
     ).toContain("route:route:redirect:old.dpeek.com");
@@ -2613,7 +2630,10 @@ describe("Formless CLI", () => {
     const workspaceRoot = path.join(tempDir, "empty-workspace");
     const child = new FakeCliDevChild();
     const logs: string[] = [];
-    const nameSelections: Array<{ defaultName: string; workspaceRoot: string }> = [];
+    const nameSelections: Array<{
+      defaultName: string;
+      workspaceRoot: string;
+    }> = [];
     const openedUrls: string[] = [];
     const requests: CapturedFetchRequest[] = [];
     const sidecars: CapturedWorkspaceGatewaySidecar[] = [];
@@ -3135,9 +3155,10 @@ describe("Formless CLI", () => {
     const restoreRequest = requests.at(-1);
     const restoreBody = capturedRequestJson<{
       archive: InstanceArchive;
-      mediaFiles: { bytesBase64: string }[];
+      mediaFiles: {
+        bytesBase64: string;
+      }[];
     }>(restoreRequest);
-
     expect(restoreRequest?.headers.authorization).toBe("Bearer persisted-local-admin");
     expect(restoreBody.archive.restorePolicy).toEqual({
       dryRun: false,
@@ -3227,10 +3248,11 @@ describe("Formless CLI", () => {
         worker: "renderers/site-public.worker.tsx",
       },
     });
-
     const restoreBody = capturedRequestJson<{
       archive: InstanceArchive;
-      mediaFiles: { bytesBase64: string }[];
+      mediaFiles: {
+        bytesBase64: string;
+      }[];
     }>(requests.at(-1));
     const controlPlaneJson = JSON.stringify(restoreBody.archive.controlPlane);
     const appInstall = restoreBody.archive.controlPlane?.records.find(
@@ -3403,8 +3425,9 @@ describe("Formless CLI", () => {
     const deploymentConfigSourcePath = instanceWorkspaceInstanceStatePath(workspaceRoot, manifest);
     const deploymentConfigSource = JSON.parse(
       await readFile(deploymentConfigSourcePath, "utf8"),
-    ) as { records: StoredRecord[] };
-
+    ) as {
+      records: StoredRecord[];
+    };
     const deploymentConfigEntity =
       formatInstanceControlPlaneBoundaryEntityName("deployment-config");
     deploymentConfigSource.records = deploymentConfigSource.records.map((record) =>
@@ -3981,9 +4004,10 @@ describe("Formless CLI", () => {
     const restoreRequest = requests.at(-1);
     const restoreBody = capturedRequestJson<{
       archive: AppArchive;
-      mediaFiles: { bytesBase64: string }[];
+      mediaFiles: {
+        bytesBase64: string;
+      }[];
     }>(restoreRequest);
-
     expect(`${restoreRequest?.method} ${restoreRequest?.url}`).toBe(
       "POST https://instance.example/api/formless/archive/restore",
     );
@@ -4119,12 +4143,13 @@ describe("Formless CLI", () => {
         fetch: responses.fetcher(requests),
       }),
     );
-
     const restoreBody = capturedRequestJson<{
       archive: AppArchive;
-      mediaFiles: { archivePath: string; bytesBase64: string }[];
+      mediaFiles: {
+        archivePath: string;
+        bytesBase64: string;
+      }[];
     }>(requests.at(-1));
-
     expect(restoreBody.archive.app.installId).toBe("personal-copy");
     expect(restoreBody.archive.media.objects).toEqual([
       expect.objectContaining({
@@ -4390,9 +4415,10 @@ describe("Formless CLI", () => {
     const restoreRequest = requests.at(-1);
     const restoreBody = capturedRequestJson<{
       archive: InstanceArchive;
-      mediaFiles: { bytesBase64: string }[];
+      mediaFiles: {
+        bytesBase64: string;
+      }[];
     }>(restoreRequest);
-
     expect(`${restoreRequest?.method} ${restoreRequest?.url}`).toBe(
       "POST https://instance.example/api/formless/archive/restore",
     );
@@ -4438,10 +4464,10 @@ describe("Formless CLI", () => {
         fetch: responses.fetcher(requests),
       }),
     );
-
     const restoreRequest = requests.at(-1);
-    const restoreBody = capturedRequestJson<{ archive: InstanceArchive }>(restoreRequest);
-
+    const restoreBody = capturedRequestJson<{
+      archive: InstanceArchive;
+    }>(restoreRequest);
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
       "POST https://instance.example/api/formless/archive/restore",
     ]);
@@ -5190,7 +5216,13 @@ async function writeWorkspaceAppStateFromArchive(
 function archiveFetch(
   requests: CapturedFetchRequest[],
   installs: AppInstall[],
-  dataByInstall: Record<string, { mediaBytes?: Uint8Array; records: StoredRecord[] }>,
+  dataByInstall: Record<
+    string,
+    {
+      mediaBytes?: Uint8Array;
+      records: StoredRecord[];
+    }
+  >,
   extraPackages: InstallableAppPackage[] = [],
   controlPlaneRecords?: StoredRecord[],
 ): typeof fetch {
@@ -5705,7 +5737,13 @@ function redirectRouteRecord(fromHost: string, toHost: string): StoredRecord {
 function pushArchiveFetch(
   requests: CapturedFetchRequest[],
   installs: ReturnType<typeof installedApp>[],
-  dataByInstall: Record<string, { mediaBytes?: Uint8Array; records: StoredRecord[] }>,
+  dataByInstall: Record<
+    string,
+    {
+      mediaBytes?: Uint8Array;
+      records: StoredRecord[];
+    }
+  >,
   restoreResponses: unknown[],
   extraPackages: InstallableAppPackage[] = [],
   remoteControlPlaneRecords?: StoredRecord[],
@@ -5998,12 +6036,20 @@ function destroyedResourceSummary(
 function cliDeps(
   cwd: string,
   options: {
-    accounts?: Array<{ id: string; name?: string; workersDevSubdomain: string }>;
-    accountDiscoveryInputs?: Array<{ credentialProfile: string | null }>;
+    accounts?: Array<{
+      id: string;
+      name?: string;
+      workersDevSubdomain: string;
+    }>;
+    accountDiscoveryInputs?: Array<{
+      credentialProfile: string | null;
+    }>;
     cloudflareDomainClient?: CloudflareDomainClient;
     cloudflareOAuth?: FormlessCloudflareOAuthAdapter;
     commands?: CapturedCommand[];
-    deploy?: (input: DeployFormlessInstanceInput) => Promise<{ url: string }>;
+    deploy?: (input: DeployFormlessInstanceInput) => Promise<{
+      url: string;
+    }>;
     destroy?: (input: DestroyFormlessInstanceInput) => Promise<DestroyFormlessInstanceResult>;
     domainProviderDeleteRuntime?: FormlessCliDependencies["domainProviderDeleteRuntime"];
     env?: NodeJS.ProcessEnv;
@@ -6232,16 +6278,13 @@ function snapshot(
     records,
   };
 }
-
 function documentArchiveSourceSchema() {
   const schema = structuredClone(siteSourceSchema);
-  const block = schema.entities.block;
-
+  const block = schema.entities.find((definition) => definition.key === "block")!;
   if (!block) {
     throw new Error("Expected Site block schema.");
   }
-
-  block.fields.privateDocument = {
+  setKeyedDefinition(block.fields, "privateDocument", {
     type: "text",
     required: false,
     label: "Private document",
@@ -6251,8 +6294,8 @@ function documentArchiveSourceSchema() {
       maxBytes: 1024 * 1024,
       access: "private",
     },
-  };
-  block.fields.publicDocument = {
+  });
+  setKeyedDefinition(block.fields, "publicDocument", {
     type: "text",
     required: false,
     label: "Public document",
@@ -6262,11 +6305,9 @@ function documentArchiveSourceSchema() {
       maxBytes: 1024 * 1024,
       access: "public",
     },
-  };
-
+  });
   return schema;
 }
-
 function appDocumentAsset(
   installId: string,
   name: string,
@@ -6320,7 +6361,7 @@ function taskSnapshot(
     schemaUpdatedAt: "2026-05-12T00:00:00.000Z",
     sourceCursor: records.length,
     schema: taskSourceSchema,
-    records,
+    records: formatStoredRecordsForArtifact(taskSourceSchema, records),
   };
 }
 

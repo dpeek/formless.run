@@ -30,17 +30,14 @@ export function selectRecordUnionPresentation(
   if (view.union === undefined) {
     return undefined;
   }
-
-  const union = schema.unions?.[view.union];
-
+  const union = schema.unions?.find((definition) => definition.key === view.union);
   if (!union) {
     throw new Error(`Missing union "${view.union}".`);
   }
-
   return {
     ...selectUnionBaseConfig(view.union, union, entity),
-    variants: Object.entries(view.variants).map(([variantValue, presentation]) =>
-      selectRecordVariantPresentationConfig(entity, union, variantValue, presentation),
+    variants: view.variants.map((presentation) =>
+      selectRecordVariantPresentationConfig(entity, union, presentation.variant, presentation),
     ),
     ...(view.fallback === undefined
       ? {}
@@ -58,17 +55,14 @@ export function selectCreateUnionPresentation(
   if (view.union === undefined) {
     return undefined;
   }
-
-  const union = schema.unions?.[view.union];
-
+  const union = schema.unions?.find((definition) => definition.key === view.union);
   if (!union) {
     throw new Error(`Missing union "${view.union}".`);
   }
-
   return {
     ...selectUnionBaseConfig(view.union, union, entity),
-    variants: Object.entries(view.variants).map(([variantValue, presentation]) =>
-      selectCreateVariantPresentationConfig(entity, union, variantValue, presentation),
+    variants: view.variants.map((presentation) =>
+      selectCreateVariantPresentationConfig(entity, union, presentation.variant, presentation),
     ),
     ...(view.fallback === undefined
       ? {}
@@ -77,10 +71,10 @@ export function selectCreateUnionPresentation(
         }),
   };
 }
-
 function selectUnionBaseConfig(unionName: string, union: EntityUnionSchema, entity: EntitySchema) {
-  const discriminatorField = entity.fields[union.discriminator];
-
+  const discriminatorField = entity.fields.find(
+    (definition) => definition.key === union.discriminator,
+  )!;
   if (discriminatorField?.type !== "enum") {
     throw new Error(`Missing union discriminator field "${union.discriminator}".`);
   }
@@ -99,8 +93,7 @@ function selectRecordVariantPresentationConfig(
   variantValue: string,
   presentation: ItemViewVariantPresentationSchema | EditViewVariantPresentationSchema,
 ): RecordVariantPresentationConfig {
-  const unionVariant = union.variants[variantValue];
-
+  const unionVariant = union.variants.find((definition) => definition.key === variantValue)!;
   if (!unionVariant) {
     throw new Error(`Missing union variant "${variantValue}".`);
   }
@@ -133,7 +126,9 @@ function selectRecordVariantPresentation(
     return {
       type: "contextLink",
       labelFieldName: presentation.labelField,
-      labelField: entity.fields[presentation.labelField] as FieldSchema,
+      labelField: entity.fields.find(
+        (definition) => definition.key === presentation.labelField,
+      )! as FieldSchema,
       target: {
         kind: presentation.target.kind,
         contextName: presentation.target.context,
@@ -141,12 +136,11 @@ function selectRecordVariantPresentation(
       },
     };
   }
-
   return {
     type: "fields",
-    fields: Object.entries(presentation.fields).map(([fieldName, viewField]) => {
+    fields: presentation.fields.map((viewField) => {
+      const fieldName = viewField.field;
       const selectedField = selectAddressableRecordFieldConfig(entity, fieldName);
-
       return {
         fieldName,
         fieldRef: selectedField.fieldRef,
@@ -170,8 +164,7 @@ function selectCreateVariantPresentationConfig(
   variantValue: string,
   presentation: CreateViewVariantPresentationSchema,
 ): CreateVariantPresentationConfig {
-  const unionVariant = union.variants[variantValue];
-
+  const unionVariant = union.variants.find((definition) => definition.key === variantValue)!;
   if (!unionVariant) {
     throw new Error(`Missing union variant "${variantValue}".`);
   }
@@ -202,9 +195,9 @@ function selectCreateVariantPresentation(
 ): CreateVariantPresentationConfig["presentation"] {
   return {
     type: "fields",
-    fields: Object.entries(presentation.fields).flatMap(([fieldName, viewField]) => {
+    fields: presentation.fields.flatMap((viewField) => {
+      const fieldName = viewField.field;
       const selectedField = selectAddressableRecordFieldConfig(entity, fieldName);
-
       if (!selectedField.writable) {
         return [];
       }

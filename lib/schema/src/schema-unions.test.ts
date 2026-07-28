@@ -6,14 +6,19 @@ import { taskCollectionView, taskEntity, taskSchema } from "./schema-test-fixtur
 describe("schema unions", () => {
   it("parses discriminator variants and preserves them through stringify", () => {
     const schema = parseAppSchema(unionSchema());
-
-    expect(schema.unions?.taskByPriority).toEqual({
+    expect(schema.unions?.find((definition) => definition.key === "taskByPriority")).toEqual({
+      key: "taskByPriority",
       entity: "task",
       discriminator: "priority",
-      variants: {
-        normal: { label: "Normal", fields: ["title", "priority"], requiredFields: ["title"] },
-        high: { label: "High", fields: ["title", "dueDate"] },
-      },
+      variants: [
+        {
+          key: "normal",
+          label: "Normal",
+          fields: ["title", "priority"],
+          requiredFields: ["title"],
+        },
+        { key: "high", label: "High", fields: ["title", "dueDate"] },
+      ],
     });
     expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
   });
@@ -22,61 +27,67 @@ describe("schema unions", () => {
     const source = unionSchema();
     const schema = parseAppSchema({
       ...source,
-      itemViews: {
-        taskItem: {
+      itemViews: [
+        {
+          key: "taskItem",
           entity: "task",
-          fields: { priority: { editor: "enum", commit: "immediate" } },
+          fields: [{ field: "priority", editor: "enum", commit: "immediate" }],
           union: "taskByPriority",
-          variants: {
-            normal: {
+          variants: [
+            {
+              variant: "normal",
               presentation: "fields",
-              fields: { title: { editor: "text", commit: "field-commit" } },
+              fields: [{ field: "title", editor: "text", commit: "field-commit" }],
             },
-            high: {
+            {
+              variant: "high",
               presentation: "contextLink",
               labelField: "title",
               target: { kind: "selectContext", context: "task", record: "self" },
             },
-          },
+          ],
         },
-      },
-      views: {
-        taskHome: taskCollectionView(),
-        taskCreate: {
+      ],
+      views: [
+        {
+          key: "taskHome",
+          ...taskCollectionView(),
+        },
+        {
+          key: "taskCreate",
           type: "create",
           entity: "task",
-          fields: {
-            title: { editor: "text" },
-            priority: { editor: "enum" },
-          },
+          fields: [
+            { field: "title", editor: "text" },
+            { field: "priority", editor: "enum" },
+          ],
           union: "taskByPriority",
           variants: unionFieldPresentations(false),
         },
-        taskEdit: {
+        {
+          key: "taskEdit",
           type: "edit",
           entity: "task",
-          fields: { priority: { editor: "enum", commit: "immediate" } },
+          fields: [{ field: "priority", editor: "enum", commit: "immediate" }],
           union: "taskByPriority",
           variants: unionFieldPresentations(true),
         },
-      },
+      ],
     });
-
-    expect(schema.itemViews.taskItem).toMatchObject({
-      union: "taskByPriority",
-      variants: {
-        high: {
-          presentation: "contextLink",
-          labelField: "title",
-          target: { kind: "selectContext", context: "task", record: "self" },
-        },
-      },
+    expect(
+      schema.itemViews
+        .find((definition) => definition.key === "taskItem")!
+        .variants?.find((definition) => definition.variant === "high"),
+    ).toMatchObject({
+      presentation: "contextLink",
+      labelField: "title",
+      target: { kind: "selectContext", context: "task", record: "self" },
     });
-    expect(schema.views.taskCreate).toMatchObject({
+    expect(schema.views.find((definition) => definition.key === "taskCreate")!).toMatchObject({
       type: "create",
       union: "taskByPriority",
     });
-    expect(schema.views.taskEdit).toMatchObject({
+    expect(schema.views.find((definition) => definition.key === "taskEdit")!).toMatchObject({
       type: "edit",
       union: "taskByPriority",
     });
@@ -88,65 +99,76 @@ describe("schema unions", () => {
     expect(() =>
       parseAppSchema({
         ...source,
-        unions: {
-          taskByPriority: {
+        unions: [
+          {
+            key: "taskByPriority",
             entity: "task",
             discriminator: "priority",
-            variants: { normal: { label: "Normal", fields: ["title"] } },
+            variants: [{ key: "normal", label: "Normal", fields: ["title"] }],
           },
-        },
+        ],
       }),
     ).toThrow('must define variants for discriminator values "high" or a fallback');
-
     expect(() =>
       parseAppSchema({
         ...source,
-        itemViews: {
-          taskItem: {
+        itemViews: [
+          {
+            key: "taskItem",
             entity: "task",
-            fields: { title: { editor: "text", commit: "field-commit" } },
+            fields: [{ field: "title", editor: "text", commit: "field-commit" }],
             union: "missing",
-            variants: {},
+            variants: [],
           },
-        },
+        ],
       }),
     ).toThrow('references unknown union "missing"');
   });
 });
-
 function unionSchema() {
   return taskSchema({
-    entities: { task: taskEntity() },
-    unions: {
-      taskByPriority: {
+    entities: [
+      {
+        key: "task",
+        ...taskEntity(),
+      },
+    ],
+    unions: [
+      {
+        key: "taskByPriority",
         entity: "task",
         discriminator: "priority",
-        variants: {
-          normal: {
+        variants: [
+          {
+            key: "normal",
             label: "Normal",
             fields: ["title", "priority"],
             requiredFields: ["title"],
           },
-          high: { label: "High", fields: ["title", "dueDate"] },
-        },
+          { key: "high", label: "High", fields: ["title", "dueDate"] },
+        ],
       },
-    },
+    ],
   });
 }
-
 function unionFieldPresentations(edit: boolean) {
-  return {
-    normal: {
+  return [
+    {
+      variant: "normal",
       presentation: "fields",
-      fields: {
-        title: edit ? { editor: "text", commit: "field-commit" } : { editor: "text" },
-      },
+      fields: [
+        {
+          field: "title",
+          ...(edit ? { editor: "text", commit: "field-commit" } : { editor: "text" }),
+        },
+      ],
     },
-    high: {
+    {
+      variant: "high",
       presentation: "fields",
       fields: edit
-        ? { dueDate: { editor: "date", commit: "field-commit" } }
-        : { dueDate: { editor: "date" } },
+        ? [{ field: "dueDate", editor: "date", commit: "field-commit" }]
+        : [{ field: "dueDate", editor: "date" }],
     },
-  };
+  ];
 }

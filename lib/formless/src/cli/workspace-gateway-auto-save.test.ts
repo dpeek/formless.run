@@ -1,3 +1,4 @@
+import { setKeyedDefinition } from "../test/schema-definition-test-helpers.ts";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -87,10 +88,12 @@ describe("workspace gateway auto-save", () => {
       writeSources: ["schema-save"],
     });
   });
-
   it("enqueues dirty work and records gateway-owned suppression reasons", async () => {
     const workspaceRoot = await makeTempDir();
-    const scheduled: Array<{ callback: () => void; delayMs: number }> = [];
+    const scheduled: Array<{
+      callback: () => void;
+      delayMs: number;
+    }> = [];
     const scheduler = createWorkspaceAutoSaveScheduler({
       clearTimeout: () => undefined,
       debounceMs: 25,
@@ -163,13 +166,14 @@ describe("workspace gateway auto-save", () => {
         workspaceRoot,
       }),
     ).resolves.toBeUndefined();
-
     expect(scheduled.map((entry) => entry.delayMs)).toEqual([25]);
   });
-
   it("coalesces dirty generations while a save is running", async () => {
     const workspaceRoot = await makeTempDir();
-    const saves: Array<{ dirtyGeneration: number; sources: readonly string[] }> = [];
+    const saves: Array<{
+      dirtyGeneration: number;
+      sources: readonly string[];
+    }> = [];
     const saving = deferred<void>();
     const scheduler = createWorkspaceAutoSaveScheduler({
       clearTimeout: () => undefined,
@@ -229,10 +233,12 @@ describe("workspace gateway auto-save", () => {
       writeSources: ["app-operation", "deployment-intent", "schema-save"],
     });
   });
-
   it("records retryable failed state with display-safe errors and explicit run-now recovery", async () => {
     const workspaceRoot = await makeTempDir();
-    const scheduled: Array<{ callback: () => void; delayMs: number }> = [];
+    const scheduled: Array<{
+      callback: () => void;
+      delayMs: number;
+    }> = [];
     let failNextSave = true;
     const scheduler = createWorkspaceAutoSaveScheduler({
       clearTimeout: () => undefined,
@@ -341,7 +347,9 @@ describe("workspace gateway auto-save", () => {
     ) as {
       kind: string;
       schema?: unknown;
-      schemaProvenance?: { kind: string };
+      schemaProvenance?: {
+        kind: string;
+      };
       storageIdentity: string;
     };
     const appState = JSON.parse(
@@ -349,10 +357,11 @@ describe("workspace gateway auto-save", () => {
     ) as {
       kind: string;
       schema?: unknown;
-      schemaProvenance?: { kind: string };
+      schemaProvenance?: {
+        kind: string;
+      };
       storageIdentity: string;
     };
-
     expect(instanceState).toMatchObject({
       kind: WORKSPACE_RECORD_STATE_FILE_KIND,
       schemaProvenance: { kind: "instance-control-plane" },
@@ -424,10 +433,13 @@ describe("workspace gateway auto-save", () => {
     ) as {
       objects: Array<{
         archivePath: string;
-        asset: { access: string; contentType: string; filename: string };
+        asset: {
+          access: string;
+          contentType: string;
+          filename: string;
+        };
       }>;
     };
-
     expect(mediaManifest.objects).toMatchObject([
       {
         archivePath: "media/reports/media/app-installs/reports/documents/private-report.pdf",
@@ -550,9 +562,10 @@ function autoSaveDeps(
     operationIds?: string[];
     timestamps?: string[];
   } = {},
-): WorkspaceDefaultAutoSaveSchedulerDependencies & { createOperationId: () => string } {
+): WorkspaceDefaultAutoSaveSchedulerDependencies & {
+  createOperationId: () => string;
+} {
   const operationIds = [...(options.operationIds ?? [])];
-
   return {
     createOperationId: () => operationIds.shift() ?? "op_auto_save_test_00000001",
     cwd: workspaceRoot,
@@ -607,8 +620,10 @@ function timestampSequence(...timestamps: string[]): () => string {
   return () =>
     timestamps[index++ % timestamps.length] ?? timestamps.at(-1) ?? new Date(0).toISOString();
 }
-
-function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+} {
   let resolve: (value: T) => void = () => undefined;
   const promise = new Promise<T>((next) => {
     resolve = next;
@@ -800,16 +815,13 @@ function snapshot(
     version: STORAGE_SNAPSHOT_VERSION,
   };
 }
-
 function workspaceDocumentSchema() {
   const schema = structuredClone(siteSourceSchema);
-  const block = schema.entities.block;
-
+  const block = schema.entities.find((definition) => definition.key === "block")!;
   if (!block) {
     throw new Error("Expected Site block schema.");
   }
-
-  block.fields.privateDocument = {
+  setKeyedDefinition(block.fields, "privateDocument", {
     asset: {
       acceptedMimeTypes: ["application/pdf"],
       access: "private",
@@ -819,8 +831,8 @@ function workspaceDocumentSchema() {
     label: "Private document",
     required: false,
     type: "text",
-  };
-  block.fields.publicDocument = {
+  });
+  setKeyedDefinition(block.fields, "publicDocument", {
     asset: {
       acceptedMimeTypes: ["application/pdf"],
       access: "public",
@@ -830,11 +842,9 @@ function workspaceDocumentSchema() {
     label: "Public document",
     required: false,
     type: "text",
-  };
-
+  });
   return schema;
 }
-
 function workspaceDocumentAsset(
   installId: string,
   assetId: string,

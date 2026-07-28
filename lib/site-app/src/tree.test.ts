@@ -1294,99 +1294,116 @@ const anonymousTurnstilePolicy = {
     },
   },
 };
-
 const publicIntakeSchema = {
   version: 1,
-  entities: {
-    owner: {
+  entities: [
+    {
+      key: "owner",
       label: "Owner",
-      fields: {
-        label: {
+      fields: [
+        {
+          key: "label",
           type: "text",
           required: true,
           label: "Label",
         },
-      },
+      ],
     },
-    request: {
+    {
+      key: "request",
       label: "Request",
-      fields: {
-        name: {
+      fields: [
+        {
+          key: "name",
           type: "text",
           required: true,
           label: "Name",
         },
-        details: {
+        {
+          key: "details",
           type: "text",
           required: true,
           label: "Request details",
           format: "longText",
         },
-        tier: {
+        {
+          key: "tier",
           type: "enum",
           required: true,
           label: "Tier",
-          values: {
-            standard: { label: "Standard" },
-            priority: { label: "Priority" },
-          },
+          values: [
+            { key: "standard", label: "Standard" },
+            { key: "priority", label: "Priority" },
+          ],
         },
-        acceptedTerms: {
+        {
+          key: "acceptedTerms",
           type: "boolean",
           required: false,
           label: "Accepted terms",
         },
-        neededBy: {
+        {
+          key: "neededBy",
           type: "date",
           required: false,
           label: "Needed by",
         },
-        quantity: {
+        {
+          key: "quantity",
           type: "number",
           required: false,
           label: "Quantity",
         },
-        owner: {
+        {
+          key: "owner",
           type: "reference",
           required: false,
           label: "Owner",
           to: "owner",
           displayField: "label",
         },
-      },
-      operations: {
-        submit: {
+      ],
+      operations: [
+        {
+          key: "submit",
           label: "Submit request",
           kind: "create",
           scope: "collection",
           input: {
-            fields: {
-              fullName: {
+            fields: [
+              {
+                key: "fullName",
                 field: "name",
                 required: true,
                 label: "Your name",
               },
-              details: {
+              {
+                key: "details",
                 field: "details",
                 required: true,
               },
-              tier: {
+              {
+                key: "tier",
                 field: "tier",
                 required: true,
               },
-              acceptedTerms: {
+              {
+                key: "acceptedTerms",
                 field: "acceptedTerms",
               },
-              neededBy: {
+              {
+                key: "neededBy",
                 field: "neededBy",
               },
-              quantity: {
+              {
+                key: "quantity",
                 field: "quantity",
               },
-              owner: {
+              {
+                key: "owner",
                 field: "owner",
               },
-            },
+            ],
           },
           effect: {
             type: "createRecord",
@@ -1402,15 +1419,25 @@ const publicIntakeSchema = {
           },
           policy: anonymousTurnstilePolicy,
         },
+      ],
+    },
+  ],
+  queries: [],
+  itemViews: [],
+  tableViews: [],
+  views: [],
+  screens: [
+    {
+      key: "fixture",
+      type: "workspace",
+      label: "Fixture",
+      layout: {
+        type: "stack",
+        sections: [{ id: "fixture", type: "collection", view: "fixture" }],
       },
     },
-  },
-  queries: {},
-  itemViews: {},
-  tableViews: {},
-  views: {},
+  ],
 } satisfies AppSchema;
-
 function recordsWithBlogPostList(records: StoredRecord[] = baseTreeRecords()): StoredRecord[] {
   return [
     ...records,

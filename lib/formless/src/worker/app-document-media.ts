@@ -170,11 +170,11 @@ async function resolveTrustedDocumentMediaCompatibility(
   if (!fieldIdentity) {
     return undefined;
   }
-
   const schema = await readActiveInstalledAppSchema(env, identity);
-  const field = schema?.entities[fieldIdentity.entityName]?.fields[fieldIdentity.fieldName];
+  const field = schema?.entities
+    .find((definition) => definition.key === fieldIdentity.entityName)
+    ?.fields.find((definition) => definition.key === fieldIdentity.fieldName);
   const policy = field?.type === "text" ? field.asset : undefined;
-
   if (policy?.kind !== "document") {
     return undefined;
   }
@@ -205,15 +205,15 @@ async function readActiveInstalledAppSchema(
   if (!response.ok) {
     return undefined;
   }
-
   const body = (await response.json()) as Partial<SchemaResponse>;
-
   return body.schema;
 }
-
-function documentMediaFieldIdentityFromRequest(
-  request: Request,
-): { entityName: string; fieldName: string } | undefined {
+function documentMediaFieldIdentityFromRequest(request: Request):
+  | {
+      entityName: string;
+      fieldName: string;
+    }
+  | undefined {
   const searchParams = new URL(request.url).searchParams;
   const entityNames = searchParams.getAll("entity");
   const fieldNames = searchParams.getAll("field");

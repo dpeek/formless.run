@@ -17,8 +17,12 @@ import {
   canonicalizeInstanceControlPlaneStorageSnapshot,
   parseInstanceControlPlaneStorageSnapshot,
 } from "@dpeek/formless-instance-control-plane";
-import { STORAGE_SNAPSHOT_KIND, parseStorageSnapshot } from "@dpeek/formless-storage";
-import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
+import {
+  STORAGE_SNAPSHOT_KIND,
+  formatStoredRecordsForArtifact,
+  parseStorageSnapshot,
+} from "@dpeek/formless-storage";
+import type { StorageSnapshot } from "@dpeek/formless-storage";
 import type { AppSchema } from "@dpeek/formless-schema";
 import {
   MEDIA_PDF_CONTENT_TYPE,
@@ -710,46 +714,8 @@ function canonicalStorageSnapshot(snapshot: StorageSnapshot): StorageSnapshot {
     schemaUpdatedAt: snapshot.schemaUpdatedAt,
     sourceCursor: snapshot.sourceCursor,
     schema: stableValue(snapshot.schema) as AppSchema,
-    records: canonicalStoredRecords(snapshot.records),
+    records: formatStoredRecordsForArtifact(snapshot.schema, snapshot.records),
   };
-}
-
-function canonicalStoredRecords(records: StoredRecord[]): StoredRecord[] {
-  return [...records].map(canonicalStoredRecord).sort(compareRecords);
-}
-
-function canonicalStoredRecord(record: StoredRecord): StoredRecord {
-  return {
-    id: record.id,
-    entity: record.entity,
-    values: canonicalRecordValues(record.values),
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
-    ...(record.deletedAt === undefined ? {} : { deletedAt: record.deletedAt }),
-  };
-}
-
-function canonicalRecordValues(values: RecordValues): RecordValues {
-  return Object.fromEntries(
-    Object.entries(values).sort(([left], [right]) => left.localeCompare(right)),
-  ) as RecordValues;
-}
-
-function compareRecords(
-  left: Pick<StoredRecord, "entity" | "createdAt" | "id">,
-  right: Pick<StoredRecord, "entity" | "createdAt" | "id">,
-) {
-  const entityOrder = left.entity.localeCompare(right.entity);
-  if (entityOrder !== 0) {
-    return entityOrder;
-  }
-
-  const createdAtOrder = left.createdAt.localeCompare(right.createdAt);
-  if (createdAtOrder !== 0) {
-    return createdAtOrder;
-  }
-
-  return left.id.localeCompare(right.id);
 }
 
 function canonicalMediaManifest(manifest: AppArchiveMediaManifest): AppArchiveMediaManifest {

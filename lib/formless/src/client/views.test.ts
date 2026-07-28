@@ -1,3 +1,4 @@
+import { setFieldDefinition } from "../test/schema-definition-test-helpers.ts";
 import { describe, expect, it } from "vite-plus/test";
 import {
   rateSeedRecords,
@@ -25,10 +26,8 @@ import {
   parseAppSchema,
   type AppSchema,
   type EntityOperationEffectSchema,
-  type EntitySchema,
   type NumericExpression,
 } from "@dpeek/formless-schema";
-
 describe("home view model collections", () => {
   it("selects the task collection and resolves query tabs in schema order", () => {
     const model = selectPrimaryCollectionModels(appSchema)[0];
@@ -69,12 +68,13 @@ describe("home view model collections", () => {
     const schema = taskSchemaWithFieldPresentations();
     const model = selectPrimaryCollectionModels(schema)[0];
     const fields = model?.result.type === "list" ? model.result.recordFields : [];
-    const createOperation = model?.operations.find((operation) => operation.type === "create");
+    const createOperation = model?.operations!.find((operation) => operation.type === "create");
     const createFields = createOperation?.type === "create" ? createOperation.fields : [];
     const priority = fields.find((field) => field.fieldName === "priority");
-
     expect(
-      priority?.field.type === "enum" ? priority.field.values.high.presentation : undefined,
+      priority?.field.type === "enum"
+        ? priority.field.values.find((definition) => definition.key === "high")!.presentation
+        : undefined,
     ).toEqual({
       icon: "priority-marker",
       color: "priority.high",
@@ -103,7 +103,7 @@ describe("home view model collections", () => {
     const schema = systemMetadataUiSchema();
     const listModel = requiredCollectionModel(schema, "taskHome");
     const tableModel = requiredCollectionModel(schema, "taskTableHome");
-    const createOperation = listModel.operations.find((operation) => operation.type === "create");
+    const createOperation = listModel.operations!.find((operation) => operation.type === "create");
     const listFields = listModel.result.type === "list" ? listModel.result.recordFields : [];
     const tableColumns = tableModel.result.type === "table" ? tableModel.result.columns : [];
     const editControl = tableColumns
@@ -165,7 +165,7 @@ describe("home view model collections", () => {
     const listModel = requiredCollectionModel(schema, "taskHome");
     const recordModel = requiredCollectionModel(schema, "taskRecordHome");
     const tableModel = requiredCollectionModel(schema, "taskTableHome");
-    const createOperation = listModel.operations.find((operation) => operation.type === "create");
+    const createOperation = listModel.operations!.find((operation) => operation.type === "create");
     const listStatus =
       listModel.result.type === "list"
         ? listModel.result.recordFields.find((field) => field.fieldName === "status")
@@ -267,7 +267,7 @@ describe("home view model collections", () => {
     const schema = discriminatedTaskSchema();
     const listModel = requiredCollectionModel(schema, "taskHome");
     const editModel = requiredCollectionModel(schema, "taskEditHome");
-    const createOperation = listModel.operations.find((operation) => operation.type === "create");
+    const createOperation = listModel.operations!.find((operation) => operation.type === "create");
     const editColumn =
       editModel.result.type === "table"
         ? editModel.result.columns.find((column) => column.type === "operationControl")
@@ -357,8 +357,7 @@ describe("home view model collections", () => {
       discriminatedTaskSchema({ fixedCreateKind: "stream" }),
       "taskHome",
     );
-    const createOperation = model.operations.find((operation) => operation.type === "create");
-
+    const createOperation = model.operations!.find((operation) => operation.type === "create");
     expect(createOperation?.type === "create" ? createOperation.fields : []).toMatchObject([
       {
         fieldName: "title",
@@ -437,34 +436,34 @@ describe("home view model collections", () => {
         showAffectedCountOnSuccess: true,
         targetCount: {
           display: { type: "count" },
-          query: appSchema.queries.taskCompleted?.expression,
+          query: appSchema.queries.find((definition) => definition.key === "taskCompleted")
+            ?.expression,
           ariaLabel: "Clear completed target count",
         },
       },
     });
   });
-
   it("uses default generated UI facts for non-target-count command operations", () => {
-    const rateHome = rateCardSchema.views.rateHome;
-
+    const rateHome = rateCardSchema.views.find((definition) => definition.key === "rateHome")!;
     if (rateHome?.type !== "collection") {
       throw new Error("Missing rate home collection view.");
     }
-
     const schema: AppSchema = {
       ...rateCardSchema,
-      views: {
-        ...rateCardSchema.views,
-        rateHome: {
-          ...rateHome,
-          operations: [
-            {
-              operation: "rate.regenerateMissingRates",
-              count: { type: "count" },
-            },
-          ],
-        },
-      },
+      views: rateCardSchema.views.map((view) =>
+        view.key === "rateHome"
+          ? {
+              ...rateHome,
+              operations: [
+                {
+                  operation: "rate.regenerateMissingRates",
+                  count: { type: "count" },
+                },
+              ],
+              key: "rateHome",
+            }
+          : view,
+      ),
     };
     const model = requiredCollectionModel(schema, "rateHome");
     const operation = model.operations[0];
@@ -490,39 +489,32 @@ describe("home view model collections", () => {
     });
     expect(operation?.type === "command" ? operation.ui.targetCount : undefined).toBeUndefined();
   });
-
   it("does not synthesize collection toolbar controls from handler capabilities", () => {
-    const taskHome = appSchema.views.taskHome;
-
+    const taskHome = appSchema.views.find((definition) => definition.key === "taskHome")!;
     if (taskHome?.type !== "collection") {
       throw new Error("Missing task home collection view.");
     }
-
     const schema: AppSchema = {
       ...appSchema,
-      views: {
-        ...appSchema.views,
-        taskHome: {
-          ...taskHome,
-          operations: undefined,
-        },
-      },
-      entities: {
-        ...appSchema.entities,
-        task: {
-          ...appSchema.entities.task,
-          operations: undefined,
-        } as unknown as EntitySchema,
-      },
+      views: appSchema.views.map((view) =>
+        view.key === "taskHome" ? { ...taskHome, operations: undefined } : view,
+      ),
+      entities: appSchema.entities.map((entity) =>
+        entity.key === "task"
+          ? ({
+              ...entity,
+              operations: undefined,
+              key: entity.key,
+            } as AppSchema["entities"][number])
+          : entity,
+      ),
     };
     const model = requiredCollectionModel(schema, "taskHome");
-
     expect(model.operations).toEqual([]);
   });
-
   it("selects command toolbar controls from operation bindings", () => {
     const model = requiredCollectionModel(appSchema, "taskHome");
-    const clearCompleted = model.operations.find(
+    const clearCompleted = model.operations!.find(
       (operation) =>
         operation.type === "command" && operation.operationName === "clearCompletedTasks",
     );
@@ -543,118 +535,124 @@ describe("home view model collections", () => {
       },
       ui: {
         targetCount: {
-          query: appSchema.queries.taskCompleted?.expression,
+          query: appSchema.queries.find((definition) => definition.key === "taskCompleted")
+            ?.expression,
         },
       },
     });
   });
-
   it("filters bound collection operations through browser visibility", () => {
-    const taskHome = appSchema.views.taskHome;
-    const task = appSchema.entities.task;
-
+    const taskHome = appSchema.views.find((definition) => definition.key === "taskHome")!;
+    const task = appSchema.entities.find((definition) => definition.key === "task")!;
     if (taskHome?.type !== "collection" || !task) {
       throw new Error("Missing task home collection view.");
     }
-
     const schema = parseAppSchema({
       ...appSchema,
-      entities: {
-        ...appSchema.entities,
-        task: {
-          ...task,
-          operations: {
-            ...task.operations,
-            runnerApply: {
-              label: "Runner apply",
-              kind: "command",
-              scope: "collection",
-              effect: {
-                type: "operationHandler",
-                handler: "clear-completed",
-                config: { query: "taskCompleted" },
-              },
-              output: { type: "command" },
-              idempotency: { required: true },
-              audit: { input: "summary" },
-              policy: { actors: ["runner"] },
-            },
-            cliDeploy: {
-              label: "CLI deploy",
-              kind: "command",
-              scope: "collection",
-              effect: {
-                type: "operationHandler",
-                handler: "clear-completed",
-                config: { query: "taskCompleted" },
-              },
-              output: { type: "command" },
-              idempotency: { required: true },
-              audit: { input: "summary" },
-              policy: { actors: ["cliDeployer"] },
-            },
-            hiddenReview: {
-              label: "Hidden review",
-              kind: "command",
-              scope: "collection",
-              effect: {
-                type: "operationHandler",
-                handler: "clear-completed",
-                config: { query: "taskCompleted" },
-              },
-              output: { type: "command" },
-              idempotency: { required: true },
-              audit: { input: "summary" },
-              policy: { actors: ["owner"], visible: false },
-            },
-            ownerReview: {
-              label: "Owner review",
-              kind: "command",
-              scope: "collection",
-              effect: {
-                type: "operationHandler",
-                handler: "clear-completed",
-                config: { query: "taskCompleted" },
-              },
-              output: { type: "command" },
-              idempotency: { required: true },
-              audit: { input: "summary" },
-              policy: { actors: ["owner"] },
-            },
-            adminReview: {
-              label: "Admin review",
-              kind: "command",
-              scope: "collection",
-              effect: {
-                type: "operationHandler",
-                handler: "clear-completed",
-                config: { query: "taskCompleted" },
-              },
-              output: { type: "command" },
-              idempotency: { required: true },
-              audit: { input: "summary" },
-              policy: { actors: ["admin"] },
-            },
-          },
-        },
-      },
-      views: {
-        ...appSchema.views,
-        taskHome: {
-          ...taskHome,
-          operations: [
-            ...(taskHome.operations ?? []),
-            { operation: "task.runnerApply" },
-            { operation: "task.cliDeploy" },
-            { operation: "task.hiddenReview" },
-            { operation: "task.ownerReview" },
-            { operation: "task.adminReview" },
-          ],
-        },
-      },
+      entities: appSchema.entities.map((entity) =>
+        entity.key === "task"
+          ? {
+              ...task,
+              operations: [
+                ...(task.operations ?? []),
+                {
+                  key: "runnerApply",
+                  label: "Runner apply",
+                  kind: "command",
+                  scope: "collection",
+                  effect: {
+                    type: "operationHandler",
+                    handler: "clear-completed",
+                    config: { query: "taskCompleted" },
+                  },
+                  output: { type: "command" },
+                  idempotency: { required: true },
+                  audit: { input: "summary" },
+                  policy: { actors: ["runner"] },
+                },
+                {
+                  key: "cliDeploy",
+                  label: "CLI deploy",
+                  kind: "command",
+                  scope: "collection",
+                  effect: {
+                    type: "operationHandler",
+                    handler: "clear-completed",
+                    config: { query: "taskCompleted" },
+                  },
+                  output: { type: "command" },
+                  idempotency: { required: true },
+                  audit: { input: "summary" },
+                  policy: { actors: ["cliDeployer"] },
+                },
+                {
+                  key: "hiddenReview",
+                  label: "Hidden review",
+                  kind: "command",
+                  scope: "collection",
+                  effect: {
+                    type: "operationHandler",
+                    handler: "clear-completed",
+                    config: { query: "taskCompleted" },
+                  },
+                  output: { type: "command" },
+                  idempotency: { required: true },
+                  audit: { input: "summary" },
+                  policy: { actors: ["owner"], visible: false },
+                },
+                {
+                  key: "ownerReview",
+                  label: "Owner review",
+                  kind: "command",
+                  scope: "collection",
+                  effect: {
+                    type: "operationHandler",
+                    handler: "clear-completed",
+                    config: { query: "taskCompleted" },
+                  },
+                  output: { type: "command" },
+                  idempotency: { required: true },
+                  audit: { input: "summary" },
+                  policy: { actors: ["owner"] },
+                },
+                {
+                  key: "adminReview",
+                  label: "Admin review",
+                  kind: "command",
+                  scope: "collection",
+                  effect: {
+                    type: "operationHandler",
+                    handler: "clear-completed",
+                    config: { query: "taskCompleted" },
+                  },
+                  output: { type: "command" },
+                  idempotency: { required: true },
+                  audit: { input: "summary" },
+                  policy: { actors: ["admin"] },
+                },
+              ],
+              key: "task",
+            }
+          : entity,
+      ),
+      views: appSchema.views.map((view) =>
+        view.key === "taskHome"
+          ? {
+              ...taskHome,
+              operations: [
+                ...(taskHome.operations ?? []),
+                { operation: "task.runnerApply" },
+                { operation: "task.cliDeploy" },
+                { operation: "task.hiddenReview" },
+                { operation: "task.ownerReview" },
+                { operation: "task.adminReview" },
+              ],
+              key: "taskHome",
+            }
+          : view,
+      ),
     });
     const model = requiredCollectionModel(schema, "taskHome");
-
     expect(model.operations.map((operation) => operation.label)).toEqual([
       "Create Task",
       "Clear completed",
@@ -720,32 +718,34 @@ describe("home view model collections", () => {
   it("uses query slot labels when provided", () => {
     const schema: AppSchema = {
       ...appSchema,
-      views: {
-        ...appSchema.views,
-        taskHome: {
-          ...(appSchema.views.taskHome as Extract<
-            AppSchema["views"][string],
-            { type: "collection" }
-          >),
-          queries: [{ query: "taskAll", label: "Everything" }],
-        },
-      },
+      views: appSchema.views.map((view) =>
+        view.key === "taskHome"
+          ? {
+              ...(view as Extract<
+                AppSchema["views"][number],
+                {
+                  type: "collection";
+                }
+              >),
+              queries: [{ query: "taskAll", label: "Everything" }],
+            }
+          : view,
+      ),
     };
     const model = selectPrimaryCollectionModels(schema)[0];
-
     expect(model?.queryTabs.map((tab) => tab.label)).toEqual(["Everything"]);
   });
-
   it("exposes render-ready collection facts behind the home collection model", () => {
     const model = requiredCollectionModel(rateCardSchema, "rateHome");
-
     expect(model?.collection).toMatchObject({
       entityName: "rate",
       queries: {
         defaultQueryName: "ratesForSelectedCard",
         defaultTab: {
           queryName: "ratesForSelectedCard",
-          query: rateCardSchema.queries.ratesForSelectedCard?.expression,
+          query: rateCardSchema.queries.find(
+            (definition) => definition.key === "ratesForSelectedCard",
+          )?.expression,
           count: { type: "count" },
         },
       },
@@ -779,24 +779,19 @@ describe("home view model collections", () => {
     expect(model?.collection.result).toBe(model?.result);
     expect(model?.collection.operations).toBe(model?.operations);
   });
-
   it("selects collection shell facts separately from result-kind facts", () => {
     const schema = rateCardSchemaWithAggregateSummarySlots();
-    const collectionView = schema.views.rateHome;
-
+    const collectionView = schema.views.find((definition) => definition.key === "rateHome")!;
     if (collectionView?.type !== "collection") {
       throw new Error("Missing rate home collection view.");
     }
-
-    const entity = schema.entities[collectionView.entity];
-
+    const entity = schema.entities.find((definition) => definition.key === collectionView.entity)!;
     if (!entity) {
       throw new Error(`Missing entity "${collectionView.entity}".`);
     }
-
     const shell = selectHomeCollectionShell(
       schema,
-      Object.entries(schema.views),
+      schema.views.map((view) => [view.key, view]),
       collectionView,
       entity,
     );
@@ -824,29 +819,27 @@ describe("home view model collections", () => {
       ],
     });
   });
-
   it("exposes selected collection context presentation", () => {
-    const rateHome = rateCardSchema.views.rateHome;
-
+    const rateHome = rateCardSchema.views.find((definition) => definition.key === "rateHome")!;
     if (rateHome?.type !== "collection" || !rateHome.context) {
       throw new Error("Missing rate home context.");
     }
-
     const schema: AppSchema = {
       ...rateCardSchema,
-      views: {
-        ...rateCardSchema.views,
-        rateHome: {
-          ...rateHome,
-          context: {
-            ...rateHome.context,
-            presentation: "listDetail",
-          },
-        },
-      },
+      views: rateCardSchema.views.map((view) =>
+        view.key === "rateHome"
+          ? {
+              ...rateHome,
+              context: {
+                ...rateHome.context!,
+                presentation: "listDetail",
+              } as NonNullable<typeof rateHome.context>,
+              key: "rateHome",
+            }
+          : view,
+      ),
     };
     const model = requiredCollectionModel(schema, "rateHome");
-
     expect(requiredCollectionModel(rateCardSchema, "rateHome").context?.presentation).toBe("tabs");
     expect(model.context?.presentation).toBe("listDetail");
     expect(model.collection.context).toBe(model.context);
@@ -894,7 +887,9 @@ describe("home view model collections", () => {
         : undefined,
     ).toMatchObject({
       unitFieldName: "costUnit",
-      unitField: rateCardSchema.entities.rate?.fields.costUnit,
+      unitField: rateCardSchema.entities
+        .find((definition) => definition.key === "rate")
+        ?.fields.find((definition) => definition.key === "costUnit")!,
     });
     expect(
       models[2]?.result.type === "table"
@@ -902,14 +897,11 @@ describe("home view model collections", () => {
         : undefined,
     ).toBeUndefined();
   });
-
   it("selects primary rate screens without collection navigation hints", () => {
     const collectionNavigation = ["resourceHome", "cardHome", "rateHome"].map((viewName) => {
-      const view = rateCardSchema.views[viewName];
-
+      const view = rateCardSchema.views.find((definition) => definition.key === viewName)!;
       return view?.type === "collection" ? view.navigation : "missing";
     });
-
     expect(collectionNavigation).toEqual([undefined, undefined, undefined]);
     expect(selectPrimaryCollectionModels(rateCardSchema).map((model) => model.viewName)).toEqual([
       "resourceHome",
@@ -1032,53 +1024,69 @@ describe("home view model collections", () => {
       sourceReferenceFieldName: "resource",
       referencedEntityName: "resource",
       fieldName: "name",
-      field: rateCardSchema.entities.resource?.fields.name,
+      field: rateCardSchema.entities
+        .find((definition) => definition.key === "resource")
+        ?.fields.find((definition) => definition.key === "name")!,
     });
   });
-
   it("resolves table operation bindings to render-ready operation control facts", () => {
     const schema = parseAppSchema({
       ...rateCardSchema,
-      entities: {
-        ...rateCardSchema.entities,
-        rate: {
-          ...rateCardSchema.entities.rate,
-          operations: {
-            ...rateCardSchema.entities.rate.operations,
-            inspectRate: tableStaticUpdateOperation("Inspect rate"),
-            blockedRate: tableStaticUpdateOperation("Blocked rate"),
-            hiddenRate: tableStaticUpdateOperation("Hidden rate"),
-          },
-        },
-      },
-      tableViews: {
-        ...rateCardSchema.tableViews,
-        rateTable: {
-          ...rateCardSchema.tableViews.rateTable,
-          operations: [
-            { operation: "rate.inspectRate", label: "Inspect rate" },
-            {
-              operation: "rate.blockedRate",
-              label: "Blocked rate",
-              availability: { state: "disabled", reason: "No selected card" },
-            },
-            {
-              operation: "rate.hiddenRate",
-              label: "Hidden rate",
-              availability: { state: "hidden" },
-            },
-          ],
-          columns: [
-            ...rateCardSchema.tableViews.rateTable.columns,
-            { type: "operationControl", operation: "rate.inspectRate" },
-            {
-              type: "operationControl",
-              operations: ["rate.inspectRate", "rate.blockedRate", "rate.hiddenRate"],
-              label: "Rate operations",
-            },
-          ],
-        },
-      },
+      entities: rateCardSchema.entities.map((entity) =>
+        entity.key === "rate"
+          ? {
+              ...entity,
+              operations: [
+                ...(rateCardSchema.entities.find((definition) => definition.key === "rate")!
+                  .operations ?? []),
+                {
+                  ...tableStaticUpdateOperation("Inspect rate"),
+                  key: "inspectRate",
+                },
+                {
+                  ...tableStaticUpdateOperation("Blocked rate"),
+                  key: "blockedRate",
+                },
+                {
+                  ...tableStaticUpdateOperation("Hidden rate"),
+                  key: "hiddenRate",
+                },
+              ],
+              key: "rate",
+            }
+          : entity,
+      ),
+      tableViews: rateCardSchema.tableViews.map((tableView) =>
+        tableView.key === "rateTable"
+          ? {
+              ...tableView,
+              operations: [
+                { operation: "rate.inspectRate", label: "Inspect rate" },
+                {
+                  operation: "rate.blockedRate",
+                  label: "Blocked rate",
+                  availability: { state: "disabled", reason: "No selected card" },
+                },
+                {
+                  operation: "rate.hiddenRate",
+                  label: "Hidden rate",
+                  availability: { state: "hidden" },
+                },
+              ],
+              columns: [
+                ...rateCardSchema.tableViews.find((definition) => definition.key === "rateTable")!
+                  .columns,
+                { type: "operationControl", operation: "rate.inspectRate" },
+                {
+                  type: "operationControl",
+                  operations: ["rate.inspectRate", "rate.blockedRate", "rate.hiddenRate"],
+                  label: "Rate operations",
+                },
+              ],
+              key: "rateTable",
+            }
+          : tableView,
+      ),
     });
     const rateModel = selectCollectionModels(schema).find((model) => model.viewName === "rateHome");
     const columns = rateModel?.result.type === "table" ? rateModel.result.columns : [];
@@ -1133,35 +1141,39 @@ describe("home view model collections", () => {
   it("resolves editRecord table controls to edit operation dialog facts", () => {
     const schema = parseAppSchema({
       ...rateCardSchema,
-      tableViews: {
-        ...rateCardSchema.tableViews,
-        rateTable: {
-          ...rateCardSchema.tableViews.rateTable,
-          operations: [
-            {
-              operation: "resource.update",
-              label: "Edit resource",
-              target: { kind: "reference", field: "resource" },
-              editView: "resourceEdit",
-            },
-          ],
-          columns: [
-            ...rateCardSchema.tableViews.rateTable.columns,
-            { type: "operationControl", operation: "resource.update" },
-          ],
-        },
-      },
-      views: {
+      tableViews: rateCardSchema.tableViews.map((tableView) =>
+        tableView.key === "rateTable"
+          ? {
+              ...tableView,
+              operations: [
+                {
+                  operation: "resource.update",
+                  label: "Edit resource",
+                  target: { kind: "reference", field: "resource" },
+                  editView: "resourceEdit",
+                },
+              ],
+              columns: [
+                ...rateCardSchema.tableViews.find((definition) => definition.key === "rateTable")!
+                  .columns,
+                { type: "operationControl", operation: "resource.update" },
+              ],
+              key: "rateTable",
+            }
+          : tableView,
+      ),
+      views: [
         ...rateCardSchema.views,
-        resourceEdit: {
+        {
+          key: "resourceEdit",
           type: "edit",
           entity: "resource",
-          fields: {
-            name: { editor: "text", commit: "field-commit" },
-            unit: { editor: "enum", commit: "immediate" },
-          },
+          fields: [
+            { field: "name", editor: "text", commit: "field-commit" },
+            { field: "unit", editor: "enum", commit: "immediate" },
+          ],
         },
-      },
+      ],
     });
     const rateModel = selectCollectionModels(schema).find((model) => model.viewName === "rateHome");
     const columns = rateModel?.result.type === "table" ? rateModel.result.columns : [];
@@ -1201,10 +1213,11 @@ describe("home view model collections", () => {
     if (result.type !== "table") {
       throw new Error("Missing rate table model.");
     }
-
     expect(result.ordering).toMatchObject({
       fieldName: "sortOrder",
-      field: schema.entities.rate?.fields.sortOrder,
+      field: schema.entities
+        .find((definition) => definition.key === "rate")
+        ?.fields.find((definition) => definition.key === "sortOrder")!,
       scope: [{ kind: "field", fieldName: "card" }],
       presentations: ["moveMenu"],
     });
@@ -1264,28 +1277,30 @@ describe("home view model collections", () => {
       tableView: "rateTable",
       ordering,
     });
-    const siteHome = siteSourceSchema.views.siteCompositionHome;
-
+    const siteHome = siteSourceSchema.views.find(
+      (definition) => definition.key === "siteCompositionHome",
+    )!;
     if (siteHome?.type !== "collection" || siteHome.result.type !== "tree") {
       throw new Error("Missing site tree fixture.");
     }
-
     const treeSchema = parseAppSchema({
       ...siteSourceSchema,
-      views: {
-        ...siteSourceSchema.views,
-        siteCompositionHome: {
-          ...siteHome,
-          result: {
-            ...siteHome.result,
-            ordering: {
-              field: "order",
-              scope: [{ kind: "field", field: "parent" }],
-              presentations: ["dragHandle"],
-            },
-          },
-        },
-      },
+      views: siteSourceSchema.views.map((view) =>
+        view.key === "siteCompositionHome"
+          ? {
+              ...siteHome,
+              result: {
+                ...siteHome.result,
+                ordering: {
+                  field: "order",
+                  scope: [{ kind: "field", field: "parent" }],
+                  presentations: ["dragHandle"],
+                },
+              },
+              key: "siteCompositionHome",
+            }
+          : view,
+      ),
     });
     const listResult = requiredCollectionModel(listSchema, "rateHome").result;
     const tableResult = requiredCollectionModel(tableSchema, "rateHome").result;
@@ -1320,40 +1335,40 @@ describe("home view model collections", () => {
       treeResult.type === "tree" ? treeResult.placementUpdateOperation?.canonicalKey : undefined,
     ).toBe("block-placement.update");
   });
-
   it("resolves tree branch policy model facts from the child item view union", () => {
-    const siteHome = siteSourceSchema.views.siteCompositionHome;
-
+    const siteHome = siteSourceSchema.views.find(
+      (definition) => definition.key === "siteCompositionHome",
+    )!;
     if (siteHome?.type !== "collection" || siteHome.result.type !== "tree") {
       throw new Error("Missing site tree fixture.");
     }
-
     const treeSchema = parseAppSchema({
       ...siteSourceSchema,
-      views: {
-        ...siteSourceSchema.views,
-        siteCompositionHome: {
-          ...siteHome,
-          result: {
-            ...siteHome.result,
-            branches: {
-              variants: {
-                page: {
-                  children: ["group", "markdown"],
+      views: siteSourceSchema.views.map((view) =>
+        view.key === "siteCompositionHome"
+          ? {
+              ...siteHome,
+              result: {
+                ...siteHome.result,
+                branches: {
+                  variants: {
+                    page: {
+                      children: ["group", "markdown"],
+                    },
+                    header: {
+                      action: "leaf",
+                      children: ["link"],
+                    },
+                    footer: "leaf",
+                  },
                 },
-                header: {
-                  action: "leaf",
-                  children: ["link"],
-                },
-                footer: "leaf",
               },
-            },
-          },
-        },
-      },
+              key: "siteCompositionHome",
+            }
+          : view,
+      ),
     });
     const treeResult = requiredCollectionModel(treeSchema, "siteCompositionHome").result;
-
     expect(treeResult.type === "tree" ? treeResult.childRecordUnion?.unionName : undefined).toBe(
       "blockByType",
     );
@@ -1382,16 +1397,16 @@ describe("home view model collections", () => {
       },
     });
     expect(
-      treeResult.type === "tree" ? treeResult.branches?.variants.discriminatorField.values : {},
-    ).toMatchObject({
-      header: { label: "Header" },
-      footer: { label: "Footer" },
-    });
+      treeResult.type === "tree" ? treeResult.branches?.variants.discriminatorField.values : [],
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "header", label: "Header" }),
+        expect.objectContaining({ key: "footer", label: "Footer" }),
+      ]),
+    );
   });
-
   it("resolves Site tree add policy for post and project authoring", () => {
     const treeResult = requiredCollectionModel(siteSourceSchema, "siteCompositionHome").result;
-
     if (treeResult.type !== "tree") {
       throw new Error("Missing Site tree model.");
     }
@@ -1570,27 +1585,27 @@ describe("home view model collections", () => {
       },
     });
   });
-
   it("declares Site source operations and authoring operation bindings", () => {
     const siteEntityOperations = Object.fromEntries(
-      Object.entries(siteSourceSchema.entities).map(([entityName, entity]) => [
-        entityName,
-        Object.keys(entity.operations ?? {}),
+      siteSourceSchema.entities.map((entity) => [
+        entity.key,
+        (entity.operations ?? []).map(({ key }) => key),
       ]),
     );
     const collectionOperationBindings = Object.fromEntries(
-      Object.entries(siteSourceSchema.views).flatMap(([viewName, view]) =>
+      siteSourceSchema.views.flatMap((view) =>
         view.type === "collection" && view.operations
-          ? [[viewName, view.operations.map((operation) => operation.operation)]]
+          ? [[view.key, view.operations.map((operation) => operation.operation)]]
           : [],
       ),
     );
+    const compositionView = siteSourceSchema.views.find(
+      (definition) => definition.key === "siteCompositionHome",
+    );
     const treeComposition =
-      siteSourceSchema.views.siteCompositionHome?.type === "collection" &&
-      siteSourceSchema.views.siteCompositionHome.result.type === "tree"
-        ? siteSourceSchema.views.siteCompositionHome.result.composition
+      compositionView?.type === "collection" && compositionView.result.type === "tree"
+        ? compositionView.result.composition
         : undefined;
-
     expect(siteEntityOperations).toMatchObject({
       site: ["update"],
       block: ["create", "update", "delete"],
@@ -1608,7 +1623,11 @@ describe("home view model collections", () => {
       createOperation: "block-placement.addTreeChild",
       removeOperation: "block-placement.removeTreePlacement",
     });
-    expect(siteSourceSchema.entities.block.fields.operationName).toMatchObject({
+    expect(
+      siteSourceSchema.entities
+        .find((definition) => definition.key === "block")!
+        .fields.find((definition) => definition.key === "operationName")!,
+    ).toMatchObject({
       label: "Operation",
     });
   });
@@ -1730,7 +1749,9 @@ describe("home view model collections", () => {
       type: "computed",
       key: "computed:rateMargin",
       computedValueName: "rateMargin",
-      computedValue: schema.readModels?.computedValues?.rateMargin,
+      computedValue: schema.readModels?.computedValues!.find(
+        (definition) => definition.key === "rateMargin",
+      )!,
       label: "Margin",
       align: "end",
       width: "sm",
@@ -1773,21 +1794,20 @@ describe("home view model collections", () => {
         format: "percent",
       },
     ]);
-    expect(rateModel?.collection.summary?.[1]?.computedValues.rateMargin).toEqual(
-      schema.readModels?.computedValues?.rateMargin,
-    );
+    const computedValues = schema.readModels?.computedValues ?? [];
+    const { key: _key, ...rateMargin } = computedValues.find(
+      (definition) => definition.key === "rateMargin",
+    )!;
+    expect(rateModel?.collection.summary?.[1]?.computedValues.rateMargin).toEqual(rateMargin);
   });
-
   it("keeps summary absent when a collection has no summary slots", () => {
     const rateModel = selectCollectionModels(rateCardSchema).find(
       (model) => model.viewName === "resourceHome",
     );
-
     expect("summary" in (rateModel?.collection ?? {})).toBe(false);
   });
-
   it("characterizes rate value/unit editing over flat scalar fields", () => {
-    const rate = rateCardSchema.entities.rate;
+    const rate = rateCardSchema.entities.find((definition) => definition.key === "rate")!;
     const rateModel = selectCollectionModels(rateCardSchema).find(
       (model) => model.viewName === "rateHome",
     );
@@ -1797,11 +1817,22 @@ describe("home view model collections", () => {
     if (!seedRate) {
       throw new Error("Missing seed rate.");
     }
-
-    expect(rate.fields.cost).toMatchObject({ type: "number", required: true });
-    expect(rate.fields.costUnit).toMatchObject({ type: "enum", required: true });
-    expect(rate.fields.price).toMatchObject({ type: "number", required: true });
-    expect(rate.fields.currency).toMatchObject({ type: "enum", required: true });
+    expect(rate.fields.find((definition) => definition.key === "cost")!).toMatchObject({
+      type: "number",
+      required: true,
+    });
+    expect(rate.fields.find((definition) => definition.key === "costUnit")!).toMatchObject({
+      type: "enum",
+      required: true,
+    });
+    expect(rate.fields.find((definition) => definition.key === "price")!).toMatchObject({
+      type: "number",
+      required: true,
+    });
+    expect(rate.fields.find((definition) => definition.key === "currency")!).toMatchObject({
+      type: "enum",
+      required: true,
+    });
     expect(
       columns.find((column) => column.type === "field" && column.fieldName === "cost"),
     ).toMatchObject({
@@ -1810,7 +1841,7 @@ describe("home view model collections", () => {
       display: "editor",
       valueUnit: {
         unitFieldName: "costUnit",
-        unitField: rate.fields.costUnit,
+        unitField: rate.fields.find((definition) => definition.key === "costUnit")!,
       },
     });
     expect(
@@ -1839,26 +1870,31 @@ describe("home view model collections", () => {
     expect(typeof seedRate.values.price).toBe("number");
     expect(typeof seedRate.values.currency).toBe("string");
   });
-
   it("applies field type default commit policies to table columns", () => {
-    const taskHome = appSchema.views.taskHome as Extract<
-      AppSchema["views"][string],
-      { type: "collection" }
+    const taskHome = appSchema.views.find(
+      (definition) => definition.key === "taskHome",
+    )! as Extract<
+      AppSchema["views"][number],
+      {
+        type: "collection";
+      }
     >;
     const schema: AppSchema = {
       ...appSchema,
-      entities: {
-        ...appSchema.entities,
-        task: {
-          ...appSchema.entities.task,
-          fields: {
-            ...appSchema.entities.task.fields,
-            estimate: { type: "number", required: false, label: "Estimate" },
-          },
-        },
-      },
-      tableViews: {
-        taskTable: {
+      entities: appSchema.entities.map((entity) =>
+        entity.key === "task"
+          ? {
+              ...entity,
+              fields: [
+                ...entity.fields,
+                { key: "estimate", type: "number" as const, required: false, label: "Estimate" },
+              ],
+            }
+          : entity,
+      ),
+      tableViews: [
+        {
+          key: "taskTable",
           entity: "task",
           columns: [
             { type: "field", field: "title" },
@@ -1868,14 +1904,16 @@ describe("home view model collections", () => {
             { type: "field", field: "priority" },
           ],
         },
-      },
-      views: {
-        ...appSchema.views,
-        taskHome: {
-          ...taskHome,
-          result: { type: "table", tableView: "taskTable" },
-        },
-      },
+      ],
+      views: appSchema.views.map((view) =>
+        view.key === "taskHome"
+          ? {
+              ...taskHome,
+              result: { type: "table", tableView: "taskTable" },
+              key: "taskHome",
+            }
+          : view,
+      ),
     };
     const model = selectPrimaryCollectionModels(schema)[0];
     const columns = model?.result.type === "table" ? model.result.columns : [];
@@ -1899,7 +1937,7 @@ describe("home view model collections", () => {
       name: "card",
       entityName: "card",
       queryName: "cardAll",
-      query: rateCardSchema.queries.cardAll?.expression,
+      query: rateCardSchema.queries.find((definition) => definition.key === "cardAll")?.expression,
       labelField: "name",
       presentation: "tabs",
       itemViewName: "rateCardContextItem",
@@ -1919,7 +1957,8 @@ describe("home view model collections", () => {
     });
     expect(rateModel?.queryTabs[0]).toMatchObject({
       queryName: "ratesForSelectedCard",
-      query: rateCardSchema.queries.ratesForSelectedCard?.expression,
+      query: rateCardSchema.queries.find((definition) => definition.key === "ratesForSelectedCard")
+        ?.expression,
     });
     expect(rateModel?.context?.relatedCollection).toBeUndefined();
   });
@@ -1928,8 +1967,7 @@ describe("home view model collections", () => {
     const rateModel = selectCollectionModels(rateCardSchema).find(
       (model) => model.viewName === "rateHome",
     );
-    const create = rateModel?.operations.find((operation) => operation.type === "create");
-
+    const create = rateModel?.operations!.find((operation) => operation.type === "create");
     expect(create).toMatchObject({
       type: "create",
       label: "Create Resource",
@@ -2215,8 +2253,11 @@ describe("home view model collections", () => {
   it("resolves Site placement ordering controls", () => {
     const placementModel = requiredCollectionModel(siteSourceSchema, "pageCompositionHome");
     const columns = placementModel.result.type === "table" ? placementModel.result.columns : [];
-
-    expect(siteSourceSchema.entities["block-placement"].fields.order).toMatchObject({
+    expect(
+      siteSourceSchema.entities
+        .find((definition) => definition.key === "block-placement")!
+        .fields.find((definition) => definition.key === "order")!,
+    ).toMatchObject({
       type: "number",
       required: true,
       default: 1000,
@@ -2312,7 +2353,7 @@ describe("home view model collections", () => {
     const placementModel = selectCollectionModels(siteSourceSchema).find(
       (model) => model.viewName === "pageCompositionHome",
     );
-    const create = contentModel?.operations.find((operation) => operation.type === "create");
+    const create = contentModel?.operations!.find((operation) => operation.type === "create");
     const createVariantFields = Object.fromEntries(
       create?.type === "create"
         ? (create.union?.variants.map((variant) => [
@@ -2405,13 +2446,12 @@ describe("home view model collections", () => {
     expect(createVariantFields.subscribeForm).not.toContain("operationKey");
     expect(createVariantFields.subscribeForm).not.toContain("operationNotificationMode");
   });
-
   it("characterizes site authoring rich text fields as string-backed editor hints", () => {
-    const block = siteSourceSchema.entities.block;
+    const block = siteSourceSchema.entities.find((definition) => definition.key === "block")!;
     const contentModel = selectCollectionModels(siteSourceSchema).find(
       (model) => model.viewName === "blockHome",
     );
-    const create = contentModel?.operations.find((operation) => operation.type === "create");
+    const create = contentModel?.operations!.find((operation) => operation.type === "create");
     const createEditors =
       create?.type === "create"
         ? Object.fromEntries(create.fields.map((field) => [field.fieldName, field.editor]))
@@ -2434,13 +2474,28 @@ describe("home view model collections", () => {
               .map((column) => [column.fieldName, column.editor]),
           )
         : {};
-
-    expect(block.fields.body).toMatchObject({ type: "text", format: "markdown" });
-    expect(block.fields.color).toMatchObject({ type: "text", format: "color" });
-    expect(block.fields.href).toMatchObject({ type: "text", format: "href" });
-    expect(block.fields.icon).toMatchObject({ type: "text", format: "icon" });
-    expect(block.fields.mediaAssetId).toMatchObject({ type: "text" });
-    expect(block.fields.date).toMatchObject({ type: "date" });
+    expect(block.fields.find((definition) => definition.key === "body")!).toMatchObject({
+      type: "text",
+      format: "markdown",
+    });
+    expect(block.fields.find((definition) => definition.key === "color")!).toMatchObject({
+      type: "text",
+      format: "color",
+    });
+    expect(block.fields.find((definition) => definition.key === "href")!).toMatchObject({
+      type: "text",
+      format: "href",
+    });
+    expect(block.fields.find((definition) => definition.key === "icon")!).toMatchObject({
+      type: "text",
+      format: "icon",
+    });
+    expect(block.fields.find((definition) => definition.key === "mediaAssetId")!).toMatchObject({
+      type: "text",
+    });
+    expect(block.fields.find((definition) => definition.key === "date")!).toMatchObject({
+      type: "date",
+    });
     expect(createEditors).toMatchObject({
       label: "text",
       type: "enum",
@@ -2483,7 +2538,8 @@ describe("home view model collections", () => {
       name: "block",
       entityName: "block",
       queryName: "blockAll",
-      query: siteSourceSchema.queries.blockAll?.expression,
+      query: siteSourceSchema.queries.find((definition) => definition.key === "blockAll")
+        ?.expression,
       labelField: "label",
       presentation: "tabs",
       relatedCollection: {
@@ -2541,12 +2597,19 @@ describe("home view model collections", () => {
   it("exposes route-ready screen paths and selects models by path", () => {
     const accessSchema: AppSchema = {
       ...rateCardSchema,
-      screens: {
-        rateHome: { ...rateCardSchema.screens!.rateHome, access: "owner" },
-        rateSetup: { ...rateCardSchema.screens!.rateSetup, access: "anonymous" },
-      },
+      screens: [
+        {
+          ...rateCardSchema.screens!.find((definition) => definition.key === "rateHome")!,
+          access: "owner",
+          key: "rateHome",
+        },
+        {
+          ...rateCardSchema.screens!.find((definition) => definition.key === "rateSetup")!,
+          access: "anonymous",
+          key: "rateSetup",
+        },
+      ],
     };
-
     expect(
       selectPrimaryScreenModels(accessSchema).map((model) => ({
         screenName: model.screenName,
@@ -2560,18 +2623,26 @@ describe("home view model collections", () => {
     expect(selectScreenModelByPath(rateCardSchema, "/setup")?.screenName).toBe("rateSetup");
     expect(selectScreenModelByPath(rateCardSchema, "/missing")).toBeUndefined();
   });
-
   it("uses the app root path for the first primary screen when paths are omitted", () => {
-    const { path: _homePath, ...rateHomeWithoutPath } = rateCardSchema.screens!.rateHome;
-    const { path: _setupPath, ...rateSetupWithoutPath } = rateCardSchema.screens!.rateSetup;
+    const { path: _homePath, ...rateHomeWithoutPath } = rateCardSchema.screens!.find(
+      (definition) => definition.key === "rateHome",
+    )!;
+    const { path: _setupPath, ...rateSetupWithoutPath } = rateCardSchema.screens!.find(
+      (definition) => definition.key === "rateSetup",
+    )!;
     const pathlessRateSchema: AppSchema = {
       ...rateCardSchema,
-      screens: {
-        rateHome: rateHomeWithoutPath,
-        rateSetup: rateSetupWithoutPath,
-      },
+      screens: [
+        {
+          ...rateHomeWithoutPath,
+          key: "rateHome",
+        },
+        {
+          ...rateSetupWithoutPath,
+          key: "rateSetup",
+        },
+      ],
     };
-
     expect(
       selectScreenModels(pathlessRateSchema).map((model) => ({
         screenName: model.screenName,
@@ -2598,7 +2669,9 @@ describe("home view model collections", () => {
       viewName: "cardHome",
       collection: {
         entityName: "card",
-        queries: { defaultQueryName: "cardAll" },
+        queries: {
+          defaultQueryName: "cardAll",
+        },
         result: { type: "list", itemViewName: "cardListItem" },
       },
     });
@@ -2609,7 +2682,9 @@ describe("home view model collections", () => {
       viewName: "resourceHome",
       collection: {
         entityName: "resource",
-        queries: { defaultQueryName: "resourceAll" },
+        queries: {
+          defaultQueryName: "resourceAll",
+        },
         operations: [{ type: "create", entityName: "resource" }],
       },
     });
@@ -2869,21 +2944,11 @@ describe("home view model collections", () => {
       },
     ]);
   });
-
-  it("requires screen definitions before selecting screen models", () => {
-    const schemaWithoutScreens: AppSchema = { ...siteSourceSchema, screens: undefined };
-
-    expect(() => selectScreenModels(schemaWithoutScreens)).toThrow(
-      'Schema must include "screens".',
-    );
-    expect(() => selectPrimaryScreenModels(schemaWithoutScreens)).toThrow(
-      'Schema must include "screens".',
-    );
-    expect(() => selectScreenModelByPath(schemaWithoutScreens, "/")).toThrow(
-      'Schema must include "screens".',
+  it("selects all required screen definitions", () => {
+    expect(selectScreenModels(siteSourceSchema).map(({ screenName }) => screenName)).toEqual(
+      siteSourceSchema.screens.map(({ key }) => key),
     );
   });
-
   it("selects relationship-backed related collections for an entity", () => {
     expect(selectRelatedCollectionModels(rateCardSchema, "card")).toMatchObject([
       {
@@ -2909,193 +2974,204 @@ describe("home view model collections", () => {
     ]);
   });
 });
-
 function rateCardSchemaWithComputedMarginColumn(): AppSchema {
-  const rateTable = rateCardSchema.tableViews.rateTable;
-
+  const rateTable = rateCardSchema.tableViews.find((definition) => definition.key === "rateTable")!;
   return {
     ...rateCardSchema,
     readModels: {
-      computedValues: {
-        rateMargin: {
+      computedValues: [
+        {
+          key: "rateMargin",
           entity: "rate",
           type: "number",
           expression: rateMarginExpression(),
         },
-      },
-      aggregates: rateCardSchema.readModels?.aggregates ?? {},
+      ],
+      aggregates: rateCardSchema.readModels?.aggregates ?? [],
     },
-    tableViews: {
-      ...rateCardSchema.tableViews,
-      rateTable: {
-        ...rateTable,
-        columns: [
-          ...rateTable.columns,
-          {
-            type: "computed",
-            computedValue: "rateMargin",
-            label: "Margin",
-            align: "end",
-            width: "sm",
-            suffix: "margin",
-            format: "percent",
-          },
-        ],
-      },
-    },
+    tableViews: rateCardSchema.tableViews.map((tableView) =>
+      tableView.key === "rateTable"
+        ? {
+            ...rateTable,
+            columns: [
+              ...rateTable.columns,
+              {
+                type: "computed",
+                computedValue: "rateMargin",
+                label: "Margin",
+                align: "end",
+                width: "sm",
+                suffix: "margin",
+                format: "percent",
+              },
+            ],
+            key: "rateTable",
+          }
+        : tableView,
+    ),
   };
 }
-
 function rateCardSchemaWithOrdering(): AppSchema {
-  const rateTable = rateCardSchema.tableViews.rateTable;
-  const rateEntity = rateCardSchema.entities.rate;
-
+  const rateTable = rateCardSchema.tableViews.find((definition) => definition.key === "rateTable")!;
+  const rateEntity = rateCardSchema.entities.find((definition) => definition.key === "rate")!;
   return parseAppSchema({
     ...rateCardSchema,
-    entities: {
-      ...rateCardSchema.entities,
-      rate: {
-        ...rateEntity,
-        fields: {
-          ...rateEntity.fields,
-          sortOrder: {
-            type: "number",
-            required: true,
-            label: "Sort order",
-            default: 1000,
-            min: 0,
-          },
-        },
-      },
-    },
-    tableViews: {
-      ...rateCardSchema.tableViews,
-      rateTable: {
-        ...rateTable,
-        ordering: {
-          field: "sortOrder",
-          scope: [{ kind: "field", field: "card" }],
-          presentations: ["moveMenu"],
-        },
-      },
-    },
+    entities: rateCardSchema.entities.map((entity) =>
+      entity.key === "rate"
+        ? {
+            ...rateEntity,
+            fields: [
+              ...rateEntity.fields,
+              {
+                key: "sortOrder",
+                type: "number",
+                required: true,
+                label: "Sort order",
+                default: 1000,
+                min: 0,
+              },
+            ],
+            key: "rate",
+          }
+        : entity,
+    ),
+    tableViews: rateCardSchema.tableViews.map((tableView) =>
+      tableView.key === "rateTable"
+        ? {
+            ...rateTable,
+            ordering: {
+              field: "sortOrder",
+              scope: [{ kind: "field", field: "card" }],
+              presentations: ["moveMenu"],
+            },
+            key: "rateTable",
+          }
+        : tableView,
+    ),
   });
 }
-
 function rateCardSchemaWithDragOrdering(): AppSchema {
   const schema = rateCardSchemaWithOrdering();
-
   return parseAppSchema({
     ...schema,
-    tableViews: {
-      ...schema.tableViews,
-      rateTable: {
-        ...schema.tableViews.rateTable,
-        ordering: {
-          field: "sortOrder",
-          scope: [{ kind: "field", field: "card" }],
-          presentations: ["dragHandle"],
-        },
-      },
-    },
+    tableViews: schema.tableViews.map((tableView) =>
+      tableView.key === "rateTable"
+        ? {
+            ...tableView,
+            ordering: {
+              field: "sortOrder",
+              scope: [{ kind: "field", field: "card" }],
+              presentations: ["dragHandle"],
+            },
+            key: "rateTable",
+          }
+        : tableView,
+    ),
   });
 }
-
 function rateCardSchemaWithRateHomeResult(
-  result: Extract<AppSchema["views"][string], { type: "collection" }>["result"],
+  result: Extract<
+    AppSchema["views"][number],
+    {
+      type: "collection";
+    }
+  >["result"],
 ): AppSchema {
-  const rateHome = rateCardSchema.views.rateHome;
-  const rateEntity = rateCardSchema.entities.rate;
-
+  const rateHome = rateCardSchema.views.find((definition) => definition.key === "rateHome")!;
+  const rateEntity = rateCardSchema.entities.find((definition) => definition.key === "rate")!;
   if (rateHome?.type !== "collection") {
     throw new Error("Missing rate home fixture.");
   }
-
   return parseAppSchema({
     ...rateCardSchema,
-    entities: {
-      ...rateCardSchema.entities,
-      rate: {
-        ...rateEntity,
-        fields: {
-          ...rateEntity.fields,
-          sortOrder: {
-            type: "number",
-            required: true,
-            label: "Sort order",
-            default: 1000,
-            min: 0,
-          },
-        },
-      },
-    },
-    views: {
-      ...rateCardSchema.views,
-      rateHome: {
-        ...rateHome,
-        result,
-      },
-    },
+    entities: rateCardSchema.entities.map((entity) =>
+      entity.key === "rate"
+        ? {
+            ...rateEntity,
+            fields: [
+              ...rateEntity.fields,
+              {
+                key: "sortOrder",
+                type: "number",
+                required: true,
+                label: "Sort order",
+                default: 1000,
+                min: 0,
+              },
+            ],
+            key: "rate",
+          }
+        : entity,
+    ),
+    views: rateCardSchema.views.map((view) =>
+      view.key === "rateHome" ? { ...rateHome, result, key: "rateHome" } : view,
+    ),
   });
 }
-
 function rateCardSchemaWithAggregateSummarySlots(): AppSchema {
-  const rateHome = rateCardSchema.views.rateHome as Extract<
-    AppSchema["views"][string],
-    { type: "collection" }
+  const rateHome = rateCardSchema.views.find(
+    (definition) => definition.key === "rateHome",
+  )! as Extract<
+    AppSchema["views"][number],
+    {
+      type: "collection";
+    }
   >;
-
   return {
     ...rateCardSchema,
     readModels: {
-      computedValues: {
-        rateMargin: {
+      computedValues: [
+        {
+          key: "rateMargin",
           entity: "rate",
           type: "number",
           expression: rateMarginExpression(),
         },
-      },
-      aggregates: {
-        selectedCardCostTotal: {
+      ],
+      aggregates: [
+        {
+          key: "selectedCardCostTotal",
           query: "ratesForSelectedCard",
           function: "sum",
           value: { kind: "field", field: "cost" },
         },
-        selectedCardAverageMargin: {
+        {
+          key: "selectedCardAverageMargin",
           query: "ratesForSelectedCard",
           function: "average",
           value: { kind: "computed", computedValue: "rateMargin" },
         },
-      },
+      ],
     },
-    views: {
-      ...rateCardSchema.views,
-      rateHome: {
-        ...rateHome,
-        result:
-          rateHome.result.type === "table"
-            ? { type: "table", tableView: rateHome.result.tableView }
-            : rateHome.result,
-        summary: [
-          {
-            type: "aggregate",
-            aggregate: "selectedCardCostTotal",
-            label: "Cost total",
-            suffix: "/ day",
-            format: "currency",
-          },
-          {
-            type: "aggregate",
-            aggregate: "selectedCardAverageMargin",
-            label: "Average margin",
-            format: "percent",
-          },
-        ],
-      },
-    },
+    views: rateCardSchema.views.map((view) =>
+      view.key === "rateHome"
+        ? {
+            ...rateHome,
+            result:
+              rateHome.result.type === "table"
+                ? { type: "table", tableView: rateHome.result.tableView }
+                : rateHome.result,
+            summary: [
+              {
+                type: "aggregate",
+                aggregate: "selectedCardCostTotal",
+                label: "Cost total",
+                suffix: "/ day",
+                format: "currency",
+              },
+              {
+                type: "aggregate",
+                aggregate: "selectedCardAverageMargin",
+                label: "Average margin",
+                format: "percent",
+              },
+            ],
+            key: "rateHome",
+          }
+        : view,
+    ),
   };
 }
-
 function rateMarginExpression(): NumericExpression {
   return {
     kind: "binary",
@@ -3140,99 +3216,101 @@ function findFieldTableColumn(columns: TableColumnConfig[], fieldName: string) {
       column.type === "field" && column.fieldName === fieldName,
   );
 }
-
 function discriminatedTaskSchema(
-  options: { fixedCreateKind?: "role" | "stream" | "custom" } = {},
+  options: {
+    fixedCreateKind?: "role" | "stream" | "custom";
+  } = {},
 ): AppSchema {
   const createFields =
     options.fixedCreateKind === undefined
-      ? {
-          title: { editor: "text" },
-          kind: { editor: "enum" },
-        }
-      : {
-          title: { editor: "text" },
-        };
-
+      ? [
+          { field: "title", editor: "text" },
+          { field: "kind", editor: "enum" },
+        ]
+      : [{ field: "title", editor: "text" }];
   return parseAppSchema({
     version: 1,
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         label: "Task",
-        fields: {
-          title: { type: "text", required: true },
-          done: { type: "boolean", required: true, default: false },
-          kind: {
+        fields: [
+          { key: "title", type: "text", required: true },
+          { key: "done", type: "boolean", required: true, default: false },
+          {
+            key: "kind",
             type: "enum",
             required: true,
             default: "role",
-            values: {
-              role: { label: "Role" },
-              stream: { label: "Stream" },
-              custom: { label: "Custom" },
-            },
+            values: [
+              { key: "role", label: "Role" },
+              { key: "stream", label: "Stream" },
+              { key: "custom", label: "Custom" },
+            ],
           },
-        },
+        ],
         operations: testWriteOperations("Task", ["title", "done", "kind"]),
       },
-    },
-    unions: {
-      taskByKind: {
+    ],
+    unions: [
+      {
+        key: "taskByKind",
         entity: "task",
         discriminator: "kind",
-        variants: {
-          role: {
+        variants: [
+          {
+            key: "role",
             label: "Role",
             fields: ["title"],
           },
-          stream: {
+          {
+            key: "stream",
             label: "Stream",
             fields: ["title", "done"],
           },
-        },
+        ],
         fallback: {
           label: "Task",
           fields: ["title", "kind"],
         },
       },
-    },
-    queries: {
-      taskAll: {
+    ],
+    queries: [
+      {
+        key: "taskAll",
         label: "All",
         entity: "task",
         expression: { kind: "all" },
       },
-    },
-    itemViews: {
-      taskVariantItem: {
+    ],
+    itemViews: [
+      {
+        key: "taskVariantItem",
         entity: "task",
-        fields: {
-          kind: { editor: "enum", commit: "immediate" },
-        },
+        fields: [{ field: "kind", editor: "enum", commit: "immediate" }],
         union: "taskByKind",
-        variants: {
-          role: {
+        variants: [
+          {
+            variant: "role",
             presentation: "fields",
-            fields: {
-              title: { editor: "text", commit: "field-commit" },
-            },
+            fields: [{ field: "title", editor: "text", commit: "field-commit" }],
           },
-          stream: {
+          {
+            variant: "stream",
             presentation: "contextLink",
             labelField: "title",
             target: { kind: "selectContext", context: "task", record: "self" },
           },
-        },
+        ],
         fallback: {
           presentation: "fields",
-          fields: {
-            kind: { editor: "enum", commit: "immediate" },
-          },
+          fields: [{ field: "kind", editor: "enum", commit: "immediate" }],
         },
       },
-    },
-    tableViews: {
-      taskEditTable: {
+    ],
+    tableViews: [
+      {
+        key: "taskEditTable",
         entity: "task",
         operations: [
           {
@@ -3247,9 +3325,10 @@ function discriminatedTaskSchema(
           { type: "operationControl", operation: "task.update" },
         ],
       },
-    },
-    views: {
-      taskHome: {
+    ],
+    views: [
+      {
+        key: "taskHome",
         type: "collection",
         label: "Tasks",
         entity: "task",
@@ -3258,7 +3337,8 @@ function discriminatedTaskSchema(
         result: { type: "list", itemView: "taskVariantItem" },
         operations: [{ operation: "task.create", createView: "taskCreate" }],
       },
-      taskEditHome: {
+      {
+        key: "taskEditHome",
         type: "collection",
         label: "Task edits",
         entity: "task",
@@ -3267,7 +3347,7 @@ function discriminatedTaskSchema(
         defaultQuery: "taskAll",
         result: { type: "table", tableView: "taskEditTable" },
       },
-      taskCreate: {
+      {
         type: "create",
         entity: "task",
         fields: createFields,
@@ -3279,134 +3359,129 @@ function discriminatedTaskSchema(
               },
             }),
         union: "taskByKind",
-        variants: {
-          role: {
+        variants: [
+          {
+            variant: "role",
             presentation: "fields",
-            fields: {
-              title: { editor: "text" },
-            },
+            fields: [{ field: "title", editor: "text" }],
           },
-          stream: {
+          {
+            variant: "stream",
             presentation: "fields",
-            fields: {
-              done: { editor: "boolean" },
-            },
+            fields: [{ field: "done", editor: "boolean" }],
           },
-        },
+        ],
         fallback: {
           presentation: "fields",
-          fields: {
-            kind: { editor: "enum" },
-          },
+          fields: [{ field: "kind", editor: "enum" }],
         },
+        key: "taskCreate",
       },
-      taskEdit: {
+      {
+        key: "taskEdit",
         type: "edit",
         entity: "task",
-        fields: {
-          kind: { editor: "enum", commit: "immediate" },
-        },
+        fields: [{ field: "kind", editor: "enum", commit: "immediate" }],
         union: "taskByKind",
-        variants: {
-          role: {
+        variants: [
+          {
+            variant: "role",
             presentation: "fields",
-            fields: {
-              title: { editor: "text", commit: "field-commit" },
-            },
+            fields: [{ field: "title", editor: "text", commit: "field-commit" }],
           },
-          stream: {
+          {
+            variant: "stream",
             presentation: "fields",
-            fields: {
-              done: { editor: "boolean", commit: "immediate" },
-            },
+            fields: [{ field: "done", editor: "boolean", commit: "immediate" }],
           },
-        },
+        ],
         fallback: {
           presentation: "fields",
-          fields: {
-            kind: { editor: "enum", commit: "immediate" },
-          },
+          fields: [{ field: "kind", editor: "enum", commit: "immediate" }],
         },
       },
-    },
-    screens: {
-      taskHome: {
+    ],
+    screens: [
+      {
+        key: "taskHome",
         type: "workspace",
         label: "Tasks",
-        navigation: { primary: true },
         layout: {
           type: "stack",
           sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
         },
       },
-    },
+    ],
   });
 }
-
 function taskSchemaWithFieldPresentations(): AppSchema {
   const rawSchema = structuredClone(appSchema);
-  const taskEntity = rawSchema.entities.task;
-  const priority = taskEntity?.fields.priority;
-  const itemView = rawSchema.itemViews.taskListItem;
-  const createView = rawSchema.views.taskCreate;
-
+  const taskEntity = rawSchema.entities.find((definition) => definition.key === "task")!;
+  const priority = taskEntity?.fields.find((definition) => definition.key === "priority")!;
+  const itemView = rawSchema.itemViews.find((definition) => definition.key === "taskListItem")!;
+  const createView = rawSchema.views.find((definition) => definition.key === "taskCreate")!;
   if (!taskEntity || priority?.type !== "enum" || !itemView || createView?.type !== "create") {
     throw new Error("Missing task presentation fixture shape.");
   }
-
-  priority.values.low.presentation = { icon: "priority-marker", color: "priority.low" };
-  priority.values.normal.presentation = { icon: "priority-marker", color: "priority.normal" };
-  priority.values.high.presentation = { icon: "priority-marker", color: "priority.high" };
-  itemView.fields.dueDate = {
-    ...itemView.fields.dueDate,
-    presentation: { visibility: "valueOrInteraction" as const },
+  priority.values.find((definition) => definition.key === "low")!.presentation = {
+    icon: "priority-marker",
+    color: "priority.low",
   };
-  itemView.fields.priority = {
-    ...itemView.fields.priority,
+  priority.values.find((definition) => definition.key === "normal")!.presentation = {
+    icon: "priority-marker",
+    color: "priority.normal",
+  };
+  priority.values.find((definition) => definition.key === "high")!.presentation = {
+    icon: "priority-marker",
+    color: "priority.high",
+  };
+  setFieldDefinition(itemView.fields, "dueDate", {
+    ...itemView.fields.find((definition) => definition.field === "dueDate")!,
+    presentation: { visibility: "valueOrInteraction" as const },
+  });
+  setFieldDefinition(itemView.fields, "priority", {
+    ...itemView.fields.find((definition) => definition.field === "priority")!,
     presentation: { list: "both" as const, mode: "iconOnly" as const, trigger: "icon" as const },
-  };
-  itemView.fields.done = {
-    ...itemView.fields.done,
+  });
+  setFieldDefinition(itemView.fields, "done", {
+    ...itemView.fields.find((definition) => definition.field === "done")!,
     presentation: { mode: "completion" as const },
-  };
-  createView.fields.dueDate = {
-    ...createView.fields.dueDate,
+  });
+  setFieldDefinition(createView.fields, "dueDate", {
+    ...createView.fields.find((definition) => definition.field === "dueDate")!,
     presentation: { visibility: "valueOrInteraction" as const },
-  };
-  createView.fields.priority = {
-    ...createView.fields.priority,
+  });
+  setFieldDefinition(createView.fields, "priority", {
+    ...createView.fields.find((definition) => definition.field === "priority")!,
     presentation: { list: "label" as const, mode: "iconOnly" as const, trigger: "both" as const },
-  };
-
+  });
   return parseAppSchema(rawSchema);
 }
-
 function systemMetadataUiSchema(): AppSchema {
   return parseAppSchema({
     version: 1,
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         label: "Task",
-        fields: {
-          title: { type: "text", required: true, label: "Title" },
-        },
+        fields: [{ key: "title", type: "text", required: true, label: "Title" }],
         operations: testWriteOperations("Task", ["title"]),
       },
-    },
-    queries: {
-      taskAll: { label: "All", entity: "task", expression: { kind: "all" } },
-    },
-    itemViews: {
-      taskItem: {
+    ],
+    queries: [{ key: "taskAll", label: "All", entity: "task", expression: { kind: "all" } }],
+    itemViews: [
+      {
+        key: "taskItem",
         entity: "task",
-        fields: {
-          title: { editor: "text", commit: "field-commit" },
-          updatedAt: { editor: "text", commit: "field-commit" },
-        },
+        fields: [
+          { field: "title", editor: "text", commit: "field-commit" },
+          { field: "updatedAt", editor: "text", commit: "field-commit" },
+        ],
       },
-    },
-    tableViews: {
-      taskTable: {
+    ],
+    tableViews: [
+      {
+        key: "taskTable",
         entity: "task",
         operations: [
           {
@@ -3421,9 +3496,10 @@ function systemMetadataUiSchema(): AppSchema {
           { type: "operationControl", operation: "task.update", label: "Actions" },
         ],
       },
-    },
-    views: {
-      taskHome: {
+    ],
+    views: [
+      {
+        key: "taskHome",
         type: "collection",
         label: "Tasks",
         entity: "task",
@@ -3432,7 +3508,8 @@ function systemMetadataUiSchema(): AppSchema {
         result: { type: "list", itemView: "taskItem" },
         operations: [{ operation: "task.create", createView: "taskCreate" }],
       },
-      taskTableHome: {
+      {
+        key: "taskTableHome",
         type: "collection",
         label: "Task table",
         entity: "task",
@@ -3440,40 +3517,40 @@ function systemMetadataUiSchema(): AppSchema {
         defaultQuery: "taskAll",
         result: { type: "table", tableView: "taskTable" },
       },
-      taskCreate: {
+      {
+        key: "taskCreate",
         type: "create",
         entity: "task",
-        fields: {
-          title: { editor: "text" },
-          updatedAt: { editor: "text" },
-        },
+        fields: [
+          { field: "title", editor: "text" },
+          { field: "updatedAt", editor: "text" },
+        ],
       },
-      taskEdit: {
+      {
+        key: "taskEdit",
         type: "edit",
         entity: "task",
-        fields: {
-          title: { editor: "text", commit: "field-commit" },
-          updatedAt: { editor: "text", commit: "field-commit" },
-        },
+        fields: [
+          { field: "title", editor: "text", commit: "field-commit" },
+          { field: "updatedAt", editor: "text", commit: "field-commit" },
+        ],
       },
-    },
-    screens: {
-      taskHome: {
+    ],
+    screens: [
+      {
+        key: "taskHome",
         type: "workspace",
         label: "Tasks",
-        navigation: { primary: true },
         layout: {
           type: "stack",
           sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
         },
       },
-    },
+    ],
   });
 }
-
 function summarizeHomeModel(model: HomeViewModel) {
   const collection = model.collection;
-
   return {
     viewName: model.viewName,
     label: model.label,
@@ -3562,39 +3639,48 @@ function requiredCollectionModel(schema: AppSchema, viewName: string) {
 function lifecycleTaskSchema() {
   return parseAppSchema({
     version: 1,
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         label: "Task",
-        fields: {
-          title: { type: "text", required: true },
-          status: {
+        fields: [
+          { key: "title", type: "text", required: true },
+          {
+            key: "status",
             type: "enum",
             required: true,
             default: "todo",
-            values: {
-              todo: { label: "Todo", presentation: { color: "warning", icon: "priority-marker" } },
-              doing: {
+            values: [
+              {
+                key: "todo",
+                label: "Todo",
+                presentation: { color: "warning", icon: "priority-marker" },
+              },
+              {
+                key: "doing",
                 label: "Doing",
                 presentation: { color: "success", icon: "priority-marker" },
               },
-              done: { label: "Done", presentation: { color: "success", icon: "confirm" } },
-            },
+              { key: "done", label: "Done", presentation: { color: "success", icon: "confirm" } },
+            ],
           },
-        },
-        stateMachines: {
-          statusFlow: {
+        ],
+        stateMachines: [
+          {
+            key: "statusFlow",
             field: "status",
             initial: "todo",
             terminal: ["done"],
-            transitions: {
-              start: { label: "Start", from: ["todo"], to: "doing" },
-              complete: { label: "Complete", from: ["doing"], to: "done" },
-            },
+            transitions: [
+              { key: "start", label: "Start", from: ["todo"], to: "doing" },
+              { key: "complete", label: "Complete", from: ["doing"], to: "done" },
+            ],
           },
-        },
-        operations: {
+        ],
+        operations: [
           ...testWriteOperations("Task", ["title", "status"]),
-          startTask: {
+          {
+            key: "startTask",
             label: "Start",
             kind: "command",
             scope: "record",
@@ -3610,7 +3696,8 @@ function lifecycleTaskSchema() {
             idempotency: { required: true },
             audit: { input: "summary" },
           },
-          completeTask: {
+          {
+            key: "completeTask",
             label: "Complete",
             kind: "command",
             scope: "record",
@@ -3626,23 +3713,23 @@ function lifecycleTaskSchema() {
             idempotency: { required: true },
             audit: { input: "summary" },
           },
-        },
+        ],
       },
-    },
-    queries: {
-      taskAll: { label: "All", entity: "task", expression: { kind: "all" } },
-    },
-    itemViews: {
-      taskItem: {
+    ],
+    queries: [{ key: "taskAll", label: "All", entity: "task", expression: { kind: "all" } }],
+    itemViews: [
+      {
+        key: "taskItem",
         entity: "task",
-        fields: {
-          title: { editor: "text", commit: "field-commit" },
-          status: { editor: "enum", commit: "immediate" },
-        },
+        fields: [
+          { field: "title", editor: "text", commit: "field-commit" },
+          { field: "status", editor: "enum", commit: "immediate" },
+        ],
       },
-    },
-    tableViews: {
-      taskTable: {
+    ],
+    tableViews: [
+      {
+        key: "taskTable",
         entity: "task",
         columns: [
           { type: "field", field: "title" },
@@ -3658,20 +3745,23 @@ function lifecycleTaskSchema() {
           },
         ],
       },
-      taskHiddenStatusTable: {
+      {
+        key: "taskHiddenStatusTable",
         entity: "task",
         columns: [
           { type: "field", field: "title" },
           { type: "field", field: "status", display: "hidden" },
         ],
       },
-      taskAbsentStatusTable: {
+      {
+        key: "taskAbsentStatusTable",
         entity: "task",
         columns: [{ type: "field", field: "title" }],
       },
-    },
-    views: {
-      taskHome: {
+    ],
+    views: [
+      {
+        key: "taskHome",
         type: "collection",
         label: "Tasks",
         entity: "task",
@@ -3680,7 +3770,8 @@ function lifecycleTaskSchema() {
         result: { type: "list", itemView: "taskItem" },
         operations: [{ operation: "task.create", createView: "taskCreate" }],
       },
-      taskRecordHome: {
+      {
+        key: "taskRecordHome",
         type: "collection",
         label: "Task",
         entity: "task",
@@ -3688,7 +3779,8 @@ function lifecycleTaskSchema() {
         defaultQuery: "taskAll",
         result: { type: "record", itemView: "taskItem" },
       },
-      taskTableHome: {
+      {
+        key: "taskTableHome",
         type: "collection",
         label: "Task table",
         entity: "task",
@@ -3696,7 +3788,8 @@ function lifecycleTaskSchema() {
         defaultQuery: "taskAll",
         result: { type: "table", tableView: "taskTable" },
       },
-      taskHiddenStatusTableHome: {
+      {
+        key: "taskHiddenStatusTableHome",
         type: "collection",
         label: "Task hidden status table",
         entity: "task",
@@ -3704,7 +3797,8 @@ function lifecycleTaskSchema() {
         defaultQuery: "taskAll",
         result: { type: "table", tableView: "taskHiddenStatusTable" },
       },
-      taskAbsentStatusTableHome: {
+      {
+        key: "taskAbsentStatusTableHome",
         type: "collection",
         label: "Task absent status table",
         entity: "task",
@@ -3712,37 +3806,38 @@ function lifecycleTaskSchema() {
         defaultQuery: "taskAll",
         result: { type: "table", tableView: "taskAbsentStatusTable" },
       },
-      taskCreate: {
+      {
+        key: "taskCreate",
         type: "create",
         entity: "task",
-        fields: {
-          title: { editor: "text" },
-          status: { editor: "enum" },
-        },
+        fields: [
+          { field: "title", editor: "text" },
+          { field: "status", editor: "enum" },
+        ],
       },
-      taskEdit: {
+      {
+        key: "taskEdit",
         type: "edit",
         entity: "task",
-        fields: {
-          title: { editor: "text", commit: "field-commit" },
-          status: { editor: "enum", commit: "immediate" },
-        },
+        fields: [
+          { field: "title", editor: "text", commit: "field-commit" },
+          { field: "status", editor: "enum", commit: "immediate" },
+        ],
       },
-    },
-    screens: {
-      taskHome: {
+    ],
+    screens: [
+      {
+        key: "taskHome",
         type: "workspace",
         label: "Tasks",
-        navigation: { primary: true },
         layout: {
           type: "stack",
           sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
         },
       },
-    },
+    ],
   });
 }
-
 function summarizeScreenModel(model: HomeScreenModel) {
   return {
     screenName: model.screenName,
@@ -3789,17 +3884,14 @@ function summarizeCommandHandlerCapability(effect: EntityOperationEffectSchema |
   if (isOperationHandlerEffectForSelectionCapability(effect, "clearCompletedTargetCount")) {
     return "clearCompletedTargetCount";
   }
-
   return effect?.type ?? null;
 }
-
 function testWriteOperations(label: string, fields: string[]) {
   const input = {
-    fields: Object.fromEntries(fields.map((field) => [field, { field }])),
+    fields: fields.map((field) => ({ key: field, field })),
   };
-
-  return {
-    create: {
+  return [
+    {
       label: `Create ${label}`,
       kind: "create",
       scope: "collection",
@@ -3808,8 +3900,9 @@ function testWriteOperations(label: string, fields: string[]) {
       output: { type: "create" },
       idempotency: { required: true },
       audit: { input: "summary" },
+      key: "create",
     },
-    update: {
+    {
       label: `Update ${label}`,
       kind: "update",
       scope: "record",
@@ -3818,14 +3911,15 @@ function testWriteOperations(label: string, fields: string[]) {
       output: { type: "update" },
       idempotency: { required: true },
       audit: { input: "summary" },
+      key: "update",
     },
-  } satisfies NonNullable<AppSchema["entities"][string]["operations"]>;
+  ] satisfies NonNullable<AppSchema["entities"][number]["operations"]>;
 }
-
 function tableStaticUpdateOperation(
   label: string,
-): NonNullable<AppSchema["entities"][string]["operations"]>[string] {
+): NonNullable<AppSchema["entities"][number]["operations"]>[number] {
   return {
+    key: "update",
     label,
     kind: "update",
     scope: "record",

@@ -567,7 +567,12 @@ function recordResult(
 function createAction(
   scope: GeneratedWorkspaceIdentityScope,
   id: string,
-): Extract<WorkspaceCollectionActionContract, { kind: "createAction" }> {
+): Extract<
+  WorkspaceCollectionActionContract,
+  {
+    kind: "createAction";
+  }
+> {
   return {
     kind: "createAction",
     surface: createSurface(generatedWorkspaceScopedId(scope, "surface", id)),
@@ -577,7 +582,12 @@ function createAction(
 function operationAction(
   scope: GeneratedWorkspaceIdentityScope,
   id: string,
-): Extract<WorkspaceCollectionActionContract, { kind: "operationAction" }> {
+): Extract<
+  WorkspaceCollectionActionContract,
+  {
+    kind: "operationAction";
+  }
+> {
   return {
     control: operationControl(generatedWorkspaceScopedId(scope, "control", id)),
     kind: "operationAction",

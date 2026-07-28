@@ -43,12 +43,21 @@ export type StateInputProps = {
   isPending?: boolean;
   pendingLabel?: string;
   valueStatus:
-    | { kind: "declared"; value: string }
-    | { kind: "unset"; message: string }
-    | { kind: "undeclared"; message: string; value: string };
+    | {
+        kind: "declared";
+        value: string;
+      }
+    | {
+        kind: "unset";
+        message: string;
+      }
+    | {
+        kind: "undeclared";
+        message: string;
+        value: string;
+      };
   onTransition?: (transition: StateInputTransition) => void;
 };
-
 export function StateInput({
   label,
   value,

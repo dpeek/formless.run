@@ -424,9 +424,12 @@ async function expectAuthorizationResult(
 ) {
   expect(await actual).toEqual(expected);
 }
-
 async function expectRejectedOperationalManagement(
-  authority: { id: string; instanceAdmin: boolean; instanceOwner: boolean } | null,
+  authority: {
+    id: string;
+    instanceAdmin: boolean;
+    instanceOwner: boolean;
+  } | null,
 ) {
   const created = await createOwnerSessionCookie({
     env: { FORMLESS_OWNER_SESSION_SECRET: sessionSecret },

@@ -7,24 +7,59 @@ import {
 import type { FieldValue, RecordValues } from "./types.ts";
 import type { QueryOperator } from "./types.ts";
 import type { FieldCommitPolicy, FieldEditor, FieldSchema, TableColumnFormat } from "./types.ts";
-
-export type AuthorityFieldValueResult = { kind: "set"; value: FieldValue } | { kind: "omit" };
-export type FieldDisplayOptions = { format?: TableColumnFormat };
+export type AuthorityFieldValueResult =
+  | {
+      kind: "set";
+      value: FieldValue;
+    }
+  | {
+      kind: "omit";
+    };
+export type FieldDisplayOptions = {
+  format?: TableColumnFormat;
+};
 export type FieldEditorControl =
-  | { kind: "checkbox" }
-  | { kind: "formattedNumber" }
-  | { kind: "icon" }
-  | { kind: "input"; inputType: "date" | "number" | "text" }
-  | { kind: "mediaUpload" }
-  | { kind: "reference" }
-  | { kind: "select" }
-  | { kind: "textarea" };
-export type FieldInputAttributes = { max?: number; min?: number; step?: "1" | "any" };
+  | {
+      kind: "checkbox";
+    }
+  | {
+      kind: "formattedNumber";
+    }
+  | {
+      kind: "icon";
+    }
+  | {
+      kind: "input";
+      inputType: "date" | "number" | "text";
+    }
+  | {
+      kind: "mediaUpload";
+    }
+  | {
+      kind: "reference";
+    }
+  | {
+      kind: "select";
+    }
+  | {
+      kind: "textarea";
+    };
+export type FieldInputAttributes = {
+  max?: number;
+  min?: number;
+  step?: "1" | "any";
+};
 export type NumberInputValueParseResult =
-  | { kind: "empty" }
-  | { kind: "valid"; value: number }
-  | { kind: "invalid" };
-
+  | {
+      kind: "empty";
+    }
+  | {
+      kind: "valid";
+      value: number;
+    }
+  | {
+      kind: "invalid";
+    };
 export type FieldTypeBehavior<TField extends FieldSchema = FieldSchema> = {
   type: TField["type"];
   filterOps: readonly QueryOperator[];
@@ -142,7 +177,9 @@ export const fieldTypeBehaviors = {
     editorControl: () => ({ kind: "select" }),
     fieldValueToInputValue: stringFieldValueToInputValue,
     formatDisplayValue: (field, value) =>
-      typeof value === "string" ? (field.values[value]?.label ?? value) : String(value),
+      typeof value === "string"
+        ? (field.values.find((definition) => definition.key === value)?.label ?? value)
+        : String(value),
     inputAttributes: emptyInputAttributes,
     inputValueToFieldValue: stringInputValueToFieldValue,
     validateAuthorityValue: validateEnumAuthorityValue,
@@ -167,9 +204,15 @@ export const fieldTypeBehaviors = {
     isValidStoredValue: (value) => typeof value === "string" && value.trim() !== "",
   },
 } satisfies {
-  [Type in FieldSchema["type"]]: FieldTypeBehavior<Extract<FieldSchema, { type: Type }>>;
+  [Type in FieldSchema["type"]]: FieldTypeBehavior<
+    Extract<
+      FieldSchema,
+      {
+        type: Type;
+      }
+    >
+  >;
 };
-
 export const fieldEditors = [
   "text",
   "textarea",
@@ -276,13 +319,16 @@ export function isValidStoredFieldValue(
   if (value === undefined) {
     return !field.required || fieldHasCreateDefault(field);
   }
-
   return getFieldTypeBehavior(field).isValidStoredValue(value, field);
 }
-
 function validateStringAuthorityValue(
   fieldName: string,
-  field: Extract<FieldSchema, { type: "text" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "text";
+    }
+  >,
   value: unknown,
 ): AuthorityFieldValueResult {
   if (typeof value !== "string") {
@@ -314,9 +360,13 @@ function stringFieldValueToInputValue(_field: FieldSchema, value: FieldValue | u
 function stringInputValueToFieldValue(_field: FieldSchema, value: string): FieldValue {
   return value;
 }
-
 function textEditorControl(
-  _field: Extract<FieldSchema, { type: "text" }>,
+  _field: Extract<
+    FieldSchema,
+    {
+      type: "text";
+    }
+  >,
   editor: FieldEditor,
 ): FieldEditorControl {
   if (editor === "icon") {
@@ -369,8 +419,14 @@ export function formatPlainNumber(value: number) {
 function emptyInputAttributes() {
   return {};
 }
-
-function numberInputAttributes(field: Extract<FieldSchema, { type: "number" }>) {
+function numberInputAttributes(
+  field: Extract<
+    FieldSchema,
+    {
+      type: "number";
+    }
+  >,
+) {
   return {
     max: field.max,
     min: field.min,
@@ -409,15 +465,18 @@ export function parseNumberInputValue(value: string): NumberInputValueParseResul
   const number = Number(match[1]);
   const suffix = match[2]?.toLowerCase();
   const multiplier =
-    suffix === "k" ? 1_000 : suffix === "m" ? 1_000_000 : suffix === "b" ? 1_000_000_000 : 1;
+    suffix === "k" ? 1000 : suffix === "m" ? 1000000 : suffix === "b" ? 1000000000 : 1;
   const parsed = number * multiplier;
-
   return Number.isFinite(parsed) ? { kind: "valid", value: parsed } : { kind: "invalid" };
 }
-
 function validateDateAuthorityValue(
   fieldName: string,
-  field: Extract<FieldSchema, { type: "date" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "date";
+    }
+  >,
   value: unknown,
 ) {
   return validateTextLikeAuthorityValue(fieldName, field, value, (fieldValue) => {
@@ -426,10 +485,14 @@ function validateDateAuthorityValue(
     }
   });
 }
-
 function validateTextLikeAuthorityValue(
   fieldName: string,
-  field: Extract<FieldSchema, { type: "text" | "date" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "text" | "date";
+    }
+  >,
   value: unknown,
   validate?: (value: string) => void,
 ): AuthorityFieldValueResult {
@@ -450,13 +513,16 @@ function validateTextLikeAuthorityValue(
   if (value !== "" || field.required) {
     return { kind: "set", value };
   }
-
   return { kind: "omit" };
 }
-
 function validateBooleanAuthorityValue(
   fieldName: string,
-  field: Extract<FieldSchema, { type: "boolean" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "boolean";
+    }
+  >,
   value: unknown,
   provided: boolean,
 ): AuthorityFieldValueResult {
@@ -475,13 +541,16 @@ function validateBooleanAuthorityValue(
   if (field.required) {
     throw new Error(`Field "${fieldName}" is required.`);
   }
-
   return { kind: "omit" };
 }
-
 function validateEnumAuthorityValue(
   fieldName: string,
-  field: Extract<FieldSchema, { type: "enum" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
   value: unknown,
   provided: boolean,
 ): AuthorityFieldValueResult {
@@ -494,17 +563,13 @@ function validateEnumAuthorityValue(
       if (field.required) {
         throw new Error(`Field "${fieldName}" cannot be empty.`);
       }
-
       return { kind: "omit" };
     }
-
-    if (!Object.hasOwn(field.values, value)) {
+    if (!field.values.some((definition) => definition.key === value)) {
       throw new Error(`Field "${fieldName}" must be a known enum value.`);
     }
-
     return { kind: "set", value };
   }
-
   if (field.default !== undefined) {
     return { kind: "set", value: field.default };
   }
@@ -512,13 +577,16 @@ function validateEnumAuthorityValue(
   if (field.required) {
     throw new Error(`Field "${fieldName}" is required.`);
   }
-
   return { kind: "omit" };
 }
-
 function validateNumberAuthorityValue(
   fieldName: string,
-  field: Extract<FieldSchema, { type: "number" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "number";
+    }
+  >,
   value: unknown,
   provided: boolean,
 ): AuthorityFieldValueResult {
@@ -543,13 +611,16 @@ function validateNumberAuthorityValue(
   if (field.required) {
     throw new Error(`Field "${fieldName}" is required.`);
   }
-
   return { kind: "omit" };
 }
-
 function validateReferenceAuthorityValue(
   fieldName: string,
-  field: Extract<FieldSchema, { type: "reference" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "reference";
+    }
+  >,
   value: unknown,
   provided: boolean,
 ): AuthorityFieldValueResult {
@@ -579,7 +650,12 @@ function validateReferenceAuthorityValue(
 function validateNumberFieldValue(
   fieldName: string,
   value: unknown,
-  field: Extract<FieldSchema, { type: "number" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "number";
+    }
+  >,
 ): asserts value is number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new Error(`Field "${fieldName}" must be a finite number.`);
@@ -597,10 +673,14 @@ function validateNumberFieldValue(
     throw new Error(`Field "${fieldName}" must be an integer.`);
   }
 }
-
 function isValidNumberFieldValue(
   value: RecordValues[string],
-  field: Extract<FieldSchema, { type: "number" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "number";
+    }
+  >,
 ) {
   return (
     typeof value === "number" &&

@@ -1,5 +1,37 @@
 [
   {
+    "id": "rec_task_backlog",
+    "entity": "task",
+    "values": {
+      "title": "Capture research notes",
+      "done": false,
+      "priority": "normal"
+    },
+    "createdAt": "2026-05-01T00:00:05.000Z"
+  },
+  {
+    "id": "rec_task_completed",
+    "entity": "task",
+    "values": {
+      "title": "Send signed kickoff notes",
+      "done": true,
+      "dueDate": "2026-04-30",
+      "priority": "normal"
+    },
+    "createdAt": "2026-05-01T00:00:04.000Z"
+  },
+  {
+    "id": "rec_task_later",
+    "entity": "task",
+    "values": {
+      "title": "Schedule design review",
+      "done": false,
+      "dueDate": "2026-05-08",
+      "priority": "low"
+    },
+    "createdAt": "2026-05-01T00:00:03.000Z"
+  },
+  {
     "id": "rec_task_overdue",
     "entity": "task",
     "values": {
@@ -20,37 +52,5 @@
       "priority": "normal"
     },
     "createdAt": "2026-05-01T00:00:02.000Z"
-  },
-  {
-    "id": "rec_task_later",
-    "entity": "task",
-    "values": {
-      "title": "Schedule design review",
-      "done": false,
-      "dueDate": "2026-05-08",
-      "priority": "low"
-    },
-    "createdAt": "2026-05-01T00:00:03.000Z"
-  },
-  {
-    "id": "rec_task_completed",
-    "entity": "task",
-    "values": {
-      "title": "Send signed kickoff notes",
-      "done": true,
-      "dueDate": "2026-04-30",
-      "priority": "normal"
-    },
-    "createdAt": "2026-05-01T00:00:04.000Z"
-  },
-  {
-    "id": "rec_task_backlog",
-    "entity": "task",
-    "values": {
-      "title": "Capture research notes",
-      "done": false,
-      "priority": "normal"
-    },
-    "createdAt": "2026-05-01T00:00:05.000Z"
   }
 ]

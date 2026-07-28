@@ -321,15 +321,17 @@ async function configureAuth() {
     relyingPartyId,
     relyingPartyName,
   });
-
   expect(response.response.status).toBe(200);
 }
-
 async function seedOwnerPasskey(authenticator: VirtualPasskey) {
   await configureAuth();
-
   const response = await postJson<{
-    owner: { createdAt: string; email?: string; id: string; name: string };
+    owner: {
+      createdAt: string;
+      email?: string;
+      id: string;
+      name: string;
+    };
   }>("/harness/owner-passkey", {
     credentialId,
     credentialPublicKey: [...authenticator.credentialPublicKey()],
@@ -379,8 +381,15 @@ async function createIdentityPrincipal(displayName: string) {
 async function assignIdentityRole(
   principalId: string,
   role:
-    | { kind: "instance"; roleKey: "instance.admin" }
-    | { appInstallId: string; kind: "app"; roleKey: "app.admin" },
+    | {
+        kind: "instance";
+        roleKey: "instance.admin";
+      }
+    | {
+        appInstallId: string;
+        kind: "app";
+        roleKey: "app.admin";
+      },
 ) {
   const response = await postJson(
     `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/role-assignment/create`,
@@ -447,22 +456,23 @@ async function loginOptions() {
     "/api/formless/passkeys/login/options",
     {},
   );
-
   expect(response.response.status).toBe(200);
-
   return response;
 }
-
 async function verifyLogin(
   response: AuthenticationResponseJSON,
-  input: { redirectTo?: unknown } = {},
+  input: {
+    redirectTo?: unknown;
+  } = {},
 ) {
-  return postJson<AccountPasskeyLoginVerifyResponse | { authenticated?: false; error: string }>(
-    "/api/formless/passkeys/login/verify",
-    { ...input, response },
-  );
+  return postJson<
+    | AccountPasskeyLoginVerifyResponse
+    | {
+        authenticated?: false;
+        error: string;
+      }
+  >("/api/formless/passkeys/login/verify", { ...input, response });
 }
-
 async function postJson<T = unknown>(path: string, body: unknown, init: HarnessFetchInit = {}) {
   const response = await harness.fetch(path, {
     ...init,

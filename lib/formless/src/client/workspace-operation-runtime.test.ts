@@ -42,9 +42,12 @@ describe("workspace operation generated runtime adapter", () => {
       targetAlias: "instance.primary",
     });
   });
-
   it("starts push through the gateway client and reports polled generated progress", async () => {
-    const calls: Array<{ body?: unknown; method?: string; url: string }> = [];
+    const calls: Array<{
+      body?: unknown;
+      method?: string;
+      url: string;
+    }> = [];
     const reported: GeneratedOperationProgress[] = [];
     const running = workspaceOperation({
       status: "running",

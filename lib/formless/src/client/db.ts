@@ -1,4 +1,4 @@
-import type { AppSchema } from "@dpeek/formless-schema";
+import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type {
   BootstrapResponse,
@@ -62,9 +62,9 @@ export async function readLocalSnapshot(target: ClientAppTarget): Promise<LocalS
     const meta = transaction.objectStore(META_STORE);
     const records = transaction.objectStore(RECORDS_STORE);
 
-    const [schema, schemaProvenance, schemaUpdatedAt, cursor, lastSyncedAt, storedRecords] =
+    const [storedSchema, schemaProvenance, schemaUpdatedAt, cursor, lastSyncedAt, storedRecords] =
       await Promise.all([
-        requestToPromise<AppSchema | undefined>(meta.get(SCHEMA_KEY)),
+        requestToPromise<unknown>(meta.get(SCHEMA_KEY)),
         requestToPromise<BrowserReplicaSchemaProvenance | undefined>(
           meta.get(SCHEMA_PROVENANCE_KEY),
         ),
@@ -75,8 +75,19 @@ export async function readLocalSnapshot(target: ClientAppTarget): Promise<LocalS
         transactionDone(transaction),
       ]);
 
+    let schema: AppSchema | null = null;
+    if (storedSchema !== undefined) {
+      try {
+        schema = parseAppSchema(storedSchema);
+      } catch {
+        db.close();
+        await deleteClientDb(target);
+        return emptyLocalSnapshot();
+      }
+    }
+
     return {
-      schema: schema ?? null,
+      schema,
       schemaProvenance: schemaProvenance ?? null,
       schemaUpdatedAt: schemaUpdatedAt ?? null,
       records: sortRecords(storedRecords),
@@ -86,6 +97,17 @@ export async function readLocalSnapshot(target: ClientAppTarget): Promise<LocalS
   } finally {
     db.close();
   }
+}
+
+function emptyLocalSnapshot(): LocalSnapshot {
+  return {
+    schema: null,
+    schemaProvenance: null,
+    schemaUpdatedAt: null,
+    records: [],
+    cursor: 0,
+    lastSyncedAt: null,
+  };
 }
 
 export async function saveBootstrapResponse(target: ClientAppTarget, response: BootstrapResponse) {

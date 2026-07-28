@@ -48,12 +48,18 @@ export type GeneratedOperationDraftResolution = {
   input: RecordValues;
   visibleFields: string[];
 };
-
 type GeneratedOperationInputFieldValueResolution =
-  | { kind: "set"; value: FieldValue }
-  | { kind: "omit" }
-  | { kind: "error"; error: GeneratedOperationDraftFieldError };
-
+  | {
+      kind: "set";
+      value: FieldValue;
+    }
+  | {
+      kind: "omit";
+    }
+  | {
+      kind: "error";
+      error: GeneratedOperationDraftFieldError;
+    };
 export function initialGeneratedOperationDraftSessionState({
   fields,
 }: {
@@ -408,8 +414,7 @@ function resolveGeneratedOperationEnumInputFieldValue(
         }
       : { kind: "omit" };
   }
-
-  return Object.hasOwn(field.values, value)
+  return field.values.some((definition) => definition.key === value)
     ? { kind: "set", value }
     : {
         kind: "error",
@@ -462,12 +467,12 @@ function generatedOperationInputFieldSchema(field: PublicSafeOperationInputField
     type: "enum",
     required: field.required,
     label: field.label,
-    values: Object.fromEntries(
-      (field.options ?? []).map((option) => [option.value, { label: option.label }]),
-    ),
+    values: (field.options ?? []).map((option) => ({
+      key: option.value,
+      label: option.label,
+    })),
   };
 }
-
 function generatedOperationInputFieldEditor(field: PublicSafeOperationInputField): FieldEditor {
   if (field.control === "longText") {
     return "textarea";

@@ -427,9 +427,10 @@ function createTriggersForEntity(schema: AppSchema, sourceEntity: string) {
     operationName: string;
     effect: OperationHandlerEntityOperationEffectSchema;
   }[] = [];
-
-  for (const [entityName, entity] of Object.entries(schema.entities)) {
-    for (const [operationName, operation] of Object.entries(entity.operations ?? {})) {
+  for (const entity of schema.entities) {
+    const entityName = entity.key;
+    for (const operation of entity.operations ?? []) {
+      const operationName = operation.key;
       if (
         operation.kind !== "command" ||
         operation.effect?.type !== "operationHandler" ||
@@ -442,10 +443,12 @@ function createTriggersForEntity(schema: AppSchema, sourceEntity: string) {
         operation.effect.config.join.left,
         operation.effect.config.join.right,
       ]) {
-        if (schema.queries[source.query]?.entity !== sourceEntity) {
+        if (
+          schema.queries.find((definition) => definition.key === source.query)?.entity !==
+          sourceEntity
+        ) {
           continue;
         }
-
         const trigger = { entityName, operationName, effect: operation.effect };
         if (
           !triggers.some(
@@ -474,8 +477,9 @@ function selectClearCompletedTargetRecords(
   context: OperationHandlerExecutionContext,
   effect: OperationHandlerEffectSchemaForKind<"clear-completed">,
 ): StoredRecord[] {
-  const targetQuery = context.schema.queries[effect.config.query];
-
+  const targetQuery = context.schema.queries.find(
+    (definition) => definition.key === effect.config.query,
+  )!;
   if (!targetQuery) {
     throw new Error(
       `Operation "${context.envelope.operation.canonicalKey}" references unknown query "${effect.config.query}".`,
@@ -494,15 +498,16 @@ function selectMissingJoinRecordValues(
   operationName: string,
   effect: OperationHandlerEffectSchemaForKind<"create-missing-join-records">,
 ): RecordValues[] {
-  const entity = schema.entities[entityName];
-
+  const entity = schema.entities.find((definition) => definition.key === entityName)!;
   if (!entity) {
     throw new Error(`Missing entity "${entityName}".`);
   }
-
-  const leftQuery = schema.queries[effect.config.join.left.query];
-  const rightQuery = schema.queries[effect.config.join.right.query];
-
+  const leftQuery = schema.queries.find(
+    (definition) => definition.key === effect.config.join.left.query,
+  )!;
+  const rightQuery = schema.queries.find(
+    (definition) => definition.key === effect.config.join.right.query,
+  )!;
   if (!leftQuery || !rightQuery) {
     throw new Error(`Operation "${operationName}" references unknown join query.`);
   }
@@ -568,8 +573,8 @@ function createJoinRecordValues(
   rightRecordId: string,
 ): RecordValues {
   const values: RecordValues = {};
-
-  for (const [fieldName, field] of Object.entries(entity.fields)) {
+  for (const field of entity.fields) {
+    const fieldName = field.key;
     if (fieldName === leftField) {
       values[fieldName] = leftRecordId;
       continue;
@@ -595,8 +600,7 @@ function selectSelectedJoinRecordValues(
   effect: OperationHandlerEffectSchemaForKind<"create-selected-join-record">,
 ): RecordValues {
   const entityName = context.envelope.operation.entityName;
-  const entity = context.schema.entities[entityName];
-
+  const entity = context.schema.entities.find((definition) => definition.key === entityName)!;
   if (!entity) {
     throw new Error(`Missing entity "${entityName}".`);
   }
@@ -667,8 +671,9 @@ function selectTreeChildCreatePlans(
   effect: OperationHandlerEffectSchemaForKind<"create-tree-child">,
 ): OperationRecordWritePlan[] {
   const placementEntityName = context.envelope.operation.entityName;
-  const placementEntity = context.schema.entities[placementEntityName];
-
+  const placementEntity = context.schema.entities.find(
+    (definition) => definition.key === placementEntityName,
+  )!;
   if (!placementEntity) {
     throw new Error(`Missing entity "${placementEntityName}".`);
   }
@@ -678,19 +683,19 @@ function selectTreeChildCreatePlans(
       `Create operations are disabled for entity "${placementEntityName}".`,
     );
   }
-
   const relationship = getToManyOperationRelationship(context, effect.config.relationship);
-  const childField = placementEntity.fields[effect.config.childField];
-
+  const childField = placementEntity.fields.find(
+    (definition) => definition.key === effect.config.childField,
+  )!;
   if (childField?.type !== "reference") {
     throw new Error(
       `Operation "${context.envelope.operation.canonicalKey}" references invalid child field.`,
     );
   }
-
   const childEntityName = childField.to;
-  const childEntity = context.schema.entities[childEntityName];
-
+  const childEntity = context.schema.entities.find(
+    (definition) => definition.key === childEntityName,
+  )!;
   if (!childEntity) {
     throw new Error(
       `Operation "${context.envelope.operation.canonicalKey}" references unknown child entity.`,
@@ -769,8 +774,8 @@ function createTreePlacementValues(
     placementValues,
   );
   const values: RecordValues = { ...placementValues };
-
-  for (const [fieldName, field] of Object.entries(placementEntity.fields)) {
+  for (const field of placementEntity.fields) {
+    const fieldName = field.key;
     if (fieldName === relationshipField) {
       values[fieldName] = parentRecordId;
       continue;
@@ -814,9 +819,8 @@ function validateTreePlacementInputValues(
     effect.config.childField,
     ...(effect.config.orderField === undefined ? [] : [effect.config.orderField]),
   ]);
-
   for (const fieldName of Object.keys(placementValues)) {
-    if (!placementEntity.fields[fieldName]) {
+    if (!placementEntity.fields.some((definition) => definition.key === fieldName)) {
       throw new BadRequestError(
         `Operation "${context.envelope.operation.canonicalKey}" placementValues field "${fieldName}" is unknown.`,
       );
@@ -836,7 +840,7 @@ function nextTreePlacementOrder(
   parentFieldName: string,
   parentRecordId: string,
   orderFieldName: string,
-  orderField: EntitySchema["fields"][string],
+  orderField: EntitySchema["fields"][number],
 ): number {
   const defaultOrder = fieldCreateDefaultValue(orderField);
   const step = typeof defaultOrder === "number" && defaultOrder > 0 ? defaultOrder : 1000;
@@ -884,7 +888,9 @@ function selectTransitionStateWritePlans(
   storage: DurableObjectStorage,
   context: OperationHandlerExecutionContext,
   effect: OperationHandlerEffectSchemaForKind<"transition-state">,
-  options: { receivedAt?: string } = {},
+  options: {
+    receivedAt?: string;
+  } = {},
 ): {
   plannedRecords: StoredRecord[];
   plans: OperationRecordWritePlan[];
@@ -892,10 +898,13 @@ function selectTransitionStateWritePlans(
 } {
   const input = requireTransitionStateInput(context);
   const entityName = context.envelope.operation.entityName;
-  const entity = context.schema.entities[entityName];
-  const machine = entity?.stateMachines?.[effect.config.machine];
-  const transition = machine?.transitions[effect.config.transition];
-
+  const entity = context.schema.entities.find((definition) => definition.key === entityName)!;
+  const machine = entity?.stateMachines?.find(
+    (definition) => definition.key === effect.config.machine,
+  );
+  const transition = machine?.transitions.find(
+    (definition) => definition.key === effect.config.transition,
+  );
   if (!entity || !machine || !transition) {
     throw new Error(
       `Operation "${context.envelope.operation.canonicalKey}" references an invalid state transition.`,
@@ -950,11 +959,11 @@ function selectTransitionStateWritePlans(
       values: nextValues,
     },
   ];
-
   const event = machine.event;
   if (event) {
-    const eventEntity = context.schema.entities[event.entity];
-
+    const eventEntity = context.schema.entities.find(
+      (definition) => definition.key === event.entity,
+    )!;
     if (!eventEntity) {
       throw new Error(
         `Operation "${context.envelope.operation.canonicalKey}" references unknown transition event entity "${event.entity}".`,
@@ -1013,25 +1022,21 @@ function requireTransitionTargetAtCommit(
       `Operation "${context.envelope.operation.canonicalKey}" target record "${record.id}" changed before commit.`,
     );
   }
-
   return record;
 }
-
 function stateTransitionCanApply(
   entity: EntitySchema,
-  machine: NonNullable<EntitySchema["stateMachines"]>[string],
-  transition: NonNullable<EntitySchema["stateMachines"]>[string]["transitions"][string],
+  machine: NonNullable<EntitySchema["stateMachines"]>[number],
+  transition: NonNullable<EntitySchema["stateMachines"]>[number]["transitions"][number],
   previousState: string,
 ) {
   if (transition.from.includes(previousState)) {
     return true;
   }
-
-  const field = entity.fields[machine.field];
-
+  const field = entity.fields.find((definition) => definition.key === machine.field)!;
   return (
     field?.type === "enum" &&
-    field.values[previousState] === undefined &&
+    !field.values.some((definition) => definition.key === previousState) &&
     previousState.trim() !== "" &&
     transition.to === machine.initial
   );
@@ -1089,10 +1094,11 @@ function getManyToManyOperationRelationship(
   schema: Pick<OperationHandlerExecutionContext, "schema" | "envelope">,
   relationshipName: string,
 ): ManyToManyRelationshipSchema {
-  const relationship = schema.schema.relationships?.[relationshipName];
+  const relationship = schema.schema.relationships?.find(
+    (definition) => definition.key === relationshipName,
+  );
   const operationKey = schema.envelope.operation.canonicalKey;
   const entityName = schema.envelope.operation.entityName;
-
   if (!relationship) {
     throw new Error(
       `Operation "${operationKey}" references unknown relationship "${relationshipName}".`,
@@ -1118,10 +1124,11 @@ function getToManyOperationRelationship(
   schema: Pick<OperationHandlerExecutionContext, "schema" | "envelope">,
   relationshipName: string,
 ): ToManyRelationshipSchema {
-  const relationship = schema.schema.relationships?.[relationshipName];
+  const relationship = schema.schema.relationships?.find(
+    (definition) => definition.key === relationshipName,
+  );
   const operationKey = schema.envelope.operation.canonicalKey;
   const entityName = schema.envelope.operation.entityName;
-
   if (!relationship) {
     throw new Error(
       `Operation "${operationKey}" references unknown relationship "${relationshipName}".`,
@@ -1261,15 +1268,11 @@ function requiredOperationWriteIdentity(envelope: OperationInvocationEnvelope) {
       `Operation "${envelope.operation.canonicalKey}" requires an idempotency key.`,
     );
   }
-
   return envelope.idempotency.writeIdentity;
 }
-
 const defaultAudienceKey = "default";
-
 function requireSubscribeEntity(schema: AppSchema, entityName: string): EntitySchema {
-  const entity = schema.entities[entityName];
-
+  const entity = schema.entities.find((definition) => definition.key === entityName)!;
   if (!entity) {
     throw new Error(`Subscribe operation requires entity "${entityName}".`);
   }
@@ -1386,7 +1389,6 @@ function parseNonEmptyString(context: string, value: unknown): string {
 function operationKey(entityName: string, operationName: string) {
   return `${entityName}.${operationName}`;
 }
-
 function entityHasOperationKind(entity: EntitySchema, kind: EntityOperationKind): boolean {
-  return Object.values(entity.operations ?? {}).some((operation) => operation.kind === kind);
+  return (entity.operations ?? []).some((operation) => operation.kind === kind);
 }

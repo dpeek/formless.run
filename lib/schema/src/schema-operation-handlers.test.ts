@@ -1,40 +1,58 @@
 import { describe, expect, it } from "vite-plus/test";
-
 import { parseAppSchema } from "./index.ts";
 import { rateEntities, rateSchema } from "./schema-test-fixtures.ts";
-
 describe("schema relationship operation handlers", () => {
   it("parses missing and selected join-record handlers", () => {
-    const operations = {
-      regenerateMissingRates: commandOperation("create-missing-join-records", {
-        join: {
-          left: { field: "resource", query: "resourceAll" },
-          right: { field: "card", query: "cardAll" },
-        },
-      }),
-      addSelectedRate: commandOperation("create-selected-join-record", {
-        relationship: "cardResources",
-      }),
-      removeSelectedRates: commandOperation("remove-selected-join-records", {
-        relationship: "cardResources",
-      }),
-    };
+    const operations = [
+      {
+        key: "regenerateMissingRates",
+        ...commandOperation("create-missing-join-records", {
+          join: {
+            left: { field: "resource", query: "resourceAll" },
+            right: { field: "card", query: "cardAll" },
+          },
+        }),
+      },
+      {
+        key: "addSelectedRate",
+        ...commandOperation("create-selected-join-record", {
+          relationship: "cardResources",
+        }),
+      },
+      {
+        key: "removeSelectedRates",
+        ...commandOperation("remove-selected-join-records", {
+          relationship: "cardResources",
+        }),
+      },
+    ];
     const schema = parseAppSchema(
       rateSchema({
         entities: rateEntities({ operations }),
       }),
     );
-
-    expect(schema.entities.rate?.operations?.regenerateMissingRates.effect).toMatchObject({
+    expect(
+      schema.entities
+        .find((definition) => definition.key === "rate")!
+        .operations?.find((definition) => definition.key === "regenerateMissingRates")?.effect,
+    ).toMatchObject({
       type: "operationHandler",
       handler: "create-missing-join-records",
     });
-    expect(schema.entities.rate?.operations?.addSelectedRate.effect).toMatchObject({
+    expect(
+      schema.entities
+        .find((definition) => definition.key === "rate")!
+        .operations?.find((definition) => definition.key === "addSelectedRate")?.effect,
+    ).toMatchObject({
       type: "operationHandler",
       handler: "create-selected-join-record",
       config: { relationship: "cardResources" },
     });
-    expect(schema.entities.rate?.operations?.removeSelectedRates.effect).toMatchObject({
+    expect(
+      schema.entities
+        .find((definition) => definition.key === "rate")!
+        .operations?.find((definition) => definition.key === "removeSelectedRates")?.effect,
+    ).toMatchObject({
       type: "operationHandler",
       handler: "remove-selected-join-records",
       config: { relationship: "cardResources" },
@@ -48,48 +66,61 @@ describe("schema relationship operation handlers", () => {
     const invalidCases = [
       {
         entities: rateEntities({
-          operations: {
-            addSelectedRate: commandOperation("create-selected-join-record", {
-              relationship: "missing",
-            }),
-          },
+          operations: [
+            {
+              key: "addSelectedRate",
+              ...commandOperation("create-selected-join-record", {
+                relationship: "missing",
+              }),
+            },
+          ],
         }),
         message: 'references unknown relationship "missing"',
       },
       {
         entities: rateEntities({
-          operations: {
-            addSelectedRate: commandOperation("create-selected-join-record", {
-              relationship: "cardRates",
-            }),
-          },
+          operations: [
+            {
+              key: "addSelectedRate",
+              ...commandOperation("create-selected-join-record", {
+                relationship: "cardRates",
+              }),
+            },
+          ],
         }),
         message: 'relationship "cardRates" must be manyToMany',
       },
       {
-        entities: {
-          ...rateEntities(),
-          card: {
-            ...rateEntities().card,
-            operations: { addSelectedRate: selectedJoinOperation },
-          },
-        },
+        entities: rateEntities().map((entity) =>
+          entity.key === "card"
+            ? {
+                ...entity,
+                operations: [{ key: "addSelectedRate", ...selectedJoinOperation }],
+              }
+            : entity,
+        ),
         message: 'relationship "cardResources" uses through entity "rate", not "card"',
       },
       {
         entities: rateEntities({
-          fields: {
-            ...rateEntities().rate.fields,
-            cost: { type: "number", required: true, label: "Cost", min: 0 },
-          },
-          operations: {
-            regenerateMissingRates: commandOperation("create-missing-join-records", {
-              join: {
-                left: { field: "resource", query: "resourceAll" },
-                right: { field: "card", query: "cardAll" },
-              },
-            }),
-          },
+          fields: rateEntities()
+            .find((entity) => entity.key === "rate")!
+            .fields.map((field) =>
+              field.key === "cost"
+                ? { key: "cost", type: "number", required: true, label: "Cost", min: 0 }
+                : field,
+            ),
+          operations: [
+            {
+              key: "regenerateMissingRates",
+              ...commandOperation("create-missing-join-records", {
+                join: {
+                  left: { field: "resource", query: "resourceAll" },
+                  right: { field: "card", query: "cardAll" },
+                },
+              }),
+            },
+          ],
         }),
         message: 'requires field "cost" to have a default',
       },

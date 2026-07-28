@@ -38,12 +38,9 @@ const SYSTEM_FIELDS: AddressableField[] = [
     filterOps: ["eq"],
   },
 ];
-
 export function getEntityFieldCatalog(entity: EntitySchema): AddressableField[] {
   return [
-    ...Object.entries(entity.fields).map(([fieldName, field]) =>
-      valueFieldCatalogEntry(fieldName, field),
-    ),
+    ...entity.fields.map((field) => valueFieldCatalogEntry(field.key, field)),
     ...SYSTEM_FIELDS,
   ];
 }

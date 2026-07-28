@@ -6,6 +6,7 @@ import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promise
 import path from "node:path";
 
 import {
+  getAppSchemaDefinitionIndex,
   parseAppSchema,
   validateAuthorityFieldValue,
   type AppSchema,
@@ -23,6 +24,7 @@ import {
 import {
   STORAGE_SNAPSHOT_KIND,
   STORAGE_SNAPSHOT_VERSION,
+  formatStoredRecordsForArtifact,
   parseStorageSnapshot,
 } from "@dpeek/formless-storage";
 import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
@@ -296,7 +298,7 @@ export async function writeInstanceWorkspaceControlPlaneStorageSnapshot(input: {
   });
 
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, formatWorkspaceRecordStateFile(state));
+  await writeFile(filePath, formatWorkspaceRecordStateFile(state, snapshot.schema));
 }
 
 export async function readInstanceWorkspaceAppStorageSnapshot(input: {
@@ -353,7 +355,7 @@ export async function writeInstanceWorkspaceAppStorageSnapshot(input: {
   );
 
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, formatWorkspaceRecordStateFile(state));
+  await writeFile(filePath, formatWorkspaceRecordStateFile(state, snapshot.schema));
 }
 
 export async function replaceInstanceWorkspaceAppStorageSnapshots(input: {
@@ -965,9 +967,7 @@ async function workspaceRecordStateFileFromStorageSnapshot(
     schemaUpdatedAt: parsed.schemaUpdatedAt,
     sourceCursor: parsed.sourceCursor,
     schemaProvenance: input.schemaProvenance,
-    records: parsed.records
-      .map((record) => canonicalStoredRecord(record, input))
-      .sort(compareStoredRecords),
+    records: parsed.records.map((record) => workspaceStoredRecord(record, input)),
   };
 
   return parseWorkspaceRecordStateFile(formatted);
@@ -1019,24 +1019,18 @@ function isWorkspaceRecordStateFile(value: unknown): boolean {
   );
 }
 
-function canonicalStoredRecord(
+function workspaceStoredRecord(
   record: StoredRecord,
   input: { formatRecordEntity?: (entity: string) => string } = {},
 ): StoredRecord {
   return {
     id: record.id,
     entity: input.formatRecordEntity?.(record.entity) ?? record.entity,
-    values: stableJsonValue(record.values) as RecordValues,
+    values: record.values,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     ...(record.deletedAt === undefined ? {} : { deletedAt: record.deletedAt }),
   };
-}
-
-function compareStoredRecords(left: StoredRecord, right: StoredRecord): number {
-  const entityOrder = left.entity.localeCompare(right.entity);
-
-  return entityOrder === 0 ? left.id.localeCompare(right.id) : entityOrder;
 }
 
 function formatInstanceControlPlaneRecordStateEntity(entity: string): string {
@@ -1132,7 +1126,7 @@ export function parseWorkspacePackageSeedRecords(
 
   validateWorkspacePackageSeedRecords(records, schema, context);
 
-  return records;
+  return formatStoredRecordsForArtifact(schema, records);
 }
 
 function parseWorkspacePackageSeedRecord(value: unknown, context: string): StoredRecord {
@@ -1186,29 +1180,30 @@ function validateWorkspacePackageSeedRecords(
 
   for (const [index, record] of records.entries()) {
     const recordContext = `${context}[${index}]`;
-    const entity = schema.entities[record.entity];
+    const schemaIndex = getAppSchemaDefinitionIndex(schema);
+    const entity = schemaIndex.entities.byKey.get(record.entity);
 
     if (!entity) {
       throw new Error(`${recordContext} references unknown entity "${record.entity}".`);
     }
 
     for (const fieldName of Object.keys(record.values)) {
-      if (!Object.hasOwn(entity.fields, fieldName)) {
+      if (!schemaIndex.fieldsByEntity.get(record.entity)?.byKey.has(fieldName)) {
         throw new Error(
           `${recordContext} values include unknown field "${record.entity}.${fieldName}".`,
         );
       }
     }
 
-    for (const [fieldName, field] of Object.entries(entity.fields)) {
-      const value = record.values[fieldName];
+    for (const field of entity.fields) {
+      const value = record.values[field.key];
       const fieldWasProvided = value !== undefined;
 
       try {
-        validateAuthorityFieldValue(fieldName, field, value, fieldWasProvided);
+        validateAuthorityFieldValue(field.key, field, value, fieldWasProvided);
       } catch (error) {
         throw new Error(
-          `${recordContext} has invalid field "${record.entity}.${fieldName}": ${
+          `${recordContext} has invalid field "${record.entity}.${field.key}": ${
             error instanceof Error ? error.message : "Field value is invalid."
           }`,
         );
@@ -1220,7 +1215,7 @@ function validateWorkspacePackageSeedRecords(
 
       if (typeof value !== "string") {
         throw new Error(
-          `${recordContext} field "${record.entity}.${fieldName}" must be a reference ID.`,
+          `${recordContext} field "${record.entity}.${field.key}" must be a reference ID.`,
         );
       }
 
@@ -1228,7 +1223,7 @@ function validateWorkspacePackageSeedRecords(
 
       if (!referencedRecord || referencedRecord.entity !== field.to) {
         throw new Error(
-          `${recordContext} field "${record.entity}.${fieldName}" references missing ${field.to} record "${value}".`,
+          `${recordContext} field "${record.entity}.${field.key}" references missing ${field.to} record "${value}".`,
         );
       }
     }

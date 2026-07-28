@@ -611,7 +611,12 @@ export function astryxApplicationShellCreateIntent(
 export function astryxApplicationShellResetIntent(
   section: ShellNavigationSectionContract,
   reset: ShellResetContract,
-  intent: Extract<ShellIntent, { type: "shellReset" }>["intent"],
+  intent: Extract<
+    ShellIntent,
+    {
+      type: "shellReset";
+    }
+  >["intent"],
 ): ShellIntent {
   return {
     controlId: reset.id,
@@ -621,10 +626,14 @@ export function astryxApplicationShellResetIntent(
     type: "shellReset",
   };
 }
-
 export function astryxApplicationShellLogoutIntent(
   section: ShellNavigationSectionContract,
-  session: Extract<ShellSessionContract, { state: "authenticated" }>,
+  session: Extract<
+    ShellSessionContract,
+    {
+      state: "authenticated";
+    }
+  >,
 ): ShellIntent {
   return {
     controlId: session.logout.id,

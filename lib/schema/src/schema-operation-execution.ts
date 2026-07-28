@@ -1,7 +1,12 @@
 import { fieldRefsEqual } from "./fields.ts";
 import { fieldHasCreateDefault } from "./field-types.ts";
 import { collectQueryContextNames } from "./query.ts";
-import { assertExactKeys, isRecord, parseRequiredNonEmptyString } from "./schema-parse-helpers.ts";
+import {
+  assertExactKeys,
+  definitionsToRecord,
+  isRecord,
+  parseRequiredNonEmptyString,
+} from "./schema-parse-helpers.ts";
 import type {
   CollectionQuerySchema,
   EntityOperationCommandEffectType,
@@ -362,11 +367,9 @@ function parseClearCompletedHandlerConfig(
   queries: Record<string, CollectionQuerySchema>,
 ): OperationHandlerConfigSchemaByKind["clear-completed"] {
   assertExactKeys(context, value, [], ["query"]);
-
-  if (entity.fields.done?.type !== "boolean") {
+  if (definitionsToRecord(entity.fields).done?.type !== "boolean") {
     throw new Error(`${context} handler "clear-completed" requires a boolean "done" field.`);
   }
-
   const queryName = parseOptionalHandlerQueryReference(
     `${context} query`,
     value.query,
@@ -400,8 +403,8 @@ function parseCreateTreeChildHandlerConfig(
     relationships,
   );
   const childFieldName = parseRequiredNonEmptyString(`${context} childField`, value.childField);
-  const childField = entity.fields[childFieldName];
-
+  const fieldsByKey = definitionsToRecord(entity.fields);
+  const childField = fieldsByKey[childFieldName];
   if (!childField) {
     throw new Error(`${context} childField references unknown field "${childFieldName}".`);
   }
@@ -418,8 +421,7 @@ function parseCreateTreeChildHandlerConfig(
     value.orderField === undefined
       ? undefined
       : parseRequiredNonEmptyString(`${context} orderField`, value.orderField);
-  const orderField = orderFieldName === undefined ? undefined : entity.fields[orderFieldName];
-
+  const orderField = orderFieldName === undefined ? undefined : fieldsByKey[orderFieldName];
   if (orderFieldName !== undefined && !orderField) {
     throw new Error(`${context} orderField references unknown field "${orderFieldName}".`);
   }
@@ -443,16 +445,13 @@ function parseTransitionStateHandlerConfig(
 ): OperationHandlerConfigSchemaByKind["transition-state"] {
   const machineName = parseRequiredNonEmptyString(`${context} machine`, value.machine);
   const transitionName = parseRequiredNonEmptyString(`${context} transition`, value.transition);
-  const stateMachine = entity.stateMachines?.[machineName];
-
+  const stateMachine = definitionsToRecord(entity.stateMachines)[machineName];
   if (!stateMachine) {
     throw new Error(`${context} references unknown state machine "${machineName}".`);
   }
-
-  if (!stateMachine.transitions[transitionName]) {
+  if (!definitionsToRecord(stateMachine.transitions)[transitionName]) {
     throw new Error(`${context} references unknown transition "${machineName}.${transitionName}".`);
   }
-
   const sideEffects =
     value.sideEffects === undefined
       ? undefined
@@ -533,13 +532,10 @@ function parseOperationHandlerJoinSource(
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
-
   assertExactKeys(context, value, ["field", "query"]);
-
   const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
   const queryName = parseRequiredNonEmptyString(`${context} query`, value.query);
-  const field = entity.fields[fieldName];
-
+  const field = definitionsToRecord(entity.fields)[fieldName];
   if (!field) {
     throw new Error(`${context} references unknown field "${entityName}.${fieldName}".`);
   }
@@ -578,8 +574,8 @@ function validateJoinRecordDefaults(
   joinFieldNames: string[],
 ) {
   const joinFields = new Set(joinFieldNames);
-
-  for (const [fieldName, field] of Object.entries(entity.fields)) {
+  for (const field of entity.fields) {
+    const fieldName = field.key;
     if (joinFields.has(fieldName) || !field.required || fieldHasCreateDefault(field)) {
       continue;
     }
@@ -599,9 +595,13 @@ function requireManyToManyHandlerRelationship(
   relationshipName: string,
   entityName: string,
   relationships: Record<string, RelationshipSchema> | undefined,
-): Extract<RelationshipSchema, { kind: "manyToMany" }> {
+): Extract<
+  RelationshipSchema,
+  {
+    kind: "manyToMany";
+  }
+> {
   const relationship = relationships?.[relationshipName];
-
   if (!relationship) {
     throw new Error(`${context} references unknown relationship "${relationshipName}".`);
   }
@@ -624,9 +624,13 @@ function requireToManyHandlerRelationship(
   relationshipName: string,
   entityName: string,
   relationships: Record<string, RelationshipSchema> | undefined,
-): Extract<RelationshipSchema, { kind: "toMany" }> {
+): Extract<
+  RelationshipSchema,
+  {
+    kind: "toMany";
+  }
+> {
   const relationship = relationships?.[relationshipName];
-
   if (!relationship) {
     throw new Error(`${context} references unknown relationship "${relationshipName}".`);
   }

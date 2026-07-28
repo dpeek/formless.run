@@ -583,12 +583,14 @@ function rateWorkspaceFixture() {
     query: { kind: "all" as const },
     queryName: "rateAll",
   };
-  const cardRates = rateSourceSchema.relationships?.cardRates;
+  const cardRates = rateSourceSchema.relationships!.find(
+    (definition) => definition.key === "cardRates",
+  )!;
   if (cardRates?.kind !== "toMany") {
     throw new Error("Missing card rates relationship.");
   }
   const relatedCollection = {
-    entity: rateSourceSchema.entities.rate!,
+    entity: rateSourceSchema.entities.find((definition) => definition.key === "rate")!,
     entityName: "rate",
     label: "Rates",
     referenceFieldName: "card",
@@ -603,7 +605,9 @@ function rateWorkspaceFixture() {
       {
         commit: "field-commit",
         editor: "text",
-        field: rateSourceSchema.entities.card!.fields.name!,
+        field: rateSourceSchema.entities
+          .find((definition) => definition.key === "card")!
+          .fields.find((definition) => definition.key === "name")!,
         fieldName: "name",
       },
       ...(context.recordFields ?? []),
@@ -983,7 +987,7 @@ function testOperation(
       audit: { input: "summary" },
       effect: kind === "delete" ? { type: "deleteRecord" } : { type: "patchRecord" },
       idempotency: { required: true },
-      input: { fields: {} },
+      input: { fields: [] },
       kind,
       output: { type: kind },
       scope: "record",

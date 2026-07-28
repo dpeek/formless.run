@@ -51,12 +51,12 @@ type MaterializableRecordPlanRecordIdExpressionSchema =
 type MaterializableRecordPlanValueExpressionSchema =
   | RecordPlanValueExpressionSchema
   | TransitionSideEffectValueExpressionSchema;
-
 type MaterializableRecordPlanValuedStepSchema = Extract<
   MaterializableRecordPlanStepSchema,
-  { kind: "create" | "patch" }
+  {
+    kind: "create" | "patch";
+  }
 >;
-
 export type RecordPlanStepMaterialization = {
   name: string;
   kind: MaterializableRecordPlanStepSchema["kind"];
@@ -184,10 +184,11 @@ export async function materializeRecordPlanAsync(
 export function recordPlanOperationOutput(
   output: OperationCommandOutput,
   materialization: Pick<RecordPlanMaterialization, "steps">,
-  options: { changeOffset?: number } = {},
+  options: {
+    changeOffset?: number;
+  } = {},
 ): OperationCommandOutput {
   const changeOffset = options.changeOffset ?? 0;
-
   if (output.changes.length !== changeOffset + materialization.steps.length) {
     throw new Error("Record plan output change count does not match step count.");
   }
@@ -352,7 +353,9 @@ function recordPlanWritePlanForStep(
 async function recordPlanWritePlanForStepAsync(
   step: MaterializableRecordPlanStepSchema,
   state: RecordPlanPlanningState,
-  options: { identityReferenceResolver?: IdentityReferenceTargetResolver },
+  options: {
+    identityReferenceResolver?: IdentityReferenceTargetResolver;
+  },
 ): Promise<RecordPlanStepPlan> {
   if (step.kind === "create") {
     const recordId =
@@ -532,7 +535,9 @@ async function validateRecordPlanStepWriteAsync(
   step: MaterializableRecordPlanStepSchema,
   state: RecordPlanPlanningState,
   recordWrite: CreateRecordWriteRequest | PatchRecordWriteRequest | DeleteRecordWriteRequest,
-  options: { identityReferenceResolver?: IdentityReferenceTargetResolver },
+  options: {
+    identityReferenceResolver?: IdentityReferenceTargetResolver;
+  },
 ) {
   const result = await validateRecordWriteRequestAsync(
     recordWrite,
@@ -596,7 +601,9 @@ async function validateRecordPlanStepWriteWithGeneratedCodeRetriesAsync(
   recordWriteForValues: (
     values: RecordValues,
   ) => CreateRecordWriteRequest | PatchRecordWriteRequest,
-  options: { identityReferenceResolver?: IdentityReferenceTargetResolver },
+  options: {
+    identityReferenceResolver?: IdentityReferenceTargetResolver;
+  },
 ) {
   const generatedCodeFields = recordPlanGeneratedCodeFields(step.values);
   const maxAttempts = generatedCodeFields.size === 0 ? 1 : generatedCodeMaxAttempts;
@@ -646,8 +653,9 @@ function shouldRetryGeneratedCodeCollision(
   const constraint =
     constraintName === undefined
       ? undefined
-      : state.schema.entities[step.entity]?.constraints?.[constraintName];
-
+      : state.schema.entities
+          .find((definition) => definition.key === step.entity)
+          ?.constraints?.find((definition) => definition.key === constraintName);
   return (
     constraint?.kind === "unique" &&
     constraint.fields.some((fieldName) => generatedCodeFields.has(fieldName))
@@ -700,13 +708,18 @@ function evaluateRecordPlanValues(
 function evaluateRecordPlanValueExpression(
   expression: MaterializableRecordPlanValueExpressionSchema,
   state: RecordPlanPlanningState,
-): { kind: "omit" } | { kind: "set"; value: FieldValue } {
+):
+  | {
+      kind: "omit";
+    }
+  | {
+      kind: "set";
+      value: FieldValue;
+    } {
   if (expression.kind === "reference") {
     const id = evaluateRecordPlanOptionalRecordIdExpression(expression.id, state);
-
     return id === undefined ? { kind: "omit" } : { kind: "set", value: id };
   }
-
   if (expression.kind === "input") {
     return Object.hasOwn(state.inputValues, expression.field)
       ? { kind: "set", value: state.inputValues[expression.field] as FieldValue }
@@ -763,7 +776,14 @@ function evaluateRecordPlanValueExpression(
 function evaluateRecordPlanActorExpression(
   field: "mode" | "principalId",
   envelope: OperationInvocationEnvelope,
-): { kind: "omit" } | { kind: "set"; value: FieldValue } {
+):
+  | {
+      kind: "omit";
+    }
+  | {
+      kind: "set";
+      value: FieldValue;
+    } {
   if (field === "mode") {
     return { kind: "set", value: envelope.actor.kind };
   }
@@ -775,12 +795,17 @@ function evaluateRecordPlanActorExpression(
 function evaluateRecordPlanSourceExpression(
   field: "protocol" | "route" | "host" | "path",
   envelope: OperationInvocationEnvelope,
-): { kind: "omit" } | { kind: "set"; value: FieldValue } {
+):
+  | {
+      kind: "omit";
+    }
+  | {
+      kind: "set";
+      value: FieldValue;
+    } {
   const value = envelope.source[field];
-
   return value === undefined ? { kind: "omit" } : { kind: "set", value };
 }
-
 function evaluateRecordPlanRecordIdExpression(
   expression: MaterializableRecordPlanRecordIdExpressionSchema,
   state: RecordPlanPlanningState,

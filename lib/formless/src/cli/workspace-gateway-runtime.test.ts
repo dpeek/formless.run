@@ -216,7 +216,10 @@ describe("local workspace gateway", () => {
   it("exposes auto-save status and enqueue through the local gateway", async () => {
     const workspaceRoot = await makeTempDir();
     const cookie = await ownerCookie();
-    const scheduled: Array<{ callback: () => void; delayMs: number }> = [];
+    const scheduled: Array<{
+      callback: () => void;
+      delayMs: number;
+    }> = [];
     const scheduler = createWorkspaceAutoSaveScheduler({
       clearTimeout: () => undefined,
       debounceMs: 25,

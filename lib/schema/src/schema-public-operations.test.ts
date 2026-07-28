@@ -18,13 +18,14 @@ describe("schema public operation facts", () => {
         subscribe: publicHandlerOperation(),
       }),
     );
-
-    expect(schema.entities.request?.operations?.subscribe).toMatchObject({
+    expect(
+      schema.entities
+        .find((definition) => definition.key === "request")!
+        .operations?.find((definition) => definition.key === "subscribe"),
+    ).toMatchObject({
       kind: "command",
       input: {
-        fields: {
-          email: { type: "text", required: true, label: "Email" },
-        },
+        fields: [{ key: "email", type: "text", required: true, label: "Email" }],
       },
       effect: {
         type: "operationHandler",
@@ -103,9 +104,7 @@ describe("schema public operation facts", () => {
       {
         operation: publicHandlerOperation({
           input: {
-            fields: {
-              owner: { type: "reference", required: true, to: "owner" },
-            },
+            fields: [{ key: "owner", type: "reference", required: true, to: "owner" }],
           },
         }),
         message: 'has unsupported type "reference"',
@@ -218,78 +217,90 @@ describe("schema public operation facts", () => {
       createRequest: {
         ...publicCreateOperation(),
         input: {
-          fields: {
-            operationLabel: {
+          fields: [
+            {
+              key: "operationLabel",
               field: "name",
               required: true,
               label: "Operation label wins",
             },
-            entityLabel: {
+            {
+              key: "entityLabel",
               field: "details",
               required: true,
             },
-            fallbackLabel: {
+            {
+              key: "fallbackLabel",
               field: "fallback",
               required: false,
             },
-            replyEmail: {
+            {
+              key: "replyEmail",
               field: "email",
               required: true,
               label: "Reply email",
             },
-            inquiryType: {
+            {
+              key: "inquiryType",
               field: "inquiryType",
               required: false,
             },
-            tier: {
+            {
+              key: "tier",
               field: "tier",
               required: true,
             },
-            acceptedTerms: {
+            {
+              key: "acceptedTerms",
               field: "acceptedTerms",
               required: false,
             },
-            consent: {
+            {
+              key: "consent",
               field: "done",
               required: true,
               mustBeTrue: true,
             },
-            neededBy: {
+            {
+              key: "neededBy",
               field: "neededBy",
               required: false,
             },
-            quantity: {
+            {
+              key: "quantity",
               field: "quantity",
               required: false,
             },
-            inlineNote: {
+            {
+              key: "inlineNote",
               type: "text",
               required: false,
               label: "Inline note",
             },
-            inlinePhone: {
+            {
+              key: "inlinePhone",
               type: "text",
               required: false,
               format: "phone",
               suggestions: ["+1 555 123 4567"],
               label: "Inline phone",
             },
-            inlineTier: {
+            {
+              key: "inlineTier",
               type: "enum",
               required: false,
               label: "Inline tier",
-              values: {
-                standard: { label: "Standard inline" },
-                priority: { label: "Priority inline" },
-              },
+              values: [
+                { key: "standard", label: "Standard inline" },
+                { key: "priority", label: "Priority inline" },
+              ],
             },
-          },
+          ],
         },
       },
     });
-    const entity = schema.entities.request;
-    const operation = entity.operations?.createRequest;
-
+    const entity = schema.entities.find((definition) => definition.key === "request")!;
+    const operation = entity.operations?.find((definition) => definition.key === "createRequest");
     if (!operation) {
       throw new Error("Expected createRequest operation.");
     }
@@ -398,38 +409,42 @@ describe("schema public operation facts", () => {
       createRequest: {
         ...publicCreateOperation(),
         input: {
-          fields: {
-            title: {
+          fields: [
+            {
+              key: "title",
               field: "name",
               required: true,
             },
-            optionalOwner: {
+            {
+              key: "optionalOwner",
               field: "owner",
               required: false,
             },
-            requiredOwner: {
+            {
+              key: "requiredOwner",
               field: "owner",
               required: true,
             },
-            requiredQueryChoice: {
+            {
+              key: "requiredQueryChoice",
               type: "queryChoice",
               required: true,
               label: "Catalog item",
               query: "catalogItems",
             } as never,
-            optionalQueryChoice: {
+            {
+              key: "optionalQueryChoice",
               type: "queryChoice",
               required: false,
               label: "Optional catalog item",
               query: "catalogItems",
             } as never,
-          },
+          ],
         },
       },
     });
-    const entity = schema.entities.request;
-    const operation = entity.operations?.createRequest;
-
+    const entity = schema.entities.find((definition) => definition.key === "request")!;
+    const operation = entity.operations?.find((definition) => definition.key === "createRequest");
     if (!operation) {
       throw new Error("Expected createRequest operation.");
     }
@@ -451,96 +466,112 @@ describe("schema public operation facts", () => {
 function publicOperationSchema(operations: Record<string, EntityOperationSchema>): AppSchema {
   return {
     version: 1,
-    entities: {
-      owner: {
+    entities: [
+      {
+        key: "owner",
         label: "Owner",
-        fields: {
-          label: {
+        fields: [
+          {
+            key: "label",
             type: "text",
             required: true,
             label: "Label",
           },
-        },
+        ],
       },
-      request: {
+      {
+        key: "request",
         label: "Request",
-        fields: {
-          name: {
+        fields: [
+          {
+            key: "name",
             type: "text",
             required: true,
             label: "Name",
           },
-          details: {
+          {
+            key: "details",
             type: "text",
             required: true,
             label: "Request details",
             format: "longText",
           },
-          fallback: {
+          {
+            key: "fallback",
             type: "text",
             required: false,
           },
-          email: {
+          {
+            key: "email",
             type: "text",
             required: true,
             label: "Email",
             format: "email",
             suggestions: ["hello@example.com"],
           },
-          inquiryType: {
+          {
+            key: "inquiryType",
             type: "text",
             required: false,
             label: "Inquiry type",
             suggestions: ["Support", "Sales"],
           },
-          tier: {
+          {
+            key: "tier",
             type: "enum",
             required: true,
             label: "Tier",
-            values: {
-              standard: { label: "Standard" },
-              priority: { label: "Priority" },
-            },
+            values: [
+              { key: "standard", label: "Standard" },
+              { key: "priority", label: "Priority" },
+            ],
           },
-          acceptedTerms: {
+          {
+            key: "acceptedTerms",
             type: "boolean",
             required: false,
             label: "Accepted terms",
           },
-          neededBy: {
+          {
+            key: "neededBy",
             type: "date",
             required: false,
             label: "Needed by",
           },
-          quantity: {
+          {
+            key: "quantity",
             type: "number",
             required: false,
             label: "Quantity",
           },
-          done: {
+          {
+            key: "done",
             type: "boolean",
             required: true,
             label: "Done",
             default: false,
           },
-          owner: {
+          {
+            key: "owner",
             type: "reference",
             required: false,
             label: "Owner",
             to: "owner",
             displayField: "label",
           },
-        },
-        operations,
+        ],
+        operations: Object.entries(operations).map(([key, operation]) => ({ key, ...operation })),
       },
-    },
-    queries: {
-      requests: {
+    ],
+    queries: [
+      {
+        key: "requests",
         label: "Requests",
         entity: "request",
         expression: { kind: "all" },
       },
-      requestCompleted: {
+      {
+        key: "requestCompleted",
         label: "Completed requests",
         entity: "request",
         expression: {
@@ -550,18 +581,18 @@ function publicOperationSchema(operations: Record<string, EntityOperationSchema>
           value: true,
         },
       },
-    },
-    itemViews: {
-      requestItem: {
+    ],
+    itemViews: [
+      {
+        key: "requestItem",
         entity: "request",
-        fields: {
-          name: { editor: "text", commit: "field-commit" },
-        },
+        fields: [{ field: "name", editor: "text", commit: "field-commit" }],
       },
-    },
-    tableViews: {},
-    views: {
-      requestHome: {
+    ],
+    tableViews: [],
+    views: [
+      {
+        key: "requestHome",
         type: "collection",
         label: "Requests",
         entity: "request",
@@ -569,33 +600,33 @@ function publicOperationSchema(operations: Record<string, EntityOperationSchema>
         defaultQuery: "requests",
         result: { type: "list", itemView: "requestItem" },
       },
-    },
-    screens: {
-      home: {
+    ],
+    screens: [
+      {
+        key: "home",
         type: "workspace",
         label: "Requests",
-        navigation: { primary: true },
         layout: {
           type: "stack",
           sections: [{ id: "requests", type: "collection", view: "requestHome" }],
         },
       },
-    },
+    ],
   };
 }
-
 function publicCreateOperation(): EntityOperationSchema {
   return {
     label: "Create request",
     kind: "create",
     scope: "collection",
     input: {
-      fields: {
-        name: {
+      fields: [
+        {
+          key: "name",
           field: "name",
           required: true,
         },
-      },
+      ],
     },
     effect: { type: "createRecord" },
     output: { type: "create" },
@@ -611,13 +642,14 @@ function publicRecordPlanOperation(): EntityOperationSchema {
     kind: "command",
     scope: "collection",
     input: {
-      fields: {
-        title: {
+      fields: [
+        {
+          key: "title",
           type: "text",
           required: true,
           label: "Title",
         },
-      },
+      ],
     },
     effect: {
       type: "recordPlan",
@@ -645,13 +677,14 @@ function publicHandlerOperation(overrides: Record<string, unknown> = {}): Entity
     kind: "command",
     scope: "collection",
     input: {
-      fields: {
-        email: {
+      fields: [
+        {
+          key: "email",
           type: "text",
           required: true,
           label: "Email",
         },
-      },
+      ],
     },
     effect: {
       type: "operationHandler",

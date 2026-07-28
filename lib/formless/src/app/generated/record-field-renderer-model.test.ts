@@ -93,18 +93,18 @@ const fields = {
   costUnit: {
     type: "enum",
     required: false,
-    values: {
-      hour: { label: "Hour" },
-      day: { label: "Day" },
-    },
+    values: [
+      { key: "hour", label: "Hour" },
+      { key: "day", label: "Day" },
+    ],
   },
   priority: {
     type: "enum",
     required: false,
-    values: {
-      normal: { label: "Normal" },
-      high: { label: "High" },
-    },
+    values: [
+      { key: "normal", label: "Normal" },
+      { key: "high", label: "High" },
+    ],
   },
   resource: { type: "reference", required: true, to: "resource", displayField: "name" },
 } satisfies Record<string, FieldSchema>;

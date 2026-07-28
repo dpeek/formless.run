@@ -2073,9 +2073,12 @@ describe("client sync", () => {
           updatedAt: "2026-04-28T00:00:00.000Z",
         } satisfies SchemaUpdateResponse),
       );
-
       await waitFor(() =>
-        states.some((state) => state.schema?.entities.task.label === "Planner task"),
+        states.some(
+          (state) =>
+            state.schema?.entities.find((definition) => definition.key === "task")!.label ===
+            "Planner task",
+        ),
       );
       expect(states.at(-1)?.schema).toEqual(nextSchema);
     } finally {
@@ -2226,15 +2229,13 @@ function parseSocketClientMessage(data: string | undefined): SyncSocketClientMes
   if (!data) {
     throw new Error("Expected a socket client message.");
   }
-
   return JSON.parse(data) as SyncSocketClientMessage;
 }
-
 type AutoSaveInput = Parameters<LocalWorkspaceAutoSaveClient["enqueue"]>[0];
-
-function captureAutoSave(): LocalWorkspaceAutoSaveClient & { inputs: AutoSaveInput[] } {
+function captureAutoSave(): LocalWorkspaceAutoSaveClient & {
+  inputs: AutoSaveInput[];
+} {
   const inputs: AutoSaveInput[] = [];
-
   return {
     inputs,
     enqueue: async (input) => {
@@ -2303,10 +2304,11 @@ function parseOperationRequestBody(body: BodyInit | null | undefined) {
     idempotencyKey: string;
     input?: unknown;
     recordId?: string;
-    source?: { protocol?: string };
+    source?: {
+      protocol?: string;
+    };
   };
 }
-
 function operationResponse(
   output: OperationInvocationResponse["output"],
   status: OperationInvocationResponse["status"] = "committed",
@@ -2322,25 +2324,23 @@ function parsePlainRequestBody(body: BodyInit | null | undefined) {
   if (typeof body !== "string") {
     throw new Error("Expected a string request body.");
   }
-
   return JSON.parse(body) as unknown;
 }
-
 function schemaWithSummary() {
-  const fields = {
-    ...appSchema.entities.task.fields,
-    notes: { type: "text", required: false },
-  } satisfies AppSchema["entities"][string]["fields"];
-
+  const fields = [
+    ...appSchema.entities.find((definition) => definition.key === "task")!.fields,
+    { type: "text", required: false, key: "notes" },
+  ] satisfies AppSchema["entities"][number]["fields"];
   return parseAppSchema({
     version: 1,
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         label: "Planner task",
         fields,
         operations: taskOperations("Planner task", fields),
       },
-    },
+    ],
     queries: appSchema.queries,
     itemViews: appSchema.itemViews,
     tableViews: appSchema.tableViews,
@@ -2348,18 +2348,18 @@ function schemaWithSummary() {
     screens: appSchema.screens,
   });
 }
-
 function taskOperations(
   label: string,
-  fields: AppSchema["entities"][string]["fields"],
-): NonNullable<AppSchema["entities"][string]["operations"]> {
+  fields: AppSchema["entities"][number]["fields"],
+): NonNullable<AppSchema["entities"][number]["operations"]> {
   const input = {
-    fields: Object.fromEntries(Object.keys(fields).map((field) => [field, { field }])),
+    fields: fields.map(({ key }) => ({ key, field: key })),
   };
-  const clearCompletedTasks = appSchema.entities.task.operations?.clearCompletedTasks;
-
-  return {
-    create: {
+  const clearCompletedTasks = appSchema.entities
+    .find((definition) => definition.key === "task")!
+    .operations!.find((definition) => definition.key === "clearCompletedTasks")!;
+  return [
+    {
       label: `Create ${label}`,
       kind: "create",
       scope: "collection",
@@ -2368,8 +2368,9 @@ function taskOperations(
       output: { type: "create" },
       idempotency: { required: true },
       audit: { input: "summary" },
+      key: "create",
     },
-    update: {
+    {
       label: `Update ${label}`,
       kind: "update",
       scope: "record",
@@ -2378,11 +2379,11 @@ function taskOperations(
       output: { type: "update" },
       idempotency: { required: true },
       audit: { input: "summary" },
+      key: "update",
     },
-    ...(clearCompletedTasks === undefined ? {} : { clearCompletedTasks }),
-  };
+    ...(clearCompletedTasks === undefined ? [] : [clearCompletedTasks]),
+  ];
 }
-
 function storageSnapshot(overrides: Partial<StorageSnapshot> = {}): StorageSnapshot {
   return {
     kind: STORAGE_SNAPSHOT_KIND,

@@ -53,6 +53,24 @@ The system SHALL persist browser replica metadata and records locally.
 - THEN the selected local replica is saved from the restored bootstrap response
 - AND later browser reads use that storage identity's local replica
 
+#### Scenario: Store portable schema data
+
+- GIVEN bootstrap, sync, or snapshot restore supplies a current App schema
+- WHEN the browser replica saves and later loads that schema
+- THEN IndexedDB retains the portable array-shaped schema
+- AND generated runtime may build shared keyed definition indexes after load
+- AND derived maps, caches, reverse lookups, and parallel order lists are not
+  persisted in IndexedDB or broadcast to another replica
+
+#### Scenario: Reuse equivalent browser schema
+
+- GIVEN a browser replica compares a received schema with its cached schema
+- WHEN the schemas differ only in object property insertion order
+- THEN canonical App schema equality permits reuse
+- AND registry array reordering prevents reuse and installs the new schema
+- AND keyed definition indexes are associated with the accepted parsed schema
+  object rather than serialized cache state
+
 ### Requirement: Stale Browser Write Handling
 
 The system SHALL reject incompatible stale browser writes with reload-required
@@ -90,6 +108,17 @@ truth migrations.
 - WHEN browser replica storage cannot safely migrate local IndexedDB state
 - THEN the client can delete the local replica and re-bootstrap from Authority
 - AND no Authority data is lost
+
+#### Scenario: Reset incompatible schema cache
+
+- GIVEN a Formless browser replica contains schema data that cannot be parsed
+  under the current App schema contract
+- WHEN the current runtime opens that replica
+- THEN the client deletes the affected Formless replica and re-bootstraps it
+  from Authority
+- AND it does not convert unsupported registry objects, infer declaration order
+  from their property order, or retain a dual-shape schema cache
+- AND non-Formless IndexedDB databases remain unchanged
 
 #### Scenario: Local dev browser replica reset
 

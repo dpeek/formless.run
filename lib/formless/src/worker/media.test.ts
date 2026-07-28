@@ -1,3 +1,4 @@
+import { setKeyedDefinition } from "../test/schema-definition-test-helpers.ts";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -192,10 +193,11 @@ describe("media worker routes", () => {
         Authorization: `Bearer ${adminToken}`,
       },
     );
-
     expect(adminAccepted.status).toBe(200);
-    const body = (await adminAccepted.json()) as { href: string; key: string };
-
+    const body = (await adminAccepted.json()) as {
+      href: string;
+      key: string;
+    };
     const ownerAccepted = await uploadCoreImage(
       guardedHarness,
       imageFile("owner.png", "image/png", pngBytes),
@@ -297,13 +299,20 @@ describe("media worker routes", () => {
       "image/jpeg",
       pngBytes,
     );
-
     expect(invalidKey.status).toBe(400);
-    expect((await invalidKey.json()) as { error: string }).toEqual({
+    expect(
+      (await invalidKey.json()) as {
+        error: string;
+      },
+    ).toEqual({
       error: "Unsupported media restore key.",
     });
     expect(mismatchedContentType.status).toBe(415);
-    expect((await mismatchedContentType.json()) as { error: string }).toEqual({
+    expect(
+      (await mismatchedContentType.json()) as {
+        error: string;
+      },
+    ).toEqual({
       error: "Media restore content type must match the media key.",
     });
     await expectMediaBucketKeys(harness, []);
@@ -379,10 +388,10 @@ describe("media worker routes", () => {
       documentFile("first-private.pdf"),
       firstAdmin.headers,
     );
-
     await expectResponseStatus(uploaded, 200);
-
-    const uploadedBody = (await uploaded.json()) as { asset: DocumentMediaAsset };
+    const uploadedBody = (await uploaded.json()) as {
+      asset: DocumentMediaAsset;
+    };
     const crossInstallUpload = await uploadAppDocument(
       secondInstallId,
       privateDocumentField,
@@ -504,10 +513,12 @@ describe("media worker routes", () => {
       documentFile("private-report.pdf"),
       firstAdmin.headers,
     );
-
     await expectResponseStatus(upload, 200);
-
-    const asset = ((await upload.json()) as { asset: DocumentMediaAsset }).asset;
+    const asset = (
+      (await upload.json()) as {
+        asset: DocumentMediaAsset;
+      }
+    ).asset;
     const deliveryPath = documentDeliveryPath(firstInstallId, asset.id);
     const anonymous = await guardedHarness.fetch(deliveryPath);
     const wrongAdmin = await guardedHarness.fetch(deliveryPath, {
@@ -561,10 +572,12 @@ describe("media worker routes", () => {
       documentFile("issued-coa.pdf"),
       admin.headers,
     );
-
     await expectResponseStatus(upload, 200);
-
-    const asset = ((await upload.json()) as { asset: DocumentMediaAsset }).asset;
+    const asset = (
+      (await upload.json()) as {
+        asset: DocumentMediaAsset;
+      }
+    ).asset;
     const deliveryPath = documentDeliveryPath(installId, asset.id);
     const anonymousList = await listAppDocuments(installId, publicDocumentField);
     const getResponse = await guardedHarness.fetch(deliveryPath);
@@ -600,18 +613,14 @@ async function configureDocumentSchema(installId: string) {
   const current = await guardedHarness.fetch(schemaPath, {
     headers: adminHeaders(),
   });
-
   expect(current.status).toBe(200);
-
   const body = (await current.json()) as SchemaResponse;
   const schema = structuredClone(body.schema);
-  const task = schema.entities.task;
-
+  const task = schema.entities.find((definition) => definition.key === "task")!;
   if (!task) {
     throw new Error("Expected Tasks active schema.");
   }
-
-  task.fields[privateDocumentField] = {
+  setKeyedDefinition(task.fields, privateDocumentField, {
     asset: {
       acceptedMimeTypes: ["application/pdf"],
       access: "private",
@@ -621,8 +630,8 @@ async function configureDocumentSchema(installId: string) {
     label: "Private report",
     required: false,
     type: "text",
-  };
-  task.fields[publicDocumentField] = {
+  });
+  setKeyedDefinition(task.fields, publicDocumentField, {
     asset: {
       acceptedMimeTypes: ["application/pdf"],
       access: "public",
@@ -632,8 +641,7 @@ async function configureDocumentSchema(installId: string) {
     label: "Public report",
     required: false,
     type: "text",
-  };
-
+  });
   const update = await guardedHarness.fetch(schemaPath, {
     body: JSON.stringify({ schema }),
     headers: adminHeaders({ "Content-Type": "application/json" }),

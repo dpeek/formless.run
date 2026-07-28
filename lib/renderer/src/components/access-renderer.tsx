@@ -989,12 +989,10 @@ function AstryxAccessFeedbackBanner({ feedback }: { feedback: AccessFeedbackCont
     />
   );
 }
-
 export function astryxAccessFeedbackToastOptions(feedback: AccessFeedbackContract): ToastOptions {
   const isFailure = feedback.intent === "danger";
-
   return {
-    ...(isFailure ? {} : { autoHideDuration: 5_000 }),
+    ...(isFailure ? {} : { autoHideDuration: 5000 }),
     body: feedback.title,
     collisionBehavior: "overwrite",
     isAutoHide: !isFailure,

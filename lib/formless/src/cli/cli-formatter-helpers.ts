@@ -1,5 +1,7 @@
 import path from "node:path";
 
+import type { AppSchema } from "@dpeek/formless-schema";
+import { formatStoredRecordsForArtifact, type StoredRecord } from "@dpeek/formless-storage";
 import type {
   WorkspaceOperationDisplayObject,
   WorkspaceOperationDisplayValue,
@@ -37,6 +39,13 @@ export function formatCliRelativePath(cwd: string, filePath: string): string {
 
 export function formatCliSelectedTarget(target: CliSelectedTargetDisplay | undefined): string {
   return target ? `${target.alias} (${target.url})` : "<none>";
+}
+
+export function formatCliStoredRecords(
+  schema: AppSchema,
+  records: readonly StoredRecord[],
+): string {
+  return `${JSON.stringify(formatStoredRecordsForArtifact(schema, records), null, 2)}\n`;
 }
 
 export function formatCliWorkspaceOperationLabel(

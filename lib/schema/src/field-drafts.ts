@@ -30,12 +30,18 @@ export type GeneratedFieldDraftResolution = {
   values: RecordValues;
   fieldErrors: Record<string, GeneratedFieldDraftError>;
 };
-
 export type GeneratedFieldDraftValueResolution =
-  | { kind: "value"; value: FieldValue }
-  | { kind: "omit" }
-  | { kind: "error"; error: GeneratedFieldDraftError };
-
+  | {
+      kind: "value";
+      value: FieldValue;
+    }
+  | {
+      kind: "omit";
+    }
+  | {
+      kind: "error";
+      error: GeneratedFieldDraftError;
+    };
 export function generatedFieldDraftInput(value: FieldVisibilityValue): GeneratedFieldDraftInput {
   if (typeof value === "boolean" || typeof value === "number") {
     return { kind: "value", value };

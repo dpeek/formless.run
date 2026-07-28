@@ -1,29 +1,27 @@
-import { assertExactKeys, isRecord, parseRequiredNonEmptyString } from "./schema-parse-helpers.ts";
-import type { EntitySchema, EntityUnionSchema, EntityUnionVariantSchema } from "./types.ts";
-
+import {
+  assertExactKeys,
+  definitionsToRecord,
+  isRecord,
+  parseKeyedDefinitionArray,
+  parseRequiredNonEmptyString,
+} from "./schema-parse-helpers.ts";
+import type {
+  EntitySchema,
+  EntityUnionSchema,
+  EntityUnionVariantSchema,
+  KeyedDefinition,
+} from "./types.ts";
 export function parseUnions(
   value: unknown,
   entities: Record<string, EntitySchema>,
-): Record<string, EntityUnionSchema> | undefined {
+): KeyedDefinition<EntityUnionSchema>[] | undefined {
   if (value === undefined) {
     return undefined;
   }
-
-  if (!isRecord(value)) {
-    throw new Error("Schema unions must be an object.");
-  }
-
-  return Object.fromEntries(
-    Object.entries(value).map(([unionName, union]) => {
-      if (unionName.trim() === "") {
-        throw new Error("Union names must be non-empty.");
-      }
-
-      return [unionName, parseUnion(unionName, union, entities)];
-    }),
+  return parseKeyedDefinitionArray("Schema unions", value, (unionName, union) =>
+    parseUnion(unionName, union, entities),
   );
 }
-
 function parseUnion(
   unionName: string,
   value: unknown,
@@ -34,9 +32,7 @@ function parseUnion(
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
-
-  assertExactKeys(context, value, ["entity", "discriminator", "variants"], ["fallback"]);
-
+  assertExactKeys(context, value, ["key", "entity", "discriminator", "variants"], ["fallback"]);
   const entityName = parseRequiredNonEmptyString(`${context} entity`, value.entity);
   const discriminator = parseRequiredNonEmptyString(
     `${context} discriminator`,
@@ -47,8 +43,8 @@ function parseUnion(
   if (!entity) {
     throw new Error(`${context} references unknown entity "${entityName}".`);
   }
-
-  const discriminatorField = entity.fields[discriminator];
+  const fieldsByKey = definitionsToRecord(entity.fields);
+  const discriminatorField = fieldsByKey[discriminator];
   if (!discriminatorField) {
     throw new Error(
       `${context} discriminator references unknown field "${entityName}.${discriminator}".`,
@@ -66,8 +62,7 @@ function parseUnion(
       `${context} discriminator field "${entityName}.${discriminator}" must be required.`,
     );
   }
-
-  const discriminatorValues = Object.keys(discriminatorField.values);
+  const discriminatorValues = discriminatorField.values.map((definition) => definition.key);
   const variants = parseUnionVariants(
     context,
     value.variants,
@@ -98,51 +93,37 @@ function parseUnionVariants(
   entityName: string,
   entity: EntitySchema,
   discriminatorValues: string[],
-): Record<string, EntityUnionVariantSchema> {
-  if (!isRecord(value)) {
-    throw new Error(`${context} variants must be an object.`);
-  }
-
-  const entries = Object.entries(value);
-
-  if (entries.length === 0) {
+): KeyedDefinition<EntityUnionVariantSchema>[] {
+  if (!Array.isArray(value) || value.length === 0) {
     throw new Error(`${context} variants must not be empty.`);
   }
-
   const discriminatorValueSet = new Set(discriminatorValues);
-
-  return Object.fromEntries(
-    entries.map(([variantName, variant]) => {
-      if (variantName.trim() === "") {
-        throw new Error(`${context} variant keys must be non-empty strings.`);
-      }
-
-      if (!discriminatorValueSet.has(variantName)) {
-        throw new Error(
-          `${context} variant "${variantName}" must match a discriminator enum value.`,
-        );
-      }
-
-      return [
-        variantName,
-        parseUnionVariant(`${context} variant "${variantName}"`, variant, entityName, entity),
-      ];
-    }),
-  );
+  return parseKeyedDefinitionArray(`${context} variants`, value, (variantName, variant) => {
+    if (!discriminatorValueSet.has(variantName)) {
+      throw new Error(`${context} variant "${variantName}" must match a discriminator enum value.`);
+    }
+    return parseUnionVariant(
+      `${context} variant "${variantName}"`,
+      variant,
+      entityName,
+      entity,
+      true,
+    );
+  });
 }
-
 function parseUnionVariant(
   context: string,
   value: unknown,
   entityName: string,
   entity: EntitySchema,
+  keyed = false,
 ): EntityUnionVariantSchema {
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
-
-  assertExactKeys(context, value, ["label", "fields"], ["requiredFields"]);
-
+  assertExactKeys(context, value, keyed ? ["key", "label", "fields"] : ["label", "fields"], [
+    "requiredFields",
+  ]);
   return {
     label: parseRequiredNonEmptyString(`${context} label`, value.label),
     fields: parseFieldNames(`${context} fields`, value.fields, entityName, entity),
@@ -173,8 +154,7 @@ function parseFieldNames(
     if (typeof fieldName !== "string" || fieldName.trim() === "") {
       throw new Error(`${context} must contain non-empty field names.`);
     }
-
-    if (!entity.fields[fieldName]) {
+    if (!definitionsToRecord(entity.fields)[fieldName]) {
       throw new Error(
         `${context} field ${index} references unknown field "${entityName}.${fieldName}".`,
       );
@@ -187,22 +167,18 @@ function parseFieldNames(
   if (duplicate) {
     throw new Error(`${context} references duplicate field "${duplicate}".`);
   }
-
   return names;
 }
-
 function assertAllDiscriminatorValuesCovered(
   context: string,
-  variants: Record<string, EntityUnionVariantSchema>,
+  variants: KeyedDefinition<EntityUnionVariantSchema>[],
   discriminatorValues: string[],
 ) {
-  const missingValues = discriminatorValues.filter((value) => variants[value] === undefined);
-
+  const variantsByKey = definitionsToRecord(variants);
+  const missingValues = discriminatorValues.filter((value) => variantsByKey[value] === undefined);
   if (missingValues.length > 0) {
     throw new Error(
-      `${context} must define variants for discriminator values "${missingValues.join(
-        '", "',
-      )}" or a fallback.`,
+      `${context} must define variants for discriminator values "${missingValues.join('", "')}" or a fallback.`,
     );
   }
 }

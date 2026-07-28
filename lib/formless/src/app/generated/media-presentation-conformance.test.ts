@@ -48,10 +48,10 @@ describe("generated media presentation conformance", () => {
       "tree",
     ]);
   });
-
   it("projects every occurrence through the canonical media field contract", () => {
-    const mediaField = siteSourceSchema.entities.block?.fields.mediaAssetId;
-
+    const mediaField = siteSourceSchema.entities
+      .find((definition) => definition.key === "block")
+      ?.fields.find((definition) => definition.key === "mediaAssetId")!;
     if (mediaField?.type !== "text") {
       throw new Error("Missing canonical Site block mediaAssetId text field.");
     }
@@ -217,7 +217,7 @@ describe("generated media presentation conformance", () => {
     } satisfies RecordFieldConfig;
     const documentOption = {
       access: "private",
-      byteSize: 42_000,
+      byteSize: 42000,
       contentType: "application/pdf",
       downloadHref: "/api/app-installs/reports/private/media/documents/report.pdf?download=1",
       filename: "Quarterly report.pdf",
@@ -305,7 +305,7 @@ describe("generated media presentation conformance", () => {
         media: {
           accept: "application/pdf",
           document: {
-            byteSize: 42_000,
+            byteSize: 42000,
             contentType: "application/pdf",
             downloadIntent: {
               href: documentOption.downloadHref,
@@ -328,7 +328,7 @@ describe("generated media presentation conformance", () => {
         options: {
           mediaAssetOptions: [
             {
-              byteSize: 42_000,
+              byteSize: 42000,
               contentType: "application/pdf",
               downloadHref: documentOption.downloadHref,
               filename: "Quarterly report.pdf",
@@ -348,10 +348,9 @@ describe("generated media presentation conformance", () => {
 function collectMediaEditorPaths(value: unknown, path: readonly string[] = []): string[] {
   if (Array.isArray(value)) {
     return value.flatMap((entry, index) =>
-      collectMediaEditorPaths(entry, [...path, String(index)]),
+      collectMediaEditorPaths(entry, [...path, arrayEntryPathSegment(entry, path.at(-1), index)]),
     );
   }
-
   if (typeof value !== "object" || value === null) {
     return [];
   }
@@ -365,4 +364,32 @@ function collectMediaEditorPaths(value: unknown, path: readonly string[] = []): 
       collectMediaEditorPaths(entry, [...path, key]),
     ),
   ];
+}
+function arrayEntryPathSegment(entry: unknown, registryName: string | undefined, index: number) {
+  if (typeof entry !== "object" || entry === null) {
+    return String(index);
+  }
+  const record = entry as Record<string, unknown>;
+  if (
+    [
+      "entities",
+      "itemViews",
+      "queries",
+      "relationships",
+      "screens",
+      "tableViews",
+      "unions",
+      "views",
+    ].includes(registryName ?? "") &&
+    typeof record.key === "string"
+  ) {
+    return record.key;
+  }
+  if (registryName === "variants" && typeof record.variant === "string") {
+    return record.variant;
+  }
+  if (registryName === "fields" && typeof record.field === "string") {
+    return record.field;
+  }
+  return String(index);
 }

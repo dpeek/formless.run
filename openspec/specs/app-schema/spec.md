@@ -78,6 +78,10 @@ parsed runtime contracts.
 - WHEN the modules are composed
 - THEN their declarations are flattened in listed order into one complete App
   schema source
+- AND declaration arrays contributed by each module retain their explicit
+  nested declaration order
+- AND import evaluation order and object property insertion order do not select
+  or reorder composed definitions
 - AND modules may reference declarations owned by other modules
 - AND the complete composition is validated once through the same
   runtime-neutral App schema parser
@@ -112,6 +116,148 @@ parsed runtime contracts.
 - AND authored omissions and nested declaration order remain source data
 - AND equivalent composed and monolithic sources produce the same canonical
   schema data and source-schema hash
+
+### Requirement: Ordered Keyed Definition Registries
+
+The system SHALL represent every addressable App schema definition registry as
+an ordered array whose definitions carry their existing portable `key`.
+
+#### Scenario: Parse ordered definition registries
+
+- GIVEN App schema source declares top-level entities, relationships, queries,
+  computed values, aggregates, unions, item views, table views, views, or
+  screens
+- OR it declares nested entity fields, enum values, constraints, state
+  machines, transitions, operations, operation input fields, or union variants
+- WHEN the source is parsed
+- THEN each addressable registry is an array of keyed definitions
+- AND array declaration order is preserved in the portable parsed schema
+- AND a duplicate key within one registry is rejected
+- AND definition identity continues to use `key` without adding a universal
+  stable id
+
+#### Scenario: Keep non-registry objects as objects
+
+- GIVEN App schema data contains flat record `values`, operation effects,
+  policies, visibility conditions, field-value mappings, transition-event
+  mappings, relationship endpoint configuration, layout configuration,
+  navigation configuration, runtime metadata, or archive envelopes
+- WHEN the source is parsed or materialized
+- THEN those records, mappings, and configuration structures remain objects
+- AND object property order is not App schema semantics
+- AND existing arrays that already express sequence, including query
+  expressions, state lists, record-plan steps, table columns, view bindings,
+  collection queries, screen sections, and module lists, remain arrays
+
+#### Scenario: Distinguish definitions from surface placements
+
+- GIVEN a create, edit, item, table, collection, or other presentation surface
+  selects fields, queries, operations, variants, or other definitions
+- WHEN the surface selection is declared
+- THEN its array entries reference definitions and supply membership and order
+  for that surface
+- AND a reference entry does not gain a definition `key` or universal id only
+  because it is addressable inside a runtime presentation graph
+- AND renderer-facing occurrence ids remain a separate presentation concern
+
+#### Scenario: Validate registry references
+
+- GIVEN a keyed definition or surface placement references an entity, field,
+  enum value, relationship, state machine, transition, operation, query, read
+  model, union, item view, table view, view, or screen
+- WHEN the complete App schema is parsed
+- THEN the reference resolves against the corresponding keyed registry
+- AND missing, wrong-scope, or incompatible references are rejected before the
+  schema reaches Authority storage, browser replicas, generated UI, archives,
+  or workspaces
+
+### Requirement: Registry Declaration Order
+
+The system SHALL treat keyed registry array order as intentional portable
+schema data and SHALL let presentation surfaces override that order through
+their own arrays.
+
+#### Scenario: Use declaration order by default
+
+- GIVEN a runtime needs a default field catalog, enum option list, union variant
+  list, transition action list, operation list, screen catalog, or another
+  keyed registry sequence
+- WHEN no surface-specific selection array applies
+- THEN definitions are selected in registry declaration order
+- AND every keyed registry array remains order-significant even when its order
+  is not currently presented
+
+#### Scenario: Use surface-specific membership and order
+
+- GIVEN a presentation surface declares its own array of field, query,
+  operation, variant, screen, or other definition references
+- WHEN the surface model is selected
+- THEN that array supplies membership and order for the surface
+- AND omitted definitions do not appear through a registry-order fallback
+- AND no parallel registry order list is maintained
+
+### Requirement: Derived Definition Indexes
+
+The system SHALL permit runtimes to derive non-portable indexes for fast keyed
+lookup while preserving the array-shaped parsed schema.
+
+#### Scenario: Build shared keyed indexes
+
+- GIVEN a parsed App schema is accepted after source parsing, bootstrap,
+  archive restore, or browser load
+- WHEN runtime code needs keyed lookup
+- THEN it can derive an ordered definition list and a readonly map keyed by
+  definition `key`
+- AND nested indexes cover definitions such as fields by entity, transitions by
+  state machine, operations by entity, and variants by union
+- AND shared lookup behavior is owned by the Schema package rather than
+  independently reconstructed by each consumer
+
+#### Scenario: Keep indexes out of portable data
+
+- GIVEN derived definition indexes exist for a parsed schema object
+- WHEN the schema is stringified, materialized, hashed, stored by Authority,
+  copied into a browser replica, snapshotted, archived, or written to a
+  workspace
+- THEN only the array-shaped portable schema is serialized
+- AND maps, caches, reverse lookups, and other derived indexes are omitted
+- AND indexes may be cached by parsed schema object identity and rebuilt after
+  a new schema object is loaded
+
+### Requirement: Canonical App Schema Ordering
+
+The system SHALL canonicalize complete App schema source with array order
+preserved and object property names sorted by one locale-independent ordinal
+comparison.
+
+#### Scenario: Canonicalize arrays and objects
+
+- GIVEN two complete App schema source objects differ only in object property
+  insertion order
+- WHEN canonical JSON and `sourceSchemaHash` are computed
+- THEN their object properties are recursively ordered using ordinal UTF-16
+  code-unit comparison
+- AND the canonical JSON and source-schema hashes are equal
+- AND locale, host, import evaluation, and object insertion order do not affect
+  the result
+
+#### Scenario: Hash registry declaration order
+
+- GIVEN two complete App schema sources contain the same keyed definitions in a
+  different registry array order
+- WHEN canonical JSON and `sourceSchemaHash` are computed
+- THEN array order is preserved exactly
+- AND the canonical JSON and source-schema hashes differ
+- AND Authority schema equality and browser schema reuse apply the same
+  canonical semantics
+
+#### Scenario: Canonicalize TypeScript and JSON source equivalently
+
+- GIVEN TypeScript-authored and JSON-authored source materialize to the same
+  arrays, objects, scalar values, and authored omissions
+- WHEN canonical schema artifacts and hashes are produced
+- THEN both authoring forms produce equivalent canonical schema data and
+  `sourceSchemaHash`
 
 ### Requirement: App Package Source Manifests
 
@@ -167,6 +313,8 @@ archive, or deploy workflows.
   state machines, labels, or runtime metadata
 - WHEN the deterministic source schema hash is computed
 - THEN the hash input is the complete canonical App schema object
+- AND keyed registry array order is part of the hash input
+- AND object property insertion order is not part of the hash input
 - AND generated UI-only changes such as view, table view, item view, or screen
   changes produce a different source schema hash
 - AND the hash is independent of record data, seed records, workspace state, or
@@ -352,7 +500,8 @@ identifiers.
 - WHEN an app schema declares entity keys such as `block`, `app-install`, or
   `deployment-config`
 - THEN schema parsing accepts those keys as local entity identifiers
-- AND the entity keys remain unqualified inside the schema's `entities` object
+- AND the entity keys remain unqualified on definitions inside the schema's
+  `entities` registry
 
 #### Scenario: Reject non-canonical entity key
 
@@ -505,14 +654,41 @@ The system SHALL let collection views select records through schema-declared que
 
 ### Requirement: Screens And Navigation
 
-The system SHALL let app schemas define workspace screens that compose collection views and own app-relative navigation when primary screens exist.
+The system SHALL require app schemas to define one or more workspace screens
+that compose collection views and own app-relative navigation.
 
 #### Scenario: Root screen fallback
 
-- GIVEN screens exist and no explicit root screen is declared
-- WHEN the first pathless primary screen is selected
+- GIVEN a non-empty screen registry has no explicit root path
+- WHEN primary navigation screens are selected
+- THEN omitted `navigation.primaryScreens` selects every screen in declaration
+  order
+- AND a declared `navigation.primaryScreens` array selects and orders its
+  referenced screen subset
+- AND the first selected pathless screen receives the app-relative `/` path
+- AND every navigation reference resolves to a declared screen
+
+#### Scenario: Reject missing screens
+
+- GIVEN an app schema omits screens or declares an empty screen registry
+- WHEN the schema is parsed
+- THEN parsing fails
+- AND no collection-navigation fallback is synthesized
+
+#### Scenario: Reject invalid primary screen selection
+
+- GIVEN `navigation.primaryScreens` contains a duplicate or undeclared screen
+  key
+- WHEN the schema is parsed
+- THEN parsing fails
+- AND invalid navigation is not exposed to generated UI
+
+#### Scenario: Select explicit root screen
+
+- GIVEN a selected primary screen explicitly declares the root path
+- WHEN app-relative routes are built
 - THEN it receives the app-relative `/` path
-- AND collection primary navigation is used only when no screens exist
+- AND no other screen is assigned the same path
 
 #### Scenario: Screen section references collection view
 
@@ -729,7 +905,7 @@ public forms, automation, audit, and authorization.
 
 #### Scenario: Parse entity-local operation
 
-- GIVEN an entity declares operations under `entities.<entityKey>.operations`
+- GIVEN an entity definition declares operations under `entities[].operations`
 - WHEN the schema is parsed
 - THEN each operation key is scoped to that containing entity
 - AND the runtime derives a canonical operation key as

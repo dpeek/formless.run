@@ -11,7 +11,10 @@
  * can share declarations without adapter dependencies.
  */
 export const SCHEMA_PUBLIC_CONTRACT_VERSION = 1;
-
+/** One portable keyed definition used by an ordered schema registry. */
+export type KeyedDefinition<Definition extends object> = Definition & {
+  key: string;
+};
 /** Entity identity at cross-schema and external boundaries. */
 export type QualifiedEntityName = {
   entityKey: string;
@@ -39,29 +42,50 @@ export type StoredRecord = {
   updatedAt: string;
   deletedAt?: string;
 };
-
 /** System-owned fields that can be addressed by schema query expressions. */
 export type SystemFieldName = "id" | "createdAt" | "updatedAt" | "deletedAt";
-
 /** Reference to a value field or supported system field in a query expression. */
-export type FieldRef = { kind: "value"; name: string } | { kind: "system"; name: SystemFieldName };
-
+export type FieldRef =
+  | {
+      kind: "value";
+      name: string;
+    }
+  | {
+      kind: "system";
+      name: SystemFieldName;
+    };
 /** Query operators supported by the portable schema query contract. */
 export type QueryOperator = "eq" | "before";
-
 /** Runtime-resolved query value placeholders accepted by schema parsing. */
-export type QueryDynamicValue = { kind: "today" } | { kind: "context"; name: string };
-
+export type QueryDynamicValue =
+  | {
+      kind: "today";
+    }
+  | {
+      kind: "context";
+      name: string;
+    };
 /** Literal or dynamic value used by a query predicate. */
 export type QueryValue = string | boolean | number | QueryDynamicValue;
-
 /** Portable query expression stored in App schema collection queries. */
 export type QueryExpression =
-  | { kind: "all" }
-  | { kind: "where"; ref: FieldRef; op: QueryOperator; value: QueryValue }
-  | { kind: "and"; expressions: QueryExpression[] }
-  | { kind: "or"; expressions: QueryExpression[] };
-
+  | {
+      kind: "all";
+    }
+  | {
+      kind: "where";
+      ref: FieldRef;
+      op: QueryOperator;
+      value: QueryValue;
+    }
+  | {
+      kind: "and";
+      expressions: QueryExpression[];
+    }
+  | {
+      kind: "or";
+      expressions: QueryExpression[];
+    };
 /** Deterministic context values used when evaluating portable queries. */
 export type QueryEvaluationContext = {
   today: string;
@@ -94,7 +118,7 @@ export type AddressableField = {
   label: string;
   writable: boolean;
   filterOps: QueryOperator[];
-  values?: Record<string, EnumValueSchema>;
+  values?: readonly KeyedDefinition<EnumValueSchema>[];
   to?: string;
   displayField?: string;
 };
@@ -197,10 +221,9 @@ export type EnumFieldSchema = {
   type: "enum";
   required: boolean;
   label?: string;
-  values: Record<string, EnumValueSchema>;
+  values: readonly KeyedDefinition<EnumValueSchema>[];
   default?: string;
 };
-
 export type ReferenceFieldSchema = {
   type: "reference";
   required: boolean;
@@ -269,22 +292,18 @@ export type PublicOperationEnumInputFieldSchema = {
   type: "enum";
   required: boolean;
   label?: string;
-  values: Record<string, EnumValueSchema>;
+  values: readonly KeyedDefinition<EnumValueSchema>[];
 };
-
 export type PublicOperationInputFieldSchema =
   | PublicOperationTextInputFieldSchema
   | PublicOperationBooleanInputFieldSchema
   | PublicOperationDateInputFieldSchema
   | PublicOperationNumberInputFieldSchema
   | PublicOperationEnumInputFieldSchema;
-
 export type PublicOperationInputContractSchema = {
-  fields: Record<string, PublicOperationInputFieldSchema>;
+  fields: KeyedDefinition<PublicOperationInputFieldSchema>[];
 };
-
 export type FieldCommitPolicy = "immediate" | "field-commit";
-
 export type FieldEditor =
   | "text"
   | "textarea"
@@ -493,12 +512,10 @@ export type AggregateSchema = {
   function: AggregateFunction;
   value?: AggregateValueSchema;
 };
-
 export type ReadModelSchema = {
-  computedValues?: Record<string, ComputedValueSchema>;
-  aggregates?: Record<string, AggregateSchema>;
+  computedValues?: KeyedDefinition<ComputedValueSchema>[];
+  aggregates?: KeyedDefinition<AggregateSchema>[];
 };
-
 export type EntityUnionVariantSchema = {
   label: string;
   fields: string[];
@@ -508,21 +525,24 @@ export type EntityUnionVariantSchema = {
 export type EntityUnionSchema = {
   entity: string;
   discriminator: string;
-  variants: Record<string, EntityUnionVariantSchema>;
+  variants: KeyedDefinition<EntityUnionVariantSchema>[];
   fallback?: EntityUnionVariantSchema;
 };
-
+export type ViewFieldBindingSchema = ViewFieldSchema & {
+  field: string;
+};
+export type CreateViewFieldBindingSchema = CreateViewFieldSchema & {
+  field: string;
+};
 export type ContextSelectionTargetSchema = {
   kind: "selectContext";
   context: string;
   record: "self";
 };
-
 export type ViewVariantFieldsPresentationSchema = {
   presentation: "fields";
-  fields: Record<string, ViewFieldSchema>;
+  fields: ViewFieldBindingSchema[];
 };
-
 export type ViewVariantContextLinkPresentationSchema = {
   presentation: "contextLink";
   labelField: string;
@@ -532,35 +552,36 @@ export type ViewVariantContextLinkPresentationSchema = {
 export type ItemViewVariantPresentationSchema =
   | ViewVariantFieldsPresentationSchema
   | ViewVariantContextLinkPresentationSchema;
-
 export type EditViewVariantPresentationSchema = ViewVariantFieldsPresentationSchema;
-
 export type CreateViewVariantFieldsPresentationSchema = {
   presentation: "fields";
-  fields: Record<string, CreateViewFieldSchema>;
+  fields: CreateViewFieldBindingSchema[];
 };
-
 export type CreateViewVariantPresentationSchema = CreateViewVariantFieldsPresentationSchema;
-
+export type ItemViewVariantBindingSchema = ItemViewVariantPresentationSchema & {
+  variant: string;
+};
+export type CreateViewVariantBindingSchema = CreateViewVariantPresentationSchema & {
+  variant: string;
+};
+export type EditViewVariantBindingSchema = EditViewVariantPresentationSchema & {
+  variant: string;
+};
 export type BaseItemViewSchema = {
   entity: string;
-  fields: Record<string, ViewFieldSchema>;
+  fields: ViewFieldBindingSchema[];
 };
-
 export type StaticItemViewSchema = BaseItemViewSchema & {
   union?: undefined;
   variants?: undefined;
   fallback?: undefined;
 };
-
 export type UnionItemViewSchema = BaseItemViewSchema & {
   union: string;
-  variants: Record<string, ItemViewVariantPresentationSchema>;
+  variants: ItemViewVariantBindingSchema[];
   fallback?: ItemViewVariantPresentationSchema;
 };
-
 export type ItemViewSchema = StaticItemViewSchema | UnionItemViewSchema;
-
 export type CountDisplaySchema = {
   type: "count";
   label?: string;
@@ -700,7 +721,7 @@ export type CollectionViewSchema = {
 export type CreateViewSchema = {
   type: "create";
   entity: string;
-  fields: Record<string, CreateViewFieldSchema>;
+  fields: CreateViewFieldBindingSchema[];
   defaults?: Record<string, CreateDefaultValueSchema>;
 } & (
   | {
@@ -710,7 +731,7 @@ export type CreateViewSchema = {
     }
   | {
       union: string;
-      variants: Record<string, CreateViewVariantPresentationSchema>;
+      variants: CreateViewVariantBindingSchema[];
       fallback?: CreateViewVariantPresentationSchema;
     }
 );
@@ -718,7 +739,7 @@ export type CreateViewSchema = {
 export type EditViewSchema = {
   type: "edit";
   entity: string;
-  fields: Record<string, ViewFieldSchema>;
+  fields: ViewFieldBindingSchema[];
 } & (
   | {
       union?: undefined;
@@ -727,7 +748,7 @@ export type EditViewSchema = {
     }
   | {
       union: string;
-      variants: Record<string, EditViewVariantPresentationSchema>;
+      variants: EditViewVariantBindingSchema[];
       fallback?: EditViewVariantPresentationSchema;
     }
 );
@@ -738,15 +759,11 @@ export type ViewSchema = CollectionViewSchema | CreateViewSchema | EditViewSchem
 export type CollectionViewSchemaSource = Omit<CollectionViewSchema, "context"> & {
   context?: CollectionContextSchemaSource;
 };
-
 export type ViewSchemaSource = CollectionViewSchemaSource | CreateViewSchema | EditViewSchema;
-
-export type ScreenNavigationSchema = {
-  primary: boolean;
+export type AppNavigationSchema = {
+  primaryScreens?: string[];
 };
-
 export type ScreenAccessSchema = "anonymous" | "authenticated" | "owner";
-
 export type CollectionScreenSectionSchema = {
   id: string;
   type: "collection";
@@ -771,12 +788,9 @@ export type WorkspaceScreenSchema = {
   label: string;
   path?: string;
   access?: ScreenAccessSchema;
-  navigation?: ScreenNavigationSchema;
   layout: ScreenLayoutSchema;
 };
-
 export type ScreenSchema = WorkspaceScreenSchema;
-
 export type ToOneRelationshipSchema = {
   kind: "toOne";
   label?: string;
@@ -852,18 +866,13 @@ export type StateMachineSchema = {
   initial: string;
   states?: string[];
   terminal?: string[];
-  transitions: Record<string, StateMachineTransitionSchema>;
+  transitions: readonly KeyedDefinition<StateMachineTransitionSchema>[];
   event?: StateMachineTransitionEventSchema;
 };
-
 export type SchemaOperationActorKind = "admin" | "cliDeployer" | "owner" | "runner";
-
 export type EntityOperationKind = "list" | "get" | "create" | "update" | "delete" | "command";
-
 export type EntityOperationScope = "collection" | "record";
-
 export type EntityOperationActorKind = SchemaOperationActorKind | "authenticated" | "anonymous";
-
 export type EntityOperationFieldInputSchema = {
   field: string;
   required?: boolean;
@@ -876,11 +885,9 @@ export type EntityOperationInlineInputFieldSchema = PublicOperationInputFieldSch
 export type EntityOperationInputFieldSchema =
   | EntityOperationFieldInputSchema
   | EntityOperationInlineInputFieldSchema;
-
 export type EntityOperationInputContractSchema = {
-  fields: Record<string, EntityOperationInputFieldSchema>;
+  fields: KeyedDefinition<EntityOperationInputFieldSchema>[];
 };
-
 export type EntityOperationTargetSchema = {
   query: string;
 };
@@ -1284,22 +1291,18 @@ export type UniqueConstraintSchema = {
   kind: "unique";
   fields: string[];
 };
-
 export type EntityConstraintSchema = UniqueConstraintSchema;
-
 export type EntitySchema = {
   label: string;
-  fields: Record<string, FieldSchema>;
-  constraints?: Record<string, EntityConstraintSchema>;
-  stateMachines?: Record<string, StateMachineSchema>;
-  operations?: Record<string, EntityOperationSchema>;
+  fields: KeyedDefinition<FieldSchema>[];
+  constraints?: KeyedDefinition<EntityConstraintSchema>[];
+  stateMachines?: KeyedDefinition<StateMachineSchema>[];
+  operations?: KeyedDefinition<EntityOperationSchema>[];
 };
-
 /** Entity input accepted before operation defaults are applied. */
 export type EntitySchemaSource = Omit<EntitySchema, "operations"> & {
-  operations?: Record<string, EntityOperationSchemaSource>;
+  operations?: KeyedDefinition<EntityOperationSchemaSource>[];
 };
-
 export type RuntimeSchemaRouteValidationSchema = {
   pathField: string;
   prefixField?: string;
@@ -1331,19 +1334,67 @@ export type RuntimeSchemaMetadata = {
   owner: "runtime";
   controlPlane?: RuntimeSchemaControlPlaneSchema;
 };
-
 export type AppSchema = {
-  version: number;
-  entities: Record<string, EntitySchema>;
-  relationships?: Record<string, RelationshipSchema>;
-  queries: Record<string, CollectionQuerySchema>;
+  version: 1;
+  entities: KeyedDefinition<EntitySchema>[];
+  relationships?: KeyedDefinition<RelationshipSchema>[];
+  queries: KeyedDefinition<CollectionQuerySchema>[];
   readModels?: ReadModelSchema;
-  unions?: Record<string, EntityUnionSchema>;
-  itemViews: Record<string, ItemViewSchema>;
-  tableViews: Record<string, TableViewSchema>;
-  views: Record<string, ViewSchema>;
-  screens?: Record<string, ScreenSchema>;
+  unions?: KeyedDefinition<EntityUnionSchema>[];
+  itemViews: KeyedDefinition<ItemViewSchema>[];
+  tableViews: KeyedDefinition<TableViewSchema>[];
+  views: KeyedDefinition<ViewSchema>[];
+  screens: KeyedDefinition<ScreenSchema>[];
+  navigation?: AppNavigationSchema;
   runtime?: RuntimeSchemaMetadata;
+};
+/** Derived ordered and keyed access to one schema definition registry. */
+export type DefinitionIndex<
+  Definition extends {
+    key: string;
+  },
+> = {
+  ordered: readonly Definition[];
+  byKey: ReadonlyMap<string, Definition>;
+};
+
+export type AppSchemaDefinitionIndex = {
+  entities: DefinitionIndex<KeyedDefinition<EntitySchema>>;
+  relationships: DefinitionIndex<KeyedDefinition<RelationshipSchema>>;
+  queries: DefinitionIndex<KeyedDefinition<CollectionQuerySchema>>;
+  readModels: {
+    computedValues: DefinitionIndex<KeyedDefinition<ComputedValueSchema>>;
+    aggregates: DefinitionIndex<KeyedDefinition<AggregateSchema>>;
+  };
+  unions: DefinitionIndex<KeyedDefinition<EntityUnionSchema>>;
+  itemViews: DefinitionIndex<KeyedDefinition<ItemViewSchema>>;
+  tableViews: DefinitionIndex<KeyedDefinition<TableViewSchema>>;
+  views: DefinitionIndex<KeyedDefinition<ViewSchema>>;
+  screens: DefinitionIndex<KeyedDefinition<ScreenSchema>>;
+  fieldsByEntity: ReadonlyMap<string, DefinitionIndex<KeyedDefinition<FieldSchema>>>;
+  enumValuesByEntityField: ReadonlyMap<
+    string,
+    ReadonlyMap<string, DefinitionIndex<KeyedDefinition<EnumValueSchema>>>
+  >;
+  constraintsByEntity: ReadonlyMap<
+    string,
+    DefinitionIndex<KeyedDefinition<EntityConstraintSchema>>
+  >;
+  stateMachinesByEntity: ReadonlyMap<string, DefinitionIndex<KeyedDefinition<StateMachineSchema>>>;
+  transitionsByEntityStateMachine: ReadonlyMap<
+    string,
+    ReadonlyMap<string, DefinitionIndex<KeyedDefinition<StateMachineTransitionSchema>>>
+  >;
+  operationsByEntity: ReadonlyMap<string, DefinitionIndex<KeyedDefinition<EntityOperationSchema>>>;
+  operationInputFieldsByEntityOperation: ReadonlyMap<
+    string,
+    ReadonlyMap<string, DefinitionIndex<KeyedDefinition<EntityOperationInputFieldSchema>>>
+  >;
+  operationInputEnumValuesByEntityOperationField: ReadonlyMap<
+    string,
+    ReadonlyMap<string, ReadonlyMap<string, DefinitionIndex<KeyedDefinition<EnumValueSchema>>>>
+  >;
+  variantsByUnion: ReadonlyMap<string, DefinitionIndex<KeyedDefinition<EntityUnionVariantSchema>>>;
 };
 
 /**
@@ -1352,13 +1403,11 @@ export type AppSchema = {
  * This source contract preserves authored omissions. `AppSchema` is the
  * parser-defaulted runtime model.
  */
-export type AppSchemaSource = Omit<AppSchema, "entities" | "screens" | "version" | "views"> & {
+export type AppSchemaSource = Omit<AppSchema, "entities" | "version" | "views"> & {
   version: 1;
-  entities: Record<string, EntitySchemaSource>;
-  views: Record<string, ViewSchemaSource>;
-  screens: Record<string, ScreenSchema>;
+  entities: KeyedDefinition<EntitySchemaSource>[];
+  views: KeyedDefinition<ViewSchemaSource>[];
 };
-
 /**
  * Package-local contribution to a complete App schema source.
  *
@@ -1382,6 +1431,7 @@ export type AppSchemaModuleSource = {
 /** Explicit root input for composing one complete App schema source. */
 export type AppSchemaCompositionSource = {
   version: AppSchemaSource["version"];
+  navigation?: AppSchemaSource["navigation"];
   runtime?: AppSchemaSource["runtime"];
   modules: readonly AppSchemaModuleSource[];
 };

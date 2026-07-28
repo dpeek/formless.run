@@ -1594,14 +1594,17 @@ An illustrative fragment may look like:
 ```ts
 export const tasks = defineSchemaModule({
   name: "tasks",
-  entities: {
-    task: defineEntity({
+  entities: [
+    {
+      key: "task",
+      ...defineEntity({
       fields: [
         field("title", text({ required: true })),
         field("completed", boolean({ default: false })),
       ],
-    }),
-  },
+      }),
+    },
+  ],
 } satisfies SchemaModuleAuthoring);
 ```
 

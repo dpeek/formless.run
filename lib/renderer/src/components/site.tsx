@@ -1924,7 +1924,10 @@ function renderPublicOperationFieldControl(
       isRequired?: boolean;
       label: string;
       placeholder?: string;
-      status?: { message: string; type: "error" };
+      status?: {
+        message: string;
+        type: "error";
+      };
       width: "100%";
     };
     updateDraftValue: (value: SitePublicFormFieldValue) => void;
@@ -2016,9 +2019,9 @@ function renderPublicOperationFieldControl(
     />
   );
 }
-
-type PublicSuggestionItem = SearchableItem<{ value: string }>;
-
+type PublicSuggestionItem = SearchableItem<{
+  value: string;
+}>;
 function ProjectedPublicOperationTypeahead({
   field,
   sharedProps,
@@ -2032,7 +2035,10 @@ function ProjectedPublicOperationTypeahead({
     isRequired?: boolean;
     label: string;
     placeholder?: string;
-    status?: { message: string; type: "error" };
+    status?: {
+      message: string;
+      type: "error";
+    };
     width: "100%";
   };
   updateDraftValue: (value: SitePublicFormFieldValue) => void;
@@ -2081,7 +2087,10 @@ function ProjectedPublicOperationSelector({
     isRequired?: boolean;
     label: string;
     placeholder?: string;
-    status?: { message: string; type: "error" };
+    status?: {
+      message: string;
+      type: "error";
+    };
     width: "100%";
   };
   updateDraftValue: (value: SitePublicFormFieldValue) => void;
@@ -2180,12 +2189,12 @@ function toPublicOperationFieldSchema(field: SitePublicFormField): FieldSchema {
       type: "enum",
       required: field.required,
       label: field.label,
-      values: Object.fromEntries(
-        (field.options ?? []).map((option) => [option.value, { label: option.label }]),
-      ),
+      values: (field.options ?? []).map((option) => ({
+        key: option.value,
+        label: option.label,
+      })),
     };
   }
-
   return {
     type: "text",
     required: field.required,
@@ -2281,9 +2290,12 @@ function toPublicOperationFieldControl(
       kind: "enum",
     };
   }
-
-  const textField = fieldSchema as Extract<FieldSchema, { type: "text" }>;
-
+  const textField = fieldSchema as Extract<
+    FieldSchema,
+    {
+      type: "text";
+    }
+  >;
   return {
     ...common,
     control:
@@ -2407,7 +2419,10 @@ function ProjectedMarkdown({
 }: {
   body?: string;
   headingLevelStart: 1 | 2 | 3 | 4 | 5 | 6;
-  linkComponent?: ComponentType<{ children: ReactNode; href: string }>;
+  linkComponent?: ComponentType<{
+    children: ReactNode;
+    href: string;
+  }>;
 }) {
   if (!body) {
     return null;

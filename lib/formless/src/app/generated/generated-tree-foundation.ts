@@ -447,7 +447,12 @@ export function resolveGeneratedTreeCreateIntent(
 export function resolveGeneratedTreeCreateFieldIntent(
   runtimePlan: GeneratedTreeRuntimePlan,
   intent: TreeFieldIntent,
-): { field: FieldContract; runtime: GeneratedTreeChildCreateRuntime } | undefined {
+):
+  | {
+      field: FieldContract;
+      runtime: GeneratedTreeChildCreateRuntime;
+    }
+  | undefined {
   if (intent.resultId !== runtimePlan.resultId || intent.target.kind !== "create") {
     return undefined;
   }
@@ -1296,8 +1301,10 @@ function selectTreeItemVariant(result: TreeResultModel, childRecord: StoredRecor
     ? stringValue(childRecord.values[union.discriminatorFieldName])
     : undefined;
   const variant = union?.variants.find((candidate) => candidate.variantValue === variantValue);
-  const unionVariant = variantValue === undefined ? undefined : union?.union.variants[variantValue];
-
+  const unionVariant =
+    variantValue === undefined
+      ? undefined
+      : union?.union.variants.find((definition) => definition.key === variantValue);
   return variantValue === undefined || unionVariant === undefined
     ? undefined
     : {

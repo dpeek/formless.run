@@ -224,8 +224,13 @@ export type FormlessInstancePackageMigrationApplyResponse = {
 export class FormlessInstanceTargetRequestError extends Error {
   readonly responseBody: string;
   readonly status: number;
-
-  constructor(message: string, input: { responseBody: string; status: number }) {
+  constructor(
+    message: string,
+    input: {
+      responseBody: string;
+      status: number;
+    },
+  ) {
     super(message);
     this.name = "FormlessInstanceTargetRequestError";
     this.responseBody = input.responseBody;
@@ -532,16 +537,20 @@ function cacheControlIncludesNoStore(value: string): boolean {
     .map((directive) => directive.trim().toLowerCase())
     .includes("no-store");
 }
-
 export async function readFormlessInstanceDeployMetadata(
-  input: { packageResolver?: AppPackageResolver; targetUrl: string },
+  input: {
+    packageResolver?: AppPackageResolver;
+    targetUrl: string;
+  },
   dependencies: FormlessInstanceTargetClientDependencies,
 ): Promise<FormlessInstanceTargetDeployMetadata> {
   return (await readFormlessInstanceDeployMetadataResult(input, dependencies)).deployMetadata;
 }
-
 async function readFormlessInstanceDeployMetadataResult(
-  input: { packageResolver?: AppPackageResolver; targetUrl: string },
+  input: {
+    packageResolver?: AppPackageResolver;
+    targetUrl: string;
+  },
   dependencies: FormlessInstanceTargetClientDependencies,
 ): Promise<FormlessInstanceDeployMetadataReadResult> {
   const targetUrl = normalizeInstanceWorkspaceTargetUrl(input.targetUrl);
@@ -566,9 +575,10 @@ async function readFormlessInstanceDeployMetadataResult(
     factPresence: deployMetadataFactPresence(value, deployMetadata),
   };
 }
-
 export async function readFormlessInstanceOwnerSetupStatus(
-  input: { targetUrl: string },
+  input: {
+    targetUrl: string;
+  },
   dependencies: FormlessInstanceTargetClientDependencies,
 ): Promise<OwnerSetupStatusResponse> {
   const targetUrl = normalizeInstanceWorkspaceTargetUrl(input.targetUrl);
@@ -579,9 +589,11 @@ export async function readFormlessInstanceOwnerSetupStatus(
     statusUrl,
   );
 }
-
 export async function readFormlessInstanceAppRegistry(
-  input: { packageResolver?: AppPackageResolver; targetUrl: string },
+  input: {
+    packageResolver?: AppPackageResolver;
+    targetUrl: string;
+  },
   dependencies: FormlessInstanceTargetClientDependencies,
 ): Promise<AppInstallsResponse> {
   return (await readFormlessInstanceAppRegistryResult(input, dependencies)).appRegistry;
@@ -651,9 +663,12 @@ export async function applyFormlessInstalledAppAutoSafePackageMigrations(
     input.packageResolver,
   );
 }
-
 async function readFormlessInstanceAppRegistryResult(
-  input: { adminToken?: string | null; packageResolver?: AppPackageResolver; targetUrl: string },
+  input: {
+    adminToken?: string | null;
+    packageResolver?: AppPackageResolver;
+    targetUrl: string;
+  },
   dependencies: FormlessInstanceTargetClientDependencies,
 ): Promise<FormlessInstanceAppRegistryReadResult> {
   const targetUrl = normalizeInstanceWorkspaceTargetUrl(input.targetUrl);
@@ -697,9 +712,12 @@ export async function readFormlessInstanceDomainProviderPlan(
     providerUrl.toString(),
   );
 }
-
 export async function readFormlessInstanceDeploymentDesiredState(
-  input: { adminToken?: string | null; targetId?: string | null; targetUrl: string },
+  input: {
+    adminToken?: string | null;
+    targetId?: string | null;
+    targetUrl: string;
+  },
   dependencies: FormlessInstanceTargetClientDependencies,
 ): Promise<InstanceDeploymentDesiredStateResponse> {
   const targetUrl = normalizeInstanceWorkspaceTargetUrl(input.targetUrl);
@@ -716,9 +734,12 @@ export async function readFormlessInstanceDeploymentDesiredState(
     desiredStateUrl,
   );
 }
-
 export async function readFormlessInstanceDeploymentStatus(
-  input: { adminToken?: string | null; targetId?: string | null; targetUrl: string },
+  input: {
+    adminToken?: string | null;
+    targetId?: string | null;
+    targetUrl: string;
+  },
   dependencies: FormlessInstanceTargetClientDependencies,
 ): Promise<InstanceDeploymentStatusResponse> {
   const targetUrl = normalizeInstanceWorkspaceTargetUrl(input.targetUrl);
@@ -955,9 +976,12 @@ async function updateFormlessInstanceRouteRecord(
     operationUrl,
   );
 }
-
 async function readOptionalFormlessInstanceDeploymentStatus(
-  input: { adminToken?: string | null; targetId?: string | null; targetUrl: string },
+  input: {
+    adminToken?: string | null;
+    targetId?: string | null;
+    targetUrl: string;
+  },
   dependencies: FormlessInstanceTargetClientDependencies,
 ): Promise<InstanceDeploymentStatusResponse | undefined> {
   try {

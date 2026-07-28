@@ -4,7 +4,6 @@ import {
   isValidStoredFieldValue,
   parseAppSchema,
   parseQualifiedEntityName,
-  type FieldSchema,
 } from "@dpeek/formless-schema";
 import {
   parseStorageSnapshot,
@@ -28,7 +27,7 @@ export * from "./types.ts";
 export { identityControlPlaneSourceSchema } from "./schema.ts";
 
 export const IDENTITY_CONTROL_PLANE_SOURCE_SCHEMA_HASH =
-  "sha256:ffc253202e4a33c12fe6a50edd4a93290976a8e92dd2f1e16526053b38bd5642" satisfies SourceSchemaHash;
+  "sha256:9d233888e57625f1c437c3e45963265cde8f1eb57eab4d31699af30617733386" satisfies SourceSchemaHash;
 
 export const identityControlPlaneSchemaProvenance = {
   kind: "identity-control-plane",
@@ -348,20 +347,21 @@ function validateIdentityControlPlaneRecord(
     );
   }
 
-  const entitySchema = identityControlPlaneSchema.entities[entity];
-  const fields = entitySchema.fields as Record<string, FieldSchema>;
+  const entitySchema = identityControlPlaneSchema.entities.find(({ key }) => key === entity)!;
+  const fields = entitySchema.fields;
 
   assertIdentityRecordValuesAreDisplaySafe(context, record);
 
   for (const fieldName of Object.keys(record.values)) {
-    if (!fields[fieldName]) {
+    if (!fields.some(({ key }) => key === fieldName)) {
       throw new Error(
         `${context} record "${record.id}" includes unknown field "${identityFieldLabel(record, fieldName)}".`,
       );
     }
   }
 
-  for (const [fieldName, field] of Object.entries(fields)) {
+  for (const field of fields) {
+    const fieldName = field.key;
     const value = record.values[fieldName];
 
     if (!isValidStoredFieldValue(value, field)) {

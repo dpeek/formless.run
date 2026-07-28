@@ -243,13 +243,14 @@ export function projectScenarioGroup({
     variants,
   };
 }
-
 export function mergeScenarioGroupsByKind(
   groups: readonly FieldScenarioGroup[],
-  surfaceOptions: readonly { id: FieldSurface; label: string }[],
+  surfaceOptions: readonly {
+    id: FieldSurface;
+    label: string;
+  }[],
 ): FieldScenarioGroup[] {
   const groupsByKind = new Map<FieldKindKey, FieldScenarioGroup[]>();
-
   for (const group of groups) {
     groupsByKind.set(group.kind, [...(groupsByKind.get(group.kind) ?? []), group]);
   }
@@ -406,12 +407,13 @@ function scenarioVariantFacetMatchScore(
       score += 1;
     }
   }
-
   return score;
 }
-
 function surfaceScenarioFacet(
-  surfaceOptions: readonly { id: FieldSurface; label: string }[],
+  surfaceOptions: readonly {
+    id: FieldSurface;
+    label: string;
+  }[],
   kindGroups: readonly FieldScenarioGroup[],
 ): FieldScenarioFacet {
   const surfaces = new Set<FieldSurface>();

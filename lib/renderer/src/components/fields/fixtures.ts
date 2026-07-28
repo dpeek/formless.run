@@ -21,8 +21,10 @@ export const fieldSurfaceOptions = [
   { id: "table-cell", label: "Table Cell" },
   { id: "detail", label: "Item Detail" },
   { id: "operation", label: "Operation" },
-] satisfies readonly { id: FieldSurface; label: string }[];
-
+] satisfies readonly {
+  id: FieldSurface;
+  label: string;
+}[];
 export const fieldKindOptions = [
   { id: "state-machine-enum", label: "State" },
   { id: "enum", label: "Enum" },

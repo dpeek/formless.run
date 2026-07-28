@@ -187,7 +187,12 @@ describe("selectGeneratedTablePresentation", () => {
 function fieldColumn(
   fieldName: string,
   field: FieldSchema,
-): Extract<TableColumnConfig, { type: "field" }> {
+): Extract<
+  TableColumnConfig,
+  {
+    type: "field";
+  }
+> {
   return {
     type: "field",
     key: `field:${fieldName}`,
@@ -204,16 +209,23 @@ function fieldColumn(
 function hiddenFieldColumn(
   fieldName: string,
   field: FieldSchema,
-): Extract<TableColumnConfig, { type: "field" }> {
+): Extract<
+  TableColumnConfig,
+  {
+    type: "field";
+  }
+> {
   return {
     ...fieldColumn(fieldName, field),
     display: "hidden",
   };
 }
-
-function computedColumn(
-  computedValueName: string,
-): Extract<TableColumnConfig, { type: "computed" }> {
+function computedColumn(computedValueName: string): Extract<
+  TableColumnConfig,
+  {
+    type: "computed";
+  }
+> {
   return {
     type: "computed",
     key: `computed:${computedValueName}`,
@@ -237,7 +249,12 @@ function computedColumn(
 function operationControlColumn(
   bindingName: string,
   label: string,
-): Extract<TableColumnConfig, { type: "operationControl" }> {
+): Extract<
+  TableColumnConfig,
+  {
+    type: "operationControl";
+  }
+> {
   return {
     type: "operationControl",
     key: `operationControl:${bindingName}`,
@@ -260,8 +277,12 @@ function operationControlColumn(
     format: "plain",
   };
 }
-
-function orderingHandleColumn(): Extract<TableColumnConfig, { type: "orderingHandle" }> {
+function orderingHandleColumn(): Extract<
+  TableColumnConfig,
+  {
+    type: "orderingHandle";
+  }
+> {
   return {
     type: "orderingHandle",
     key: "orderingHandle",

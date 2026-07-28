@@ -253,7 +253,12 @@ function createFormlessInstanceManagementFixtureHosts() {
 function applyManagementInstallFieldIntent(
   state: FormlessInstanceManagementFixtureState,
   dialog: ManagementInstallDialogContract,
-  intent: Extract<ManagementIntent, { type: "managementInstallField" }>,
+  intent: Extract<
+    ManagementIntent,
+    {
+      type: "managementInstallField";
+    }
+  >,
 ) {
   const fieldKey = managementDialogFieldKey(dialog, intent.fieldId);
   if (!fieldKey) {
@@ -272,7 +277,12 @@ function applyManagementInstallFieldIntent(
 function applyManagementInstallPackageSelectionIntent(
   state: FormlessInstanceManagementFixtureState,
   dialog: ManagementInstallDialogContract,
-  intent: Extract<ManagementIntent, { type: "managementInstallPackageSelection" }>,
+  intent: Extract<
+    ManagementIntent,
+    {
+      type: "managementInstallPackageSelection";
+    }
+  >,
 ) {
   const selectedOption = dialog.packageOptions.find(
     (option) => option.id === intent.optionId && option.selectionIntent.fieldId === intent.fieldId,
@@ -313,7 +323,12 @@ function applyManagementInstallPackageSelectionIntent(
 function applyManagementInstallSubmitIntent(
   state: FormlessInstanceManagementFixtureState,
   dialog: ManagementInstallDialogContract,
-  intent: Extract<ManagementIntent, { type: "managementInstallSubmit" }>,
+  intent: Extract<
+    ManagementIntent,
+    {
+      type: "managementInstallSubmit";
+    }
+  >,
 ) {
   if (dialog.submit.id !== intent.controlId || dialog.errors.length > 0 || dialog.submit.disabled) {
     return state;
@@ -343,7 +358,9 @@ function applyManagementOperationIntent(
   manifest: ManagementReadyContract,
   intent: Extract<
     ManagementIntent,
-    { type: "managementAuthorizationOpen" | "managementWorkspaceOperation" }
+    {
+      type: "managementAuthorizationOpen" | "managementWorkspaceOperation";
+    }
   >,
 ) {
   const operation = manifest.workspaceOperation;

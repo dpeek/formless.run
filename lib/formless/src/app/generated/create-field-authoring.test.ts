@@ -21,8 +21,7 @@ describe("generated create draft session", () => {
     const contentModel = selectCollectionModels(siteSourceSchema).find(
       (model) => model.viewName === "blockHome",
     );
-    const create = contentModel?.operations.find((operation) => operation.type === "create");
-
+    const create = contentModel?.operations!.find((operation) => operation.type === "create");
     if (create?.type !== "create") {
       throw new Error("Missing Site block create operation.");
     }
@@ -308,7 +307,7 @@ describe("generated create draft session", () => {
         machine: {
           field: "status",
           initial: "new",
-          transitions: {},
+          transitions: [],
         },
         machineName: "statusFlow",
         terminalStates: ["archived"],
@@ -411,10 +410,10 @@ const schemaFields = {
   type: {
     type: "enum",
     required: true,
-    values: {
-      page: { label: "Page" },
-      link: { label: "Link" },
-    },
+    values: [
+      { key: "page", label: "Page" },
+      { key: "link", label: "Link" },
+    ],
   },
   label: { type: "text", required: true },
   href: { type: "text", required: false, format: "href" },
@@ -423,18 +422,18 @@ const schemaFields = {
   status: {
     type: "enum",
     required: true,
-    values: {
-      archived: { label: "Archived" },
-      new: { label: "New" },
-    },
+    values: [
+      { key: "archived", label: "Archived" },
+      { key: "new", label: "New" },
+    ],
   },
   linkTargetMode: {
     type: "enum",
     required: false,
-    values: {
-      internal: { label: "Internal" },
-      external: { label: "External" },
-    },
+    values: [
+      { key: "internal", label: "Internal" },
+      { key: "external", label: "External" },
+    ],
   },
   linkTargetBlock: {
     type: "reference",
@@ -469,10 +468,16 @@ const blockUnion = {
   union: {
     entity: "block",
     discriminator: "type",
-    variants: {
-      page: pageVariant,
-      link: linkVariant,
-    },
+    variants: [
+      {
+        key: "page",
+        ...pageVariant,
+      },
+      {
+        key: "link",
+        ...linkVariant,
+      },
+    ],
   },
   discriminatorFieldName: "type",
   discriminatorField: schemaFields.type,

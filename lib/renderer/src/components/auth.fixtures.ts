@@ -825,10 +825,14 @@ function authAction(
     purpose,
   };
 }
-
 function availablePasskey(
   idSuffix: string,
-  purpose: Extract<AuthPasskeyContract, { availability: "available" }>["purpose"],
+  purpose: Extract<
+    AuthPasskeyContract,
+    {
+      availability: "available";
+    }
+  >["purpose"],
   label: string,
   pending = false,
 ): AuthPasskeyContract {

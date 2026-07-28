@@ -478,21 +478,20 @@ const booleanField = { type: "boolean", required: false } satisfies FieldSchema;
 const linkTargetModeField = {
   type: "enum",
   required: false,
-  values: {
-    external: { label: "External" },
-    internal: { label: "Internal" },
-  },
+  values: [
+    { key: "external", label: "External" },
+    { key: "internal", label: "Internal" },
+  ],
 } satisfies FieldSchema;
 const ownerField = { type: "reference", required: false, to: "principal" } satisfies FieldSchema;
 const costUnitField = {
   type: "enum",
   required: false,
-  values: {
-    day: { label: "Day" },
-    hour: { label: "Hour" },
-  },
+  values: [
+    { key: "day", label: "Day" },
+    { key: "hour", label: "Hour" },
+  ],
 } satisfies FieldSchema;
-
 const costFieldConfig = {
   fieldName: "cost",
   field: numberField,
@@ -576,10 +575,10 @@ const updatePatchFields = [
     field: {
       type: "enum",
       required: true,
-      values: {
-        done: { label: "Done" },
-        todo: { label: "Todo" },
-      },
+      values: [
+        { key: "done", label: "Done" },
+        { key: "todo", label: "Todo" },
+      ],
     },
     editor: "enum",
     commit: "immediate",
@@ -589,7 +588,7 @@ const updatePatchFields = [
       machine: {
         field: "status",
         initial: "todo",
-        transitions: {},
+        transitions: [],
       },
       initialState: "todo",
       terminalStates: ["done"],
@@ -600,12 +599,11 @@ const updatePatchFields = [
 const kindField = {
   type: "enum",
   required: true,
-  values: {
-    article: { label: "Article" },
-    link: { label: "Link" },
-  },
+  values: [
+    { key: "article", label: "Article" },
+    { key: "link", label: "Link" },
+  ],
 } satisfies FieldSchema;
-
 const unionBaseFields = [
   {
     fieldName: "kind",
@@ -626,10 +624,10 @@ const updateUnion = {
   union: {
     entity: "content",
     discriminator: "kind",
-    variants: {
-      article: { label: "Article", fields: ["body"] },
-      link: { label: "Link", fields: ["url"] },
-    },
+    variants: [
+      { key: "article", label: "Article", fields: ["body"] },
+      { key: "link", label: "Link", fields: ["url"] },
+    ],
   },
   discriminatorFieldName: "kind",
   discriminatorField: kindField,
@@ -675,8 +673,12 @@ const mediaAssetFieldConfig = {
   editor: "media",
   commit: "field-commit",
 } satisfies RecordFieldConfig;
-
-const documentAssetField: Extract<FieldSchema, { type: "text" }> = {
+const documentAssetField: Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+> = {
   asset: {
     acceptedMimeTypes: ["application/pdf"],
     access: "private",
@@ -714,35 +716,45 @@ const iconFieldConfig = {
   editor: "icon",
   commit: "field-commit",
 } satisfies RecordFieldConfig;
-
 const blockSchema = {
   version: 1,
-  entities: {
-    block: {
-      fields: {
-        height: { type: "number", required: false },
-        href: imageTextField,
-        mediaAsset: imageTextField,
-        width: { type: "number", required: false },
-      },
+  entities: [
+    {
+      key: "block",
+      fields: [
+        { key: "height", type: "number", required: false },
+        {
+          ...imageTextField,
+          key: "href",
+        },
+        {
+          ...imageTextField,
+          key: "mediaAsset",
+        },
+        { key: "width", type: "number", required: false },
+      ],
     },
-  },
-  queries: {},
-  itemViews: {},
-  tableViews: {},
-  views: {},
+  ],
+  queries: [],
+  itemViews: [],
+  tableViews: [],
+  views: [],
 } as unknown as AppSchema;
-
 const documentBlockSchema = {
   ...blockSchema,
-  entities: {
-    ...blockSchema.entities,
-    block: {
-      ...blockSchema.entities.block,
-      fields: {
-        ...blockSchema.entities.block?.fields,
-        mediaAsset: documentAssetField,
-      },
-    },
-  },
+  entities: blockSchema.entities.map((entity) =>
+    entity.key === "block"
+      ? {
+          ...entity,
+          fields: entity.fields.map((field) =>
+            field.key === "mediaAsset"
+              ? {
+                  ...documentAssetField,
+                  key: "mediaAsset",
+                }
+              : field,
+          ),
+        }
+      : entity,
+  ),
 } as unknown as AppSchema;

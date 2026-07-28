@@ -11,13 +11,13 @@ describe("operation presentation model", () => {
   it("selects command operations from operation handler capabilities", () => {
     const clearCompleted = selectCommandOperationByHandlerCapability(
       "task",
-      taskSourceSchema.entities.task,
+      taskSourceSchema.entities.find((definition) => definition.key === "task")!,
       "clearCompletedTargetCount",
       "collection",
     );
     const regenerateMissingRates = selectCommandOperationByHandlerCapability(
       "rate",
-      rateSourceSchema.entities.rate,
+      rateSourceSchema.entities.find((definition) => definition.key === "rate")!,
       "createMissingJoinRecords",
       "collection",
     );
@@ -46,13 +46,11 @@ describe("operation presentation model", () => {
       },
     });
   });
-
   it("returns no command capabilities without source operations", () => {
     const entityWithoutOperations = {
-      ...taskSourceSchema.entities.task,
+      ...taskSourceSchema.entities.find((definition) => definition.key === "task")!,
       operations: undefined,
     } as unknown as EntitySchema;
-
     expect(
       selectCommandOperationsByHandlerCapability(
         "task",
@@ -62,12 +60,12 @@ describe("operation presentation model", () => {
       ),
     ).toEqual([]);
   });
-
   it("includes authenticated browser operations and hides non-browser actors", () => {
     const entity = {
-      ...taskSourceSchema.entities.task,
-      operations: {
-        authenticatedCommand: {
+      ...taskSourceSchema.entities.find((definition) => definition.key === "task")!,
+      operations: [
+        {
+          key: "authenticatedCommand",
           label: "Authenticated command",
           kind: "command",
           scope: "collection",
@@ -81,7 +79,8 @@ describe("operation presentation model", () => {
           audit: { input: "summary" },
           policy: { actors: ["authenticated"] },
         },
-        runnerCommand: {
+        {
+          key: "runnerCommand",
           label: "Runner command",
           kind: "command",
           scope: "collection",
@@ -95,9 +94,8 @@ describe("operation presentation model", () => {
           audit: { input: "summary" },
           policy: { actors: ["runner"] },
         },
-      },
+      ],
     } as unknown as EntitySchema;
-
     expect(
       selectAvailableEntityOperations("task", entity, "collection").map(
         (operation) => operation.operationName,

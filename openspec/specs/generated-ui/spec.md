@@ -270,7 +270,10 @@ The system SHALL render generated screens from screen models and collection sect
 
 - GIVEN primary screen models are available
 - WHEN generated app chrome renders
-- THEN the sidebar lists the app screens
+- THEN omitted `navigation.primaryScreens` lists all app screens in screen
+  declaration order
+- AND a declared `navigation.primaryScreens` array selects and orders the
+  sidebar screen subset
 - AND the sidebar title is the app label
 
 #### Scenario: Schema path app screen
@@ -301,6 +304,53 @@ The system SHALL render generated screens from screen models and collection sect
 - THEN generated UI can render the selected screen without an owner session
 - AND operation and management controls still use their existing write and
   authorization contracts
+
+### Requirement: Schema Declaration Order And Surface Overrides
+
+The system SHALL use portable registry declaration order as the generated
+presentation default and SHALL honor explicit surface arrays as membership and
+order overrides.
+
+#### Scenario: Select fields for a generated surface
+
+- GIVEN an entity declares an ordered field registry
+- WHEN generated UI builds a general field catalog without a surface-specific
+  field array
+- THEN fields appear in entity field declaration order
+- AND when a create, edit, item, table, collection, or other surface declares
+  its own field or column array, that array selects and orders the fields for
+  that surface
+- AND fields omitted by the surface array are not appended from the entity
+  registry
+
+#### Scenario: Select generated options and variants
+
+- GIVEN an enum field or entity union has no surface-specific presentation
+  order
+- WHEN generated UI builds enum options or union discriminator choices
+- THEN enum values and union variants appear in their registry declaration
+  order
+- AND an explicit surface array may select, omit, or reorder applicable
+  definitions without changing the registry
+
+#### Scenario: Select generated operation controls
+
+- GIVEN entity operations or state-machine transitions are eligible for a
+  generated surface
+- WHEN the surface has no explicit applicable operation binding array
+- THEN eligible controls use operation or transition declaration order
+- AND an explicit operation binding array selects and orders the controls for
+  that surface
+- AND hidden, unauthorized, or state-inapplicable controls remain omitted even
+  when declaration order supplies the default sequence
+
+#### Scenario: Ignore object property order
+
+- GIVEN generated UI receives a parsed App schema
+- WHEN it selects fields, options, variants, operations, views, or screens
+- THEN it uses registry arrays, surface arrays, and shared keyed indexes
+- AND it does not derive membership or order from object property insertion
+  order
 
 ### Requirement: Collection Rendering
 

@@ -73,9 +73,13 @@ export type HomeContextNavigationGroupConfig = {
   label: string;
   queryName: string;
   query: QueryExpression;
-  createOperation?: Extract<HomeOperationConfig, { type: "create" }>;
+  createOperation?: Extract<
+    HomeOperationConfig,
+    {
+      type: "create";
+    }
+  >;
 };
-
 export type HomeContextNavigationConfig = {
   placement: "sidebar";
   groups: HomeContextNavigationGroupConfig[];
@@ -101,7 +105,12 @@ export type HomeContextConfig = {
   presentation: CollectionContextPresentation;
   navigation?: HomeContextNavigationConfig;
   relatedCollection?: RelatedCollectionConfig;
-  createOperation?: Extract<HomeOperationConfig, { type: "create" }>;
+  createOperation?: Extract<
+    HomeOperationConfig,
+    {
+      type: "create";
+    }
+  >;
   itemViewName?: string;
   recordFields?: RecordFieldConfig[];
   updateOperation?: EntityOperationPresentationConfig;
@@ -185,22 +194,19 @@ export function selectRelatedCollectionModels(
   schema: AppSchema,
   entityName: string,
 ): RelatedCollectionConfig[] {
-  return Object.entries(schema.relationships ?? {}).flatMap(([relationshipName, relationship]) => {
+  return (schema.relationships ?? []).flatMap((relationship) => {
     if (relationship.kind !== "toMany" || relationship.from.entity !== entityName) {
       return [];
     }
-
-    return [selectRelatedCollection(schema, relationshipName, relationship)];
+    return [selectRelatedCollection(schema, relationship.key, relationship)];
   });
 }
-
 function selectRelatedCollection(
   schema: AppSchema,
   relationshipName: string,
   relationship: ToManyRelationshipSchema,
 ): RelatedCollectionConfig {
-  const entity = schema.entities[relationship.to.entity];
-
+  const entity = schema.entities.find((definition) => definition.key === relationship.to.entity)!;
   if (!entity) {
     throw new Error(`Missing related entity "${relationship.to.entity}".`);
   }
@@ -223,37 +229,36 @@ function selectContext(
   if (!collectionView.context) {
     return undefined;
   }
-
-  const contextEntity = schema.entities[collectionView.context.entity];
-  const contextQuery = schema.queries[collectionView.context.query];
-  const relationshipName = collectionView.context.relationship;
+  const context = collectionView.context;
+  const contextEntity = schema.entities.find((definition) => definition.key === context.entity);
+  const contextQuery = schema.queries.find((definition) => definition.key === context.query);
+  const relationshipName = context.relationship;
   const relationship =
     relationshipName === undefined ? undefined : selectToManyRelationship(schema, relationshipName);
   const relatedCollection =
     relationshipName === undefined || relationship === undefined
       ? undefined
       : selectRelatedCollection(schema, relationshipName, relationship);
-
   if (!contextEntity) {
-    throw new Error(`Missing context entity "${collectionView.context.entity}".`);
+    throw new Error(`Missing context entity "${context.entity}".`);
   }
-
   if (!contextQuery) {
-    throw new Error(`Missing context query "${collectionView.context.query}".`);
+    throw new Error(`Missing context query "${context.query}".`);
   }
-
   const createOperation =
-    collectionView.context.createView === undefined
+    context.createView === undefined
       ? undefined
       : selectCreateOperation(
           schema,
           viewEntries,
-          collectionView.context.createView,
+          context.createView,
           `Create ${contextEntity.label}`,
         );
-  const itemViewName = collectionView.context.itemView;
-  const itemView = itemViewName === undefined ? undefined : schema.itemViews[itemViewName];
-
+  const itemViewName = context.itemView;
+  const itemView =
+    itemViewName === undefined
+      ? undefined
+      : schema.itemViews.find((definition) => definition.key === itemViewName)!;
   if (itemViewName !== undefined && itemView === undefined) {
     throw new Error(`Missing context item view "${itemViewName}".`);
   }
@@ -292,8 +297,7 @@ function selectContext(
           navigation: {
             placement: collectionView.context.navigation.placement,
             groups: collectionView.context.navigation.groups.map((group) => {
-              const query = schema.queries[group.query];
-
+              const query = schema.queries.find((definition) => definition.key === group.query)!;
               if (!query) {
                 throw new Error(`Missing context navigation query "${group.query}".`);
               }
@@ -337,10 +341,10 @@ function selectContext(
 function createRootNavigationLabel(groupLabel: string) {
   return `Create ${groupLabel.endsWith("s") ? groupLabel.slice(0, -1) : groupLabel}`;
 }
-
 export function selectToManyRelationship(schema: AppSchema, relationshipName: string) {
-  const relationship = schema.relationships?.[relationshipName];
-
+  const relationship = schema.relationships?.find(
+    (definition) => definition.key === relationshipName,
+  );
   if (!relationship) {
     throw new Error(`Missing relationship "${relationshipName}".`);
   }
@@ -357,8 +361,7 @@ function selectQueryTabs(
   collectionView: CollectionViewSchema,
 ): HomeQueryTabConfig[] {
   return collectionView.queries.map((slot) => {
-    const query = schema.queries[slot.query];
-
+    const query = schema.queries.find((definition) => definition.key === slot.query)!;
     if (!query) {
       throw new Error(`Missing query "${slot.query}".`);
     }
@@ -467,8 +470,9 @@ export function selectAggregateSlot(
   schema: AppSchema,
   slot: CollectionSummarySlotSchema | CollectionTableFooterSlotSchema,
 ): HomeSummarySlotConfig {
-  const aggregate = schema.readModels?.aggregates?.[slot.aggregate];
-
+  const aggregate = schema.readModels?.aggregates?.find(
+    (definition) => definition.key === slot.aggregate,
+  );
   if (!aggregate) {
     throw new Error(`Missing aggregate "${slot.aggregate}".`);
   }
@@ -478,7 +482,9 @@ export function selectAggregateSlot(
     key: `aggregate:${slot.aggregate}`,
     aggregateName: slot.aggregate,
     aggregate,
-    computedValues: schema.readModels?.computedValues ?? {},
+    computedValues: Object.fromEntries(
+      (schema.readModels?.computedValues ?? []).map(({ key, ...definition }) => [key, definition]),
+    ),
     label: slot.label ?? humanizeFieldName(slot.aggregate),
     ...(slot.suffix === undefined ? {} : { suffix: slot.suffix }),
     format: slot.format ?? "plain",
@@ -491,7 +497,14 @@ function selectCreateOperation(
   createViewName: string | undefined,
   label?: string,
   operation?: EntityOperationPresentationConfig,
-): Extract<HomeOperationConfig, { type: "create" }> | undefined {
+):
+  | Extract<
+      HomeOperationConfig,
+      {
+        type: "create";
+      }
+    >
+  | undefined {
   if (createViewName === undefined) {
     throw new Error(`Missing create view for operation "${operation?.canonicalKey ?? "create"}".`);
   }
@@ -501,9 +514,7 @@ function selectCreateOperation(
   if (!createView || createView.type !== "create") {
     throw new Error(`Missing create view "${createViewName}".`);
   }
-
-  const entity = schema.entities[createView.entity];
-
+  const entity = schema.entities.find((definition) => definition.key === createView.entity)!;
   if (!entity) {
     throw new Error(`Missing create view entity "${createView.entity}".`);
   }
@@ -546,10 +557,8 @@ function selectBoundCollectionOperation(
     "Collection operation binding",
     canonicalKey,
   );
-
-  const entity = schema.entities[entityName];
-  const operation = entity?.operations?.[operationName];
-
+  const entity = schema.entities.find((definition) => definition.key === entityName)!;
+  const operation = entity?.operations?.find((definition) => definition.key === operationName);
   if (!entity || !operation) {
     throw new Error(`Missing operation binding "${canonicalKey}".`);
   }
@@ -558,11 +567,10 @@ function selectBoundCollectionOperation(
     (candidate) => candidate.operationName === operationName,
   );
 }
-
 function selectCreateFields(view: CreateViewSchema, entity: EntitySchema): CreateFieldConfig[] {
-  return Object.entries(view.fields).flatMap(([fieldName, viewField]) => {
+  return view.fields.flatMap((viewField) => {
+    const fieldName = viewField.field;
     const selectedField = selectAddressableRecordFieldConfig(entity, fieldName);
-
     if (!selectedField.writable) {
       return [];
     }
@@ -585,7 +593,7 @@ function selectCreateFields(view: CreateViewSchema, entity: EntitySchema): Creat
 function selectCreateDefaults(view: CreateViewSchema, entity: EntitySchema): CreateDefaultConfig[] {
   return Object.entries(view.defaults ?? {}).map(([fieldName, defaultValue]) => ({
     fieldName,
-    field: entity.fields[fieldName] as FieldSchema,
+    field: entity.fields.find((definition) => definition.key === fieldName)! as FieldSchema,
     value: defaultValue,
   }));
 }
@@ -594,7 +602,8 @@ export function selectRecordFields(
   view: ItemViewSchema,
   entity: EntitySchema,
 ): RecordFieldConfig[] {
-  return Object.entries(view.fields).map(([fieldName, viewField]) => {
+  return view.fields.map((viewField) => {
+    const fieldName = viewField.field;
     const selectedField = selectAddressableRecordFieldConfig(entity, fieldName);
     const stateMachine =
       selectedField.fieldRef.kind === "value"

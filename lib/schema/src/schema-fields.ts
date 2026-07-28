@@ -3,8 +3,10 @@ import { parseStateMachinesForEntities } from "./schema-state-machines.ts";
 import {
   assertExactKeys,
   assertSupportedKeys,
+  definitionsToRecord,
   isFiniteNumber,
   isRecord,
+  parseKeyedDefinitionArray,
   parseOptionalNonEmptyString,
 } from "./schema-parse-helpers.ts";
 import type {
@@ -18,6 +20,7 @@ import type {
   EnumValuePresentationSchema,
   EnumValueSchema,
   FieldSchema,
+  KeyedDefinition,
   NumberFieldSchema,
   ReferenceFieldSchema,
   TextFieldFormat,
@@ -53,61 +56,53 @@ export function isSupportedIdentityReferenceTarget(
 ): value is SupportedIdentityReferenceTarget {
   return (supportedIdentityReferenceTargets as readonly string[]).includes(value);
 }
-
 export type ParsedEntityCatalog = {
-  entities: Record<string, EntitySchema>;
+  entities: KeyedDefinition<EntitySchema>[];
   operationInputsByEntity: Record<string, unknown>;
 };
-
 export function parseEntities(value: unknown): ParsedEntityCatalog {
-  if (!isRecord(value)) {
-    throw new Error("Schema entities must be an object.");
-  }
-
-  const entities: Record<string, EntitySchema> = {};
   const operationInputsByEntity: Record<string, unknown> = {};
   const stateMachineInputsByEntity: Record<string, unknown> = {};
-
-  for (const [entityName, entityValue] of Object.entries(value)) {
-    assertSchemaLocalEntityKey(`Schema entity key "${entityName}"`, entityName);
-
-    const { entity, operationsInput, stateMachinesInput } = parseEntityBase(
-      entityName,
-      entityValue,
-    );
-    entities[entityName] = entity;
-
-    if (operationsInput !== undefined) {
-      operationInputsByEntity[entityName] = operationsInput;
-    }
-
-    if (stateMachinesInput !== undefined) {
-      stateMachineInputsByEntity[entityName] = stateMachinesInput;
-    }
-  }
-
-  validateReferenceFields(entities);
+  const entities = parseKeyedDefinitionArray(
+    "Schema entities",
+    value,
+    (entityName, entityValue) => {
+      assertSchemaLocalEntityKey(`Schema entity key "${entityName}"`, entityName);
+      const { entity, operationsInput, stateMachinesInput } = parseEntityBase(
+        entityName,
+        entityValue,
+      );
+      if (operationsInput !== undefined) {
+        operationInputsByEntity[entityName] = operationsInput;
+      }
+      if (stateMachinesInput !== undefined) {
+        stateMachineInputsByEntity[entityName] = stateMachinesInput;
+      }
+      return entity;
+    },
+  );
+  const entitiesByKey = definitionsToRecord(entities);
+  validateReferenceFields(entities, entitiesByKey);
   const entitiesWithStateMachines = parseStateMachinesForEntities(
     entities,
     stateMachineInputsByEntity,
   );
-
   return { entities: entitiesWithStateMachines, operationInputsByEntity };
 }
-
-function validateReferenceFields(entities: Record<string, EntitySchema>) {
-  for (const [entityName, entity] of Object.entries(entities)) {
-    for (const [fieldName, field] of Object.entries(entity.fields)) {
+function validateReferenceFields(
+  entities: KeyedDefinition<EntitySchema>[],
+  entitiesByKey: Record<string, EntitySchema>,
+) {
+  for (const entity of entities) {
+    for (const field of entity.fields) {
       if (field.type !== "reference") {
         continue;
       }
-
       const targetEntity = resolveReferenceTarget(
-        `Field "${entityName}.${fieldName}" reference target`,
+        `Field "${entity.key}.${field.key}" reference target`,
         field.to,
-        entities,
+        entitiesByKey,
       );
-
       if (targetEntity === undefined) {
         continue;
       }
@@ -115,17 +110,15 @@ function validateReferenceFields(entities: Record<string, EntitySchema>) {
       if (field.displayField === undefined) {
         continue;
       }
-
-      const displayField = targetEntity.fields[field.displayField];
+      const displayField = definitionsToRecord(targetEntity.fields)[field.displayField];
       if (!displayField) {
         throw new Error(
-          `Field "${entityName}.${fieldName}" displayField references unknown field "${field.to}.${field.displayField}".`,
+          `Field "${entity.key}.${field.key}" displayField references unknown field "${field.to}.${field.displayField}".`,
         );
       }
-
       if (displayField.type !== "text") {
         throw new Error(
-          `Field "${entityName}.${fieldName}" displayField must reference a text field.`,
+          `Field "${entity.key}.${field.key}" displayField must reference a text field.`,
         );
       }
     }
@@ -172,8 +165,8 @@ function parseEntityBase(
   if (!isRecord(value)) {
     throw new Error(`Entity "${entityName}" must be an object.`);
   }
-
   assertSupportedKeys(`Entity "${entityName}"`, value, [
+    "key",
     "label",
     "fields",
     "constraints",
@@ -185,14 +178,15 @@ function parseEntityBase(
   if (typeof label !== "string" || label.trim() === "") {
     throw new Error(`Entity "${entityName}" must have a label.`);
   }
-
   const fields = parseFields(entityName, value.fields);
-  if (Object.keys(fields).length === 0) {
+  if (fields.length === 0) {
     throw new Error(`Entity "${entityName}" must define at least one field.`);
   }
-
-  const constraints = parseEntityConstraints(entityName, value.constraints, fields);
-
+  const constraints = parseEntityConstraints(
+    entityName,
+    value.constraints,
+    definitionsToRecord(fields),
+  );
   return {
     entity: {
       label,
@@ -208,34 +202,22 @@ function parseEntityConstraints(
   entityName: string,
   value: unknown,
   fields: Record<string, FieldSchema>,
-): Record<string, EntityConstraintSchema> | undefined {
+): KeyedDefinition<EntityConstraintSchema>[] | undefined {
   if (value === undefined) {
     return undefined;
   }
-
-  if (!isRecord(value)) {
-    throw new Error(`Entity "${entityName}" constraints must be an object.`);
-  }
-
-  const entries = Object.entries(value);
-  if (entries.length === 0) {
+  const constraints = parseKeyedDefinitionArray(
+    `Entity "${entityName}" constraints`,
+    value,
+    (constraintName, constraint) => {
+      return parseEntityConstraint(entityName, constraintName, constraint, fields);
+    },
+  );
+  if (constraints.length === 0) {
     throw new Error(`Entity "${entityName}" constraints must not be empty.`);
   }
-
-  return Object.fromEntries(
-    entries.map(([constraintName, constraint]) => {
-      if (constraintName.trim() === "") {
-        throw new Error(`Entity "${entityName}" constraint names must be non-empty.`);
-      }
-
-      return [
-        constraintName,
-        parseEntityConstraint(entityName, constraintName, constraint, fields),
-      ];
-    }),
-  );
+  return constraints;
 }
-
 function parseEntityConstraint(
   entityName: string,
   constraintName: string,
@@ -247,10 +229,8 @@ function parseEntityConstraint(
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
-
   if (value.kind === "unique") {
-    assertExactKeys(context, value, ["kind", "fields"]);
-
+    assertExactKeys(context, value, ["key", "kind", "fields"]);
     return {
       kind: "unique",
       fields: parseUniqueConstraintFields(context, value.fields, fields),
@@ -284,23 +264,13 @@ function parseUniqueConstraintFields(
   if (new Set(names).size !== names.length) {
     throw new Error(`${context} fields must be unique.`);
   }
-
   return names;
 }
-
-function parseFields(entityName: string, value: unknown): Record<string, FieldSchema> {
-  if (!isRecord(value)) {
-    throw new Error(`Entity "${entityName}" fields must be an object.`);
-  }
-
-  return Object.fromEntries(
-    Object.entries(value).map(([fieldName, field]) => [
-      fieldName,
-      parseField(entityName, fieldName, field),
-    ]),
+function parseFields(entityName: string, value: unknown): KeyedDefinition<FieldSchema>[] {
+  return parseKeyedDefinitionArray(`Entity "${entityName}" fields`, value, (fieldName, field) =>
+    parseField(entityName, fieldName, field),
   );
 }
-
 function parseField(entityName: string, fieldName: string, value: unknown): FieldSchema {
   if (!isRecord(value)) {
     throw new Error(`Field "${entityName}.${fieldName}" must be an object.`);
@@ -321,10 +291,9 @@ function parseField(entityName: string, fieldName: string, value: unknown): Fiel
     assertExactKeys(
       context,
       value,
-      ["type", "required"],
+      ["key", "type", "required"],
       ["label", "format", "suggestions", "asset"],
     );
-
     const field: TextFieldSchema = {
       type: "text",
       required: value.required,
@@ -362,7 +331,7 @@ function parseField(entityName: string, fieldName: string, value: unknown): Fiel
     if ("default" in value && typeof value.default !== "boolean") {
       throw new Error(`Field "${entityName}.${fieldName}" boolean default must be a boolean.`);
     }
-
+    assertExactKeys(context, value, ["key", "type", "required"], ["label", "default"]);
     const field: BooleanFieldSchema = {
       type: "boolean",
       required: value.required,
@@ -375,11 +344,10 @@ function parseField(entityName: string, fieldName: string, value: unknown): Fiel
     if ("default" in value) {
       field.default = value.default as boolean;
     }
-
     return field;
   }
-
   if (value.type === "date") {
+    assertExactKeys(context, value, ["key", "type", "required"], ["label"]);
     const field: DateFieldSchema = {
       type: "date",
       required: value.required,
@@ -396,10 +364,9 @@ function parseField(entityName: string, fieldName: string, value: unknown): Fiel
     assertExactKeys(
       `Field "${entityName}.${fieldName}"`,
       value,
-      ["type", "required"],
+      ["key", "type", "required"],
       ["label", "default", "min", "max", "integer"],
     );
-
     const field: NumberFieldSchema = {
       type: "number",
       required: value.required,
@@ -455,10 +422,9 @@ function parseField(entityName: string, fieldName: string, value: unknown): Fiel
     assertExactKeys(
       `Field "${entityName}.${fieldName}"`,
       value,
-      ["type", "required", "values"],
+      ["key", "type", "required", "values"],
       ["label", "default"],
     );
-
     const values = parseEnumValues(entityName, fieldName, value.values);
     const field: EnumFieldSchema = {
       type: "enum",
@@ -469,9 +435,8 @@ function parseField(entityName: string, fieldName: string, value: unknown): Fiel
     if (label !== undefined) {
       field.label = label;
     }
-
     if ("default" in value) {
-      if (typeof value.default !== "string" || !Object.hasOwn(values, value.default)) {
+      if (typeof value.default !== "string" || !definitionsToRecord(values)[value.default]) {
         throw new Error(
           `Field "${entityName}.${fieldName}" enum default must match one of its values.`,
         );
@@ -487,10 +452,9 @@ function parseField(entityName: string, fieldName: string, value: unknown): Fiel
     assertExactKeys(
       `Field "${entityName}.${fieldName}"`,
       value,
-      ["type", "required", "to"],
+      ["key", "type", "required", "to"],
       ["label", "displayField"],
     );
-
     if (typeof value.to !== "string" || value.to.trim() === "") {
       throw new Error(
         `Field "${entityName}.${fieldName}" reference target must be a non-empty entity name.`,
@@ -620,30 +584,18 @@ function parseEnumValues(
   entityName: string,
   fieldName: string,
   value: unknown,
-): Record<string, EnumValueSchema> {
-  if (!isRecord(value)) {
-    throw new Error(`Field "${entityName}.${fieldName}" enum values must be an object.`);
-  }
-
-  const entries = Object.entries(value);
-
-  if (entries.length === 0) {
+): KeyedDefinition<EnumValueSchema>[] {
+  const values = parseKeyedDefinitionArray(
+    `Field "${entityName}.${fieldName}" enum values`,
+    value,
+    (enumValue, enumValueSchema) =>
+      parseEnumValue(entityName, fieldName, enumValue, enumValueSchema),
+  );
+  if (values.length === 0) {
     throw new Error(`Field "${entityName}.${fieldName}" enum values must not be empty.`);
   }
-
-  return Object.fromEntries(
-    entries.map(([enumValue, enumValueSchema]) => {
-      if (enumValue.trim() === "") {
-        throw new Error(
-          `Field "${entityName}.${fieldName}" enum value keys must be non-empty strings.`,
-        );
-      }
-
-      return [enumValue, parseEnumValue(entityName, fieldName, enumValue, enumValueSchema)];
-    }),
-  );
+  return values;
 }
-
 function parseEnumValue(
   entityName: string,
   fieldName: string,
@@ -659,10 +611,9 @@ function parseEnumValue(
   assertExactKeys(
     `Field "${entityName}.${fieldName}" enum value "${enumValue}"`,
     value,
-    ["label"],
+    ["key", "label"],
     ["presentation"],
   );
-
   if (typeof value.label !== "string" || value.label.trim() === "") {
     throw new Error(
       `Field "${entityName}.${fieldName}" enum value "${enumValue}" label must be a non-empty string.`,

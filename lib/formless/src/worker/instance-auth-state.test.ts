@@ -114,8 +114,9 @@ describe("instance auth state", () => {
       relyingPartyName: "Formless Instance",
       now: updatedAt,
     });
-    const stored = await getJson<{ config: StoredInstanceAuthConfig | null }>("/config");
-
+    const stored = await getJson<{
+      config: StoredInstanceAuthConfig | null;
+    }>("/config");
     expect(first).toEqual({
       canonicalOrigin,
       relyingPartyId,
@@ -149,8 +150,9 @@ describe("instance auth state", () => {
       }),
       method: "POST",
     });
-    const stored = await getJson<{ config: StoredInstanceAuthConfig | null }>("/config");
-
+    const stored = await getJson<{
+      config: StoredInstanceAuthConfig | null;
+    }>("/config");
     expect(rejected.status).toBe(400);
     expect(await rejected.json()).toEqual({
       error:
@@ -158,15 +160,20 @@ describe("instance auth state", () => {
     });
     expect(stored.config).toEqual(first);
   });
-
   it("repairs deployed setup-token challenge storage after the first migration was recorded", async () => {
     const migrated = await postJson<{
-      appliedMigrations: Array<{ migrationId: string; storageFamily: string }>;
+      appliedMigrations: Array<{
+        migrationId: string;
+        storageFamily: string;
+      }>;
       indexSql: string;
-      rows: Array<{ id: string; kind: string; principal_id: string | null }>;
+      rows: Array<{
+        id: string;
+        kind: string;
+        principal_id: string | null;
+      }>;
       tableSql: string;
     }>("/migrate-principal-neutral-login-challenges", {});
-
     expect(migrated.appliedMigrations).toEqual([
       expect.objectContaining({
         migrationId: "2026-07-24-instance-auth-principal-neutral-login-challenges",
@@ -338,8 +345,9 @@ describe("instance auth state", () => {
       challenge: loginChallenge,
       now: updatedAt,
     });
-    const expiredCount = await postJson<{ expired: number }>("/expire", { now: updatedAt });
-
+    const expiredCount = await postJson<{
+      expired: number;
+    }>("/expire", { now: updatedAt });
     expect(expired).toEqual({
       ok: false,
       challenge: {
@@ -360,9 +368,10 @@ describe("instance auth state", () => {
       createdAt,
       expiresAt,
     });
-
     expect(
-      await postJson<{ deleted: boolean }>("/delete-challenge", { challenge: deleteChallenge }),
+      await postJson<{
+        deleted: boolean;
+      }>("/delete-challenge", { challenge: deleteChallenge }),
     ).toEqual({ deleted: true });
     expect(await readChallenge(deleteChallenge)).toEqual({ challenge: null });
   });
@@ -391,13 +400,17 @@ describe("instance auth state", () => {
       verifiedAt: "2026-05-21T00:10:00.000Z",
     });
     const stored = await readCredential(credentialId);
-    const principalCredentials = await getJson<{ credentials: StoredPasskeyCredential[] }>(
-      `/credentials?principalId=${principalId}`,
-    );
+    const principalCredentials = await getJson<{
+      credentials: StoredPasskeyCredential[];
+    }>(`/credentials?principalId=${principalId}`);
     const webauthnCredential = await getJson<{
-      credential: { counter: number; id: string; publicKey: number[]; transports?: string[] };
+      credential: {
+        counter: number;
+        id: string;
+        publicKey: number[];
+        transports?: string[];
+      };
     }>(`/webauthn-credential?id=${credentialId}`);
-
     expect(created).toEqual({
       ok: true,
       credential: {
@@ -1000,12 +1013,16 @@ function createChallenge(input: unknown) {
 function consumeChallenge(input: unknown) {
   return postJson<ConsumePasskeyChallengeResult>("/consume", input);
 }
-
 function readChallenge(challenge: string) {
-  return getJson<{ challenge: StoredPasskeyChallenge | null }>(`/challenge?challenge=${challenge}`);
+  return getJson<{
+    challenge: StoredPasskeyChallenge | null;
+  }>(`/challenge?challenge=${challenge}`);
 }
-
-function createCredential(overrides: Partial<{ principalId: string }> = {}) {
+function createCredential(
+  overrides: Partial<{
+    principalId: string;
+  }> = {},
+) {
   return postJson<CreatePasskeyCredentialResult>("/credential", {
     credentialId,
     principalId: overrides.principalId ?? principalId,
@@ -1021,12 +1038,16 @@ function createCredential(overrides: Partial<{ principalId: string }> = {}) {
 function updateCredentialVerification(input: unknown) {
   return postJson<UpdatePasskeyCredentialVerificationResult>("/credential/verify", input);
 }
-
 function readCredential(id: string) {
-  return getJson<{ credential: StoredPasskeyCredential | null }>(`/credential?id=${id}`);
+  return getJson<{
+    credential: StoredPasskeyCredential | null;
+  }>(`/credential?id=${id}`);
 }
-
-function createCentralSession(overrides: Partial<{ principalId: string }> = {}) {
+function createCentralSession(
+  overrides: Partial<{
+    principalId: string;
+  }> = {},
+) {
   return postJson<CreateCentralAuthSessionResult>("/central-session", {
     sessionIdHash: centralSessionIdHash,
     instanceId,
@@ -1035,21 +1056,19 @@ function createCentralSession(overrides: Partial<{ principalId: string }> = {}) 
     expiresAt,
   });
 }
-
 function readCentralSession(idHash: string) {
-  return getJson<{ session: StoredCentralAuthSession | null }>(`/central-session?idHash=${idHash}`);
+  return getJson<{
+    session: StoredCentralAuthSession | null;
+  }>(`/central-session?idHash=${idHash}`);
 }
-
 function revokeCentralSession(idHash: string, now: string) {
   return postJson<RevokeCentralAuthSessionResult>("/central-session/revoke", { idHash, now });
 }
-
 function readHostSessionRevocationVersion() {
-  return getJson<{ version: StoredHostSessionRevocationVersion | null }>(
-    `/host-session-version?${new URLSearchParams(hostSessionTarget()).toString()}`,
-  );
+  return getJson<{
+    version: StoredHostSessionRevocationVersion | null;
+  }>(`/host-session-version?${new URLSearchParams(hostSessionTarget()).toString()}`);
 }
-
 function bumpHostSessionRevocationVersion(now: string) {
   return postJson<StoredHostSessionRevocationVersion>("/host-session-version/bump", {
     ...hostSessionTarget(),
@@ -1063,11 +1082,11 @@ function createHandoffGrant(overrides: Partial<ReturnType<typeof handoffGrantInp
     ...overrides,
   });
 }
-
 function readHandoffGrant(id: string) {
-  return getJson<{ grant: StoredHandoffGrant | null }>(`/handoff-grant?id=${id}`);
+  return getJson<{
+    grant: StoredHandoffGrant | null;
+  }>(`/handoff-grant?id=${id}`);
 }
-
 function consumeHandoffGrant(id: string, now: string) {
   return postJson<ConsumeHandoffGrantResult>("/handoff-grant/consume", { grantId: id, now });
 }
@@ -1079,13 +1098,11 @@ function createInvitationToken(input: Record<string, unknown>) {
     ...input,
   });
 }
-
 function readInvitationToken(id: string) {
-  return getJson<{ token: StoredCollaboratorInvitationToken | null }>(
-    `/invitation-token?invitationId=${encodeURIComponent(id)}`,
-  );
+  return getJson<{
+    token: StoredCollaboratorInvitationToken | null;
+  }>(`/invitation-token?invitationId=${encodeURIComponent(id)}`);
 }
-
 function consumeInvitationToken(input: unknown) {
   return postJson<ConsumeCollaboratorInvitationTokenResult>("/invitation-token/consume", input);
 }
@@ -1108,13 +1125,11 @@ function buildEmailVerificationLink(input: unknown) {
 function createEmailVerificationChallenge(input: Record<string, unknown>) {
   return postJson<CreateEmailVerificationChallengeResult>("/email-verification-challenge", input);
 }
-
 function readEmailVerificationChallenge(id: string) {
-  return getJson<{ challenge: StoredEmailVerificationChallenge | null }>(
-    `/email-verification-challenge?challengeId=${encodeURIComponent(id)}`,
-  );
+  return getJson<{
+    challenge: StoredEmailVerificationChallenge | null;
+  }>(`/email-verification-challenge?challengeId=${encodeURIComponent(id)}`);
 }
-
 function validateEmailVerificationChallenge(input: unknown) {
   return postJson<ValidateEmailVerificationChallengeResult>(
     "/email-verification-challenge/validate",
@@ -1135,23 +1150,18 @@ function revokeEmailVerificationChallenge(id: string, now: string) {
     now,
   });
 }
-
 async function hashInvitationToken(token: string) {
-  const body = await getJson<{ hash: string }>(
-    `/invitation-token/hash?token=${encodeURIComponent(token)}`,
-  );
-
+  const body = await getJson<{
+    hash: string;
+  }>(`/invitation-token/hash?token=${encodeURIComponent(token)}`);
   return body.hash;
 }
-
 async function hashEmailVerificationToken(token: string) {
-  const body = await getJson<{ hash: string }>(
-    `/email-verification-token/hash?token=${encodeURIComponent(token)}`,
-  );
-
+  const body = await getJson<{
+    hash: string;
+  }>(`/email-verification-token/hash?token=${encodeURIComponent(token)}`);
   return body.hash;
 }
-
 function handoffGrantInput() {
   return {
     access: "authenticated",

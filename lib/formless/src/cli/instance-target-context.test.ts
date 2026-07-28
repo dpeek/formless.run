@@ -103,11 +103,13 @@ describe("Formless CLI target context", () => {
     });
   });
 });
-
-async function writeTargetWorkspace(input: { storedAdminToken?: string } = {}) {
+async function writeTargetWorkspace(
+  input: {
+    storedAdminToken?: string;
+  } = {},
+) {
   const workspaceRoot = await mkdtemp(path.join(tmpdir(), "formless-target-context-"));
   const manifest = targetWorkspaceManifest();
-
   await mkdir(workspaceRoot, { recursive: true });
   await writeFile(
     path.join(workspaceRoot, INSTANCE_WORKSPACE_MANIFEST_FILE),

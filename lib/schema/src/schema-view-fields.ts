@@ -1,35 +1,48 @@
-import { assertExactKeys, isRecord, parseRequiredNonEmptyString } from "./schema-parse-helpers.ts";
+import {
+  assertExactKeys,
+  definitionsToRecord,
+  isRecord,
+  parseRequiredNonEmptyString,
+} from "./schema-parse-helpers.ts";
 import { parseFieldCommitPolicy, parseFieldEditor } from "./schema-view-field-parser.ts";
 import { isSystemFieldName } from "./fields.ts";
 import { isFieldCommitPolicy, isFieldEditor } from "./field-types.ts";
 import type {
   CreateViewFieldSchema,
+  CreateViewFieldBindingSchema,
   EntitySchema,
   FieldPresentationSchema,
   FieldSchema,
   FieldVisibilityConditionSchema,
   FieldVisibilityValue,
   ViewFieldSchema,
+  ViewFieldBindingSchema,
 } from "./types.ts";
-
 export function parseListViewFields(
   viewName: string,
   entityName: string,
   value: unknown,
   entity: EntitySchema,
-): Record<string, ViewFieldSchema> {
-  if (!isRecord(value)) {
-    throw new Error(`View "${viewName}" fields must be an object.`);
+): ViewFieldBindingSchema[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`View "${viewName}" fields must be an array.`);
   }
-
-  return Object.fromEntries(
-    Object.entries(value).map(([fieldName, field]) => [
-      fieldName,
-      parseListViewField(viewName, entityName, fieldName, field, entity),
-    ]),
-  );
+  const fields = value.map((field, index) => {
+    if (!isRecord(field)) {
+      throw new Error(`View "${viewName}" field ${index} must be an object.`);
+    }
+    const fieldName = parseRequiredNonEmptyString(
+      `View "${viewName}" field ${index} field`,
+      field.field,
+    );
+    return {
+      field: fieldName,
+      ...parseListViewField(viewName, entityName, fieldName, field, entity),
+    };
+  });
+  assertUniqueViewFields(viewName, fields);
+  return fields;
 }
-
 function parseListViewField(
   viewName: string,
   entityName: string,
@@ -40,15 +53,13 @@ function parseListViewField(
   if (!isRecord(value)) {
     throw new Error(`View field "${viewName}.${fieldName}" must be an object.`);
   }
-
-  const allowedKeys = new Set(["editor", "commit", "visibleWhen", "presentation"]);
+  const allowedKeys = new Set(["field", "editor", "commit", "visibleWhen", "presentation"]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       throw new Error(`View field "${viewName}.${fieldName}" has unsupported key "${key}".`);
     }
   }
-
-  const field = entity.fields[fieldName];
+  const field = definitionsToRecord(entity.fields)[fieldName];
   const systemField = field === undefined && isSystemFieldName(fieldName);
   if (!field && !systemField) {
     throw new Error(`View "${viewName}" references unknown field "${entityName}.${fieldName}".`);
@@ -82,19 +93,26 @@ export function parseCreateViewFields(
   entityName: string,
   value: unknown,
   entity: EntitySchema,
-): Record<string, CreateViewFieldSchema> {
-  if (!isRecord(value)) {
-    throw new Error(`View "${viewName}" fields must be an object.`);
+): CreateViewFieldBindingSchema[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`View "${viewName}" fields must be an array.`);
   }
-
-  return Object.fromEntries(
-    Object.entries(value).map(([fieldName, field]) => [
-      fieldName,
-      parseCreateViewField(viewName, entityName, fieldName, field, entity),
-    ]),
-  );
+  const fields = value.map((field, index) => {
+    if (!isRecord(field)) {
+      throw new Error(`View "${viewName}" field ${index} must be an object.`);
+    }
+    const fieldName = parseRequiredNonEmptyString(
+      `View "${viewName}" field ${index} field`,
+      field.field,
+    );
+    return {
+      field: fieldName,
+      ...parseCreateViewField(viewName, entityName, fieldName, field, entity),
+    };
+  });
+  assertUniqueViewFields(viewName, fields);
+  return fields;
 }
-
 function parseCreateViewField(
   viewName: string,
   entityName: string,
@@ -105,15 +123,13 @@ function parseCreateViewField(
   if (!isRecord(value)) {
     throw new Error(`View field "${viewName}.${fieldName}" must be an object.`);
   }
-
-  const allowedKeys = new Set(["editor", "visibleWhen", "presentation"]);
+  const allowedKeys = new Set(["field", "editor", "visibleWhen", "presentation"]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       throw new Error(`View field "${viewName}.${fieldName}" has unsupported key "${key}".`);
     }
   }
-
-  const field = entity.fields[fieldName];
+  const field = definitionsToRecord(entity.fields)[fieldName];
   const systemField = field === undefined && isSystemFieldName(fieldName);
   if (!field && !systemField) {
     throw new Error(`View "${viewName}" references unknown field "${entityName}.${fieldName}".`);
@@ -282,12 +298,9 @@ function parseFieldVisibilityCondition(
   if (!isRecord(value)) {
     throw new Error(`${context} visibleWhen must be an object.`);
   }
-
   assertExactKeys(`${context} visibleWhen`, value, ["field", "values"]);
-
   const fieldName = parseRequiredNonEmptyString(`${context} visibleWhen field`, value.field);
-  const field = entity.fields[fieldName];
-
+  const field = definitionsToRecord(entity.fields)[fieldName];
   if (!field) {
     throw new Error(`${context} visibleWhen references unknown field "${fieldName}".`);
   }
@@ -356,16 +369,27 @@ export function parseFieldVisibilityValue(
   if (typeof value !== "string") {
     throw new Error(`${context} must be a string.`);
   }
-
-  if (field.type === "enum" && value !== "" && !Object.hasOwn(field.values, value)) {
+  if (field.type === "enum" && value !== "" && !definitionsToRecord(field.values)[value]) {
     throw new Error(`${context} must be a known enum value.`);
   }
-
   return value;
 }
-
-export function assertViewHasFields(viewName: string, fields: Record<string, unknown>) {
-  if (Object.keys(fields).length === 0) {
+export function assertViewHasFields(viewName: string, fields: readonly unknown[]) {
+  if (fields.length === 0) {
     throw new Error(`View "${viewName}" must define at least one field.`);
+  }
+}
+function assertUniqueViewFields(
+  viewName: string,
+  fields: readonly {
+    field: string;
+  }[],
+): void {
+  const seen = new Set<string>();
+  for (const field of fields) {
+    if (seen.has(field.field)) {
+      throw new Error(`View "${viewName}" fields reference duplicate "${field.field}".`);
+    }
+    seen.add(field.field);
   }
 }

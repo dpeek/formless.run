@@ -60,14 +60,13 @@ async function expectSignupStartRejected(input: {
     email: "ada@example.com",
     target: input.target,
   });
-  const challenges = await getHarnessJson<{ challenges: StoredEmailVerificationChallenge[] }>(
-    "/harness/challenges",
-  );
-  const deliveries = await getHarnessJson<{ deliveries: EmailDeliveryRecord[] }>(
-    "/harness/deliveries",
-  );
+  const challenges = await getHarnessJson<{
+    challenges: StoredEmailVerificationChallenge[];
+  }>("/harness/challenges");
+  const deliveries = await getHarnessJson<{
+    deliveries: EmailDeliveryRecord[];
+  }>("/harness/deliveries");
   const records = await identityRecords();
-
   expect(rejected.status).toBe(400);
   expect(rejected.body).toEqual({ error: input.expected });
   expect(challenges.challenges).toEqual([]);
@@ -260,9 +259,9 @@ async function completeSignupFlow({
     email,
     target: signupTarget,
   });
-  const message = await getHarnessJson<{ message?: EmailDeliveryRenderedMessage }>(
-    `/harness/internal-message/${started.delivery.deliveryId}`,
-  );
+  const message = await getHarnessJson<{
+    message?: EmailDeliveryRenderedMessage;
+  }>(`/harness/internal-message/${started.delivery.deliveryId}`);
   const token = verificationTokenFromMessage(message.message);
   const verifiedEmail = await postAuthJson<SignupEmailVerifyResponse>(
     "/formless/auth/signup/email/verify",
@@ -299,7 +298,9 @@ async function completeSignupFlow({
     method: "POST",
   });
   const unverified = {
-    body: (await unverifiedResponse.json()) as { error: string },
+    body: (await unverifiedResponse.json()) as {
+      error: string;
+    },
     status: unverifiedResponse.status,
   };
   const options = await postAuthJson<SignupPasskeyOptionsResponse>(
@@ -327,10 +328,9 @@ async function completeSignupFlow({
   });
   const completedBody = (await completed.json()) as SignupPasskeyVerifyResponse;
   const records = await identityRecords();
-  const credentials = await getHarnessJson<{ credentials: StoredPasskeyCredential[] }>(
-    `/harness/credentials/${encodeURIComponent(completedBody.principal.principalId)}`,
-  );
-
+  const credentials = await getHarnessJson<{
+    credentials: StoredPasskeyCredential[];
+  }>(`/harness/credentials/${encodeURIComponent(completedBody.principal.principalId)}`);
   return {
     completedBody,
     completedStatus: completed.status,
@@ -360,19 +360,16 @@ async function createSignupHarness(bindings: Record<string, string> = {}): Promi
     },
   );
 }
-
 async function identityRecords() {
-  return getHarnessJson<{ records: StoredRecord[] }>("/harness/identity-records");
+  return getHarnessJson<{
+    records: StoredRecord[];
+  }>("/harness/identity-records");
 }
-
 async function getHarnessJson<T>(path: string): Promise<T> {
   const response = await fetchHarness(path);
-
   expect(response.status).toBe(200);
-
   return (await response.json()) as T;
 }
-
 async function postAuthJson<T>(path: string, body: unknown): Promise<T> {
   const response = await fetchAuth(path, {
     body: JSON.stringify(body),
@@ -391,9 +388,10 @@ async function postAuthJsonFailure(path: string, body: unknown) {
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
-
   return {
-    body: (await response.json()) as { error: string },
+    body: (await response.json()) as {
+      error: string;
+    },
     status: response.status,
   };
 }
@@ -692,24 +690,28 @@ async function writeSignupHarness() {
       function profileCompletionSourceSchema() {
         return {
           version: 1,
-          entities: {
-            profile: {
+          entities: [
+            {
+              key: "profile",
               label: "Profile",
-              fields: {
-                displayName: {
+              fields: [
+                {
+                  key: "displayName",
                   type: "text",
                   required: true,
                   label: "Display name",
                 },
-                principal: {
+                {
+                  key: "principal",
                   type: "reference",
                   required: true,
                   label: "Principal",
                   to: "auth:principal",
                 },
-              },
-              operations: {
-                completeRegistration: {
+              ],
+              operations: [
+                {
+                  key: "completeRegistration",
                   label: "Complete profile",
                   kind: "command",
                   scope: "collection",
@@ -717,15 +719,17 @@ async function writeSignupHarness() {
                     actors: ["authenticated"],
                   },
                   input: {
-                    fields: {
-                      displayName: {
+                    fields: [
+                      {
+                        key: "displayName",
                         field: "displayName",
                       },
-                      principal: {
+                      {
+                        key: "principal",
                         field: "principal",
                         required: true,
                       },
-                    },
+                    ],
                   },
                   effect: {
                     type: "recordPlan",
@@ -753,14 +757,51 @@ async function writeSignupHarness() {
                     required: true,
                   },
                 },
+              ],
+            },
+          ],
+          queries: [
+            {
+              key: "profileAll",
+              label: "Profiles",
+              entity: "profile",
+              expression: { kind: "all" },
+            },
+          ],
+          itemViews: [
+            {
+              key: "profileItem",
+              entity: "profile",
+              fields: [
+                { field: "displayName", editor: "text", commit: "field-commit" },
+              ],
+            },
+          ],
+          tableViews: [],
+          views: [
+            {
+              key: "profileHome",
+              type: "collection",
+              label: "Profiles",
+              entity: "profile",
+              queries: [{ query: "profileAll" }],
+              defaultQuery: "profileAll",
+              result: { type: "list", itemView: "profileItem" },
+            },
+          ],
+          screens: [
+            {
+              key: "profileHome",
+              type: "workspace",
+              label: "Profiles",
+              layout: {
+                type: "stack",
+                sections: [
+                  { id: "profiles", type: "collection", view: "profileHome" },
+                ],
               },
             },
-          },
-          queries: {},
-          itemViews: {},
-          tableViews: {},
-          views: {},
-          screens: {},
+          ],
         };
       }
     `,
@@ -816,10 +857,13 @@ class VirtualPasskey {
     this.credentialId = credentialIdValue;
     this.publicKey = pair.publicKey;
   }
-
   registrationResponse(
     options: PublicKeyCredentialCreationOptionsJSON,
-    input: { origin: string; rpId: string; userVerified?: boolean },
+    input: {
+      origin: string;
+      rpId: string;
+      userVerified?: boolean;
+    },
   ): RegistrationResponseJSON {
     const clientDataJSON = clientDataJson("webauthn.create", options.challenge, input.origin);
     const authData = registrationAuthenticatorData({

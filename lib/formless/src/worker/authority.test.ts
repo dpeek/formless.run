@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 import type { WebSocketEventMap } from "miniflare";
-import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
+import {
+  STORAGE_SNAPSHOT_KIND,
+  STORAGE_SNAPSHOT_VERSION,
+  formatStoredRecordsForArtifact,
+} from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
   FORMLESS_CLIENT_PACKAGE_REVISION_HEADER,
@@ -42,6 +46,7 @@ import {
   siteSeedRecords,
   siteSourceSchema,
   taskSeedRecords,
+  taskSourceSeedRecords,
   taskSourceSchema as appSchema,
 } from "../test/schema-apps.ts";
 import { testSiteSeedRecords } from "../test/site-records.ts";
@@ -113,9 +118,7 @@ describe("authority", () => {
     const bootstrapBody = (await bootstrap.json()) as BootstrapResponse;
     const sync = await harness.fetch(
       apiPath(
-        `/api/sync?after=${bootstrapBody.cursor}&schemaUpdatedAt=${encodeURIComponent(
-          "2026-01-01T00:00:00.000Z",
-        )}`,
+        `/api/sync?after=${bootstrapBody.cursor}&schemaUpdatedAt=${encodeURIComponent("2026-01-01T00:00:00.000Z")}`,
       ),
     );
     const syncBody = (await sync.json()) as SyncResponse;
@@ -189,10 +192,11 @@ describe("authority", () => {
       const body = (await response.json()) as {
         code: string;
         reloadRequired: boolean;
-        upgrade: { schemaUpdatedAt: string | null };
+        upgrade: {
+          schemaUpdatedAt: string | null;
+        };
       };
       const after = await getJson<BootstrapResponse>("/api/bootstrap");
-
       expect(response.status).toBe(409);
       expect(body).toMatchObject({
         code: FORMLESS_RELOAD_REQUIRED_ERROR_CODE,
@@ -296,7 +300,7 @@ describe("authority", () => {
     const legacy = await getJson<BootstrapResponse>("/api/bootstrap");
 
     expect(initialSync.cursor).toBe(taskSeedRecords.length);
-    expect(initialSync.changes.map((change) => change.payload)).toEqual(taskSeedRecords);
+    expect(initialSync.changes.map((change) => change.payload)).toEqual(taskSourceSeedRecords);
     expect(workSnapshot).toMatchObject({
       kind: STORAGE_SNAPSHOT_KIND,
       storageIdentity: "app:work",
@@ -304,7 +308,9 @@ describe("authority", () => {
       schema: appSchema,
       sourceCursor: created.cursor,
     });
-    expect(workSnapshot.records).toEqual([...taskSeedRecords, created.record]);
+    expect(workSnapshot.records).toEqual(
+      formatStoredRecordsForArtifact(appSchema, [...taskSeedRecords, created.record]),
+    );
     expect(restored.records).toContainEqual(restoredRecord);
     expect(command.changes.map((change) => change.payload)).toContainEqual(
       expect.objectContaining({
@@ -479,21 +485,25 @@ describe("authority", () => {
   it("returns 404 for a missing site page href", async () => {
     await resetSchemaApp("site");
     useSchemaApp("site");
-
     const response = await harness.fetch(apiPath("/api/tree/missing-page"));
-
     expect(response.status).toBe(404);
     expect(response.headers.get("Cache-Control")).toBe(PUBLIC_SITE_TREE_CACHE_CONTROL);
-    expect((await response.json()) as { error: string }).toEqual({
+    expect(
+      (await response.json()) as {
+        error: string;
+      },
+    ).toEqual({
       error: "Site page not found.",
     });
   });
-
   it("rejects page tree requests for non-site schema keys", async () => {
     const response = await harness.fetch(apiPath("/api/tree/home"));
-
     expect(response.status).toBe(400);
-    expect((await response.json()) as { error: string }).toEqual({
+    expect(
+      (await response.json()) as {
+        error: string;
+      },
+    ).toEqual({
       error: 'Package app "tasks" does not declare public Site runtime support.',
     });
   });
@@ -535,10 +545,13 @@ describe("authority", () => {
       const response = await privateHarness.fetch(
         "/api/app-installs/private-site/private-site/tree/home",
       );
-
       expect(created.status).toBe(201);
       expect(response.status).toBe(400);
-      expect((await response.json()) as { error: string }).toEqual({
+      expect(
+        (await response.json()) as {
+          error: string;
+        },
+      ).toEqual({
         error:
           'Package app "private-site" declares public Site runtime support, but no public Site Worker adapter is registered.',
       });
@@ -552,9 +565,9 @@ describe("authority", () => {
 
     expect(body.cursor).toBe(taskSeedRecords.length);
     expect(body.changes.map((change) => change.writeId)).toEqual(
-      taskSeedRecords.map((record) => `seed-task:${record.id}`),
+      taskSourceSeedRecords.map((record) => `seed-task:${record.id}`),
     );
-    expect(body.changes.map((change) => change.payload)).toEqual(taskSeedRecords);
+    expect(body.changes.map((change) => change.payload)).toEqual(taskSourceSeedRecords);
   });
 
   it("rejects unknown schema keys and old unkeyed API paths", async () => {
@@ -586,24 +599,26 @@ describe("authority", () => {
     expect(crmBootstrap.records).toContainEqual(contact.record);
     expect(crmBootstrap.records.every((record) => record.entity !== "task")).toBe(true);
   });
-
   it("returns query, item view, and collection definitions from bootstrap", async () => {
     const body = await getJson<BootstrapResponse>("/api/bootstrap");
-
-    expect(Object.keys(body.schema.queries)).toEqual([
-      "taskAll",
+    expect(body.schema.queries.map(({ key }) => key).sort()).toEqual([
       "taskActive",
+      "taskAll",
       "taskCompleted",
       "taskOverdue",
     ]);
-    expect(body.schema.queries.taskOverdue).toEqual(appSchema.queries.taskOverdue);
-    expect(body.schema.itemViews.taskListItem).toEqual(appSchema.itemViews.taskListItem);
-    expect(body.schema.views.taskHome).toEqual(appSchema.views.taskHome);
+    expect(body.schema.queries.find((definition) => definition.key === "taskOverdue")!).toEqual(
+      appSchema.queries.find((definition) => definition.key === "taskOverdue")!,
+    );
+    expect(body.schema.itemViews.find((definition) => definition.key === "taskListItem")!).toEqual(
+      appSchema.itemViews.find((definition) => definition.key === "taskListItem")!,
+    );
+    expect(body.schema.views.find((definition) => definition.key === "taskHome")!).toEqual(
+      appSchema.views.find((definition) => definition.key === "taskHome")!,
+    );
   });
-
   it("returns the active schema and metadata from the schema route", async () => {
     const body = await getJson<SchemaResponse>("/api/schema");
-
     expect(body.schema).toEqual(appSchema);
     expect(body.updatedAt).toEqual(expect.any(String));
   });
@@ -611,19 +626,16 @@ describe("authority", () => {
   it("persists compatible schema updates and returns them from bootstrap", async () => {
     const nextSchema = {
       ...appSchema,
-      entities: {
-        ...appSchema.entities,
-        task: {
-          ...appSchema.entities.task,
-          label: "Planner task",
-          fields: {
-            ...appSchema.entities.task.fields,
-            notes: { type: "text", required: false },
-          },
-        },
-      },
+      entities: appSchema.entities.map((entity) =>
+        entity.key === "task"
+          ? {
+              ...entity,
+              label: "Planner task",
+              fields: [...entity.fields, { key: "notes", type: "text" as const, required: false }],
+            }
+          : entity,
+      ),
     } as unknown as AppSchema;
-
     const update = await postJson<SchemaUpdateResponse>("/api/schema", { schema: nextSchema });
     const schemaResponse = await getJson<SchemaResponse>("/api/schema");
     const bootstrap = await getJson<BootstrapResponse>("/api/bootstrap");
@@ -646,10 +658,10 @@ describe("authority", () => {
       schema: schemaWithTaskLabel("Planner task"),
     });
     const beforeReset = await getJson<BootstrapResponse>("/api/bootstrap");
-
     const reset = await postJson<BootstrapResponse>("/api/reset/schema", {});
-
-    expect(beforeReset.schema.entities.task?.label).toBe("Planner task");
+    expect(beforeReset.schema.entities.find((definition) => definition.key === "task")?.label).toBe(
+      "Planner task",
+    );
     expect(reset.schema).toEqual(appSchema);
     expect(reset.schema.screens).toEqual(appSchema.screens);
     expect(reset.records).toEqual([...taskSeedRecords, created.record]);
@@ -668,9 +680,10 @@ describe("authority", () => {
     const reset = await postJson<BootstrapResponse>("/api/reset/schema", {});
     const resetRecord = reset.records.find((record) => record.id === created.record.id);
     const sync = await getJson<SyncResponse>(`/api/sync?after=${created.cursor}`);
-
     expect(reset.schema).toEqual(appSchema);
-    expect(reset.schema.entities.task.fields).not.toHaveProperty("notes");
+    expect(
+      reset.schema.entities.find((definition) => definition.key === "task")!.fields,
+    ).not.toHaveProperty("notes");
     expect(resetRecord?.values).toEqual({
       title: "Has retired field",
       done: false,
@@ -697,12 +710,12 @@ describe("authority", () => {
       title: "Negative",
       estimate: -1,
     });
-
     const reset = await postJson<BootstrapResponse>("/api/reset/schema", {});
     const resetRecord = reset.records.find((record) => record.id === created.record.id);
-
     expect(reset.schema).toEqual(appSchema);
-    expect(reset.schema.entities.task.fields).not.toHaveProperty("estimate");
+    expect(
+      reset.schema.entities.find((definition) => definition.key === "task")!.fields,
+    ).not.toHaveProperty("estimate");
     expect(resetRecord?.values).toEqual({
       title: "Negative",
       done: false,
@@ -727,12 +740,12 @@ describe("authority", () => {
     expect(sync.changes).toHaveLength(taskSeedRecords.length);
     expect(sync.changes.map((change) => change.seq)).toEqual([1, 2, 3, 4, 5]);
     expect(sync.changes.map((change) => change.writeId)).toEqual(
-      taskSeedRecords.map((record) => `seed-task:${record.id}`),
+      taskSourceSeedRecords.map((record) => `seed-task:${record.id}`),
     );
     expect(sync.changes.map((change) => change.operationKind)).toEqual(
-      taskSeedRecords.map(() => "create"),
+      taskSourceSeedRecords.map(() => "create"),
     );
-    expect(sync.changes.map((change) => change.payload)).toEqual(taskSeedRecords);
+    expect(sync.changes.map((change) => change.payload)).toEqual(taskSourceSeedRecords);
   });
 
   it("resets seed data for one schema key without touching another", async () => {
@@ -775,7 +788,9 @@ describe("authority", () => {
       sourceCursor: created.cursor,
       schema: appSchema,
     });
-    expect(snapshot.records).toEqual([...taskSeedRecords, created.record]);
+    expect(snapshot.records).toEqual(
+      formatStoredRecordsForArtifact(appSchema, [...taskSeedRecords, created.record]),
+    );
 
     await resetSchemaApp("crm");
     useSchemaApp("crm");
@@ -979,41 +994,37 @@ describe("authority", () => {
       deletedAt: expect.any(String),
     });
   });
-
   it("rejects incompatible schema changes", async () => {
     await postCreateOperation("write-1", { title: "First", done: false });
-
     const nextSchema = {
       version: 1,
-      entities: {
-        task: {
+      entities: [
+        {
+          key: "task",
           label: "Task",
-          fields: {
-            done: { type: "boolean", required: true, default: false },
-          },
-          operations: taskOperations("Task", {
-            done: { type: "boolean", required: true, default: false },
-          }),
+          fields: [{ key: "done", type: "boolean", required: true, default: false }],
+          operations: taskOperations("Task", [{ key: "done" }]),
         },
-      },
-      queries: {
-        taskAll: {
+      ],
+      queries: [
+        {
+          key: "taskAll",
           label: "All",
           entity: "task",
           expression: { kind: "all" },
         },
-      },
-      itemViews: {
-        taskListItem: {
+      ],
+      itemViews: [
+        {
+          key: "taskListItem",
           entity: "task",
-          fields: {
-            done: { editor: "boolean", commit: "immediate" },
-          },
+          fields: [{ field: "done", editor: "boolean", commit: "immediate" }],
         },
-      },
-      tableViews: {},
-      views: {
-        taskHome: {
+      ],
+      tableViews: [],
+      views: [
+        {
+          key: "taskHome",
           type: "collection",
           label: "Tasks",
           entity: "task",
@@ -1021,24 +1032,17 @@ describe("authority", () => {
           defaultQuery: "taskAll",
           result: { type: "list", itemView: "taskListItem" },
         },
-        taskCreate: {
+        {
+          key: "taskCreate",
           type: "create",
           entity: "task",
-          fields: {
-            done: { editor: "boolean" },
-          },
+          fields: [{ field: "done", editor: "boolean" }],
         },
-      },
+      ],
       screens: defaultScreens(),
     } as unknown as AppSchema;
-
-    await expectError(
-      "/api/schema",
-      { schema: nextSchema },
-      'Cannot remove or rename field "task.title"',
-    );
+    await expectError("/api/schema", { schema: nextSchema }, "Cannot remove or rename field");
   });
-
   it("returns changes after a known sync cursor", async () => {
     await postCreateOperation("write-1", { title: "First", done: false });
     const second = await postCreateOperation("write-2", { title: "Second", done: true });
@@ -1135,12 +1139,9 @@ describe("authority", () => {
       recordId: created.record.id,
     });
     const httpSync = await getJson<SyncResponse>(
-      `/api/sync?after=${created.cursor}&schemaUpdatedAt=${encodeURIComponent(
-        schemaUpdate.updatedAt,
-      )}`,
+      `/api/sync?after=${created.cursor}&schemaUpdatedAt=${encodeURIComponent(schemaUpdate.updatedAt)}`,
     );
     const socket = await openSyncSocket();
-
     try {
       expect(httpSync).toEqual({
         changes: deleted.changes,
@@ -1196,7 +1197,9 @@ describe("authority", () => {
     if (message.type === "sync") {
       expect(message.payload.schema).toBeUndefined();
       expect(message.payload.schemaUpdatedAt).toBeUndefined();
-      expect(message.payload.changes.map((change) => change.payload)).toEqual(taskSeedRecords);
+      expect(message.payload.changes.map((change) => change.payload)).toEqual(
+        taskSourceSeedRecords,
+      );
     }
 
     socket.close();
@@ -1227,11 +1230,8 @@ describe("authority", () => {
         await getJson<SchemaResponse>("/api/schema");
         await getJson<StorageSnapshot>("/api/snapshot");
         await getJson<SyncResponse>(
-          `/api/sync?after=${taskSeedRecords.length}&schemaUpdatedAt=${encodeURIComponent(
-            schemaResponse.updatedAt,
-          )}`,
+          `/api/sync?after=${taskSeedRecords.length}&schemaUpdatedAt=${encodeURIComponent(schemaResponse.updatedAt)}`,
         );
-
         await expectNoCapturedMessages(capture);
       } finally {
         capture.stop();
@@ -1324,10 +1324,13 @@ describe("authority", () => {
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
-
       expect(invalidResponse.status).toBe(400);
       expect(invalidResponse.headers.get("Cache-Control")).toBe("no-store");
-      expect((await invalidResponse.json()) as { error: string }).toEqual({
+      expect(
+        (await invalidResponse.json()) as {
+          error: string;
+        },
+      ).toEqual({
         error: 'Unknown entity "missing".',
       });
       await expectNoCapturedMessages(invalidCapture);
@@ -1540,12 +1543,11 @@ describe("authority", () => {
       seedSocket.close();
     }
   });
-
   it("does not broadcast failed write validation, constraint failures, or write replay", async () => {
     await postJson<SchemaUpdateResponse>("/api/schema", {
-      schema: schemaWithTaskConstraints({
-        uniqueTitle: { kind: "unique", fields: ["title"] },
-      }),
+      schema: schemaWithTaskConstraints([
+        { kind: "unique", fields: ["title"], key: "uniqueTitle" },
+      ]),
     });
     const existing = await postCreateOperation("write-constraint-source", {
       title: "Constraint source",
@@ -1586,9 +1588,12 @@ describe("authority", () => {
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
-
       expect(constraintFailure.status).toBe(400);
-      expect((await constraintFailure.json()) as { error: string }).toEqual({
+      expect(
+        (await constraintFailure.json()) as {
+          error: string;
+        },
+      ).toEqual({
         error: 'Unique constraint "task.uniqueTitle" would be violated.',
       });
       await expectNoCapturedMessages(constraintCapture);
@@ -1679,18 +1684,17 @@ describe("authority", () => {
         body: JSON.stringify({
           schema: {
             version: 1,
-            entities: {
-              task: {
+            entities: [
+              {
+                key: "task",
                 label: "Task",
-                fields: {
-                  title: { type: "text", required: true, label: "" },
-                },
+                fields: [{ key: "title", type: "text", required: true, label: "" }],
               },
-            },
-            queries: {},
-            itemViews: {},
-            tableViews: {},
-            views: {},
+            ],
+            queries: [],
+            itemViews: [],
+            tableViews: [],
+            views: [],
           },
         }),
         headers: { "Content-Type": "application/json" },
@@ -2039,52 +2043,48 @@ function taskSnapshotRecord(id: string, title: string): StoredRecord {
 function schemaWithTaskLabel(label: string) {
   return {
     ...appSchema,
-    entities: {
-      ...appSchema.entities,
-      task: {
-        ...appSchema.entities.task,
-        label,
-      },
-    },
+    entities: appSchema.entities.map((entity) =>
+      entity.key === "task" ? { ...entity, label } : entity,
+    ),
   } as unknown as AppSchema;
 }
-
 function schemaWithTaskNotesField(): AppSchema {
+  const task = appSchema.entities.find((definition) => definition.key === "task")!;
+  const fields = [
+    ...task.fields,
+    { key: "notes", type: "text" as const, required: false, label: "Notes" },
+  ];
   return {
     ...appSchema,
-    entities: {
-      ...appSchema.entities,
-      task: {
-        ...appSchema.entities.task,
-        fields: {
-          ...appSchema.entities.task.fields,
-          notes: { type: "text", required: false, label: "Notes" },
-        },
-        operations: taskOperations(
-          "Task",
-          {
-            ...appSchema.entities.task.fields,
-            notes: { type: "text", required: false, label: "Notes" },
-          },
-          commandOperationsFromSource(appSchema.entities.task.operations),
-        ),
-      },
-    },
+    entities: appSchema.entities.map((entity) =>
+      entity.key === "task"
+        ? {
+            ...task,
+            fields,
+            operations: taskOperations(
+              "Task",
+              fields,
+              commandOperationsFromSource(task.operations),
+            ),
+            key: "task",
+          }
+        : entity,
+    ),
   };
 }
-
 function taskOperations(
   label: string,
-  fields: Record<string, unknown>,
-  commandOperations: Record<string, unknown> = {},
-  options: { delete?: boolean } = {},
-): NonNullable<AppSchema["entities"][string]["operations"]> {
+  fields: readonly { key: string }[],
+  commandOperations: NonNullable<AppSchema["entities"][number]["operations"]> = [],
+  options: {
+    delete?: boolean;
+  } = {},
+): NonNullable<AppSchema["entities"][number]["operations"]> {
   const input = {
-    fields: Object.fromEntries(Object.keys(fields).map((field) => [field, { field }])),
+    fields: fields.map(({ key }) => ({ key, field: key })),
   };
-
-  return {
-    create: {
+  return [
+    {
       label: `Create ${label}`,
       kind: "create",
       scope: "collection",
@@ -2093,8 +2093,9 @@ function taskOperations(
       output: { type: "create" },
       idempotency: { required: true },
       audit: { input: "summary" },
+      key: "create",
     },
-    update: {
+    {
       label: `Update ${label}`,
       kind: "update",
       scope: "record",
@@ -2103,85 +2104,78 @@ function taskOperations(
       output: { type: "update" },
       idempotency: { required: true },
       audit: { input: "summary" },
+      key: "update",
     },
     ...(options.delete
-      ? {
-          delete: {
+      ? [
+          {
+            key: "delete",
             label: `Delete ${label}`,
-            kind: "delete",
-            scope: "record",
-            effect: { type: "tombstoneRecord" },
-            output: { type: "delete" },
+            kind: "delete" as const,
+            scope: "record" as const,
+            effect: { type: "tombstoneRecord" as const },
+            output: { type: "delete" as const },
             idempotency: { required: true },
-            audit: { input: "summary" },
+            audit: { input: "summary" as const },
           },
-        }
-      : {}),
+        ]
+      : []),
     ...commandOperations,
-  };
+  ];
 }
-
 function commandOperationsFromSource(
-  operations: AppSchema["entities"][string]["operations"] | undefined,
-): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(operations ?? {}).filter(([, operation]) => operation.kind === "command"),
-  );
+  operations: AppSchema["entities"][number]["operations"] | undefined,
+): NonNullable<AppSchema["entities"][number]["operations"]> {
+  return (operations ?? []).filter((operation) => operation.kind === "command");
 }
-
 function schemaWithTaskAndProjectDeleteEnabled(): AppSchema {
   return {
     ...appSchema,
-    entities: {
-      task: {
-        ...appSchema.entities.task,
+    entities: [
+      {
+        ...appSchema.entities.find((definition) => definition.key === "task")!,
         operations: taskOperations(
           "Task",
-          appSchema.entities.task.fields,
-          commandOperationsFromSource(appSchema.entities.task.operations),
+          appSchema.entities.find((definition) => definition.key === "task")!.fields,
+          commandOperationsFromSource(
+            appSchema.entities.find((definition) => definition.key === "task")!.operations,
+          ),
           { delete: true },
         ),
+        key: "task",
       },
-      project: {
+      {
+        key: "project",
         label: "Project",
-        fields: {
-          name: { type: "text", required: true },
-        },
-        operations: taskOperations(
-          "Project",
-          {
-            name: { type: "text", required: true },
-          },
-          undefined,
-          { delete: true },
-        ),
+        fields: [{ key: "name", type: "text", required: true }],
+        operations: taskOperations("Project", [{ key: "name" }], undefined, { delete: true }),
       },
-    },
+    ],
   } as unknown as AppSchema;
 }
-
 function schemaWithTaskDeleteOperation(): AppSchema {
   return {
     ...appSchema,
-    entities: {
-      ...appSchema.entities,
-      task: {
-        ...appSchema.entities.task,
-        operations: taskOperations(
-          "Task",
-          appSchema.entities.task.fields,
-          commandOperationsFromSource(appSchema.entities.task.operations),
-          { delete: true },
-        ),
-      },
-    },
+    entities: appSchema.entities.map((entity) =>
+      entity.key === "task"
+        ? {
+            ...entity,
+            operations: taskOperations(
+              "Task",
+              entity.fields,
+              commandOperationsFromSource(entity.operations),
+              { delete: true },
+            ),
+          }
+        : entity,
+    ),
   } as unknown as AppSchema;
 }
-
 function schemaWithEstimateNumber(numberOverrides: Record<string, unknown> = {}) {
-  const fields = {
-    ...appSchema.entities.task.fields,
-    estimate: {
+  const fields = [
+    ...appSchema.entities.find((definition) => definition.key === "task")!.fields,
+    {
+      key: "estimate",
       type: "number",
       required: false,
       label: "Estimate",
@@ -2189,21 +2183,23 @@ function schemaWithEstimateNumber(numberOverrides: Record<string, unknown> = {})
       integer: true,
       ...numberOverrides,
     },
-  };
-
+  ];
   return {
     version: 1,
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         label: "Task",
         fields,
         operations: taskOperations(
           "Task",
           fields,
-          commandOperationsFromSource(appSchema.entities.task.operations),
+          commandOperationsFromSource(
+            appSchema.entities.find((definition) => definition.key === "task")!.operations,
+          ),
         ),
       },
-    },
+    ],
     queries: appSchema.queries,
     itemViews: appSchema.itemViews,
     tableViews: appSchema.tableViews,
@@ -2211,46 +2207,48 @@ function schemaWithEstimateNumber(numberOverrides: Record<string, unknown> = {})
     screens: appSchema.screens,
   };
 }
-
 function schemaWithIdentityReferenceAccount(): AppSchema {
   const fields = identityReferenceAccountFields();
-
   return {
     version: 1,
-    entities: {
+    entities: [
       ...appSchema.entities,
-      account: {
+      {
+        key: "account",
         label: "Account",
         fields,
-        operations: taskOperations("Account", fields, {
-          createFromPlan: identityReferenceAccountPlanOperation(),
-        }),
+        operations: taskOperations("Account", fields, [
+          { key: "createFromPlan", ...identityReferenceAccountPlanOperation() },
+        ]),
       },
-    },
-    queries: {
+    ],
+    queries: [
       ...appSchema.queries,
-      accountAll: {
+      {
+        key: "accountAll",
         label: "All accounts",
         entity: "account",
         expression: { kind: "all" },
       },
-    },
-    itemViews: {
+    ],
+    itemViews: [
       ...appSchema.itemViews,
-      accountListItem: {
+      {
+        key: "accountListItem",
         entity: "account",
-        fields: {
-          name: { editor: "text", commit: "field-commit" },
-          ownerPrincipal: { editor: "reference", commit: "immediate" },
-          organization: { editor: "reference", commit: "immediate" },
-          group: { editor: "reference", commit: "immediate" },
-        },
+        fields: [
+          { field: "name", editor: "text", commit: "field-commit" },
+          { field: "ownerPrincipal", editor: "reference", commit: "immediate" },
+          { field: "organization", editor: "reference", commit: "immediate" },
+          { field: "group", editor: "reference", commit: "immediate" },
+        ],
       },
-    },
+    ],
     tableViews: appSchema.tableViews,
-    views: {
+    views: [
       ...appSchema.views,
-      accountHome: {
+      {
+        key: "accountHome",
         type: "collection",
         label: "Accounts",
         entity: "account",
@@ -2258,45 +2256,47 @@ function schemaWithIdentityReferenceAccount(): AppSchema {
         defaultQuery: "accountAll",
         result: { type: "list", itemView: "accountListItem" },
       },
-      accountCreate: {
+      {
+        key: "accountCreate",
         type: "create",
         entity: "account",
-        fields: {
-          name: { editor: "text" },
-          ownerPrincipal: { editor: "reference" },
-          organization: { editor: "reference" },
-          group: { editor: "reference" },
-        },
+        fields: [
+          { field: "name", editor: "text" },
+          { field: "ownerPrincipal", editor: "reference" },
+          { field: "organization", editor: "reference" },
+          { field: "group", editor: "reference" },
+        ],
       },
-    },
+    ],
     screens: appSchema.screens,
   } as AppSchema;
 }
-
 function identityReferenceAccountFields(): EntitySchema["fields"] {
-  return {
-    name: { type: "text", required: true, label: "Name" },
-    ownerPrincipal: {
+  return [
+    { type: "text", required: true, label: "Name", key: "name" },
+    {
       type: "reference",
       required: true,
       label: "Owner principal",
       to: "auth:principal",
+      key: "ownerPrincipal",
     },
-    organization: {
+    {
       type: "reference",
       required: true,
       label: "Organization",
       to: "auth:organization",
+      key: "organization",
     },
-    group: {
+    {
       type: "reference",
       required: true,
       label: "Group",
       to: "auth:group",
+      key: "group",
     },
-  };
+  ];
 }
-
 function identityReferenceAccountSnapshotRecord({
   group,
   id = "snapshot-account-identity-refs",
@@ -2330,12 +2330,12 @@ function identityReferenceAccountPlanOperation(): EntityOperationSchema {
     kind: "command",
     scope: "collection",
     input: {
-      fields: {
-        name: { field: "name" },
-        ownerPrincipal: { field: "ownerPrincipal" },
-        organization: { field: "organization" },
-        group: { field: "group" },
-      },
+      fields: [
+        { key: "name", field: "name" },
+        { key: "ownerPrincipal", field: "ownerPrincipal" },
+        { key: "organization", field: "organization" },
+        { key: "group", field: "group" },
+      ],
     },
     effect: {
       type: "recordPlan",
@@ -2374,60 +2374,60 @@ function identityReferenceAccountPlanSteps(): RecordPlanStepSchema[] {
     },
   ];
 }
-
 function schemaWithTaskConstraints(constraints: EntitySchema["constraints"]) {
-  const fields = appSchema.entities.task.fields;
-
+  const fields = appSchema.entities.find((definition) => definition.key === "task")!.fields;
   return {
     version: 1,
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         label: "Task",
         fields,
         constraints,
         operations: taskOperations(
           "Task",
           fields,
-          commandOperationsFromSource(appSchema.entities.task.operations),
+          commandOperationsFromSource(
+            appSchema.entities.find((definition) => definition.key === "task")!.operations,
+          ),
         ),
       },
-    },
+    ],
     queries: defaultQueries(),
     itemViews: defaultItemViews(),
-    tableViews: {},
+    tableViews: [],
     views: defaultViews(),
     screens: defaultScreens(),
   } as unknown as AppSchema;
 }
-
 function schemaWithViews(views: unknown = defaultViews()) {
-  const fields = appSchema.entities.task.fields;
-
+  const fields = appSchema.entities.find((definition) => definition.key === "task")!.fields;
   return {
     version: 1,
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         label: "Task",
         fields,
         operations: taskOperations("Task", fields),
       },
-    },
+    ],
     queries: defaultQueries(),
     itemViews: defaultItemViews(),
-    tableViews: {},
+    tableViews: [],
     views,
     screens: defaultScreens(),
   };
 }
-
 function defaultQueries(): AppSchema["queries"] {
-  return {
-    taskAll: {
+  return [
+    {
       label: "All",
       entity: "task",
       expression: { kind: "all" },
+      key: "taskAll",
     },
-    taskActive: {
+    {
       label: "Active",
       entity: "task",
       expression: {
@@ -2436,8 +2436,9 @@ function defaultQueries(): AppSchema["queries"] {
         op: "eq",
         value: false,
       },
+      key: "taskActive",
     },
-    taskCompleted: {
+    {
       label: "Completed",
       entity: "task",
       expression: {
@@ -2446,55 +2447,60 @@ function defaultQueries(): AppSchema["queries"] {
         op: "eq",
         value: true,
       },
+      key: "taskCompleted",
     },
-  };
+  ];
 }
-
 function defaultItemViews(): AppSchema["itemViews"] {
-  return {
-    taskListItem: {
+  return [
+    {
       entity: "task",
-      fields: {
-        title: { editor: "text", commit: "field-commit" },
-        done: { editor: "boolean", commit: "immediate" },
-        dueDate: { editor: "date", commit: "field-commit" },
-        priority: { editor: "enum", commit: "immediate" },
-      },
+      fields: [
+        { field: "title", editor: "text", commit: "field-commit" },
+        { field: "done", editor: "boolean", commit: "immediate" },
+        { field: "dueDate", editor: "date", commit: "field-commit" },
+        { field: "priority", editor: "enum", commit: "immediate" },
+      ],
+      key: "taskListItem",
     },
-  };
+  ];
 }
-
 function defaultViews(): AppSchema["views"] {
-  return {
-    taskHome: defaultCollectionView(),
-    taskCreate: {
+  return [
+    { ...defaultCollectionView(), key: "taskHome" },
+    {
       type: "create",
       entity: "task",
-      fields: {
-        title: { editor: "text" },
-        dueDate: { editor: "date" },
-        priority: { editor: "enum" },
-      },
+      fields: [
+        { field: "title", editor: "text" },
+        { field: "dueDate", editor: "date" },
+        { field: "priority", editor: "enum" },
+      ],
+      key: "taskCreate",
     },
-  };
+  ];
 }
-
 function defaultScreens(): NonNullable<AppSchema["screens"]> {
-  return {
-    taskHome: {
+  return [
+    {
       type: "workspace",
       label: "Tasks",
-      navigation: { primary: true },
       layout: {
         type: "stack",
         sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
       },
+      key: "taskHome",
     },
-  };
+  ];
 }
-
-function defaultCollectionView(): Extract<AppSchema["views"][string], { type: "collection" }> {
+function defaultCollectionView(): Extract<
+  AppSchema["views"][number],
+  {
+    type: "collection";
+  }
+> {
   return {
+    key: "taskHome",
     type: "collection",
     label: "All",
     entity: "task",
@@ -2658,9 +2664,10 @@ async function createIdentityGroup(
     },
   });
 }
-
 async function postIdentityRecordOperation(
-  body: AuthorityTestRecordOperationRequest & { harness: Harness },
+  body: AuthorityTestRecordOperationRequest & {
+    harness: Harness;
+  },
 ) {
   const { harness: targetHarness, ...operationBody } = body;
   const request = recordOperationRequest(operationBody);

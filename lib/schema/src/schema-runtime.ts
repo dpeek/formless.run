@@ -1,4 +1,9 @@
-import { assertExactKeys, isRecord, parseRequiredNonEmptyString } from "./schema-parse-helpers.ts";
+import {
+  assertExactKeys,
+  definitionsToRecord,
+  isRecord,
+  parseRequiredNonEmptyString,
+} from "./schema-parse-helpers.ts";
 import type {
   AppSchema,
   EntityOperationKind,
@@ -215,10 +220,8 @@ function parseSecretReferenceFieldNames(
   if (names === undefined) {
     return undefined;
   }
-
   for (const fieldName of names) {
-    const field = entity.fields[fieldName];
-
+    const field = definitionsToRecord(entity.fields)[fieldName];
     if (field?.type !== "text" && field?.type !== "reference") {
       throw new Error(`${context} field "${fieldName}" must be text or reference.`);
     }
@@ -345,14 +348,11 @@ function parseHistory(
       `${context} operationCreated entities must not declare create, update, or delete operations.`,
     );
   }
-
   return { kind: value.kind };
 }
-
 function entityHasOperationKind(entity: EntitySchema, ...kinds: EntityOperationKind[]): boolean {
-  return Object.values(entity.operations ?? {}).some((operation) => kinds.includes(operation.kind));
+  return (entity.operations ?? []).some((operation) => kinds.includes(operation.kind));
 }
-
 function parseKnownFieldName(context: string, key: string, value: unknown, entity: EntitySchema) {
   const fieldName = parseRequiredNonEmptyString(`${context} ${key}`, value);
   assertKnownField(context, entity, fieldName);
@@ -368,12 +368,10 @@ function parseOptionalKnownFieldName(
   if (value === undefined) {
     return undefined;
   }
-
   return parseKnownFieldName(context, key, value, entity);
 }
-
 function assertKnownField(context: string, entity: EntitySchema, fieldName: string) {
-  if (!entity.fields[fieldName]) {
+  if (!definitionsToRecord(entity.fields)[fieldName]) {
     throw new Error(`${context} references unknown field "${fieldName}".`);
   }
 }
@@ -383,16 +381,23 @@ function assertFieldType<Type extends FieldSchema["type"]>(
   entity: EntitySchema,
   fieldName: string,
   type: Type,
-): Extract<FieldSchema, { type: Type }> {
-  const field = entity.fields[fieldName];
-
+): Extract<
+  FieldSchema,
+  {
+    type: Type;
+  }
+> {
+  const field = definitionsToRecord(entity.fields)[fieldName];
   if (!field || field.type !== type) {
     throw new Error(`${context} field "${fieldName}" must be ${type}.`);
   }
-
-  return field as Extract<FieldSchema, { type: Type }>;
+  return field as unknown as Extract<
+    FieldSchema,
+    {
+      type: Type;
+    }
+  >;
 }
-
 function parseReservedPaths(context: string, value: unknown): string[] | undefined {
   if (value === undefined) {
     return undefined;
@@ -420,8 +425,18 @@ function parseReservedPaths(context: string, value: unknown): string[] | undefin
 function parseRouteKindCapabilities(
   context: string,
   value: unknown,
-  routeKindField: Extract<FieldSchema, { type: "enum" }>,
-  packageCapabilityField: Extract<FieldSchema, { type: "enum" }>,
+  routeKindField: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
+  packageCapabilityField: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
 ): Record<string, string> {
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
@@ -431,24 +446,19 @@ function parseRouteKindCapabilities(
   if (entries.length === 0) {
     throw new Error(`${context} must not be empty.`);
   }
-
   const capabilities = Object.fromEntries(
     entries.map(([routeKind, packageCapability]) => {
-      if (!Object.hasOwn(routeKindField.values, routeKind)) {
+      if (!definitionsToRecord(routeKindField.values)[routeKind]) {
         throw new Error(`${context} references unknown route kind "${routeKind}".`);
       }
-
       const capability = parseRequiredNonEmptyString(`${context}.${routeKind}`, packageCapability);
-
-      if (!Object.hasOwn(packageCapabilityField.values, capability)) {
+      if (!definitionsToRecord(packageCapabilityField.values)[capability]) {
         throw new Error(`${context}.${routeKind} references unknown package capability.`);
       }
-
       return [routeKind, capability];
     }),
   );
-
-  for (const routeKind of Object.keys(routeKindField.values)) {
+  for (const routeKind of routeKindField.values.map((definition) => definition.key)) {
     if (!Object.hasOwn(capabilities, routeKind)) {
       throw new Error(`${context} must include route kind "${routeKind}".`);
     }

@@ -39,33 +39,30 @@ const archivePackageResolver = createAppPackageResolver([
 ]);
 const siteSourceSchema = parseAppSchema({
   version: 1,
-  entities: {
-    site: {
+  entities: [
+    {
+      key: "site",
       label: "Site",
-      fields: {
-        key: { type: "text", required: true, label: "Key" },
-        label: { type: "text", required: true, label: "Label" },
-      },
-      constraints: {
-        uniqueKey: { kind: "unique", fields: ["key"] },
-      },
+      fields: [
+        { key: "key", type: "text", required: true, label: "Key" },
+        { key: "label", type: "text", required: true, label: "Label" },
+      ],
+      constraints: [{ key: "uniqueKey", kind: "unique", fields: ["key"] }],
       operations: writeOperations("Site", ["key", "label"]),
     },
-  },
-  queries: {
-    siteAll: { label: "Sites", entity: "site", expression: { kind: "all" } },
-  },
-  itemViews: {
-    siteItem: {
+  ],
+  queries: [{ key: "siteAll", label: "Sites", entity: "site", expression: { kind: "all" } }],
+  itemViews: [
+    {
+      key: "siteItem",
       entity: "site",
-      fields: {
-        label: { editor: "text", commit: "field-commit" },
-      },
+      fields: [{ field: "label", editor: "text", commit: "field-commit" }],
     },
-  },
-  tableViews: {},
-  views: {
-    siteList: {
+  ],
+  tableViews: [],
+  views: [
+    {
+      key: "siteList",
       type: "collection",
       label: "Sites",
       entity: "site",
@@ -73,9 +70,10 @@ const siteSourceSchema = parseAppSchema({
       defaultQuery: "siteAll",
       result: { type: "list", itemView: "siteItem" },
     },
-  },
-  screens: {
-    home: {
+  ],
+  screens: [
+    {
+      key: "home",
       type: "workspace",
       label: "Home",
       layout: {
@@ -83,16 +81,15 @@ const siteSourceSchema = parseAppSchema({
         sections: [{ id: "sites", type: "collection", view: "siteList" }],
       },
     },
-  },
+  ],
 });
-
 function writeOperations(label: string, fields: string[]) {
   const input = {
-    fields: Object.fromEntries(fields.map((field) => [field, { field }])),
+    fields: fields.map((field) => ({ key: field, field })),
   };
-
-  return {
-    create: {
+  return [
+    {
+      key: "create",
       label: `Create ${label}`,
       kind: "create",
       scope: "collection",
@@ -102,7 +99,8 @@ function writeOperations(label: string, fields: string[]) {
       idempotency: { required: true },
       audit: { input: "summary" },
     },
-    update: {
+    {
+      key: "update",
       label: `Update ${label}`,
       kind: "update",
       scope: "record",
@@ -112,9 +110,8 @@ function writeOperations(label: string, fields: string[]) {
       idempotency: { required: true },
       audit: { input: "summary" },
     },
-  };
+  ];
 }
-
 function packageManifest(input: {
   label: string;
   packageAppKey: string;
@@ -484,14 +481,25 @@ describe("portable archive protocol", () => {
       data: {
         ...storageSnapshot(),
         records: [
-          activeSiteRecord("rec_site_settings_zeta", {
-            label: "Zeta",
-            key: "zeta",
-          }),
-          activeSiteRecord("rec_site_settings_alpha", {
-            label: "Alpha",
-            key: "alpha",
-          }),
+          {
+            ...activeSiteRecord("rec_site_settings_zeta"),
+            values: {
+              zeta: "forward",
+              label: "Zeta",
+              key: "zeta",
+              alpha: "forward",
+            },
+            createdAt: "2026-05-23T00:00:01.000Z",
+          },
+          {
+            ...activeSiteRecord("rec_site_settings_alpha"),
+            values: {
+              label: "Alpha",
+              key: "alpha",
+            },
+            createdAt: "2026-05-23T00:00:02.000Z",
+            deletedAt: "2026-05-23T00:00:03.000Z",
+          },
         ],
       },
       media: {
@@ -513,6 +521,13 @@ describe("portable archive protocol", () => {
         ? reparsed.data.records.map((record) => record.id)
         : [],
     ).toEqual(["rec_site_settings_alpha", "rec_site_settings_zeta"]);
+    expect(Object.keys(reparsed.data.records[0]!.values)).toEqual(["key", "label"]);
+    expect(Object.keys(reparsed.data.records[1]!.values)).toEqual([
+      "key",
+      "label",
+      "alpha",
+      "zeta",
+    ]);
   });
 
   it("parses and formats public and private document asset metadata", () => {
@@ -619,9 +634,11 @@ function archivedInstall(installId: string, label: string): AppArchive["app"] {
     updatedAt: "2026-05-23T00:01:00.000Z",
   };
 }
-
 function controlPlaneRecords(
-  options: { accountId?: string; observedCache?: boolean } = {},
+  options: {
+    accountId?: string;
+    observedCache?: boolean;
+  } = {},
 ): StoredRecord[] {
   return [
     {

@@ -120,7 +120,12 @@ function applyRecordResultFieldIntent(
 function applyRecordResultOperationIntent(
   recordResult: RecordResultContract,
   controlId: string,
-  intent: Extract<RecordResultIntent, { type: "recordResultOperationIntent" }>["intent"],
+  intent: Extract<
+    RecordResultIntent,
+    {
+      type: "recordResultOperationIntent";
+    }
+  >["intent"],
 ): RecordResultContract {
   const sourceAction = [...recordResult.actions.primary, ...recordResult.actions.secondary].find(
     (action) => action.control.id === controlId,

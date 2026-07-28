@@ -217,9 +217,7 @@ describe("Astryx operation controls", () => {
     for (const fixture of [success, failure]) {
       expect(fixture.initial.trigger.pending).toBeUndefined();
       expect(fixture.initial.progress).toBeUndefined();
-      expect(fixture.timeline?.map((transition) => transition.delayMs)).toEqual([
-        1_000, 1_000, 1_000,
-      ]);
+      expect(fixture.timeline?.map((transition) => transition.delayMs)).toEqual([1000, 1000, 1000]);
       expect(fixture.pending.progress?.steps.map((step) => step.status)).toEqual([
         "running",
         "pending",

@@ -181,9 +181,7 @@ async function resetInstalledApp(packageAppKey: string, installId: string) {
 async function postAdminRecordOperation(body: Parameters<typeof recordOperationRequest>[0]) {
   const request = recordOperationRequest(body);
   const response = await harness.fetch(
-    `/api/app-installs/${publishedPackageAppKey}/${publishedInstallId}${request.path.slice(
-      "/api".length,
-    )}`,
+    `/api/app-installs/${publishedPackageAppKey}/${publishedInstallId}${request.path.slice("/api".length)}`,
     {
       body: JSON.stringify(request.body),
       headers: adminHeaders(),

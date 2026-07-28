@@ -41,10 +41,11 @@ export type SelectedPublicOperation = {
   operation: EntityOperationSchema;
   operationName: string;
 };
-
 export type ParsedPublicOperationRequest = {
   input: RecordValues;
-  proof?: { turnstileToken: string };
+  proof?: {
+    turnstileToken: string;
+  };
   source?: PublicOperationRequestSource;
   idempotencyKey?: string;
 };
@@ -52,7 +53,9 @@ export type ParsedPublicOperationRequest = {
 export type PublicOperationChallengeAdapterInput = {
   idempotencyKey: string;
   parsed: ParsedPublicOperationRequest & {
-    proof: { turnstileToken: string };
+    proof: {
+      turnstileToken: string;
+    };
   };
   requestUrlFacts: PublicOperationRequestUrlFacts;
   selected: SelectedPublicOperation;
@@ -356,9 +359,10 @@ function selectPublicOperation(
   schema: AppSchema,
   route: Pick<PublicOperationExecutorRoute, "entityName" | "operationName">,
 ): SelectedPublicOperation {
-  const entity = schema.entities[route.entityName];
-  const operation = entity?.operations?.[route.operationName];
-
+  const entity = schema.entities.find((definition) => definition.key === route.entityName)!;
+  const operation = entity?.operations?.find(
+    (definition) => definition.key === route.operationName,
+  );
   if (!entity || !operation) {
     throw new PublicOperationError("Public operation is not available.", 404);
   }

@@ -241,15 +241,11 @@ function parseQueryOperator(
 ): QueryOperator {
   if (!field.filterOps.includes(value as QueryOperator)) {
     throw new Error(
-      `Query "${contextLabel}" field "${formatFieldRef(ref)}" does not support operator "${String(
-        value,
-      )}".`,
+      `Query "${contextLabel}" field "${formatFieldRef(ref)}" does not support operator "${String(value)}".`,
     );
   }
-
   return value as QueryOperator;
 }
-
 function parseQueryValue(
   value: unknown,
   field: AddressableField,
@@ -308,8 +304,10 @@ function parseQueryValue(
       `Query "${contextLabel}" field "${formatFieldRef(ref)}" requires a non-empty string value.`,
     );
   }
-
-  if (field.type === "enum" && !Object.hasOwn(field.values ?? {}, value)) {
+  if (
+    field.type === "enum" &&
+    !(field.values ?? []).some((definition) => definition.key === value)
+  ) {
     throw new Error(
       `Query "${contextLabel}" field "${formatFieldRef(ref)}" must be a known enum value.`,
     );
@@ -325,15 +323,11 @@ function parseContextQueryValue(
   ref: FieldRef,
 ): QueryDynamicValue {
   assertExactContextDynamicValueKeys(value, contextLabel, ref);
-
   if (value.kind !== "context") {
     throw new Error(
-      `Query "${contextLabel}" field "${formatFieldRef(ref)}" has unsupported dynamic value "${String(
-        value.kind,
-      )}".`,
+      `Query "${contextLabel}" field "${formatFieldRef(ref)}" has unsupported dynamic value "${String(value.kind)}".`,
     );
   }
-
   if (
     ref.kind !== "value" ||
     !["text", "boolean", "date", "number", "enum", "reference"].includes(field.type)
@@ -372,20 +366,14 @@ function parseDateBeforeQueryValue(
       `Query "${contextLabel}" field "${formatFieldRef(ref)}" requires a YYYY-MM-DD date or { kind: "today" }.`,
     );
   }
-
   assertExactQueryDynamicValueKeys(value, contextLabel, ref);
-
   if (value.kind !== "today") {
     throw new Error(
-      `Query "${contextLabel}" field "${formatFieldRef(ref)}" has unsupported dynamic value "${String(
-        value.kind,
-      )}".`,
+      `Query "${contextLabel}" field "${formatFieldRef(ref)}" has unsupported dynamic value "${String(value.kind)}".`,
     );
   }
-
   return { kind: "today" };
 }
-
 function resolveDateQueryValue(value: QueryValue, context: QueryEvaluationContext) {
   if (isQueryDynamicValue(value)) {
     if (value.kind !== "today") {

@@ -11,23 +11,23 @@ describe("Tasks schema authoring", () => {
   it("composes record declarations before dependent presentation declarations", () => {
     expect(tasksRecordSchemaModule).toMatchObject({
       key: "tasks-records",
-      entities: { task: expect.any(Object) },
-      queries: {
-        taskAll: expect.any(Object),
-        taskActive: expect.any(Object),
-        taskCompleted: expect.any(Object),
-        taskOverdue: expect.any(Object),
-      },
+      entities: [expect.objectContaining({ key: "task" })],
+      queries: [
+        expect.objectContaining({ key: "taskAll" }),
+        expect.objectContaining({ key: "taskActive" }),
+        expect.objectContaining({ key: "taskCompleted" }),
+        expect.objectContaining({ key: "taskOverdue" }),
+      ],
     });
     expect(tasksPresentationSchemaModule).toMatchObject({
       key: "tasks-presentation",
       requires: [tasksRecordSchemaModule],
-      itemViews: { taskListItem: expect.any(Object) },
-      views: {
-        taskHome: expect.any(Object),
-        taskCreate: expect.any(Object),
-      },
-      screens: { taskHome: expect.any(Object) },
+      itemViews: [expect.objectContaining({ key: "taskListItem" })],
+      views: [
+        expect.objectContaining({ key: "taskHome" }),
+        expect.objectContaining({ key: "taskCreate" }),
+      ],
+      screens: [expect.objectContaining({ key: "taskHome" })],
     });
   });
 

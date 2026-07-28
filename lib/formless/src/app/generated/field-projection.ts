@@ -145,11 +145,18 @@ export type GeneratedFieldOccurrence = {
   owner: GeneratedFieldOwner;
   placementId: string;
 };
-
-type GeneratedCreateFieldOwner = Extract<GeneratedFieldOwner, { kind: "createSurface" }>;
-
-type GeneratedOperationFieldOwner = Extract<GeneratedFieldOwner, { kind: "operationForm" }>;
-
+type GeneratedCreateFieldOwner = Extract<
+  GeneratedFieldOwner,
+  {
+    kind: "createSurface";
+  }
+>;
+type GeneratedOperationFieldOwner = Extract<
+  GeneratedFieldOwner,
+  {
+    kind: "operationForm";
+  }
+>;
 export type GeneratedRecordFieldOwner = Exclude<
   GeneratedFieldOwner,
   GeneratedCreateFieldOwner | GeneratedOperationFieldOwner
@@ -1116,14 +1123,13 @@ function projectValueUnitField(
   if (valueUnit === undefined) {
     return undefined;
   }
-
-  const declaredOptions = Object.entries(valueUnit.unitField.values).map(([value, option]) => ({
+  const declaredOptions = valueUnit.unitField.values.map((option) => ({
     label: option.label,
     status: "declared" as const,
-    value,
+    value: option.key,
   }));
   const options =
-    currentValue !== "" && valueUnit.unitField.values[currentValue] === undefined
+    currentValue !== "" && !valueUnit.unitField.values.some((option) => option.key === currentValue)
       ? [
           {
             label: currentValue,
@@ -1189,7 +1195,9 @@ function projectDisplayFormatting({
   fieldConfig: GeneratedRecordFieldConfig;
   recordValue: FieldValue | undefined;
   referenceOptions: readonly GeneratedReferenceOption[];
-}): FieldFormatting & { displayValue: string } {
+}): FieldFormatting & {
+  displayValue: string;
+} {
   const displayValue =
     fieldConfig.field.type === "reference"
       ? generatedReferenceDisplayLabel(recordValue, referenceOptions)
@@ -1284,8 +1292,7 @@ function stateMachineValueStatus(
   if (typeof currentValue !== "string" || currentValue.trim() === "") {
     return { kind: "unset", message: "Current state is missing." };
   }
-
-  if (field.type !== "enum" || field.values[currentValue] === undefined) {
+  if (field.type !== "enum" || !field.values.some((option) => option.key === currentValue)) {
     return {
       kind: "undeclared",
       message: `Current state "${currentValue}" is not declared.`,
@@ -1709,24 +1716,33 @@ function selectIconPickerSelection(source: string): IconPickerSelection {
     source,
   };
 }
-
-function projectEnumOptions(field: Extract<FieldSchema, { type: "enum" }>): readonly EnumOption[] {
-  return Object.entries(field.values).map(([value, option]) => ({
+function projectEnumOptions(
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
+): readonly EnumOption[] {
+  return field.values.map((option) => ({
     label: option.label,
-    presentation: projectEnumValuePresentation(field, value),
+    presentation: projectEnumValuePresentation(field, option.key),
     status: "declared",
-    value,
+    value: option.key,
   }));
 }
-
 function projectEnumValuePresentation(
-  field: Extract<FieldSchema, { type: "enum" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
   value: string,
 ): EnumValuePresentation {
-  const option = field.values[value];
+  const option = field.values.find((definition) => definition.key === value);
   const iconToken = option?.presentation?.icon;
   const icon = resolvePresentationIcon(option?.presentation?.icon);
-
   return {
     color: resolvePresentationColor(option?.presentation?.color),
     ...(icon === undefined ? {} : { icon }),
@@ -1793,16 +1809,19 @@ function projectEnumDisplayFacts({
     valueStatus: enumValueStatus(field, value),
   };
 }
-
 function enumValueStatus(
-  field: Extract<FieldSchema, { type: "enum" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
   value: FieldValue | undefined,
 ): EnumFacts["valueStatus"] {
   if (typeof value !== "string" || value === "") {
     return { kind: "unset" };
   }
-
-  return Object.hasOwn(field.values, value)
+  return field.values.some((definition) => definition.key === value)
     ? { kind: "declared", value }
     : { kind: "undeclared", value };
 }

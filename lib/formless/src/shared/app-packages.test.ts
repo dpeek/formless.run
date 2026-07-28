@@ -3,6 +3,7 @@ import rawCrmAppPackageManifest from "@dpeek/formless-crm-app/formless.app.json"
 import rawCrmSeedRecords from "@dpeek/formless-crm-app/seed-records.json";
 import rawCrmSourceSchema from "@dpeek/formless-crm-app/schema.json";
 import rawSiteAppPackageManifest from "@dpeek/formless-site-app/formless.app.json";
+import rawSiteSeedRecords from "@dpeek/formless-site-app/seed-records.json";
 import rawSiteSourceSchema from "@dpeek/formless-site-app/schema.json";
 import rawTasksAppPackageManifest from "@dpeek/formless-tasks-app/formless.app.json";
 import rawTasksSeedRecords from "@dpeek/formless-tasks-app/seed-records.json";
@@ -17,11 +18,28 @@ import {
   parseAppPackageManifest,
 } from "./app-packages.ts";
 import { bundledSourceSchemaHashFixtures, computeSourceSchemaHash } from "./upgrade-migrations.ts";
+import { parseAppSchema } from "@dpeek/formless-schema";
+import { formatStoredRecordsForArtifact, type StoredRecordArtifact } from "@dpeek/formless-storage";
 
 const privateSourceSchemaHash =
   "sha256:1111111111111111111111111111111111111111111111111111111111111111";
 
 describe("app package manifests", () => {
+  it("keeps bundled seed artifacts in schema declaration and record-id order", () => {
+    for (const [sourceSchema, seedRecords] of [
+      [rawSiteSourceSchema, rawSiteSeedRecords],
+      [rawTasksSourceSchema, rawTasksSeedRecords],
+      [rawCrmSourceSchema, rawCrmSeedRecords],
+    ] as const) {
+      expect(seedRecords).toEqual(
+        formatStoredRecordsForArtifact(
+          parseAppSchema(sourceSchema),
+          seedRecords as readonly StoredRecordArtifact[],
+        ),
+      );
+    }
+  });
+
   it("parses the bundled Site package manifest from package source", () => {
     expect(parseAppPackageManifest(rawSiteAppPackageManifest)).toEqual({
       kind: appPackageManifestKind,

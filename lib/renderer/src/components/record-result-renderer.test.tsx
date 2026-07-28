@@ -27,10 +27,13 @@ const titleSchema = {
   label: "Task",
   required: true,
   type: "text",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const titleControl = textControl(titleSchema);
-
 const editableTitle = recordField({
   commit: "field-commit",
   control: titleControl,

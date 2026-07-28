@@ -26,9 +26,7 @@ const sharedClearCompletedFixtureKeys = [
   "clearCompletedToolbar",
   "clearCompletedSummary",
 ] as const satisfies readonly OperationControlFixtureKey[];
-
-const fixtureDelayMs = 1_100;
-
+const fixtureDelayMs = 1100;
 const operationUseCases = [
   {
     fixtureKey: "clearCompletedToolbar",

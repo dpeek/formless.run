@@ -11,8 +11,9 @@ import {
 describe("control-plane schema runtime metadata", () => {
   it("parses runtime-owned metadata, secret references, route validation, and operation policy", () => {
     const schema = parseAppSchema(controlPlaneTaskSchema());
-    const operation = schema.entities.task?.operations?.runnerApply;
-
+    const operation = schema.entities
+      .find((definition) => definition.key === "task")!
+      .operations?.find((definition) => definition.key === "runnerApply");
     expect(schema.runtime).toEqual({
       owner: "runtime",
       controlPlane: {
@@ -102,13 +103,14 @@ describe("control-plane schema runtime metadata", () => {
     });
     const appendOnlySchema = parseAppSchema({
       ...source,
-      entities: {
-        ...source.entities,
-        task: {
-          ...source.entities.task,
-          operations: undefined,
-        },
-      },
+      entities: source.entities.map((definition) =>
+        definition.key === "task"
+          ? {
+              ...definition,
+              operations: undefined,
+            }
+          : definition,
+      ),
       runtime: {
         owner: "runtime",
         controlPlane: {
@@ -131,16 +133,18 @@ describe("control-plane schema runtime metadata", () => {
 function controlPlaneTaskSchema() {
   return {
     version: 1,
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         label: "Task",
-        fields: {
-          title: { type: "text", required: true, label: "Title" },
-          done: { type: "boolean", required: true, label: "Done", default: false },
-          secretRef: { type: "text", required: false, label: "Secret ref" },
-        },
-        operations: {
-          runnerApply: {
+        fields: [
+          { key: "title", type: "text", required: true, label: "Title" },
+          { key: "done", type: "boolean", required: true, label: "Done", default: false },
+          { key: "secretRef", type: "text", required: false, label: "Secret ref" },
+        ],
+        operations: [
+          {
+            key: "runnerApply",
             label: "Runner apply",
             kind: "command",
             scope: "collection",
@@ -155,36 +159,40 @@ function controlPlaneTaskSchema() {
               responseFields: { runner: ["done"] },
             },
           },
-        },
+        ],
       },
-      route: {
+      {
+        key: "route",
         label: "Route",
-        fields: {
-          target: { type: "text", required: true },
-          path: { type: "text", required: true },
-          prefix: { type: "text", required: false },
-          enabled: { type: "boolean", required: true, default: true },
-          routeKind: {
+        fields: [
+          { key: "target", type: "text", required: true },
+          { key: "path", type: "text", required: true },
+          { key: "prefix", type: "text", required: false },
+          { key: "enabled", type: "boolean", required: true, default: true },
+          {
+            key: "routeKind",
             type: "enum",
             required: true,
-            values: {
-              admin: { label: "Admin" },
-              publicSite: { label: "Public Site" },
-            },
+            values: [
+              { key: "admin", label: "Admin" },
+              { key: "publicSite", label: "Public Site" },
+            ],
           },
-          packageCapability: {
+          {
+            key: "packageCapability",
             type: "enum",
             required: true,
-            values: {
-              generatedApp: { label: "Generated app" },
-              publicSite: { label: "Public Site" },
-            },
+            values: [
+              { key: "generatedApp", label: "Generated app" },
+              { key: "publicSite", label: "Public Site" },
+            ],
           },
-        },
+        ],
       },
-    },
-    queries: {
-      taskCompleted: {
+    ],
+    queries: [
+      {
+        key: "taskCompleted",
         label: "Completed",
         entity: "task",
         expression: {
@@ -194,19 +202,21 @@ function controlPlaneTaskSchema() {
           value: true,
         },
       },
-    },
-    itemViews: {
-      taskItem: {
+    ],
+    itemViews: [
+      {
+        key: "taskItem",
         entity: "task",
-        fields: {
-          title: { editor: "text", commit: "field-commit" },
-          done: { editor: "boolean", commit: "immediate" },
-        },
+        fields: [
+          { field: "title", editor: "text", commit: "field-commit" },
+          { field: "done", editor: "boolean", commit: "immediate" },
+        ],
       },
-    },
-    tableViews: {},
-    views: {
-      taskHome: {
+    ],
+    tableViews: [],
+    views: [
+      {
+        key: "taskHome",
         type: "collection",
         label: "Tasks",
         entity: "task",
@@ -214,18 +224,18 @@ function controlPlaneTaskSchema() {
         defaultQuery: "taskCompleted",
         result: { type: "list", itemView: "taskItem" },
       },
-    },
-    screens: {
-      home: {
+    ],
+    screens: [
+      {
+        key: "home",
         type: "workspace",
         label: "Home",
-        navigation: { primary: true },
         layout: {
           type: "stack",
           sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
         },
       },
-    },
+    ],
     runtime: {
       owner: "runtime",
       controlPlane: {

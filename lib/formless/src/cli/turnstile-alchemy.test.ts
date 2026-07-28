@@ -67,11 +67,14 @@ describe("Cloudflare Turnstile Alchemy resource", () => {
         path: "/accounts/account-123/challenges/widgets",
       },
     ]);
-    expect((CloudflareTurnstileWidget as unknown as { type: string }).type).toBe(
-      "formless::CloudflareTurnstileWidget",
-    );
+    expect(
+      (
+        CloudflareTurnstileWidget as unknown as {
+          type: string;
+        }
+      ).type,
+    ).toBe("formless::CloudflareTurnstileWidget");
   });
-
   it("reads the existing widget during update and skips the update call when provider state matches", async () => {
     const api = fakeTurnstileApi([
       response("GET", "/accounts/account-123/challenges/widgets/0xsitekey", {
@@ -364,9 +367,17 @@ function fakeTurnstileApi(
     status: number;
   }>,
 ): TurnstileWidgetCloudflareApi & {
-  calls: Array<{ body?: unknown; method: string; path: string }>;
+  calls: Array<{
+    body?: unknown;
+    method: string;
+    path: string;
+  }>;
 } {
-  const calls: Array<{ body?: unknown; method: string; path: string }> = [];
+  const calls: Array<{
+    body?: unknown;
+    method: string;
+    path: string;
+  }> = [];
   const nextResponse = (method: string, path: string, body?: unknown): Response => {
     calls.push(body === undefined ? { method, path } : { body, method, path });
     const next = responses.shift();

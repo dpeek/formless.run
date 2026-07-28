@@ -31,10 +31,10 @@ import {
   findResolvedAppPackage,
   type AppPackageResolver,
 } from "../shared/app-packages.ts";
-
 export type WorkspaceControlPlaneRecords = StorageSnapshot;
-export type WorkspaceRecordValueSource = { values: Record<string, unknown> };
-
+export type WorkspaceRecordValueSource = {
+  values: Record<string, unknown>;
+};
 export type WorkspaceArchiveDirectory = {
   archive: PortableArchive;
   archivePath: string;
@@ -182,10 +182,11 @@ export function assertWorkspaceControlPlanePackagesAvailable(input: {
     `Formless instance ${input.operation} cannot continue because active app installs reference unavailable package apps: ${labels}. Add the packages to formless.json packages.links or install bundled packages.`,
   );
 }
-
 export async function readArchiveDirectoryForCheck(
   archiveRoot: string,
-  options: { packageResolver?: AppPackageResolver } = {},
+  options: {
+    packageResolver?: AppPackageResolver;
+  } = {},
 ): Promise<WorkspaceArchiveDirectory | undefined> {
   const archivePath = path.join(archiveRoot, PORTABLE_ARCHIVE_MANIFEST_FILE);
   let contents: string;
@@ -332,9 +333,18 @@ export function appInstallControlPlaneRecords(install: AppInstall): StoredRecord
 export async function readArchiveMediaFiles(
   archiveDir: string,
   archive: PortableArchive,
-): Promise<Array<ArchiveDiskMediaFile & { object: AppArchiveMediaObject }>> {
-  const files: Array<ArchiveDiskMediaFile & { object: AppArchiveMediaObject }> = [];
-
+): Promise<
+  Array<
+    ArchiveDiskMediaFile & {
+      object: AppArchiveMediaObject;
+    }
+  >
+> {
+  const files: Array<
+    ArchiveDiskMediaFile & {
+      object: AppArchiveMediaObject;
+    }
+  > = [];
   for (const app of archiveApps(archive)) {
     for (const object of app.media.objects) {
       const filePath = path.join(archiveDir, object.archivePath);

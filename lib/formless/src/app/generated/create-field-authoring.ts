@@ -209,13 +209,10 @@ function initialCreateDraftFieldInput(
   if (fieldConfig.field.type === "boolean") {
     return { kind: "value", value: false };
   }
-
   if (fieldConfig.field.type === "enum") {
-    const value = fieldConfig.field.required ? Object.keys(fieldConfig.field.values)[0] : "";
-
+    const value = fieldConfig.field.required ? fieldConfig.field.values[0]?.key : "";
     return value === undefined ? undefined : { kind: "value", value };
   }
-
   if (fieldConfig.field.type === "reference" && !fieldConfig.field.required) {
     return { kind: "value", value: "" };
   }

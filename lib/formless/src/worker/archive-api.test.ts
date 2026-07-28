@@ -532,7 +532,9 @@ async function postArchiveRestore(
     bytesBase64: string;
     contentType: string;
   }> = [],
-  options: { exactInstanceReplacement?: boolean } = {},
+  options: {
+    exactInstanceReplacement?: boolean;
+  } = {},
 ) {
   const response = await harness.fetch("/api/formless/archive/restore", {
     body: JSON.stringify({
@@ -972,8 +974,13 @@ function siteRecord(): StoredRecord {
     },
   };
 }
-
-function taskRecord(overrides: { done?: boolean; id?: string; title?: string } = {}): StoredRecord {
+function taskRecord(
+  overrides: {
+    done?: boolean;
+    id?: string;
+    title?: string;
+  } = {},
+): StoredRecord {
   return {
     id: overrides.id ?? "task-restored",
     createdAt: "2026-05-12T00:00:00.000Z",

@@ -25,6 +25,9 @@
         "@dpeek/formless-schema": "workspace:*",
         "@dpeek/formless-storage": "workspace:*",
       },
+      "devDependencies": {
+        "@dpeek/formless-crm-app": "workspace:*",
+      },
     },
     "lib/crm-app": {
       "name": "@dpeek/formless-crm-app",
@@ -109,6 +112,9 @@
     "lib/installed-apps": {
       "name": "@dpeek/formless-installed-apps",
       "version": "0.1.0",
+      "dependencies": {
+        "@dpeek/formless-schema": "workspace:*",
+      },
     },
     "lib/instance-control-plane": {
       "name": "@dpeek/formless-instance-control-plane",
@@ -212,6 +218,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@dpeek/formless-schema": "workspace:*",
+        "@dpeek/formless-storage": "workspace:*",
       },
       "devDependencies": {
         "@dpeek/formless-installed-apps": "workspace:*",
@@ -225,6 +232,9 @@
         "@dpeek/formless-instance-control-plane": "workspace:*",
         "@dpeek/formless-schema": "workspace:*",
         "@dpeek/formless-storage": "workspace:*",
+      },
+      "devDependencies": {
+        "@dpeek/formless-crm-app": "workspace:*",
       },
     },
   },

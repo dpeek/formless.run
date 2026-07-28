@@ -25,15 +25,23 @@ const taskFieldSchema = {
   type: "text",
   label: "Task",
   required: true,
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const summaryFieldSchema = {
   type: "text",
   label: "Summary",
   required: false,
   format: "longText",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const createSurfaceFixtures = [
   createSurfaceFixture({
     id: "create-collection-label",

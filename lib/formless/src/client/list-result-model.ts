@@ -5,18 +5,30 @@ import { selectResultOrderingConfig } from "./result-ordering-model.ts";
 import { selectTransitionStateOperations } from "./state-machine-model.ts";
 import { selectRecordUnionPresentation } from "./union-presentation-model.ts";
 import type { HomeResultConfig } from "./views.ts";
-
-export type ListResultModel = Extract<HomeResultConfig, { type: "list" }>;
-export type RecordResultModel = Extract<HomeResultConfig, { type: "record" }>;
-
+export type ListResultModel = Extract<
+  HomeResultConfig,
+  {
+    type: "list";
+  }
+>;
+export type RecordResultModel = Extract<
+  HomeResultConfig,
+  {
+    type: "record";
+  }
+>;
 export function selectListResultModel(
   schema: AppSchema,
-  result: Extract<CollectionViewSchema["result"], { type: "list" }>,
+  result: Extract<
+    CollectionViewSchema["result"],
+    {
+      type: "list";
+    }
+  >,
   entityName: string,
   entity: EntitySchema,
 ): ListResultModel {
-  const itemView = schema.itemViews[result.itemView];
-
+  const itemView = schema.itemViews.find((definition) => definition.key === result.itemView)!;
   if (!itemView) {
     throw new Error(`Missing item view "${result.itemView}".`);
   }
@@ -36,15 +48,18 @@ export function selectListResultModel(
     ...(ordering === undefined ? {} : { ordering }),
   };
 }
-
 export function selectRecordResultModel(
   schema: AppSchema,
-  result: Extract<CollectionViewSchema["result"], { type: "record" }>,
+  result: Extract<
+    CollectionViewSchema["result"],
+    {
+      type: "record";
+    }
+  >,
   entityName: string,
   entity: EntitySchema,
 ): RecordResultModel {
-  const itemView = schema.itemViews[result.itemView];
-
+  const itemView = schema.itemViews.find((definition) => definition.key === result.itemView)!;
   if (!itemView) {
     throw new Error(`Missing item view "${result.itemView}".`);
   }

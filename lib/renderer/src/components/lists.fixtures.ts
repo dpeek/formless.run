@@ -33,52 +33,68 @@ const titleSchema = {
   label: "Task",
   required: true,
   type: "text",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const titleControl = textControl(titleSchema);
-
 const kindSchema = {
   label: "Kind",
   required: true,
   type: "enum",
-  values: {
-    article: { label: "Article" },
-    link: { label: "Link" },
-  },
-} as const satisfies Extract<FieldSchema, { type: "enum" }>;
-
+  values: [
+    { key: "article", label: "Article" },
+    { key: "link", label: "Link" },
+  ],
+} as const satisfies Extract<
+  FieldSchema,
+  {
+    type: "enum";
+  }
+>;
 const summarySchema = {
   label: "Summary",
   required: false,
   type: "text",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const urlSchema = {
   label: "URL",
   required: true,
   type: "text",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const statusSchema = {
   default: "open",
   label: "Status",
   required: true,
   type: "enum",
-  values: {
-    done: { label: "Done", presentation: { color: "success" } },
-    open: { label: "Open", presentation: { color: "warning" } },
-  },
-} as const satisfies Extract<FieldSchema, { type: "enum" }>;
-
+  values: [
+    { key: "done", label: "Done", presentation: { color: "success" } },
+    { key: "open", label: "Open", presentation: { color: "warning" } },
+  ],
+} as const satisfies Extract<
+  FieldSchema,
+  {
+    type: "enum";
+  }
+>;
 const taskWorkflow = {
   field: "status",
   initial: "open",
   terminal: ["done"],
-  transitions: {
-    complete: { from: ["open"], label: "Complete", to: "done" },
-  },
+  transitions: [{ key: "complete", from: ["open"], label: "Complete", to: "done" }],
 } satisfies StateMachineSchema;
-
 const taskStatusMachine = stateMachineField({
   fieldName: "status",
   machine: taskWorkflow,
@@ -294,7 +310,7 @@ function taskKindField(input: TaskItemInput) {
     field: kindSchema,
     fieldName: "kind",
     formatting: {
-      displayValue: kindSchema.values[input.kind].label,
+      displayValue: kindSchema.values.find((definition) => definition.key === input.kind)!.label,
       enumValuePresentation: enumValuePresentation(kindSchema, input.kind),
     },
     labelVisibility: "hidden",
@@ -357,7 +373,8 @@ function taskStatusField(input: TaskItemInput) {
     field: statusSchema,
     fieldName: "status",
     formatting: {
-      displayValue: statusSchema.values[input.status].label,
+      displayValue: statusSchema.values.find((definition) => definition.key === input.status)!
+        .label,
       enumValuePresentation: enumValuePresentation(statusSchema, input.status),
     },
     labelVisibility: "hidden",

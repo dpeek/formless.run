@@ -171,10 +171,13 @@ export function enumPresentationTriggerContent(field: FieldContract): "label" | 
 export function enumPresentationListContent(field: FieldContract): "icon" | "label" | "both" {
   return field.enum?.kind === "editor" ? field.enum.listContent : "label";
 }
-
 export function selectorOptionVisual(
   option: SelectorVisualOption | undefined,
-  { reserveSpace = false }: { reserveSpace?: boolean } = {},
+  {
+    reserveSpace = false,
+  }: {
+    reserveSpace?: boolean;
+  } = {},
 ) {
   if (!option) {
     return reserveSpace ? (

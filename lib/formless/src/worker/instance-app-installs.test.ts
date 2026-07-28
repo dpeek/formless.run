@@ -46,15 +46,34 @@ import type { StoredOperationInvocation } from "./storage.ts";
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
 function materializedWorkspaceSeedRecords(records: unknown[]): unknown[] {
-  return records.map((record) => {
-    if (typeof record !== "object" || record === null || Array.isArray(record)) {
-      return record;
-    }
+  return records
+    .map((record) => {
+      if (typeof record !== "object" || record === null || Array.isArray(record)) {
+        return record;
+      }
 
-    const createdAt = "createdAt" in record ? record.createdAt : undefined;
+      const createdAt = "createdAt" in record ? record.createdAt : undefined;
 
-    return typeof createdAt === "string" ? { ...record, updatedAt: createdAt } : record;
-  });
+      return typeof createdAt === "string" ? { ...record, updatedAt: createdAt } : record;
+    })
+    .sort((left, right) => {
+      const leftCreatedAt =
+        typeof left === "object" && left !== null && "createdAt" in left
+          ? left.createdAt
+          : undefined;
+      const rightCreatedAt =
+        typeof right === "object" && right !== null && "createdAt" in right
+          ? right.createdAt
+          : undefined;
+
+      return typeof leftCreatedAt === "string" && typeof rightCreatedAt === "string"
+        ? leftCreatedAt < rightCreatedAt
+          ? -1
+          : leftCreatedAt > rightCreatedAt
+            ? 1
+            : 0
+        : 0;
+    });
 }
 
 type AppInstallFailureResponse = {
@@ -1032,14 +1051,13 @@ async function readControlPlaneOperationInvocations(): Promise<StoredOperationIn
     `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}${INTERNAL_READ_OPERATION_INVOCATIONS_PATH}`,
     { method: "GET" },
   );
-  const body = (await response.json()) as { invocations?: StoredOperationInvocation[] };
-
+  const body = (await response.json()) as {
+    invocations?: StoredOperationInvocation[];
+  };
   expect(response.status).toBe(200);
   expect(Array.isArray(body.invocations)).toBe(true);
-
   return body.invocations ?? [];
 }
-
 function adminHeaders(headers: Record<string, string> = {}) {
   return {
     ...headers,

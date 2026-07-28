@@ -44,22 +44,23 @@ const statusField = {
   type: "enum",
   required: true,
   label: "Status",
-  values: {
-    open: {
+  values: [
+    {
+      key: "open",
       label: "Open",
       presentation: { icon: "priority-marker", color: "priority.normal" },
     },
-    waiting: { label: "Waiting", presentation: { color: "warning" } },
-    blocked: { label: "Blocked", presentation: { icon: "close", color: "danger" } },
-    done: { label: "Done", presentation: { icon: "confirm", color: "success" } },
-    legacyFallback: {
+    { key: "waiting", label: "Waiting", presentation: { color: "warning" } },
+    { key: "blocked", label: "Blocked", presentation: { icon: "close", color: "danger" } },
+    { key: "done", label: "Done", presentation: { icon: "confirm", color: "success" } },
+    {
+      key: "legacyFallback",
       label: "Legacy fallback",
       presentation: { icon: "missing-icon", color: "priority.unknown" },
     },
-  },
+  ],
   default: "open",
 } as const;
-
 const optionalStatusField = {
   type: "enum",
   required: false,
@@ -71,14 +72,12 @@ const topicField = {
   type: "enum",
   required: true,
   label: "Topic",
-  values: {
-    sales: { label: "Sales" },
-    support: { label: "Support" },
-  },
+  values: [
+    { key: "sales", label: "Sales" },
+    { key: "support", label: "Support" },
+  ],
 } as const;
-
 const optionalTopicField = { ...topicField, required: false } as const;
-
 const statusOptions = enumOptions(statusField, {
   blocked: { iconSource: closeIconSource },
   done: { iconSource: confirmIconSource },
@@ -420,7 +419,6 @@ function operationEnumField({
     value: value === "" ? undefined : value,
   });
 }
-
 function displayOption(field: typeof statusField | typeof optionalStatusField, value: string) {
-  return field.values[value as keyof typeof field.values]?.label ?? value;
+  return field.values.find((definition) => definition.key === value)?.label ?? value;
 }

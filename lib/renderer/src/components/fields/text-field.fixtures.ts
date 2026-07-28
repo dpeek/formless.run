@@ -239,7 +239,12 @@ function textOperationFormat(value: string | undefined): "email" | "phone" | "pl
 function operationTextField(
   required: boolean,
   format: "email" | "phone" | "plain",
-): Extract<FieldSchema, { type: "text" }> {
+): Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+> {
   return {
     type: "text",
     required,
@@ -335,13 +340,16 @@ function textField(
   if (kind === "markdown") {
     return required ? requiredMarkdownField : optionalMarkdownField;
   }
-
   return required ? requiredTextField : optionalTextField;
 }
-
 function textFieldControl(
   kind: Extract<FieldKindKey, "long-text" | "markdown" | "text">,
-  field: Extract<FieldSchema, { type: "text" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "text";
+    }
+  >,
   surface: FieldSurface | "display",
 ) {
   if (kind === "long-text") {

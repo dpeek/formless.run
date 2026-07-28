@@ -132,7 +132,7 @@ const placementUpdateOperation: EntityOperationPresentationConfig = {
   operation: {
     kind: "update",
     scope: "record",
-    input: { fields: {} },
+    input: { fields: [] },
     effect: { type: "patchRecord" },
     output: { type: "update" },
     idempotency: { required: true },

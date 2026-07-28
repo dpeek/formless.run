@@ -4,6 +4,7 @@ import { collectQueryContextNames } from "./query.ts";
 import { parseCountDisplay } from "./schema-count-display.ts";
 import {
   assertExactKeys,
+  definitionsToRecord,
   isRecord,
   parseOptionalNonEmptyString,
   parseRequiredNonEmptyString,
@@ -166,8 +167,7 @@ export function parseCollectionContext(
   if (requiredContextNames.length > 0) {
     throw new Error(`${context} query "${queryName}" must not require context.`);
   }
-
-  const field = entity.fields[labelField];
+  const field = definitionsToRecord(entity.fields)[labelField];
   if (!field) {
     throw new Error(
       `${context} labelField references unknown field "${entityName}.${labelField}".`,

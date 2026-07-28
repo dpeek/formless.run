@@ -25,9 +25,11 @@ import { resetSyncStatus } from "../client/sync-status.ts";
 import { bootstrapResponse } from "../test/protocol-builders.ts";
 import { taskSourceSchema } from "../test/schema-apps.ts";
 import { createDevRuntimeProfile, findRuntimeWorldMountByRoute } from "./runtime-profile.ts";
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
+(
+  globalThis as {
+    IS_REACT_ACT_ENVIRONMENT?: boolean;
+  }
+).IS_REACT_ACT_ENVIRONMENT = true;
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -337,9 +339,10 @@ function matchMediaFixture(initialMatches: boolean) {
         listener({ matches } as MediaQueryListEvent);
       }
     },
-  } as MediaQueryList & { setMatches(nextMatches: boolean): void };
+  } as MediaQueryList & {
+    setMatches(nextMatches: boolean): void;
+  };
 }
-
 function required<Value>(value: Value | null | undefined): Value {
   if (value === null || value === undefined) {
     throw new Error("Expected value.");

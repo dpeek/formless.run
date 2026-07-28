@@ -168,13 +168,13 @@ describe("generated Formless UI list projection", () => {
       taskRecord("article-1", {
         bodyIcon: iconSource,
         kind: "article",
-        order: 2_000,
+        order: 2000,
         summary: "Article summary",
         title: "Article",
       }),
       taskRecord("link-1", {
         kind: "link",
-        order: 1_000,
+        order: 1000,
         title: "Link",
         url: "https://example.com",
       }),
@@ -197,10 +197,10 @@ describe("generated Formless UI list projection", () => {
       recordsById,
       result,
     });
-    const deleteRuntime = base.runtimePlan.operations.find(
+    const deleteRuntime = base.runtimePlan.operations!.find(
       (operation) => operation.kind === "delete" && operation.recordId === "article-1",
     );
-    const orderingRuntime = base.runtimePlan.operations.find(
+    const orderingRuntime = base.runtimePlan.operations!.find(
       (operation) => operation.kind === "ordering" && operation.recordId === "article-1",
     );
     const projected = selectGeneratedListFoundation({
@@ -319,7 +319,7 @@ describe("generated Formless UI list projection", () => {
     const result = listResult();
     const record = taskRecord("article-1", {
       kind: "article",
-      order: 1_000,
+      order: 1000,
       title: "Article",
     });
     const duplicate = result.recordFields[0]!;
@@ -341,7 +341,7 @@ describe("generated Formless UI list projection", () => {
     const record = taskRecord("article-1", {
       bodyIcon: iconSource,
       kind: "article",
-      order: 1_000,
+      order: 1000,
       summary: "Article summary",
       title: "Article",
     });
@@ -462,7 +462,7 @@ function orderingItems(recordId: string) {
       direction: "down" as const,
       disabled: false,
       label: "Move down",
-      plan: { kind: "patch" as const, rank: 3_000, recordId },
+      plan: { kind: "patch" as const, rank: 3000, recordId },
     },
   ];
 }
@@ -492,7 +492,7 @@ function testOperation(
       audit: { input: "summary" },
       effect: kind === "delete" ? { type: "deleteRecord" } : { type: "patchRecord" },
       idempotency: { required: true },
-      input: { fields: {} },
+      input: { fields: [] },
       kind,
       output: { type: kind },
       scope: "record",
@@ -526,9 +526,11 @@ function iconField(): FieldSchema {
 const kindField = {
   required: true,
   type: "enum",
-  values: { article: { label: "Article" }, link: { label: "Link" } },
+  values: [
+    { key: "article", label: "Article" },
+    { key: "link", label: "Link" },
+  ],
 } satisfies FieldSchema;
-
 const baseFields = [
   { commit: "immediate", editor: "enum", field: kindField, fieldName: "kind" },
   { commit: "field-commit", editor: "text", field: textField(), fieldName: "title" },
@@ -547,10 +549,10 @@ const contentUnion = {
   union: {
     discriminator: "kind",
     entity: "task",
-    variants: {
-      article: { fields: ["bodyIcon"], label: "Article" },
-      link: { fields: ["url"], label: "Link" },
-    },
+    variants: [
+      { key: "article", fields: ["bodyIcon"], label: "Article" },
+      { key: "link", fields: ["url"], label: "Link" },
+    ],
   },
   unionName: "taskByKind",
   variants: [
@@ -588,17 +590,15 @@ const taskOrdering = {
   presentations: ["dragHandle"],
   scope: [],
 } satisfies ResultOrderingConfig;
-
 const taskEntity = {
-  fields: {
-    bodyIcon: iconField(),
-    kind: kindField,
-    order: taskOrdering.field,
-    summary: textField(),
-    title: textField(),
-    url: textField(),
-  },
+  fields: [
+    { key: "bodyIcon", ...iconField() },
+    { key: "kind", ...kindField },
+    { key: "order", ...taskOrdering.field },
+    { key: "summary", ...textField() },
+    { key: "title", ...textField() },
+    { key: "url", ...textField() },
+  ],
   label: "Task",
 } as EntitySchema;
-
 const iconSource = '<svg viewBox="0 0 24 24"><path d="M12 2v20" /></svg>';

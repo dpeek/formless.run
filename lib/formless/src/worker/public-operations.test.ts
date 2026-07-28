@@ -1,3 +1,4 @@
+import { setKeyedDefinition } from "../test/schema-definition-test-helpers.ts";
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 import type { StoredRecord } from "@dpeek/formless-storage";
@@ -581,13 +582,14 @@ async function turnstileVerifyResponse(request: Request) {
     hostname: "example.com",
   });
 }
-
 function expectTurnstileRequests(
   actual: TurnstileVerifyRequest[],
-  expected: Array<{ response: string; secret: string }>,
+  expected: Array<{
+    response: string;
+    secret: string;
+  }>,
 ) {
   expect(actual).toHaveLength(expected.length);
-
   for (const [index, request] of actual.entries()) {
     expect(request).toMatchObject(expected[index] ?? {});
     expect(request.idempotency_key).toEqual(expect.any(String));
@@ -642,74 +644,70 @@ async function installAffirmativePublicIntakeSchema(
 ) {
   const current = await getJson<SchemaResponse>(`${apiPrefix}/schema`, target);
   const schema = schemaWithEmailStylePublicIntake(current.schema);
-  const entity = schema.entities["intake-request"];
-  const operation = entity?.operations?.submit;
-
+  const entity = schema.entities.find((definition) => definition.key === "intake-request")!;
+  const operation = entity?.operations!.find((definition) => definition.key === "submit")!;
   if (!entity || !operation?.input) {
     throw new Error("Expected public intake operation input.");
   }
-
-  entity.fields.contactConsent = {
+  setKeyedDefinition(entity.fields, "contactConsent", {
     type: "boolean",
     required: true,
     label: "I agree to be contacted",
-  };
-  operation.input.fields.contactConsent = {
+  });
+  setKeyedDefinition(operation.input.fields, "contactConsent", {
     field: "contactConsent",
     required: true,
     mustBeTrue: true,
-  };
-
+  });
   await postAdminJson<SchemaUpdateResponse>(`${apiPrefix}/schema`, { schema }, target);
 }
-
 async function installTaskPublicLookupSchema() {
   const current = await getJson<SchemaResponse>("/api/tasks/schema");
-
   await postAdminJson<SchemaUpdateResponse>("/api/tasks/schema", {
     schema: schemaWithPublicTaskLookup(current.schema),
   });
 }
-
 function schemaWithPublicTaskLookup(sourceSchema: AppSchema): AppSchema {
   const schema = structuredClone(sourceSchema);
-  const task = schema.entities.task;
-  const create = task?.operations?.create;
-
+  const task = schema.entities.find((definition) => definition.key === "task")!;
+  const create = task?.operations!.find((definition) => definition.key === "create")!;
   if (!task || !create?.input) {
     throw new Error("Expected Task create operation.");
   }
-
-  const fields = {
+  const fields = [
     ...task.fields,
-    verificationCode: {
+    {
+      key: "verificationCode",
       type: "text" as const,
       required: false,
       label: "Verification code",
     },
-    reportNumber: {
+    {
+      key: "reportNumber",
       type: "text" as const,
       required: false,
       label: "Report number",
     },
-    publicDeliveryReference: {
+    {
+      key: "publicDeliveryReference",
       type: "text" as const,
       required: false,
       label: "Public delivery reference",
     },
-    customerName: {
+    {
+      key: "customerName",
       type: "text" as const,
       required: false,
       label: "Customer name",
     },
-    providerStorageKey: {
+    {
+      key: "providerStorageKey",
       type: "text" as const,
       required: false,
       label: "Provider storage key",
     },
-  };
-
-  schema.queries.publicTaskLookup = {
+  ];
+  setKeyedDefinition(schema.queries, "publicTaskLookup", {
     label: "Public task lookup",
     entity: "task",
     expression: {
@@ -740,38 +738,47 @@ function schemaWithPublicTaskLookup(sourceSchema: AppSchema): AppSchema {
         },
       ],
     },
-  };
-  schema.entities.task = {
+  });
+  setKeyedDefinition(schema.entities, "task", {
     ...task,
     fields,
-    operations: {
-      ...task.operations,
-      create: {
-        ...create,
-        input: {
-          fields: {
-            ...create.input.fields,
-            verificationCode: { field: "verificationCode" },
-            reportNumber: { field: "reportNumber" },
-            publicDeliveryReference: { field: "publicDeliveryReference" },
-            customerName: { field: "customerName" },
-            providerStorageKey: { field: "providerStorageKey" },
-          },
-        },
-      },
-      lookup: {
+    operations: [
+      ...(task.operations ?? []).map((operation) =>
+        operation.key === "create"
+          ? {
+              ...create,
+              input: {
+                fields: [
+                  ...create.input!.fields,
+                  { key: "verificationCode", field: "verificationCode" },
+                  { key: "reportNumber", field: "reportNumber" },
+                  {
+                    key: "publicDeliveryReference",
+                    field: "publicDeliveryReference",
+                  },
+                  { key: "customerName", field: "customerName" },
+                  { key: "providerStorageKey", field: "providerStorageKey" },
+                ],
+              },
+              key: "create",
+            }
+          : operation,
+      ),
+      {
+        key: "lookup",
         label: "Lookup certificate",
         kind: "list",
         scope: "collection",
         target: { query: "publicTaskLookup" },
         input: {
-          fields: {
-            lookup: {
+          fields: [
+            {
+              key: "lookup",
               type: "text",
               required: true,
               label: "Verification code or report number",
             },
-          },
+          ],
         },
         output: {
           type: "list",
@@ -792,12 +799,10 @@ function schemaWithPublicTaskLookup(sourceSchema: AppSchema): AppSchema {
           },
         },
       },
-    },
-  };
-
+    ],
+  });
   return schema;
 }
-
 function publicSubscribeBody(input: {
   idempotencyKey: string;
   input?: Record<string, unknown>;

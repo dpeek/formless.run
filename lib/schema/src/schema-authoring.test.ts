@@ -12,41 +12,53 @@ describe("App schema source authoring", () => {
   it("preserves source omissions while parsing runtime defaults", () => {
     const source = taskSource();
     const literalVersion: 1 = source.version;
-
     expect(literalVersion).toBe(1);
-    expect(source.entities.task.operations.create).toEqual({
+    expect(
+      source.entities
+        .find((definition) => definition.key === "task")!
+        .operations.find((definition) => definition.key === "create")!,
+    ).toEqual({
+      key: "create",
       kind: "create",
       scope: "collection",
     });
-    expect(source.views.taskHome.context).not.toHaveProperty("presentation");
-    expect(source.screens.home.layout).not.toHaveProperty("width");
-
+    expect(
+      source.views.find((definition) => definition.key === "taskHome")!.context,
+    ).not.toHaveProperty("presentation");
+    expect(
+      source.screens.find((definition) => definition.key === "home")!.layout,
+    ).not.toHaveProperty("width");
     const parsed = parseAppSchema(source);
-
-    expect(parsed.entities.task.operations?.create).toMatchObject({
+    expect(
+      parsed.entities
+        .find((definition) => definition.key === "task")!
+        .operations?.find((definition) => definition.key === "create"),
+    ).toMatchObject({
       audit: { input: "summary" },
       effect: { type: "createRecord" },
       idempotency: { required: true },
       output: { type: "create" },
     });
-    expect(parsed.views.taskHome).toMatchObject({
+    expect(parsed.views.find((definition) => definition.key === "taskHome")!).toMatchObject({
       context: { presentation: "tabs" },
     });
-    expect(parsed.screens?.home.layout.width).toBe("standard");
+    expect(parsed.screens.find((definition) => definition.key === "home")!.layout.width).toBe(
+      "standard",
+    );
   });
-
   it("rejects invalid cross-references at the definition boundary", () => {
     const source = taskSource();
-
     expect(() =>
       defineAppSchema({
         ...source,
-        queries: {
-          taskAll: {
-            ...source.queries.taskAll,
-            entity: "missing",
-          },
-        },
+        queries: source.queries.map((definition) =>
+          definition.key === "taskAll"
+            ? {
+                ...definition,
+                entity: "missing",
+              }
+            : definition,
+        ),
       }),
     ).toThrow('Query "taskAll" references unknown entity "missing".');
   });
@@ -55,27 +67,34 @@ describe("App schema source authoring", () => {
     const source = taskSource();
     const authored = defineAppSchema({
       ...source,
-      entities: {
-        task: {
-          ...source.entities.task,
-          fields: {
-            ...source.entities.task.fields,
-            report: {
-              type: "text",
-              required: false,
-              asset: {
-                kind: "document",
-                acceptedMimeTypes: ["application/pdf"],
-                maxBytes: DOCUMENT_ASSET_POLICY_MAX_BYTES,
-                access: "public",
-              },
-            },
-          },
-        },
-      },
+      entities: source.entities.map((definition) =>
+        definition.key === "task"
+          ? {
+              ...definition,
+              fields: [
+                ...definition.fields,
+                {
+                  key: "report",
+                  type: "text",
+                  required: false,
+                  asset: {
+                    kind: "document",
+                    acceptedMimeTypes: ["application/pdf"],
+                    maxBytes: DOCUMENT_ASSET_POLICY_MAX_BYTES,
+                    access: "public",
+                  },
+                },
+              ],
+            }
+          : definition,
+      ),
     });
-
-    expect(authored.entities.task.fields.report).toEqual({
+    expect(
+      authored.entities
+        .find((definition) => definition.key === "task")!
+        .fields.find((definition) => definition.key === "report")!,
+    ).toEqual({
+      key: "report",
       type: "text",
       required: false,
       asset: {
@@ -86,19 +105,20 @@ describe("App schema source authoring", () => {
       },
     });
   });
-
   it("formats deterministic source data that round-trips through parsing", () => {
     const source = taskSource();
-    const reordered = Object.fromEntries(Object.entries(source).reverse()) as AppSchemaSource;
+    const reordered = Object.fromEntries(
+      Object.entries(source).reverse(),
+    ) as unknown as AppSchemaSource;
     const formatted = formatAppSchemaSource(source);
-
     expect(formatAppSchemaSource(reordered)).toBe(formatted);
     expect(formatted.endsWith("\n")).toBe(true);
     expect(JSON.parse(formatted)).toEqual(source);
-    expect(Object.keys((JSON.parse(formatted) as AppSchemaSource).entities.task.fields)).toEqual([
-      "title",
-      "done",
-    ]);
+    expect(
+      (JSON.parse(formatted) as AppSchemaSource).entities
+        .find((definition) => definition.key === "task")!
+        .fields.map(({ key }) => key),
+    ).toEqual(["title", "done"]);
     expect(parseAppSchema(JSON.parse(formatted))).toEqual(parseAppSchema(source));
   });
 });
@@ -106,48 +126,56 @@ describe("App schema source authoring", () => {
 function taskSource() {
   return defineAppSchema({
     version: 1,
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         label: "Task",
-        fields: {
-          title: {
+        fields: [
+          {
+            key: "title",
             type: "text",
             required: true,
           },
-          done: {
+          {
+            key: "done",
             type: "boolean",
             required: true,
           },
-        },
-        operations: {
-          create: {
+        ],
+        operations: [
+          {
+            key: "create",
             kind: "create",
             scope: "collection",
           },
-        },
+        ],
       },
-    },
-    queries: {
-      taskAll: {
+    ],
+    queries: [
+      {
+        key: "taskAll",
         label: "All tasks",
         entity: "task",
         expression: { kind: "all" },
       },
-    },
-    itemViews: {
-      taskItem: {
+    ],
+    itemViews: [
+      {
+        key: "taskItem",
         entity: "task",
-        fields: {
-          title: {
+        fields: [
+          {
+            field: "title",
             editor: "text",
             commit: "field-commit",
           },
-        },
+        ],
       },
-    },
-    tableViews: {},
-    views: {
-      taskHome: {
+    ],
+    tableViews: [],
+    views: [
+      {
+        key: "taskHome",
         type: "collection",
         label: "Tasks",
         entity: "task",
@@ -164,9 +192,10 @@ function taskSource() {
           itemView: "taskItem",
         },
       },
-    },
-    screens: {
-      home: {
+    ],
+    screens: [
+      {
+        key: "home",
         type: "workspace",
         label: "Tasks",
         layout: {
@@ -180,6 +209,6 @@ function taskSource() {
           ],
         },
       },
-    },
+    ],
   });
 }

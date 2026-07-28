@@ -7,23 +7,40 @@ describe("schema screens", () => {
   it("parses static app-relative paths and rejects duplicate routes", () => {
     const schema = parseAppSchema({
       ...taskSchema(),
-      screens: { home: taskScreen({ path: "/schema" }) },
+      screens: [
+        {
+          key: "home",
+          ...taskScreen({ path: "/schema" }),
+        },
+      ],
     });
-
-    expect(schema.screens?.home?.path).toBe("/schema");
+    expect(schema.screens.find((definition) => definition.key === "home")?.path).toBe("/schema");
     expect(() =>
       parseAppSchema({
         ...taskSchema(),
-        screens: {
-          home: taskScreen({ path: "/tasks" }),
-          duplicate: taskScreen({ label: "Duplicate", path: "/tasks" }),
-        },
+        screens: [
+          {
+            key: "home",
+            ...taskScreen({ path: "/tasks" }),
+          },
+          {
+            key: "duplicate",
+            ...taskScreen({ label: "Duplicate", path: "/tasks" }),
+          },
+        ],
       }),
     ).toThrow('Screen path "/tasks" must be unique. Used by "home" and "duplicate".');
-
     for (const path of ["", "tasks", "/tasks/:taskId", "/*"]) {
       expect(() =>
-        parseAppSchema({ ...taskSchema(), screens: { home: taskScreen({ path }) } }),
+        parseAppSchema({
+          ...taskSchema(),
+          screens: [
+            {
+              key: "home",
+              ...taskScreen({ path }),
+            },
+          ],
+        }),
       ).toThrow('Screen "home" path must be a static app-relative path.');
     }
   });
@@ -32,31 +49,36 @@ describe("schema screens", () => {
     expect(() =>
       parseAppSchema({
         ...taskSchema(),
-        screens: {
-          home: taskScreen({
-            layout: {
-              type: "stack",
-              sections: [
-                { id: "tasks", type: "collection", view: "taskHome" },
-                { id: "tasks", type: "collection", view: "taskHome" },
-              ],
-            },
-          }),
-        },
+        screens: [
+          {
+            key: "home",
+            ...taskScreen({
+              layout: {
+                type: "stack",
+                sections: [
+                  { id: "tasks", type: "collection", view: "taskHome" },
+                  { id: "tasks", type: "collection", view: "taskHome" },
+                ],
+              },
+            }),
+          },
+        ],
       }),
     ).toThrow('Screen "home" layout section id "tasks" must be unique.');
-
     expect(() =>
       parseAppSchema({
         ...taskSchema(),
-        screens: {
-          home: taskScreen({
-            layout: {
-              type: "stack",
-              sections: [{ id: "tasks", type: "collection", view: "taskCreate" }],
-            },
-          }),
-        },
+        screens: [
+          {
+            key: "home",
+            ...taskScreen({
+              layout: {
+                type: "stack",
+                sections: [{ id: "tasks", type: "collection", view: "taskCreate" }],
+              },
+            }),
+          },
+        ],
       }),
     ).toThrow('Screen "home" layout section 0 must reference a collection view.');
   });
@@ -65,56 +87,68 @@ describe("schema screens", () => {
     for (const width of ["narrow", "standard", "wide"] as const) {
       const schema = parseAppSchema({
         ...taskSchema(),
-        screens: {
-          home: taskScreen({
-            layout: {
-              type: "stack",
-              width,
-              sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
-            },
-          }),
-        },
+        screens: [
+          {
+            key: "home",
+            ...taskScreen({
+              layout: {
+                type: "stack",
+                width,
+                sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
+              },
+            }),
+          },
+        ],
       });
-
-      expect(schema.screens?.home?.layout.width).toBe(width);
+      expect(schema.screens.find((definition) => definition.key === "home")?.layout.width).toBe(
+        width,
+      );
     }
-
-    expect(parseAppSchema(taskSchema()).screens?.home?.layout.width).toBe("standard");
+    expect(
+      parseAppSchema(taskSchema()).screens.find((definition) => definition.key === "home")?.layout
+        .width,
+    ).toBe("standard");
     expect(() =>
       parseAppSchema({
         ...taskSchema(),
-        screens: {
-          home: taskScreen({
-            layout: {
-              type: "stack",
-              width: "full",
-              sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
-            },
-          }),
-        },
+        screens: [
+          {
+            key: "home",
+            ...taskScreen({
+              layout: {
+                type: "stack",
+                width: "full",
+                sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
+              },
+            }),
+          },
+        ],
       }),
     ).toThrow('Screen "home" layout width must be "narrow", "standard", or "wide".');
   });
-
   it("parses optional owner, authenticated, and anonymous screen access", () => {
     const schema = parseAppSchema(screenAccessSchema());
-
-    expect(schema.screens?.home.access).toBe("owner");
-    expect(schema.screens?.members.access).toBe("authenticated");
-    expect(schema.screens?.public.access).toBe("anonymous");
-    expect(schema.screens?.inherited.access).toBeUndefined();
+    expect(schema.screens.find((definition) => definition.key === "home")!.access).toBe("owner");
+    expect(schema.screens.find((definition) => definition.key === "members")!.access).toBe(
+      "authenticated",
+    );
+    expect(schema.screens.find((definition) => definition.key === "public")!.access).toBe(
+      "anonymous",
+    );
+    expect(
+      schema.screens.find((definition) => definition.key === "inherited")!.access,
+    ).toBeUndefined();
   });
-
   it("rejects unsupported screen access", () => {
     expect(() =>
       parseAppSchema({
         ...screenAccessSchema(),
-        screens: {
-          home: {
-            ...screenAccessSchema().screens!.home,
+        screens: [
+          {
+            ...screenAccessSchema().screens.find((definition) => definition.key === "home")!,
             access: "admin",
           },
-        },
+        ],
       }),
     ).toThrow('Screen "home" access must be "anonymous", "authenticated", or "owner".');
   });
@@ -123,35 +157,33 @@ describe("schema screens", () => {
 function screenAccessSchema() {
   return {
     version: 1,
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         label: "Task",
-        fields: {
-          title: { type: "text", required: true, label: "Title" },
-        },
-        operations: {
-          create: {
+        fields: [{ key: "title", type: "text", required: true, label: "Title" }],
+        operations: [
+          {
+            key: "create",
             kind: "create",
             scope: "collection",
             effect: { type: "createRecord" },
           },
-        },
+        ],
       },
-    },
-    queries: {
-      taskAll: { label: "Tasks", entity: "task", expression: { kind: "all" } },
-    },
-    itemViews: {
-      taskItem: {
+    ],
+    queries: [{ key: "taskAll", label: "Tasks", entity: "task", expression: { kind: "all" } }],
+    itemViews: [
+      {
+        key: "taskItem",
         entity: "task",
-        fields: {
-          title: { editor: "text", commit: "field-commit" },
-        },
+        fields: [{ field: "title", editor: "text", commit: "field-commit" }],
       },
-    },
-    tableViews: {},
-    views: {
-      taskList: {
+    ],
+    tableViews: [],
+    views: [
+      {
+        key: "taskList",
         type: "collection",
         label: "Tasks",
         entity: "task",
@@ -159,47 +191,47 @@ function screenAccessSchema() {
         defaultQuery: "taskAll",
         result: { type: "list", itemView: "taskItem" },
       },
-    },
-    screens: {
-      home: {
+    ],
+    screens: [
+      {
+        key: "home",
         type: "workspace",
         label: "Home",
         access: "owner",
-        navigation: { primary: true },
         layout: {
           type: "stack",
           sections: [{ id: "tasks", type: "collection", view: "taskList" }],
         },
       },
-      public: {
+      {
+        key: "public",
         type: "workspace",
         label: "Public",
         access: "anonymous",
-        navigation: { primary: false },
         layout: {
           type: "stack",
           sections: [{ id: "public-tasks", type: "collection", view: "taskList" }],
         },
       },
-      members: {
+      {
+        key: "members",
         type: "workspace",
         label: "Members",
         access: "authenticated",
-        navigation: { primary: false },
         layout: {
           type: "stack",
           sections: [{ id: "member-tasks", type: "collection", view: "taskList" }],
         },
       },
-      inherited: {
+      {
+        key: "inherited",
         type: "workspace",
         label: "Inherited",
-        navigation: { primary: false },
         layout: {
           type: "stack",
           sections: [{ id: "inherited-tasks", type: "collection", view: "taskList" }],
         },
       },
-    },
+    ],
   };
 }

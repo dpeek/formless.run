@@ -3,6 +3,7 @@ import {
   formatInstanceControlPlaneBoundaryEntityName,
   instanceControlPlaneEntityNames,
   instanceControlPlaneRecordSourceEntityName,
+  instanceControlPlaneSchema,
   isInstanceControlPlaneEntityName,
   parseInstanceControlPlaneBoundaryEntityName,
   parseInstanceControlPlaneRecords,
@@ -23,6 +24,7 @@ import type {
   InstanceWorkspaceRecordValues,
   InstanceWorkspaceStoredRecord,
 } from "./types.ts";
+import { formatStoredRecordsForArtifact } from "@dpeek/formless-storage";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 
 export function instanceWorkspaceControlPlaneRecordSourceFileName(
@@ -36,18 +38,24 @@ export function formatInstanceWorkspaceControlPlaneRecordSourceFile(input: {
   records: readonly InstanceWorkspaceStoredRecord[];
   schemaUpdatedAt: string;
 }): string {
+  const records = formatStoredRecordsForArtifact(
+    instanceControlPlaneSchema,
+    input.records
+      .filter(
+        (record) => instanceControlPlaneRecordSourceEntityName(record.entity) === input.entity,
+      )
+      .map((record) => reviewableRecordSourceRecord(input.entity, record)),
+  ).map((record) => ({
+    ...record,
+    entity: formatInstanceWorkspaceControlPlaneBoundaryEntityName(input.entity),
+  }));
   const file: InstanceWorkspaceControlPlaneRecordSourceFile = {
     kind: INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_FILE_KIND,
     version: INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_FILE_VERSION,
     schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
     schemaUpdatedAt: input.schemaUpdatedAt,
     entity: formatInstanceWorkspaceControlPlaneBoundaryEntityName(input.entity),
-    records: input.records
-      .filter(
-        (record) => instanceControlPlaneRecordSourceEntityName(record.entity) === input.entity,
-      )
-      .map((record) => canonicalRecordSourceRecord(input.entity, record))
-      .sort(compareRecordSourceRecords),
+    records,
   };
 
   return `${JSON.stringify(file, null, 2)}\n`;
@@ -233,36 +241,21 @@ function parseRecordSourceEntity(
   return entity;
 }
 
-function canonicalRecordSourceRecord(
+function reviewableRecordSourceRecord(
   entity: InstanceWorkspaceControlPlaneRecordSourceEntity,
   record: InstanceWorkspaceStoredRecord,
 ): InstanceWorkspaceStoredRecord {
   return {
     id: record.id,
-    entity: formatInstanceWorkspaceControlPlaneBoundaryEntityName(entity),
-    values: stableJsonValue(
-      reviewableInstanceControlPlaneRecordValues(
-        entity as InstanceControlPlaneEntityName,
-        record.values as RecordValues,
-      ),
+    entity,
+    values: reviewableInstanceControlPlaneRecordValues(
+      entity as InstanceControlPlaneEntityName,
+      record.values as RecordValues,
     ) as InstanceWorkspaceRecordValues,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     ...(record.deletedAt === undefined ? {} : { deletedAt: record.deletedAt }),
   };
-}
-
-function compareRecordSourceRecords(
-  left: InstanceWorkspaceStoredRecord,
-  right: InstanceWorkspaceStoredRecord,
-) {
-  const createdAtOrder = left.createdAt.localeCompare(right.createdAt);
-
-  if (createdAtOrder !== 0) {
-    return createdAtOrder;
-  }
-
-  return left.id.localeCompare(right.id);
 }
 
 function parseIsoTimestamp(context: string, value: unknown): string {
@@ -282,22 +275,6 @@ function parseNonEmptyString(context: string, value: unknown): string {
   }
 
   return value;
-}
-
-function stableJsonValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(stableJsonValue);
-  }
-
-  if (!isRecord(value)) {
-    return value;
-  }
-
-  return Object.fromEntries(
-    Object.entries(value)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, child]) => [key, stableJsonValue(child)]),
-  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -180,15 +180,15 @@ function requireOperation(
     entityName: string;
     operationName: string;
   },
-): { entity: EntitySchema; operation: EntityOperationSchema } {
-  const entity = schema.entities[route.entityName];
-
+): {
+  entity: EntitySchema;
+  operation: EntityOperationSchema;
+} {
+  const entity = schema.entities.find((definition) => definition.key === route.entityName)!;
   if (!entity) {
     throw new BadRequestError(`Unknown entity "${route.entityName}".`);
   }
-
-  const operation = entity.operations?.[route.operationName];
-
+  const operation = entity.operations?.find((definition) => definition.key === route.operationName);
   if (!operation) {
     throw new BadRequestError(
       `Unknown operation "${route.operationName}" for entity "${route.entityName}".`,

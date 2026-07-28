@@ -5,32 +5,36 @@ import { workspaceAppPackageManifestFixture } from "./workspace-app-package.ts";
 export const customOnboardingPackageAppKey = "custom-onboarding";
 export const customOnboardingDefaultInstallId = "custom-onboarding";
 export const customOnboardingRegistrationOperationKey = "profile.completeRegistration";
-
 export const customOnboardingSourceSchema = {
   version: 1,
-  entities: {
-    profile: {
+  entities: [
+    {
+      key: "profile",
       label: "Profile",
-      fields: {
-        actorPrincipalId: {
+      fields: [
+        {
+          key: "actorPrincipalId",
           type: "text",
           required: true,
           label: "Actor principal",
         },
-        displayName: {
+        {
+          key: "displayName",
           type: "text",
           required: true,
           label: "Display name",
         },
-        principal: {
+        {
+          key: "principal",
           type: "reference",
           required: true,
           label: "Principal",
           to: "auth:principal",
         },
-      },
-      operations: {
-        completeRegistration: {
+      ],
+      operations: [
+        {
+          key: "completeRegistration",
           label: "Complete profile",
           kind: "command",
           scope: "collection",
@@ -38,14 +42,16 @@ export const customOnboardingSourceSchema = {
             actors: ["authenticated"],
           },
           input: {
-            fields: {
-              displayName: {
+            fields: [
+              {
+                key: "displayName",
                 field: "displayName",
               },
-              principal: {
+              {
+                key: "principal",
                 field: "principal",
               },
-            },
+            ],
           },
           effect: {
             type: "recordPlan",
@@ -74,32 +80,36 @@ export const customOnboardingSourceSchema = {
             required: true,
           },
         },
-      },
+      ],
     },
-  },
-  queries: {
-    profileAll: {
+  ],
+  queries: [
+    {
+      key: "profileAll",
       label: "All",
       entity: "profile",
       expression: {
         kind: "all",
       },
     },
-  },
-  itemViews: {
-    profileItem: {
+  ],
+  itemViews: [
+    {
+      key: "profileItem",
       entity: "profile",
-      fields: {
-        displayName: {
+      fields: [
+        {
+          field: "displayName",
           editor: "text",
           commit: "field-commit",
         },
-      },
+      ],
     },
-  },
-  tableViews: {},
-  views: {
-    profileHome: {
+  ],
+  tableViews: [],
+  views: [
+    {
+      key: "profileHome",
       type: "collection",
       label: "Profiles",
       entity: "profile",
@@ -110,9 +120,10 @@ export const customOnboardingSourceSchema = {
         itemView: "profileItem",
       },
     },
-  },
-  screens: {
-    profileHome: {
+  ],
+  screens: [
+    {
+      key: "profileHome",
       type: "workspace",
       label: "Profiles",
       path: "/",
@@ -127,12 +138,10 @@ export const customOnboardingSourceSchema = {
         ],
       },
     },
-  },
+  ],
 };
-
 export async function customOnboardingWorkspacePackageFixture() {
   const sourceSchemaHash = await computeSourceSchemaHash(customOnboardingSourceSchema);
-
   return {
     manifest: workspaceAppPackageManifestFixture({
       defaultInstallId: customOnboardingDefaultInstallId,

@@ -217,14 +217,8 @@ function operationCandidates(
   schema: AppSchema,
   operationName: string,
 ): Array<{ entityName: string; operation: EntityOperationSchema }> {
-  return Object.entries(schema.entities)
-    .map(([entityName, entity]) => {
-      const operation = entity.operations?.[operationName];
-
-      return operation ? { entityName, operation } : undefined;
-    })
-    .filter(
-      (candidate): candidate is { entityName: string; operation: EntityOperationSchema } =>
-        candidate !== undefined,
-    );
+  return schema.entities.flatMap((entity) => {
+    const operation = entity.operations?.find(({ key }) => key === operationName);
+    return operation ? [{ entityName: entity.key, operation }] : [];
+  });
 }

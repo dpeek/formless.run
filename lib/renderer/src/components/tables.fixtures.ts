@@ -37,30 +37,34 @@ const titleSchema = {
   label: "Task",
   required: true,
   type: "text",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const titleControl = textControl(titleSchema);
-
 const statusSchema = {
   default: "open",
   label: "Status",
   required: true,
   type: "enum",
-  values: {
-    done: { label: "Done", presentation: { color: "success" } },
-    open: { label: "Open", presentation: { color: "warning" } },
-  },
-} as const satisfies Extract<FieldSchema, { type: "enum" }>;
-
+  values: [
+    { key: "done", label: "Done", presentation: { color: "success" } },
+    { key: "open", label: "Open", presentation: { color: "warning" } },
+  ],
+} as const satisfies Extract<
+  FieldSchema,
+  {
+    type: "enum";
+  }
+>;
 const statusMachine = {
   field: "status",
   initial: "open",
   terminal: ["done"],
-  transitions: {
-    complete: { from: ["open"], label: "Complete", to: "done" },
-  },
+  transitions: [{ key: "complete", from: ["open"], label: "Complete", to: "done" }],
 } satisfies StateMachineSchema;
-
 const statusOperationNames = {
   complete: "tasks.complete",
 };
@@ -266,7 +270,17 @@ type TaskRowInput = {
   owner: string;
   rowCount: number;
   rowId: string;
-  score: { kind: "invalid" } | { kind: "pending" } | { kind: "ready"; value: string };
+  score:
+    | {
+        kind: "invalid";
+      }
+    | {
+        kind: "pending";
+      }
+    | {
+        kind: "ready";
+        value: string;
+      };
   status: "done" | "open";
   title: string;
   titleMode: "editable" | "readOnly";
@@ -401,7 +415,8 @@ function taskStatusField(input: Pick<TaskRowInput, "canEdit" | "rowId" | "status
     field: statusSchema,
     fieldName: "status",
     formatting: {
-      displayValue: statusSchema.values[input.status].label,
+      displayValue: statusSchema.values.find((definition) => definition.key === input.status)!
+        .label,
       enumValuePresentation: enumValuePresentation(statusSchema, input.status),
     },
     labelVisibility: "hidden",

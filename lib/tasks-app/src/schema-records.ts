@@ -1,77 +1,89 @@
 import { defineAppSchemaModule } from "@dpeek/formless-schema";
-
 export const tasksRecordSchemaModule = defineAppSchemaModule({
   key: "tasks-records",
-  entities: {
-    task: {
+  entities: [
+    {
+      key: "task",
       label: "Task",
-      fields: {
-        title: {
+      fields: [
+        {
+          key: "title",
           type: "text",
           required: true,
           label: "Title",
         },
-        done: {
+        {
+          key: "done",
           type: "boolean",
           required: true,
           label: "Done",
           default: false,
         },
-        dueDate: {
+        {
+          key: "dueDate",
           type: "date",
           required: false,
           label: "Due date",
         },
-        priority: {
+        {
+          key: "priority",
           type: "enum",
           required: true,
           label: "Priority",
           default: "normal",
-          values: {
-            low: {
+          values: [
+            {
+              key: "low",
               label: "Low",
               presentation: {
                 icon: "priority-marker",
                 color: "priority.low",
               },
             },
-            normal: {
+            {
+              key: "normal",
               label: "Normal",
               presentation: {
                 icon: "priority-marker",
                 color: "priority.normal",
               },
             },
-            high: {
+            {
+              key: "high",
               label: "High",
               presentation: {
                 icon: "priority-marker",
                 color: "priority.high",
               },
             },
-          },
+          ],
         },
-      },
-      operations: {
-        create: {
+      ],
+      operations: [
+        {
+          key: "create",
           label: "Create Task",
           kind: "create",
           scope: "collection",
           input: {
-            fields: {
-              title: {
+            fields: [
+              {
+                key: "title",
                 field: "title",
               },
-              done: {
+              {
+                key: "done",
                 field: "done",
               },
-              dueDate: {
+              {
+                key: "dueDate",
                 field: "dueDate",
               },
-              priority: {
+              {
+                key: "priority",
                 field: "priority",
               },
-            },
+            ],
           },
           effect: {
             type: "createRecord",
@@ -86,25 +98,30 @@ export const tasksRecordSchemaModule = defineAppSchemaModule({
             input: "summary",
           },
         },
-        update: {
+        {
+          key: "update",
           label: "Update Task",
           kind: "update",
           scope: "record",
           input: {
-            fields: {
-              title: {
+            fields: [
+              {
+                key: "title",
                 field: "title",
               },
-              done: {
+              {
+                key: "done",
                 field: "done",
               },
-              dueDate: {
+              {
+                key: "dueDate",
                 field: "dueDate",
               },
-              priority: {
+              {
+                key: "priority",
                 field: "priority",
               },
-            },
+            ],
           },
           effect: {
             type: "patchRecord",
@@ -119,7 +136,8 @@ export const tasksRecordSchemaModule = defineAppSchemaModule({
             input: "summary",
           },
         },
-        clearCompletedTasks: {
+        {
+          key: "clearCompletedTasks",
           label: "Clear completed",
           kind: "command",
           scope: "collection",
@@ -143,18 +161,20 @@ export const tasksRecordSchemaModule = defineAppSchemaModule({
             input: "summary",
           },
         },
-      },
+      ],
     },
-  },
-  queries: {
-    taskAll: {
+  ],
+  queries: [
+    {
+      key: "taskAll",
       label: "All",
       entity: "task",
       expression: {
         kind: "all",
       },
     },
-    taskActive: {
+    {
+      key: "taskActive",
       label: "Active",
       entity: "task",
       expression: {
@@ -167,7 +187,8 @@ export const tasksRecordSchemaModule = defineAppSchemaModule({
         value: false,
       },
     },
-    taskCompleted: {
+    {
+      key: "taskCompleted",
       label: "Completed",
       entity: "task",
       expression: {
@@ -180,7 +201,8 @@ export const tasksRecordSchemaModule = defineAppSchemaModule({
         value: true,
       },
     },
-    taskOverdue: {
+    {
+      key: "taskOverdue",
       label: "Overdue",
       entity: "task",
       expression: {
@@ -209,5 +231,5 @@ export const tasksRecordSchemaModule = defineAppSchemaModule({
         ],
       },
     },
-  },
+  ],
 });

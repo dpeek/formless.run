@@ -83,7 +83,13 @@ describe("email runtime contracts", () => {
         },
         {
           "site.contactNotification": ({ canonicalOrigin, facts }) => ({
-            subject: `Message from ${(facts as { name: string }).name}`,
+            subject: `Message from ${
+              (
+                facts as {
+                  name: string;
+                }
+              ).name
+            }`,
             text: `Open ${canonicalOrigin}/admin`,
             html: `<p>Open <a href="${canonicalOrigin}/admin">admin</a></p>`,
           }),

@@ -31,16 +31,15 @@ export function assertUniqueConstraintsForActiveRecords(
   activeRecords: readonly StoredRecord[],
   options: Pick<ConstraintCheckOptions, "ignoreRecordId"> = {},
 ) {
-  const entity = schema.entities[entityName];
+  const entity = schema.entities.find((definition) => definition.key === entityName)!;
   if (!entity) {
     throw new Error(`Missing entity "${entityName}".`);
   }
-
-  for (const [constraintName, constraint] of Object.entries(entity.constraints ?? {})) {
+  for (const constraint of entity.constraints ?? []) {
     if (constraint.kind !== "unique") {
       continue;
     }
-
+    const constraintName = constraint.key;
     const duplicate = activeRecords.find((record) => {
       return (
         record.entity === entityName &&
@@ -60,16 +59,16 @@ export function assertExistingRecordsSatisfyUniqueConstraints(
   schema: AppSchema,
   records: StoredRecord[],
 ) {
-  for (const [entityName, entity] of Object.entries(schema.entities)) {
+  for (const entity of schema.entities) {
+    const entityName = entity.key;
     const activeRecords = records.filter(
       (record) => record.entity === entityName && !record.deletedAt,
     );
-
-    for (const [constraintName, constraint] of Object.entries(entity.constraints ?? {})) {
+    for (const constraint of entity.constraints ?? []) {
       if (constraint.kind !== "unique") {
         continue;
       }
-
+      const constraintName = constraint.key;
       assertExistingRecordsSatisfyUniqueConstraint(
         entityName,
         entity,
@@ -113,12 +112,10 @@ function assertExistingRecordsSatisfyUniqueConstraint(
         `Cannot add unique constraint "${entityName}.${constraintName}" because existing records violate it.`,
       );
     }
-
     seen.add(key);
   }
-
   for (const fieldName of constraint.fields) {
-    if (!entity.fields[fieldName]) {
+    if (!entity.fields.find((definition) => definition.key === fieldName)!) {
       throw new Error(
         `Unique constraint "${entityName}.${constraintName}" references unknown field "${fieldName}".`,
       );

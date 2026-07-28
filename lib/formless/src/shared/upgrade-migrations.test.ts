@@ -36,7 +36,7 @@ describe("upgrade migration contracts", () => {
       bundledSourceSchemaHashFixtures.tasks,
     );
     expect(bundledSourceSchemaHashFixtures.tasks).toBe(
-      "sha256:51428cbdf236029c81d97bafffcdad039be062472226b6adea7a249333081c56",
+      "sha256:2fe579351d0f296f4daefc351f5ea79a0121bfecd591dc7a904832ee2bcfb704",
     );
     await expect(computeSourceSchemaHash(rawSiteSourceSchema)).resolves.toBe(
       bundledSourceSchemaHashFixtures.site,
@@ -176,12 +176,12 @@ describe("upgrade migration contracts", () => {
     ]);
   });
 });
-
 function storageMigration(
-  overrides: Partial<UpgradeMigrationDefinition> & { id: string },
+  overrides: Partial<UpgradeMigrationDefinition> & {
+    id: string;
+  },
 ): UpgradeMigrationDefinition {
   const { id, ...rest } = overrides;
-
   return {
     id,
     owner: "authority-storage",
@@ -193,12 +193,12 @@ function storageMigration(
     ...rest,
   } as UpgradeMigrationDefinition;
 }
-
 function packageAppMigration(
-  overrides: Partial<PackageAppUpgradeMigration> & { id: string },
+  overrides: Partial<PackageAppUpgradeMigration> & {
+    id: string;
+  },
 ): PackageAppUpgradeMigration {
   const { id, ...rest } = overrides;
-
   return {
     id,
     owner: "app-schema",

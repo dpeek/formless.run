@@ -312,9 +312,10 @@ describe("Formless instance onboarding adapters", () => {
       "Re-run `alchemy login cloudflare -p personal` and `alchemy configure -p personal`",
     );
   });
-
   it("discovers an account, plans deployment, and calls the deployment adapter with secrets", async () => {
-    const discoveryInputs: Array<{ credentialProfile: string | null }> = [];
+    const discoveryInputs: Array<{
+      credentialProfile: string | null;
+    }> = [];
     const deployInputs: DeployFormlessInstanceInput[] = [];
     const healthInputs: CheckFormlessInstanceDeployMetadataInput[] = [];
     const openedUrls: string[] = [];
@@ -1187,21 +1188,35 @@ describe("Alchemy Formless instance deployment", () => {
     expect(workers[0]?.props.build.env).not.toHaveProperty("FORMLESS_EMAIL_DELIVERY_QUEUE");
     expect(finalized).toBe(1);
   });
-
   it("declares route-derived custom-domain resources for mounts and redirects during deploy", async () => {
-    const bucketCalls: Array<{ id: string; props: unknown }> = [];
-    const cloudflareApiCalls: Array<{ options: unknown; paths: string[] }> = [];
+    const bucketCalls: Array<{
+      id: string;
+      props: unknown;
+    }> = [];
+    const cloudflareApiCalls: Array<{
+      options: unknown;
+      paths: string[];
+    }> = [];
     const events: string[] = [];
-    const routeResourceCalls: Array<{ id: string; kind: string; props: unknown }> = [];
+    const routeResourceCalls: Array<{
+      id: string;
+      kind: string;
+      props: unknown;
+    }> = [];
     const queueCalls: Array<{
       id: string;
       output: Awaited<ReturnType<CreateQueue>>;
       props: unknown;
     }> = [];
     const secrets: string[] = [];
-    const turnstileCalls: Array<{ id: string; props: unknown }> = [];
-    const workerCalls: Array<{ id: string; props: AlchemyFormlessInstanceDeploymentWorkerProps }> =
-      [];
+    const turnstileCalls: Array<{
+      id: string;
+      props: unknown;
+    }> = [];
+    const workerCalls: Array<{
+      id: string;
+      props: AlchemyFormlessInstanceDeploymentWorkerProps;
+    }> = [];
     let finalized = 0;
     const dependencies: AlchemyFormlessInstanceDeploymentDependencies = {
       createApp: async () => {
@@ -1554,14 +1569,22 @@ describe("Alchemy Formless instance deployment", () => {
     ]);
     expect(finalized).toBe(1);
   });
-
   it("declares email sending bindings and applies provider-owned email deployment resources", async () => {
-    const emailResourceCalls: Array<{ id: string; kind: string; props: unknown }> = [];
+    const emailResourceCalls: Array<{
+      id: string;
+      kind: string;
+      props: unknown;
+    }> = [];
     const events: string[] = [];
     const secrets: string[] = [];
-    const workerCalls: Array<{ id: string; props: AlchemyFormlessInstanceDeploymentWorkerProps }> =
-      [];
-    const cloudflareApiCalls: Array<{ options: unknown; paths: string[] }> = [];
+    const workerCalls: Array<{
+      id: string;
+      props: AlchemyFormlessInstanceDeploymentWorkerProps;
+    }> = [];
+    const cloudflareApiCalls: Array<{
+      options: unknown;
+      paths: string[];
+    }> = [];
     let finalized = 0;
     const dependencies: AlchemyFormlessInstanceDeploymentDependencies = {
       createApp: async () => {
@@ -1795,13 +1818,22 @@ describe("Alchemy Formless instance deployment", () => {
     expect(secrets).toEqual(["cf-token", "alchemy-password", "admin-secret"]);
     expect(finalized).toBe(1);
   });
-
   it("marks Alchemy resources for adoption when deploying an existing instance", async () => {
-    const apps: Array<{ options: AlchemyFormlessInstanceDeploymentAppOptions }> = [];
-    const buckets: Array<{ props: unknown }> = [];
-    const customDomains: Array<{ props: unknown }> = [];
-    const turnstiles: Array<{ props: unknown }> = [];
-    const workers: Array<{ props: AlchemyFormlessInstanceDeploymentWorkerProps }> = [];
+    const apps: Array<{
+      options: AlchemyFormlessInstanceDeploymentAppOptions;
+    }> = [];
+    const buckets: Array<{
+      props: unknown;
+    }> = [];
+    const customDomains: Array<{
+      props: unknown;
+    }> = [];
+    const turnstiles: Array<{
+      props: unknown;
+    }> = [];
+    const workers: Array<{
+      props: AlchemyFormlessInstanceDeploymentWorkerProps;
+    }> = [];
     const dependencies: AlchemyFormlessInstanceDeploymentDependencies = {
       createApp: async (_name, options) => {
         apps.push({ options });
@@ -2021,12 +2053,22 @@ describe("Alchemy Formless instance deployment", () => {
       name: typeof FORMLESS_ALCHEMY_APP_NAME;
       options: AlchemyFormlessInstanceDeploymentAppOptions;
     }> = [];
-    const buckets: Array<{ props: unknown }> = [];
+    const buckets: Array<{
+      props: unknown;
+    }> = [];
     const events: string[] = [];
-    const namespaces: Array<{ props: unknown }> = [];
-    const routeResourceCalls: Array<{ id: string; kind: string; props: unknown }> = [];
+    const namespaces: Array<{
+      props: unknown;
+    }> = [];
+    const routeResourceCalls: Array<{
+      id: string;
+      kind: string;
+      props: unknown;
+    }> = [];
     const secrets: string[] = [];
-    const workers: Array<{ props: AlchemyFormlessInstanceDeploymentWorkerProps }> = [];
+    const workers: Array<{
+      props: AlchemyFormlessInstanceDeploymentWorkerProps;
+    }> = [];
     const providerCredentialEnvReads: Array<{
       CF_API_TOKEN?: string;
       CLOUDFLARE_API_KEY?: string;
@@ -2450,7 +2492,10 @@ describe("Alchemy Formless instance deployment", () => {
 describe("Formless instance local secret env", () => {
   it("creates and reuses a local Alchemy encryption password", async () => {
     const preparedRoots: string[] = [];
-    const writes: Array<{ contents: string; path: string }> = [];
+    const writes: Array<{
+      contents: string;
+      path: string;
+    }> = [];
     let contents: string | null = "# local deploy secrets\nFORMLESS_ADMIN_TOKEN=admin-secret\n";
     const dependencies: EnsureFormlessInstanceLocalSecretEnvDependencies = {
       prepareStateDirectory: async (root) => {
@@ -2582,8 +2627,10 @@ describe("Formless instance state", () => {
       plan,
     });
     const preparedRoots: string[] = [];
-    const writes: Array<{ contents: string; path: string }> = [];
-
+    const writes: Array<{
+      contents: string;
+      path: string;
+    }> = [];
     const result = await writeFormlessInstanceState(
       {
         root: "/workspace",

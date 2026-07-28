@@ -3,6 +3,7 @@ import {
   isOperationHandlerEffect,
 } from "./schema-operation-execution.ts";
 import { formatEntityOperationKey, parseEntityOperationKey } from "./schema-operations.ts";
+import { definitionsToRecord } from "./schema-parse-helpers.ts";
 import type {
   AppSchema,
   EntityOperationInputFieldSchema,
@@ -34,9 +35,10 @@ export type AnonymousPublicOperationUnavailableReason =
   | "unsupported-effect"
   | "unsupported-policy"
   | "missing-input";
-
 export type AnonymousPublicOperationSelection =
-  | ({ kind: "available" } & AnonymousPublicOperationFacts)
+  | ({
+      kind: "available";
+    } & AnonymousPublicOperationFacts)
   | {
       kind: "unavailable";
       reason: AnonymousPublicOperationUnavailableReason;
@@ -93,15 +95,16 @@ export function selectAnonymousPublicOperationByKey(
     operationName: parsed.operationKey,
   });
 }
-
 export function selectAnonymousPublicOperation(
   schema: AppSchema,
-  input: { entityName: string; operationName: string },
+  input: {
+    entityName: string;
+    operationName: string;
+  },
 ): AnonymousPublicOperationSelection {
-  const entity = schema.entities[input.entityName];
-  const operation = entity?.operations?.[input.operationName];
+  const entity = definitionsToRecord(schema.entities)[input.entityName];
+  const operation = definitionsToRecord(entity?.operations)[input.operationName];
   const fallbackKey = `${input.entityName}.${input.operationName}`;
-
   if (!entity || !operation) {
     return {
       kind: "unavailable",
@@ -243,10 +246,9 @@ export function projectPublicSafeOperationInputFields(input: {
 }): PublicSafeOperationInputProjection {
   const fields: PublicSafeOperationInputField[] = [];
   const unsupportedRequiredFields: string[] = [];
-
-  for (const [inputName, field] of Object.entries(input.operation.input?.fields ?? {})) {
+  for (const field of input.operation.input?.fields ?? []) {
+    const inputName = field.key;
     const projected = projectPublicSafeOperationInputField(inputName, field, input.entity.fields);
-
     if (projected) {
       fields.push(projected);
       continue;
@@ -263,11 +265,10 @@ export function projectPublicSafeOperationInputFields(input: {
 export function projectPublicSafeOperationInputField(
   inputName: string,
   field: EntityOperationInputFieldSchema,
-  entityFields: Record<string, FieldSchema>,
+  entityFields: EntitySchema["fields"],
 ): PublicSafeOperationInputField | undefined {
   if ("field" in field) {
-    const entityField = entityFields[field.field];
-
+    const entityField = definitionsToRecord(entityFields)[field.field];
     if (!entityField) {
       return undefined;
     }
@@ -323,8 +324,8 @@ function projectScalarPublicSafeOperationInputField(
       label: fieldLabel,
       required,
       control: "enum",
-      options: Object.entries(field.values).map(([value, option]) => ({
-        value,
+      options: field.values.map((option) => ({
+        value: option.key,
         label: option.label,
       })),
     };

@@ -121,12 +121,14 @@ describe("generated authoring root navigation", () => {
       "Navigation",
     ]);
   });
-
   it("exposes Site pages, posts and projects as root navigation groups with fixed creates", () => {
     const facts = selectGeneratedRootNavigationFacts(requiredSiteScreen());
-
-    expect(siteSourceSchema.queries.blockPosts?.label).toBe("Posts");
-    expect(siteSourceSchema.queries.blockProjects?.label).toBe("Projects");
+    expect(
+      siteSourceSchema.queries.find((definition) => definition.key === "blockPosts")?.label,
+    ).toBe("Posts");
+    expect(
+      siteSourceSchema.queries.find((definition) => definition.key === "blockProjects")?.label,
+    ).toBe("Projects");
     expect(
       facts?.groups.map((group) => [
         group.label,

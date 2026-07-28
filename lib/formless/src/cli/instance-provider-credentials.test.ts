@@ -195,9 +195,10 @@ describe("CLI provider credential context", () => {
       updatedAt: now(),
     });
   });
-
   it("preserves Alchemy profile facts and manual token fallback", async () => {
-    const discoveryInputs: Array<{ credentialProfile: string | null }> = [];
+    const discoveryInputs: Array<{
+      credentialProfile: string | null;
+    }> = [];
     const context = await resolveLocalWorkspaceDeploymentCredentialContext({
       accountDiscovery: {
         listAccounts: async (input) => {
@@ -285,10 +286,12 @@ async function makeTempDir(): Promise<string> {
   tempDirs.push(tempDir);
   return tempDir;
 }
-
-function oauthDeploymentCredential(
-  id: string,
-): Extract<LocalWorkspaceDeploymentCredential, { kind: "formless-cloudflare-oauth" }> {
+function oauthDeploymentCredential(id: string): Extract<
+  LocalWorkspaceDeploymentCredential,
+  {
+    kind: "formless-cloudflare-oauth";
+  }
+> {
   return {
     credentialId: id,
     credentialRef: formatFormlessCloudflareOAuthCredentialRef(id),

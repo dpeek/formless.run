@@ -1407,13 +1407,12 @@ async function resolveGateFailure(input: AccountCompletionGateResolverInput) {
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
-  const body = (await response.json()) as { error: string };
-
+  const body = (await response.json()) as {
+    error: string;
+  };
   expect(response.status).toBe(400);
-
   return body;
 }
-
 async function completeAppRegistrationGate(input: {
   cookie: string;
   target: AccountCompletionGateTarget;
@@ -1493,46 +1492,36 @@ async function createCentralSessionCookie(principalId: string) {
     method: "POST",
   });
   const cookie = response.headers.get("Set-Cookie") ?? "";
-
   expect(response.status).toBe(200);
   expect(cookie).toContain(`${CENTRAL_AUTH_SESSION_COOKIE_NAME}=`);
-
   return cookie.split(";")[0] ?? cookie;
 }
-
 async function identityRecords() {
   const response = await fetchAuthOrigin("/harness/identity-records");
-
   expect(response.status).toBe(200);
-
-  return (await response.json()) as { records: StoredRecord[] };
+  return (await response.json()) as {
+    records: StoredRecord[];
+  };
 }
-
 async function authPrivateCounts() {
   const response = await fetchAuthOrigin("/harness/auth/private-counts");
-
   expect(response.status).toBe(200);
-
   return (await response.json()) as {
     centralSessions: number;
     handoffGrants: number;
     passkeyCredentials: number;
   };
 }
-
 async function appRecords(install: CreateAppInstallResponse["install"]) {
   const response = await harness.fetch(
-    `/harness/app-records?installId=${encodeURIComponent(
-      install.installId,
-    )}&packageAppKey=${encodeURIComponent(install.packageAppKey)}`,
+    `/harness/app-records?installId=${encodeURIComponent(install.installId)}&packageAppKey=${encodeURIComponent(install.packageAppKey)}`,
   );
-  const body = (await response.json()) as { records: StoredRecord[] };
-
+  const body = (await response.json()) as {
+    records: StoredRecord[];
+  };
   expect(response.status).toBe(200);
-
   return body;
 }
-
 async function patchControlPlaneAppInstall(input: {
   deleteFields?: readonly string[];
   installId: string;
@@ -1548,13 +1537,13 @@ async function patchControlPlaneAppInstall(input: {
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
-  const body = (await response.json()) as { error?: string; record?: StoredRecord };
-
+  const body = (await response.json()) as {
+    error?: string;
+    record?: StoredRecord;
+  };
   expect(response.status, JSON.stringify(body)).toBe(200);
-
   return body.record;
 }
-
 function profileCompletionOperation(appInstallId: string) {
   return {
     appInstallId,
@@ -1586,29 +1575,34 @@ async function profileCompletionWorkspacePackage() {
 function profileCompletionSourceSchema() {
   return {
     version: 1,
-    entities: {
-      profile: {
+    entities: [
+      {
+        key: "profile",
         label: "Profile",
-        fields: {
-          actorPrincipalId: {
+        fields: [
+          {
+            key: "actorPrincipalId",
             type: "text",
             required: true,
             label: "Actor principal",
           },
-          displayName: {
+          {
+            key: "displayName",
             type: "text",
             required: true,
             label: "Display name",
           },
-          principal: {
+          {
+            key: "principal",
             type: "reference",
             required: true,
             label: "Principal",
             to: "auth:principal",
           },
-        },
-        operations: {
-          completeRegistration: {
+        ],
+        operations: [
+          {
+            key: "completeRegistration",
             label: "Complete profile",
             kind: "command",
             scope: "collection",
@@ -1616,14 +1610,16 @@ function profileCompletionSourceSchema() {
               actors: ["authenticated"],
             },
             input: {
-              fields: {
-                displayName: {
+              fields: [
+                {
+                  key: "displayName",
                   field: "displayName",
                 },
-                principal: {
+                {
+                  key: "principal",
                   field: "principal",
                 },
-              },
+              ],
             },
             effect: {
               type: "recordPlan",
@@ -1652,32 +1648,36 @@ function profileCompletionSourceSchema() {
               required: true,
             },
           },
-        },
+        ],
       },
-    },
-    queries: {
-      profileAll: {
+    ],
+    queries: [
+      {
+        key: "profileAll",
         label: "All",
         entity: "profile",
         expression: {
           kind: "all",
         },
       },
-    },
-    itemViews: {
-      profileItem: {
+    ],
+    itemViews: [
+      {
+        key: "profileItem",
         entity: "profile",
-        fields: {
-          displayName: {
+        fields: [
+          {
+            field: "displayName",
             editor: "text",
             commit: "field-commit",
           },
-        },
+        ],
       },
-    },
-    tableViews: {},
-    views: {
-      profileHome: {
+    ],
+    tableViews: [],
+    views: [
+      {
+        key: "profileHome",
         type: "collection",
         label: "Profiles",
         entity: "profile",
@@ -1688,9 +1688,10 @@ function profileCompletionSourceSchema() {
           itemView: "profileItem",
         },
       },
-    },
-    screens: {
-      profileHome: {
+    ],
+    screens: [
+      {
+        key: "profileHome",
         type: "workspace",
         label: "Profiles",
         path: "/",
@@ -1705,10 +1706,9 @@ function profileCompletionSourceSchema() {
           ],
         },
       },
-    },
+    ],
   };
 }
-
 function fetchAuthOrigin(path: string, init?: Parameters<Harness["mf"]["dispatchFetch"]>[1]) {
   return harness.mf.dispatchFetch(`https://auth.example.com${path}`, init);
 }
@@ -1923,13 +1923,12 @@ async function deleteIdentityRecord(entity: string, recordId: string) {
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });
-  const body = (await response.json()) as { record: StoredRecord };
-
+  const body = (await response.json()) as {
+    record: StoredRecord;
+  };
   expect(response.status).toBe(200);
-
   return body.record;
 }
-
 async function postIdentityRecordOperation(input: Parameters<typeof recordOperationRequest>[0]) {
   const request = recordOperationRequest(input);
   const response = await harness.fetch(`${identityApi}${request.path.slice("/api".length)}`, {

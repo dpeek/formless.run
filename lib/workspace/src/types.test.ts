@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
+import type { AppSchema } from "@dpeek/formless-schema";
 
 import {
   DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT,
@@ -86,6 +87,24 @@ import {
 } from "./index.ts";
 
 const sitePublicRendererExtensionKey = "site.publicRenderer";
+const workspaceRecordStateSchema = {
+  version: 1,
+  entities: [
+    {
+      key: "task",
+      label: "Task",
+      fields: [
+        { key: "title", type: "text", required: true, label: "Title" },
+        { key: "done", type: "boolean", required: true, label: "Done" },
+      ],
+    },
+  ],
+  queries: [],
+  itemViews: [],
+  tableViews: [],
+  views: [],
+  screens: [],
+} as AppSchema;
 
 describe("instance workspace manifest", () => {
   it("creates a layout-only reviewable workspace manifest", () => {
@@ -440,19 +459,22 @@ describe("workspace record state contracts", () => {
 
   it("parses and formats package app record state without full App schema bodies", () => {
     const state = workspacePackageAppRecordState();
-    const formatted = formatWorkspaceRecordStateFile({
-      ...state,
-      records: [
-        workspaceRecord("task-2", "task", "2026-06-18T00:00:02.000Z", {
-          done: true,
-          title: "Second",
-        }),
-        workspaceRecord("task-1", "task", "2026-06-18T00:00:01.000Z", {
-          title: "First",
-          done: false,
-        }),
-      ],
-    });
+    const formatted = formatWorkspaceRecordStateFile(
+      {
+        ...state,
+        records: [
+          workspaceRecord("task-2", "task", "2026-06-18T00:00:01.000Z", {
+            done: true,
+            title: "Second",
+          }),
+          workspaceRecord("task-1", "task", "2026-06-18T00:00:02.000Z", {
+            done: false,
+            title: "First",
+          }),
+        ],
+      },
+      workspaceRecordStateSchema,
+    );
 
     expect(formatted).toBe(`${JSON.stringify(JSON.parse(formatted), null, 2)}\n`);
     expect(JSON.parse(formatted)).not.toHaveProperty("schema");
@@ -470,11 +492,11 @@ describe("workspace record state contracts", () => {
       records: [
         {
           id: "task-1",
-          values: { done: false, title: "First" },
+          values: { title: "First", done: false },
         },
         {
           id: "task-2",
-          values: { done: true, title: "Second" },
+          values: { title: "Second", done: true },
         },
       ],
     });

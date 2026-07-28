@@ -185,6 +185,34 @@ The system SHALL initialize an empty Authority from the source schema and source
 - THEN storage starts from the package source schema
 - AND package source seed records are committed for that install id
 
+### Requirement: Portable Active Schema
+
+The system SHALL store and return the portable array-shaped parsed App schema
+without serializing runtime definition indexes.
+
+#### Scenario: Load an active schema
+
+- GIVEN bootstrap, source refresh, reset, snapshot restore, or archive restore
+  supplies an App schema
+- WHEN Authority accepts the schema
+- THEN the current array-shaped schema is parsed and stored
+- AND shared derived indexes may be built for keyed lookup during validation
+  and execution
+- AND derived maps, caches, reverse lookups, and parallel order lists are not
+  stored in Authority schema state or returned in bootstrap, sync, snapshot, or
+  archive data
+
+#### Scenario: Compare active schema content
+
+- GIVEN Authority compares source, active, restored, or migrated schemas
+- WHEN schema equality or reuse is evaluated
+- THEN the comparison uses the canonical App schema semantics used for
+  `sourceSchemaHash`
+- AND registry array reordering is a schema change
+- AND object property insertion reordering is not a schema change
+- AND accepting a new parsed schema object causes runtime definition indexes to
+  be rebuilt or selected for that object identity
+
 ### Requirement: Schema Reset
 
 The system MUST protect stored records during normal schema changes and SHALL support explicit source schema reset.
@@ -203,6 +231,20 @@ The system MUST protect stored records during normal schema changes and SHALL su
 - THEN the source schema becomes active
 - AND existing records are preserved
 - AND stored values for retired fields are pruned with patch changes
+
+#### Scenario: Destructively replace incompatible persisted schema state
+
+- GIVEN persisted Authority state cannot be parsed under the current App schema
+  contract
+- WHEN an operator adopts the current source schema through the explicit
+  destructive reset path
+- THEN records, changes, operation invocations, and the incompatible active
+  schema are cleared for that storage identity
+- AND the current source schema and source seed records become the new durable
+  state
+- AND Authority does not infer declaration order from an unsupported object
+  shape or add a dual-shape parser, alias, compatibility shim, or schema-format
+  migration layer
 
 ### Requirement: Write Invariants
 

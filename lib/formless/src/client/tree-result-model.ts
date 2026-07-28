@@ -28,10 +28,14 @@ export type TreeAllowedChildVariantConfig = {
   unionVariant: EntityUnionVariantSchema;
   placementValues?: Record<string, FieldVisibilityValue>;
 };
-
 export type TreeVariantBranchPolicyConfig = {
   discriminatorFieldName: string;
-  discriminatorField: Extract<FieldSchema, { type: "enum" }>;
+  discriminatorField: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >;
   leafVariantValues: string[];
   allowedChildVariantsByParentVariant: Record<string, TreeAllowedChildVariantConfig[]>;
 };
@@ -52,25 +56,32 @@ export type TreeCompositionOperationConfig = {
     effect: OperationHandlerEffectSchemaForKind<"remove-tree-placement">;
   };
 };
-
-export type TreeResultModel = Extract<HomeResultConfig, { type: "tree" }>;
-
+export type TreeResultModel = Extract<
+  HomeResultConfig,
+  {
+    type: "tree";
+  }
+>;
 export function selectTreeResultModel(
   schema: AppSchema,
-  result: Extract<CollectionViewSchema["result"], { type: "tree" }>,
+  result: Extract<
+    CollectionViewSchema["result"],
+    {
+      type: "tree";
+    }
+  >,
   entityName: string,
   entity: EntitySchema,
 ): TreeResultModel {
   const relationship = selectToManyRelationship(schema, result.relationship);
-  const childField = entity.fields[result.childField];
-
+  const childField = entity.fields.find((definition) => definition.key === result.childField)!;
   if (!childField || childField.type !== "reference") {
     throw new Error(`Missing tree child field "${result.childField}".`);
   }
-
-  const childEntity = schema.entities[childField.to];
-  const childItemView = schema.itemViews[result.childItemView];
-
+  const childEntity = schema.entities.find((definition) => definition.key === childField.to)!;
+  const childItemView = schema.itemViews.find(
+    (definition) => definition.key === result.childItemView,
+  )!;
   if (!childEntity) {
     throw new Error(`Missing child entity "${childField.to}".`);
   }
@@ -78,11 +89,11 @@ export function selectTreeResultModel(
   if (!childItemView) {
     throw new Error(`Missing child item view "${result.childItemView}".`);
   }
-
   const placementItemViewName = result.placementItemView;
   const placementItemView =
-    placementItemViewName === undefined ? undefined : schema.itemViews[placementItemViewName];
-
+    placementItemViewName === undefined
+      ? undefined
+      : schema.itemViews.find((definition) => definition.key === placementItemViewName)!;
   if (placementItemViewName !== undefined && placementItemView === undefined) {
     throw new Error(`Missing placement item view "${placementItemViewName}".`);
   }
@@ -138,9 +149,13 @@ export function selectTreeResultModel(
     maxDepth: result.maxDepth ?? 8,
   };
 }
-
 function selectTreeBranchPolicyConfig(
-  branches: Extract<CollectionViewSchema["result"], { type: "tree" }>["branches"],
+  branches: Extract<
+    CollectionViewSchema["result"],
+    {
+      type: "tree";
+    }
+  >["branches"],
   childRecordUnion: RecordUnionPresentationConfig | undefined,
 ): TreeBranchPolicyConfig | undefined {
   if (branches === undefined) {
@@ -182,8 +197,9 @@ function selectAllowedChildVariantsByParentVariant(
           parentVariantValue,
           childVariantPolicies.map((childVariantPolicy) => {
             const childVariantValue = treeChildVariantPolicyValue(childVariantPolicy);
-            const unionVariant = childRecordUnion.union.variants[childVariantValue];
-
+            const unionVariant = childRecordUnion.union.variants.find(
+              (definition) => definition.key === childVariantValue,
+            )!;
             if (!unionVariant) {
               throw new Error(`Missing tree child variant "${childVariantValue}".`);
             }
@@ -214,9 +230,13 @@ function treeChildVariantPolicyValue(policy: TreeBranchChildVariantSchema) {
 function treeBranchVariantPolicyIsLeaf(policy: TreeBranchVariantPolicySchema): boolean {
   return policy === "leaf" || (typeof policy === "object" && policy.action === "leaf");
 }
-
 function selectTreeCompositionOperationConfig(
-  composition: Extract<CollectionViewSchema["result"], { type: "tree" }>["composition"],
+  composition: Extract<
+    CollectionViewSchema["result"],
+    {
+      type: "tree";
+    }
+  >["composition"],
   entityName: string,
   entity: EntitySchema,
 ): TreeCompositionOperationConfig | undefined {
@@ -288,9 +308,8 @@ function selectImplicitTreeOrderingFallback(
   entity: EntitySchema,
   relationship: ToManyRelationshipSchema,
 ): ResultOrderingConfig | undefined {
-  const orderField = entity.fields.order;
-  const scopeField = entity.fields[relationship.to.field];
-
+  const orderField = entity.fields.find((definition) => definition.key === "order")!;
+  const scopeField = entity.fields.find((definition) => definition.key === relationship.to.field)!;
   if (!orderField || orderField.type !== "number" || !scopeField) {
     return undefined;
   }

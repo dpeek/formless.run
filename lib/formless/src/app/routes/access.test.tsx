@@ -19,11 +19,12 @@ import {
   instanceAccessReference,
 } from "./access-contract.ts";
 import { AccessRoute, type AccessRouteDependencies } from "./access.tsx";
-
 vi.mock("../application-presentation.tsx", () => ({ ApplicationPresentation: () => null }));
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
+(
+  globalThis as {
+    IS_REACT_ACT_ENVIRONMENT?: boolean;
+  }
+).IS_REACT_ACT_ENVIRONMENT = true;
 describe("access route runtime", () => {
   it("loads purpose-built summary state and publishes authorization failures", async () => {
     const ready = await mountAccessRoute({

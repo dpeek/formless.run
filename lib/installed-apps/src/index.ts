@@ -1,3 +1,5 @@
+import { canonicalJsonStringify } from "@dpeek/formless-schema";
+
 import {
   appPackageManifestKind,
   appPackageManifestVersion,
@@ -457,7 +459,7 @@ export function parseAppInstallRegistrationOperation(
 }
 
 export function sourceSchemaCanonicalJson(schema: unknown): string {
-  return JSON.stringify(stableJsonValue(schema));
+  return canonicalJsonStringify(schema);
 }
 
 export async function computeSourceSchemaHash(schema: unknown): Promise<SourceSchemaHash> {
@@ -827,21 +829,4 @@ function cloneSourceLocation(location: AppPackageSourceLocation): AppPackageSour
   return {
     ...location,
   };
-}
-
-function stableJsonValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(stableJsonValue);
-  }
-
-  if (typeof value !== "object" || value === null) {
-    return value;
-  }
-
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([, child]) => child !== undefined)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, child]) => [key, stableJsonValue(child)]),
-  );
 }

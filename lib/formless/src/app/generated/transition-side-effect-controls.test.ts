@@ -102,10 +102,9 @@ describe("generated transition side-effect controls", () => {
       result: fixture.detailResult,
       schema: fixture.schema,
     });
-    const detailTransition = detail.runtimePlan.operations.find(
+    const detailTransition = detail.runtimePlan.operations!.find(
       (operation) => operation.kind === "transition",
     );
-
     expect(detailTransition).toMatchObject({
       binding: {
         availability: { state: "enabled" },
@@ -148,7 +147,7 @@ describe("generated transition side-effect controls", () => {
       result: fixture.tableResult,
       schema: fixture.schema,
     });
-    const rowTransition = table.runtimePlan.operations.find(
+    const rowTransition = table.runtimePlan.operations!.find(
       (operation) => operation.kind === "transition",
     );
     const detail = selectGeneratedRecordResultFoundation({
@@ -160,10 +159,9 @@ describe("generated transition side-effect controls", () => {
       result: fixture.detailResult,
       schema: fixture.schema,
     });
-    const detailTransition = detail.runtimePlan.operations.find(
+    const detailTransition = detail.runtimePlan.operations!.find(
       (operation) => operation.kind === "transition",
     );
-
     if (rowTransition?.kind !== "transition" || detailTransition?.kind !== "transition") {
       throw new Error("Missing generated transition controls.");
     }
@@ -231,11 +229,10 @@ describe("generated transition side-effect controls", () => {
     ]);
   });
 });
-
 function transitionControlFixture() {
   const schema = transitionSideEffectSchema();
-  const entity = schema.entities.intake;
-  const query = schema.queries.intakeAll;
+  const entity = schema.entities.find((definition) => definition.key === "intake")!;
+  const query = schema.queries.find((definition) => definition.key === "intakeAll")!;
   const tableResult = selectHomeResultModel(
     schema,
     requiredCollectionView(schema, "intakeTable"),
@@ -272,37 +269,42 @@ function transitionControlFixture() {
 function transitionSideEffectSchema() {
   return parseAppSchema({
     version: 1,
-    entities: {
-      intake: {
+    entities: [
+      {
+        key: "intake",
         label: "Intake",
-        fields: {
-          title: { type: "text", required: true },
-          status: {
+        fields: [
+          { key: "title", type: "text", required: true },
+          {
+            key: "status",
             type: "enum",
             required: true,
             default: "pending",
-            values: {
-              pending: { label: "Pending" },
-              converted: { label: "Converted" },
-            },
+            values: [
+              { key: "pending", label: "Pending" },
+              { key: "converted", label: "Converted" },
+            ],
           },
-        },
-        stateMachines: {
-          conversion: {
+        ],
+        stateMachines: [
+          {
+            key: "conversion",
             field: "status",
             initial: "pending",
             terminal: ["converted"],
-            transitions: {
-              convert: {
+            transitions: [
+              {
+                key: "convert",
                 label: "Convert",
                 from: ["pending"],
                 to: "converted",
               },
-            },
+            ],
           },
-        },
-        operations: {
-          convert: {
+        ],
+        operations: [
+          {
+            key: "convert",
             label: "Convert",
             kind: "command",
             scope: "record",
@@ -338,43 +340,48 @@ function transitionSideEffectSchema() {
             audit: { input: "summary" },
             policy: { actors: ["owner"] },
           },
-        },
+        ],
       },
-      order: {
+      {
+        key: "order",
         label: "Order",
-        fields: {
-          intake: { type: "reference", required: true, to: "intake" },
-          title: { type: "text", required: true },
-        },
+        fields: [
+          { key: "intake", type: "reference", required: true, to: "intake" },
+          { key: "title", type: "text", required: true },
+        ],
       },
-    },
-    queries: {
-      intakeAll: {
+    ],
+    queries: [
+      {
+        key: "intakeAll",
         label: "All intakes",
         entity: "intake",
         expression: { kind: "all" },
       },
-    },
-    itemViews: {
-      intakeItem: {
+    ],
+    itemViews: [
+      {
+        key: "intakeItem",
         entity: "intake",
-        fields: {
-          title: { editor: "text", commit: "field-commit" },
-          status: { editor: "enum", commit: "immediate" },
-        },
+        fields: [
+          { field: "title", editor: "text", commit: "field-commit" },
+          { field: "status", editor: "enum", commit: "immediate" },
+        ],
       },
-    },
-    tableViews: {
-      intakeTable: {
+    ],
+    tableViews: [
+      {
+        key: "intakeTable",
         entity: "intake",
         columns: [
           { type: "field", field: "title" },
           { type: "field", field: "status" },
         ],
       },
-    },
-    views: {
-      intakeTable: {
+    ],
+    views: [
+      {
+        key: "intakeTable",
         type: "collection",
         label: "Intakes",
         entity: "intake",
@@ -382,7 +389,8 @@ function transitionSideEffectSchema() {
         defaultQuery: "intakeAll",
         result: { type: "table", tableView: "intakeTable" },
       },
-      intakeDetail: {
+      {
+        key: "intakeDetail",
         type: "collection",
         label: "Intake",
         entity: "intake",
@@ -390,12 +398,12 @@ function transitionSideEffectSchema() {
         defaultQuery: "intakeAll",
         result: { type: "record", itemView: "intakeItem" },
       },
-    },
-    screens: {
-      home: {
+    ],
+    screens: [
+      {
+        key: "home",
         type: "workspace",
         label: "Intakes",
-        navigation: { primary: true },
         layout: {
           type: "stack",
           sections: [
@@ -404,13 +412,11 @@ function transitionSideEffectSchema() {
           ],
         },
       },
-    },
+    ],
   });
 }
-
 function requiredCollectionView(schema: AppSchema, viewName: string): CollectionViewSchema {
-  const view = schema.views[viewName];
-
+  const view = schema.views.find((definition) => definition.key === viewName)!;
   if (view?.type !== "collection") {
     throw new Error(`Missing collection view "${viewName}".`);
   }
@@ -430,10 +436,11 @@ function intakeRecord(id: string, status: "pending" | "converted"): StoredRecord
     updatedAt: "2026-07-27T00:00:00.000Z",
   };
 }
-
 function transitionCommandOutput(): Extract<
   OperationInvocationResponse["output"],
-  { type: "command" }
+  {
+    type: "command";
+  }
 > {
   const transitioned = intakeRecord("intake-pending", "converted");
   const order: StoredRecord = {

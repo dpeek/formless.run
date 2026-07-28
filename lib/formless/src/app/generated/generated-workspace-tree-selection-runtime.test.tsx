@@ -43,9 +43,11 @@ vi.mock("@dpeek/formless-media/client", async (importOriginal) => ({
   uploadAppDocumentMediaFile: uploadAppDocumentMediaFileMock,
   uploadCoreImageMediaFile: uploadCoreImageMediaFileMock,
 }));
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
+(
+  globalThis as {
+    IS_REACT_ACT_ENVIRONMENT?: boolean;
+  }
+).IS_REACT_ACT_ENVIRONMENT = true;
 beforeEach(() => {
   resetClientStore();
   submitOperationMock.mockReset();
@@ -1275,37 +1277,42 @@ function selectedTreeItem(items: readonly TreeItemContract[]): TreeItemContract 
 function flattenTreeItems(items: readonly TreeItemContract[]): TreeItemContract[] {
   return items.flatMap((item) => [item, ...flattenTreeItems(item.children)]);
 }
-
 function siteSchemaWithDocumentMedia(): AppSchema {
-  const blockEntity = required(siteSourceSchema.entities.block);
-  const mediaField = required(blockEntity.fields.mediaAssetId);
+  const blockEntity = required(
+    siteSourceSchema.entities.find((definition) => definition.key === "block")!,
+  );
+  const mediaField = required(
+    blockEntity.fields.find((definition) => definition.key === "mediaAssetId")!,
+  );
   if (mediaField.type !== "text") {
     throw new Error("Expected Site mediaAssetId to be text-backed.");
   }
-
   return {
     ...siteSourceSchema,
-    entities: {
-      ...siteSourceSchema.entities,
-      block: {
-        ...blockEntity,
-        fields: {
-          ...blockEntity.fields,
-          mediaAssetId: {
-            ...mediaField,
-            asset: {
-              acceptedMimeTypes: ["application/pdf"],
-              access: "private",
-              kind: "document",
-              maxBytes: 4 * 1024 * 1024,
-            },
-          },
-        },
-      },
-    },
+    entities: siteSourceSchema.entities.map((entity) =>
+      entity.key === "block"
+        ? {
+            ...blockEntity,
+            fields: blockEntity.fields.map((field) =>
+              field.key === "mediaAssetId"
+                ? {
+                    ...mediaField,
+                    asset: {
+                      acceptedMimeTypes: ["application/pdf"],
+                      access: "private",
+                      kind: "document",
+                      maxBytes: 4 * 1024 * 1024,
+                    },
+                    key: "mediaAssetId",
+                  }
+                : field,
+            ),
+            key: "block",
+          }
+        : entity,
+    ),
   };
 }
-
 function block(id: string, label: string): StoredRecord {
   return typedBlock(id, "markdown", label, { body: "Created in selection coverage." });
 }

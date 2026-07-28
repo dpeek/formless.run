@@ -109,7 +109,7 @@ describe("public operation read rate limit", () => {
     expect(
       await consumePublicOperationReadRateLimit({
         ...input,
-        nowMs: startedAt + 12_500,
+        nowMs: startedAt + 12500,
       }),
     ).toEqual({
       allowed: false,
@@ -118,7 +118,7 @@ describe("public operation read rate limit", () => {
     expect(
       await consumePublicOperationReadRateLimit({
         ...input,
-        nowMs: startedAt + 30_000,
+        nowMs: startedAt + 30000,
       }),
     ).toEqual({ allowed: true });
   });

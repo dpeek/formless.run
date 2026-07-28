@@ -1,105 +1,127 @@
 {
   "version": 1,
-  "entities": {
-    "site": {
+  "entities": [
+    {
+      "key": "site",
       "label": "Site",
-      "fields": {
-        "key": {
+      "fields": [
+        {
+          "key": "key",
           "type": "text",
           "required": true,
           "label": "Key"
         },
-        "label": {
+        {
+          "key": "label",
           "type": "text",
           "required": true,
           "label": "Label"
         },
-        "description": {
+        {
+          "key": "description",
           "type": "text",
           "required": false,
           "label": "Description",
           "format": "longText"
         },
-        "icon": {
+        {
+          "key": "icon",
           "type": "text",
           "required": false,
           "label": "Icon",
           "format": "icon"
         },
-        "accentColor": {
+        {
+          "key": "accentColor",
           "type": "text",
           "required": false,
           "label": "Accent color",
           "format": "color"
         },
-        "backgroundColor": {
+        {
+          "key": "backgroundColor",
           "type": "text",
           "required": false,
           "label": "Background color",
           "format": "color"
         },
-        "initialThemeMode": {
+        {
+          "key": "initialThemeMode",
           "type": "enum",
           "required": false,
           "label": "Initial theme",
           "default": "system",
-          "values": {
-            "system": {
+          "values": [
+            {
+              "key": "system",
               "label": "System"
             },
-            "light": {
+            {
+              "key": "light",
               "label": "Light"
             },
-            "dark": {
+            {
+              "key": "dark",
               "label": "Dark"
             }
-          }
+          ]
         },
-        "themeSwitchable": {
+        {
+          "key": "themeSwitchable",
           "type": "boolean",
           "required": false,
           "label": "Allow visitors to switch theme",
           "default": true
         }
-      },
-      "constraints": {
-        "uniqueSiteKey": {
+      ],
+      "constraints": [
+        {
+          "key": "uniqueSiteKey",
           "kind": "unique",
           "fields": ["key"]
         }
-      },
-      "operations": {
-        "update": {
+      ],
+      "operations": [
+        {
+          "key": "update",
           "label": "Update Site",
           "kind": "update",
           "scope": "record",
           "input": {
-            "fields": {
-              "key": {
+            "fields": [
+              {
+                "key": "key",
                 "field": "key"
               },
-              "label": {
+              {
+                "key": "label",
                 "field": "label"
               },
-              "description": {
+              {
+                "key": "description",
                 "field": "description"
               },
-              "icon": {
+              {
+                "key": "icon",
                 "field": "icon"
               },
-              "accentColor": {
+              {
+                "key": "accentColor",
                 "field": "accentColor"
               },
-              "backgroundColor": {
+              {
+                "key": "backgroundColor",
                 "field": "backgroundColor"
               },
-              "initialThemeMode": {
+              {
+                "key": "initialThemeMode",
                 "field": "initialThemeMode"
               },
-              "themeSwitchable": {
+              {
+                "key": "themeSwitchable",
                 "field": "themeSwitchable"
               }
-            }
+            ]
           },
           "effect": {
             "type": "patchRecord"
@@ -114,347 +136,434 @@
             "input": "summary"
           }
         }
-      }
+      ]
     },
-    "block": {
+    {
+      "key": "block",
       "label": "Block",
-      "fields": {
-        "type": {
+      "fields": [
+        {
+          "key": "type",
           "type": "enum",
           "required": true,
           "label": "Type",
-          "values": {
-            "page": {
+          "values": [
+            {
+              "key": "page",
               "label": "Page"
             },
-            "post": {
+            {
+              "key": "post",
               "label": "Post"
             },
-            "project": {
+            {
+              "key": "project",
               "label": "Project"
             },
-            "postList": {
+            {
+              "key": "postList",
               "label": "Post list"
             },
-            "projectList": {
+            {
+              "key": "projectList",
               "label": "Project list"
             },
-            "subscribeForm": {
+            {
+              "key": "subscribeForm",
               "label": "Subscribe form"
             },
-            "contactForm": {
+            {
+              "key": "contactForm",
               "label": "Contact form"
             },
-            "publicOperationForm": {
+            {
+              "key": "publicOperationForm",
               "label": "Public operation form"
             },
-            "group": {
+            {
+              "key": "group",
               "label": "Group"
             },
-            "section": {
+            {
+              "key": "section",
               "label": "Section"
             },
-            "cardGrid": {
+            {
+              "key": "cardGrid",
               "label": "Card grid"
             },
-            "card": {
+            {
+              "key": "card",
               "label": "Card"
             },
-            "metricGrid": {
+            {
+              "key": "metricGrid",
               "label": "Metric grid"
             },
-            "metric": {
+            {
+              "key": "metric",
               "label": "Metric"
             },
-            "header": {
+            {
+              "key": "header",
               "label": "Header"
             },
-            "headerPrimary": {
+            {
+              "key": "headerPrimary",
               "label": "Header primary"
             },
-            "headerSecondary": {
+            {
+              "key": "headerSecondary",
               "label": "Header secondary"
             },
-            "footer": {
+            {
+              "key": "footer",
               "label": "Footer"
             },
-            "footerSection": {
+            {
+              "key": "footerSection",
               "label": "Footer section"
             },
-            "footerSocial": {
+            {
+              "key": "footerSocial",
               "label": "Footer social"
             },
-            "link": {
+            {
+              "key": "link",
               "label": "Link"
             },
-            "markdown": {
+            {
+              "key": "markdown",
               "label": "Markdown"
             },
-            "hero": {
+            {
+              "key": "hero",
               "label": "Hero"
             },
-            "feature": {
+            {
+              "key": "feature",
               "label": "Feature"
             },
-            "image": {
+            {
+              "key": "image",
               "label": "Image"
             }
-          }
+          ]
         },
-        "label": {
+        {
+          "key": "label",
           "type": "text",
           "required": true,
           "label": "Label"
         },
-        "body": {
+        {
+          "key": "body",
           "type": "text",
           "required": false,
           "label": "Body",
           "format": "markdown"
         },
-        "operationName": {
+        {
+          "key": "operationName",
           "type": "text",
           "required": false,
           "label": "Operation"
         },
-        "operationKey": {
+        {
+          "key": "operationKey",
           "type": "text",
           "required": false,
           "label": "Operation key"
         },
-        "operationTargetKind": {
+        {
+          "key": "operationTargetKind",
           "type": "enum",
           "required": false,
           "label": "Target route",
-          "values": {
-            "schemaKey": {
+          "values": [
+            {
+              "key": "schemaKey",
               "label": "Schema key"
             },
-            "appInstall": {
+            {
+              "key": "appInstall",
               "label": "Installed app"
             }
-          }
+          ]
         },
-        "operationTargetSchemaKey": {
+        {
+          "key": "operationTargetSchemaKey",
           "type": "text",
           "required": false,
           "label": "Target schema key"
         },
-        "operationTargetPackageAppKey": {
+        {
+          "key": "operationTargetPackageAppKey",
           "type": "text",
           "required": false,
           "label": "Target package app key"
         },
-        "operationTargetInstallId": {
+        {
+          "key": "operationTargetInstallId",
           "type": "text",
           "required": false,
           "label": "Target install id"
         },
-        "buttonLabel": {
+        {
+          "key": "buttonLabel",
           "type": "text",
           "required": false,
           "label": "Button label"
         },
-        "successLabel": {
+        {
+          "key": "successLabel",
           "type": "text",
           "required": false,
           "label": "Success label"
         },
-        "nameLabel": {
+        {
+          "key": "nameLabel",
           "type": "text",
           "required": false,
           "label": "Name label"
         },
-        "emailLabel": {
+        {
+          "key": "emailLabel",
           "type": "text",
           "required": false,
           "label": "Email label"
         },
-        "messageLabel": {
+        {
+          "key": "messageLabel",
           "type": "text",
           "required": false,
           "label": "Message label"
         },
-        "operationNotificationMode": {
+        {
+          "key": "operationNotificationMode",
           "type": "enum",
           "required": false,
           "label": "Input notification",
-          "values": {
-            "none": {
+          "values": [
+            {
+              "key": "none",
               "label": "None"
             },
-            "email": {
+            {
+              "key": "email",
               "label": "Email"
             }
-          }
+          ]
         },
-        "operationNotificationReplyToField": {
+        {
+          "key": "operationNotificationReplyToField",
           "type": "text",
           "required": false,
           "label": "Reply-to input field"
         },
-        "href": {
+        {
+          "key": "href",
           "type": "text",
           "required": false,
           "label": "Link",
           "format": "href"
         },
-        "mediaAssetId": {
+        {
+          "key": "mediaAssetId",
           "type": "text",
           "required": false,
           "label": "Media asset"
         },
-        "date": {
+        {
+          "key": "date",
           "type": "date",
           "required": false,
           "label": "Date"
         },
-        "linkTargetMode": {
+        {
+          "key": "linkTargetMode",
           "type": "enum",
           "required": false,
           "label": "Link target",
-          "values": {
-            "internal": {
+          "values": [
+            {
+              "key": "internal",
               "label": "Internal"
             },
-            "external": {
+            {
+              "key": "external",
               "label": "External"
             }
-          }
+          ]
         },
-        "linkTargetBlock": {
+        {
+          "key": "linkTargetBlock",
           "type": "reference",
           "required": false,
           "label": "Target block",
           "to": "block",
           "displayField": "label"
         },
-        "icon": {
+        {
+          "key": "icon",
           "type": "text",
           "required": false,
           "label": "Icon",
           "format": "icon"
         },
-        "color": {
+        {
+          "key": "color",
           "type": "text",
           "required": false,
           "label": "Color",
           "format": "color"
         },
-        "alignment": {
+        {
+          "key": "alignment",
           "type": "enum",
           "required": false,
           "label": "Media side",
-          "values": {
-            "left": {
+          "values": [
+            {
+              "key": "left",
               "label": "Left"
             },
-            "right": {
+            {
+              "key": "right",
               "label": "Right"
             }
-          }
+          ]
         },
-        "width": {
+        {
+          "key": "width",
           "type": "number",
           "required": false,
           "label": "Width",
           "integer": true,
           "min": 0
         },
-        "height": {
+        {
+          "key": "height",
           "type": "number",
           "required": false,
           "label": "Height",
           "integer": true,
           "min": 0
         }
-      },
-      "operations": {
-        "create": {
+      ],
+      "operations": [
+        {
+          "key": "create",
           "label": "Create Block",
           "kind": "create",
           "scope": "collection",
           "input": {
-            "fields": {
-              "type": {
+            "fields": [
+              {
+                "key": "type",
                 "field": "type"
               },
-              "label": {
+              {
+                "key": "label",
                 "field": "label"
               },
-              "body": {
+              {
+                "key": "body",
                 "field": "body"
               },
-              "operationName": {
+              {
+                "key": "operationName",
                 "field": "operationName"
               },
-              "operationKey": {
+              {
+                "key": "operationKey",
                 "field": "operationKey"
               },
-              "operationTargetKind": {
+              {
+                "key": "operationTargetKind",
                 "field": "operationTargetKind"
               },
-              "operationTargetSchemaKey": {
+              {
+                "key": "operationTargetSchemaKey",
                 "field": "operationTargetSchemaKey"
               },
-              "operationTargetPackageAppKey": {
+              {
+                "key": "operationTargetPackageAppKey",
                 "field": "operationTargetPackageAppKey"
               },
-              "operationTargetInstallId": {
+              {
+                "key": "operationTargetInstallId",
                 "field": "operationTargetInstallId"
               },
-              "buttonLabel": {
+              {
+                "key": "buttonLabel",
                 "field": "buttonLabel"
               },
-              "successLabel": {
+              {
+                "key": "successLabel",
                 "field": "successLabel"
               },
-              "nameLabel": {
+              {
+                "key": "nameLabel",
                 "field": "nameLabel"
               },
-              "emailLabel": {
+              {
+                "key": "emailLabel",
                 "field": "emailLabel"
               },
-              "messageLabel": {
+              {
+                "key": "messageLabel",
                 "field": "messageLabel"
               },
-              "operationNotificationMode": {
+              {
+                "key": "operationNotificationMode",
                 "field": "operationNotificationMode"
               },
-              "operationNotificationReplyToField": {
+              {
+                "key": "operationNotificationReplyToField",
                 "field": "operationNotificationReplyToField"
               },
-              "href": {
+              {
+                "key": "href",
                 "field": "href"
               },
-              "mediaAssetId": {
+              {
+                "key": "mediaAssetId",
                 "field": "mediaAssetId"
               },
-              "date": {
+              {
+                "key": "date",
                 "field": "date"
               },
-              "linkTargetMode": {
+              {
+                "key": "linkTargetMode",
                 "field": "linkTargetMode"
               },
-              "linkTargetBlock": {
+              {
+                "key": "linkTargetBlock",
                 "field": "linkTargetBlock"
               },
-              "icon": {
+              {
+                "key": "icon",
                 "field": "icon"
               },
-              "color": {
+              {
+                "key": "color",
                 "field": "color"
               },
-              "alignment": {
+              {
+                "key": "alignment",
                 "field": "alignment"
               },
-              "width": {
+              {
+                "key": "width",
                 "field": "width"
               },
-              "height": {
+              {
+                "key": "height",
                 "field": "height"
               }
-            }
+            ]
           },
           "effect": {
             "type": "createRecord"
@@ -469,91 +578,118 @@
             "input": "summary"
           }
         },
-        "update": {
+        {
+          "key": "update",
           "label": "Update Block",
           "kind": "update",
           "scope": "record",
           "input": {
-            "fields": {
-              "type": {
+            "fields": [
+              {
+                "key": "type",
                 "field": "type"
               },
-              "label": {
+              {
+                "key": "label",
                 "field": "label"
               },
-              "body": {
+              {
+                "key": "body",
                 "field": "body"
               },
-              "operationName": {
+              {
+                "key": "operationName",
                 "field": "operationName"
               },
-              "operationKey": {
+              {
+                "key": "operationKey",
                 "field": "operationKey"
               },
-              "operationTargetKind": {
+              {
+                "key": "operationTargetKind",
                 "field": "operationTargetKind"
               },
-              "operationTargetSchemaKey": {
+              {
+                "key": "operationTargetSchemaKey",
                 "field": "operationTargetSchemaKey"
               },
-              "operationTargetPackageAppKey": {
+              {
+                "key": "operationTargetPackageAppKey",
                 "field": "operationTargetPackageAppKey"
               },
-              "operationTargetInstallId": {
+              {
+                "key": "operationTargetInstallId",
                 "field": "operationTargetInstallId"
               },
-              "buttonLabel": {
+              {
+                "key": "buttonLabel",
                 "field": "buttonLabel"
               },
-              "successLabel": {
+              {
+                "key": "successLabel",
                 "field": "successLabel"
               },
-              "nameLabel": {
+              {
+                "key": "nameLabel",
                 "field": "nameLabel"
               },
-              "emailLabel": {
+              {
+                "key": "emailLabel",
                 "field": "emailLabel"
               },
-              "messageLabel": {
+              {
+                "key": "messageLabel",
                 "field": "messageLabel"
               },
-              "operationNotificationMode": {
+              {
+                "key": "operationNotificationMode",
                 "field": "operationNotificationMode"
               },
-              "operationNotificationReplyToField": {
+              {
+                "key": "operationNotificationReplyToField",
                 "field": "operationNotificationReplyToField"
               },
-              "href": {
+              {
+                "key": "href",
                 "field": "href"
               },
-              "mediaAssetId": {
+              {
+                "key": "mediaAssetId",
                 "field": "mediaAssetId"
               },
-              "date": {
+              {
+                "key": "date",
                 "field": "date"
               },
-              "linkTargetMode": {
+              {
+                "key": "linkTargetMode",
                 "field": "linkTargetMode"
               },
-              "linkTargetBlock": {
+              {
+                "key": "linkTargetBlock",
                 "field": "linkTargetBlock"
               },
-              "icon": {
+              {
+                "key": "icon",
                 "field": "icon"
               },
-              "color": {
+              {
+                "key": "color",
                 "field": "color"
               },
-              "alignment": {
+              {
+                "key": "alignment",
                 "field": "alignment"
               },
-              "width": {
+              {
+                "key": "width",
                 "field": "width"
               },
-              "height": {
+              {
+                "key": "height",
                 "field": "height"
               }
-            }
+            ]
           },
           "effect": {
             "type": "patchRecord"
@@ -568,7 +704,8 @@
             "input": "summary"
           }
         },
-        "delete": {
+        {
+          "key": "delete",
           "label": "Delete Block",
           "kind": "delete",
           "scope": "record",
@@ -585,66 +722,78 @@
             "input": "summary"
           }
         }
-      }
+      ]
     },
-    "block-placement": {
+    {
+      "key": "block-placement",
       "label": "Placement",
-      "fields": {
-        "parent": {
+      "fields": [
+        {
+          "key": "parent",
           "type": "reference",
           "required": true,
           "label": "Parent block",
           "to": "block",
           "displayField": "label"
         },
-        "block": {
+        {
+          "key": "block",
           "type": "reference",
           "required": true,
           "label": "Child block",
           "to": "block",
           "displayField": "label"
         },
-        "order": {
+        {
+          "key": "order",
           "type": "number",
           "required": true,
           "label": "Order",
           "default": 1000,
           "min": 0
         },
-        "label": {
+        {
+          "key": "label",
           "type": "text",
           "required": false,
           "label": "Label"
         },
-        "slot": {
+        {
+          "key": "slot",
           "type": "text",
           "required": false,
           "label": "Slot"
         }
-      },
-      "operations": {
-        "create": {
+      ],
+      "operations": [
+        {
+          "key": "create",
           "label": "Create Placement",
           "kind": "create",
           "scope": "collection",
           "input": {
-            "fields": {
-              "parent": {
+            "fields": [
+              {
+                "key": "parent",
                 "field": "parent"
               },
-              "block": {
+              {
+                "key": "block",
                 "field": "block"
               },
-              "order": {
+              {
+                "key": "order",
                 "field": "order"
               },
-              "label": {
+              {
+                "key": "label",
                 "field": "label"
               },
-              "slot": {
+              {
+                "key": "slot",
                 "field": "slot"
               }
-            }
+            ]
           },
           "effect": {
             "type": "createRecord"
@@ -659,28 +808,34 @@
             "input": "summary"
           }
         },
-        "update": {
+        {
+          "key": "update",
           "label": "Update Placement",
           "kind": "update",
           "scope": "record",
           "input": {
-            "fields": {
-              "parent": {
+            "fields": [
+              {
+                "key": "parent",
                 "field": "parent"
               },
-              "block": {
+              {
+                "key": "block",
                 "field": "block"
               },
-              "order": {
+              {
+                "key": "order",
                 "field": "order"
               },
-              "label": {
+              {
+                "key": "label",
                 "field": "label"
               },
-              "slot": {
+              {
+                "key": "slot",
                 "field": "slot"
               }
-            }
+            ]
           },
           "effect": {
             "type": "patchRecord"
@@ -695,7 +850,8 @@
             "input": "summary"
           }
         },
-        "addTreeChild": {
+        {
+          "key": "addTreeChild",
           "label": "Add child",
           "kind": "command",
           "scope": "record",
@@ -718,7 +874,8 @@
             "input": "summary"
           }
         },
-        "removeTreePlacement": {
+        {
+          "key": "removeTreePlacement",
           "label": "Remove child",
           "kind": "command",
           "scope": "record",
@@ -739,28 +896,32 @@
             "input": "summary"
           }
         }
-      }
+      ]
     },
-    "contact": {
+    {
+      "key": "contact",
       "label": "Contact",
-      "fields": {
-        "label": {
+      "fields": [
+        {
+          "key": "label",
           "type": "text",
           "required": true,
           "label": "Label"
         }
-      },
-      "operations": {
-        "update": {
+      ],
+      "operations": [
+        {
+          "key": "update",
           "label": "Update Contact",
           "kind": "update",
           "scope": "record",
           "input": {
-            "fields": {
-              "label": {
+            "fields": [
+              {
+                "key": "label",
                 "field": "label"
               }
-            }
+            ]
           },
           "effect": {
             "type": "patchRecord"
@@ -775,48 +936,56 @@
             "input": "summary"
           }
         }
-      }
+      ]
     },
-    "contact-message": {
+    {
+      "key": "contact-message",
       "label": "Contact message",
-      "fields": {
-        "name": {
+      "fields": [
+        {
+          "key": "name",
           "type": "text",
           "required": true,
           "label": "Name"
         },
-        "email": {
+        {
+          "key": "email",
           "type": "text",
           "required": true,
           "label": "Email"
         },
-        "message": {
+        {
+          "key": "message",
           "type": "text",
           "required": true,
           "label": "Message",
           "format": "longText"
         }
-      },
-      "operations": {
-        "submit": {
+      ],
+      "operations": [
+        {
+          "key": "submit",
           "label": "Submit message",
           "kind": "create",
           "scope": "collection",
           "input": {
-            "fields": {
-              "name": {
+            "fields": [
+              {
+                "key": "name",
                 "field": "name",
                 "required": true
               },
-              "email": {
+              {
+                "key": "email",
                 "field": "email",
                 "required": true
               },
-              "message": {
+              {
+                "key": "message",
                 "field": "message",
                 "required": true
               }
-            }
+            ]
           },
           "effect": {
             "type": "createRecord"
@@ -843,52 +1012,61 @@
             }
           }
         }
-      }
+      ]
     },
-    "email-address": {
+    {
+      "key": "email-address",
       "label": "Email address",
-      "fields": {
-        "contact": {
+      "fields": [
+        {
+          "key": "contact",
           "type": "reference",
           "required": true,
           "label": "Contact",
           "to": "contact",
           "displayField": "label"
         },
-        "address": {
+        {
+          "key": "address",
           "type": "text",
           "required": true,
           "label": "Address"
         },
-        "normalizedAddress": {
+        {
+          "key": "normalizedAddress",
           "type": "text",
           "required": true,
           "label": "Normalized address"
         }
-      },
-      "constraints": {
-        "uniqueNormalizedAddress": {
+      ],
+      "constraints": [
+        {
+          "key": "uniqueNormalizedAddress",
           "kind": "unique",
           "fields": ["normalizedAddress"]
         }
-      },
-      "operations": {
-        "update": {
+      ],
+      "operations": [
+        {
+          "key": "update",
           "label": "Update Email address",
           "kind": "update",
           "scope": "record",
           "input": {
-            "fields": {
-              "contact": {
+            "fields": [
+              {
+                "key": "contact",
                 "field": "contact"
               },
-              "address": {
+              {
+                "key": "address",
                 "field": "address"
               },
-              "normalizedAddress": {
+              {
+                "key": "normalizedAddress",
                 "field": "normalizedAddress"
               }
-            }
+            ]
           },
           "effect": {
             "type": "patchRecord"
@@ -903,42 +1081,49 @@
             "input": "summary"
           }
         }
-      }
+      ]
     },
-    "audience": {
+    {
+      "key": "audience",
       "label": "Audience",
-      "fields": {
-        "key": {
+      "fields": [
+        {
+          "key": "key",
           "type": "text",
           "required": true,
           "label": "Key"
         },
-        "label": {
+        {
+          "key": "label",
           "type": "text",
           "required": true,
           "label": "Label"
         }
-      },
-      "constraints": {
-        "uniqueAudienceKey": {
+      ],
+      "constraints": [
+        {
+          "key": "uniqueAudienceKey",
           "kind": "unique",
           "fields": ["key"]
         }
-      },
-      "operations": {
-        "update": {
+      ],
+      "operations": [
+        {
+          "key": "update",
           "label": "Update Audience",
           "kind": "update",
           "scope": "record",
           "input": {
-            "fields": {
-              "key": {
+            "fields": [
+              {
+                "key": "key",
                 "field": "key"
               },
-              "label": {
+              {
+                "key": "label",
                 "field": "label"
               }
-            }
+            ]
           },
           "effect": {
             "type": "patchRecord"
@@ -953,165 +1138,201 @@
             "input": "summary"
           }
         }
-      }
+      ]
     },
-    "subscription": {
+    {
+      "key": "subscription",
       "label": "Subscription",
-      "fields": {
-        "emailAddress": {
+      "fields": [
+        {
+          "key": "emailAddress",
           "type": "reference",
           "required": true,
           "label": "Email address",
           "to": "email-address",
           "displayField": "address"
         },
-        "audience": {
+        {
+          "key": "audience",
           "type": "reference",
           "required": true,
           "label": "Audience",
           "to": "audience",
           "displayField": "label"
         },
-        "status": {
+        {
+          "key": "status",
           "type": "enum",
           "required": true,
           "label": "Status",
           "default": "subscribed",
-          "values": {
-            "subscribed": {
+          "values": [
+            {
+              "key": "subscribed",
               "label": "Subscribed"
             },
-            "unsubscribed": {
+            {
+              "key": "unsubscribed",
               "label": "Unsubscribed"
             }
-          }
+          ]
         },
-        "consentedAt": {
+        {
+          "key": "consentedAt",
           "type": "text",
           "required": true,
           "label": "Consented at"
         },
-        "sourceKind": {
+        {
+          "key": "sourceKind",
           "type": "enum",
           "required": true,
           "label": "Source kind",
           "default": "publicOperation",
-          "values": {
-            "publicOperation": {
+          "values": [
+            {
+              "key": "publicOperation",
               "label": "Public operation"
             }
-          }
+          ]
         },
-        "sourceTargetKind": {
+        {
+          "key": "sourceTargetKind",
           "type": "enum",
           "required": true,
           "label": "Target kind",
-          "values": {
-            "schemaKey": {
+          "values": [
+            {
+              "key": "schemaKey",
               "label": "Schema key"
             },
-            "appInstall": {
+            {
+              "key": "appInstall",
               "label": "App install"
             }
-          }
+          ]
         },
-        "sourcePackageAppKey": {
+        {
+          "key": "sourcePackageAppKey",
           "type": "text",
           "required": true,
           "label": "Package app key"
         },
-        "sourceSchemaKey": {
+        {
+          "key": "sourceSchemaKey",
           "type": "text",
           "required": true,
           "label": "Source schema key"
         },
-        "sourceInstallId": {
+        {
+          "key": "sourceInstallId",
           "type": "text",
           "required": false,
           "label": "Install id"
         },
-        "sourceApiRoutePrefix": {
+        {
+          "key": "sourceApiRoutePrefix",
           "type": "text",
           "required": true,
           "label": "API route prefix"
         },
-        "sourceOperationKey": {
+        {
+          "key": "sourceOperationKey",
           "type": "text",
           "required": true,
           "label": "Operation key"
         },
-        "sourceHost": {
+        {
+          "key": "sourceHost",
           "type": "text",
           "required": true,
           "label": "Host"
         },
-        "sourcePath": {
+        {
+          "key": "sourcePath",
           "type": "text",
           "required": true,
           "label": "Path"
         },
-        "sourceSiteBlockId": {
+        {
+          "key": "sourceSiteBlockId",
           "type": "text",
           "required": false,
           "label": "Site block"
         }
-      },
-      "constraints": {
-        "uniqueEmailAudience": {
+      ],
+      "constraints": [
+        {
+          "key": "uniqueEmailAudience",
           "kind": "unique",
           "fields": ["emailAddress", "audience"]
         }
-      },
-      "operations": {
-        "update": {
+      ],
+      "operations": [
+        {
+          "key": "update",
           "label": "Update Subscription",
           "kind": "update",
           "scope": "record",
           "input": {
-            "fields": {
-              "emailAddress": {
+            "fields": [
+              {
+                "key": "emailAddress",
                 "field": "emailAddress"
               },
-              "audience": {
+              {
+                "key": "audience",
                 "field": "audience"
               },
-              "status": {
+              {
+                "key": "status",
                 "field": "status"
               },
-              "consentedAt": {
+              {
+                "key": "consentedAt",
                 "field": "consentedAt"
               },
-              "sourceKind": {
+              {
+                "key": "sourceKind",
                 "field": "sourceKind"
               },
-              "sourceTargetKind": {
+              {
+                "key": "sourceTargetKind",
                 "field": "sourceTargetKind"
               },
-              "sourcePackageAppKey": {
+              {
+                "key": "sourcePackageAppKey",
                 "field": "sourcePackageAppKey"
               },
-              "sourceSchemaKey": {
+              {
+                "key": "sourceSchemaKey",
                 "field": "sourceSchemaKey"
               },
-              "sourceInstallId": {
+              {
+                "key": "sourceInstallId",
                 "field": "sourceInstallId"
               },
-              "sourceApiRoutePrefix": {
+              {
+                "key": "sourceApiRoutePrefix",
                 "field": "sourceApiRoutePrefix"
               },
-              "sourceOperationKey": {
+              {
+                "key": "sourceOperationKey",
                 "field": "sourceOperationKey"
               },
-              "sourceHost": {
+              {
+                "key": "sourceHost",
                 "field": "sourceHost"
               },
-              "sourcePath": {
+              {
+                "key": "sourcePath",
                 "field": "sourcePath"
               },
-              "sourceSiteBlockId": {
+              {
+                "key": "sourceSiteBlockId",
                 "field": "sourceSiteBlockId"
               }
-            }
+            ]
           },
           "effect": {
             "type": "patchRecord"
@@ -1126,18 +1347,20 @@
             "input": "summary"
           }
         },
-        "subscribe": {
+        {
+          "key": "subscribe",
           "label": "Subscribe",
           "kind": "command",
           "scope": "collection",
           "input": {
-            "fields": {
-              "email": {
+            "fields": [
+              {
+                "key": "email",
                 "type": "text",
                 "required": true,
                 "label": "Email"
               }
-            }
+            ]
           },
           "effect": {
             "type": "operationHandler",
@@ -1166,11 +1389,12 @@
             }
           }
         }
-      }
+      ]
     }
-  },
-  "relationships": {
-    "placementParent": {
+  ],
+  "relationships": [
+    {
+      "key": "placementParent",
       "kind": "toOne",
       "label": "Parent block",
       "from": {
@@ -1182,7 +1406,8 @@
       },
       "inverse": "blockPlacements"
     },
-    "blockPlacements": {
+    {
+      "key": "blockPlacements",
       "kind": "toMany",
       "label": "Placements",
       "from": {
@@ -1194,7 +1419,8 @@
       },
       "inverse": "placementParent"
     },
-    "placementBlock": {
+    {
+      "key": "placementBlock",
       "kind": "toOne",
       "label": "Child block",
       "from": {
@@ -1206,7 +1432,8 @@
       },
       "inverse": "blockUsedInPlacements"
     },
-    "blockUsedInPlacements": {
+    {
+      "key": "blockUsedInPlacements",
       "kind": "toMany",
       "label": "Used in placements",
       "from": {
@@ -1218,7 +1445,8 @@
       },
       "inverse": "placementBlock"
     },
-    "emailAddressContact": {
+    {
+      "key": "emailAddressContact",
       "kind": "toOne",
       "label": "Contact",
       "from": {
@@ -1230,7 +1458,8 @@
       },
       "inverse": "contactEmailAddresses"
     },
-    "contactEmailAddresses": {
+    {
+      "key": "contactEmailAddresses",
       "kind": "toMany",
       "label": "Email addresses",
       "from": {
@@ -1242,7 +1471,8 @@
       },
       "inverse": "emailAddressContact"
     },
-    "subscriptionEmailAddress": {
+    {
+      "key": "subscriptionEmailAddress",
       "kind": "toOne",
       "label": "Email address",
       "from": {
@@ -1254,7 +1484,8 @@
       },
       "inverse": "emailAddressSubscriptions"
     },
-    "emailAddressSubscriptions": {
+    {
+      "key": "emailAddressSubscriptions",
       "kind": "toMany",
       "label": "Subscriptions",
       "from": {
@@ -1266,7 +1497,8 @@
       },
       "inverse": "subscriptionEmailAddress"
     },
-    "subscriptionAudience": {
+    {
+      "key": "subscriptionAudience",
       "kind": "toOne",
       "label": "Audience",
       "from": {
@@ -1278,7 +1510,8 @@
       },
       "inverse": "audienceSubscriptions"
     },
-    "audienceSubscriptions": {
+    {
+      "key": "audienceSubscriptions",
       "kind": "toMany",
       "label": "Subscriptions",
       "from": {
@@ -1290,36 +1523,43 @@
       },
       "inverse": "subscriptionAudience"
     }
-  },
-  "unions": {
-    "blockByType": {
+  ],
+  "unions": [
+    {
+      "key": "blockByType",
       "entity": "block",
       "discriminator": "type",
-      "variants": {
-        "page": {
+      "variants": [
+        {
+          "key": "page",
           "label": "Page",
           "fields": ["label", "href", "icon"],
           "requiredFields": ["label", "href"]
         },
-        "post": {
+        {
+          "key": "post",
           "label": "Post",
           "fields": ["label", "date", "body", "href"],
           "requiredFields": ["label", "href"]
         },
-        "project": {
+        {
+          "key": "project",
           "label": "Project",
           "fields": ["label", "date", "body", "href"],
           "requiredFields": ["label", "href"]
         },
-        "postList": {
+        {
+          "key": "postList",
           "label": "Post list",
           "fields": ["label"]
         },
-        "projectList": {
+        {
+          "key": "projectList",
           "label": "Project list",
           "fields": ["label"]
         },
-        "subscribeForm": {
+        {
+          "key": "subscribeForm",
           "label": "Subscribe form",
           "fields": [
             "label",
@@ -1332,7 +1572,8 @@
             "buttonLabel"
           ]
         },
-        "contactForm": {
+        {
+          "key": "contactForm",
           "label": "Contact form",
           "fields": [
             "label",
@@ -1345,7 +1586,8 @@
             "messageLabel"
           ]
         },
-        "publicOperationForm": {
+        {
+          "key": "publicOperationForm",
           "label": "Public operation form",
           "fields": [
             "label",
@@ -1361,85 +1603,103 @@
             "operationNotificationReplyToField"
           ]
         },
-        "group": {
+        {
+          "key": "group",
           "label": "Group",
           "fields": ["label"]
         },
-        "section": {
+        {
+          "key": "section",
           "label": "Section",
           "fields": ["label", "body"]
         },
-        "cardGrid": {
+        {
+          "key": "cardGrid",
           "label": "Card grid",
           "fields": ["label", "body"]
         },
-        "card": {
+        {
+          "key": "card",
           "label": "Card",
           "fields": ["label", "body", "icon", "color"]
         },
-        "metricGrid": {
+        {
+          "key": "metricGrid",
           "label": "Metric grid",
           "fields": ["label", "body"]
         },
-        "metric": {
+        {
+          "key": "metric",
           "label": "Metric",
           "fields": ["label", "body", "color"]
         },
-        "header": {
+        {
+          "key": "header",
           "label": "Header",
           "fields": ["label"]
         },
-        "headerPrimary": {
+        {
+          "key": "headerPrimary",
           "label": "Header primary",
           "fields": ["label"]
         },
-        "headerSecondary": {
+        {
+          "key": "headerSecondary",
           "label": "Header secondary",
           "fields": ["label"]
         },
-        "footer": {
+        {
+          "key": "footer",
           "label": "Footer",
           "fields": ["label"]
         },
-        "footerSection": {
+        {
+          "key": "footerSection",
           "label": "Footer section",
           "fields": ["label"]
         },
-        "footerSocial": {
+        {
+          "key": "footerSocial",
           "label": "Footer social",
           "fields": ["label"]
         },
-        "link": {
+        {
+          "key": "link",
           "label": "Link",
           "fields": ["label", "linkTargetMode", "linkTargetBlock", "href", "icon"],
           "requiredFields": ["label", "linkTargetMode"]
         },
-        "markdown": {
+        {
+          "key": "markdown",
           "label": "Markdown",
           "fields": ["label", "body"]
         },
-        "hero": {
+        {
+          "key": "hero",
           "label": "Hero",
           "fields": ["label", "body"]
         },
-        "feature": {
+        {
+          "key": "feature",
           "label": "Feature",
           "fields": ["label", "body", "alignment"]
         },
-        "image": {
+        {
+          "key": "image",
           "label": "Image",
           "fields": ["label", "mediaAssetId"],
           "requiredFields": ["label"]
         }
-      },
+      ],
       "fallback": {
         "label": "Block",
         "fields": ["label", "type"]
       }
     }
-  },
-  "queries": {
-    "sitePrimary": {
+  ],
+  "queries": [
+    {
+      "key": "sitePrimary",
       "label": "Primary",
       "entity": "site",
       "expression": {
@@ -1452,14 +1712,16 @@
         "value": "primary"
       }
     },
-    "blockAll": {
+    {
+      "key": "blockAll",
       "label": "All",
       "entity": "block",
       "expression": {
         "kind": "all"
       }
     },
-    "blockPages": {
+    {
+      "key": "blockPages",
       "label": "Pages",
       "entity": "block",
       "expression": {
@@ -1472,7 +1734,8 @@
         "value": "page"
       }
     },
-    "blockNavigationRoots": {
+    {
+      "key": "blockNavigationRoots",
       "label": "Navigation",
       "entity": "block",
       "expression": {
@@ -1499,7 +1762,8 @@
         ]
       }
     },
-    "blockSiteRoots": {
+    {
+      "key": "blockSiteRoots",
       "label": "Site roots",
       "entity": "block",
       "expression": {
@@ -1553,7 +1817,8 @@
         ]
       }
     },
-    "blockPosts": {
+    {
+      "key": "blockPosts",
       "label": "Posts",
       "entity": "block",
       "expression": {
@@ -1566,7 +1831,8 @@
         "value": "post"
       }
     },
-    "blockProjects": {
+    {
+      "key": "blockProjects",
       "label": "Projects",
       "entity": "block",
       "expression": {
@@ -1579,7 +1845,8 @@
         "value": "project"
       }
     },
-    "blockLinks": {
+    {
+      "key": "blockLinks",
       "label": "Links",
       "entity": "block",
       "expression": {
@@ -1592,7 +1859,8 @@
         "value": "link"
       }
     },
-    "blockGroups": {
+    {
+      "key": "blockGroups",
       "label": "Groups",
       "entity": "block",
       "expression": {
@@ -1605,7 +1873,8 @@
         "value": "group"
       }
     },
-    "blockImages": {
+    {
+      "key": "blockImages",
       "label": "Images",
       "entity": "block",
       "expression": {
@@ -1618,28 +1887,32 @@
         "value": "image"
       }
     },
-    "emailAddressAll": {
+    {
+      "key": "emailAddressAll",
       "label": "All",
       "entity": "email-address",
       "expression": {
         "kind": "all"
       }
     },
-    "audienceAll": {
+    {
+      "key": "audienceAll",
       "label": "All",
       "entity": "audience",
       "expression": {
         "kind": "all"
       }
     },
-    "subscriptionAll": {
+    {
+      "key": "subscriptionAll",
       "label": "All",
       "entity": "subscription",
       "expression": {
         "kind": "all"
       }
     },
-    "placementsForSelectedBlock": {
+    {
+      "key": "placementsForSelectedBlock",
       "label": "Selected block",
       "entity": "block-placement",
       "expression": {
@@ -1655,124 +1928,152 @@
         }
       }
     }
-  },
-  "itemViews": {
-    "siteSettingsForm": {
+  ],
+  "itemViews": [
+    {
+      "key": "siteSettingsForm",
       "entity": "site",
-      "fields": {
-        "label": {
+      "fields": [
+        {
+          "field": "label",
           "editor": "text",
           "commit": "field-commit"
         },
-        "description": {
+        {
+          "field": "description",
           "editor": "textarea",
           "commit": "field-commit"
         },
-        "icon": {
+        {
+          "field": "icon",
           "editor": "icon",
           "commit": "field-commit"
         },
-        "accentColor": {
+        {
+          "field": "accentColor",
           "editor": "color",
           "commit": "field-commit"
         },
-        "backgroundColor": {
+        {
+          "field": "backgroundColor",
           "editor": "color",
           "commit": "field-commit"
         },
-        "initialThemeMode": {
+        {
+          "field": "initialThemeMode",
           "editor": "enum",
           "commit": "immediate"
         },
-        "themeSwitchable": {
+        {
+          "field": "themeSwitchable",
           "editor": "boolean",
           "commit": "immediate"
         }
-      }
+      ]
     },
-    "blockListItem": {
+    {
+      "key": "blockListItem",
       "entity": "block",
-      "fields": {
-        "label": {
+      "fields": [
+        {
+          "field": "label",
           "editor": "text",
           "commit": "field-commit"
         }
-      }
+      ]
     },
-    "blockContextItem": {
+    {
+      "key": "blockContextItem",
       "entity": "block",
-      "fields": {
-        "label": {
+      "fields": [
+        {
+          "field": "label",
           "editor": "text",
           "commit": "field-commit"
         }
-      }
+      ]
     },
-    "blockRootDetail": {
+    {
+      "key": "blockRootDetail",
       "entity": "block",
-      "fields": {
-        "label": {
+      "fields": [
+        {
+          "field": "label",
           "editor": "text",
           "commit": "field-commit"
         }
-      },
+      ],
       "union": "blockByType",
-      "variants": {
-        "page": {
+      "variants": [
+        {
+          "variant": "page",
           "presentation": "fields",
-          "fields": {
-            "href": {
+          "fields": [
+            {
+              "field": "href",
               "editor": "href",
               "commit": "field-commit"
             },
-            "icon": {
+            {
+              "field": "icon",
               "editor": "icon",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "post": {
+        {
+          "variant": "post",
           "presentation": "fields",
-          "fields": {
-            "date": {
+          "fields": [
+            {
+              "field": "date",
               "editor": "date",
               "commit": "field-commit"
             },
-            "body": {
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "href": {
+            {
+              "field": "href",
               "editor": "href",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "project": {
+        {
+          "variant": "project",
           "presentation": "fields",
-          "fields": {
-            "date": {
+          "fields": [
+            {
+              "field": "date",
               "editor": "date",
               "commit": "field-commit"
             },
-            "body": {
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "href": {
+            {
+              "field": "href",
               "editor": "href",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "link": {
+        {
+          "variant": "link",
           "presentation": "fields",
-          "fields": {
-            "linkTargetMode": {
+          "fields": [
+            {
+              "field": "linkTargetMode",
               "editor": "enum",
               "commit": "immediate"
             },
-            "linkTargetBlock": {
+            {
+              "field": "linkTargetBlock",
               "editor": "reference",
               "commit": "immediate",
               "visibleWhen": {
@@ -1780,7 +2081,8 @@
                 "values": ["internal"]
               }
             },
-            "href": {
+            {
+              "field": "href",
               "editor": "href",
               "commit": "field-commit",
               "visibleWhen": {
@@ -1788,116 +2090,142 @@
                 "values": ["", "external"]
               }
             },
-            "icon": {
+            {
+              "field": "icon",
               "editor": "icon",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "markdown": {
+        {
+          "variant": "markdown",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "hero": {
+        {
+          "variant": "hero",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "feature": {
+        {
+          "variant": "feature",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "alignment": {
+            {
+              "field": "alignment",
               "editor": "enum",
               "commit": "immediate"
             }
-          }
+          ]
         },
-        "section": {
+        {
+          "variant": "section",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "cardGrid": {
+        {
+          "variant": "cardGrid",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "card": {
+        {
+          "variant": "card",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "icon": {
+            {
+              "field": "icon",
               "editor": "icon",
               "commit": "field-commit"
             },
-            "color": {
+            {
+              "field": "color",
               "editor": "color",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "metricGrid": {
+        {
+          "variant": "metricGrid",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "metric": {
+        {
+          "variant": "metric",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "color": {
+            {
+              "field": "color",
               "editor": "color",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "subscribeForm": {
+        {
+          "variant": "subscribeForm",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "operationName": {
+            {
+              "field": "operationName",
               "editor": "text",
               "commit": "field-commit"
             },
-            "operationTargetKind": {
+            {
+              "field": "operationTargetKind",
               "editor": "enum",
               "commit": "immediate"
             },
-            "operationTargetSchemaKey": {
+            {
+              "field": "operationTargetSchemaKey",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -1905,7 +2233,8 @@
                 "values": ["schemaKey"]
               }
             },
-            "operationTargetPackageAppKey": {
+            {
+              "field": "operationTargetPackageAppKey",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -1913,7 +2242,8 @@
                 "values": ["appInstall"]
               }
             },
-            "operationTargetInstallId": {
+            {
+              "field": "operationTargetInstallId",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -1921,57 +2251,70 @@
                 "values": ["appInstall"]
               }
             },
-            "buttonLabel": {
+            {
+              "field": "buttonLabel",
               "editor": "text",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "contactForm": {
+        {
+          "variant": "contactForm",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "operationName": {
+            {
+              "field": "operationName",
               "editor": "text",
               "commit": "field-commit"
             },
-            "buttonLabel": {
+            {
+              "field": "buttonLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "successLabel": {
+            {
+              "field": "successLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "nameLabel": {
+            {
+              "field": "nameLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "emailLabel": {
+            {
+              "field": "emailLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "messageLabel": {
+            {
+              "field": "messageLabel",
               "editor": "text",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "publicOperationForm": {
+        {
+          "variant": "publicOperationForm",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "operationTargetKind": {
+            {
+              "field": "operationTargetKind",
               "editor": "enum",
               "commit": "immediate"
             },
-            "operationTargetSchemaKey": {
+            {
+              "field": "operationTargetSchemaKey",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -1979,7 +2322,8 @@
                 "values": ["schemaKey"]
               }
             },
-            "operationTargetPackageAppKey": {
+            {
+              "field": "operationTargetPackageAppKey",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -1987,7 +2331,8 @@
                 "values": ["appInstall"]
               }
             },
-            "operationTargetInstallId": {
+            {
+              "field": "operationTargetInstallId",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -1995,23 +2340,28 @@
                 "values": ["appInstall"]
               }
             },
-            "operationKey": {
+            {
+              "field": "operationKey",
               "editor": "text",
               "commit": "field-commit"
             },
-            "buttonLabel": {
+            {
+              "field": "buttonLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "successLabel": {
+            {
+              "field": "successLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "operationNotificationMode": {
+            {
+              "field": "operationNotificationMode",
               "editor": "enum",
               "commit": "immediate"
             },
-            "operationNotificationReplyToField": {
+            {
+              "field": "operationNotificationReplyToField",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -2019,39 +2369,45 @@
                 "values": ["email"]
               }
             }
-          }
+          ]
         },
-        "image": {
+        {
+          "variant": "image",
           "presentation": "fields",
-          "fields": {
-            "mediaAssetId": {
+          "fields": [
+            {
+              "field": "mediaAssetId",
               "editor": "media",
               "commit": "field-commit"
             }
-          }
+          ]
         }
-      },
+      ],
       "fallback": {
         "presentation": "fields",
-        "fields": {
-          "label": {
+        "fields": [
+          {
+            "field": "label",
             "editor": "text",
             "commit": "field-commit"
           }
-        }
+        ]
       }
     },
-    "blockTreeNode": {
+    {
+      "key": "blockTreeNode",
       "entity": "block",
-      "fields": {
-        "label": {
+      "fields": [
+        {
+          "field": "label",
           "editor": "text",
           "commit": "field-commit"
         }
-      },
+      ],
       "union": "blockByType",
-      "variants": {
-        "header": {
+      "variants": [
+        {
+          "variant": "header",
           "presentation": "contextLink",
           "labelField": "label",
           "target": {
@@ -2060,7 +2416,8 @@
             "record": "self"
           }
         },
-        "footer": {
+        {
+          "variant": "footer",
           "presentation": "contextLink",
           "labelField": "label",
           "target": {
@@ -2069,31 +2426,38 @@
             "record": "self"
           }
         },
-        "project": {
+        {
+          "variant": "project",
           "presentation": "fields",
-          "fields": {
-            "date": {
+          "fields": [
+            {
+              "field": "date",
               "editor": "date",
               "commit": "field-commit"
             },
-            "body": {
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "href": {
+            {
+              "field": "href",
               "editor": "href",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "link": {
+        {
+          "variant": "link",
           "presentation": "fields",
-          "fields": {
-            "linkTargetMode": {
+          "fields": [
+            {
+              "field": "linkTargetMode",
               "editor": "enum",
               "commit": "immediate"
             },
-            "linkTargetBlock": {
+            {
+              "field": "linkTargetBlock",
               "editor": "reference",
               "commit": "immediate",
               "visibleWhen": {
@@ -2101,7 +2465,8 @@
                 "values": ["internal"]
               }
             },
-            "href": {
+            {
+              "field": "href",
               "editor": "href",
               "commit": "field-commit",
               "visibleWhen": {
@@ -2109,116 +2474,142 @@
                 "values": ["", "external"]
               }
             },
-            "icon": {
+            {
+              "field": "icon",
               "editor": "icon",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "markdown": {
+        {
+          "variant": "markdown",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "hero": {
+        {
+          "variant": "hero",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "feature": {
+        {
+          "variant": "feature",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "alignment": {
+            {
+              "field": "alignment",
               "editor": "enum",
               "commit": "immediate"
             }
-          }
+          ]
         },
-        "section": {
+        {
+          "variant": "section",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "cardGrid": {
+        {
+          "variant": "cardGrid",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "card": {
+        {
+          "variant": "card",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "icon": {
+            {
+              "field": "icon",
               "editor": "icon",
               "commit": "field-commit"
             },
-            "color": {
+            {
+              "field": "color",
               "editor": "color",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "metricGrid": {
+        {
+          "variant": "metricGrid",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "metric": {
+        {
+          "variant": "metric",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "color": {
+            {
+              "field": "color",
               "editor": "color",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "subscribeForm": {
+        {
+          "variant": "subscribeForm",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "operationName": {
+            {
+              "field": "operationName",
               "editor": "text",
               "commit": "field-commit"
             },
-            "operationTargetKind": {
+            {
+              "field": "operationTargetKind",
               "editor": "enum",
               "commit": "immediate"
             },
-            "operationTargetSchemaKey": {
+            {
+              "field": "operationTargetSchemaKey",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -2226,7 +2617,8 @@
                 "values": ["schemaKey"]
               }
             },
-            "operationTargetPackageAppKey": {
+            {
+              "field": "operationTargetPackageAppKey",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -2234,7 +2626,8 @@
                 "values": ["appInstall"]
               }
             },
-            "operationTargetInstallId": {
+            {
+              "field": "operationTargetInstallId",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -2242,57 +2635,70 @@
                 "values": ["appInstall"]
               }
             },
-            "buttonLabel": {
+            {
+              "field": "buttonLabel",
               "editor": "text",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "contactForm": {
+        {
+          "variant": "contactForm",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "operationName": {
+            {
+              "field": "operationName",
               "editor": "text",
               "commit": "field-commit"
             },
-            "buttonLabel": {
+            {
+              "field": "buttonLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "successLabel": {
+            {
+              "field": "successLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "nameLabel": {
+            {
+              "field": "nameLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "emailLabel": {
+            {
+              "field": "emailLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "messageLabel": {
+            {
+              "field": "messageLabel",
               "editor": "text",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "publicOperationForm": {
+        {
+          "variant": "publicOperationForm",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "operationTargetKind": {
+            {
+              "field": "operationTargetKind",
               "editor": "enum",
               "commit": "immediate"
             },
-            "operationTargetSchemaKey": {
+            {
+              "field": "operationTargetSchemaKey",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -2300,7 +2706,8 @@
                 "values": ["schemaKey"]
               }
             },
-            "operationTargetPackageAppKey": {
+            {
+              "field": "operationTargetPackageAppKey",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -2308,7 +2715,8 @@
                 "values": ["appInstall"]
               }
             },
-            "operationTargetInstallId": {
+            {
+              "field": "operationTargetInstallId",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -2316,23 +2724,28 @@
                 "values": ["appInstall"]
               }
             },
-            "operationKey": {
+            {
+              "field": "operationKey",
               "editor": "text",
               "commit": "field-commit"
             },
-            "buttonLabel": {
+            {
+              "field": "buttonLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "successLabel": {
+            {
+              "field": "successLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "operationNotificationMode": {
+            {
+              "field": "operationNotificationMode",
               "editor": "enum",
               "commit": "immediate"
             },
-            "operationNotificationReplyToField": {
+            {
+              "field": "operationNotificationReplyToField",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -2340,40 +2753,46 @@
                 "values": ["email"]
               }
             }
-          }
+          ]
         },
-        "image": {
+        {
+          "variant": "image",
           "presentation": "fields",
-          "fields": {
-            "mediaAssetId": {
+          "fields": [
+            {
+              "field": "mediaAssetId",
               "editor": "media",
               "commit": "field-commit"
             }
-          }
+          ]
         }
-      },
+      ],
       "fallback": {
         "presentation": "fields",
-        "fields": {
-          "label": {
+        "fields": [
+          {
+            "field": "label",
             "editor": "text",
             "commit": "field-commit"
           }
-        }
+        ]
       }
     },
-    "blockPlacementTreeItem": {
+    {
+      "key": "blockPlacementTreeItem",
       "entity": "block-placement",
-      "fields": {
-        "label": {
+      "fields": [
+        {
+          "field": "label",
           "editor": "text",
           "commit": "field-commit"
         }
-      }
+      ]
     }
-  },
-  "tableViews": {
-    "blockTable": {
+  ],
+  "tableViews": [
+    {
+      "key": "blockTable",
       "entity": "block",
       "columns": [
         {
@@ -2459,7 +2878,8 @@
         }
       ]
     },
-    "blockPlacementTable": {
+    {
+      "key": "blockPlacementTable",
       "entity": "block-placement",
       "operations": [
         {
@@ -2521,7 +2941,8 @@
         }
       ]
     },
-    "emailAddressTable": {
+    {
+      "key": "emailAddressTable",
       "entity": "email-address",
       "columns": [
         {
@@ -2541,7 +2962,8 @@
         }
       ]
     },
-    "audienceTable": {
+    {
+      "key": "audienceTable",
       "entity": "audience",
       "columns": [
         {
@@ -2556,7 +2978,8 @@
         }
       ]
     },
-    "subscriptionTable": {
+    {
+      "key": "subscriptionTable",
       "entity": "subscription",
       "columns": [
         {
@@ -2600,9 +3023,10 @@
         }
       ]
     }
-  },
-  "views": {
-    "siteSettingsHome": {
+  ],
+  "views": [
+    {
+      "key": "siteSettingsHome",
       "type": "collection",
       "label": "Settings",
       "entity": "site",
@@ -2620,7 +3044,8 @@
         "itemView": "siteSettingsForm"
       }
     },
-    "blockHome": {
+    {
+      "key": "blockHome",
       "type": "collection",
       "label": "Blocks",
       "entity": "block",
@@ -2683,7 +3108,8 @@
         }
       ]
     },
-    "emailAddressHome": {
+    {
+      "key": "emailAddressHome",
       "type": "collection",
       "label": "Email addresses",
       "entity": "email-address",
@@ -2704,7 +3130,8 @@
         "tableView": "emailAddressTable"
       }
     },
-    "audienceHome": {
+    {
+      "key": "audienceHome",
       "type": "collection",
       "label": "Audiences",
       "entity": "audience",
@@ -2725,7 +3152,8 @@
         "tableView": "audienceTable"
       }
     },
-    "subscriptionHome": {
+    {
+      "key": "subscriptionHome",
       "type": "collection",
       "label": "Subscriptions",
       "entity": "subscription",
@@ -2746,7 +3174,8 @@
         "tableView": "subscriptionTable"
       }
     },
-    "siteCompositionHome": {
+    {
+      "key": "siteCompositionHome",
       "type": "collection",
       "label": "Site",
       "entity": "block-placement",
@@ -2956,7 +3385,8 @@
         "maxDepth": 8
       }
     },
-    "pageCompositionHome": {
+    {
+      "key": "pageCompositionHome",
       "type": "collection",
       "label": "Pages",
       "entity": "block-placement",
@@ -2993,7 +3423,8 @@
         }
       ]
     },
-    "navigationCompositionHome": {
+    {
+      "key": "navigationCompositionHome",
       "type": "collection",
       "label": "Navigation",
       "entity": "block-placement",
@@ -3030,306 +3461,379 @@
         }
       ]
     },
-    "blockCreate": {
+    {
+      "key": "blockCreate",
       "type": "create",
       "entity": "block",
-      "fields": {
-        "type": {
+      "fields": [
+        {
+          "field": "type",
           "editor": "enum"
         },
-        "label": {
+        {
+          "field": "label",
           "editor": "text"
         }
-      },
+      ],
       "union": "blockByType",
-      "variants": {
-        "page": {
+      "variants": [
+        {
+          "variant": "page",
           "presentation": "fields",
-          "fields": {
-            "href": {
+          "fields": [
+            {
+              "field": "href",
               "editor": "href"
             },
-            "icon": {
+            {
+              "field": "icon",
               "editor": "icon"
             }
-          }
+          ]
         },
-        "post": {
+        {
+          "variant": "post",
           "presentation": "fields",
-          "fields": {
-            "date": {
+          "fields": [
+            {
+              "field": "date",
               "editor": "date"
             },
-            "body": {
+            {
+              "field": "body",
               "editor": "markdown"
             },
-            "href": {
+            {
+              "field": "href",
               "editor": "href"
             }
-          }
+          ]
         },
-        "project": {
+        {
+          "variant": "project",
           "presentation": "fields",
-          "fields": {
-            "date": {
+          "fields": [
+            {
+              "field": "date",
               "editor": "date"
             },
-            "body": {
+            {
+              "field": "body",
               "editor": "markdown"
             },
-            "href": {
+            {
+              "field": "href",
               "editor": "href"
             }
-          }
+          ]
         },
-        "link": {
+        {
+          "variant": "link",
           "presentation": "fields",
-          "fields": {
-            "linkTargetMode": {
+          "fields": [
+            {
+              "field": "linkTargetMode",
               "editor": "enum"
             },
-            "linkTargetBlock": {
+            {
+              "field": "linkTargetBlock",
               "editor": "reference",
               "visibleWhen": {
                 "field": "linkTargetMode",
                 "values": ["internal"]
               }
             },
-            "href": {
+            {
+              "field": "href",
               "editor": "href",
               "visibleWhen": {
                 "field": "linkTargetMode",
                 "values": ["", "external"]
               }
             },
-            "icon": {
+            {
+              "field": "icon",
               "editor": "icon"
             }
-          }
+          ]
         },
-        "markdown": {
+        {
+          "variant": "markdown",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown"
             }
-          }
+          ]
         },
-        "hero": {
+        {
+          "variant": "hero",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown"
             }
-          }
+          ]
         },
-        "feature": {
+        {
+          "variant": "feature",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown"
             },
-            "alignment": {
+            {
+              "field": "alignment",
               "editor": "enum"
             }
-          }
+          ]
         },
-        "section": {
+        {
+          "variant": "section",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown"
             }
-          }
+          ]
         },
-        "cardGrid": {
+        {
+          "variant": "cardGrid",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown"
             }
-          }
+          ]
         },
-        "card": {
+        {
+          "variant": "card",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown"
             },
-            "icon": {
+            {
+              "field": "icon",
               "editor": "icon"
             },
-            "color": {
+            {
+              "field": "color",
               "editor": "color"
             }
-          }
+          ]
         },
-        "metricGrid": {
+        {
+          "variant": "metricGrid",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown"
             }
-          }
+          ]
         },
-        "metric": {
+        {
+          "variant": "metric",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown"
             },
-            "color": {
+            {
+              "field": "color",
               "editor": "color"
             }
-          }
+          ]
         },
-        "subscribeForm": {
+        {
+          "variant": "subscribeForm",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown"
             },
-            "operationName": {
+            {
+              "field": "operationName",
               "editor": "text"
             },
-            "operationTargetKind": {
+            {
+              "field": "operationTargetKind",
               "editor": "enum"
             },
-            "operationTargetSchemaKey": {
+            {
+              "field": "operationTargetSchemaKey",
               "editor": "text",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["schemaKey"]
               }
             },
-            "operationTargetPackageAppKey": {
+            {
+              "field": "operationTargetPackageAppKey",
               "editor": "text",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["appInstall"]
               }
             },
-            "operationTargetInstallId": {
+            {
+              "field": "operationTargetInstallId",
               "editor": "text",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["appInstall"]
               }
             },
-            "buttonLabel": {
+            {
+              "field": "buttonLabel",
               "editor": "text"
             }
-          }
+          ]
         },
-        "contactForm": {
+        {
+          "variant": "contactForm",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown"
             },
-            "operationName": {
+            {
+              "field": "operationName",
               "editor": "text"
             },
-            "buttonLabel": {
+            {
+              "field": "buttonLabel",
               "editor": "text"
             },
-            "successLabel": {
+            {
+              "field": "successLabel",
               "editor": "text"
             },
-            "nameLabel": {
+            {
+              "field": "nameLabel",
               "editor": "text"
             },
-            "emailLabel": {
+            {
+              "field": "emailLabel",
               "editor": "text"
             },
-            "messageLabel": {
+            {
+              "field": "messageLabel",
               "editor": "text"
             }
-          }
+          ]
         },
-        "publicOperationForm": {
+        {
+          "variant": "publicOperationForm",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown"
             },
-            "operationTargetKind": {
+            {
+              "field": "operationTargetKind",
               "editor": "enum"
             },
-            "operationTargetSchemaKey": {
+            {
+              "field": "operationTargetSchemaKey",
               "editor": "text",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["schemaKey"]
               }
             },
-            "operationTargetPackageAppKey": {
+            {
+              "field": "operationTargetPackageAppKey",
               "editor": "text",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["appInstall"]
               }
             },
-            "operationTargetInstallId": {
+            {
+              "field": "operationTargetInstallId",
               "editor": "text",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["appInstall"]
               }
             },
-            "operationKey": {
+            {
+              "field": "operationKey",
               "editor": "text"
             },
-            "buttonLabel": {
+            {
+              "field": "buttonLabel",
               "editor": "text"
             },
-            "successLabel": {
+            {
+              "field": "successLabel",
               "editor": "text"
             },
-            "operationNotificationMode": {
+            {
+              "field": "operationNotificationMode",
               "editor": "enum"
             },
-            "operationNotificationReplyToField": {
+            {
+              "field": "operationNotificationReplyToField",
               "editor": "text",
               "visibleWhen": {
                 "field": "operationNotificationMode",
                 "values": ["email"]
               }
             }
-          }
+          ]
         },
-        "image": {
+        {
+          "variant": "image",
           "presentation": "fields",
-          "fields": {
-            "mediaAssetId": {
+          "fields": [
+            {
+              "field": "mediaAssetId",
               "editor": "media"
             }
-          }
+          ]
         }
-      },
+      ],
       "fallback": {
         "presentation": "fields",
-        "fields": {
-          "label": {
+        "fields": [
+          {
+            "field": "label",
             "editor": "text"
           }
-        }
+        ]
       }
     },
-    "blockPageCreate": {
+    {
+      "key": "blockPageCreate",
       "type": "create",
       "entity": "block",
-      "fields": {
-        "label": {
+      "fields": [
+        {
+          "field": "label",
           "editor": "text"
         },
-        "href": {
+        {
+          "field": "href",
           "editor": "href"
         },
-        "icon": {
+        {
+          "field": "icon",
           "editor": "icon"
         }
-      },
+      ],
       "defaults": {
         "type": {
           "kind": "literal",
@@ -3337,23 +3841,28 @@
         }
       }
     },
-    "blockPostCreate": {
+    {
+      "key": "blockPostCreate",
       "type": "create",
       "entity": "block",
-      "fields": {
-        "label": {
+      "fields": [
+        {
+          "field": "label",
           "editor": "text"
         },
-        "href": {
+        {
+          "field": "href",
           "editor": "href"
         },
-        "date": {
+        {
+          "field": "date",
           "editor": "date"
         },
-        "body": {
+        {
+          "field": "body",
           "editor": "markdown"
         }
-      },
+      ],
       "defaults": {
         "type": {
           "kind": "literal",
@@ -3361,23 +3870,28 @@
         }
       }
     },
-    "blockProjectCreate": {
+    {
+      "key": "blockProjectCreate",
       "type": "create",
       "entity": "block",
-      "fields": {
-        "label": {
+      "fields": [
+        {
+          "field": "label",
           "editor": "text"
         },
-        "href": {
+        {
+          "field": "href",
           "editor": "href"
         },
-        "date": {
+        {
+          "field": "date",
           "editor": "date"
         },
-        "body": {
+        {
+          "field": "body",
           "editor": "markdown"
         }
-      },
+      ],
       "defaults": {
         "type": {
           "kind": "literal",
@@ -3385,72 +3899,88 @@
         }
       }
     },
-    "blockEdit": {
+    {
+      "key": "blockEdit",
       "type": "edit",
       "entity": "block",
-      "fields": {
-        "label": {
+      "fields": [
+        {
+          "field": "label",
           "editor": "text",
           "commit": "field-commit"
         }
-      },
+      ],
       "union": "blockByType",
-      "variants": {
-        "page": {
+      "variants": [
+        {
+          "variant": "page",
           "presentation": "fields",
-          "fields": {
-            "href": {
+          "fields": [
+            {
+              "field": "href",
               "editor": "href",
               "commit": "field-commit"
             },
-            "icon": {
+            {
+              "field": "icon",
               "editor": "icon",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "post": {
+        {
+          "variant": "post",
           "presentation": "fields",
-          "fields": {
-            "date": {
+          "fields": [
+            {
+              "field": "date",
               "editor": "date",
               "commit": "field-commit"
             },
-            "body": {
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "href": {
+            {
+              "field": "href",
               "editor": "href",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "project": {
+        {
+          "variant": "project",
           "presentation": "fields",
-          "fields": {
-            "date": {
+          "fields": [
+            {
+              "field": "date",
               "editor": "date",
               "commit": "field-commit"
             },
-            "body": {
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "href": {
+            {
+              "field": "href",
               "editor": "href",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "link": {
+        {
+          "variant": "link",
           "presentation": "fields",
-          "fields": {
-            "linkTargetMode": {
+          "fields": [
+            {
+              "field": "linkTargetMode",
               "editor": "enum",
               "commit": "immediate"
             },
-            "linkTargetBlock": {
+            {
+              "field": "linkTargetBlock",
               "editor": "reference",
               "commit": "immediate",
               "visibleWhen": {
@@ -3458,7 +3988,8 @@
                 "values": ["internal"]
               }
             },
-            "href": {
+            {
+              "field": "href",
               "editor": "href",
               "commit": "field-commit",
               "visibleWhen": {
@@ -3466,116 +3997,142 @@
                 "values": ["", "external"]
               }
             },
-            "icon": {
+            {
+              "field": "icon",
               "editor": "icon",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "markdown": {
+        {
+          "variant": "markdown",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "hero": {
+        {
+          "variant": "hero",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "feature": {
+        {
+          "variant": "feature",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "alignment": {
+            {
+              "field": "alignment",
               "editor": "enum",
               "commit": "immediate"
             }
-          }
+          ]
         },
-        "section": {
+        {
+          "variant": "section",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "cardGrid": {
+        {
+          "variant": "cardGrid",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "card": {
+        {
+          "variant": "card",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "icon": {
+            {
+              "field": "icon",
               "editor": "icon",
               "commit": "field-commit"
             },
-            "color": {
+            {
+              "field": "color",
               "editor": "color",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "metricGrid": {
+        {
+          "variant": "metricGrid",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "metric": {
+        {
+          "variant": "metric",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "color": {
+            {
+              "field": "color",
               "editor": "color",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "subscribeForm": {
+        {
+          "variant": "subscribeForm",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "operationName": {
+            {
+              "field": "operationName",
               "editor": "text",
               "commit": "field-commit"
             },
-            "operationTargetKind": {
+            {
+              "field": "operationTargetKind",
               "editor": "enum",
               "commit": "immediate"
             },
-            "operationTargetSchemaKey": {
+            {
+              "field": "operationTargetSchemaKey",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -3583,7 +4140,8 @@
                 "values": ["schemaKey"]
               }
             },
-            "operationTargetPackageAppKey": {
+            {
+              "field": "operationTargetPackageAppKey",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -3591,7 +4149,8 @@
                 "values": ["appInstall"]
               }
             },
-            "operationTargetInstallId": {
+            {
+              "field": "operationTargetInstallId",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -3599,57 +4158,70 @@
                 "values": ["appInstall"]
               }
             },
-            "buttonLabel": {
+            {
+              "field": "buttonLabel",
               "editor": "text",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "contactForm": {
+        {
+          "variant": "contactForm",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "operationName": {
+            {
+              "field": "operationName",
               "editor": "text",
               "commit": "field-commit"
             },
-            "buttonLabel": {
+            {
+              "field": "buttonLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "successLabel": {
+            {
+              "field": "successLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "nameLabel": {
+            {
+              "field": "nameLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "emailLabel": {
+            {
+              "field": "emailLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "messageLabel": {
+            {
+              "field": "messageLabel",
               "editor": "text",
               "commit": "field-commit"
             }
-          }
+          ]
         },
-        "publicOperationForm": {
+        {
+          "variant": "publicOperationForm",
           "presentation": "fields",
-          "fields": {
-            "body": {
+          "fields": [
+            {
+              "field": "body",
               "editor": "markdown",
               "commit": "field-commit"
             },
-            "operationTargetKind": {
+            {
+              "field": "operationTargetKind",
               "editor": "enum",
               "commit": "immediate"
             },
-            "operationTargetSchemaKey": {
+            {
+              "field": "operationTargetSchemaKey",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -3657,7 +4229,8 @@
                 "values": ["schemaKey"]
               }
             },
-            "operationTargetPackageAppKey": {
+            {
+              "field": "operationTargetPackageAppKey",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -3665,7 +4238,8 @@
                 "values": ["appInstall"]
               }
             },
-            "operationTargetInstallId": {
+            {
+              "field": "operationTargetInstallId",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -3673,23 +4247,28 @@
                 "values": ["appInstall"]
               }
             },
-            "operationKey": {
+            {
+              "field": "operationKey",
               "editor": "text",
               "commit": "field-commit"
             },
-            "buttonLabel": {
+            {
+              "field": "buttonLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "successLabel": {
+            {
+              "field": "successLabel",
               "editor": "text",
               "commit": "field-commit"
             },
-            "operationNotificationMode": {
+            {
+              "field": "operationNotificationMode",
               "editor": "enum",
               "commit": "immediate"
             },
-            "operationNotificationReplyToField": {
+            {
+              "field": "operationNotificationReplyToField",
               "editor": "text",
               "commit": "field-commit",
               "visibleWhen": {
@@ -3697,29 +4276,33 @@
                 "values": ["email"]
               }
             }
-          }
+          ]
         },
-        "image": {
+        {
+          "variant": "image",
           "presentation": "fields",
-          "fields": {
-            "mediaAssetId": {
+          "fields": [
+            {
+              "field": "mediaAssetId",
               "editor": "media",
               "commit": "field-commit"
             }
-          }
+          ]
         }
-      },
+      ],
       "fallback": {
         "presentation": "fields",
-        "fields": {
-          "label": {
+        "fields": [
+          {
+            "field": "label",
             "editor": "text",
             "commit": "field-commit"
           }
-        }
+        ]
       }
     },
-    "blockCompositionHome": {
+    {
+      "key": "blockCompositionHome",
       "type": "collection",
       "label": "Placements",
       "entity": "block-placement",
@@ -3755,17 +4338,20 @@
         }
       ]
     },
-    "blockPlacementCreate": {
+    {
+      "key": "blockPlacementCreate",
       "type": "create",
       "entity": "block-placement",
-      "fields": {
-        "block": {
+      "fields": [
+        {
+          "field": "block",
           "editor": "reference"
         },
-        "label": {
+        {
+          "field": "label",
           "editor": "text"
         }
-      },
+      ],
       "defaults": {
         "parent": {
           "kind": "context",
@@ -3773,15 +4359,13 @@
         }
       }
     }
-  },
-  "screens": {
-    "siteSettings": {
+  ],
+  "screens": [
+    {
+      "key": "siteSettings",
       "type": "workspace",
       "label": "Settings",
       "path": "/settings",
-      "navigation": {
-        "primary": true
-      },
       "layout": {
         "type": "stack",
         "width": "narrow",
@@ -3794,13 +4378,11 @@
         ]
       }
     },
-    "siteEditor": {
+    {
+      "key": "siteEditor",
       "type": "workspace",
       "label": "Blocks",
       "path": "/",
-      "navigation": {
-        "primary": true
-      },
       "layout": {
         "type": "stack",
         "width": "wide",
@@ -3813,13 +4395,11 @@
         ]
       }
     },
-    "siteSubscribers": {
+    {
+      "key": "siteSubscribers",
       "type": "workspace",
       "label": "Subscribers",
       "path": "/subscribers",
-      "navigation": {
-        "primary": true
-      },
       "layout": {
         "type": "stack",
         "width": "wide",
@@ -3842,5 +4422,5 @@
         ]
       }
     }
-  }
+  ]
 }

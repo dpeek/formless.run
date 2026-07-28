@@ -10,8 +10,7 @@ import {
   type CreateDefaultFieldConfig,
   type CreateDefaultUnionConfig,
 } from "./index.ts";
-import type { CreateViewFieldSchema, EntitySchema } from "./index.ts";
-
+import type { CreateViewFieldBindingSchema, EntitySchema, EnumFieldSchema } from "./index.ts";
 describe("create defaults primitive", () => {
   it("parses context and literal defaults behind one boundary", () => {
     expect(
@@ -63,9 +62,18 @@ describe("create defaults primitive", () => {
       resolveCreateValues({
         formData,
         fields: [
-          { fieldName: "resource", field: rateEntity.fields.resource },
-          { fieldName: "cost", field: rateEntity.fields.cost },
-          { fieldName: "price", field: rateEntity.fields.price },
+          {
+            fieldName: "resource",
+            field: rateEntity.fields.find((definition) => definition.key === "resource")!,
+          },
+          {
+            fieldName: "cost",
+            field: rateEntity.fields.find((definition) => definition.key === "cost")!,
+          },
+          {
+            fieldName: "price",
+            field: rateEntity.fields.find((definition) => definition.key === "price")!,
+          },
         ],
         defaults: rateCreateDefaults,
         queryContext: { today: "2026-05-12", values: { card: "card-1" } },
@@ -87,15 +95,25 @@ describe("create defaults primitive", () => {
     expect(
       resolveCreateValues({
         formData,
-        fields: [{ fieldName: "label", field: blockEntity.fields.label }],
+        fields: [
+          {
+            fieldName: "label",
+            field: blockEntity.fields.find((definition) => definition.key === "label")!,
+          },
+        ],
         union: {
           discriminatorFieldName: "type",
-          discriminatorField: blockEntity.fields.type,
+          discriminatorField: enumField(blockEntity, "type"),
           variants: [
             {
               variantValue: "post",
               presentation: {
-                fields: [{ fieldName: "body", field: blockEntity.fields.body }],
+                fields: [
+                  {
+                    fieldName: "body",
+                    field: blockEntity.fields.find((definition) => definition.key === "body")!,
+                  },
+                ],
               },
             },
           ],
@@ -103,7 +121,7 @@ describe("create defaults primitive", () => {
         defaults: [
           {
             fieldName: "type",
-            field: blockEntity.fields.type,
+            field: blockEntity.fields.find((definition) => definition.key === "type")!,
             value: { kind: "literal", value: "post" },
           },
         ],
@@ -131,23 +149,41 @@ describe("create defaults primitive", () => {
         },
       },
       fields: [
-        { fieldName: "type", field: blockEntity.fields.type },
-        { fieldName: "label", field: blockEntity.fields.label },
-        { fieldName: "body", field: blockEntity.fields.body },
-        { fieldName: "featured", field: blockEntity.fields.featured },
-        { fieldName: "resource", field: blockEntity.fields.resource },
-        { fieldName: "estimate", field: blockEntity.fields.estimate },
+        {
+          fieldName: "type",
+          field: blockEntity.fields.find((definition) => definition.key === "type")!,
+        },
+        {
+          fieldName: "label",
+          field: blockEntity.fields.find((definition) => definition.key === "label")!,
+        },
+        {
+          fieldName: "body",
+          field: blockEntity.fields.find((definition) => definition.key === "body")!,
+        },
+        {
+          fieldName: "featured",
+          field: blockEntity.fields.find((definition) => definition.key === "featured")!,
+        },
+        {
+          fieldName: "resource",
+          field: blockEntity.fields.find((definition) => definition.key === "resource")!,
+        },
+        {
+          fieldName: "estimate",
+          field: blockEntity.fields.find((definition) => definition.key === "estimate")!,
+        },
       ],
       union: blockUnion,
       defaults: [
         {
           fieldName: "visibility",
-          field: blockEntity.fields.visibility,
+          field: blockEntity.fields.find((definition) => definition.key === "visibility")!,
           value: { kind: "literal", value: "public" },
         },
         {
           fieldName: "parent",
-          field: blockEntity.fields.parent,
+          field: blockEntity.fields.find((definition) => definition.key === "parent")!,
           value: { kind: "context", name: "block" },
         },
       ],
@@ -200,9 +236,18 @@ describe("create defaults primitive", () => {
       resolveCreateDraftValues({
         draft,
         fields: [
-          { fieldName: "resource", field: rateEntity.fields.resource },
-          { fieldName: "cost", field: rateEntity.fields.cost },
-          { fieldName: "price", field: rateEntity.fields.price },
+          {
+            fieldName: "resource",
+            field: rateEntity.fields.find((definition) => definition.key === "resource")!,
+          },
+          {
+            fieldName: "cost",
+            field: rateEntity.fields.find((definition) => definition.key === "cost")!,
+          },
+          {
+            fieldName: "price",
+            field: rateEntity.fields.find((definition) => definition.key === "price")!,
+          },
         ],
         defaults: rateCreateDefaults,
         queryContext: { today: "2026-05-12", values: { card: "card-1" } },
@@ -211,9 +256,18 @@ describe("create defaults primitive", () => {
       resolveCreateValues({
         formData,
         fields: [
-          { fieldName: "resource", field: rateEntity.fields.resource },
-          { fieldName: "cost", field: rateEntity.fields.cost },
-          { fieldName: "price", field: rateEntity.fields.price },
+          {
+            fieldName: "resource",
+            field: rateEntity.fields.find((definition) => definition.key === "resource")!,
+          },
+          {
+            fieldName: "cost",
+            field: rateEntity.fields.find((definition) => definition.key === "cost")!,
+          },
+          {
+            fieldName: "price",
+            field: rateEntity.fields.find((definition) => definition.key === "price")!,
+          },
         ],
         defaults: rateCreateDefaults,
         queryContext: { today: "2026-05-12", values: { card: "card-1" } },
@@ -225,10 +279,12 @@ describe("create defaults primitive", () => {
     const formData = new FormData();
     formData.append("featured", "false");
     formData.append("featured", "on");
-
     expect(
       generatedFieldDraftInputFromNativeFormData(formData, [
-        { fieldName: "featured", field: blockEntity.fields.featured },
+        {
+          fieldName: "featured",
+          field: blockEntity.fields.find((definition) => definition.key === "featured")!,
+        },
       ]),
     ).toEqual({
       values: {
@@ -242,7 +298,12 @@ describe("create defaults primitive", () => {
     expect(
       resolveCreateValues({
         formData: falseFormData,
-        fields: [{ fieldName: "featured", field: blockEntity.fields.featured }],
+        fields: [
+          {
+            fieldName: "featured",
+            field: blockEntity.fields.find((definition) => definition.key === "featured")!,
+          },
+        ],
       }),
     ).toEqual({
       featured: false,
@@ -260,11 +321,16 @@ describe("create defaults primitive", () => {
     const result = resolveCreateDraftValues({
       draft,
       fields: [
-        { fieldName: "estimate", field: blockEntity.fields.estimate },
-        { fieldName: "label", field: blockEntity.fields.label },
+        {
+          fieldName: "estimate",
+          field: blockEntity.fields.find((definition) => definition.key === "estimate")!,
+        },
+        {
+          fieldName: "label",
+          field: blockEntity.fields.find((definition) => definition.key === "label")!,
+        },
       ],
     });
-
     expect(result.values).toEqual({ label: "Sizing" });
     expect(result.fieldErrors).toEqual({
       estimate: {
@@ -279,7 +345,12 @@ describe("create defaults primitive", () => {
     expect(() =>
       resolveCreateValues({
         formData,
-        fields: [{ fieldName: "estimate", field: blockEntity.fields.estimate }],
+        fields: [
+          {
+            fieldName: "estimate",
+            field: blockEntity.fields.find((definition) => definition.key === "estimate")!,
+          },
+        ],
       }),
     ).toThrow("Enter a finite number.");
   });
@@ -295,9 +366,18 @@ describe("create defaults primitive", () => {
       resolveCreateDraftValues({
         draft: generatedFieldDraftInputFromNativeFormData(formData),
         fields: [
-          { fieldName: "resource", field: rateEntity.fields.resource },
-          { fieldName: "cost", field: rateEntity.fields.cost },
-          { fieldName: "price", field: rateEntity.fields.price },
+          {
+            fieldName: "resource",
+            field: rateEntity.fields.find((definition) => definition.key === "resource")!,
+          },
+          {
+            fieldName: "cost",
+            field: rateEntity.fields.find((definition) => definition.key === "cost")!,
+          },
+          {
+            fieldName: "price",
+            field: rateEntity.fields.find((definition) => definition.key === "price")!,
+          },
         ],
         defaults: rateCreateDefaults,
         queryContext: { today: "2026-05-12" },
@@ -312,9 +392,18 @@ describe("create defaults primitive", () => {
       resolveCreateValues({
         formData,
         fields: [
-          { fieldName: "resource", field: rateEntity.fields.resource },
-          { fieldName: "cost", field: rateEntity.fields.cost },
-          { fieldName: "price", field: rateEntity.fields.price },
+          {
+            fieldName: "resource",
+            field: rateEntity.fields.find((definition) => definition.key === "resource")!,
+          },
+          {
+            fieldName: "cost",
+            field: rateEntity.fields.find((definition) => definition.key === "cost")!,
+          },
+          {
+            fieldName: "price",
+            field: rateEntity.fields.find((definition) => definition.key === "price")!,
+          },
         ],
         defaults: rateCreateDefaults,
         queryContext: { today: "2026-05-12" },
@@ -322,100 +411,102 @@ describe("create defaults primitive", () => {
     ).toThrow('Create default for "card" requires selected context "card".');
   });
 });
-
 const rateEntity = {
   label: "Rate",
-  fields: {
-    resource: { type: "reference", required: true, to: "resource" },
-    card: { type: "reference", required: true, to: "card" },
-    cost: { type: "number", required: true, min: 0 },
-    costUnit: {
+  fields: [
+    { key: "resource", type: "reference", required: true, to: "resource" },
+    { key: "card", type: "reference", required: true, to: "card" },
+    { key: "cost", type: "number", required: true, min: 0 },
+    {
+      key: "costUnit",
       type: "enum",
       required: true,
-      values: {
-        hour: { label: "Hour" },
-        day: { label: "Day" },
-      },
+      values: [
+        { key: "hour", label: "Hour" },
+        { key: "day", label: "Day" },
+      ],
     },
-    price: { type: "number", required: true, min: 0 },
-  },
+    { key: "price", type: "number", required: true, min: 0 },
+  ],
 } satisfies EntitySchema;
-
-const rateCreateFields = {
-  resource: { editor: "reference" },
-  cost: { editor: "number" },
-  price: { editor: "number" },
-} satisfies Record<string, CreateViewFieldSchema>;
-
+const rateCreateFields = [
+  { field: "resource", editor: "reference" },
+  { field: "cost", editor: "number" },
+  { field: "price", editor: "number" },
+] satisfies CreateViewFieldBindingSchema[];
 const rateCreateDefaults = [
   {
     fieldName: "card",
-    field: rateEntity.fields.card,
+    field: rateEntity.fields.find((definition) => definition.key === "card")!,
     value: { kind: "context", name: "card" },
   },
   {
     fieldName: "costUnit",
-    field: rateEntity.fields.costUnit,
+    field: rateEntity.fields.find((definition) => definition.key === "costUnit")!,
     value: { kind: "literal", value: "day" },
   },
 ] satisfies CreateDefaultConfig[];
-
 const blockEntity = {
   label: "Block",
-  fields: {
-    type: {
+  fields: [
+    {
+      key: "type",
       type: "enum",
       required: true,
-      values: {
-        post: { label: "Post" },
-        image: { label: "Image" },
-        link: { label: "Link" },
-      },
+      values: [
+        { key: "post", label: "Post" },
+        { key: "image", label: "Image" },
+        { key: "link", label: "Link" },
+      ],
     },
-    label: { type: "text", required: true },
-    body: { type: "text", required: false },
-    featured: { type: "boolean", required: true, default: false },
-    resource: { type: "reference", required: true, to: "resource" },
-    estimate: { type: "number", required: false, min: 0 },
-    linkTargetMode: {
+    { key: "label", type: "text", required: true },
+    { key: "body", type: "text", required: false },
+    { key: "featured", type: "boolean", required: true, default: false },
+    { key: "resource", type: "reference", required: true, to: "resource" },
+    { key: "estimate", type: "number", required: false, min: 0 },
+    {
+      key: "linkTargetMode",
       type: "enum",
       required: false,
-      values: {
-        internal: { label: "Internal" },
-        external: { label: "External" },
-      },
+      values: [
+        { key: "internal", label: "Internal" },
+        { key: "external", label: "External" },
+      ],
     },
-    linkTargetBlock: { type: "reference", required: false, to: "block" },
-    href: { type: "text", required: false, format: "href" },
-    visibility: {
+    { key: "linkTargetBlock", type: "reference", required: false, to: "block" },
+    { key: "href", type: "text", required: false, format: "href" },
+    {
+      key: "visibility",
       type: "enum",
       required: true,
-      values: {
-        public: { label: "Public" },
-        private: { label: "Private" },
-      },
+      values: [
+        { key: "public", label: "Public" },
+        { key: "private", label: "Private" },
+      ],
     },
-    parent: { type: "reference", required: false, to: "block" },
-  },
+    { key: "parent", type: "reference", required: false, to: "block" },
+  ],
 } satisfies EntitySchema;
-
 const blockUnion: CreateDefaultUnionConfig<CreateDefaultFieldConfig> = {
   discriminatorFieldName: "type",
-  discriminatorField: blockEntity.fields.type,
+  discriminatorField: enumField(blockEntity, "type"),
   variants: [
     {
       variantValue: "link",
       presentation: {
         fields: [
-          { fieldName: "linkTargetMode", field: blockEntity.fields.linkTargetMode },
+          {
+            fieldName: "linkTargetMode",
+            field: blockEntity.fields.find((definition) => definition.key === "linkTargetMode")!,
+          },
           {
             fieldName: "linkTargetBlock",
-            field: blockEntity.fields.linkTargetBlock,
+            field: blockEntity.fields.find((definition) => definition.key === "linkTargetBlock")!,
             visibleWhen: { field: "linkTargetMode", values: ["internal"] },
           },
           {
             fieldName: "href",
-            field: blockEntity.fields.href,
+            field: blockEntity.fields.find((definition) => definition.key === "href")!,
             visibleWhen: { field: "linkTargetMode", values: ["", "external"] },
           },
         ],
@@ -423,3 +514,10 @@ const blockUnion: CreateDefaultUnionConfig<CreateDefaultFieldConfig> = {
     },
   ],
 };
+function enumField(entity: EntitySchema, key: string): EnumFieldSchema {
+  const field = entity.fields.find((definition) => definition.key === key);
+  if (field?.type !== "enum") {
+    throw new Error(`Missing enum field "${key}".`);
+  }
+  return field;
+}

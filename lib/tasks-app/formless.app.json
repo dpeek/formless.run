@@ -17,7 +17,7 @@
     "key": "tasks",
     "path": "seed-records.json"
   },
-  "sourceSchemaHash": "sha256:51428cbdf236029c81d97bafffcdad039be062472226b6adea7a249333081c56",
+  "sourceSchemaHash": "sha256:2fe579351d0f296f4daefc351f5ea79a0121bfecd591dc7a904832ee2bcfb704",
   "capabilities": [
     {
       "kind": "generatedAdmin",

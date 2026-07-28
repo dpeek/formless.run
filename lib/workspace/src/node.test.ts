@@ -17,6 +17,7 @@ import { parseAppSchema } from "@dpeek/formless-schema";
 import {
   STORAGE_SNAPSHOT_KIND,
   STORAGE_SNAPSHOT_VERSION,
+  formatStoredRecordsForArtifact,
   type StorageSnapshot,
   type StoredRecord,
 } from "@dpeek/formless-storage";
@@ -94,30 +95,29 @@ const workspaceTestBundledManifests = [
 ];
 const workspaceFixtureTaskSourceSchema = {
   version: 1,
-  entities: {
-    task: {
+  entities: [
+    {
+      key: "task",
       label: "Task",
-      fields: {
-        title: { type: "text", required: true, label: "Title" },
-        done: { type: "boolean", required: true, label: "Done" },
-      },
+      fields: [
+        { key: "title", type: "text", required: true, label: "Title" },
+        { key: "done", type: "boolean", required: true, label: "Done" },
+      ],
       operations: writeOperations("Task", ["title", "done"], { delete: true }),
     },
-  },
-  queries: {
-    taskAll: { label: "Tasks", entity: "task", expression: { kind: "all" } },
-  },
-  itemViews: {
-    taskItem: {
+  ],
+  queries: [{ key: "taskAll", label: "Tasks", entity: "task", expression: { kind: "all" } }],
+  itemViews: [
+    {
+      key: "taskItem",
       entity: "task",
-      fields: {
-        title: { editor: "text", commit: "field-commit" },
-      },
+      fields: [{ field: "title", editor: "text", commit: "field-commit" }],
     },
-  },
-  tableViews: {},
-  views: {
-    taskList: {
+  ],
+  tableViews: [],
+  views: [
+    {
+      key: "taskList",
       type: "collection",
       label: "Tasks",
       entity: "task",
@@ -125,9 +125,10 @@ const workspaceFixtureTaskSourceSchema = {
       defaultQuery: "taskAll",
       result: { type: "list", itemView: "taskItem" },
     },
-  },
-  screens: {
-    home: {
+  ],
+  screens: [
+    {
+      key: "home",
       type: "workspace",
       label: "Home",
       layout: {
@@ -135,16 +136,21 @@ const workspaceFixtureTaskSourceSchema = {
         sections: [{ id: "tasks", type: "collection", view: "taskList" }],
       },
     },
-  },
+  ],
 };
-
-function writeOperations(label: string, fields: string[], options: { delete?: boolean } = {}) {
+function writeOperations(
+  label: string,
+  fields: string[],
+  options: {
+    delete?: boolean;
+  } = {},
+) {
   const input = {
-    fields: Object.fromEntries(fields.map((field) => [field, { field }])),
+    fields: fields.map((field) => ({ key: field, field })),
   };
-
-  return {
-    create: {
+  return [
+    {
+      key: "create",
       label: `Create ${label}`,
       kind: "create",
       scope: "collection",
@@ -154,7 +160,8 @@ function writeOperations(label: string, fields: string[], options: { delete?: bo
       idempotency: { required: true },
       audit: { input: "summary" },
     },
-    update: {
+    {
+      key: "update",
       label: `Update ${label}`,
       kind: "update",
       scope: "record",
@@ -165,8 +172,9 @@ function writeOperations(label: string, fields: string[], options: { delete?: bo
       audit: { input: "summary" },
     },
     ...(options.delete
-      ? {
-          delete: {
+      ? [
+          {
+            key: "delete",
             label: `Delete ${label}`,
             kind: "delete",
             scope: "record",
@@ -175,9 +183,9 @@ function writeOperations(label: string, fields: string[], options: { delete?: bo
             idempotency: { required: true },
             audit: { input: "summary" },
           },
-        }
-      : {}),
-  };
+        ]
+      : []),
+  ];
 }
 const workspaceFixtureTaskSeedRecords = [
   workspaceFixtureTaskRecord("rec_task_overdue", "Review overdue proposal", false),
@@ -408,7 +416,9 @@ describe("workspace app package source resolver", () => {
       sourceSchemaHash: fixture.sourceSchemaHash,
       sourceSchemaPath: path.join(packageRoot, "source/schema.json"),
     });
-    expect(linkedPackage?.sourceSchema.entities.task).toBeDefined();
+    expect(
+      linkedPackage?.sourceSchema.entities.find((definition) => definition.key === "task"),
+    ).toBeDefined();
     expect(linkedPackage?.seedRecords.map((record) => record.entity)).toEqual([
       "task",
       "task",
@@ -469,9 +479,14 @@ describe("workspace app package source resolver", () => {
       sourceSchemaHash: fixture.sourceSchemaHash,
       sourceSchemaPath: fixture.sourceSchemaPath,
     });
-    expect(linkedPackage?.sourceSchema.entities.task).toBeDefined();
+    expect(
+      linkedPackage?.sourceSchema.entities.find((definition) => definition.key === "task"),
+    ).toBeDefined();
     expect(linkedPackage?.seedRecords).toEqual(
-      materializedWorkspaceSeedRecords(fixture.seedRecords),
+      formatStoredRecordsForArtifact(
+        linkedPackage!.sourceSchema,
+        materializedWorkspaceSeedRecords(fixture.seedRecords) as StoredRecord[],
+      ),
     );
   });
 
@@ -609,17 +624,17 @@ describe("workspace record state node files", () => {
     expect(file.schema).toBeUndefined();
     expect(file.schemaProvenance).toEqual(instanceControlPlaneSchemaProvenance);
     expect((file.records as StoredRecord[]).map((record) => record.entity)).toEqual([
+      "instance:instance-settings",
       "instance:email-domain",
       "instance:email-sender",
-      "instance:instance-settings",
     ]);
     await expect(
       readInstanceWorkspaceControlPlaneStorageSnapshot({ manifest, workspaceRoot }),
     ).resolves.toMatchObject({
       records: [
+        { entity: "instance-settings", id: "settings:instance" },
         { entity: "email-domain", id: "email-domain:mail.example.com" },
         { entity: "email-sender", id: "email-sender:contact@mail.example.com" },
-        { entity: "instance-settings", id: "settings:instance" },
       ],
       schemaKey: snapshot.schemaKey,
       storageIdentity: snapshot.storageIdentity,
@@ -762,6 +777,10 @@ describe("workspace record state node files", () => {
     const records: StoredRecord[] = [
       {
         ...workspaceFixtureTaskRecord("rec_task_saved", "Persist record state", false),
+        values: {
+          done: false,
+          title: "Persist record state",
+        },
         updatedAt: "2026-06-01T00:00:00.000Z",
       },
     ];
@@ -793,6 +812,7 @@ describe("workspace record state node files", () => {
     expect(file.storageIdentity).toBe("app:tasks");
     expect(file.schema).toBeUndefined();
     expect(file.schemaProvenance).toEqual(schemaProvenance);
+    expect(Object.keys((file.records as StoredRecord[])[0]!.values)).toEqual(["title", "done"]);
     await expect(
       readInstanceWorkspaceAppStorageSnapshot({
         installId: "tasks",
@@ -844,10 +864,15 @@ describe("workspace media source node files", () => {
       await readFile(instanceWorkspaceMediaManifestPath(workspaceRoot, manifest), "utf8"),
     ) as {
       kind: string;
-      objects: Array<{ archivePath: string; asset: { access: string; filename: string } }>;
+      objects: Array<{
+        archivePath: string;
+        asset: {
+          access: string;
+          filename: string;
+        };
+      }>;
       version: number;
     };
-
     expect(path.basename(instanceWorkspaceMediaManifestPath(workspaceRoot, manifest))).toBe(
       WORKSPACE_MEDIA_MANIFEST_FILE,
     );
@@ -1090,9 +1115,10 @@ async function writeWorkspaceAppPackageFixture(
     sourceSchemaPath: resolvedSourceSchemaPath,
   };
 }
-
 function workspaceAppPackageManifestFixture(
-  options: WorkspaceAppPackageFixtureOptions & { sourceSchemaHash: SourceSchemaHash },
+  options: WorkspaceAppPackageFixtureOptions & {
+    sourceSchemaHash: SourceSchemaHash;
+  },
 ): AppPackageManifest {
   const packageAppKey = options.packageAppKey ?? "private-labs";
   const label = options.label ?? "Private Labs";

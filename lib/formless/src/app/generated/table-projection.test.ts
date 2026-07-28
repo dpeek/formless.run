@@ -581,8 +581,20 @@ function tablePresentation({
 function fieldColumn(
   fieldName: string,
   field: FieldSchema,
-  options: Partial<Extract<TableColumnConfig, { type: "field" }>> = {},
-): Extract<TableColumnConfig, { type: "field" }> {
+  options: Partial<
+    Extract<
+      TableColumnConfig,
+      {
+        type: "field";
+      }
+    >
+  > = {},
+): Extract<
+  TableColumnConfig,
+  {
+    type: "field";
+  }
+> {
   return {
     commit: "field-commit",
     display: "editor",
@@ -596,8 +608,12 @@ function fieldColumn(
     ...options,
   };
 }
-
-function referenceFieldColumn(): Extract<TableColumnConfig, { type: "referenceField" }> {
+function referenceFieldColumn(): Extract<
+  TableColumnConfig,
+  {
+    type: "referenceField";
+  }
+> {
   return {
     commit: "field-commit",
     display: "readOnly",
@@ -613,8 +629,12 @@ function referenceFieldColumn(): Extract<TableColumnConfig, { type: "referenceFi
     type: "referenceField",
   };
 }
-
-function computedColumn(): Extract<TableColumnConfig, { type: "computed" }> {
+function computedColumn(): Extract<
+  TableColumnConfig,
+  {
+    type: "computed";
+  }
+> {
   return {
     align: "end",
     computedValue: {
@@ -631,8 +651,12 @@ function computedColumn(): Extract<TableColumnConfig, { type: "computed" }> {
     type: "computed",
   };
 }
-
-function operationColumn(): Extract<TableColumnConfig, { type: "operationControl" }> {
+function operationColumn(): Extract<
+  TableColumnConfig,
+  {
+    type: "operationControl";
+  }
+> {
   return {
     align: "end",
     controls: [],
@@ -647,8 +671,12 @@ function operationColumn(): Extract<TableColumnConfig, { type: "operationControl
     width: "xs",
   };
 }
-
-function orderingColumn(): Extract<TableColumnConfig, { type: "orderingHandle" }> {
+function orderingColumn(): Extract<
+  TableColumnConfig,
+  {
+    type: "orderingHandle";
+  }
+> {
   return {
     align: "center",
     display: "readOnly",
@@ -778,7 +806,7 @@ function tableOrdering(rowId: string, pending: boolean) {
         direction: "down",
         disabled: false,
         label: "Move down",
-        plan: { kind: "patch", rank: 3_000, recordId: rowId },
+        plan: { kind: "patch", rank: 3000, recordId: rowId },
       },
     ],
     pending,

@@ -448,11 +448,11 @@ export async function executeAuthorityOperation(
         ),
       );
     }
-
     case "entityOperation": {
       const { schema } = initializeStorageFromSource(input.storage, input.source);
-      const operationSchema =
-        schema.entities[operation.entityName]?.operations?.[operation.operationName];
+      const operationSchema = schema.entities
+        .find((definition) => definition.key === operation.entityName)
+        ?.operations?.find((definition) => definition.key === operation.operationName);
       const envelope = buildProtocolOperationInvocationEnvelope({
         actor:
           input.actor ??

@@ -79,84 +79,136 @@ export const instanceManagementWorkspacePushFixture = createWorkspacePushOperati
   id: `${instanceManagementWorkspacePushOperationId}:control`,
   outcome: "success",
 });
-
 const installFieldSchema = (label: string) =>
-  ({ label, required: true, type: "text" }) satisfies Extract<FieldSchema, { type: "text" }>;
-
+  ({ label, required: true, type: "text" }) satisfies Extract<
+    FieldSchema,
+    {
+      type: "text";
+    }
+  >;
 const routeEnabledField = {
   default: true,
   label: "Enabled",
   required: true,
   type: "boolean",
-} as const satisfies Extract<FieldSchema, { type: "boolean" }>;
+} as const satisfies Extract<
+  FieldSchema,
+  {
+    type: "boolean";
+  }
+>;
 const routeMatchHostField = {
   label: "Match host",
   required: false,
   type: "text",
-} as const satisfies Extract<FieldSchema, { type: "text" }>;
+} as const satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const routeMatchPathField = {
   label: "Match path",
   required: true,
   type: "text",
-} as const satisfies Extract<FieldSchema, { type: "text" }>;
+} as const satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const routeMatchPrefixField = {
   label: "Match prefix",
   required: false,
   type: "text",
-} as const satisfies Extract<FieldSchema, { type: "text" }>;
+} as const satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const routeKindField = {
   label: "Kind",
   required: true,
   type: "enum",
-  values: {
-    mount: { label: "Mount" },
-    redirect: { label: "Redirect" },
-  },
-} as const satisfies Extract<FieldSchema, { type: "enum" }>;
+  values: [
+    { key: "mount", label: "Mount" },
+    { key: "redirect", label: "Redirect" },
+  ],
+} as const satisfies Extract<
+  FieldSchema,
+  {
+    type: "enum";
+  }
+>;
 const routeTargetProfileField = {
   label: "Target profile",
   required: false,
   type: "enum",
-  values: {
-    app: { label: "App" },
-    instance: { label: "Instance" },
-    "public-site": { label: "Public Site" },
-  },
-} as const satisfies Extract<FieldSchema, { type: "enum" }>;
+  values: [
+    { key: "app", label: "App" },
+    { key: "instance", label: "Instance" },
+    { key: "public-site", label: "Public Site" },
+  ],
+} as const satisfies Extract<
+  FieldSchema,
+  {
+    type: "enum";
+  }
+>;
 const routeAppInstallField = {
   displayField: "label",
   label: "App install",
   required: false,
   to: "app-install",
   type: "reference",
-} as const satisfies Extract<FieldSchema, { type: "reference" }>;
+} as const satisfies Extract<
+  FieldSchema,
+  {
+    type: "reference";
+  }
+>;
 const routeSurfaceField = {
   label: "Surface",
   required: false,
   type: "enum",
-  values: {
-    admin: { label: "Admin" },
-    "public-site": { label: "Public Site" },
-  },
-} as const satisfies Extract<FieldSchema, { type: "enum" }>;
+  values: [
+    { key: "admin", label: "Admin" },
+    { key: "public-site", label: "Public Site" },
+  ],
+} as const satisfies Extract<
+  FieldSchema,
+  {
+    type: "enum";
+  }
+>;
 const routeAccessField = {
   label: "Access",
   required: false,
   type: "enum",
-  values: {
-    anonymous: { label: "Anonymous" },
-    authenticated: { label: "Authenticated" },
-    owner: { label: "Owner" },
-  },
-} as const satisfies Extract<FieldSchema, { type: "enum" }>;
+  values: [
+    { key: "anonymous", label: "Anonymous" },
+    { key: "authenticated", label: "Authenticated" },
+    { key: "owner", label: "Owner" },
+  ],
+} as const satisfies Extract<
+  FieldSchema,
+  {
+    type: "enum";
+  }
+>;
 const routeDeploymentConfigField = {
   displayField: "label",
   label: "Deployment config",
   required: false,
   to: "deployment-config",
   type: "reference",
-} as const satisfies Extract<FieldSchema, { type: "reference" }>;
-
+} as const satisfies Extract<
+  FieldSchema,
+  {
+    type: "reference";
+  }
+>;
 const routeAppInstallOptions = [
   { id: "site", label: "Site" },
   { id: "tasks", label: "Tasks" },
@@ -316,8 +368,12 @@ function installDialog(
     ...overrides,
   };
 }
-
-function installFields(options: { installId?: string; installIdError?: string } = {}) {
+function installFields(
+  options: {
+    installId?: string;
+    installIdError?: string;
+  } = {},
+) {
   return {
     installId: installField(
       "installId",
@@ -760,7 +816,12 @@ function routeCreateFields(ownerId: string): CreateFieldContract[] {
 function createRouteTextField(
   ownerId: string,
   fieldName: string,
-  field: Extract<FieldSchema, { type: "text" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "text";
+    }
+  >,
   value: string,
 ) {
   const control = textControl(field);
@@ -781,7 +842,12 @@ function createRouteTextField(
 function createRouteBooleanField(
   ownerId: string,
   fieldName: string,
-  field: Extract<FieldSchema, { type: "boolean" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "boolean";
+    }
+  >,
   value: boolean,
 ) {
   const control = booleanControl(field);
@@ -802,7 +868,12 @@ function createRouteBooleanField(
 function createRouteEnumField(
   ownerId: string,
   fieldName: string,
-  field: Extract<FieldSchema, { type: "enum" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
   value: string,
 ) {
   const control = enumControl(field);
@@ -824,12 +895,19 @@ function createRouteEnumField(
 function createRouteReferenceField(
   ownerId: string,
   fieldName: string,
-  field: Extract<FieldSchema, { type: "reference" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "reference";
+    }
+  >,
   value: string,
-  options: readonly { id: string; label: string }[],
+  options: readonly {
+    id: string;
+    label: string;
+  }[],
 ) {
   const control = referenceControl(field);
-
   return createField({
     control,
     draftInput: draftInput(value),
@@ -937,7 +1015,12 @@ function routeEditFields(rowId: string, record: RouteFixtureRecord): FieldContra
 function recordRouteTextField(
   rowId: string,
   fieldName: string,
-  field: Extract<FieldSchema, { type: "text" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "text";
+    }
+  >,
   value: string,
 ) {
   const control = textControl(field);
@@ -959,7 +1042,12 @@ function recordRouteTextField(
 function recordRouteBooleanField(
   rowId: string,
   fieldName: string,
-  field: Extract<FieldSchema, { type: "boolean" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "boolean";
+    }
+  >,
   value: boolean,
 ) {
   const control = booleanControl(field);
@@ -981,7 +1069,12 @@ function recordRouteBooleanField(
 function recordRouteEnumField(
   rowId: string,
   fieldName: string,
-  field: Extract<FieldSchema, { type: "enum" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
   value: string,
 ) {
   const control = enumControl(field);
@@ -1004,12 +1097,19 @@ function recordRouteEnumField(
 function recordRouteReferenceField(
   rowId: string,
   fieldName: string,
-  field: Extract<FieldSchema, { type: "reference" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "reference";
+    }
+  >,
   value: string,
-  options: readonly { id: string; label: string }[],
+  options: readonly {
+    id: string;
+    label: string;
+  }[],
 ) {
   const control = referenceControl(field);
-
   return recordField({
     commit: "immediate",
     control,

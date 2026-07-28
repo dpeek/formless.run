@@ -733,10 +733,12 @@ function recordingJsonFetcher(
     return Response.json(body, init);
   };
 }
-
 function recordingJsonSequenceFetcher(
   calls: JsonFetchCall[],
-  responses: Array<{ body: unknown; init?: ResponseInit }>,
+  responses: Array<{
+    body: unknown;
+    init?: ResponseInit;
+  }>,
 ): typeof fetch {
   return async (input, requestInit) => {
     const body =
@@ -778,10 +780,21 @@ function completeResult(
     target: resolvedTarget,
   };
 }
-
 function profileCompletionGate(
-  input: Partial<Extract<AccountCompletionGate, { kind: "profile-completion" }>> = {},
-): Extract<AccountCompletionGate, { kind: "profile-completion" }> {
+  input: Partial<
+    Extract<
+      AccountCompletionGate,
+      {
+        kind: "profile-completion";
+      }
+    >
+  > = {},
+): Extract<
+  AccountCompletionGate,
+  {
+    kind: "profile-completion";
+  }
+> {
   return {
     appInstallId: "task-workspace",
     inputContract: profileCompletionInputContract(),

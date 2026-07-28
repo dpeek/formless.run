@@ -37,10 +37,13 @@ import type {
 import type { AuthorityRecordValidationReader } from "./authority-record-validation-reader.ts";
 import type { WriteOutcome } from "./storage.ts";
 import type { RecordWriteResponse } from "./storage-write-log.ts";
-
 export type ValidatedRecordWrite =
   | {
-      recordWrite: RecordWriteRequest | (PatchRecordWriteRequest & { recordValues: RecordValues });
+      recordWrite:
+        | RecordWriteRequest
+        | (PatchRecordWriteRequest & {
+            recordValues: RecordValues;
+          });
     }
   | {
       outcome: WriteOutcome<RecordWriteResponse>;
@@ -96,12 +99,15 @@ export async function validateRecordWriteRequestAsync(
     recordValueValidationOptions(prepared, schema, options),
   );
   assertRecordWriteUniqueConstraints(prepared, recordValues, schema, reader, options);
-
   return buildValidatedRecordWrite(prepared, recordValues);
 }
-
 function assertRecordWriteUniqueConstraints(
-  prepared: Exclude<PreparedRecordWriteValidation, { kind: "complete" }>,
+  prepared: Exclude<
+    PreparedRecordWriteValidation,
+    {
+      kind: "complete";
+    }
+  >,
   recordValues: RecordValues,
   schema: AppSchema,
   reader: AuthorityRecordValidationReader,
@@ -115,9 +121,11 @@ function assertRecordWriteUniqueConstraints(
     prepared.kind === "patch" ? { ignoreRecordId: prepared.recordId } : {},
   );
 }
-
 type PreparedRecordWriteValidation =
-  | { kind: "complete"; result: ValidatedRecordWrite }
+  | {
+      kind: "complete";
+      result: ValidatedRecordWrite;
+    }
   | {
       entityName: string;
       entitySchema: EntitySchema;
@@ -156,8 +164,7 @@ function prepareRecordWriteValidation(
   if (typeof value.entity !== "string") {
     throw new BadRequestError("Record write request must include an entity.");
   }
-
-  const entity = schema.entities[value.entity];
+  const entity = schema.entities.find((definition) => definition.key === value.entity)!;
   if (!entity) {
     throw new BadRequestError(`Unknown entity "${value.entity}".`);
   }
@@ -275,9 +282,13 @@ function prepareRecordWriteValidation(
     writeId: value.writeId,
   };
 }
-
 function recordValueValidationOptions(
-  prepared: Exclude<PreparedRecordWriteValidation, { kind: "complete" }>,
+  prepared: Exclude<
+    PreparedRecordWriteValidation,
+    {
+      kind: "complete";
+    }
+  >,
   schema: AppSchema,
   options: RecordWriteValidationOptions,
 ): RuntimeRecordValueValidationOptions {
@@ -290,9 +301,13 @@ function recordValueValidationOptions(
     schema,
   };
 }
-
 function buildValidatedRecordWrite(
-  prepared: Exclude<PreparedRecordWriteValidation, { kind: "complete" }>,
+  prepared: Exclude<
+    PreparedRecordWriteValidation,
+    {
+      kind: "complete";
+    }
+  >,
   recordValues: RecordValues,
 ): ValidatedRecordWrite {
   if (prepared.kind === "patch") {
@@ -350,14 +365,17 @@ export function validateSourceSchemaReset(
   });
   assertExistingRecordsSatisfyUniqueConstraints(sourceSchema, records);
 }
-
 export async function validateStorageSnapshotRestore(
   value: unknown,
-  expected: { schemaKey: string; storageIdentity: string },
-  options: { identityReferenceResolver?: IdentityReferenceTargetResolver } = {},
+  expected: {
+    schemaKey: string;
+    storageIdentity: string;
+  },
+  options: {
+    identityReferenceResolver?: IdentityReferenceTargetResolver;
+  } = {},
 ): Promise<StorageSnapshot> {
   let snapshot: StorageSnapshot;
-
   try {
     snapshot = parseStorageSnapshot(value, expected);
   } catch (error) {
@@ -370,16 +388,15 @@ export async function validateStorageSnapshotRestore(
   assertIsoTimestamp("Storage snapshot exportedAt", snapshot.exportedAt);
   assertIsoTimestamp("Storage snapshot schemaUpdatedAt", snapshot.schemaUpdatedAt);
   assertExistingRecordsSatisfyUniqueConstraints(snapshot.schema, snapshot.records);
-
   return snapshot;
 }
-
 async function validateSnapshotRecords(
   snapshot: StorageSnapshot,
-  options: { identityReferenceResolver?: IdentityReferenceTargetResolver },
+  options: {
+    identityReferenceResolver?: IdentityReferenceTargetResolver;
+  },
 ) {
   const recordsById = new Map<string, StoredRecord>();
-
   for (const record of snapshot.records) {
     if (record.id.trim() === "") {
       throw new BadRequestError("Storage snapshot record id must be non-empty.");
@@ -409,27 +426,26 @@ async function validateSnapshotRecord(
   record: StoredRecord,
   schema: AppSchema,
   recordsById: Map<string, StoredRecord>,
-  options: { identityReferenceResolver?: IdentityReferenceTargetResolver },
+  options: {
+    identityReferenceResolver?: IdentityReferenceTargetResolver;
+  },
 ) {
-  const entity = schema.entities[record.entity];
-
+  const entity = schema.entities.find((definition) => definition.key === record.entity)!;
   if (!entity) {
     throw new BadRequestError(
       `Storage snapshot record "${record.id}" references unknown entity "${record.entity}".`,
     );
   }
-
   for (const fieldName of Object.keys(record.values)) {
-    if (!entity.fields[fieldName]) {
+    if (!entity.fields.find((definition) => definition.key === fieldName)!) {
       throw new BadRequestError(
         `Storage snapshot record "${record.id}" includes unknown field "${record.entity}.${fieldName}".`,
       );
     }
   }
-
-  for (const [fieldName, field] of Object.entries(entity.fields)) {
+  for (const field of entity.fields) {
+    const fieldName = field.key;
     const fieldValue = record.values[fieldName];
-
     if (!isValidStoredFieldValue(fieldValue, field, recordsById)) {
       throw new BadRequestError(
         `Storage snapshot record "${record.id}" has invalid field "${record.entity}.${fieldName}".`,
@@ -471,21 +487,21 @@ export function validateCompatibleSchemaChange(
   currentSchema: AppSchema,
   nextSchema: AppSchema,
   records: StoredRecord[],
-  options: { allowFieldRemoval?: boolean } = {},
+  options: {
+    allowFieldRemoval?: boolean;
+  } = {},
 ) {
   const recordsById = new Map(records.map((record) => [record.id, record]));
-
-  for (const [entityName, currentEntity] of Object.entries(currentSchema.entities)) {
-    const nextEntity = nextSchema.entities[entityName];
+  for (const currentEntity of currentSchema.entities) {
+    const entityName = currentEntity.key;
+    const nextEntity = nextSchema.entities.find((definition) => definition.key === entityName)!;
     const entityRecords = records.filter((record) => record.entity === entityName);
-
     if (!nextEntity) {
       throw new BadRequestError(`Cannot remove entity "${entityName}".`);
     }
-
-    for (const [fieldName, currentField] of Object.entries(currentEntity.fields)) {
-      const nextField = nextEntity.fields[fieldName];
-
+    for (const currentField of currentEntity.fields) {
+      const fieldName = currentField.key;
+      const nextField = nextEntity.fields.find((definition) => definition.key === fieldName)!;
       if (!nextField) {
         if (options.allowFieldRemoval) {
           continue;
@@ -508,13 +524,12 @@ export function validateCompatibleSchemaChange(
         );
       }
     }
-
-    for (const [fieldName, nextField] of Object.entries(nextEntity.fields)) {
+    for (const nextField of nextEntity.fields) {
+      const fieldName = nextField.key;
       if (!shouldValidateExistingValues(nextField)) {
         continue;
       }
-
-      const currentField = currentEntity.fields[fieldName];
+      const currentField = currentEntity.fields.find((definition) => definition.key === fieldName)!;
       const hasInvalidStoredValue = entityRecords.some((record) => {
         return !isValidStoredFieldValue(record.values[fieldName], nextField, recordsById);
       });
@@ -541,23 +556,17 @@ export function validateCompatibleSchemaChange(
     }
   }
 }
-
 function validatePatchValues(values: Record<string, unknown>, entity: EntitySchema) {
   assertNoSystemRecordValues("Record write request values", values, entity);
-
   const patchValues: Partial<RecordValues> = {};
-
   for (const [fieldName, fieldValue] of Object.entries(values)) {
-    if (!entity.fields[fieldName]) {
+    if (!entity.fields.find((definition) => definition.key === fieldName)!) {
       throw new BadRequestError(`Unknown field "${fieldName}".`);
     }
-
     patchValues[fieldName] = fieldValue as RecordValues[string];
   }
-
   return patchValues;
 }
-
 export function validateRecordValues(
   values: Record<string, unknown>,
   entity: EntitySchema,
@@ -615,17 +624,15 @@ function validateRecordValuesBase(
   validated: RecordValues;
 } {
   assertNoSystemRecordValues("Record values", values, entity);
-
   for (const fieldName of Object.keys(values)) {
-    if (!entity.fields[fieldName]) {
+    if (!entity.fields.find((definition) => definition.key === fieldName)!) {
       throw new BadRequestError(`Unknown field "${fieldName}".`);
     }
   }
-
   const validated: RecordValues = {};
   const references: ReferenceFieldValidation[] = [];
-
-  for (const [fieldName, field] of Object.entries(entity.fields)) {
+  for (const field of entity.fields) {
+    const fieldName = field.key;
     const fieldValue = values[fieldName];
     const fieldWasProvided = fieldName in values;
     const result = validateAuthorityRecordFieldValue(
@@ -769,7 +776,10 @@ function assertNoSystemRecordValues(
   entity: EntitySchema,
 ) {
   for (const fieldName of Object.keys(values)) {
-    if (!entity.fields[fieldName] && isSystemFieldName(fieldName)) {
+    if (
+      !entity.fields.find((definition) => definition.key === fieldName)! &&
+      isSystemFieldName(fieldName)
+    ) {
       throw new BadRequestError(`${context} must not include system field "${fieldName}".`);
     }
   }
@@ -848,10 +858,9 @@ function normalizeStateMachineCreateValues(
   values: Record<string, unknown>,
 ) {
   const normalized = { ...values };
-
-  for (const [machineName, machine] of Object.entries(entity.stateMachines ?? {})) {
+  for (const machine of entity.stateMachines ?? []) {
+    const machineName = machine.key;
     const currentValue = normalized[machine.field];
-
     if (currentValue === undefined) {
       normalized[machine.field] = machine.initial;
       continue;
@@ -873,7 +882,8 @@ function assertStateMachineFieldsNotPatched(
   existingRecord: StoredRecord,
   patchValues: Partial<RecordValues>,
 ) {
-  for (const [machineName, machine] of Object.entries(entity.stateMachines ?? {})) {
+  for (const machine of entity.stateMachines ?? []) {
+    const machineName = machine.key;
     if (!(machine.field in patchValues)) {
       continue;
     }
@@ -1145,27 +1155,28 @@ function isInstanceControlPlaneRouteValidationEntity(schema: AppSchema, entityNa
   if (entityName !== "route" || !runtimeControlPlaneEntityMetadata(schema, entityName)) {
     return false;
   }
-
-  const entity = schema.entities.route;
-
+  const entity = schema.entities.find((definition) => definition.key === "route");
+  if (!entity) {
+    return false;
+  }
   return (
-    entity?.fields.enabled?.type === "boolean" &&
-    entity.fields.matchHost?.type === "text" &&
-    entity.fields.matchPath?.type === "text" &&
-    entity.fields.matchPrefix?.type === "text" &&
-    entity.fields.kind?.type === "enum" &&
-    entity.fields.targetProfile?.type === "enum" &&
-    entity.fields.appInstall?.type === "reference" &&
-    entity.fields.surface?.type === "enum" &&
-    entity.fields.access?.type === "enum" &&
-    entity.fields.requiredRole?.type === "enum" &&
-    entity.fields.deploymentConfig?.type === "reference" &&
-    entity.fields.toHost?.type === "text" &&
-    entity.fields.toUrl?.type === "text" &&
-    entity.fields.statusCode?.type === "enum"
+    entity.fields.find((definition) => definition.key === "enabled")?.type === "boolean" &&
+    entity.fields.find((definition) => definition.key === "matchHost")?.type === "text" &&
+    entity.fields.find((definition) => definition.key === "matchPath")?.type === "text" &&
+    entity.fields.find((definition) => definition.key === "matchPrefix")?.type === "text" &&
+    entity.fields.find((definition) => definition.key === "kind")?.type === "enum" &&
+    entity.fields.find((definition) => definition.key === "targetProfile")?.type === "enum" &&
+    entity.fields.find((definition) => definition.key === "appInstall")?.type === "reference" &&
+    entity.fields.find((definition) => definition.key === "surface")?.type === "enum" &&
+    entity.fields.find((definition) => definition.key === "access")?.type === "enum" &&
+    entity.fields.find((definition) => definition.key === "requiredRole")?.type === "enum" &&
+    entity.fields.find((definition) => definition.key === "deploymentConfig")?.type ===
+      "reference" &&
+    entity.fields.find((definition) => definition.key === "toHost")?.type === "text" &&
+    entity.fields.find((definition) => definition.key === "toUrl")?.type === "text" &&
+    entity.fields.find((definition) => definition.key === "statusCode")?.type === "enum"
   );
 }
-
 function validateInstanceControlPlaneRouteValues(
   values: RecordValues,
   reader: AuthorityRecordValidationReader,
@@ -1528,10 +1539,15 @@ function instanceRouteMatch(values: RecordValues): {
       : { prefix: optionalStringRecordValue(values, "matchPrefix") }),
   };
 }
-
 function instanceRoutesOverlap(
-  left: { path: string; prefix?: string },
-  right: { path: string; prefix?: string },
+  left: {
+    path: string;
+    prefix?: string;
+  },
+  right: {
+    path: string;
+    prefix?: string;
+  },
 ) {
   return (
     left.path === right.path ||
@@ -1607,30 +1623,26 @@ function assertNoActiveInboundReferences(
     if (record.deletedAt) {
       continue;
     }
-
-    const entity = schema.entities[record.entity];
-
+    const entity = schema.entities.find((definition) => definition.key === record.entity)!;
     if (!entity) {
       continue;
     }
-
-    for (const [fieldName, field] of Object.entries(entity.fields)) {
+    for (const field of entity.fields) {
       if (
         field.type === "reference" &&
         field.to === targetRecord.entity &&
-        record.values[fieldName] === targetRecord.id
+        record.values[field.key] === targetRecord.id
       ) {
         throw new BadRequestError(
-          `Cannot delete record "${targetRecord.id}" because active ${record.entity} record "${record.id}" references it through field "${record.entity}.${fieldName}".`,
+          `Cannot delete record "${targetRecord.id}" because active ${record.entity} record "${record.id}" references it through field "${record.entity}.${field.key}".`,
         );
       }
     }
   }
 }
-
 function validateAuthorityRecordFieldValue(
   fieldName: string,
-  field: EntitySchema["fields"][string],
+  field: EntitySchema["fields"][number],
   fieldValue: unknown,
   fieldWasProvided: boolean,
 ) {
@@ -1640,14 +1652,12 @@ function validateAuthorityRecordFieldValue(
     throw new BadRequestError(error instanceof Error ? error.message : "Field value is invalid.");
   }
 }
-
-function shouldValidateExistingValues(field: EntitySchema["fields"][string]) {
+function shouldValidateExistingValues(field: EntitySchema["fields"][number]) {
   return shouldValidateExistingFieldValue(field);
 }
-
 function isValidStoredFieldValue(
   value: RecordValues[string] | undefined,
-  field: EntitySchema["fields"][string],
+  field: EntitySchema["fields"][number],
   recordsById: Map<string, StoredRecord>,
 ) {
   if (!isValidStoredFieldValueForType(value, field)) {
@@ -1662,19 +1672,14 @@ function isValidStoredFieldValue(
     if (isSupportedIdentityReferenceTarget(field.to)) {
       return true;
     }
-
     const targetRecord = recordsById.get(value);
-
     return !!targetRecord && targetRecord.entity === field.to && !targetRecord.deletedAt;
   }
-
   return true;
 }
-
 function entityHasOperationKind(entity: EntitySchema, kind: EntityOperationKind): boolean {
-  return Object.values(entity.operations ?? {}).some((operation) => operation.kind === kind);
+  return (entity.operations ?? []).some((operation) => operation.kind === kind);
 }
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

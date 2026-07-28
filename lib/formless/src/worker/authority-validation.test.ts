@@ -42,16 +42,18 @@ describe("Authority schema validation", () => {
         {
           schema: {
             ...taskSourceSchema,
-            entities: {
-              ...taskSourceSchema.entities,
-              task: {
-                ...taskSourceSchema.entities.task,
-                fields: {
-                  ...taskSourceSchema.entities.task.fields,
-                  title: { type: "money", required: true },
-                },
-              },
-            },
+            entities: taskSourceSchema.entities.map((entity) =>
+              entity.key === "task"
+                ? {
+                    ...entity,
+                    fields: entity.fields.map((field) =>
+                      field.key === "title"
+                        ? { key: "title", type: "money", required: true }
+                        : field,
+                    ),
+                  }
+                : entity,
+            ),
           },
         },
         taskSourceSchema,
@@ -59,28 +61,27 @@ describe("Authority schema validation", () => {
       ),
     ).toThrow(new BadRequestError('Field "task.title" has unsupported type "money".'));
   });
-
   it("wraps query and view parser errors at the Authority boundary", () => {
-    const taskAll = taskSourceSchema.queries.taskAll;
-    const taskHome = taskSourceSchema.views.taskHome;
-
+    const taskAll = taskSourceSchema.queries.find((definition) => definition.key === "taskAll")!;
+    const taskHome = taskSourceSchema.views.find((definition) => definition.key === "taskHome")!;
     expect(() =>
       validateSchemaUpdateRequest(
         {
           schema: {
             ...taskSourceSchema,
-            queries: {
-              ...taskSourceSchema.queries,
-              taskAll: {
-                ...taskAll,
-                expression: {
-                  kind: "where",
-                  ref: { kind: "value", name: "missing" },
-                  op: "eq",
-                  value: "missing",
-                },
-              },
-            },
+            queries: taskSourceSchema.queries.map((query) =>
+              query.key === "taskAll"
+                ? {
+                    ...taskAll,
+                    expression: {
+                      kind: "where",
+                      ref: { kind: "value", name: "missing" },
+                      op: "eq",
+                      value: "missing",
+                    },
+                  }
+                : query,
+            ),
           },
         },
         taskSourceSchema,
@@ -95,13 +96,14 @@ describe("Authority schema validation", () => {
         {
           schema: {
             ...taskSourceSchema,
-            views: {
-              ...taskSourceSchema.views,
-              taskHome: {
-                ...taskHome,
-                operations: [{ operation: "task.missing" }],
-              },
-            },
+            views: taskSourceSchema.views.map((view) =>
+              view.key === "taskHome"
+                ? {
+                    ...taskHome,
+                    operations: [{ operation: "task.missing" }],
+                  }
+                : view,
+            ),
           },
         },
         taskSourceSchema,
@@ -113,17 +115,16 @@ describe("Authority schema validation", () => {
       ),
     );
   });
-
   it("accepts compatible field additions and rejects destructive field changes", () => {
-    const taskFields = taskSourceSchema.entities.task.fields;
-    const withNotes = withTaskFields({
+    const taskFields = taskSourceSchema.entities.find(
+      (definition) => definition.key === "task",
+    )!.fields;
+    const withNotes = withTaskFields([
       ...taskFields,
-      notes: { type: "text", required: false, label: "Notes" },
-    });
-
+      { type: "text", required: false, label: "Notes", key: "notes" },
+    ]);
     expect(() => validateCompatibleSchemaChange(taskSourceSchema, withNotes, [])).not.toThrow();
-
-    const { title: _title, ...withoutTitle } = taskFields;
+    const withoutTitle = taskFields.filter(({ key }) => key !== "title");
     expect(() =>
       validateCompatibleSchemaChange(taskSourceSchema, withTaskFields(withoutTitle), []),
     ).toThrow(new BadRequestError('Cannot remove or rename field "task.title".'));
@@ -131,10 +132,13 @@ describe("Authority schema validation", () => {
     expect(() =>
       validateCompatibleSchemaChange(
         taskSourceSchema,
-        withTaskFields({
-          ...taskFields,
-          title: { type: "boolean", required: true, label: "Title" },
-        }),
+        withTaskFields(
+          taskFields.map((field) =>
+            field.key === "title"
+              ? { type: "boolean", required: true, label: "Title", key: "title" }
+              : field,
+          ),
+        ),
         [],
       ),
     ).toThrow(new BadRequestError('Cannot change field type for "task.title".'));
@@ -149,10 +153,10 @@ describe("Authority schema validation", () => {
     expect(() =>
       validateCompatibleSchemaChange(
         taskSourceSchema,
-        withTaskFields({
-          ...taskSourceSchema.entities.task.fields,
-          score: { type: "number", required: true, label: "Score" },
-        }),
+        withTaskFields([
+          ...taskSourceSchema.entities.find((definition) => definition.key === "task")!.fields,
+          { type: "number", required: true, label: "Score", key: "score" },
+        ]),
         [task],
       ),
     ).toThrow(
@@ -303,7 +307,10 @@ describe("Authority storage snapshot validation", () => {
       schema: taskSchemaWithIdentityReference(),
       records: [taskRecord("task-1", { ownerPrincipal: "principal-1" })],
     });
-    const lookups: Array<{ id: string; target: string }> = [];
+    const lookups: Array<{
+      id: string;
+      target: string;
+    }> = [];
     const activeResolver: IdentityReferenceTargetResolver = async (lookup) => {
       lookups.push(lookup);
       return { kind: "active" };
@@ -941,8 +948,10 @@ describe("Authority record validation readers", () => {
       kind: "create",
       values: { title: "Owned task", ownerPrincipal: "principal-1" },
     };
-    const lookups: Array<{ id: string; target: string }> = [];
-
+    const lookups: Array<{
+      id: string;
+      target: string;
+    }> = [];
     await expect(
       validateRecordWriteRequestAsync(request, schema, reader, {
         identityReferenceResolver: async (lookup) => {
@@ -988,155 +997,160 @@ describe("Authority record validation readers", () => {
 function withTaskFields(fields: EntitySchema["fields"]): AppSchema {
   return {
     ...taskSourceSchema,
-    entities: {
-      ...taskSourceSchema.entities,
-      task: { ...taskSourceSchema.entities.task, fields },
-    },
+    entities: taskSourceSchema.entities.map((entity) =>
+      entity.key === "task" ? { ...entity, fields } : entity,
+    ),
   };
 }
-
 function withCardMarginMin(min: number): AppSchema {
-  const card = rateSourceSchema.entities.card;
-  const marginMin = card.fields.marginMin;
-
+  const card = rateSourceSchema.entities.find((definition) => definition.key === "card")!;
+  const marginMin = card.fields.find((definition) => definition.key === "marginMin")!;
   if (marginMin.type !== "number") {
     throw new Error("Expected card.marginMin to be a number field.");
   }
-
   return {
     ...rateSourceSchema,
-    entities: {
-      ...rateSourceSchema.entities,
-      card: {
-        ...card,
-        fields: { ...card.fields, marginMin: { ...marginMin, min } },
-      },
-    },
+    entities: rateSourceSchema.entities.map((entity) =>
+      entity.key === "card"
+        ? {
+            ...card,
+            fields: card.fields.map((field) =>
+              field.key === "marginMin" ? { ...marginMin, min } : field,
+            ),
+          }
+        : entity,
+    ),
   };
 }
-
-function withRateResourceField(overrides: Partial<{ required: boolean; to: string }>): AppSchema {
-  const rate = rateSourceSchema.entities.rate;
-  const resource = rate.fields.resource;
-
+function withRateResourceField(
+  overrides: Partial<{
+    required: boolean;
+    to: string;
+  }>,
+): AppSchema {
+  const rate = rateSourceSchema.entities.find((definition) => definition.key === "rate")!;
+  const resource = rate.fields.find((definition) => definition.key === "resource")!;
   if (resource.type !== "reference") {
     throw new Error("Expected rate.resource to be a reference field.");
   }
-
   return {
     ...rateSourceSchema,
-    entities: {
-      ...rateSourceSchema.entities,
-      rate: {
-        ...rate,
-        fields: { ...rate.fields, resource: { ...resource, ...overrides } },
-      },
-    },
+    entities: rateSourceSchema.entities.map((entity) =>
+      entity.key === "rate"
+        ? {
+            ...rate,
+            fields: rate.fields.map((field) =>
+              field.key === "resource" ? { ...resource, ...overrides } : field,
+            ),
+          }
+        : entity,
+    ),
   };
 }
-
 function taskSchemaWithOptionalFields(): AppSchema {
-  const priority = taskSourceSchema.entities.task.fields.priority;
-
+  const priority = taskSourceSchema.entities
+    .find((definition) => definition.key === "task")!
+    .fields.find((definition) => definition.key === "priority")!;
   if (priority.type !== "enum") {
     throw new Error("Expected task.priority to be an enum field.");
   }
-
-  return withTaskFields({
-    ...taskSourceSchema.entities.task.fields,
-    estimate: {
+  return withTaskFields([
+    ...taskSourceSchema.entities
+      .find((definition) => definition.key === "task")!
+      .fields.map((field) => (field.key === "priority" ? { ...priority, required: false } : field)),
+    {
       type: "number",
       required: false,
       label: "Estimate",
       min: 0,
       integer: true,
+      key: "estimate",
     },
-    priority: { ...priority, required: false },
-  });
+  ]);
 }
-
 function taskSchemaWithDeleteOperation(): AppSchema {
   return {
     ...taskSourceSchema,
-    entities: {
-      ...taskSourceSchema.entities,
-      task: {
-        ...taskSourceSchema.entities.task,
-        operations: {
-          ...taskSourceSchema.entities.task.operations,
-          delete: {
-            label: "Delete task",
-            kind: "delete",
-            scope: "record",
-            effect: { type: "deleteRecord" },
-            output: { type: "delete" },
-            idempotency: { required: true },
-            audit: { input: "summary" },
-          },
-        },
-      },
-    },
+    entities: taskSourceSchema.entities.map((entity) =>
+      entity.key === "task"
+        ? {
+            ...entity,
+            operations: [
+              ...(taskSourceSchema.entities.find((definition) => definition.key === "task")!
+                .operations ?? []),
+              {
+                key: "delete",
+                label: "Delete task",
+                kind: "delete",
+                scope: "record",
+                effect: { type: "deleteRecord" },
+                output: { type: "delete" },
+                idempotency: { required: true },
+                audit: { input: "summary" },
+              },
+            ],
+          }
+        : entity,
+    ),
   };
 }
-
 function taskSchemaWithPriorityStateMachine(): AppSchema {
   return {
     ...taskSourceSchema,
-    entities: {
-      ...taskSourceSchema.entities,
-      task: {
-        ...taskSourceSchema.entities.task,
-        stateMachines: {
-          priorityFlow: {
-            field: "priority",
-            initial: "normal",
-            terminal: ["high"],
-            transitions: {
-              raise: { label: "Raise", from: ["normal"], to: "high" },
-            },
-          },
-        },
-      },
-    },
+    entities: taskSourceSchema.entities.map((entity) =>
+      entity.key === "task"
+        ? {
+            ...entity,
+            stateMachines: [
+              {
+                key: "priorityFlow",
+                field: "priority",
+                initial: "normal",
+                terminal: ["high"],
+                transitions: [{ key: "raise", label: "Raise", from: ["normal"], to: "high" }],
+              },
+            ],
+          }
+        : entity,
+    ),
   };
 }
-
 function rateSchemaWithOptionalBackupResource(): AppSchema {
-  const rate = rateSourceSchema.entities.rate;
-
+  const rate = rateSourceSchema.entities.find((definition) => definition.key === "rate")!;
   return {
     ...rateSourceSchema,
-    entities: {
-      ...rateSourceSchema.entities,
-      rate: {
-        ...rate,
-        fields: {
-          ...rate.fields,
-          backupResource: {
-            type: "reference",
-            required: false,
-            label: "Backup resource",
-            to: "resource",
-            displayField: "name",
-          },
-        },
-      },
-    },
+    entities: rateSourceSchema.entities.map((entity) =>
+      entity.key === "rate"
+        ? {
+            ...rate,
+            fields: [
+              ...rate.fields,
+              {
+                key: "backupResource",
+                type: "reference",
+                required: false,
+                label: "Backup resource",
+                to: "resource",
+                displayField: "name",
+              },
+            ],
+          }
+        : entity,
+    ),
   };
 }
-
 function taskSchemaWithIdentityReference(): AppSchema {
-  return withTaskFields({
-    ...taskSourceSchema.entities.task.fields,
-    ownerPrincipal: {
+  return withTaskFields([
+    ...taskSourceSchema.entities.find((definition) => definition.key === "task")!.fields,
+    {
       type: "reference",
       required: false,
       label: "Owner principal",
       to: "auth:principal",
+      key: "ownerPrincipal",
     },
-  });
+  ]);
 }
-
 function taskSnapshot(overrides: Partial<StorageSnapshot> = {}): StorageSnapshot {
   return {
     kind: STORAGE_SNAPSHOT_KIND,

@@ -235,13 +235,14 @@ describe("instance management runtime publication", () => {
   it("atomically composes current workspace nodes and dispatches exact latest intents", async () => {
     const application = createApplicationRuntimePublicationCoordinator();
     const runtime = createInstanceManagementRuntimePublicationController(application);
-    const calls: Array<{ kind: string; value?: unknown }> = [];
+    const calls: Array<{
+      kind: string;
+      value?: unknown;
+    }> = [];
     const actions = actionsRecording(calls);
     const appWorkspaceIntents: WorkspaceIntent[] = [];
-
     runtime.updateRuntime(input(), actions);
     expect(required(application.host.read(instanceManagementReference)).state).toBe("loading");
-
     runtime.updateWorkspace(
       "apps",
       workspaceController("instance-apps", "Apps · empty", (intent) =>
@@ -370,9 +371,11 @@ describe("instance management runtime publication", () => {
     expect(observedStates.at(-1)).toBe("ready");
     expect(observedStates).not.toContain("absent");
   });
-
   it("keeps invalid and failed install outcomes current without dispatching disabled submits", async () => {
-    const calls: Array<{ kind: string; value?: unknown }> = [];
+    const calls: Array<{
+      kind: string;
+      value?: unknown;
+    }> = [];
     const application = createApplicationRuntimePublicationCoordinator();
     const runtime = createInstanceManagementRuntimePublicationController(application);
     const actions = actionsRecording(calls);
@@ -435,10 +438,21 @@ function readyManifest(projection: {
   }
   return projection.manifest;
 }
-
 function readyState(
-  overrides: Partial<Extract<InstanceShellRouteState, { status: "ready" }>> = {},
-): Extract<InstanceShellRouteState, { status: "ready" }> {
+  overrides: Partial<
+    Extract<
+      InstanceShellRouteState,
+      {
+        status: "ready";
+      }
+    >
+  > = {},
+): Extract<
+  InstanceShellRouteState,
+  {
+    status: "ready";
+  }
+> {
   return {
     installing: false,
     installs: [],
@@ -447,10 +461,21 @@ function readyState(
     ...overrides,
   };
 }
-
 function gatewayReady(
-  overrides: Partial<Extract<WorkspaceGatewayRouteState, { status: "ready" }>> = {},
-): Extract<WorkspaceGatewayRouteState, { status: "ready" }> {
+  overrides: Partial<
+    Extract<
+      WorkspaceGatewayRouteState,
+      {
+        status: "ready";
+      }
+    >
+  > = {},
+): Extract<
+  WorkspaceGatewayRouteState,
+  {
+    status: "ready";
+  }
+> {
   return {
     csrfToken: "csrf-token",
     currentOperation: operation(),
@@ -513,9 +538,11 @@ function workspaceController(
     workspace,
   };
 }
-
 function actionsRecording(
-  calls: Array<{ kind: string; value?: unknown }>,
+  calls: Array<{
+    kind: string;
+    value?: unknown;
+  }>,
 ): InstanceManagementIntentActions {
   return {
     changeInstallDialogOpen: (open) => calls.push({ kind: "dialog", value: open }),

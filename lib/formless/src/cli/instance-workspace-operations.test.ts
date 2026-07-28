@@ -946,10 +946,7 @@ describe("Formless workspace operations", () => {
         {
           at: "2026-06-02T00:02:01.000Z",
           level: "info",
-          message: `raw adapter output CF_API_TOKEN=secret-token lease:raw-token ${path.join(
-            workspaceRoot,
-            "outside.log",
-          )}`,
+          message: `raw adapter output CF_API_TOKEN=secret-token lease:raw-token ${path.join(workspaceRoot, "outside.log")}`,
         },
       ],
       result: {
@@ -1051,7 +1048,11 @@ function operationDeps(
     operationIds?: string[];
     packageVersion?: string;
     randomTokens?: string[];
-    setupInputs?: Array<{ adminToken: string; deploymentUrl: string; setupToken: string }>;
+    setupInputs?: Array<{
+      adminToken: string;
+      deploymentUrl: string;
+      setupToken: string;
+    }>;
     timestamps?: string[];
   } = {},
 ) {
@@ -1229,10 +1230,11 @@ function assertTextExcludesSecrets(
     }
   }
 }
-
 async function writeWorkspaceManifest(
   workspaceRoot: string,
-  options: { runtime?: InstanceWorkspaceManifest["runtime"] } = {},
+  options: {
+    runtime?: InstanceWorkspaceManifest["runtime"];
+  } = {},
 ) {
   await mkdir(workspaceRoot, { recursive: true });
   await writeFile(
@@ -1293,11 +1295,17 @@ async function writeWorkspaceAppStorageSnapshot(
     workspaceRoot,
   });
 }
-
 function authorityExportFetch(
   installs: ReturnType<typeof installedSite>[],
-  dataByInstall: Record<string, { records: StoredRecord[] }>,
-  options: { controlPlaneRecords?: StoredRecord[] } = {},
+  dataByInstall: Record<
+    string,
+    {
+      records: StoredRecord[];
+    }
+  >,
+  options: {
+    controlPlaneRecords?: StoredRecord[];
+  } = {},
 ): typeof fetch {
   return async (url) => {
     const requestUrl =
@@ -1437,10 +1445,11 @@ type CapturedRequest = {
   method: string;
   url: string;
 };
-
 function deployApplyFetch(
   requests: CapturedRequest[],
-  options: { controlPlaneRecords?: StoredRecord[] } = {},
+  options: {
+    controlPlaneRecords?: StoredRecord[];
+  } = {},
 ): typeof fetch {
   return async (url, init) => {
     const requestUrl =
@@ -1500,11 +1509,15 @@ function deployApplyFetch(
         { status: 500 },
       );
     }
-
     if (parsedUrl.pathname === "/api/formless/archive/restore") {
-      const body = parseCapturedBody<{ archive?: { restorePolicy?: { dryRun?: boolean } } }>(init);
+      const body = parseCapturedBody<{
+        archive?: {
+          restorePolicy?: {
+            dryRun?: boolean;
+          };
+        };
+      }>(init);
       const dryRun = body.archive?.restorePolicy?.dryRun !== false;
-
       return Response.json(
         dryRun
           ? { ok: true, plan: { summary: restoreSummary() } }

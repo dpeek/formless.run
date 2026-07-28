@@ -15,11 +15,8 @@ import {
 describe("schema operation input projection", () => {
   it("parses operation input objects and rejects undeclared, system, and missing required fields", () => {
     const operation = createTaskOperation({
-      fields: {
-        taskTitle: { field: "title", required: true },
-      },
+      fields: [{ key: "taskTitle", field: "title", required: true }],
     });
-
     expect(() =>
       projectOperationInputValues({
         canonicalOperationKey: "task.create",
@@ -62,26 +59,25 @@ describe("schema operation input projection", () => {
       }),
     ).toThrow('Operation input field "taskTitle" is required.');
   });
-
   it("validates inline scalar operation input fields", () => {
     const operation = recordPlanTaskOperation({
-      fields: {
-        note: { type: "text", required: true, label: "Note" },
-        approved: { type: "boolean", required: true, label: "Approved" },
-        dueDate: { type: "date", required: true, label: "Due date" },
-        score: { type: "number", required: true, label: "Score" },
-        priority: {
+      fields: [
+        { key: "note", type: "text", required: true, label: "Note" },
+        { key: "approved", type: "boolean", required: true, label: "Approved" },
+        { key: "dueDate", type: "date", required: true, label: "Due date" },
+        { key: "score", type: "number", required: true, label: "Score" },
+        {
+          key: "priority",
           type: "enum",
           required: true,
           label: "Priority",
-          values: {
-            low: { label: "Low" },
-            normal: { label: "Normal" },
-          },
+          values: [
+            { key: "low", label: "Low" },
+            { key: "normal", label: "Normal" },
+          ],
         },
-      },
+      ],
     });
-
     expect(
       projectOperationRecordPlanInputValues({
         canonicalOperationKey: "task.plan",
@@ -167,21 +163,20 @@ describe("schema operation input projection", () => {
       ).toThrow(testCase.error);
     }
   });
-
   it("validates inline text formats and keeps suggested text unrestricted", () => {
     const operation = recordPlanTaskOperation({
-      fields: {
-        email: { type: "text", required: true, format: "email", label: "Email" },
-        phone: { type: "text", required: false, format: "phone", label: "Phone" },
-        inquiryType: {
+      fields: [
+        { key: "email", type: "text", required: true, format: "email", label: "Email" },
+        { key: "phone", type: "text", required: false, format: "phone", label: "Phone" },
+        {
+          key: "inquiryType",
           type: "text",
           required: false,
           suggestions: ["Support", "Sales"],
           label: "Inquiry type",
         },
-      },
+      ],
     });
-
     expect(
       projectOperationRecordPlanInputValues({
         canonicalOperationKey: "task.plan",
@@ -288,13 +283,12 @@ describe("schema operation input projection", () => {
       }),
     ).toBe(rawInput);
   });
-
   it("keeps command and record-plan values keyed by operation input name", () => {
     const operation = recordPlanTaskOperation({
-      fields: {
-        taskTitle: { field: "title", required: true },
-        taskDone: { field: "done", required: true },
-      },
+      fields: [
+        { key: "taskTitle", field: "title", required: true },
+        { key: "taskDone", field: "done", required: true },
+      ],
     });
     const rawInput = {
       taskTitle: "Planned task",
@@ -318,21 +312,19 @@ describe("schema operation input projection", () => {
       }),
     ).toEqual(rawInput);
   });
-
   it("maps entity-backed record-write projections to stored entity field names", () => {
     const createOperation = createTaskOperation({
-      fields: {
-        taskTitle: { field: "title", required: true },
-        taskDone: { field: "done", required: true },
-      },
+      fields: [
+        { key: "taskTitle", field: "title", required: true },
+        { key: "taskDone", field: "done", required: true },
+      ],
     });
     const updateOperation = updateTaskOperation({
-      fields: {
-        taskTitle: { field: "title" },
-        taskDone: { field: "done" },
-      },
+      fields: [
+        { key: "taskTitle", field: "title" },
+        { key: "taskDone", field: "done" },
+      ],
     });
-
     expect(
       projectOperationRecordWriteValues({
         canonicalOperationKey: "task.create",
@@ -374,19 +366,13 @@ describe("schema operation input projection", () => {
       }),
     ).toThrow('Field "done" must be a boolean.');
   });
-
   it("requires affirmative entity-backed booleans without changing required boolean semantics", () => {
     const ordinaryRequiredBoolean = createTaskOperation({
-      fields: {
-        taskDone: { field: "done", required: true },
-      },
+      fields: [{ key: "taskDone", field: "done", required: true }],
     });
     const affirmativeBoolean = createTaskOperation({
-      fields: {
-        consent: { field: "done", required: true, mustBeTrue: true },
-      },
+      fields: [{ key: "consent", field: "done", required: true, mustBeTrue: true }],
     });
-
     expect(
       projectOperationInputValues({
         canonicalOperationKey: "task.create",
@@ -419,23 +405,22 @@ describe("schema operation input projection", () => {
     });
   });
 });
-
 const taskEntity = {
   label: "Task",
-  fields: {
-    title: { type: "text", required: true },
-    done: { type: "boolean", required: false },
-    priority: {
+  fields: [
+    { key: "title", type: "text", required: true },
+    { key: "done", type: "boolean", required: false },
+    {
+      key: "priority",
       type: "enum",
       required: false,
-      values: {
-        low: { label: "Low" },
-        normal: { label: "Normal" },
-      },
+      values: [
+        { key: "low", label: "Low" },
+        { key: "normal", label: "Normal" },
+      ],
     },
-  },
+  ],
 } satisfies EntitySchema;
-
 function createTaskOperation(input: NonNullable<EntityOperationSchema["input"]>) {
   return {
     kind: "create",

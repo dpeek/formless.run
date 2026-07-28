@@ -208,8 +208,10 @@ function executeListOperationInvocation(input: {
   const { envelope } = input;
   const output = envelope.operation.output;
   const queryName = output.type === "list" ? output.query : undefined;
-  const query = queryName === undefined ? undefined : input.schema.queries[queryName];
-
+  const query =
+    queryName === undefined
+      ? undefined
+      : input.schema.queries.find((definition) => definition.key === queryName)!;
   if (!query) {
     throw new BadRequestError(
       `Operation "${envelope.operation.canonicalKey}" references unknown query.`,
@@ -808,9 +810,10 @@ function operationCreateRecordWriteRequest(
         schema,
         storage,
       }),
-    } satisfies Omit<CreateRecordWriteRequest, "values"> & { values: unknown };
+    } satisfies Omit<CreateRecordWriteRequest, "values"> & {
+      values: unknown;
+    };
   }
-
   throw new BadRequestError(
     `Operation "${envelope.operation.canonicalKey}" cannot materialize a create.`,
   );
@@ -835,9 +838,10 @@ function operationPatchRecordWriteRequest(
         schema,
         storage,
       }),
-    } satisfies Omit<PatchRecordWriteRequest, "values"> & { values: unknown };
+    } satisfies Omit<PatchRecordWriteRequest, "values"> & {
+      values: unknown;
+    };
   }
-
   throw new BadRequestError(
     `Operation "${envelope.operation.canonicalKey}" cannot materialize an update.`,
   );

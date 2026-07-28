@@ -39,46 +39,69 @@ const titleSchema = {
   label: "Task",
   required: true,
   type: "text",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const titleControl = textControl(titleSchema);
-
 const slugSchema = {
   label: "Slug",
   required: true,
   type: "text",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const kindSchema = {
   default: "article",
   label: "Kind",
   required: true,
   type: "enum",
-  values: {
-    article: { label: "Article" },
-    link: { label: "Link" },
-  },
-} as const satisfies Extract<FieldSchema, { type: "enum" }>;
-
+  values: [
+    { key: "article", label: "Article" },
+    { key: "link", label: "Link" },
+  ],
+} as const satisfies Extract<
+  FieldSchema,
+  {
+    type: "enum";
+  }
+>;
 const summarySchema = {
   label: "Summary",
   required: false,
   type: "text",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const urlSchema = {
   label: "URL",
   required: true,
   type: "text",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 const ownerEmailSchema = {
   format: "email",
   label: "Owner email",
   required: true,
   type: "text",
-} satisfies Extract<FieldSchema, { type: "text" }>;
-
+} satisfies Extract<
+  FieldSchema,
+  {
+    type: "text";
+  }
+>;
 export function createRecordResultFixtures(): RecordResultFixture[] {
   return [
     {

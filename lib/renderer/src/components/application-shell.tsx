@@ -221,10 +221,14 @@ export function applyFormlessApplicationShellFixtureIntent(
 function createFormlessApplicationShellFixtureHosts() {
   return createFormlessApplicationShellFixtures().map(createFormlessApplicationShellFixtureHost);
 }
-
 function applyRootSelection(
   shell: FormlessApplicationShellFixtureState,
-  intent: Extract<ShellIntent, { type: "shellRootRecordSelection" }>,
+  intent: Extract<
+    ShellIntent,
+    {
+      type: "shellRootRecordSelection";
+    }
+  >,
 ) {
   const section = shell.sections.find(
     (candidate) => candidate.id === intent.sectionId && candidate.role === "rootRecords",
@@ -253,10 +257,14 @@ function applyRootSelection(
     sectionId: section.id,
   });
 }
-
 function applyCreate(
   shell: FormlessApplicationShellFixtureState,
-  intent: Extract<ShellIntent, { type: "shellCreate" }>,
+  intent: Extract<
+    ShellIntent,
+    {
+      type: "shellCreate";
+    }
+  >,
 ) {
   const section = shell.sections.find(
     (candidate) =>
@@ -416,10 +424,14 @@ function resetCreateSurface(surface: CreateSurfaceContract): CreateSurfaceContra
     },
   };
 }
-
 function applyReset(
   shell: FormlessApplicationShellFixtureState,
-  intent: Extract<ShellIntent, { type: "shellReset" }>,
+  intent: Extract<
+    ShellIntent,
+    {
+      type: "shellReset";
+    }
+  >,
 ) {
   const section = shell.sections.find(
     (candidate) =>
@@ -448,10 +460,14 @@ function applyReset(
     settings: { ...section.settings, reset: nextReset },
   });
 }
-
 function applyLogout(
   shell: FormlessApplicationShellFixtureState,
-  intent: Extract<ShellIntent, { type: "shellLogout" }>,
+  intent: Extract<
+    ShellIntent,
+    {
+      type: "shellLogout";
+    }
+  >,
 ) {
   const section = shell.sections.find(
     (candidate) =>

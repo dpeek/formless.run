@@ -18,9 +18,8 @@ describe("collection result model", () => {
       taskSourceSchema,
       view.result,
       "task",
-      taskSourceSchema.entities.task,
+      taskSourceSchema.entities.find((definition) => definition.key === "task")!,
     );
-
     expect(result).toMatchObject({
       type: "list",
       itemViewName: "taskListItem",
@@ -32,11 +31,13 @@ describe("collection result model", () => {
       "done",
     ]);
   });
-
   it("selects table result columns and footer slots through the result dispatcher", () => {
     const view = requiredCollectionView(rateSourceSchema, "rateHome");
-    const result = selectHomeResultModel(rateSourceSchema, view, rateSourceSchema.entities.rate);
-
+    const result = selectHomeResultModel(
+      rateSourceSchema,
+      view,
+      rateSourceSchema.entities.find((definition) => definition.key === "rate")!,
+    );
     if (result.type !== "table") {
       throw new Error("Expected rate home to use a table result.");
     }
@@ -92,9 +93,8 @@ describe("collection result model", () => {
       siteSourceSchema,
       view.result,
       "block-placement",
-      siteSourceSchema.entities["block-placement"],
+      siteSourceSchema.entities.find((definition) => definition.key === "block-placement")!,
     );
-
     expect(result).toMatchObject({
       type: "tree",
       relationshipName: "blockPlacements",
@@ -150,10 +150,8 @@ describe("collection result model", () => {
     ]);
   });
 });
-
 function requiredCollectionView(schema: AppSchema, viewName: string): CollectionViewSchema {
-  const view = schema.views[viewName];
-
+  const view = schema.views.find((definition) => definition.key === viewName)!;
   if (!view || view.type !== "collection") {
     throw new Error(`Missing collection view "${viewName}".`);
   }

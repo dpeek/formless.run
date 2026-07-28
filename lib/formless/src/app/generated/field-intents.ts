@@ -26,24 +26,102 @@ import {
   type GeneratedUpdateDraftSessionState,
 } from "./record-field-authoring.ts";
 import { inputValueToFieldValue } from "./format.ts";
-
-type CreateDraftChangeIntent = Extract<FieldIntent, { type: "createDraftChange" }>;
-type OperationDraftChangeIntent = Extract<FieldIntent, { type: "operationDraftChange" }>;
-type RecordDraftChangeIntent = Extract<FieldIntent, { type: "recordDraftChange" }>;
-type RecordEditorDraftChangeIntent = Extract<FieldIntent, { type: "recordEditorDraftChange" }>;
-type RecordDraftRevertIntent = Extract<FieldIntent, { type: "recordDraftRevert" }>;
-type RecordDraftCommitIntent = Extract<FieldIntent, { type: "recordDraftCommit" }>;
-type RecordValueCommitIntent = Extract<FieldIntent, { type: "recordValueCommit" }>;
-type RecordValueUnitCommitIntent = Extract<FieldIntent, { type: "recordValueUnitCommit" }>;
-type FieldErrorChangeIntent = Extract<FieldIntent, { type: "fieldErrorChange" }>;
-type IconDialogDraftChangeIntent = Extract<FieldIntent, { type: "iconDialogDraftChange" }>;
-type IconDialogOpenChangeIntent = Extract<FieldIntent, { type: "iconDialogOpenChange" }>;
-type IconDialogCancelIntent = Extract<FieldIntent, { type: "iconDialogCancel" }>;
-type IconDialogSaveIntent = Extract<FieldIntent, { type: "iconDialogSave" }>;
-type MediaAssetSelectIntent = Extract<FieldIntent, { type: "mediaAssetSelect" }>;
-type MediaFileSelectIntent = Extract<FieldIntent, { type: "mediaFileSelect" }>;
-type StateTransitionInvokeIntent = Extract<FieldIntent, { type: "stateTransitionInvoke" }>;
-
+type CreateDraftChangeIntent = Extract<
+  FieldIntent,
+  {
+    type: "createDraftChange";
+  }
+>;
+type OperationDraftChangeIntent = Extract<
+  FieldIntent,
+  {
+    type: "operationDraftChange";
+  }
+>;
+type RecordDraftChangeIntent = Extract<
+  FieldIntent,
+  {
+    type: "recordDraftChange";
+  }
+>;
+type RecordEditorDraftChangeIntent = Extract<
+  FieldIntent,
+  {
+    type: "recordEditorDraftChange";
+  }
+>;
+type RecordDraftRevertIntent = Extract<
+  FieldIntent,
+  {
+    type: "recordDraftRevert";
+  }
+>;
+type RecordDraftCommitIntent = Extract<
+  FieldIntent,
+  {
+    type: "recordDraftCommit";
+  }
+>;
+type RecordValueCommitIntent = Extract<
+  FieldIntent,
+  {
+    type: "recordValueCommit";
+  }
+>;
+type RecordValueUnitCommitIntent = Extract<
+  FieldIntent,
+  {
+    type: "recordValueUnitCommit";
+  }
+>;
+type FieldErrorChangeIntent = Extract<
+  FieldIntent,
+  {
+    type: "fieldErrorChange";
+  }
+>;
+type IconDialogDraftChangeIntent = Extract<
+  FieldIntent,
+  {
+    type: "iconDialogDraftChange";
+  }
+>;
+type IconDialogOpenChangeIntent = Extract<
+  FieldIntent,
+  {
+    type: "iconDialogOpenChange";
+  }
+>;
+type IconDialogCancelIntent = Extract<
+  FieldIntent,
+  {
+    type: "iconDialogCancel";
+  }
+>;
+type IconDialogSaveIntent = Extract<
+  FieldIntent,
+  {
+    type: "iconDialogSave";
+  }
+>;
+type MediaAssetSelectIntent = Extract<
+  FieldIntent,
+  {
+    type: "mediaAssetSelect";
+  }
+>;
+type MediaFileSelectIntent = Extract<
+  FieldIntent,
+  {
+    type: "mediaFileSelect";
+  }
+>;
+type StateTransitionInvokeIntent = Extract<
+  FieldIntent,
+  {
+    type: "stateTransitionInvoke";
+  }
+>;
 export type GeneratedFieldErrorChange = {
   fieldName: string;
   message: string | null;

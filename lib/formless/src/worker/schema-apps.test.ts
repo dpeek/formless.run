@@ -35,13 +35,16 @@ describe("worker schema app definitions", () => {
       },
     });
     expect(Array.isArray(rawSiteSeedRecords)).toBe(true);
-    expect(site.sourceSchema.entities.site?.label).toBe("Site");
-    expect(site.seedRecords.length).toBeGreaterThan(0);
-    expect(site.seedRecords.every((record) => record.entity in site.sourceSchema.entities)).toBe(
-      true,
+    expect(site.sourceSchema.entities.find((definition) => definition.key === "site")?.label).toBe(
+      "Site",
     );
+    expect(site.seedRecords.length).toBeGreaterThan(0);
+    expect(
+      site.seedRecords.every((record) =>
+        site.sourceSchema.entities.some((entity) => entity.key === record.entity),
+      ),
+    ).toBe(true);
   });
-
   it("loads bundled CRM source from package-local manifest files", async () => {
     const manifest = parseAppPackageManifest(rawCrmAppPackageManifest, "CRM package manifest");
     const crm = getWorkerSchemaAppDefinition("crm");
@@ -63,31 +66,58 @@ describe("worker schema app definitions", () => {
       },
     });
     expect(Array.isArray(rawCrmSeedRecords)).toBe(true);
-    expect(crm.sourceSchema.entities.contact?.label).toBe("Contact");
+    expect(
+      crm.sourceSchema.entities.find((definition) => definition.key === "contact")?.label,
+    ).toBe("Contact");
     expect(crm.seedRecords).toHaveLength(rawCrmSeedRecords.length);
-    expect(crm.seedRecords.every((record) => record.entity in crm.sourceSchema.entities)).toBe(
-      true,
-    );
+    expect(
+      crm.seedRecords.every((record) =>
+        crm.sourceSchema.entities.some((entity) => entity.key === record.entity),
+      ),
+    ).toBe(true);
   });
-
   it("loads parsed source schemas for each app", () => {
     const tasks = getWorkerSchemaAppDefinition("tasks");
     const site = getWorkerSchemaAppDefinition("site");
     const crm = getWorkerSchemaAppDefinition("crm");
-
     expect(workerSchemaApps.map((app) => app.key)).toEqual(["tasks", "site", "crm"]);
-    expect(tasks.sourceSchema.entities.task?.label).toBe("Task");
-    expect(site.sourceSchema.entities.site?.label).toBe("Site");
-    expect(crm.sourceSchema.entities.contact?.label).toBe("Contact");
-    expect(crm.sourceSchema.entities.subscription?.label).toBe("Subscription");
-    expect(site.sourceSchema.entities.block?.label).toBe("Block");
-    expect(site.sourceSchema.entities["block-placement"]?.label).toBe("Placement");
-    expect(site.sourceSchema.entities.site).not.toHaveProperty("mutations");
-    expect(site.sourceSchema.entities.site?.operations?.update).toMatchObject({ kind: "update" });
-    expect(site.sourceSchema.entities.block?.operations?.delete).toMatchObject({ kind: "delete" });
-    expect(site.sourceSchema.entities["block-placement"]?.operations?.delete).toBeUndefined();
+    expect(tasks.sourceSchema.entities.find((definition) => definition.key === "task")?.label).toBe(
+      "Task",
+    );
+    expect(site.sourceSchema.entities.find((definition) => definition.key === "site")?.label).toBe(
+      "Site",
+    );
+    expect(
+      crm.sourceSchema.entities.find((definition) => definition.key === "contact")?.label,
+    ).toBe("Contact");
+    expect(
+      crm.sourceSchema.entities.find((definition) => definition.key === "subscription")?.label,
+    ).toBe("Subscription");
+    expect(site.sourceSchema.entities.find((definition) => definition.key === "block")?.label).toBe(
+      "Block",
+    );
+    expect(
+      site.sourceSchema.entities.find((definition) => definition.key === "block-placement")?.label,
+    ).toBe("Placement");
+    expect(
+      site.sourceSchema.entities.find((definition) => definition.key === "site")!,
+    ).not.toHaveProperty("mutations");
+    expect(
+      site.sourceSchema.entities
+        .find((definition) => definition.key === "site")
+        ?.operations!.find((definition) => definition.key === "update")!,
+    ).toMatchObject({ kind: "update" });
+    expect(
+      site.sourceSchema.entities
+        .find((definition) => definition.key === "block")
+        ?.operations!.find((definition) => definition.key === "delete")!,
+    ).toMatchObject({ kind: "delete" });
+    expect(
+      site.sourceSchema.entities
+        .find((definition) => definition.key === "block-placement")
+        ?.operations!.find((definition) => definition.key === "delete")!,
+    ).toBeUndefined();
   });
-
   it("loads parsed seed records for each app", () => {
     const tasks = getWorkerSchemaAppDefinition("tasks");
     const site = getWorkerSchemaAppDefinition("site");
@@ -103,9 +133,11 @@ describe("worker schema app definitions", () => {
       }),
     ]);
     expect(site.seedRecords.length).toBeGreaterThan(0);
-    expect(site.seedRecords.every((record) => record.entity in site.sourceSchema.entities)).toBe(
-      true,
-    );
+    expect(
+      site.seedRecords.every((record) =>
+        site.sourceSchema.entities.some((entity) => entity.key === record.entity),
+      ),
+    ).toBe(true);
     expect(crm.seedRecords).toHaveLength(21);
     expect(new Set(crm.seedRecords.map((record) => record.entity))).toEqual(
       new Set([
@@ -121,11 +153,12 @@ describe("worker schema app definitions", () => {
         "subscription",
       ]),
     );
-    expect(crm.seedRecords.every((record) => record.entity in crm.sourceSchema.entities)).toBe(
-      true,
-    );
+    expect(
+      crm.seedRecords.every((record) =>
+        crm.sourceSchema.entities.some((entity) => entity.key === record.entity),
+      ),
+    ).toBe(true);
   });
-
   it("returns undefined for unknown worker schema keys", () => {
     expect(findWorkerSchemaAppDefinition("missing")).toBeUndefined();
   });

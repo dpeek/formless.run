@@ -1,5 +1,6 @@
 import { validateAuthorityFieldValue } from "./field-types.ts";
 import { isSystemFieldName } from "./fields.ts";
+import { definitionsToRecord } from "./schema-parse-helpers.ts";
 import { validateTextValueForStorage } from "./text-values.ts";
 import type {
   EntityOperationInputFieldSchema,
@@ -22,9 +23,12 @@ export type OperationInputValueProjection = {
   recordWriteValues: RecordValues;
   recordWritePatchValues: Record<string, unknown>;
 };
-
 type OperationInputFieldProjection =
-  | { kind: "omit"; inputName: string; entityFieldName?: string }
+  | {
+      kind: "omit";
+      inputName: string;
+      entityFieldName?: string;
+    }
   | {
       kind: "set";
       inputName: string;
@@ -47,22 +51,19 @@ export function projectOperationInputValues(
     if (Object.keys(values).length > 0) {
       throw new Error(`${operationLabel(input)} does not declare input fields.`);
     }
-
     return emptyOperationInputProjection();
   }
-
   const values = parseOperationInputRecord(context, input.rawInput);
-
+  const inputFieldsByKey = definitionsToRecord(inputContract.fields);
   for (const fieldName of Object.keys(values)) {
-    if (!inputContract.fields[fieldName]) {
+    if (!inputFieldsByKey[fieldName]) {
       assertOperationInputDoesNotOwnSystemField(context, fieldName);
       throw new Error(`${context} includes undeclared field "${fieldName}".`);
     }
   }
-
   const projection = emptyOperationInputProjection();
-
-  for (const [inputName, field] of Object.entries(inputContract.fields)) {
+  for (const field of inputContract.fields) {
+    const inputName = field.key;
     const provided = Object.hasOwn(values, inputName);
     const fieldProjection =
       "field" in field
@@ -133,13 +134,17 @@ function emptyOperationInputProjection(): OperationInputValueProjection {
 function projectEntityBackedOperationInputField(input: {
   context: string;
   entity: EntitySchema;
-  field: Extract<EntityOperationInputFieldSchema, { field: string }>;
+  field: Extract<
+    EntityOperationInputFieldSchema,
+    {
+      field: string;
+    }
+  >;
   inputName: string;
   provided: boolean;
   value: unknown;
 }): OperationInputFieldProjection {
-  const entityField = input.entity.fields[input.field.field];
-
+  const entityField = definitionsToRecord(input.entity.fields)[input.field.field];
   if (!entityField) {
     throw new Error(`${input.context} field "${input.inputName}" is invalid.`);
   }
@@ -181,7 +186,12 @@ function projectEntityBackedOperationInputField(input: {
 function projectInlineOperationInputField(
   context: string,
   inputName: string,
-  field: Exclude<EntityOperationInputFieldSchema, { field: string }>,
+  field: Exclude<
+    EntityOperationInputFieldSchema,
+    {
+      field: string;
+    }
+  >,
   value: unknown,
   provided: boolean,
 ): OperationInputFieldProjection {
@@ -246,21 +256,16 @@ function projectInlineOperationInputField(
     if (typeof value !== "number" || !Number.isFinite(value)) {
       throw new Error(`${context} field "${inputName}" must be a finite number.`);
     }
-
     return { kind: "set", inputName, value };
   }
-
   if (field.type === "enum") {
-    if (typeof value !== "string" || value === "" || !Object.hasOwn(field.values, value)) {
+    if (typeof value !== "string" || value === "" || !definitionsToRecord(field.values)[value]) {
       throw new Error(`${context} field "${inputName}" must be a known enum value.`);
     }
-
     return { kind: "set", inputName, value };
   }
-
   return assertUnsupportedOperationInputField(field);
 }
-
 function assertOperationInputDoesNotOwnSystemField(context: string, fieldName: string) {
   if (isSystemFieldName(fieldName)) {
     throw new Error(`${context} must not include system field "${fieldName}".`);

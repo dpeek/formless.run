@@ -1,5 +1,7 @@
 import path from "node:path";
 
+import rawTasksSourceSchema from "@dpeek/formless-tasks-app/schema.json";
+import { parseAppSchema } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -8,6 +10,7 @@ import {
   formatCliOutputLines,
   formatCliRelativePath,
   formatCliSelectedTarget,
+  formatCliStoredRecords,
   formatCliWorkspaceOperationLabel,
 } from "./cli-formatter-helpers.ts";
 
@@ -37,6 +40,30 @@ describe("CLI formatter helpers", () => {
       }),
     ).toBe("production (https://example.com)");
     expect(formatCliSelectedTarget(undefined)).toBe("<none>");
+  });
+
+  it("renders stored records in schema declaration and record-id order", () => {
+    const formatted = formatCliStoredRecords(parseAppSchema(rawTasksSourceSchema), [
+      {
+        id: "task-z",
+        entity: "task",
+        values: { priority: "high", done: false, title: "Zeta" },
+        createdAt: "2026-06-18T00:00:01.000Z",
+        updatedAt: "2026-06-18T00:00:01.000Z",
+      },
+      {
+        id: "task-a",
+        entity: "task",
+        values: { done: true, title: "Alpha" },
+        createdAt: "2026-06-18T00:00:02.000Z",
+        updatedAt: "2026-06-18T00:00:02.000Z",
+      },
+    ]);
+    const records = JSON.parse(formatted) as { id: string; values: Record<string, unknown> }[];
+
+    expect(records.map((record) => record.id)).toEqual(["task-a", "task-z"]);
+    expect(Object.keys(records[1]!.values)).toEqual(["title", "done", "priority"]);
+    expect(formatted.endsWith("\n")).toBe(true);
   });
 
   it("omits optional output lines", () => {

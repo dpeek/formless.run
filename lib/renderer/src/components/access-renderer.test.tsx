@@ -30,9 +30,11 @@ import {
   AstryxAccessRenderer,
   AstryxSubscribedAccessRenderer,
 } from "./access-renderer.tsx";
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
+(
+  globalThis as {
+    IS_REACT_ACT_ENVIRONMENT?: boolean;
+  }
+).IS_REACT_ACT_ENVIRONMENT = true;
 describe("Astryx access renderer", () => {
   it("renders complete state, table, action, feedback, and confirmation outcomes", () => {
     const loading = fixtureManifest("loading");

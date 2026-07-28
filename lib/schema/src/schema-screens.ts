@@ -1,52 +1,79 @@
 import {
   assertExactKeys,
+  definitionsToRecord,
   isRecord,
+  parseKeyedDefinitionArray,
   parseOptionalNonEmptyString,
   parseRequiredNonEmptyString,
 } from "./schema-parse-helpers.ts";
 import type {
+  AppNavigationSchema,
   CollectionScreenSectionSchema,
   ScreenAccessSchema,
   ScreenLayoutSchema,
   ScreenLayoutWidthSchema,
-  ScreenNavigationSchema,
   ScreenSchema,
   ScreenSectionSchema,
   ViewSchema,
+  KeyedDefinition,
 } from "./types.ts";
-
 export function parseScreens(
   value: unknown,
   views: Record<string, ViewSchema>,
-): Record<string, ScreenSchema> {
+): KeyedDefinition<ScreenSchema>[] {
   if (value === undefined) {
     throw new Error('Schema must include "screens".');
   }
-
-  if (!isRecord(value)) {
-    throw new Error("Schema screens must be an object.");
-  }
-
-  const screens = Object.fromEntries(
-    Object.entries(value).map(([screenName, screen]) => [
-      screenName,
-      parseScreen(screenName, screen, views),
-    ]),
+  const screens = parseKeyedDefinitionArray("Schema screens", value, (screenName, screen) =>
+    parseScreen(screenName, screen, views),
   );
-
-  if (Object.keys(screens).length === 0) {
+  if (screens.length === 0) {
     throw new Error("Schema screens must not be empty.");
   }
-
-  if (!Object.values(screens).some((screen) => screen.navigation?.primary ?? true)) {
-    throw new Error("Schema must define at least one primary screen.");
-  }
-
-  assertUniqueScreenPaths(screens);
-
   return screens;
 }
-
+export function parseAppNavigation(
+  value: unknown,
+  screens: KeyedDefinition<ScreenSchema>[],
+): AppNavigationSchema | undefined {
+  if (value === undefined) {
+    assertUniqueScreenPaths(
+      screens,
+      screens.map((screen) => screen.key),
+    );
+    return undefined;
+  }
+  if (!isRecord(value)) {
+    throw new Error("Schema navigation must be an object.");
+  }
+  assertExactKeys("Schema navigation", value, [], ["primaryScreens"]);
+  if (value.primaryScreens === undefined) {
+    assertUniqueScreenPaths(
+      screens,
+      screens.map((screen) => screen.key),
+    );
+    return {};
+  }
+  if (!Array.isArray(value.primaryScreens) || value.primaryScreens.length === 0) {
+    throw new Error("Schema navigation primaryScreens must be a non-empty array.");
+  }
+  const screensByKey = definitionsToRecord(screens);
+  const primaryScreens = value.primaryScreens.map((screenKey, index) => {
+    const key = parseRequiredNonEmptyString(
+      `Schema navigation primaryScreens[${index}]`,
+      screenKey,
+    );
+    if (!screensByKey[key]) {
+      throw new Error(`Schema navigation primaryScreens references unknown screen "${key}".`);
+    }
+    return key;
+  });
+  if (new Set(primaryScreens).size !== primaryScreens.length) {
+    throw new Error("Schema navigation primaryScreens must not contain duplicates.");
+  }
+  assertUniqueScreenPaths(screens, primaryScreens);
+  return { primaryScreens };
+}
 function parseScreen(
   screenName: string,
   value: unknown,
@@ -63,10 +90,9 @@ function parseScreen(
   assertExactKeys(
     `Screen "${screenName}"`,
     value,
-    ["type", "label", "layout"],
-    ["access", "navigation", "path"],
+    ["key", "type", "label", "layout"],
+    ["access", "path"],
   );
-
   if (value.type !== "workspace") {
     throw new Error(`Screen "${screenName}" type must be "workspace".`);
   }
@@ -74,15 +100,12 @@ function parseScreen(
   const label = parseRequiredNonEmptyString(`Screen "${screenName}" label`, value.label);
   const path = parseScreenPath(screenName, value.path);
   const access = parseScreenAccess(screenName, value.access);
-  const navigation = parseScreenNavigation(screenName, value.navigation);
   const layout = parseScreenLayout(screenName, value.layout, views);
-
   return {
     type: "workspace",
     label,
     ...(path === undefined ? {} : { path }),
     ...(access === undefined ? {} : { access }),
-    ...(navigation === undefined ? {} : { navigation }),
     layout,
   };
 }
@@ -117,14 +140,15 @@ function isStaticAppRelativePath(value: string): boolean {
   if (value === "/") {
     return true;
   }
-
   return /^\/[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)*$/.test(value);
 }
-
-function assertUniqueScreenPaths(screens: Record<string, ScreenSchema>) {
+function assertUniqueScreenPaths(
+  screens: KeyedDefinition<ScreenSchema>[],
+  primaryScreenKeys: string[],
+) {
   const screenNamesByPath = new Map<string, string>();
-
-  for (const [screenName, screen] of Object.entries(screens)) {
+  for (const screen of screens) {
+    const screenName = screen.key;
     if (screen.path === undefined) {
       continue;
     }
@@ -135,45 +159,19 @@ function assertUniqueScreenPaths(screens: Record<string, ScreenSchema>) {
         `Screen path "${screen.path}" must be unique. Used by "${existingScreenName}" and "${screenName}".`,
       );
     }
-
     screenNamesByPath.set(screen.path, screenName);
   }
-
-  const firstPathlessPrimaryScreenName = Object.entries(screens).find(
-    ([, screen]) => (screen.navigation?.primary ?? true) && screen.path === undefined,
-  )?.[0];
+  const screensByKey = definitionsToRecord(screens);
+  const firstPathlessPrimaryScreenName = primaryScreenKeys.find(
+    (screenName) => screensByKey[screenName]?.path === undefined,
+  );
   const explicitRootScreenName = screenNamesByPath.get("/");
-
   if (firstPathlessPrimaryScreenName && explicitRootScreenName) {
     throw new Error(
       `Screen path "/" must be unique. It is implied by "${firstPathlessPrimaryScreenName}" and declared by "${explicitRootScreenName}".`,
     );
   }
 }
-
-function parseScreenNavigation(
-  screenName: string,
-  value: unknown,
-): ScreenNavigationSchema | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  const context = `Screen "${screenName}" navigation`;
-
-  if (!isRecord(value)) {
-    throw new Error(`${context} must be an object.`);
-  }
-
-  assertExactKeys(context, value, ["primary"]);
-
-  if (typeof value.primary !== "boolean") {
-    throw new Error(`${context} primary must be a boolean.`);
-  }
-
-  return { primary: value.primary };
-}
-
 function parseScreenLayout(
   screenName: string,
   value: unknown,

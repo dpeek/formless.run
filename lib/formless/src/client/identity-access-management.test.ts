@@ -12,10 +12,12 @@ import {
   replaceIdentityAccessManagementPersonRoles,
   revokeIdentityAccessManagementInvitation,
 } from "./identity-access-management.ts";
-
 describe("identity access management client", () => {
   it("fetches the display-safe access summary contract", async () => {
-    const requests: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+    const requests: Array<{
+      input: RequestInfo | URL;
+      init?: RequestInit;
+    }> = [];
     const summary = {
       appRegistrations: [],
       groups: [],
@@ -68,9 +70,11 @@ describe("identity access management client", () => {
       status: 403,
     });
   });
-
   it("creates collaborator invitations through the access management route", async () => {
-    const requests: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+    const requests: Array<{
+      input: RequestInfo | URL;
+      init?: RequestInit;
+    }> = [];
     const body = {
       delivery: { status: "skipped", reason: "missing-auth-email-configuration" },
       invitation: {
@@ -145,9 +149,11 @@ describe("identity access management client", () => {
     expect(JSON.stringify(result)).not.toContain("token");
     expect(JSON.stringify(result)).not.toContain("session");
   });
-
   it("revokes collaborator invitations through the access management route", async () => {
-    const requests: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+    const requests: Array<{
+      input: RequestInfo | URL;
+      init?: RequestInit;
+    }> = [];
     const body = {
       invitation: {
         createdAt: "2026-07-01T00:00:00.000Z",
@@ -197,9 +203,11 @@ describe("identity access management client", () => {
     expect(JSON.stringify(result)).not.toContain("token");
     expect(JSON.stringify(result)).not.toContain("session");
   });
-
   it("replaces person roles through one selected-set access request", async () => {
-    const requests: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+    const requests: Array<{
+      input: RequestInfo | URL;
+      init?: RequestInit;
+    }> = [];
     const input = {
       idempotencyKey: "replace-ada-roles",
       now: "2026-07-23T00:00:00.000Z",
@@ -249,9 +257,11 @@ describe("identity access management client", () => {
       },
     ]);
   });
-
   it("removes a person through the soft-disable access request", async () => {
-    const requests: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+    const requests: Array<{
+      input: RequestInfo | URL;
+      init?: RequestInit;
+    }> = [];
     const input = {
       idempotencyKey: "remove-ada",
       principalId: "principal:ada",

@@ -123,8 +123,12 @@ type ApplyBody = {
     storageFamily: string;
   }>;
   result: {
-    applied: Array<{ migrationId: string }>;
-    skipped: Array<{ migrationId: string }>;
+    applied: Array<{
+      migrationId: string;
+    }>;
+    skipped: Array<{
+      migrationId: string;
+    }>;
   };
   sideEffects: string[];
 };

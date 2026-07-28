@@ -12,10 +12,10 @@ import {
 } from "./field-drafts.ts";
 import type { RecordValues } from "./types.ts";
 import type { QueryEvaluationContext } from "./types.ts";
-import { assertExactKeys, isRecord } from "./schema-parse-helpers.ts";
+import { assertExactKeys, definitionsToRecord, isRecord } from "./schema-parse-helpers.ts";
 import type {
   CreateDefaultValueSchema,
-  CreateViewFieldSchema,
+  CreateViewFieldBindingSchema,
   CreateViewSchema,
   EntitySchema,
   FieldVisibilityConditionSchema,
@@ -44,10 +44,14 @@ export type CreateDraftResolution = {
   fieldErrors: Record<string, CreateDraftFieldError>;
   visibleFields: string[];
 };
-
 export type CreateDefaultUnionConfig<TField extends CreateDefaultFieldConfig> = {
   discriminatorFieldName: string;
-  discriminatorField: Extract<FieldSchema, { type: "enum" }>;
+  discriminatorField: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >;
   variants: Array<{
     variantValue: string;
     presentation: {
@@ -66,7 +70,7 @@ export function parseCreateViewDefaults(
   entityName: string,
   value: unknown,
   entity: EntitySchema,
-  fields: Record<string, CreateViewFieldSchema>,
+  fields: CreateViewFieldBindingSchema[],
 ): Record<string, CreateDefaultValueSchema> | undefined {
   if (value === undefined) {
     return undefined;
@@ -92,24 +96,33 @@ export function parseCreateViewDefaults(
 export function createViewRequiresContextDefaults(createView: CreateViewSchema) {
   return createViewContextDefaultEntries(createView).length > 0;
 }
-
 export function createViewContextDefaultEntries(createView: CreateViewSchema) {
   return Object.entries(createView.defaults ?? {}).filter(
-    (entry): entry is [string, Extract<CreateDefaultValueSchema, { kind: "context" }>] =>
-      entry[1].kind === "context",
+    (
+      entry,
+    ): entry is [
+      string,
+      Extract<
+        CreateDefaultValueSchema,
+        {
+          kind: "context";
+        }
+      >,
+    ] => entry[1].kind === "context",
   );
 }
-
 export function assertCreateViewIncludesRequiredFields(
   viewName: string,
-  fields: Record<string, CreateViewFieldSchema>,
+  fields: CreateViewFieldBindingSchema[],
   defaults: Record<string, CreateDefaultValueSchema>,
   entity: EntitySchema,
 ) {
-  for (const [fieldName, field] of Object.entries(entity.fields)) {
+  const fieldsByName = new Set(fields.map((field) => field.field));
+  for (const field of entity.fields) {
+    const fieldName = field.key;
     if (
       field.required &&
-      !(fieldName in fields) &&
+      !fieldsByName.has(fieldName) &&
       !(fieldName in defaults) &&
       !fieldHasCreateDefault(field)
     ) {
@@ -300,13 +313,11 @@ export function initialCreateDiscriminatorValue(
   if (defaultConfig?.value.kind === "literal" && typeof defaultConfig.value.value === "string") {
     return defaultConfig.value.value;
   }
-
   return (
     union.discriminatorField.default ??
-    (union.discriminatorField.required ? Object.keys(union.discriminatorField.values)[0] : "")
+    (union.discriminatorField.required ? (union.discriminatorField.values[0]?.key ?? "") : "")
   );
 }
-
 export function resolveContextDefaultValue(
   fieldName: string,
   contextName: string,
@@ -329,23 +340,19 @@ function parseCreateViewDefault(
   fieldName: string,
   value: unknown,
   entity: EntitySchema,
-  fields: Record<string, CreateViewFieldSchema>,
+  fields: CreateViewFieldBindingSchema[],
 ): CreateDefaultValueSchema {
   const context = `Create view "${viewName}" default "${fieldName}"`;
-
   if (fieldName.trim() === "") {
     throw new Error(`Create view "${viewName}" default field names must be non-empty.`);
   }
-
-  const field = entity.fields[fieldName];
+  const field = definitionsToRecord(entity.fields)[fieldName];
   if (!field) {
     throw new Error(`${context} references unknown field "${entityName}.${fieldName}".`);
   }
-
-  if (fieldName in fields) {
+  if (fields.some((viewField) => viewField.field === fieldName)) {
     throw new Error(`${context} must not also appear in fields.`);
   }
-
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
@@ -409,13 +416,16 @@ function collectCreateDefaultFields<TField extends CreateDefaultFieldConfig>(
   if (union?.fallback !== undefined) {
     addFields(union.fallback.presentation.fields);
   }
-
   return Array.from(fieldsByName.values());
 }
-
 function parseCreateLiteralDefaultValue(
   context: string,
-  field: Exclude<FieldSchema, { type: "reference" }>,
+  field: Exclude<
+    FieldSchema,
+    {
+      type: "reference";
+    }
+  >,
   value: unknown,
 ) {
   if (field.type === "text") {
@@ -486,32 +496,32 @@ function parseCreateLiteralDefaultValue(
     if (field.required) {
       throw new Error(`${context} literal value cannot be empty.`);
     }
-
     return value;
   }
-
-  if (!Object.hasOwn(field.values, value)) {
+  if (!field.values.some((definition) => definition.key === value)) {
     throw new Error(`${context} literal value must be a known enum value.`);
   }
-
   return value;
 }
-
 function getVisibleCreateDraftValues<TField extends CreateDefaultFieldConfig>(
   draft: CreateDraftInput,
   fields: TField[],
-): { values: RecordValues; fieldErrors: Record<string, CreateDraftFieldError> } {
+): {
+  values: RecordValues;
+  fieldErrors: Record<string, CreateDraftFieldError>;
+} {
   return resolveGeneratedFieldDraftValues({ draft, fields });
 }
-
 function applyCreateDraftDefaultValues(
   values: RecordValues,
   defaults: CreateDefaultConfig[],
   queryContext?: QueryEvaluationContext,
-): { values: RecordValues; fieldErrors: Record<string, CreateDraftFieldError> } {
+): {
+  values: RecordValues;
+  fieldErrors: Record<string, CreateDraftFieldError>;
+} {
   const resolvedValues = { ...values };
   const fieldErrors: Record<string, CreateDraftFieldError> = {};
-
   for (const defaultConfig of defaults) {
     if (Object.hasOwn(resolvedValues, defaultConfig.fieldName)) {
       continue;
@@ -605,13 +615,12 @@ function selectActiveCreateUnionPresentation<TField extends CreateDefaultFieldCo
     union.variants.find((variant) => variant.variantValue === discriminatorValue) ?? union.fallback
   );
 }
-
-function appendNewFields<TField extends { fieldName: string }>(
-  baseFields: TField[],
-  variantFields: TField[],
-): TField[] {
+function appendNewFields<
+  TField extends {
+    fieldName: string;
+  },
+>(baseFields: TField[], variantFields: TField[]): TField[] {
   const fieldNames = new Set(baseFields.map((field) => field.fieldName));
   const newFields = variantFields.filter((field) => !fieldNames.has(field.fieldName));
-
   return newFields.length === 0 ? baseFields : [...baseFields, ...newFields];
 }

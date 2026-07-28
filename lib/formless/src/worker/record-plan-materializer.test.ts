@@ -229,9 +229,7 @@ describe("record plan materializer", () => {
         },
       ],
       {
-        constraints: {
-          uniqueHumanCode: { kind: "unique", fields: ["humanCode"] },
-        },
+        constraints: [{ key: "uniqueHumanCode", kind: "unique", fields: ["humanCode"] }],
       },
     );
     const operation = submitPlanOperation(schema);
@@ -256,9 +254,12 @@ describe("record plan materializer", () => {
       records: digitCodeRecords(),
       schema,
     });
-
     expect(response.status).toBe(400);
-    expect((await response.json()) as { error: string }).toEqual({
+    expect(
+      (await response.json()) as {
+        error: string;
+      },
+    ).toEqual({
       error:
         'Record plan step "createTask" generated code collided after 32 attempts: Unique constraint "task.uniqueHumanCode" would be violated.',
     });
@@ -341,9 +342,12 @@ describe("record plan materializer", () => {
       operationId: "operation:task.submitPlan:materializer-missing-target",
       schema,
     });
-
     expect(response.status).toBe(400);
-    expect((await response.json()) as { error: string }).toEqual({
+    expect(
+      (await response.json()) as {
+        error: string;
+      },
+    ).toEqual({
       error: 'Unknown record "missing-task".',
     });
   });
@@ -374,62 +378,69 @@ function materializerSchema(
 ): AppSchema {
   return parseAppSchema({
     version: 1,
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         label: "Task",
-        fields: {
-          title: { type: "text", required: true, label: "Title" },
-          done: { type: "boolean", required: true, label: "Done", default: false },
-          marker: { type: "text", required: false, label: "Marker" },
-          generatedCode: { type: "text", required: false, label: "Generated code" },
-          humanCode: { type: "text", required: false, label: "Human code" },
-          submittedAt: { type: "text", required: false, label: "Submitted at" },
-          actorMode: { type: "text", required: false, label: "Actor mode" },
-          actorPrincipalId: { type: "text", required: false, label: "Actor principal" },
-          sourceProtocol: { type: "text", required: false, label: "Source protocol" },
-          sourceHost: { type: "text", required: false, label: "Source host" },
-          sourcePath: { type: "text", required: false, label: "Source path" },
-        },
-        operations: {
-          submitPlan: recordPlanOperation(steps),
-        },
+        fields: [
+          { key: "title", type: "text", required: true, label: "Title" },
+          { key: "done", type: "boolean", required: true, label: "Done", default: false },
+          { key: "marker", type: "text", required: false, label: "Marker" },
+          { key: "generatedCode", type: "text", required: false, label: "Generated code" },
+          { key: "humanCode", type: "text", required: false, label: "Human code" },
+          { key: "submittedAt", type: "text", required: false, label: "Submitted at" },
+          { key: "actorMode", type: "text", required: false, label: "Actor mode" },
+          { key: "actorPrincipalId", type: "text", required: false, label: "Actor principal" },
+          { key: "sourceProtocol", type: "text", required: false, label: "Source protocol" },
+          { key: "sourceHost", type: "text", required: false, label: "Source host" },
+          { key: "sourcePath", type: "text", required: false, label: "Source path" },
+        ],
+        operations: [
+          {
+            key: "submitPlan",
+            ...recordPlanOperation(steps),
+          },
+        ],
         ...taskOverrides,
       },
-      "task-log": {
+      {
+        key: "task-log",
         label: "Task log",
-        fields: {
-          task: {
+        fields: [
+          {
+            key: "task",
             type: "reference",
             required: true,
             label: "Task",
             to: "task",
             displayField: "title",
           },
-          label: { type: "text", required: true, label: "Label" },
-          actorMode: { type: "text", required: true, label: "Actor mode" },
-          sourcePath: { type: "text", required: false, label: "Source path" },
-          occurredAt: { type: "text", required: true, label: "Occurred at" },
-        },
+          { key: "label", type: "text", required: true, label: "Label" },
+          { key: "actorMode", type: "text", required: true, label: "Actor mode" },
+          { key: "sourcePath", type: "text", required: false, label: "Source path" },
+          { key: "occurredAt", type: "text", required: true, label: "Occurred at" },
+        ],
       },
-    },
-    queries: {
-      taskAll: {
+    ],
+    queries: [
+      {
+        key: "taskAll",
         label: "All tasks",
         entity: "task",
         expression: { kind: "all" },
       },
-    },
-    itemViews: {
-      taskListItem: {
+    ],
+    itemViews: [
+      {
+        key: "taskListItem",
         entity: "task",
-        fields: {
-          title: { editor: "text", commit: "field-commit" },
-        },
+        fields: [{ field: "title", editor: "text", commit: "field-commit" }],
       },
-    },
-    tableViews: {},
-    views: {
-      taskHome: {
+    ],
+    tableViews: [],
+    views: [
+      {
+        key: "taskHome",
         type: "collection",
         label: "Tasks",
         entity: "task",
@@ -437,22 +448,21 @@ function materializerSchema(
         defaultQuery: "taskAll",
         result: { type: "list", itemView: "taskListItem" },
       },
-    },
-    screens: {
-      taskHome: {
+    ],
+    screens: [
+      {
+        key: "taskHome",
         type: "workspace",
         label: "Tasks",
         path: "/",
-        navigation: { primary: true },
         layout: {
           type: "stack",
           sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
         },
       },
-    },
+    ],
   });
 }
-
 function recordPlanOperation(
   steps: RecordPlanEntityOperationEffectSchema["steps"],
 ): EntityOperationSchema {
@@ -461,11 +471,11 @@ function recordPlanOperation(
     kind: "command",
     scope: "collection",
     input: {
-      fields: {
-        existingTaskId: { type: "text", required: true, label: "Existing task" },
-        title: { type: "text", required: true, label: "Title" },
-        note: { type: "text", required: true, label: "Note" },
-      },
+      fields: [
+        { key: "existingTaskId", type: "text", required: true, label: "Existing task" },
+        { key: "title", type: "text", required: true, label: "Title" },
+        { key: "note", type: "text", required: true, label: "Note" },
+      ],
     },
     effect: {
       type: "recordPlan",
@@ -548,10 +558,10 @@ function materializerRecordPlanSteps(): RecordPlanEntityOperationEffectSchema["s
     },
   ];
 }
-
 function submitPlanOperation(schema: AppSchema): EntityOperationSchema {
-  const operation = schema.entities.task?.operations?.submitPlan;
-
+  const operation = schema.entities
+    .find((definition) => definition.key === "task")
+    ?.operations!.find((definition) => definition.key === "submitPlan")!;
   if (!operation) {
     throw new Error("Expected task.submitPlan operation.");
   }

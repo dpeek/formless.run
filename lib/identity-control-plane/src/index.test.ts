@@ -60,14 +60,17 @@ describe("identity control-plane schema contracts", () => {
       [
         "schema field metadata",
         (schema) => {
-          schema.entities.principal.fields.displayName.label = "Name";
+          schema.entities
+            .find((definition) => definition.key === "principal")!
+            .fields.find((definition) => definition.key === "displayName")!.label = "Name";
         },
       ],
       [
         "operation metadata",
         (schema) => {
-          const create = schema.entities.principal.operations?.create;
-
+          const create = schema.entities
+            .find((definition) => definition.key === "principal")!
+            .operations?.find((definition) => definition.key === "create");
           if (!create) {
             throw new Error("Expected principal create operation.");
           }
@@ -105,16 +108,12 @@ describe("identity control-plane schema contracts", () => {
       expect(await computeSourceSchemaHash(changedSchema), label).not.toBe(baseHash);
     }
   });
-
   it("defines the runtime-owned flat identity entities and local references", () => {
     const schema = identityControlPlaneSchema;
-    const referenceTargets = Object.values(schema.entities).flatMap((entity) =>
-      Object.values(entity.fields).flatMap((field) =>
-        field.type === "reference" ? [field.to] : [],
-      ),
+    const referenceTargets = schema.entities.flatMap((entity) =>
+      entity.fields.flatMap((field) => (field.type === "reference" ? [field.to] : [])),
     );
-
-    expect(Object.keys(schema.entities).sort()).toEqual(
+    expect(schema.entities.map(({ key }) => key).sort()).toEqual(
       [...identityControlPlaneEntityNames].sort(),
     );
     expect(referenceTargets.filter((target) => target.includes(":"))).toEqual([]);
@@ -130,89 +129,132 @@ describe("identity control-plane schema contracts", () => {
         ]),
       ),
     );
-
-    expect(schema.entities.principal.fields).toMatchObject({
+    expect(
+      definitionRecord(
+        schema.entities.find((definition) => definition.key === "principal")!.fields,
+      ),
+    ).toMatchObject({
       displayName: { type: "text", required: true },
       kind: {
         type: "enum",
         required: true,
-        values: { human: { label: "Human" }, service: { label: "Service" } },
+        values: [
+          { key: "human", label: "Human" },
+          { key: "service", label: "Service" },
+        ],
       },
       status: {
         type: "enum",
         required: true,
-        values: {
-          active: { label: "Active" },
-          disabled: { label: "Disabled" },
-          invited: { label: "Invited" },
-        },
+        values: [
+          { key: "active", label: "Active" },
+          { key: "disabled", label: "Disabled" },
+          { key: "invited", label: "Invited" },
+        ],
       },
     });
-    expect(schema.entities["principal-email"].fields).toMatchObject({
+    expect(
+      definitionRecord(
+        schema.entities.find((definition) => definition.key === "principal-email")!.fields,
+      ),
+    ).toMatchObject({
       principal: { type: "reference", required: true, to: "principal" },
       displayEmail: { type: "text", required: true },
       normalizedEmail: { type: "text", required: true },
       verificationStatus: {
         type: "enum",
         required: true,
-        values: { unverified: { label: "Unverified" }, verified: { label: "Verified" } },
+        values: [
+          { key: "unverified", label: "Unverified" },
+          { key: "verified", label: "Verified" },
+        ],
       },
       primary: { type: "boolean", required: true, default: false },
       recovery: { type: "boolean", required: true, default: false },
       verifiedAt: { type: "text", required: false },
     });
-    expect(schema.entities["principal-email"].constraints).toEqual({
+    expect(
+      definitionRecord(
+        schema.entities.find((definition) => definition.key === "principal-email")!.constraints ??
+          [],
+      ),
+    ).toEqual({
       uniqueNormalizedEmail: { kind: "unique", fields: ["normalizedEmail"] },
     });
-    expect(schema.entities.group.fields).toMatchObject({
+    expect(
+      definitionRecord(schema.entities.find((definition) => definition.key === "group")!.fields),
+    ).toMatchObject({
       displayName: { type: "text", required: true },
       status: { type: "enum", required: true },
     });
-    expect(schema.entities.organization.fields).toMatchObject({
+    expect(
+      definitionRecord(
+        schema.entities.find((definition) => definition.key === "organization")!.fields,
+      ),
+    ).toMatchObject({
       displayName: { type: "text", required: true },
       status: { type: "enum", required: true },
     });
-    expect(schema.entities.membership.fields).toMatchObject({
+    expect(
+      definitionRecord(
+        schema.entities.find((definition) => definition.key === "membership")!.fields,
+      ),
+    ).toMatchObject({
       principal: { type: "reference", required: true, to: "principal" },
       targetKind: {
         type: "enum",
         required: true,
-        values: { group: { label: "Group" }, organization: { label: "Organization" } },
+        values: [
+          { key: "group", label: "Group" },
+          { key: "organization", label: "Organization" },
+        ],
       },
       targetGroup: { type: "reference", required: false, to: "group" },
       targetOrganization: { type: "reference", required: false, to: "organization" },
       status: { type: "enum", required: true },
     });
-    expect(schema.entities.membership.constraints ?? {}).toEqual({});
-    expect(schema.entities.role.fields).toMatchObject({
+    expect(
+      schema.entities.find((definition) => definition.key === "membership")!.constraints ?? [],
+    ).toEqual([]);
+    expect(
+      definitionRecord(schema.entities.find((definition) => definition.key === "role")!.fields),
+    ).toMatchObject({
       key: {
         type: "enum",
         required: true,
-        values: {
-          "app.admin": { label: "app.admin" },
-          "app.editor": { label: "app.editor" },
-          "app.user": { label: "app.user" },
-          "app.viewer": { label: "app.viewer" },
-          "instance.admin": { label: "instance.admin" },
-          "instance.owner": { label: "instance.owner" },
-        },
+        values: [
+          { key: "instance.owner", label: "instance.owner" },
+          { key: "instance.admin", label: "instance.admin" },
+          { key: "app.admin", label: "app.admin" },
+          { key: "app.editor", label: "app.editor" },
+          { key: "app.viewer", label: "app.viewer" },
+          { key: "app.user", label: "app.user" },
+        ],
       },
       displayLabel: { type: "text", required: true },
       status: { type: "enum", required: true },
     });
-    expect(schema.entities.role.constraints).toEqual({
+    expect(
+      definitionRecord(
+        schema.entities.find((definition) => definition.key === "role")!.constraints ?? [],
+      ),
+    ).toEqual({
       uniqueKey: { kind: "unique", fields: ["key"] },
     });
-    expect(schema.entities["role-assignment"].fields).toMatchObject({
+    expect(
+      definitionRecord(
+        schema.entities.find((definition) => definition.key === "role-assignment")!.fields,
+      ),
+    ).toMatchObject({
       role: { type: "reference", required: true, to: "role" },
       targetKind: {
         type: "enum",
         required: true,
-        values: {
-          group: { label: "Group" },
-          organization: { label: "Organization" },
-          principal: { label: "Principal" },
-        },
+        values: [
+          { key: "group", label: "Group" },
+          { key: "organization", label: "Organization" },
+          { key: "principal", label: "Principal" },
+        ],
       },
       targetPrincipal: { type: "reference", required: false, to: "principal" },
       targetGroup: { type: "reference", required: false, to: "group" },
@@ -220,43 +262,56 @@ describe("identity control-plane schema contracts", () => {
       scopeKind: {
         type: "enum",
         required: true,
-        values: {
-          "app-install": { label: "App install" },
-          instance: { label: "Instance" },
-          organization: { label: "Organization" },
-        },
+        values: [
+          { key: "app-install", label: "App install" },
+          { key: "instance", label: "Instance" },
+          { key: "organization", label: "Organization" },
+        ],
       },
       appInstallId: { type: "text", required: false },
       scopeOrganization: { type: "reference", required: false, to: "organization" },
       status: { type: "enum", required: true },
     });
-    expect(schema.entities["role-assignment"].constraints ?? {}).toEqual({});
-    expect(schema.entities["app-registration"].fields).toMatchObject({
+    expect(
+      schema.entities.find((definition) => definition.key === "role-assignment")!.constraints ?? [],
+    ).toEqual([]);
+    expect(
+      definitionRecord(
+        schema.entities.find((definition) => definition.key === "app-registration")!.fields,
+      ),
+    ).toMatchObject({
       appInstallId: { type: "text", required: true },
       targetKind: {
         type: "enum",
         required: true,
-        values: {
-          organization: { label: "Organization" },
-          principal: { label: "Principal" },
-        },
+        values: [
+          { key: "organization", label: "Organization" },
+          { key: "principal", label: "Principal" },
+        ],
       },
       targetPrincipal: { type: "reference", required: false, to: "principal" },
       targetOrganization: { type: "reference", required: false, to: "organization" },
       status: { type: "enum", required: true },
       selectedOrganization: { type: "reference", required: false, to: "organization" },
     });
-    expect(schema.entities["app-registration"].constraints ?? {}).toEqual({});
-    expect(schema.entities.invitation.fields).toMatchObject({
+    expect(
+      schema.entities.find((definition) => definition.key === "app-registration")!.constraints ??
+        [],
+    ).toEqual([]);
+    expect(
+      definitionRecord(
+        schema.entities.find((definition) => definition.key === "invitation")!.fields,
+      ),
+    ).toMatchObject({
       targetEmail: { type: "text", required: true },
       targetSurface: {
         type: "enum",
         required: true,
-        values: {
-          "app-install": { label: "App install" },
-          instance: { label: "Instance" },
-          organization: { label: "Organization" },
-        },
+        values: [
+          { key: "app-install", label: "App install" },
+          { key: "instance", label: "Instance" },
+          { key: "organization", label: "Organization" },
+        ],
       },
       targetAppInstallId: { type: "text", required: false },
       targetOrganization: { type: "reference", required: false, to: "organization" },
@@ -265,178 +320,247 @@ describe("identity control-plane schema contracts", () => {
       status: {
         type: "enum",
         required: true,
-        values: {
-          accepted: { label: "Accepted" },
-          expired: { label: "Expired" },
-          pending: { label: "Pending" },
-          revoked: { label: "Revoked" },
-        },
+        values: [
+          { key: "accepted", label: "Accepted" },
+          { key: "expired", label: "Expired" },
+          { key: "pending", label: "Pending" },
+          { key: "revoked", label: "Revoked" },
+        ],
       },
       expiresAt: { type: "text", required: true },
       acceptedAt: { type: "text", required: false },
     });
-    expect(schema.entities["account-policy"].fields).toMatchObject({
+    expect(
+      definitionRecord(
+        schema.entities.find((definition) => definition.key === "account-policy")!.fields,
+      ),
+    ).toMatchObject({
       displayName: { type: "text", required: true },
       policyKey: { type: "text", required: true },
       version: { type: "text", required: true },
       scopeKind: {
         type: "enum",
         required: true,
-        values: {
-          "app-install": { label: "App install" },
-          instance: { label: "Instance" },
-          organization: { label: "Organization" },
-        },
+        values: [
+          { key: "app-install", label: "App install" },
+          { key: "instance", label: "Instance" },
+          { key: "organization", label: "Organization" },
+        ],
       },
       appInstallId: { type: "text", required: false },
       scopeOrganization: { type: "reference", required: false, to: "organization" },
       status: {
         type: "enum",
         required: true,
-        values: {
-          active: { label: "Active" },
-          retired: { label: "Retired" },
-        },
+        values: [
+          { key: "active", label: "Active" },
+          { key: "retired", label: "Retired" },
+        ],
       },
       publishedAt: { type: "text", required: false },
       policyDocumentUrl: { type: "text", required: false, format: "href" },
       policyContentRef: { type: "text", required: false },
     });
-    expect(schema.entities["account-policy"].constraints ?? {}).toEqual({});
-    expect(schema.entities["principal-policy-acceptance"].fields).toMatchObject({
+    expect(
+      schema.entities.find((definition) => definition.key === "account-policy")!.constraints ?? [],
+    ).toEqual([]);
+    expect(
+      definitionRecord(
+        schema.entities.find((definition) => definition.key === "principal-policy-acceptance")!
+          .fields,
+      ),
+    ).toMatchObject({
       principal: { type: "reference", required: true, to: "principal" },
       accountPolicy: { type: "reference", required: true, to: "account-policy" },
       status: {
         type: "enum",
         required: true,
-        values: {
-          accepted: { label: "Accepted" },
-          revoked: { label: "Revoked" },
-        },
+        values: [
+          { key: "accepted", label: "Accepted" },
+          { key: "revoked", label: "Revoked" },
+        ],
       },
       acceptedAt: { type: "text", required: true },
     });
-    expect(schema.entities["principal-policy-acceptance"].constraints ?? {}).toEqual({});
+    expect(
+      schema.entities.find((definition) => definition.key === "principal-policy-acceptance")!
+        .constraints ?? [],
+    ).toEqual([]);
   });
-
   it("declares local relationship shapes for fixed identity references", () => {
     const schema = identityControlPlaneSchema;
-
-    expect(schema.relationships?.principalEmailPrincipal).toEqual({
+    expect(
+      schema.relationships?.find((definition) => definition.key === "principalEmailPrincipal"),
+    ).toMatchObject({
       kind: "toOne",
       label: "Principal email principal",
       from: { entity: "principal-email", field: "principal" },
       to: { entity: "principal" },
       inverse: "principalEmails",
     });
-    expect(schema.relationships?.principalEmails).toEqual({
+    expect(
+      schema.relationships?.find((definition) => definition.key === "principalEmails"),
+    ).toMatchObject({
       kind: "toMany",
       label: "Principal emails",
       from: { entity: "principal" },
       to: { entity: "principal-email", field: "principal" },
       inverse: "principalEmailPrincipal",
     });
-    expect(schema.relationships?.membershipGroup).toMatchObject({
+    expect(
+      schema.relationships?.find((definition) => definition.key === "membershipGroup"),
+    ).toMatchObject({
       kind: "toOne",
       from: { entity: "membership", field: "targetGroup" },
       to: { entity: "group" },
     });
-    expect(schema.relationships?.membershipOrganization).toMatchObject({
+    expect(
+      schema.relationships?.find((definition) => definition.key === "membershipOrganization"),
+    ).toMatchObject({
       kind: "toOne",
       from: { entity: "membership", field: "targetOrganization" },
       to: { entity: "organization" },
     });
-    expect(schema.relationships?.roleAssignmentRole).toMatchObject({
+    expect(
+      schema.relationships?.find((definition) => definition.key === "roleAssignmentRole"),
+    ).toMatchObject({
       kind: "toOne",
       from: { entity: "role-assignment", field: "role" },
       to: { entity: "role" },
     });
-    expect(schema.relationships?.appRegistrationSelectedOrganization).toMatchObject({
+    expect(
+      schema.relationships?.find(
+        (definition) => definition.key === "appRegistrationSelectedOrganization",
+      ),
+    ).toMatchObject({
       kind: "toOne",
       from: { entity: "app-registration", field: "selectedOrganization" },
       to: { entity: "organization" },
     });
-    expect(schema.relationships?.invitationInvitedPrincipal).toMatchObject({
+    expect(
+      schema.relationships?.find((definition) => definition.key === "invitationInvitedPrincipal"),
+    ).toMatchObject({
       kind: "toOne",
       from: { entity: "invitation", field: "invitedPrincipal" },
       to: { entity: "principal" },
     });
-    expect(schema.relationships?.accountPolicyScopeOrganization).toMatchObject({
+    expect(
+      schema.relationships?.find(
+        (definition) => definition.key === "accountPolicyScopeOrganization",
+      ),
+    ).toMatchObject({
       kind: "toOne",
       from: { entity: "account-policy", field: "scopeOrganization" },
       to: { entity: "organization" },
     });
-    expect(schema.relationships?.principalPolicyAcceptancePrincipal).toMatchObject({
+    expect(
+      schema.relationships?.find(
+        (definition) => definition.key === "principalPolicyAcceptancePrincipal",
+      ),
+    ).toMatchObject({
       kind: "toOne",
       from: { entity: "principal-policy-acceptance", field: "principal" },
       to: { entity: "principal" },
     });
-    expect(schema.relationships?.principalPolicyAcceptancePolicy).toMatchObject({
+    expect(
+      schema.relationships?.find(
+        (definition) => definition.key === "principalPolicyAcceptancePolicy",
+      ),
+    ).toMatchObject({
       kind: "toOne",
       from: { entity: "principal-policy-acceptance", field: "accountPolicy" },
       to: { entity: "account-policy" },
     });
   });
-
   it("declares generated write operations without private auth-state entities", () => {
     const schema = identityControlPlaneSchema;
-
     for (const entityName of identityControlPlaneEntityNames) {
-      const operations = schema.entities[entityName].operations;
-
-      expect(operations?.create).toMatchObject({
+      const operations = schema.entities.find(
+        (definition) => definition.key === entityName,
+      )!.operations;
+      expect(operation(operations, "create")).toMatchObject({
         kind: "create",
         scope: "collection",
         effect: { type: "createRecord" },
         output: { type: "create" },
       });
-      expect(operations?.update).toMatchObject({
+      expect(operation(operations, "update")).toMatchObject({
         kind: "update",
         scope: "record",
         effect: { type: "patchRecord" },
         output: { type: "update" },
       });
-      expect(Object.keys(operations?.create.input?.fields ?? {})).toEqual(
-        Object.keys(schema.entities[entityName].fields),
+      expect(operation(operations, "create").input?.fields?.map(({ key }) => key)).toEqual(
+        schema.entities
+          .find((definition) => definition.key === entityName)!
+          .fields.map(({ key }) => key),
       );
     }
-
-    expect(Object.keys(schema.entities.principal.operations?.update.input?.fields ?? {})).toEqual([
-      "displayName",
-      "status",
-    ]);
     expect(
-      Object.keys(schema.entities["principal-email"].operations?.update.input?.fields ?? {}),
+      operation(
+        schema.entities.find((definition) => definition.key === "principal")!.operations,
+        "update",
+      ).input?.fields?.map(({ key }) => key),
+    ).toEqual(["displayName", "status"]);
+    expect(
+      operation(
+        schema.entities.find((definition) => definition.key === "principal-email")!.operations,
+        "update",
+      ).input?.fields?.map(({ key }) => key),
     ).toEqual(["displayEmail", "verificationStatus", "primary", "recovery", "verifiedAt"]);
-    expect(Object.keys(schema.entities.membership.operations?.update.input?.fields ?? {})).toEqual([
-      "status",
-    ]);
     expect(
-      Object.keys(schema.entities["role-assignment"].operations?.update.input?.fields ?? {}),
+      operation(
+        schema.entities.find((definition) => definition.key === "membership")!.operations,
+        "update",
+      ).input?.fields?.map(({ key }) => key),
     ).toEqual(["status"]);
-    expect(schema.entities["role-assignment"].operations?.delete).toMatchObject({
+    expect(
+      operation(
+        schema.entities.find((definition) => definition.key === "role-assignment")!.operations,
+        "update",
+      ).input?.fields?.map(({ key }) => key),
+    ).toEqual(["status"]);
+    expect(
+      operation(
+        schema.entities.find((definition) => definition.key === "role-assignment")!.operations,
+        "delete",
+      ),
+    ).toMatchObject({
       kind: "delete",
       scope: "record",
       effect: { type: "deleteRecord" },
       output: { type: "delete" },
     });
-    expect(schema.entities.principal.operations?.delete).toBeUndefined();
     expect(
-      Object.keys(schema.entities["app-registration"].operations?.update.input?.fields ?? {}),
+      schema.entities
+        .find((definition) => definition.key === "principal")!
+        .operations?.find((definition) => definition.key === "delete"),
+    ).toBeUndefined();
+    expect(
+      operation(
+        schema.entities.find((definition) => definition.key === "app-registration")!.operations,
+        "update",
+      ).input?.fields?.map(({ key }) => key),
     ).toEqual(["status", "selectedOrganization"]);
-    expect(Object.keys(schema.entities.invitation.operations?.update.input?.fields ?? {})).toEqual([
-      "status",
-      "acceptedAt",
-    ]);
     expect(
-      Object.keys(schema.entities["account-policy"].operations?.update.input?.fields ?? {}),
+      operation(
+        schema.entities.find((definition) => definition.key === "invitation")!.operations,
+        "update",
+      ).input?.fields?.map(({ key }) => key),
+    ).toEqual(["status", "acceptedAt"]);
+    expect(
+      operation(
+        schema.entities.find((definition) => definition.key === "account-policy")!.operations,
+        "update",
+      ).input?.fields?.map(({ key }) => key),
     ).toEqual(["displayName", "status", "publishedAt"]);
     expect(
-      Object.keys(
-        schema.entities["principal-policy-acceptance"].operations?.update.input?.fields ?? {},
-      ),
+      operation(
+        schema.entities.find((definition) => definition.key === "principal-policy-acceptance")!
+          .operations,
+        "update",
+      ).input?.fields?.map(({ key }) => key),
     ).toEqual(["status"]);
-
     for (const privateEntity of privateAuthStateEntities) {
       expect(schema.entities).not.toHaveProperty(privateEntity);
     }
@@ -1178,11 +1302,21 @@ describe("identity control-plane schema contracts", () => {
     ).toThrow("cannot grant collaborator memberships with instance admin authority");
   });
 });
-
+function operation<T extends { key: string }>(
+  definitions: readonly T[] | undefined,
+  key: string,
+): T {
+  const value = definitions?.find((definition) => definition.key === key);
+  if (!value) {
+    throw new Error(`Missing operation "${key}".`);
+  }
+  return value;
+}
 const testNow = "2026-06-26T00:00:00.000Z";
-
 function identityCollaboratorInvitationGrantPolicyRecords(
-  options: { removedAdminAuthority?: boolean } = {},
+  options: {
+    removedAdminAuthority?: boolean;
+  } = {},
 ): StoredRecord[] {
   return [
     identityRecord("principal", "principal:owner", {
@@ -1477,7 +1611,13 @@ function identityRecord(
 function replaceRecord(records: StoredRecord[], replacement: StoredRecord): StoredRecord[] {
   return records.map((record) => (record.id === replacement.id ? replacement : record));
 }
-
+function definitionRecord<Definition extends { key: string }>(
+  definitions: readonly Definition[],
+): Record<string, Omit<Definition, "key">> {
+  return Object.fromEntries(
+    definitions.map(({ key, ...definition }) => [key, definition]),
+  ) as Record<string, Omit<Definition, "key">>;
+}
 function omitUndefined<T extends Record<string, string | undefined>>(values: T) {
   return Object.fromEntries(
     Object.entries(values).filter((entry): entry is [string, string] => entry[1] !== undefined),

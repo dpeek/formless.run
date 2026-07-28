@@ -4,22 +4,26 @@ import { tasksRecordSchemaModule } from "./schema-records.ts";
 export const tasksPresentationSchemaModule = defineAppSchemaModule({
   key: "tasks-presentation",
   requires: [tasksRecordSchemaModule],
-  itemViews: {
-    taskListItem: {
+  itemViews: [
+    {
+      key: "taskListItem",
       entity: "task",
-      fields: {
-        title: {
+      fields: [
+        {
+          field: "title",
           editor: "text",
           commit: "field-commit",
         },
-        dueDate: {
+        {
+          field: "dueDate",
           editor: "date",
           commit: "field-commit",
           presentation: {
             visibility: "valueOrInteraction",
           },
         },
-        priority: {
+        {
+          field: "priority",
           editor: "enum",
           commit: "immediate",
           presentation: {
@@ -28,18 +32,20 @@ export const tasksPresentationSchemaModule = defineAppSchemaModule({
             trigger: "icon",
           },
         },
-        done: {
+        {
+          field: "done",
           editor: "boolean",
           commit: "immediate",
           presentation: {
             mode: "completion",
           },
         },
-      },
+      ],
     },
-  },
-  views: {
-    taskHome: {
+  ],
+  views: [
+    {
+      key: "taskHome",
       type: "collection",
       label: "Tasks",
       entity: "task",
@@ -87,30 +93,32 @@ export const tasksPresentationSchemaModule = defineAppSchemaModule({
         },
       ],
     },
-    taskCreate: {
+    {
+      key: "taskCreate",
       type: "create",
       entity: "task",
-      fields: {
-        title: {
+      fields: [
+        {
+          field: "title",
           editor: "text",
         },
-        dueDate: {
+        {
+          field: "dueDate",
           editor: "date",
         },
-        priority: {
+        {
+          field: "priority",
           editor: "enum",
         },
-      },
+      ],
     },
-  },
-  screens: {
-    taskHome: {
+  ],
+  screens: [
+    {
+      key: "taskHome",
       type: "workspace",
       label: "Tasks",
       path: "/",
-      navigation: {
-        primary: true,
-      },
       layout: {
         type: "stack",
         sections: [
@@ -122,5 +130,5 @@ export const tasksPresentationSchemaModule = defineAppSchemaModule({
         ],
       },
     },
-  },
+  ],
 });

@@ -469,8 +469,11 @@ function genericCase(
     values: { ...genericValidValues, ...options.values },
   });
 }
-
-function contactValues(options: { email?: string } = {}): Record<string, SitePublicFormFieldValue> {
+function contactValues(
+  options: {
+    email?: string;
+  } = {},
+): Record<string, SitePublicFormFieldValue> {
   return {
     name: "Ada Lovelace",
     email: options.email ?? "",

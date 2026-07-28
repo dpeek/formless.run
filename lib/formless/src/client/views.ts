@@ -17,7 +17,6 @@ import type {
   FieldSchema,
   ScreenAccessSchema,
   ScreenLayoutWidthSchema,
-  ScreenNavigationSchema,
   ScreenSchema,
   ToManyRelationshipSchema,
   TableColumnAlign,
@@ -150,12 +149,15 @@ export type RecordFieldConfig = {
   presentation?: FieldPresentationSchema;
   valueUnit?: ValueUnitFieldConfig;
 };
-
 export type ValueUnitFieldConfig = {
   unitFieldName: string;
-  unitField: Extract<FieldSchema, { type: "enum" }>;
+  unitField: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >;
 };
-
 export type TableColumnBaseConfig = {
   key: string;
   label: string;
@@ -227,7 +229,12 @@ export type TableEditRecordTargetConfig =
   | {
       kind: "reference";
       fieldName: string;
-      field: Extract<FieldSchema, { type: "reference" }>;
+      field: Extract<
+        FieldSchema,
+        {
+          type: "reference";
+        }
+      >;
       entityName: string;
       entity: EntitySchema;
     };
@@ -315,7 +322,12 @@ export type RecordUnionPresentationConfig = {
   unionName: string;
   union: EntityUnionSchema;
   discriminatorFieldName: string;
-  discriminatorField: Extract<FieldSchema, { type: "enum" }>;
+  discriminatorField: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >;
   variants: RecordVariantPresentationConfig[];
   fallback?: RecordFallbackPresentationConfig;
 };
@@ -343,7 +355,12 @@ export type CreateUnionPresentationConfig = {
   unionName: string;
   union: EntityUnionSchema;
   discriminatorFieldName: string;
-  discriminatorField: Extract<FieldSchema, { type: "enum" }>;
+  discriminatorField: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >;
   variants: CreateVariantPresentationConfig[];
   fallback?: CreateFallbackPresentationConfig;
 };
@@ -358,10 +375,14 @@ export type TreeAllowedChildVariantConfig = {
   unionVariant: EntityUnionVariantSchema;
   placementValues?: Record<string, FieldVisibilityValue>;
 };
-
 export type TreeVariantBranchPolicyConfig = {
   discriminatorFieldName: string;
-  discriminatorField: Extract<FieldSchema, { type: "enum" }>;
+  discriminatorField: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >;
   leafVariantValues: string[];
   allowedChildVariantsByParentVariant: Record<string, TreeAllowedChildVariantConfig[]>;
 };
@@ -418,7 +439,12 @@ export type HomeResultConfig =
       relationshipName: string;
       relationship: ToManyRelationshipSchema;
       childFieldName: string;
-      childField: Extract<FieldSchema, { type: "reference" }>;
+      childField: Extract<
+        FieldSchema,
+        {
+          type: "reference";
+        }
+      >;
       childEntityName: string;
       childEntity: EntitySchema;
       childUpdateOperation?: EntityOperationPresentationConfig;
@@ -477,10 +503,11 @@ export type HomeScreenModel = {
   label: string;
   path?: string;
   access?: ScreenAccessSchema;
-  navigation: ScreenNavigationSchema;
+  navigation: {
+    primary: boolean;
+  };
   layout: HomeScreenLayoutModel;
 };
-
 export function selectPrimaryCollectionModels(schema: AppSchema): HomeViewModel[] {
   return selectCollectionModels(schema).filter((model) => model.navigation.primary);
 }
@@ -495,32 +522,31 @@ export function selectScreenModelByPath(
 ): HomeScreenModel | undefined {
   return selectScreenModels(schema).find((model) => model.path === path);
 }
-
 export function selectScreenModels(schema: AppSchema): HomeScreenModel[] {
-  if (schema.screens === undefined) {
-    throw new Error('Schema must include "screens".');
-  }
-
   const collectionModelsByViewName = new Map(
     selectCollectionModels(schema).map((model) => [model.viewName, model]),
   );
-
+  const primaryScreenNames = new Set(
+    schema.navigation?.primaryScreens ?? schema.screens.map(({ key }) => key),
+  );
   return assignScreenModelPaths(
-    Object.entries(schema.screens).map(([screenName, screen]) =>
-      selectScreenModel(screenName, screen, collectionModelsByViewName),
+    schema.screens.map((screen) =>
+      selectScreenModel(
+        screen.key,
+        screen,
+        primaryScreenNames.has(screen.key),
+        collectionModelsByViewName,
+      ),
     ),
   );
 }
-
 export function selectCollectionModels(schema: AppSchema): HomeViewModel[] {
-  const viewEntries = Object.entries(schema.views);
+  const viewEntries: Array<[string, ViewSchema]> = schema.views.map((view) => [view.key, view]);
   const collectionViewEntries = viewEntries.filter(
     (entry): entry is [string, CollectionViewSchema] => entry[1].type === "collection",
   );
-
   return collectionViewEntries.map(([viewName, collectionView]) => {
-    const entity = schema.entities[collectionView.entity];
-
+    const entity = schema.entities.find((definition) => definition.key === collectionView.entity)!;
     if (!entity) {
       throw new Error(`Missing entity "${collectionView.entity}".`);
     }
@@ -548,6 +574,7 @@ export function selectCollectionModels(schema: AppSchema): HomeViewModel[] {
 function selectScreenModel(
   screenName: string,
   screen: ScreenSchema,
+  primary: boolean,
   collectionModelsByViewName: Map<string, HomeViewModel>,
 ): HomeScreenModel {
   return {
@@ -557,7 +584,7 @@ function selectScreenModel(
     ...(screen.path === undefined ? {} : { path: screen.path }),
     ...(screen.access === undefined ? {} : { access: screen.access }),
     navigation: {
-      primary: screen.navigation?.primary ?? true,
+      primary,
     },
     layout: {
       type: screen.layout.type,

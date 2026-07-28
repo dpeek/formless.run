@@ -503,7 +503,9 @@ function unavailableCollection(scope: WorkspaceIntentScope): WorkspaceCollection
 function context<P extends WorkspaceContextContract["presentation"]>(
   scope: WorkspaceIntentScope,
   presentation: P,
-): WorkspaceContextContract & { presentation: P } {
+): WorkspaceContextContract & {
+  presentation: P;
+} {
   const contextId = "context:project";
   return {
     accessibilityLabel: "Project contexts",

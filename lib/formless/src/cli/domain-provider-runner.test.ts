@@ -34,8 +34,14 @@ describe("domain provider Alchemy runner", () => {
       zoneId: "zone-1",
       zoneName: "example.com",
     };
-    const requests: Array<{ body: unknown; url: string }> = [];
-    const runnerCalls: Array<{ appName: string; options: unknown }> = [];
+    const requests: Array<{
+      body: unknown;
+      url: string;
+    }> = [];
+    const runnerCalls: Array<{
+      appName: string;
+      options: unknown;
+    }> = [];
     const runtime: DomainProviderAlchemyRuntime = {
       factories: {
         CustomDomain: async (_id, props) => ({
@@ -187,7 +193,10 @@ describe("domain provider Alchemy runner", () => {
       zoneId: "zone-1",
       zoneName: "example.com",
     };
-    const requests: Array<{ body: unknown; url: string }> = [];
+    const requests: Array<{
+      body: unknown;
+      url: string;
+    }> = [];
     const runtime: DomainProviderAlchemyRuntime = {
       factories: {
         CustomDomain: async (id) => {

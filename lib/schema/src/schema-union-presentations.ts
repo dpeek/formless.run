@@ -1,4 +1,9 @@
-import { assertExactKeys, isRecord, parseRequiredNonEmptyString } from "./schema-parse-helpers.ts";
+import {
+  assertExactKeys,
+  definitionsToRecord,
+  isRecord,
+  parseRequiredNonEmptyString,
+} from "./schema-parse-helpers.ts";
 import {
   assertViewHasFields,
   parseCreateViewFields,
@@ -7,14 +12,16 @@ import {
 import type {
   ContextSelectionTargetSchema,
   CreateViewVariantFieldsPresentationSchema,
+  CreateViewVariantBindingSchema,
   CreateViewVariantPresentationSchema,
   EditViewVariantPresentationSchema,
+  EditViewVariantBindingSchema,
   EntitySchema,
   EntityUnionSchema,
   ItemViewVariantPresentationSchema,
+  ItemViewVariantBindingSchema,
   ViewVariantFieldsPresentationSchema,
 } from "./types.ts";
-
 export function parseItemViewUnionPresentation(
   context: string,
   viewName: string,
@@ -25,7 +32,7 @@ export function parseItemViewUnionPresentation(
 ):
   | {
       union: string;
-      variants: Record<string, ItemViewVariantPresentationSchema>;
+      variants: ItemViewVariantBindingSchema[];
       fallback?: ItemViewVariantPresentationSchema;
     }
   | Record<string, never> {
@@ -56,7 +63,7 @@ export function parseEditViewUnionPresentation(
 ):
   | {
       union: string;
-      variants: Record<string, EditViewVariantPresentationSchema>;
+      variants: EditViewVariantBindingSchema[];
       fallback?: EditViewVariantPresentationSchema;
     }
   | Record<string, never> {
@@ -87,7 +94,7 @@ export function parseCreateViewUnionPresentation(
 ):
   | {
       union: string;
-      variants: Record<string, CreateViewVariantPresentationSchema>;
+      variants: CreateViewVariantBindingSchema[];
       fallback?: CreateViewVariantPresentationSchema;
     }
   | Record<string, never> {
@@ -107,8 +114,7 @@ export function parseCreateViewUnionPresentation(
       ),
   );
 }
-
-function parseViewUnionPresentation<TPresentation>(
+function parseViewUnionPresentation<TPresentation extends object>(
   context: string,
   viewName: string,
   value: Record<string, unknown>,
@@ -118,7 +124,9 @@ function parseViewUnionPresentation<TPresentation>(
 ):
   | {
       union: string;
-      variants: Record<string, TPresentation>;
+      variants: (TPresentation & {
+        variant: string;
+      })[];
       fallback?: TPresentation;
     }
   | Record<string, never> {
@@ -155,48 +163,58 @@ function parseViewUnionPresentation<TPresentation>(
     ...(fallback === undefined ? {} : { fallback }),
   };
 }
-
-function parseViewUnionVariants<TPresentation>(
+function parseViewUnionVariants<TPresentation extends object>(
   context: string,
   viewName: string,
   value: unknown,
   union: EntityUnionSchema,
   parseVariant: (context: string, viewName: string, value: unknown) => TPresentation,
-): Record<string, TPresentation> {
-  if (!isRecord(value)) {
-    throw new Error(`${context} variants must be an object.`);
+): (TPresentation & {
+  variant: string;
+})[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`${context} variants must be an array.`);
   }
-
-  const entries = Object.entries(value);
-  if (entries.length === 0) {
+  if (value.length === 0) {
     throw new Error(`${context} variants must not be empty.`);
   }
-
-  return Object.fromEntries(
-    entries.map(([variantName, variant]) => {
-      if (variantName.trim() === "") {
-        throw new Error(`${context} variant keys must be non-empty strings.`);
-      }
-
-      if (union.variants[variantName] === undefined) {
-        throw new Error(
-          `${context} variant "${variantName}" must match a variant in union "${union.entity}.${union.discriminator}".`,
-        );
-      }
-
-      return [
-        variantName,
-        parseVariant(`${context} variant "${variantName}"`, `${viewName}.${variantName}`, variant),
-      ];
-    }),
-  );
+  const variantsByKey = definitionsToRecord(union.variants);
+  const seen = new Set<string>();
+  return value.map((variant, index) => {
+    if (!isRecord(variant)) {
+      throw new Error(`${context} variant ${index} must be an object.`);
+    }
+    const variantName = parseRequiredNonEmptyString(
+      `${context} variant ${index} variant`,
+      variant.variant,
+    );
+    if (seen.has(variantName)) {
+      throw new Error(`${context} variants reference duplicate "${variantName}".`);
+    }
+    seen.add(variantName);
+    if (variantsByKey[variantName] === undefined) {
+      throw new Error(
+        `${context} variant "${variantName}" must match a variant in union "${union.entity}.${union.discriminator}".`,
+      );
+    }
+    const { variant: _variant, ...presentationSource } = variant;
+    return {
+      variant: variantName,
+      ...parseVariant(
+        `${context} variant "${variantName}"`,
+        `${viewName}.${variantName}`,
+        presentationSource,
+      ),
+    };
+  });
 }
-
-function assertViewUnionCoverage<TPresentation>(
+function assertViewUnionCoverage<TPresentation extends object>(
   context: string,
   unionName: string,
   union: EntityUnionSchema,
-  variants: Record<string, TPresentation>,
+  variants: (TPresentation & {
+    variant: string;
+  })[],
   fallback: TPresentation | undefined,
 ) {
   if (fallback !== undefined) {
@@ -208,16 +226,13 @@ function assertViewUnionCoverage<TPresentation>(
       `${context} union "${unionName}" must define a fallback presentation because the union has a fallback.`,
     );
   }
-
-  const missingVariants = Object.keys(union.variants).filter(
-    (variantName) => variants[variantName] === undefined,
-  );
-
+  const presentedVariants = new Set(variants.map((variant) => variant.variant));
+  const missingVariants = union.variants
+    .map((variant) => variant.key)
+    .filter((variantName) => !presentedVariants.has(variantName));
   if (missingVariants.length > 0) {
     throw new Error(
-      `${context} union "${unionName}" must define variant presentations for "${missingVariants.join(
-        '", "',
-      )}" or a fallback.`,
+      `${context} union "${unionName}" must define variant presentations for "${missingVariants.join('", "')}" or a fallback.`,
     );
   }
 }
@@ -240,12 +255,9 @@ function parseItemViewVariantPresentation(
   if (value.presentation !== "contextLink") {
     throw new Error(`${context} presentation must be "fields" or "contextLink".`);
   }
-
   assertExactKeys(context, value, ["presentation", "labelField", "target"]);
-
   const labelField = parseRequiredNonEmptyString(`${context} labelField`, value.labelField);
-  const field = entity.fields[labelField];
-
+  const field = definitionsToRecord(entity.fields)[labelField];
   if (!field) {
     throw new Error(
       `${context} labelField references unknown field "${entityName}.${labelField}".`,

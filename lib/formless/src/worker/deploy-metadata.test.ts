@@ -68,9 +68,12 @@ describe("Worker deploy metadata", () => {
       { packageResolver: resolver },
     );
     const metadata = (await response?.json()) as {
-      packageApps: { packageAppKey: string; packageRevision: number; sourceSchemaHash: string }[];
+      packageApps: {
+        packageAppKey: string;
+        packageRevision: number;
+        sourceSchemaHash: string;
+      }[];
     };
-
     expect(metadata.packageApps.at(-1)).toEqual({
       packageAppKey: "private-labs",
       packageRevision: 7,

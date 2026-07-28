@@ -66,7 +66,7 @@ describe("icon catalog", () => {
     '<svg><path href="javascript:alert(1)" /></svg>',
     '<svg><path fill="url(https://example.com/pattern.svg)" /></svg>',
     "<svg><path></svg>",
-    `<svg>${" ".repeat(50_000)}</svg>`,
+    `<svg>${" ".repeat(50000)}</svg>`,
   ])("keeps unsafe, malformed, and oversized catalog source outside the safe policy", (source) => {
     expect(parseSourceSvg(source)).toBeNull();
   });

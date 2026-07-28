@@ -26,11 +26,12 @@ import {
 } from "../fixtures/public-site.ts";
 import { AstryxSitePresentation, FormlessSitePageRenderer } from "./site.tsx";
 import { FormlessSiteSystemStateRenderer } from "./site-system-state.tsx";
-
 const viewport = { isMobile: false };
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
+(
+  globalThis as {
+    IS_REACT_ACT_ENVIRONMENT?: boolean;
+  }
+).IS_REACT_ACT_ENVIRONMENT = true;
 beforeEach(() => {
   viewport.isMobile = false;
   vi.stubGlobal("matchMedia", (query: string) => ({

@@ -1194,9 +1194,10 @@ describe("generated tree foundation", () => {
     expect(unavailable.runtimePlan.removePlacements).toEqual([]);
   });
 });
-
 function siteTreeResult(placementItemView?: string): TreeResultModel {
-  const view = siteSourceSchema.views.siteCompositionHome;
+  const view = siteSourceSchema.views.find(
+    (definition) => definition.key === "siteCompositionHome",
+  )!;
   if (view?.type !== "collection" || view.result.type !== "tree") {
     throw new Error("Missing Site composition tree view.");
   }
@@ -1205,10 +1206,9 @@ function siteTreeResult(placementItemView?: string): TreeResultModel {
     siteSourceSchema,
     placementItemView === undefined ? view.result : { ...view.result, placementItemView },
     "block-placement",
-    siteSourceSchema.entities["block-placement"],
+    siteSourceSchema.entities.find((definition) => definition.key === "block-placement")!,
   );
 }
-
 function block(id: string, type: string, label: string): StoredRecord {
   return record(id, "block", { label, type });
 }
@@ -1240,12 +1240,14 @@ function objectKeys(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.flatMap(objectKeys);
   }
-
   return Object.entries(value).flatMap(([key, nested]) => [key, ...objectKeys(nested)]);
 }
-
 function selectedPlacements(
-  items: readonly { children: readonly unknown[]; placementId: string; selected: boolean }[],
+  items: readonly {
+    children: readonly unknown[];
+    placementId: string;
+    selected: boolean;
+  }[],
 ): string[] {
   return items.flatMap((item) => [
     ...(item.selected ? [item.placementId] : []),

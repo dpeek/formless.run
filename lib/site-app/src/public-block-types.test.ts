@@ -6,9 +6,17 @@ import { SITE_PUBLIC_BLOCK_TYPES } from "./public-block-types.ts";
 
 describe("Site public block types", () => {
   it("matches the block type enum in the source schema", () => {
-    const blockTypeField = rawSiteSourceSchema.entities.block.fields.type;
+    const blockTypeField = rawSiteSourceSchema.entities
+      .find(({ key }) => key === "block")!
+      .fields.find(({ key }) => key === "type")!;
 
-    expect(blockTypeField.type).toBe("enum");
-    expect(Object.keys(blockTypeField.values)).toEqual(SITE_PUBLIC_BLOCK_TYPES);
+    if (
+      blockTypeField.type !== "enum" ||
+      !("values" in blockTypeField) ||
+      !Array.isArray(blockTypeField.values)
+    ) {
+      throw new Error("Expected block.type to be an enum field.");
+    }
+    expect(blockTypeField.values.map(({ key }) => key)).toEqual(SITE_PUBLIC_BLOCK_TYPES);
   });
 });

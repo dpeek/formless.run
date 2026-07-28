@@ -302,7 +302,10 @@ export async function resolveFormlessCliWorkspaceTarget(input: {
 export function selectFormlessCliDeploymentConfig(
   records: readonly StoredRecord[],
   targetAlias: string | null | undefined,
-  options: { commandName: string; required: boolean },
+  options: {
+    commandName: string;
+    required: boolean;
+  },
 ): StoredRecord | undefined {
   const targets = records.filter(
     (record) =>

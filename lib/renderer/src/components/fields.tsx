@@ -37,12 +37,14 @@ import type {
   FieldIntentHandler,
 } from "@dpeek/formless-presentation/contract";
 import { AstryxApplicationSurfaceFrame } from "./application-surface-frame.tsx";
-
 type FieldOverrides = Record<string, FieldContract>;
-type StateTransitionInvokeIntent = Extract<FieldIntent, { type: "stateTransitionInvoke" }>;
-
+type StateTransitionInvokeIntent = Extract<
+  FieldIntent,
+  {
+    type: "stateTransitionInvoke";
+  }
+>;
 const stateTransitionSimulationDelayMs = 700;
-
 export function FormlessFieldsLayout() {
   const showToast = useToast();
   const [selectedKind, setSelectedKind] = useState<FieldKindKey>("enum");

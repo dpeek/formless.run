@@ -6,66 +6,56 @@ import { rateEntities, rateRelationships, rateSchema } from "./schema-test-fixtu
 describe("schema relationships", () => {
   it("parses optional to-one, to-many, and many-to-many relationships", () => {
     expect(parseAppSchema(rateSchema({ relationships: undefined })).relationships).toBeUndefined();
-
     const schema = parseAppSchema(rateSchema());
-
-    expect(schema.relationships?.rateCard).toEqual(rateRelationships().rateCard);
-    expect(schema.relationships?.cardRates).toEqual(rateRelationships().cardRates);
-    expect(schema.relationships?.cardResources).toEqual(rateRelationships().cardResources);
+    expect(schema.relationships?.find((definition) => definition.key === "rateCard")).toEqual(
+      relationship("rateCard"),
+    );
+    expect(schema.relationships?.find((definition) => definition.key === "cardRates")).toEqual(
+      relationship("cardRates"),
+    );
+    expect(schema.relationships?.find((definition) => definition.key === "cardResources")).toEqual(
+      relationship("cardResources"),
+    );
   });
-
   it("rejects invalid relationship endpoints, through constraints, and inverse links", () => {
     const relationships = rateRelationships();
     const invalidCases = [
       {
-        relationships: [],
-        message: "Schema relationships must be an object",
+        relationships: {},
+        message: "Schema relationships must be an array",
       },
       {
-        relationships: {
-          ...relationships,
-          rateCard: { ...relationships.rateCard, to: { entity: "resource" } },
-        },
+        relationships: replaceRelationship(relationships, "rateCard", {
+          to: { entity: "resource" },
+        }),
         message: 'from field "rate.card" must reference entity "resource"',
       },
       {
-        relationships: {
-          ...relationships,
-          cardRates: { ...relationships.cardRates, to: { entity: "rate", field: "resource" } },
-        },
+        relationships: replaceRelationship(relationships, "cardRates", {
+          to: { entity: "rate", field: "resource" },
+        }),
         message: 'to field "rate.resource" must reference entity "card"',
       },
       {
-        relationships: {
-          ...relationships,
-          cardResources: {
-            ...relationships.cardResources,
-            through: {
-              ...relationships.cardResources.through,
-              fromField: "cost",
-            },
+        relationships: replaceRelationship(relationships, "cardResources", {
+          through: {
+            ...relationship("cardResources").through,
+            fromField: "cost",
           },
-        },
+        }),
         message: 'through fromField field "rate.cost" must be a reference field',
       },
       {
-        relationships: {
-          ...relationships,
-          cardResources: {
-            ...relationships.cardResources,
-            through: {
-              ...relationships.cardResources.through,
-              uniqueConstraint: "missing",
-            },
+        relationships: replaceRelationship(relationships, "cardResources", {
+          through: {
+            ...relationship("cardResources").through,
+            uniqueConstraint: "missing",
           },
-        },
+        }),
         message: 'references unknown constraint "rate.missing"',
       },
       {
-        relationships: {
-          ...relationships,
-          rateCard: { ...relationships.rateCard, inverse: "missing" },
-        },
+        relationships: replaceRelationship(relationships, "rateCard", { inverse: "missing" }),
         message: 'inverse references unknown relationship "missing"',
       },
     ];
@@ -80,12 +70,22 @@ describe("schema relationships", () => {
       parseAppSchema(
         rateSchema({
           entities: rateEntities({
-            constraints: {
-              uniqueRatePair: { kind: "unique", fields: ["card"] },
-            },
+            constraints: [{ key: "uniqueRatePair", kind: "unique", fields: ["card"] }],
           }),
         }),
       ),
     ).toThrow('must cover through fields "card" and "resource"');
   });
 });
+function relationship(key: string) {
+  return rateRelationships().find((definition) => definition.key === key)!;
+}
+function replaceRelationship(
+  relationships: ReturnType<typeof rateRelationships>,
+  key: string,
+  patch: Record<string, unknown>,
+) {
+  return relationships.map((definition) =>
+    definition.key === key ? { ...definition, ...patch } : definition,
+  );
+}

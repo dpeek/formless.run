@@ -344,13 +344,14 @@ function recordingJsonFetcher(
 ): typeof fetch {
   return recordingJsonSequenceFetcher(calls, [{ body, init }]);
 }
-
 function recordingJsonSequenceFetcher(
   calls: FetchCall[],
-  responses: ReadonlyArray<{ body: unknown; init?: ResponseInit }>,
+  responses: ReadonlyArray<{
+    body: unknown;
+    init?: ResponseInit;
+  }>,
 ): typeof fetch {
   let index = 0;
-
   return async (input, requestInit) => {
     calls.push({
       body: typeof requestInit?.body === "string" ? JSON.parse(requestInit.body) : undefined,

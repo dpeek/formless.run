@@ -239,9 +239,7 @@ function publicListInvocation(): OperationInvocationEnvelope {
     scope: "collection",
     target: { query: "certificateLookup" },
     input: {
-      fields: {
-        lookup: { type: "text", required: true, label: "Lookup" },
-      },
+      fields: [{ key: "lookup", type: "text", required: true, label: "Lookup" }],
     },
     output: { type: "list", query: "certificateLookup", maxResults: 2 },
     idempotency: { required: false },
@@ -292,9 +290,7 @@ function operationSchema(kind: "create" | "command"): EntityOperationSchema {
     kind,
     scope: "collection",
     input: {
-      fields: {
-        value: { type: "text", required: true, label: "Value" },
-      },
+      fields: [{ key: "value", type: "text", required: true, label: "Value" }],
     },
     effect:
       kind === "create"
@@ -316,8 +312,12 @@ function operationSchema(kind: "create" | "command"): EntityOperationSchema {
     },
   };
 }
-
-function createOutput(): Extract<OperationInvocationOutput, { type: "create" }> {
+function createOutput(): Extract<
+  OperationInvocationOutput,
+  {
+    type: "create";
+  }
+> {
   const record: StoredRecord = {
     id: "contact-message-1",
     entity: "contact-message",
@@ -347,8 +347,12 @@ function createOutput(): Extract<OperationInvocationOutput, { type: "create" }> 
     record,
   };
 }
-
-function commandOutput(): Extract<OperationInvocationOutput, { type: "command" }> {
+function commandOutput(): Extract<
+  OperationInvocationOutput,
+  {
+    type: "command";
+  }
+> {
   const protectedRecord: StoredRecord = {
     id: "task-private",
     entity: "task",

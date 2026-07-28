@@ -765,15 +765,19 @@ function preflightAppInstallRecordSet(
 function validateControlPlaneRecordWrite(
   storage: DurableObjectStorage,
   schema: typeof instanceControlPlaneSourceSchema,
-  options: { additionalRecords?: StoredRecord[]; packageResolver?: AppPackageResolver } = {},
+  options: {
+    additionalRecords?: StoredRecord[];
+    packageResolver?: AppPackageResolver;
+  } = {},
 ) {
   return (
     entityName: string,
     values: RecordValues,
-    recordOptions?: { ignoreRecordId?: string },
+    recordOptions?: {
+      ignoreRecordId?: string;
+    },
   ) => {
-    const entity = schema.entities[entityName];
-
+    const entity = schema.entities.find((definition) => definition.key === entityName)!;
     if (!entity) {
       throw new BadRequestError(`Unknown entity "${entityName}".`);
     }
@@ -827,7 +831,10 @@ function validateControlPlanePackageBoundary(
   storage: DurableObjectStorage,
   entityName: string,
   values: RecordValues,
-  options: { additionalRecords?: StoredRecord[]; packageResolver?: AppPackageResolver },
+  options: {
+    additionalRecords?: StoredRecord[];
+    packageResolver?: AppPackageResolver;
+  },
   existingRecordId?: string,
 ) {
   if (entityName === "app-install") {
@@ -1249,13 +1256,15 @@ function relyingPartyIdMatchesOrigin(relyingPartyId: string, canonicalOrigin: st
   if (normalizedOrigin === undefined) {
     return false;
   }
-
   const canonicalHost = new URL(normalizedOrigin).hostname.toLowerCase();
-
   return canonicalHost === relyingPartyId || canonicalHost.endsWith(`.${relyingPartyId}`);
 }
-
-function parseEmailAddress(fieldName: string, value: string): { host: string } {
+function parseEmailAddress(
+  fieldName: string,
+  value: string,
+): {
+  host: string;
+} {
   const atIndex = value.lastIndexOf("@");
   const local = atIndex <= 0 ? "" : value.slice(0, atIndex);
   const host = atIndex <= 0 ? "" : value.slice(atIndex + 1).toLowerCase();
@@ -1529,7 +1538,10 @@ function redirectRouteRecordValues(intent: InstanceDomainProviderRedirectIntent)
 function removeMissingControlPlaneIntentRecords(
   storage: DurableObjectStorage,
   nextRecordIds: Set<string>,
-  input: { action: string; idPrefix: string },
+  input: {
+    action: string;
+    idPrefix: string;
+  },
 ) {
   const recordsToRemove = activeControlPlaneRecords(storage).filter(
     (record) =>
@@ -1882,9 +1894,7 @@ function assertRouteIntentSyncCandidatesAreSafe(
         routeMatchesOverlap(candidateMatch, existing.match)
       ) {
         throw new BadRequestError(
-          `Route intent sync blocker: ${candidate.source} match "${formatRouteMatch(
-            candidateMatch,
-          )}" conflicts with ${existing.source}.`,
+          `Route intent sync blocker: ${candidate.source} match "${formatRouteMatch(candidateMatch)}" conflicts with ${existing.source}.`,
         );
       }
     }
@@ -1935,10 +1945,15 @@ function routeMatchFromValues(values: RecordValues): {
       : { prefix: parseRouteString("route.matchPrefix", values.matchPrefix) }),
   };
 }
-
 function routeMatchesOverlap(
-  left: { path: string; prefix?: string },
-  right: { path: string; prefix?: string },
+  left: {
+    path: string;
+    prefix?: string;
+  },
+  right: {
+    path: string;
+    prefix?: string;
+  },
 ) {
   return (
     left.path === right.path ||

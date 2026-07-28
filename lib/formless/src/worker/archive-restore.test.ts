@@ -1,3 +1,4 @@
+import { setKeyedDefinition } from "../test/schema-definition-test-helpers.ts";
 import { describe, expect, it } from "vite-plus/test";
 import {
   APP_ARCHIVE_KIND,
@@ -574,16 +575,13 @@ function documentMediaObject(name: string, access: "public" | "private"): AppArc
     storageKey,
   };
 }
-
 function documentSourceSchema() {
   const schema = structuredClone(siteSourceSchema);
-  const block = schema.entities.block;
-
+  const block = schema.entities.find((definition) => definition.key === "block")!;
   if (!block) {
     throw new Error("Expected Site block schema.");
   }
-
-  block.fields.documentAssetId = {
+  setKeyedDefinition(block.fields, "documentAssetId", {
     type: "text",
     required: false,
     label: "Document",
@@ -593,11 +591,9 @@ function documentSourceSchema() {
       maxBytes: 1024 * 1024,
       access: "private",
     },
-  };
-
+  });
   return schema;
 }
-
 function siteInstall(installId: string): AppInstall {
   return {
     adminRoute: `/apps/${installId}`,

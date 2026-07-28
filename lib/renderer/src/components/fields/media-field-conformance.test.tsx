@@ -44,7 +44,7 @@ describe("Astryx media field conformance", () => {
         if (valueFacet === "selected") {
           expect(field.media).toMatchObject({
             document: {
-              byteSize: 42_000,
+              byteSize: 42000,
               contentType: "application/pdf",
               filename: "Quarterly report.pdf",
             },
@@ -160,7 +160,7 @@ describe("Astryx media field conformance", () => {
       expect(element.props).toMatchObject({
         accept: "application/pdf",
         document: {
-          byteSize: 42_000,
+          byteSize: 42000,
           contentType: "application/pdf",
           filename: "Quarterly report.pdf",
         },
@@ -171,14 +171,14 @@ describe("Astryx media field conformance", () => {
       });
       expect(element.props.options).toEqual([
         {
-          byteSize: 42_000,
+          byteSize: 42000,
           contentType: "application/pdf",
           filename: "Quarterly report.pdf",
           label: "Quarterly report.pdf",
           value: "document-quarterly-report",
         },
         {
-          byteSize: 720_000,
+          byteSize: 720000,
           contentType: "application/pdf",
           filename: "Report draft.pdf",
           label: "Report draft.pdf",

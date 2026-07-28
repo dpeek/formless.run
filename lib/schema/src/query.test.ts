@@ -50,10 +50,10 @@ describe("field catalog", () => {
         label: "Kind",
         writable: true,
         filterOps: ["eq"],
-        values: {
-          role: { label: "Role" },
-          stream: { label: "Stream" },
-        },
+        values: [
+          { key: "role", label: "Role" },
+          { key: "stream", label: "Stream" },
+        ],
       },
       {
         ref: { kind: "value", name: "resource" },
@@ -1149,36 +1149,35 @@ describe("query capabilities", () => {
     ).toThrow('unsupported field kind "value"');
   });
 });
-
 const taskEntity = {
   label: "Task",
-  fields: {
-    title: { type: "text", required: true, label: "Title" },
-    done: { type: "boolean", required: true, label: "Done", default: false },
-    dueDate: { type: "date", required: false, label: "Due date" },
-    estimate: { type: "number", required: false, label: "Estimate", min: 0, integer: true },
-    kind: {
+  fields: [
+    { key: "title", type: "text", required: true, label: "Title" },
+    { key: "done", type: "boolean", required: true, label: "Done", default: false },
+    { key: "dueDate", type: "date", required: false, label: "Due date" },
+    { key: "estimate", type: "number", required: false, label: "Estimate", min: 0, integer: true },
+    {
+      key: "kind",
       type: "enum",
       required: true,
       label: "Kind",
       default: "role",
-      values: {
-        role: { label: "Role" },
-        stream: { label: "Stream" },
-      },
+      values: [
+        { key: "role", label: "Role" },
+        { key: "stream", label: "Stream" },
+      ],
     },
-    resource: {
+    {
+      key: "resource",
       type: "reference",
       required: true,
       label: "Resource",
       to: "resource",
       displayField: "name",
     },
-  },
+  ],
 } satisfies EntitySchema;
-
 const catalog = getEntityFieldCatalog(taskEntity);
-
 const portableCapabilities = {
   operators: ["eq", "before"],
   fieldKinds: ["value", "system"],

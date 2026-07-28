@@ -1,8 +1,15 @@
 import { fieldHasCreateDefault } from "./field-types.ts";
-import { assertExactKeys, isRecord, parseRequiredNonEmptyString } from "./schema-parse-helpers.ts";
+import {
+  assertExactKeys,
+  definitionsToRecord,
+  isRecord,
+  parseKeyedDefinitionArray,
+  parseRequiredNonEmptyString,
+} from "./schema-parse-helpers.ts";
 import type {
   EntitySchema,
   FieldSchema,
+  KeyedDefinition,
   StateMachineSchema,
   StateMachineTransitionEventFieldMappingsSchema,
   StateMachineTransitionEventSchema,
@@ -18,74 +25,58 @@ const transitionEventFieldMappingKeys = [
   "actorMode",
   "occurredAt",
 ] as const satisfies readonly (keyof StateMachineTransitionEventFieldMappingsSchema)[];
-
 const transitionEventActorModes = ["admin", "cliDeployer", "owner", "runner"] as const;
-
 export function parseStateMachinesForEntities(
-  entities: Record<string, EntitySchema>,
+  entities: KeyedDefinition<EntitySchema>[],
   stateMachineInputsByEntity: Record<string, unknown>,
-): Record<string, EntitySchema> {
+): KeyedDefinition<EntitySchema>[] {
   if (Object.keys(stateMachineInputsByEntity).length === 0) {
     return entities;
   }
-
-  return Object.fromEntries(
-    Object.entries(entities).map(([entityName, entity]) => {
-      const stateMachinesInput = stateMachineInputsByEntity[entityName];
-
-      if (stateMachinesInput === undefined) {
-        return [entityName, entity];
-      }
-
-      return [
+  const entitiesByKey = definitionsToRecord(entities);
+  return entities.map((entity) => {
+    const entityName = entity.key;
+    const stateMachinesInput = stateMachineInputsByEntity[entityName];
+    if (stateMachinesInput === undefined) {
+      return entity;
+    }
+    return {
+      ...entity,
+      stateMachines: parseEntityStateMachines(
         entityName,
-        {
-          ...entity,
-          stateMachines: parseEntityStateMachines(entityName, stateMachinesInput, entity, entities),
-        },
-      ];
-    }),
-  );
+        stateMachinesInput,
+        entity,
+        entitiesByKey,
+      ),
+    };
+  });
 }
-
 function parseEntityStateMachines(
   entityName: string,
   value: unknown,
   entity: EntitySchema,
   entities: Record<string, EntitySchema>,
-): Record<string, StateMachineSchema> {
-  if (!isRecord(value)) {
-    throw new Error(`Entity "${entityName}" stateMachines must be an object.`);
-  }
-
-  const entries = Object.entries(value);
-  if (entries.length === 0) {
+): KeyedDefinition<StateMachineSchema>[] {
+  if (!Array.isArray(value) || value.length === 0) {
     throw new Error(`Entity "${entityName}" stateMachines must not be empty.`);
   }
-
   const ownedFields = new Set<string>();
-  const stateMachines = Object.fromEntries(
-    entries.map(([machineName, stateMachine]) => {
-      if (machineName.trim() === "") {
-        throw new Error(`Entity "${entityName}" state machine keys must be non-empty.`);
-      }
-
+  const stateMachines = parseKeyedDefinitionArray(
+    `Entity "${entityName}" stateMachines`,
+    value,
+    (machineName, stateMachine) => {
       const parsed = parseStateMachine(entityName, machineName, stateMachine, entity, entities);
-
       if (ownedFields.has(parsed.field)) {
         throw new Error(
           `Entity "${entityName}" state machine "${machineName}" field "${parsed.field}" is already owned by another state machine.`,
         );
       }
-
       ownedFields.add(parsed.field);
-      return [machineName, parsed];
-    }),
+      return parsed;
+    },
   );
-
   return stateMachines;
 }
-
 function parseStateMachine(
   entityName: string,
   machineName: string,
@@ -102,13 +93,11 @@ function parseStateMachine(
   assertExactKeys(
     context,
     value,
-    ["field", "initial", "transitions"],
+    ["key", "field", "initial", "transitions"],
     ["states", "terminal", "event"],
   );
-
   const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
-  const field = entity.fields[fieldName];
-
+  const field = definitionsToRecord(entity.fields)[fieldName];
   if (!field) {
     throw new Error(`${context} field references unknown field "${entityName}.${fieldName}".`);
   }
@@ -120,13 +109,12 @@ function parseStateMachine(
   if (!field.required) {
     throw new Error(`${context} field "${fieldName}" must be required.`);
   }
-
-  const enumStates = new Set(Object.keys(field.values));
+  const enumStates = new Set(field.values.map((definition) => definition.key));
   const states =
     value.states === undefined
       ? undefined
       : parseStateList(`${context} states`, value.states, enumStates);
-  const machineStates = new Set(states ?? Object.keys(field.values));
+  const machineStates = new Set(states ?? field.values.map((definition) => definition.key));
   const initial = parseRequiredState(`${context} initial`, value.initial, machineStates);
   if (field.default !== undefined && field.default !== initial) {
     throw new Error(`${context} field "${fieldName}" default must match initial state.`);
@@ -143,7 +131,7 @@ function parseStateMachine(
     machineStates,
     terminalStates,
   );
-  const transitionKeys = Object.keys(transitions);
+  const transitionKeys = transitions.map((transition) => transition.key);
   const event =
     value.event === undefined
       ? undefined
@@ -171,30 +159,14 @@ function parseTransitions(
   value: unknown,
   states: Set<string>,
   terminalStates: Set<string>,
-): Record<string, StateMachineTransitionSchema> {
-  if (!isRecord(value)) {
-    throw new Error(`${context} must be an object.`);
-  }
-
-  const entries = Object.entries(value);
-  if (entries.length === 0) {
+): KeyedDefinition<StateMachineTransitionSchema>[] {
+  if (!Array.isArray(value) || value.length === 0) {
     throw new Error(`${context} must not be empty.`);
   }
-
-  return Object.fromEntries(
-    entries.map(([transitionName, transition]) => {
-      if (transitionName.trim() === "") {
-        throw new Error(`${context} keys must be non-empty.`);
-      }
-
-      return [
-        transitionName,
-        parseTransition(`${context}.${transitionName}`, transition, states, terminalStates),
-      ];
-    }),
+  return parseKeyedDefinitionArray(context, value, (transitionName, transition) =>
+    parseTransition(`${context}.${transitionName}`, transition, states, terminalStates),
   );
 }
-
 function parseTransition(
   context: string,
   value: unknown,
@@ -204,9 +176,7 @@ function parseTransition(
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
-
-  assertExactKeys(context, value, ["label", "from", "to"]);
-
+  assertExactKeys(context, value, ["key", "label", "from", "to"]);
   const label = parseRequiredNonEmptyString(`${context} label`, value.label);
   const from = parseStateList(`${context} from`, value.from, states);
   const to = parseRequiredState(`${context} to`, value.to, states);
@@ -355,8 +325,8 @@ function validateRequiredEventFields(
   mappedFields: string[],
 ) {
   const mappedFieldNames = new Set(mappedFields);
-
-  for (const [fieldName, field] of Object.entries(targetEntity.fields)) {
+  for (const field of targetEntity.fields) {
+    const fieldName = field.key;
     if (!field.required || mappedFieldNames.has(fieldName) || fieldHasCreateDefault(field)) {
       continue;
     }
@@ -398,9 +368,8 @@ function validateStringAssignableField(
   if (field.type !== "enum") {
     throw new Error(`${context} must reference a text or enum field.`);
   }
-
   for (const value of values) {
-    if (!Object.hasOwn(field.values, value)) {
+    if (!definitionsToRecord(field.values)[value]) {
       throw new Error(`${context} enum field must include value "${value}".`);
     }
   }
@@ -411,8 +380,7 @@ function requireEventTargetField(
   entity: EntitySchema,
   fieldName: string,
 ): FieldSchema {
-  const field = entity.fields[fieldName];
-
+  const field = definitionsToRecord(entity.fields)[fieldName];
   if (!field) {
     throw new Error(`${context} references unknown field "${fieldName}".`);
   }

@@ -1,3 +1,4 @@
+import { setKeyedDefinition } from "../test/schema-definition-test-helpers.ts";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -341,17 +342,16 @@ describe("authority operation execution", () => {
       path: "/bootstrap",
     });
     const schema = schemaWithOperationOnlyTaskCrud(bootstrap.body.result.body.schema);
-
-    schema.entities.task = {
-      ...schema.entities.task,
-      constraints: {
-        uniqueTitle: {
+    setKeyedDefinition(schema.entities, "task", {
+      ...schema.entities.find((definition) => definition.key === "task")!,
+      constraints: [
+        {
+          key: "uniqueTitle",
           kind: "unique",
           fields: ["title"],
         },
-      },
-    };
-
+      ],
+    });
     await executeOperation({
       method: "POST",
       path: "/schema",
@@ -415,12 +415,9 @@ describe("authority operation execution", () => {
     const sync = await executeOperation<SyncResponse>({
       method: "GET",
       path: "/sync",
-      search: `after=${baseline.body.result.body.cursor}&schemaUpdatedAt=${encodeURIComponent(
-        baseline.body.result.body.schemaUpdatedAt,
-      )}`,
+      search: `after=${baseline.body.result.body.cursor}&schemaUpdatedAt=${encodeURIComponent(baseline.body.result.body.schemaUpdatedAt)}`,
     });
     const rows = await readOperationInvocations();
-
     expect(first.response.status).toBe(200);
     expect(duplicateCreate.response.status).toBe(400);
     expect(duplicateCreate.body).toEqual({
@@ -533,11 +530,8 @@ describe("authority operation execution", () => {
     const sync = await executeOperation<SyncResponse>({
       method: "GET",
       path: "/sync",
-      search: `after=${baseline.body.result.body.cursor}&schemaUpdatedAt=${encodeURIComponent(
-        baseline.body.result.body.schemaUpdatedAt,
-      )}`,
+      search: `after=${baseline.body.result.body.cursor}&schemaUpdatedAt=${encodeURIComponent(baseline.body.result.body.schemaUpdatedAt)}`,
     });
-
     expect(missingReference.response.status).toBe(400);
     expect(missingReference.body).toEqual({
       error: 'Field "project" references unknown project record "missing-project".',
@@ -860,30 +854,29 @@ describe("authority operation execution", () => {
       path: "/bootstrap",
     });
     const schema = cloneSchema(bootstrap.body.result.body.schema);
-    const taskEntity = schema.entities.task;
-
+    const taskEntity = schema.entities.find((definition) => definition.key === "task")!;
     if (!taskEntity) {
       throw new Error("Expected task entity.");
     }
-
-    schema.entities.task = {
+    setKeyedDefinition(schema.entities, "task", {
       ...taskEntity,
-      operations: {
-        ...taskEntity.operations,
-        create: {
-          ...taskEntity.operations?.create,
-          kind: "create",
-          scope: "collection",
-          input: { fields: { title: { field: "title" } } },
-          effect: { type: "createRecord" },
-          output: { type: "create" },
-          idempotency: { required: true },
-          audit: { input: "summary" },
-          policy: { actors: ["runner"] },
-        },
-      },
-    };
-
+      operations: (taskEntity.operations ?? []).map((operation) =>
+        operation.key === "create"
+          ? {
+              ...operation,
+              kind: "create",
+              scope: "collection",
+              input: { fields: [{ key: "title", field: "title" }] },
+              effect: { type: "createRecord" },
+              output: { type: "create" },
+              idempotency: { required: true },
+              audit: { input: "summary" },
+              policy: { actors: ["runner"] },
+              key: "create",
+            }
+          : operation,
+      ),
+    });
     await executeOperation({
       method: "POST",
       path: "/schema",
@@ -1216,23 +1209,22 @@ describe("authority operation execution", () => {
       path: "/bootstrap",
     });
     const schema = cloneSchema(bootstrap.body.result.body.schema);
-    const taskEntity = schema.entities.task;
-
-    if (!taskEntity?.operations?.clearCompletedTasks) {
+    const taskEntity = schema.entities.find((definition) => definition.key === "task")!;
+    if (!taskEntity?.operations!.find((definition) => definition.key === "clearCompletedTasks")!) {
       throw new Error("Expected clearCompletedTasks operation.");
     }
-
-    schema.entities.task = {
+    setKeyedDefinition(schema.entities, "task", {
       ...taskEntity,
-      operations: {
-        ...taskEntity.operations,
-        clearCompletedTasks: {
-          ...taskEntity.operations.clearCompletedTasks,
-          audit: { input: "snapshot" },
-        },
-      },
-    };
-
+      operations: (taskEntity.operations ?? []).map((operation) =>
+        operation.key === "clearCompletedTasks"
+          ? {
+              ...operation,
+              audit: { input: "snapshot" },
+              key: "clearCompletedTasks",
+            }
+          : operation,
+      ),
+    });
     await executeOperation({
       method: "POST",
       path: "/schema",
@@ -1928,12 +1920,9 @@ describe("authority operation execution", () => {
       bootstrap.body.result.body.schema,
       generatedDigitCodeTransitionSideEffects(),
       {
-        orderConstraints: {
-          uniqueCode: { kind: "unique", fields: ["code"] },
-        },
+        orderConstraints: [{ kind: "unique", fields: ["code"], key: "uniqueCode" }],
       },
     );
-
     await executeOperation({
       method: "POST",
       path: "/schema",
@@ -2345,18 +2334,17 @@ describe("authority operation execution", () => {
       path: "/bootstrap",
     });
     const schema = cloneSchema(bootstrap.body.result.body.schema);
-    const taskEntity = schema.entities.task;
+    const taskEntity = schema.entities.find((definition) => definition.key === "task")!;
     const firstTask = bootstrap.body.result.body.records.find((record) => record.entity === "task");
-
     if (!taskEntity || !firstTask) {
       throw new Error("Expected tasks seed records.");
     }
-
-    schema.entities.task = {
+    setKeyedDefinition(schema.entities, "task", {
       ...taskEntity,
-      operations: {
-        ...taskEntity.operations,
-        activeList: {
+      operations: [
+        ...(taskEntity.operations ?? []),
+        {
+          key: "activeList",
           kind: "list",
           scope: "collection",
           target: { query: "taskActive" },
@@ -2364,16 +2352,16 @@ describe("authority operation execution", () => {
           idempotency: { required: false },
           audit: { input: "summary" },
         },
-        read: {
+        {
+          key: "read",
           kind: "get",
           scope: "record",
           output: { type: "get" },
           idempotency: { required: false },
           audit: { input: "summary" },
         },
-      },
-    };
-
+      ],
+    });
     await executeOperation({
       method: "POST",
       path: "/schema",
@@ -2605,30 +2593,29 @@ describe("authority operation execution", () => {
       path: "/bootstrap",
     });
     const schema = cloneSchema(bootstrap.body.result.body.schema);
-    const taskEntity = schema.entities.task;
-
+    const taskEntity = schema.entities.find((definition) => definition.key === "task")!;
     if (!taskEntity) {
       throw new Error("Expected task entity.");
     }
-
-    schema.entities.task = {
+    setKeyedDefinition(schema.entities, "task", {
       ...taskEntity,
-      operations: {
-        ...taskEntity.operations,
-        create: {
-          ...taskEntity.operations?.create,
-          kind: "create",
-          scope: "collection",
-          input: { fields: { title: { field: "title" } } },
-          effect: { type: "createRecord" },
-          output: { type: "create" },
-          idempotency: { required: true },
-          audit: { input: "summary" },
-          policy: { actors: ["runner"] },
-        },
-      },
-    };
-
+      operations: (taskEntity.operations ?? []).map((operation) =>
+        operation.key === "create"
+          ? {
+              ...operation,
+              kind: "create",
+              scope: "collection",
+              input: { fields: [{ key: "title", field: "title" }] },
+              effect: { type: "createRecord" },
+              output: { type: "create" },
+              idempotency: { required: true },
+              audit: { input: "summary" },
+              policy: { actors: ["runner"] },
+              key: "create",
+            }
+          : operation,
+      ),
+    });
     await executeOperation({
       method: "POST",
       path: "/schema",
@@ -2738,9 +2725,10 @@ describe("authority operation execution", () => {
       writes: [],
     });
   });
-
   it("preserves operation-level cache headers and statuses", async () => {
-    const missingSiteTree = await executeOperation<{ error: string }>({
+    const missingSiteTree = await executeOperation<{
+      error: string;
+    }>({
       appKey: "site",
       method: "GET",
       path: "/tree/missing-page",
@@ -2763,59 +2751,59 @@ function cloneSchema(schema: AppSchema): AppSchema {
 function schemaWithScopedClearCompletedCommand(sourceSchema: AppSchema): AppSchema {
   const schema = cloneSchema(sourceSchema);
   const taskEntity = requireEntity(schema, "task");
-  const operation = taskEntity.operations?.clearCompletedTasks;
-
+  const operation = taskEntity.operations!.find(
+    (definition) => definition.key === "clearCompletedTasks",
+  )!;
   if (!operation || operation.effect?.type !== "operationHandler") {
     throw new Error("Expected clearCompletedTasks operation.");
   }
-
-  schema.entities.task = {
+  setKeyedDefinition(schema.entities, "task", {
     ...taskEntity,
-    operations: {
-      ...taskEntity.operations,
-      clearCompletedTasks: {
-        ...operation,
-        policy: {
-          actors: ["owner"],
-          responseFields: {
-            owner: ["title"],
-          },
-        },
-      },
-    },
-  };
-
+    operations: (taskEntity.operations ?? []).map((candidate) =>
+      candidate.key === "clearCompletedTasks"
+        ? {
+            ...operation,
+            policy: {
+              actors: ["owner"],
+              responseFields: {
+                owner: ["title"],
+              },
+            },
+            key: "clearCompletedTasks",
+          }
+        : candidate,
+    ),
+  });
   return schema;
 }
-
 function schemaWithAuthenticatedScopedClearCompletedCommand(sourceSchema: AppSchema): AppSchema {
   const schema = cloneSchema(sourceSchema);
   const taskEntity = requireEntity(schema, "task");
-  const operation = taskEntity.operations?.clearCompletedTasks;
-
+  const operation = taskEntity.operations!.find(
+    (definition) => definition.key === "clearCompletedTasks",
+  )!;
   if (!operation || operation.effect?.type !== "operationHandler") {
     throw new Error("Expected clearCompletedTasks operation.");
   }
-
-  schema.entities.task = {
+  setKeyedDefinition(schema.entities, "task", {
     ...taskEntity,
-    operations: {
-      ...taskEntity.operations,
-      clearCompletedTasks: {
-        ...operation,
-        policy: {
-          actors: ["authenticated"],
-          responseFields: {
-            authenticated: ["title"],
-          },
-        },
-      },
-    },
-  };
-
+    operations: (taskEntity.operations ?? []).map((candidate) =>
+      candidate.key === "clearCompletedTasks"
+        ? {
+            ...operation,
+            policy: {
+              actors: ["authenticated"],
+              responseFields: {
+                authenticated: ["title"],
+              },
+            },
+            key: "clearCompletedTasks",
+          }
+        : candidate,
+    ),
+  });
   return schema;
 }
-
 function authenticatedOperationActor(): OperationInvocationEnvelope["actor"] {
   return {
     kind: "authenticated",
@@ -2834,43 +2822,44 @@ function authenticatedOperationActor(): OperationInvocationEnvelope["actor"] {
 function schemaWithTransitionCommandOperation(sourceSchema: AppSchema): AppSchema {
   const schema = cloneSchema(sourceSchema);
   const taskEntity = requireEntity(schema, "task");
-  const taskFields = {
+  const taskFields = [
     ...taskEntity.fields,
-    status: {
+    {
       type: "enum",
       required: true,
       label: "Status",
       default: "todo",
-      values: {
-        todo: { label: "Todo" },
-        doing: { label: "Doing" },
-        done: { label: "Done" },
-      },
+      values: [
+        { key: "todo", label: "Todo" },
+        { key: "doing", label: "Doing" },
+        { key: "done", label: "Done" },
+      ],
+      key: "status",
     },
-  } satisfies EntitySchema["fields"];
-
-  schema.entities.task = {
+  ] satisfies EntitySchema["fields"];
+  setKeyedDefinition(schema.entities, "task", {
     ...taskEntity,
     fields: taskFields,
-    stateMachines: {
-      statusFlow: {
+    stateMachines: [
+      {
+        key: "statusFlow",
         field: "status",
         initial: "todo",
         terminal: ["done"],
-        transitions: {
-          start: { label: "Start", from: ["todo"], to: "doing" },
-          finish: { label: "Finish", from: ["doing"], to: "done" },
-        },
+        transitions: [
+          { key: "start", label: "Start", from: ["todo"], to: "doing" },
+          { key: "finish", label: "Finish", from: ["doing"], to: "done" },
+        ],
         event: {
           entity: "task-event",
           fields: transitionEventFieldMappings(),
         },
       },
-    },
-    operations: {
-      ...taskEntity.operations,
+    ],
+    operations: mergeOperations(taskEntity.operations, [
       ...recordCrudOperations("Task", taskFields),
-      startTask: {
+      {
+        key: "startTask",
         label: "Start",
         kind: "command",
         scope: "record",
@@ -2887,13 +2876,11 @@ function schemaWithTransitionCommandOperation(sourceSchema: AppSchema): AppSchem
         audit: { input: "summary" },
         policy: { actors: ["owner"] },
       },
-    },
-  };
-  schema.entities["task-event"] = transitionEventEntity();
-
+    ]),
+  });
+  setKeyedDefinition(schema.entities, "task-event", transitionEventEntity());
   return schema;
 }
-
 function schemaWithTransitionSideEffects(
   sourceSchema: AppSchema,
   sideEffects: TransitionSideEffectCreateStepSchema[] = successfulTransitionSideEffects(),
@@ -2903,8 +2890,7 @@ function schemaWithTransitionSideEffects(
 ): AppSchema {
   const schema = schemaWithTransitionCommandOperation(sourceSchema);
   const taskEntity = requireEntity(schema, "task");
-  const startTask = taskEntity.operations?.startTask;
-
+  const startTask = taskEntity.operations!.find((definition) => definition.key === "startTask")!;
   if (
     !startTask ||
     startTask.effect?.type !== "operationHandler" ||
@@ -2912,86 +2898,95 @@ function schemaWithTransitionSideEffects(
   ) {
     throw new Error("Expected transition-state task.startTask operation.");
   }
-
-  const taskFields = {
+  const taskFields = [
     ...taskEntity.fields,
-    details: {
+    {
       type: "text",
       required: false,
       label: "Details",
+      key: "details",
     },
-  } satisfies EntitySchema["fields"];
-  const orderFields = {
-    task: {
+  ] satisfies EntitySchema["fields"];
+  const orderFields = [
+    {
       type: "reference",
       required: true,
       label: "Task",
       to: "task",
       displayField: "title",
+      key: "task",
     },
-    sourceTaskId: {
+    {
       type: "text",
       required: true,
       label: "Source task id",
+      key: "sourceTaskId",
     },
-    title: {
+    {
       type: "text",
       required: true,
       label: "Title",
+      key: "title",
     },
-    details: {
+    {
       type: "text",
       required: false,
       label: "Details",
+      key: "details",
     },
-    note: {
+    {
       type: "text",
       required: false,
       label: "Note",
+      key: "note",
     },
-    code: {
+    {
       type: "text",
       required: true,
       label: "Code",
+      key: "code",
     },
-    actorMode: {
+    {
       type: "text",
       required: true,
       label: "Actor mode",
+      key: "actorMode",
     },
-    actorPrincipalId: {
+    {
       type: "text",
       required: false,
       label: "Actor principal id",
+      key: "actorPrincipalId",
     },
-    sourcePath: {
+    {
       type: "text",
       required: false,
       label: "Source path",
+      key: "sourcePath",
     },
-    occurredAt: {
+    {
       type: "text",
       required: true,
       label: "Occurred at",
+      key: "occurredAt",
     },
-  } satisfies EntitySchema["fields"];
-
-  schema.entities.task = {
+  ] satisfies EntitySchema["fields"];
+  setKeyedDefinition(schema.entities, "task", {
     ...taskEntity,
     fields: taskFields,
-    operations: {
-      ...taskEntity.operations,
+    operations: mergeOperations(taskEntity.operations, [
       ...recordCrudOperations("Task", taskFields),
-      startTask: {
+      {
         ...startTask,
         input: {
-          fields: {
-            note: {
+          fields: [
+            {
+              key: "note",
               type: "text",
               required: false,
               label: "Note",
             },
-          },
+          ],
         },
         effect: {
           ...startTask.effect,
@@ -3003,39 +2998,40 @@ function schemaWithTransitionSideEffects(
             },
           },
         },
+        key: "startTask",
       },
-    },
-  };
-  schema.entities.order = {
+    ]),
+  });
+  setKeyedDefinition(schema.entities, "order", {
     label: "Order",
     fields: orderFields,
-    constraints: options.orderConstraints ?? {
-      uniqueTask: { kind: "unique", fields: ["task"] },
-      uniqueCode: { kind: "unique", fields: ["code"] },
-    },
+    constraints: options.orderConstraints ?? [
+      { key: "uniqueTask", kind: "unique", fields: ["task"] },
+      { key: "uniqueCode", kind: "unique", fields: ["code"] },
+    ],
     operations: recordCrudOperations("Order", orderFields),
-  } as EntitySchema;
-  schema.entities["order-receipt"] = {
+  } as EntitySchema);
+  setKeyedDefinition(schema.entities, "order-receipt", {
     label: "Order receipt",
-    fields: {
-      order: {
+    fields: [
+      {
+        key: "order",
         type: "reference",
         required: true,
         label: "Order",
         to: "order",
         displayField: "title",
       },
-      label: {
+      {
+        key: "label",
         type: "text",
         required: true,
         label: "Label",
       },
-    },
-  } as EntitySchema;
-
+    ],
+  } as EntitySchema);
   return schema;
 }
-
 function successfulTransitionSideEffects(): TransitionSideEffectCreateStepSchema[] {
   return [
     {
@@ -3136,33 +3132,32 @@ function schemaWithRecordPlanOperation(
   steps: RecordPlanStepSchema[],
 ): AppSchema {
   const schema = cloneSchema(sourceSchema);
-  const taskEntity = schema.entities.task;
-
+  const taskEntity = schema.entities.find((definition) => definition.key === "task")!;
   if (!taskEntity) {
     throw new Error("Expected task entity.");
   }
-
-  schema.entities["task-log"] = taskLogEntity();
-  schema.entities.task = {
+  setKeyedDefinition(schema.entities, "task-log", taskLogEntity());
+  setKeyedDefinition(schema.entities, "task", {
     ...taskEntity,
-    operations: {
-      ...taskEntity.operations,
-      [operationName]: recordPlanOperation(steps),
-    },
-  };
-
+    operations: [
+      ...(taskEntity.operations ?? []),
+      {
+        ...recordPlanOperation(steps),
+        key: operationName,
+      },
+    ],
+  });
   return schema;
 }
-
 function schemaWithPrivateSubscribeCommandOperation(sourceSchema: AppSchema): AppSchema {
   const schema = cloneSchema(sourceSchema);
   const taskEntity = requireEntity(schema, "task");
-
-  schema.entities.task = {
+  setKeyedDefinition(schema.entities, "task", {
     ...taskEntity,
-    operations: {
-      ...taskEntity.operations,
-      privateSubscribe: {
+    operations: [
+      ...(taskEntity.operations ?? []),
+      {
+        key: "privateSubscribe",
         label: "Private subscribe",
         kind: "command",
         scope: "collection",
@@ -3172,46 +3167,43 @@ function schemaWithPrivateSubscribeCommandOperation(sourceSchema: AppSchema): Ap
         audit: { input: "summary" },
         policy: { actors: ["owner"] },
       },
-    },
-  };
-
+    ],
+  });
   return schema;
 }
-
-function taskLogEntity(): AppSchema["entities"][string] {
+function taskLogEntity(): AppSchema["entities"][number] {
   return {
     label: "Task log",
-    fields: {
-      task: {
+    fields: [
+      {
+        key: "task",
         type: "reference",
         required: true,
         label: "Task",
         to: "task",
         displayField: "title",
       },
-      label: { type: "text", required: true, label: "Label" },
-      actorMode: { type: "text", required: true, label: "Actor mode" },
-      sourcePath: { type: "text", required: false, label: "Source path" },
-      occurredAt: { type: "text", required: true, label: "Occurred at" },
-    },
-  } as unknown as AppSchema["entities"][string];
+      { key: "label", type: "text", required: true, label: "Label" },
+      { key: "actorMode", type: "text", required: true, label: "Actor mode" },
+      { key: "sourcePath", type: "text", required: false, label: "Source path" },
+      { key: "occurredAt", type: "text", required: true, label: "Occurred at" },
+    ],
+  } as unknown as AppSchema["entities"][number];
 }
-
-function transitionEventEntity(): AppSchema["entities"][string] {
+function transitionEventEntity(): AppSchema["entities"][number] {
   return {
     label: "Task event",
-    fields: {
-      sourceEntity: { type: "text", required: true, label: "Source entity" },
-      sourceRecordId: { type: "text", required: true, label: "Source record id" },
-      transitionKey: { type: "text", required: true, label: "Transition" },
-      previousState: { type: "text", required: true, label: "Previous state" },
-      nextState: { type: "text", required: true, label: "Next state" },
-      actorMode: { type: "text", required: true, label: "Actor mode" },
-      occurredAt: { type: "date", required: true, label: "Occurred at" },
-    },
-  } as unknown as AppSchema["entities"][string];
+    fields: [
+      { key: "sourceEntity", type: "text", required: true, label: "Source entity" },
+      { key: "sourceRecordId", type: "text", required: true, label: "Source record id" },
+      { key: "transitionKey", type: "text", required: true, label: "Transition" },
+      { key: "previousState", type: "text", required: true, label: "Previous state" },
+      { key: "nextState", type: "text", required: true, label: "Next state" },
+      { key: "actorMode", type: "text", required: true, label: "Actor mode" },
+      { key: "occurredAt", type: "date", required: true, label: "Occurred at" },
+    ],
+  } as unknown as AppSchema["entities"][number];
 }
-
 function transitionEventFieldMappings() {
   return {
     sourceEntity: "sourceEntity",
@@ -3230,10 +3222,10 @@ function recordPlanOperation(steps: RecordPlanStepSchema[]): EntityOperationSche
     kind: "command",
     scope: "collection",
     input: {
-      fields: {
-        title: { type: "text", required: true, label: "Title" },
-        note: { type: "text", required: true, label: "Note" },
-      },
+      fields: [
+        { key: "title", type: "text", required: true, label: "Title" },
+        { key: "note", type: "text", required: true, label: "Note" },
+      ],
     },
     effect: {
       type: "recordPlan",
@@ -3321,37 +3313,37 @@ function brokenRecordPlanSteps(): RecordPlanStepSchema[] {
 function schemaWithOperationOnlyTaskCrud(sourceSchema: AppSchema): AppSchema {
   const schema = cloneSchema(sourceSchema);
   const taskEntity = requireEntity(schema, "task");
-
-  schema.entities.task = {
+  setKeyedDefinition(schema.entities, "task", {
     ...taskEntity,
-    operations: {
-      ...taskEntity.operations,
+    operations: mergeOperations(taskEntity.operations, [
       ...recordCrudOperations("Task", taskEntity.fields),
-      activeList: listOperation("taskActive"),
-    },
-  };
-
+      {
+        ...listOperation("taskActive"),
+        key: "activeList",
+      },
+    ]),
+  });
   return schema;
 }
-
 function schemaWithParameterizedTaskLookup(sourceSchema: AppSchema): AppSchema {
   const schema = cloneSchema(sourceSchema);
   const taskEntity = requireEntity(schema, "task");
-  const taskFields = {
+  const taskFields = [
     ...taskEntity.fields,
-    verificationCode: {
+    {
       type: "text",
       required: false,
       label: "Verification code",
+      key: "verificationCode",
     },
-    reportNumber: {
+    {
       type: "text",
       required: false,
       label: "Report number",
+      key: "reportNumber",
     },
-  } satisfies EntitySchema["fields"];
-
-  schema.queries.taskLookup = {
+  ] satisfies EntitySchema["fields"];
+  setKeyedDefinition(schema.queries, "taskLookup", {
     label: "Task lookup",
     entity: "task",
     expression: {
@@ -3382,26 +3374,27 @@ function schemaWithParameterizedTaskLookup(sourceSchema: AppSchema): AppSchema {
         },
       ],
     },
-  };
-  schema.entities.task = {
+  });
+  setKeyedDefinition(schema.entities, "task", {
     ...taskEntity,
     fields: taskFields,
-    operations: {
-      ...taskEntity.operations,
+    operations: mergeOperations(taskEntity.operations, [
       ...recordCrudOperations("Task", taskFields),
-      lookup: {
+      {
+        key: "lookup",
         label: "Lookup tasks",
         kind: "list",
         scope: "collection",
         target: { query: "taskLookup" },
         input: {
-          fields: {
-            lookup: {
+          fields: [
+            {
+              key: "lookup",
               type: "text",
               required: true,
               label: "Lookup",
             },
-          },
+          ],
         },
         output: {
           type: "list",
@@ -3411,97 +3404,105 @@ function schemaWithParameterizedTaskLookup(sourceSchema: AppSchema): AppSchema {
         idempotency: { required: false },
         audit: { input: "summary" },
       },
-    },
-  };
-
+    ]),
+  });
   return schema;
 }
-
 function schemaWithOperationOnlyTaskProjectReference(sourceSchema: AppSchema): AppSchema {
   const schema = schemaWithOperationOnlyTaskCrud(sourceSchema);
   const taskEntity = requireEntity(schema, "task");
-  const taskFields = {
+  const taskFields = [
     ...taskEntity.fields,
-    project: {
+    {
       type: "reference",
       required: false,
       label: "Project",
       to: "project",
       displayField: "name",
+      key: "project",
     },
-  } satisfies EntitySchema["fields"];
-  const projectFields = {
-    name: {
+  ] satisfies EntitySchema["fields"];
+  const projectFields = [
+    {
       type: "text",
       required: true,
       label: "Name",
+      key: "name",
     },
-  } satisfies EntitySchema["fields"];
-
-  schema.entities.task = {
+  ] satisfies EntitySchema["fields"];
+  setKeyedDefinition(schema.entities, "task", {
     ...taskEntity,
     fields: taskFields,
-    operations: {
-      ...taskEntity.operations,
+    operations: mergeOperations(taskEntity.operations, [
       ...recordCrudOperations("Task", taskFields),
-      activeList: listOperation("taskActive"),
-    },
-  };
-  schema.entities.project = {
+      {
+        ...listOperation("taskActive"),
+        key: "activeList",
+      },
+    ]),
+  });
+  setKeyedDefinition(schema.entities, "project", {
     label: "Project",
     fields: projectFields,
     operations: recordCrudOperations("Project", projectFields),
-  } as unknown as EntitySchema;
-
+  } as unknown as EntitySchema);
   return schema;
 }
-
 function schemaWithOperationOnlyTaskIdentityReference(sourceSchema: AppSchema): AppSchema {
   const schema = schemaWithOperationOnlyTaskCrud(sourceSchema);
   const taskEntity = requireEntity(schema, "task");
-  const taskFields = {
+  const taskFields = [
     ...taskEntity.fields,
-    ownerPrincipal: {
+    {
       type: "reference",
       required: false,
       label: "Owner principal",
       to: "auth:principal",
+      key: "ownerPrincipal",
     },
-  } satisfies EntitySchema["fields"];
-
-  schema.entities.task = {
+  ] satisfies EntitySchema["fields"];
+  setKeyedDefinition(schema.entities, "task", {
     ...taskEntity,
     fields: taskFields,
-    operations: {
-      ...taskEntity.operations,
+    operations: mergeOperations(taskEntity.operations, [
       ...recordCrudOperations("Task", taskFields),
-      activeList: listOperation("taskActive"),
-    },
-  };
-
+      {
+        ...listOperation("taskActive"),
+        key: "activeList",
+      },
+    ]),
+  });
   return schema;
 }
-
 function requireEntity(schema: AppSchema, entityName: string): EntitySchema {
-  const entity = schema.entities[entityName];
-
+  const entity = schema.entities.find((definition) => definition.key === entityName)!;
   if (!entity) {
     throw new Error(`Expected ${entityName} entity.`);
   }
-
   return entity;
 }
-
+function mergeOperations(
+  existing: EntitySchema["operations"],
+  replacements: NonNullable<EntitySchema["operations"]>,
+): NonNullable<EntitySchema["operations"]> {
+  const replacementsByKey = new Map(
+    replacements.map((operation) => [operation.key, operation] as const),
+  );
+  const merged = (existing ?? []).map(
+    (operation) => replacementsByKey.get(operation.key) ?? operation,
+  );
+  const existingKeys = new Set((existing ?? []).map((operation) => operation.key));
+  return [...merged, ...replacements.filter((operation) => !existingKeys.has(operation.key))];
+}
 function recordCrudOperations(
   label: string,
   fields: EntitySchema["fields"],
 ): NonNullable<EntitySchema["operations"]> {
   const input = {
-    fields: Object.fromEntries(Object.keys(fields).map((field) => [field, { field }])),
+    fields: fields.map(({ key }) => ({ key, field: key })),
   };
-
-  return {
-    create: {
+  return [
+    {
       label: `Create ${label}`,
       kind: "create",
       scope: "collection",
@@ -3510,8 +3511,9 @@ function recordCrudOperations(
       output: { type: "create" },
       idempotency: { required: true },
       audit: { input: "summary" },
+      key: "create",
     },
-    update: {
+    {
       label: `Update ${label}`,
       kind: "update",
       scope: "record",
@@ -3520,8 +3522,9 @@ function recordCrudOperations(
       output: { type: "update" },
       idempotency: { required: true },
       audit: { input: "summary" },
+      key: "update",
     },
-    delete: {
+    {
       label: `Delete ${label}`,
       kind: "delete",
       scope: "record",
@@ -3529,18 +3532,19 @@ function recordCrudOperations(
       output: { type: "delete" },
       idempotency: { required: true },
       audit: { input: "summary" },
+      key: "delete",
     },
-    read: {
+    {
       label: `Read ${label}`,
       kind: "get",
       scope: "record",
       output: { type: "get" },
       idempotency: { required: false },
       audit: { input: "summary" },
+      key: "read",
     },
-  };
+  ];
 }
-
 function listOperation(query: string): EntityOperationSchema {
   return {
     kind: "list",

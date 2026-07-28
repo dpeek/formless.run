@@ -1534,7 +1534,10 @@ async function createInvitation(input: {
     selectedOrganization?: string;
   }>;
   invitationId: string;
-  invitedPrincipal?: { displayName: string; id: string };
+  invitedPrincipal?: {
+    displayName: string;
+    id: string;
+  };
   memberships?: Array<{
     id?: string;
     targetGroup?: string;
@@ -1542,7 +1545,11 @@ async function createInvitation(input: {
     targetOrganization?: string;
   }>;
   now?: string;
-  principalEmail?: { id?: string; primary?: boolean; recovery?: boolean };
+  principalEmail?: {
+    id?: string;
+    primary?: boolean;
+    recovery?: boolean;
+  };
   targetAppInstallId?: string;
   targetEmail: string;
   targetOrganization?: string;
@@ -1589,13 +1596,14 @@ async function updateInvitationStatus(invitationId: string, status: string) {
     headers: adminHeaders({ "Content-Type": "application/json" }),
     method: "POST",
   });
-  const body = (await response.json()) as OperationInvocationResponse | { error: string };
-
+  const body = (await response.json()) as
+    | OperationInvocationResponse
+    | {
+        error: string;
+      };
   expect(response.status).toBe(200);
-
   return body;
 }
-
 async function updateInvitationTarget(
   invitationId: string,
   target: {
@@ -1761,14 +1769,13 @@ async function readPrivateToken(invitationId: string): Promise<PrivateInvitation
   const response = await fetchAuthHarness(
     `/harness/auth/token?invitationId=${encodeURIComponent(invitationId)}`,
   );
-  const body = (await response.json()) as { token: PrivateInvitationToken | null };
-
+  const body = (await response.json()) as {
+    token: PrivateInvitationToken | null;
+  };
   expect(response.status).toBe(200);
   expect(body.token).not.toBeNull();
-
   return body.token as PrivateInvitationToken;
 }
-
 async function authCounts() {
   const response = await fetchAuthHarness("/harness/auth/counts");
   const body = (await response.json()) as {
@@ -1948,8 +1955,11 @@ async function completeDefaultProfileCompletionGate(input: {
     response,
   };
 }
-
-async function configureDefaultProductionIdentity(input: { adminRoute?: string } = {}) {
+async function configureDefaultProductionIdentity(
+  input: {
+    adminRoute?: string;
+  } = {},
+) {
   const values = {
     ...(input.adminRoute === undefined ? {} : { adminRoute: input.adminRoute }),
     canonicalOrigin: "https://www.example.com",
@@ -2072,20 +2082,20 @@ async function readDefaultControlPlaneRecords(): Promise<StoredRecord[]> {
 async function readDefaultAppRecords(
   packageAppKey: string,
   appInstallId: string,
-): Promise<{ records: StoredRecord[] }> {
+): Promise<{
+  records: StoredRecord[];
+}> {
   const response = await harness.fetch(
     `/harness/app-records?installId=${encodeURIComponent(appInstallId)}&packageAppKey=${encodeURIComponent(packageAppKey)}`,
   );
-  const body = (await response.json()) as { records: StoredRecord[] };
-
+  const body = (await response.json()) as {
+    records: StoredRecord[];
+  };
   expect(response.status).toBe(200);
-
   return body;
 }
-
 function operationRecord(response: OperationInvocationResponse): StoredRecord {
   const output = response.output;
-
   if (output.type !== "create" && output.type !== "update") {
     throw new Error(`Expected record write output, received "${output.type}".`);
   }
@@ -2109,9 +2119,12 @@ function adminHeaders(headers: Record<string, string> = {}) {
     Authorization: `Bearer ${adminToken}`,
   };
 }
-
 function requiredHeader(
-  response: { headers: { get(name: string): string | null } },
+  response: {
+    headers: {
+      get(name: string): string | null;
+    };
+  },
   name: string,
 ): string {
   const value = response.headers.get(name);
@@ -2159,10 +2172,13 @@ class VirtualPasskey {
     this.credentialId = credentialIdValue;
     this.publicKey = pair.publicKey;
   }
-
   registrationResponse(
     options: PublicKeyCredentialCreationOptionsJSON,
-    input: { origin: string; rpId: string; userVerified?: boolean },
+    input: {
+      origin: string;
+      rpId: string;
+      userVerified?: boolean;
+    },
   ): RegistrationResponseJSON {
     const clientDataJSON = clientDataJson("webauthn.create", options.challenge, input.origin);
     const authData = registrationAuthenticatorData({

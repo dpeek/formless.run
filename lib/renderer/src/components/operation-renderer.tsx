@@ -332,9 +332,8 @@ export function astryxOperationFeedbackToastOptions(
   feedback: OperationFeedbackEventContract,
 ): ToastOptions {
   const isFailure = feedback.status === "failed";
-
   return {
-    ...(isFailure ? {} : { autoHideDuration: 5_000 }),
+    ...(isFailure ? {} : { autoHideDuration: 5000 }),
     body: feedback.title,
     collisionBehavior: "overwrite",
     isAutoHide: !isFailure,

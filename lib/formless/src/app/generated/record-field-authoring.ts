@@ -601,14 +601,15 @@ export function selectMediaAssetUploadPatchFields(
   entityName: string,
   fieldName: string,
 ): GeneratedRecordFieldMediaUploadPatchFields {
-  const fields = schema?.entities[entityName]?.fields;
-  const field = fields?.[fieldName];
-
+  const fields = schema?.entities.find((definition) => definition.key === entityName)?.fields;
+  const field = fields?.find((definition) => definition.key === fieldName);
   if (field?.type === "text" && field.asset?.kind === "document") {
     return { mediaAssetFieldName: fieldName };
   }
-
-  if (fields?.width?.type === "number" && fields.height?.type === "number") {
+  if (
+    fields?.find((definition) => definition.key === "width")?.type === "number" &&
+    fields.find((definition) => definition.key === "height")?.type === "number"
+  ) {
     return {
       heightFieldName: "height",
       mediaAssetFieldName: fieldName,
@@ -711,8 +712,7 @@ function appendGeneratedMediaUploadPatchFields({
 }): RecordFieldConfig[] {
   const nextFields = [...fields];
   const fieldNames = new Set(nextFields.map((field) => field.fieldName));
-  const schemaFields = schema?.entities[entityName]?.fields;
-
+  const schemaFields = schema?.entities.find((definition) => definition.key === entityName)?.fields;
   function addField(fieldName: string | undefined) {
     if (fieldName === undefined || fieldNames.has(fieldName)) {
       return;
@@ -723,9 +723,7 @@ function appendGeneratedMediaUploadPatchFields({
       fieldNames.add(fieldName);
       return;
     }
-
-    const field = schemaFields?.[fieldName];
-
+    const field = schemaFields?.find((definition) => definition.key === fieldName);
     if (field === undefined) {
       return;
     }

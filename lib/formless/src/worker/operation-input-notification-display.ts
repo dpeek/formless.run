@@ -15,8 +15,9 @@ export function operationInputNotificationDisplayRows(input: {
   response: OperationInvocationResponse;
   schema: AppSchema;
 }): OperationInputNotificationDisplayRow[] {
-  const entity = input.schema.entities[input.response.invocation.operation.entityName];
-
+  const entity = input.schema.entities.find(
+    (definition) => definition.key === input.response.invocation.operation.entityName,
+  )!;
   if (!entity) {
     return [];
   }
@@ -26,11 +27,13 @@ export function operationInputNotificationDisplayRows(input: {
     entity,
     operation: input.response.invocation.schemaOperation,
   });
-  const operationFields = input.response.invocation.schemaOperation.input?.fields ?? {};
-
+  const operationFields = input.response.invocation.schemaOperation.input?.fields ?? [];
   return projection.fields.flatMap((field) => {
-    const value = submittedInputFieldValue(submittedInput, field.name, operationFields[field.name]);
-
+    const value = submittedInputFieldValue(
+      submittedInput,
+      field.name,
+      operationFields.find((definition) => definition.key === field.name),
+    );
     if (value === undefined) {
       return [];
     }
@@ -51,17 +54,13 @@ export function operationInputNotificationOutputDisplayRows(input: {
   if (input.response.output.type !== "command") {
     return [];
   }
-
   const rows = input.response.output.changes.flatMap((change) => {
-    const entity = input.schema.entities[change.entity];
-
+    const entity = input.schema.entities.find((definition) => definition.key === change.entity)!;
     if (!entity) {
       return [];
     }
-
     return Object.entries(change.payload.values).flatMap(([fieldName, value]) => {
-      const field = entity.fields[fieldName];
-
+      const field = entity.fields.find((definition) => definition.key === fieldName)!;
       if (!field) {
         return [];
       }
@@ -127,34 +126,31 @@ function displayOperationInputValue(field: PublicSafeOperationInputField, value:
   if (typeof value === "number") {
     return Number.isFinite(value) ? String(value) : "";
   }
-
   return String(value);
 }
-
 function displayFieldValue(
-  field: AppSchema["entities"][string]["fields"][string],
+  field: AppSchema["entities"][number]["fields"][number],
   value: unknown,
 ): string {
   if (field.type === "boolean") {
     return value === true ? "Yes" : value === false ? "No" : String(value);
   }
-
   if (field.type === "enum" && typeof value === "string") {
-    return field.values[value]?.label ?? value;
+    return field.values.find((definition) => definition.key === value)?.label ?? value;
   }
-
   if (typeof value === "number") {
     return Number.isFinite(value) ? String(value) : "";
   }
-
   return String(value);
 }
-
 function disambiguateDuplicateOutputLabels(
-  rows: Array<OperationInputNotificationDisplayRow & { entityLabel: string }>,
+  rows: Array<
+    OperationInputNotificationDisplayRow & {
+      entityLabel: string;
+    }
+  >,
 ): OperationInputNotificationDisplayRow[] {
   const labelCounts = new Map<string, number>();
-
   for (const row of rows) {
     labelCounts.set(row.label, (labelCounts.get(row.label) ?? 0) + 1);
   }

@@ -540,8 +540,7 @@ function requiredOperation(
   foundation: ReturnType<typeof selectGeneratedRecordResultFoundation>,
   kind: "delete" | "transition",
 ) {
-  const operation = foundation.runtimePlan.operations.find((candidate) => candidate.kind === kind);
-
+  const operation = foundation.runtimePlan.operations!.find((candidate) => candidate.kind === kind);
   if (!operation) {
     throw new Error(`Missing ${kind} operation.`);
   }
@@ -584,7 +583,7 @@ function operationPresentation(
       audit: { input: "summary" },
       effect: kind === "delete" ? { type: "deleteRecord" } : { type: "patchRecord" },
       idempotency: { required: true },
-      input: { fields: {} },
+      input: { fields: [] },
       kind,
       output: { type: kind },
       scope: "record",
@@ -592,10 +591,11 @@ function operationPresentation(
     operationName,
   };
 }
-
 function transitionOperation(): TransitionStateOperationConfig {
   const transitionName = "publish";
-  const transition = statusMachine.machine.transitions[transitionName];
+  const transition = statusMachine.machine.transitions.find(
+    (definition) => definition.key === transitionName,
+  )!;
   const operation = {
     audit: { input: "none" },
     effect: {
@@ -665,7 +665,10 @@ const fieldSchemas = {
   costUnit: {
     required: false,
     type: "enum",
-    values: { day: { label: "Day" }, hour: { label: "Hour" } },
+    values: [
+      { key: "day", label: "Day" },
+      { key: "hour", label: "Hour" },
+    ],
   },
   dueDate: { required: false, type: "date" },
   hero: { format: "href", required: false, type: "text" },
@@ -673,33 +676,38 @@ const fieldSchemas = {
   kind: {
     required: true,
     type: "enum",
-    values: { article: { label: "Article" }, link: { label: "Link" } },
+    values: [
+      { key: "article", label: "Article" },
+      { key: "link", label: "Link" },
+    ],
   },
   priority: {
     required: false,
     type: "enum",
-    values: {
-      high: { label: "High", presentation: { color: "danger", icon: "warning" } },
-      normal: { label: "Normal", presentation: { color: "neutral" } },
-    },
+    values: [
+      { key: "high", label: "High", presentation: { color: "danger", icon: "warning" } },
+      { key: "normal", label: "Normal", presentation: { color: "neutral" } },
+    ],
   },
   status: {
     required: true,
     type: "enum",
-    values: {
-      draft: { label: "Draft", presentation: { color: "warning" } },
-      published: { label: "Published", presentation: { color: "success" } },
-    },
+    values: [
+      { key: "draft", label: "Draft", presentation: { color: "warning" } },
+      { key: "published", label: "Published", presentation: { color: "success" } },
+    ],
   },
   text: { required: false, type: "text" },
   title: { label: "Title", required: true, type: "text" },
   type: {
     required: true,
     type: "enum",
-    values: { page: { label: "Page" }, post: { label: "Post" } },
+    values: [
+      { key: "page", label: "Page" },
+      { key: "post", label: "Post" },
+    ],
   },
 } satisfies Record<string, FieldSchema>;
-
 const statusMachine = {
   fieldName: "status",
   initialState: "draft",
@@ -707,9 +715,7 @@ const statusMachine = {
     field: "status",
     initial: "draft",
     terminal: ["published"],
-    transitions: {
-      publish: { from: ["draft"], label: "Publish", to: "published" },
-    },
+    transitions: [{ key: "publish", from: ["draft"], label: "Publish", to: "published" }],
   },
   machineName: "publication",
   terminalStates: ["published"],
@@ -752,10 +758,10 @@ const contentUnion = {
   union: {
     discriminator: "kind",
     entity: "block",
-    variants: {
-      article: { fields: ["articleIcon"], label: "Article" },
-      link: { fields: ["url"], label: "Link" },
-    },
+    variants: [
+      { key: "article", fields: ["articleIcon"], label: "Article" },
+      { key: "link", fields: ["url"], label: "Link" },
+    ],
   },
   unionName: "blockByKind",
   variants: [
@@ -779,40 +785,45 @@ const contentUnion = {
     },
   ],
 } satisfies RecordUnionPresentationConfig;
-
 const blockEntity = {
-  fields: {
-    ...fieldSchemas,
-    height: { required: false, type: "number" },
-    width: { required: false, type: "number" },
-  },
+  fields: [
+    ...Object.entries(fieldSchemas).map(([key, field]) => ({ key, ...field })),
+    { key: "height", required: false, type: "number" },
+    { key: "width", required: false, type: "number" },
+  ],
   label: "Block",
-  stateMachines: { publication: statusMachine.machine },
+  stateMachines: [
+    {
+      key: "publication",
+      ...statusMachine.machine,
+    },
+  ],
 } as EntitySchema;
-
 const unionEntity = {
-  fields: {
-    articleIcon: fieldSchemas.icon,
-    kind: fieldSchemas.kind,
-    summary: fieldSchemas.text,
-    title: fieldSchemas.title,
-    url: fieldSchemas.text,
-  },
+  fields: [
+    { key: "articleIcon", ...fieldSchemas.icon },
+    { key: "kind", ...fieldSchemas.kind },
+    { key: "summary", ...fieldSchemas.text },
+    { key: "title", ...fieldSchemas.title },
+    { key: "url", ...fieldSchemas.text },
+  ],
   label: "Block",
 } as EntitySchema;
-
 const mediaSchema = {
-  entities: { block: blockEntity },
-  itemViews: {},
-  queries: {},
-  tableViews: {},
+  entities: [
+    {
+      key: "block",
+      ...blockEntity,
+    },
+  ],
+  itemViews: [],
+  queries: [],
+  tableViews: [],
   version: 1,
-  views: {},
+  views: [],
 } as unknown as AppSchema;
-
 function requiredIconSource(id: string): string {
   const source = resolveIconCatalogSvg(id);
-
   if (!source) {
     throw new Error(`Missing icon ${id}.`);
   }

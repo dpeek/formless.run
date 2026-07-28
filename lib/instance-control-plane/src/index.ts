@@ -30,8 +30,15 @@ import {
   parseAppSchema,
   parseQualifiedEntityName,
 } from "@dpeek/formless-schema";
-import type { AppSchema, FieldEditor, FieldSchema } from "@dpeek/formless-schema";
+import type {
+  AppSchema,
+  FieldEditor,
+  FieldSchema,
+  ToManyRelationshipSchema,
+  ToOneRelationshipSchema,
+} from "@dpeek/formless-schema";
 import {
+  formatStoredRecordsForArtifact,
   parseStorageSnapshot,
   type RecordValues,
   type StorageSnapshot,
@@ -44,7 +51,7 @@ export const INSTANCE_CONTROL_PLANE_BOUNDARY_SCHEMA_KEY = "instance";
 export const INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY = "instance:control-plane";
 export const INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX = "/api/formless/control-plane";
 export const INSTANCE_CONTROL_PLANE_SOURCE_SCHEMA_HASH =
-  "sha256:13bcc776bf669fb3330b327a331e9dbbb9bfd86b1500bbacdaf3d28ff252bc8a" satisfies SourceSchemaHash;
+  "sha256:313fcf33a34c083c8e59ed58a323e1ac4a12880535ed57147a2a571f659c7554" satisfies SourceSchemaHash;
 export const INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID = "instance";
 export const instanceControlPlaneSchemaProvenance = {
   kind: "instance-control-plane",
@@ -284,13 +291,27 @@ type InstanceControlPlaneViewField =
   | string
   | {
       field: string;
-      visibleWhen?: { field: string; values: Array<string | boolean | number> };
+      visibleWhen?: {
+        field: string;
+        values: Array<string | boolean | number>;
+      };
     };
-type InstanceControlPlaneQueryValue = string | boolean | number | { kind: "context"; name: string };
+type InstanceControlPlaneQueryValue =
+  | string
+  | boolean
+  | number
+  | {
+      kind: "context";
+      name: string;
+    };
 type InstanceControlPlaneCollectionContext = NonNullable<
-  Extract<AppSchema["views"][string], { type: "collection" }>["context"]
+  Extract<
+    AppSchema["views"][number],
+    {
+      type: "collection";
+    }
+  >["context"]
 >;
-
 export type AnyInstanceControlPlaneRecord = {
   [Entity in InstanceControlPlaneEntityName]: InstanceControlPlaneRecord<
     Entity,
@@ -320,31 +341,58 @@ export const instanceControlPlaneReservedRoutePaths = [
   "/sitemap.xml",
   "/static",
 ] as const;
-
 export const instanceControlPlaneSourceSchema = {
   version: 1,
-  entities: {
-    "app-install": {
+  entities: [
+    {
+      key: "app-install",
       label: "App install",
-      fields: {
-        installId: textField("Install id"),
-        packageAppKey: textField("Package"),
-        packageRevision: optionalNumberField("Package revision"),
-        sourceSchemaHash: optionalTextField("Source schema hash"),
-        label: textField("Label"),
-        registrationPolicy: enumField("Registration policy", {
-          closed: "Closed",
-          "email-verified": "Email verified",
-          "custom-operation": "Custom operation",
-        }),
-        registrationOperation: optionalTextField("Registration operation"),
-        status: enumField("Status", {
-          disabled: "Disabled",
-          failed: "Failed",
-          installed: "Installed",
-        }),
-        storageIdentity: textField("Storage identity"),
-      },
+      fields: [
+        {
+          key: "installId",
+          ...textField("Install id"),
+        },
+        {
+          key: "packageAppKey",
+          ...textField("Package"),
+        },
+        {
+          key: "packageRevision",
+          ...optionalNumberField("Package revision"),
+        },
+        {
+          key: "sourceSchemaHash",
+          ...optionalTextField("Source schema hash"),
+        },
+        {
+          key: "label",
+          ...textField("Label"),
+        },
+        {
+          key: "registrationPolicy",
+          ...enumField("Registration policy", {
+            closed: "Closed",
+            "email-verified": "Email verified",
+            "custom-operation": "Custom operation",
+          }),
+        },
+        {
+          key: "registrationOperation",
+          ...optionalTextField("Registration operation"),
+        },
+        {
+          key: "status",
+          ...enumField("Status", {
+            disabled: "Disabled",
+            failed: "Failed",
+            installed: "Installed",
+          }),
+        },
+        {
+          key: "storageIdentity",
+          ...textField("Storage identity"),
+        },
+      ],
       operations: writeOperations("App install", [
         "installId",
         "packageAppKey",
@@ -356,54 +404,103 @@ export const instanceControlPlaneSourceSchema = {
         "status",
         "storageIdentity",
       ]),
-      constraints: {
-        uniqueInstallId: { kind: "unique", fields: ["installId"] },
-        uniqueStorageIdentity: { kind: "unique", fields: ["storageIdentity"] },
-      },
+      constraints: [
+        { key: "uniqueInstallId", kind: "unique", fields: ["installId"] },
+        { key: "uniqueStorageIdentity", kind: "unique", fields: ["storageIdentity"] },
+      ],
     },
-    route: {
+    {
+      key: "route",
       label: "Route",
-      fields: {
-        enabled: booleanField("Enabled", true),
-        matchHost: optionalTextField("Match host"),
-        matchPath: textField("Match path"),
-        matchPrefix: optionalTextField("Match prefix"),
-        kind: enumField("Kind", {
-          mount: "Mount",
-          redirect: "Redirect",
-        }),
-        targetProfile: optionalEnumField("Target profile", {
-          app: "App",
-          instance: "Instance",
-          "public-site": "Public Site",
-        }),
-        appInstall: optionalReferenceField("App install", "app-install", "label"),
-        surface: optionalEnumField("Surface", {
-          admin: "Admin",
-          "public-site": "Public Site",
-        }),
-        access: optionalEnumField("Access", {
-          anonymous: "Anonymous",
-          authenticated: "Authenticated",
-          management: "Management",
-          owner: "Owner",
-        }),
-        requiredRole: optionalEnumField("Required role", {
-          "app.admin": "App admin",
-        }),
-        deploymentConfig: optionalReferenceField("Deployment config", "deployment-config", "label"),
-        toHost: optionalTextField("To host"),
-        toUrl: optionalTextField("To URL", "href"),
-        statusCode: optionalEnumField("Status code", {
-          "301": "301",
-          "302": "302",
-          "303": "303",
-          "307": "307",
-          "308": "308",
-        }),
-        preservePath: optionalBooleanField("Preserve path", true),
-        preserveQueryString: optionalBooleanField("Preserve query string", true),
-      },
+      fields: [
+        {
+          key: "enabled",
+          ...booleanField("Enabled", true),
+        },
+        {
+          key: "matchHost",
+          ...optionalTextField("Match host"),
+        },
+        {
+          key: "matchPath",
+          ...textField("Match path"),
+        },
+        {
+          key: "matchPrefix",
+          ...optionalTextField("Match prefix"),
+        },
+        {
+          key: "kind",
+          ...enumField("Kind", {
+            mount: "Mount",
+            redirect: "Redirect",
+          }),
+        },
+        {
+          key: "targetProfile",
+          ...optionalEnumField("Target profile", {
+            app: "App",
+            instance: "Instance",
+            "public-site": "Public Site",
+          }),
+        },
+        {
+          key: "appInstall",
+          ...optionalReferenceField("App install", "app-install", "label"),
+        },
+        {
+          key: "surface",
+          ...optionalEnumField("Surface", {
+            admin: "Admin",
+            "public-site": "Public Site",
+          }),
+        },
+        {
+          key: "access",
+          ...optionalEnumField("Access", {
+            anonymous: "Anonymous",
+            authenticated: "Authenticated",
+            management: "Management",
+            owner: "Owner",
+          }),
+        },
+        {
+          key: "requiredRole",
+          ...optionalEnumField("Required role", {
+            "app.admin": "App admin",
+          }),
+        },
+        {
+          key: "deploymentConfig",
+          ...optionalReferenceField("Deployment config", "deployment-config", "label"),
+        },
+        {
+          key: "toHost",
+          ...optionalTextField("To host"),
+        },
+        {
+          key: "toUrl",
+          ...optionalTextField("To URL", "href"),
+        },
+        {
+          key: "statusCode",
+          ...optionalEnumField("Status code", {
+            "301": "301",
+            "302": "302",
+            "303": "303",
+            "307": "307",
+            "308": "308",
+          }),
+        },
+        {
+          key: "preservePath",
+          ...optionalBooleanField("Preserve path", true),
+        },
+        {
+          key: "preserveQueryString",
+          ...optionalBooleanField("Preserve query string", true),
+        },
+      ],
       operations: writeOperations("Route", [
         "enabled",
         "matchHost",
@@ -423,31 +520,77 @@ export const instanceControlPlaneSourceSchema = {
         "preserveQueryString",
       ]),
     },
-    "deployment-config": {
+    {
+      key: "deployment-config",
       label: "Deployment config",
-      fields: {
-        targetId: textField("Target id"),
-        targetKind: enumField("Kind", { instance: "Instance" }),
-        label: textField("Label"),
-        enabled: booleanField("Enabled", true),
-        targetUrl: textField("Target URL", "href"),
-        providerFamily: enumField("Provider", { cloudflare: "Cloudflare" }),
-        accountId: optionalTextField("Account id"),
-        workerName: optionalTextField("Worker name"),
-        credentialRef: optionalTextField("Credential ref"),
-        observedStatus: optionalEnumField("Observed status", {
-          deployed: "Deployed",
-          drifted: "Drifted",
-          failed: "Failed",
-          "in-sync": "In sync",
-          unknown: "Unknown",
-        }),
-        observedAt: optionalTextField("Observed at"),
-        observedDesiredStateHash: optionalTextField("Observed desired-state hash"),
-        observedSummary: optionalTextField("Observed summary", "longText"),
-        observedError: optionalTextField("Observed error", "longText"),
-        observedRunnerId: optionalTextField("Observed runner"),
-      },
+      fields: [
+        {
+          key: "targetId",
+          ...textField("Target id"),
+        },
+        {
+          key: "targetKind",
+          ...enumField("Kind", { instance: "Instance" }),
+        },
+        {
+          key: "label",
+          ...textField("Label"),
+        },
+        {
+          key: "enabled",
+          ...booleanField("Enabled", true),
+        },
+        {
+          key: "targetUrl",
+          ...textField("Target URL", "href"),
+        },
+        {
+          key: "providerFamily",
+          ...enumField("Provider", { cloudflare: "Cloudflare" }),
+        },
+        {
+          key: "accountId",
+          ...optionalTextField("Account id"),
+        },
+        {
+          key: "workerName",
+          ...optionalTextField("Worker name"),
+        },
+        {
+          key: "credentialRef",
+          ...optionalTextField("Credential ref"),
+        },
+        {
+          key: "observedStatus",
+          ...optionalEnumField("Observed status", {
+            deployed: "Deployed",
+            drifted: "Drifted",
+            failed: "Failed",
+            "in-sync": "In sync",
+            unknown: "Unknown",
+          }),
+        },
+        {
+          key: "observedAt",
+          ...optionalTextField("Observed at"),
+        },
+        {
+          key: "observedDesiredStateHash",
+          ...optionalTextField("Observed desired-state hash"),
+        },
+        {
+          key: "observedSummary",
+          ...optionalTextField("Observed summary", "longText"),
+        },
+        {
+          key: "observedError",
+          ...optionalTextField("Observed error", "longText"),
+        },
+        {
+          key: "observedRunnerId",
+          ...optionalTextField("Observed runner"),
+        },
+      ],
       operations: writeOperations(
         "Deployment config",
         [
@@ -481,42 +624,72 @@ export const instanceControlPlaneSourceSchema = {
           ],
         },
       ),
-      constraints: {
-        uniqueTargetId: { kind: "unique", fields: ["targetId"] },
-      },
+      constraints: [{ key: "uniqueTargetId", kind: "unique", fields: ["targetId"] }],
     },
-    "instance-settings": {
+    {
+      key: "instance-settings",
       label: "Instance settings",
-      fields: {
-        settingsId: textField("Settings id"),
-        canonicalOrigin: optionalTextField("Canonical origin", "href"),
-        primaryRoute: optionalReferenceField("Primary route", "route", "matchHost"),
-        adminRoute: optionalReferenceField("Admin route", "route", "matchHost"),
-        authRoute: optionalReferenceField("Auth route", "route", "matchHost"),
-        authOrigin: optionalTextField("Auth origin", "href"),
-        authRelyingPartyId: optionalTextField("Auth relying-party id"),
-        authRelyingPartyName: optionalTextField("Auth relying-party name"),
-        defaultEmailDomain: optionalReferenceField(
-          "Default email domain",
-          "email-domain",
-          "domain",
-        ),
-        defaultContactSender: optionalReferenceField(
-          "Default contact sender",
-          "email-sender",
-          "address",
-        ),
-        defaultAuthSender: optionalReferenceField("Default auth sender", "email-sender", "address"),
-        contactNotificationRecipient: optionalTextField("Contact notification recipient"),
-        productionIdentityStatus: enumField(
-          "Production identity status",
-          {
-            configured: "Configured",
-            unconfigured: "Unconfigured",
-          },
-          "unconfigured",
-        ),
-      },
+      fields: [
+        {
+          key: "settingsId",
+          ...textField("Settings id"),
+        },
+        {
+          key: "canonicalOrigin",
+          ...optionalTextField("Canonical origin", "href"),
+        },
+        {
+          key: "primaryRoute",
+          ...optionalReferenceField("Primary route", "route", "matchHost"),
+        },
+        {
+          key: "adminRoute",
+          ...optionalReferenceField("Admin route", "route", "matchHost"),
+        },
+        {
+          key: "authRoute",
+          ...optionalReferenceField("Auth route", "route", "matchHost"),
+        },
+        {
+          key: "authOrigin",
+          ...optionalTextField("Auth origin", "href"),
+        },
+        {
+          key: "authRelyingPartyId",
+          ...optionalTextField("Auth relying-party id"),
+        },
+        {
+          key: "authRelyingPartyName",
+          ...optionalTextField("Auth relying-party name"),
+        },
+        {
+          key: "defaultEmailDomain",
+          ...optionalReferenceField("Default email domain", "email-domain", "domain"),
+        },
+        {
+          key: "defaultContactSender",
+          ...optionalReferenceField("Default contact sender", "email-sender", "address"),
+        },
+        {
+          key: "defaultAuthSender",
+          ...optionalReferenceField("Default auth sender", "email-sender", "address"),
+        },
+        {
+          key: "contactNotificationRecipient",
+          ...optionalTextField("Contact notification recipient"),
+        },
+        {
+          key: "productionIdentityStatus",
+          ...enumField(
+            "Production identity status",
+            {
+              configured: "Configured",
+              unconfigured: "Unconfigured",
+            },
+            "unconfigured",
+          ),
+        },
+      ],
       operations: writeOperations(
         "Instance settings",
         [
@@ -552,22 +725,44 @@ export const instanceControlPlaneSourceSchema = {
         },
       ),
     },
-    "email-domain": {
+    {
+      key: "email-domain",
       label: "Email domain",
-      fields: {
-        enabled: booleanField("Enabled", true),
-        providerFamily: enumField("Provider", { cloudflare: "Cloudflare" }),
-        domain: textField("Domain"),
-        primaryRoute: optionalReferenceField("Primary route", "route", "matchHost"),
-        deploymentConfig: optionalReferenceField("Deployment config", "deployment-config", "label"),
-        dnsStatus: optionalEnumField("DNS status", {
-          failed: "Failed",
-          pending: "Pending",
-          unconfigured: "Unconfigured",
-          verified: "Verified",
-        }),
-        latestError: optionalTextField("Latest error", "longText"),
-      },
+      fields: [
+        {
+          key: "enabled",
+          ...booleanField("Enabled", true),
+        },
+        {
+          key: "providerFamily",
+          ...enumField("Provider", { cloudflare: "Cloudflare" }),
+        },
+        {
+          key: "domain",
+          ...textField("Domain"),
+        },
+        {
+          key: "primaryRoute",
+          ...optionalReferenceField("Primary route", "route", "matchHost"),
+        },
+        {
+          key: "deploymentConfig",
+          ...optionalReferenceField("Deployment config", "deployment-config", "label"),
+        },
+        {
+          key: "dnsStatus",
+          ...optionalEnumField("DNS status", {
+            failed: "Failed",
+            pending: "Pending",
+            unconfigured: "Unconfigured",
+            verified: "Verified",
+          }),
+        },
+        {
+          key: "latestError",
+          ...optionalTextField("Latest error", "longText"),
+        },
+      ],
       operations: writeOperations(
         "Email domain",
         [
@@ -591,19 +786,35 @@ export const instanceControlPlaneSourceSchema = {
         },
       ),
     },
-    "email-sender": {
+    {
+      key: "email-sender",
       label: "Email sender",
-      fields: {
-        enabled: booleanField("Enabled", true),
-        address: textField("Address"),
-        displayName: optionalTextField("Display name"),
-        purpose: enumField("Purpose", {
-          "contact-notification": "Contact notification",
-          auth: "Auth messages",
-          system: "System",
-        }),
-        emailDomain: referenceField("Email domain", "email-domain", "domain"),
-      },
+      fields: [
+        {
+          key: "enabled",
+          ...booleanField("Enabled", true),
+        },
+        {
+          key: "address",
+          ...textField("Address"),
+        },
+        {
+          key: "displayName",
+          ...optionalTextField("Display name"),
+        },
+        {
+          key: "purpose",
+          ...enumField("Purpose", {
+            "contact-notification": "Contact notification",
+            auth: "Auth messages",
+            system: "System",
+          }),
+        },
+        {
+          key: "emailDomain",
+          ...referenceField("Email domain", "email-domain", "domain"),
+        },
+      ],
       operations: writeOperations(
         "Email sender",
         ["enabled", "address", "displayName", "purpose", "emailDomain"],
@@ -612,219 +823,524 @@ export const instanceControlPlaneSourceSchema = {
         },
       ),
     },
-  },
-  relationships: {
-    routeInstall: toOne("Route install", "route", "appInstall", "app-install"),
-    routeDeploymentConfig: toOne(
-      "Route deployment config",
-      "route",
-      "deploymentConfig",
-      "deployment-config",
-      "deploymentConfigRoutes",
-    ),
-    settingsPrimaryRoute: toOne(
-      "Settings primary route",
-      "instance-settings",
-      "primaryRoute",
-      "route",
-    ),
-    settingsAdminRoute: toOne("Settings admin route", "instance-settings", "adminRoute", "route"),
-    settingsAuthRoute: toOne("Settings auth route", "instance-settings", "authRoute", "route"),
-    settingsDefaultEmailDomain: toOne(
-      "Settings default email domain",
-      "instance-settings",
-      "defaultEmailDomain",
-      "email-domain",
-    ),
-    settingsDefaultContactSender: toOne(
-      "Settings default contact sender",
-      "instance-settings",
-      "defaultContactSender",
-      "email-sender",
-    ),
-    settingsDefaultAuthSender: toOne(
-      "Settings default auth sender",
-      "instance-settings",
-      "defaultAuthSender",
-      "email-sender",
-    ),
-    emailDomainPrimaryRoute: toOne(
-      "Email domain primary route",
-      "email-domain",
-      "primaryRoute",
-      "route",
-    ),
-    emailDomainDeploymentConfig: toOne(
-      "Email domain deployment config",
-      "email-domain",
-      "deploymentConfig",
-      "deployment-config",
-      "deploymentConfigEmailDomains",
-    ),
-    emailSenderDomain: toOne(
-      "Email sender domain",
-      "email-sender",
-      "emailDomain",
-      "email-domain",
-      "emailDomainSenders",
-    ),
-    deploymentConfigRoutes: toMany(
-      "Deployment config routes",
-      "deployment-config",
-      "route",
-      "deploymentConfig",
-      "routeDeploymentConfig",
-    ),
-    deploymentConfigEmailDomains: toMany(
-      "Deployment config email domains",
-      "deployment-config",
-      "email-domain",
-      "deploymentConfig",
-      "emailDomainDeploymentConfig",
-    ),
-    emailDomainSenders: toMany(
-      "Email domain senders",
-      "email-domain",
-      "email-sender",
-      "emailDomain",
-      "emailSenderDomain",
-    ),
-  },
-  queries: {
-    appInstallAll: allQuery("App installs", "app-install"),
-    routeAll: allQuery("Routes", "route"),
-    routeEnabled: whereQuery("Enabled routes", "route", "enabled", true),
-    routeMount: whereQuery("Mounts", "route", "kind", "mount"),
-    routeHostMapping: andWhereQuery("Host mappings", "route", [
-      { field: "kind", value: "mount" },
-      { field: "matchPath", value: "/" },
-    ]),
-    routeRedirect: whereQuery("Redirects", "route", "kind", "redirect"),
-    routeInstanceMount: whereQuery("Instance paths", "route", "targetProfile", "instance"),
-    routeAppMount: whereQuery("App install routes", "route", "targetProfile", "app"),
-    routePublicSiteMount: whereQuery("Public Site routes", "route", "targetProfile", "public-site"),
-    routesForSelectedDeploymentConfig: whereQuery(
-      "Selected deployment config",
-      "route",
-      "deploymentConfig",
-      { kind: "context", name: "deploymentConfig" },
-    ),
-    deploymentConfigAll: allQuery("Deployment configs", "deployment-config"),
-    deploymentConfigEnabled: whereQuery(
-      "Enabled deployment configs",
-      "deployment-config",
-      "enabled",
-      true,
-    ),
-    instanceSettingsAll: allQuery("Instance settings", "instance-settings"),
-    emailDomainAll: allQuery("Email domains", "email-domain"),
-    emailDomainEnabled: whereQuery("Enabled email domains", "email-domain", "enabled", true),
-    emailSenderAll: allQuery("Email senders", "email-sender"),
-    emailSenderEnabled: whereQuery("Enabled email senders", "email-sender", "enabled", true),
-  },
-  itemViews: {
-    appInstallItem: itemView("app-install", [
-      "label",
-      "installId",
-      "packageAppKey",
-      "registrationPolicy",
-      "registrationOperation",
-      "status",
-    ]),
-    routeItem: itemView("route", ["matchHost", "matchPath", "kind", "enabled"]),
-    deploymentConfigItem: itemView("deployment-config", [
-      "label",
-      "targetId",
-      "providerFamily",
-      "enabled",
-      "observedStatus",
-      "observedAt",
-    ]),
-    instanceSettingsItem: itemView("instance-settings", [
-      "settingsId",
-      "primaryRoute",
-      "adminRoute",
-      "canonicalOrigin",
-      "productionIdentityStatus",
-    ]),
-    emailDomainItem: itemView("email-domain", ["domain", "providerFamily", "enabled", "dnsStatus"]),
-    emailSenderItem: itemView("email-sender", ["address", "purpose", "enabled", "emailDomain"]),
-  },
-  tableViews: {
-    appInstallTable: tableView("app-install", [
-      { field: "label", display: "editor" },
-      { field: "installId", display: "readOnly" },
-      { field: "packageAppKey", display: "readOnly" },
-      { field: "registrationPolicy", display: "readOnly" },
-      { field: "registrationOperation", display: "readOnly" },
-      { field: "status", display: "readOnly" },
-      { field: "storageIdentity", display: "readOnly" },
-      { field: "packageRevision", display: "readOnly" },
-      { field: "sourceSchemaHash", display: "readOnly" },
-    ]),
-    routeTable: tableView(
-      "route",
-      [
-        { field: "enabled", display: "editor" },
-        { field: "matchHost", display: "readOnly" },
-        { field: "matchPath", display: "readOnly" },
-        { field: "matchPrefix", display: "readOnly" },
-        { field: "kind", display: "readOnly" },
-        { field: "targetProfile", display: "readOnly" },
-        { field: "appInstall", display: "readOnly" },
-        { field: "surface", display: "readOnly" },
-        { field: "access", display: "readOnly" },
-        { field: "requiredRole", display: "readOnly" },
-        { field: "toHost", display: "readOnly" },
-        { field: "toUrl", display: "readOnly" },
-        { field: "statusCode", display: "readOnly" },
-      ],
-      {
-        operations: [
-          {
-            operation: "route.update",
-            label: "Edit route",
-            target: { kind: "row" },
-            editView: "routeEdit",
-          },
-        ],
-        operationLabel: "Route operations",
-      },
-    ),
-    deploymentConfigTable: tableView(
-      "deployment-config",
-      [
+  ],
+  relationships: [
+    {
+      key: "routeInstall",
+      ...toOne("Route install", "route", "appInstall", "app-install"),
+    },
+    {
+      key: "routeDeploymentConfig",
+      ...toOne(
+        "Route deployment config",
+        "route",
+        "deploymentConfig",
+        "deployment-config",
+        "deploymentConfigRoutes",
+      ),
+    },
+    {
+      key: "settingsPrimaryRoute",
+      ...toOne("Settings primary route", "instance-settings", "primaryRoute", "route"),
+    },
+    {
+      key: "settingsAdminRoute",
+      ...toOne("Settings admin route", "instance-settings", "adminRoute", "route"),
+    },
+    {
+      key: "settingsAuthRoute",
+      ...toOne("Settings auth route", "instance-settings", "authRoute", "route"),
+    },
+    {
+      key: "settingsDefaultEmailDomain",
+      ...toOne(
+        "Settings default email domain",
+        "instance-settings",
+        "defaultEmailDomain",
+        "email-domain",
+      ),
+    },
+    {
+      key: "settingsDefaultContactSender",
+      ...toOne(
+        "Settings default contact sender",
+        "instance-settings",
+        "defaultContactSender",
+        "email-sender",
+      ),
+    },
+    {
+      key: "settingsDefaultAuthSender",
+      ...toOne(
+        "Settings default auth sender",
+        "instance-settings",
+        "defaultAuthSender",
+        "email-sender",
+      ),
+    },
+    {
+      key: "emailDomainPrimaryRoute",
+      ...toOne("Email domain primary route", "email-domain", "primaryRoute", "route"),
+    },
+    {
+      key: "emailDomainDeploymentConfig",
+      ...toOne(
+        "Email domain deployment config",
+        "email-domain",
+        "deploymentConfig",
+        "deployment-config",
+        "deploymentConfigEmailDomains",
+      ),
+    },
+    {
+      key: "emailSenderDomain",
+      ...toOne(
+        "Email sender domain",
+        "email-sender",
+        "emailDomain",
+        "email-domain",
+        "emailDomainSenders",
+      ),
+    },
+    {
+      key: "deploymentConfigRoutes",
+      ...toMany(
+        "Deployment config routes",
+        "deployment-config",
+        "route",
+        "deploymentConfig",
+        "routeDeploymentConfig",
+      ),
+    },
+    {
+      key: "deploymentConfigEmailDomains",
+      ...toMany(
+        "Deployment config email domains",
+        "deployment-config",
+        "email-domain",
+        "deploymentConfig",
+        "emailDomainDeploymentConfig",
+      ),
+    },
+    {
+      key: "emailDomainSenders",
+      ...toMany(
+        "Email domain senders",
+        "email-domain",
+        "email-sender",
+        "emailDomain",
+        "emailSenderDomain",
+      ),
+    },
+  ],
+  queries: [
+    {
+      key: "appInstallAll",
+      ...allQuery("App installs", "app-install"),
+    },
+    {
+      key: "routeAll",
+      ...allQuery("Routes", "route"),
+    },
+    {
+      key: "routeEnabled",
+      ...whereQuery("Enabled routes", "route", "enabled", true),
+    },
+    {
+      key: "routeMount",
+      ...whereQuery("Mounts", "route", "kind", "mount"),
+    },
+    {
+      key: "routeHostMapping",
+      ...andWhereQuery("Host mappings", "route", [
+        { field: "kind", value: "mount" },
+        { field: "matchPath", value: "/" },
+      ]),
+    },
+    {
+      key: "routeRedirect",
+      ...whereQuery("Redirects", "route", "kind", "redirect"),
+    },
+    {
+      key: "routeInstanceMount",
+      ...whereQuery("Instance paths", "route", "targetProfile", "instance"),
+    },
+    {
+      key: "routeAppMount",
+      ...whereQuery("App install routes", "route", "targetProfile", "app"),
+    },
+    {
+      key: "routePublicSiteMount",
+      ...whereQuery("Public Site routes", "route", "targetProfile", "public-site"),
+    },
+    {
+      key: "routesForSelectedDeploymentConfig",
+      ...whereQuery("Selected deployment config", "route", "deploymentConfig", {
+        kind: "context",
+        name: "deploymentConfig",
+      }),
+    },
+    {
+      key: "deploymentConfigAll",
+      ...allQuery("Deployment configs", "deployment-config"),
+    },
+    {
+      key: "deploymentConfigEnabled",
+      ...whereQuery("Enabled deployment configs", "deployment-config", "enabled", true),
+    },
+    {
+      key: "instanceSettingsAll",
+      ...allQuery("Instance settings", "instance-settings"),
+    },
+    {
+      key: "emailDomainAll",
+      ...allQuery("Email domains", "email-domain"),
+    },
+    {
+      key: "emailDomainEnabled",
+      ...whereQuery("Enabled email domains", "email-domain", "enabled", true),
+    },
+    {
+      key: "emailSenderAll",
+      ...allQuery("Email senders", "email-sender"),
+    },
+    {
+      key: "emailSenderEnabled",
+      ...whereQuery("Enabled email senders", "email-sender", "enabled", true),
+    },
+  ],
+  itemViews: [
+    {
+      key: "appInstallItem",
+      ...itemView("app-install", [
+        "label",
+        "installId",
+        "packageAppKey",
+        "registrationPolicy",
+        "registrationOperation",
+        "status",
+      ]),
+    },
+    {
+      key: "routeItem",
+      ...itemView("route", ["matchHost", "matchPath", "kind", "enabled"]),
+    },
+    {
+      key: "deploymentConfigItem",
+      ...itemView("deployment-config", [
         "label",
         "targetId",
-        "targetKind",
         "providerFamily",
-        "accountId",
-        "workerName",
-        "targetUrl",
         "enabled",
         "observedStatus",
         "observedAt",
-        "observedDesiredStateHash",
-        "observedSummary",
-        "observedError",
-        "observedRunnerId",
-      ],
-      {
-        operations: [
-          {
-            operation: "deployment-config.update",
-            label: "Edit deployment config",
-            target: { kind: "row" },
-            editView: "deploymentConfigEdit",
-          },
+      ]),
+    },
+    {
+      key: "instanceSettingsItem",
+      ...itemView("instance-settings", [
+        "settingsId",
+        "primaryRoute",
+        "adminRoute",
+        "canonicalOrigin",
+        "productionIdentityStatus",
+      ]),
+    },
+    {
+      key: "emailDomainItem",
+      ...itemView("email-domain", ["domain", "providerFamily", "enabled", "dnsStatus"]),
+    },
+    {
+      key: "emailSenderItem",
+      ...itemView("email-sender", ["address", "purpose", "enabled", "emailDomain"]),
+    },
+  ],
+  tableViews: [
+    {
+      key: "appInstallTable",
+      ...tableView("app-install", [
+        { field: "label", display: "editor" },
+        { field: "installId", display: "readOnly" },
+        { field: "packageAppKey", display: "readOnly" },
+        { field: "registrationPolicy", display: "readOnly" },
+        { field: "registrationOperation", display: "readOnly" },
+        { field: "status", display: "readOnly" },
+        { field: "storageIdentity", display: "readOnly" },
+        { field: "packageRevision", display: "readOnly" },
+        { field: "sourceSchemaHash", display: "readOnly" },
+      ]),
+    },
+    {
+      key: "routeTable",
+      ...tableView(
+        "route",
+        [
+          { field: "enabled", display: "editor" },
+          { field: "matchHost", display: "readOnly" },
+          { field: "matchPath", display: "readOnly" },
+          { field: "matchPrefix", display: "readOnly" },
+          { field: "kind", display: "readOnly" },
+          { field: "targetProfile", display: "readOnly" },
+          { field: "appInstall", display: "readOnly" },
+          { field: "surface", display: "readOnly" },
+          { field: "access", display: "readOnly" },
+          { field: "requiredRole", display: "readOnly" },
+          { field: "toHost", display: "readOnly" },
+          { field: "toUrl", display: "readOnly" },
+          { field: "statusCode", display: "readOnly" },
         ],
-        operationLabel: "Deployment config operations",
-      },
-    ),
-    instanceSettingsTable: tableView(
-      "instance-settings",
-      [
-        { field: "settingsId", display: "readOnly" },
+        {
+          operations: [
+            {
+              operation: "route.update",
+              label: "Edit route",
+              target: { kind: "row" },
+              editView: "routeEdit",
+            },
+          ],
+          operationLabel: "Route operations",
+        },
+      ),
+    },
+    {
+      key: "deploymentConfigTable",
+      ...tableView(
+        "deployment-config",
+        [
+          "label",
+          "targetId",
+          "targetKind",
+          "providerFamily",
+          "accountId",
+          "workerName",
+          "targetUrl",
+          "enabled",
+          "observedStatus",
+          "observedAt",
+          "observedDesiredStateHash",
+          "observedSummary",
+          "observedError",
+          "observedRunnerId",
+        ],
+        {
+          operations: [
+            {
+              operation: "deployment-config.update",
+              label: "Edit deployment config",
+              target: { kind: "row" },
+              editView: "deploymentConfigEdit",
+            },
+          ],
+          operationLabel: "Deployment config operations",
+        },
+      ),
+    },
+    {
+      key: "instanceSettingsTable",
+      ...tableView(
+        "instance-settings",
+        [
+          { field: "settingsId", display: "readOnly" },
+          "canonicalOrigin",
+          "primaryRoute",
+          "adminRoute",
+          "authRoute",
+          "authOrigin",
+          "authRelyingPartyId",
+          "authRelyingPartyName",
+          "defaultEmailDomain",
+          "defaultContactSender",
+          "defaultAuthSender",
+          "contactNotificationRecipient",
+          "productionIdentityStatus",
+        ],
+        {
+          operations: [
+            {
+              operation: "instance-settings.update",
+              label: "Edit settings",
+              target: { kind: "row" },
+              editView: "instanceSettingsEdit",
+            },
+          ],
+          operationLabel: "Settings operations",
+        },
+      ),
+    },
+    {
+      key: "emailDomainTable",
+      ...tableView(
+        "email-domain",
+        [
+          { field: "enabled", display: "editor" },
+          "domain",
+          "providerFamily",
+          "primaryRoute",
+          "deploymentConfig",
+          "dnsStatus",
+          "latestError",
+        ],
+        {
+          operations: [
+            {
+              operation: "email-domain.update",
+              label: "Edit email domain",
+              target: { kind: "row" },
+              editView: "emailDomainEdit",
+            },
+          ],
+          operationLabel: "Email domain operations",
+        },
+      ),
+    },
+    {
+      key: "emailSenderTable",
+      ...tableView(
+        "email-sender",
+        [
+          { field: "enabled", display: "editor" },
+          "address",
+          "displayName",
+          "purpose",
+          "emailDomain",
+        ],
+        {
+          operations: [
+            {
+              operation: "email-sender.update",
+              label: "Edit email sender",
+              target: { kind: "row" },
+              editView: "emailSenderEdit",
+            },
+          ],
+          operationLabel: "Email sender operations",
+        },
+      ),
+    },
+  ],
+  views: [
+    {
+      key: "appInstallCreate",
+      ...createView("app-install", [
+        "installId",
+        "packageAppKey",
+        "packageRevision",
+        "sourceSchemaHash",
+        "label",
+        "registrationPolicy",
+        "registrationOperation",
+        "status",
+        "storageIdentity",
+      ]),
+    },
+    {
+      key: "appInstallList",
+      ...collectionView("App installs", "app-install", "appInstallAll", "appInstallTable", {
+        navigation: true,
+      }),
+    },
+    {
+      key: "routeCreate",
+      ...createView("route", [
+        "enabled",
+        "matchHost",
+        "matchPath",
+        "matchPrefix",
+        "kind",
+        { field: "targetProfile", visibleWhen: { field: "kind", values: ["mount"] } },
+        {
+          field: "appInstall",
+          visibleWhen: { field: "targetProfile", values: ["app", "public-site"] },
+        },
+        {
+          field: "surface",
+          visibleWhen: { field: "targetProfile", values: ["app", "public-site"] },
+        },
+        { field: "access", visibleWhen: { field: "kind", values: ["mount"] } },
+        { field: "requiredRole", visibleWhen: { field: "targetProfile", values: ["app"] } },
+        "deploymentConfig",
+        { field: "toHost", visibleWhen: { field: "kind", values: ["redirect"] } },
+        { field: "toUrl", visibleWhen: { field: "kind", values: ["redirect"] } },
+        { field: "statusCode", visibleWhen: { field: "kind", values: ["redirect"] } },
+        { field: "preservePath", visibleWhen: { field: "kind", values: ["redirect"] } },
+        { field: "preserveQueryString", visibleWhen: { field: "kind", values: ["redirect"] } },
+      ]),
+    },
+    {
+      key: "routeEdit",
+      ...editView("route", [
+        "enabled",
+        "matchHost",
+        "matchPath",
+        "matchPrefix",
+        { field: "targetProfile", visibleWhen: { field: "kind", values: ["mount"] } },
+        {
+          field: "appInstall",
+          visibleWhen: { field: "targetProfile", values: ["app", "public-site"] },
+        },
+        {
+          field: "surface",
+          visibleWhen: { field: "targetProfile", values: ["app", "public-site"] },
+        },
+        { field: "access", visibleWhen: { field: "kind", values: ["mount"] } },
+        { field: "requiredRole", visibleWhen: { field: "targetProfile", values: ["app"] } },
+        "deploymentConfig",
+        { field: "toHost", visibleWhen: { field: "kind", values: ["redirect"] } },
+        { field: "toUrl", visibleWhen: { field: "kind", values: ["redirect"] } },
+        { field: "statusCode", visibleWhen: { field: "kind", values: ["redirect"] } },
+        { field: "preservePath", visibleWhen: { field: "kind", values: ["redirect"] } },
+        { field: "preserveQueryString", visibleWhen: { field: "kind", values: ["redirect"] } },
+      ]),
+    },
+    {
+      key: "routeList",
+      ...collectionView("Routes", "route", "routeAll", "routeTable", {
+        createView: "routeCreate",
+        navigation: true,
+      }),
+    },
+    {
+      key: "deploymentConfigCreate",
+      ...createView("deployment-config", [
+        "targetId",
+        "targetKind",
+        "label",
+        "enabled",
+        "targetUrl",
+        "providerFamily",
+        "accountId",
+        "workerName",
+        "credentialRef",
+      ]),
+    },
+    {
+      key: "deploymentConfigEdit",
+      ...editView("deployment-config", [
+        "label",
+        "enabled",
+        "targetUrl",
+        "accountId",
+        "workerName",
+        "credentialRef",
+      ]),
+    },
+    {
+      key: "deploymentConfigList",
+      ...collectionView(
+        "Deployment configs",
+        "deployment-config",
+        "deploymentConfigAll",
+        "deploymentConfigTable",
+        {
+          createView: "deploymentConfigCreate",
+          extraQueries: ["deploymentConfigEnabled"],
+        },
+      ),
+    },
+    {
+      key: "instanceSettingsCreate",
+      ...createView("instance-settings", [
+        "settingsId",
         "canonicalOrigin",
         "primaryRoute",
         "adminRoute",
@@ -837,279 +1353,125 @@ export const instanceControlPlaneSourceSchema = {
         "defaultAuthSender",
         "contactNotificationRecipient",
         "productionIdentityStatus",
-      ],
-      {
-        operations: [
-          {
-            operation: "instance-settings.update",
-            label: "Edit settings",
-            target: { kind: "row" },
-            editView: "instanceSettingsEdit",
-          },
-        ],
-        operationLabel: "Settings operations",
-      },
-    ),
-    emailDomainTable: tableView(
-      "email-domain",
-      [
-        { field: "enabled", display: "editor" },
-        "domain",
+      ]),
+    },
+    {
+      key: "instanceSettingsEdit",
+      ...editView("instance-settings", [
+        "canonicalOrigin",
+        "primaryRoute",
+        "adminRoute",
+        "authRoute",
+        "authOrigin",
+        "authRelyingPartyId",
+        "authRelyingPartyName",
+        "defaultEmailDomain",
+        "defaultContactSender",
+        "defaultAuthSender",
+        "contactNotificationRecipient",
+        "productionIdentityStatus",
+      ]),
+    },
+    {
+      key: "instanceSettingsList",
+      ...collectionView(
+        "Instance settings",
+        "instance-settings",
+        "instanceSettingsAll",
+        "instanceSettingsTable",
+        {
+          createView: "instanceSettingsCreate",
+        },
+      ),
+    },
+    {
+      key: "emailDomainCreate",
+      ...createView("email-domain", [
+        "enabled",
         "providerFamily",
+        "domain",
         "primaryRoute",
         "deploymentConfig",
         "dnsStatus",
         "latestError",
-      ],
-      {
-        operations: [
-          {
-            operation: "email-domain.update",
-            label: "Edit email domain",
-            target: { kind: "row" },
-            editView: "emailDomainEdit",
-          },
-        ],
-        operationLabel: "Email domain operations",
-      },
-    ),
-    emailSenderTable: tableView(
-      "email-sender",
-      [{ field: "enabled", display: "editor" }, "address", "displayName", "purpose", "emailDomain"],
-      {
-        operations: [
-          {
-            operation: "email-sender.update",
-            label: "Edit email sender",
-            target: { kind: "row" },
-            editView: "emailSenderEdit",
-          },
-        ],
-        operationLabel: "Email sender operations",
-      },
-    ),
-  },
-  views: {
-    appInstallCreate: createView("app-install", [
-      "installId",
-      "packageAppKey",
-      "packageRevision",
-      "sourceSchemaHash",
-      "label",
-      "registrationPolicy",
-      "registrationOperation",
-      "status",
-      "storageIdentity",
-    ]),
-    appInstallList: collectionView(
-      "App installs",
-      "app-install",
-      "appInstallAll",
-      "appInstallTable",
-      {
-        navigation: true,
-      },
-    ),
-    routeCreate: createView("route", [
-      "enabled",
-      "matchHost",
-      "matchPath",
-      "matchPrefix",
-      "kind",
-      { field: "targetProfile", visibleWhen: { field: "kind", values: ["mount"] } },
-      {
-        field: "appInstall",
-        visibleWhen: { field: "targetProfile", values: ["app", "public-site"] },
-      },
-      {
-        field: "surface",
-        visibleWhen: { field: "targetProfile", values: ["app", "public-site"] },
-      },
-      { field: "access", visibleWhen: { field: "kind", values: ["mount"] } },
-      { field: "requiredRole", visibleWhen: { field: "targetProfile", values: ["app"] } },
-      "deploymentConfig",
-      { field: "toHost", visibleWhen: { field: "kind", values: ["redirect"] } },
-      { field: "toUrl", visibleWhen: { field: "kind", values: ["redirect"] } },
-      { field: "statusCode", visibleWhen: { field: "kind", values: ["redirect"] } },
-      { field: "preservePath", visibleWhen: { field: "kind", values: ["redirect"] } },
-      { field: "preserveQueryString", visibleWhen: { field: "kind", values: ["redirect"] } },
-    ]),
-    routeEdit: editView("route", [
-      "enabled",
-      "matchHost",
-      "matchPath",
-      "matchPrefix",
-      { field: "targetProfile", visibleWhen: { field: "kind", values: ["mount"] } },
-      {
-        field: "appInstall",
-        visibleWhen: { field: "targetProfile", values: ["app", "public-site"] },
-      },
-      {
-        field: "surface",
-        visibleWhen: { field: "targetProfile", values: ["app", "public-site"] },
-      },
-      { field: "access", visibleWhen: { field: "kind", values: ["mount"] } },
-      { field: "requiredRole", visibleWhen: { field: "targetProfile", values: ["app"] } },
-      "deploymentConfig",
-      { field: "toHost", visibleWhen: { field: "kind", values: ["redirect"] } },
-      { field: "toUrl", visibleWhen: { field: "kind", values: ["redirect"] } },
-      { field: "statusCode", visibleWhen: { field: "kind", values: ["redirect"] } },
-      { field: "preservePath", visibleWhen: { field: "kind", values: ["redirect"] } },
-      { field: "preserveQueryString", visibleWhen: { field: "kind", values: ["redirect"] } },
-    ]),
-    routeList: collectionView("Routes", "route", "routeAll", "routeTable", {
-      createView: "routeCreate",
-      navigation: true,
-    }),
-    deploymentConfigCreate: createView("deployment-config", [
-      "targetId",
-      "targetKind",
-      "label",
-      "enabled",
-      "targetUrl",
-      "providerFamily",
-      "accountId",
-      "workerName",
-      "credentialRef",
-    ]),
-    deploymentConfigEdit: editView("deployment-config", [
-      "label",
-      "enabled",
-      "targetUrl",
-      "accountId",
-      "workerName",
-      "credentialRef",
-    ]),
-    deploymentConfigList: collectionView(
-      "Deployment configs",
-      "deployment-config",
-      "deploymentConfigAll",
-      "deploymentConfigTable",
-      {
-        createView: "deploymentConfigCreate",
-        extraQueries: ["deploymentConfigEnabled"],
-      },
-    ),
-    instanceSettingsCreate: createView("instance-settings", [
-      "settingsId",
-      "canonicalOrigin",
-      "primaryRoute",
-      "adminRoute",
-      "authRoute",
-      "authOrigin",
-      "authRelyingPartyId",
-      "authRelyingPartyName",
-      "defaultEmailDomain",
-      "defaultContactSender",
-      "defaultAuthSender",
-      "contactNotificationRecipient",
-      "productionIdentityStatus",
-    ]),
-    instanceSettingsEdit: editView("instance-settings", [
-      "canonicalOrigin",
-      "primaryRoute",
-      "adminRoute",
-      "authRoute",
-      "authOrigin",
-      "authRelyingPartyId",
-      "authRelyingPartyName",
-      "defaultEmailDomain",
-      "defaultContactSender",
-      "defaultAuthSender",
-      "contactNotificationRecipient",
-      "productionIdentityStatus",
-    ]),
-    instanceSettingsList: collectionView(
-      "Instance settings",
-      "instance-settings",
-      "instanceSettingsAll",
-      "instanceSettingsTable",
-      {
-        createView: "instanceSettingsCreate",
-      },
-    ),
-    emailDomainCreate: createView("email-domain", [
-      "enabled",
-      "providerFamily",
-      "domain",
-      "primaryRoute",
-      "deploymentConfig",
-      "dnsStatus",
-      "latestError",
-    ]),
-    emailDomainEdit: editView("email-domain", [
-      "enabled",
-      "domain",
-      "primaryRoute",
-      "deploymentConfig",
-      "dnsStatus",
-      "latestError",
-    ]),
-    emailDomainList: collectionView(
-      "Email domains",
-      "email-domain",
-      "emailDomainAll",
-      "emailDomainTable",
-      {
+      ]),
+    },
+    {
+      key: "emailDomainEdit",
+      ...editView("email-domain", [
+        "enabled",
+        "domain",
+        "primaryRoute",
+        "deploymentConfig",
+        "dnsStatus",
+        "latestError",
+      ]),
+    },
+    {
+      key: "emailDomainList",
+      ...collectionView("Email domains", "email-domain", "emailDomainAll", "emailDomainTable", {
         createView: "emailDomainCreate",
         extraQueries: ["emailDomainEnabled"],
-      },
-    ),
-    emailSenderCreate: createView("email-sender", [
-      "enabled",
-      "address",
-      "displayName",
-      "purpose",
-      "emailDomain",
-    ]),
-    emailSenderEdit: editView("email-sender", ["enabled", "address", "displayName", "purpose"]),
-    emailSenderList: collectionView(
-      "Email senders",
-      "email-sender",
-      "emailSenderAll",
-      "emailSenderTable",
-      {
+      }),
+    },
+    {
+      key: "emailSenderCreate",
+      ...createView("email-sender", [
+        "enabled",
+        "address",
+        "displayName",
+        "purpose",
+        "emailDomain",
+      ]),
+    },
+    {
+      key: "emailSenderEdit",
+      ...editView("email-sender", ["enabled", "address", "displayName", "purpose"]),
+    },
+    {
+      key: "emailSenderList",
+      ...collectionView("Email senders", "email-sender", "emailSenderAll", "emailSenderTable", {
         createView: "emailSenderCreate",
         extraQueries: ["emailSenderEnabled"],
-      },
-    ),
-  },
-  screens: {
-    apps: {
+      }),
+    },
+  ],
+  screens: [
+    {
+      key: "apps",
       type: "workspace",
       label: "Apps",
       path: "/",
-      navigation: { primary: true },
       layout: {
         type: "stack",
         sections: [{ id: "app-installs", type: "collection", view: "appInstallList" }],
       },
     },
-    routes: {
+    {
+      key: "routes",
       type: "workspace",
       label: "Routes",
       path: "/routes",
-      navigation: { primary: true },
       layout: {
         type: "stack",
         sections: [{ id: "routes", type: "collection", view: "routeList" }],
       },
     },
-    deployments: {
+    {
+      key: "deployments",
       type: "workspace",
       label: "Deployments",
       path: "/deployments",
-      navigation: { primary: true },
       layout: {
         type: "stack",
         sections: [{ id: "deployment-configs", type: "collection", view: "deploymentConfigList" }],
       },
     },
-    settings: {
+    {
+      key: "settings",
       type: "workspace",
       label: "Settings",
       path: "/settings",
-      navigation: { primary: true },
       layout: {
         type: "stack",
         sections: [
@@ -1119,7 +1481,7 @@ export const instanceControlPlaneSourceSchema = {
         ],
       },
     },
-  },
+  ],
   runtime: {
     owner: "runtime",
     controlPlane: {
@@ -1232,10 +1594,12 @@ export function instanceControlPlaneAppLaunchLinksFromRecords(
       ),
     );
 }
-
 function appInstallFromControlPlaneRecord(
   record: InstanceControlPlaneProjectionRecord,
-  routeRecords: { id: string; values: InstanceControlPlaneRouteValues }[],
+  routeRecords: {
+    id: string;
+    values: InstanceControlPlaneRouteValues;
+  }[],
   packageResolver?: AppPackageResolver,
 ): AppInstall {
   const values = record.values;
@@ -1306,10 +1670,12 @@ function appInstallFromControlPlaneRecord(
     ...(launchLinks.length > 0 ? { launchLinks } : {}),
   };
 }
-
 function appInstallLaunchLinksFromControlPlaneRecord(
   record: InstanceControlPlaneProjectionRecord,
-  routeRecords: { id: string; values: InstanceControlPlaneRouteValues }[],
+  routeRecords: {
+    id: string;
+    values: InstanceControlPlaneRouteValues;
+  }[],
   packageResolver?: AppPackageResolver,
 ): AppInstallLaunchLink[] {
   const values = record.values;
@@ -1335,7 +1701,10 @@ function appInstallLaunchLinksFromControlPlaneRecord(
 function hostlessRouteRecordsForInstall(
   routeRecords: readonly InstanceControlPlaneProjectionRecord[],
   installRecordId: string,
-): { id: string; values: InstanceControlPlaneRouteValues }[] {
+): {
+  id: string;
+  values: InstanceControlPlaneRouteValues;
+}[] {
   return routeRecords
     .filter(
       (routeRecord) =>
@@ -1347,10 +1716,14 @@ function hostlessRouteRecordsForInstall(
       values: routeRecord.values as InstanceControlPlaneRouteValues,
     }));
 }
-
 function appInstallRoutesFromControlPlaneRoutes(
-  routeRecords: { id: string; values: InstanceControlPlaneRouteValues }[],
-  packageApp: { publicRouteBase?: "/sites" },
+  routeRecords: {
+    id: string;
+    values: InstanceControlPlaneRouteValues;
+  }[],
+  packageApp: {
+    publicRouteBase?: "/sites";
+  },
 ): AppInstallRoute[] {
   return routeRecords
     .flatMap((record) => {
@@ -1364,7 +1737,9 @@ function appInstallRoutesFromControlPlaneRoutes(
 function appInstallRouteFromControlPlaneRoute(
   id: string,
   values: InstanceControlPlaneRouteValues,
-  packageApp: { publicRouteBase?: "/sites" },
+  packageApp: {
+    publicRouteBase?: "/sites";
+  },
 ): AppInstallRoute | undefined {
   if (values.kind !== "mount") {
     return undefined;
@@ -1402,10 +1777,11 @@ function appInstallRouteKindOrder(kind: AppInstallRouteKind) {
       return 1;
   }
 }
-
 function appInstallRouteKindFromRouteValues(
   values: Pick<InstanceControlPlaneRouteValues, "surface" | "targetProfile">,
-  packageApp: { publicRouteBase?: "/sites" },
+  packageApp: {
+    publicRouteBase?: "/sites";
+  },
 ): AppInstallRouteKind | undefined {
   if (values.surface === "admin" && values.targetProfile === "app") {
     return "admin";
@@ -1430,7 +1806,10 @@ function appInstallLaunchLinks(input: {
     packageAppKey: PackageAppKey;
     publicRouteBase?: "/sites";
   };
-  routeRecords: { id: string; values: InstanceControlPlaneRouteValues }[];
+  routeRecords: {
+    id: string;
+    values: InstanceControlPlaneRouteValues;
+  }[];
 }): AppInstallLaunchLink[] {
   if (input.routeRecords.length === 0) {
     return defaultAppInstallLaunchLinks(input);
@@ -1451,7 +1830,10 @@ function appInstallLaunchLinkFromControlPlaneRoute(
   input: {
     installId: AppInstallId;
     label: string;
-    packageApp: { packageAppKey: PackageAppKey; publicRouteBase?: "/sites" };
+    packageApp: {
+      packageAppKey: PackageAppKey;
+      publicRouteBase?: "/sites";
+    };
   },
 ): AppInstallLaunchLink | undefined {
   if (values.kind !== "mount" || values.enabled !== true) {
@@ -1680,9 +2062,11 @@ export function isInstanceControlPlaneRouteSafePath(path: string): path is `/${s
     (reservedPath) => path === reservedPath || path.startsWith(`${reservedPath}/`),
   );
 }
-
 function mountRouteRecord(
-  input: { install: Pick<AppInstall, "installId">; now: string },
+  input: {
+    install: Pick<AppInstall, "installId">;
+    now: string;
+  },
   route: {
     access?: InstanceControlPlaneRouteAccess;
     matchPath: `/${string}`;
@@ -1927,7 +2311,10 @@ export function canonicalizeInstanceControlPlaneStorageSnapshot(
     schemaUpdatedAt: reviewable.schemaUpdatedAt,
     sourceCursor: reviewable.sourceCursor,
     schema: stableJsonValue(reviewable.schema) as AppSchema,
-    records: reviewable.records.map(canonicalInstanceControlPlaneRecord).sort(compareRecords),
+    records: formatStoredRecordsForArtifact(
+      reviewable.schema,
+      reviewable.records.map(canonicalInstanceControlPlaneRecord),
+    ),
   };
 }
 
@@ -2114,29 +2501,24 @@ function validateInstanceControlPlaneRecord(
       `${context} record "${record.id}" references unknown entity "${controlPlaneEntityLabel(record.entity)}".`,
     );
   }
-
-  const entitySchema = instanceControlPlaneSchema.entities[entity];
-  const fields = entitySchema.fields as Record<string, FieldSchema>;
-
+  const entitySchema = instanceControlPlaneSchema.entities.find(({ key }) => key === entity)!;
+  const fields = entitySchema.fields;
   for (const fieldName of Object.keys(record.values)) {
     if (isRuntimeControlPlaneObservedField(instanceControlPlaneSchema, entity, fieldName)) {
       throw new Error(
         `${context} record "${record.id}" field "${controlPlaneFieldLabel(record, fieldName)}" cannot store runtime-observed deployment cache fields.`,
       );
     }
-
-    if (!fields[fieldName]) {
+    if (!fields.some(({ key }) => key === fieldName)) {
       throw new Error(
         `${context} record "${record.id}" includes unknown field "${controlPlaneFieldLabel(record, fieldName)}".`,
       );
     }
   }
-
   assertControlPlaneRecordValuesAreReviewable(context, record);
-
-  for (const [fieldName, field] of Object.entries(fields)) {
+  for (const field of fields) {
+    const fieldName = field.key;
     const value = record.values[fieldName];
-
     if (!isValidStoredFieldValue(value, field)) {
       throw new Error(
         `${context} record "${record.id}" has invalid field "${controlPlaneFieldLabel(record, fieldName)}".`,
@@ -2235,7 +2617,8 @@ function validateInstanceControlPlaneUniqueConstraints(
   context: string,
   records: readonly StoredRecord[],
 ) {
-  for (const [entityName, entity] of Object.entries(instanceControlPlaneSchema.entities)) {
+  for (const entity of instanceControlPlaneSchema.entities) {
+    const entityName = entity.key;
     const activeRecords = records.filter(
       (record) =>
         instanceControlPlaneRecordSourceEntityName(record.entity) === entityName &&
@@ -2243,9 +2626,11 @@ function validateInstanceControlPlaneUniqueConstraints(
     );
     const constraints = ("constraints" in entity ? entity.constraints : {}) as Record<
       string,
-      { fields: readonly string[]; kind: string }
+      {
+        fields: readonly string[];
+        kind: string;
+      }
     >;
-
     for (const [constraintName, constraint] of Object.entries(constraints)) {
       if (constraint.kind !== "unique") {
         continue;
@@ -2891,10 +3276,15 @@ function sourceRouteMatch(
     ...(prefix === undefined ? {} : { prefix }),
   };
 }
-
 function sourceRoutesOverlap(
-  left: { path: string; prefix?: string },
-  right: { path: string; prefix?: string },
+  left: {
+    path: string;
+    prefix?: string;
+  },
+  right: {
+    path: string;
+    prefix?: string;
+  },
 ) {
   return (
     left.path === right.path ||
@@ -2992,7 +3382,9 @@ function assertControlPlaneRelyingPartyId(
   record: StoredRecord,
   fieldName: string,
   value: string,
-  options: { canonicalOrigin?: string } = {},
+  options: {
+    canonicalOrigin?: string;
+  } = {},
 ) {
   if (normalizeInstanceControlPlaneRelyingPartyId(value, options) !== value) {
     throw new Error(
@@ -3379,12 +3771,6 @@ function assertExactKeys(
   }
 }
 
-function compareRecords(left: StoredRecord, right: StoredRecord): number {
-  const entityOrder = left.entity.localeCompare(right.entity);
-
-  return entityOrder === 0 ? left.id.localeCompare(right.id) : entityOrder;
-}
-
 function stableJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(stableJsonValue);
@@ -3502,13 +3888,13 @@ function normalizeInstanceControlPlaneOrigin(value: string | undefined): string 
     return undefined;
   }
 }
-
 function normalizeInstanceControlPlaneRelyingPartyId(
   value: string | undefined,
-  options: { canonicalOrigin?: string } = {},
+  options: {
+    canonicalOrigin?: string;
+  } = {},
 ): string | undefined {
   const relyingPartyId = value?.trim().toLowerCase();
-
   if (!relyingPartyId || normalizeExactHost(relyingPartyId) !== relyingPartyId) {
     return undefined;
   }
@@ -3587,7 +3973,9 @@ function parseControlPlaneEmailAddress(
   record: StoredRecord,
   fieldName: string,
   value: string,
-): { host: string } {
+): {
+  host: string;
+} {
   const atIndex = value.lastIndexOf("@");
   const local = atIndex <= 0 ? "" : value.slice(0, atIndex);
   const host = atIndex <= 0 ? "" : value.slice(atIndex + 1).toLowerCase();
@@ -3666,10 +4054,7 @@ function enumField(
   values: Record<string, string>,
   defaultValue?: string,
 ): FieldSchema {
-  const entries = Object.fromEntries(
-    Object.entries(values).map(([value, valueLabel]) => [value, { label: valueLabel }]),
-  );
-
+  const entries = Object.entries(values).map(([key, valueLabel]) => ({ key, label: valueLabel }));
   return {
     type: "enum",
     required: true,
@@ -3703,7 +4088,7 @@ function toOne(
   fromField: string,
   toEntity: string,
   inverse?: string,
-): NonNullable<AppSchema["relationships"]>[string] {
+): ToOneRelationshipSchema {
   return {
     kind: "toOne",
     label,
@@ -3719,7 +4104,7 @@ function toMany(
   toEntity: string,
   toField: string,
   inverse?: string,
-): NonNullable<AppSchema["relationships"]>[string] {
+): ToManyRelationshipSchema {
   return {
     kind: "toMany",
     label,
@@ -3734,9 +4119,8 @@ function allQuery(label: string, entity: InstanceControlPlaneEntityName) {
     label,
     entity,
     expression: { kind: "all" },
-  } satisfies AppSchema["queries"][string];
+  } satisfies Omit<AppSchema["queries"][number], "key">;
 }
-
 function whereQuery(
   label: string,
   entity: InstanceControlPlaneEntityName,
@@ -3752,13 +4136,15 @@ function whereQuery(
       op: "eq",
       value,
     },
-  } satisfies AppSchema["queries"][string];
+  } satisfies Omit<AppSchema["queries"][number], "key">;
 }
-
 function andWhereQuery(
   label: string,
   entity: InstanceControlPlaneEntityName,
-  filters: Array<{ field: string; value: InstanceControlPlaneQueryValue }>,
+  filters: Array<{
+    field: string;
+    value: InstanceControlPlaneQueryValue;
+  }>,
 ) {
   return {
     label,
@@ -3772,22 +4158,20 @@ function andWhereQuery(
         value: filter.value,
       })),
     },
-  } satisfies AppSchema["queries"][string];
+  } satisfies Omit<AppSchema["queries"][number], "key">;
 }
-
 function itemView(entity: InstanceControlPlaneEntityName, fields: string[]) {
   return {
     entity,
-    fields: Object.fromEntries(fields.map((field) => [field, viewField(editorForField(field))])),
-  } satisfies AppSchema["itemViews"][string];
+    fields: fields.map((field) => ({ field, ...viewField(editorForField(field)) })),
+  } satisfies Omit<AppSchema["itemViews"][number], "key">;
 }
-
 function tableView(
   entity: InstanceControlPlaneEntityName,
   fields: InstanceControlPlaneTableField[],
   options: {
     operationLabel?: string;
-    operations?: NonNullable<AppSchema["tableViews"][string]["operations"]>;
+    operations?: NonNullable<AppSchema["tableViews"][number]["operations"]>;
   } = {},
 ) {
   return {
@@ -3805,12 +4189,11 @@ function tableView(
               align: "end",
               width: "xs",
               presentation: "dropdown",
-            } satisfies AppSchema["tableViews"][string]["columns"][number],
+            } satisfies AppSchema["tableViews"][number]["columns"][number],
           ]),
     ],
-  } satisfies AppSchema["tableViews"][string];
+  } satisfies Omit<AppSchema["tableViews"][number], "key">;
 }
-
 function tableFieldColumn(fieldInput: InstanceControlPlaneTableField) {
   const field = typeof fieldInput === "string" ? fieldInput : fieldInput.field;
   const display = typeof fieldInput === "string" ? "readOnly" : (fieldInput.display ?? "readOnly");
@@ -3819,9 +4202,8 @@ function tableFieldColumn(fieldInput: InstanceControlPlaneTableField) {
     type: "field",
     field,
     display,
-  } satisfies AppSchema["tableViews"][string]["columns"][number];
+  } satisfies AppSchema["tableViews"][number]["columns"][number];
 }
-
 function createView(
   entity: InstanceControlPlaneEntityName,
   fields: InstanceControlPlaneViewField[],
@@ -3829,18 +4211,16 @@ function createView(
   return {
     type: "create",
     entity,
-    fields: Object.fromEntries(fields.map(createFieldEntry)),
-  } satisfies AppSchema["views"][string];
+    fields: fields.map(createFieldEntry),
+  } satisfies Omit<Extract<AppSchema["views"][number], { type: "create" }>, "key">;
 }
-
 function editView(entity: InstanceControlPlaneEntityName, fields: InstanceControlPlaneViewField[]) {
   return {
     type: "edit",
     entity,
-    fields: Object.fromEntries(fields.map(viewFieldEntry)),
-  } satisfies AppSchema["views"][string];
+    fields: fields.map(viewFieldEntry),
+  } satisfies Omit<Extract<AppSchema["views"][number], { type: "edit" }>, "key">;
 }
-
 function collectionView(
   label: string,
   entity: InstanceControlPlaneEntityName,
@@ -3871,23 +4251,22 @@ function collectionView(
     ...(options.createView === undefined
       ? {}
       : { operations: [{ operation: `${entity}.create`, createView: options.createView }] }),
-  } satisfies AppSchema["views"][string];
+  } satisfies Omit<Extract<AppSchema["views"][number], { type: "collection" }>, "key">;
 }
-
 function writeOperations(
   label: string,
   fields: string[],
-  options: { updateFields?: string[] } = {},
+  options: {
+    updateFields?: string[];
+  } = {},
 ) {
-  const input = {
-    fields: Object.fromEntries(fields.map((field) => [field, { field }])),
-  };
+  const input = { fields: fields.map((field) => ({ key: field, field })) };
   const updateInput = {
-    fields: Object.fromEntries((options.updateFields ?? fields).map((field) => [field, { field }])),
+    fields: (options.updateFields ?? fields).map((field) => ({ key: field, field })),
   };
-
-  return {
-    create: {
+  return [
+    {
+      key: "create",
       label: `Create ${label}`,
       kind: "create",
       scope: "collection",
@@ -3897,7 +4276,8 @@ function writeOperations(
       idempotency: { required: true },
       audit: { input: "summary" },
     },
-    update: {
+    {
+      key: "update",
       label: `Update ${label}`,
       kind: "update",
       scope: "record",
@@ -3907,9 +4287,8 @@ function writeOperations(
       idempotency: { required: true },
       audit: { input: "summary" },
     },
-  } satisfies NonNullable<AppSchema["entities"][string]["operations"]>;
+  ] satisfies NonNullable<AppSchema["entities"][number]["operations"]>;
 }
-
 function viewField(editor: FieldEditor) {
   return {
     editor,
@@ -3917,43 +4296,41 @@ function viewField(editor: FieldEditor) {
       editor === "boolean" || editor === "enum" || editor === "reference"
         ? "immediate"
         : "field-commit",
-  } satisfies AppSchema["itemViews"][string]["fields"][string];
+  } satisfies Omit<AppSchema["itemViews"][number]["fields"][number], "field">;
 }
-
 function createField(editor: FieldEditor) {
-  return { editor } satisfies NonNullable<
-    Extract<AppSchema["views"][string], { type: "create" }>["fields"]
-  >[string];
+  return { editor } satisfies Omit<
+    NonNullable<
+      Extract<
+        AppSchema["views"][number],
+        {
+          type: "create";
+        }
+      >["fields"]
+    >[number],
+    "field"
+  >;
 }
-
 function createFieldEntry(fieldInput: InstanceControlPlaneViewField) {
   const field = typeof fieldInput === "string" ? fieldInput : fieldInput.field;
-
-  return [
+  return {
     field,
-    {
-      ...createField(editorForField(field)),
-      ...(typeof fieldInput === "string" || fieldInput.visibleWhen === undefined
-        ? {}
-        : { visibleWhen: fieldInput.visibleWhen }),
-    },
-  ] as const;
+    ...createField(editorForField(field)),
+    ...(typeof fieldInput === "string" || fieldInput.visibleWhen === undefined
+      ? {}
+      : { visibleWhen: fieldInput.visibleWhen }),
+  } as const;
 }
-
 function viewFieldEntry(fieldInput: InstanceControlPlaneViewField) {
   const field = typeof fieldInput === "string" ? fieldInput : fieldInput.field;
-
-  return [
+  return {
     field,
-    {
-      ...viewField(editorForField(field)),
-      ...(typeof fieldInput === "string" || fieldInput.visibleWhen === undefined
-        ? {}
-        : { visibleWhen: fieldInput.visibleWhen }),
-    },
-  ] as const;
+    ...viewField(editorForField(field)),
+    ...(typeof fieldInput === "string" || fieldInput.visibleWhen === undefined
+      ? {}
+      : { visibleWhen: fieldInput.visibleWhen }),
+  } as const;
 }
-
 function editorForField(field: string): FieldEditor {
   if (field === "enabled" || field === "preservePath" || field === "preserveQueryString") {
     return "boolean";

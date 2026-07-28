@@ -116,11 +116,11 @@ describe("operation invocation envelope construction", () => {
       },
     });
   });
-
   it("uses trusted runtime write identity and protocol source defaults", () => {
     const schema = sourceLikeTaskSchema();
-    const createOperation = schema.entities.task?.operations?.create;
-
+    const createOperation = schema.entities
+      .find((definition) => definition.key === "task")
+      ?.operations!.find((definition) => definition.key === "create")!;
     if (!createOperation) {
       throw new Error("Expected task create operation.");
     }
@@ -374,18 +374,15 @@ describe("operation invocation envelope construction", () => {
     expect(JSON.stringify(envelope.input)).not.toContain("proof");
   });
 });
-
 function schemaWithListOperation() {
   const schema = sourceLikeTaskSchema();
-  const task = schema.entities.task;
-
+  const task = schema.entities.find((definition) => definition.key === "task")!;
   if (!task) {
     throw new Error("Expected task entity.");
   }
-
-  task.operations = {
-    ...task.operations,
-    activeList: {
+  task.operations = [
+    ...(task.operations ?? []),
+    {
       label: "Active tasks",
       kind: "list",
       scope: "collection",
@@ -398,35 +395,33 @@ function schemaWithListOperation() {
         required: false,
       },
       audit: { input: "summary" },
+      key: "activeList",
     },
-  };
-
+  ];
   return schema;
 }
-
 function publicEnvelopeSchema(): AppSchema {
   const schema = sourceLikeTaskSchema();
-  const task = schema.entities.task;
-
+  const task = schema.entities.find((definition) => definition.key === "task")!;
   if (!task) {
     throw new Error("Expected task entity.");
   }
-
-  task.operations = {
-    ...task.operations,
-    publicLookup: {
+  task.operations = [
+    ...(task.operations ?? []),
+    {
       label: "Public lookup",
       kind: "list",
       scope: "collection",
       target: { query: "taskActive" },
       input: {
-        fields: {
-          lookup: {
+        fields: [
+          {
+            key: "lookup",
             type: "text",
             required: true,
             label: "Lookup",
           },
-        },
+        ],
       },
       output: {
         type: "list",
@@ -450,20 +445,23 @@ function publicEnvelopeSchema(): AppSchema {
           anonymous: ["title"],
         },
       },
+      key: "publicLookup",
     },
-    publicCreate: {
+    {
       label: "Public create",
       kind: "create",
       scope: "collection",
       input: {
-        fields: {
-          title: {
+        fields: [
+          {
+            key: "title",
             field: "title",
           },
-          done: {
+          {
+            key: "done",
             field: "done",
           },
-        },
+        ],
       },
       effect: {
         type: "createRecord",
@@ -478,19 +476,21 @@ function publicEnvelopeSchema(): AppSchema {
         input: "summary",
       },
       policy: anonymousTurnstilePolicy(),
+      key: "publicCreate",
     },
-    publicHandler: {
+    {
       label: "Public handler",
       kind: "command",
       scope: "collection",
       input: {
-        fields: {
-          email: {
+        fields: [
+          {
+            key: "email",
             type: "text",
             required: true,
             label: "Email",
           },
-        },
+        ],
       },
       effect: {
         type: "operationHandler",
@@ -507,17 +507,19 @@ function publicEnvelopeSchema(): AppSchema {
         input: "summary",
       },
       policy: anonymousTurnstilePolicy(),
+      key: "publicHandler",
     },
-    publicRecordPlan: {
+    {
       label: "Public record plan",
       kind: "command",
       scope: "collection",
       input: {
-        fields: {
-          title: {
+        fields: [
+          {
+            key: "title",
             field: "title",
           },
-        },
+        ],
       },
       effect: {
         type: "recordPlan",
@@ -533,12 +535,11 @@ function publicEnvelopeSchema(): AppSchema {
         input: "summary",
       },
       policy: anonymousTurnstilePolicy(),
+      key: "publicRecordPlan",
     },
-  };
-
+  ];
   return schema;
 }
-
 function anonymousTurnstilePolicy() {
   return {
     actors: ["anonymous" as const],

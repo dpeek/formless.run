@@ -330,7 +330,10 @@ function settingsSection(
   options: {
     reset?: boolean;
     sync?: {
-      details?: readonly { label: string; value: string }[];
+      details?: readonly {
+        label: string;
+        value: string;
+      }[];
       label: string;
       message: string;
       state: "error" | "idle" | "syncing";
@@ -497,8 +500,12 @@ function createTitleField(surfaceId: string, label: string): CreateFieldContract
     kind: "text" as const,
     label: field.label,
     required: true,
-  } satisfies Extract<CreateFieldContract["control"], { kind: "text" }>;
-
+  } satisfies Extract<
+    CreateFieldContract["control"],
+    {
+      kind: "text";
+    }
+  >;
   return {
     access: { canPatch: true, kind: "editable", writable: true },
     commit: "submit",

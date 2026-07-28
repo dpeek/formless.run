@@ -23,6 +23,7 @@ The system SHALL let an entity declare state machines over required enum fields.
 - AND every transition declares a non-empty label, one or more allowed source
   states, and one destination state
 - AND terminal states cannot be used as transition source states
+- AND transition definitions retain their declaration order
 
 #### Scenario: Store state as normal field value
 
@@ -89,6 +90,15 @@ operations instead of generic status patches.
 - THEN the request is rejected before commit
 - AND no record changes, transition events, side-effect records, or command
   replay rows are written
+
+#### Scenario: Order generated transition choices
+
+- GIVEN more than one transition operation is valid for a record's current
+  state
+- WHEN a generated surface has no explicit applicable operation binding order
+- THEN transition controls use state-machine transition declaration order
+- AND an explicit surface operation binding array may select or reorder the
+  controls without changing the state machine
 
 ### Requirement: Protected Machine Fields
 

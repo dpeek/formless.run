@@ -16,6 +16,7 @@ import {
   validateAuthorityFieldValue,
   type AppSchema,
 } from "@dpeek/formless-schema";
+import { formatStoredRecordsForArtifact } from "@dpeek/formless-storage";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 
 export type WorkerSchemaAppDefinition = Omit<SchemaAppDefinition, "key"> & {
@@ -72,7 +73,7 @@ export function parseWorkerSeedRecords(
   const records = value.map((record, index) => parseSeedRecord(record, `${label}[${index}]`));
   validateSeedRecords(records, schema, label);
 
-  return records;
+  return formatStoredRecordsForArtifact(schema, records);
 }
 
 function parseSeedRecord(value: unknown, label: string): StoredRecord {
@@ -116,42 +117,34 @@ function validateSeedRecords(records: StoredRecord[], schema: AppSchema, label: 
     if (recordsById.has(record.id)) {
       throw new Error(`Seed fixture "${label}" includes duplicate id "${record.id}".`);
     }
-
     recordsById.set(record.id, record);
   }
-
   for (const [index, record] of records.entries()) {
     const recordLabel = `${label}[${index}]`;
-    const entity = schema.entities[record.entity];
-
+    const entity = schema.entities.find((definition) => definition.key === record.entity)!;
     if (!entity) {
       throw new Error(
         `Seed fixture "${recordLabel}" references unknown entity "${record.entity}".`,
       );
     }
-
     for (const fieldName of Object.keys(record.values)) {
-      if (!Object.hasOwn(entity.fields, fieldName)) {
+      if (!entity.fields.some((field) => field.key === fieldName)) {
         throw new Error(
           `Seed fixture "${recordLabel}" values include unknown field "${record.entity}.${fieldName}".`,
         );
       }
     }
-
-    for (const [fieldName, field] of Object.entries(entity.fields)) {
+    for (const field of entity.fields) {
+      const fieldName = field.key;
       const value = record.values[fieldName];
       const fieldWasProvided = value !== undefined;
-
       try {
         validateAuthorityFieldValue(fieldName, field, value, fieldWasProvided);
       } catch (error) {
         throw new Error(
-          `Seed fixture "${recordLabel}" has invalid field "${record.entity}.${fieldName}": ${
-            error instanceof Error ? error.message : "Field value is invalid."
-          }`,
+          `Seed fixture "${recordLabel}" has invalid field "${record.entity}.${fieldName}": ${error instanceof Error ? error.message : "Field value is invalid."}`,
         );
       }
-
       if (field.type !== "reference" || value === undefined) {
         continue;
       }

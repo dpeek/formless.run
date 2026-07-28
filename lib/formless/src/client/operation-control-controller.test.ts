@@ -377,7 +377,7 @@ describe("generated operation control controller", () => {
     const pendingProgress = operationProgress({
       title: "Pushing workspace",
       detail: "Preparing source changes.",
-      updatedAt: 2_000,
+      updatedAt: 2000,
       steps: [
         {
           id: "prepare",
@@ -441,7 +441,7 @@ describe("generated operation control controller", () => {
   it("normalizes runtime adapter replayed and failed results with display-safe progress", async () => {
     const replayProgress = operationProgress({
       title: "Pushing workspace",
-      updatedAt: 3_000,
+      updatedAt: 3000,
       steps: [
         {
           id: "submit",
@@ -478,7 +478,7 @@ describe("generated operation control controller", () => {
     const failedProgress = operationProgress({
       title: "Pushing workspace",
       detail: "Provider details are hidden.",
-      updatedAt: 4_000,
+      updatedAt: 4000,
       steps: [
         {
           id: "submit",
@@ -584,12 +584,13 @@ type AuthoritySubmitCall = {
   request: OperationInvocationRequest;
   target: ClientAppTarget;
 };
-
 function captureAuthoritySubmitter(
   response: OperationInvocationResponse | Promise<OperationInvocationResponse>,
-): { calls: AuthoritySubmitCall[]; submit: GeneratedOperationAuthoritySubmitter } {
+): {
+  calls: AuthoritySubmitCall[];
+  submit: GeneratedOperationAuthoritySubmitter;
+} {
   const calls: AuthoritySubmitCall[] = [];
-
   return {
     calls,
     submit: async (target, entityName, operationName, request, _fetcher, options) => {

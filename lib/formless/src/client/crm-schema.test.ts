@@ -74,10 +74,9 @@ const crmCollectionOperationCoverage = [
     updateOperationKey: null,
   },
 ];
-
 describe("crm source schema", () => {
   it("parses the checked-in flat CRM entities", () => {
-    expect(Object.keys(crmSchema.entities)).toEqual([
+    expect(crmSchema.entities.map(({ key }) => key)).toEqual([
       "company",
       "contact",
       "email-address",
@@ -89,51 +88,78 @@ describe("crm source schema", () => {
       "broadcast-recipient",
       "delivery-event",
     ]);
-    expect(crmSchema.entities.contact?.fields.company).toMatchObject({
+    expect(
+      crmSchema.entities
+        .find((definition) => definition.key === "contact")
+        ?.fields.find((definition) => definition.key === "company")!,
+    ).toMatchObject({
       type: "reference",
       to: "company",
       displayField: "name",
     });
-    expect(crmSchema.entities["broadcast-recipient"]?.fields.subscription).toMatchObject({
+    expect(
+      crmSchema.entities
+        .find((definition) => definition.key === "broadcast-recipient")
+        ?.fields.find((definition) => definition.key === "subscription")!,
+    ).toMatchObject({
       type: "reference",
       to: "subscription",
     });
   });
-
   it("defines CRM relationship metadata and membership constraints", () => {
-    expect(crmSchema.entities["email-address"]?.constraints?.uniqueNormalizedAddress).toEqual({
+    expect(
+      crmSchema.entities
+        .find((definition) => definition.key === "email-address")
+        ?.constraints!.find((definition) => definition.key === "uniqueNormalizedAddress")!,
+    ).toMatchObject({
       kind: "unique",
       fields: ["normalizedAddress"],
     });
-    expect(crmSchema.entities.subscription?.constraints?.uniqueEmailAudience).toEqual({
+    expect(
+      crmSchema.entities
+        .find((definition) => definition.key === "subscription")
+        ?.constraints!.find((definition) => definition.key === "uniqueEmailAudience")!,
+    ).toMatchObject({
       kind: "unique",
       fields: ["emailAddress", "audience"],
     });
-    expect(crmSchema.entities.contact?.fields.source).toMatchObject({
+    expect(
+      crmSchema.entities
+        .find((definition) => definition.key === "contact")
+        ?.fields.find((definition) => definition.key === "source")!,
+    ).toMatchObject({
       type: "enum",
       default: "owner",
-      values: expect.objectContaining({
-        owner: { label: "Owner" },
-        import: { label: "Import" },
-        publicOperation: { label: "Public operation" },
-      }),
+      values: expect.arrayContaining([
+        expect.objectContaining({ key: "owner", label: "Owner" }),
+        expect.objectContaining({ key: "import", label: "Import" }),
+        expect.objectContaining({ key: "publicOperation", label: "Public operation" }),
+      ]),
     });
-    expect(crmSchema.entities.subscription?.fields.sourceKind).toMatchObject({
+    expect(
+      crmSchema.entities
+        .find((definition) => definition.key === "subscription")
+        ?.fields.find((definition) => definition.key === "sourceKind")!,
+    ).toMatchObject({
       type: "enum",
       default: "owner",
-      values: expect.objectContaining({
-        owner: { label: "Owner" },
-        import: { label: "Import" },
-        publicOperation: { label: "Public operation" },
-      }),
+      values: expect.arrayContaining([
+        expect.objectContaining({ key: "owner", label: "Owner" }),
+        expect.objectContaining({ key: "import", label: "Import" }),
+        expect.objectContaining({ key: "publicOperation", label: "Public operation" }),
+      ]),
     });
-    expect(crmSchema.entities.subscription?.fields.sourceTargetKind).toMatchObject({
+    expect(
+      crmSchema.entities
+        .find((definition) => definition.key === "subscription")
+        ?.fields.find((definition) => definition.key === "sourceTargetKind")!,
+    ).toMatchObject({
       type: "enum",
       required: false,
-      values: {
-        schemaKey: { label: "Schema key" },
-        appInstall: { label: "App install" },
-      },
+      values: [
+        { key: "schemaKey", label: "Schema key" },
+        { key: "appInstall", label: "App install" },
+      ],
     });
     for (const fieldName of [
       "sourcePackageAppKey",
@@ -145,18 +171,26 @@ describe("crm source schema", () => {
       "sourcePath",
       "sourceSiteBlockId",
     ]) {
-      expect(crmSchema.entities.subscription?.fields[fieldName]).toMatchObject({
+      expect(
+        crmSchema.entities
+          .find((definition) => definition.key === "subscription")
+          ?.fields.find((definition) => definition.key === fieldName)!,
+      ).toMatchObject({
         type: "text",
         required: false,
       });
     }
-    expect(crmSchema.relationships?.contactEmailAddresses).toMatchObject({
+    expect(
+      crmSchema.relationships!.find((definition) => definition.key === "contactEmailAddresses")!,
+    ).toMatchObject({
       kind: "toMany",
       from: { entity: "contact" },
       to: { entity: "email-address", field: "contact" },
       inverse: "emailAddressContact",
     });
-    expect(crmSchema.relationships?.audienceEmailAddresses).toMatchObject({
+    expect(
+      crmSchema.relationships!.find((definition) => definition.key === "audienceEmailAddresses")!,
+    ).toMatchObject({
       kind: "manyToMany",
       through: {
         entity: "subscription",
@@ -165,30 +199,31 @@ describe("crm source schema", () => {
         uniqueConstraint: "uniqueEmailAudience",
       },
     });
-    expect(crmSchema.relationships?.broadcastRecipientDeliveryEvents).toMatchObject({
+    expect(
+      crmSchema.relationships!.find(
+        (definition) => definition.key === "broadcastRecipientDeliveryEvents",
+      )!,
+    ).toMatchObject({
       kind: "toMany",
       from: { entity: "broadcast-recipient" },
       to: { entity: "delivery-event", field: "broadcastRecipient" },
     });
   });
-
   it("declares CRM source operations and collection bindings for generated controls", () => {
     const entityOperationNames = Object.fromEntries(
-      Object.entries(crmSchema.entities).map(([entityName, entity]) => [
-        entityName,
-        Object.keys(entity.operations ?? {}),
+      crmSchema.entities.map((entity) => [
+        entity.key,
+        (entity.operations ?? []).map(({ key }) => key),
       ]),
     );
     const collectionOperationBindings = Object.fromEntries(
-      Object.entries(crmSchema.views).flatMap(([viewName, view]) => {
+      crmSchema.views.flatMap((view) => {
         if (view.type !== "collection") {
           return [];
         }
-
-        return [[viewName, (view.operations ?? []).map((operation) => operation.operation)]];
+        return [[view.key, (view.operations ?? []).map((operation) => operation.operation)]];
       }),
     );
-
     expect(entityOperationNames).toEqual({
       company: ["create", "update"],
       contact: ["create", "update"],
@@ -230,9 +265,8 @@ describe("crm source schema", () => {
       })),
     );
   });
-
   it("defines generated admin queries, views, and primary workspace screens", () => {
-    expect(Object.keys(crmSchema.queries)).toEqual([
+    expect(crmSchema.queries.map(({ key }) => key)).toEqual([
       "companyAll",
       "companyCustomers",
       "contactAll",
@@ -261,23 +295,31 @@ describe("crm source schema", () => {
       "deliveryEventAll",
       "deliveryEventBounces",
     ]);
-    expect(crmSchema.itemViews.contactListItem?.fields).toMatchObject({
-      label: { editor: "text", commit: "field-commit" },
-      company: { editor: "reference", commit: "immediate" },
-      lifecycle: { editor: "enum", commit: "immediate" },
-    });
-    expect(crmSchema.tableViews.subscriptionTable?.columns).toEqual(
+    expect(
+      crmSchema.itemViews.find((definition) => definition.key === "contactListItem")?.fields,
+    ).toEqual([
+      { field: "label", editor: "text", commit: "field-commit" },
+      { field: "company", editor: "reference", commit: "immediate" },
+      { field: "lifecycle", editor: "enum", commit: "immediate" },
+    ]);
+    expect(
+      crmSchema.tableViews.find((definition) => definition.key === "subscriptionTable")?.columns,
+    ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: "referenceField", referenceField: "emailAddress" }),
         expect.objectContaining({ type: "referenceField", referenceField: "audience" }),
         expect.objectContaining({ type: "field", field: "status" }),
       ]),
     );
-    expect(crmSchema.views.contactCreate).toMatchObject({
-      type: "create",
-      entity: "contact",
-    });
-    const deliveryEventHome = crmSchema.views.deliveryEventHome;
+    expect(crmSchema.views.find((definition) => definition.key === "contactCreate")!).toMatchObject(
+      {
+        type: "create",
+        entity: "contact",
+      },
+    );
+    const deliveryEventHome = crmSchema.views.find(
+      (definition) => definition.key === "deliveryEventHome",
+    )!;
     expect(deliveryEventHome).toMatchObject({
       type: "collection",
       entity: "delivery-event",
@@ -327,13 +369,14 @@ describe("crm source schema", () => {
         kind: "command",
         scope: "collection",
         input: {
-          fields: {
-            email: {
+          fields: [
+            {
+              key: "email",
               type: "text",
               required: true,
               label: "Email",
             },
-          },
+          ],
         },
         effect: {
           type: "operationHandler",
@@ -400,31 +443,25 @@ function validateStoredRecords(schema: AppSchema, records: StoredRecord[]): stri
     if (!isIsoTimestamp(record.createdAt)) {
       errors.push(`${record.id} createdAt is not an ISO timestamp`);
     }
-
     recordsById.set(record.id, record);
   }
-
   for (const record of records) {
-    const entity = schema.entities[record.entity];
-
+    const entity = schema.entities.find((definition) => definition.key === record.entity)!;
     if (!entity) {
       errors.push(`${record.id} references unknown entity ${record.entity}`);
       continue;
     }
-
     for (const [fieldName, value] of Object.entries(record.values)) {
-      if (!entity.fields[fieldName]) {
+      if (!entity.fields.find((definition) => definition.key === fieldName)!) {
         errors.push(`${record.id} includes unknown field ${record.entity}.${fieldName}`);
       }
-
       if (!isFlatStoredValue(value)) {
         errors.push(`${record.id} field ${record.entity}.${fieldName} is not flat`);
       }
     }
-
-    for (const [fieldName, field] of Object.entries(entity.fields)) {
+    for (const field of entity.fields) {
+      const fieldName = field.key;
       const value = record.values[fieldName];
-
       if (!isValidStoredFieldValue(value, field)) {
         errors.push(`${record.id} has invalid field ${record.entity}.${fieldName}`);
         continue;
@@ -448,20 +485,17 @@ function validateStoredRecords(schema: AppSchema, records: StoredRecord[]): stri
       }
     }
   }
-
-  for (const [entityName, entity] of Object.entries(schema.entities)) {
+  for (const entity of schema.entities) {
+    const entityName = entity.key;
     const entityRecords = records.filter((record) => record.entity === entityName);
-
-    for (const [constraintName, constraint] of Object.entries(entity.constraints ?? {})) {
+    for (const constraint of entity.constraints ?? []) {
       if (constraint.kind !== "unique") {
         continue;
       }
-
+      const constraintName = constraint.key;
       const seen = new Set<string>();
-
       for (const record of entityRecords) {
         const key = JSON.stringify(constraint.fields.map((fieldName) => record.values[fieldName]));
-
         if (seen.has(key)) {
           errors.push(`${entityName}.${constraintName} is duplicated by ${record.id}`);
         }

@@ -30,9 +30,11 @@ import {
   AstryxSubscribedAuthRenderer,
   dispatchAstryxAuthFieldIntent,
 } from "./auth-renderer.tsx";
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
+(
+  globalThis as {
+    IS_REACT_ACT_ENVIRONMENT?: boolean;
+  }
+).IS_REACT_ACT_ENVIRONMENT = true;
 const accountSignInReference = authSurfaceReference({
   surfaceId: "auth:test:account-sign-in",
   surfaceKind: "account-sign-in",

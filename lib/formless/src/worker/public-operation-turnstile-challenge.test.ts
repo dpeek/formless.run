@@ -110,17 +110,18 @@ describe("public operation Turnstile challenge", () => {
       503,
     );
   });
-
   it("normalizes domain idempotency keys to a deterministic UUID", async () => {
     const harness = siteverifyHarness(() => Response.json({ success: true }));
-
     await verifyChallenge(harness.provider);
     await verifyChallenge(harness.provider);
-
     const requests = await Promise.all(
-      harness.requests.map((request) => request.json() as Promise<{ idempotency_key: string }>),
+      harness.requests.map(
+        (request) =>
+          request.json() as Promise<{
+            idempotency_key: string;
+          }>,
+      ),
     );
-
     expect(requests.map((request) => request.idempotency_key)).toEqual([
       "0efcb132-5697-57f5-80f4-0ac5f4ea3261",
       "0efcb132-5697-57f5-80f4-0ac5f4ea3261",
@@ -133,18 +134,22 @@ describe("public operation Turnstile challenge", () => {
   it("passes UUID idempotency keys through unchanged", async () => {
     const harness = siteverifyHarness(() => Response.json({ success: true }));
     const idempotencyKey = "123e4567-e89b-12d3-a456-426614174000";
-
     await verifyChallenge(harness.provider, { idempotencyKey });
-
-    expect((await harness.requests[0]?.json()) as { idempotency_key: string }).toMatchObject({
+    expect(
+      (await harness.requests[0]?.json()) as {
+        idempotency_key: string;
+      },
+    ).toMatchObject({
       idempotency_key: idempotencyKey,
     });
   });
 });
-
 function verifyChallenge(
   provider: PublicOperationTurnstileSiteverifyProvider,
-  options: { idempotencyKey?: string; secret?: string } = {},
+  options: {
+    idempotencyKey?: string;
+    secret?: string;
+  } = {},
 ) {
   return verifyPublicOperationTurnstileChallenge({
     env: {

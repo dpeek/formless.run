@@ -315,10 +315,14 @@ export function selectedGeneratedWorkspaceFixture(
 ) {
   return fixtures.find((fixture) => fixture.id === id);
 }
-
 function applyCollectionIntent(
   collection: WorkspaceCollectionContract,
-  intent: Exclude<WorkspaceIntent, { type: "workspaceExternalAction" }>,
+  intent: Exclude<
+    WorkspaceIntent,
+    {
+      type: "workspaceExternalAction";
+    }
+  >,
 ): WorkspaceCollectionContract {
   if (intent.type === "workspaceQuerySelection") {
     const navigation = collection.presentation.queryNavigation;
@@ -482,12 +486,15 @@ function withSelectedContext(
       }
     : presentation;
 }
-
 function selectContextOption<P extends WorkspaceContextContract["presentation"]>(
-  context: WorkspaceContextContract & { presentation: P },
+  context: WorkspaceContextContract & {
+    presentation: P;
+  },
   contextId: string,
   optionId: string,
-): WorkspaceContextContract & { presentation: P } {
+): WorkspaceContextContract & {
+  presentation: P;
+} {
   if (
     context.id !== contextId ||
     !context.options.some((option) => option.id === optionId && option.availability.available)
@@ -542,12 +549,15 @@ function mapCollectionCreateSurface(
     secondary: actions.secondary.map(mapAction),
   };
 }
-
 function mapContextCreateSurface<P extends WorkspaceContextContract["presentation"]>(
-  context: WorkspaceContextContract & { presentation: P },
+  context: WorkspaceContextContract & {
+    presentation: P;
+  },
   surfaceId: string,
   update: (surface: CreateSurfaceContract) => CreateSurfaceContract,
-): WorkspaceContextContract & { presentation: P } {
+): WorkspaceContextContract & {
+  presentation: P;
+} {
   return context.createAction?.surface.id === surfaceId
     ? {
         ...context,
@@ -583,7 +593,12 @@ function applyWorkspaceResultFieldIntent(
   result: WorkspaceResultContract,
   fieldId: string,
   recordId: string | undefined,
-  intent: Extract<WorkspaceIntent, { type: "workspaceField" }>["intent"],
+  intent: Extract<
+    WorkspaceIntent,
+    {
+      type: "workspaceField";
+    }
+  >["intent"],
 ): WorkspaceResultContract {
   if (result.kind === "list") {
     const sourceField = result.items
@@ -707,10 +722,14 @@ function mapRecordResultOperation(
     },
   };
 }
-
 function applyRecordResultIntent(
   result: RecordResultContract,
-  intent: Extract<WorkspaceIntent, { type: "workspaceRecordResult" }>["intent"],
+  intent: Extract<
+    WorkspaceIntent,
+    {
+      type: "workspaceRecordResult";
+    }
+  >["intent"],
 ): RecordResultContract {
   if (intent.resultId !== result.id || intent.recordId !== result.selectedRecord?.id) {
     return result;

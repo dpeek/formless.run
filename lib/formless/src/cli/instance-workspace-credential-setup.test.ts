@@ -58,7 +58,7 @@ const teamAccount = {
 } satisfies FormlessInstanceDeploymentAccount;
 const oauthCredentials = {
   access: "oauth-access-token",
-  expires: 4_102_444_800_000,
+  expires: 4102444800000,
   refresh: "oauth-refresh-token",
   scopes: ["account:read", "workers:write", "offline_access"],
   type: "oauth",

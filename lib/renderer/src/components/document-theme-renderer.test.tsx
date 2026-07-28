@@ -13,11 +13,12 @@ import {
 } from "@dpeek/formless-presentation/host";
 import { PresentationHostProvider } from "@dpeek/formless-presentation/host/react";
 import { AstryxDocumentThemeRenderer, AstryxSubscribedDocumentThemeRenderer } from "./theme.tsx";
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
+(
+  globalThis as {
+    IS_REACT_ACT_ENVIRONMENT?: boolean;
+  }
+).IS_REACT_ACT_ENVIRONMENT = true;
 const themeReference = documentThemeReference("theme:application");
-
 describe("Astryx document theme renderer", () => {
   it.each(["light", "dark"] as const)(
     "leaves fixed %s provider ownership at the application root without synthesizing a selector",

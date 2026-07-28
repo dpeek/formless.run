@@ -7,15 +7,23 @@ describe("schema entities", () => {
   it("parses schema-local entity keys and qualified boundary names", () => {
     const schema = parseAppSchema(
       taskSchema({
-        entities: {
-          task: taskEntity(),
-          "project-note": taskEntity({ label: "Project note" }),
-          "app-install": taskEntity({ label: "App install" }),
-        },
+        entities: [
+          {
+            key: "task",
+            ...taskEntity(),
+          },
+          {
+            key: "project-note",
+            ...taskEntity({ label: "Project note" }),
+          },
+          {
+            key: "app-install",
+            ...taskEntity({ label: "App install" }),
+          },
+        ],
       }),
     );
-
-    expect(Object.keys(schema.entities)).toEqual(
+    expect(schema.entities.map(({ key }) => key)).toEqual(
       expect.arrayContaining(["task", "project-note", "app-install"]),
     );
     expect(parseQualifiedEntityName("Archive entity", "instance:app-install")).toEqual({
@@ -46,66 +54,72 @@ describe("schema entities", () => {
       expect(() =>
         parseAppSchema(
           taskSchema({
-            entities: {
-              task: taskEntity(),
-              [entityKey]: taskEntity({ label: "Invalid" }),
-            },
+            entities: [
+              {
+                key: "task",
+                ...taskEntity(),
+              },
+              {
+                key: entityKey,
+                ...taskEntity({ label: "Invalid" }),
+              },
+            ],
           }),
         ),
-      ).toThrow(`Schema entity key "${entityKey}" must be a singular kebab-case entity key.`);
+      ).toThrow(
+        entityKey === ""
+          ? "Schema entities[1] key must be a non-empty string."
+          : `Schema entity key "${entityKey}" must be a singular kebab-case entity key.`,
+      );
     }
-
     expect(() =>
       parseAppSchema(
         taskSchema({
-          entities: {
-            task: taskEntity({
-              fields: {
-                ...taskEntity().fields,
-                parent: { type: "reference", required: false, to: "tasks:task" },
-              },
-            }),
-          },
+          entities: [
+            {
+              key: "task",
+              ...taskEntity({
+                fields: [
+                  ...taskEntity().fields,
+                  { key: "parent", type: "reference", required: false, to: "tasks:task" },
+                ],
+              }),
+            },
+          ],
         }),
       ),
     ).toThrow('Use local entity key "task"');
   });
-
   it("parses unique constraints and rejects invalid constraint fields", () => {
     const schema = parseAppSchema(rateSchema({ relationships: undefined }));
-
-    expect(schema.entities.rate?.constraints?.uniqueRatePair).toEqual({
+    expect(
+      schema.entities
+        .find((definition) => definition.key === "rate")!
+        .constraints?.find((definition) => definition.key === "uniqueRatePair"),
+    ).toEqual({
+      key: "uniqueRatePair",
       kind: "unique",
       fields: ["resource", "card"],
     });
-
     const invalidCases = [
       {
-        constraints: {},
+        constraints: [],
         message: 'Entity "rate" constraints must not be empty',
       },
       {
-        constraints: {
-          uniqueRatePair: { kind: "unique", fields: [] },
-        },
+        constraints: [{ key: "uniqueRatePair", kind: "unique", fields: [] }],
         message: "fields must be a non-empty array",
       },
       {
-        constraints: {
-          uniqueRatePair: { kind: "unique", fields: ["resource", "missing"] },
-        },
+        constraints: [{ key: "uniqueRatePair", kind: "unique", fields: ["resource", "missing"] }],
         message: 'references unknown field "missing"',
       },
       {
-        constraints: {
-          duplicateField: { kind: "unique", fields: ["resource", "resource"] },
-        },
+        constraints: [{ key: "duplicateField", kind: "unique", fields: ["resource", "resource"] }],
         message: "fields must be unique",
       },
       {
-        constraints: {
-          oneDefaultCard: { kind: "uniqueWhere", fields: ["card"] },
-        },
+        constraints: [{ key: "oneDefaultCard", kind: "uniqueWhere", fields: ["card"] }],
         message: 'has unsupported kind "uniqueWhere"',
       },
     ];

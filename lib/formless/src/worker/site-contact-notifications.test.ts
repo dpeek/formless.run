@@ -132,9 +132,18 @@ describe("Site contact notification scheduling", () => {
       requestUrl: "https://www.example.com/api/site/public/operations/contact-message/submit",
       response,
     });
-
-    expect((scheduled[0] as { idempotencyKey: string }).idempotencyKey).toBe(
-      (scheduled[1] as { idempotencyKey: string }).idempotencyKey,
+    expect(
+      (
+        scheduled[0] as {
+          idempotencyKey: string;
+        }
+      ).idempotencyKey,
+    ).toBe(
+      (
+        scheduled[1] as {
+          idempotencyKey: string;
+        }
+      ).idempotencyKey,
     );
   });
 });

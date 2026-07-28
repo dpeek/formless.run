@@ -126,8 +126,11 @@ describe("Formless application renderer", () => {
     expect(workspaceHtml.match(/max-width:1600px/g)).toHaveLength(1);
   });
 });
-
-function requiredFixture<Fixture extends { id: string }>(fixtures: readonly Fixture[], id: string) {
+function requiredFixture<
+  Fixture extends {
+    id: string;
+  },
+>(fixtures: readonly Fixture[], id: string) {
   const fixture = fixtures.find((candidate) => candidate.id === id);
   if (!fixture) {
     throw new Error(`Missing ${id} fixture.`);

@@ -750,12 +750,20 @@ describe("auth account projection", () => {
 function project(state: AuthAccountRouteState) {
   return projectAuthAccountSurface({ session: initialAuthAccountDraftSession(state), state });
 }
-
-function signupState(): Extract<AuthAccountRouteState, { status: "signup-ready" }> {
+function signupState(): Extract<
+  AuthAccountRouteState,
+  {
+    status: "signup-ready";
+  }
+> {
   return { status: "signup-ready", target: accountTarget() };
 }
-
-function ownerSetupState(): Extract<AuthAccountRouteState, { status: "owner-setup-ready" }> {
+function ownerSetupState(): Extract<
+  AuthAccountRouteState,
+  {
+    status: "owner-setup-ready";
+  }
+> {
   return {
     setupToken: privateValues[0],
     status: "owner-setup-ready",
@@ -779,10 +787,11 @@ function blockedResult(gate: AccountCompletionGate): AccountCompletionGateResult
 function completeResult(): AccountCompletionContinuationResult {
   return { continueTo: "/schema?view=board", status: "complete", target: accountTarget() };
 }
-
 function emailVerifiedAppRegistrationGate(): Extract<
   AccountCompletionGate,
-  { kind: "app-registration" }
+  {
+    kind: "app-registration";
+  }
 > {
   return {
     appInstallId: "task-workspace",
@@ -796,10 +805,21 @@ function emailVerifiedAppRegistrationGate(): Extract<
     registrationPolicy: "email-verified",
   };
 }
-
 function profileCompletionGate(
-  input: Partial<Extract<AccountCompletionGate, { kind: "profile-completion" }>> = {},
-): Extract<AccountCompletionGate, { kind: "profile-completion" }> {
+  input: Partial<
+    Extract<
+      AccountCompletionGate,
+      {
+        kind: "profile-completion";
+      }
+    >
+  > = {},
+): Extract<
+  AccountCompletionGate,
+  {
+    kind: "profile-completion";
+  }
+> {
   return {
     appInstallId: "task-workspace",
     inputContract: profileCompletionInputContract(),
@@ -833,8 +853,12 @@ function profileCompletionInputContract(): AccountCompletionGateOperationInputCo
     unsupportedRequiredFields: [],
   };
 }
-
-function termsAcceptanceGate(): Extract<AccountCompletionGate, { kind: "terms-acceptance" }> {
+function termsAcceptanceGate(): Extract<
+  AccountCompletionGate,
+  {
+    kind: "terms-acceptance";
+  }
+> {
   return {
     kind: "terms-acceptance",
     operation: {

@@ -27,10 +27,12 @@ vi.mock("./application-presentation.tsx", () => ({
   ApplicationPresentation: ({
     presentation,
   }: {
-    presentation: { children?: ReactNode; kind: string };
+    presentation: {
+      children?: ReactNode;
+      kind: string;
+    };
   }) => (presentation.kind === "shell" ? presentation.children : null),
 }));
-
 beforeEach(() => {
   resetClientStore();
   resetSyncStatus();
@@ -374,7 +376,7 @@ function rootScreenFixture(): HomeScreenModel {
     defaults: [],
     enabled: true,
     entity: {
-      fields: { label: { required: true, type: "text" } },
+      fields: [{ key: "label", required: true, type: "text" }],
       label: "Project",
     },
     entityName: "project",

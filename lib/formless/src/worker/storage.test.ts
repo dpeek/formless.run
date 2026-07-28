@@ -42,74 +42,78 @@ afterAll(async () => {
     storageHarnessDir = undefined;
   }
 });
-
 describe("storage", () => {
   it("seeds the active schema when storage is empty", async () => {
-    const stored = await getJson<{ schema: AppSchema; updatedAt: string }>("/schema");
-
-    expect(stored.schema.entities.task.label).toBe("Task");
+    const stored = await getJson<{
+      schema: AppSchema;
+      updatedAt: string;
+    }>("/schema");
+    expect(stored.schema.entities.find((definition) => definition.key === "task")!.label).toBe(
+      "Task",
+    );
     expect(stored.updatedAt).toEqual(expect.any(String));
   });
-
   it("persists schema updates", async () => {
-    const fields = {
-      title: { type: "text", required: true },
-      done: { type: "boolean", required: true, default: false },
-      dueDate: { type: "date", required: false },
-      notes: { type: "text", required: false },
-    } satisfies AppSchema["entities"][string]["fields"];
+    const fields = [
+      { type: "text", required: true, key: "title" },
+      { type: "boolean", required: true, default: false, key: "done" },
+      { type: "date", required: false, key: "dueDate" },
+      { type: "text", required: false, key: "notes" },
+    ] satisfies AppSchema["entities"][number]["fields"];
     const nextSchema = parseAppSchema({
       version: 1,
-      entities: {
-        task: {
+      entities: [
+        {
+          key: "task",
           label: "Planner task",
           fields,
           operations: taskOperations("Planner task", fields),
         },
-      },
+      ],
       queries: defaultQueries(),
       itemViews: defaultItemViews(),
-      tableViews: {},
+      tableViews: [],
       views: defaultViews(),
       screens: defaultScreens(),
     });
-
     await postJson("/schema", nextSchema);
-
-    const stored = await getJson<{ schema: AppSchema }>("/schema");
-
+    const stored = await getJson<{
+      schema: AppSchema;
+    }>("/schema");
     expect(stored.schema).toEqual(nextSchema);
   });
-
   it("resets schema, records, and changes", async () => {
-    const fields = {
-      title: { type: "text", required: true },
-      done: { type: "boolean", required: true, default: false },
-      dueDate: { type: "date", required: false },
-      notes: { type: "text", required: false },
-    } satisfies AppSchema["entities"][string]["fields"];
+    const fields = [
+      { type: "text", required: true, key: "title" },
+      { type: "boolean", required: true, default: false, key: "done" },
+      { type: "date", required: false, key: "dueDate" },
+      { type: "text", required: false, key: "notes" },
+    ] satisfies AppSchema["entities"][number]["fields"];
     const nextSchema = parseAppSchema({
       version: 1,
-      entities: {
-        task: {
+      entities: [
+        {
+          key: "task",
           label: "Planner task",
           fields,
           operations: taskOperations("Planner task", fields),
         },
-      },
+      ],
       queries: defaultQueries(),
       itemViews: defaultItemViews(),
-      tableViews: {},
+      tableViews: [],
       views: defaultViews(),
       screens: defaultScreens(),
     });
-
     await postJson("/schema", nextSchema);
     await createRecord("write-1", "First");
-
-    const reset = await postJson<{ schema: AppSchema; updatedAt: string }>("/reset", {});
-
-    expect(reset.schema.entities.task.label).toBe("Task");
+    const reset = await postJson<{
+      schema: AppSchema;
+      updatedAt: string;
+    }>("/reset", {});
+    expect(reset.schema.entities.find((definition) => definition.key === "task")!.label).toBe(
+      "Task",
+    );
     expect(reset.updatedAt).toEqual(expect.any(String));
     expect(await getJson<unknown[]>("/records")).toEqual([]);
     expect(await getJson<unknown[]>("/changes?after=0")).toEqual([]);
@@ -235,7 +239,9 @@ describe("storage", () => {
       sourceSchemaHash: initialHash,
     });
     expect(refreshed.updatedAt).not.toBe(initial.updatedAt);
-    expect(refreshed.schema.views.taskHome).toMatchObject({ label: "Refreshed" });
+    expect(
+      refreshed.schema.views.find((definition) => definition.key === "taskHome")!,
+    ).toMatchObject({ label: "Refreshed" });
     expect(refreshed.schemaProvenance).toEqual({
       kind: "package-app",
       packageAppKey: "tasks",
@@ -278,7 +284,9 @@ describe("storage", () => {
       sourceSchemaHash: initialHash,
     });
     expect(viewRefreshed.updatedAt).not.toBe(initial.updatedAt);
-    expect(viewRefreshed.schema.views.routeList).toMatchObject({
+    expect(
+      viewRefreshed.schema.views.find((definition) => definition.key === "routeList")!,
+    ).toMatchObject({
       label: "Refreshed control-plane routes",
     });
     expect(viewRefreshed.schemaProvenance).toEqual({
@@ -519,23 +527,22 @@ describe("storage", () => {
       payload: patched.record,
     });
   });
-
   it("prunes retired values during source schema reset and records patch changes", async () => {
-    const sourceSchema = await getJson<{ schema: AppSchema; updatedAt: string }>("/schema");
+    const sourceSchema = await getJson<{
+      schema: AppSchema;
+      updatedAt: string;
+    }>("/schema");
     const task = taskSchema();
-
     await postJson("/schema", {
       ...task,
-      entities: {
-        ...task.entities,
-        task: {
-          ...task.entities.task,
-          fields: {
-            ...task.entities.task.fields,
-            notes: { type: "text", required: false },
-          },
-        },
-      },
+      entities: task.entities.map((entity) =>
+        entity.key === "task"
+          ? {
+              ...entity,
+              fields: [...entity.fields, { key: "notes", type: "text" as const, required: false }],
+            }
+          : entity,
+      ),
     } satisfies AppSchema);
     const created = await postJson<RecordWriteResponse>("/create", {
       writeId: "write-retired-values",
@@ -549,19 +556,21 @@ describe("storage", () => {
         notes: "Prune on source schema reset",
       },
     });
-
-    const reset = await postJson<{ schema: AppSchema; updatedAt: string }>(
-      "/reset-schema-to-source",
-      {},
-    );
+    const reset = await postJson<{
+      schema: AppSchema;
+      updatedAt: string;
+    }>("/reset-schema-to-source", {});
     const resetRecord = (await getJson<StoredRecord[]>("/records")).find(
       (record) => record.id === created.record.id,
     );
     const changes = await getJson<ChangeRow[]>(`/changes?after=${created.cursor}`);
-
     expect(reset.schema).toEqual(sourceSchema.schema);
-    expect(reset.schema.entities.task.fields).not.toHaveProperty("notes");
-    expect(reset.schema.entities.task.fields).not.toHaveProperty("estimate");
+    expect(
+      reset.schema.entities.find((definition) => definition.key === "task")!.fields,
+    ).not.toHaveProperty("notes");
+    expect(
+      reset.schema.entities.find((definition) => definition.key === "task")!.fields,
+    ).not.toHaveProperty("estimate");
     expect(resetRecord?.values).toEqual({
       title: "Retired values",
       done: false,
@@ -760,9 +769,11 @@ describe("storage", () => {
     expect(replay).toEqual(first);
     expect(await getJson<ChangeRow[]>("/changes?after=0")).toHaveLength(1);
   });
-
   it("exports the active store as a storage snapshot", async () => {
-    const schema = await getJson<{ schema: AppSchema; updatedAt: string }>("/schema");
+    const schema = await getJson<{
+      schema: AppSchema;
+      updatedAt: string;
+    }>("/schema");
     const completed = await createRecord("write-1", "Done", true);
     await postJson<CommandWriteResponse>("/tombstone-records", {
       writeId: "command-1",
@@ -786,9 +797,11 @@ describe("storage", () => {
       expect.objectContaining({ id: completed.record.id, deletedAt: expect.any(String) }),
     );
   });
-
   it("restores snapshot records and tombstones active records absent from the snapshot", async () => {
-    await getJson<{ schema: AppSchema; updatedAt: string }>("/schema");
+    await getJson<{
+      schema: AppSchema;
+      updatedAt: string;
+    }>("/schema");
     const existing = await createRecord("write-1", "Existing");
     const beforeCursor = await getJson<number>("/cursor");
     const restoredRecord = record("snapshot-record-1", "Restored", {
@@ -838,9 +851,11 @@ describe("storage", () => {
       }),
     ]);
   });
-
   it("restores snapshots atomically on invalid storage input", async () => {
-    const beforeSchema = await getJson<{ schema: AppSchema; updatedAt: string }>("/schema");
+    const beforeSchema = await getJson<{
+      schema: AppSchema;
+      updatedAt: string;
+    }>("/schema");
     const existing = await createRecord("write-1", "Existing");
     const beforeRecords = await getJson<StoredRecord[]>("/records");
     const beforeCursor = await getJson<number>("/cursor");
@@ -850,13 +865,14 @@ describe("storage", () => {
         snapshot({
           schema: {
             ...beforeSchema.schema,
-            entities: {
+            entities: [
               ...beforeSchema.schema.entities,
-              task: {
-                ...beforeSchema.schema.entities.task,
+              {
+                ...beforeSchema.schema.entities.find((definition) => definition.key === "task")!,
                 label: "Restored task",
+                key: "task",
               },
-            },
+            ],
           },
           records: [record(existing.record.id, "First"), record(existing.record.id, "Second")],
         }),
@@ -868,15 +884,20 @@ describe("storage", () => {
     expect(await response.json()).toEqual({
       error: `Storage snapshot includes duplicate record id "${existing.record.id}".`,
     });
-    expect(await getJson<{ schema: AppSchema; updatedAt: string }>("/schema")).toEqual(
-      beforeSchema,
-    );
+    expect(
+      await getJson<{
+        schema: AppSchema;
+        updatedAt: string;
+      }>("/schema"),
+    ).toEqual(beforeSchema);
     expect(await getJson<StoredRecord[]>("/records")).toEqual(beforeRecords);
     expect(await getJson<number>("/cursor")).toBe(beforeCursor);
   });
-
   it("clears command replay history during restore", async () => {
-    await getJson<{ schema: AppSchema; updatedAt: string }>("/schema");
+    await getJson<{
+      schema: AppSchema;
+      updatedAt: string;
+    }>("/schema");
     const completed = await createRecord("write-1", "Done", true);
     const command = await postJson<CommandWriteResponse>("/tombstone-records", {
       writeId: "command-1",
@@ -940,7 +961,9 @@ describe("storage", () => {
     );
     expect(sync.changes).toEqual(first.response.changes);
     expect(sync.cursor).toBe(first.response.cursor);
-    expect(sync.schema?.entities.task.fields).toHaveProperty("migrationTag");
+    expect(
+      sync.schema?.entities.find((definition) => definition.key === "task")!.fields,
+    ).toContainEqual(expect.objectContaining({ key: "migrationTag" }));
     expect(applied).toEqual(first.response.applied);
     expect(state).toMatchObject({
       packageAppKey: "tasks",
@@ -979,8 +1002,10 @@ describe("storage", () => {
     ]) {
       storageHarnessName = randomUUID();
       await seedPackageMigrationRecords();
-
-      const beforeSchema = await getJson<{ schema: AppSchema; updatedAt: string }>("/schema");
+      const beforeSchema = await getJson<{
+        schema: AppSchema;
+        updatedAt: string;
+      }>("/schema");
       const beforeRecords = await getJson<StoredRecord[]>("/records");
       const beforeChanges = await getJson<ChangeRow[]>("/changes?after=0");
       const beforeState = await getJson<PackageAppMigrationState | null>(
@@ -995,9 +1020,12 @@ describe("storage", () => {
       expect(await response.json()).toEqual({
         error: expect.stringContaining(message),
       });
-      expect(await getJson<{ schema: AppSchema; updatedAt: string }>("/schema")).toEqual(
-        beforeSchema,
-      );
+      expect(
+        await getJson<{
+          schema: AppSchema;
+          updatedAt: string;
+        }>("/schema"),
+      ).toEqual(beforeSchema);
       expect(await getJson<StoredRecord[]>("/records")).toEqual(beforeRecords);
       expect(await getJson<ChangeRow[]>("/changes?after=0")).toEqual(beforeChanges);
       expect(await getJson<PackageAppMigrationState | null>("/package-migration-state")).toEqual(
@@ -1112,52 +1140,50 @@ function snapshot(overrides: Partial<StorageSnapshot> = {}): StorageSnapshot {
     ...overrides,
   };
 }
-
 function taskSchema(): AppSchema {
-  const fields = {
-    title: { type: "text", required: true },
-    done: { type: "boolean", required: true, default: false },
-    dueDate: { type: "date", required: false },
-    estimate: { type: "number", required: false, integer: true, min: 0 },
-    priority: {
+  const fields = [
+    { type: "text", required: true, key: "title" },
+    { type: "boolean", required: true, default: false, key: "done" },
+    { type: "date", required: false, key: "dueDate" },
+    { type: "number", required: false, integer: true, min: 0, key: "estimate" },
+    {
       type: "enum",
       required: false,
-      values: {
-        low: { label: "Low" },
-        normal: { label: "Normal" },
-        high: { label: "High" },
-      },
+      values: [
+        { key: "low", label: "Low" },
+        { key: "normal", label: "Normal" },
+        { key: "high", label: "High" },
+      ],
       default: "normal",
+      key: "priority",
     },
-  } satisfies AppSchema["entities"][string]["fields"];
-
+  ] satisfies AppSchema["entities"][number]["fields"];
   return parseAppSchema({
     version: 1,
-    entities: {
-      task: {
+    entities: [
+      {
+        key: "task",
         label: "Task",
         fields,
         operations: taskOperations("Task", fields),
       },
-    },
+    ],
     queries: defaultQueries(),
     itemViews: defaultItemViews(),
-    tableViews: {},
+    tableViews: [],
     views: defaultViews(),
     screens: defaultScreens(),
   });
 }
-
 function taskOperations(
   label: string,
-  fields: AppSchema["entities"][string]["fields"],
-): NonNullable<AppSchema["entities"][string]["operations"]> {
+  fields: AppSchema["entities"][number]["fields"],
+): NonNullable<AppSchema["entities"][number]["operations"]> {
   const input = {
-    fields: Object.fromEntries(Object.keys(fields).map((field) => [field, { field }])),
+    fields: fields.map(({ key }) => ({ key, field: key })),
   };
-
-  return {
-    create: {
+  return [
+    {
       label: `Create ${label}`,
       kind: "create",
       scope: "collection",
@@ -1166,8 +1192,9 @@ function taskOperations(
       output: { type: "create" },
       idempotency: { required: true },
       audit: { input: "summary" },
+      key: "create",
     },
-    update: {
+    {
       label: `Update ${label}`,
       kind: "update",
       scope: "record",
@@ -1176,10 +1203,10 @@ function taskOperations(
       output: { type: "update" },
       idempotency: { required: true },
       audit: { input: "summary" },
+      key: "update",
     },
-  };
+  ];
 }
-
 function record(id: string, title: string, overrides: Partial<StoredRecord> = {}): StoredRecord {
   return {
     id,
@@ -1190,15 +1217,15 @@ function record(id: string, title: string, overrides: Partial<StoredRecord> = {}
     ...overrides,
   };
 }
-
 function defaultQueries(): AppSchema["queries"] {
-  return {
-    taskAll: {
+  return [
+    {
       label: "All",
       entity: "task",
       expression: { kind: "all" },
+      key: "taskAll",
     },
-    taskCompleted: {
+    {
       label: "Completed",
       entity: "task",
       expression: {
@@ -1207,67 +1234,64 @@ function defaultQueries(): AppSchema["queries"] {
         op: "eq",
         value: true,
       },
+      key: "taskCompleted",
     },
-  };
+  ];
 }
-
 function defaultItemViews(): AppSchema["itemViews"] {
-  return {
-    taskListItem: {
+  return [
+    {
       entity: "task",
-      fields: {
-        title: { editor: "text", commit: "field-commit" },
-        done: { editor: "boolean", commit: "immediate" },
-        dueDate: { editor: "date", commit: "field-commit" },
-      },
+      fields: [
+        { field: "title", editor: "text", commit: "field-commit" },
+        { field: "done", editor: "boolean", commit: "immediate" },
+        { field: "dueDate", editor: "date", commit: "field-commit" },
+      ],
+      key: "taskListItem",
     },
-  };
+  ];
 }
-
 function defaultViews(): AppSchema["views"] {
-  return {
-    taskHome: {
+  return [
+    {
       type: "collection",
       label: "All",
       entity: "task",
       queries: [{ query: "taskAll" }],
       defaultQuery: "taskAll",
       result: { type: "list", itemView: "taskListItem" },
+      key: "taskHome",
     },
-    taskCreate: {
+    {
       type: "create",
       entity: "task",
-      fields: {
-        title: { editor: "text" },
-        dueDate: { editor: "date" },
-      },
+      fields: [
+        { field: "title", editor: "text" },
+        { field: "dueDate", editor: "date" },
+      ],
+      key: "taskCreate",
     },
-  };
+  ];
 }
-
 function defaultScreens(): NonNullable<AppSchema["screens"]> {
-  return {
-    taskHome: {
+  return [
+    {
       type: "workspace",
       label: "Tasks",
       path: "/",
-      navigation: { primary: true },
       layout: {
         type: "stack",
         sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
       },
+      key: "taskHome",
     },
-  };
+  ];
 }
-
 async function getJson<T>(path: string) {
   const response = await fetchStorage(path);
-
   expect(response.status).toBe(200);
-
   return (await response.json()) as T;
 }
-
 async function postJson<T>(path: string, body: unknown) {
   const response = await fetchStorage(path, {
     body: JSON.stringify(body),
@@ -1451,33 +1475,36 @@ async function writeStorageHarness() {
 
       function schemaWithMigrationTag() {
         const schema = structuredClone(seedSchema);
-        schema.entities.task.fields.migrationTag = {
+        schema.entities.find((definition) => definition.key === "task").fields.push({
+          key: "migrationTag",
           type: "text",
           required: false,
           label: "Migration tag",
-        };
+        });
         return schema;
       }
 
       function schemaWithParentReference() {
         const schema = schemaWithMigrationTag();
-        schema.entities.task.fields.parent = {
+        schema.entities.find((definition) => definition.key === "task").fields.push({
+          key: "parent",
           type: "reference",
           required: false,
           label: "Parent",
           to: "task",
-        };
+        });
         return schema;
       }
 
       function schemaWithUniqueTitle() {
         const schema = schemaWithMigrationTag();
-        schema.entities.task.constraints = {
-          uniqueTitle: {
+        schema.entities.find((definition) => definition.key === "task").constraints = [
+          {
+            key: "uniqueTitle",
             kind: "unique",
             fields: ["title"],
           },
-        };
+        ];
         return schema;
       }
 
@@ -1485,16 +1512,17 @@ async function writeStorageHarness() {
         const schema = structuredClone(seedSchema);
 
         if (kind === "view-label") {
-          schema.views.taskHome.label = "Refreshed";
+          schema.views.find((definition) => definition.key === "taskHome").label = "Refreshed";
           return schema;
         }
 
         if (kind === "required-field") {
-          schema.entities.task.fields.reviewedBy = {
+          schema.entities.find((definition) => definition.key === "task").fields.push({
+            key: "reviewedBy",
             type: "text",
             required: true,
             label: "Reviewed by",
-          };
+          });
           return schema;
         }
 
@@ -1505,7 +1533,7 @@ async function writeStorageHarness() {
         const schema = structuredClone(controlPlaneSchema);
 
         if (kind === "view-label") {
-          schema.views.routeList.label = "Refreshed control-plane routes";
+          schema.views.find((definition) => definition.key === "routeList").label = "Refreshed control-plane routes";
           return schema;
         }
 
@@ -1515,11 +1543,12 @@ async function writeStorageHarness() {
         }
 
         if (kind === "required-field") {
-          schema.entities.route.fields.auditNote = {
+          schema.entities.find((definition) => definition.key === "route").fields.push({
+            key: "auditNote",
             type: "text",
             required: true,
             label: "Audit note",
-          };
+          });
           return schema;
         }
 

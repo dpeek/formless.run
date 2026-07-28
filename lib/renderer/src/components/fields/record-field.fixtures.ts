@@ -52,11 +52,11 @@ const priorityField = {
   type: "enum",
   required: true,
   label: "Priority",
-  values: {
-    low: { label: "Low", presentation: { color: "priority.low" } },
-    normal: { label: "Normal", presentation: { color: "priority.normal" } },
-    high: { label: "High", presentation: { color: "priority.high" } },
-  },
+  values: [
+    { key: "low", label: "Low", presentation: { color: "priority.low" } },
+    { key: "normal", label: "Normal", presentation: { color: "priority.normal" } },
+    { key: "high", label: "High", presentation: { color: "priority.high" } },
+  ],
 } as const;
 const ownerField = {
   type: "reference",
@@ -285,7 +285,7 @@ function createTableCellFields({
   dueDate: string | undefined;
   dueDateDisplay: string;
   ownerId: string;
-  priority: keyof typeof priorityField.values;
+  priority: (typeof priorityField.values)[number]["key"];
   recordId: string;
   title: string;
 }): readonly (RecordFieldContract | DisplayFieldContract)[] {

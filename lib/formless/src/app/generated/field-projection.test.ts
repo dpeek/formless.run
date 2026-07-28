@@ -367,7 +367,12 @@ describe("generated field projection", () => {
     const requiredOwner = {
       ...fields.owner,
       required: true,
-    } satisfies Extract<FieldSchema, { type: "reference" }>;
+    } satisfies Extract<
+      FieldSchema,
+      {
+        type: "reference";
+      }
+    >;
     const requiredField = createField("owner", requiredOwner, "reference");
     const requiredState = initialGeneratedCreateDraftSessionState({ fields: [requiredField] });
     const projectedDefault = projectGeneratedCreateField({
@@ -999,17 +1004,24 @@ describe("generated field projection", () => {
       type: "enum",
       required: true,
       label: "Status",
-      values: {
-        fallback: {
+      values: [
+        {
+          key: "fallback",
           label: "Legacy fallback",
           presentation: { color: "priority.unknown", icon: "missing-icon" },
         },
-        open: {
+        {
+          key: "open",
           label: "Open",
           presentation: { color: "priority.normal", icon: "priority-marker" },
         },
-      },
-    } satisfies Extract<FieldSchema, { type: "enum" }>;
+      ],
+    } satisfies Extract<
+      FieldSchema,
+      {
+        type: "enum";
+      }
+    >;
     const fieldConfig = {
       ...recordField("status", field, "enum", { commit: "immediate" }),
       presentation: { mode: "iconOnly", trigger: "label", list: "icon" } as const,
@@ -1370,10 +1382,10 @@ const fields = {
   costUnit: {
     type: "enum",
     required: false,
-    values: {
-      day: { label: "Day" },
-      hour: { label: "Hour" },
-    },
+    values: [
+      { key: "day", label: "Day" },
+      { key: "hour", label: "Hour" },
+    ],
   },
   dueDate: { type: "date", required: false },
   estimate: { type: "number", required: false },
@@ -1383,18 +1395,22 @@ const fields = {
   priority: {
     type: "enum",
     required: false,
-    values: {
-      high: { label: "High", presentation: { color: "priority.high", icon: "priority-marker" } },
-      low: { label: "Low", presentation: { color: "priority.low" } },
-    },
+    values: [
+      {
+        key: "high",
+        label: "High",
+        presentation: { color: "priority.high", icon: "priority-marker" },
+      },
+      { key: "low", label: "Low", presentation: { color: "priority.low" } },
+    ],
   },
   status: {
     type: "enum",
     required: true,
-    values: {
-      archived: { label: "Archived", presentation: { color: "success", icon: "confirm" } },
-      new: { label: "New", presentation: { color: "warning" } },
-    },
+    values: [
+      { key: "archived", label: "Archived", presentation: { color: "success", icon: "confirm" } },
+      { key: "new", label: "New", presentation: { color: "warning" } },
+    ],
   },
   systemText: { type: "text", required: false },
   title: { type: "text", required: true, label: "Title" },
@@ -1407,10 +1423,10 @@ const stateMachine = {
     field: "status",
     initial: "new",
     terminal: ["archived"],
-    transitions: {
-      archive: { label: "Archive", from: ["new"], to: "archived" },
-      reopen: { label: "Reopen", from: ["new"], to: "new" },
-    },
+    transitions: [
+      { key: "archive", label: "Archive", from: ["new"], to: "archived" },
+      { key: "reopen", label: "Reopen", from: ["new"], to: "new" },
+    ],
   },
   machineName: "statusFlow",
   terminalStates: ["archived"],
@@ -1421,11 +1437,15 @@ const transitionOperations = [
     "archiveTask",
     "Archive",
     "archive",
-    stateMachine.machine.transitions.archive,
+    stateMachine.machine.transitions.find((definition) => definition.key === "archive")!,
   ),
-  transitionOperation("reopenTask", "Reopen", "reopen", stateMachine.machine.transitions.reopen),
+  transitionOperation(
+    "reopenTask",
+    "Reopen",
+    "reopen",
+    stateMachine.machine.transitions.find((definition) => definition.key === "reopen")!,
+  ),
 ];
-
 const recordValues = {
   cost: 12.5,
   costUnit: "day",
@@ -1437,27 +1457,28 @@ const recordValues = {
   title: "Committed title",
   updatedAt: "2026-07-09T00:00:00.000Z",
 };
-
 const blockSchema = {
   version: 1,
-  entities: {
-    task: {
-      fields: {
-        height: { type: "number", required: false },
-        hero: fields.image,
-        width: { type: "number", required: false },
-      },
+  entities: [
+    {
+      key: "task",
+      fields: [
+        { key: "height", type: "number", required: false },
+        {
+          key: "hero",
+          ...fields.image,
+        },
+        { key: "width", type: "number", required: false },
+      ],
     },
-  },
-  itemViews: {},
-  queries: {},
-  tableViews: {},
-  views: {},
+  ],
+  itemViews: [],
+  queries: [],
+  tableViews: [],
+  views: [],
 } as unknown as AppSchema;
-
 function requiredIconSource(key: string): string {
   const source = resolveIconCatalogSvg(key);
-
   if (source === undefined) {
     throw new Error(`Missing test icon ${key}.`);
   }

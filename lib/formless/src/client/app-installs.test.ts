@@ -194,12 +194,11 @@ describe("client app install API helpers", () => {
     ]);
   });
 });
-
 type AutoSaveInput = Parameters<LocalWorkspaceAutoSaveClient["enqueue"]>[0];
-
-function captureAutoSave(): LocalWorkspaceAutoSaveClient & { inputs: AutoSaveInput[] } {
+function captureAutoSave(): LocalWorkspaceAutoSaveClient & {
+  inputs: AutoSaveInput[];
+} {
   const inputs: AutoSaveInput[] = [];
-
   return {
     inputs,
     enqueue: async (input) => {
@@ -211,7 +210,10 @@ function captureAutoSave(): LocalWorkspaceAutoSaveClient & { inputs: AutoSaveInp
 function jsonFetcher(
   expectedPath: string,
   body: unknown,
-  options: { expectedMethod?: string; status?: number } = {},
+  options: {
+    expectedMethod?: string;
+    status?: number;
+  } = {},
 ): typeof fetch {
   return async (input, init) => {
     expect(requestUrl(input)).toBe(expectedPath);

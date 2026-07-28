@@ -3,7 +3,11 @@ import {
   isSupportedIdentityReferenceTarget,
   validateAuthorityFieldValue,
 } from "@dpeek/formless-schema";
-import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
+import {
+  STORAGE_SNAPSHOT_KIND,
+  STORAGE_SNAPSHOT_VERSION,
+  formatStoredRecordsForArtifact,
+} from "@dpeek/formless-storage";
 import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import type { BootstrapResponse, ChangeRow } from "../shared/protocol.ts";
 import type {
@@ -24,7 +28,11 @@ import type {
   FieldSchema,
   UniqueConstraintSchema,
 } from "@dpeek/formless-schema";
-import { parseAppSchema, stringifySchema } from "@dpeek/formless-schema";
+import {
+  getAppSchemaDefinitionIndex,
+  parseAppSchema,
+  stringifySchema,
+} from "@dpeek/formless-schema";
 import { nowIsoString } from "../shared/clock.ts";
 import {
   isPackageAppRevision,
@@ -289,9 +297,11 @@ export type CreateRecordWriteSideEffectRecordCreator = (
 export type RecordConstraintValidator = (
   entity: string,
   values: RecordValues,
-  options?: { additionalRecords?: readonly StoredRecord[]; ignoreRecordId?: string },
+  options?: {
+    additionalRecords?: readonly StoredRecord[];
+    ignoreRecordId?: string;
+  },
 ) => void;
-
 export type OperationRecordCreatePlan = {
   entity: string;
   id?: string;
@@ -624,7 +634,9 @@ export function readCurrentStoredSchema(storage: DurableObjectStorage): StoredSc
 export function initializeStorageFromSource(
   storage: DurableObjectStorage,
   source: StorageSource,
-  options: { refreshActiveSchema?: boolean } = {},
+  options: {
+    refreshActiveSchema?: boolean;
+  } = {},
 ): StoredSchema {
   return storage.transactionSync(() => {
     const existing = readStoredSchema(storage);
@@ -786,6 +798,7 @@ function writeActiveSchemaAt(
   updatedAt: string,
   schemaProvenance?: StorageSchemaProvenance,
 ): StoredSchema {
+  getAppSchemaDefinitionIndex(schema);
   storage.sql.exec(
     `
       INSERT INTO app_schema (id, schema_json, schema_provenance_json, updated_at)
@@ -907,7 +920,7 @@ export function exportStorageSnapshot(
       schemaUpdatedAt: storedSchema.updatedAt,
       sourceCursor: getCurrentCursor(storage),
       schema: storedSchema.schema,
-      records: getBootstrapRecords(storage),
+      records: formatStoredRecordsForArtifact(storedSchema.schema, getBootstrapRecords(storage)),
     };
   });
 }
@@ -1160,10 +1173,8 @@ function planSourceSchemaReset(
   changedAt: string,
 ): SourceSchemaResetPlan {
   const prunedRecords: StoredRecord[] = [];
-
   for (const record of records) {
-    const entity = schema.entities[record.entity];
-
+    const entity = schema.entities.find((definition) => definition.key === record.entity)!;
     if (!entity) {
       continue;
     }
@@ -1213,12 +1224,10 @@ function appendSourceSchemaResetChanges(
     });
   }
 }
-
 function pruneRecordValuesToEntity(values: RecordValues, entity: EntitySchema): RecordValues {
   const pruned: RecordValues = {};
-
   for (const [fieldName, fieldValue] of Object.entries(values)) {
-    if (Object.hasOwn(entity.fields, fieldName)) {
+    if (entity.fields.some((field) => field.key === fieldName)) {
       pruned[fieldName] = fieldValue;
     }
   }
@@ -1559,21 +1568,19 @@ function validateActiveSchemaRefreshRecord(
   record: StoredRecord,
   recordsById: Map<string, StoredRecord>,
 ) {
-  const entity = schema.entities[record.entity];
-
+  const entity = schema.entities.find((definition) => definition.key === record.entity)!;
   if (!entity) {
     throw new Error(`record "${record.id}" references unknown entity "${record.entity}"`);
   }
-
   for (const fieldName of Object.keys(record.values)) {
-    if (!Object.hasOwn(entity.fields, fieldName)) {
+    if (!entity.fields.some((field) => field.key === fieldName)) {
       throw new Error(
         `record "${record.id}" would require value pruning for unknown field "${record.entity}.${fieldName}"`,
       );
     }
   }
-
-  for (const [fieldName, field] of Object.entries(entity.fields)) {
+  for (const field of entity.fields) {
+    const fieldName = field.key;
     const fieldValue = record.values[fieldName];
     const fieldWasProvided = fieldName in record.values;
     const result = validateAuthorityFieldValue(fieldName, field, fieldValue, fieldWasProvided);
@@ -1607,16 +1614,15 @@ function validateActiveSchemaRefreshRecord(
     }
   }
 }
-
 function assertActiveSchemaRefreshUniqueConstraints(schema: AppSchema, records: StoredRecord[]) {
-  for (const [entityName, entity] of Object.entries(schema.entities)) {
+  for (const entity of schema.entities) {
+    const entityName = entity.key;
     const entityRecords = records.filter((record) => record.entity === entityName);
-
-    for (const [constraintName, constraint] of Object.entries(entity.constraints ?? {})) {
+    for (const constraint of entity.constraints ?? []) {
       if (constraint.kind !== "unique") {
         continue;
       }
-
+      const constraintName = constraint.key;
       assertActiveSchemaRefreshUniqueConstraint(
         entityName,
         constraintName,
@@ -1653,23 +1659,21 @@ function validateActivePackageAppMigrationRecord(
   record: StoredRecord,
   recordsById: Map<string, StoredRecord>,
 ) {
-  const entity = schema.entities[record.entity];
-
+  const entity = schema.entities.find((definition) => definition.key === record.entity)!;
   if (!entity) {
     throw new Error(
       `Package app migration record "${record.id}" references unknown entity "${record.entity}".`,
     );
   }
-
   for (const fieldName of Object.keys(record.values)) {
-    if (!Object.hasOwn(entity.fields, fieldName)) {
+    if (!entity.fields.some((field) => field.key === fieldName)) {
       throw new Error(
         `Package app migration record "${record.id}" includes unknown field "${record.entity}.${fieldName}".`,
       );
     }
   }
-
-  for (const [fieldName, field] of Object.entries(entity.fields)) {
+  for (const field of entity.fields) {
+    const fieldName = field.key;
     const fieldValue = record.values[fieldName];
     const fieldWasProvided = fieldName in record.values;
     const result = validatePackageAppMigrationFieldValue(
@@ -1721,18 +1725,17 @@ function validatePackageAppMigrationFieldValue(
     throw new Error(error instanceof Error ? error.message : "Field value is invalid.");
   }
 }
-
 function assertPackageAppMigrationUniqueConstraints(schema: AppSchema, records: StoredRecord[]) {
-  for (const [entityName, entity] of Object.entries(schema.entities)) {
+  for (const entity of schema.entities) {
+    const entityName = entity.key;
     const activeRecords = records.filter(
       (record) => record.entity === entityName && !record.deletedAt,
     );
-
-    for (const [constraintName, constraint] of Object.entries(entity.constraints ?? {})) {
+    for (const constraint of entity.constraints ?? []) {
       if (constraint.kind !== "unique") {
         continue;
       }
-
+      const constraintName = constraint.key;
       assertPackageAppMigrationUniqueConstraint(
         entityName,
         constraintName,
@@ -1786,14 +1789,12 @@ function assertPackageAppMigrationDeletes(
       if (record.deletedAt) {
         continue;
       }
-
-      const entity = schema.entities[record.entity];
-
+      const entity = schema.entities.find((definition) => definition.key === record.entity)!;
       if (!entity) {
         continue;
       }
-
-      for (const [fieldName, field] of Object.entries(entity.fields)) {
+      for (const field of entity.fields) {
+        const fieldName = field.key;
         if (
           field.type === "reference" &&
           field.to === targetRecord.entity &&
@@ -1849,10 +1850,8 @@ export function readOperationInvocations(
   storage: DurableObjectStorage,
 ): StoredOperationInvocation[] {
   ensureOperationInvocationTables(storage);
-
   return storage.sql
-    .exec<OperationInvocationRow>(
-      `
+    .exec<OperationInvocationRow>(`
         SELECT
           invocation_id,
           operation_key,
@@ -1877,8 +1876,7 @@ export function readOperationInvocations(
           completed_at
         FROM ${operationInvocationsTableName}
         ORDER BY received_at ASC, invocation_id ASC
-      `,
-    )
+      `)
     .toArray()
     .map(operationInvocationFromRow);
 }

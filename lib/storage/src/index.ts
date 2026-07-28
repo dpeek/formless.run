@@ -1,4 +1,9 @@
-import { parseAppSchema } from "@dpeek/formless-schema";
+import {
+  compareOrdinalStrings,
+  getAppSchemaDefinitionIndex,
+  parseAppSchema,
+  type AppSchema,
+} from "@dpeek/formless-schema";
 
 import {
   STORAGE_SNAPSHOT_KIND,
@@ -76,6 +81,88 @@ export function isRecordValues(value: unknown): value is RecordValues {
 
 export function isFieldValue(value: unknown): value is FieldValue {
   return typeof value === "string" || typeof value === "boolean" || isFiniteNumber(value);
+}
+
+export type StoredRecordArtifact = {
+  id: string;
+  entity: string;
+  values: Record<string, FieldValue | undefined>;
+  createdAt?: string;
+  updatedAt?: string;
+  deletedAt?: string;
+};
+
+export function formatStoredRecordsForArtifact<Record extends StoredRecordArtifact>(
+  schema: AppSchema,
+  records: readonly Record[],
+): Record[] {
+  const schemaIndex = getAppSchemaDefinitionIndex(schema);
+  const entityOrder = new Map(
+    schemaIndex.entities.ordered.map((entity, index) => [entity.key, index]),
+  );
+
+  return records
+    .map((record) => formatStoredRecordForArtifact(schema, record))
+    .sort((left, right) => {
+      const leftEntityOrder = entityOrder.get(left.entity);
+      const rightEntityOrder = entityOrder.get(right.entity);
+
+      if (leftEntityOrder !== undefined || rightEntityOrder !== undefined) {
+        if (leftEntityOrder === undefined) {
+          return 1;
+        }
+
+        if (rightEntityOrder === undefined) {
+          return -1;
+        }
+
+        const declaredEntityOrder = leftEntityOrder - rightEntityOrder;
+        if (declaredEntityOrder !== 0) {
+          return declaredEntityOrder;
+        }
+      } else {
+        const unknownEntityOrder = compareOrdinalStrings(left.entity, right.entity);
+        if (unknownEntityOrder !== 0) {
+          return unknownEntityOrder;
+        }
+      }
+
+      return compareOrdinalStrings(left.id, right.id);
+    });
+}
+
+export function formatStoredRecordForArtifact<Record extends StoredRecordArtifact>(
+  schema: AppSchema,
+  record: Record,
+): Record {
+  const fieldIndex = getAppSchemaDefinitionIndex(schema).fieldsByEntity.get(record.entity);
+  const knownValues: [string, FieldValue][] = [];
+  const knownFields = new Set<string>();
+
+  for (const field of fieldIndex?.ordered ?? []) {
+    knownFields.add(field.key);
+
+    const value = record.values[field.key];
+    if (Object.hasOwn(record.values, field.key) && value !== undefined) {
+      knownValues.push([field.key, value]);
+    }
+  }
+
+  const unexpectedValues = Object.entries(record.values)
+    .filter(
+      (entry): entry is [string, FieldValue] =>
+        !knownFields.has(entry[0]) && entry[1] !== undefined,
+    )
+    .sort(([left], [right]) => compareOrdinalStrings(left, right));
+
+  return {
+    id: record.id,
+    entity: record.entity,
+    values: Object.fromEntries([...knownValues, ...unexpectedValues]),
+    ...("createdAt" in record ? { createdAt: record.createdAt } : {}),
+    ...("updatedAt" in record ? { updatedAt: record.updatedAt } : {}),
+    ...("deletedAt" in record ? { deletedAt: record.deletedAt } : {}),
+  } as Record;
 }
 
 function assertStorageSnapshotKeys(value: Record<string, unknown>) {

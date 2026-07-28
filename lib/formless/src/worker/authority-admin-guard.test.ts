@@ -68,10 +68,13 @@ describe("authority admin guard", () => {
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
-
       expect(response.status).toBe(401);
       expect(response.headers.get("WWW-Authenticate")).toBe('Bearer realm="formless-admin"');
-      expect((await response.json()) as { error: string }).toEqual({
+      expect(
+        (await response.json()) as {
+          error: string;
+        },
+      ).toEqual({
         error: "Owner session or admin authorization is required for this write endpoint.",
       });
     }

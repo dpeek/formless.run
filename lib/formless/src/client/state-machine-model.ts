@@ -28,9 +28,13 @@ export type TransitionStateOperationConfig = {
   transitionName: string;
   transition: StateMachineTransitionSchema;
   fieldName: string;
-  field: Extract<FieldSchema, { type: "enum" }>;
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >;
 };
-
 export type TransitionStateOperationAvailability = {
   valid: boolean;
   disabledReason?: string;
@@ -40,14 +44,13 @@ export function selectStateMachineField(
   entity: EntitySchema,
   fieldName: string,
 ): StateMachineFieldConfig | undefined {
-  for (const [machineName, machine] of Object.entries(entity.stateMachines ?? {})) {
+  for (const machine of entity.stateMachines ?? []) {
     if (machine.field !== fieldName) {
       continue;
     }
-
     return {
       fieldName,
-      machineName,
+      machineName: machine.key,
       machine,
       initialState: machine.initial,
       terminalStates: machine.terminal ?? [],
@@ -72,11 +75,16 @@ export function selectTransitionStateOperations(
     if (transitionTarget === undefined) {
       return [];
     }
-
-    const machine = entity.stateMachines?.[transitionTarget.machineName];
-    const transition = machine?.transitions[transitionTarget.transitionName];
-    const field = machine === undefined ? undefined : entity.fields[machine.field];
-
+    const machine = entity.stateMachines?.find(
+      (definition) => definition.key === transitionTarget.machineName,
+    );
+    const transition = machine?.transitions.find(
+      (definition) => definition.key === transitionTarget.transitionName,
+    );
+    const field =
+      machine === undefined
+        ? undefined
+        : entity.fields.find((definition) => definition.key === machine.field);
     if (!machine || !transition || field?.type !== "enum") {
       return [];
     }
@@ -104,7 +112,12 @@ export function selectTransitionStateOperationAvailability({
 }: {
   operation: TransitionStateOperationConfig;
   currentValue: FieldValue | undefined;
-  field: Extract<FieldSchema, { type: "enum" }>;
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >;
 }): TransitionStateOperationAvailability {
   if (typeof currentValue !== "string" || currentValue.trim() === "") {
     return {
@@ -112,8 +125,7 @@ export function selectTransitionStateOperationAvailability({
       disabledReason: `Requires ${transitionSourceStateLabels(operation, field).join(", ")}.`,
     };
   }
-
-  if (field.values[currentValue] === undefined) {
+  if (!field.values.some((definition) => definition.key === currentValue)) {
     if (operation.transition.to === operation.machine.initial) {
       return { valid: true };
     }
@@ -140,18 +152,28 @@ export function stateMachineStateIsTerminal(
 ) {
   return typeof value === "string" && stateMachine.terminalStates.includes(value);
 }
-
 function transitionSourceStateLabels(
   operation: TransitionStateOperationConfig,
-  field: Extract<FieldSchema, { type: "enum" }>,
+  field: Extract<
+    FieldSchema,
+    {
+      type: "enum";
+    }
+  >,
 ) {
-  return operation.transition.from.map((state) => field.values[state]?.label ?? state);
+  return operation.transition.from.map(
+    (state) => field.values.find((definition) => definition.key === state)?.label ?? state,
+  );
 }
-
 function selectTransitionOperationTarget(
   _entity: EntitySchema,
   effect: OperationHandlerEffectSchemaForKind<"transition-state">,
-): { machineName: string; transitionName: string } | undefined {
+):
+  | {
+      machineName: string;
+      transitionName: string;
+    }
+  | undefined {
   return {
     machineName: effect.config.machine,
     transitionName: effect.config.transition,

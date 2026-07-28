@@ -14,8 +14,10 @@ import {
 import { collectQueryContextNames, queryRequiresContextEqualityOnEveryBranch } from "./query.ts";
 import {
   assertExactKeys,
+  definitionsToRecord,
   isFiniteNumber,
   isRecord,
+  parseKeyedDefinitionArray,
   parseOptionalNonEmptyString,
   parseRequiredNonEmptyString,
 } from "./schema-parse-helpers.ts";
@@ -41,6 +43,7 @@ import type {
   EntitySchema,
   EnumValueSchema,
   FieldSchema,
+  KeyedDefinition,
   OperationHandlerEntityOperationEffectSchema,
   OperationAccessPolicySchema,
   OperationChallengePolicySchema,
@@ -250,32 +253,28 @@ export function isEntityOperationVisibleToBrowser(operation: EntityOperationSche
     operation.policy.actors.includes("anonymous")
   );
 }
-
 export function parseEntityOperationsForEntities(
-  entities: Record<string, EntitySchema>,
+  entities: KeyedDefinition<EntitySchema>[],
   operationInputsByEntity: Record<string, unknown>,
   queries: Record<string, CollectionQuerySchema>,
   relationships: Record<string, RelationshipSchema> | undefined,
-): Record<string, EntitySchema> {
-  const entitiesWithOperations = Object.fromEntries(
-    Object.entries(entities).map(([entityName, entity]) => {
-      const operations =
-        parseEntityOperations(
-          entityName,
-          operationInputsByEntity[entityName],
-          entity,
-          entities,
-          queries,
-          relationships,
-        ) ?? {};
-
-      return [entityName, Object.keys(operations).length > 0 ? { ...entity, operations } : entity];
-    }),
-  );
-
+): KeyedDefinition<EntitySchema>[] {
+  const entitiesByKey = definitionsToRecord(entities);
+  const entitiesWithOperations = entities.map((entity) => {
+    const entityName = entity.key;
+    const operations =
+      parseEntityOperations(
+        entityName,
+        operationInputsByEntity[entityName],
+        entity,
+        entitiesByKey,
+        queries,
+        relationships,
+      ) ?? [];
+    return operations.length > 0 ? { ...entity, operations } : entity;
+  });
   return entitiesWithOperations;
 }
-
 function parseEntityOperations(
   entityName: string,
   value: unknown,
@@ -283,43 +282,33 @@ function parseEntityOperations(
   entities: Record<string, EntitySchema>,
   queries: Record<string, CollectionQuerySchema>,
   relationships: Record<string, RelationshipSchema> | undefined,
-): Record<string, EntityOperationSchema> | undefined {
+): KeyedDefinition<EntityOperationSchema>[] | undefined {
   if (value === undefined) {
     return undefined;
   }
-
-  if (!isRecord(value)) {
-    throw new Error(`Entity "${entityName}" operations must be an object.`);
-  }
-
-  const entries = Object.entries(value);
-  if (entries.length === 0) {
+  if (!Array.isArray(value) || value.length === 0) {
     throw new Error(`Entity "${entityName}" operations must not be empty.`);
   }
-
-  return Object.fromEntries(
-    entries.map(([operationName, operation]) => {
+  return parseKeyedDefinitionArray(
+    `Entity "${entityName}" operations`,
+    value,
+    (operationName, operation) => {
       assertEntityOperationKey(
         `Entity "${entityName}" operation key "${operationName}"`,
         operationName,
       );
-
-      return [
+      return parseEntityOperation(
+        entityName,
         operationName,
-        parseEntityOperation(
-          entityName,
-          operationName,
-          operation,
-          entity,
-          entities,
-          queries,
-          relationships,
-        ),
-      ];
-    }),
+        operation,
+        entity,
+        entities,
+        queries,
+        relationships,
+      );
+    },
   );
 }
-
 function parseEntityOperation(
   entityName: string,
   operationName: string,
@@ -341,10 +330,9 @@ function parseEntityOperation(
   assertExactKeys(
     context,
     value,
-    ["kind", "scope"],
+    ["key", "kind", "scope"],
     ["label", "input", "target", "effect", "output", "policy", "audit", "idempotency"],
   );
-
   const kind = parseOperationKind(`${context} kind`, value.kind);
   const scope = parseOperationScope(`${context} scope`, value.scope);
   validateOperationKindScope(context, kind, scope);
@@ -458,9 +446,8 @@ function validateAnonymousPublicListOperation(
   if (anonymousResponseFields === undefined) {
     throw new Error(`${context} anonymous list access requires anonymous response fields.`);
   }
-
   for (const fieldName of anonymousResponseFields) {
-    if (entity.fields[fieldName] === undefined) {
+    if (definitionsToRecord(entity.fields)[fieldName] === undefined) {
       throw new Error(
         `${context} policy responseFields.anonymous references unknown value field "${fieldName}".`,
       );
@@ -491,7 +478,7 @@ function validateAnonymousListQueryContext(
   input: EntityOperationInputContractSchema,
   entity: EntitySchema,
 ) {
-  const inputField = input.fields[contextName];
+  const inputField = definitionsToRecord(input.fields)[contextName];
   if (inputField === undefined) {
     throw new Error(
       `${context} anonymous list query context "${contextName}" references undeclared input.`,
@@ -503,8 +490,8 @@ function validateAnonymousListQueryContext(
       `${context} anonymous list query context "${contextName}" requires required input.`,
     );
   }
-
-  const inputValueField = "field" in inputField ? entity.fields[inputField.field] : inputField;
+  const inputValueField =
+    "field" in inputField ? definitionsToRecord(entity.fields)[inputField.field] : inputField;
   if (
     inputValueField === undefined ||
     !["text", "boolean", "date", "number", "enum"].includes(inputValueField.type)
@@ -513,9 +500,8 @@ function validateAnonymousListQueryContext(
       `${context} anonymous list query context "${contextName}" requires scalar input.`,
     );
   }
-
   for (const queryFieldName of collectQueryContextFieldNames(expression, contextName)) {
-    const queryField = entity.fields[queryFieldName];
+    const queryField = definitionsToRecord(entity.fields)[queryFieldName];
     if (
       queryField === undefined ||
       !areOperationInputAndQueryFieldsCompatible(inputValueField, queryField)
@@ -538,10 +524,9 @@ function areOperationInputAndQueryFieldsCompatible(
   if (inputField.type !== "enum" || queryField.type !== "enum") {
     return true;
   }
-
-  return Object.keys(inputField.values).every((value) => Object.hasOwn(queryField.values, value));
+  const queryValues = definitionsToRecord(queryField.values);
+  return inputField.values.every((value) => queryValues[value.key] !== undefined);
 }
-
 function collectQueryContextFieldNames(expression: QueryExpression, contextName: string): string[] {
   if (expression.kind === "and" || expression.kind === "or") {
     return expression.expressions.flatMap((child) =>
@@ -620,32 +605,17 @@ function parseOperationInput(
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
-
   assertExactKeys(context, value, ["fields"]);
-
-  if (!isRecord(value.fields)) {
-    throw new Error(`${context} fields must be an object.`);
-  }
-
-  const entries = Object.entries(value.fields);
-  if (entries.length === 0) {
+  if (!Array.isArray(value.fields) || value.fields.length === 0) {
     throw new Error(`${context} fields must not be empty.`);
   }
-
   return {
-    fields: Object.fromEntries(
-      entries.map(([fieldName, field]) => {
-        assertOperationInputFieldName(`${context} field "${fieldName}"`, fieldName);
-
-        return [
-          fieldName,
-          parseOperationInputField(`${context} fields.${fieldName}`, field, kind, entity),
-        ];
-      }),
-    ),
+    fields: parseKeyedDefinitionArray(`${context} fields`, value.fields, (fieldName, field) => {
+      assertOperationInputFieldName(`${context} field "${fieldName}"`, fieldName);
+      return parseOperationInputField(`${context} fields.${fieldName}`, field, kind, entity);
+    }),
   };
 }
-
 function assertOperationInputFieldName(context: string, value: string) {
   if (value.trim() === "") {
     throw new Error(`${context} must be non-empty.`);
@@ -665,12 +635,10 @@ function parseOperationInputField(
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
-
   if ("field" in value) {
-    assertExactKeys(context, value, ["field"], ["required", "label", "mustBeTrue"]);
-
+    assertExactKeys(context, value, ["key", "field"], ["required", "label", "mustBeTrue"]);
     const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
-    const entityField = entity.fields[fieldName];
+    const entityField = definitionsToRecord(entity.fields)[fieldName];
     if (!entityField) {
       throw new Error(`${context} references unknown field "${fieldName}".`);
     }
@@ -726,11 +694,14 @@ function parseInlineInputField(
   if (typeof value.required !== "boolean") {
     throw new Error(`${context} must declare whether it is required.`);
   }
-
   const label = parseOptionalNonEmptyString(`${context} label`, value.label);
-
   if (value.type === "text") {
-    assertExactKeys(context, value, ["type", "required"], ["label", "format", "suggestions"]);
+    assertExactKeys(
+      context,
+      value,
+      ["key", "type", "required"],
+      ["label", "format", "suggestions"],
+    );
     const format = parseOptionalOperationTextFieldFormat(`${context} format`, value.format);
     const suggestions = parseOptionalTextSuggestions(`${context} suggestions`, value.suggestions);
     return {
@@ -741,32 +712,28 @@ function parseInlineInputField(
       ...(suggestions === undefined ? {} : { suggestions }),
     };
   }
-
   if (value.type === "boolean") {
-    assertExactKeys(context, value, ["type", "required"], ["label"]);
+    assertExactKeys(context, value, ["key", "type", "required"], ["label"]);
     return {
       type: "boolean",
       required: value.required,
       ...(label === undefined ? {} : { label }),
     };
   }
-
   if (value.type === "date") {
-    assertExactKeys(context, value, ["type", "required"], ["label"]);
+    assertExactKeys(context, value, ["key", "type", "required"], ["label"]);
     return { type: "date", required: value.required, ...(label === undefined ? {} : { label }) };
   }
-
   if (value.type === "number") {
-    assertExactKeys(context, value, ["type", "required"], ["label"]);
+    assertExactKeys(context, value, ["key", "type", "required"], ["label"]);
     return {
       type: "number",
       required: value.required,
       ...(label === undefined ? {} : { label }),
     };
   }
-
   if (value.type === "enum") {
-    assertExactKeys(context, value, ["type", "required", "values"], ["label"]);
+    assertExactKeys(context, value, ["key", "type", "required", "values"], ["label"]);
     return {
       type: "enum",
       required: value.required,
@@ -781,37 +748,19 @@ function parseInlineInputField(
 function parseInlineInputEnumValues(
   context: string,
   value: unknown,
-): Record<string, EnumValueSchema> {
-  if (!isRecord(value)) {
-    throw new Error(`${context} must be an object.`);
-  }
-
-  const entries = Object.entries(value);
-  if (entries.length === 0) {
+): KeyedDefinition<EnumValueSchema>[] {
+  if (!Array.isArray(value) || value.length === 0) {
     throw new Error(`${context} must not be empty.`);
   }
-
-  return Object.fromEntries(
-    entries.map(([enumValue, enumValueSchema]) => {
-      if (enumValue.trim() === "") {
-        throw new Error(`${context} keys must be non-empty.`);
-      }
-
-      if (!isRecord(enumValueSchema)) {
-        throw new Error(`${context}.${enumValue} must be an object.`);
-      }
-
-      assertExactKeys(`${context}.${enumValue}`, enumValueSchema, ["label"]);
-
-      const label = parseRequiredNonEmptyString(
-        `${context}.${enumValue} label`,
-        enumValueSchema.label,
-      );
-      return [enumValue, { label }];
-    }),
-  );
+  return parseKeyedDefinitionArray(context, value, (enumValue, enumValueSchema) => {
+    assertExactKeys(`${context}.${enumValue}`, enumValueSchema, ["key", "label"]);
+    const label = parseRequiredNonEmptyString(
+      `${context}.${enumValue} label`,
+      enumValueSchema.label,
+    );
+    return { label };
+  });
 }
-
 function parseOperationTarget(
   context: string,
   value: unknown,
@@ -1128,7 +1077,10 @@ function parseRecordPlanEffectWithOptions(
   input: EntityOperationInputContractSchema | undefined,
   entities: Record<string, EntitySchema>,
   options: RecordPlanParseOptions = {},
-): { type: "recordPlan"; steps: ParsedRecordPlanStepSchema[] } {
+): {
+  type: "recordPlan";
+  steps: ParsedRecordPlanStepSchema[];
+} {
   if (!Array.isArray(value.steps) || value.steps.length === 0) {
     throw new Error(`${context} steps must be a non-empty array.`);
   }
@@ -1335,8 +1287,7 @@ function parseRecordPlanValues(
       if (isSystemFieldName(fieldName)) {
         throw new Error(`${context}.${fieldName} must not target system field "${fieldName}".`);
       }
-
-      const field = entity.fields[fieldName];
+      const field = definitionsToRecord(entity.fields)[fieldName];
       if (!field) {
         throw new Error(`${context}.${fieldName} references unknown field "${fieldName}".`);
       }
@@ -1498,15 +1449,12 @@ function parseTransitionTargetFieldExpression(
 ): TransitionSideEffectValueExpressionSchema {
   const target = assertTransitionTargetExpressionContext(context, options);
   assertExactKeys(context, value, ["kind", "field"]);
-
   const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
-  if (!target.entity.fields[fieldName]) {
+  if (!definitionsToRecord(target.entity.fields)[fieldName]) {
     throw new Error(`${context} field references unknown target field "${fieldName}".`);
   }
-
   return { kind: "targetField", field: fieldName };
 }
-
 function assertTransitionTargetExpressionContext(
   context: string,
   options: RecordPlanParseOptions,
@@ -1524,15 +1472,12 @@ function parseRecordPlanInputExpression(
   input: EntityOperationInputContractSchema | undefined,
 ): RecordPlanRecordIdExpressionSchema {
   assertExactKeys(context, value, ["kind", "field"]);
-
   const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
-  if (!input?.fields[fieldName]) {
+  if (!definitionsToRecord(input?.fields)[fieldName]) {
     throw new Error(`${context} field references unknown operation input field "${fieldName}".`);
   }
-
   return { kind: "input", field: fieldName };
 }
-
 function parseRecordPlanLiteralExpression(
   context: string,
   value: Record<string, unknown>,
@@ -1677,7 +1622,9 @@ function parseRecordPlanStepOutputExpression(
   value: Record<string, unknown>,
   entities: Record<string, EntitySchema>,
   previousSteps: Map<string, ParsedRecordPlanStep>,
-  options: { allowFieldOutput: boolean },
+  options: {
+    allowFieldOutput: boolean;
+  },
 ): RecordPlanStepOutputExpressionSchema {
   const output = parseRequiredNonEmptyString(`${context} output`, value.output);
   if (output === "id") {
@@ -1701,15 +1648,12 @@ function parseRecordPlanStepOutputExpression(
   if (!options.allowFieldOutput) {
     throw new Error(`${context} field output is not valid for record ids.`);
   }
-
   const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
-  if (!entities[step.entity]?.fields[fieldName]) {
+  if (!definitionsToRecord(entities[step.entity]?.fields)[fieldName]) {
     throw new Error(`${context} field references unknown field "${step.entity}.${fieldName}".`);
   }
-
   return { kind: "stepOutput", step: stepName, output, field: fieldName };
 }
-
 function parseRecordPlanReferenceExpression(
   context: string,
   value: Record<string, unknown>,
@@ -1755,7 +1699,7 @@ function validateRecordPlanFieldExpression(
   options: RecordPlanParseOptions,
 ) {
   if (expression.kind === "targetField") {
-    const targetField = options.target?.entity.fields[expression.field];
+    const targetField = definitionsToRecord(options.target?.entity.fields)[expression.field];
     if (!targetField) {
       throw new Error(`${context} references unknown target field "${expression.field}".`);
     }
@@ -1824,14 +1768,12 @@ function validateTransitionTargetFieldCompatibility(
       );
     }
   }
-
   if (source.type === "enum" && destination.type === "enum") {
-    const missingValue = Object.keys(source.values).find(
-      (value) => !Object.hasOwn(destination.values, value),
-    );
+    const destinationValues = definitionsToRecord(destination.values);
+    const missingValue = source.values.find((value) => destinationValues[value.key] === undefined);
     if (missingValue !== undefined) {
       throw new Error(
-        `${context} destination enum does not accept target value "${missingValue}".`,
+        `${context} destination enum does not accept target value "${missingValue.key}".`,
       );
     }
   }

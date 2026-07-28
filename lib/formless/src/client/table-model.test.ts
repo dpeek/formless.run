@@ -8,11 +8,10 @@ describe("table model", () => {
     const rateSourceSchema = sourceLikeRateSchema();
     const result = selectTableResultModel(
       rateSourceSchema,
-      rateSourceSchema.tableViews.rateTable,
+      rateSourceSchema.tableViews.find((definition) => definition.key === "rateTable")!,
       "rate",
-      rateSourceSchema.entities.rate,
+      rateSourceSchema.entities.find((definition) => definition.key === "rate")!,
     );
-
     expect(result.columns.map((column) => column.key)).toEqual([
       "referenceField:resource.name",
       "field:cost",
@@ -21,11 +20,11 @@ describe("table model", () => {
       "computed:rateMargin",
     ]);
   });
-
   it("propagates field presentation metadata into table columns", () => {
     const rateSourceSchema = sourceLikeRateSchema();
-    const rateTable = rateSourceSchema.tableViews.rateTable;
-
+    const rateTable = rateSourceSchema.tableViews.find(
+      (definition) => definition.key === "rateTable",
+    )!;
     rateTable.columns = rateTable.columns.map((column) =>
       column.type === "field" && column.field === "costUnit"
         ? { ...column, presentation: { mode: "iconOnly" as const } }
@@ -36,7 +35,7 @@ describe("table model", () => {
       rateSourceSchema,
       rateTable,
       "rate",
-      rateSourceSchema.entities.rate,
+      rateSourceSchema.entities.find((definition) => definition.key === "rate")!,
     );
     const costUnitColumn = result.columns.find(
       (column) => column.type === "field" && column.fieldName === "costUnit",
@@ -53,12 +52,11 @@ describe("table model", () => {
     const siteSourceSchema = sourceLikeSiteSchema();
     const result = selectTableResultModel(
       siteSourceSchema,
-      siteSourceSchema.tableViews.blockPlacementTable,
+      siteSourceSchema.tableViews.find((definition) => definition.key === "blockPlacementTable")!,
       "block-placement",
-      siteSourceSchema.entities["block-placement"],
+      siteSourceSchema.entities.find((definition) => definition.key === "block-placement")!,
     );
     const operationColumn = result.columns.find((column) => column.type === "operationControl");
-
     expect(result.ordering).toMatchObject({
       fieldName: "order",
       scope: [

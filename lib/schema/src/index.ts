@@ -4,6 +4,7 @@ export {
   isSchemaLocalEntityKey,
   parseQualifiedEntityName,
 } from "./entity-names.ts";
+export * from "./canonical-json.ts";
 export * from "./create-defaults.ts";
 export * from "./field-drafts.ts";
 export * from "./field-types.ts";
@@ -13,6 +14,7 @@ export * from "./read-model.ts";
 export * from "./schema-collection-contexts.ts";
 export * from "./schema-collection-results.ts";
 export * from "./schema-count-display.ts";
+export * from "./schema-definition-index.ts";
 export * from "./schema-fields.ts";
 export * from "./schema-operation-execution.ts";
 export * from "./schema-operation-input-projection.ts";

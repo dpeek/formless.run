@@ -44,72 +44,73 @@ const crmPackageManifest = parseAppPackageManifest(
 const crmSourceSchemaHash = crmPackageManifest.sourceSchemaHash;
 const siteSourceSchema = parseAppSchema({
   version: 1,
-  entities: {
-    site: {
+  entities: [
+    {
+      key: "site",
       label: "Site",
-      fields: {
-        key: { type: "text", required: true, label: "Key" },
-        label: { type: "text", required: true, label: "Label" },
-      },
-      constraints: {
-        uniqueKey: { kind: "unique", fields: ["key"] },
-      },
+      fields: [
+        { key: "key", type: "text", required: true, label: "Key" },
+        { key: "label", type: "text", required: true, label: "Label" },
+      ],
+      constraints: [{ key: "uniqueKey", kind: "unique", fields: ["key"] }],
       operations: writeOperations("Site", ["key", "label"], { delete: true }),
     },
-    block: {
+    {
+      key: "block",
       label: "Block",
-      fields: {
-        type: { type: "text", required: true, label: "Type" },
-        label: { type: "text", required: true, label: "Label" },
-        href: { type: "text", required: false, label: "Href", format: "href" },
-        mediaAssetId: { type: "text", required: false, label: "Media asset id" },
-        width: { type: "number", required: false, label: "Width", integer: true },
-        height: { type: "number", required: false, label: "Height", integer: true },
-      },
+      fields: [
+        { key: "type", type: "text", required: true, label: "Type" },
+        { key: "label", type: "text", required: true, label: "Label" },
+        { key: "href", type: "text", required: false, label: "Href", format: "href" },
+        { key: "mediaAssetId", type: "text", required: false, label: "Media asset id" },
+        { key: "width", type: "number", required: false, label: "Width", integer: true },
+        { key: "height", type: "number", required: false, label: "Height", integer: true },
+      ],
       operations: writeOperations(
         "Block",
         ["type", "label", "href", "mediaAssetId", "width", "height"],
         { delete: true },
       ),
     },
-    "block-placement": {
+    {
+      key: "block-placement",
       label: "Block Placement",
-      fields: {
-        parent: {
+      fields: [
+        {
+          key: "parent",
           type: "reference",
           required: true,
           label: "Parent",
           to: "block",
           displayField: "label",
         },
-        block: {
+        {
+          key: "block",
           type: "reference",
           required: true,
           label: "Block",
           to: "block",
           displayField: "label",
         },
-        order: { type: "number", required: true, label: "Order", integer: true },
-      },
+        { key: "order", type: "number", required: true, label: "Order", integer: true },
+      ],
       operations: writeOperations("Block placement", ["parent", "block", "order"], {
         delete: true,
       }),
     },
-  },
-  queries: {
-    siteAll: { label: "Sites", entity: "site", expression: { kind: "all" } },
-  },
-  itemViews: {
-    siteItem: {
+  ],
+  queries: [{ key: "siteAll", label: "Sites", entity: "site", expression: { kind: "all" } }],
+  itemViews: [
+    {
+      key: "siteItem",
       entity: "site",
-      fields: {
-        label: { editor: "text", commit: "field-commit" },
-      },
+      fields: [{ field: "label", editor: "text", commit: "field-commit" }],
     },
-  },
-  tableViews: {},
-  views: {
-    siteList: {
+  ],
+  tableViews: [],
+  views: [
+    {
+      key: "siteList",
       type: "collection",
       label: "Sites",
       entity: "site",
@@ -117,9 +118,10 @@ const siteSourceSchema = parseAppSchema({
       defaultQuery: "siteAll",
       result: { type: "list", itemView: "siteItem" },
     },
-  },
-  screens: {
-    home: {
+  ],
+  screens: [
+    {
+      key: "home",
       type: "workspace",
       label: "Home",
       layout: {
@@ -127,34 +129,33 @@ const siteSourceSchema = parseAppSchema({
         sections: [{ id: "sites", type: "collection", view: "siteList" }],
       },
     },
-  },
+  ],
 });
 const taskSourceSchema = parseAppSchema({
   version: 1,
-  entities: {
-    task: {
+  entities: [
+    {
+      key: "task",
       label: "Task",
-      fields: {
-        title: { type: "text", required: true, label: "Title" },
-        done: { type: "boolean", required: true, label: "Done" },
-      },
+      fields: [
+        { key: "title", type: "text", required: true, label: "Title" },
+        { key: "done", type: "boolean", required: true, label: "Done" },
+      ],
       operations: writeOperations("Task", ["title", "done"], { delete: true }),
     },
-  },
-  queries: {
-    taskAll: { label: "Tasks", entity: "task", expression: { kind: "all" } },
-  },
-  itemViews: {
-    taskItem: {
+  ],
+  queries: [{ key: "taskAll", label: "Tasks", entity: "task", expression: { kind: "all" } }],
+  itemViews: [
+    {
+      key: "taskItem",
       entity: "task",
-      fields: {
-        title: { editor: "text", commit: "field-commit" },
-      },
+      fields: [{ field: "title", editor: "text", commit: "field-commit" }],
     },
-  },
-  tableViews: {},
-  views: {
-    taskList: {
+  ],
+  tableViews: [],
+  views: [
+    {
+      key: "taskList",
       type: "collection",
       label: "Tasks",
       entity: "task",
@@ -162,9 +163,10 @@ const taskSourceSchema = parseAppSchema({
       defaultQuery: "taskAll",
       result: { type: "list", itemView: "taskItem" },
     },
-  },
-  screens: {
-    home: {
+  ],
+  screens: [
+    {
+      key: "home",
       type: "workspace",
       label: "Home",
       layout: {
@@ -172,7 +174,7 @@ const taskSourceSchema = parseAppSchema({
         sections: [{ id: "tasks", type: "collection", view: "taskList" }],
       },
     },
-  },
+  ],
 });
 const crmSourceSchema = parseAppSchema(rawCrmSourceSchema);
 const taskSeedRecords: StoredRecord[] = [
@@ -200,14 +202,19 @@ const archiveTestPackageResolver = createAppPackageResolver([
   crmPackageManifest,
 ]);
 const archiveTestInstallablePackages = listInstallableAppPackages(archiveTestPackageResolver);
-
-function writeOperations(label: string, fields: string[], options: { delete?: boolean } = {}) {
+function writeOperations(
+  label: string,
+  fields: string[],
+  options: {
+    delete?: boolean;
+  } = {},
+) {
   const input = {
-    fields: Object.fromEntries(fields.map((field) => [field, { field }])),
+    fields: fields.map((field) => ({ key: field, field })),
   };
-
-  return {
-    create: {
+  return [
+    {
+      key: "create",
       label: `Create ${label}`,
       kind: "create",
       scope: "collection",
@@ -217,7 +224,8 @@ function writeOperations(label: string, fields: string[], options: { delete?: bo
       idempotency: { required: true },
       audit: { input: "summary" },
     },
-    update: {
+    {
+      key: "update",
       label: `Update ${label}`,
       kind: "update",
       scope: "record",
@@ -228,8 +236,9 @@ function writeOperations(label: string, fields: string[], options: { delete?: bo
       audit: { input: "summary" },
     },
     ...(options.delete
-      ? {
-          delete: {
+      ? [
+          {
+            key: "delete",
             label: `Delete ${label}`,
             kind: "delete",
             scope: "record",
@@ -238,11 +247,10 @@ function writeOperations(label: string, fields: string[], options: { delete?: bo
             idempotency: { required: true },
             audit: { input: "summary" },
           },
-        }
-      : {}),
-  };
+        ]
+      : []),
+  ];
 }
-
 describe("archive restore planner", () => {
   it("plans mixed Site, Tasks, and CRM instance archive restores with current core media", () => {
     const archive = instanceArchive({
@@ -377,7 +385,8 @@ describe("archive restore planner", () => {
       }),
     );
     const mismatchedSchema = structuredClone(siteSourceSchema);
-    mismatchedSchema.entities.site.label = "Different Site";
+    mismatchedSchema.entities.find((definition) => definition.key === "site")!.label =
+      "Different Site";
     const schemaMismatch = expectFailure(
       planAppArchiveRestore(appArchive(), {
         packages: archiveTestInstallablePackages,
@@ -861,16 +870,14 @@ function coreMediaFile(name: string): ArchiveRestoreMediaFile {
     contentType: "image/png",
   };
 }
-
 function documentSourceSchema() {
   const schema = structuredClone(siteSourceSchema);
-  const block = schema.entities.block;
-
+  const block = schema.entities.find((definition) => definition.key === "block");
   if (!block) {
     throw new Error("Expected block schema.");
   }
-
-  block.fields.documentAssetId = {
+  block.fields.push({
+    key: "documentAssetId",
     type: "text",
     required: false,
     label: "Document",
@@ -880,37 +887,34 @@ function documentSourceSchema() {
       maxBytes: 1024 * 1024,
       access: "private",
     },
-  };
-
+  });
   return schema;
 }
-
 function imageAliasSourceSchema() {
   const schema = structuredClone(siteSourceSchema);
-  const block = schema.entities.block;
-
+  const block = schema.entities.find((definition) => definition.key === "block");
   if (!block) {
     throw new Error("Expected block schema.");
   }
-
-  block.fields.assetReference = {
+  block.fields.push({
+    key: "assetReference",
     type: "text",
     required: false,
     label: "Asset",
-  };
-  schema.itemViews.blockMedia = {
+  });
+  schema.itemViews.push({
+    key: "blockMedia",
     entity: "block",
-    fields: {
-      assetReference: {
+    fields: [
+      {
+        field: "assetReference",
         editor: "media",
         commit: "field-commit",
       },
-    },
-  };
-
+    ],
+  });
   return schema;
 }
-
 function documentMediaObject(
   name: string,
   access: "public" | "private",

@@ -1,3 +1,4 @@
+import { setKeyedDefinition } from "../test/schema-definition-test-helpers.ts";
 import {
   formatEntityOperationKey,
   type AppSchema,
@@ -27,9 +28,7 @@ describe("operation input validation", () => {
       validateOperationInvocationRecordWriteValues(
         operationInputRequest({
           operation: createTaskOperation({
-            fields: {
-              title: { field: "title", required: true },
-            },
+            fields: [{ key: "title", field: "title", required: true }],
           }),
           rawInput: {
             title: "Declared title",
@@ -43,9 +42,7 @@ describe("operation input validation", () => {
       validateOperationInvocationRecordWriteValues(
         operationInputRequest({
           operation: createTaskOperation({
-            fields: {
-              title: { field: "title", required: true },
-            },
+            fields: [{ key: "title", field: "title", required: true }],
           }),
           rawInput: {
             title: "Declared title",
@@ -61,9 +58,7 @@ describe("operation input validation", () => {
       validateOperationInvocationRecordPlanInputValues(
         operationInputRequest({
           operation: recordPlanTaskOperation({
-            fields: {
-              title: { type: "text", required: true, label: "Title" },
-            },
+            fields: [{ key: "title", type: "text", required: true, label: "Title" }],
           }),
           rawInput: {},
         }),
@@ -74,35 +69,32 @@ describe("operation input validation", () => {
       validateOperationInvocationRecordWriteValues(
         operationInputRequest({
           operation: createTaskOperation({
-            fields: {
-              taskTitle: { field: "title", required: true },
-            },
+            fields: [{ key: "taskTitle", field: "title", required: true }],
           }),
           rawInput: {},
         }),
       ),
     ).toThrow('Operation input field "taskTitle" is required.');
   });
-
   it("validates inline scalar operation input fields", () => {
     const operation = recordPlanTaskOperation({
-      fields: {
-        note: { type: "text", required: true, label: "Note" },
-        approved: { type: "boolean", required: true, label: "Approved" },
-        dueDate: { type: "date", required: true, label: "Due date" },
-        score: { type: "number", required: true, label: "Score" },
-        priority: {
+      fields: [
+        { key: "note", type: "text", required: true, label: "Note" },
+        { key: "approved", type: "boolean", required: true, label: "Approved" },
+        { key: "dueDate", type: "date", required: true, label: "Due date" },
+        { key: "score", type: "number", required: true, label: "Score" },
+        {
+          key: "priority",
           type: "enum",
           required: true,
           label: "Priority",
-          values: {
-            low: { label: "Low" },
-            normal: { label: "Normal" },
-          },
+          values: [
+            { key: "low", label: "Low" },
+            { key: "normal", label: "Normal" },
+          ],
         },
-      },
+      ],
     });
-
     expect(
       validateOperationInvocationRecordPlanInputValues(
         operationInputRequest({
@@ -188,16 +180,14 @@ describe("operation input validation", () => {
       ).toThrow(testCase.error);
     }
   });
-
   it("validates entity-backed operation input fields through the entity field contract", () => {
     const operation = createTaskOperation({
-      fields: {
-        taskTitle: { field: "title", required: true },
-        taskDone: { field: "done", required: true },
-        taskPriority: { field: "priority", required: true },
-      },
+      fields: [
+        { key: "taskTitle", field: "title", required: true },
+        { key: "taskDone", field: "done", required: true },
+        { key: "taskPriority", field: "priority", required: true },
+      ],
     });
-
     expect(
       validateOperationInvocationRecordWriteValues(
         operationInputRequest({
@@ -241,16 +231,14 @@ describe("operation input validation", () => {
       ),
     ).toThrow('Field "priority" must be a known enum value.');
   });
-
   it("keeps storage-backed reference checks in the Worker adapter", () => {
     const operation = createTaskOperation({
-      fields: {
-        taskTitle: { field: "title", required: true },
-        taskProject: { field: "project", required: true },
-      },
+      fields: [
+        { key: "taskTitle", field: "title", required: true },
+        { key: "taskProject", field: "project", required: true },
+      ],
     });
     const schema = schemaWithTaskProjectReference();
-
     expect(
       validateOperationInvocationRecordWriteValues(
         operationInputRequest({
@@ -318,9 +306,7 @@ describe("operation input validation", () => {
       validateOperationInvocationRecordWriteValues(
         operationInputRequest({
           operation: createTaskOperation({
-            fields: {
-              invalidMapping: { field: "missingEntityField", required: true },
-            },
+            fields: [{ key: "invalidMapping", field: "missingEntityField", required: true }],
           }),
           rawInput: {
             invalidMapping: "value",
@@ -360,13 +346,12 @@ describe("operation input validation", () => {
       ),
     ).toThrow('Operation "task.noInputPlan" does not declare input fields.');
   });
-
   it("keeps record-plan and handler values keyed by operation input name", () => {
     const operation = recordPlanTaskOperation({
-      fields: {
-        taskTitle: { field: "title", required: true },
-        taskDone: { field: "done", required: true },
-      },
+      fields: [
+        { key: "taskTitle", field: "title", required: true },
+        { key: "taskDone", field: "done", required: true },
+      ],
     });
     const rawInput = {
       taskTitle: "Planned task",
@@ -390,13 +375,12 @@ describe("operation input validation", () => {
       ),
     ).toEqual(rawInput);
   });
-
   it("validates public operation input values through the public route entrypoint", () => {
     const input = {
-      fields: {
-        taskTitle: { field: "title", required: true },
-        taskDone: { field: "done", required: true },
-      },
+      fields: [
+        { key: "taskTitle", field: "title", required: true },
+        { key: "taskDone", field: "done", required: true },
+      ],
     } satisfies NonNullable<EntityOperationSchema["input"]>;
     const rawInput = {
       taskTitle: "Public operation task",
@@ -452,15 +436,13 @@ describe("operation input validation", () => {
       }),
     ).toThrow('Field "title" cannot be empty.');
   });
-
   it("rejects false affirmative public operation input before materialization", () => {
     const operation = createTaskOperation({
-      fields: {
-        ordinaryBoolean: { field: "done", required: true },
-        consent: { field: "done", required: true, mustBeTrue: true },
-      },
+      fields: [
+        { key: "ordinaryBoolean", field: "done", required: true },
+        { key: "consent", field: "done", required: true, mustBeTrue: true },
+      ],
     });
-
     expect(() =>
       validatePublicOperationInputValues(
         publicOperationInputRequest({
@@ -487,21 +469,19 @@ describe("operation input validation", () => {
       consent: true,
     });
   });
-
   it("maps entity-backed create and update input to stored entity field names", () => {
     const createOperation = createTaskOperation({
-      fields: {
-        taskTitle: { field: "title", required: true },
-        taskDone: { field: "done", required: true },
-      },
+      fields: [
+        { key: "taskTitle", field: "title", required: true },
+        { key: "taskDone", field: "done", required: true },
+      ],
     });
     const updateOperation = updateTaskOperation({
-      fields: {
-        taskTitle: { field: "title" },
-        taskDone: { field: "done" },
-      },
+      fields: [
+        { key: "taskTitle", field: "title" },
+        { key: "taskDone", field: "done" },
+      ],
     });
-
     expect(
       validateOperationInvocationRecordWriteValues(
         operationInputRequest({
@@ -634,38 +614,32 @@ function operationCanonicalKey(input: { entityName: string; operationName: strin
     operationKey: input.operationName,
   });
 }
-
 function schemaWithTaskProjectReference(): AppSchema {
   const schema = sourceLikeTaskSchema();
-  const taskEntity = schema.entities.task;
-
+  const taskEntity = schema.entities.find((definition) => definition.key === "task")!;
   if (!taskEntity) {
     throw new Error("Expected task entity.");
   }
-
-  schema.entities.task = {
+  setKeyedDefinition(schema.entities, "task", {
     ...taskEntity,
-    fields: {
+    fields: [
       ...taskEntity.fields,
-      project: {
+      {
+        key: "project",
         type: "reference",
         required: false,
         label: "Project",
         to: "project",
         displayField: "name",
       },
-    },
-  };
-  schema.entities.project = {
+    ],
+  });
+  setKeyedDefinition(schema.entities, "project", {
     label: "Project",
-    fields: {
-      name: { type: "text", required: true, label: "Name" },
-    },
-  } satisfies EntitySchema;
-
+    fields: [{ key: "name", type: "text", required: true, label: "Name" }],
+  } satisfies EntitySchema);
   return schema;
 }
-
 function storageWithRecords(records: StoredRecord[]): DurableObjectStorage {
   return {
     sql: {
@@ -695,8 +669,12 @@ function storageWithRecords(records: StoredRecord[]): DurableObjectStorage {
     },
   } as unknown as DurableObjectStorage;
 }
-
-function projectRecord(id: string, options: { deleted?: boolean } = {}): StoredRecord {
+function projectRecord(
+  id: string,
+  options: {
+    deleted?: boolean;
+  } = {},
+): StoredRecord {
   return {
     id,
     entity: "project",
