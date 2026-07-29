@@ -64,11 +64,6 @@ describe("app package manifests", () => {
         key: "private-labs",
         path: "packages/private-labs/schema.json",
       },
-      seedRecords: {
-        kind: "workspace",
-        key: "private-labs",
-        path: "packages/private-labs/seed-records.json",
-      },
       sourceSchemaHash: privateSourceSchemaHash,
       capabilities: [
         {
@@ -102,17 +97,6 @@ describe("app package manifests", () => {
           },
         }),
         /sourceSchema path/,
-      ],
-      [
-        "seed records location",
-        privatePackageManifest({
-          seedRecords: {
-            kind: "workspace",
-            key: "private-labs",
-            path: "packages/private-labs/schema.json",
-          },
-        }),
-        /seedRecords path/,
       ],
       [
         "capability",
@@ -152,7 +136,6 @@ describe("app package manifests", () => {
         packageAppKey: "site",
         packageRevision: 1,
         publicRouteBase: "/sites",
-        seedRecordsKey: "site",
         sourceOrigin: "bundled",
         sourceSchemaKey: "site",
         sourceSchemaHash: siteSourceSchemaHash,
@@ -163,7 +146,6 @@ describe("app package manifests", () => {
         label: "Tasks",
         packageAppKey: "tasks",
         packageRevision: 1,
-        seedRecordsKey: "tasks",
         sourceOrigin: "bundled",
         sourceSchemaKey: "tasks",
         sourceSchemaHash: tasksSourceSchemaHash,
@@ -174,7 +156,6 @@ describe("app package manifests", () => {
         label: "CRM",
         packageAppKey: "crm",
         packageRevision: 1,
-        seedRecordsKey: "crm",
         sourceOrigin: "bundled",
         sourceSchemaKey: "crm",
         sourceSchemaHash: crmSourceSchemaHash,
@@ -202,7 +183,6 @@ describe("app package manifests", () => {
         packageAppKey: "private-labs",
         packageRevision: 7,
         publicRouteBase: "/sites",
-        seedRecordsKey: "private-labs",
         sourceOrigin: "workspace",
         sourceSchemaHash: privateSourceSchemaHash,
         sourceSchemaKey: "private-labs",
@@ -358,7 +338,6 @@ describe("app install registry", () => {
     expect(site.initialization).toEqual({
       installId: "personal",
       packageAppKey: "site",
-      seedRecordsKey: "site",
       sourceSchemaKey: "site",
     });
     expect(tasks.install).toEqual({
@@ -436,7 +415,6 @@ describe("app install registry", () => {
           expect(context.initialization).toEqual({
             installId: "labs",
             packageAppKey: "private-labs",
-            seedRecordsKey: "private-labs",
             sourceSchemaKey: "private-labs",
           });
 
@@ -590,7 +568,7 @@ describe("app install registry", () => {
     const sourceError = appInstallRegistryError(
       "source-validation-failed",
       "source",
-      "Bundled Site seed records are invalid.",
+      "Bundled Site source schema is invalid.",
     );
     const result = expectFailure(
       createAppInstall({
@@ -604,7 +582,6 @@ describe("app install registry", () => {
           expect(context.initialization).toEqual({
             installId: "docs",
             packageAppKey: "site",
-            seedRecordsKey: "site",
             sourceSchemaKey: "site",
           });
 
@@ -827,9 +804,6 @@ function packageManifest(input: {
   const sourcePathPrefix = input.sourcePathPrefix;
   const sourceSchemaPath =
     sourcePathPrefix === undefined ? "schema.json" : `${sourcePathPrefix}/schema.json`;
-  const seedRecordsPath =
-    sourcePathPrefix === undefined ? "seed-records.json" : `${sourcePathPrefix}/seed-records.json`;
-
   return {
     kind: appPackageManifestKind,
     version: appPackageManifestVersion,
@@ -843,11 +817,6 @@ function packageManifest(input: {
       kind: sourceOrigin,
       key: input.packageAppKey,
       path: sourceSchemaPath,
-    },
-    seedRecords: {
-      kind: sourceOrigin,
-      key: input.packageAppKey,
-      path: seedRecordsPath,
     },
     sourceSchemaHash: input.sourceSchemaHash,
     capabilities: [

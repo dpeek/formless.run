@@ -183,7 +183,7 @@ describe("instance auth origin and protected-route handoff decisions", () => {
         requestOrigin: "https://site.example.com",
         requiredAccess: "authenticated",
         runtimeRoute: appRoute("public-site", "site", "authenticated"),
-        safeReturnTo: "/blog/starter-post?ref=nav",
+        safeReturnTo: "/blog/shipping-schema-backed-authoring?ref=nav",
       }),
     ).toMatchObject({
       kind: "handoff",

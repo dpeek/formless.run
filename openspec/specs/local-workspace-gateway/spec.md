@@ -93,8 +93,8 @@ reviewable workspace source when a local workspace gateway is available.
 #### Scenario: Enqueue auto-save after committed browser writes
 
 - **WHEN** a browser-originated app operation, schema save, app install,
-  control-plane write, reset schema, reset seed, storage snapshot restore, or
-  deployment intent write commits through local Authority
+  control-plane write, reset schema, storage snapshot restore, or deployment
+  intent write commits through local Authority
 - **OR** a core media upload is accepted and then referenced by a committed app
   record
 - **THEN** the browser or runtime enqueues workspace auto-save through the

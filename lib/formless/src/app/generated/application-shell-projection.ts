@@ -4,7 +4,6 @@ import type {
   ShellDestinationIdentity,
   ShellManifestContract,
   ShellNavigationSectionContract,
-  ShellResetContract,
   ShellScope,
   ShellSessionContract,
   ShellSyncStatusContract,
@@ -46,15 +45,6 @@ export const GENERATED_APPLICATION_SHELL_ID = "application-shell";
 
 const GENERATED_APPLICATION_SHELL_INSTANCE_DESTINATION_ID = "instance:home";
 
-export type GeneratedShellResetState = {
-  open: boolean;
-  status:
-    | { state: "idle" }
-    | { state: "pending" }
-    | { message: string; state: "success" }
-    | { state: "error" };
-};
-
 export type GeneratedShellLogoutState = "error" | "idle" | "pending";
 
 export type GeneratedShellSyncFacts = {
@@ -85,7 +75,6 @@ export type ProjectGeneratedApplicationShellOptions = {
   installs?: readonly AppInstall[] | undefined;
   logoutState?: GeneratedShellLogoutState | undefined;
   accountSession?: AccountSessionStatusResponse | undefined;
-  resetState?: GeneratedShellResetState | undefined;
   root?: GeneratedShellRootProjectionInput | undefined;
   routeWorld: RuntimeWorldMount | undefined;
   runtimeProfile: RuntimeProfile;
@@ -351,46 +340,6 @@ export function selectGeneratedShellSyncStatus({
   };
 }
 
-export function selectGeneratedShellReset(
-  appLabel: string,
-  state: GeneratedShellResetState,
-): ShellResetContract {
-  const pending = state.status.state === "pending";
-  const controlId = `${GENERATED_APPLICATION_SHELL_ID}:reset`;
-
-  return {
-    confirmation: {
-      cancel: shellButton(`${controlId}:cancel`, "Cancel", "secondary"),
-      confirm: {
-        ...shellButton(`${controlId}:confirm`, pending ? "Resetting..." : "Reset", "primary"),
-        disabled: pending,
-        ...(pending ? { pending: { isPending: true, label: "Resetting" } } : {}),
-      },
-      description: `This restores the source schema and source seed data for ${appLabel}. Existing records are replaced by the source seed records.`,
-      id: `${controlId}:confirmation`,
-      kind: "shellResetConfirmation",
-      open: state.open,
-      title: `Reset ${appLabel} source seed data?`,
-    },
-    id: controlId,
-    kind: "shellReset",
-    status:
-      state.status.state === "success"
-        ? { message: state.status.message, state: "success" }
-        : state.status.state === "error"
-          ? { message: "Source reset failed. Try again.", state: "error" }
-          : { state: state.status.state },
-    trigger: {
-      ...shellButton(
-        `${controlId}:trigger`,
-        pending ? "Resetting..." : "Reset source seed data",
-        "secondary",
-      ),
-      disabled: pending,
-    },
-  };
-}
-
 export function selectGeneratedShellSession(
   accountSession: AccountSessionStatusResponse | undefined,
   logoutState: GeneratedShellLogoutState = "idle",
@@ -443,7 +392,6 @@ export function projectGeneratedApplicationShell({
   installs = [],
   logoutState = "idle",
   accountSession,
-  resetState,
   root,
   routeWorld,
   runtimeProfile,
@@ -507,7 +455,7 @@ export function projectGeneratedApplicationShell({
     sections.push(...selectGeneratedShellRootSections(root));
   }
 
-  if (routeWorld && (sync || resetState)) {
+  if (routeWorld && sync) {
     sections.push({
       accessibilityLabel: `${routeWorld.app.label} app settings`,
       destinations: [],
@@ -518,10 +466,7 @@ export function projectGeneratedApplicationShell({
       settings: {
         id: `${GENERATED_APPLICATION_SHELL_ID}:settings:${routeWorld.app.key}:controls`,
         kind: "shellSettings",
-        ...(resetState
-          ? { reset: selectGeneratedShellReset(routeWorld.app.label, resetState) }
-          : {}),
-        ...(sync ? { sync: selectGeneratedShellSyncStatus(sync) } : {}),
+        sync: selectGeneratedShellSyncStatus(sync),
       },
       shellId: GENERATED_APPLICATION_SHELL_ID,
     });

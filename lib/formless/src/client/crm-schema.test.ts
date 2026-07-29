@@ -1,17 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
-import rawCrmSeedRecords from "@dpeek/formless-crm-app/seed-records.json";
 import rawCrmSchema from "@dpeek/formless-crm-app/schema.json";
-import type { StoredRecord } from "@dpeek/formless-storage";
-import {
-  isValidStoredFieldValue,
-  parseAppSchema,
-  selectAnonymousPublicOperationByKey,
-  type AppSchema,
-} from "@dpeek/formless-schema";
+import { parseAppSchema, selectAnonymousPublicOperationByKey } from "@dpeek/formless-schema";
 import { selectCollectionModels, selectPrimaryScreenModels } from "./views.ts";
 
 const crmSchema = parseAppSchema(rawCrmSchema);
-const crmSeedRecords = rawCrmSeedRecords as unknown as StoredRecord[];
 const crmCollectionOperationCoverage = [
   {
     viewName: "companyHome",
@@ -395,123 +387,4 @@ describe("crm source schema", () => {
       },
     });
   });
-
-  it("keeps demo seed records stored-record shaped and schema-valid", () => {
-    expect(crmSeedRecords.map((record) => record.entity)).toEqual([
-      "company",
-      "company",
-      "contact",
-      "contact",
-      "contact",
-      "email-address",
-      "email-address",
-      "email-address",
-      "audience",
-      "audience",
-      "subscription",
-      "subscription",
-      "subscription",
-      "campaign",
-      "campaign-message",
-      "broadcast",
-      "broadcast-recipient",
-      "broadcast-recipient",
-      "delivery-event",
-      "delivery-event",
-      "delivery-event",
-    ]);
-
-    expect(validateStoredRecords(crmSchema, crmSeedRecords)).toEqual([]);
-  });
 });
-
-function validateStoredRecords(schema: AppSchema, records: StoredRecord[]): string[] {
-  const errors: string[] = [];
-  const recordsById = new Map<string, StoredRecord>();
-
-  for (const record of records) {
-    if (record.id.trim() === "") {
-      errors.push("empty record id");
-      continue;
-    }
-
-    if (recordsById.has(record.id)) {
-      errors.push(`duplicate record id ${record.id}`);
-      continue;
-    }
-
-    if (!isIsoTimestamp(record.createdAt)) {
-      errors.push(`${record.id} createdAt is not an ISO timestamp`);
-    }
-    recordsById.set(record.id, record);
-  }
-  for (const record of records) {
-    const entity = schema.entities.find((definition) => definition.key === record.entity)!;
-    if (!entity) {
-      errors.push(`${record.id} references unknown entity ${record.entity}`);
-      continue;
-    }
-    for (const [fieldName, value] of Object.entries(record.values)) {
-      if (!entity.fields.find((definition) => definition.key === fieldName)!) {
-        errors.push(`${record.id} includes unknown field ${record.entity}.${fieldName}`);
-      }
-      if (!isFlatStoredValue(value)) {
-        errors.push(`${record.id} field ${record.entity}.${fieldName} is not flat`);
-      }
-    }
-    for (const field of entity.fields) {
-      const fieldName = field.key;
-      const value = record.values[fieldName];
-      if (!isValidStoredFieldValue(value, field)) {
-        errors.push(`${record.id} has invalid field ${record.entity}.${fieldName}`);
-        continue;
-      }
-
-      if (field.type !== "reference" || value === undefined) {
-        continue;
-      }
-
-      const target = typeof value === "string" ? recordsById.get(value) : undefined;
-
-      if (!target) {
-        errors.push(
-          `${record.id} ${record.entity}.${fieldName} references missing record ${value}`,
-        );
-        continue;
-      }
-
-      if (target.entity !== field.to) {
-        errors.push(`${record.id} ${record.entity}.${fieldName} must reference ${field.to}`);
-      }
-    }
-  }
-  for (const entity of schema.entities) {
-    const entityName = entity.key;
-    const entityRecords = records.filter((record) => record.entity === entityName);
-    for (const constraint of entity.constraints ?? []) {
-      if (constraint.kind !== "unique") {
-        continue;
-      }
-      const constraintName = constraint.key;
-      const seen = new Set<string>();
-      for (const record of entityRecords) {
-        const key = JSON.stringify(constraint.fields.map((fieldName) => record.values[fieldName]));
-        if (seen.has(key)) {
-          errors.push(`${entityName}.${constraintName} is duplicated by ${record.id}`);
-        }
-
-        seen.add(key);
-      }
-    }
-  }
-
-  return errors;
-}
-
-function isFlatStoredValue(value: unknown) {
-  return ["string", "boolean", "number"].includes(typeof value);
-}
-
-function isIsoTimestamp(value: string) {
-  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value);
-}

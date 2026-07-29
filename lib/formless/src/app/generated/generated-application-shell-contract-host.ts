@@ -43,10 +43,6 @@ export type ResolvedGeneratedShellIntent =
       kind: "logout";
     }
   | {
-      intent: Extract<ShellIntent, { type: "shellReset" }>;
-      kind: "reset";
-    }
-  | {
       intent: Extract<ShellIntent, { type: "shellRootRecordSelection" }>;
       kind: "rootSelection";
     }
@@ -113,11 +109,6 @@ export function resolveGeneratedApplicationShellIntent(
       return intent.intent.surfaceId === intent.surfaceId
         ? { intent, kind: "create" }
         : { kind: "ignored" };
-    }
-    case "shellReset": {
-      const reset = section.settings?.reset;
-
-      return reset?.id === intent.controlId ? { intent, kind: "reset" } : { kind: "ignored" };
     }
     case "shellLogout": {
       const logout =

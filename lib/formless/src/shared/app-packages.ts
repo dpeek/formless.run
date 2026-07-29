@@ -75,9 +75,5 @@ function bundledAppPackageManifestFromSource(
     throw new Error(`${input.context} sourceSchema kind must be "bundled".`);
   }
 
-  if (parsed.seedRecords.kind !== "bundled") {
-    throw new Error(`${input.context} seedRecords kind must be "bundled".`);
-  }
-
   return parsed;
 }

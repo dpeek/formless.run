@@ -5,8 +5,8 @@
 Package slices and in-repo app packages define package boundaries under
 `lib/<package>/`. Capability slices own reusable contracts and adapters without
 owning app records. App packages own schema authoring source when present,
-portable schema artifacts, seed records, manifests, and any package-specific
-adapters for a bundled app.
+portable schema artifacts, manifests, and any package-specific adapters for a
+bundled app.
 
 ## Requirements
 
@@ -46,8 +46,7 @@ with a minimal package-local contract and adapter layout.
 ### Requirement: In-Repo App Package Structure
 
 The system SHALL allow in-repo app packages under `lib/<package>/` when the
-package owns source schema, seed records, and package-specific runtime
-adapters.
+package owns source schema and package-specific runtime adapters.
 
 #### Scenario: App package scaffold
 
@@ -55,14 +54,13 @@ adapters.
   package
 - WHEN the package is scaffolded
 - THEN the package contains package-local `AGENTS.md`, `package.json`,
-  `tsconfig.json`, `formless.app.json`, `schema.json`, `seed-records.json`,
-  and `src/` entrypoints for public contracts and supported runtime adapters
+  `tsconfig.json`, `formless.app.json`, `schema.json`, and `src/` entrypoints
+  for public contracts and supported runtime adapters
 - AND a package that uses TypeScript schema authoring owns its declaration
   under `src/` and a package-local schema materialization command
 - AND the app package is published as a workspace package with documented root,
   React, Worker, and Node subpaths when those adapters exist
-- AND `schema.json` remains the package's portable schema data artifact and seed
-  records remain app package source data rather than runtime state
+- AND `schema.json` remains the package's portable schema data artifact
 - AND app packages without package-specific executable adapters do not need to
   expose unused adapter subpaths
 
@@ -86,13 +84,11 @@ adapters.
 #### Scenario: App package source replaces root app files
 
 - GIVEN an app package such as Site, Tasks, or CRM owns `formless.app.json`,
-  `schema.json`, `seed-records.json`, and any package-local schema authoring
-  source
-- WHEN runtime code composes bundled package metadata, source schemas, or seed
-  records
+  `schema.json`, and any package-local schema authoring source
+- WHEN runtime code composes bundled package metadata or source schemas
 - THEN it imports the package root or documented source JSON subpaths
-- AND root runtime does not keep duplicate source schema or seed-record files
-  for that app package
+- AND root runtime does not keep duplicate source schema files for that app
+  package
 - AND root `schema/apps/<packageAppKey>` source files are removed for extracted
   app packages
 
@@ -376,8 +372,8 @@ resolves the same public imports directly to current package source.
   artifacts without repository source export targets
 - AND package export, ESM, and TypeScript declaration contracts pass package
   publication validation
-- AND an in-repo app package continues to publish its declared app manifest,
-  source schema, and seed record JSON as uncompiled package artifacts
+- AND an in-repo app package continues to publish its declared app manifest and
+  source schema JSON as uncompiled package artifacts
 
 ### Requirement: Formless Presentation Package Slice
 
@@ -641,8 +637,8 @@ runtime adapter execution.
 - WHEN bundled package metadata is composed
 - THEN root runtime code supplies bundled manifests to the Installed Apps
   package resolver
-- AND package source does not import bundled schema JSON, seed records, or
-  root-only bundled package lists
+- AND package source does not import bundled schema JSON or root-only bundled
+  package lists
 
 ### Requirement: Instance Control Plane Package Slice
 
@@ -967,9 +963,9 @@ surfaces, archive execution, or workspace source.
 #### Scenario: Package does not own runtime surfaces
 
 - GIVEN bundled source app package metadata, source schema JSON loading, source
-  seed records, schema Builder UI state, generated React rendering, Authority
-  table mutation, Durable Object storage, browser replica persistence, archive
-  restore execution, Workspace storage snapshots, instance control-plane schema
+  schema Builder UI state, generated React rendering, Authority table mutation,
+  Durable Object storage, browser replica persistence, archive restore
+  execution, Workspace storage snapshots, instance control-plane schema
   construction, package app migrations, or provider execution is needed
 - WHEN those behaviors are implemented
 - THEN they remain owned by their existing app, client, Worker, archive,

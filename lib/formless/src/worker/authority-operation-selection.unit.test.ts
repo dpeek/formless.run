@@ -28,7 +28,6 @@ describe("authority operation selection", () => {
       ["POST", "/schema", "writeSchema"],
       ["POST", "/snapshot/restore", "restoreSnapshot"],
       ["POST", "/reset/schema", "resetSchema"],
-      ["POST", "/reset/seed", "resetSeed"],
     ] satisfies Array<[string, string, AuthorityOperationKind]>;
     for (const [method, path, kind] of cases) {
       expect(selectOperation(method, path)).toEqual({

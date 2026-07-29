@@ -16,7 +16,7 @@ import {
 import { selectScreenModels } from "../../client/views.ts";
 import { bootstrapResponse } from "../../test/protocol-builders.ts";
 import { siteSourceSchema } from "../../test/schema-apps.ts";
-import { testSiteSeedRecords } from "../../test/site-records.ts";
+import { testSiteRecords } from "../../test/site-records.ts";
 import { projectGeneratedWorkspaceTreeIntent } from "./workspace-projection.ts";
 import {
   useGeneratedWorkspaceRuntimeController,
@@ -61,7 +61,7 @@ beforeEach(() => {
 
 describe("generated workspace tree selection runtime", () => {
   it("owns selection across intents, refresh, creation, removal, and stale identities", async () => {
-    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteSeedRecords), "site");
+    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords), "site");
     const screen = required(
       selectScreenModels(siteSourceSchema).find(
         (candidate) => candidate.screenName === "siteEditor",
@@ -197,7 +197,7 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("owns controlled disclosure through exact tree intents", async () => {
-    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteSeedRecords), "site");
+    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords), "site");
     const branch = typedBlock("block-disclosure-branch", "group", "Disclosure branch");
     const child = typedBlock("block-disclosure-child", "markdown", "Disclosure child", {
       body: "Nested disclosure coverage.",
@@ -280,7 +280,7 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("routes item context navigation and child field failures by exact identity", async () => {
-    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteSeedRecords), "site");
+    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords), "site");
     applyRecordMerge(
       [placement("placement-header-context", "rec_site_content_group_header")],
       undefined,
@@ -405,7 +405,7 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("loads and uploads media for selected tree records and tree child creation", async () => {
-    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteSeedRecords), "site");
+    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords), "site");
     const image = typedBlock("block-tree-media", "image", "Tree media", {
       height: 180,
       mediaAssetId: "old.webp",
@@ -565,7 +565,7 @@ describe("generated workspace tree selection runtime", () => {
       installedAppStorageIdentity({ installId: "private", packageAppKey: "site" }),
     );
     const documentSchema = siteSchemaWithDocumentMedia();
-    applyBootstrapResponse(bootstrapResponse(documentSchema, testSiteSeedRecords), appTarget);
+    applyBootstrapResponse(bootstrapResponse(documentSchema, testSiteRecords), appTarget);
     const image = typedBlock("block-tree-document", "image", "Tree document", {
       mediaAssetId: "old-report.pdf",
     });
@@ -710,7 +710,7 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("owns root cancel and nested child create validation, failure, retry, pending, and selection", async () => {
-    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteSeedRecords), "site");
+    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords), "site");
     const feature = typedBlock("block-feature-create", "feature", "Feature create parent");
     const featurePlacement = placement("placement-feature-create", feature.id);
     const leaf = typedBlock("block-leaf-create", "card", "Leaf create target");
@@ -915,7 +915,7 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("executes semantic tree moves inside the exact scope with safe retry feedback", async () => {
-    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteSeedRecords), "site");
+    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords), "site");
     const root = typedBlock("ordering-root", "page", "Ordering root");
     const mainFirstChild = block("ordering-main-first-child", "Main first");
     const mainSecondChild = block("ordering-main-second-child", "Main second");
@@ -1079,7 +1079,7 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("routes placement removal confirmation, retry, refresh, and fallback by exact identity", async () => {
-    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteSeedRecords), "site");
+    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords), "site");
     const screen = required(
       selectScreenModels(siteSourceSchema).find(
         (candidate) => candidate.screenName === "siteEditor",

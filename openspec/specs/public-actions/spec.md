@@ -240,7 +240,7 @@ operation endpoints.
 
 - GIVEN a visitor lacks owner session or admin bearer authorization
 - WHEN the visitor posts outside a target-scoped public operation route
-- THEN protected operation, schema reset, seed reset, snapshot restore, and
+- THEN protected operation, schema reset, snapshot restore, and
   package migration write routes return the configured unauthorized response
   before evaluating public operation policy, parsing JSON, or initializing app
   storage

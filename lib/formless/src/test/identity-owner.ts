@@ -1,23 +1,54 @@
 import { expect } from "vite-plus/test";
-import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-identity-control-plane";
+import {
+  IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX,
+  IDENTITY_CONTROL_PLANE_SCHEMA_KEY,
+  IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
+  identityControlPlaneRoleKeys,
+  identityControlPlaneSchema,
+} from "@dpeek/formless-identity-control-plane";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { OwnerIdentity } from "../shared/protocol.ts";
 import type { createWorkerHarness } from "../worker/miniflare-test.ts";
-import { recordOperationRequest } from "./authority-write.ts";
+import {
+  recordOperationRequest,
+  restoreTestStorageSnapshot,
+  testStorageSnapshot,
+} from "./authority-write.ts";
 
-type IdentityOwnerHarness = Pick<Awaited<ReturnType<typeof createWorkerHarness>>, "fetch">;
+type IdentityOwnerHarness = Pick<
+  Awaited<ReturnType<typeof createWorkerHarness>>,
+  "durableObjectFetch" | "fetch"
+>;
 
 export async function resetTestIdentityStorage(
   harness: IdentityOwnerHarness,
   adminToken: string,
 ): Promise<void> {
-  const response = await harness.fetch(`${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/reset/seed`, {
-    body: "{}",
-    headers: adminHeaders(adminToken, { "Content-Type": "application/json" }),
-    method: "POST",
-  });
+  await restoreTestStorageSnapshot(
+    harness,
+    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/snapshot/restore`,
+    testStorageSnapshot({
+      records: builtInRoleRecords(),
+      schema: identityControlPlaneSchema,
+      schemaKey: IDENTITY_CONTROL_PLANE_SCHEMA_KEY,
+      storageIdentity: IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
+    }),
+    adminHeaders(adminToken),
+  );
+}
 
-  expect(response.status).toBe(200);
+function builtInRoleRecords(): StoredRecord[] {
+  return identityControlPlaneRoleKeys.map((roleKey) => ({
+    id: `role:${roleKey}`,
+    entity: "role",
+    values: {
+      key: roleKey,
+      displayLabel: roleKey,
+      status: "active",
+    },
+    createdAt: "2026-06-26T00:00:00.000Z",
+    updatedAt: "2026-06-26T00:00:00.000Z",
+  }));
 }
 
 export async function ensureTestIdentityOwner(

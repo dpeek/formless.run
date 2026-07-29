@@ -82,7 +82,6 @@ describe("client app install API helpers", () => {
             initialization: {
               installId: "personal",
               packageAppKey: "site",
-              seedRecordsKey: "site",
               sourceSchemaKey: "site",
             },
             install: { installId: "personal" },
@@ -155,7 +154,6 @@ describe("client app install API helpers", () => {
             initialization: {
               installId: "site",
               packageAppKey: "site",
-              seedRecordsKey: "site",
               sourceSchemaKey: "site",
             },
             install: { installId: "site" },
@@ -232,12 +230,6 @@ function privateSitePackage(): InstallableAppPackage {
     packageAppKey: "private-site",
     packageRevision: 7,
     publicRouteBase: "/sites",
-    seedRecordsKey: "private-site",
-    seedRecordsLocation: {
-      kind: "workspace",
-      key: "private-site",
-      path: "source/seed-records.json",
-    },
     sourceOrigin: "workspace",
     sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
     sourceSchemaKey: "private-site",

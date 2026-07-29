@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import type { StoredRecord } from "./types.ts";
-import { testSiteSeedRecords } from "./test-records.ts";
+import { testSiteRecords } from "./test-records.ts";
 import {
   buildPublicSitemapXml,
   buildPublicSiteRouteEntries,
@@ -12,7 +12,7 @@ describe("public Site indexing", () => {
   it("builds deterministic public routes from live pages and dated posts", () => {
     const routes = buildPublicSiteRouteEntries(
       [
-        ...testSiteSeedRecords,
+        ...testSiteRecords,
         siteRecord("rec_site_settings_route_shaped", {
           key: "secondary",
           label: "Route-shaped settings",

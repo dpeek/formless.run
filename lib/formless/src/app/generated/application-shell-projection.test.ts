@@ -3,7 +3,7 @@ import { createMemoryPresentationHost } from "@dpeek/formless-presentation/host"
 import type { AppInstall } from "@dpeek/formless-installed-apps";
 import { selectGeneratedRootNavigationFacts } from "../../client/generated-authoring.ts";
 import { selectPrimaryScreenModels } from "../../client/views.ts";
-import { testSiteSeedRecords } from "../../test/site-records.ts";
+import { testSiteRecords } from "../../test/site-records.ts";
 import { siteSourceSchema } from "../../test/schema-apps.ts";
 import {
   createAppRuntimeProfile,
@@ -138,10 +138,6 @@ describe("generated application shell projection", () => {
         .some((destination) => destination.countText !== undefined),
     ).toBe(true);
     expect(settingsSection.settings).toMatchObject({
-      reset: {
-        confirmation: { open: true },
-        status: { message: "Source reset failed. Try again.", state: "error" },
-      },
       sync: {
         label: "Sync issue",
         message: "Sync failed. Check the current app and try again.",
@@ -260,9 +256,6 @@ describe("generated application shell host and intents", () => {
       projection.sections.find((section) => section.createSurface !== undefined),
     );
     const createField = required(createSection.createSurface?.dialog.form.fieldSet.fields[0]);
-    const settingsSection = required(
-      projection.sections.find((section) => section.settings?.reset !== undefined),
-    );
     const sessionSection = required(
       projection.sections.find((section) => section.session?.state === "authenticated"),
     );
@@ -322,16 +315,6 @@ describe("generated application shell host and intents", () => {
         type: "shellCreate",
       }),
     ).toEqual({ kind: "ignored" });
-    expect(
-      resolveGeneratedApplicationShellIntent(projection, {
-        controlId: required(settingsSection.settings?.reset).id,
-        intent: { open: true, type: "resetOpenChange" },
-        sectionId: settingsSection.id,
-        shellId: projection.manifest.id,
-        type: "shellReset",
-      }),
-    ).toMatchObject({ kind: "reset" });
-
     const authenticatedSession = sessionSection.session;
     if (authenticatedSession?.state !== "authenticated") {
       throw new Error("Expected authenticated shell session.");
@@ -405,7 +388,6 @@ function completeProjection(): GeneratedApplicationShellProjection {
         session: { expiresAt: "session-token-must-not-project" },
         setupComplete: true,
       },
-      resetState: { open: true, status: { state: "error" } },
       root: {
         createSurfacesByQueryName,
         facts: rootFacts,
@@ -436,18 +418,16 @@ function shellScope(
 }
 
 function siteSnapshot() {
-  const entityNames = new Set(testSiteSeedRecords.map((record) => record.entity));
+  const entityNames = new Set(testSiteRecords.map((record) => record.entity));
 
   return {
     recordIdsByEntity: Object.fromEntries(
       [...entityNames].map((entityName) => [
         entityName,
-        testSiteSeedRecords
-          .filter((record) => record.entity === entityName)
-          .map((record) => record.id),
+        testSiteRecords.filter((record) => record.entity === entityName).map((record) => record.id),
       ]),
     ),
-    recordsById: Object.fromEntries(testSiteSeedRecords.map((record) => [record.id, record])),
+    recordsById: Object.fromEntries(testSiteRecords.map((record) => [record.id, record])),
   };
 }
 

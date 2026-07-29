@@ -17,7 +17,7 @@ Read this when editing `lib/schema/*`.
 ## Does Not Own
 
 - Bundled source app package metadata.
-- Source schema JSON loading or source seed records.
+- Source schema JSON loading.
 - Schema Builder UI state or generated React rendering.
 - Authority table mutation, Durable Object storage, or browser replica persistence.
 - Archive restore execution.

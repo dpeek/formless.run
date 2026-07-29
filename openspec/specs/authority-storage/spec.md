@@ -70,7 +70,7 @@ The system SHALL expose app storage operations through schema-key and installed-
 
 - GIVEN a valid app storage identity
 - WHEN a client calls app storage API paths for bootstrap, schema, tree reads,
-  sync, operations, reset schema, or reset seed
+  sync, operations, or reset schema
 - THEN the system resolves the operation for that app storage identity
 - AND read and write responses use the same durable Authority state for that identity
 
@@ -102,8 +102,8 @@ from browser route eligibility and operational instance management.
 #### Scenario: App admin data authorization does not grant storage control
 
 - GIVEN a principal is authorized only by matching `app.admin` authority
-- WHEN the principal requests schema writes, reset schema, reset seed, snapshot
-  export or restore, package migration, archive, or another storage-control
+- WHEN the principal requests schema writes, reset schema, snapshot export or
+  restore, package migration, archive, or another storage-control
   operation
 - THEN existing owner, operational-management, admin-bearer, CLI, or automation
   authorization remains required according to that operation
@@ -190,24 +190,34 @@ while consuming Media package Worker adapters through public subpaths.
 - THEN owned media object bytes and provider storage metadata remain outside
   Authority app records
 
-### Requirement: Source Bootstrap
+### Requirement: Source Schema Bootstrap
 
-The system SHALL initialize an empty Authority from the source schema and source seed records.
+The system SHALL initialize an empty Authority from the resolved source schema
+without treating package records as source.
 
 #### Scenario: Fresh bootstrap
 
 - GIVEN no active schema is stored for an app storage identity
 - WHEN the app is bootstrapped
 - THEN the active schema is initialized from the source schema
-- AND source seed records are committed as stored records
-- AND the seed records produce create changes for sync catch-up
+- AND no stored records or record changes are created by source bootstrap
 
 #### Scenario: Installed app creation
 
 - GIVEN a bundled package app is installed
 - WHEN the installed app storage identity is initialized
 - THEN storage starts from the package source schema
-- AND package source seed records are committed for that install id
+- AND the installed app starts with no stored records
+
+#### Scenario: Runtime-owned invariant records
+
+- GIVEN a runtime-owned control plane requires invariant records such as the
+  identity role catalog
+- WHEN that control plane initializes
+- THEN its owning domain creates or reconciles those records idempotently after
+  source schema bootstrap
+- AND generic app package source and Authority bootstrap do not model those
+  records as package initial data
 
 ### Requirement: Portable Active Schema
 
@@ -274,12 +284,12 @@ The system MUST protect stored records during normal schema changes and SHALL su
 
 - GIVEN persisted Authority state cannot be parsed under the current App schema
   contract
-- WHEN an operator adopts the current source schema through the explicit
-  destructive reset path
+- WHEN an operator clears that storage identity through an explicit internal
+  storage replacement before source bootstrap
 - THEN records, changes, operation invocations, and the incompatible active
   schema are cleared for that storage identity
-- AND the current source schema and source seed records become the new durable
-  state
+- AND the current source schema becomes the new durable state without creating
+  package records
 - AND Authority does not infer declaration order from an unsupported object
   shape or add a dual-shape parser, alias, compatibility shim, or schema-format
   migration layer
@@ -300,8 +310,8 @@ The system MUST commit writes only when Authority validation succeeds.
 
 - GIVEN a local workspace runtime needs to decide whether workspace source is
   dirty
-- WHEN an app operation, schema save, reset schema, reset seed, snapshot
-  restore, app install, or control-plane write commits through Authority
+- WHEN an app operation, schema save, reset schema, snapshot restore, app
+  install, or control-plane write commits through Authority
 - THEN the committed storage outcome is the write classification boundary
 - AND the local runtime may enqueue workspace auto-save for the affected storage
   identity
@@ -321,8 +331,8 @@ The system MUST commit writes only when Authority validation succeeds.
 - WHEN a generic update operation or internal patch materializer attempts to
   change the machine-owned enum field directly
 - THEN the write is rejected before commit
-- AND the field can change only through a declared transition operation, source
-  bootstrap, reset, restore, or migration path
+- AND the field can change only through a declared transition operation, reset,
+  restore, or migration path
 
 #### Scenario: State machine transition operation
 
@@ -809,7 +819,7 @@ outputs.
 
 #### Scenario: Committed write facts
 
-- WHEN an operation, schema reset, seed reset, or snapshot restore commits
+- WHEN an operation, schema reset, or snapshot restore commits
   storage changes
 - THEN the storage write outcome identifies the result as committed
 - AND committed change rows are appended once for that write identity
@@ -846,8 +856,7 @@ write-log append behavior.
 
 #### Scenario: Reset and restore materialization
 
-- WHEN source schema reset, seed reset, snapshot restore, or archive app data
-  restore runs
+- WHEN source schema reset, snapshot restore, or archive app data restore runs
 - THEN the reset or restore plan remains explicit before durable writes
 - AND operation handler executions are cleared only by operations whose storage
   semantics require clearing them
@@ -873,17 +882,18 @@ The system SHALL represent record deletes as tombstones.
 - THEN the tombstoned referencing record does not block validation
 - AND the target delete can commit if no active record references it
 
-### Requirement: Reset And Storage Snapshot
+### Requirement: Storage Replacement And Snapshot
 
-The system SHALL provide reset and storage snapshot operations that preserve
-Authority storage invariants.
+The system SHALL provide schema reset and storage snapshot operations that
+preserve Authority storage invariants.
 
-#### Scenario: Reset seed
+#### Scenario: Replace populated app state
 
-- GIVEN a storage identity has existing records, changes, operation invocations, and an active schema
-- WHEN reset seed runs
-- THEN records, changes, operation invocations, and the active schema are cleared
-- AND the source schema and source seed records are written back as the new durable state
+- GIVEN an owner or operator needs to replace the records of an app storage
+  identity
+- WHEN a validated storage snapshot or portable archive restore applies
+- THEN the restored schema and records become the durable app state
+- AND replacement does not read package-owned initial records
 
 #### Scenario: Storage snapshot export
 
@@ -984,15 +994,17 @@ Authority-backed app storage identity separate from installed app data.
 - WHEN the create operation commits
 - THEN the app install and default route records are committed in the
   control-plane storage identity
-- AND package source schema and source seed records initialize the
-  install-scoped app storage identity
-- AND a failure in either part leaves no partially usable installed app route
+- AND the package source schema is validated before install metadata commits
+- AND the install-scoped app storage identity initializes lazily with that
+  schema and no records
+- AND unavailable or invalid package source leaves no usable installed app
+  route
 
 ### Requirement: Active Schema Source Refresh
 
 Authority storage SHALL keep the active schema aligned with resolved source
-schema provenance without treating seed records or workspace state as the
-source of schema truth.
+schema provenance without treating records or workspace state as the source of
+schema truth.
 
 #### Scenario: Refresh compatible source schema
 
@@ -1006,7 +1018,7 @@ source of schema truth.
 - AND Authority records a new schema timestamp for sync, browser reload, and
   workspace state provenance
 - AND committed records, source cursor, operation invocations, and change rows are
-  not reset or reseeded
+  not replaced
 
 #### Scenario: Block incompatible schema refresh
 

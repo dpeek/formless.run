@@ -102,7 +102,8 @@ import {
   ensureStorageTables,
   getBootstrapRecords,
   initializeStorageFromSource,
-  resetStorageToSourceSeedOutcome,
+  reconcileRuntimeInvariantRecords,
+  resetStorageToEmpty,
   writeRecordSetForCommandOperationOutcome,
   type RecordConstraintValidator,
   type OperationRecordWritePlan,
@@ -171,16 +172,12 @@ const identityControlPlaneApp = {
   key: IDENTITY_CONTROL_PLANE_SCHEMA_KEY,
   label: "Identity control plane",
   route: "/identity-control-plane",
-  seedChangeWritePrefix: "seed-identity-control-plane",
   sourceSchema: identityControlPlaneSchema,
-  seedRecords: builtInRoleRecords(),
 } satisfies WorkerSchemaAppDefinition;
 
 function identityControlPlaneSource(): StorageSource {
   return {
     schema: identityControlPlaneSchema,
-    records: builtInRoleRecords(),
-    changeWritePrefix: "seed-identity-control-plane",
     schemaKey: IDENTITY_CONTROL_PLANE_SCHEMA_KEY,
     schemaProvenance: identityControlPlaneSchemaProvenance,
     storageIdentity: IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
@@ -190,6 +187,11 @@ function identityControlPlaneSource(): StorageSource {
 function ensureIdentityControlPlaneStorage(storage: DurableObjectStorage) {
   ensureStorageTables(storage);
   initializeStorageFromSource(storage, identityControlPlaneSource());
+  reconcileRuntimeInvariantRecords(storage, builtInRoleRecords(), {
+    validate: (records) =>
+      validateIdentityControlPlaneRecords("Identity control-plane records", records),
+    writeIdPrefix: "identity-role-reconcile",
+  });
 }
 
 type IdentityControlPlaneApiEnv = AuthorityAdminGuardEnv & {
@@ -1166,8 +1168,8 @@ async function handleIdentityOwnerInternalRequest(
       return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
     }
 
+    resetStorageToEmpty(storage);
     ensureIdentityControlPlaneStorage(storage);
-    resetStorageToSourceSeedOutcome(storage, identityControlPlaneSource());
 
     return jsonResponse({ reset: true });
   }

@@ -25,13 +25,17 @@ import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import type { AppInstallsResponse, BootstrapResponse } from "../shared/protocol.ts";
 import { bundledSourceSchemaHashFixtures } from "../shared/upgrade-migrations.ts";
 import {
-  crmSeedRecords,
+  crmTestRecords,
   crmSourceSchema,
   siteSourceSchema,
   taskSourceSchema,
 } from "../test/schema-apps.ts";
-import { commandOperationRequest } from "../test/authority-write.ts";
-import { testSiteSeedRecords } from "../test/site-records.ts";
+import {
+  commandOperationRequest,
+  instanceControlPlaneTestStorageSnapshot,
+  restoreTestStorageSnapshot,
+} from "../test/authority-write.ts";
+import { testSiteRecords } from "../test/site-records.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
@@ -249,7 +253,7 @@ describe("instance archive restore API", () => {
     ]);
     expect(installs.body.installs[0]).not.toHaveProperty("publicRoute");
     expect(bootstrap.body.schema).toEqual(crmSourceSchema);
-    expect(bootstrap.body.records).toEqual(crmSeedRecords);
+    expect(bootstrap.body.records).toEqual(crmTestRecords);
   });
 
   it("restores mixed Site, Tasks, and CRM instance archives without non-Site media", async () => {
@@ -300,7 +304,7 @@ describe("instance archive restore API", () => {
     expect(tasks.body.schema).toEqual(taskSourceSchema);
     expect(tasks.body.records).toEqual([taskRecord()]);
     expect(crm.body.schema).toEqual(crmSourceSchema);
-    expect(crm.body.records).toEqual(crmSeedRecords);
+    expect(crm.body.records).toEqual(crmTestRecords);
   });
 
   it("restores schema-owned control-plane records through the archive API", async () => {
@@ -480,26 +484,18 @@ describe("instance archive restore API", () => {
 });
 
 async function resetWorkerState() {
+  await restoreTestStorageSnapshot(
+    harness,
+    "/api/formless/control-plane/snapshot/restore",
+    instanceControlPlaneTestStorageSnapshot(),
+    { Authorization: `Bearer ${adminToken}` },
+  );
   await Promise.all([
-    postReset("/api/formless/control-plane/reset/seed"),
     postInternalAppStorageReset("personal"),
     postInternalAppStorageReset("work"),
     postInternalAppStorageReset("rates"),
     clearMediaBucket(),
   ]);
-}
-
-async function postReset(path: string) {
-  const response = await harness.fetch(path, {
-    body: "{}",
-    headers: {
-      Authorization: `Bearer ${adminToken}`,
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
-
-  expect(response.status).toBe(200);
 }
 
 async function postInternalAppStorageReset(installId: string) {
@@ -886,9 +882,9 @@ function crmAppArchive(input: { dryRun: boolean }): AppArchive {
       schemaKey: "crm",
       exportedAt: "2026-05-12T00:00:00.000Z",
       schemaUpdatedAt: "2026-05-12T00:00:00.000Z",
-      sourceCursor: crmSeedRecords.length,
+      sourceCursor: crmTestRecords.length,
       schema: crmSourceSchema,
-      records: crmSeedRecords,
+      records: crmTestRecords,
     },
     media: { objects: [] },
   };
@@ -908,9 +904,9 @@ function appArchiveWithMedia(input: { dryRun: boolean }): AppArchive {
       schemaKey: "site",
       exportedAt: "2026-05-12T00:00:00.000Z",
       schemaUpdatedAt: "2026-05-12T00:00:00.000Z",
-      sourceCursor: testSiteSeedRecords.length,
+      sourceCursor: testSiteRecords.length,
       schema: siteSourceSchema,
-      records: testSiteSeedRecords.map((record) =>
+      records: testSiteRecords.map((record) =>
         record.id === "rec_site_media_avatar" ? imageAssetRecord(record) : record,
       ),
     },

@@ -4,7 +4,11 @@ import type {
   InstanceDomainMappingLookupResponse,
   RecordInstanceDomainMappingApplyEvidenceResponse,
 } from "../shared/instance-domain-mappings.ts";
-import { operationWriteRequest } from "../test/authority-write.ts";
+import {
+  instanceControlPlaneTestStorageSnapshot,
+  operationWriteRequest,
+  restoreTestStorageSnapshot,
+} from "../test/authority-write.ts";
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { INTERNAL_RESET_INSTANCE_DOMAIN_MAPPINGS_PATH } from "./instance-domain-mappings.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
@@ -172,25 +176,14 @@ async function createDomainRoute(recordId: string, values: Record<string, unknow
 }
 
 async function resetWorkerState() {
-  await Promise.all([
-    postReset("/api/formless/control-plane/reset/seed"),
-    postInternalInstanceReset(INTERNAL_RESET_INSTANCE_DOMAIN_MAPPINGS_PATH),
-  ]);
+  await restoreTestStorageSnapshot(
+    harness,
+    "/api/formless/control-plane/snapshot/restore",
+    instanceControlPlaneTestStorageSnapshot(),
+    { Authorization: `Bearer ${adminToken}` },
+  );
+  await postInternalInstanceReset(INTERNAL_RESET_INSTANCE_DOMAIN_MAPPINGS_PATH);
 }
-
-async function postReset(path: string) {
-  const response = await harness.fetch(path, {
-    body: "{}",
-    headers: {
-      Authorization: `Bearer ${adminToken}`,
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
-
-  expect(response.status).toBe(200);
-}
-
 async function postInternalInstanceReset(path: string) {
   const response = await harness.durableObjectFetch(
     "FORMLESS_AUTHORITY",

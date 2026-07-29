@@ -726,7 +726,6 @@ function runtimeAppDefinitionFromPackage(
       key: appPackage.sourceSchemaKey,
       label: appPackage.label,
       route: routes.route,
-      seedChangeWritePrefix: `seed-${appPackage.sourceSchemaKey}`,
     }
   );
 }
@@ -736,7 +735,6 @@ function runtimeAppDefinitionFromSchemaApp(app: SchemaAppDefinition): RuntimeApp
     key: app.key,
     label: app.label,
     route: app.route,
-    seedChangeWritePrefix: app.seedChangeWritePrefix,
   };
 }
 

@@ -20,7 +20,7 @@ import {
 } from "../shared/deploy-metadata.ts";
 import { listInstallableAppPackages, packageAppFactsForKey } from "@dpeek/formless-installed-apps";
 import { bundledAppPackageResolver } from "../shared/app-packages.ts";
-import { testSiteSeedRecords } from "../test/site-records.ts";
+import { testSiteRecords } from "../test/site-records.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
@@ -662,7 +662,7 @@ describe("Formless workspace operations", () => {
 
     await writeWorkspaceManifest(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot, { credentialRef });
-    await writeWorkspaceAppStorageSnapshot(workspaceRoot, "david", testSiteSeedRecords.slice(0, 1));
+    await writeWorkspaceAppStorageSnapshot(workspaceRoot, "david", testSiteRecords.slice(0, 1));
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
     await writeFile(
       path.join(workspaceRoot, ".formless/instance.env"),

@@ -190,43 +190,6 @@ describe("storage", () => {
     expect(await getJson<StoredRecord[]>("/records")).toEqual([]);
   });
 
-  it("clears records, changes, and command replay rows before writing source seed rows", async () => {
-    const completed = await createRecord("write-before-reset", "Done", true);
-    const command = await postJson<CommandWriteResponse>("/tombstone-records", {
-      writeId: "command-before-reset",
-      recordIds: [completed.record.id],
-    });
-    const sourceRecord = record("seed-reset-task", "Seed reset", {
-      createdAt: "2026-05-28T00:00:03.000Z",
-      values: { title: "Seed reset", done: false, priority: "normal" },
-    });
-
-    await postJson("/source-seed", {
-      changeWritePrefix: "reset-seed",
-      records: [sourceRecord],
-    });
-    const changes = await getJson<ChangeRow[]>("/changes?after=0");
-
-    expect(command.cursor).toBe(2);
-    expect(
-      await getJson<CommandWriteResponse | null>(
-        "/command-write-response?writeId=command-before-reset",
-      ),
-    ).toBeNull();
-    expect(await getJson<StoredRecord[]>("/records")).toEqual([sourceRecord]);
-    expect(changes).toEqual([
-      expect.objectContaining({
-        seq: 1,
-        writeId: "reset-seed:seed-reset-task",
-        operationKind: "create",
-        recordId: sourceRecord.id,
-        payload: sourceRecord,
-        createdAt: sourceRecord.createdAt,
-      }),
-    ]);
-    expect(await getJson<number>("/cursor")).toBe(1);
-  });
-
   it("creates records, records changes, and advances the cursor", async () => {
     expect(await getJson<number>("/cursor")).toBe(0);
 
@@ -251,42 +214,7 @@ describe("storage", () => {
     });
   });
 
-  it("commits source seed records as ordered write-log changes read by sync", async () => {
-    const sourceSnapshotRecords = [
-      record("seed-task-1", "Seed one", { createdAt: "2026-05-28T00:00:01.000Z" }),
-      record("seed-task-2", "Seed two", { createdAt: "2026-05-28T00:00:02.000Z" }),
-    ];
-
-    await postJson("/source-seed", {
-      changeWritePrefix: "seed-task",
-      records: sourceSnapshotRecords,
-    });
-    const initialSync = await getJson<SyncResponse>("/sync?after=0");
-
-    if (!initialSync.schemaUpdatedAt) {
-      throw new Error("Expected initial sync to include schema metadata.");
-    }
-
-    const catchUp = await getJson<SyncResponse>(
-      `/sync?after=1&schemaUpdatedAt=${encodeURIComponent(initialSync.schemaUpdatedAt)}`,
-    );
-
-    expect(initialSync.cursor).toBe(2);
-    expect(initialSync.schema).toBeTruthy();
-    expect(initialSync.changes.map((change) => change.seq)).toEqual([1, 2]);
-    expect(initialSync.changes.map((change) => change.writeId)).toEqual([
-      "seed-task:seed-task-1",
-      "seed-task:seed-task-2",
-    ]);
-    expect(initialSync.changes.map((change) => change.operationKind)).toEqual(["create", "create"]);
-    expect(initialSync.changes.map((change) => change.payload)).toEqual(sourceSnapshotRecords);
-    expect(catchUp).toEqual({
-      changes: [initialSync.changes[1]],
-      cursor: 2,
-    });
-  });
-
-  it("refreshes compatible source schema provenance without reseeding records", async () => {
+  it("refreshes compatible source schema provenance without replacing records", async () => {
     const initialHash = sourceHash("1");
     const refreshedHash = sourceHash("2");
     const initial = await postJson<StoredSchema>("/source-bootstrap", {
@@ -328,13 +256,11 @@ describe("storage", () => {
     });
   });
 
-  it("refreshes compatible control-plane source schema provenance without reseeding records", async () => {
+  it("initializes empty control-plane source and refreshes compatible schema provenance", async () => {
     const initialHash = sourceHash("1");
     const viewHash = sourceHash("2");
     const runtimeHash = sourceHash("3");
-    const records = controlPlaneRefreshRecords();
     const initial = await postJson<StoredSchema>("/control-plane-source-bootstrap", {
-      records,
       sourceSchemaHash: initialHash,
     });
     const beforeChanges = await getJson<ChangeRow[]>("/changes?after=0");
@@ -371,7 +297,7 @@ describe("storage", () => {
       kind: "instance-control-plane",
       sourceSchemaHash: runtimeHash,
     });
-    expect(await getJson<StoredRecord[]>("/records")).toEqual(records);
+    expect(await getJson<StoredRecord[]>("/records")).toEqual([]);
     expect(await getJson<ChangeRow[]>("/changes?after=0")).toEqual(beforeChanges);
     expect(await getJson<number>("/cursor")).toBe(beforeCursor);
   });
@@ -1206,10 +1132,7 @@ async function createRecord(writeId: string, text: string, done = false) {
 }
 
 async function seedPackageMigrationRecords() {
-  await postJson("/source-seed", {
-    changeWritePrefix: "migration-seed",
-    records: packageMigrationRecords(),
-  });
+  await postJson("/snapshot/restore", snapshot({ records: packageMigrationRecords() }));
 }
 
 function packageMigrationRecords(): StoredRecord[] {
@@ -1226,57 +1149,6 @@ function packageMigrationRecords(): StoredRecord[] {
       createdAt: "2026-05-28T00:00:03.000Z",
       values: { title: "Child", done: false, priority: "normal" },
     }),
-  ];
-}
-
-function controlPlaneRefreshRecords(): StoredRecord[] {
-  return [
-    {
-      createdAt: "2026-06-18T00:00:00.000Z",
-      entity: "app-install",
-      id: "site",
-      updatedAt: "2026-06-18T00:00:00.000Z",
-      values: {
-        installId: "site",
-        packageAppKey: "site",
-        packageRevision: 1,
-        sourceSchemaHash: sourceHash("a"),
-        label: "Site",
-        registrationPolicy: "closed",
-        status: "installed",
-        storageIdentity: "app:site",
-      },
-    },
-    {
-      createdAt: "2026-06-18T00:00:01.000Z",
-      entity: "deployment-config",
-      id: "production",
-      updatedAt: "2026-06-18T00:00:01.000Z",
-      values: {
-        targetId: "instance.primary",
-        targetKind: "instance",
-        label: "Production",
-        enabled: true,
-        targetUrl: "https://example.com",
-        providerFamily: "cloudflare",
-      },
-    },
-    {
-      createdAt: "2026-06-18T00:00:02.000Z",
-      entity: "route",
-      id: "route:site:admin",
-      updatedAt: "2026-06-18T00:00:02.000Z",
-      values: {
-        enabled: true,
-        matchPath: "/apps/site",
-        kind: "mount",
-        targetProfile: "app",
-        appInstall: "site",
-        surface: "admin",
-        access: "owner",
-        deploymentConfig: "production",
-      },
-    },
   ];
 }
 
@@ -1503,8 +1375,8 @@ async function writeStorageHarness() {
         readAppliedPackageAppMigrations,
         readCurrentStoredSchema,
         readPackageAppMigrationState,
-        resetStorage,
         resetStorageSchemaToSource,
+        resetStorageToEmpty,
         restoreStorageSnapshot,
         createRecordsForOperation,
         tombstoneRecordsForOperation,
@@ -1798,8 +1670,6 @@ async function writeStorageHarness() {
         const nextSourceSchemaHash = body.sourceSchemaHash ?? sourceSchemaHash;
 
         return {
-          changeWritePrefix: "seed-task",
-          records: body.records ?? [],
           schema: schemaForSourceRefresh(body.schemaKind),
           schemaKey: "tasks",
           schemaProvenance: {
@@ -1814,8 +1684,6 @@ async function writeStorageHarness() {
 
       function controlPlaneSourceForBootstrap(body) {
         return {
-          changeWritePrefix: "seed-instance-control-plane",
-          records: body.records ?? [],
           schema: schemaForControlPlaneSourceRefresh(body.schemaKind),
           schemaKey: "instance-control-plane",
           schemaProvenance: {
@@ -2027,7 +1895,10 @@ async function writeStorageHarness() {
           }
 
           if (request.method === "POST" && url.pathname === "/reset") {
-            return Response.json(resetStorage(this.ctx.storage, { schema: seedSchema }));
+            resetStorageToEmpty(this.ctx.storage);
+            return Response.json(initializeStorageFromSource(this.ctx.storage, {
+              schema: seedSchema,
+            }));
           }
 
           if (request.method === "POST" && url.pathname === "/corrupt-schema-without-entity-ids") {
@@ -2047,19 +1918,9 @@ async function writeStorageHarness() {
           if (request.method === "POST" && url.pathname === "/reset-schema-to-source") {
             return Response.json(resetStorageSchemaToSource(
               this.ctx.storage,
-              { schema: seedSchema, records: [], changeWritePrefix: "seed-task" },
+              { schema: seedSchema },
               () => undefined,
             ));
-          }
-
-          if (request.method === "POST" && url.pathname === "/source-seed") {
-            const body = await request.json();
-
-            return Response.json(resetStorage(this.ctx.storage, {
-              schema: seedSchema,
-              records: body.records,
-              changeWritePrefix: body.changeWritePrefix,
-            }));
           }
 
           return Response.json({ error: "Not found." }, { status: 404 });

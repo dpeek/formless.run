@@ -91,10 +91,6 @@ import {
   findActiveWorkerSchemaAppDefinition,
   type ActiveRuntimeAppPackageEnv,
 } from "./runtime-app-packages.ts";
-import {
-  launchFixtureControlPlaneRecordsForEnv,
-  type LaunchFixtureStartupEnv,
-} from "./launch-fixtures.ts";
 import { hostAuthSessionTargetFromRequestHeaders } from "./instance-auth-handoff.ts";
 
 const actorKinds = ["admin", "cliDeployer", "owner", "runner"] as const;
@@ -129,38 +125,31 @@ const instanceControlPlaneApp = {
   key: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
   label: "Instance control plane",
   route: "/instance-control-plane",
-  seedChangeWritePrefix: "seed-instance-control-plane",
   sourceSchema: instanceControlPlaneSourceSchema,
-  seedRecords: [],
 } satisfies WorkerSchemaAppDefinition;
 
-function instanceControlPlaneSourceForEnv(env: LaunchFixtureStartupEnv): StorageSource {
+function instanceControlPlaneSource(): StorageSource {
   return {
     schema: instanceControlPlaneSourceSchema,
-    records: launchFixtureControlPlaneRecordsForEnv(env),
-    changeWritePrefix: "seed-instance-control-plane",
     schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
     schemaProvenance: instanceControlPlaneSchemaProvenance,
     storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
   };
 }
 
-function initializeControlPlaneStorage(
-  storage: DurableObjectStorage,
-  env: LaunchFixtureStartupEnv,
-) {
+function initializeControlPlaneStorage(storage: DurableObjectStorage) {
   ensureStorageTables(storage);
-  initializeStorageFromSource(storage, instanceControlPlaneSourceForEnv(env));
+  initializeStorageFromSource(storage, instanceControlPlaneSource());
 }
 
-function ensureControlPlaneStorage(storage: DurableObjectStorage, env: LaunchFixtureStartupEnv) {
-  initializeControlPlaneStorage(storage, env);
+function ensureControlPlaneStorage(storage: DurableObjectStorage) {
+  initializeControlPlaneStorage(storage);
 }
 
 type InstanceControlPlaneApiEnv = AuthorityAdminGuardEnv &
   ActiveRuntimeAppPackageEnv & {
     FORMLESS_AUTHORITY: DurableObjectNamespace;
-  } & LaunchFixtureStartupEnv;
+  };
 
 type ParsedCreateAppInstallOperationRequest = {
   idempotencyKey: string;
@@ -211,15 +200,15 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
     }
 
     if (route.path === INTERNAL_READ_RECORDS_PATH) {
-      return handleInternalReadRecords(request, storage, env);
+      return handleInternalReadRecords(request, storage);
     }
 
     if (route.path === INTERNAL_READ_OPERATION_INVOCATIONS_PATH) {
-      return handleInternalReadOperationInvocations(request, storage, env);
+      return handleInternalReadOperationInvocations(request, storage);
     }
 
     if (route.path === INTERNAL_SYNC_DOMAIN_INTENT_PATH) {
-      return await handleInternalSyncDomainIntent(request, storage, env);
+      return await handleInternalSyncDomainIntent(request, storage);
     }
 
     if (route.path === INTERNAL_RESOLVE_INSTANCE_RUNTIME_ROUTE_PATH) {
@@ -227,7 +216,7 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
     }
 
     if (route.path === INTERNAL_SYNC_DEPLOYMENT_PROJECTION_PATH) {
-      return await handleInternalSyncDeploymentProjection(request, storage, env);
+      return await handleInternalSyncDeploymentProjection(request, storage);
     }
 
     if (route.path === CREATE_APP_INSTALL_CONTROL_PLANE_OPERATION_PATH) {
@@ -266,9 +255,9 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
     }
 
     const body = operation.metadata.mode === "write" ? await readJson(request) : undefined;
-    ensureControlPlaneStorage(storage, env);
+    ensureControlPlaneStorage(storage);
     const packageResolver = activeAppPackageResolver(env);
-    const source = instanceControlPlaneSourceForEnv(env);
+    const source = instanceControlPlaneSource();
     const result = await executeAuthorityOperation({
       actorKind,
       app: instanceControlPlaneApp,
@@ -320,7 +309,7 @@ async function handleInternalUpdateAppInstallPackageFacts(
     return methodNotAllowedResponse("POST");
   }
 
-  ensureControlPlaneStorage(storage, env);
+  ensureControlPlaneStorage(storage);
 
   const packageResolver = activeAppPackageResolver(env);
   const parsed = parseInternalAppInstallPackageFactsUpdate(
@@ -375,16 +364,12 @@ async function handleInternalUpdateAppInstallPackageFacts(
   });
 }
 
-function handleInternalReadRecords(
-  request: Request,
-  storage: DurableObjectStorage,
-  env: InstanceControlPlaneApiEnv,
-): Response {
+function handleInternalReadRecords(request: Request, storage: DurableObjectStorage): Response {
   if (request.method !== "GET") {
     return methodNotAllowedResponse("GET");
   }
 
-  ensureControlPlaneStorage(storage, env);
+  ensureControlPlaneStorage(storage);
 
   return jsonResponse({
     records: activeControlPlaneRecords(storage),
@@ -394,13 +379,12 @@ function handleInternalReadRecords(
 function handleInternalReadOperationInvocations(
   request: Request,
   storage: DurableObjectStorage,
-  env: InstanceControlPlaneApiEnv,
 ): Response {
   if (request.method !== "GET") {
     return methodNotAllowedResponse("GET");
   }
 
-  ensureControlPlaneStorage(storage, env);
+  ensureControlPlaneStorage(storage);
 
   return jsonResponse({
     invocations: readOperationInvocations(storage),
@@ -410,13 +394,12 @@ function handleInternalReadOperationInvocations(
 async function handleInternalSyncDeploymentProjection(
   request: Request,
   storage: DurableObjectStorage,
-  env: InstanceControlPlaneApiEnv,
 ): Promise<Response> {
   if (request.method !== "POST") {
     return methodNotAllowedResponse("POST");
   }
 
-  ensureControlPlaneStorage(storage, env);
+  ensureControlPlaneStorage(storage);
 
   const parsed = parseInternalDeploymentProjectionRequest(await readJson(request));
 
@@ -430,13 +413,12 @@ async function handleInternalSyncDeploymentProjection(
 async function handleInternalSyncDomainIntent(
   request: Request,
   storage: DurableObjectStorage,
-  env: InstanceControlPlaneApiEnv,
 ): Promise<Response> {
   if (request.method !== "POST") {
     return methodNotAllowedResponse("POST");
   }
 
-  ensureControlPlaneStorage(storage, env);
+  ensureControlPlaneStorage(storage);
 
   const parsed = parseInternalDomainIntentSyncRequest(await readJson(request));
 
@@ -456,7 +438,7 @@ function handleInternalResolveRuntimeRoute(
     return methodNotAllowedResponse("GET");
   }
 
-  ensureControlPlaneStorage(storage, env);
+  ensureControlPlaneStorage(storage);
 
   const url = new URL(request.url);
   const host = url.searchParams.get("host") ?? "";
@@ -508,7 +490,7 @@ async function handleCreateAppInstallOperation(
     );
   }
 
-  ensureControlPlaneStorage(storage, env);
+  ensureControlPlaneStorage(storage);
 
   const parsed = parseCreateAppInstallOperationRequest(await readJson(request));
   const receivedAt = nowIsoString();
@@ -548,9 +530,8 @@ async function handleCreateAppInstallOperation(
       registrationPolicy: parsed.input.registrationPolicy,
       validateInitialSource: ({ initialization }) => {
         const source = findActiveWorkerSchemaAppDefinition(initialization.sourceSchemaKey, env);
-        const seed = findActiveWorkerSchemaAppDefinition(initialization.seedRecordsKey, env);
 
-        if (!source || !seed) {
+        if (!source) {
           return appInstallRegistryError(
             "source-validation-failed",
             "source",

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
 import rawCrmAppPackageManifest from "@dpeek/formless-crm-app/formless.app.json";
-import rawCrmSeedRecords from "@dpeek/formless-crm-app/seed-records.json";
 import rawCrmSourceSchema from "@dpeek/formless-crm-app/schema.json";
 import {
   APP_ARCHIVE_KIND,
@@ -181,14 +180,27 @@ const taskSourceSchema = parseAppSchema({
   ],
 });
 const crmSourceSchema = parseAppSchema(rawCrmSourceSchema);
-const taskSeedRecords: StoredRecord[] = [
+const taskTestRecords: StoredRecord[] = [
   taskRecord("rec_task_overdue", "Review overdue proposal", false),
   taskRecord("rec_task_today", "Plan today's delivery", false),
   taskRecord("rec_task_later", "Schedule design review", false),
   taskRecord("rec_task_completed", "Send signed kickoff notes", true),
   taskRecord("rec_task_backlog", "Capture research notes", false),
 ];
-const crmSeedRecords = materializedPackageSeedRecords(rawCrmSeedRecords);
+const crmTestRecords: StoredRecord[] = [
+  {
+    id: "rec_company_northstar",
+    entity: "company",
+    values: {
+      name: "Northstar Labs",
+      website: "https://northstar.example",
+      status: "customer",
+      notes: "Archive planner test record.",
+    },
+    createdAt: now,
+    updatedAt: now,
+  },
+];
 const archiveTestPackageResolver = createAppPackageResolver([
   packageManifest({
     defaultInstallId: "site",
@@ -273,10 +285,10 @@ describe("archive restore planner", () => {
           app: archivedInstall("tasks", "Tasks", "tasks"),
           data: {
             ...storageSnapshot({
-              records: taskSeedRecords,
+              records: taskTestRecords,
               schema: taskSourceSchema,
               schemaKey: "tasks",
-              sourceCursor: taskSeedRecords.length,
+              sourceCursor: taskTestRecords.length,
               storageIdentity: "app:tasks",
             }),
           },
@@ -286,10 +298,10 @@ describe("archive restore planner", () => {
           app: archivedInstall("crm", "CRM", "crm"),
           data: {
             ...storageSnapshot({
-              records: crmSeedRecords,
+              records: crmTestRecords,
               schema: crmSourceSchema,
               schemaKey: "crm",
-              sourceCursor: crmSeedRecords.length,
+              sourceCursor: crmTestRecords.length,
               storageIdentity: "app:crm",
             }),
           },
@@ -505,9 +517,9 @@ describe("archive restore planner", () => {
     );
 
     expect(plan.steps.map((step) => step.kind)).toEqual([
-      "createInstall",
       "restoreMedia",
       "restoreAppData",
+      "createInstall",
     ]);
     expect(
       plan.steps.filter((step) => step.kind === "restoreMedia").map((step) => step.storageKey),
@@ -544,7 +556,7 @@ describe("archive restore planner", () => {
     );
 
     expect(plan.summary.mediaCountsByApp).toEqual({ personal: 1 });
-    expect(plan.steps[1]).toMatchObject({
+    expect(plan.steps[0]).toMatchObject({
       kind: "restoreMedia",
       storageKey: "media/images/hero.png",
     });
@@ -581,11 +593,11 @@ describe("archive restore planner", () => {
     );
 
     expect(plan.steps.map((step) => step.kind)).toEqual([
-      "createInstall",
       "restoreMedia",
       "restoreAppData",
+      "createInstall",
     ]);
-    expect(plan.steps[1]).toMatchObject({
+    expect(plan.steps[0]).toMatchObject({
       appInstallId: "personal",
       asset: expect.objectContaining({
         access: "private",
@@ -663,7 +675,7 @@ describe("archive restore planner", () => {
       ),
     );
 
-    expect(plan.steps[0]).toMatchObject({
+    expect(plan.steps.find((step) => step.kind === "createInstall")).toMatchObject({
       install: {
         installId: "members",
         registrationOperation: "profile.register",
@@ -1002,11 +1014,6 @@ function packageManifest(input: {
       key: input.packageAppKey,
       path: `${input.packageAppKey}/schema.json`,
     },
-    seedRecords: {
-      kind: "bundled",
-      key: input.packageAppKey,
-      path: `${input.packageAppKey}/seed-records.json`,
-    },
     sourceSchemaHash: input.sourceSchemaHash,
     capabilities: [
       { kind: "generatedAdmin", routeBase: "/apps" },
@@ -1023,25 +1030,4 @@ function taskRecord(id: string, title: string, done: boolean): StoredRecord {
     createdAt: now,
     updatedAt: now,
   };
-}
-
-function materializedPackageSeedRecords(records: unknown): StoredRecord[] {
-  if (!Array.isArray(records)) {
-    throw new Error("Package seed records fixture must be an array.");
-  }
-
-  return records.map((record) => {
-    if (typeof record !== "object" || record === null || Array.isArray(record)) {
-      throw new Error("Package seed record fixture must be an object.");
-    }
-
-    const storedRecord = record as Omit<StoredRecord, "updatedAt"> & {
-      updatedAt?: string;
-    };
-
-    return {
-      ...storedRecord,
-      updatedAt: storedRecord.updatedAt ?? storedRecord.createdAt,
-    };
-  });
 }

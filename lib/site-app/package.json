@@ -5,7 +5,6 @@
     "dist",
     "formless.app.json",
     "schema.json",
-    "seed-records.json",
     "src",
     "!src/**/*.test.*",
     "!src/**/*-fixtures.ts",
@@ -19,8 +18,7 @@
     "./worker": "./src/worker.ts",
     "./node": "./src/node.ts",
     "./formless.app.json": "./formless.app.json",
-    "./schema.json": "./schema.json",
-    "./seed-records.json": "./seed-records.json"
+    "./schema.json": "./schema.json"
   },
   "publishConfig": {
     "exports": {
@@ -45,8 +43,7 @@
         "import": "./dist/node.mjs"
       },
       "./formless.app.json": "./formless.app.json",
-      "./schema.json": "./schema.json",
-      "./seed-records.json": "./seed-records.json"
+      "./schema.json": "./schema.json"
     },
     "access": "public"
   },

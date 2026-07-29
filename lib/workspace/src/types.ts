@@ -600,7 +600,6 @@ export const WORKSPACE_AUTO_SAVE_WRITE_SOURCES = [
   "deployment-intent",
   "media-reference",
   "reset-schema",
-  "reset-seed",
   "schema-save",
   "snapshot-restore",
 ] as const;

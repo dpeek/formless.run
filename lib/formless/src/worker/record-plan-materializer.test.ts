@@ -848,6 +848,7 @@ async function writeRecordPlanMaterializerHarness() {
         ensureStorageTables,
         getBootstrapRecords,
         initializeStorageFromSource,
+        restoreStorageSnapshot,
         writeRecordSetForCommandOperationOutcome,
       } from "${process.cwd()}/src/worker/storage.ts";
       import {
@@ -872,11 +873,22 @@ async function writeRecordPlanMaterializerHarness() {
                 this.ctx.storage,
                 {
                   schema: body.schema,
-                  records: body.records ?? [],
-                  changeWritePrefix: "source",
                 },
                 { refreshActiveSchema: false },
               );
+              if ((body.records ?? []).length > 0 && getBootstrapRecords(this.ctx.storage).length === 0) {
+                restoreStorageSnapshot(this.ctx.storage, {
+                  kind: "formless.storage-snapshot",
+                  version: 1,
+                  storageIdentity: "record-plan-materializer",
+                  schemaKey: "test",
+                  exportedAt: "2026-07-29T00:00:00.000Z",
+                  schemaUpdatedAt: "2026-07-29T00:00:00.000Z",
+                  sourceCursor: body.records.length,
+                  schema: body.schema,
+                  records: body.records,
+                });
+              }
 
               const materialization = materializeRecordPlan({
                 effect: body.effect,

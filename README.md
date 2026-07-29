@@ -56,7 +56,7 @@ The runtime already has:
 
 - app schemas for Tasks, Site, and CRM;
 - flat record storage through Durable Object Authority;
-- source schema and seed bootstrap;
+- schema-only package bootstrap;
 - browser IndexedDB replicas;
 - HTTP cursor sync and push sync;
 - generated React UI for schema-declared screens, views, tables, trees, fields, and actions;

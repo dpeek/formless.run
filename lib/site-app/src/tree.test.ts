@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 import rawSiteSourceSchema from "../schema.json";
 import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "./types.ts";
-import { testSiteSeedRecords } from "./test-records.ts";
+import { testSiteRecords } from "./test-records.ts";
 import {
   buildSitePageTree,
   type SiteBlockNode,
@@ -1226,7 +1226,7 @@ describe("site page tree projection", () => {
     });
     const result = buildSitePageTree(
       siteSourceSchema,
-      [...testSiteSeedRecords, unmatchedRoot],
+      [...testSiteRecords, unmatchedRoot],
       "missing-page",
       {
         generatedAt,
@@ -1244,7 +1244,7 @@ describe("site page tree projection", () => {
 });
 
 function baseTreeRecords(): StoredRecord[] {
-  return testSiteSeedRecords;
+  return testSiteRecords;
 }
 
 function publicOperationTargetResolver(

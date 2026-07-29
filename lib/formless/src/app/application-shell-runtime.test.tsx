@@ -243,12 +243,11 @@ describe("application shell runtime boundary", () => {
     renderer.unmount();
   });
 
-  it("executes reset and logout effects while projecting only display-safe status", async () => {
+  it("executes logout effects while projecting only display-safe session status", async () => {
     applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), "tasks");
     const runtimeProfile = createDevRuntimeProfile();
     const routeWorld = required(findRuntimeWorldMountByRoute(runtimeProfile, "/tasks"));
     let host: PresentationHost | undefined;
-    let resetCount = 0;
     let logoutCount = 0;
     const navigations: string[] = [];
     const dependencies = {
@@ -257,12 +256,6 @@ describe("application shell runtime boundary", () => {
         return { authenticated: false as const, continueTo: "/formless/auth" as const };
       },
       navigate: (path: `/${string}`) => navigations.push(path),
-      reset: async () => {
-        resetCount += 1;
-        return bootstrapResponse(taskSourceSchema, [], {
-          schemaUpdatedAt: "2026-07-16T02:00:00.000Z",
-        });
-      },
     };
 
     function HostProbe({ children }: { children: ReactNode }) {
@@ -294,39 +287,6 @@ describe("application shell runtime boundary", () => {
     );
 
     const currentHost = required(host);
-    const settingsSection = required(
-      readSections(currentHost).find((section) => section.settings?.reset !== undefined),
-    );
-    const reset = required(settingsSection.settings?.reset);
-
-    await act(async () => {
-      await currentHost.dispatch({
-        controlId: reset.id,
-        intent: { open: true, type: "resetOpenChange" },
-        sectionId: settingsSection.id,
-        shellId: "application-shell",
-        type: "shellReset",
-      });
-    });
-    expect(
-      required(readSection(currentHost, settingsSection.id).settings?.reset).confirmation.open,
-    ).toBe(true);
-
-    await act(async () => {
-      await currentHost.dispatch({
-        controlId: reset.id,
-        intent: { type: "resetConfirm" },
-        sectionId: settingsSection.id,
-        shellId: "application-shell",
-        type: "shellReset",
-      });
-    });
-    expect(resetCount).toBe(1);
-    expect(required(readSection(currentHost, settingsSection.id).settings?.reset).status).toEqual({
-      message: "Source schema and seed data reset at 2026-07-16T02:00:00.000Z.",
-      state: "success",
-    });
-
     const sessionSection = required(
       readSections(currentHost).find((section) => section.session?.state === "authenticated"),
     );

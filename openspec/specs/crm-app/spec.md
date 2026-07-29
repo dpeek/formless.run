@@ -11,34 +11,32 @@ It is an in-repo app package, not root runtime source data.
 ### Requirement: CRM App Package Source
 
 The system SHALL provide CRM as a bundled in-repo app package that owns its
-manifest, source schema, and source seed records.
+manifest and source schema.
 
 #### Scenario: CRM package scaffold
 
 - **GIVEN** the bundled CRM app package is present
 - **WHEN** package source files are inspected
 - **THEN** CRM source data lives under `lib/crm-app/`
-- **AND** the package contains `formless.app.json`, `schema.json`,
-  `seed-records.json`, package-local `AGENTS.md`, `package.json`,
-  `tsconfig.json`, and root `src/` exports
-- **AND** root runtime does not keep duplicate CRM source schema or seed records
-  under `schema/apps/crm`
+- **AND** the package contains `formless.app.json`, `schema.json`, package-local
+  `AGENTS.md`, `package.json`, `tsconfig.json`, and root `src/` exports
+- **AND** root runtime does not keep a duplicate CRM source schema under
+  `schema/apps/crm`
 
 #### Scenario: CRM package manifest
 
 - **GIVEN** bundled app package manifests are composed
 - **WHEN** the CRM package manifest is parsed
 - **THEN** it declares package app key `crm`, label `CRM`, default install id
-  `crm`, bundled source schema key `crm`, bundled seed records key `crm`, and
-  generated admin capability
+  `crm`, bundled source schema key `crm`, and generated admin capability
 - **AND** it does not declare public Site capability
 - **AND** package metadata comes from the CRM package manifest rather than
   synthetic root runtime metadata
 
 ### Requirement: CRM Source App
 
-The system SHALL provide a bundled `crm` source app schema and source seed record
-set for startup audience and CRM workflows.
+The system SHALL provide a bundled `crm` source app schema for audience and CRM
+workflows.
 
 #### Scenario: Load CRM source schema
 
@@ -47,13 +45,6 @@ set for startup audience and CRM workflows.
 - **THEN** the app schema is available for schema key `crm`
 - **AND** the schema parses through the normal app schema parser
 - **AND** the app label is `CRM`
-
-#### Scenario: Validate CRM source records
-
-- **GIVEN** CRM source seed records exist
-- **WHEN** the worker loads the bundled CRM app package source
-- **THEN** the seed records validate as stored-record shaped data against the `crm` schema
-- **AND** reference fields point at records in the same source seed record set
 
 ### Requirement: Flat CRM Data Model
 

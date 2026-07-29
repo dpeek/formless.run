@@ -17,7 +17,6 @@ import {
   exportStorageSnapshot,
   fetchActiveSchema,
   resetLocalBrowserReplicaState,
-  resetSeedData,
   resetSourceSchema,
   requestSync,
   restoreStorageSnapshot,
@@ -1244,7 +1243,6 @@ describe("client sync", () => {
     const nextSchema = schemaWithSummary();
     const restoredRecord = record("record-2", "Restored");
     const resetSchemaRecord = record("record-3", "Reset schema");
-    const resetSeedRecord = record("record-4", "Reset seed");
 
     await submitOperation(
       "tasks",
@@ -1303,23 +1301,11 @@ describe("client sync", () => {
       { autoSave },
     );
 
-    await resetSeedData(
-      "tasks",
-      jsonFetcher("/api/tasks/reset/seed", {
-        schema: appSchema,
-        schemaUpdatedAt: "2026-04-28T00:04:00.000Z",
-        records: [resetSeedRecord],
-        cursor: 4,
-      } satisfies BootstrapResponse),
-      { autoSave },
-    );
-
     expect(autoSave.inputs).toEqual([
       { source: "app-operation", storageIdentity: "tasks" },
       { source: "schema-save", storageIdentity: "tasks" },
       { source: "snapshot-restore", storageIdentity: "tasks" },
       { source: "reset-schema", storageIdentity: "tasks" },
-      { source: "reset-seed", storageIdentity: "tasks" },
     ]);
   });
 
@@ -1453,7 +1439,7 @@ describe("client sync", () => {
     expect(autoSave.inputs).toEqual([]);
   });
 
-  it("uses installed Tasks API paths for sync, operation writes, snapshots, and resets", async () => {
+  it("uses installed Tasks API paths for sync, operation writes, snapshots, and schema reset", async () => {
     const work = installedTasksIdentity("work");
     const createdRecord = record("record-2", "Created in work");
     const tombstone = {
@@ -1557,29 +1543,18 @@ describe("client sync", () => {
       } satisfies BootstrapResponse),
     );
 
-    const reset = await resetSeedData(
-      work,
-      jsonFetcher("/api/app-installs/tasks/work/reset/seed", {
-        schema: appSchema,
-        schemaUpdatedAt: "2026-04-28T00:06:00.000Z",
-        records: [record("record-5", "Seeded work")],
-        cursor: 7,
-      } satisfies BootstrapResponse),
-    );
-
     expect(exported.records).toEqual([tombstone]);
     expect(restored.records).toEqual([restoredRecord]);
-    expect(reset.records).toEqual([record("record-5", "Seeded work")]);
     expect((await readLocalSnapshot("tasks")).records).toEqual([]);
-    expect((await readLocalSnapshot(work)).records).toEqual([record("record-5", "Seeded work")]);
+    expect((await readLocalSnapshot(work)).records).toEqual([restoredRecord]);
     expect(getClientStoreSnapshot()).toMatchObject({
       activeClientStorageName: "formless:app:work",
       activeSchemaKey: "tasks",
-      cursor: 7,
+      cursor: 6,
     });
   });
 
-  it("uses installed CRM API paths for sync, operation writes, snapshots, and resets", async () => {
+  it("uses installed CRM API paths for sync, operation writes, snapshots, and schema reset", async () => {
     const rates = installedCRMIdentity("rates");
     const existingRate = rateRecord("rate-1", "resource-1", "card-1");
     const syncedRate = rateRecord("rate-2", "resource-2", "card-1");
@@ -1694,27 +1669,14 @@ describe("client sync", () => {
       } satisfies BootstrapResponse),
     );
 
-    const reset = await resetSeedData(
-      rates,
-      jsonFetcher("/api/app-installs/crm/rates/reset/seed", {
-        schema: rateCardSchema,
-        schemaUpdatedAt: "2026-04-28T00:06:00.000Z",
-        records: [rateRecord("rate-5", "resource-5", "card-2")],
-        cursor: 7,
-      } satisfies BootstrapResponse),
-    );
-
     expect(exported.records).toEqual([commandRate]);
     expect(restored.records).toEqual([restoredRate]);
-    expect(reset.records).toEqual([rateRecord("rate-5", "resource-5", "card-2")]);
     expect((await readLocalSnapshot("crm")).records).toEqual([]);
-    expect((await readLocalSnapshot(rates)).records).toEqual([
-      rateRecord("rate-5", "resource-5", "card-2"),
-    ]);
+    expect((await readLocalSnapshot(rates)).records).toEqual([restoredRate]);
     expect(getClientStoreSnapshot()).toMatchObject({
       activeClientStorageName: "formless:app:rates",
       activeSchemaKey: "crm",
-      cursor: 7,
+      cursor: 6,
     });
   });
 
@@ -1966,81 +1928,6 @@ describe("client sync", () => {
     expect(storeSnapshot.recordsById["record-1"]).toBeUndefined();
     expect(storeSnapshot.recordsById["record-2"]).toEqual(acceptedRecord);
     expect(storeSnapshot.cursor).toBe(2);
-  });
-
-  it("resets seed data and reseeds only the selected local database", async () => {
-    const acceptedRecord = record("record-2", "Second");
-
-    await saveBootstrapResponse("tasks", {
-      schema: appSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [record("record-1", "First")],
-      cursor: 1,
-    });
-    await saveBootstrapResponse("crm", {
-      schema: appSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [record("record-3", "Rate")],
-      cursor: 3,
-    });
-
-    const response = await resetSeedData(
-      "crm",
-      jsonFetcher("/api/crm/reset/seed", {
-        schema: appSchema,
-        schemaUpdatedAt: "2026-04-28T00:01:00.000Z",
-        records: [acceptedRecord],
-        cursor: 2,
-      } satisfies BootstrapResponse),
-    );
-    const taskSnapshot = await readLocalSnapshot("tasks");
-    const rateSnapshot = await readLocalSnapshot("crm");
-    const storeSnapshot = getClientStoreSnapshot();
-
-    expect(response.records).toEqual([acceptedRecord]);
-    expect(taskSnapshot.records).toEqual([record("record-1", "First")]);
-    expect(rateSnapshot.records).toEqual([acceptedRecord]);
-    expect(rateSnapshot.cursor).toBe(2);
-    expect(storeSnapshot.recordsById["record-1"]).toBeUndefined();
-    expect(storeSnapshot.recordsById["record-2"]).toEqual(acceptedRecord);
-    expect(storeSnapshot.cursor).toBe(2);
-  });
-
-  it("resets seed data for one installed app replica", async () => {
-    const personal = installedSiteIdentity("personal");
-    const docs = installedSiteIdentity("docs");
-    const acceptedRecord = record("record-2", "Personal reset");
-
-    await saveBootstrapResponse(personal, {
-      schema: appSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [record("record-1", "Personal old")],
-      cursor: 1,
-    });
-    await saveBootstrapResponse(docs, {
-      schema: appSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [record("record-3", "Docs")],
-      cursor: 3,
-    });
-
-    const response = await resetSeedData(
-      personal,
-      jsonFetcher("/api/app-installs/site/personal/reset/seed", {
-        schema: appSchema,
-        schemaUpdatedAt: "2026-04-28T00:01:00.000Z",
-        records: [acceptedRecord],
-        cursor: 2,
-      } satisfies BootstrapResponse),
-    );
-
-    expect(response.records).toEqual([acceptedRecord]);
-    expect((await readLocalSnapshot(personal)).records).toEqual([acceptedRecord]);
-    expect((await readLocalSnapshot(docs)).records).toEqual([record("record-3", "Docs")]);
-    expect(getClientStoreSnapshot()).toMatchObject({
-      activeClientStorageName: "formless:app:personal",
-      activeSchemaKey: "site",
-    });
   });
 
   it("can request the rate-card source schema reset", async () => {
@@ -2452,12 +2339,6 @@ function privateSitePackage(): InstallableAppPackage {
     packageAppKey: "private-site",
     packageRevision: 7,
     publicRouteBase: "/sites",
-    seedRecordsKey: "private-site",
-    seedRecordsLocation: {
-      kind: "workspace",
-      key: "private-site",
-      path: "source/seed-records.json",
-    },
     sourceOrigin: "workspace",
     sourceSchemaHash: privateSourceSchemaHash,
     sourceSchemaKey: "private-site",

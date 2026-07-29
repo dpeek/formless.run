@@ -39,8 +39,12 @@ import {
   WORKSPACE_GATEWAY_SIDECAR_URL_ENV,
 } from "@dpeek/formless-gateway";
 import { computeSourceSchemaHash } from "../shared/upgrade-migrations.ts";
-import { recordOperationRequest } from "../test/authority-write.ts";
-import { ensureTestIdentityOwner } from "../test/identity-owner.ts";
+import {
+  instanceControlPlaneTestStorageSnapshot,
+  recordOperationRequest,
+  restoreTestStorageSnapshot,
+} from "../test/authority-write.ts";
+import { ensureTestIdentityOwner, resetTestIdentityStorage } from "../test/identity-owner.ts";
 import {
   INTERNAL_IDENTITY_APP_AUTHORITY_PATH,
   INTERNAL_IDENTITY_PRINCIPAL_AUTHORITY_PATH,
@@ -165,6 +169,16 @@ describe("identity control-plane API routes", () => {
     expect(ownerSchema.body.schema).toEqual(identityControlPlaneSchema);
     expect(ownerSchema.body.schemaProvenance).toEqual(identityControlPlaneSchemaProvenance);
     expect(ownerSchema.response.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("reconciles required role records without advancing an unchanged write log", async () => {
+    const first = await getJson<BootstrapResponse>(`${identityApi}/bootstrap`);
+    const second = await getJson<BootstrapResponse>(`${identityApi}/bootstrap`);
+
+    expect(second.body.cursor).toBe(first.body.cursor);
+    expect(
+      second.body.records.filter((record) => record.entity === "role").map((record) => record.id),
+    ).toEqual(identityControlPlaneRoleKeys.map((roleKey) => `role:${roleKey}`));
   });
 
   it("exports identity control-plane storage snapshots with the identity storage boundary", async () => {
@@ -1829,7 +1843,7 @@ describe("identity control-plane API routes", () => {
     });
   });
 
-  it("resolves current app-admin authority with exact install and active-role isolation", async () => {
+  it("resolves app-admin authority by install and reconciles required role records", async () => {
     const ownerAuthority = await createIdentityOwnerAuthority("App Lookup Owner");
     const appAdmin = await createIdentityPrincipal("App Lookup Admin");
     const assignment = await assignIdentityAppRole(appAdmin.id, "tasks");
@@ -1892,37 +1906,21 @@ describe("identity control-plane API routes", () => {
       recordId: "role:app.admin",
       input: { status: "disabled" },
     });
-    expect(await readAppAuthority(ordinary.id, "tasks")).toEqual({
-      appAdmin: false,
-      appInstallId: "tasks",
-      id: ordinary.id,
-      instanceOwner: false,
-    });
+    const reconciled = await getJson<BootstrapResponse>(`${identityApi}/bootstrap`);
+    expect(recordById(reconciled.body.records, "role:app.admin").values.status).toBe("active");
   });
 });
 
 async function resetKnownState() {
-  await Promise.all([resetIdentityStorage(), postReset(`${controlPlaneApi}/reset/seed`)]);
-}
-
-async function resetIdentityStorage() {
-  const response = await harness.fetch(`${identityApi}/reset/seed`, {
-    body: "{}",
-    headers: adminHeaders({ "Content-Type": "application/json" }),
-    method: "POST",
-  });
-
-  expect(response.status).toBe(200);
-}
-
-async function postReset(path: string) {
-  const response = await harness.fetch(path, {
-    body: "{}",
-    headers: adminHeaders({ "Content-Type": "application/json" }),
-    method: "POST",
-  });
-
-  expect(response.status).toBe(200);
+  await Promise.all([
+    resetTestIdentityStorage(harness, adminToken),
+    restoreTestStorageSnapshot(
+      harness,
+      `${controlPlaneApi}/snapshot/restore`,
+      instanceControlPlaneTestStorageSnapshot(),
+      adminHeaders(),
+    ),
+  ]);
 }
 
 async function createInstalledApp(installId: string, label: string) {

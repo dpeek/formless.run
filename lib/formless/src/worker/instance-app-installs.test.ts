@@ -17,14 +17,14 @@ import {
 } from "@dpeek/formless-instance-control-plane";
 import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-identity-control-plane";
 import type { StoredRecord } from "@dpeek/formless-storage";
+import { crmSourceSchema, siteSourceSchema, taskSourceSchema } from "../test/schema-apps.ts";
 import {
-  crmSeedRecords,
-  crmSourceSchema,
-  siteSourceSchema,
-  taskSeedRecords,
-  taskSourceSchema,
-} from "../test/schema-apps.ts";
-import { operationWriteRequest, recordOperationRequest } from "../test/authority-write.ts";
+  instanceControlPlaneTestStorageSnapshot,
+  operationWriteRequest,
+  recordOperationRequest,
+  restoreTestStorageSnapshot,
+  schemaAppTestStorageSnapshot,
+} from "../test/authority-write.ts";
 import { ensureTestIdentityOwner, resetTestIdentityStorage } from "../test/identity-owner.ts";
 import {
   bundledSourceSchemaHashFixtures,
@@ -44,37 +44,6 @@ import { createOwnerSessionCookie } from "./owner-session.ts";
 import type { StoredOperationInvocation } from "./storage.ts";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
-
-function materializedWorkspaceSeedRecords(records: unknown[]): unknown[] {
-  return records
-    .map((record) => {
-      if (typeof record !== "object" || record === null || Array.isArray(record)) {
-        return record;
-      }
-
-      const createdAt = "createdAt" in record ? record.createdAt : undefined;
-
-      return typeof createdAt === "string" ? { ...record, updatedAt: createdAt } : record;
-    })
-    .sort((left, right) => {
-      const leftCreatedAt =
-        typeof left === "object" && left !== null && "createdAt" in left
-          ? left.createdAt
-          : undefined;
-      const rightCreatedAt =
-        typeof right === "object" && right !== null && "createdAt" in right
-          ? right.createdAt
-          : undefined;
-
-      return typeof leftCreatedAt === "string" && typeof rightCreatedAt === "string"
-        ? leftCreatedAt < rightCreatedAt
-          ? -1
-          : leftCreatedAt > rightCreatedAt
-            ? 1
-            : 0
-        : 0;
-    });
-}
 
 type AppInstallFailureResponse = {
   code: string;
@@ -163,11 +132,6 @@ describe("instance app install API routes", () => {
         label: "CRM",
         packageAppKey: "crm",
         packageRevision: 1,
-        seedRecordsLocation: {
-          kind: "bundled",
-          key: "crm",
-          path: "seed-records.json",
-        },
         sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
         sourceSchemaLocation: {
           kind: "bundled",
@@ -183,7 +147,6 @@ describe("instance app install API routes", () => {
     expect(created.body.initialization).toEqual({
       installId: "site",
       packageAppKey: "site",
-      seedRecordsKey: "site",
       sourceSchemaKey: "site",
     });
     expect(created.body.install).toMatchObject({
@@ -237,7 +200,6 @@ describe("instance app install API routes", () => {
                 sourceSchemaHash,
               }),
               sourceSchema: taskSourceSchema,
-              seedRecords: taskSeedRecords,
             },
           ]),
         },
@@ -289,7 +251,6 @@ describe("instance app install API routes", () => {
       expect(created.body.initialization).toEqual({
         installId: "labs",
         packageAppKey: "private-labs",
-        seedRecordsKey: "private-labs",
         sourceSchemaKey: "private-labs",
       });
       expect(created.body.install).toEqual(
@@ -306,7 +267,8 @@ describe("instance app install API routes", () => {
         }),
       );
       expect(bootstrap.body.schema).toEqual(taskSourceSchema);
-      expect(bootstrap.body.records).toEqual(taskSeedRecords);
+      expect(bootstrap.body.records).toEqual([]);
+      expect(bootstrap.body.cursor).toBe(0);
       expect(appInstall?.values).toMatchObject({
         installId: "labs",
         packageAppKey: "private-labs",
@@ -606,25 +568,26 @@ describe("instance app install API routes", () => {
     expect(bootstrap.body.schema).toEqual(siteSourceSchema);
   });
 
-  it("persists Tasks installs and bootstraps from the bundled Tasks source", async () => {
+  it("persists Tasks installs and bootstraps empty storage from the bundled schema", async () => {
     const created = await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
       packageAppKey: "tasks",
-      installId: "tasks",
+      installId: "empty-tasks",
       label: "Tasks",
     });
-    const bootstrap = await getJson<BootstrapResponse>("/api/app-installs/tasks/tasks/bootstrap");
+    const bootstrap = await getJson<BootstrapResponse>(
+      "/api/app-installs/tasks/empty-tasks/bootstrap",
+    );
 
     expect(created.response.status).toBe(201);
     expect(created.body.initialization).toEqual({
-      installId: "tasks",
+      installId: "empty-tasks",
       packageAppKey: "tasks",
-      seedRecordsKey: "tasks",
       sourceSchemaKey: "tasks",
     });
     expect(created.body.install).toEqual(
       expect.objectContaining({
-        adminRoute: "/apps/tasks",
-        installId: "tasks",
+        adminRoute: "/apps/empty-tasks",
+        installId: "empty-tasks",
         label: "Tasks",
         packageAppKey: "tasks",
         packageRevision: 1,
@@ -635,19 +598,19 @@ describe("instance app install API routes", () => {
     expect(created.body.install).not.toHaveProperty("publicRoute");
     expect(created.body.install).not.toHaveProperty("publicRoutePrefix");
     expect(bootstrap.body.schema).toEqual(taskSourceSchema);
-    expect(bootstrap.body.records).toEqual(taskSeedRecords);
-    expect(bootstrap.body.cursor).toBe(taskSeedRecords.length);
+    expect(bootstrap.body.records).toEqual([]);
+    expect(bootstrap.body.cursor).toBe(0);
   });
 
   it("applies installed app package migrations through Authority and updates install facts", async () => {
     await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
       packageAppKey: "tasks",
-      installId: "tasks",
+      installId: "migration-tasks",
       label: "Tasks",
     });
 
     const applied = await postAdminJson<PackageMigrationApplyResponse>(
-      "/api/formless/app-installs/tasks/tasks/package-migrations/apply",
+      "/api/formless/app-installs/tasks/migration-tasks/package-migrations/apply",
       {},
     );
     const after = await getJson<AppInstallsResponse>("/api/formless/app-installs");
@@ -661,10 +624,10 @@ describe("instance app install API routes", () => {
       skipped: [],
       sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
     });
-    expect(applied.body.cursor).toBe(taskSeedRecords.length);
+    expect(applied.body.cursor).toBe(0);
     expect(applied.body.install).toEqual(
       expect.objectContaining({
-        installId: "tasks",
+        installId: "migration-tasks",
         packageAppKey: "tasks",
         packageRevision: 1,
         sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
@@ -673,25 +636,24 @@ describe("instance app install API routes", () => {
     expect(after.body.installs).toEqual(applied.body.installs);
   });
 
-  it("persists CRM installs and bootstraps from the bundled CRM source", async () => {
+  it("persists CRM installs and bootstraps empty storage from the bundled schema", async () => {
     const created = await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
       packageAppKey: "crm",
-      installId: "crm",
+      installId: "empty-crm",
       label: "CRM",
     });
-    const bootstrap = await getJson<BootstrapResponse>("/api/app-installs/crm/crm/bootstrap");
+    const bootstrap = await getJson<BootstrapResponse>("/api/app-installs/crm/empty-crm/bootstrap");
 
     expect(created.response.status).toBe(201);
     expect(created.body.initialization).toEqual({
-      installId: "crm",
+      installId: "empty-crm",
       packageAppKey: "crm",
-      seedRecordsKey: "crm",
       sourceSchemaKey: "crm",
     });
     expect(created.body.install).toEqual(
       expect.objectContaining({
-        adminRoute: "/apps/crm",
-        installId: "crm",
+        adminRoute: "/apps/empty-crm",
+        installId: "empty-crm",
         label: "CRM",
         packageAppKey: "crm",
         packageRevision: 1,
@@ -702,8 +664,8 @@ describe("instance app install API routes", () => {
     expect(created.body.install).not.toHaveProperty("publicRoute");
     expect(created.body.install).not.toHaveProperty("publicRoutePrefix");
     expect(bootstrap.body.schema).toEqual(crmSourceSchema);
-    expect(bootstrap.body.records).toEqual(crmSeedRecords);
-    expect(bootstrap.body.cursor).toBe(crmSeedRecords.length);
+    expect(bootstrap.body.records).toEqual([]);
+    expect(bootstrap.body.cursor).toBe(0);
   });
 
   it("persists generated-admin-only installs and bootstraps from a workspace package", async () => {
@@ -759,7 +721,6 @@ describe("instance app install API routes", () => {
       expect(created.body.initialization).toEqual({
         installId: "orders",
         packageAppKey: "client-orders",
-        seedRecordsKey: "client-orders",
         sourceSchemaKey: "client-orders",
       });
       expect(created.body.install).toEqual(
@@ -786,10 +747,8 @@ describe("instance app install API routes", () => {
           .sort((left, right) => String(left[1]).localeCompare(String(right[1]))),
       ).toEqual([["orders", "/apps/orders", "admin"]]);
       expect(bootstrap.body.schema).toEqual(parseAppSchema(workspacePackage.sourceSchema));
-      expect(bootstrap.body.records).toEqual(
-        materializedWorkspaceSeedRecords(workspacePackage.seedRecords),
-      );
-      expect(bootstrap.body.cursor).toBe(workspacePackage.seedRecords.length);
+      expect(bootstrap.body.records).toEqual([]);
+      expect(bootstrap.body.cursor).toBe(0);
     } finally {
       await privateHarness.dispose();
     }
@@ -946,7 +905,7 @@ describe("instance app install API routes", () => {
       error: "Owner session or admin authorization is required for this read endpoint.",
     });
     expect(anonymousTree.status).toBe(200);
-    expect(tree.page.id).toBe("rec_site_starter_page_home");
+    expect(tree.page.id).toBe("rec_site_content_home");
     expect(adminBootstrap.body.schema).toEqual(siteSourceSchema);
     expect(ownerBootstrap.body.schema).toEqual(siteSourceSchema);
   });
@@ -1026,22 +985,37 @@ async function postHarnessAdminJson<T>(targetHarness: Harness, path: string, bod
 async function resetWorkerState() {
   await resetTestIdentityStorage(harness, adminToken);
   await Promise.all([
-    postReset("/api/formless/control-plane/reset/seed"),
-    postReset("/api/app-installs/site/site/reset/seed"),
-    postReset("/api/app-installs/site/personal/reset/seed"),
-    postReset("/api/app-installs/tasks/tasks/reset/seed"),
-    postReset("/api/app-installs/crm/crm/reset/seed"),
+    restoreTestStorageSnapshot(
+      harness,
+      "/api/formless/control-plane/snapshot/restore",
+      instanceControlPlaneTestStorageSnapshot(),
+      adminHeaders(),
+    ),
+    restoreTestStorageSnapshot(
+      harness,
+      "/api/app-installs/site/site/snapshot/restore",
+      schemaAppTestStorageSnapshot("site", "app:site"),
+      adminHeaders(),
+    ),
+    restoreTestStorageSnapshot(
+      harness,
+      "/api/app-installs/site/personal/snapshot/restore",
+      schemaAppTestStorageSnapshot("site", "app:personal"),
+      adminHeaders(),
+    ),
+    restoreTestStorageSnapshot(
+      harness,
+      "/api/app-installs/tasks/tasks/snapshot/restore",
+      schemaAppTestStorageSnapshot("tasks", "app:tasks"),
+      adminHeaders(),
+    ),
+    restoreTestStorageSnapshot(
+      harness,
+      "/api/app-installs/crm/crm/snapshot/restore",
+      schemaAppTestStorageSnapshot("crm", "app:crm"),
+      adminHeaders(),
+    ),
   ]);
-}
-
-async function postReset(path: string) {
-  const response = await harness.fetch(path, {
-    body: "{}",
-    headers: adminHeaders({ "Content-Type": "application/json" }),
-    method: "POST",
-  });
-
-  expect(response.status).toBe(200);
 }
 
 async function readControlPlaneOperationInvocations(): Promise<StoredOperationInvocation[]> {

@@ -4,21 +4,25 @@
 
 App schema is runtime data that defines how a schema key stores flat records,
 projects those records, and exposes operations over them. It is the durable
-contract for source schemas, seed records, generated UI, Authority storage,
+contract for source schemas, generated UI, Authority storage,
 browser replicas, public bindings, automation, and package adapters.
 
 ## Requirements
 
 ### Requirement: Bundled Source Apps
 
-The system SHALL provide source schemas for the current bundled schema keys `tasks`, `site`, and `crm`, and SHALL treat source seed records as stored-record shaped data.
+The system SHALL provide source schemas for the current bundled schema keys
+`tasks`, `site`, and `crm` without coupling package source to initial app
+records.
 
 #### Scenario: Load current source app
 
 - **GIVEN** a current schema key `tasks`, `site`, or `crm`
 - **WHEN** the runtime loads the source schema
 - **THEN** the app schema is available for that schema key
-- **AND** seed records can initialize records without being interpreted as change rows
+- **AND** package source loading does not supply initial stored records
+- **AND** app records enter Authority through operations, workspace state,
+  storage snapshot restore, or portable archive restore
 
 ### Requirement: TypeScript Schema Authoring
 
@@ -273,14 +277,12 @@ archive, or deploy workflows.
 - WHEN the package source is resolved
 - THEN the manifest declares a route-safe package app key, label, optional
   description, default install id, multiple-install policy, package revision,
-  source schema location, seed records location, and runtime capabilities such
-  as generated admin and optional public Site routes
+  source schema location, and runtime capabilities such as generated admin and
+  optional public Site routes
 - AND the manifest does not contain app install records, route records,
   deployment config, app records, media payloads, provider credentials, or
   workspace-local secrets
 - AND the referenced source schema parses as an app schema
-- AND referenced seed records validate as stored-record shaped data for that
-  source schema
 
 #### Scenario: Declare package runtime capabilities
 
@@ -318,7 +320,7 @@ archive, or deploy workflows.
 - AND object property insertion order is not part of the hash input
 - AND generated UI-only changes such as view, table view, item view, or screen
   changes produce a different source schema hash
-- AND the hash is independent of record data, seed records, workspace state, or
+- AND the hash is independent of record data, workspace state, or
   active storage timestamps
 
 #### Scenario: Import app package manifest contracts
@@ -339,8 +341,8 @@ archive, or deploy workflows.
 - THEN each package is exposed as a resolved app package derived from app
   package manifest facts
 - AND existing package app keys, labels, default install ids, package
-  revisions, source schema hashes, source schema keys, and seed record keys
-  remain stable unless the package source changes
+  revisions, source schema hashes, and source schema keys remain stable unless
+  the package source changes
 
 ### Requirement: Package App Revision Facts
 
@@ -481,10 +483,10 @@ pure helpers through the Schema package slice.
 #### Scenario: Package does not own runtime app records
 
 - **WHEN** App schema behavior is used to load bundled or resolved package
-  source schemas, load source seed records, render generated React surfaces,
-  validate Authority writes, store active schemas, sync browser replicas, plan
-  or apply archives, compose Workspace storage snapshots, build instance
-  control-plane records, or apply package app migrations
+  source schemas, render generated React surfaces, validate Authority writes,
+  store active schemas, sync browser replicas, plan or apply archives, compose
+  Workspace storage snapshots, build instance control-plane records, or apply
+  package app migrations
 - **THEN** those runtime behaviors remain owned by app, client, Worker,
   archive, Workspace, instance control-plane, migration, or generated UI modules
 - **AND** the Schema package only owns runtime-neutral schema language

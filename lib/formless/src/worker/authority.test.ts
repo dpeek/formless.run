@@ -41,20 +41,21 @@ import {
 } from "@dpeek/formless-schema";
 import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-identity-control-plane";
 import {
-  crmSeedRecords,
+  crmTestRecords,
   crmSourceSchema,
-  siteSeedRecords,
   siteSourceSchema,
-  taskSeedRecords,
-  taskSourceSeedRecords,
+  taskTestRecords,
+  taskStorageSnapshotRecords,
   taskSourceSchema as appSchema,
 } from "../test/schema-apps.ts";
-import { testSiteSeedRecords } from "../test/site-records.ts";
+import { testSiteRecords } from "../test/site-records.ts";
 import {
   commandOperationRequest,
   createAuthorityWriteHelpers,
   recordOperationRequest,
   operationWriteRequest,
+  schemaAppTestStorageSnapshot,
+  restoreTestStorageSnapshot,
   type AuthorityWriteHelpers,
   type AuthorityTestCommandOperationRequest,
   type AuthorityTestRecordOperationRequest,
@@ -109,8 +110,8 @@ describe("authority", () => {
       schema: appSchema,
       schemaProvenance: taskSchemaProvenance(),
       schemaUpdatedAt: expect.any(String),
-      records: taskSeedRecords,
-      cursor: taskSeedRecords.length,
+      records: taskTestRecords,
+      cursor: taskTestRecords.length,
     });
   });
 
@@ -162,8 +163,8 @@ describe("authority", () => {
 
     expect(body.schema).toEqual(siteSourceSchema);
     expect(body.schemaUpdatedAt).toEqual(expect.any(String));
-    expect(body.cursor).toBe(siteSeedRecords.length);
-    expectRecordsIgnoringOrder(body.records, siteSeedRecords);
+    expect(body.cursor).toBe(testSiteRecords.length);
+    expectRecordsIgnoringOrder(body.records, testSiteRecords);
     expect(new Set(body.records.map((record) => record.entity))).toEqual(
       new Set(["site", "block", "block-placement"]),
     );
@@ -215,15 +216,15 @@ describe("authority", () => {
     }
   });
 
-  it("bootstraps installed Site API routes from the bundled Site source", async () => {
+  it("restores installed Site test state through the installed-app storage identity", async () => {
     await resetInstalledApp("site", "starter");
 
     const body = await getInstalledAppJson<BootstrapResponse>("site", "starter", "/bootstrap");
 
     expect(body.schema).toEqual(siteSourceSchema);
     expect(body.schemaUpdatedAt).toEqual(expect.any(String));
-    expect(body.cursor).toBe(siteSeedRecords.length);
-    expectRecordsIgnoringOrder(body.records, siteSeedRecords);
+    expect(body.cursor).toBe(testSiteRecords.length);
+    expectRecordsIgnoringOrder(body.records, testSiteRecords);
   });
 
   it("isolates installed Site storage by install id while preserving legacy Site storage", async () => {
@@ -254,7 +255,7 @@ describe("authority", () => {
     expect(legacySite.schema).toEqual(siteSourceSchema);
   });
 
-  it("isolates installed Tasks storage, sync, reset, snapshot, and command operations by install id", async () => {
+  it("isolates installed Tasks storage, sync, snapshot restore, and command operations by install id", async () => {
     await resetInstalledApp("tasks", "work");
     await resetInstalledApp("tasks", "team");
 
@@ -295,13 +296,13 @@ describe("authority", () => {
       entity: "task",
       operationName: "clearCompletedTasks",
     });
-    const reset = await postInstalledAppJson<BootstrapResponse>("tasks", "work", "/reset/seed", {});
+    await resetInstalledApp("tasks", "work");
     const work = await getInstalledAppJson<BootstrapResponse>("tasks", "work", "/bootstrap");
     const team = await getInstalledAppJson<BootstrapResponse>("tasks", "team", "/bootstrap");
     const legacy = await getJson<BootstrapResponse>("/api/bootstrap");
 
-    expect(initialSync.cursor).toBe(taskSeedRecords.length);
-    expect(initialSync.changes.map((change) => change.payload)).toEqual(taskSourceSeedRecords);
+    expect(initialSync.cursor).toBe(taskTestRecords.length);
+    expect(initialSync.changes.map((change) => change.payload)).toEqual(taskStorageSnapshotRecords);
     expect(workSnapshot).toMatchObject({
       kind: STORAGE_SNAPSHOT_KIND,
       storageIdentity: "app:work",
@@ -310,7 +311,7 @@ describe("authority", () => {
       sourceCursor: created.cursor,
     });
     expect(workSnapshot.records).toEqual(
-      formatStoredRecordsForArtifact(appSchema, [...taskSeedRecords, created.record]),
+      formatStoredRecordsForArtifact(appSchema, [...taskTestRecords, created.record]),
     );
     expect(restored.records).toContainEqual(restoredRecord);
     expect(command.changes.map((change) => change.payload)).toContainEqual(
@@ -319,10 +320,9 @@ describe("authority", () => {
         deletedAt: expect.any(String),
       }),
     );
-    expect(reset.records).toEqual(taskSeedRecords);
-    expect(work.records).toEqual(taskSeedRecords);
-    expect(team.records).toEqual(taskSeedRecords);
-    expect(legacy.records).toEqual(taskSeedRecords);
+    expect(work.records).toEqual(taskTestRecords);
+    expect(team.records).toEqual(taskTestRecords);
+    expect(legacy.records).toEqual(taskTestRecords);
     expect(team.records).not.toContainEqual(created.record);
     expect(legacy.records).not.toContainEqual(created.record);
   });
@@ -335,7 +335,7 @@ describe("authority", () => {
       siteStorageSnapshot({
         storageIdentity: "app:personal",
         records: [
-          ...testSiteSeedRecords,
+          ...testSiteRecords,
           {
             id: "rec_installed_site_image",
             entity: "block",
@@ -523,7 +523,6 @@ describe("authority", () => {
             {
               manifest: privatePublicSitePackageManifest(sourceSchemaHash),
               sourceSchema: siteSourceSchema,
-              seedRecords: siteSeedRecords,
             },
           ]),
         },
@@ -561,14 +560,14 @@ describe("authority", () => {
     }
   });
 
-  it("returns source seed changes when sync initializes fresh storage", async () => {
+  it("returns restored snapshot changes through sync", async () => {
     const body = await getJson<SyncResponse>("/api/sync?after=0");
 
-    expect(body.cursor).toBe(taskSeedRecords.length);
+    expect(body.cursor).toBe(taskTestRecords.length);
     expect(body.changes.map((change) => change.writeId)).toEqual(
-      taskSourceSeedRecords.map((record) => `seed-task:${record.id}`),
+      taskStorageSnapshotRecords.map(() => expect.stringMatching(/^snapshot-restore:/)),
     );
-    expect(body.changes.map((change) => change.payload)).toEqual(taskSourceSeedRecords);
+    expect(body.changes.map((change) => change.payload)).toEqual(taskStorageSnapshotRecords);
   });
 
   it("rejects unknown schema keys and old unkeyed API paths", async () => {
@@ -595,7 +594,7 @@ describe("authority", () => {
     expect(task.writeIdentity).toBe(operationWriteId("task", "create", "write-shared"));
     expect(contact.writeIdentity).toBe(operationWriteId("contact", "create", "write-shared"));
     expect(tasksBootstrap.schema).toEqual(appSchema);
-    expect(tasksBootstrap.records).toEqual([...taskSeedRecords, task.record]);
+    expect(tasksBootstrap.records).toEqual([...taskTestRecords, task.record]);
     expect(crmBootstrap.schema).toEqual(crmSourceSchema);
     expect(crmBootstrap.records).toContainEqual(contact.record);
     expect(crmBootstrap.records.every((record) => record.entity !== "task")).toBe(true);
@@ -665,7 +664,7 @@ describe("authority", () => {
     );
     expect(reset.schema).toEqual(appSchema);
     expect(reset.schema.screens).toEqual(appSchema.screens);
-    expect(reset.records).toEqual([...taskSeedRecords, created.record]);
+    expect(reset.records).toEqual([...taskTestRecords, created.record]);
     expect(reset.cursor).toBe(beforeReset.cursor);
   });
 
@@ -724,52 +723,6 @@ describe("authority", () => {
     });
   });
 
-  it("resets seed data to source schema, records, and seeded changes", async () => {
-    await postCreateOperation("write-before-seed-reset", { title: "Temporary", done: false });
-
-    const reset = await postJson<BootstrapResponse>("/api/reset/seed", {});
-    const sync = await getJson<SyncResponse>("/api/sync?after=0");
-
-    expect(reset).toEqual({
-      schema: appSchema,
-      schemaProvenance: taskSchemaProvenance(),
-      schemaUpdatedAt: expect.any(String),
-      records: taskSeedRecords,
-      cursor: taskSeedRecords.length,
-    });
-    expect(sync.cursor).toBe(taskSeedRecords.length);
-    expect(sync.changes).toHaveLength(taskSeedRecords.length);
-    expect(sync.changes.map((change) => change.seq)).toEqual([1, 2, 3, 4, 5]);
-    expect(sync.changes.map((change) => change.writeId)).toEqual(
-      taskSourceSeedRecords.map((record) => `seed-task:${record.id}`),
-    );
-    expect(sync.changes.map((change) => change.operationKind)).toEqual(
-      taskSourceSeedRecords.map(() => "create"),
-    );
-    expect(sync.changes.map((change) => change.payload)).toEqual(taskSourceSeedRecords);
-  });
-
-  it("resets seed data for one schema key without touching another", async () => {
-    const task = await postCreateOperation("write-task-before-rate-reset", {
-      title: "Route local",
-      done: false,
-    });
-
-    await resetSchemaApp("crm");
-    useSchemaApp("crm");
-    await postCreateOperationForEntity("write-crm-local-contact", "contact", {
-      label: "Temporary contact",
-    });
-    const crmReset = await postJson<BootstrapResponse>("/api/reset/seed", {});
-
-    useSchemaApp("tasks");
-    const tasksBootstrap = await getJson<BootstrapResponse>("/api/bootstrap");
-
-    expect(crmReset.records).toEqual(crmSeedRecords);
-    expect(crmReset.cursor).toBe(crmSeedRecords.length);
-    expect(tasksBootstrap.records).toEqual([...taskSeedRecords, task.record]);
-  });
-
   it("exports authority storage snapshots by storage identity and schema key", async () => {
     const schemaResponse = await getJson<SchemaResponse>("/api/schema");
     const created = await postCreateOperation("write-snapshot-export-task", {
@@ -790,7 +743,7 @@ describe("authority", () => {
       schema: appSchema,
     });
     expect(snapshot.records).toEqual(
-      formatStoredRecordsForArtifact(appSchema, [...taskSeedRecords, created.record]),
+      formatStoredRecordsForArtifact(appSchema, [...taskTestRecords, created.record]),
     );
 
     await resetSchemaApp("crm");
@@ -800,32 +753,8 @@ describe("authority", () => {
     expect(crmSnapshot.storageIdentity).toBe("crm");
     expect(crmSnapshot.schemaKey).toBe("crm");
     expect(crmSnapshot.schema).toEqual(crmSourceSchema);
-    expect(crmSnapshot.records).toEqual(crmSeedRecords);
+    expect(crmSnapshot.records).toEqual(crmTestRecords);
     expect(crmSnapshot.records.some((record) => record.id === created.record.id)).toBe(false);
-  });
-
-  it("keeps manual Site snapshots separate from source seed reset", async () => {
-    await resetSchemaApp("site");
-    useSchemaApp("site");
-    const created = await postCreateOperationForEntity("write-site-manual-snapshot", "block", {
-      type: "page",
-      label: "Temporary preview page",
-      href: "/temporary-preview-page",
-    });
-
-    const snapshot = await getJson<StorageSnapshot>("/api/snapshot");
-
-    expect(snapshot.storageIdentity).toBe("site");
-    expect(snapshot.schemaKey).toBe("site");
-    expect(snapshot.schema).toEqual(siteSourceSchema);
-    expectRecordsIgnoringOrder(snapshot.records, [...siteSeedRecords, created.record]);
-    expect(siteSeedRecords.some((record) => record.id === created.record.id)).toBe(false);
-
-    const reset = await postJson<BootstrapResponse>("/api/reset/seed", {});
-
-    expectRecordsIgnoringOrder(reset.records, siteSeedRecords);
-    expect(reset.cursor).toBe(siteSeedRecords.length);
-    expect(reset.records.some((record) => record.id === created.record.id)).toBe(false);
   });
 
   it("restores snapshots and broadcasts committed restore writes", async () => {
@@ -842,7 +771,7 @@ describe("authority", () => {
 
       useSchemaApp("crm");
       const crmSchema = await getJson<SchemaResponse>("/api/schema");
-      await primeSyncSocket(crmSocket, crmSeedRecords.length, crmSchema.updatedAt);
+      await primeSyncSocket(crmSocket, crmTestRecords.length, crmSchema.updatedAt);
       crmCapture = captureSyncSocketMessages(crmSocket);
 
       useSchemaApp("tasks");
@@ -1049,9 +978,9 @@ describe("authority", () => {
     await postCreateOperation("write-1", { title: "First", done: false });
     const second = await postCreateOperation("write-2", { title: "Second", done: true });
 
-    const body = await getJson<SyncResponse>(`/api/sync?after=${taskSeedRecords.length + 1}`);
+    const body = await getJson<SyncResponse>(`/api/sync?after=${taskTestRecords.length + 1}`);
 
-    expect(body.cursor).toBe(taskSeedRecords.length + 2);
+    expect(body.cursor).toBe(taskTestRecords.length + 2);
     expect(body.changes).toHaveLength(1);
     expect(body.changes[0]).toMatchObject({
       writeId: second.writeIdentity,
@@ -1105,7 +1034,7 @@ describe("authority", () => {
   it("sends the same stale cursor changes over the sync WebSocket as HTTP sync", async () => {
     await postCreateOperation("write-1", { title: "First", done: false });
     await postCreateOperation("write-2", { title: "Second", done: true });
-    const cursor = taskSeedRecords.length + 1;
+    const cursor = taskTestRecords.length + 1;
     const httpSync = await getJson<SyncResponse>(`/api/sync?after=${cursor}`);
     const socket = await openSyncSocket();
 
@@ -1200,7 +1129,7 @@ describe("authority", () => {
       expect(message.payload.schema).toBeUndefined();
       expect(message.payload.schemaUpdatedAt).toBeUndefined();
       expect(message.payload.changes.map((change) => change.payload)).toEqual(
-        taskSourceSeedRecords,
+        taskStorageSnapshotRecords,
       );
     }
 
@@ -1224,7 +1153,7 @@ describe("authority", () => {
     const taskSocket = await openSyncSocket("/api/sync/ws", "tasks");
 
     try {
-      await primeSyncSocket(taskSocket, taskSeedRecords.length, schemaResponse.updatedAt);
+      await primeSyncSocket(taskSocket, taskTestRecords.length, schemaResponse.updatedAt);
 
       const capture = captureSyncSocketMessages(taskSocket);
       try {
@@ -1232,7 +1161,7 @@ describe("authority", () => {
         await getJson<SchemaResponse>("/api/schema");
         await getJson<StorageSnapshot>("/api/snapshot");
         await getJson<SyncResponse>(
-          `/api/sync?after=${taskSeedRecords.length}&schemaUpdatedAt=${encodeURIComponent(schemaResponse.updatedAt)}`,
+          `/api/sync?after=${taskTestRecords.length}&schemaUpdatedAt=${encodeURIComponent(schemaResponse.updatedAt)}`,
         );
         await expectNoCapturedMessages(capture);
       } finally {
@@ -1268,7 +1197,7 @@ describe("authority", () => {
     const socket = await openSyncSocket();
 
     try {
-      await primeSyncSocket(socket, taskSeedRecords.length, schemaResponse.updatedAt);
+      await primeSyncSocket(socket, taskTestRecords.length, schemaResponse.updatedAt);
 
       const write = {
         idempotencyKey: "write-authority-outcome-policy",
@@ -1351,12 +1280,12 @@ describe("authority", () => {
 
     try {
       const taskSchema = await getJson<SchemaResponse>("/api/schema");
-      await primeSyncSocket(taskSocketA, taskSeedRecords.length, taskSchema.updatedAt);
-      await primeSyncSocket(taskSocketB, taskSeedRecords.length, taskSchema.updatedAt);
+      await primeSyncSocket(taskSocketA, taskTestRecords.length, taskSchema.updatedAt);
+      await primeSyncSocket(taskSocketB, taskTestRecords.length, taskSchema.updatedAt);
 
       useSchemaApp("crm");
       const crmSchema = await getJson<SchemaResponse>("/api/schema");
-      await primeSyncSocket(crmSocket, crmSeedRecords.length, crmSchema.updatedAt);
+      await primeSyncSocket(crmSocket, crmTestRecords.length, crmSchema.updatedAt);
       crmCapture = captureSyncSocketMessages(crmSocket);
 
       useSchemaApp("tasks");
@@ -1471,7 +1400,7 @@ describe("authority", () => {
     const socket = await openSyncSocket();
 
     try {
-      await primeSyncSocket(socket, taskSeedRecords.length, schemaResponse.updatedAt);
+      await primeSyncSocket(socket, taskTestRecords.length, schemaResponse.updatedAt);
 
       const schemaMessage = readSyncSocketMessage(socket);
       const update = await postJson<SchemaUpdateResponse>("/api/schema", {
@@ -1482,7 +1411,7 @@ describe("authority", () => {
         type: "sync",
         payload: {
           changes: [],
-          cursor: taskSeedRecords.length,
+          cursor: taskTestRecords.length,
           schema: update.schema,
           schemaUpdatedAt: update.updatedAt,
         },
@@ -1492,14 +1421,14 @@ describe("authority", () => {
     }
   });
 
-  it("broadcasts reset schema and reset seed after committed reset writes", async () => {
+  it("broadcasts reset schema after a committed reset write", async () => {
     const schemaUpdate = await postJson<SchemaUpdateResponse>("/api/schema", {
       schema: schemaWithTaskLabel("Planner task"),
     });
     const schemaSocket = await openSyncSocket();
 
     try {
-      await primeSyncSocket(schemaSocket, taskSeedRecords.length, schemaUpdate.updatedAt);
+      await primeSyncSocket(schemaSocket, taskTestRecords.length, schemaUpdate.updatedAt);
 
       const schemaMessage = readSyncSocketMessage(schemaSocket);
       const schemaReset = await postJson<BootstrapResponse>("/api/reset/schema", {});
@@ -1516,33 +1445,6 @@ describe("authority", () => {
       });
     } finally {
       schemaSocket.close();
-    }
-
-    const created = await postCreateOperation("write-before-broadcast-seed-reset", {
-      title: "Temporary",
-      done: false,
-    });
-    const seedSchema = await getJson<SchemaResponse>("/api/schema");
-    const seedSocket = await openSyncSocket();
-
-    try {
-      await primeSyncSocket(seedSocket, created.cursor, seedSchema.updatedAt);
-
-      const seedMessage = readSyncSocketMessage(seedSocket);
-      const seedReset = await postJson<BootstrapResponse>("/api/reset/seed", {});
-
-      await expect(seedMessage).resolves.toEqual({
-        type: "sync",
-        payload: {
-          changes: [],
-          cursor: seedReset.cursor,
-          schema: seedReset.schema,
-          schemaProvenance: seedReset.schemaProvenance,
-          schemaUpdatedAt: seedReset.schemaUpdatedAt,
-        },
-      });
-    } finally {
-      seedSocket.close();
     }
   });
   it("does not broadcast failed write validation, constraint failures, or write replay", async () => {
@@ -1679,7 +1581,7 @@ describe("authority", () => {
     const socket = await openSyncSocket();
 
     try {
-      await primeSyncSocket(socket, taskSeedRecords.length, schemaResponse.updatedAt);
+      await primeSyncSocket(socket, taskTestRecords.length, schemaResponse.updatedAt);
 
       const schemaCapture = captureSyncSocketMessages(socket);
       const invalidSchema = await harness.fetch(apiPath("/api/schema"), {
@@ -1780,7 +1682,7 @@ describe("authority", () => {
       recordId: created.record.id,
       input: { done: true, dueDate: "2026-05-01" },
     });
-    const sync = await getJson<SyncResponse>(`/api/sync?after=${taskSeedRecords.length + 1}`);
+    const sync = await getJson<SyncResponse>(`/api/sync?after=${taskTestRecords.length + 1}`);
 
     expect(patched.record.values).toEqual({
       title: "First",
@@ -1881,33 +1783,33 @@ describe("authority", () => {
 
     const first = await postRecordOperationRequest(body);
     const replay = await postRecordOperationRequest(body);
-    const sync = await getJson<SyncResponse>(`/api/sync?after=${taskSeedRecords.length}`);
+    const sync = await getJson<SyncResponse>(`/api/sync?after=${taskTestRecords.length}`);
 
     expect(replay).toEqual(first);
     expect(sync.changes).toHaveLength(2);
   });
 
   it("tombstones completed records through clearCompletedTasks", async () => {
-    const seedCompleted = getSeedCompletedTask();
+    const completedTestTask = getCompletedTestTask();
     const completed = await postCreateOperation("write-1", { title: "Done", done: true });
     const active = await postCreateOperation("write-2", { title: "Open", done: false });
 
     const command = await postCommandOperation("command-1", "clearCompletedTasks");
     const bootstrap = await getJson<BootstrapResponse>("/api/bootstrap");
-    const sync = await getJson<SyncResponse>(`/api/sync?after=${taskSeedRecords.length + 2}`);
+    const sync = await getJson<SyncResponse>(`/api/sync?after=${taskTestRecords.length + 2}`);
 
     expect(command.writeIdentity).toBe(
       operationWriteId("task", "clearCompletedTasks", "command-1"),
     );
-    expect(command.cursor).toBe(taskSeedRecords.length + 4);
+    expect(command.cursor).toBe(taskTestRecords.length + 4);
     expect(command.changes).toHaveLength(2);
     expect(command.changes.map((change) => change.recordId).sort()).toEqual(
-      [seedCompleted.id, completed.record.id].sort(),
+      [completedTestTask.id, completed.record.id].sort(),
     );
     expect(command.changes.every((change) => change.writeId === command.writeIdentity)).toBe(true);
     expect(command.changes.every((change) => change.operationKind === "command")).toBe(true);
     expect(bootstrap.records).toContainEqual(
-      expect.objectContaining({ id: seedCompleted.id, deletedAt: expect.any(String) }),
+      expect.objectContaining({ id: completedTestTask.id, deletedAt: expect.any(String) }),
     );
     expect(bootstrap.records).toContainEqual(
       expect.objectContaining({ id: completed.record.id, deletedAt: expect.any(String) }),
@@ -1983,11 +1885,11 @@ function operationWriteId(entity: string, operation: string, idempotencyKey: str
   return `operation:${entity}.${operation}:${idempotencyKey}`;
 }
 
-function getSeedCompletedTask() {
-  const completed = taskSeedRecords.find((record) => record.values.done === true);
+function getCompletedTestTask() {
+  const completed = taskTestRecords.find((record) => record.values.done === true);
 
   if (!completed) {
-    throw new Error("Task seed records must include a completed task.");
+    throw new Error("Task test records must include a completed task.");
   }
 
   return completed;
@@ -2001,9 +1903,9 @@ function storageSnapshot(overrides: Partial<StorageSnapshot> = {}): StorageSnaps
     schemaKey: "tasks",
     exportedAt: "2026-04-28T00:00:00.000Z",
     schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-    sourceCursor: taskSeedRecords.length,
+    sourceCursor: taskTestRecords.length,
     schema: appSchema,
-    records: taskSeedRecords,
+    records: taskTestRecords,
     ...overrides,
   };
 }
@@ -2012,15 +1914,15 @@ function siteStorageSnapshot(overrides: Partial<StorageSnapshot> = {}): StorageS
   return storageSnapshot({
     storageIdentity: "site",
     schemaKey: "site",
-    sourceCursor: testSiteSeedRecords.length,
+    sourceCursor: testSiteRecords.length,
     schema: siteSourceSchema,
-    records: testSiteSeedRecords,
+    records: testSiteRecords,
     ...overrides,
   });
 }
 
 function siteRecordsWithHomeLabel(label: string): StoredRecord[] {
-  return testSiteSeedRecords.map((record) =>
+  return testSiteRecords.map((record) =>
     record.id === "rec_site_content_home"
       ? {
           ...record,
@@ -2600,7 +2502,11 @@ async function postInstalledAppCommandOperation(
 }
 
 async function resetInstalledApp(packageAppKey: string, installId: string) {
-  await postInstalledAppJson<BootstrapResponse>(packageAppKey, installId, "/reset/seed", {});
+  await restoreTestStorageSnapshot(
+    harness,
+    installedAppApiPath(packageAppKey, installId, "/snapshot/restore"),
+    schemaAppTestStorageSnapshot(packageAppKey as SchemaKey, `app:${installId}`),
+  );
 }
 
 function installedAppApiPath(packageAppKey: string, installId: string, path: string) {
@@ -2887,11 +2793,6 @@ function privatePublicSitePackageManifest(sourceSchemaHash: SourceSchemaHash): A
       kind: "workspace",
       key: "private-site",
       path: "packages/private-site/schema.json",
-    },
-    seedRecords: {
-      kind: "workspace",
-      key: "private-site",
-      path: "packages/private-site/seed-records.json",
     },
     sourceSchemaHash,
     capabilities: [

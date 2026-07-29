@@ -167,7 +167,6 @@ export function runtimeWorkspaceAppPackagesEnvValue(
   return formatRuntimeWorkspaceAppPackages(
     activePackages.linkedPackages.map((appPackage) => ({
       manifest: appPackage.manifest,
-      seedRecords: appPackage.seedRecords,
       sourceSchema: appPackage.sourceSchema,
     })),
   );

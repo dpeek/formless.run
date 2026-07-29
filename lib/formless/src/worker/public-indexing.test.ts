@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
-import { recordOperationRequest } from "../test/authority-write.ts";
+import {
+  recordOperationRequest,
+  restoreTestStorageSnapshot,
+  schemaAppTestStorageSnapshot,
+} from "../test/authority-write.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import { PUBLIC_SITE_INDEXING_CACHE_CONTROL } from "@dpeek/formless-site-app/worker";
 
@@ -166,16 +170,12 @@ Sitemap: http://example.com/sitemap.xml
 });
 
 async function resetInstalledApp(packageAppKey: string, installId: string) {
-  const response = await harness.fetch(
-    `/api/app-installs/${packageAppKey}/${installId}/reset/seed`,
-    {
-      body: "{}",
-      headers: adminHeaders(),
-      method: "POST",
-    },
+  await restoreTestStorageSnapshot(
+    harness,
+    `/api/app-installs/${packageAppKey}/${installId}/snapshot/restore`,
+    schemaAppTestStorageSnapshot("site", `app:${installId}`),
+    adminHeaders(),
   );
-
-  expect(response.status).toBe(200);
 }
 
 async function postAdminRecordOperation(body: Parameters<typeof recordOperationRequest>[0]) {

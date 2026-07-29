@@ -152,7 +152,6 @@ export async function customOnboardingWorkspacePackageFixture() {
       sourceSchemaHash,
       supportsMultipleInstalls: true,
     }),
-    seedRecords: [],
     sourceSchema: customOnboardingSourceSchema,
   };
 }

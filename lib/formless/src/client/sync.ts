@@ -4,7 +4,6 @@ import { packageAppFactsForKey, type AppPackageResolver } from "@dpeek/formless-
 import { bundledAppPackageResolver } from "../shared/app-packages.ts";
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
 import {
-  deleteClientDb,
   deleteFormlessReplicaDatabases,
   mergeChanges,
   readCursor,
@@ -287,35 +286,6 @@ export async function resetSourceSchema(
   notifyLocalDataChanged(identity, { schemaChanged: true });
   await enqueueLocalWorkspaceAutoSave(
     { source: "reset-schema", storageIdentity: identity.authorityName },
-    options,
-  );
-
-  return response;
-}
-
-export async function resetSeedData(
-  target: ClientAppTarget,
-  fetcher: typeof fetch = fetch,
-  options: BrowserWriteOptions = {},
-) {
-  const identity = appStorageIdentityForClientTarget(target);
-  const response = await postJson<BootstrapResponse>(
-    fetcher,
-    apiPath(identity, "reset/seed"),
-    {},
-    {
-      activePackageResolver: options.activePackageResolver,
-      writeCompatibilityTarget: identity,
-    },
-  );
-
-  resetClientStore();
-  await deleteClientDb(identity);
-  await saveBootstrapResponse(identity, response);
-  applyBootstrapResponse(response, identity);
-  notifyLocalDataChanged(identity, { schemaChanged: true });
-  await enqueueLocalWorkspaceAutoSave(
-    { source: "reset-seed", storageIdentity: identity.authorityName },
     options,
   );
 

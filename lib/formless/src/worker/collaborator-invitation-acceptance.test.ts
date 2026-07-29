@@ -22,6 +22,7 @@ import {
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import type { BootstrapResponse } from "../shared/protocol.ts";
 import { recordOperationRequest } from "../test/authority-write.ts";
+import { resetTestIdentityStorage } from "../test/identity-owner.ts";
 import {
   customOnboardingPackageAppKey,
   customOnboardingProfileCompletionOperation,
@@ -2104,13 +2105,7 @@ function operationRecord(response: OperationInvocationResponse): StoredRecord {
 }
 
 async function resetIdentityStorage() {
-  const response = await harness.fetch(`${identityApi}/reset/seed`, {
-    body: "{}",
-    headers: adminHeaders({ "Content-Type": "application/json" }),
-    method: "POST",
-  });
-
-  expect(response.status).toBe(200);
+  await resetTestIdentityStorage(harness, adminToken);
 }
 
 function adminHeaders(headers: Record<string, string> = {}) {

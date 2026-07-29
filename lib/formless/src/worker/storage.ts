@@ -269,16 +269,8 @@ export type StoredOperationInvocation = {
   completedAt?: string;
 };
 
-export type StorageResetSeed = {
-  schema: AppSchema;
-  records?: StoredRecord[];
-  changeWritePrefix?: string;
-};
-
 export type StorageSource = {
   schema: AppSchema;
-  records: StoredRecord[];
-  changeWritePrefix: string;
   schemaKey?: string;
   schemaProvenance?: StorageSchemaProvenance;
   storageIdentity?: string;
@@ -370,13 +362,6 @@ export type ApplyPackageAppMigrationsResponse = {
   schemaUpdatedAt: string;
   skipped: AppliedPackageAppMigration[];
   sourceSchemaHash: SourceSchemaHash;
-};
-
-type SourceDataPlan = {
-  schema: AppSchema;
-  schemaProvenance?: StorageSchemaProvenance;
-  records: StoredRecord[];
-  changeWritePrefix: string;
 };
 
 type SourceSchemaResetPlan = {
@@ -651,7 +636,7 @@ export function initializeStorageFromSource(
       return refreshActiveSchemaFromSource(storage, existing, source);
     }
 
-    return writeSourceData(storage, source);
+    return writeSourceSchema(storage, source);
   });
 }
 
@@ -857,7 +842,7 @@ export function resetStorageSchemaToSourceOutcome(
     const current = readStoredSchema(storage);
 
     if (!current) {
-      return committedWrite(writeSourceData(storage, source));
+      return committedWrite(writeSourceSchema(storage, source));
     }
 
     const records = getBootstrapRecords(storage);
@@ -873,39 +858,109 @@ export function resetStorageSchemaToSourceOutcome(
   });
 }
 
-export function resetStorageToSourceSeed(
-  storage: DurableObjectStorage,
-  source: StorageSource,
-): StoredSchema {
-  return writeOutcomeResponse(resetStorageToSourceSeedOutcome(storage, source));
-}
-
-export function resetStorageToSourceSeedOutcome(
-  storage: DurableObjectStorage,
-  source: StorageSource,
-): WriteOutcome<StoredSchema> {
-  return storage.transactionSync(() => {
-    const plan = planSourceDataWrite(source);
-    clearStorageForSourceSeedReset(storage);
-
-    return committedWrite(writePlannedSourceData(storage, plan));
-  });
-}
-
-export function resetStorage(storage: DurableObjectStorage, seed: StorageResetSeed): StoredSchema {
-  return resetStorageToSourceSeed(storage, {
-    schema: seed.schema,
-    records: seed.records ?? [],
-    changeWritePrefix: seed.changeWritePrefix ?? "seed",
-  });
-}
-
 export function resetStorageToEmpty(storage: DurableObjectStorage) {
   ensureStorageTables(storage);
   storage.transactionSync(() => {
-    clearStorageForSourceSeedReset(storage);
+    clearStorageForReplacement(storage);
     storage.sql.exec(`DELETE FROM ${appliedPackageAppMigrationsTableName}`);
     storage.sql.exec(`DELETE FROM ${packageAppStateTableName}`);
+  });
+}
+
+export function reconcileRuntimeInvariantRecords(
+  storage: DurableObjectStorage,
+  requiredRecords: readonly StoredRecord[],
+  input: {
+    validate: (records: StoredRecord[]) => void;
+    writeIdPrefix: string;
+  },
+): StoredRecord[] {
+  return storage.transactionSync(() => {
+    const records = getBootstrapRecords(storage);
+    const recordsById = new Map(records.map((record) => [record.id, record]));
+    const requiredIds = new Set<string>();
+    const changedAt = nowIsoString();
+    const changedRecords: StoredRecord[] = [];
+
+    for (const required of requiredRecords) {
+      if (requiredIds.has(required.id)) {
+        throw new Error(`Runtime invariant records include duplicate id "${required.id}".`);
+      }
+      requiredIds.add(required.id);
+
+      const existing = recordsById.get(required.id);
+      if (existing && existing.entity !== required.entity) {
+        throw new Error(
+          `Runtime invariant record "${required.id}" belongs to entity "${existing.entity}", expected "${required.entity}".`,
+        );
+      }
+
+      if (existing && !existing.deletedAt && recordValuesEqual(existing.values, required.values)) {
+        continue;
+      }
+
+      changedRecords.push(
+        existing
+          ? {
+              ...existing,
+              values: required.values,
+              updatedAt: changedAt,
+              deletedAt: undefined,
+            }
+          : required,
+      );
+    }
+
+    if (changedRecords.length === 0) {
+      return [];
+    }
+
+    const changedById = new Map(changedRecords.map((record) => [record.id, record]));
+    input.validate([
+      ...records.filter((record) => !changedById.has(record.id)).map((record) => ({ ...record })),
+      ...changedRecords,
+    ]);
+
+    for (const record of changedRecords) {
+      const existing = recordsById.get(record.id);
+
+      if (existing) {
+        storage.sql.exec(
+          `
+            UPDATE records
+            SET values_json = ?,
+                updated_at = ?,
+                deleted_at = NULL
+            WHERE id = ?
+          `,
+          JSON.stringify(record.values),
+          record.updatedAt,
+          record.id,
+        );
+      } else {
+        storage.sql.exec(
+          `
+            INSERT INTO records (id, entity, values_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+          `,
+          record.id,
+          record.entity,
+          JSON.stringify(record.values),
+          record.createdAt,
+          record.updatedAt,
+        );
+      }
+
+      appendWriteLogChange(storage, {
+        writeId: `${input.writeIdPrefix}:${changedAt}:${record.id}`,
+        operationKind: existing ? "update" : "create",
+        entity: record.entity,
+        record,
+        createdAt: record.updatedAt,
+      });
+    }
+
+    return changedRecords;
   });
 }
 
@@ -1136,7 +1191,7 @@ export function applyPackageAppMigrationsOutcome(
   });
 }
 
-function clearStorageForSourceSeedReset(storage: DurableObjectStorage) {
+function clearStorageForReplacement(storage: DurableObjectStorage) {
   storage.sql.exec("DELETE FROM changes");
   storage.sql.exec("DELETE FROM records");
   storage.sql.exec("DELETE FROM command_executions");
@@ -1150,31 +1205,8 @@ function clearPackageAppMigrationState(storage: DurableObjectStorage) {
   storage.sql.exec(`DELETE FROM ${packageAppStateTableName}`);
 }
 
-function writeSourceData(storage: DurableObjectStorage, source: StorageSource): StoredSchema {
-  return writePlannedSourceData(storage, planSourceDataWrite(source));
-}
-
-function planSourceDataWrite(source: StorageSource): SourceDataPlan {
-  return {
-    schema: source.schema,
-    ...(source.schemaProvenance === undefined ? {} : { schemaProvenance: source.schemaProvenance }),
-    records: source.records,
-    changeWritePrefix: source.changeWritePrefix,
-  };
-}
-
-function writePlannedSourceData(storage: DurableObjectStorage, plan: SourceDataPlan): StoredSchema {
-  const storedSchema = writeActiveSchemaAt(
-    storage,
-    plan.schema,
-    nowIsoString(),
-    plan.schemaProvenance,
-  );
-
-  materializeSourceRecords(storage, plan.records);
-  appendSourceRecordChanges(storage, plan);
-
-  return storedSchema;
+function writeSourceSchema(storage: DurableObjectStorage, source: StorageSource): StoredSchema {
+  return writeActiveSchemaAt(storage, source.schema, nowIsoString(), source.schemaProvenance);
 }
 
 function planSourceSchemaReset(
@@ -1243,39 +1275,6 @@ function pruneRecordValuesToEntity(values: RecordValues, entity: EntitySchema): 
   }
 
   return pruned;
-}
-
-function materializeSourceRecords(storage: DurableObjectStorage, records: StoredRecord[]) {
-  for (const record of records) {
-    materializeSourceRecord(storage, record);
-  }
-}
-
-function materializeSourceRecord(storage: DurableObjectStorage, record: StoredRecord) {
-  storage.sql.exec(
-    `
-      INSERT INTO records (id, entity, values_json, created_at, updated_at, deleted_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `,
-    record.id,
-    record.entity,
-    JSON.stringify(record.values),
-    record.createdAt,
-    record.updatedAt,
-    record.deletedAt ?? null,
-  );
-}
-
-function appendSourceRecordChanges(storage: DurableObjectStorage, plan: SourceDataPlan) {
-  for (const record of plan.records) {
-    appendWriteLogChange(storage, {
-      writeId: `${plan.changeWritePrefix}:${record.id}`,
-      operationKind: "create",
-      entity: record.entity,
-      record,
-      createdAt: record.createdAt,
-    });
-  }
 }
 
 function planSnapshotRestore(

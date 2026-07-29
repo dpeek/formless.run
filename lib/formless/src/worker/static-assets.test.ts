@@ -1,7 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { DEFAULT_SITE_ICON_SVG, resolveSiteIconSvgSource } from "@dpeek/formless-site-app";
-import { recordOperationRequest } from "../test/authority-write.ts";
+import {
+  recordOperationRequest,
+  restoreTestStorageSnapshot,
+  schemaAppTestStorageSnapshot,
+} from "../test/authority-write.ts";
+import { testSiteRecords } from "../test/site-records.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import { PUBLIC_SITE_ICON_CACHE_CONTROL } from "@dpeek/formless-site-app/worker";
 
@@ -38,7 +43,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   assetRequests = [];
-  await resetSiteSeed();
+  await restoreSiteState();
 });
 
 afterAll(async () => {
@@ -54,7 +59,7 @@ describe("published Site launch assets", () => {
     expect(svg.contentType).toBe("image/svg+xml; charset=utf-8");
     expect(svg.cacheControl).toBe(PUBLIC_SITE_ICON_CACHE_CONTROL);
     expect(svg.etag).toMatch(/^"site-icon:favicon-svg:/);
-    expect(svg.bytesAsText()).toBe(resolveSiteIconSvgSource(DEFAULT_SITE_ICON_SVG));
+    expect(svg.bytesAsText()).toBe(resolveSiteIconSvgSource(testSiteIconSource()));
     expect(ico.contentType).not.toContain("text/html");
     expect(ico.cacheControl).toBe(PUBLIC_SITE_ICON_CACHE_CONTROL);
     expect(ico.etag).toMatch(/^"site-icon:favicon-ico:/);
@@ -145,17 +150,23 @@ async function assetBytes(path: string) {
   };
 }
 
-async function resetSiteSeed() {
-  const response = await harness.fetch(
-    `/api/app-installs/${publishedPackageAppKey}/${publishedInstallId}/reset/seed`,
-    {
-      body: "{}",
-      headers: adminHeaders(),
-      method: "POST",
-    },
+async function restoreSiteState() {
+  await restoreTestStorageSnapshot(
+    harness,
+    `/api/app-installs/${publishedPackageAppKey}/${publishedInstallId}/snapshot/restore`,
+    schemaAppTestStorageSnapshot("site", `app:${publishedInstallId}`),
+    adminHeaders(),
   );
+}
 
-  expect(response.status).toBe(200);
+function testSiteIconSource(): string {
+  const icon = testSiteRecords.find((record) => record.entity === "site")?.values.icon;
+
+  if (typeof icon !== "string") {
+    throw new Error("Site test records must include an SVG icon.");
+  }
+
+  return icon;
 }
 
 async function patchSiteIcon(idempotencyKey: string, icon: string) {

@@ -6,7 +6,6 @@ export type SchemaAppDefinition = {
   key: SchemaKey;
   label: string;
   route: `/${string}`;
-  seedChangeWritePrefix: string;
 };
 
 export const schemaAppDefinitions = {
@@ -14,19 +13,16 @@ export const schemaAppDefinitions = {
     key: "tasks",
     label: "Tasks",
     route: "/tasks",
-    seedChangeWritePrefix: "seed-task",
   },
   site: {
     key: "site",
     label: "Site",
     route: "/site",
-    seedChangeWritePrefix: "seed-site",
   },
   crm: {
     key: "crm",
     label: "CRM",
     route: "/crm",
-    seedChangeWritePrefix: "seed-crm",
   },
 } as const satisfies Record<SchemaKey, SchemaAppDefinition>;
 

@@ -87,7 +87,6 @@ describe("Formless instance target client", () => {
                 packageAppKey: "site",
                 packageRevision: 1,
                 publicRouteBase: "/sites",
-                seedRecordsKey: "site",
                 sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
                 sourceSchemaKey: "site",
                 supportsMultipleInstalls: true,
@@ -407,11 +406,6 @@ function privatePackageManifest(): Record<string, unknown> {
       kind: "workspace",
       key: "private-labs",
       path: "packages/private-labs/schema.json",
-    },
-    seedRecords: {
-      kind: "workspace",
-      key: "private-labs",
-      path: "packages/private-labs/seed-records.json",
     },
     sourceSchemaHash: privateSourceSchemaHash,
     capabilities: [

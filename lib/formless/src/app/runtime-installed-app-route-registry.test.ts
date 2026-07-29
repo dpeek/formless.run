@@ -64,12 +64,6 @@ function privateSitePackage(): InstallableAppPackage {
     packageAppKey: "private-site",
     packageRevision: 7,
     publicRouteBase: "/sites",
-    seedRecordsKey: "private-site",
-    seedRecordsLocation: {
-      kind: "workspace",
-      key: "private-site",
-      path: "source/seed-records.json",
-    },
     sourceOrigin: "workspace",
     sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
     sourceSchemaKey: "private-site",

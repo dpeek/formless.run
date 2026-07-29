@@ -3,42 +3,40 @@
 ## Purpose
 
 The Tasks app defines the bundled task tracking source app used for task
-records, generated task admin workflows, and starter records. It is an in-repo
-app package, not root runtime source data.
+records and generated task admin workflows. It is an in-repo app package, not
+root runtime source data.
 
 ## Requirements
 
 ### Requirement: Tasks App Package Source
 
 The system SHALL provide Tasks as a bundled in-repo app package that owns its
-manifest, source schema, and source seed records.
+manifest and source schema.
 
 #### Scenario: Tasks package scaffold
 
 - **GIVEN** the bundled Tasks app package is present
 - **WHEN** package source files are inspected
 - **THEN** Tasks source data lives under `lib/tasks-app/`
-- **AND** the package contains `formless.app.json`, `schema.json`,
-  `seed-records.json`, package-local `AGENTS.md`, `package.json`,
-  `tsconfig.json`, and root `src/` exports
-- **AND** root runtime does not keep duplicate Tasks source schema or seed
-  records under `schema/apps/tasks`
+- **AND** the package contains `formless.app.json`, `schema.json`, package-local
+  `AGENTS.md`, `package.json`, `tsconfig.json`, and root `src/` exports
+- **AND** root runtime does not keep a duplicate Tasks source schema under
+  `schema/apps/tasks`
 
 #### Scenario: Tasks package manifest
 
 - **GIVEN** bundled app package manifests are composed
 - **WHEN** the Tasks package manifest is parsed
 - **THEN** it declares package app key `tasks`, label `Tasks`, default install
-  id `tasks`, bundled source schema key `tasks`, bundled seed records key
-  `tasks`, and generated admin capability
+  id `tasks`, bundled source schema key `tasks`, and generated admin capability
 - **AND** it does not declare public Site capability
 - **AND** package metadata comes from the Tasks package manifest rather than
   synthetic root runtime metadata
 
 ### Requirement: Tasks Source App
 
-The system SHALL provide a bundled `tasks` source app schema and source seed
-record set for task tracking workflows.
+The system SHALL provide a bundled `tasks` source app schema for task tracking
+workflows.
 
 #### Scenario: Load Tasks source schema
 
@@ -47,14 +45,6 @@ record set for task tracking workflows.
 - **THEN** the app schema is available for schema key `tasks`
 - **AND** the schema parses through the normal app schema parser
 - **AND** the generated workspace screen label is `Tasks`
-
-#### Scenario: Validate Tasks source records
-
-- **GIVEN** Tasks source seed records exist
-- **WHEN** the worker loads the bundled Tasks app package source
-- **THEN** the seed records validate as stored-record shaped data against the
-  `tasks` schema
-- **AND** each seed record uses entity `task` and flat field values
 
 ### Requirement: Flat Tasks Data Model
 

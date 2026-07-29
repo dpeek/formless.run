@@ -14,7 +14,7 @@ function requiredIconCatalogSvg(key: string): string {
   return source;
 }
 
-export const testSiteSeedRecords: StoredRecord[] = [
+export const testSiteRecords: StoredRecord[] = [
   {
     id: "rec_site_settings_primary",
     entity: "site",

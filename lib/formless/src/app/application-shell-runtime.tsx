@@ -18,7 +18,6 @@ import {
 } from "../client/app-target.ts";
 import { getClientStoreSnapshot, subscribeToClientStore } from "../client/store.ts";
 import { useSyncStatus } from "../client/sync-status.ts";
-import { resetSeedData } from "../client/sync.ts";
 import { selectGeneratedRootNavigationFacts } from "../client/generated-authoring.ts";
 import { selectPrimaryScreenModels, type HomeScreenModel } from "../client/views.ts";
 import { todayDateString } from "../shared/date.ts";
@@ -26,7 +25,6 @@ import type {
   AccountLogoutResponse,
   AccountSessionStatusResponse,
 } from "../shared/instance-auth.ts";
-import type { BootstrapResponse } from "../shared/protocol.ts";
 import type { RecordValues } from "@dpeek/formless-storage";
 import {
   projectInitialGeneratedCreateRuntimeSurface,
@@ -46,7 +44,6 @@ import {
   generatedShellRootSectionId,
   projectGeneratedApplicationShell,
   selectGeneratedShellScope,
-  type GeneratedShellResetState,
 } from "./generated/application-shell-projection.ts";
 import { ApplicationPresentation } from "./application-presentation.tsx";
 import type { ApplicationRootThemeRuntime } from "./application-root-context.tsx";
@@ -74,10 +71,6 @@ export type ApplicationShellRuntimeDependencies = {
   fetchAccountSession?: () => Promise<AccountSessionStatusResponse>;
   logout?: () => Promise<AccountLogoutResponse>;
   navigate?: (path: `/${string}`) => void;
-  reset?: (
-    target: ClientAppTarget,
-    activePackageResolver: AppPackageResolver | undefined,
-  ) => Promise<BootstrapResponse>;
   submitCreate?: (surfaceId: string, values: RecordValues) => Promise<{ recordId: string }>;
 };
 
@@ -222,10 +215,6 @@ function ApplicationShellRuntime({
     accountSessionProp,
   );
   const [logoutState, setLogoutState] = useState<"error" | "idle" | "pending">("idle");
-  const [resetState, setResetState] = useState<GeneratedShellResetState>({
-    open: false,
-    status: { state: "idle" },
-  });
   const scope = selectGeneratedShellScope({
     currentPath,
     routeContext: {
@@ -242,7 +231,6 @@ function ApplicationShellRuntime({
     installs: installedAppRouteInstalls,
     logoutState,
     accountSession,
-    resetState: routeWorld ? resetState : undefined,
     root:
       rootFacts === undefined
         ? undefined
@@ -314,14 +302,6 @@ function ApplicationShellRuntime({
           return;
         case "create":
           return registeredCreateRuntimes[resolved.intent.sectionId]?.dispatch(resolved.intent);
-        case "reset":
-          if (resolved.intent.intent.type === "resetOpenChange") {
-            const open = resolved.intent.intent.open;
-            setResetState((current) => ({ ...current, open }));
-            return;
-          }
-
-          return await executeReset();
         case "logout":
           return await executeLogout();
       }
@@ -332,9 +312,7 @@ function ApplicationShellRuntime({
       logoutState,
       accountSession,
       registeredCreateRuntimes,
-      resetState,
       rootFacts,
-      routeTarget,
       selectionStore,
     ],
   );
@@ -389,35 +367,6 @@ function ApplicationShellRuntime({
       stopped = true;
     };
   }, [dependencies.fetchAccountSession, accountSessionProp, scope]);
-
-  useEffect(() => {
-    setResetState({ open: false, status: { state: "idle" } });
-  }, [routeIdentity?.authorityName]);
-
-  async function executeReset() {
-    if (!routeTarget || resetState.status.state === "pending") {
-      return;
-    }
-
-    setResetState({ open: false, status: { state: "pending" } });
-
-    try {
-      const reset =
-        dependencies.reset ??
-        ((target: ClientAppTarget, resolver: AppPackageResolver | undefined) =>
-          resetSeedData(target, undefined, { activePackageResolver: resolver }));
-      const response = await reset(routeTarget, activePackageResolver);
-      setResetState({
-        open: false,
-        status: {
-          message: `Source schema and seed data reset at ${response.schemaUpdatedAt}.`,
-          state: "success",
-        },
-      });
-    } catch {
-      setResetState({ open: false, status: { state: "error" } });
-    }
-  }
 
   async function executeLogout() {
     if (logoutState === "pending" || accountSession?.authenticated !== true) {

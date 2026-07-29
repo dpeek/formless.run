@@ -26,7 +26,8 @@ import type {
   OperationInvocationResponse,
 } from "../shared/operation-invocation.ts";
 import { computeSourceSchemaHash, type SourceSchemaHash } from "../shared/upgrade-migrations.ts";
-import { siteSeedRecords, siteSourceSchema } from "../test/schema-apps.ts";
+import { siteSourceSchema } from "../test/schema-apps.ts";
+import { testSiteRecords } from "../test/site-records.ts";
 import { ensureTestIdentityOwner, resetTestIdentityStorage } from "../test/identity-owner.ts";
 import {
   appPackageManifestKind,
@@ -37,7 +38,13 @@ import {
   FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
   formatRuntimeWorkspaceAppPackages,
 } from "../shared/workspace-runtime-packages.ts";
-import { recordOperationRequest, operationWriteRequest } from "../test/authority-write.ts";
+import {
+  instanceControlPlaneTestStorageSnapshot,
+  recordOperationRequest,
+  operationWriteRequest,
+  restoreTestStorageSnapshot,
+  schemaAppTestStorageSnapshot,
+} from "../test/authority-write.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import { INTERNAL_READ_OPERATION_INVOCATIONS_PATH } from "./instance-control-plane.ts";
 import { createOwnerSessionCookie } from "./owner-session.ts";
@@ -398,7 +405,7 @@ describe("instance control-plane API routes", () => {
       "replayed",
     ]);
     expect(installedSite.body.schema).toEqual(siteSourceSchema);
-    expect(installedSite.body.records).toEqual(siteSeedRecords);
+    expect(installedSite.body.records).toEqual(testSiteRecords);
     expect(controlPlane.body.records).toHaveLength(3);
     expect(appInstallValues(controlPlane.body, "personal")).toMatchObject({
       installId: "personal",
@@ -642,7 +649,6 @@ describe("instance control-plane API routes", () => {
             {
               manifest: privatePublicSitePackageManifest(sourceSchemaHash),
               sourceSchema: siteSourceSchema,
-              seedRecords: siteSeedRecords,
             },
           ]),
         },
@@ -1210,20 +1216,25 @@ async function resetWorkerState() {
 async function resetKnownState() {
   await resetTestIdentityStorage(harness, adminToken);
   await Promise.all([
-    postReset(`${controlPlaneApi}/reset/seed`),
-    postReset("/api/app-installs/site/personal/reset/seed"),
-    postReset("/api/app-installs/site/work/reset/seed"),
+    restoreTestStorageSnapshot(
+      harness,
+      `${controlPlaneApi}/snapshot/restore`,
+      instanceControlPlaneTestStorageSnapshot(),
+      adminHeaders(),
+    ),
+    restoreTestStorageSnapshot(
+      harness,
+      "/api/app-installs/site/personal/snapshot/restore",
+      schemaAppTestStorageSnapshot("site", "app:personal"),
+      adminHeaders(),
+    ),
+    restoreTestStorageSnapshot(
+      harness,
+      "/api/app-installs/site/work/snapshot/restore",
+      schemaAppTestStorageSnapshot("site", "app:work"),
+      adminHeaders(),
+    ),
   ]);
-}
-
-async function postReset(path: string) {
-  const response = await harness.fetch(path, {
-    body: "{}",
-    headers: adminHeaders({ "Content-Type": "application/json" }),
-    method: "POST",
-  });
-
-  expect(response.status).toBe(200);
 }
 
 async function readControlPlaneOperationInvocations(): Promise<StoredOperationInvocation[]> {
@@ -1425,11 +1436,6 @@ function privatePublicSitePackageManifest(sourceSchemaHash: SourceSchemaHash): A
       kind: "workspace",
       key: "private-site",
       path: "packages/private-site/schema.json",
-    },
-    seedRecords: {
-      kind: "workspace",
-      key: "private-site",
-      path: "packages/private-site/seed-records.json",
     },
     sourceSchemaHash,
     capabilities: [

@@ -15,10 +15,8 @@ import {
   FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
   parseRuntimeWorkspaceAppPackagesJson,
 } from "../shared/workspace-runtime-packages.ts";
-import type { StoredRecord } from "@dpeek/formless-storage";
 import {
   findWorkerSchemaAppDefinition,
-  parseWorkerSeedRecords,
   workerSchemaAppDefinitions,
   type WorkerSchemaAppDefinition,
 } from "./schema-apps.ts";
@@ -108,10 +106,6 @@ function activeRuntimeAppPackages(env?: ActiveRuntimeAppPackageEnv): ActiveRunti
     const definition = workerSchemaAppDefinitionFromPackageSource(appPackage, source);
 
     schemaDefinitions.set(appPackage.sourceSchemaKey, definition);
-    schemaDefinitions.set(appPackage.seedRecordsKey, {
-      ...definition,
-      key: appPackage.seedRecordsKey,
-    });
     sourceSchemas.set(appPackage.sourceSchemaKey, source.sourceSchema);
   }
 
@@ -160,26 +154,18 @@ function bundledRuntimeAppPackages(): ActiveRuntimeAppPackages {
 function parseRuntimeWorkspaceAppPackageSource(
   source: {
     manifest: unknown;
-    seedRecords: unknown[];
     sourceSchema: unknown;
   },
   context: string,
 ): {
   manifest: AppPackageManifest;
-  seedRecords: StoredRecord[];
   sourceSchema: AppSchema;
 } {
   const manifest = parseAppPackageManifest(source.manifest, `${context} manifest`);
   const sourceSchema = parseAppSchema(source.sourceSchema);
-  const seedRecords = parseWorkerSeedRecords(
-    source.seedRecords,
-    sourceSchema,
-    `${context} seedRecords`,
-  );
 
   return {
     manifest,
-    seedRecords,
     sourceSchema,
   };
 }
@@ -187,7 +173,6 @@ function parseRuntimeWorkspaceAppPackageSource(
 function workerSchemaAppDefinitionFromPackageSource(
   appPackage: ResolvedAppPackage,
   source: {
-    seedRecords: StoredRecord[];
     sourceSchema: AppSchema;
   },
 ): WorkerSchemaAppDefinition {
@@ -197,8 +182,6 @@ function workerSchemaAppDefinitionFromPackageSource(
     key: appPackage.sourceSchemaKey,
     label: appPackage.label,
     route,
-    seedChangeWritePrefix: `seed-${appPackage.sourceSchemaKey}`,
     sourceSchema: source.sourceSchema,
-    seedRecords: source.seedRecords,
   };
 }

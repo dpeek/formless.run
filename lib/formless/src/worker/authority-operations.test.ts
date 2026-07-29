@@ -2666,7 +2666,7 @@ describe("authority operation execution", () => {
     const taskEntity = schema.entities.find((definition) => definition.key === "task")!;
     const firstTask = bootstrap.body.result.body.records.find((record) => record.entity === "task");
     if (!taskEntity || !firstTask) {
-      throw new Error("Expected tasks seed records.");
+      throw new Error("Expected task test records.");
     }
     setKeyedDefinition(schema.entities, "task", {
       ...taskEntity,
@@ -4128,10 +4128,13 @@ async function writeAuthorityOperationHarness() {
       } from "${process.cwd()}/src/worker/operation-invocation-envelopes.ts";
       import { executePublicOperationInvocationLifecycle } from "${process.cwd()}/src/worker/operation-invocation-lifecycle.ts";
       import { workerSchemaAppDefinitions } from "${process.cwd()}/src/worker/schema-apps.ts";
+      import { schemaAppTestRecords } from "${process.cwd()}/src/test/schema-app-records.ts";
       import {
         ensureStorageTables,
         initializeStorageFromSource,
+        readCurrentStoredSchema,
         readOperationInvocations,
+        restoreStorageSnapshot,
       } from "${process.cwd()}/src/worker/storage.ts";
 
       export class AuthorityOperationHarness extends DurableObject {
@@ -4161,11 +4164,30 @@ async function writeAuthorityOperationHarness() {
           }
 
           const identity = input.identity ?? schemaKeyStorageIdentity(appKey);
+          const records = schemaAppTestRecords(appKey);
           const source = {
             schema: app.sourceSchema,
-            records: app.seedRecords,
-            changeWritePrefix: app.seedChangeWritePrefix,
-	          };
+          };
+          if (!readCurrentStoredSchema(this.ctx.storage)) {
+            initializeStorageFromSource(this.ctx.storage, source);
+            if (records.length > 0) {
+              restoreStorageSnapshot(
+                this.ctx.storage,
+                {
+                  kind: "formless.storage-snapshot",
+                  version: 1,
+                  storageIdentity: identity.authorityName,
+                  schemaKey: app.key,
+                  exportedAt: "2026-07-29T00:00:00.000Z",
+                  schemaUpdatedAt: "2026-07-29T00:00:00.000Z",
+                  sourceCursor: records.length,
+                  schema: app.sourceSchema,
+                  records,
+                },
+                source,
+              );
+            }
+          }
 	          const writes = [];
 	          const storage = this.ctx.storage;
 	          let beforeWriteApplied = false;

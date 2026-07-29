@@ -72,12 +72,6 @@ function privateSitePackage(): InstallableAppPackage {
     packageAppKey: "private-site",
     packageRevision: 7,
     publicRouteBase: "/sites",
-    seedRecordsKey: "private-site",
-    seedRecordsLocation: {
-      kind: "workspace",
-      key: "private-site",
-      path: "source/seed-records.json",
-    },
     sourceOrigin: "workspace",
     sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
     sourceSchemaKey: "private-site",
@@ -308,7 +302,6 @@ describe("runtime profile resolver", () => {
     expect(world.target.installId).toBe("private-site");
     expect(world.target.packageAppKey).toBe("private-site");
     expect(world.target.sourceSchemaKey).toBe("private-site");
-    expect(world.target.seedRecordsKey).toBe("private-site");
     expect(world.target.apiRoutePrefix).toBe("/api/app-installs/private-site/private-site");
     expect(world.target.browserDatabaseName).toBe("formless:app:private-site");
     expect(runtimeScreenPathFromRoute(world, "/apps/private-site/dashboard")).toBe("/dashboard");

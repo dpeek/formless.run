@@ -40,7 +40,6 @@ export type SchemaKeyStorageIdentity = {
   kind: "schemaKey";
   packageAppKey: PackageAppKey;
   sourceSchemaKey: SchemaKey;
-  seedRecordsKey: SchemaKey;
   authorityName: SchemaKey;
   apiRoutePrefix: `/api/${SchemaKey}`;
   browserDatabaseName: string;
@@ -52,7 +51,6 @@ export type InstalledAppStorageIdentity = {
   installId: AppInstallId;
   packageAppKey: PackageAppKey;
   sourceSchemaKey: string;
-  seedRecordsKey: string;
   authorityName: `app:${AppInstallId}`;
   apiRoutePrefix: `/api/app-installs/${PackageAppKey}/${AppInstallId}`;
   browserDatabaseName: string;
@@ -76,7 +74,6 @@ export function schemaKeyStorageIdentity(schemaKey: SchemaKey): SchemaKeyStorage
     kind: "schemaKey",
     packageAppKey: app.key,
     sourceSchemaKey: app.key,
-    seedRecordsKey: app.key,
     authorityName: app.key,
     apiRoutePrefix: `/api/${app.key}`,
     browserDatabaseName: storageName,
@@ -107,7 +104,6 @@ export function installedAppStorageIdentity(
     installId: installId.installId,
     packageAppKey: packageApp.packageAppKey,
     sourceSchemaKey: packageApp.sourceSchemaKey,
-    seedRecordsKey: packageApp.seedRecordsKey,
     authorityName: `${installedAppAuthorityPrefix}:${installId.installId}`,
     apiRoutePrefix,
     browserDatabaseName: storageName,

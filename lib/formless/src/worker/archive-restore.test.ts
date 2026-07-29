@@ -50,11 +50,11 @@ describe("archive restore execution", () => {
     }
 
     expect(result.report.applied).toBe(false);
-    expect(result.report.steps.map((step) => step.kind)).toEqual(["install", "appData"]);
+    expect(result.report.steps.map((step) => step.kind)).toEqual(["appData", "install"]);
     expect(result.report.summary.createdInstalls).toEqual(["personal"]);
   });
 
-  it("applies registry, media, and app data steps in validated plan order", async () => {
+  it("restores new app state before activating its install routes", async () => {
     const archive = instanceArchive({
       restorePolicy: { dryRun: false, installCollisions: "reject" },
       apps: [
@@ -90,20 +90,20 @@ describe("archive restore execution", () => {
     }
 
     expect(events).toEqual([
-      "install:create:docs",
       "app-data:app:docs:docs:formless.storageSnapshot",
-      "install:create:personal",
+      "install:create:docs",
       "media:app:personal:media/images/hero.png",
       "app-data:app:personal:personal:formless.storageSnapshot",
+      "install:create:personal",
     ]);
     expect(result.report.applied).toBe(true);
     expect(result.report.summary.createdInstalls).toEqual(["docs", "personal"]);
     expect(result.report.steps.map((step) => step.kind)).toEqual([
-      "install",
       "appData",
       "install",
       "media",
       "appData",
+      "install",
     ]);
   });
 
@@ -121,9 +121,158 @@ describe("archive restore execution", () => {
 
     expect(result.ok).toBe(true);
     expect(events).toEqual([
-      "install:create:personal",
       "app-data:app:personal:personal:formless.storageSnapshot",
+      "install:create:personal",
       "control-plane:0",
+    ]);
+  });
+
+  it("does not activate a new install when media restore fails", async () => {
+    const activeInstalls = new Set<string>();
+    const events: string[] = [];
+    const result = await applyPortableArchiveRestore(
+      appArchive({
+        restorePolicy: { dryRun: false, installCollisions: "reject" },
+        data: {
+          ...storageSnapshot(),
+          records: [coreImageBlock("hero"), siteRecord("rec_site_settings_personal", "personal")],
+        },
+        media: { objects: [coreMediaObject("hero")] },
+      }),
+      memoryRestoreTarget({
+        activeInstalls,
+        events,
+        failAt: "media",
+        mediaFiles: [coreMediaFile("hero")],
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(events).toEqual(["media:app:personal:media/images/hero.png"]);
+    expect([...activeInstalls]).toEqual([]);
+
+    if (result.ok) {
+      throw new Error("Expected media restore to fail.");
+    }
+
+    expect(result.errors.map((error) => error.code)).toEqual(["media-restore-failed"]);
+  });
+
+  it("does not activate a new install when app data restore fails", async () => {
+    const activeInstalls = new Set<string>();
+    const events: string[] = [];
+    const result = await applyPortableArchiveRestore(
+      appArchive({
+        restorePolicy: { dryRun: false, installCollisions: "reject" },
+      }),
+      memoryRestoreTarget({
+        activeInstalls,
+        events,
+        failAt: "appData",
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(events).toEqual(["app-data:app:personal:personal:formless.storageSnapshot"]);
+    expect([...activeInstalls]).toEqual([]);
+
+    if (result.ok) {
+      throw new Error("Expected app data restore to fail.");
+    }
+
+    expect(result.errors.map((error) => error.code)).toEqual(["app-data-restore-failed"]);
+  });
+
+  it("keeps a new install inactive when route activation fails", async () => {
+    const activeInstalls = new Set<string>();
+    const events: string[] = [];
+    const result = await applyPortableArchiveRestore(
+      appArchive({
+        restorePolicy: { dryRun: false, installCollisions: "reject" },
+      }),
+      memoryRestoreTarget({
+        activeInstalls,
+        events,
+        failAt: "install",
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(events).toEqual([
+      "app-data:app:personal:personal:formless.storageSnapshot",
+      "install:create:personal",
+    ]);
+    expect([...activeInstalls]).toEqual([]);
+
+    if (result.ok) {
+      throw new Error("Expected install activation to fail.");
+    }
+
+    expect(result.errors.map((error) => error.code)).toEqual(["install-restore-failed"]);
+  });
+
+  it("restores a retargeted archive through selected app and document ownership", async () => {
+    const installId = "personal-copy";
+    const schema = documentSourceSchema();
+    const object = documentMediaObject("report", "private", installId);
+    const restoredDataIdentities: string[] = [];
+    const restoredMedia: Array<{
+      authorityName: string;
+      object: AppArchiveMediaObject;
+    }> = [];
+    const events: string[] = [];
+    const result = await applyPortableArchiveRestore(
+      appArchive({
+        app: archivedInstall(installId, "Personal Copy"),
+        data: {
+          ...storageSnapshot({
+            schema,
+            storageIdentity: `app:${installId}`,
+          }),
+          records: [
+            siteRecord("rec_site_settings_personal_copy", installId),
+            documentBlock("report"),
+          ],
+        },
+        media: { objects: [object] },
+        restorePolicy: { dryRun: false, installCollisions: "reject" },
+      }),
+      memoryRestoreTarget({
+        events,
+        mediaFiles: [
+          {
+            archivePath: object.archivePath,
+            byteSize: documentBytes.byteLength,
+            bytes: documentBytes,
+            contentType: "application/pdf",
+          },
+        ],
+        restoredDataIdentities,
+        restoredMedia,
+        sourceSchemas: { site: schema },
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(events).toEqual([
+      "media:app:personal-copy:media/app-installs/personal-copy/documents/report.pdf",
+      "app-data:app:personal-copy:personal-copy:formless.storageSnapshot",
+      "install:create:personal-copy",
+    ]);
+    expect(restoredDataIdentities).toEqual(["app:personal-copy"]);
+    expect(restoredMedia).toEqual([
+      {
+        authorityName: "app:personal-copy",
+        object: expect.objectContaining({
+          asset: expect.objectContaining({
+            deliveryHref: "/api/app-installs/site/personal-copy/media/documents/report.pdf",
+            ownerAppInstallId: "personal-copy",
+            storageKey: "media/app-installs/personal-copy/documents/report.pdf",
+          }),
+          deliveryHref: "/api/app-installs/site/personal-copy/media/documents/report.pdf",
+          storageKey: "media/app-installs/personal-copy/documents/report.pdf",
+        }),
+      },
     ]);
   });
 
@@ -343,9 +492,16 @@ describe("archive restore execution", () => {
 });
 
 function memoryRestoreTarget(input: {
+  activeInstalls?: Set<string>;
   events: string[];
+  failAt?: "appData" | "install" | "media";
   installedApps?: AppInstall[];
   mediaFiles?: ArchiveRestoreMediaRead[];
+  restoredDataIdentities?: string[];
+  restoredMedia?: Array<{
+    authorityName: string;
+    object: AppArchiveMediaObject;
+  }>;
   restoreControlPlane?: boolean;
   sourceSchemas?: Partial<Record<string, StorageSnapshot["schema"]>>;
   validateObject?: NonNullable<ArchiveRestoreApplyTarget["media"]>["validateObject"];
@@ -359,6 +515,14 @@ function memoryRestoreTarget(input: {
       ...(input.validateObject === undefined ? {} : { validateObject: input.validateObject }),
       restoreObject: async ({ identity, object }) => {
         input.events.push(`media:${identity.authorityName}:${object.storageKey}`);
+        input.restoredMedia?.push({
+          authorityName: identity.authorityName,
+          object,
+        });
+
+        if (input.failAt === "media") {
+          throw new Error("Media restore failed.");
+        }
 
         return {
           contentType: object.contentType,
@@ -370,6 +534,11 @@ function memoryRestoreTarget(input: {
     },
     restoreAppData: ({ data, identity, app }) => {
       input.events.push(`app-data:${identity.authorityName}:${app.installId}:${data.kind}`);
+      input.restoredDataIdentities?.push(identity.authorityName);
+
+      if (input.failAt === "appData") {
+        throw new Error("App data restore failed.");
+      }
 
       return bootstrapResponse(data);
     },
@@ -382,6 +551,12 @@ function memoryRestoreTarget(input: {
       : {}),
     restoreInstall: ({ action, install }) => {
       input.events.push(`install:${action}:${install.installId}`);
+
+      if (input.failAt === "install") {
+        throw new Error("Install activation failed.");
+      }
+
+      input.activeInstalls?.add(install.installId);
     },
     ...(input.sourceSchemas === undefined ? {} : { sourceSchemas: input.sourceSchemas }),
   };
@@ -548,13 +723,17 @@ function coreMediaFile(name: string): ArchiveRestoreMediaRead {
   };
 }
 
-function documentMediaObject(name: string, access: "public" | "private"): AppArchiveMediaObject {
+function documentMediaObject(
+  name: string,
+  access: "public" | "private",
+  installId = "personal",
+): AppArchiveMediaObject {
   const id = `${name}.pdf`;
-  const storageKey = `media/app-installs/personal/documents/${id}`;
-  const deliveryHref = `/api/app-installs/site/personal/media/documents/${id}`;
+  const storageKey = `media/app-installs/${installId}/documents/${id}`;
+  const deliveryHref = `/api/app-installs/site/${installId}/media/documents/${id}`;
 
   return {
-    archivePath: `media/personal/${storageKey}`,
+    archivePath: `media/personal/media/app-installs/personal/documents/${id}`,
     asset: {
       access,
       byteSize: documentBytes.byteLength,
@@ -564,7 +743,7 @@ function documentMediaObject(name: string, access: "public" | "private"): AppArc
       id,
       kind: "document",
       label: id,
-      ownerAppInstallId: "personal",
+      ownerAppInstallId: installId,
       provider: "r2",
       status: "ready",
       storageKey,

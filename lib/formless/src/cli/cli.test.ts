@@ -79,10 +79,10 @@ import {
   workspaceOperationDefinitionForKind,
 } from "@dpeek/formless-workspace";
 import {
-  crmSeedRecords,
+  crmTestRecords,
   crmSourceSchema,
   siteSourceSchema,
-  taskSeedRecords,
+  taskTestRecords,
   taskSourceSchema,
 } from "../test/schema-apps.ts";
 import {
@@ -2679,7 +2679,6 @@ describe("Formless CLI", () => {
     });
     expect(spawnCalls[0]?.env).toMatchObject({
       FORMLESS_ADMIN_TOKEN: "generated-token",
-      FORMLESS_LAUNCH_FIXTURE: "empty",
       FORMLESS_OWNER_SESSION_SECRET: setupToken,
       [LOCAL_SESSION_BOOTSTRAP_TOKEN_ENV]: "local-session-token",
       [WORKSPACE_GATEWAY_PROXY_TOKEN_ENV]: "sidecar-proxy-token",
@@ -2972,7 +2971,6 @@ describe("Formless CLI", () => {
 
     expect(spawnCalls).toHaveLength(1);
     expect(spawnCalls[0]?.env).toMatchObject({
-      FORMLESS_LAUNCH_FIXTURE: "empty",
       FORMLESS_RUNTIME_PROFILE: "instance",
       FORMLESS_WRANGLER_PERSIST: path.join(workspaceRoot, ".formless/local/wrangler"),
       PORT: "4443",
@@ -3124,7 +3122,6 @@ describe("Formless CLI", () => {
     });
     expect(spawnCalls[0]?.env).toMatchObject({
       FORMLESS_ADMIN_TOKEN: "persisted-local-admin",
-      FORMLESS_LAUNCH_FIXTURE: "empty",
       FORMLESS_OWNER_SESSION_SECRET: "persisted-owner-session",
       [LOCAL_SESSION_BOOTSTRAP_TOKEN_ENV]: expect.any(String),
       FORMLESS_RUNTIME_PROFILE: "instance",
@@ -3500,7 +3497,6 @@ describe("Formless CLI", () => {
     await run;
 
     expect(spawnCalls[0]?.env).toMatchObject({
-      FORMLESS_LAUNCH_FIXTURE: "empty",
       FORMLESS_RUNTIME_PROFILE: "instance",
       FORMLESS_WRANGLER_PERSIST: path.join(workspaceRoot, ".formless/local/wrangler"),
       PORT: "4446",
@@ -4200,7 +4196,7 @@ describe("Formless CLI", () => {
         },
       ],
     });
-    responses.queueJson(taskSnapshot(taskSeedRecords));
+    responses.queueJson(taskSnapshot(taskTestRecords));
 
     await exportAppArchive(
       {
@@ -4230,7 +4226,7 @@ describe("Formless CLI", () => {
       sourceSchemaKey: "tasks",
       sourceSchemaHash: packageAppFactsForKey("tasks", bundledAppPackageResolver)!.sourceSchemaHash,
     });
-    expect(archive.data).toEqual(taskSnapshot(taskSeedRecords));
+    expect(archive.data).toEqual(taskSnapshot(taskTestRecords));
     expect(archive.media.objects).toEqual([]);
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
       "GET https://instance.example/api/formless/app-installs",
@@ -4287,8 +4283,8 @@ describe("Formless CLI", () => {
     });
     responses.queueJson(controlPlaneSnapshot(controlPlaneRecords()));
     responses.queueJson(snapshot(sourceSnapshotRecords));
-    responses.queueJson(taskSnapshot(taskSeedRecords));
-    responses.queueJson(crmSnapshot(crmSeedRecords, "app:sales"));
+    responses.queueJson(taskSnapshot(taskTestRecords));
+    responses.queueJson(crmSnapshot(crmTestRecords, "app:sales"));
     responses.queueBinary(Buffer.from([4, 5, 6]), "image/png");
 
     await exportInstanceArchive(
@@ -4391,8 +4387,8 @@ describe("Formless CLI", () => {
           mediaCountsByApp: { personal: 1, sales: 0, work: 0 },
           recordCountsByApp: {
             personal: { total: sourceSnapshotRecords.length },
-            sales: { total: crmSeedRecords.length },
-            work: { total: taskSeedRecords.length },
+            sales: { total: crmTestRecords.length },
+            work: { total: taskTestRecords.length },
           },
           replacedInstalls: [],
         },
@@ -4709,7 +4705,6 @@ async function writePrivatePackageFixture(
 
   await mkdir(sourceRoot, { recursive: true });
   await writeJsonFile(path.join(sourceRoot, "schema.json"), sourceSchema);
-  await writeJsonFile(path.join(sourceRoot, "seed-records.json"), []);
   await writeJsonFile(
     path.join(packageRoot, "formless.app.json"),
     privatePackageManifest(sourceSchemaHash),
@@ -4730,11 +4725,6 @@ function privatePackageManifest(sourceSchemaHash: SourceSchemaHash): Record<stri
       kind: "workspace",
       key: "private-labs",
       path: "source/schema.json",
-    },
-    seedRecords: {
-      kind: "workspace",
-      key: "private-labs",
-      path: "source/seed-records.json",
     },
     sourceSchemaHash,
     capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],

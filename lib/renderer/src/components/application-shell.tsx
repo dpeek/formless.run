@@ -211,8 +211,6 @@ export function applyFormlessApplicationShellFixtureIntent(
       return applyRootSelection(shell, intent);
     case "shellCreate":
       return applyCreate(shell, intent);
-    case "shellReset":
-      return applyReset(shell, intent);
     case "shellLogout":
       return applyLogout(shell, intent);
   }
@@ -423,42 +421,6 @@ function resetCreateSurface(surface: CreateSurfaceContract): CreateSurfaceContra
       },
     },
   };
-}
-function applyReset(
-  shell: FormlessApplicationShellFixtureState,
-  intent: Extract<
-    ShellIntent,
-    {
-      type: "shellReset";
-    }
-  >,
-) {
-  const section = shell.sections.find(
-    (candidate) =>
-      candidate.id === intent.sectionId && candidate.settings?.reset?.id === intent.controlId,
-  );
-  const reset = section?.settings?.reset;
-
-  if (!section?.settings || !reset) {
-    return shell;
-  }
-
-  const nextReset =
-    intent.intent.type === "resetOpenChange"
-      ? {
-          ...reset,
-          confirmation: { ...reset.confirmation, open: intent.intent.open },
-        }
-      : {
-          ...reset,
-          confirmation: { ...reset.confirmation, open: false },
-          status: { message: "Source seed data reset.", state: "success" as const },
-        };
-
-  return replaceShellSection(shell, {
-    ...section,
-    settings: { ...section.settings, reset: nextReset },
-  });
 }
 function applyLogout(
   shell: FormlessApplicationShellFixtureState,

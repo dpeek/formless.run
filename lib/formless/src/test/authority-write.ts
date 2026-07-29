@@ -1,11 +1,26 @@
 import { expect } from "vite-plus/test";
-import type { StoredRecord } from "@dpeek/formless-storage";
+import {
+  STORAGE_SNAPSHOT_KIND,
+  STORAGE_SNAPSHOT_VERSION,
+  type StorageSnapshot,
+  type StoredRecord,
+} from "@dpeek/formless-storage";
 import type { ChangeRow } from "../shared/protocol.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import type { SchemaKey } from "../shared/schema-apps.ts";
 import type { createWorkerHarness } from "../worker/miniflare-test.ts";
+import { getWorkerSchemaAppDefinition } from "../worker/schema-apps.ts";
+import { schemaAppTestRecords } from "./schema-app-records.ts";
+import {
+  INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
+  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+  instanceControlPlaneSchema,
+} from "@dpeek/formless-instance-control-plane";
 
-type AuthorityHarness = Pick<Awaited<ReturnType<typeof createWorkerHarness>>, "fetch">;
+type AuthorityHarness = Pick<
+  Awaited<ReturnType<typeof createWorkerHarness>>,
+  "durableObjectFetch" | "fetch"
+>;
 
 export type AuthorityWriteHelpers = ReturnType<typeof createAuthorityWriteHelpers>;
 export type AuthorityTestRecordOperationResult = {
@@ -52,13 +67,18 @@ export function createAuthorityWriteHelpers(
   }
 
   async function resetSchemaApp(schemaKey: SchemaKey) {
-    const response = await harness.fetch(`/api/${schemaKey}/reset/seed`, {
-      body: "{}",
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
+    const app = getWorkerSchemaAppDefinition(schemaKey);
 
-    expect(response.status).toBe(200);
+    await restoreTestStorageSnapshot(
+      harness,
+      `/api/${schemaKey}/snapshot/restore`,
+      testStorageSnapshot({
+        records: schemaAppTestRecords(schemaKey),
+        schema: app.sourceSchema,
+        schemaKey,
+        storageIdentity: schemaKey,
+      }),
+    );
   }
 
   async function getJson<T>(path: string) {
@@ -211,6 +231,73 @@ export function createAuthorityWriteHelpers(
     resetSchemaApp,
     useSchemaApp,
   };
+}
+
+export function testStorageSnapshot(input: {
+  records?: StoredRecord[];
+  schema: StorageSnapshot["schema"];
+  schemaKey: string;
+  storageIdentity: string;
+}): StorageSnapshot {
+  const records = input.records ?? [];
+
+  return {
+    kind: STORAGE_SNAPSHOT_KIND,
+    version: STORAGE_SNAPSHOT_VERSION,
+    storageIdentity: input.storageIdentity,
+    schemaKey: input.schemaKey,
+    exportedAt: "2026-07-29T00:00:00.000Z",
+    schemaUpdatedAt: "2026-07-29T00:00:00.000Z",
+    sourceCursor: records.length,
+    schema: input.schema,
+    records,
+  };
+}
+
+export function schemaAppTestStorageSnapshot(
+  schemaKey: SchemaKey,
+  storageIdentity: string = schemaKey,
+): StorageSnapshot {
+  const app = getWorkerSchemaAppDefinition(schemaKey);
+
+  return testStorageSnapshot({
+    records: schemaAppTestRecords(schemaKey),
+    schema: app.sourceSchema,
+    schemaKey,
+    storageIdentity,
+  });
+}
+
+export function instanceControlPlaneTestStorageSnapshot(): StorageSnapshot {
+  return testStorageSnapshot({
+    schema: instanceControlPlaneSchema,
+    schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
+    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+  });
+}
+
+export async function restoreTestStorageSnapshot(
+  harness: AuthorityHarness,
+  path: string,
+  snapshot: StorageSnapshot,
+  headers: Record<string, string> = {},
+): Promise<void> {
+  const resetResponse = await harness.durableObjectFetch(
+    "FORMLESS_AUTHORITY",
+    snapshot.storageIdentity,
+    "/_internal/reset-app-storage",
+    { method: "POST" },
+  );
+
+  expect(resetResponse.status).toBe(200);
+
+  const response = await harness.fetch(path, {
+    body: JSON.stringify(snapshot),
+    headers: { ...headers, "Content-Type": "application/json" },
+    method: "POST",
+  });
+
+  expect(response.status).toBe(200);
 }
 
 export function operationWriteRequest(

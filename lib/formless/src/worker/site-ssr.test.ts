@@ -9,7 +9,11 @@ import { INITIAL_SITE_PAGE_TREE_SCRIPT_ID } from "@dpeek/formless-site-app/react
 import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
 import type { SchemaKey } from "../shared/schema-apps.ts";
 import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
-import { recordOperationRequest } from "../test/authority-write.ts";
+import {
+  recordOperationRequest,
+  restoreTestStorageSnapshot,
+  schemaAppTestStorageSnapshot,
+} from "../test/authority-write.ts";
 import type { Env } from "./index.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import { handlePublicSiteDocumentRequest } from "./public-site-worker-runtime.ts";
@@ -95,12 +99,12 @@ describe("published Site Worker SSR", () => {
     expect(html).toContain('root.classList.toggle("dark", theme === "dark");');
     expect(html).toContain('<style id="formless-public-site-theme-style">');
     expect(html).toContain("html.dark #app");
-    expect(html).toContain("<title>Starter Site</title>");
-    expect(html).toContain('<meta name="description" content="A small starter site." />');
-    expect(html).toContain('<meta property="og:title" content="Starter Site" />');
-    expect(html).toContain('<meta property="og:description" content="A small starter site." />');
+    expect(html).toContain("<title>Example Site</title>");
+    expect(html).toContain('<meta name="description" content="A public test site." />');
+    expect(html).toContain('<meta property="og:title" content="Example Site" />');
+    expect(html).toContain('<meta property="og:description" content="A public test site." />');
     expect(html).toContain('<meta property="og:type" content="website" />');
-    expect(html).toContain('<meta property="og:site_name" content="Starter Site" />');
+    expect(html).toContain('<meta property="og:site_name" content="Example Site" />');
     expect(html).toContain('<meta name="twitter:card" content="summary" />');
     expect(html).not.toContain("og:image");
     expect(html).toContain("Home");
@@ -313,13 +317,13 @@ describe("published Site Worker SSR", () => {
     );
   });
 
-  it("returns server-rendered HTML for starter nested published Site slugs", async () => {
-    const response = await getDocument("/blog/starter-post");
+  it("returns server-rendered HTML for nested published Site slugs", async () => {
+    const response = await getDocument("/blog/shipping-schema-backed-authoring");
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain("Starter post");
-    expect(html).toContain("<title>Starter post | Starter Site</title>");
+    expect(html).toContain("Shipping schema-backed authoring");
+    expect(html).toContain("<title>Shipping schema-backed authoring | Example Site</title>");
     expect(html).toContain('<meta property="og:type" content="article" />');
     expect(html).toContain("data-astryx-public-site-provider");
     expect(html).toContain('role="main"');
@@ -446,7 +450,7 @@ describe("published Site Worker SSR", () => {
       idempotencyKey: "write-site-ssr-hostile-home-label",
       entity: "block",
       operationName: "update",
-      recordId: "rec_site_starter_page_home",
+      recordId: "rec_site_content_home",
       input: {
         label: hostileLabel,
       },
@@ -546,26 +550,21 @@ describe("published Site Worker SSR", () => {
 });
 
 async function resetSchemaApp(schemaKey: SchemaKey) {
-  const response = await harness.fetch(`/api/${schemaKey}/reset/seed`, {
-    body: "{}",
-    headers: adminHeaders(),
-    method: "POST",
-  });
-
-  expect(response.status).toBe(200);
+  await restoreTestStorageSnapshot(
+    harness,
+    `/api/${schemaKey}/snapshot/restore`,
+    schemaAppTestStorageSnapshot(schemaKey),
+    adminHeaders(),
+  );
 }
 
 async function resetInstalledApp(packageAppKey: string, installId: string) {
-  const response = await harness.fetch(
-    `/api/app-installs/${packageAppKey}/${installId}/reset/seed`,
-    {
-      body: "{}",
-      headers: adminHeaders(),
-      method: "POST",
-    },
+  await restoreTestStorageSnapshot(
+    harness,
+    `/api/app-installs/${packageAppKey}/${installId}/snapshot/restore`,
+    schemaAppTestStorageSnapshot(packageAppKey as SchemaKey, `app:${installId}`),
+    adminHeaders(),
   );
-
-  expect(response.status).toBe(200);
 }
 
 async function getDocument(path: string) {

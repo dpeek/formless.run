@@ -134,8 +134,9 @@ machine.
 - GIVEN an entity has a state machine with an initial state
 - WHEN a normal create operation writes a new record for that entity
 - THEN the machine field is omitted or equals the initial state
-- AND source seed bootstrap, reset, restore, and package migrations remain the
-  explicit paths for loading already-progressed historical records
+- AND storage snapshot restore, portable archive restore, and package
+  migrations remain the explicit paths for loading already-progressed
+  historical records
 
 ### Requirement: Transition Events
 

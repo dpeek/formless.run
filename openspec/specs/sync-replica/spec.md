@@ -220,7 +220,7 @@ The system SHALL use push sync messages to catch up clients and deliver committe
 
 #### Scenario: Committed write broadcast
 
-- GIVEN an operation, schema write, reset schema, or reset seed write commits
+- GIVEN an operation, schema write, or reset schema write commits
 - WHEN push sync sockets are connected
 - THEN the Authority broadcasts a sync message for the committed write
 - AND one stale socket does not prevent later sockets from receiving the broadcast
@@ -234,8 +234,8 @@ sync notification policy.
 
 #### Scenario: Committed write notifies
 
-- WHEN an operation, schema write, reset schema, reset seed, or snapshot restore
-  write returns a committed storage outcome
+- WHEN an operation, schema write, reset schema, or snapshot restore write
+  returns a committed storage outcome
 - THEN the Authority broadcasts a push sync message for that committed write
 - AND connected browser replicas can catch up from their stored cursors
 
@@ -257,8 +257,8 @@ outcomes, not browser replica cache writes.
 
 - GIVEN local workspace auto-save is available
 - WHEN a browser operation, schema save, app install, control-plane operation,
-  reset schema, reset seed, snapshot restore, or deployment intent write returns
-  a committed local write response
+  reset schema, snapshot restore, or deployment intent write returns a
+  committed local write response
 - OR a core media upload is accepted and then referenced by a committed app
   record
 - THEN the client emits a local workspace dirty signal with the storage identity

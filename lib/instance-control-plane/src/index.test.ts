@@ -1914,7 +1914,6 @@ function privatePackageManifest(): Record<string, unknown> {
     sourceSchemaHash: privateSourceSchemaHash,
     sourceSchemaKind: "workspace",
     sourceSchemaPath: "packages/private-labs/schema.json",
-    seedRecordsPath: "packages/private-labs/seed-records.json",
   });
 }
 
@@ -1926,7 +1925,6 @@ function packageManifest(input: {
   sourceSchemaHash: string;
   sourceSchemaKind?: "bundled" | "workspace";
   sourceSchemaPath?: string;
-  seedRecordsPath?: string;
 }): Record<string, unknown> {
   return {
     kind: appPackageManifestKind,
@@ -1941,11 +1939,6 @@ function packageManifest(input: {
       kind: input.sourceSchemaKind ?? "bundled",
       key: input.packageAppKey,
       path: input.sourceSchemaPath ?? "schema.json",
-    },
-    seedRecords: {
-      kind: input.sourceSchemaKind ?? "bundled",
-      key: input.packageAppKey,
-      path: input.seedRecordsPath ?? "seed-records.json",
     },
     sourceSchemaHash: input.sourceSchemaHash,
     capabilities: [

@@ -19,7 +19,11 @@ import { INTERNAL_RESET_INSTANCE_DEPLOYMENT_RUNTIME_PATH } from "./deployment-ru
 import { INSTANCE_DEPLOYMENT_PRIMARY_TARGET_ID } from "./deployment-runtime-state.ts";
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
-import { operationWriteRequest } from "../test/authority-write.ts";
+import {
+  instanceControlPlaneTestStorageSnapshot,
+  operationWriteRequest,
+  restoreTestStorageSnapshot,
+} from "../test/authority-write.ts";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
@@ -578,25 +582,14 @@ async function getJson<T>(path: string) {
 }
 
 async function resetWorkerState() {
-  await Promise.all([
-    postReset(`${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/reset/seed`),
-    postInternalInstanceReset(INTERNAL_RESET_INSTANCE_DEPLOYMENT_RUNTIME_PATH),
-  ]);
+  await restoreTestStorageSnapshot(
+    harness,
+    `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/snapshot/restore`,
+    instanceControlPlaneTestStorageSnapshot(),
+    { Authorization: `Bearer ${adminToken}` },
+  );
+  await postInternalInstanceReset(INTERNAL_RESET_INSTANCE_DEPLOYMENT_RUNTIME_PATH);
 }
-
-async function postReset(path: string) {
-  const response = await harness.fetch(path, {
-    body: "{}",
-    headers: {
-      Authorization: `Bearer ${adminToken}`,
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
-
-  expect(response.status).toBe(200);
-}
-
 async function postInternalInstanceReset(path: string) {
   const response = await harness.durableObjectFetch(
     "FORMLESS_AUTHORITY",

@@ -12,7 +12,12 @@ import type {
 } from "../shared/protocol.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
-import { recordOperationRequest, operationWriteRequest } from "../test/authority-write.ts";
+import {
+  recordOperationRequest,
+  operationWriteRequest,
+  restoreTestStorageSnapshot,
+  schemaAppTestStorageSnapshot,
+} from "../test/authority-write.ts";
 import {
   emailStylePublicIntakeFormBlockId,
   emailStylePublicIntakeFormBlockValues,
@@ -472,7 +477,7 @@ describe("public operation runtime", () => {
       entity: "block-placement",
       operationName: "create",
       input: {
-        parent: "rec_site_starter_page_home",
+        parent: "rec_site_content_home",
         block: block.record.id,
         order: 4500,
         label: "Join the deployed list",
@@ -602,13 +607,12 @@ function isUuid(value: string) {
 }
 
 async function resetSchemaApp(schemaKey: "tasks" | "site", target: Harness = harness) {
-  const response = await target.fetch(`/api/${schemaKey}/reset/seed`, {
-    body: "{}",
-    headers: adminHeaders({ "Content-Type": "application/json" }),
-    method: "POST",
-  });
-
-  expect(response.status).toBe(200);
+  await restoreTestStorageSnapshot(
+    target,
+    `/api/${schemaKey}/snapshot/restore`,
+    schemaAppTestStorageSnapshot(schemaKey),
+    adminHeaders(),
+  );
 }
 
 async function resetInstalledApp(
@@ -616,16 +620,12 @@ async function resetInstalledApp(
   appInstallId: string,
   target: Harness = harness,
 ) {
-  const response = await target.fetch(
-    `/api/app-installs/${packageAppKey}/${appInstallId}/reset/seed`,
-    {
-      body: "{}",
-      headers: adminHeaders({ "Content-Type": "application/json" }),
-      method: "POST",
-    },
+  await restoreTestStorageSnapshot(
+    target,
+    `/api/app-installs/${packageAppKey}/${appInstallId}/snapshot/restore`,
+    schemaAppTestStorageSnapshot(packageAppKey, `app:${appInstallId}`),
+    adminHeaders(),
   );
-
-  expect(response.status).toBe(200);
 }
 
 async function installEmailStylePublicIntakeSchema(

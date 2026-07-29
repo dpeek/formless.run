@@ -1,7 +1,7 @@
 import { setFieldDefinition } from "../test/schema-definition-test-helpers.ts";
 import { describe, expect, it } from "vite-plus/test";
 import {
-  rateSeedRecords,
+  rateCardTestRecords,
   rateSourceSchema as rateCardSchema,
   siteSourceSchema,
   taskSourceSchema as appSchema,
@@ -1812,10 +1812,10 @@ describe("home view model collections", () => {
       (model) => model.viewName === "rateHome",
     );
     const columns = rateModel?.result.type === "table" ? rateModel.result.columns : [];
-    const seedRate = rateSeedRecords.find((record) => record.entity === "rate");
+    const testRate = rateCardTestRecords.find((record) => record.entity === "rate");
 
-    if (!seedRate) {
-      throw new Error("Missing seed rate.");
+    if (!testRate) {
+      throw new Error("Missing test rate.");
     }
     expect(rate.fields.find((definition) => definition.key === "cost")!).toMatchObject({
       type: "number",
@@ -1865,10 +1865,10 @@ describe("home view model collections", () => {
     expect(
       columns.find((column) => column.type === "field" && column.fieldName === "currency"),
     ).toBeUndefined();
-    expect(typeof seedRate.values.cost).toBe("number");
-    expect(typeof seedRate.values.costUnit).toBe("string");
-    expect(typeof seedRate.values.price).toBe("number");
-    expect(typeof seedRate.values.currency).toBe("string");
+    expect(typeof testRate.values.cost).toBe("number");
+    expect(typeof testRate.values.costUnit).toBe("string");
+    expect(typeof testRate.values.price).toBe("number");
+    expect(typeof testRate.values.currency).toBe("string");
   });
   it("applies field type default commit policies to table columns", () => {
     const taskHome = appSchema.views.find(

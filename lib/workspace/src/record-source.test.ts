@@ -150,11 +150,6 @@ function packageManifest(input: {
       key: input.packageAppKey,
       path: "schema.json",
     },
-    seedRecords: {
-      kind: "workspace",
-      key: input.packageAppKey,
-      path: "seed-records.json",
-    },
     sourceSchemaHash: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
     capabilities: [
       {

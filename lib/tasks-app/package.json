@@ -5,7 +5,6 @@
     "dist",
     "formless.app.json",
     "schema.json",
-    "seed-records.json",
     "src",
     "!src/**/*.test.*",
     "!src/**/*-fixtures.ts",
@@ -15,8 +14,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./formless.app.json": "./formless.app.json",
-    "./schema.json": "./schema.json",
-    "./seed-records.json": "./seed-records.json"
+    "./schema.json": "./schema.json"
   },
   "publishConfig": {
     "exports": {
@@ -25,8 +23,7 @@
         "import": "./dist/index.mjs"
       },
       "./formless.app.json": "./formless.app.json",
-      "./schema.json": "./schema.json",
-      "./seed-records.json": "./seed-records.json"
+      "./schema.json": "./schema.json"
     },
     "access": "public"
   },
@@ -36,8 +33,7 @@
     "pack": "vp pack src/index.ts"
   },
   "dependencies": {
-    "@dpeek/formless-schema": "workspace:*",
-    "@dpeek/formless-storage": "workspace:*"
+    "@dpeek/formless-schema": "workspace:*"
   },
   "devDependencies": {
     "@dpeek/formless-installed-apps": "workspace:*"

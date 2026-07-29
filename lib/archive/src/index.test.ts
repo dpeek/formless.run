@@ -133,11 +133,6 @@ function packageManifest(input: {
       key: input.packageAppKey,
       path: "schema.json",
     },
-    seedRecords: {
-      kind: "bundled",
-      key: input.packageAppKey,
-      path: "seed-records.json",
-    },
     sourceSchemaHash: input.sourceSchemaHash,
     capabilities: [
       {

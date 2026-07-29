@@ -4,10 +4,15 @@ import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import type { BootstrapResponse, OwnerIdentity } from "../shared/protocol.ts";
 import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
 import type { SchemaKey } from "../shared/schema-apps.ts";
-import { recordOperationRequest, operationWriteRequest } from "../test/authority-write.ts";
+import {
+  operationWriteRequest,
+  recordOperationRequest,
+  restoreTestStorageSnapshot,
+  schemaAppTestStorageSnapshot,
+} from "../test/authority-write.ts";
 import { ensureTestIdentityOwner, resetTestIdentityStorage } from "../test/identity-owner.ts";
-import { siteSourceSchema, taskSeedRecords } from "../test/schema-apps.ts";
-import { testSiteSeedRecords } from "../test/site-records.ts";
+import { siteSourceSchema, taskTestRecords } from "../test/schema-apps.ts";
+import { testSiteRecords } from "../test/site-records.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import { createOwnerSessionCookie } from "./owner-session.ts";
 
@@ -58,7 +63,6 @@ describe("authority admin guard", () => {
       "/api/tasks/mutations",
       "/api/tasks/actions",
       "/api/tasks/reset/schema",
-      "/api/tasks/reset/seed",
       "/api/tasks/package-migrations/apply",
     ];
 
@@ -80,28 +84,6 @@ describe("authority admin guard", () => {
     }
   });
 
-  it("rejects invalid admin tokens without mutating storage", async () => {
-    const created = await postAdminTaskRecordOperation({
-      idempotencyKey: "write-admin-guard-keep",
-      entity: "task",
-      operationName: "create",
-      input: { title: "Keep after unauthorized reset", done: false },
-    });
-
-    const reset = await harness.fetch("/api/tasks/reset/seed", {
-      body: "{}",
-      headers: {
-        Authorization: "Bearer wrong-token",
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-    });
-    const bootstrap = await getJson<BootstrapResponse>("/api/tasks/bootstrap");
-
-    expect(reset.status).toBe(401);
-    expect(bootstrap.records).toEqual([...taskSeedRecords, created.record]);
-  });
-
   it("accepts the configured admin bearer token for write endpoints", async () => {
     const created = await postAdminTaskRecordOperation({
       idempotencyKey: "write-admin-guard-allowed",
@@ -112,7 +94,7 @@ describe("authority admin guard", () => {
     const bootstrap = await getJson<BootstrapResponse>("/api/tasks/bootstrap");
 
     expect(created.record.values.title).toBe("Authorized write");
-    expect(bootstrap.records).toEqual([...taskSeedRecords, created.record]);
+    expect(bootstrap.records).toEqual([...taskTestRecords, created.record]);
   });
 
   it("accepts signed owner session cookies for write endpoints", async () => {
@@ -125,7 +107,7 @@ describe("authority admin guard", () => {
     const bootstrap = await getJson<BootstrapResponse>("/api/tasks/bootstrap");
 
     expect(created.record.values.title).toBe("Owner session write");
-    expect(bootstrap.records).toEqual([...taskSeedRecords, created.record]);
+    expect(bootstrap.records).toEqual([...taskTestRecords, created.record]);
   });
 
   it("rejects signed owner session cookies for writes when current owner authority is missing", async () => {
@@ -156,7 +138,7 @@ describe("authority admin guard", () => {
     expect(await response.json()).toEqual({
       error: "Owner session or admin authorization is required for this write endpoint.",
     });
-    expect(bootstrap.records).toEqual(taskSeedRecords);
+    expect(bootstrap.records).toEqual(taskTestRecords);
   });
 
   it("keeps public Site tree reads open while guarding Site writes", async () => {
@@ -185,20 +167,19 @@ function siteStorageSnapshot(): StorageSnapshot {
     schemaKey: "site",
     exportedAt: "2026-05-07T00:00:00.000Z",
     schemaUpdatedAt: "2026-05-07T00:00:00.000Z",
-    sourceCursor: testSiteSeedRecords.length,
+    sourceCursor: testSiteRecords.length,
     schema: siteSourceSchema,
-    records: testSiteSeedRecords,
+    records: testSiteRecords,
   };
 }
 
 async function resetSchemaApp(schemaKey: SchemaKey) {
-  const response = await harness.fetch(`/api/${schemaKey}/reset/seed`, {
-    body: "{}",
-    headers: adminHeaders(),
-    method: "POST",
-  });
-
-  expect(response.status).toBe(200);
+  await restoreTestStorageSnapshot(
+    harness,
+    `/api/${schemaKey}/snapshot/restore`,
+    schemaAppTestStorageSnapshot(schemaKey),
+    adminHeaders(),
+  );
 }
 
 async function getJson<T>(path: string) {

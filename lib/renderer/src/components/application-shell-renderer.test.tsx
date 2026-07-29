@@ -95,10 +95,6 @@ describe("Astryx application shell renderer", () => {
     fireEvent.click(pages);
     fireEvent.click(requiredByProps(container, { "aria-label": "Open navigation" }));
     fireEvent.click(interactiveByLabel(container, "Create page"));
-    fireEvent.click(interactiveByLabel(container, "Reset source seed data"));
-    const resetDialog = required(container.querySelector<HTMLElement>('[role="alertdialog"]'));
-    fireEvent.click(interactiveByLabel(resetDialog, "Cancel"));
-    fireEvent.click(interactiveByLabel(resetDialog, "Reset"));
     fireEvent.click(interactiveByLabel(container, "Ada Lovelace"));
     fireEvent.click(await waitFor(() => interactiveByLabel(document.body, "Log out Local Owner")));
 
@@ -116,27 +112,6 @@ describe("Astryx application shell renderer", () => {
         shellId: shellReference.shellId,
         surfaceId: "create:page",
         type: "shellCreate",
-      },
-      {
-        controlId: "reset:tasks",
-        intent: { open: true, type: "resetOpenChange" },
-        sectionId: sectionReferences.settings.sectionId,
-        shellId: shellReference.shellId,
-        type: "shellReset",
-      },
-      {
-        controlId: "reset:tasks",
-        intent: { open: false, type: "resetOpenChange" },
-        sectionId: sectionReferences.settings.sectionId,
-        shellId: shellReference.shellId,
-        type: "shellReset",
-      },
-      {
-        controlId: "reset:tasks",
-        intent: { type: "resetConfirm" },
-        sectionId: sectionReferences.settings.sectionId,
-        shellId: shellReference.shellId,
-        type: "shellReset",
       },
       {
         controlId: "logout:owner",
@@ -311,21 +286,6 @@ function shellSections(): ShellNavigationSectionContract[] {
       settings: {
         id: "settings:tasks",
         kind: "shellSettings",
-        reset: {
-          confirmation: {
-            cancel: shellButton("reset:cancel", "Cancel"),
-            confirm: shellButton("reset:confirm", "Reset", "primary"),
-            description: "Replace current records with source seed records.",
-            id: "reset:confirmation",
-            kind: "shellResetConfirmation",
-            open: true,
-            title: "Reset Tasks source seed data?",
-          },
-          id: "reset:tasks",
-          kind: "shellReset",
-          status: { message: "The last reset failed.", state: "error" },
-          trigger: shellButton("reset:trigger", "Reset source seed data"),
-        },
         sync: {
           details: [
             { label: "World", value: "tasks" },

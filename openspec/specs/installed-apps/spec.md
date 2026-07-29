@@ -39,8 +39,8 @@ app install can be created.
 - **WHEN** resolved packages are listed
 - **THEN** packages are returned with package app key, label, description,
   default install id, multiple-install policy, source origin, source schema key,
-  seed records key, package revision, source schema hash, admin route base, and
-  optional public route capability
+  package revision, source schema hash, admin route base, and optional public
+  route capability
 - **AND** the default runtime resolver includes the bundled Site, Tasks, and
   CRM packages with package app keys `site`, `tasks`, and `crm`
 - **AND** Site, Tasks, and CRM package metadata comes from app package manifest
@@ -119,9 +119,8 @@ contracts through the Installed Apps package slice.
 - THEN root runtime code supplies bundled package manifests as resolver input
 - AND bundled Site, Tasks, and CRM manifests can be imported from their app
   packages through documented public exports
-- AND the Installed Apps package does not import bundled app schema JSON, seed
-  records, root-only bundled package lists, or package-specific runtime
-  adapters
+- AND the Installed Apps package does not import bundled app schema JSON,
+  root-only bundled package lists, or package-specific runtime adapters
 
 #### Scenario: Workspace resolver has explicit defaults
 
@@ -280,25 +279,26 @@ planning.
 - AND the plan blocks only when current records cannot be validated against the
   resolved source schema without a package app migration
 
-### Requirement: Package Source Initialization
+### Requirement: Package Schema Initialization
 
 The system MUST initialize a created package app install from that resolved
-package's source schema and source seed records.
+package's source schema without creating package-owned records.
 
 #### Scenario: Tasks initialization
 
 - **GIVEN** a Tasks app install is created with install id `tasks`
 - **WHEN** `/api/app-installs/tasks/tasks/bootstrap` is read
 - **THEN** the bootstrap response contains the bundled Tasks app package source
-  schema and source seed records
-- **AND** the bootstrap cursor reflects the seeded records
+  schema
+- **AND** the bootstrap response contains no records and its cursor reflects no
+  record changes
 
 #### Scenario: CRM initialization
 
 - **GIVEN** a CRM app install is created with install id `crm`
 - **WHEN** `/api/app-installs/crm/crm/bootstrap` is read
 - **THEN** the bootstrap response contains the bundled CRM app package source
-  schema and source seed records
+  schema and no records
 - **AND** the install metadata keeps label and route identity scoped to `crm`
 
 #### Scenario: Private package initialization
@@ -307,51 +307,11 @@ package's source schema and source seed records.
   resolver
 - **WHEN** an owner creates an app install from that package
 - **THEN** the installed app storage identity is initialized from the resolved
-  package source schema and seed records
+  package source schema without package-owned records
 - **AND** install metadata stores the resolved package app key, package
   revision, source schema hash, label, and install id
 - **AND** the source package path, repository URL, local link, or resolver
   configuration is not stored in the `app-install` record
-
-### Requirement: Launch Fixtures
-
-The system SHALL allow supported launch fixtures to select deterministic initial
-installed app state without changing route shape.
-
-#### Scenario: Empty fixture
-
-- **GIVEN** `FORMLESS_LAUNCH_FIXTURE` selects `empty`
-- **WHEN** fixture initialization runs
-- **THEN** the product instance starts with no app installs
-
-#### Scenario: Default Site fixture removed
-
-- **GIVEN** `FORMLESS_LAUNCH_FIXTURE` selects `default-site`
-- **WHEN** fixture initialization runs
-- **THEN** fixture initialization is rejected
-- **AND** no default Site install is created
-
-#### Scenario: Multi-site fixture
-
-- **GIVEN** `FORMLESS_LAUNCH_FIXTURE` selects `multi-site`
-- **WHEN** fixture initialization runs
-- **THEN** the initial install ids are `site`, `docs`, and `projects`
-- **AND** each install uses Site source seed records and `/apps/<installId>` plus `/sites/<installId>` routes
-
-#### Scenario: Mixed app fixture
-
-- **GIVEN** `FORMLESS_LAUNCH_FIXTURE` selects `mixed-apps`
-- **WHEN** fixture initialization runs
-- **THEN** the initial installs are Site and Tasks
-- **AND** only the Site install receives Site public route metadata
-
-#### Scenario: CRM fixture
-
-- **GIVEN** `FORMLESS_LAUNCH_FIXTURE` selects `crm`
-- **WHEN** fixture initialization runs
-- **THEN** the initial install includes CRM with install id `crm`, label `CRM`, and package app key `crm`
-- **AND** the CRM install receives an admin route under `/apps/crm`
-- **AND** the CRM install does not receive Site public route metadata
 
 ### Requirement: Install-Scoped Storage And API
 
@@ -398,8 +358,8 @@ control-plane records.
   identity, package app key, label, status, created time, and updated time
 - AND creation is exposed as a control-plane operation with operation
   idempotency, audit, replay, and operation-native output
-- AND the install is initialized from the resolved package source schema and
-  source seed records in the install-scoped app storage identity
+- AND the install-scoped app storage identity initializes from the resolved
+  package source schema with no records
 
 #### Scenario: Immutable install identity
 
@@ -551,7 +511,7 @@ same install records used by CLI and archive workflows.
 - **THEN** the runtime creates `app-install` and default `route` records in the
   instance control-plane identity
 - **AND** the installed app storage identity is initialized from the package
-  source schema and source seed records
+  source schema with no records
 - **AND** the next workspace save writes the install records and app storage
   snapshot to reviewable workspace source
 

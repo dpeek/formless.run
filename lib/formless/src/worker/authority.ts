@@ -50,11 +50,6 @@ import {
   handleIdentityControlPlaneDurableObjectRequest,
   resolveIdentityAppReferenceTarget,
 } from "./identity-control-plane.ts";
-import {
-  LaunchFixtureConfigurationError,
-  launchFixtureStorageSourceForAuthorityName,
-  launchFixtureStorageSourceForIdentity,
-} from "./launch-fixtures.ts";
 import { handleOwnerSetupDurableObjectRequest } from "./owner-setup.ts";
 import { handleAccountPasskeyDurableObjectRequest } from "./account-passkeys.ts";
 import { handleCollaboratorInvitationAcceptanceDurableObjectRequest } from "./collaborator-invitation-acceptance.ts";
@@ -141,17 +136,7 @@ export class FormlessAuthority extends DurableObject<Env> {
     const url = new URL(request.url);
 
     if (this.ctx.id.name === FORMLESS_INSTANCE_AUTHORITY_NAME) {
-      try {
-        await ensureRuntimeInstanceAuthConfig(this.ctx.storage, request, this.bindings);
-      } catch (error) {
-        const launchFixtureError = launchFixtureConfigurationErrorMessage(error);
-
-        if (launchFixtureError !== undefined) {
-          return jsonResponse({ error: launchFixtureError }, 400);
-        }
-
-        throw error;
-      }
+      await ensureRuntimeInstanceAuthConfig(this.ctx.storage, request, this.bindings);
     }
 
     const localSessionBootstrapResponse = await handleLocalSessionBootstrapDurableObjectRequest(
@@ -613,10 +598,6 @@ export class FormlessAuthority extends DurableObject<Env> {
         return jsonResponse({ error: error.message }, 400);
       }
 
-      if (error instanceof LaunchFixtureConfigurationError) {
-        return jsonResponse({ error: error.message }, 400);
-      }
-
       if (error instanceof ReloadRequiredError) {
         return jsonResponse(error.body, error.status);
       }
@@ -1030,14 +1011,11 @@ function storageSourceFromRoute(
   route: { app: WorkerSchemaAppDefinition; identity: AppStorageIdentity },
   env: Env,
 ): StorageSource {
-  return (
-    launchFixtureStorageSourceForIdentity(route.identity, env) ??
-    storageSourceFromApp(route.app, {
-      schemaProvenance: packageSchemaProvenanceForIdentity(route.identity, env),
-      schemaKey: route.identity.sourceSchemaKey,
-      storageIdentity: route.identity.authorityName,
-    })
-  );
+  return storageSourceFromApp(route.app, {
+    schemaProvenance: packageSchemaProvenanceForIdentity(route.identity, env),
+    schemaKey: route.identity.sourceSchemaKey,
+    storageIdentity: route.identity.authorityName,
+  });
 }
 
 function storageSourceFromApp(
@@ -1050,8 +1028,6 @@ function storageSourceFromApp(
 ): StorageSource {
   return {
     schema: app.sourceSchema,
-    records: app.seedRecords,
-    changeWritePrefix: app.seedChangeWritePrefix,
     ...(options.schemaKey === undefined ? {} : { schemaKey: options.schemaKey }),
     ...(options.schemaProvenance === undefined
       ? {}
@@ -1132,12 +1108,6 @@ function storageSourceFromSyncSocket(
   socket: WebSocket,
   env: Env,
 ): StorageSource {
-  const launchFixtureSource = launchFixtureStorageSourceForAuthorityName(ctx.id.name, env);
-
-  if (launchFixtureSource) {
-    return launchFixtureSource;
-  }
-
   return storageSourceFromSchemaKey(ctx.getTags(socket)[0] ?? ctx.id.name, env, ctx.id.name);
 }
 
@@ -1631,19 +1601,4 @@ function jsonResponse(body: unknown, status = 200, headers: HeadersInit = {}) {
     status,
     headers: responseHeaders,
   });
-}
-
-function launchFixtureConfigurationErrorMessage(error: unknown): string | undefined {
-  if (error instanceof LaunchFixtureConfigurationError) {
-    return error.message;
-  }
-
-  if (!(error instanceof Error)) {
-    return undefined;
-  }
-
-  return error.message.startsWith('Launch fixture "') ||
-    error.message.startsWith("Unknown launch fixture ")
-    ? error.message
-    : undefined;
 }

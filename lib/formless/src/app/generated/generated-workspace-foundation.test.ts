@@ -16,8 +16,8 @@ import type {
 import type { EntityOperationPresentationConfig } from "../../client/operation-presentation-model.ts";
 import { selectScreenModels } from "../../client/views.ts";
 import type { RecordResultModel } from "../../client/list-result-model.ts";
-import { rateSeedRecords, rateSourceSchema, siteSourceSchema } from "../../test/schema-apps.ts";
-import { testSiteSeedRecords } from "../../test/site-records.ts";
+import { rateCardTestRecords, rateSourceSchema, siteSourceSchema } from "../../test/schema-apps.ts";
+import { testSiteRecords } from "../../test/site-records.ts";
 import { projectGeneratedOperationControl } from "./operation-projection.ts";
 import { projectGeneratedRecordField } from "./field-projection.ts";
 import {
@@ -354,7 +354,7 @@ describe("generated workspace foundation", () => {
   it("scopes repeated list sections, resolves list intents, and composes mixed tree screens", () => {
     const setup = requiredScreen("rateSetup");
     const cards = required(setup.layout.sections[0]);
-    const cardRecords = rateSeedRecords
+    const cardRecords = rateCardTestRecords
       .filter((record) => record.entity === "card")
       .map((record, index) => ({ ...record, values: { ...record.values, order: index + 1 } }));
     const ordering = {
@@ -380,7 +380,7 @@ describe("generated workspace foundation", () => {
     const foundation = selectGeneratedWorkspaceFoundation({
       screen,
       snapshot: projectionSnapshot([
-        ...rateSeedRecords.filter((record) => record.entity !== "card"),
+        ...rateCardTestRecords.filter((record) => record.entity !== "card"),
         ...cardRecords,
       ]),
       today: "2026-07-16",
@@ -470,7 +470,7 @@ describe("generated workspace foundation", () => {
       selectGeneratedWorkspaceFoundation({
         screen: mixedScreen,
         sectionSelection: { site: { selectedContextRecordId: "rec_site_content_home" } },
-        snapshot: projectionSnapshot([...testSiteSeedRecords, ...rateSeedRecords]),
+        snapshot: projectionSnapshot([...testSiteRecords, ...rateCardTestRecords]),
         today: "2026-07-16",
       }),
     );
@@ -614,7 +614,7 @@ function rateWorkspaceFixture() {
     ],
   } satisfies typeof context;
   const contextResult = contextRecordResult(projectedContext);
-  const premium = required(rateSeedRecords.find((record) => record.id === "rec_card_premium"));
+  const premium = required(rateCardTestRecords.find((record) => record.id === "rec_card_premium"));
   const staleState: GeneratedRecordResultRecordState = {
     ...createGeneratedRecordResultFieldAuthoringState(premium, contextResult),
     baselineRecordId: premium.id,
@@ -663,7 +663,7 @@ function rateWorkspaceFixture() {
         table = selected.table?.table;
         return selected;
       },
-      snapshot: projectionSnapshot(rateSeedRecords),
+      snapshot: projectionSnapshot(rateCardTestRecords),
       today: "2026-07-16",
     }),
   );
@@ -719,7 +719,7 @@ function selectRateSectionFoundation(
 
 function tableFoundation(id: string, recordIds: readonly string[]) {
   const rowId = recordIds[0] ?? "empty";
-  const record = required(rateSeedRecords.find((candidate) => candidate.id === rowId));
+  const record = required(rateCardTestRecords.find((candidate) => candidate.id === rowId));
   const actionId = `${id}:${rowId}:move-down`;
   const columnId = `${id}:ordering-column`;
   const fieldColumnId = `${id}:cost-column`;

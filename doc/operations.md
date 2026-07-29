@@ -68,8 +68,7 @@ behavior.
 App-related nouns stay separate:
 
 - `package-app`: bundled or reusable app package metadata, source schema key,
-  seed records key, package revision, source schema hash, and default install
-  facts;
+  package revision, source schema hash, and default install facts;
 - `app-install`: instance-local installation metadata that binds an install id
   to a package app, label, status, storage identity, and routes;
 - `app`: the running app storage target containing entity records, schema,

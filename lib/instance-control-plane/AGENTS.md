@@ -16,7 +16,7 @@ Read this when editing `lib/instance-control-plane/*`.
 
 - App install mutation execution, owner authorization, or Authority writes.
 - Browser replica state, Durable Object storage, sync, reset, restore execution, or runtime protocol handlers.
-- Bundled Site, Tasks, CRM manifests, package registry defaults, source schema JSON, or seed records.
+- Bundled Site, Tasks, CRM manifests, package registry defaults, or source schema JSON.
 - Deployment provider execution, credential resolution, operation history, or provider resource truth.
 - React UI, Worker routes, Node adapters, provider SDKs, or filesystem APIs.
 
@@ -42,6 +42,6 @@ Read this when editing `lib/instance-control-plane/*`.
 - Import this package from the public root only: `@dpeek/formless-instance-control-plane`.
 - Do not add client, React, Worker, Node, or sidecar subpaths.
 - Do not deep-import `lib/instance-control-plane/src/*` from external runtime code.
-- Do not import bundled app schemas, seed records, runtime package registries, React, filesystem APIs, provider SDKs, or Worker adapters.
+- Do not import bundled app schemas, runtime package registries, React, filesystem APIs, provider SDKs, or Worker adapters.
 - Keep package tests fast, deterministic, and local.
 - Do not call live networks, Cloudflare APIs, provider APIs, or a dev server from package tests.

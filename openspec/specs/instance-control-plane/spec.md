@@ -168,7 +168,7 @@ runtime-owned App schema source with deterministic provenance.
 - AND active control-plane records validate against the resolved schema without
   record materialization
 - THEN the runtime refreshes the active control-plane schema and schema
-  timestamp without reseeding or replacing control-plane records
+  timestamp without materializing or replacing control-plane records
 - AND incompatible control-plane schema changes require an explicit migration,
   backfill, or reset path before they can become active
 

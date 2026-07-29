@@ -17,7 +17,6 @@ import { parseAppSchema } from "@dpeek/formless-schema";
 import {
   STORAGE_SNAPSHOT_KIND,
   STORAGE_SNAPSHOT_VERSION,
-  formatStoredRecordsForArtifact,
   type StorageSnapshot,
   type StoredRecord,
 } from "@dpeek/formless-storage";
@@ -188,14 +187,6 @@ function writeOperations(
       : []),
   ];
 }
-const workspaceFixtureTaskSeedRecords = [
-  workspaceFixtureTaskRecord("rec_task_overdue", "Review overdue proposal", false),
-  workspaceFixtureTaskRecord("rec_task_today", "Plan today's delivery", false),
-  workspaceFixtureTaskRecord("rec_task_later", "Schedule design review", false),
-  workspaceFixtureTaskRecord("rec_task_completed", "Send signed kickoff notes", true),
-  workspaceFixtureTaskRecord("rec_task_backlog", "Capture research notes", false),
-];
-
 afterEach(async () => {
   await Promise.all(
     tempDirs.splice(0).map((tempDir) => rm(tempDir, { force: true, recursive: true })),
@@ -371,7 +362,7 @@ describe("workspace app package source resolver", () => {
     expect(result.resolver.findPackage("private-labs")).toBeUndefined();
   });
 
-  it("reads sibling linked package manifests, source schemas, and seed records", async () => {
+  it("reads sibling linked package manifests and source schemas", async () => {
     const root = await makeTempDir();
     const workspaceRoot = path.join(root, "instance");
     const packageRoot = path.join(root, "app");
@@ -397,7 +388,6 @@ describe("workspace app package source resolver", () => {
       label: "Private Labs",
       packageAppKey: "private-labs",
       packageRevision: 7,
-      seedRecordsKey: "private-labs",
       sourceOrigin: "workspace",
       sourceSchemaHash: fixture.sourceSchemaHash,
       sourceSchemaKey: "private-labs",
@@ -413,20 +403,12 @@ describe("workspace app package source resolver", () => {
       manifest: expect.objectContaining({ packageAppKey: "private-labs" }),
       manifestPath: path.join(packageRoot, "formless.app.json"),
       packageRoot,
-      seedRecordsPath: path.join(packageRoot, "source/seed-records.json"),
       sourceSchemaHash: fixture.sourceSchemaHash,
       sourceSchemaPath: path.join(packageRoot, "source/schema.json"),
     });
     expect(
       linkedPackage?.sourceSchema.entities.find((definition) => definition.key === "task"),
     ).toBeDefined();
-    expect(linkedPackage?.seedRecords.map((record) => record.entity)).toEqual([
-      "task",
-      "task",
-      "task",
-      "task",
-      "task",
-    ]);
   });
 
   it("links a package outside the workspace root through workspace package links", async () => {
@@ -460,7 +442,6 @@ describe("workspace app package source resolver", () => {
       label: "Client Orders",
       packageAppKey: "client-orders",
       packageRevision: 3,
-      seedRecordsKey: "client-orders",
       sourceOrigin: "workspace",
       sourceSchemaHash: fixture.sourceSchemaHash,
       sourceSchemaKey: "client-orders",
@@ -476,19 +457,12 @@ describe("workspace app package source resolver", () => {
       manifest: expect.objectContaining({ packageAppKey: "client-orders" }),
       manifestPath: fixture.manifestPath,
       packageRoot,
-      seedRecordsPath: fixture.seedRecordsPath,
       sourceSchemaHash: fixture.sourceSchemaHash,
       sourceSchemaPath: fixture.sourceSchemaPath,
     });
     expect(
       linkedPackage?.sourceSchema.entities.find((definition) => definition.key === "task"),
     ).toBeDefined();
-    expect(linkedPackage?.seedRecords).toEqual(
-      formatStoredRecordsForArtifact(
-        linkedPackage!.sourceSchema,
-        materializedWorkspaceSeedRecords(fixture.seedRecords) as StoredRecord[],
-      ),
-    );
   });
 
   it("rejects linked source schemas that do not parse as app schemas", async () => {
@@ -507,32 +481,6 @@ describe("workspace app package source resolver", () => {
         workspaceRoot,
       }),
     ).rejects.toThrow('Schema must include "entities".');
-  });
-
-  it("rejects linked seed records that do not match the source schema", async () => {
-    const root = await makeTempDir();
-    const workspaceRoot = path.join(root, "instance");
-    const packageRoot = path.join(root, "app");
-    const manifest = workspaceManifestWithPackageLink("../app/formless.app.json");
-
-    await writeWorkspaceAppPackageFixture(packageRoot, {
-      seedRecords: [
-        {
-          id: "rec_private_invalid",
-          entity: "task",
-          values: { missing: "field", title: "Invalid task", done: false },
-          createdAt: "2026-06-01T00:00:00.000Z",
-        },
-      ],
-    });
-
-    await expect(
-      createWorkspaceAppPackageResolver({
-        bundledManifests: workspaceTestBundledManifests,
-        manifest,
-        workspaceRoot,
-      }),
-    ).rejects.toThrow('values include unknown field "task.missing"');
   });
 
   it("rejects linked source schema hash mismatches", async () => {
@@ -1047,24 +995,10 @@ type WorkspaceAppPackageFixture = {
   manifest: AppPackageManifest;
   manifestPath: string;
   packageRoot: string;
-  seedRecords: unknown[];
-  seedRecordsPath: string;
   sourceSchema: unknown;
   sourceSchemaHash: SourceSchemaHash;
   sourceSchemaPath: string;
 };
-
-function materializedWorkspaceSeedRecords(records: unknown[]): unknown[] {
-  return records.map((record) => {
-    if (typeof record !== "object" || record === null || Array.isArray(record)) {
-      return record;
-    }
-
-    const createdAt = "createdAt" in record ? record.createdAt : undefined;
-
-    return typeof createdAt === "string" ? { ...record, updatedAt: createdAt } : record;
-  });
-}
 
 type WorkspaceAppPackageFixtureOptions = {
   capabilities?: AppPackageCapability[];
@@ -1073,8 +1007,6 @@ type WorkspaceAppPackageFixtureOptions = {
   label?: string;
   packageAppKey?: string;
   packageRevision?: number;
-  seedRecords?: unknown[];
-  seedRecordsPath?: string;
   sourceSchema?: unknown;
   sourceSchemaHash?: SourceSchemaHash;
   sourceSchemaPath?: string;
@@ -1086,31 +1018,24 @@ async function writeWorkspaceAppPackageFixture(
   options: WorkspaceAppPackageFixtureOptions = {},
 ): Promise<WorkspaceAppPackageFixture> {
   const sourceSchema = options.sourceSchema ?? workspaceFixtureTaskSourceSchema;
-  const seedRecords = options.seedRecords ?? workspaceFixtureTaskSeedRecords;
   const sourceSchemaHash =
     options.sourceSchemaHash ?? (await computeSourceSchemaHash(sourceSchema));
   const sourceSchemaPath = options.sourceSchemaPath ?? "source/schema.json";
-  const seedRecordsPath = options.seedRecordsPath ?? "source/seed-records.json";
   const manifest = workspaceAppPackageManifestFixture({
     ...options,
-    seedRecordsPath,
     sourceSchemaHash,
     sourceSchemaPath,
   });
   const manifestPath = path.join(packageRoot, "formless.app.json");
   const resolvedSourceSchemaPath = path.join(packageRoot, sourceSchemaPath);
-  const resolvedSeedRecordsPath = path.join(packageRoot, seedRecordsPath);
 
   await writeJsonFile(resolvedSourceSchemaPath, sourceSchema);
-  await writeJsonFile(resolvedSeedRecordsPath, seedRecords);
   await writeJsonFile(manifestPath, manifest);
 
   return {
     manifest,
     manifestPath,
     packageRoot,
-    seedRecords,
-    seedRecordsPath: resolvedSeedRecordsPath,
     sourceSchema,
     sourceSchemaHash,
     sourceSchemaPath: resolvedSourceSchemaPath,
@@ -1125,7 +1050,6 @@ function workspaceAppPackageManifestFixture(
   const label = options.label ?? "Private Labs";
   const defaultInstallId = options.defaultInstallId ?? "labs";
   const sourceSchemaPath = options.sourceSchemaPath ?? "source/schema.json";
-  const seedRecordsPath = options.seedRecordsPath ?? "source/seed-records.json";
 
   return parseAppPackageManifest({
     kind: appPackageManifestKind,
@@ -1140,11 +1064,6 @@ function workspaceAppPackageManifestFixture(
       kind: "workspace",
       key: packageAppKey,
       path: sourceSchemaPath,
-    },
-    seedRecords: {
-      kind: "workspace",
-      key: packageAppKey,
-      path: seedRecordsPath,
     },
     sourceSchemaHash: options.sourceSchemaHash,
     capabilities: options.capabilities ?? [{ kind: "generatedAdmin", routeBase: "/apps" }],
@@ -1191,11 +1110,6 @@ function workspaceTestPackageManifest(input: {
       kind: "bundled",
       key: input.packageAppKey,
       path: "schema.json",
-    },
-    seedRecords: {
-      kind: "bundled",
-      key: input.packageAppKey,
-      path: "seed-records.json",
     },
     sourceSchemaHash: input.sourceSchemaHash,
     capabilities: [

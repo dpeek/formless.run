@@ -1943,33 +1943,9 @@ export type ShellWorkspaceSaveStatusContract = {
   state: "clean" | "dirty" | "failed" | "queued" | "saved" | "saving";
 };
 
-export type ShellResetStatusContract = {
-  message?: string;
-  state: "error" | "idle" | "pending" | "success";
-};
-
-export type ShellResetConfirmationContract = {
-  cancel: ButtonContract;
-  confirm: ButtonContract;
-  description: string;
-  id: string;
-  kind: "shellResetConfirmation";
-  open: boolean;
-  title: string;
-};
-
-export type ShellResetContract = {
-  confirmation: ShellResetConfirmationContract;
-  id: string;
-  kind: "shellReset";
-  status: ShellResetStatusContract;
-  trigger: ButtonContract;
-};
-
 export type ShellSettingsContract = {
   id: string;
   kind: "shellSettings";
-  reset?: ShellResetContract;
   sync?: ShellSyncStatusContract;
   workspaceSave?: ShellWorkspaceSaveStatusContract;
 };
@@ -3223,21 +3199,6 @@ export type ShellCreateIntent = ShellCreateIntentScope &
       }
   );
 
-export type ShellResetIntent = {
-  controlId: string;
-  intent:
-    | {
-        open: boolean;
-        type: "resetOpenChange";
-      }
-    | {
-        type: "resetConfirm";
-      };
-  sectionId: string;
-  shellId: string;
-  type: "shellReset";
-};
-
 export type ShellLogoutIntent = {
   controlId: string;
   sectionId: string;
@@ -3245,11 +3206,7 @@ export type ShellLogoutIntent = {
   type: "shellLogout";
 };
 
-export type ShellIntent =
-  | ShellCreateIntent
-  | ShellLogoutIntent
-  | ShellResetIntent
-  | ShellRootRecordSelectionIntent;
+export type ShellIntent = ShellCreateIntent | ShellLogoutIntent | ShellRootRecordSelectionIntent;
 
 export type ShellIntentHandler = (intent: ShellIntent) => Promise<void> | void;
 

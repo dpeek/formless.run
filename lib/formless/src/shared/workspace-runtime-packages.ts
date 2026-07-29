@@ -6,7 +6,6 @@ export const runtimeWorkspaceAppPackagesVersion = 1;
 
 export type RuntimeWorkspaceAppPackageSource = {
   manifest: AppPackageManifest;
-  seedRecords: unknown[];
   sourceSchema: unknown;
 };
 
@@ -33,7 +32,6 @@ export function formatRuntimeWorkspaceAppPackages(
       packages: packages.map((appPackage) => ({
         manifest: appPackage.manifest,
         sourceSchema: appPackage.sourceSchema,
-        seedRecords: appPackage.seedRecords,
       })),
     },
     null,
@@ -87,13 +85,8 @@ function parseRuntimeWorkspaceAppPackageSource(
 
   const object = value as Record<string, unknown>;
 
-  if (!Array.isArray(object.seedRecords)) {
-    throw new Error(`Runtime workspace app package ${context}.seedRecords must be an array.`);
-  }
-
   return {
     manifest: object.manifest as AppPackageManifest,
     sourceSchema: object.sourceSchema,
-    seedRecords: object.seedRecords,
   };
 }

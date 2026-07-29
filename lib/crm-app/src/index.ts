@@ -1,12 +1,10 @@
 export {
   CRM_DEFAULT_INSTALL_ID,
   CRM_PACKAGE_APP_KEY,
-  CRM_SEED_RECORDS_KEY,
   CRM_SOURCE_SCHEMA_KEY,
 } from "./types.ts";
 export type {
   CrmDefaultInstallId,
   CrmPackageAppKey,
-  CrmSeedRecordsKey,
   CrmSourceSchemaKey,
 } from "./types.ts";

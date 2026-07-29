@@ -63,7 +63,6 @@ import {
   mapWriteOutcome,
   applyPackageAppMigrationsOutcome,
   resetStorageSchemaToSourceOutcome,
-  resetStorageToSourceSeedOutcome,
   restoreStorageSnapshotOutcome,
   readCurrentStoredSchema,
   readPackageAppMigrationState,
@@ -96,7 +95,6 @@ export type AuthorityOperationKind =
   | "restoreSnapshot"
   | "entityOperation"
   | "resetSchema"
-  | "resetSeed"
   | "applyPackageMigrations";
 
 export type AuthorityOperationMetadata = {
@@ -140,7 +138,6 @@ export type WriteAuthorityOperation =
   | WriteOperation<"restoreSnapshot">
   | (WriteOperation<"entityOperation"> & EntityOperationRoute)
   | WriteOperation<"resetSchema">
-  | WriteOperation<"resetSeed">
   | WriteOperation<"applyPackageMigrations">;
 
 export type AuthorityOperation = ReadAuthorityOperation | WriteAuthorityOperation;
@@ -315,10 +312,6 @@ export function selectAuthorityOperation(
 
   if (input.method === "POST" && input.path === "/reset/schema") {
     return { kind: "resetSchema", metadata: metadata("resetSchema", "write") };
-  }
-
-  if (input.method === "POST" && input.path === "/reset/seed") {
-    return { kind: "resetSeed", metadata: metadata("resetSeed", "write") };
   }
 
   if (input.method === "POST" && input.path === "/package-migrations/apply") {
@@ -506,17 +499,6 @@ export async function executeAuthorityOperation(
               input.source,
               validateSourceSchemaReset,
             ),
-            (storedSchema) => bootstrapResponse(input.storage, storedSchema),
-          ),
-        ),
-      );
-    }
-
-    case "resetSeed": {
-      return writeOperationResult(
-        input.writes.apply(() =>
-          mapWriteOutcome(
-            resetStorageToSourceSeedOutcome(input.storage, input.source),
             (storedSchema) => bootstrapResponse(input.storage, storedSchema),
           ),
         ),

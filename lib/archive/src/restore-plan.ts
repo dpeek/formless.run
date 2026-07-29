@@ -956,10 +956,14 @@ function planSteps(
   const steps: ArchiveRestorePlanStep[] = [];
 
   for (const appPlan of appPlans) {
-    steps.push({
+    const installStep: ArchiveRestorePlanStep = {
       install: appPlan.app,
       kind: appPlan.action === "create" ? "createInstall" : "replaceInstall",
-    });
+    };
+
+    if (appPlan.action === "replace") {
+      steps.push(installStep);
+    }
 
     for (const object of mediaByApp.get(appPlan.app.installId) ?? []) {
       steps.push({
@@ -983,6 +987,10 @@ function planSteps(
       schemaKey: appPlan.schemaKey,
       tombstoneCount: appPlan.recordCounts.tombstoned,
     });
+
+    if (appPlan.action === "create") {
+      steps.push(installStep);
+    }
   }
 
   return steps;

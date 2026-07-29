@@ -18,7 +18,6 @@ describe("app storage identity", () => {
       browserDatabaseName: "formless:tasks",
       kind: "schemaKey",
       packageAppKey: "tasks",
-      seedRecordsKey: "tasks",
       sourceSchemaKey: "tasks",
     });
     expect(schemaKeyStorageIdentity("site")).toMatchObject({
@@ -28,7 +27,6 @@ describe("app storage identity", () => {
       browserDatabaseName: "formless:site",
       kind: "schemaKey",
       packageAppKey: "site",
-      seedRecordsKey: "site",
       sourceSchemaKey: "site",
     });
   });
@@ -47,7 +45,6 @@ describe("app storage identity", () => {
       installId: "personal",
       kind: "appInstall",
       packageAppKey: "site",
-      seedRecordsKey: "site",
       sourceSchemaKey: "site",
     });
   });
@@ -66,7 +63,6 @@ describe("app storage identity", () => {
       installId: "tasks",
       kind: "appInstall",
       packageAppKey: "tasks",
-      seedRecordsKey: "tasks",
       sourceSchemaKey: "tasks",
     });
     expect(
@@ -82,7 +78,6 @@ describe("app storage identity", () => {
       installId: "crm",
       kind: "appInstall",
       packageAppKey: "crm",
-      seedRecordsKey: "crm",
       sourceSchemaKey: "crm",
     });
   });

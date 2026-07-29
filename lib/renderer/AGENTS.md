@@ -52,7 +52,7 @@ Read this when editing `lib/renderer/*`.
 - Use Astryx components for layout and controls.
 - Keep custom styling out unless needed; prefer component props first.
 - If custom styling is needed, use StyleX with Astryx tokens.
-- Do not add app schema, seed records, runtime storage, or generated UI behavior here.
+- Do not add app schema, runtime storage, or generated UI behavior here.
 - Keep fixture layouts focused on real product behavior and representative contract
   states. Avoid migration proof UI and prototype cruft.
 - UI labels, icons, colors, states, disabled reasons, primary actions, hidden

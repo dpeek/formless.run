@@ -113,11 +113,6 @@ function privatePackageManifest(): Record<string, unknown> {
       key: "private-labs",
       path: "packages/private-labs/schema.json",
     },
-    seedRecords: {
-      kind: "workspace",
-      key: "private-labs",
-      path: "packages/private-labs/seed-records.json",
-    },
     sourceSchemaHash: privateSourceSchemaHash,
     capabilities: [
       {

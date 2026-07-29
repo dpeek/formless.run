@@ -65,7 +65,6 @@ export function parseAppPackageManifest(
     "label",
     "packageAppKey",
     "packageRevision",
-    "seedRecords",
     "sourceSchema",
     "sourceSchemaHash",
     "supportsMultipleInstalls",
@@ -100,16 +99,7 @@ export function parseAppPackageManifest(
     object.packageRevision,
     `${context} packageRevision`,
   );
-  const sourceSchema = parseSourceLocation(
-    object.sourceSchema,
-    `${context} sourceSchema`,
-    "schema.json",
-  );
-  const seedRecords = parseSourceLocation(
-    object.seedRecords,
-    `${context} seedRecords`,
-    "seed-records.json",
-  );
+  const sourceSchema = parseSourceLocation(object.sourceSchema, `${context} sourceSchema`);
   const sourceSchemaHash = parseSourceSchemaHash(
     object.sourceSchemaHash,
     `${context} sourceSchemaHash`,
@@ -126,7 +116,6 @@ export function parseAppPackageManifest(
     supportsMultipleInstalls,
     packageRevision,
     sourceSchema,
-    seedRecords,
     sourceSchemaHash,
     capabilities,
   };
@@ -507,9 +496,7 @@ function resolveAppPackageManifest(manifest: unknown, context: string): Resolved
     supportsMultipleInstalls: parsed.supportsMultipleInstalls,
     sourceOrigin: parsed.sourceSchema.kind,
     sourceSchemaKey: parsed.sourceSchema.key,
-    seedRecordsKey: parsed.seedRecords.key,
     sourceSchemaLocation: cloneSourceLocation(parsed.sourceSchema),
-    seedRecordsLocation: cloneSourceLocation(parsed.seedRecords),
     adminRouteBase: generatedAdmin.routeBase,
     ...(publicSite === undefined ? {} : { publicRouteBase: publicSite.routeBase }),
   };
@@ -642,15 +629,10 @@ function initializationPlanForInstall(
     installId: install.installId,
     packageAppKey: packageApp.packageAppKey,
     sourceSchemaKey: packageApp.sourceSchemaKey,
-    seedRecordsKey: packageApp.seedRecordsKey,
   };
 }
 
-function parseSourceLocation(
-  value: unknown,
-  context: string,
-  expectedFileName: "schema.json" | "seed-records.json",
-): AppPackageSourceLocation {
+function parseSourceLocation(value: unknown, context: string): AppPackageSourceLocation {
   const object = parseObject(value, context);
   rejectUnknownKeys(object, context, ["key", "kind", "path"]);
 
@@ -659,7 +641,7 @@ function parseSourceLocation(
   }
 
   const key = parseRouteSafeId(object.key, `${context} key`);
-  const path = parseSourceLocationPath(object.path, context, expectedFileName);
+  const path = parseSourceLocationPath(object.path, context);
 
   return {
     kind: object.kind,
@@ -776,11 +758,7 @@ function parseSourceSchemaHash(value: unknown, context: string): SourceSchemaHas
   return value;
 }
 
-function parseSourceLocationPath(
-  value: unknown,
-  context: string,
-  expectedFileName: "schema.json" | "seed-records.json",
-): string {
+function parseSourceLocationPath(value: unknown, context: string): string {
   if (typeof value !== "string" || !sourceLocationPathPattern.test(value)) {
     throw new Error(`${context} path must be a relative JSON path.`);
   }
@@ -789,8 +767,8 @@ function parseSourceLocationPath(
     throw new Error(`${context} path must stay within the package source.`);
   }
 
-  if (!value.endsWith(`/${expectedFileName}`) && value !== expectedFileName) {
-    throw new Error(`${context} path must end with "${expectedFileName}".`);
+  if (!value.endsWith("/schema.json") && value !== "schema.json") {
+    throw new Error(`${context} path must end with "schema.json".`);
   }
 
   return value;
@@ -821,7 +799,6 @@ function cloneResolvedAppPackage(appPackage: ResolvedAppPackage): ResolvedAppPac
   return {
     ...appPackage,
     sourceSchemaLocation: cloneSourceLocation(appPackage.sourceSchemaLocation),
-    seedRecordsLocation: cloneSourceLocation(appPackage.seedRecordsLocation),
   };
 }
 

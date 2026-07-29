@@ -9,6 +9,11 @@ import type { OwnerSetupStatusResponse } from "../shared/protocol.ts";
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import { INTERNAL_RESET_OWNER_SETUP_PATH } from "./owner-setup.ts";
+import {
+  instanceControlPlaneTestStorageSnapshot,
+  restoreTestStorageSnapshot,
+} from "../test/authority-write.ts";
+import { resetTestIdentityStorage } from "../test/identity-owner.ts";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
@@ -45,11 +50,14 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   controlPlaneOperationCounter = 0;
-  await Promise.all([
-    postReset("/api/formless/control-plane/reset/seed"),
-    postReset("/api/formless/identity/reset/seed"),
-    postInternalInstanceReset(INTERNAL_RESET_OWNER_SETUP_PATH),
-  ]);
+  await restoreTestStorageSnapshot(
+    harness,
+    `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/snapshot/restore`,
+    instanceControlPlaneTestStorageSnapshot(),
+    { Authorization: `Bearer ${adminToken}` },
+  );
+  await resetTestIdentityStorage(harness, adminToken);
+  await postInternalInstanceReset(INTERNAL_RESET_OWNER_SETUP_PATH);
 });
 
 afterAll(async () => {
@@ -202,19 +210,6 @@ async function createSetupCapability() {
     setupToken,
     expiresAt: futureExpiresAt,
   });
-}
-
-async function postReset(path: string) {
-  const response = await harness.fetch(path, {
-    body: "{}",
-    headers: {
-      Authorization: `Bearer ${adminToken}`,
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
-
-  expect(response.status).toBe(200);
 }
 
 async function postInternalInstanceReset(path: string) {

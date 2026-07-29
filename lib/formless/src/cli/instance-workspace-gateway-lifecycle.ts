@@ -156,7 +156,6 @@ export function formlessInstanceWorkspaceDevEnv(
   const nextEnv: NodeJS.ProcessEnv = {
     ...env,
     [FORMLESS_INSTANCE_WORKSPACE_ADMIN_TOKEN_ENV_NAME]: localDevSecrets.adminToken,
-    FORMLESS_LAUNCH_FIXTURE: "empty",
     [FORMLESS_INSTANCE_WORKSPACE_OWNER_SESSION_SECRET_ENV_NAME]: localDevSecrets.ownerSessionSecret,
     [FORMLESS_TURNSTILE_SECRET_KEY_ENV_NAME]:
       turnstileSecretKey && turnstileSecretKey.trim() !== ""

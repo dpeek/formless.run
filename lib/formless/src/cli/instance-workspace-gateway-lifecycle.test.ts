@@ -70,7 +70,6 @@ describe("local gateway lifecycle child runtime env", () => {
 
     expect(env).toMatchObject({
       FORMLESS_ADMIN_TOKEN: "ambient-admin-token",
-      FORMLESS_LAUNCH_FIXTURE: "empty",
       FORMLESS_OWNER_SESSION_SECRET: "ambient-owner-session-secret",
       [FORMLESS_SITE_PROJECT_ROOT_ENV_NAME]: workspaceRoot,
       [FORMLESS_TURNSTILE_SECRET_KEY_ENV_NAME]: FORMLESS_TURNSTILE_ALWAYS_PASS_SECRET_KEY,

@@ -157,11 +157,10 @@ shell.
 
 - **GIVEN** shell-eligible app settings or owner session state is available
 - **WHEN** runtime projects shell controls
-- **THEN** app sync status, supported source seed reset confirmation and status,
-  display-safe authenticated identity, and logout availability are explicit
-  presentation facts
-- **AND** reset and logout interactions dispatch canonical shell intents while
-  runtime owns reset, session, navigation, and error effects
+- **THEN** app sync status, display-safe authenticated identity, and logout
+  availability are explicit presentation facts
+- **AND** logout interactions dispatch canonical shell intents while runtime
+  owns session, navigation, and error effects
 - **AND** the shell does not expose session tokens, challenge material, provider
   credentials, raw runtime errors, profile or account settings destinations,
   or a synthesized sign-in destination
@@ -184,7 +183,7 @@ shell.
 
 - **GIVEN** app settings are opened for the active app
 - **WHEN** settings render
-- **THEN** sync status and source seed reset are available where supported
+- **THEN** sync status is available where supported
 - **AND** schema-declared app screen navigation remains available through the
   shell
 - **AND** frontend Schema links and schema editor controls are not shown
@@ -802,8 +801,8 @@ data reads, session behavior, operations, and effects.
   ordered navigation-section nodes through the same generic contract-node
   boundary used by generated workspace contracts
 - **AND** shell nodes carry complete renderer-neutral destinations, selection,
-  counts, statuses, controlled create surfaces, reset confirmation, and session
-  presentation needed by the shell
+  counts, statuses, controlled create surfaces, and session presentation needed
+  by the shell
 - **AND** workspace references retain their existing roles and contract shapes
 - **AND** shell references and snapshots are serializable data without route
   objects, schemas, records, queries, runtime callbacks, React nodes, storage
@@ -811,8 +810,8 @@ data reads, session behavior, operations, and effects.
 
 #### Scenario: Publish shell state transactionally
 
-- **GIVEN** route, app registry, root-record, create, sync, reset, or session
-  state changes one or more shell nodes
+- **GIVEN** route, app registry, root-record, create, sync, or session state
+  changes one or more shell nodes
 - **WHEN** runtime publishes the next shell projection
 - **THEN** the complete immutable node set is committed before subscribers are
   notified
@@ -829,14 +828,14 @@ data reads, session behavior, operations, and effects.
 
 - **GIVEN** a shell renderer receives projected links and controlled controls
 - **WHEN** the user follows a destination, selects or creates a root record,
-  opens or confirms reset, or logs out
+  or logs out
 - **THEN** ordinary destinations use their projected hrefs
 - **AND** controlled interactions dispatch canonical shell intent envelopes
   through the host using stable manifest, section, destination, record,
   create-surface, or control identity as applicable
 - **AND** runtime resolves intents against its latest route, selection, create,
-  reset, and session state before performing navigation, writes, operations, or
-  logout effects
+  and session state before performing navigation, writes, operations, or logout
+  effects
 - **AND** shell create-field intents carry the exact projected field occurrence
   id and resolve it against the latest identified create surface before changing
   its runtime-owned draft
@@ -867,10 +866,10 @@ data reads, session behavior, operations, and effects.
   `lib/renderer`
 - **THEN** pure and subscribed renderer entrypoints render app switching,
   generated screens, root records and create controls, instance management,
-  app settings, sync and reset state, session identity, logout, and the route
-  child without importing generated runtime
+  app settings, sync state, session identity, logout, and the route child
+  without importing generated runtime
 - **AND** app settings render as one navigation item whose hover and focus
-  overlay contains sync and workspace-save status plus reset controls
+  overlay contains sync and workspace-save status
 - **AND** projected sync detail rows render through the package `MetadataList`
   component
 - **AND** root create actions render as compact ghost package `IconButton`
@@ -890,10 +889,10 @@ data reads, session behavior, operations, and effects.
 - **THEN** data-only memory-host fixtures cover App with Tasks, CRM, Site, and
   Instance destinations, Instance management, app-only profiles, Site
   authoring admin, generated screens, root records and counts,
-  controlled create, sync and reset state, authenticated session state, and
-  no-shell selection
-- **AND** fixture reducers may simulate root selection, create, reset, and
-  logout intents without importing generated runtime, schemas, routing, browser
+  controlled create, sync state, authenticated session state, and no-shell
+  selection
+- **AND** fixture reducers may simulate root selection, create, and logout
+  intents without importing generated runtime, schemas, routing, browser
   replica, storage, operation controllers, or session clients
 - **AND** shell fixtures do not synthesize theme controls, while document-theme
   fixtures may compose a separate theme node through the same memory host

@@ -42,14 +42,20 @@ import {
   INSTANCE_AUTH_HANDOFF_CALLBACK_PATH,
   INSTANCE_AUTH_HANDOFF_START_PATH,
 } from "./instance-auth-handoff.ts";
-import { recordOperationRequest, operationWriteRequest } from "../test/authority-write.ts";
-import { ensureTestIdentityOwner } from "../test/identity-owner.ts";
+import {
+  instanceControlPlaneTestStorageSnapshot,
+  recordOperationRequest,
+  operationWriteRequest,
+  restoreTestStorageSnapshot,
+  schemaAppTestStorageSnapshot,
+} from "../test/authority-write.ts";
+import { ensureTestIdentityOwner, resetTestIdentityStorage } from "../test/identity-owner.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import {
   FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
   formatRuntimeWorkspaceAppPackages,
 } from "../shared/workspace-runtime-packages.ts";
-import { siteSeedRecords, siteSourceSchema } from "../test/schema-apps.ts";
+import { siteSourceSchema } from "../test/schema-apps.ts";
 import { workspaceAppPackageManifestFixture } from "../test/workspace-app-package.ts";
 import type {
   PublicKeyCredentialCreationOptionsJSON,
@@ -110,7 +116,7 @@ describe("installed Site custom-domain Worker routing", () => {
       idempotencyKey: "write-custom-domain-home-label",
       entity: "block",
       operationName: "update",
-      recordId: "rec_site_starter_page_home",
+      recordId: "rec_site_content_home",
       input: {
         label: "Personal custom-domain home",
       },
@@ -119,7 +125,7 @@ describe("installed Site custom-domain Worker routing", () => {
     const home = await fetchMappedHost("/", {
       headers: { Accept: "text/html" },
     });
-    const nested = await fetchMappedHost("/blog/starter-post", {
+    const nested = await fetchMappedHost("/blog/shipping-schema-backed-authoring", {
       headers: { Accept: "text/html" },
     });
     const homeHtml = await home.text();
@@ -133,7 +139,7 @@ describe("installed Site custom-domain Worker routing", () => {
     expect(homeHtml).not.toContain("Loading site page...");
 
     expect(nested.status).toBe(200);
-    expect(nestedHtml).toContain("Starter post");
+    expect(nestedHtml).toContain("Shipping schema-backed authoring");
     expect(nestedHtml).toContain('<meta property="og:type" content="article" />');
     expect(nestedHtml).not.toContain("Loading site page...");
   });
@@ -237,10 +243,14 @@ describe("installed Site custom-domain Worker routing", () => {
         headers: { Accept: "text/html" },
         redirect: "manual",
       });
-      const publicSitePage = await fetchHost("admin.example.com", "/blog/starter-post", {
-        headers: { Accept: "text/html" },
-        redirect: "manual",
-      });
+      const publicSitePage = await fetchHost(
+        "admin.example.com",
+        "/blog/shipping-schema-backed-authoring",
+        {
+          headers: { Accept: "text/html" },
+          redirect: "manual",
+        },
+      );
       const staleOwnerSession = await createOwnerSessionCookie({
         env: { FORMLESS_ADMIN_TOKEN: adminToken },
         maxAgeSeconds: 60,
@@ -270,7 +280,7 @@ describe("installed Site custom-domain Worker routing", () => {
       expect(home.headers.get("Location")).toBe(accountRedirectLocationForRoute("/"));
       expect(publicSitePage.status).toBe(302);
       expect(publicSitePage.headers.get("Location")).toBe(
-        accountRedirectLocationForRoute("/blog/starter-post"),
+        accountRedirectLocationForRoute("/blog/shipping-schema-backed-authoring"),
       );
       expect(staleCookieHome.status).toBe(302);
       expect(staleCookieHome.headers.get("Location")).toBe(accountRedirectLocationForRoute("/"));
@@ -1166,6 +1176,12 @@ describe("installed Site custom-domain Worker routing", () => {
       installId: "public-site",
       label: "Public Site",
     });
+    await restoreTestStorageSnapshot(
+      harness,
+      "/api/app-installs/site/public-site/snapshot/restore",
+      schemaAppTestStorageSnapshot("site", "app:public-site"),
+      adminHeaders(),
+    );
 
     const dataApi = `/api/app-installs/tasks/${taskInstallId}`;
     const schemaResponse = await fetchMappedHost(`${dataApi}/schema`, {
@@ -1333,21 +1349,16 @@ describe("installed Site custom-domain Worker routing", () => {
       fetchMappedHost(`${dataApi}/snapshot`, {
         headers: { Cookie: matching.cookie },
       }),
-      ...[
-        "/schema",
-        "/snapshot/restore",
-        "/reset/schema",
-        "/reset/seed",
-        "/package-migrations/apply",
-      ].map((path) =>
-        fetchMappedHost(`${dataApi}${path}`, {
-          body: "not-json",
-          headers: {
-            "Content-Type": "application/json",
-            Cookie: matching.cookie,
-          },
-          method: "POST",
-        }),
+      ...["/schema", "/snapshot/restore", "/reset/schema", "/package-migrations/apply"].map(
+        (path) =>
+          fetchMappedHost(`${dataApi}${path}`, {
+            body: "not-json",
+            headers: {
+              "Content-Type": "application/json",
+              Cookie: matching.cookie,
+            },
+            method: "POST",
+          }),
       ),
       fetchMappedHost("/api/formless/archive/restore", {
         body: "not-json",
@@ -2700,7 +2711,7 @@ describe("installed Site custom-domain Worker routing", () => {
       },
     );
 
-    await postReset(harness, `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/reset/seed`);
+    await resetTestIdentityStorage(harness, adminToken);
 
     assetRequests = [];
 
@@ -2871,7 +2882,7 @@ describe("installed Site custom-domain Worker routing", () => {
       headers: { Accept: "text/html" },
       redirect: "manual",
     });
-    const nested = await fetchMappedHost("/blog/starter-post", {
+    const nested = await fetchMappedHost("/blog/shipping-schema-backed-authoring", {
       headers: { Accept: "text/html" },
     });
 
@@ -4342,25 +4353,33 @@ async function resetWorkerState(target: Harness, resources: readonly WorkerState
 
   const resetters: Record<WorkerStateResource, () => Promise<void>> = {
     auth: () => postInternalInstanceReset(target, INTERNAL_RESET_OWNER_SETUP_PATH),
-    controlPlane: () => postReset(target, `${controlPlaneApi}/reset/seed`),
+    controlPlane: () =>
+      restoreTestStorageSnapshot(
+        target,
+        `${controlPlaneApi}/snapshot/restore`,
+        instanceControlPlaneTestStorageSnapshot(),
+        adminHeaders(),
+      ),
     domainMappings: () =>
       postInternalInstanceReset(target, INTERNAL_RESET_INSTANCE_DOMAIN_MAPPINGS_PATH),
     media: () => clearMediaBucket(target),
-    siteStorage: () => postReset(target, `/api/app-installs/site/${installId}/reset/seed`),
-    taskStorage: () => postReset(target, `/api/app-installs/tasks/${taskInstallId}/reset/seed`),
+    siteStorage: () =>
+      restoreTestStorageSnapshot(
+        target,
+        `/api/app-installs/site/${installId}/snapshot/restore`,
+        schemaAppTestStorageSnapshot("site", `app:${installId}`),
+        adminHeaders(),
+      ),
+    taskStorage: () =>
+      restoreTestStorageSnapshot(
+        target,
+        `/api/app-installs/tasks/${taskInstallId}/snapshot/restore`,
+        schemaAppTestStorageSnapshot("tasks", `app:${taskInstallId}`),
+        adminHeaders(),
+      ),
   };
 
   await Promise.all(resources.map((resource) => resetters[resource]()));
-}
-
-async function postReset(target: Harness, path: string) {
-  const response = await target.fetch(path, {
-    body: "{}",
-    headers: adminHeaders({ "Content-Type": "application/json" }),
-    method: "POST",
-  });
-
-  expect(response.status).toBe(200);
 }
 
 async function postInternalInstanceReset(target: Harness, path: string) {
@@ -4600,7 +4619,6 @@ async function privatePublicSiteRuntimePackages(): Promise<string> {
         ],
       }),
       sourceSchema: siteSourceSchema,
-      seedRecords: siteSeedRecords,
     },
   ]);
 }

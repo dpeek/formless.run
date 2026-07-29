@@ -528,7 +528,6 @@ export function isWorkspaceIntent(intent: PresentationIntent): intent is Workspa
     case "managementWorkspaceOperation":
     case "shellCreate":
     case "shellLogout":
-    case "shellReset":
     case "shellRootRecordSelection":
       return false;
     default:
@@ -597,7 +596,6 @@ export function isShellIntent(intent: PresentationIntent): intent is ShellIntent
   switch (intent.type) {
     case "shellCreate":
     case "shellLogout":
-    case "shellReset":
     case "shellRootRecordSelection":
       return true;
     default:

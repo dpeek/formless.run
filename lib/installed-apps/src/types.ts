@@ -82,7 +82,6 @@ export type AppPackageManifest = {
   supportsMultipleInstalls: boolean;
   packageRevision: PackageAppRevision;
   sourceSchema: AppPackageSourceLocation;
-  seedRecords: AppPackageSourceLocation;
   sourceSchemaHash: SourceSchemaHash;
   capabilities: AppPackageCapability[];
 };
@@ -97,9 +96,7 @@ export type ResolvedAppPackage = {
   supportsMultipleInstalls: boolean;
   sourceOrigin: AppPackageSourceOrigin;
   sourceSchemaKey: string;
-  seedRecordsKey: string;
   sourceSchemaLocation: AppPackageSourceLocation;
-  seedRecordsLocation: AppPackageSourceLocation;
   adminRouteBase: "/apps";
   publicRouteBase?: "/sites";
 };
@@ -115,7 +112,6 @@ export type AppInstallInitializationPlan = {
   installId: AppInstallId;
   packageAppKey: PackageAppKey;
   sourceSchemaKey: string;
-  seedRecordsKey: string;
 };
 
 export type AppInstallRegistryErrorCode =

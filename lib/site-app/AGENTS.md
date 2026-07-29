@@ -8,7 +8,6 @@ Read this when editing `lib/site-app/*`.
 
 - Site app package manifest in `formless.app.json`.
 - Site source schema in `schema.json`.
-- Site source seed records in `seed-records.json`.
 - Site-specific public runtime contracts and root, React, Worker, and Node adapters in `src/`.
 
 ## Does Not Own
@@ -22,7 +21,6 @@ Read this when editing `lib/site-app/*`.
 - `tsconfig.json`: package-local TypeScript project extending the repo config.
 - `formless.app.json`: runtime-neutral app package manifest.
 - `schema.json`: flat Site app schema source.
-- `seed-records.json`: stored-record shaped Site starter records.
 - `src/types.ts`: versioned public Site tree and stored-record contracts.
 - `src/index.ts`: runtime-neutral Site helpers and contracts.
 - `src/react.tsx`: public Site React route and renderer adapter.
@@ -32,7 +30,7 @@ Read this when editing `lib/site-app/*`.
 ## Rules
 
 - Keep Site records flat.
-- Keep source schema and seed records as package source data, not generated runtime state.
+- Keep source schema as package source data, not generated runtime state.
 
 ## Test Rules
 

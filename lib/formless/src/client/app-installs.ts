@@ -148,7 +148,6 @@ function cloneInstallableAppPackage(appPackage: InstallableAppPackage): Installa
   return {
     ...appPackage,
     sourceSchemaLocation: { ...appPackage.sourceSchemaLocation },
-    seedRecordsLocation: { ...appPackage.seedRecordsLocation },
   };
 }
 

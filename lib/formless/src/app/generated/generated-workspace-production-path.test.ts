@@ -8,7 +8,7 @@ import {
   crmSourceSchema,
   rateSourceSchema,
   siteSourceSchema,
-  taskSeedRecords,
+  taskTestRecords,
   taskSourceSchema,
 } from "../../test/schema-apps.ts";
 import { projectGeneratedWorkspaceContractHostPublication } from "./generated-workspace-contract-host.ts";
@@ -87,7 +87,7 @@ describe("generated workspace production path", () => {
     const foundation = required(
       selectGeneratedWorkspaceFoundation({
         screen,
-        snapshot: projectionSnapshot(taskSeedRecords),
+        snapshot: projectionSnapshot(taskTestRecords),
         today: "2026-07-19",
       }),
     );

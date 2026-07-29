@@ -1506,11 +1506,6 @@ function parseInstallablePackageApp(
     localPackage.sourceSchemaKey,
     `${context} sourceSchemaKey`,
   );
-  const seedRecordsKey = parseRequiredString(
-    value.seedRecordsKey,
-    localPackage.seedRecordsKey,
-    `${context} seedRecordsKey`,
-  );
 
   return {
     packageAppKey: localPackage.packageAppKey,
@@ -1541,14 +1536,9 @@ function parseInstallablePackageApp(
         : localPackage.supportsMultipleInstalls,
     sourceOrigin: localPackage.sourceOrigin,
     sourceSchemaKey,
-    seedRecordsKey,
     sourceSchemaLocation: {
       ...localPackage.sourceSchemaLocation,
       key: sourceSchemaKey,
-    },
-    seedRecordsLocation: {
-      ...localPackage.seedRecordsLocation,
-      key: seedRecordsKey,
     },
     adminRouteBase: parseRouteBase(value.adminRouteBase, localPackage.adminRouteBase),
     ...(publicRouteBase === undefined ? {} : { publicRouteBase }),

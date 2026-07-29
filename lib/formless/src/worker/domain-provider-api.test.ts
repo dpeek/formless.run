@@ -18,7 +18,11 @@ import { INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-instanc
 import type { RecordInstanceDomainMappingApplyEvidenceResponse } from "../shared/instance-domain-mappings.ts";
 import type { BootstrapResponse } from "../shared/protocol.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
-import { operationWriteRequest } from "../test/authority-write.ts";
+import {
+  instanceControlPlaneTestStorageSnapshot,
+  operationWriteRequest,
+  restoreTestStorageSnapshot,
+} from "../test/authority-write.ts";
 import { INTERNAL_RESET_INSTANCE_DEPLOYMENT_RUNTIME_PATH } from "./deployment-runtime-api.ts";
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { INTERNAL_RESET_INSTANCE_DOMAIN_MAPPINGS_PATH } from "./instance-domain-mappings.ts";
@@ -417,25 +421,17 @@ async function withHarness<T>(target: Harness, run: () => Promise<T>): Promise<T
 
 async function resetWorkerState(target: Harness) {
   routeRecordIds.clear();
+  await restoreTestStorageSnapshot(
+    target,
+    `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/snapshot/restore`,
+    instanceControlPlaneTestStorageSnapshot(),
+    { Authorization: `Bearer ${adminToken}` },
+  );
   await Promise.all([
-    postReset(target, `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/reset/seed`),
     postInternalInstanceReset(target, INTERNAL_RESET_INSTANCE_DEPLOYMENT_RUNTIME_PATH),
     postInternalInstanceReset(target, INTERNAL_RESET_INSTANCE_DOMAIN_MAPPINGS_PATH),
     postInternalInstanceReset(target, INTERNAL_RESET_INSTANCE_DOMAIN_PROVIDER_PATH),
   ]);
-}
-
-async function postReset(target: Harness, path: string) {
-  const response = await target.fetch(path, {
-    body: "{}",
-    headers: {
-      Authorization: `Bearer ${adminToken}`,
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
-
-  expect(response.status).toBe(200);
 }
 
 async function postInternalInstanceReset(target: Harness, path: string) {

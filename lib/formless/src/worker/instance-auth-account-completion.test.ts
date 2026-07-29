@@ -1567,7 +1567,6 @@ async function profileCompletionWorkspacePackage() {
       sourceSchemaHash,
       supportsMultipleInstalls: true,
     }),
-    seedRecords: [],
     sourceSchema,
   };
 }

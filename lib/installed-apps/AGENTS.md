@@ -15,7 +15,7 @@ Read this when editing `lib/installed-apps/*`.
 ## Does Not Own
 
 - Bundled Site, Tasks, or CRM manifest composition.
-- Bundled source schema JSON, seed records, or package-specific runtime adapters.
+- Bundled source schema JSON or package-specific runtime adapters.
 - Authority storage, browser replica state, app records, route mutation execution,
   React UI, Worker routes, Node adapters, provider SDKs, or filesystem APIs.
 - Upgrade migration registry ownership beyond shared package revision and source
@@ -46,7 +46,7 @@ Read this when editing `lib/installed-apps/*`.
   `@dpeek/formless-installed-apps`.
 - Do not add client, React, Worker, Node, or sidecar subpaths.
 - Do not deep-import `lib/installed-apps/src/*` from external runtime code.
-- Do not import bundled app schemas, seed records, app records, React,
+- Do not import bundled app schemas, app records, React,
   filesystem APIs, provider SDKs, or runtime adapter registries.
 - Keep package tests fast, deterministic, and local.
 - Do not call live networks, Cloudflare APIs, or a dev server from package

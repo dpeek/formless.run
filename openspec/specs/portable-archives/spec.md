@@ -94,8 +94,8 @@ irrelevant.
 #### Scenario: Format flat record values
 
 - GIVEN a stored record has flat `values`
-- WHEN the record is formatted for source seed data, a storage snapshot,
-  portable archive, workspace state, or CLI-readable output
+- WHEN the record is formatted for a storage snapshot, portable archive,
+  workspace state, or CLI-readable output
 - THEN known value properties are written in the containing entity's field
   declaration order
 - AND absent fields are omitted without placeholders
@@ -118,8 +118,8 @@ irrelevant.
 
 #### Scenario: Format record arrays by schema order
 
-- GIVEN a snapshot, archive, workspace state file, or seed-record artifact
-  contains records from more than one entity
+- GIVEN a snapshot, archive, or workspace state file contains records from more
+  than one entity
 - WHEN deterministic output is written
 - THEN records are grouped in entity declaration order
 - AND records within one entity are ordered by record id using the same
@@ -159,7 +159,8 @@ state.
 
 ### Requirement: Restore Execution
 
-The system SHALL restore media before app records and SHALL keep restore policy
+The system SHALL restore populated initial or replacement state through
+portable archives, restore media before app records, and keep restore policy
 explicit.
 
 #### Scenario: Apply restore
@@ -170,6 +171,16 @@ explicit.
 - AND app data is restored through installed app storage identity
 - AND instance control-plane data is restored through `instance:control-plane`
   storage identity when the archive includes it
+
+#### Scenario: Create populated install from app archive
+
+- GIVEN an app archive targets an install id that is not installed
+- WHEN restore validation succeeds and apply is explicitly requested
+- THEN restore creates the install from resolved package metadata
+- AND the archive supplies the install's schema, records, and referenced media
+- AND package source does not supply records before or after archive restore
+- AND the install route becomes usable only after its archive data is restored
+- AND a failed restore does not leave a partially usable installed app route
 
 #### Scenario: Replacement policy
 
@@ -400,11 +411,9 @@ without storing package links in instance control-plane records.
 - **GIVEN** a workspace package link points at a local app package manifest
 - **WHEN** the workspace package resolver is built
 - **THEN** the linked package manifest is parsed
-- **AND** the linked package source schema and seed records are read relative
-  to the package manifest directory
+- **AND** the linked package source schema is read relative to the package
+  manifest directory
 - **AND** the source schema parses as an app schema
-- **AND** the seed records validate as stored-record shaped data for that
-  source schema
 - **AND** the computed source schema hash matches the package manifest
   `sourceSchemaHash`
 - **AND** the resolved package is added to the active workspace resolver

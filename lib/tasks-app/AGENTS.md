@@ -9,7 +9,6 @@ Read this when editing `lib/tasks-app/*`.
 - Tasks app package manifest in `formless.app.json`.
 - Tasks schema authoring modules composed in `src/schema.ts`.
 - Materialized Tasks source schema in `schema.json`.
-- Tasks source seed records in `seed-records.json`.
 - Runtime-neutral Tasks package contracts in `src/`.
 
 ## Does Not Own
@@ -23,7 +22,6 @@ Read this when editing `lib/tasks-app/*`.
 - `tsconfig.json`: package-local TypeScript project extending the repo config.
 - `formless.app.json`: runtime-neutral Tasks app package manifest.
 - `schema.json`: materialized flat Tasks app schema source.
-- `seed-records.json`: stored-record shaped Tasks starter records.
 - `scripts/materialize-schema.ts`: package-local schema materialization command.
 - `src/schema-records.ts`: Tasks record and query declarations.
 - `src/schema-presentation.ts`: Tasks item view, view, and screen declarations.
@@ -34,4 +32,4 @@ Read this when editing `lib/tasks-app/*`.
 ## Rules
 
 - Keep Tasks records flat.
-- Keep materialized schema and seed records as package source data, not generated runtime state.
+- Keep materialized schema as package source data, not generated runtime state.

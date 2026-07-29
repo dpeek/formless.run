@@ -3,9 +3,9 @@ import type { StoredRecord } from "@dpeek/formless-storage";
 import { siteSourceSchema } from "./schema-apps.ts";
 import { requiredCollectionModel, requiredTableModel } from "./generated-table.tsx";
 import { bootstrapResponse } from "./protocol-builders.ts";
-import { testSiteSeedRecords } from "./site-records.ts";
+import { testSiteRecords } from "./site-records.ts";
 
-export function bootstrapSiteEditor(records: StoredRecord[] = testSiteSeedRecords) {
+export function bootstrapSiteEditor(records: StoredRecord[] = testSiteRecords) {
   applyBootstrapResponse(bootstrapResponse(siteSourceSchema, records), "site");
 }
 

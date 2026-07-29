@@ -1,7 +1,5 @@
-import { AlertDialog } from "@astryxdesign/core/AlertDialog";
 import { Avatar } from "@astryxdesign/core/Avatar";
 import { Badge, type BadgeVariant } from "@astryxdesign/core/Badge";
-import { Button, type ButtonVariant } from "@astryxdesign/core/Button";
 import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
 import { HStack } from "@astryxdesign/core/HStack";
 import { HoverCard } from "@astryxdesign/core/HoverCard";
@@ -14,7 +12,6 @@ import { VStack } from "@astryxdesign/core/VStack";
 import * as stylex from "@stylexjs/stylex";
 import { memo, type ReactNode } from "react";
 import type {
-  ButtonContract,
   CreateIntent,
   FieldIntent,
   ShellDestinationContract,
@@ -23,7 +20,6 @@ import type {
   ShellManifestContract,
   ShellNavigationSectionContract,
   ShellNavigationSectionReference,
-  ShellResetContract,
   ShellSessionContract,
   ShellSettingsContract,
 } from "@dpeek/formless-presentation/contract";
@@ -32,7 +28,6 @@ import {
   useShellNavigationSection,
 } from "@dpeek/formless-presentation/host/react";
 import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
-import { operationIcon } from "./operation-renderer.tsx";
 
 type AstryxShellSectionSlot = "appSwitcher" | "navigation" | "session";
 
@@ -261,13 +256,7 @@ function AstryxShellNavigationSection({
   section: ShellNavigationSectionContract;
 }) {
   if (section.role === "appSettings" && section.settings) {
-    return (
-      <AstryxShellSettingsNavigationItem
-        onIntent={onIntent}
-        section={section}
-        settings={section.settings}
-      />
-    );
+    return <AstryxShellSettingsNavigationItem section={section} settings={section.settings} />;
   }
 
   return (
@@ -298,18 +287,16 @@ function AstryxShellNavigationSection({
 }
 
 function AstryxShellSettingsNavigationItem({
-  onIntent,
   section,
   settings,
 }: {
-  onIntent: ShellIntentHandler;
   section: ShellNavigationSectionContract;
   settings: ShellSettingsContract;
 }) {
   return (
     <HoverCard
       alignment="start"
-      content={<AstryxShellSettings onIntent={onIntent} section={section} settings={settings} />}
+      content={<AstryxShellSettings settings={settings} />}
       focusTrigger="always"
       hasHoverIndication={false}
       placement="end"
@@ -363,15 +350,7 @@ function AstryxShellDestination({
   );
 }
 
-function AstryxShellSettings({
-  onIntent,
-  section,
-  settings,
-}: {
-  onIntent: ShellIntentHandler;
-  section: ShellNavigationSectionContract;
-  settings: ShellSettingsContract;
-}) {
+function AstryxShellSettings({ settings }: { settings: ShellSettingsContract }) {
   return (
     <VStack gap={3} width="100%">
       {settings.sync ? (
@@ -402,47 +381,6 @@ function AstryxShellSettings({
           />
         </HStack>
       ) : null}
-      {settings.reset ? (
-        <AstryxShellReset onIntent={onIntent} reset={settings.reset} section={section} />
-      ) : null}
-    </VStack>
-  );
-}
-
-function AstryxShellReset({
-  onIntent,
-  reset,
-  section,
-}: {
-  onIntent: ShellIntentHandler;
-  reset: ShellResetContract;
-  section: ShellNavigationSectionContract;
-}) {
-  const dispatchOpenChange = (open: boolean) =>
-    onIntent(astryxApplicationShellResetIntent(section, reset, { open, type: "resetOpenChange" }));
-
-  return (
-    <VStack gap={1} width="100%">
-      <AstryxShellButton button={reset.trigger} onClick={() => dispatchOpenChange(true)} />
-      {reset.status.message ? (
-        <HStack align="center" gap={2} role={reset.status.state === "error" ? "alert" : "status"}>
-          <Badge label={reset.status.state} variant={resetStatusVariant(reset.status.state)} />
-          <Text type="supporting">{reset.status.message}</Text>
-        </HStack>
-      ) : null}
-      <AlertDialog
-        actionLabel={shellButtonLabel(reset.confirmation.confirm)}
-        actionVariant={shellButtonVariant(reset.confirmation.confirm)}
-        cancelLabel={shellButtonLabel(reset.confirmation.cancel)}
-        description={reset.confirmation.description}
-        isActionLoading={Boolean(reset.confirmation.confirm.pending?.isPending)}
-        isOpen={reset.confirmation.open}
-        onAction={() =>
-          onIntent(astryxApplicationShellResetIntent(section, reset, { type: "resetConfirm" }))
-        }
-        onOpenChange={(open) => void dispatchOpenChange(open)}
-        title={reset.confirmation.title}
-      />
     </VStack>
   );
 }
@@ -492,58 +430,10 @@ function AstryxShellSession({
   );
 }
 
-function AstryxShellButton({
-  button,
-  onClick,
-}: {
-  button: ButtonContract;
-  onClick: () => Promise<void> | void;
-}) {
-  const isLoading = Boolean(button.pending?.isPending);
-  const isDisabled = Boolean(button.disabled || isLoading);
-  const icon = button.content.kind === "label" ? undefined : operationIcon(button.content.icon);
-
-  return (
-    <Button
-      icon={icon}
-      isDisabled={isDisabled}
-      isIconOnly={button.content.kind === "iconOnly"}
-      isLoading={isLoading}
-      label={button.accessibilityLabel}
-      onClick={() => {
-        if (!isDisabled) {
-          void onClick();
-        }
-      }}
-      size={button.density === "compact" ? "sm" : "md"}
-      tooltip={
-        button.disabledReason ??
-        (button.content.kind === "iconOnly" ? button.accessibilityLabel : undefined)
-      }
-      type={button.type}
-      variant={shellButtonVariant(button)}
-    >
-      {button.content.kind === "iconOnly" ? undefined : button.content.label}
-    </Button>
-  );
-}
-
 function destinationSupportingText(destination: ShellDestinationContract) {
   return destination.availability.available
     ? destination.description
     : destination.availability.message;
-}
-
-function shellButtonLabel(button: ButtonContract) {
-  return button.content.kind === "iconOnly" ? button.accessibilityLabel : button.content.label;
-}
-
-function shellButtonVariant(button: ButtonContract): ButtonVariant {
-  return button.prominence === "primary"
-    ? "primary"
-    : button.prominence === "secondary"
-      ? "secondary"
-      : "ghost";
 }
 
 function syncStatusVariant(
@@ -562,10 +452,6 @@ function workspaceSaveStatusVariant(
       : state === "dirty"
         ? "warning"
         : "info";
-}
-
-function resetStatusVariant(state: ShellResetContract["status"]["state"]): BadgeVariant {
-  return state === "error" ? "error" : state === "success" ? "success" : "info";
 }
 
 export function astryxApplicationShellCreateIntent(
@@ -608,24 +494,6 @@ export function astryxApplicationShellCreateIntent(
   };
 }
 
-export function astryxApplicationShellResetIntent(
-  section: ShellNavigationSectionContract,
-  reset: ShellResetContract,
-  intent: Extract<
-    ShellIntent,
-    {
-      type: "shellReset";
-    }
-  >["intent"],
-): ShellIntent {
-  return {
-    controlId: reset.id,
-    intent,
-    sectionId: section.id,
-    shellId: section.shellId,
-    type: "shellReset",
-  };
-}
 export function astryxApplicationShellLogoutIntent(
   section: ShellNavigationSectionContract,
   session: Extract<

@@ -3,7 +3,7 @@
   "version": 1,
   "packageAppKey": "site",
   "label": "Site",
-  "description": "Public website app backed by the bundled Site schema and starter records.",
+  "description": "Public website app backed by the bundled Site schema.",
   "defaultInstallId": "site",
   "supportsMultipleInstalls": true,
   "packageRevision": 1,
@@ -11,11 +11,6 @@
     "kind": "bundled",
     "key": "site",
     "path": "schema.json"
-  },
-  "seedRecords": {
-    "kind": "bundled",
-    "key": "site",
-    "path": "seed-records.json"
   },
   "sourceSchemaHash": "sha256:35bab7bc5f554af247fb10b66d27c3b0fb422d5c29b870050a2e91bf8cfa4c81",
   "capabilities": [

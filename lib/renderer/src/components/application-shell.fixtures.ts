@@ -127,8 +127,7 @@ function devWorkbenchShell(): FormlessApplicationShellFixtureState {
       ["website", "Website", "7"],
       ["operations", "Operations", "3"],
     ]),
-    settingsSection("tasks", "Tasks", {
-      reset: true,
+    settingsSection("tasks", {
       sync: {
         details: [
           { label: "World", value: "tasks" },
@@ -174,8 +173,7 @@ function appOnlyShell(): FormlessApplicationShellFixtureState {
       ],
       false,
     ),
-    settingsSection("tasks", "Tasks", {
-      reset: true,
+    settingsSection("tasks", {
       sync: {
         label: "Synced",
         message: "All changes are synced.",
@@ -200,8 +198,7 @@ function siteAuthoringShell(): FormlessApplicationShellFixtureState {
       ["about", "About", "4"],
       ["contact", "Contact", "2"],
     ]),
-    settingsSection("site", "Site", {
-      reset: true,
+    settingsSection("site", {
       sync: {
         label: "Sync issue",
         message: "Sync failed. Check the current app and try again.",
@@ -326,9 +323,7 @@ function rootSection(
 
 function settingsSection(
   appKey: string,
-  appLabel: string,
   options: {
-    reset?: boolean;
     sync?: {
       details?: readonly {
         label: string;
@@ -345,32 +340,11 @@ function settingsSection(
     };
   },
 ): ShellNavigationSectionContract {
-  const resetId = `${shellId}:reset:${appKey}`;
-
   return section(`settings:${appKey}`, "appSettings", {
     label: "Settings",
     settings: {
       id: `${shellId}:settings:${appKey}:controls`,
       kind: "shellSettings",
-      ...(options.reset
-        ? {
-            reset: {
-              confirmation: {
-                cancel: button(`${resetId}:cancel`, "Cancel"),
-                confirm: button(`${resetId}:confirm`, "Reset", "primary"),
-                description: `This restores the source schema and source seed data for ${appLabel}. Existing records are replaced by the source seed records.`,
-                id: `${resetId}:confirmation`,
-                kind: "shellResetConfirmation",
-                open: false,
-                title: `Reset ${appLabel} source seed data?`,
-              },
-              id: resetId,
-              kind: "shellReset",
-              status: { state: "idle" },
-              trigger: button(`${resetId}:trigger`, "Reset source seed data"),
-            },
-          }
-        : {}),
       ...(options.sync
         ? {
             sync: {

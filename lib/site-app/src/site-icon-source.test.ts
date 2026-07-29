@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import siteSeedRecords from "../seed-records.json";
 import {
   DEFAULT_SITE_ICON_SVG,
   resolveSiteIconSvgSource,
@@ -8,12 +7,6 @@ import {
 } from "./site-icon-source.ts";
 
 describe("Site icon source", () => {
-  it("uses the same default SVG source as the Site seed settings record", () => {
-    const settings = siteSeedRecords.find((record) => record.entity === "site");
-
-    expect(settings?.values.icon).toBe(DEFAULT_SITE_ICON_SVG);
-  });
-
   it("serializes safe SVG source for HTTP serving", () => {
     const source =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><title>Site &amp; icon</title><path d="M4 12h16" stroke-width="2" stroke-linecap="round" /></svg>';

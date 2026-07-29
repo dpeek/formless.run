@@ -499,21 +499,6 @@ function shellNodes({
             settings: {
               id: "settings:tasks",
               kind: "shellSettings",
-              reset: {
-                confirmation: {
-                  cancel: shellButton("control:reset-cancel", "Cancel"),
-                  confirm: shellButton("control:reset-confirm", "Reset", "primary"),
-                  description: "Replace current records with source seed records.",
-                  id: "confirmation:reset",
-                  kind: "shellResetConfirmation",
-                  open: false,
-                  title: "Reset Tasks source seed data?",
-                },
-                id: "reset:tasks",
-                kind: "shellReset",
-                status: { state: "idle" },
-                trigger: shellButton("control:reset-open", "Reset source seed data"),
-              },
               sync: {
                 id: "sync:tasks",
                 kind: "shellSyncStatus",

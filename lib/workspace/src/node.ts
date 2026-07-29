@@ -5,12 +5,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import {
-  getAppSchemaDefinitionIndex,
-  parseAppSchema,
-  validateAuthorityFieldValue,
-  type AppSchema,
-} from "@dpeek/formless-schema";
+import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
 
 import {
   computeSourceSchemaHash,
@@ -24,10 +19,9 @@ import {
 import {
   STORAGE_SNAPSHOT_KIND,
   STORAGE_SNAPSHOT_VERSION,
-  formatStoredRecordsForArtifact,
   parseStorageSnapshot,
 } from "@dpeek/formless-storage";
-import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
+import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
   DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT,
   WORKSPACE_AUTO_SAVE_STATE_FILE,
@@ -120,8 +114,6 @@ export type WorkspaceAppPackageSource = {
   manifest: AppPackageManifest;
   manifestPath: string;
   packageRoot: string;
-  seedRecords: StoredRecord[];
-  seedRecordsPath: string;
   sourceSchema: AppSchema;
   sourceSchemaHash: SourceSchemaHash;
   sourceSchemaPath: string;
@@ -1070,7 +1062,6 @@ async function readLinkedWorkspaceAppPackage(input: {
   assertWorkspaceLinkedPackageManifest(manifest, input.context);
 
   const sourceSchemaPath = path.resolve(packageRoot, manifest.sourceSchema.path);
-  const seedRecordsPath = path.resolve(packageRoot, manifest.seedRecords.path);
   const rawSourceSchema = await readJsonFile(
     sourceSchemaPath,
     `${input.context} source schema "${manifest.sourceSchema.path}"`,
@@ -1084,14 +1075,6 @@ async function readLinkedWorkspaceAppPackage(input: {
     );
   }
 
-  const seedRecords = parseWorkspacePackageSeedRecords(
-    await readJsonFile(
-      seedRecordsPath,
-      `${input.context} seed records "${manifest.seedRecords.path}"`,
-    ),
-    sourceSchema,
-    `${input.context} seed records "${manifest.seedRecords.path}"`,
-  );
   const appPackage = createAppPackageResolver([manifest]).findPackage(manifest.packageAppKey);
 
   if (!appPackage) {
@@ -1103,131 +1086,10 @@ async function readLinkedWorkspaceAppPackage(input: {
     manifest,
     manifestPath,
     packageRoot,
-    seedRecords,
-    seedRecordsPath,
     sourceSchema,
     sourceSchemaHash,
     sourceSchemaPath,
   };
-}
-
-export function parseWorkspacePackageSeedRecords(
-  value: unknown,
-  schema: AppSchema,
-  context: string,
-): StoredRecord[] {
-  if (!Array.isArray(value)) {
-    throw new Error(`${context} must be an array.`);
-  }
-
-  const records = value.map((record, index) =>
-    parseWorkspacePackageSeedRecord(record, `${context}[${index}]`),
-  );
-
-  validateWorkspacePackageSeedRecords(records, schema, context);
-
-  return formatStoredRecordsForArtifact(schema, records);
-}
-
-function parseWorkspacePackageSeedRecord(value: unknown, context: string): StoredRecord {
-  if (!isRecord(value)) {
-    throw new Error(`${context} must be an object.`);
-  }
-
-  if (typeof value.id !== "string" || value.id.trim() === "") {
-    throw new Error(`${context} must include an id.`);
-  }
-
-  if (typeof value.entity !== "string" || value.entity.trim() === "") {
-    throw new Error(`${context} must include an entity.`);
-  }
-
-  if (!isRecordValues(value.values)) {
-    throw new Error(`${context} values are invalid.`);
-  }
-
-  if (typeof value.createdAt !== "string" || value.createdAt.trim() === "") {
-    throw new Error(`${context} must include createdAt.`);
-  }
-
-  if ("deletedAt" in value) {
-    throw new Error(`${context} must not include deletedAt.`);
-  }
-
-  return {
-    id: value.id,
-    entity: value.entity,
-    values: value.values,
-    createdAt: value.createdAt,
-    updatedAt: value.createdAt,
-  };
-}
-
-function validateWorkspacePackageSeedRecords(
-  records: StoredRecord[],
-  schema: AppSchema,
-  context: string,
-) {
-  const recordsById = new Map<string, StoredRecord>();
-
-  for (const record of records) {
-    if (recordsById.has(record.id)) {
-      throw new Error(`${context} includes duplicate id "${record.id}".`);
-    }
-
-    recordsById.set(record.id, record);
-  }
-
-  for (const [index, record] of records.entries()) {
-    const recordContext = `${context}[${index}]`;
-    const schemaIndex = getAppSchemaDefinitionIndex(schema);
-    const entity = schemaIndex.entities.byKey.get(record.entity);
-
-    if (!entity) {
-      throw new Error(`${recordContext} references unknown entity "${record.entity}".`);
-    }
-
-    for (const fieldName of Object.keys(record.values)) {
-      if (!schemaIndex.fieldsByEntity.get(record.entity)?.byKey.has(fieldName)) {
-        throw new Error(
-          `${recordContext} values include unknown field "${record.entity}.${fieldName}".`,
-        );
-      }
-    }
-
-    for (const field of entity.fields) {
-      const value = record.values[field.key];
-      const fieldWasProvided = value !== undefined;
-
-      try {
-        validateAuthorityFieldValue(field.key, field, value, fieldWasProvided);
-      } catch (error) {
-        throw new Error(
-          `${recordContext} has invalid field "${record.entity}.${field.key}": ${
-            error instanceof Error ? error.message : "Field value is invalid."
-          }`,
-        );
-      }
-
-      if (field.type !== "reference" || value === undefined) {
-        continue;
-      }
-
-      if (typeof value !== "string") {
-        throw new Error(
-          `${recordContext} field "${record.entity}.${field.key}" must be a reference ID.`,
-        );
-      }
-
-      const referencedRecord = recordsById.get(value);
-
-      if (!referencedRecord || referencedRecord.entity !== field.to) {
-        throw new Error(
-          `${recordContext} field "${record.entity}.${field.key}" references missing ${field.to} record "${value}".`,
-        );
-      }
-    }
-  }
 }
 
 async function readJsonFile(filePath: string, context: string): Promise<unknown> {
@@ -1249,10 +1111,6 @@ async function readJsonFile(filePath: string, context: string): Promise<unknown>
 function assertWorkspaceLinkedPackageManifest(manifest: AppPackageManifest, context: string) {
   if (manifest.sourceSchema.kind !== "workspace") {
     throw new Error(`${context} manifest sourceSchema kind must be "workspace".`);
-  }
-
-  if (manifest.seedRecords.kind !== "workspace") {
-    throw new Error(`${context} manifest seedRecords kind must be "workspace".`);
   }
 }
 
@@ -1415,18 +1273,6 @@ async function readTextFileIfExists(filePath: string): Promise<string | null> {
 
     throw error;
   }
-}
-
-function isRecordValues(value: unknown): value is RecordValues {
-  return (
-    isRecord(value) &&
-    Object.values(value).every(
-      (fieldValue) =>
-        typeof fieldValue === "string" ||
-        typeof fieldValue === "boolean" ||
-        (typeof fieldValue === "number" && Number.isFinite(fieldValue)),
-    )
-  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
