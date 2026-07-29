@@ -168,7 +168,15 @@ export type MediaStoredObjectListing = {
 /** Provider object listing result. */
 export type MediaObjectList = {
   objects: MediaStoredObjectListing[];
-};
+} & (
+  | {
+      cursor: string;
+      truncated: true;
+    }
+  | {
+      truncated?: false;
+    }
+);
 
 /**
  * Minimal provider object-store seam used by the Worker adapter.
@@ -178,7 +186,11 @@ export type MediaObjectList = {
  */
 export type MediaObjectStore = {
   getObject: (key: MediaStorageKey) => Promise<MediaStoredObject | undefined>;
-  listObjects?: (options: { limit?: number; prefix: string }) => Promise<MediaObjectList>;
+  listObjects?: (options: {
+    cursor?: string;
+    limit?: number;
+    prefix: string;
+  }) => Promise<MediaObjectList>;
   putObject: (write: MediaObjectWrite) => Promise<void>;
 };
 

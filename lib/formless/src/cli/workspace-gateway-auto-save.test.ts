@@ -38,6 +38,10 @@ import {
   type WorkspaceDefaultAutoSaveSchedulerDependencies,
 } from "./workspace-gateway-auto-save.ts";
 import { createWorkspaceGatewayOperationHandlers } from "./workspace-gateway-operation-adapter.ts";
+import {
+  createWorkerHarness,
+  FORMLESS_WORKER_COMPATIBILITY_DATE,
+} from "../worker/miniflare-test.ts";
 
 const tempDirs: string[] = [];
 
@@ -487,6 +491,111 @@ describe("workspace gateway auto-save", () => {
     );
   });
 
+  it("saves an uploaded document beyond the first production-date R2 list page", async () => {
+    const workspaceRoot = await makeTempDir();
+    const mediaHarness = await createWorkerHarness(
+      "src/cli/workspace-document-media-worker-test.ts",
+      {},
+      {
+        compatibilityDate: FORMLESS_WORKER_COMPATIBILITY_DATE,
+        r2Buckets: ["FORMLESS_MEDIA"],
+      },
+    );
+
+    try {
+      const upload = await uploadWorkspaceDocument(mediaHarness, "referenced-report.pdf");
+
+      expect(upload.status).toBe(200);
+
+      const uploaded = (await upload.json()) as {
+        asset: ReturnType<typeof workspaceDocumentAsset>;
+      };
+      const referencedAsset = uploaded.asset;
+      const bucket = await mediaHarness.mf.getR2Bucket("FORMLESS_MEDIA");
+
+      await Promise.all(
+        Array.from({ length: 50 }, (_, index) =>
+          bucket.put(
+            `media/app-installs/reports/documents/!decoy-${String(index).padStart(2, "0")}.pdf`,
+            pdfBytesForWorkspace,
+            {
+              customMetadata: { decoy: String(index) },
+              httpMetadata: { contentType: "application/pdf" },
+            },
+          ),
+        ),
+      );
+
+      const list = await mediaHarness.fetch(
+        "/api/app-installs/site/reports/media/documents?entity=block&field=privateDocument",
+      );
+
+      expect(list.status).toBe(200);
+      expect((await list.clone().json()) as unknown).toEqual({
+        assets: expect.arrayContaining([
+          expect.objectContaining({
+            id: referencedAsset.id,
+            storageKey: referencedAsset.storageKey,
+          }),
+        ]),
+      });
+
+      const scheduler = createDefaultWorkspaceAutoSaveScheduler(
+        autoSaveDeps(workspaceRoot, {
+          fetch: workspaceDocumentWorkerFetch(mediaHarness, referencedAsset.id),
+          operationIds: ["op_r2_document_save_00000001"],
+          timestamps: [
+            "2026-06-02T02:46:00.000Z",
+            "2026-06-02T02:46:01.000Z",
+            "2026-06-02T02:46:02.000Z",
+            "2026-06-02T02:46:03.000Z",
+            "2026-06-02T02:46:04.000Z",
+          ],
+        }),
+      );
+
+      await writeWorkspaceManifest(workspaceRoot);
+      await writeLocalDevEnv(workspaceRoot);
+      await scheduler.enqueue({
+        source: "media-reference",
+        storageIdentity: "app:reports",
+        workspaceRoot,
+      });
+      await expect(scheduler.runNow(workspaceRoot)).resolves.toMatchObject({
+        displayState: "saved",
+        savedGeneration: 1,
+      });
+
+      const appState = JSON.parse(
+        await readFile(path.join(workspaceRoot, "state/apps/reports.json"), "utf8"),
+      ) as { records: StoredRecord[] };
+      const mediaManifest = JSON.parse(
+        await readFile(path.join(workspaceRoot, "state/media/manifest.json"), "utf8"),
+      ) as {
+        objects: Array<{
+          archivePath: string;
+          asset?: { id: string };
+        }>;
+      };
+      const mediaStatePath = path.join(
+        workspaceRoot,
+        "state/media/media/reports",
+        referencedAsset.storageKey,
+      );
+
+      expect(appState.records[0]?.values.privateDocument).toBe(referencedAsset.id);
+      expect(mediaManifest.objects).toEqual([
+        expect.objectContaining({
+          archivePath: `media/reports/${referencedAsset.storageKey}`,
+          asset: expect.objectContaining({ id: referencedAsset.id }),
+        }),
+      ]);
+      await expect(readFile(mediaStatePath)).resolves.toEqual(Buffer.from(pdfBytesForWorkspace));
+    } finally {
+      await mediaHarness.dispose();
+    }
+  });
+
   it("lets manual gateway save flush failed dirty auto-save state", async () => {
     const workspaceRoot = await makeTempDir();
     const requests: CapturedRequest[] = [];
@@ -774,6 +883,91 @@ function workspaceDocumentSaveFetch(
 
     return Response.json({ error: "not found" }, { status: 404 });
   };
+}
+
+function workspaceDocumentWorkerFetch(
+  mediaHarness: Awaited<ReturnType<typeof createWorkerHarness>>,
+  referencedAssetId: string,
+): typeof fetch {
+  const installId = "reports";
+
+  return async (url, init) => {
+    const requestUrl =
+      typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+    const parsedUrl = new URL(requestUrl);
+
+    if (parsedUrl.pathname.startsWith(`/api/app-installs/site/${installId}/media/documents`)) {
+      return (await mediaHarness.fetch(`${parsedUrl.pathname}${parsedUrl.search}`, {
+        headers: normalizeHeaders(init?.headers),
+        method: init?.method,
+      })) as unknown as Response;
+    }
+
+    if (parsedUrl.pathname === "/api/formless/app-installs") {
+      return Response.json({
+        installs: [installedSite(installId, "Reports")],
+        packages: listInstallableAppPackages(bundledAppPackageResolver),
+      });
+    }
+
+    if (parsedUrl.pathname === "/api/formless/control-plane/snapshot") {
+      return Response.json(controlPlaneSnapshot(gatewayControlPlaneRecords(installId)));
+    }
+
+    if (parsedUrl.pathname === `/api/app-installs/site/${installId}/snapshot`) {
+      return Response.json({
+        ...snapshot(
+          [
+            {
+              createdAt: "2026-06-02T02:45:00.000Z",
+              entity: "block",
+              id: "document",
+              updatedAt: "2026-06-02T02:45:00.000Z",
+              values: {
+                privateDocument: referencedAssetId,
+                type: "group",
+              },
+            },
+          ],
+          `app:${installId}`,
+        ),
+        schema: workspaceDocumentSchema(),
+      });
+    }
+
+    return Response.json({ error: "not found" }, { status: 404 });
+  };
+}
+
+const pdfBytesForWorkspace = new TextEncoder().encode("%PDF-1.7\nworkspace R2 document");
+
+async function uploadWorkspaceDocument(
+  mediaHarness: Awaited<ReturnType<typeof createWorkerHarness>>,
+  filename: string,
+) {
+  const boundary = `formless-workspace-${filename}`;
+  const prefix = new TextEncoder().encode(
+    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: application/pdf\r\n\r\n`,
+  );
+  const suffix = new TextEncoder().encode(`\r\n--${boundary}--\r\n`);
+  const body = new Uint8Array(
+    prefix.byteLength + pdfBytesForWorkspace.byteLength + suffix.byteLength,
+  );
+
+  body.set(prefix);
+  body.set(pdfBytesForWorkspace, prefix.byteLength);
+  body.set(suffix, prefix.byteLength + pdfBytesForWorkspace.byteLength);
+
+  return mediaHarness.fetch(
+    "/api/app-installs/site/reports/media/documents?entity=block&field=privateDocument",
+    {
+      body,
+      headers: {
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+      },
+      method: "POST",
+    },
+  );
 }
 
 function installedSite(installId: string, label: string) {

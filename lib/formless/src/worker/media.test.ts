@@ -10,7 +10,7 @@ import type { OperationInvocationResponse } from "../shared/operation-invocation
 import type { OwnerIdentity, SchemaResponse } from "../shared/protocol.ts";
 import { recordOperationRequest } from "../test/authority-write.ts";
 import { ensureTestIdentityOwner, resetTestIdentityStorage } from "../test/identity-owner.ts";
-import { createWorkerHarness } from "./miniflare-test.ts";
+import { createWorkerHarness, FORMLESS_WORKER_COMPATIBILITY_DATE } from "./miniflare-test.ts";
 import {
   CORE_IMAGE_KEY_PREFIX,
   CORE_MEDIA_ROUTE_PREFIX,
@@ -57,6 +57,7 @@ beforeAll(async () => {
       FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true },
     },
     {
+      compatibilityDate: FORMLESS_WORKER_COMPATIBILITY_DATE,
       r2Buckets: mediaBuckets,
     },
   );
@@ -72,6 +73,7 @@ beforeAll(async () => {
         FORMLESS_ADMIN_TOKEN: adminToken,
         FORMLESS_OWNER_SESSION_SECRET: sessionSecret,
       },
+      compatibilityDate: FORMLESS_WORKER_COMPATIBILITY_DATE,
       r2Buckets: mediaBuckets,
     },
   );

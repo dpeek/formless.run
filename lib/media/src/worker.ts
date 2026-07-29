@@ -298,9 +298,21 @@ export async function listDocumentMediaAssets({
     return [];
   }
 
-  const listing = await store.listObjects({ limit, prefix: keyPrefix });
+  const objects: MediaStoredObjectListing[] = [];
+  let cursor: string | undefined;
 
-  return listing.objects
+  do {
+    const listing = await store.listObjects({
+      ...(cursor ? { cursor } : {}),
+      limit,
+      prefix: keyPrefix,
+    });
+
+    objects.push(...listing.objects);
+    cursor = listing.truncated ? listing.cursor : undefined;
+  } while (cursor);
+
+  return objects
     .map((object) => ({
       asset: mediaAssetFromObjectMetadata(object.customMetadata),
       key: object.key,
@@ -713,16 +725,21 @@ export function mediaObjectStoreFromR2Bucket(bucket: R2Bucket): MediaObjectStore
       };
     },
     async listObjects(options) {
-      const listing = await bucket.list({
+      const listOptions = {
+        ...(options.cursor ? { cursor: options.cursor } : {}),
+        include: ["customMetadata", "httpMetadata"] as Array<"customMetadata" | "httpMetadata">,
         limit: options.limit,
         prefix: options.prefix,
-      });
+      };
+      const listing = await bucket.list(listOptions);
       const objects = await Promise.all(
         listing.objects.map(async (object) => {
-          const metadataObject =
-            object.customMetadata === undefined || object.httpMetadata === undefined
-              ? await bucket.head(object.key)
-              : object;
+          const metadataObject = r2ListingMetadataIsUsable(
+            object.customMetadata,
+            object.httpMetadata,
+          )
+            ? object
+            : await bucket.head(object.key);
 
           return {
             contentType: metadataObject?.httpMetadata?.contentType,
@@ -734,6 +751,9 @@ export function mediaObjectStoreFromR2Bucket(bucket: R2Bucket): MediaObjectStore
       );
 
       return {
+        ...(listing.truncated
+          ? { cursor: listing.cursor, truncated: true as const }
+          : { truncated: false as const }),
         objects,
       };
     },
@@ -747,6 +767,18 @@ export function mediaObjectStoreFromR2Bucket(bucket: R2Bucket): MediaObjectStore
       });
     },
   };
+}
+
+function r2ListingMetadataIsUsable(
+  customMetadata: Record<string, string> | undefined,
+  httpMetadata: R2HTTPMetadata | undefined,
+): boolean {
+  return (
+    customMetadata !== undefined &&
+    Object.keys(customMetadata).length > 0 &&
+    httpMetadata !== undefined &&
+    Object.keys(httpMetadata).length > 0
+  );
 }
 
 async function listDocuments(

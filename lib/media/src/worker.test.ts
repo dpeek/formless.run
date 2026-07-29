@@ -11,6 +11,7 @@ import {
   imageMediaRouteFromPathname,
   listDocumentMediaAssets,
   listImageMediaAssets,
+  mediaObjectStoreFromR2Bucket,
   restoreDocumentMedia,
   restoreImageMedia,
   uploadDocumentMedia,
@@ -445,6 +446,140 @@ describe("Media Worker adapter", () => {
         contentType: "application/pdf",
       },
     });
+  });
+
+  it("requests R2 list metadata and falls back to head for empty provider metadata", async () => {
+    const memory = createMemoryStore();
+    const upload = await uploadDocumentMedia({
+      compatibility: documentCompatibility,
+      file: {
+        bytes: pdfBytes,
+        contentType: "application/pdf",
+        filename: "fallback.pdf",
+        size: pdfBytes.byteLength,
+      },
+      hrefForAssetId: documentHref,
+      provider: "fake-r2",
+      randomId: () => "fallback",
+      store: memory.store,
+    });
+
+    if (!upload.ok) {
+      throw new Error("Expected document upload.");
+    }
+
+    const key = upload.upload.key;
+    const stored = memory.objects.get(key);
+    const listOptions: unknown[] = [];
+    const headKeys: string[] = [];
+    const bucket = {
+      async head(headKey: string) {
+        headKeys.push(headKey);
+
+        return {
+          customMetadata: stored?.customMetadata,
+          httpMetadata: {
+            cacheControl: stored?.cacheControl,
+            contentType: stored?.contentType,
+          },
+        };
+      },
+      async list(options: unknown) {
+        listOptions.push(options);
+
+        return {
+          delimitedPrefixes: [],
+          objects: [
+            {
+              customMetadata: {},
+              httpMetadata: {},
+              key,
+              size: pdfBytes.byteLength,
+            },
+          ],
+          truncated: false,
+        };
+      },
+    } as unknown as R2Bucket;
+    const store = mediaObjectStoreFromR2Bucket(bucket);
+
+    await expect(
+      listDocumentMediaAssets({
+        compatibility: documentCompatibility,
+        hrefForAssetId: documentHref,
+        store,
+      }),
+    ).resolves.toEqual([upload.upload.asset]);
+    expect(listOptions).toEqual([
+      {
+        include: ["customMetadata", "httpMetadata"],
+        limit: 50,
+        prefix: "media/app-installs/verifi-prod/documents/",
+      },
+    ]);
+    expect(headKeys).toEqual([key]);
+  });
+
+  it("lists compatible documents across every provider page", async () => {
+    const memory = createMemoryStore();
+    const uploads = await Promise.all(
+      ["first", "second"].map((id) =>
+        uploadDocumentMedia({
+          compatibility: documentCompatibility,
+          file: {
+            bytes: pdfBytes,
+            contentType: "application/pdf",
+            filename: `${id}.pdf`,
+            size: pdfBytes.byteLength,
+          },
+          hrefForAssetId: documentHref,
+          provider: "fake-r2",
+          randomId: () => id,
+          store: memory.store,
+        }),
+      ),
+    );
+
+    if (uploads.some((upload) => !upload.ok)) {
+      throw new Error("Expected document uploads.");
+    }
+
+    const allObjects = await memory.store.listObjects!({
+      limit: 50,
+      prefix: "media/app-installs/verifi-prod/documents",
+    });
+    const cursors: Array<string | undefined> = [];
+    const store: MediaObjectStore = {
+      ...memory.store,
+      async listObjects(options) {
+        cursors.push(options.cursor);
+
+        return options.cursor
+          ? {
+              objects: allObjects.objects.slice(1),
+              truncated: false,
+            }
+          : {
+              cursor: "next-page",
+              objects: allObjects.objects.slice(0, 1),
+              truncated: true,
+            };
+      },
+    };
+
+    await expect(
+      listDocumentMediaAssets({
+        compatibility: documentCompatibility,
+        hrefForAssetId: documentHref,
+        limit: 1,
+        store,
+      }),
+    ).resolves.toEqual(
+      uploads
+        .map((upload) => (upload.ok ? upload.upload.asset : undefined))
+        .toSorted((left, right) => (left?.label ?? "").localeCompare(right?.label ?? "")),
+    );
+    expect(cursors).toEqual([undefined, "next-page"]);
   });
 
   it("applies the effective document limit and validates PDF bytes before provider writes", async () => {

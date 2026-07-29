@@ -43,6 +43,8 @@ type WorkerBundle = {
 
 const workerBundleCache = new Map<string, Promise<WorkerBundle>>();
 let workerBundleCacheRoot: Promise<string> | null = null;
+export const FORMLESS_WORKER_COMPATIBILITY_DATE = "2026-04-28";
+
 export async function createWorkerHarness(
   entryPoint: string,
   durableObjects: DurableObjectBindings,
