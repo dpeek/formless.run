@@ -61,9 +61,7 @@ import type {
   RecordPlanStepOutputExpressionSchema,
   RecordPlanValueExpressionSchema,
   TableOperationBindingSchema,
-  TransitionSideEffectRecordIdExpressionSchema,
   TransitionSideEffectRecordPlanSchema,
-  TransitionSideEffectValueExpressionSchema,
 } from "./types.ts";
 
 export const entityOperationKinds = [
@@ -158,8 +156,8 @@ type ParsedRecordPlanStepSchema = {
   name: string;
   kind: RecordPlanStepKind;
   entity: string;
-  recordId?: TransitionSideEffectRecordIdExpressionSchema;
-  values?: Record<string, TransitionSideEffectValueExpressionSchema>;
+  recordId?: RecordPlanRecordIdExpressionSchema;
+  values?: Record<string, RecordPlanValueExpressionSchema>;
 };
 
 export function formatEntityOperationKey(input: ParsedEntityOperationKey): string {
@@ -974,7 +972,13 @@ function parseOperationEffect(
   if (value.type === "recordPlan") {
     assertExactKeys(context, value, ["type", "steps"]);
     validateOperationEffectKind(context, kind, "command");
-    return parseRecordPlanEffect(context, value, input, entities);
+    return parseRecordPlanEffect(
+      context,
+      value,
+      input,
+      entities,
+      scope === "record" ? { entity, entityName } : undefined,
+    );
   }
 
   throw new Error(`${context} has unsupported type "${String(value.type)}".`);
@@ -1039,12 +1043,14 @@ function parseRecordPlanEffect(
   value: Record<string, unknown>,
   input: EntityOperationInputContractSchema | undefined,
   entities: Record<string, EntitySchema>,
+  target: RecordPlanParseOptions["target"],
 ): RecordPlanEntityOperationEffectSchema {
   return parseRecordPlanEffectWithOptions(
     context,
     value,
     input,
     entities,
+    target === undefined ? {} : { target },
   ) as unknown as RecordPlanEntityOperationEffectSchema;
 }
 
@@ -1272,7 +1278,7 @@ function parseRecordPlanValues(
   entities: Record<string, EntitySchema>,
   previousSteps: Map<string, ParsedRecordPlanStep>,
   options: RecordPlanParseOptions,
-): Record<string, TransitionSideEffectValueExpressionSchema> {
+): Record<string, RecordPlanValueExpressionSchema> {
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
@@ -1321,7 +1327,7 @@ function parseRecordPlanValueExpression(
   entities: Record<string, EntitySchema>,
   previousSteps: Map<string, ParsedRecordPlanStep>,
   options: RecordPlanParseOptions,
-): TransitionSideEffectValueExpressionSchema {
+): RecordPlanValueExpressionSchema {
   if (!isRecord(value)) {
     throw new Error(`${context} must be an expression object.`);
   }
@@ -1348,11 +1354,11 @@ function parseRecordPlanValueExpression(
   }
 
   if (value.kind === "targetRecordId") {
-    return parseTransitionTargetRecordIdExpression(context, value, options);
+    return parseRecordPlanTargetRecordIdExpression(context, value, options);
   }
 
   if (value.kind === "targetField") {
-    return parseTransitionTargetFieldExpression(context, value, options);
+    return parseRecordPlanTargetFieldExpression(context, value, options);
   }
 
   if (value.kind === "actor") {
@@ -1390,7 +1396,7 @@ function parseRecordPlanRecordIdExpression(
   entities: Record<string, EntitySchema>,
   previousSteps: Map<string, ParsedRecordPlanStep>,
   options: RecordPlanParseOptions,
-): TransitionSideEffectRecordIdExpressionSchema {
+): RecordPlanRecordIdExpressionSchema {
   if (!isRecord(value)) {
     throw new Error(`${context} must be an expression object.`);
   }
@@ -1408,7 +1414,7 @@ function parseRecordPlanRecordIdExpression(
   }
 
   if (value.kind === "targetRecordId") {
-    return parseTransitionTargetRecordIdExpression(context, value, options);
+    return parseRecordPlanTargetRecordIdExpression(context, value, options);
   }
 
   if (value.kind === "stepOutput") {
@@ -1432,22 +1438,22 @@ function parseRecordPlanRecordIdExpression(
   throw new Error(`${context} has unsupported record id expression kind "${String(value.kind)}".`);
 }
 
-function parseTransitionTargetRecordIdExpression(
+function parseRecordPlanTargetRecordIdExpression(
   context: string,
   value: Record<string, unknown>,
   options: RecordPlanParseOptions,
-): TransitionSideEffectRecordIdExpressionSchema {
-  assertTransitionTargetExpressionContext(context, options);
+): RecordPlanRecordIdExpressionSchema {
+  assertRecordPlanTargetExpressionContext(context, options);
   assertExactKeys(context, value, ["kind"]);
   return { kind: "targetRecordId" };
 }
 
-function parseTransitionTargetFieldExpression(
+function parseRecordPlanTargetFieldExpression(
   context: string,
   value: Record<string, unknown>,
   options: RecordPlanParseOptions,
-): TransitionSideEffectValueExpressionSchema {
-  const target = assertTransitionTargetExpressionContext(context, options);
+): RecordPlanValueExpressionSchema {
+  const target = assertRecordPlanTargetExpressionContext(context, options);
   assertExactKeys(context, value, ["kind", "field"]);
   const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
   if (!definitionsToRecord(target.entity.fields)[fieldName]) {
@@ -1455,12 +1461,12 @@ function parseTransitionTargetFieldExpression(
   }
   return { kind: "targetField", field: fieldName };
 }
-function assertTransitionTargetExpressionContext(
+function assertRecordPlanTargetExpressionContext(
   context: string,
   options: RecordPlanParseOptions,
 ): NonNullable<RecordPlanParseOptions["target"]> {
   if (!options.target) {
-    throw new Error(`${context} is only valid in transition side-effect plans.`);
+    throw new Error(`${context} is only valid for record-scoped operations.`);
   }
 
   return options.target;
@@ -1661,7 +1667,7 @@ function parseRecordPlanReferenceExpression(
   entities: Record<string, EntitySchema>,
   previousSteps: Map<string, ParsedRecordPlanStep>,
   options: RecordPlanParseOptions,
-): TransitionSideEffectValueExpressionSchema {
+): RecordPlanValueExpressionSchema {
   assertExactKeys(context, value, ["kind", "entity", "id"]);
 
   const entity = parseRecordPlanEntityReference(`${context} entity`, value.entity, entities);
@@ -1680,7 +1686,7 @@ function parseRecordPlanReferenceExpression(
     entity !== options.target.entityName
   ) {
     throw new Error(
-      `${context} targetRecordId must reference transition target entity "${options.target.entityName}".`,
+      `${context} targetRecordId must reference operation target entity "${options.target.entityName}".`,
     );
   }
 
@@ -1694,7 +1700,7 @@ function parseRecordPlanReferenceExpression(
 function validateRecordPlanFieldExpression(
   context: string,
   field: FieldSchema,
-  expression: TransitionSideEffectValueExpressionSchema,
+  expression: RecordPlanValueExpressionSchema,
   previousSteps: Map<string, ParsedRecordPlanStep>,
   options: RecordPlanParseOptions,
 ) {
@@ -1704,7 +1710,7 @@ function validateRecordPlanFieldExpression(
       throw new Error(`${context} references unknown target field "${expression.field}".`);
     }
 
-    validateTransitionTargetFieldCompatibility(context, targetField, field);
+    validateRecordPlanTargetFieldCompatibility(context, targetField, field);
     return;
   }
 
@@ -1742,7 +1748,7 @@ function validateRecordPlanFieldExpression(
   }
 }
 
-function validateTransitionTargetFieldCompatibility(
+function validateRecordPlanTargetFieldCompatibility(
   context: string,
   source: FieldSchema,
   destination: FieldSchema,

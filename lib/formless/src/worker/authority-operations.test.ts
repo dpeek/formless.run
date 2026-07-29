@@ -1835,7 +1835,7 @@ describe("authority operation execution", () => {
         recordId: staleOutput.record.id,
         values: {
           ...staleOutput.record.values,
-          status: "doing",
+          title: "Changed before commit",
         },
       },
       body: {
@@ -2326,6 +2326,262 @@ describe("authority operation execution", () => {
     );
     expect(JSON.stringify(rows)).not.toContain("record-plan-replay-proof-token");
     expect(JSON.stringify(rows)).not.toContain("record-plan-replay-second-proof-token");
+  });
+
+  it("materializes record-scoped related records, replays success, and treats a new key as a new invocation", async () => {
+    const bootstrap = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const schema = schemaWithTargetAwareRecordPlanOperation(bootstrap.body.result.body.schema);
+
+    await executeOperation({
+      method: "POST",
+      path: "/schema",
+      body: { schema },
+    });
+    const target = await createTaskForTransition("target-plan-source", {
+      title: "Original target title",
+      done: false,
+    });
+    const targetOutput = target.body.result.body.output;
+
+    if (targetOutput.type !== "create") {
+      throw new Error("Expected create operation output.");
+    }
+
+    const firstBody = {
+      idempotencyKey: "target-plan-first",
+      recordId: targetOutput.record.id,
+    };
+    const first = await executeOperation<OperationInvocationResponse>({
+      method: "POST",
+      path: "/operations/task/createTargetLog",
+      body: firstBody,
+    });
+    await executeOperation<OperationInvocationResponse>({
+      method: "POST",
+      path: "/operations/task/update",
+      body: {
+        idempotencyKey: "target-plan-update-source",
+        recordId: targetOutput.record.id,
+        input: {
+          ...targetOutput.record.values,
+          title: "Updated target title",
+        },
+      },
+    });
+    const replayed = await executeOperation<OperationInvocationResponse>({
+      method: "POST",
+      path: "/operations/task/createTargetLog",
+      body: firstBody,
+    });
+    const second = await executeOperation<OperationInvocationResponse>({
+      method: "POST",
+      path: "/operations/task/createTargetLog",
+      body: {
+        idempotencyKey: "target-plan-second",
+        recordId: targetOutput.record.id,
+      },
+    });
+    const snapshot = await executeOperation<StorageSnapshot>({
+      method: "GET",
+      path: "/snapshot",
+    });
+    const firstOutput = first.body.result.body.output;
+    const secondOutput = second.body.result.body.output;
+
+    if (firstOutput.type !== "command" || secondOutput.type !== "command") {
+      throw new Error("Expected command operation output.");
+    }
+
+    const firstLog = firstOutput.changes[0]?.payload;
+    const secondLog = secondOutput.changes[0]?.payload;
+
+    expect(first.body.writes.map((write) => write.kind)).toEqual(["committed"]);
+    expect(firstLog).toMatchObject({
+      entity: "target-log",
+      values: {
+        task: targetOutput.record.id,
+        sourceTaskId: targetOutput.record.id,
+        title: "Original target title",
+        code: expect.stringMatching(/^LOG-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/),
+      },
+    });
+    expect(replayed.body.writes.map((write) => write.kind)).toEqual(["replay"]);
+    expect(replayed.body.result.body.status).toBe("replayed");
+    expect(replayed.body.result.body.output).toEqual(firstOutput);
+    expect(second.body.writes.map((write) => write.kind)).toEqual(["committed"]);
+    expect(secondLog).toMatchObject({
+      entity: "target-log",
+      values: {
+        task: targetOutput.record.id,
+        sourceTaskId: targetOutput.record.id,
+        title: "Updated target title",
+        code: expect.stringMatching(/^LOG-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/),
+      },
+    });
+    expect(secondLog?.values.code).not.toBe(firstLog?.values.code);
+    expect(
+      snapshot.body.result.body.records.filter((record) => record.entity === "target-log"),
+    ).toHaveLength(2);
+  });
+
+  it("rejects invalid record-scoped record-plan targets before materialization", async () => {
+    const bootstrap = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const schema = schemaWithTargetAwareRecordPlanOperation(bootstrap.body.result.body.schema);
+
+    await executeOperation({
+      method: "POST",
+      path: "/schema",
+      body: { schema },
+    });
+    const omitted = await executeOperationFailure({
+      method: "POST",
+      path: "/operations/task/createTargetLog",
+      body: { idempotencyKey: "target-plan-omitted" },
+    });
+    const missing = await executeOperationFailure({
+      method: "POST",
+      path: "/operations/task/createTargetLog",
+      body: {
+        idempotencyKey: "target-plan-missing",
+        recordId: "missing-task",
+      },
+    });
+    const project = await executeOperation<OperationInvocationResponse>({
+      method: "POST",
+      path: "/operations/project/create",
+      body: {
+        idempotencyKey: "target-plan-project",
+        input: { name: "Wrong entity" },
+      },
+    });
+    const projectOutput = project.body.result.body.output;
+
+    if (projectOutput.type !== "create") {
+      throw new Error("Expected project create operation output.");
+    }
+
+    const wrongEntity = await executeOperationFailure({
+      method: "POST",
+      path: "/operations/task/createTargetLog",
+      body: {
+        idempotencyKey: "target-plan-wrong-entity",
+        recordId: projectOutput.record.id,
+      },
+    });
+    const tombstoned = await createTaskForTransition("target-plan-tombstoned-source", {
+      title: "Tombstoned target",
+      done: false,
+    });
+    const tombstonedOutput = tombstoned.body.result.body.output;
+
+    if (tombstonedOutput.type !== "create") {
+      throw new Error("Expected task create operation output.");
+    }
+
+    await executeOperation({
+      method: "POST",
+      path: "/operations/task/delete",
+      body: {
+        idempotencyKey: "target-plan-delete-target",
+        recordId: tombstonedOutput.record.id,
+      },
+    });
+    const deleted = await executeOperationFailure({
+      method: "POST",
+      path: "/operations/task/createTargetLog",
+      body: {
+        idempotencyKey: "target-plan-tombstoned",
+        recordId: tombstonedOutput.record.id,
+      },
+    });
+    const snapshot = await executeOperation<StorageSnapshot>({
+      method: "GET",
+      path: "/snapshot",
+    });
+
+    expect(omitted.body.error).toBe(
+      'Operation "task.createTargetLog" requires a target record id.',
+    );
+    expect(missing.body.error).toBe(
+      'Operation "task.createTargetLog" references unknown task record "missing-task".',
+    );
+    expect(wrongEntity.body.error).toBe(
+      `Operation "task.createTargetLog" target record "${projectOutput.record.id}" must belong to entity "task".`,
+    );
+    expect(deleted.body.error).toBe(
+      `Operation "task.createTargetLog" cannot use tombstoned task record "${tombstonedOutput.record.id}".`,
+    );
+    expect([omitted, missing, wrongEntity, deleted].flatMap(({ body }) => body.writes)).toEqual([]);
+    expect(
+      snapshot.body.result.body.records.filter((record) => record.entity === "target-log"),
+    ).toEqual([]);
+  });
+
+  it("rolls back a record-scoped record plan when its target changes before commit", async () => {
+    const bootstrap = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const schema = schemaWithTargetAwareRecordPlanOperation(bootstrap.body.result.body.schema);
+
+    await executeOperation({
+      method: "POST",
+      path: "/schema",
+      body: { schema },
+    });
+    const target = await createTaskForTransition("target-plan-stale-source", {
+      title: "Snapshot title",
+      done: false,
+    });
+    const targetOutput = target.body.result.body.output;
+
+    if (targetOutput.type !== "create") {
+      throw new Error("Expected task create operation output.");
+    }
+
+    const baseline = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const failed = await executeOperationFailure({
+      method: "POST",
+      path: "/operations/task/createTargetLog",
+      beforeWriteRecordValues: {
+        recordId: targetOutput.record.id,
+        values: {
+          ...targetOutput.record.values,
+          title: "Changed before commit",
+        },
+      },
+      body: {
+        idempotencyKey: "target-plan-stale",
+        recordId: targetOutput.record.id,
+      },
+    });
+    const sync = await executeOperation<SyncResponse>({
+      method: "GET",
+      path: "/sync",
+      search: `after=${baseline.body.result.body.cursor}&schemaUpdatedAt=${encodeURIComponent(baseline.body.result.body.schemaUpdatedAt)}`,
+    });
+    const snapshot = await executeOperation<StorageSnapshot>({
+      method: "GET",
+      path: "/snapshot",
+    });
+
+    expect(failed.body.error).toBe(
+      `Operation "task.createTargetLog" target record "${targetOutput.record.id}" changed before commit.`,
+    );
+    expect(failed.body.writes).toEqual([]);
+    expect(sync.body.result.body.changes).toEqual([]);
+    expect(
+      snapshot.body.result.body.records.filter((record) => record.entity === "target-log"),
+    ).toEqual([]);
   });
 
   it("preserves list and get operation reads without idempotency", async () => {
@@ -3146,6 +3402,86 @@ function schemaWithRecordPlanOperation(
         key: operationName,
       },
     ],
+  });
+  return schema;
+}
+function schemaWithTargetAwareRecordPlanOperation(sourceSchema: AppSchema): AppSchema {
+  const schema = schemaWithOperationOnlyTaskProjectReference(sourceSchema);
+  const taskEntity = requireEntity(schema, "task");
+  const targetLogFields = [
+    {
+      type: "reference",
+      required: true,
+      label: "Task",
+      to: "task",
+      displayField: "title",
+      key: "task",
+    },
+    {
+      type: "text",
+      required: true,
+      label: "Source task id",
+      key: "sourceTaskId",
+    },
+    {
+      type: "text",
+      required: true,
+      label: "Title",
+      key: "title",
+    },
+    {
+      type: "text",
+      required: true,
+      label: "Code",
+      key: "code",
+    },
+  ] satisfies EntitySchema["fields"];
+
+  setKeyedDefinition(schema.entities, "target-log", {
+    label: "Target log",
+    fields: targetLogFields,
+    constraints: [{ key: "uniqueCode", kind: "unique", fields: ["code"] }],
+  } as EntitySchema);
+  setKeyedDefinition(schema.entities, "task", {
+    ...taskEntity,
+    operations: mergeOperations(taskEntity.operations, [
+      {
+        key: "createTargetLog",
+        label: "Create target log",
+        kind: "command",
+        scope: "record",
+        effect: {
+          type: "recordPlan",
+          steps: [
+            {
+              name: "createTargetLog",
+              kind: "create",
+              entity: "target-log",
+              recordId: { kind: "generatedId", prefix: "target-log" },
+              values: {
+                task: {
+                  kind: "reference",
+                  entity: "task",
+                  id: { kind: "targetRecordId" },
+                },
+                sourceTaskId: { kind: "targetRecordId" },
+                title: { kind: "targetField", field: "title" },
+                code: {
+                  kind: "generatedCode",
+                  alphabet: "upperAlphaNumericNoConfusables",
+                  length: 6,
+                  prefix: "LOG-",
+                },
+              },
+            },
+          ],
+        },
+        output: { type: "command" },
+        idempotency: { required: true },
+        audit: { input: "summary" },
+        policy: { actors: ["owner"] },
+      },
+    ]),
   });
   return schema;
 }

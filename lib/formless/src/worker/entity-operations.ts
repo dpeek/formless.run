@@ -58,6 +58,10 @@ import {
   recordPlanCommandInput,
   recordPlanOperationOutput,
 } from "./record-plan-materializer.ts";
+import {
+  assertActiveOperationTargetSnapshot,
+  requireActiveOperationTargetRecord,
+} from "./operation-target-snapshot.ts";
 
 type EntityOperationRoute = {
   entityName: string;
@@ -599,6 +603,10 @@ async function prepareRecordPlanOperationInvocationOutcome(
 ): Promise<() => WriteOutcome<OperationInvocationOutput>> {
   const operationId = requiredWriteIdentity(envelope);
   const inputValues = recordPlanCommandInput({ envelope, schema, storage });
+  const targetRecord =
+    envelope.operation.scope === "record"
+      ? requireActiveOperationTargetRecord(storage, envelope)
+      : undefined;
   const materialization = await materializeRecordPlanAsync({
     storage,
     envelope,
@@ -609,6 +617,7 @@ async function prepareRecordPlanOperationInvocationOutcome(
     operationId,
     packageResolver,
     plannedRecords: [],
+    ...(targetRecord === undefined ? {} : { targetRecord }),
   });
 
   return () =>
@@ -618,7 +627,16 @@ async function prepareRecordPlanOperationInvocationOutcome(
         operationId,
         materialization.plans,
         operationRecordConstraintValidator(storage, schema, validateConstraints),
-        { allowStoredReplay: false, now: envelope.receivedAt },
+        {
+          allowStoredReplay: false,
+          ...(targetRecord === undefined
+            ? {}
+            : {
+                assertPreconditions: () =>
+                  assertActiveOperationTargetSnapshot(storage, envelope, targetRecord),
+              }),
+          now: envelope.receivedAt,
+        },
       ),
       (response) =>
         filterCommandOperationOutputForActor(

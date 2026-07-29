@@ -51,6 +51,7 @@ type MaterializeRequest = {
   operationId: string;
   records?: StoredRecord[];
   schema: AppSchema;
+  targetRecord?: StoredRecord;
 };
 
 let harness: Harness;
@@ -314,6 +315,65 @@ describe("record plan materializer", () => {
     });
   });
 
+  it("materializes related-record values from one target snapshot", async () => {
+    const schema = materializerSchema(
+      [
+        {
+          name: "createLog",
+          kind: "create",
+          entity: "task-log",
+          recordId: { kind: "literal", value: "target-log" },
+          values: {
+            task: {
+              kind: "reference",
+              entity: "task",
+              id: { kind: "targetRecordId" },
+            },
+            label: { kind: "targetField", field: "title" },
+            actorMode: { kind: "literal", value: "owner" },
+            sourcePath: { kind: "targetField", field: "marker" },
+            occurredAt: { kind: "generatedTimestamp" },
+          },
+        },
+      ],
+      {},
+      "record",
+    );
+    const operation = submitPlanOperation(schema);
+    const operationId = "operation:task.submitPlan:materializer-target";
+    const targetRecord = existingTaskRecord();
+    const inputValues = {
+      existingTaskId: "task-existing",
+      note: "Target snapshot",
+      title: "Ignored input",
+    };
+    const response = await postMaterialize({
+      effect: requireRecordPlanEffect(operation),
+      envelope: operationEnvelope(operation, {
+        input: inputValues,
+        operationId,
+        receivedAt: "2026-06-25T12:42:56.000Z",
+      }),
+      inputValues,
+      operationId,
+      records: [targetRecord],
+      schema,
+      targetRecord,
+    });
+
+    expect(response.planSummaries[0]).toEqual({
+      kind: "create",
+      entity: "task-log",
+      id: "target-log",
+      values: {
+        task: "task-existing",
+        label: "Existing task",
+        actorMode: "owner",
+        occurredAt: "2026-06-25T12:42:56.000Z",
+      },
+    });
+  });
+
   it("rejects missing target records before committing materialized plans", async () => {
     const schema = materializerSchema([
       {
@@ -375,6 +435,7 @@ function postMaterializeFailure(body: MaterializeRequest) {
 function materializerSchema(
   steps: RecordPlanEntityOperationEffectSchema["steps"] = materializerRecordPlanSteps(),
   taskOverrides: Record<string, unknown> = {},
+  scope: EntityOperationSchema["scope"] = "collection",
 ): AppSchema {
   return parseAppSchema({
     version: 1,
@@ -398,7 +459,7 @@ function materializerSchema(
         operations: [
           {
             key: "submitPlan",
-            ...recordPlanOperation(steps),
+            ...recordPlanOperation(steps, scope),
           },
         ],
         ...taskOverrides,
@@ -465,11 +526,12 @@ function materializerSchema(
 }
 function recordPlanOperation(
   steps: RecordPlanEntityOperationEffectSchema["steps"],
+  scope: EntityOperationSchema["scope"],
 ): EntityOperationSchema {
   return {
     label: "Submit plan",
     kind: "command",
-    scope: "collection",
+    scope,
     input: {
       fields: [
         { key: "existingTaskId", type: "text", required: true, label: "Existing task" },
@@ -613,7 +675,7 @@ function operationEnvelope(
       operationName: "submitPlan",
       canonicalKey: "task.submitPlan",
       kind: "command",
-      scope: "collection",
+      scope: operation.scope,
       effect: operation.effect,
       output: operation.output,
       policy: operation.policy,
@@ -710,6 +772,7 @@ async function writeRecordPlanMaterializerHarness() {
                 operationId: body.operationId,
                 schema: body.schema,
                 storage: this.ctx.storage,
+                targetRecord: body.targetRecord,
               });
               const planSummaries = summarizePlans(
                 materialization.plans,

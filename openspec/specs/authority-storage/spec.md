@@ -323,8 +323,8 @@ The system MUST commit writes only when Authority validation succeeds.
 - GIVEN transition side-effect planning reads a stored target record before the
   storage transaction begins
 - WHEN the target record changes before the combined write set materializes
-- THEN Authority rechecks the target identity and transition source state at the
-  commit boundary
+- THEN Authority rechecks the active target identity, entity, transition source
+  state, and immutable target snapshot at the commit boundary
 - AND stale target values are not copied into created records
 - AND the operation fails without a transition patch, event, side-effect
   record, or sync change
@@ -538,6 +538,26 @@ writes.
 - AND if any step fails validation or materialization, no plan step writes an
   app record, tombstone, operation handler replay row, or sync change row
 
+#### Scenario: Resolve a record-scoped record-plan target
+
+- GIVEN an accepted record-scoped command operation has effect type
+  `recordPlan`
+- WHEN Authority prepares the operation after checking for a stored successful
+  replay
+- THEN the invocation includes a non-empty target record id
+- AND Authority requires an active stored target whose entity matches the
+  operation entity
+- AND missing, tombstoned, or wrong-entity targets fail before plan
+  materialization
+- AND the materializer receives one immutable snapshot of that target for all
+  `targetRecordId` and `targetField` expressions
+- AND target reference expressions remain subject to normal active-reference,
+  target-entity, field, and unique-constraint validation
+- AND Authority rechecks the active target against the immutable snapshot
+  inside the record-plan storage transaction before materializing any write
+- AND a changed or deleted target fails the complete operation without an app
+  record, tombstone, committed operation output, or sync change
+
 #### Scenario: Materialize record plan write requests
 
 - GIVEN an accepted command operation invocation has validated operation input
@@ -546,8 +566,11 @@ writes.
 - THEN the record-plan materializer builds the ordered record-write requests
   for all declared steps before the commit boundary writes records
 - AND step values resolve from validated operation input, literal scalar values,
-  generated ids, generated timestamps, actor context, source context, and
-  earlier step outputs
+  generated ids, generated timestamps, actor context, source context, earlier
+  step outputs, and the immutable target snapshot when the operation is
+  record-scoped
+- AND generated codes retry bounded unique-constraint collisions against stored
+  and earlier planned records before commit
 - AND create step write ids are derived from the operation invocation id and
   step name
 - AND patch, delete, and tombstone step targets resolve to active existing
@@ -571,6 +594,8 @@ writes.
   idempotency key returns the stored operation output without duplicate app
   records, tombstones, operation handler replay rows, operation invocation rows,
   or sync change rows
+- AND invoking the same record-scoped operation with a new idempotency key is a
+  new intentional invocation that may create another related record
 
 ### Requirement: Operation Handler Materialization
 

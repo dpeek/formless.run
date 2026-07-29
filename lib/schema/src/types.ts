@@ -1110,11 +1110,21 @@ export type RecordPlanStepOutputExpressionSchema =
   | RecordPlanStepIdOutputExpressionSchema
   | RecordPlanStepFieldOutputExpressionSchema;
 
+export type RecordPlanTargetRecordIdExpressionSchema = {
+  kind: "targetRecordId";
+};
+
+export type RecordPlanTargetFieldExpressionSchema = {
+  kind: "targetField";
+  field: string;
+};
+
 export type RecordPlanRecordIdExpressionSchema =
   | RecordPlanInputValueExpressionSchema
   | RecordPlanLiteralValueExpressionSchema
   | RecordPlanGeneratedIdExpressionSchema
-  | RecordPlanStepIdOutputExpressionSchema;
+  | RecordPlanStepIdOutputExpressionSchema
+  | RecordPlanTargetRecordIdExpressionSchema;
 
 export type RecordPlanScalarValueExpressionSchema =
   | RecordPlanRecordIdExpressionSchema
@@ -1122,7 +1132,8 @@ export type RecordPlanScalarValueExpressionSchema =
   | RecordPlanGeneratedTimestampExpressionSchema
   | RecordPlanActorContextExpressionSchema
   | RecordPlanSourceContextExpressionSchema
-  | RecordPlanStepFieldOutputExpressionSchema;
+  | RecordPlanStepFieldOutputExpressionSchema
+  | RecordPlanTargetFieldExpressionSchema;
 
 export type RecordPlanReferenceValueExpressionSchema = {
   kind: "reference";
@@ -1167,37 +1178,12 @@ export type RecordPlanEntityOperationEffectSchema = {
   steps: RecordPlanStepSchema[];
 };
 
-export type TransitionTargetRecordIdExpressionSchema = {
-  kind: "targetRecordId";
-};
-
-export type TransitionTargetFieldExpressionSchema = {
-  kind: "targetField";
-  field: string;
-};
-
-export type TransitionSideEffectRecordIdExpressionSchema =
-  | RecordPlanRecordIdExpressionSchema
-  | TransitionTargetRecordIdExpressionSchema;
-
-export type TransitionSideEffectReferenceValueExpressionSchema = {
-  kind: "reference";
-  entity: string;
-  id: TransitionSideEffectRecordIdExpressionSchema;
-};
-
-export type TransitionSideEffectValueExpressionSchema =
-  | Exclude<RecordPlanValueExpressionSchema, RecordPlanReferenceValueExpressionSchema>
-  | TransitionTargetRecordIdExpressionSchema
-  | TransitionTargetFieldExpressionSchema
-  | TransitionSideEffectReferenceValueExpressionSchema;
-
 export type TransitionSideEffectCreateStepSchema = {
   name: string;
   kind: "create";
   entity: string;
-  recordId?: TransitionSideEffectRecordIdExpressionSchema;
-  values: Record<string, TransitionSideEffectValueExpressionSchema>;
+  recordId?: RecordPlanRecordIdExpressionSchema;
+  values: Record<string, RecordPlanValueExpressionSchema>;
 };
 
 export type TransitionSideEffectRecordPlanSchema = {

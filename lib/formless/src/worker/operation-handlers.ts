@@ -43,6 +43,10 @@ import {
   recordPlanCommandInput,
   recordPlanOperationOutput,
 } from "./record-plan-materializer.ts";
+import {
+  assertActiveOperationTargetSnapshot,
+  immutableOperationTargetSnapshot,
+} from "./operation-target-snapshot.ts";
 
 export type OperationHandlerExecutionContext = {
   storage: DurableObjectStorage;
@@ -163,7 +167,16 @@ export async function prepareTransitionStateSideEffectHandlerOutcome(
         operationId,
         plans,
         operationHandlerRecordConstraintValidator(context),
-        { allowStoredReplay: false, now: context.envelope.receivedAt },
+        {
+          allowStoredReplay: false,
+          assertPreconditions: () =>
+            assertActiveOperationTargetSnapshot(
+              context.storage,
+              context.envelope,
+              transition.targetRecord,
+            ),
+          now: context.envelope.receivedAt,
+        },
       ),
       (output) =>
         recordPlanOperationOutput(output, materialization, {
@@ -911,7 +924,9 @@ function selectTransitionStateWritePlans(
     );
   }
 
-  const record = requireActiveTransitionTargetRecord(storage, context, input.recordId);
+  const record = immutableOperationTargetSnapshot(
+    requireActiveTransitionTargetRecord(storage, context, input.recordId),
+  );
   const validationReader = authorityStorageRecordValidationReader(storage);
   const previousState = record.values[machine.field];
 
@@ -954,8 +969,7 @@ function selectTransitionStateWritePlans(
   const plans: OperationRecordWritePlan[] = [
     {
       kind: "patch",
-      record: () =>
-        requireTransitionTargetAtCommit(storage, context, record, machine.field, previousState),
+      record,
       values: nextValues,
     },
   ];
@@ -1007,23 +1021,6 @@ function selectTransitionStateWritePlans(
   return { plannedRecords, plans, targetRecord: record };
 }
 
-function requireTransitionTargetAtCommit(
-  storage: DurableObjectStorage,
-  context: OperationHandlerExecutionContext,
-  snapshot: StoredRecord,
-  machineField: string,
-  expectedSourceState: string,
-): StoredRecord {
-  const record = requireActiveTransitionTargetRecord(storage, context, snapshot.id);
-  const sourceState = record.values[machineField];
-
-  if (record.entity !== snapshot.entity || sourceState !== expectedSourceState) {
-    throw new BadRequestError(
-      `Operation "${context.envelope.operation.canonicalKey}" target record "${record.id}" changed before commit.`,
-    );
-  }
-  return record;
-}
 function stateTransitionCanApply(
   entity: EntitySchema,
   machine: NonNullable<EntitySchema["stateMachines"]>[number],

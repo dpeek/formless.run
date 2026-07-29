@@ -724,6 +724,54 @@ describe("schema entity operations", () => {
     expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
   });
 
+  it("parses and stringifies record-scoped record plans with target expressions", () => {
+    const targetAwareEffect = recordPlanEffect({
+      steps: [
+        {
+          name: "createLog",
+          kind: "create",
+          entity: "task-log",
+          values: {
+            task: {
+              kind: "reference",
+              entity: "task",
+              id: { kind: "targetRecordId" },
+            },
+            label: { kind: "targetField", field: "title" },
+            actorMode: { kind: "literal", value: "owner" },
+            actorPrincipalId: { kind: "targetRecordId" },
+            sourcePath: { kind: "targetField", field: "marker" },
+            occurredAt: { kind: "generatedTimestamp" },
+          },
+        },
+        {
+          name: "touchTarget",
+          kind: "patch",
+          entity: "task",
+          recordId: { kind: "targetRecordId" },
+          values: {
+            marker: { kind: "literal", value: "touched" },
+          },
+        },
+      ],
+    });
+    const schema = parseAppSchema(
+      schemaWithTaskLogOperations({
+        submitIntake: recordPlanOperation({
+          scope: "record",
+          effect: targetAwareEffect,
+        }),
+      }),
+    );
+    const effect = operation(
+      schema.entities.find((definition) => definition.key === "task")!.operations,
+      "submitIntake",
+    ).effect;
+
+    expect(effect).toEqual(targetAwareEffect);
+    expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+  });
+
   it("rejects invalid command record-plan declarations", () => {
     const invalidCases = [
       {
@@ -808,6 +856,100 @@ describe("schema entity operations", () => {
           }),
         },
         message: 'references unknown operation input field "missing"',
+      },
+      {
+        operations: {
+          submitIntake: recordPlanOperation({
+            effect: recordPlanEffect({
+              steps: [
+                {
+                  ...createTaskStep(),
+                  values: { title: { kind: "targetField", field: "title" } },
+                },
+              ],
+            }),
+          }),
+        },
+        message: "is only valid for record-scoped operations",
+      },
+      {
+        operations: {
+          submitIntake: recordPlanOperation({
+            scope: "record",
+            effect: recordPlanEffect({
+              steps: [
+                {
+                  ...createTaskStep(),
+                  values: { title: { kind: "targetField", field: "missing" } },
+                },
+              ],
+            }),
+          }),
+        },
+        message: 'references unknown target field "missing"',
+      },
+      {
+        operations: {
+          submitIntake: recordPlanOperation({
+            scope: "record",
+            effect: recordPlanEffect({
+              steps: [
+                {
+                  ...createTaskStep(),
+                  values: { dueDate: { kind: "targetRecordId" } },
+                },
+              ],
+            }),
+          }),
+        },
+        message: "targetRecordId requires a plain text destination field",
+      },
+      {
+        operations: {
+          submitIntake: recordPlanOperation({
+            scope: "record",
+            effect: recordPlanEffect({
+              steps: [
+                {
+                  ...createLogStep(),
+                  values: {
+                    ...createLogStep().values,
+                    task: {
+                      kind: "reference",
+                      entity: "task-log",
+                      id: { kind: "targetRecordId" },
+                    },
+                  },
+                },
+              ],
+            }),
+          }),
+        },
+        message: 'targetRecordId must reference operation target entity "task"',
+      },
+      {
+        operations: {
+          submitIntake: recordPlanOperation({
+            scope: "record",
+            effect: recordPlanEffect({
+              steps: [
+                {
+                  ...createLogStep(),
+                  values: {
+                    ...createLogStep().values,
+                    task: {
+                      kind: "reference",
+                      entity: "task",
+                      id: { kind: "targetRecordId" },
+                    },
+                    label: { kind: "targetField", field: "marker" },
+                  },
+                },
+              ],
+            }),
+          }),
+        },
+        message: "optional target field requires an optional or defaulted destination",
       },
       {
         operations: {

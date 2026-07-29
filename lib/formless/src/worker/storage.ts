@@ -419,6 +419,7 @@ type RecordWriteMaterializationOptions = {
 
 type OperationMaterializationOptions = {
   allowStoredReplay?: boolean;
+  assertPreconditions?: () => void;
   now?: string;
 };
 
@@ -2401,6 +2402,8 @@ export function writeRecordSetForCommandOperationOutcome(
     if (existingChanges.length > 0) {
       return replayedWrite(operationCommandOutputFromChanges(storage, existingChanges));
     }
+
+    options.assertPreconditions?.();
 
     const changedAt = options.now ?? nowIsoString();
     const records = materializeOperationRecordWrites(

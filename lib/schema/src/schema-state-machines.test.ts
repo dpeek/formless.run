@@ -422,7 +422,7 @@ describe("schema state machines", () => {
             },
           ],
         }),
-        message: 'targetRecordId must reference transition target entity "task"',
+        message: 'targetRecordId must reference operation target entity "task"',
       },
     ];
 
@@ -453,6 +453,7 @@ describe("schema state machines", () => {
         parseAppSchema(
           stateMachineSchemaWithTransitionSideEffects({
             operation: {
+              scope: "collection",
               effect: {
                 type: "recordPlan",
                 steps: [
@@ -467,7 +468,7 @@ describe("schema state machines", () => {
             },
           }),
         ),
-      ).toThrow("is only valid in transition side-effect plans");
+      ).toThrow("is only valid for record-scoped operations");
     }
 
     expect(() =>

@@ -7,9 +7,7 @@ import {
   type RecordPlanStepSchema,
   type RecordPlanValueExpressionSchema,
   type TransitionSideEffectCreateStepSchema,
-  type TransitionSideEffectRecordIdExpressionSchema,
   type TransitionSideEffectRecordPlanSchema,
-  type TransitionSideEffectValueExpressionSchema,
 } from "@dpeek/formless-schema";
 import type { FieldValue, RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import type { AppPackageResolver } from "../shared/app-packages.ts";
@@ -33,6 +31,7 @@ import type {
   PatchRecordWriteRequest,
 } from "./record-write-requests.ts";
 import { getStoredRecord, type OperationRecordWritePlan } from "./storage.ts";
+import { immutableOperationTargetSnapshot } from "./operation-target-snapshot.ts";
 
 export type RecordPlanInputValues = Partial<Record<string, FieldValue>>;
 
@@ -44,13 +43,9 @@ type MaterializableRecordPlanStepSchema =
   | RecordPlanStepSchema
   | TransitionSideEffectCreateStepSchema;
 
-type MaterializableRecordPlanRecordIdExpressionSchema =
-  | RecordPlanRecordIdExpressionSchema
-  | TransitionSideEffectRecordIdExpressionSchema;
+type MaterializableRecordPlanRecordIdExpressionSchema = RecordPlanRecordIdExpressionSchema;
 
-type MaterializableRecordPlanValueExpressionSchema =
-  | RecordPlanValueExpressionSchema
-  | TransitionSideEffectValueExpressionSchema;
+type MaterializableRecordPlanValueExpressionSchema = RecordPlanValueExpressionSchema;
 type MaterializableRecordPlanValuedStepSchema = Extract<
   MaterializableRecordPlanStepSchema,
   {
@@ -139,7 +134,10 @@ export function materializeRecordPlan(
     schema: input.schema,
     stepOutputs: new Map(),
     storage: input.storage,
-    targetRecord: immutableStoredRecordSnapshot(input.targetRecord),
+    targetRecord:
+      input.targetRecord === undefined
+        ? undefined
+        : immutableOperationTargetSnapshot(input.targetRecord),
   };
   const steps: RecordPlanStepMaterialization[] = [];
   const plans: OperationRecordWritePlan[] = [];
@@ -165,7 +163,10 @@ export async function materializeRecordPlanAsync(
     schema: input.schema,
     stepOutputs: new Map(),
     storage: input.storage,
-    targetRecord: immutableStoredRecordSnapshot(input.targetRecord),
+    targetRecord:
+      input.targetRecord === undefined
+        ? undefined
+        : immutableOperationTargetSnapshot(input.targetRecord),
   };
   const steps: RecordPlanStepMaterialization[] = [];
   const plans: OperationRecordWritePlan[] = [];
@@ -213,17 +214,6 @@ export function recordPlanOperationOutput(
       }),
     },
   };
-}
-
-function immutableStoredRecordSnapshot(record: StoredRecord | undefined): StoredRecord | undefined {
-  if (record === undefined) {
-    return undefined;
-  }
-
-  return Object.freeze({
-    ...record,
-    values: Object.freeze({ ...record.values }),
-  }) as StoredRecord;
 }
 
 function initialRecordPlanRecords(records: Iterable<StoredRecord> | undefined) {

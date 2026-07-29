@@ -1026,17 +1026,28 @@ public forms, automation, audit, and authorization.
   declared entity from the same schema
 - AND step values may reference operation input fields, literal scalar values,
   generated ids, generated human-readable codes, generated timestamps,
-  actor/source context, and outputs from earlier steps
+  actor/source context, outputs from earlier steps, and the invocation target
+  when the containing operation is record-scoped
 - AND generated human-readable code expressions declare a named alphabet, either
   one length or grouped segment lengths, an optional group separator, and an
   optional literal prefix
 - AND generated human-readable code expressions are valid for step values, not
   record id expressions
-- AND record id expressions use input, literal scalar, generated id, or earlier
-  step id output expressions
+- AND record id expressions use input, literal scalar, generated id, earlier
+  step id output, or record-scoped target record id expressions
 - AND field values target declared fields on the step entity
 - AND reference field values use a reference expression whose entity matches the
   declared reference target and whose id resolves to a flat record id
+- AND `targetRecordId` resolves to the invocation target record id and may
+  populate a compatible plain-text value or a reference expression whose entity
+  is the containing operation entity
+- AND `targetField` resolves a declared field from the stored invocation target
+  record
+- AND an absent optional target field omits the destination value
+- AND target-field source and destination types, text formats, enum value
+  coverage, requiredness, and reference targets are compatible
+- AND target expressions are rejected when the containing operation is
+  collection-scoped
 - AND references to earlier steps resolve through flat record ids, not nested
   record values
 - AND actor context expressions support actor mode and the authenticated
@@ -1148,8 +1159,9 @@ fields without adding nested stored workflow state.
 - AND an absent optional target field omits the destination value
 - AND target-field source and destination field types, text formats, enum value
   coverage, requiredness, and reference targets are validated from schema facts
-- AND target expressions are rejected in ordinary record plans and outside a
-  transition side-effect plan
+- AND transition side effects use the same record-scoped target-expression
+  contract as ordinary record plans
+- AND target expressions remain rejected for collection-scoped operations
 - AND side-effect patch, delete, tombstone, transition, query fan-out, loop,
   arbitrary code, provider call, and cross-app write steps are rejected
 - AND side effects do not change operation actor policy, idempotency, audit, or
