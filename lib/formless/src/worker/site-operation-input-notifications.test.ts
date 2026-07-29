@@ -450,6 +450,7 @@ function operationInputSchema(
     version: 1,
     entities: [
       {
+        id: "entity_bfc261ad-39e9-4aca-ba08-3f3afc55deab",
         key: "request",
         label: "Request",
         fields: [

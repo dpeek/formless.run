@@ -46,6 +46,7 @@ const siteSourceSchema = parseAppSchema({
   version: 1,
   entities: [
     {
+      id: "entity_4d8e2d7c-72d6-4073-b16e-5d166f34a6c1",
       key: "site",
       label: "Site",
       fields: [
@@ -56,6 +57,7 @@ const siteSourceSchema = parseAppSchema({
       operations: writeOperations("Site", ["key", "label"], { delete: true }),
     },
     {
+      id: "entity_3ef07253-2620-4c77-be92-3096df861767",
       key: "block",
       label: "Block",
       fields: [
@@ -73,6 +75,7 @@ const siteSourceSchema = parseAppSchema({
       ),
     },
     {
+      id: "entity_bbb47901-1536-4558-8d7f-e4810fae75d8",
       key: "block-placement",
       label: "Block Placement",
       fields: [
@@ -135,6 +138,7 @@ const taskSourceSchema = parseAppSchema({
   version: 1,
   entities: [
     {
+      id: "entity_f7b77f9a-b890-4bc8-887b-89a0a3399dc6",
       key: "task",
       label: "Task",
       fields: [

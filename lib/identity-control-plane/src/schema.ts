@@ -372,6 +372,7 @@ export const identityControlPlaneSourceSchema = {
   version: 1,
   entities: [
     {
+      id: "entity_9a973724-79ed-4e91-b5a3-6364bb03aa18",
       key: "principal",
       label: "Principal",
       fields: [
@@ -393,6 +394,7 @@ export const identityControlPlaneSourceSchema = {
       }),
     },
     {
+      id: "entity_44ca1842-9aa9-44de-8f84-3b6348ba781f",
       key: "principal-email",
       label: "Principal email",
       fields: [
@@ -443,6 +445,7 @@ export const identityControlPlaneSourceSchema = {
       constraints: [{ key: "uniqueNormalizedEmail", kind: "unique", fields: ["normalizedEmail"] }],
     },
     {
+      id: "entity_7fdc2084-9c69-46e7-8ae6-3abdef0844e6",
       key: "group",
       label: "Group",
       fields: [
@@ -460,6 +463,7 @@ export const identityControlPlaneSourceSchema = {
       }),
     },
     {
+      id: "entity_a1f3cd81-3ff7-49af-8613-c9551a0ef673",
       key: "organization",
       label: "Organization",
       fields: [
@@ -477,6 +481,7 @@ export const identityControlPlaneSourceSchema = {
       }),
     },
     {
+      id: "entity_dba733fd-fcce-4183-98ea-092f2e54d676",
       key: "membership",
       label: "Membership",
       fields: [
@@ -510,6 +515,7 @@ export const identityControlPlaneSourceSchema = {
       ),
     },
     {
+      id: "entity_3d39cc7b-afd7-49c2-92a2-95c17eb382d6",
       key: "role",
       label: "Role",
       fields: [
@@ -532,6 +538,7 @@ export const identityControlPlaneSourceSchema = {
       constraints: [{ key: "uniqueKey", kind: "unique", fields: ["key"] }],
     },
     {
+      id: "entity_59caf16c-c00f-424c-8f40-337ee7043326",
       key: "role-assignment",
       label: "Role assignment",
       fields: [
@@ -592,6 +599,7 @@ export const identityControlPlaneSourceSchema = {
       ),
     },
     {
+      id: "entity_735d1c4d-dc89-4423-9cc7-0daa06559d75",
       key: "app-registration",
       label: "App registration",
       fields: [
@@ -636,6 +644,7 @@ export const identityControlPlaneSourceSchema = {
       ),
     },
     {
+      id: "entity_f176ed5c-3e07-4107-8e4d-50e89539c9e1",
       key: "invitation",
       label: "Invitation",
       fields: [
@@ -695,6 +704,7 @@ export const identityControlPlaneSourceSchema = {
       ),
     },
     {
+      id: "entity_954732d5-5b4b-4cc5-a7c5-644e6f964a62",
       key: "account-policy",
       label: "Account policy",
       fields: [
@@ -759,6 +769,7 @@ export const identityControlPlaneSourceSchema = {
       ),
     },
     {
+      id: "entity_edc192f5-9b11-4f79-ac18-b256a842a6e8",
       key: "principal-policy-acceptance",
       label: "Principal policy acceptance",
       fields: [

@@ -36,7 +36,7 @@ describe("upgrade migration contracts", () => {
       bundledSourceSchemaHashFixtures.tasks,
     );
     expect(bundledSourceSchemaHashFixtures.tasks).toBe(
-      "sha256:2fe579351d0f296f4daefc351f5ea79a0121bfecd591dc7a904832ee2bcfb704",
+      "sha256:4261e0b3e35273fa5fb55749ec297afbb3f48c35efda272958aef5b180630cd8",
     );
     await expect(computeSourceSchemaHash(rawSiteSourceSchema)).resolves.toBe(
       bundledSourceSchemaHashFixtures.site,

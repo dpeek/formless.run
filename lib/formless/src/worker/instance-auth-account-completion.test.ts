@@ -1577,6 +1577,7 @@ function profileCompletionSourceSchema() {
     version: 1,
     entities: [
       {
+        id: "entity_d66347a4-4328-411d-bcd4-ab4a8ffc31e0",
         key: "profile",
         label: "Profile",
         fields: [

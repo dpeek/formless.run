@@ -27,7 +27,7 @@ export * from "./types.ts";
 export { identityControlPlaneSourceSchema } from "./schema.ts";
 
 export const IDENTITY_CONTROL_PLANE_SOURCE_SCHEMA_HASH =
-  "sha256:9d233888e57625f1c437c3e45963265cde8f1eb57eab4d31699af30617733386" satisfies SourceSchemaHash;
+  "sha256:1074a454fd09bd0eed3f251d031942eec570b60f467466f2d3cc121348b74f03" satisfies SourceSchemaHash;
 
 export const identityControlPlaneSchemaProvenance = {
   kind: "identity-control-plane",

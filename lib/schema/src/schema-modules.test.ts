@@ -96,6 +96,7 @@ describe("App schema module authoring", () => {
       entities: [
         {
           key: "shared",
+          id: "entity_f7f0a104-3fd7-438b-a502-caf3bef7495d",
           label: "Shared",
           fields: [{ key: "title", type: "text", required: true }],
         },
@@ -155,6 +156,34 @@ describe("App schema module authoring", () => {
       queries: [queries.queries.find((definition) => definition.key === "shared")!],
     });
   });
+  it("rejects entity id collisions across different entity keys", () => {
+    const first = defineAppSchemaModule({
+      key: "first",
+      entities: [
+        {
+          key: "first",
+          id: "entity_5e33afde-b424-4a89-94c5-e8ac89668d72",
+          label: "First",
+          fields: [{ key: "name", type: "text", required: true }],
+        },
+      ],
+    });
+    const second = defineAppSchemaModule({
+      key: "second",
+      entities: [
+        {
+          key: "second",
+          id: "entity_5e33afde-b424-4a89-94c5-e8ac89668d72",
+          label: "Second",
+          fields: [{ key: "name", type: "text", required: true }],
+        },
+      ],
+    });
+
+    expect(() => composeAppSchema({ version: 1, modules: [first, second] })).toThrow(
+      'Schema entity id "entity_5e33afde-b424-4a89-94c5-e8ac89668d72" is contributed by both module "first" entity "first" and module "second" entity "second".',
+    );
+  });
   it("validates cross-module references only at the complete App schema boundary", () => {
     const records = taskRecordsModule();
     const invalidQueries = defineAppSchemaModule({
@@ -210,6 +239,7 @@ function taskRecordsModule() {
     entities: [
       {
         key: "task",
+        id: "entity_1eef6113-0555-4e82-96fc-1a0dcfb9d475",
         label: "Task",
         fields: [
           { key: "title", type: "text", required: true },
@@ -268,6 +298,7 @@ function projectRecordsModule() {
     entities: [
       {
         key: "project",
+        id: "entity_2ea5a995-4506-49b4-8bb6-d372872089a4",
         label: "Project",
         fields: [{ key: "name", type: "text", required: true }],
       },

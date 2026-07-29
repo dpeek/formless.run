@@ -20,6 +20,10 @@ import type {
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
+const sourceTaskEntityId = "entity_dc20cc24-23e4-4a16-98fe-bd6e09427c68";
+const replacementTaskEntityId = "entity_0be22eea-6edb-48ed-9230-4e98954c9f8a";
+const noteEntityId = "entity_703758ba-0ef5-4f92-80ae-58da4a7b7938";
+
 let harness: Harness;
 let storageHarnessDir: string | undefined;
 let storageHarnessName: string;
@@ -64,6 +68,7 @@ describe("storage", () => {
       version: 1,
       entities: [
         {
+          id: sourceTaskEntityId,
           key: "task",
           label: "Planner task",
           fields,
@@ -82,6 +87,59 @@ describe("storage", () => {
     }>("/schema");
     expect(stored.schema).toEqual(nextSchema);
   });
+  it("rejects entity id changes and rebinding during active schema updates", async () => {
+    const current = await getJson<StoredSchema>("/schema");
+    const changedIdentity = parseAppSchema({
+      ...current.schema,
+      entities: current.schema.entities.map((entity) =>
+        entity.key === "task" ? { ...entity, id: replacementTaskEntityId } : entity,
+      ),
+    });
+    const changedResponse = await fetchStorage("/schema", {
+      body: JSON.stringify(changedIdentity),
+      method: "POST",
+    });
+
+    expect(changedResponse.status).toBe(500);
+    expect(await changedResponse.json()).toEqual({
+      error: `Cannot change entity id for continuing entity "task" from "${sourceTaskEntityId}" to "${replacementTaskEntityId}".`,
+    });
+    expect(await getJson<StoredSchema>("/schema")).toEqual(current);
+
+    const withNote = parseAppSchema({
+      ...current.schema,
+      entities: [
+        ...current.schema.entities,
+        {
+          id: noteEntityId,
+          key: "note",
+          label: "Note",
+          fields: [{ key: "body", type: "text", required: true, label: "Body" }],
+        },
+      ],
+    });
+    await postJson("/schema", withNote);
+    const rebound = parseAppSchema({
+      ...withNote,
+      entities: withNote.entities.map((entity) =>
+        entity.key === "task"
+          ? { ...entity, id: noteEntityId }
+          : entity.key === "note"
+            ? { ...entity, id: sourceTaskEntityId }
+            : entity,
+      ),
+    });
+    const reboundResponse = await fetchStorage("/schema", {
+      body: JSON.stringify(rebound),
+      method: "POST",
+    });
+
+    expect(reboundResponse.status).toBe(500);
+    expect(await reboundResponse.json()).toEqual({
+      error: `Cannot rebind entity id "${sourceTaskEntityId}" from entity "task" to "note" while entity key "task" continues with id "${noteEntityId}".`,
+    });
+    expect((await getJson<StoredSchema>("/schema")).schema).toEqual(withNote);
+  });
   it("resets schema, records, and changes", async () => {
     const fields = [
       { type: "text", required: true, key: "title" },
@@ -93,6 +151,7 @@ describe("storage", () => {
       version: 1,
       entities: [
         {
+          id: sourceTaskEntityId,
           key: "task",
           label: "Planner task",
           fields,
@@ -118,6 +177,17 @@ describe("storage", () => {
     expect(await getJson<unknown[]>("/records")).toEqual([]);
     expect(await getJson<unknown[]>("/changes?after=0")).toEqual([]);
     expect(await getJson<number>("/cursor")).toBe(0);
+  });
+  it("destructively resets persisted schema state that predates required entity ids", async () => {
+    await getJson<StoredSchema>("/schema");
+    await postJson("/corrupt-schema-without-entity-ids", {});
+
+    const reset = await postJson<StoredSchema>("/reset", {});
+
+    expect(reset.schema.entities).toContainEqual(
+      expect.objectContaining({ id: sourceTaskEntityId, key: "task" }),
+    );
+    expect(await getJson<StoredRecord[]>("/records")).toEqual([]);
   });
 
   it("clears records, changes, and command replay rows before writing source seed rows", async () => {
@@ -350,6 +420,40 @@ describe("storage", () => {
     expect(await getJson<PackageAppMigrationState>("/package-migration-state")).toEqual(
       beforeState,
     );
+  });
+  it("blocks source refresh that changes a continuing entity id", async () => {
+    const initialHash = sourceHash("1");
+    const refreshedHash = sourceHash("2");
+
+    await postJson<StoredSchema>("/source-bootstrap", {
+      sourceSchemaHash: initialHash,
+    });
+    const beforeSchema = await getJson<StoredSchema>("/current-schema");
+    const response = await fetchStorage("/source-bootstrap", {
+      body: JSON.stringify({
+        schemaKind: "entity-id",
+        sourceSchemaHash: refreshedHash,
+      }),
+      method: "POST",
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining(
+        `Cannot change entity id for continuing entity "task" from "${sourceTaskEntityId}" to "${replacementTaskEntityId}".`,
+      ),
+      blocker: {
+        currentSchemaProvenance: {
+          kind: "package-app",
+          sourceSchemaHash: initialHash,
+        },
+        targetSchemaProvenance: {
+          kind: "package-app",
+          sourceSchemaHash: refreshedHash,
+        },
+      },
+    });
+    expect(await getJson<StoredSchema>("/current-schema")).toEqual(beforeSchema);
   });
 
   it("blocks schema-only refresh when the package revision changed", async () => {
@@ -971,6 +1075,60 @@ describe("storage", () => {
       sourceSchemaHash: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
     });
   });
+  it("keeps migrated references flat while rejecting record id reuse across entities", async () => {
+    await seedPackageMigrationRecords();
+
+    const flatReference = await postJson<WriteOutcome<ApplyPackageAppMigrationsResponse>>(
+      "/package-migrations/apply",
+      { kind: "flat-reference" },
+    );
+    const records = await getJson<StoredRecord[]>("/records");
+
+    expect(flatReference.kind).toBe("committed");
+    expect(records).toContainEqual(
+      expect.objectContaining({
+        id: "migration-note",
+        entity: "note",
+        values: {
+          body: "Flat task reference",
+          task: "migration-open",
+        },
+      }),
+    );
+
+    storageHarnessName = randomUUID();
+    await seedPackageMigrationRecords();
+    const beforeRecords = await getJson<StoredRecord[]>("/records");
+    const response = await fetchStorage("/package-migrations/apply", {
+      body: JSON.stringify({ kind: "duplicate-cross-entity" }),
+      method: "POST",
+    });
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error:
+        'Package app migration "2026-05-28-test-package-app-duplicate-cross-entity" creates duplicate record "migration-open".',
+    });
+    expect(await getJson<StoredRecord[]>("/records")).toEqual(beforeRecords);
+    expect(await getJson<AppliedPackageAppMigration[]>("/applied-package-migrations")).toEqual([]);
+  });
+  it("rejects entity id changes from package app migrations", async () => {
+    await seedPackageMigrationRecords();
+    const beforeSchema = await getJson<StoredSchema>("/schema");
+    const beforeRecords = await getJson<StoredRecord[]>("/records");
+    const response = await fetchStorage("/package-migrations/apply", {
+      body: JSON.stringify({ kind: "invalid-entity-id" }),
+      method: "POST",
+    });
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error: `Cannot change entity id for continuing entity "task" from "${sourceTaskEntityId}" to "${replacementTaskEntityId}".`,
+    });
+    expect(await getJson<StoredSchema>("/schema")).toEqual(beforeSchema);
+    expect(await getJson<StoredRecord[]>("/records")).toEqual(beforeRecords);
+    expect(await getJson<AppliedPackageAppMigration[]>("/applied-package-migrations")).toEqual([]);
+  });
 
   it("replays applied package app migrations without duplicate changes", async () => {
     await seedPackageMigrationRecords();
@@ -1162,6 +1320,7 @@ function taskSchema(): AppSchema {
     version: 1,
     entities: [
       {
+        id: sourceTaskEntityId,
         key: "task",
         label: "Task",
         fields,
@@ -1391,10 +1550,60 @@ async function writeStorageHarness() {
           return "sha256:7777777777777777777777777777777777777777777777777777777777777777";
         }
 
+        if (kind === "invalid-entity-id") {
+          return "sha256:8888888888888888888888888888888888888888888888888888888888888888";
+        }
+
+        if (kind === "flat-reference") {
+          return "sha256:9999999999999999999999999999999999999999999999999999999999999999";
+        }
+
+        if (kind === "duplicate-cross-entity") {
+          return "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        }
+
         return "sha256:3333333333333333333333333333333333333333333333333333333333333333";
       }
 
       function packageMigrationPlan(kind) {
+        if (kind === "invalid-entity-id") {
+          const schema = structuredClone(seedSchema);
+          schema.entities.find((definition) => definition.key === "task").id = "${replacementTaskEntityId}";
+          return { schema };
+        }
+
+        if (kind === "flat-reference") {
+          return {
+            schema: schemaWithNoteReference(),
+            creates: [
+              {
+                entity: "note",
+                recordId: "migration-note",
+                values: {
+                  body: "Flat task reference",
+                  task: "migration-open",
+                },
+              },
+            ],
+          };
+        }
+
+        if (kind === "duplicate-cross-entity") {
+          return {
+            schema: schemaWithNoteReference(),
+            creates: [
+              {
+                entity: "note",
+                recordId: "migration-open",
+                values: {
+                  body: "Duplicate across entities",
+                  task: "migration-child",
+                },
+              },
+            ],
+          };
+        }
+
         if (kind === "invalid-field") {
           return {
             schema: schemaWithMigrationTag(),
@@ -1508,8 +1717,38 @@ async function writeStorageHarness() {
         return schema;
       }
 
+      function schemaWithNoteReference() {
+        const schema = structuredClone(seedSchema);
+        schema.entities.push({
+          id: "${noteEntityId}",
+          key: "note",
+          label: "Note",
+          fields: [
+            {
+              key: "body",
+              type: "text",
+              required: true,
+              label: "Body",
+            },
+            {
+              key: "task",
+              type: "reference",
+              required: true,
+              label: "Task",
+              to: "task",
+            },
+          ],
+        });
+        return schema;
+      }
+
       function schemaForSourceRefresh(kind) {
         const schema = structuredClone(seedSchema);
+
+        if (kind === "entity-id") {
+          schema.entities.find((definition) => definition.key === "task").id = "${replacementTaskEntityId}";
+          return schema;
+        }
 
         if (kind === "view-label") {
           schema.views.find((definition) => definition.key === "taskHome").label = "Refreshed";
@@ -1777,11 +2016,32 @@ async function writeStorageHarness() {
           }
 
           if (request.method === "POST" && url.pathname === "/schema") {
-            return Response.json(writeActiveSchema(this.ctx.storage, await request.json()));
+            try {
+              return Response.json(writeActiveSchema(this.ctx.storage, await request.json()));
+            } catch (error) {
+              return Response.json(
+                { error: error instanceof Error ? error.message : "Unknown error." },
+                { status: 500 },
+              );
+            }
           }
 
           if (request.method === "POST" && url.pathname === "/reset") {
             return Response.json(resetStorage(this.ctx.storage, { schema: seedSchema }));
+          }
+
+          if (request.method === "POST" && url.pathname === "/corrupt-schema-without-entity-ids") {
+            const schema = JSON.parse(JSON.stringify(seedSchema));
+
+            for (const entity of schema.entities) {
+              delete entity.id;
+            }
+
+            this.ctx.storage.sql.exec(
+              "UPDATE app_schema SET schema_json = ? WHERE id = 1",
+              JSON.stringify(schema),
+            );
+            return Response.json({ corrupted: true });
           }
 
           if (request.method === "POST" && url.pathname === "/reset-schema-to-source") {

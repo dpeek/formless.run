@@ -3,8 +3,10 @@ import type {
   AppSchemaDefinitionIndex,
   DefinitionIndex,
   EntityConstraintSchema,
+  EntityId,
   EntityOperationInputFieldSchema,
   EntityOperationSchema,
+  EntitySchema,
   EntityUnionVariantSchema,
   EnumValueSchema,
   FieldSchema,
@@ -48,6 +50,13 @@ export function getAppSchemaDefinitionIndex(schema: AppSchema): AppSchemaDefinit
 }
 
 export function createAppSchemaDefinitionIndex(schema: AppSchema): AppSchemaDefinitionIndex {
+  const entitiesById = new Map<EntityId, KeyedDefinition<EntitySchema>>();
+  for (const entity of schema.entities) {
+    if (entitiesById.has(entity.id)) {
+      throw new Error(`Schema entities contain duplicate entity id "${entity.id}".`);
+    }
+    entitiesById.set(entity.id, entity);
+  }
   const fieldsByEntity = new Map<string, DefinitionIndex<KeyedDefinition<FieldSchema>>>();
   const enumValuesByEntityField = new Map<
     string,
@@ -170,6 +179,7 @@ export function createAppSchemaDefinitionIndex(schema: AppSchema): AppSchemaDefi
   }
   return {
     entities: createDefinitionIndex(schema.entities, "Schema entities"),
+    entitiesById,
     relationships: createDefinitionIndex(schema.relationships ?? [], "Schema relationships"),
     queries: createDefinitionIndex(schema.queries, "Schema queries"),
     readModels: {

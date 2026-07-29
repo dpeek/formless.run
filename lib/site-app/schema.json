@@ -2,6 +2,7 @@
   "version": 1,
   "entities": [
     {
+      "id": "entity_610ac202-b123-46ed-8bd3-5b65383e2233",
       "key": "site",
       "label": "Site",
       "fields": [
@@ -139,6 +140,7 @@
       ]
     },
     {
+      "id": "entity_8aa7cc1a-c9a7-482e-b078-6ef5478794e2",
       "key": "block",
       "label": "Block",
       "fields": [
@@ -725,6 +727,7 @@
       ]
     },
     {
+      "id": "entity_3d195c79-db03-4da4-95c8-433266271b21",
       "key": "block-placement",
       "label": "Placement",
       "fields": [
@@ -899,6 +902,7 @@
       ]
     },
     {
+      "id": "entity_dd5c1285-721a-4294-8114-efd784b6a578",
       "key": "contact",
       "label": "Contact",
       "fields": [
@@ -939,6 +943,7 @@
       ]
     },
     {
+      "id": "entity_5a3667a2-a5a7-46ed-b3a4-b6364bae31a0",
       "key": "contact-message",
       "label": "Contact message",
       "fields": [
@@ -1015,6 +1020,7 @@
       ]
     },
     {
+      "id": "entity_9863574c-952d-41a9-b90e-b40f6eda5eba",
       "key": "email-address",
       "label": "Email address",
       "fields": [
@@ -1084,6 +1090,7 @@
       ]
     },
     {
+      "id": "entity_8999782d-0e12-4e4b-8830-0e60cb3f1179",
       "key": "audience",
       "label": "Audience",
       "fields": [
@@ -1141,6 +1148,7 @@
       ]
     },
     {
+      "id": "entity_da574ad0-f310-4542-927e-c76dd89402f0",
       "key": "subscription",
       "label": "Subscription",
       "fields": [

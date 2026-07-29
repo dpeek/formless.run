@@ -147,6 +147,17 @@ describe("Authority schema validation", () => {
       validateCompatibleSchemaChange(rateSourceSchema, withRateResourceField({ to: "card" }), []),
     ).toThrow(new BadRequestError('Cannot change reference target for "rate.resource".'));
   });
+  it("rejects changing the entity id assigned to a continuing key", () => {
+    const nextSchema = structuredClone(taskSourceSchema);
+    nextSchema.entities.find((definition) => definition.key === "task")!.id =
+      "entity_0be22eea-6edb-48ed-9230-4e98954c9f8a";
+
+    expect(() => validateSchemaUpdateRequest({ schema: nextSchema }, taskSourceSchema, [])).toThrow(
+      new BadRequestError(
+        'Cannot change entity id for continuing entity "task" from "entity_dc20cc24-23e4-4a16-98fe-bd6e09427c68" to "entity_0be22eea-6edb-48ed-9230-4e98954c9f8a".',
+      ),
+    );
+  });
 
   it("checks required, number, and reference constraints against stored values", () => {
     const task = taskRecord("task-1");

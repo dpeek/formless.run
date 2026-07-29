@@ -17,7 +17,7 @@
     "key": "crm",
     "path": "seed-records.json"
   },
-  "sourceSchemaHash": "sha256:bc0b0a0ebbb9eecb4bddcd42aa321ccae5680ae3dedcea753bf646607d7f0dac",
+  "sourceSchemaHash": "sha256:8a5914424993729bbf24d08284fcbb56341a87cbc8b079da642ac86b9024730f",
   "capabilities": [
     {
       "kind": "generatedAdmin",

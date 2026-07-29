@@ -17,6 +17,7 @@ export function composeAppSchema<const Composition extends AppSchemaCompositionS
   assertUniqueModuleKeys(composition.modules);
   assertDependenciesPrecedeConsumers(composition.modules);
   const declarationOwners = new Map<string, string>();
+  const entityIdOwners = new Map<string, { entityKey: string; moduleKey: string }>();
   const entities: AppSchemaSource["entities"] = [];
   const relationships: NonNullable<AppSchemaSource["relationships"]> = [];
   const queries: AppSchemaSource["queries"] = [];
@@ -35,7 +36,13 @@ export function composeAppSchema<const Composition extends AppSchemaCompositionS
   let hasUnions = false;
 
   for (const module of composition.modules) {
-    appendDeclarations(entities, module.entities, "entities", module.key, declarationOwners);
+    appendEntityDeclarations(
+      entities,
+      module.entities,
+      module.key,
+      declarationOwners,
+      entityIdOwners,
+    );
     appendDeclarations(queries, module.queries, "queries", module.key, declarationOwners);
     appendDeclarations(itemViews, module.itemViews, "itemViews", module.key, declarationOwners);
     appendDeclarations(tableViews, module.tableViews, "tableViews", module.key, declarationOwners);
@@ -108,6 +115,28 @@ export function composeAppSchema<const Composition extends AppSchemaCompositionS
   };
   parseAppSchema(source);
   return source;
+}
+function appendEntityDeclarations(
+  target: AppSchemaSource["entities"],
+  declarations: AppSchemaModuleSource["entities"],
+  moduleKey: string,
+  declarationOwners: Map<string, string>,
+  entityIdOwners: Map<string, { entityKey: string; moduleKey: string }>,
+): void {
+  if (declarations === undefined) {
+    return;
+  }
+
+  for (const declaration of declarations) {
+    appendDeclarations(target, [declaration], "entities", moduleKey, declarationOwners);
+    const currentOwner = entityIdOwners.get(declaration.id);
+    if (currentOwner !== undefined) {
+      throw new Error(
+        `Schema entity id "${declaration.id}" is contributed by both module "${currentOwner.moduleKey}" entity "${currentOwner.entityKey}" and module "${moduleKey}" entity "${declaration.key}".`,
+      );
+    }
+    entityIdOwners.set(declaration.id, { entityKey: declaration.key, moduleKey });
+  }
 }
 
 function assertUniqueModuleKeys(modules: readonly AppSchemaModuleSource[]): void {

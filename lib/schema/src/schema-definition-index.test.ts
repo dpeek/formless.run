@@ -72,6 +72,10 @@ describe("App schema definition indexes", () => {
       key: "task",
       label: "Task",
     });
+    expect(index.entitiesById.get("entity_65f1689f-ce51-457f-b4da-b46775132ff6")).toMatchObject({
+      key: "task",
+      label: "Task",
+    });
     expect(index.queries.byKey.get("taskAll")).toMatchObject({
       key: "taskAll",
       entity: "task",

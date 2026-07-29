@@ -1,4 +1,5 @@
 import { assertSchemaLocalEntityKey, parseQualifiedEntityName } from "./entity-names.ts";
+import { parseEntityId } from "./entity-ids.ts";
 import { parseStateMachinesForEntities } from "./schema-state-machines.ts";
 import {
   assertExactKeys,
@@ -81,6 +82,16 @@ export function parseEntities(value: unknown): ParsedEntityCatalog {
       return entity;
     },
   );
+  const entityKeysById = new Map<string, string>();
+  for (const entity of entities) {
+    const existingEntityKey = entityKeysById.get(entity.id);
+    if (existingEntityKey !== undefined) {
+      throw new Error(
+        `Schema entities contain duplicate entity id "${entity.id}" for keys "${existingEntityKey}" and "${entity.key}".`,
+      );
+    }
+    entityKeysById.set(entity.id, entity.key);
+  }
   const entitiesByKey = definitionsToRecord(entities);
   validateReferenceFields(entities, entitiesByKey);
   const entitiesWithStateMachines = parseStateMachinesForEntities(
@@ -167,6 +178,7 @@ function parseEntityBase(
   }
   assertSupportedKeys(`Entity "${entityName}"`, value, [
     "key",
+    "id",
     "label",
     "fields",
     "constraints",
@@ -174,6 +186,7 @@ function parseEntityBase(
     "operations",
   ]);
 
+  const id = parseEntityId(`Entity "${entityName}" id`, value.id);
   const label = value.label;
   if (typeof label !== "string" || label.trim() === "") {
     throw new Error(`Entity "${entityName}" must have a label.`);
@@ -189,6 +202,7 @@ function parseEntityBase(
   );
   return {
     entity: {
+      id,
       label,
       fields,
       ...(constraints === undefined ? {} : { constraints }),

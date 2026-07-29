@@ -2335,6 +2335,7 @@ function schemaWithSummary() {
     version: 1,
     entities: [
       {
+        id: "entity_4e6fedfc-6dba-4114-9d1b-6f0527f3cabb",
         key: "task",
         label: "Planner task",
         fields,

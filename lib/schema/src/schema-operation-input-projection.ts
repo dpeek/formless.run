@@ -13,7 +13,7 @@ import type {
 export type OperationInputProjectionRequest = {
   canonicalOperationKey?: string;
   context?: string;
-  entity: EntitySchema;
+  entity: Pick<EntitySchema, "fields">;
   operation: EntityOperationSchema;
   rawInput: unknown;
 };
@@ -133,7 +133,7 @@ function emptyOperationInputProjection(): OperationInputValueProjection {
 
 function projectEntityBackedOperationInputField(input: {
   context: string;
-  entity: EntitySchema;
+  entity: Pick<EntitySchema, "fields">;
   field: Extract<
     EntityOperationInputFieldSchema,
     {

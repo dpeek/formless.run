@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { formatQualifiedEntityName, parseAppSchema, parseQualifiedEntityName } from "./index.ts";
+import {
+  formatQualifiedEntityName,
+  isEntityId,
+  parseAppSchema,
+  parseEntityId,
+  parseQualifiedEntityName,
+} from "./index.ts";
 import { rateEntities, rateSchema, taskEntity, taskSchema } from "./schema-test-fixtures.ts";
 
 describe("schema entities", () => {
@@ -14,11 +20,17 @@ describe("schema entities", () => {
           },
           {
             key: "project-note",
-            ...taskEntity({ label: "Project note" }),
+            ...taskEntity({
+              id: "entity_831e331f-41dd-4f3d-950d-211c5328b974",
+              label: "Project note",
+            }),
           },
           {
             key: "app-install",
-            ...taskEntity({ label: "App install" }),
+            ...taskEntity({
+              id: "entity_3576cc01-d469-4c23-a3af-68c4ed979bed",
+              label: "App install",
+            }),
           },
         ],
       }),
@@ -33,6 +45,43 @@ describe("schema entities", () => {
     expect(formatQualifiedEntityName({ schemaKey: "instance", entityKey: "app-install" })).toBe(
       "instance:app-install",
     );
+  });
+
+  it("parses canonical stable ids and rejects missing, malformed, or duplicate ids", () => {
+    const id = "entity_65f1689f-ce51-457f-b4da-b46775132ff6";
+    expect(isEntityId(id)).toBe(true);
+    expect(parseEntityId("Entity id", id)).toBe(id);
+    expect(isEntityId("entity_65F1689F-ce51-457f-b4da-b46775132ff6")).toBe(false);
+    expect(() =>
+      parseAppSchema(
+        taskSchema({
+          entities: [{ key: "task", ...taskEntity({ id: undefined }) }],
+        }),
+      ),
+    ).toThrow('Entity "task" id must use "entity_<lowercase-uuid>" format.');
+    expect(() =>
+      parseAppSchema(
+        taskSchema({
+          entities: [{ key: "task", ...taskEntity({ id: "entity_not-a-uuid" }) }],
+        }),
+      ),
+    ).toThrow('Entity "task" id must use "entity_<lowercase-uuid>" format.');
+    expect(() =>
+      parseAppSchema(
+        taskSchema({
+          entities: [
+            {
+              key: "task",
+              ...taskEntity(),
+            },
+            {
+              key: "project",
+              ...taskEntity({ label: "Project" }),
+            },
+          ],
+        }),
+      ),
+    ).toThrow(`Schema entities contain duplicate entity id "${id}"`);
   });
 
   it("rejects non-canonical local entity keys and qualified local references", () => {

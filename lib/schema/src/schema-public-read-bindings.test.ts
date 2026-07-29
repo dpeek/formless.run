@@ -296,6 +296,7 @@ function publicLookupSchema(
     version: 1,
     entities: [
       {
+        id: "entity_74c0ceed-5cfe-440c-8d5d-28f62dac60c8",
         key: "certificate",
         label: "Certificate",
         fields: [

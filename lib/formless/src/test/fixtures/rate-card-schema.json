@@ -2,6 +2,7 @@
   "version": 1,
   "entities": [
     {
+      "id": "entity_005212d7-67f2-4bc4-ab32-ca5ada180076",
       "key": "resource",
       "label": "Resource",
       "fields": [
@@ -134,6 +135,7 @@
       ]
     },
     {
+      "id": "entity_013239dc-dfd7-402a-bca7-73f3a254bbd4",
       "key": "card",
       "label": "Rate card",
       "fields": [
@@ -263,6 +265,7 @@
       ]
     },
     {
+      "id": "entity_ace4f2fd-ae74-4b2d-bfa4-0aa9b107c4c3",
       "key": "rate",
       "label": "Rate",
       "fields": [

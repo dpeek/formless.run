@@ -114,19 +114,19 @@ function tableParserSourceSchema() {
   const entities = [
     {
       key: "resource",
-      ...entity("Resource", {
+      ...entity("entity_68051a1e-d2fa-4a61-9df5-1cd22bf5b847", "Resource", {
         name: { type: "text", required: true, label: "Name" },
       }),
     },
     {
       key: "card",
-      ...entity("Card", {
+      ...entity("entity_7ca1437e-d3c8-46b8-a28e-a4cef4d9895f", "Card", {
         label: { type: "text", required: true, label: "Label" },
       }),
     },
     {
       key: "rate",
-      ...entity("Rate", {
+      ...entity("entity_99a7b8fc-b272-45b5-ba27-7c520563a255", "Rate", {
         resource: { type: "reference", required: true, to: "resource", displayField: "name" },
         card: { type: "reference", required: true, to: "card", displayField: "label" },
         cost: { type: "number", required: true, label: "Cost" },
@@ -137,6 +137,7 @@ function tableParserSourceSchema() {
     {
       key: "block",
       ...entity(
+        "entity_1a862c75-4020-4809-8c71-039a5c0a9942",
         "Block",
         {
           label: { type: "text", required: true, label: "Label" },
@@ -148,7 +149,7 @@ function tableParserSourceSchema() {
     },
     {
       key: "block-placement",
-      ...entity("Block placement", {
+      ...entity("entity_0a15b659-4321-42c7-97a8-2830e1a767af", "Block placement", {
         parent: { type: "reference", required: true, to: "block", displayField: "label" },
         block: { type: "reference", required: true, to: "block", displayField: "label" },
         slot: {
@@ -287,11 +288,13 @@ function tableParserSourceSchema() {
   };
 }
 function entity(
+  id: `entity_${string}`,
   label: string,
   fields: Record<string, Record<string, unknown>>,
   overrides: Record<string, unknown> = {},
 ) {
   return {
+    id,
     label,
     fields: Object.entries(fields).map(([key, definition]) => ({ key, ...definition })),
     ...overrides,

@@ -3,6 +3,7 @@ export const tasksRecordSchemaModule = defineAppSchemaModule({
   key: "tasks-records",
   entities: [
     {
+      id: "entity_dc20cc24-23e4-4a16-98fe-bd6e09427c68",
       key: "task",
       label: "Task",
       fields: [

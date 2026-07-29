@@ -133,8 +133,9 @@ an ordered array whose definitions carry their existing portable `key`.
 - THEN each addressable registry is an array of keyed definitions
 - AND array declaration order is preserved in the portable parsed schema
 - AND a duplicate key within one registry is rejected
-- AND definition identity continues to use `key` without adding a universal
-  stable id
+- AND definition keys remain portable addressable names
+- AND entity definitions additionally carry stable entity identity
+- AND other definition registries do not gain a universal stable id
 
 #### Scenario: Keep non-registry objects as objects
 
@@ -493,13 +494,13 @@ pure helpers through the Schema package slice.
 ### Requirement: Entity Key Grammar
 
 The system SHALL validate schema-local entity keys as singular kebab-case data
-identifiers.
+names.
 
 #### Scenario: Parse schema-local entity key
 
 - WHEN an app schema declares entity keys such as `block`, `app-install`, or
   `deployment-config`
-- THEN schema parsing accepts those keys as local entity identifiers
+- THEN schema parsing accepts those keys as local entity names
 - AND the entity keys remain unqualified on definitions inside the schema's
   `entities` registry
 
@@ -518,6 +519,52 @@ identifiers.
 - THEN this entity-key grammar does not rename or normalize those keys
 - AND existing validation for those schema sections remains separately owned by
   their current parser rules
+
+### Requirement: Stable Entity Identity
+
+The system SHALL give every App schema entity one opaque stable entity id that
+is independent of its current key, module ownership, and declaration order.
+
+#### Scenario: Parse stable entity id
+
+- GIVEN an App schema declares an entity
+- WHEN the schema is parsed
+- THEN the entity carries a required id in canonical
+  `entity_<lowercase-uuid>` form
+- AND the complete schema rejects missing, malformed, or duplicate entity ids
+- AND the entity id remains portable data in TypeScript source, materialized
+  schema JSON, parsed schema, canonical schema bytes, and source-schema hashing
+
+#### Scenario: Allocate entity identity once
+
+- GIVEN trusted authoring introduces a new logical entity
+- WHEN its identity is allocated
+- THEN the opaque entity id is generated once and persisted in authoritative
+  schema source
+- AND parsing, module composition, materialization, hashing, and runtime loading
+  do not generate or replace the id
+- AND entity key, label, schema key, source path, module key, module order, and
+  declaration order do not derive entity identity
+
+#### Scenario: Preserve identity through recomposition
+
+- GIVEN a schema module is moved, recomposed, or ejected into project ownership
+- WHEN it continues to represent the same logical entity
+- THEN it preserves the entity id
+- AND a genuinely new logical entity receives a new entity id
+- AND composition rejects two entity declarations with the same key or the
+  same entity id rather than merging or rebinding them
+
+#### Scenario: Keep current entity names addressable
+
+- GIVEN an entity has a stable id and a schema-local key
+- WHEN fields, relationships, queries, views, operations, records, workspaces,
+  archives, or diagnostics address the entity in the current App schema
+- THEN existing entity-key and qualified-entity-name contracts remain the
+  addressable name boundary
+- AND adding stable entity identity does not silently rename stored record
+  entity values, rewrite schema references, allocate field slots, or add stable
+  ids to every other definition registry
 
 ### Requirement: Field Key Grammar
 
@@ -538,18 +585,20 @@ The system SHALL use camelCase field keys for entity field identifiers.
 
 ### Requirement: Qualified Entity Names
 
-The system SHALL represent entity identity as `<schema-key>:<entity-key>` at
-cross-schema and external boundaries while preserving local entity keys inside
-the declaring schema.
+The system SHALL represent addressable entity names as
+`<schema-key>:<entity-key>` at cross-schema and external boundaries while
+preserving opaque entity identity separately.
 
 #### Scenario: Emit external qualified entity name
 
 - WHEN records are written to archives, workspace record state, drift reports,
   logs, diagnostic output, or another external boundary that combines schema
   record families
-- THEN entity identity is represented with a qualified name such as
+- THEN the entity name is represented with a qualified name such as
   `site:block` or `instance:app-install`
 - AND the right-hand side uses the local kebab-case entity key
+- AND the qualified name remains a current addressable name rather than the
+  entity's stable id
 
 #### Scenario: Keep schema-internal references local
 

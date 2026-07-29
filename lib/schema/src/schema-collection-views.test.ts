@@ -119,6 +119,7 @@ function schemaWithNotes() {
     entities: [
       ...source.entities,
       {
+        id: "entity_622b614d-fabc-4b63-b0a5-6e10468ca687",
         key: "note",
         label: "Note",
         fields: [{ key: "title", type: "text", required: true }],
@@ -155,8 +156,12 @@ function projectTaskSchema() {
   return {
     ...source,
     entities: [
-      { key: "task", ...task },
       {
+        key: "task",
+        ...task,
+      },
+      {
+        id: "entity_632f32b1-032d-4449-a835-0b68c5d7e1d0",
         key: "project",
         label: "Project",
         fields: [{ key: "name", type: "text", required: true, label: "Name" }],

@@ -37,6 +37,7 @@ import type {
 import type { AuthorityRecordValidationReader } from "./authority-record-validation-reader.ts";
 import type { WriteOutcome } from "./storage.ts";
 import type { RecordWriteResponse } from "./storage-write-log.ts";
+import { assertEntityIdentityContinuity } from "./entity-identity-continuity.ts";
 export type ValidatedRecordWrite =
   | {
       recordWrite:
@@ -491,6 +492,14 @@ export function validateCompatibleSchemaChange(
     allowFieldRemoval?: boolean;
   } = {},
 ) {
+  try {
+    assertEntityIdentityContinuity(currentSchema, nextSchema);
+  } catch (error) {
+    throw new BadRequestError(
+      error instanceof Error ? error.message : "Entity identity continuity is invalid.",
+    );
+  }
+
   const recordsById = new Map(records.map((record) => [record.id, record]));
   for (const currentEntity of currentSchema.entities) {
     const entityName = currentEntity.key;

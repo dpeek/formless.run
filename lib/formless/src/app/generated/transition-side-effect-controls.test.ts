@@ -271,6 +271,7 @@ function transitionSideEffectSchema() {
     version: 1,
     entities: [
       {
+        id: "entity_331d9bb4-7166-40da-ba3f-ad9b4208af07",
         key: "intake",
         label: "Intake",
         fields: [
@@ -343,6 +344,7 @@ function transitionSideEffectSchema() {
         ],
       },
       {
+        id: "entity_14ef9cab-d548-422a-9231-55571f493bb9",
         key: "order",
         label: "Order",
         fields: [

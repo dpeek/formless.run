@@ -872,6 +872,7 @@ function sourceSchemaHashFixture() {
     version: 1,
     entities: [
       {
+        id: "entity_fae962f4-40ed-457d-935b-99861c40f676",
         key: "task",
         label: "Task",
         fields: [

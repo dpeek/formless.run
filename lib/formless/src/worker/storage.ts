@@ -77,6 +77,7 @@ import {
   runSqlStorageMigrations,
   storageSqlMigrationFamily,
 } from "./sql-migrations.ts";
+import { assertEntityIdentityContinuity } from "./entity-identity-continuity.ts";
 
 type RecordRow = {
   id: string;
@@ -682,6 +683,7 @@ function refreshActiveSchemaFromSource(
   }
 
   try {
+    assertEntityIdentityContinuity(existing.schema, source.schema);
     validateActiveRecordsAgainstSchema(source.schema, getBootstrapRecords(storage));
   } catch (error) {
     throw activeSchemaRefreshBlocked(storage, existing, source, errorMessage(error));
@@ -790,6 +792,12 @@ export function writeActiveSchemaOutcome(
   storage: DurableObjectStorage,
   schema: AppSchema,
 ): WriteOutcome<StoredSchema> {
+  const existing = readStoredSchema(storage);
+
+  if (existing) {
+    assertEntityIdentityContinuity(existing.schema, schema);
+  }
+
   return committedWrite(writeActiveSchemaAt(storage, schema, nowIsoString()));
 }
 
@@ -853,6 +861,7 @@ export function resetStorageSchemaToSourceOutcome(
     }
 
     const records = getBootstrapRecords(storage);
+    assertEntityIdentityContinuity(current.schema, source.schema);
     validate(current.schema, source.schema, records);
     const plan = planSourceSchemaReset(records, source.schema, nowIsoString());
     materializeSourceSchemaResetRecordPrunes(storage, plan.prunedRecords);
@@ -1358,6 +1367,7 @@ function planPackageAppMigrationMaterialization(input: {
   plan: PackageAppMigrationPlan;
 }): PackageAppMigrationMaterializationPlan {
   const schema = input.plan.schema ? parseAppSchema(input.plan.schema) : input.currentSchema;
+  assertEntityIdentityContinuity(input.currentSchema, schema);
   const recordsById = new Map(input.currentRecords.map((record) => [record.id, record]));
   const changes: PackageAppMigrationRecordChange[] = [];
 

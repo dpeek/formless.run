@@ -1307,7 +1307,10 @@ function schemaWithTaskLogOperations(operations: Record<string, unknown>) {
         ...taskEntity(),
         operations: keyed(operations),
       },
-      { key: "task-log", ...taskLogEntity() },
+      {
+        key: "task-log",
+        ...taskLogEntity(),
+      },
     ],
   });
 }
@@ -1389,6 +1392,7 @@ function touchTaskStep() {
 
 function taskLogEntity() {
   return {
+    id: "entity_4ea4d9f7-3f74-4fa2-b206-845cf02bca54",
     label: "Task log",
     fields: [
       {
@@ -1488,6 +1492,7 @@ function taskHomeCollectionView(overrides: Record<string, unknown> = {}) {
 
 function taskEntity(overrides: Record<string, unknown> = {}) {
   return {
+    id: "entity_7d8fac81-c764-4dd8-8466-879918744b59",
     label: "Task",
     fields: [
       { key: "title", type: "text", required: true, label: "Title" },

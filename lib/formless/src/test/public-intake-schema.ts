@@ -27,6 +27,7 @@ export const emailStylePublicIntakeFormBlockValues = {
 export function schemaWithEmailStylePublicIntake(sourceSchema: AppSchema): AppSchema {
   const schema = structuredClone(sourceSchema);
   schema.entities.push({
+    id: "entity_c8c25918-f4f4-4b1d-bdb6-ad233be2a84b",
     key: "intake-request",
     label: "Intake request",
     fields: [

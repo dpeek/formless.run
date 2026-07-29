@@ -172,7 +172,7 @@ function projectWorkerOperationInputValues(
 
 function operationInputValidationEntity(
   request: NormalizedOperationInputValidationRequest,
-): EntitySchema {
+): Pick<EntitySchema, "fields"> {
   const entity = request.schema.entities.find(
     (definition) => definition.key === request.entityName,
   )!;
@@ -180,7 +180,7 @@ function operationInputValidationEntity(
     return entity;
   }
   if (!request.operation.input) {
-    return { label: request.entityName, fields: [] };
+    return { fields: [] };
   }
   throw new BadRequestError(`Unknown entity "${request.entityName}".`);
 }

@@ -406,6 +406,7 @@ describe("schema operation input projection", () => {
   });
 });
 const taskEntity = {
+  id: "entity_466e2402-9386-43a1-b13f-2aecd3995418",
   label: "Task",
   fields: [
     { key: "title", type: "text", required: true },

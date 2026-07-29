@@ -1298,6 +1298,7 @@ const publicIntakeSchema = {
   version: 1,
   entities: [
     {
+      id: "entity_d1956cce-48f2-49bb-b19c-d56ae0200395",
       key: "owner",
       label: "Owner",
       fields: [
@@ -1310,6 +1311,7 @@ const publicIntakeSchema = {
       ],
     },
     {
+      id: "entity_2143990e-be4e-4e31-9e77-1d4a66f96864",
       key: "request",
       label: "Request",
       fields: [

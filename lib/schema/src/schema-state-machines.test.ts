@@ -507,6 +507,7 @@ function stateMachineSchema(
     version: 1,
     entities: [
       {
+        id: "entity_ba68ed70-bfd3-43fa-bfd2-5239400ccef2",
         key: "task",
         label: "Task",
         fields: keyed({ ...taskFields(), ...overrides.fields }),
@@ -531,6 +532,7 @@ function stateMachineSchema(
         ],
       },
       {
+        id: "entity_91706a81-beb0-4106-8c7a-87152550a435",
         key: "task-event",
         label: "Task event",
         fields: keyed({
@@ -699,12 +701,14 @@ function taskFields() {
 
 function personEntity() {
   return {
+    id: "entity_ee672347-080c-43bb-a901-5dc0816af4b1",
     label: "Person",
     fields: [{ key: "name", type: "text", required: true }],
   };
 }
 function orderEntity() {
   return {
+    id: "entity_aa95668f-440e-4af1-a6e7-eb1a35f3a8fd",
     label: "Order",
     fields: [
       { key: "task", type: "reference", required: true, to: "task" },
@@ -728,6 +732,7 @@ function orderEntity() {
 }
 function orderNoteEntity() {
   return {
+    id: "entity_fabe7518-88ce-40dc-84b9-d2d4818da0af",
     label: "Order note",
     fields: [
       { key: "order", type: "reference", required: true, to: "order" },

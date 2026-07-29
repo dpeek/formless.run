@@ -129,6 +129,7 @@ function taskSource() {
     entities: [
       {
         key: "task",
+        id: "entity_c7cdf288-bdb9-4285-9480-9787f641e0bf",
         label: "Task",
         fields: [
           {

@@ -721,6 +721,7 @@ const crmPublicSubscribeSchema = {
   version: 1,
   entities: [
     {
+      id: "entity_94d526cd-1d4f-4238-b2a7-703877446e49",
       key: "subscription",
       label: "Subscription",
       fields: [
@@ -776,6 +777,7 @@ const publicIntakeSchema = {
   version: 1,
   entities: [
     {
+      id: "entity_3f45d5bf-f70c-4f01-9d7b-941346befc4e",
       key: "owner",
       label: "Owner",
       fields: [
@@ -788,6 +790,7 @@ const publicIntakeSchema = {
       ],
     },
     {
+      id: "entity_677c6f04-69c5-4559-9c53-a171a04330b7",
       key: "request",
       label: "Request",
       fields: [
@@ -949,6 +952,7 @@ const publicCertificateLookupSchema = {
   version: 1,
   entities: [
     {
+      id: "entity_8645511e-109d-437c-8bbb-6b9e907484c0",
       key: "certificate",
       label: "Certificate",
       fields: [
@@ -1064,6 +1068,7 @@ const requiredReferenceIntakeSchema = {
   version: 1,
   entities: [
     {
+      id: "entity_2a206596-3c78-40e5-a79a-6cafd4a82ec2",
       key: "owner",
       label: "Owner",
       fields: [
@@ -1076,6 +1081,7 @@ const requiredReferenceIntakeSchema = {
       ],
     },
     {
+      id: "entity_daef89ae-3be8-475d-b612-e1b5158ff515",
       key: "request",
       label: "Request",
       fields: [

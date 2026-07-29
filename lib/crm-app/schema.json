@@ -2,6 +2,7 @@
   "version": 1,
   "entities": [
     {
+      "id": "entity_e40c8914-c095-4483-b372-90f1c28f6cf4",
       "key": "company",
       "label": "Company",
       "fields": [
@@ -140,6 +141,7 @@
       ]
     },
     {
+      "id": "entity_429d42b9-0765-4351-86a3-24a3e31ccb05",
       "key": "contact",
       "label": "Contact",
       "fields": [
@@ -321,6 +323,7 @@
       ]
     },
     {
+      "id": "entity_5bff2f07-24e4-4343-80ed-245c3e5498f9",
       "key": "email-address",
       "label": "Email address",
       "fields": [
@@ -470,6 +473,7 @@
       ]
     },
     {
+      "id": "entity_b8bcdb7d-bc88-4d56-8b6a-ad19c528261e",
       "key": "audience",
       "label": "Audience",
       "fields": [
@@ -599,6 +603,7 @@
       ]
     },
     {
+      "id": "entity_86f066c0-929c-41e3-a52c-516aab023e96",
       "key": "subscription",
       "label": "Subscription",
       "fields": [
@@ -967,6 +972,7 @@
       ]
     },
     {
+      "id": "entity_83c65a85-3c84-4248-8836-edb9dffe19ab",
       "key": "campaign",
       "label": "Campaign",
       "fields": [
@@ -1091,6 +1097,7 @@
       ]
     },
     {
+      "id": "entity_618efec7-409f-4d43-9785-f1d60d9101ff",
       "key": "campaign-message",
       "label": "Campaign message",
       "fields": [
@@ -1231,6 +1238,7 @@
       ]
     },
     {
+      "id": "entity_b80330bf-5f64-4460-8b4e-8f43fa150001",
       "key": "broadcast",
       "label": "Broadcast",
       "fields": [
@@ -1410,6 +1418,7 @@
       ]
     },
     {
+      "id": "entity_441f44bb-63e0-4f45-a775-4ddfdd5fed4f",
       "key": "broadcast-recipient",
       "label": "Broadcast recipient",
       "fields": [
@@ -1584,6 +1593,7 @@
       ]
     },
     {
+      "id": "entity_ba93df3a-ac4e-4466-96d0-64dc50eedb10",
       "key": "delivery-event",
       "label": "Delivery event",
       "fields": [

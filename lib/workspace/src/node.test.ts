@@ -97,6 +97,7 @@ const workspaceFixtureTaskSourceSchema = {
   version: 1,
   entities: [
     {
+      id: "entity_2021e1ef-3373-419d-8804-af380d03928a",
       key: "task",
       label: "Task",
       fields: [

@@ -635,6 +635,7 @@ function schemaWithTaskProjectReference(): AppSchema {
     ],
   });
   setKeyedDefinition(schema.entities, "project", {
+    id: "entity_85cd9c13-ba76-45e1-a034-72e4b8eed73a",
     label: "Project",
     fields: [{ key: "name", type: "text", required: true, label: "Name" }],
   } satisfies EntitySchema);

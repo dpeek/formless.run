@@ -9,6 +9,7 @@ export const customOnboardingSourceSchema = {
   version: 1,
   entities: [
     {
+      id: "entity_b0f56213-edc1-41af-b27f-83edd746ce17",
       key: "profile",
       label: "Profile",
       fields: [

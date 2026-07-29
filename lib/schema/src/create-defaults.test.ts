@@ -412,6 +412,7 @@ describe("create defaults primitive", () => {
   });
 });
 const rateEntity = {
+  id: "entity_03932047-ac75-4c24-b602-a3c3cd3faaec",
   label: "Rate",
   fields: [
     { key: "resource", type: "reference", required: true, to: "resource" },
@@ -447,6 +448,7 @@ const rateCreateDefaults = [
   },
 ] satisfies CreateDefaultConfig[];
 const blockEntity = {
+  id: "entity_bd4d51f2-becb-4676-8231-91d9c9f96d14",
   label: "Block",
   fields: [
     {

@@ -91,6 +91,7 @@ const workspaceRecordStateSchema = {
   version: 1,
   entities: [
     {
+      id: "entity_ba20159d-45ba-46a1-a75f-acae3340b296",
       key: "task",
       label: "Task",
       fields: [

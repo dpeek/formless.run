@@ -68,6 +68,7 @@ type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 let harness: Harness;
 let authority: AuthorityWriteHelpers;
 const adminToken = "test-admin-token";
+const taskEntityId = appSchema.entities.find((definition) => definition.key === "task")!.id;
 
 function taskSchemaProvenance() {
   const packageFacts = packageAppFactsForKey("tasks", bundledAppPackageResolver);
@@ -1000,6 +1001,7 @@ describe("authority", () => {
       version: 1,
       entities: [
         {
+          id: taskEntityId,
           key: "task",
           label: "Task",
           fields: [{ key: "done", type: "boolean", required: true, default: false }],
@@ -1686,6 +1688,7 @@ describe("authority", () => {
             version: 1,
             entities: [
               {
+                id: "entity_5d3cb249-beb1-4ee0-9937-c8d8f477310f",
                 key: "task",
                 label: "Task",
                 fields: [{ key: "title", type: "text", required: true, label: "" }],
@@ -2145,6 +2148,7 @@ function schemaWithTaskAndProjectDeleteEnabled(): AppSchema {
         key: "task",
       },
       {
+        id: "entity_3e81066b-b95b-461e-8d03-f50913900159",
         key: "project",
         label: "Project",
         fields: [{ key: "name", type: "text", required: true }],
@@ -2188,6 +2192,7 @@ function schemaWithEstimateNumber(numberOverrides: Record<string, unknown> = {})
     version: 1,
     entities: [
       {
+        id: taskEntityId,
         key: "task",
         label: "Task",
         fields,
@@ -2214,6 +2219,7 @@ function schemaWithIdentityReferenceAccount(): AppSchema {
     entities: [
       ...appSchema.entities,
       {
+        id: "entity_c1a8013f-137a-4c44-ae9b-6f740efb8978",
         key: "account",
         label: "Account",
         fields,
@@ -2380,6 +2386,7 @@ function schemaWithTaskConstraints(constraints: EntitySchema["constraints"]) {
     version: 1,
     entities: [
       {
+        id: taskEntityId,
         key: "task",
         label: "Task",
         fields,
@@ -2406,6 +2413,7 @@ function schemaWithViews(views: unknown = defaultViews()) {
     version: 1,
     entities: [
       {
+        id: taskEntityId,
         key: "task",
         label: "Task",
         fields,

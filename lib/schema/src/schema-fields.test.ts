@@ -465,7 +465,7 @@ describe("schema fields", () => {
           ...identityReferenceSourceSchema().entities,
           {
             key: "principal",
-            ...textEntity("Principal"),
+            ...textEntity("entity_f5319c54-5549-4236-8ea5-cdd534a106bf", "Principal"),
           },
         ],
       }),
@@ -514,6 +514,7 @@ function identityReferenceSourceSchema() {
     version: 1,
     entities: [
       {
+        id: "entity_a2e9f43a-b856-4a20-b433-48882fe818f9",
         key: "account",
         label: "Account",
         fields: [
@@ -532,7 +533,7 @@ function identityReferenceSourceSchema() {
       },
       {
         key: "profile",
-        ...textEntity("Profile"),
+        ...textEntity("entity_ef259cf1-0c69-4190-8914-63788264f4ae", "Profile"),
       },
     ],
     queries: [
@@ -581,8 +582,9 @@ function identityReferenceSourceSchema() {
     ],
   };
 }
-function textEntity(label: string) {
+function textEntity(id: `entity_${string}`, label: string) {
   return {
+    id,
     label,
     fields: [{ key: "name", type: "text", required: true }],
   };

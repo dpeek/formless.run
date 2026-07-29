@@ -235,12 +235,12 @@ describe("client db", () => {
     expect(snapshot.cursor).toBe(3);
     expect(replicaVersion).toBe(2);
   });
-  it("deletes an incompatible Formless schema cache without touching other databases", async () => {
+  it("deletes a schema cache missing required entity ids without touching other databases", async () => {
     await createLegacyReplica("formless:tasks", {
       recordsKeyPath: "id",
       storedSchema: {
         ...appSchema,
-        entities: Object.fromEntries(appSchema.entities.map(({ key, ...entity }) => [key, entity])),
+        entities: appSchema.entities.map(({ id: _id, ...entity }) => entity),
       },
     });
     await createRawDatabase("notes");
@@ -287,6 +287,7 @@ describe("client db", () => {
       version: 1,
       entities: [
         {
+          id: "entity_6ab0b803-8495-4c54-99b0-dc189605f425",
           key: "task",
           label: "Planner task",
           fields,

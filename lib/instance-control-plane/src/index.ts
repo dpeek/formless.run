@@ -51,7 +51,7 @@ export const INSTANCE_CONTROL_PLANE_BOUNDARY_SCHEMA_KEY = "instance";
 export const INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY = "instance:control-plane";
 export const INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX = "/api/formless/control-plane";
 export const INSTANCE_CONTROL_PLANE_SOURCE_SCHEMA_HASH =
-  "sha256:313fcf33a34c083c8e59ed58a323e1ac4a12880535ed57147a2a571f659c7554" satisfies SourceSchemaHash;
+  "sha256:778ddfc129904de4a69b2fc8249d0832a25132d11138e342ef1b5bf96f88f0b2" satisfies SourceSchemaHash;
 export const INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID = "instance";
 export const instanceControlPlaneSchemaProvenance = {
   kind: "instance-control-plane",
@@ -345,6 +345,7 @@ export const instanceControlPlaneSourceSchema = {
   version: 1,
   entities: [
     {
+      id: "entity_703e0070-a642-4c2d-8103-3221222a6c35",
       key: "app-install",
       label: "App install",
       fields: [
@@ -410,6 +411,7 @@ export const instanceControlPlaneSourceSchema = {
       ],
     },
     {
+      id: "entity_6f9905f7-05cd-41b1-a233-148b1718c6f0",
       key: "route",
       label: "Route",
       fields: [
@@ -521,6 +523,7 @@ export const instanceControlPlaneSourceSchema = {
       ]),
     },
     {
+      id: "entity_726ab70a-10a0-404b-8489-757a7b6c7aca",
       key: "deployment-config",
       label: "Deployment config",
       fields: [
@@ -627,6 +630,7 @@ export const instanceControlPlaneSourceSchema = {
       constraints: [{ key: "uniqueTargetId", kind: "unique", fields: ["targetId"] }],
     },
     {
+      id: "entity_1a429b35-c2e8-4ba7-8d31-18570948de4b",
       key: "instance-settings",
       label: "Instance settings",
       fields: [
@@ -726,6 +730,7 @@ export const instanceControlPlaneSourceSchema = {
       ),
     },
     {
+      id: "entity_4df3b716-c71a-4714-86d7-45728f94daa8",
       key: "email-domain",
       label: "Email domain",
       fields: [
@@ -787,6 +792,7 @@ export const instanceControlPlaneSourceSchema = {
       ),
     },
     {
+      id: "entity_cabf8d1e-002f-427d-8c46-1da32e1641c2",
       key: "email-sender",
       label: "Email sender",
       fields: [

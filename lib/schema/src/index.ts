@@ -4,6 +4,7 @@ export {
   isSchemaLocalEntityKey,
   parseQualifiedEntityName,
 } from "./entity-names.ts";
+export { isEntityId, parseEntityId } from "./entity-ids.ts";
 export * from "./canonical-json.ts";
 export * from "./create-defaults.ts";
 export * from "./field-drafts.ts";

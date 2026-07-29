@@ -21,6 +21,7 @@ const siteSourceSchema = parseAppSchema({
   version: 1,
   entities: [
     {
+      id: "entity_7762a513-1efb-40ce-ac4c-16c89604acdc",
       key: "site",
       label: "Site",
       fields: [

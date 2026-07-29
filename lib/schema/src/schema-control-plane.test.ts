@@ -135,6 +135,7 @@ function controlPlaneTaskSchema() {
     version: 1,
     entities: [
       {
+        id: "entity_63aa8c10-96a6-480f-915b-abafe0184ed0",
         key: "task",
         label: "Task",
         fields: [
@@ -162,6 +163,7 @@ function controlPlaneTaskSchema() {
         ],
       },
       {
+        id: "entity_504ff45e-a169-4c9d-b3fb-ce23b15375c7",
         key: "route",
         label: "Route",
         fields: [

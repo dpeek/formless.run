@@ -720,6 +720,7 @@ const blockSchema = {
   version: 1,
   entities: [
     {
+      id: "entity_1738228a-6b12-44fe-8933-16b917c0baf3",
       key: "block",
       fields: [
         { key: "height", type: "number", required: false },

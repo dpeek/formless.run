@@ -1150,6 +1150,7 @@ describe("query capabilities", () => {
   });
 });
 const taskEntity = {
+  id: "entity_0581aa91-953c-49f9-a3e2-15cb3af8d891",
   label: "Task",
   fields: [
     { key: "title", type: "text", required: true, label: "Title" },

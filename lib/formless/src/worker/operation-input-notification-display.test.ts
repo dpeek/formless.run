@@ -172,6 +172,7 @@ function requestSchema(operation: EntityOperationSchema): AppSchema {
     version: 1,
     entities: [
       {
+        id: "entity_8841cc5e-06cb-4d3e-8ee0-0dffb398bdc0",
         key: "request",
         label: "Request",
         fields: [

@@ -441,6 +441,7 @@ function materializerSchema(
     version: 1,
     entities: [
       {
+        id: "entity_0c0728f9-fb06-44a6-b15d-a47dbf03e681",
         key: "task",
         label: "Task",
         fields: [
@@ -465,6 +466,7 @@ function materializerSchema(
         ...taskOverrides,
       },
       {
+        id: "entity_99cbe436-fdee-4d8e-993a-0d735995877d",
         key: "task-log",
         label: "Task log",
         fields: [

@@ -469,6 +469,7 @@ function publicOperationSchema(operations: Record<string, EntityOperationSchema>
     entities: [
       {
         key: "owner",
+        id: "entity_6342e89f-52dc-4498-8bdf-07798e6420da",
         label: "Owner",
         fields: [
           {
@@ -481,6 +482,7 @@ function publicOperationSchema(operations: Record<string, EntityOperationSchema>
       },
       {
         key: "request",
+        id: "entity_7ce2a154-ea02-485d-9442-c3661e87e48a",
         label: "Request",
         fields: [
           {

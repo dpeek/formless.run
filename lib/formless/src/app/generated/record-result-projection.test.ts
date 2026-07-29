@@ -786,6 +786,7 @@ const contentUnion = {
   ],
 } satisfies RecordUnionPresentationConfig;
 const blockEntity = {
+  id: "entity_001b2bc6-c295-4273-86cd-a55fe4f3883a",
   fields: [
     ...Object.entries(fieldSchemas).map(([key, field]) => ({ key, ...field })),
     { key: "height", required: false, type: "number" },
@@ -800,6 +801,7 @@ const blockEntity = {
   ],
 } as EntitySchema;
 const unionEntity = {
+  id: "entity_a9035fd6-1a49-4106-8902-db1f670586dc",
   fields: [
     { key: "articleIcon", ...fieldSchemas.icon },
     { key: "kind", ...fieldSchemas.kind },

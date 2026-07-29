@@ -37,6 +37,7 @@ export function taskSchema(overrides: Record<string, unknown> = {}) {
 
 export function taskEntity(overrides: Record<string, unknown> = {}) {
   return {
+    id: "entity_65f1689f-ce51-457f-b4da-b46775132ff6",
     label: "Task",
     fields: [
       { key: "title", type: "text", required: true, label: "Title" },
@@ -189,16 +190,19 @@ export function rateEntities(rateOverrides: Record<string, unknown> = {}) {
   return [
     {
       key: "resource",
+      id: "entity_4460d90d-c80a-4e59-ba40-6dff39fcbefa",
       label: "Resource",
       fields: [{ key: "name", type: "text", required: true, label: "Name" }],
     },
     {
       key: "card",
+      id: "entity_3ecbb906-a6bb-41b3-bf03-56fce486c8b0",
       label: "Rate card",
       fields: [{ key: "name", type: "text", required: true, label: "Name" }],
     },
     {
       key: "rate",
+      id: "entity_5765bc5e-bb86-4488-99be-802262e780e2",
       label: "Rate",
       fields: [
         {

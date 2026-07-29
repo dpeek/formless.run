@@ -38,6 +38,30 @@ The system SHALL isolate Authority storage by storage identity.
   `instance:control-plane` storage
 - AND installed app records remain scoped to their app storage identities
 
+### Requirement: Authority-Wide Record Identity
+
+The system SHALL keep each record id unique across one Authority storage
+identity without deriving record identity from an entity key or entity id.
+
+#### Scenario: Commit globally unique record id
+
+- GIVEN Authority creates a record with an Authority-generated UUID-backed id
+  or accepts an explicit source, migration, restore, or operation id
+- WHEN no record in that storage identity already uses the id
+- THEN the record may commit under its declared entity
+- AND the same flat record id can be stored in reference fields whose schemas
+  declare the target entity
+
+#### Scenario: Reject record id reuse
+
+- GIVEN any active or tombstoned record in an Authority storage identity
+  already uses a record id
+- WHEN another write attempts to use that id for the same or a different
+  entity
+- THEN Authority rejects the collision
+- AND stable entity ids do not change record-id uniqueness into a composite
+  entity-and-record key
+
 ### Requirement: App Storage API
 
 The system SHALL expose app storage operations through schema-key and installed-app API prefixes.
@@ -212,6 +236,20 @@ without serializing runtime definition indexes.
 - AND object property insertion reordering is not a schema change
 - AND accepting a new parsed schema object causes runtime definition indexes to
   be rebuilt or selected for that object identity
+
+#### Scenario: Preserve active entity identity
+
+- GIVEN an active schema contains a stable entity id and current entity key
+- WHEN normal source refresh, schema update, or package migration proposes
+  another schema without replacing the storage identity's record lineage
+- THEN Authority rejects changing the id assigned to that continuing entity
+- AND it rejects rebinding the active entity id to an unrelated declaration
+- AND a key rename that preserves the entity id does not implicitly rewrite
+  stored record entity keys or bypass an explicit record migration or reset
+- AND an explicit destructive reset or replacement may adopt different entity
+  ids only with its existing record-lineage replacement semantics
+- AND record ids remain globally unique within the Authority independently of
+  entity identity
 
 ### Requirement: Schema Reset
 

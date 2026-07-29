@@ -159,6 +159,7 @@ function screenAccessSchema() {
     version: 1,
     entities: [
       {
+        id: "entity_10007871-53b5-4fba-a2c5-4d59cd44a6e0",
         key: "task",
         label: "Task",
         fields: [{ key: "title", type: "text", required: true, label: "Title" }],

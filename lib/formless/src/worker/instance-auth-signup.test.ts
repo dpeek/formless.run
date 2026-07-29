@@ -692,6 +692,7 @@ async function writeSignupHarness() {
           version: 1,
           entities: [
             {
+              id: "entity_7ce27c06-27cd-4fb9-a44c-f42ad0d03327",
               key: "profile",
               label: "Profile",
               fields: [

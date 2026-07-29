@@ -1461,6 +1461,7 @@ const blockSchema = {
   version: 1,
   entities: [
     {
+      id: "entity_7725df8a-c3e9-4ce4-9b02-6112a171a218",
       key: "task",
       fields: [
         { key: "height", type: "number", required: false },

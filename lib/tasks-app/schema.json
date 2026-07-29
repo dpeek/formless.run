@@ -1,162 +1,163 @@
 {
   "entities": [
     {
-      "key": "task",
-      "label": "Task",
       "fields": [
         {
           "key": "title",
-          "type": "text",
+          "label": "Title",
           "required": true,
-          "label": "Title"
+          "type": "text"
         },
         {
+          "default": false,
           "key": "done",
-          "type": "boolean",
-          "required": true,
           "label": "Done",
-          "default": false
+          "required": true,
+          "type": "boolean"
         },
         {
           "key": "dueDate",
-          "type": "date",
+          "label": "Due date",
           "required": false,
-          "label": "Due date"
+          "type": "date"
         },
         {
-          "key": "priority",
-          "type": "enum",
-          "required": true,
-          "label": "Priority",
           "default": "normal",
+          "key": "priority",
+          "label": "Priority",
+          "required": true,
+          "type": "enum",
           "values": [
             {
               "key": "low",
               "label": "Low",
               "presentation": {
-                "icon": "priority-marker",
-                "color": "priority.low"
+                "color": "priority.low",
+                "icon": "priority-marker"
               }
             },
             {
               "key": "normal",
               "label": "Normal",
               "presentation": {
-                "icon": "priority-marker",
-                "color": "priority.normal"
+                "color": "priority.normal",
+                "icon": "priority-marker"
               }
             },
             {
               "key": "high",
               "label": "High",
               "presentation": {
-                "icon": "priority-marker",
-                "color": "priority.high"
+                "color": "priority.high",
+                "icon": "priority-marker"
               }
             }
           ]
         }
       ],
+      "id": "entity_dc20cc24-23e4-4a16-98fe-bd6e09427c68",
+      "key": "task",
+      "label": "Task",
       "operations": [
         {
-          "key": "create",
-          "label": "Create Task",
-          "kind": "create",
-          "scope": "collection",
-          "input": {
-            "fields": [
-              {
-                "key": "title",
-                "field": "title"
-              },
-              {
-                "key": "done",
-                "field": "done"
-              },
-              {
-                "key": "dueDate",
-                "field": "dueDate"
-              },
-              {
-                "key": "priority",
-                "field": "priority"
-              }
-            ]
+          "audit": {
+            "input": "summary"
           },
           "effect": {
             "type": "createRecord"
           },
-          "output": {
-            "type": "create"
-          },
           "idempotency": {
             "required": true
           },
-          "audit": {
-            "input": "summary"
-          }
-        },
-        {
-          "key": "update",
-          "label": "Update Task",
-          "kind": "update",
-          "scope": "record",
           "input": {
             "fields": [
               {
-                "key": "title",
-                "field": "title"
+                "field": "title",
+                "key": "title"
               },
               {
-                "key": "done",
-                "field": "done"
+                "field": "done",
+                "key": "done"
               },
               {
-                "key": "dueDate",
-                "field": "dueDate"
+                "field": "dueDate",
+                "key": "dueDate"
               },
               {
-                "key": "priority",
-                "field": "priority"
+                "field": "priority",
+                "key": "priority"
               }
             ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Task",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
           },
           "effect": {
             "type": "patchRecord"
           },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "title",
+                "key": "title"
+              },
+              {
+                "field": "done",
+                "key": "done"
+              },
+              {
+                "field": "dueDate",
+                "key": "dueDate"
+              },
+              {
+                "field": "priority",
+                "key": "priority"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Task",
           "output": {
             "type": "update"
           },
+          "scope": "record"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "config": {
+              "query": "taskCompleted"
+            },
+            "handler": "clear-completed",
+            "type": "operationHandler"
+          },
           "idempotency": {
             "required": true
           },
-          "audit": {
-            "input": "summary"
-          }
-        },
-        {
           "key": "clearCompletedTasks",
-          "label": "Clear completed",
           "kind": "command",
-          "scope": "collection",
-          "target": {
-            "query": "taskCompleted"
-          },
-          "effect": {
-            "type": "operationHandler",
-            "handler": "clear-completed",
-            "config": {
-              "query": "taskCompleted"
-            }
-          },
+          "label": "Clear completed",
           "output": {
             "type": "command"
           },
-          "idempotency": {
-            "required": true
-          },
-          "audit": {
-            "input": "summary"
+          "scope": "collection",
+          "target": {
+            "query": "taskCompleted"
           }
         }
       ]
@@ -164,26 +165,25 @@
   ],
   "itemViews": [
     {
-      "key": "taskListItem",
       "entity": "task",
       "fields": [
         {
-          "field": "title",
+          "commit": "field-commit",
           "editor": "text",
-          "commit": "field-commit"
+          "field": "title"
         },
         {
-          "field": "dueDate",
-          "editor": "date",
           "commit": "field-commit",
+          "editor": "date",
+          "field": "dueDate",
           "presentation": {
             "visibility": "valueOrInteraction"
           }
         },
         {
-          "field": "priority",
-          "editor": "enum",
           "commit": "immediate",
+          "editor": "enum",
+          "field": "priority",
           "presentation": {
             "list": "both",
             "mode": "iconOnly",
@@ -191,172 +191,173 @@
           }
         },
         {
-          "field": "done",
-          "editor": "boolean",
           "commit": "immediate",
+          "editor": "boolean",
+          "field": "done",
           "presentation": {
             "mode": "completion"
           }
         }
-      ]
+      ],
+      "key": "taskListItem"
     }
   ],
   "queries": [
     {
-      "key": "taskAll",
-      "label": "All",
       "entity": "task",
       "expression": {
         "kind": "all"
-      }
+      },
+      "key": "taskAll",
+      "label": "All"
     },
     {
-      "key": "taskActive",
-      "label": "Active",
       "entity": "task",
       "expression": {
         "kind": "where",
+        "op": "eq",
         "ref": {
           "kind": "value",
           "name": "done"
         },
-        "op": "eq",
         "value": false
-      }
+      },
+      "key": "taskActive",
+      "label": "Active"
     },
     {
-      "key": "taskCompleted",
-      "label": "Completed",
       "entity": "task",
       "expression": {
         "kind": "where",
+        "op": "eq",
         "ref": {
           "kind": "value",
           "name": "done"
         },
-        "op": "eq",
         "value": true
-      }
+      },
+      "key": "taskCompleted",
+      "label": "Completed"
     },
     {
-      "key": "taskOverdue",
-      "label": "Overdue",
       "entity": "task",
       "expression": {
-        "kind": "and",
         "expressions": [
           {
             "kind": "where",
+            "op": "eq",
             "ref": {
               "kind": "value",
               "name": "done"
             },
-            "op": "eq",
             "value": false
           },
           {
             "kind": "where",
+            "op": "before",
             "ref": {
               "kind": "value",
               "name": "dueDate"
             },
-            "op": "before",
             "value": {
               "kind": "today"
             }
           }
-        ]
-      }
+        ],
+        "kind": "and"
+      },
+      "key": "taskOverdue",
+      "label": "Overdue"
     }
   ],
   "screens": [
     {
       "key": "taskHome",
-      "type": "workspace",
       "label": "Tasks",
-      "path": "/",
       "layout": {
-        "type": "stack",
         "sections": [
           {
             "id": "tasks",
             "type": "collection",
             "view": "taskHome"
           }
-        ]
-      }
+        ],
+        "type": "stack"
+      },
+      "path": "/",
+      "type": "workspace"
     }
   ],
   "tableViews": [],
   "version": 1,
   "views": [
     {
-      "key": "taskHome",
-      "type": "collection",
-      "label": "Tasks",
-      "entity": "task",
-      "queries": [
-        {
-          "query": "taskAll",
-          "count": {
-            "type": "count"
-          }
-        },
-        {
-          "query": "taskActive",
-          "count": {
-            "type": "count"
-          }
-        },
-        {
-          "query": "taskCompleted",
-          "count": {
-            "type": "count"
-          }
-        },
-        {
-          "query": "taskOverdue",
-          "count": {
-            "type": "count"
-          }
-        }
-      ],
       "defaultQuery": "taskAll",
-      "result": {
-        "type": "list",
-        "itemView": "taskListItem"
-      },
+      "entity": "task",
+      "key": "taskHome",
+      "label": "Tasks",
       "operations": [
         {
-          "operation": "task.create",
-          "createView": "taskCreate"
+          "createView": "taskCreate",
+          "operation": "task.create"
         },
         {
-          "operation": "task.clearCompletedTasks",
           "count": {
             "type": "count"
-          }
+          },
+          "operation": "task.clearCompletedTasks"
         }
-      ]
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "taskAll"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "taskActive"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "taskCompleted"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "taskOverdue"
+        }
+      ],
+      "result": {
+        "itemView": "taskListItem",
+        "type": "list"
+      },
+      "type": "collection"
     },
     {
-      "key": "taskCreate",
-      "type": "create",
       "entity": "task",
       "fields": [
         {
-          "field": "title",
-          "editor": "text"
+          "editor": "text",
+          "field": "title"
         },
         {
-          "field": "dueDate",
-          "editor": "date"
+          "editor": "date",
+          "field": "dueDate"
         },
         {
-          "field": "priority",
-          "editor": "enum"
+          "editor": "enum",
+          "field": "priority"
         }
-      ]
+      ],
+      "key": "taskCreate",
+      "type": "create"
     }
   ]
 }

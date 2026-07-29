@@ -3259,6 +3259,7 @@ function schemaWithTransitionSideEffects(
     ]),
   });
   setKeyedDefinition(schema.entities, "order", {
+    id: "entity_7ef4f4da-b4c9-4ea6-a224-b7057d280076",
     label: "Order",
     fields: orderFields,
     constraints: options.orderConstraints ?? [
@@ -3268,6 +3269,7 @@ function schemaWithTransitionSideEffects(
     operations: recordCrudOperations("Order", orderFields),
   } as EntitySchema);
   setKeyedDefinition(schema.entities, "order-receipt", {
+    id: "entity_4ea5458f-cca1-4bac-aa68-9a205add7847",
     label: "Order receipt",
     fields: [
       {
@@ -3509,6 +3511,7 @@ function schemaWithPrivateSubscribeCommandOperation(sourceSchema: AppSchema): Ap
 }
 function taskLogEntity(): AppSchema["entities"][number] {
   return {
+    id: "entity_6af9953e-5e82-4eb1-a57f-91a9ceeca119",
     label: "Task log",
     fields: [
       {
@@ -3528,6 +3531,7 @@ function taskLogEntity(): AppSchema["entities"][number] {
 }
 function transitionEventEntity(): AppSchema["entities"][number] {
   return {
+    id: "entity_77de980f-9acb-4e15-a7ee-09c89a2e949d",
     label: "Task event",
     fields: [
       { key: "sourceEntity", type: "text", required: true, label: "Source entity" },
@@ -3778,6 +3782,7 @@ function schemaWithOperationOnlyTaskProjectReference(sourceSchema: AppSchema): A
     ]),
   });
   setKeyedDefinition(schema.entities, "project", {
+    id: "entity_1dec5dbd-c83b-491d-a0ca-a138f48d13ed",
     label: "Project",
     fields: projectFields,
     operations: recordCrudOperations("Project", projectFields),

@@ -15,6 +15,8 @@ export const SCHEMA_PUBLIC_CONTRACT_VERSION = 1;
 export type KeyedDefinition<Definition extends object> = Definition & {
   key: string;
 };
+/** Opaque stable identity for one logical App schema entity. */
+export type EntityId = `entity_${string}`;
 /** Entity identity at cross-schema and external boundaries. */
 export type QualifiedEntityName = {
   entityKey: string;
@@ -1279,6 +1281,7 @@ export type UniqueConstraintSchema = {
 };
 export type EntityConstraintSchema = UniqueConstraintSchema;
 export type EntitySchema = {
+  id: EntityId;
   label: string;
   fields: KeyedDefinition<FieldSchema>[];
   constraints?: KeyedDefinition<EntityConstraintSchema>[];
@@ -1346,6 +1349,7 @@ export type DefinitionIndex<
 
 export type AppSchemaDefinitionIndex = {
   entities: DefinitionIndex<KeyedDefinition<EntitySchema>>;
+  entitiesById: ReadonlyMap<EntityId, KeyedDefinition<EntitySchema>>;
   relationships: DefinitionIndex<KeyedDefinition<RelationshipSchema>>;
   queries: DefinitionIndex<KeyedDefinition<CollectionQuerySchema>>;
   readModels: {

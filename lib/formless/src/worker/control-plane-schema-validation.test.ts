@@ -702,18 +702,21 @@ function controlPlaneRuntimeSchema(): AppSchema {
           : entity,
       ),
       {
+        id: "entity_45a76455-7e21-4d04-8165-cc68e141a4a9",
         key: "app-install",
         label: "App install",
         fields: appInstallFields,
         operations: writeOperations("App install", appInstallFields),
       },
       {
+        id: "entity_8d6d40dd-08a9-4fb4-9c2a-331d2607a294",
         key: "app-route",
         label: "App route",
         fields: appRouteFields,
         operations: writeOperations("App route", appRouteFields),
       },
       {
+        id: "entity_c73ed4d8-0b9a-498f-9198-88d21dcd3692",
         key: "deploy-attempt",
         label: "Deploy attempt",
         fields: [{ key: "label", type: "text", required: true, label: "Label" }],

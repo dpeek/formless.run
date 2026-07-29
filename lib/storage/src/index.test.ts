@@ -17,6 +17,7 @@ const appSchema = parseAppSchema({
   version: 1,
   entities: [
     {
+      id: "entity_a6217a34-ef01-4513-968e-6cd9a6806376",
       key: "project",
       label: "Project",
       fields: [
@@ -30,6 +31,7 @@ const appSchema = parseAppSchema({
       operations: writeOperations("Project", ["label"]),
     },
     {
+      id: "entity_426fb25a-3d8e-49f2-8d14-22517c9b435c",
       key: "task",
       label: "Task",
       fields: [

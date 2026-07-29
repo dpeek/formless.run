@@ -975,6 +975,7 @@ function publicListOutput(): Extract<
 function publicReadSchema(): AppSchema {
   const schema = structuredClone(workerSchemaAppDefinitions.tasks.sourceSchema);
   setKeyedDefinition(schema.entities, "certificate", {
+    id: "entity_9c225234-e616-4807-a0c3-d4333e8128d6",
     label: "Certificate",
     fields: [
       { key: "code", type: "text", required: true, label: "Code" },

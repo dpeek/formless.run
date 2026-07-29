@@ -3232,6 +3232,7 @@ function discriminatedTaskSchema(
     version: 1,
     entities: [
       {
+        id: "entity_fa8a7fd7-f3cf-466b-bb8d-354d6d512011",
         key: "task",
         label: "Task",
         fields: [
@@ -3462,6 +3463,7 @@ function systemMetadataUiSchema(): AppSchema {
     version: 1,
     entities: [
       {
+        id: "entity_e1fe8678-c984-4dc9-9052-8135a85f1e77",
         key: "task",
         label: "Task",
         fields: [{ key: "title", type: "text", required: true, label: "Title" }],
@@ -3641,6 +3643,7 @@ function lifecycleTaskSchema() {
     version: 1,
     entities: [
       {
+        id: "entity_43dd7d3d-ef44-4fef-ac32-e8846c46ceef",
         key: "task",
         label: "Task",
         fields: [
