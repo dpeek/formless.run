@@ -315,6 +315,110 @@ describe("record plan materializer", () => {
     });
   });
 
+  it("materializes deterministic calendar dates across UTC and daylight-saving boundaries", async () => {
+    const cases = [
+      {
+        expected: "2025-12-31",
+        receivedAt: "2026-01-01T00:30:00.000Z",
+        timeZone: "America/Los_Angeles",
+      },
+      {
+        expected: "2026-07-01",
+        receivedAt: "2026-06-30T14:00:00.000Z",
+        timeZone: "Australia/Sydney",
+      },
+      {
+        expected: "2026-03-08",
+        receivedAt: "2026-03-08T07:00:00.000Z",
+        timeZone: "America/New_York",
+      },
+      {
+        expected: "2026-11-01",
+        receivedAt: "2026-11-01T06:00:00.000Z",
+        timeZone: "America/New_York",
+      },
+    ];
+
+    for (const [index, input] of cases.entries()) {
+      const schema = materializerSchema([
+        {
+          name: "createTask",
+          kind: "create",
+          entity: "task",
+          values: {
+            title: { kind: "literal", value: `Generated date ${index}` },
+            done: { kind: "literal", value: false },
+            businessDate: { kind: "generatedDate", timeZone: input.timeZone },
+            repeatedBusinessDate: { kind: "generatedDate", timeZone: input.timeZone },
+          },
+        },
+      ]);
+      const operation = submitPlanOperation(schema);
+      const materializedDates: string[] = [];
+
+      for (const repetition of [1, 2]) {
+        materializerHarnessName = randomUUID();
+        const operationId = `operation:task.submitPlan:generated-date-${index}-${repetition}`;
+        const response = await postMaterialize({
+          effect: requireRecordPlanEffect(operation),
+          envelope: operationEnvelope(operation, {
+            input: {},
+            operationId,
+            receivedAt: input.receivedAt,
+          }),
+          inputValues: {},
+          operationId,
+          schema,
+        });
+        const summary = response.planSummaries[0];
+        if (summary?.kind !== "create") {
+          throw new Error("Expected generated-date create plan summary.");
+        }
+
+        expect(summary.values).toMatchObject({
+          businessDate: input.expected,
+          repeatedBusinessDate: input.expected,
+        });
+        materializedDates.push(summary.values.businessDate as string);
+      }
+
+      expect(materializedDates).toEqual([input.expected, input.expected]);
+    }
+  });
+
+  it("rejects generated dates when the received instant is invalid", async () => {
+    const schema = materializerSchema([
+      {
+        name: "createTask",
+        kind: "create",
+        entity: "task",
+        values: {
+          title: { kind: "literal", value: "Invalid instant" },
+          done: { kind: "literal", value: false },
+          businessDate: { kind: "generatedDate", timeZone: "UTC" },
+        },
+      },
+    ]);
+    const operation = submitPlanOperation(schema);
+    const operationId = "operation:task.submitPlan:generated-date-invalid-instant";
+    const response = await postMaterializeFailure({
+      effect: requireRecordPlanEffect(operation),
+      envelope: operationEnvelope(operation, {
+        input: {},
+        operationId,
+        receivedAt: "not-an-instant",
+      }),
+      inputValues: {},
+      operationId,
+      schema,
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "Record plan generatedDate requires a valid receivedAt instant.",
+    });
+  });
+
   it("materializes related-record values from one target snapshot", async () => {
     const schema = materializerSchema(
       [
@@ -456,6 +560,13 @@ function materializerSchema(
           { key: "sourceProtocol", type: "text", required: false, label: "Source protocol" },
           { key: "sourceHost", type: "text", required: false, label: "Source host" },
           { key: "sourcePath", type: "text", required: false, label: "Source path" },
+          { key: "businessDate", type: "date", required: false, label: "Business date" },
+          {
+            key: "repeatedBusinessDate",
+            type: "date",
+            required: false,
+            label: "Repeated business date",
+          },
         ],
         operations: [
           {

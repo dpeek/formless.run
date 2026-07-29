@@ -75,6 +75,32 @@ describe("schema state machines", () => {
     expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
   });
 
+  it("parses and stringifies generated date transition target values", () => {
+    const schema = parseAppSchema(
+      stateMachineSchemaWithTransitionTargetValues({
+        startedOn: { kind: "generatedDate", timeZone: "Australia/Sydney" },
+        reportingDate: { kind: "generatedDate", timeZone: "America/Los_Angeles" },
+      }),
+    );
+    const effect = schema.entities
+      .find((definition) => definition.key === "task")!
+      .operations?.find((definition) => definition.key === "startWork")?.effect;
+
+    expect(effect).toEqual({
+      type: "operationHandler",
+      handler: "transition-state",
+      config: {
+        machine: "statusFlow",
+        transition: "start",
+        targetValues: {
+          startedOn: { kind: "generatedDate", timeZone: "Australia/Sydney" },
+          reportingDate: { kind: "generatedDate", timeZone: "America/Los_Angeles" },
+        },
+      },
+    });
+    expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+  });
+
   it("rejects invalid state-machine declarations", () => {
     expect(() =>
       parseAppSchema(
@@ -259,6 +285,122 @@ describe("schema state machines", () => {
       ),
     ).toThrow("command effect is not eligible for public execution");
   });
+
+  it("rejects unsupported transition target fields and expressions", () => {
+    const invalidCases: {
+      message: string;
+      targetValues: unknown;
+    }[] = [
+      {
+        targetValues: {},
+        message: "targetValues must not be empty",
+      },
+      {
+        targetValues: [],
+        message: "targetValues must be an object",
+      },
+      {
+        targetValues: {
+          createdAt: { kind: "generatedDate", timeZone: "Australia/Sydney" },
+        },
+        message: 'must not target system field "createdAt"',
+      },
+      {
+        targetValues: {
+          missing: { kind: "generatedDate", timeZone: "Australia/Sydney" },
+        },
+        message: 'references unknown field "missing"',
+      },
+      {
+        targetValues: {
+          status: { kind: "generatedDate", timeZone: "Australia/Sydney" },
+        },
+        message: 'must not target state machine field "status"',
+      },
+      {
+        targetValues: {
+          title: { kind: "generatedDate", timeZone: "Australia/Sydney" },
+        },
+        message: "requires a date destination field",
+      },
+      {
+        targetValues: {
+          startedOn: { kind: "literal", value: "2026-07-29" },
+        },
+        message: "must use a generatedDate expression",
+      },
+      {
+        targetValues: {
+          startedOn: { kind: "input", field: "startedOn" },
+        },
+        message: "must use a generatedDate expression",
+      },
+      {
+        targetValues: {
+          startedOn: { kind: "targetField", field: "startedOn" },
+        },
+        message: "must use a generatedDate expression",
+      },
+      {
+        targetValues: {
+          startedOn: { kind: "generatedTimestamp" },
+        },
+        message: "must use a generatedDate expression",
+      },
+      {
+        targetValues: {
+          startedOn: { kind: "workflow", action: "patch" },
+        },
+        message: "must use a generatedDate expression",
+      },
+      {
+        targetValues: {
+          startedOn: { kind: "generatedDate" },
+        },
+        message: 'must include "timeZone"',
+      },
+      {
+        targetValues: {
+          startedOn: { kind: "generatedDate", timeZone: "Mars/Olympus_Mons" },
+        },
+        message: "timeZone must be a resolvable IANA time-zone identifier",
+      },
+      {
+        targetValues: {
+          startedOn: { kind: "generatedDate", timeZone: "+10:00" },
+        },
+        message: "timeZone must be a resolvable IANA time-zone identifier",
+      },
+      {
+        targetValues: {
+          startedOn: {
+            kind: "generatedDate",
+            timeZone: "Australia/Sydney",
+            patch: { status: "doing" },
+          },
+        },
+        message: 'has unsupported key "patch"',
+      },
+    ];
+
+    for (const invalidCase of invalidCases) {
+      expect(() =>
+        parseAppSchema(stateMachineSchemaWithTransitionTargetValues(invalidCase.targetValues)),
+      ).toThrow(invalidCase.message);
+    }
+
+    expect(() =>
+      parseAppSchema(
+        stateMachineSchemaWithTransitionTargetValues(
+          {
+            startedOn: { kind: "generatedDate", timeZone: "Australia/Sydney" },
+          },
+          { scope: "collection" },
+        ),
+      ),
+    ).toThrow("targetValues requires a record-scoped transition operation");
+  });
+
   it("parses and stringifies create-only transition side effects with target snapshots", () => {
     const schema = parseAppSchema(stateMachineSchemaWithTransitionSideEffects());
     const effect = schema.entities
@@ -612,6 +754,28 @@ function stateMachineSchemaWithTransitionSideEffects(
         },
       },
       ...overrides.operation,
+    },
+  });
+}
+
+function stateMachineSchemaWithTransitionTargetValues(
+  targetValues: unknown,
+  operation: Record<string, unknown> = {},
+) {
+  return stateMachineSchema({
+    fields: {
+      startedOn: { type: "date", required: false },
+      reportingDate: { type: "date", required: false },
+    },
+    operation: {
+      effect: {
+        ...transitionEffect(),
+        config: {
+          ...transitionEffect().config,
+          targetValues,
+        },
+      },
+      ...operation,
     },
   });
 }

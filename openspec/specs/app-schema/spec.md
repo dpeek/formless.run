@@ -1075,13 +1075,17 @@ public forms, automation, audit, and authorization.
   declared entity from the same schema
 - AND step values may reference operation input fields, literal scalar values,
   generated ids, generated human-readable codes, generated timestamps,
-  actor/source context, outputs from earlier steps, and the invocation target
-  when the containing operation is record-scoped
+  generated dates, actor/source context, outputs from earlier steps, and the
+  invocation target when the containing operation is record-scoped
 - AND generated human-readable code expressions declare a named alphabet, either
   one length or grouped segment lengths, an optional group separator, and an
   optional literal prefix
 - AND generated human-readable code expressions are valid for step values, not
   record id expressions
+- AND generated date expressions declare an explicit IANA time-zone identifier
+  and are valid only for declared date fields
+- AND generated timestamps remain ISO instant values and are not implicitly
+  truncated to satisfy date fields
 - AND record id expressions use input, literal scalar, generated id, earlier
   step id output, or record-scoped target record id expressions
 - AND field values target declared fields on the step entity
@@ -1189,6 +1193,23 @@ fields without adding nested stored workflow state.
   owner, admin, CLI deployer, and runner callers
 - AND anonymous public access is rejected unless a later transition operation
   policy explicitly supports it
+
+#### Scenario: Parse transition target date values
+
+- GIVEN a record-scoped transition-state operation needs to set an
+  authority-generated date on the transitioned record
+- WHEN the handler config declares a non-empty `targetValues` field map
+- THEN every target field exists on the operation entity, is not a system field
+  or the machine-owned enum field, and has date type
+- AND every target value uses `generatedDate` with an explicit IANA time-zone
+  identifier
+- AND missing or unsupported time-zone identifiers fail schema parsing
+- AND `targetValues` is rejected for collection-scoped transition operations
+- AND literal values, operation input, target fields, generated timestamps,
+  arbitrary expressions, and patch, delete, or workflow instructions are
+  rejected from `targetValues`
+- AND target date values do not change operation actor policy, idempotency,
+  audit, transition validity, event behavior, or side-effect eligibility
 
 #### Scenario: Parse transition side-effect creates
 

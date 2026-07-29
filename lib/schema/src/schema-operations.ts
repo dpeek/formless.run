@@ -9,6 +9,7 @@ import {
 import {
   isEntityOperationCommandEffectType,
   isOperationHandlerEffectForKind,
+  parseGeneratedDateValueExpression,
   parseOperationHandlerEffect,
 } from "./schema-operation-execution.ts";
 import { collectQueryContextNames, queryRequiresContextEqualityOnEveryBranch } from "./query.ts";
@@ -948,6 +949,7 @@ function parseOperationEffect(
     return parseOperationHandlerEffect(
       context,
       value,
+      scope,
       target,
       entityName,
       entity,
@@ -1353,6 +1355,10 @@ function parseRecordPlanValueExpression(
     return { kind: "generatedTimestamp" };
   }
 
+  if (value.kind === "generatedDate") {
+    return parseRecordPlanGeneratedDateExpression(context, value);
+  }
+
   if (value.kind === "targetRecordId") {
     return parseRecordPlanTargetRecordIdExpression(context, value, options);
   }
@@ -1505,6 +1511,13 @@ function parseRecordPlanGeneratedIdExpression(
 
   const prefix = parseOptionalNonEmptyString(`${context} prefix`, value.prefix);
   return { kind: "generatedId", ...(prefix === undefined ? {} : { prefix }) };
+}
+
+function parseRecordPlanGeneratedDateExpression(
+  context: string,
+  value: Record<string, unknown>,
+): RecordPlanValueExpressionSchema {
+  return parseGeneratedDateValueExpression(context, value);
 }
 
 function parseRecordPlanGeneratedCodeExpression(
@@ -1704,6 +1717,18 @@ function validateRecordPlanFieldExpression(
   previousSteps: Map<string, ParsedRecordPlanStep>,
   options: RecordPlanParseOptions,
 ) {
+  if (expression.kind === "generatedDate") {
+    if (field.type !== "date") {
+      throw new Error(`${context} generatedDate requires a date destination field.`);
+    }
+
+    return;
+  }
+
+  if (expression.kind === "generatedTimestamp" && field.type === "date") {
+    throw new Error(`${context} generatedTimestamp is incompatible with date destination fields.`);
+  }
+
   if (expression.kind === "targetField") {
     const targetField = definitionsToRecord(options.target?.entity.fields)[expression.field];
     if (!targetField) {

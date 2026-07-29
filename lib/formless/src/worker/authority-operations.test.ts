@@ -1546,6 +1546,67 @@ describe("authority operation execution", () => {
     });
   });
 
+  it("commits generated transition dates from receivedAt and replays stored values", async () => {
+    const bootstrap = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const schema = schemaWithTransitionTargetValues(bootstrap.body.result.body.schema);
+
+    await executeOperation({
+      method: "POST",
+      path: "/schema",
+      body: { schema },
+    });
+    const created = await createTaskForTransition("transition-date-task", {
+      title: "Issue ready for work",
+      done: false,
+    });
+    const createdOutput = created.body.result.body.output;
+
+    if (createdOutput.type !== "create") {
+      throw new Error("Expected create operation output.");
+    }
+
+    const body = {
+      idempotencyKey: "transition-date-start",
+      recordId: createdOutput.record.id,
+    };
+    const committed = await executeOperation<OperationInvocationResponse>({
+      method: "POST",
+      path: "/operations/task/startTask",
+      body,
+    });
+    const replayed = await executeOperation<OperationInvocationResponse>({
+      method: "POST",
+      path: "/operations/task/startTask",
+      body,
+    });
+    const output = committed.body.result.body.output;
+    const receivedAt = committed.body.result.body.invocation.receivedAt;
+
+    if (output.type !== "command") {
+      throw new Error("Expected command operation output.");
+    }
+
+    expect(committed.body.writes.map((write) => write.kind)).toEqual(["committed"]);
+    expect(output.changes.filter((change) => change.entity === "task")).toHaveLength(1);
+    expect(output.changes[0]).toMatchObject({
+      entity: "task",
+      recordId: createdOutput.record.id,
+      payload: {
+        values: {
+          status: "doing",
+          startedOn: calendarDateInTimeZone(receivedAt, "Australia/Sydney"),
+          reportingDate: calendarDateInTimeZone(receivedAt, "America/Los_Angeles"),
+        },
+      },
+    });
+    expect(replayed.body.writes.map((write) => write.kind)).toEqual(["replay"]);
+    expect(replayed.body.result.body.status).toBe("replayed");
+    expect(replayed.body.result.body.output).toEqual(output);
+  });
+
   it("atomically commits transition side-effect creates and replays their record metadata", async () => {
     const bootstrap = await executeOperation<BootstrapResponse>({
       method: "GET",
@@ -1675,10 +1736,9 @@ describe("authority operation execution", () => {
       method: "GET",
       path: "/bootstrap",
     });
-    const schema = schemaWithTransitionSideEffects(
-      bootstrap.body.result.body.schema,
-      invalidReferenceTransitionSideEffects(),
-    );
+    const schema = schemaWithTransitionTargetValues(bootstrap.body.result.body.schema, {
+      sideEffects: invalidReferenceTransitionSideEffects(),
+    });
 
     await executeOperation({
       method: "POST",
@@ -1721,10 +1781,12 @@ describe("authority operation execution", () => {
     expect(failed.body.error).toBe('Field "task" references unknown task record "missing-task".');
     expect(failed.body.writes).toEqual([]);
     expect(sync.body.result.body.changes).toEqual([]);
-    expect(
-      after.body.result.body.records.find((record) => record.id === createdOutput.record.id)
-        ?.values,
-    ).toMatchObject({ status: "todo" });
+    const targetRecord = after.body.result.body.records.find(
+      (record) => record.id === createdOutput.record.id,
+    );
+    expect(targetRecord?.values).toMatchObject({ status: "todo" });
+    expect(targetRecord?.values).not.toHaveProperty("startedOn");
+    expect(targetRecord?.values).not.toHaveProperty("reportingDate");
     expect(
       after.body.result.body.records.filter((record) =>
         ["task-event", "order", "order-receipt"].includes(record.entity),
@@ -1737,7 +1799,9 @@ describe("authority operation execution", () => {
       method: "GET",
       path: "/bootstrap",
     });
-    const schema = schemaWithTransitionSideEffects(bootstrap.body.result.body.schema);
+    const schema = schemaWithTransitionTargetValues(bootstrap.body.result.body.schema, {
+      sideEffects: successfulTransitionSideEffects(),
+    });
 
     await executeOperation({
       method: "POST",
@@ -1848,6 +1912,13 @@ describe("authority operation execution", () => {
       path: "/sync",
       search: `after=${staleBaseline.body.result.body.cursor}&schemaUpdatedAt=${encodeURIComponent(staleBaseline.body.result.body.schemaUpdatedAt)}`,
     });
+    const staleAfter = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const staleRecord = staleAfter.body.result.body.records.find(
+      (record) => record.id === staleOutput.record.id,
+    );
 
     expect(missing.body.error).toContain('references unknown task record "missing-task"');
     expect(tombstoneFailure.body.error).toContain("cannot transition tombstoned task record");
@@ -1856,6 +1927,8 @@ describe("authority operation execution", () => {
     expect(staleFailure.body.error).toContain("changed before commit");
     expect(staleFailure.body.writes).toEqual([]);
     expect(staleSync.body.result.body.changes).toEqual([]);
+    expect(staleRecord?.values).not.toHaveProperty("startedOn");
+    expect(staleRecord?.values).not.toHaveProperty("reportingDate");
   });
 
   it("keeps a unique target reference as an independent transition duplicate guard", async () => {
@@ -3137,6 +3210,71 @@ function schemaWithTransitionCommandOperation(sourceSchema: AppSchema): AppSchem
   setKeyedDefinition(schema.entities, "task-event", transitionEventEntity());
   return schema;
 }
+
+function schemaWithTransitionTargetValues(
+  sourceSchema: AppSchema,
+  options: {
+    sideEffects?: TransitionSideEffectCreateStepSchema[];
+  } = {},
+): AppSchema {
+  const schema =
+    options.sideEffects === undefined
+      ? schemaWithTransitionCommandOperation(sourceSchema)
+      : schemaWithTransitionSideEffects(sourceSchema, options.sideEffects);
+  const taskEntity = requireEntity(schema, "task");
+  const startTask = taskEntity.operations?.find((definition) => definition.key === "startTask");
+  if (
+    !startTask ||
+    startTask.effect?.type !== "operationHandler" ||
+    startTask.effect.handler !== "transition-state"
+  ) {
+    throw new Error("Expected transition-state task.startTask operation.");
+  }
+
+  const fields = [
+    ...taskEntity.fields,
+    {
+      key: "startedOn",
+      type: "date",
+      required: false,
+      label: "Started on",
+    },
+    {
+      key: "reportingDate",
+      type: "date",
+      required: false,
+      label: "Reporting date",
+    },
+  ] satisfies EntitySchema["fields"];
+  setKeyedDefinition(schema.entities, "task", {
+    ...taskEntity,
+    fields,
+    operations: mergeOperations(taskEntity.operations, [
+      {
+        ...startTask,
+        effect: {
+          ...startTask.effect,
+          config: {
+            ...startTask.effect.config,
+            targetValues: {
+              startedOn: {
+                kind: "generatedDate",
+                timeZone: "Australia/Sydney",
+              },
+              reportingDate: {
+                kind: "generatedDate",
+                timeZone: "America/Los_Angeles",
+              },
+            },
+          },
+        },
+      },
+    ]),
+  });
+
+  return schema;
+}
+
 function schemaWithTransitionSideEffects(
   sourceSchema: AppSchema,
   sideEffects: TransitionSideEffectCreateStepSchema[] = successfulTransitionSideEffects(),
@@ -3440,6 +3578,7 @@ function schemaWithTargetAwareRecordPlanOperation(sourceSchema: AppSchema): AppS
   ] satisfies EntitySchema["fields"];
 
   setKeyedDefinition(schema.entities, "target-log", {
+    id: "entity_6577f628-d9a7-4775-b76b-a27e72087082",
     label: "Target log",
     fields: targetLogFields,
     constraints: [{ key: "uniqueCode", kind: "unique", fields: ["code"] }],
@@ -3903,6 +4042,18 @@ function createTaskForTransition(idempotencyKey: string, values: Record<string, 
     path: "/operations/task/create",
     body: { idempotencyKey, input: values },
   });
+}
+
+function calendarDateInTimeZone(receivedAt: string, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-US-u-ca-iso8601-nu-latn", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone,
+    year: "numeric",
+  }).formatToParts(new Date(receivedAt));
+  const calendarParts = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return `${calendarParts.year}-${calendarParts.month}-${calendarParts.day}`;
 }
 
 function createOrderForTransition(idempotencyKey: string, values: Record<string, unknown>) {

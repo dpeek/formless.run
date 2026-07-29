@@ -39,6 +39,7 @@ import {
   writeRecordSetForCommandOperationOutcome,
 } from "./storage.ts";
 import {
+  materializeGeneratedDateExpression,
   materializeRecordPlanAsync,
   recordPlanCommandInput,
   recordPlanOperationOutput,
@@ -942,9 +943,20 @@ function selectTransitionStateWritePlans(
     );
   }
 
+  const generatedTargetValues = Object.fromEntries(
+    Object.entries(effect.config.targetValues ?? {}).map(([fieldName, expression]) => [
+      fieldName,
+      materializeGeneratedDateExpression(
+        expression,
+        context.envelope.receivedAt,
+        `Operation "${context.envelope.operation.canonicalKey}" targetValues.${fieldName} generatedDate`,
+      ),
+    ]),
+  );
   const nextValues = validateRecordValues(
     {
       ...record.values,
+      ...generatedTargetValues,
       [machine.field]: transition.to,
     },
     entity,

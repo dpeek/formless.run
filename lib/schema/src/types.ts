@@ -1021,6 +1021,7 @@ export type SubscribeOperationHandlerConfigSchema = Record<string, never>;
 export type TransitionStateOperationHandlerConfigSchema = {
   machine: string;
   transition: string;
+  targetValues?: Record<string, RecordPlanGeneratedDateExpressionSchema>;
   sideEffects?: TransitionSideEffectRecordPlanSchema;
 };
 
@@ -1085,6 +1086,11 @@ export type RecordPlanGeneratedTimestampExpressionSchema = {
   kind: "generatedTimestamp";
 };
 
+export type RecordPlanGeneratedDateExpressionSchema = {
+  kind: "generatedDate";
+  timeZone: string;
+};
+
 export type RecordPlanActorContextExpressionSchema = {
   kind: "actor";
   field: RecordPlanActorContextField;
@@ -1132,6 +1138,7 @@ export type RecordPlanScalarValueExpressionSchema =
   | RecordPlanRecordIdExpressionSchema
   | RecordPlanGeneratedCodeExpressionSchema
   | RecordPlanGeneratedTimestampExpressionSchema
+  | RecordPlanGeneratedDateExpressionSchema
   | RecordPlanActorContextExpressionSchema
   | RecordPlanSourceContextExpressionSchema
   | RecordPlanStepFieldOutputExpressionSchema

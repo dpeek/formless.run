@@ -57,6 +57,23 @@ operations instead of generic status patches.
 - AND the write commits through normal operation idempotency and write-log behavior
 - AND the operation response includes the committed record change
 
+#### Scenario: Set authority-generated transition dates
+
+- GIVEN a record-scoped transition operation declares generated-date
+  `targetValues` for date fields on its entity
+- WHEN an authorized caller invokes the transition for an active record in an
+  accepted current state
+- THEN each date is derived from the operation received instant and its
+  explicitly declared IANA time zone
+- AND the state destination and generated dates are validated and committed as
+  one target record patch
+- AND date generation does not depend on the Authority host time zone or
+  truncate the UTC representation of the received instant
+- AND transition events and create-only side-effect records, when declared,
+  remain atomic with that target patch
+- AND no transition guard, arbitrary target patch, general workflow automation,
+  or additional expression language is introduced
+
 #### Scenario: Execute transition with record creates
 
 - GIVEN a record-scoped transition operation declares a create-only side-effect

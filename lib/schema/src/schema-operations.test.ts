@@ -690,7 +690,7 @@ describe("schema entity operations", () => {
               separator: "-",
               prefix: "ORD-",
             },
-            dueDate: { kind: "generatedTimestamp" },
+            dueDate: { kind: "generatedDate", timeZone: "Australia/Sydney" },
           },
         },
         {
@@ -841,6 +841,100 @@ describe("schema entity operations", () => {
           }),
         },
         message: 'must not target system field "updatedAt"',
+      },
+      {
+        operations: {
+          submitIntake: recordPlanOperation({
+            effect: recordPlanEffect({
+              steps: [
+                {
+                  ...createTaskStep(),
+                  values: {
+                    dueDate: {
+                      kind: "generatedDate",
+                      timeZone: "Mars/Olympus_Mons",
+                    },
+                  },
+                },
+              ],
+            }),
+          }),
+        },
+        message: "timeZone must be a resolvable IANA time-zone identifier",
+      },
+      {
+        operations: {
+          submitIntake: recordPlanOperation({
+            effect: recordPlanEffect({
+              steps: [
+                {
+                  ...createTaskStep(),
+                  values: {
+                    dueDate: {
+                      kind: "generatedDate",
+                      timeZone: "+11:00",
+                    },
+                  },
+                },
+              ],
+            }),
+          }),
+        },
+        message: "timeZone must be a resolvable IANA time-zone identifier",
+      },
+      {
+        operations: {
+          submitIntake: recordPlanOperation({
+            effect: recordPlanEffect({
+              steps: [
+                {
+                  ...createTaskStep(),
+                  values: {
+                    dueDate: { kind: "generatedDate" },
+                  },
+                },
+              ],
+            }),
+          }),
+        },
+        message: 'must include "timeZone"',
+      },
+      {
+        operations: {
+          submitIntake: recordPlanOperation({
+            effect: recordPlanEffect({
+              steps: [
+                {
+                  ...createTaskStep(),
+                  values: {
+                    title: {
+                      kind: "generatedDate",
+                      timeZone: "Australia/Sydney",
+                    },
+                  },
+                },
+              ],
+            }),
+          }),
+        },
+        message: "generatedDate requires a date destination field",
+      },
+      {
+        operations: {
+          submitIntake: recordPlanOperation({
+            effect: recordPlanEffect({
+              steps: [
+                {
+                  ...createTaskStep(),
+                  values: {
+                    dueDate: { kind: "generatedTimestamp" },
+                  },
+                },
+              ],
+            }),
+          }),
+        },
+        message: "generatedTimestamp is incompatible with date destination fields",
       },
       {
         operations: {
@@ -1353,7 +1447,7 @@ function createTaskStep() {
         separator: "-",
         prefix: "ORD-",
       },
-      dueDate: { kind: "generatedTimestamp" },
+      dueDate: { kind: "generatedDate", timeZone: "Australia/Sydney" },
     },
   };
 }
@@ -1407,7 +1501,7 @@ function taskLogEntity() {
       { key: "actorMode", type: "text", required: true, label: "Actor mode" },
       { key: "actorPrincipalId", type: "text", required: false, label: "Actor principal" },
       { key: "sourcePath", type: "text", required: false, label: "Source path" },
-      { key: "occurredAt", type: "date", required: true, label: "Occurred at" },
+      { key: "occurredAt", type: "text", required: true, label: "Occurred at" },
     ],
   };
 }

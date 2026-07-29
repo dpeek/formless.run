@@ -1,4 +1,4 @@
-import { fieldRefsEqual } from "./fields.ts";
+import { fieldRefsEqual, isSystemFieldName } from "./fields.ts";
 import { fieldHasCreateDefault } from "./field-types.ts";
 import { collectQueryContextNames } from "./query.ts";
 import {
@@ -10,6 +10,7 @@ import {
 import type {
   CollectionQuerySchema,
   EntityOperationCommandEffectType,
+  EntityOperationScope,
   EntityOperationTargetSchema,
   EntitySchema,
   OperationHandlerCapabilities,
@@ -26,6 +27,7 @@ import type {
   OperationHandlerKind,
   OperationHandlerKindBySelectionCapability,
   OperationHandlerSelectionCapability,
+  RecordPlanGeneratedDateExpressionSchema,
   RelationshipSchema,
   TransitionSideEffectRecordPlanSchema,
 } from "./types.ts";
@@ -234,6 +236,7 @@ export function isOperationHandlerPubliclyExecutable(kind: OperationHandlerKind)
 export function parseOperationHandlerEffect(
   context: string,
   value: Record<string, unknown>,
+  scope: EntityOperationScope,
   target: EntityOperationTargetSchema | undefined,
   entityName: string,
   entity: EntitySchema,
@@ -248,6 +251,7 @@ export function parseOperationHandlerEffect(
     `${context} config`,
     handler,
     value.config,
+    scope,
     target,
     entityName,
     entity,
@@ -275,6 +279,7 @@ function parseOperationHandlerConfig<Kind extends OperationHandlerKind>(
   context: string,
   handler: Kind,
   value: unknown,
+  scope: EntityOperationScope,
   target: EntityOperationTargetSchema | undefined,
   entityName: string,
   entity: EntitySchema,
@@ -349,10 +354,11 @@ function parseOperationHandlerConfig<Kind extends OperationHandlerKind>(
     return {} as OperationHandlerConfigSchemaByKind[Kind];
   }
 
-  assertExactKeys(context, value, ["machine", "transition"], ["sideEffects"]);
+  assertExactKeys(context, value, ["machine", "transition"], ["sideEffects", "targetValues"]);
   return parseTransitionStateHandlerConfig(
     context,
     value,
+    scope,
     entity,
     parseTransitionSideEffects,
   ) as OperationHandlerConfigSchemaByKind[Kind];
@@ -440,6 +446,7 @@ function parseCreateTreeChildHandlerConfig(
 function parseTransitionStateHandlerConfig(
   context: string,
   value: Record<string, unknown>,
+  scope: EntityOperationScope,
   entity: EntitySchema,
   parseTransitionSideEffects: TransitionSideEffectParser,
 ): OperationHandlerConfigSchemaByKind["transition-state"] {
@@ -452,6 +459,16 @@ function parseTransitionStateHandlerConfig(
   if (!definitionsToRecord(stateMachine.transitions)[transitionName]) {
     throw new Error(`${context} references unknown transition "${machineName}.${transitionName}".`);
   }
+  const targetValues =
+    value.targetValues === undefined
+      ? undefined
+      : parseTransitionTargetValues(
+          `${context} targetValues`,
+          value.targetValues,
+          scope,
+          entity,
+          stateMachine.field,
+        );
   const sideEffects =
     value.sideEffects === undefined
       ? undefined
@@ -460,8 +477,75 @@ function parseTransitionStateHandlerConfig(
   return {
     machine: machineName,
     transition: transitionName,
+    ...(targetValues === undefined ? {} : { targetValues }),
     ...(sideEffects === undefined ? {} : { sideEffects }),
   };
+}
+
+function parseTransitionTargetValues(
+  context: string,
+  value: unknown,
+  scope: EntityOperationScope,
+  entity: EntitySchema,
+  machineField: string,
+): Record<string, RecordPlanGeneratedDateExpressionSchema> {
+  if (scope !== "record") {
+    throw new Error(`${context} requires a record-scoped transition operation.`);
+  }
+
+  if (!isRecord(value)) {
+    throw new Error(`${context} must be an object.`);
+  }
+
+  const entries = Object.entries(value);
+  if (entries.length === 0) {
+    throw new Error(`${context} must not be empty.`);
+  }
+
+  const fields = definitionsToRecord(entity.fields);
+  return Object.fromEntries(
+    entries.map(([fieldName, expression]) => {
+      const fieldContext = `${context}.${fieldName}`;
+      if (isSystemFieldName(fieldName)) {
+        throw new Error(`${fieldContext} must not target system field "${fieldName}".`);
+      }
+
+      const field = fields[fieldName];
+      if (!field) {
+        throw new Error(`${fieldContext} references unknown field "${fieldName}".`);
+      }
+      if (fieldName === machineField) {
+        throw new Error(`${fieldContext} must not target state machine field "${machineField}".`);
+      }
+      if (field.type !== "date") {
+        throw new Error(`${fieldContext} requires a date destination field.`);
+      }
+      if (!isRecord(expression) || expression.kind !== "generatedDate") {
+        throw new Error(`${fieldContext} must use a generatedDate expression.`);
+      }
+
+      return [fieldName, parseGeneratedDateValueExpression(fieldContext, expression)];
+    }),
+  );
+}
+
+export function parseGeneratedDateValueExpression(
+  context: string,
+  value: Record<string, unknown>,
+): RecordPlanGeneratedDateExpressionSchema {
+  assertExactKeys(context, value, ["kind", "timeZone"]);
+  const timeZone = parseRequiredNonEmptyString(`${context} timeZone`, value.timeZone);
+  if (/^[+-]/.test(timeZone)) {
+    throw new Error(`${context} timeZone must be a resolvable IANA time-zone identifier.`);
+  }
+
+  try {
+    new Intl.DateTimeFormat("en", { timeZone }).resolvedOptions();
+  } catch {
+    throw new Error(`${context} timeZone must be a resolvable IANA time-zone identifier.`);
+  }
+
+  return { kind: "generatedDate", timeZone };
 }
 
 function parseOptionalHandlerQueryReference(

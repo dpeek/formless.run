@@ -3,6 +3,7 @@ import {
   type RecordPlanEntityOperationEffectSchema,
   type RecordPlanGeneratedCodeAlphabet,
   type RecordPlanGeneratedCodeExpressionSchema,
+  type RecordPlanGeneratedDateExpressionSchema,
   type RecordPlanRecordIdExpressionSchema,
   type RecordPlanStepSchema,
   type RecordPlanValueExpressionSchema,
@@ -732,6 +733,13 @@ function evaluateRecordPlanValueExpression(
     return { kind: "set", value: state.envelope.receivedAt };
   }
 
+  if (expression.kind === "generatedDate") {
+    return {
+      kind: "set",
+      value: materializeGeneratedDateExpression(expression, state.envelope.receivedAt),
+    };
+  }
+
   if (expression.kind === "targetRecordId") {
     return { kind: "set", value: requireRecordPlanTargetSnapshot(state).id };
   }
@@ -761,6 +769,39 @@ function evaluateRecordPlanValueExpression(
   return Object.hasOwn(stepRecord.values, expression.field)
     ? { kind: "set", value: stepRecord.values[expression.field] }
     : { kind: "omit" };
+}
+
+export function materializeGeneratedDateExpression(
+  expression: RecordPlanGeneratedDateExpressionSchema,
+  receivedAt: string,
+  context = "Record plan generatedDate",
+): string {
+  const instant = new Date(receivedAt);
+  if (Number.isNaN(instant.valueOf())) {
+    throw new BadRequestError(`${context} requires a valid receivedAt instant.`);
+  }
+
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat("en-US-u-ca-iso8601-nu-latn", {
+      day: "2-digit",
+      month: "2-digit",
+      timeZone: expression.timeZone,
+      year: "numeric",
+    }).formatToParts(instant);
+  } catch {
+    throw new BadRequestError(`${context} time zone "${expression.timeZone}" is not resolvable.`);
+  }
+
+  const calendarParts = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const year = calendarParts.year;
+  const month = calendarParts.month;
+  const day = calendarParts.day;
+  if (year === undefined || month === undefined || day === undefined) {
+    throw new BadRequestError(`${context} could not resolve calendar date parts.`);
+  }
+
+  return `${year.padStart(4, "0")}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
 
 function evaluateRecordPlanActorExpression(

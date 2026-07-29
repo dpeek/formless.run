@@ -552,6 +552,43 @@ runtime semantics at explicit adapters.
 - AND focused validation coverage does not replace representative real-workerd
   contracts for those durable and Worker-owned behaviors
 
+### Requirement: Authority-Generated Date Values
+
+The system SHALL generate date-only operation values from the invocation
+received instant and an explicit business time zone.
+
+#### Scenario: Materialize a generated date
+
+- GIVEN a validated record-plan value or transition target value declares
+  `generatedDate` with an IANA time-zone identifier
+- WHEN Authority materializes the operation
+- THEN the expression interprets the invocation `receivedAt` instant in that
+  time zone
+- AND the result is the corresponding valid `YYYY-MM-DD` calendar date
+- AND evaluation does not use the Worker host time zone, browser time zone, an
+  ambient locale, or UTC timestamp truncation
+- AND the same received instant and time-zone identifier produce the same date
+  across retries
+- AND replay of a successful invocation returns the stored output without
+  reevaluating the date
+- AND an invalid instant, unresolved time zone, incompatible destination field,
+  or record validation failure commits no operation writes
+
+#### Scenario: Commit a transition target date atomically
+
+- GIVEN an accepted record-scoped transition operation declares validated
+  generated-date `targetValues`
+- WHEN Authority materializes a valid transition
+- THEN generated target values are merged with the transition destination state
+  and the stored pre-transition record values
+- AND Authority validates and commits one target record patch containing both
+  the next state and generated date values
+- AND the target patch, optional transition event, and create-only side-effect
+  records remain one operation transaction and outcome
+- AND transition rejection, target snapshot conflict, generated-date failure,
+  field validation, reference validation, unique constraint, or side-effect
+  failure rolls back the complete operation write set
+
 ### Requirement: Operation Record Plan Materialization
 
 The system SHALL materialize declarative command record plans through the same
@@ -604,9 +641,9 @@ writes.
 - THEN the record-plan materializer builds the ordered record-write requests
   for all declared steps before the commit boundary writes records
 - AND step values resolve from validated operation input, literal scalar values,
-  generated ids, generated timestamps, actor context, source context, earlier
-  step outputs, and the immutable target snapshot when the operation is
-  record-scoped
+  generated ids, generated timestamps, generated dates, actor context, source
+  context, earlier step outputs, and the immutable target snapshot when the
+  operation is record-scoped
 - AND generated codes retry bounded unique-constraint collisions against stored
   and earlier planned records before commit
 - AND create step write ids are derived from the operation invocation id and
