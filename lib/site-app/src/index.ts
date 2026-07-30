@@ -14,6 +14,7 @@ export {
 } from "./public-document-metadata.ts";
 export type {
   SitePublicRendererComponent,
+  SitePublicRendererDocumentTheme,
   SitePublicRendererProps,
   SitePublicRendererRouteFacts,
   SitePublicRendererSelection,
@@ -52,28 +53,25 @@ export {
   nextPublicSiteThemeMode,
   publicSiteThemeDocumentMarker,
   publicSiteInitialThemePreference,
-  publicSiteThemePalette,
   publicSiteThemePreferenceFromStoredValue,
   publicSiteThemeSsrMode,
   publicSiteThemeSwitchable,
   PUBLIC_SITE_THEME_BOOT_SCRIPT,
   PUBLIC_SITE_THEME_BOOT_SCRIPT_ID,
-  PUBLIC_SITE_THEME_BOOT_STYLE,
-  PUBLIC_SITE_THEME_BOOT_STYLE_ID,
   PUBLIC_SITE_THEME_DOCUMENT_ATTRIBUTE,
   PUBLIC_SITE_THEME_DOCUMENT_DATASET_KEY,
   PUBLIC_SITE_THEME_RELEASE_EVENT,
+  PUBLIC_SITE_THEME_RENDERER_MODE_ATTRIBUTE,
+  PUBLIC_SITE_THEME_RENDERER_MODE_DATASET_KEY,
   PUBLIC_SITE_THEME_SSR_MODE,
   PUBLIC_SITE_THEME_STORAGE_KEY,
   PUBLIC_SITE_THEME_SYSTEM_QUERY,
   resolvePublicSiteThemeMode,
   renderPublicSiteThemeBootScript,
-  renderPublicSiteThemeBootStyle,
 } from "./public-theme.ts";
 export type {
   PublicSiteThemeDocumentMarker,
   PublicSiteThemeMode,
-  PublicSiteThemePalette,
   PublicSiteThemePreference,
 } from "./public-theme.ts";
 export {

@@ -14,6 +14,11 @@ export type SitePublicRendererProps = SitePublicRendererRouteFacts & {
 
 export type SitePublicRendererComponent = ComponentType<SitePublicRendererProps>;
 
+export type SitePublicRendererDocumentTheme = {
+  attribute: `data-${string}`;
+  value: string;
+};
+
 export type SitePublicRendererSelection = {
   builtInRenderer: SitePublicRendererComponent;
   workspaceRenderer?: SitePublicRendererComponent;

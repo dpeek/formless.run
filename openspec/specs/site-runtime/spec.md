@@ -402,7 +402,9 @@ without exposing raw implementation-only fields as primary controls.
 
 - GIVEN an author opens Site settings
 - WHEN the generated settings form renders
-- THEN label, description, and icon are editable
+- THEN label, description, icon, `initialThemeMode`, and `themeSwitchable` are
+  editable
+- AND authored accent and background colors are not Site settings
 - AND key is hidden
 - AND create and delete controls for Site settings are unavailable
 
@@ -806,6 +808,10 @@ shell.
 - WHEN its provider and styles are assembled
 - THEN `@dpeek/formless-renderer` exposes the public provider and CSS
   boundaries needed by public roots
+- AND public document and Site surfaces consume the selected renderer theme's
+  `--color-background-body` token
+- AND changing the resolved Site mode changes the token through the document
+  `color-scheme` instead of a Site-derived palette or parallel boot background
 - AND Worker rendering starts from a deterministic public theme mode and
   browser hydration remains structurally stable while stored or system mode is
   applied
@@ -825,6 +831,9 @@ The Site settings fields are:
 - `initialThemeMode`: optional enum `system`, `light`, or `dark`; missing values
   resolve as `system`.
 - `themeSwitchable`: optional boolean; missing values resolve as `true`.
+
+Authored accent and background colors are not Site settings. The selected
+renderer theme owns public color tokens.
 
 #### Scenario: Site route owns the public document theme
 
@@ -855,9 +864,14 @@ The Site settings fields are:
 - GIVEN Worker SSR renders a published Site page with a built-in or workspace
   renderer
 - WHEN the public document shell is produced
-- THEN the initial HTML theme class, Site theme data attribute, `color-scheme`,
-  browser bootstrap, and fallback background derive from the projected Site
-  settings
+- THEN the initial Site theme marker, renderer mode marker, `color-scheme`, and
+  browser bootstrap derive from the projected Site theme settings
+- AND renderer root assembly supplies the selected provider theme identity on
+  the document root before public CSS is applied
+- AND renderer CSS paints the document background from
+  `--color-background-body`
+- AND Worker output does not emit a separate Site-authored or fallback
+  background palette
 - AND fixed light or dark settings ignore stored visitor preferences
 - AND system settings start from deterministic light SSR output before the
   browser resolves the system preference

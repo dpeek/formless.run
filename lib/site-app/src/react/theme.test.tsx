@@ -12,7 +12,6 @@ import { PublicSiteThemeProvider, usePublicSiteTheme } from "./theme.ts";
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
-  document.documentElement.classList.remove("dark", "light");
   delete document.documentElement.dataset.siteTheme;
   delete document.documentElement.dataset.formlessApplicationTheme;
   document.documentElement.style.removeProperty("color-scheme");
@@ -39,7 +38,6 @@ describe("public Site browser theme controller", () => {
     const button = required(container.querySelector("button"));
     expect(button.dataset.themeMode).toBe("light");
     expect(environment.documentTheme()).toEqual({
-      classes: ["light"],
       colorScheme: "light",
       dataTheme: "light",
     });
@@ -49,7 +47,6 @@ describe("public Site browser theme controller", () => {
     expect(button.dataset.themeMode).toBe("dark");
     expect(environment.writes).toEqual([[PUBLIC_SITE_THEME_STORAGE_KEY, "dark"]]);
     expect(environment.documentTheme()).toEqual({
-      classes: ["dark"],
       colorScheme: "dark",
       dataTheme: "dark",
     });
@@ -176,7 +173,6 @@ function installBrowserThemeEnvironment(input: {
 
   return {
     documentTheme: () => ({
-      classes: [...document.documentElement.classList].sort(),
       colorScheme: document.documentElement.style.getPropertyValue("color-scheme"),
       dataTheme: document.documentElement.dataset.siteTheme,
     }),

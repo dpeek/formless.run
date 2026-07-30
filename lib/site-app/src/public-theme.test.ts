@@ -5,18 +5,15 @@ import type { SiteSettingsNode } from "./types.ts";
 import {
   nextPublicSiteThemeMode,
   publicSiteThemeDocumentMarker,
-  publicSiteThemePalette,
   publicSiteThemePreferenceFromStoredValue,
   PUBLIC_SITE_THEME_BOOT_SCRIPT,
   PUBLIC_SITE_THEME_BOOT_SCRIPT_ID,
-  PUBLIC_SITE_THEME_BOOT_STYLE,
-  PUBLIC_SITE_THEME_BOOT_STYLE_ID,
   PUBLIC_SITE_THEME_DOCUMENT_ATTRIBUTE,
+  PUBLIC_SITE_THEME_RENDERER_MODE_ATTRIBUTE,
   PUBLIC_SITE_THEME_SSR_MODE,
   PUBLIC_SITE_THEME_STORAGE_KEY,
   PUBLIC_SITE_THEME_SYSTEM_QUERY,
   renderPublicSiteThemeBootScript,
-  renderPublicSiteThemeBootStyle,
   resolvePublicSiteThemeMode,
 } from "./public-theme.ts";
 
@@ -26,17 +23,19 @@ describe("public Site theme facts", () => {
     expect(PUBLIC_SITE_THEME_STORAGE_KEY).toBe("formless:public-site:theme");
     expect(PUBLIC_SITE_THEME_SYSTEM_QUERY).toBe("(prefers-color-scheme: dark)");
     expect(publicSiteThemeDocumentMarker("light")).toEqual({
-      className: "light",
       colorScheme: "light",
       dataAttribute: PUBLIC_SITE_THEME_DOCUMENT_ATTRIBUTE,
       dataValue: "light",
+      rendererModeAttribute: PUBLIC_SITE_THEME_RENDERER_MODE_ATTRIBUTE,
+      rendererModeValue: "light",
       style: "color-scheme: light;",
     });
     expect(publicSiteThemeDocumentMarker("dark")).toEqual({
-      className: "dark",
       colorScheme: "dark",
       dataAttribute: "data-site-theme",
       dataValue: "dark",
+      rendererModeAttribute: "data-theme",
+      rendererModeValue: "dark",
       style: "color-scheme: dark;",
     });
   });
@@ -93,30 +92,27 @@ describe("public Site theme facts", () => {
     expect(PUBLIC_SITE_THEME_BOOT_SCRIPT).toContain(
       `<script id="${PUBLIC_SITE_THEME_BOOT_SCRIPT_ID}">`,
     );
-    expect(PUBLIC_SITE_THEME_BOOT_STYLE).toContain(
-      `<style id="${PUBLIC_SITE_THEME_BOOT_STYLE_ID}">`,
-    );
     expect(runBootstrap({ storedValue: "light", systemPrefersDark: true })).toEqual({
-      classes: ["light"],
       colorScheme: "light",
+      rendererMode: "light",
       dataTheme: "light",
     });
     expect(runBootstrap({ storedValue: null, systemPrefersDark: true })).toEqual({
-      classes: ["dark"],
       colorScheme: "dark",
+      rendererMode: "dark",
       dataTheme: "dark",
     });
   });
 
   it("falls back to system mode when storage is unavailable", () => {
     expect(runBootstrap({ storageUnavailable: true, systemPrefersDark: true })).toEqual({
-      classes: ["dark"],
       colorScheme: "dark",
+      rendererMode: "dark",
       dataTheme: "dark",
     });
     expect(runBootstrap({ storageUnavailable: true, systemPrefersDark: false })).toEqual({
-      classes: ["light"],
       colorScheme: "light",
+      rendererMode: "light",
       dataTheme: "light",
     });
   });
@@ -124,7 +120,7 @@ describe("public Site theme facts", () => {
   it("generates fixed light and dark bootstraps that ignore visitor storage", () => {
     expect(
       runBootstrap({
-        site: siteSettings("#000000", "#FFFFFF", {
+        site: siteSettings({
           initialThemeMode: "light",
           themeSwitchable: false,
         }),
@@ -134,7 +130,7 @@ describe("public Site theme facts", () => {
     ).toMatchObject({ colorScheme: "light", dataTheme: "light" });
     expect(
       runBootstrap({
-        site: siteSettings("#FFFFFF", "#000000", {
+        site: siteSettings({
           initialThemeMode: "dark",
           themeSwitchable: false,
         }),
@@ -143,50 +139,12 @@ describe("public Site theme facts", () => {
       }),
     ).toMatchObject({ colorScheme: "dark", dataTheme: "dark" });
   });
-
-  it("maps authored colors to contrast-safe light and dark palettes", () => {
-    const light = publicSiteThemePalette(siteSettings("#000000", "#FFFFFF"), "light");
-    const dark = publicSiteThemePalette(siteSettings("#FFFFFF", "#000000"), "dark");
-
-    expect(light).toMatchObject({
-      accent: "rgb(0 0 0)",
-      background: "rgb(255 255 255)",
-      link: "rgb(0 0 0)",
-      onAccent: "rgb(255 255 255)",
-    });
-    expect(dark).toMatchObject({
-      accent: "rgb(255 255 255)",
-      background: "rgb(0 0 0)",
-      link: "rgb(255 255 255)",
-      onAccent: "rgb(0 0 0)",
-    });
-  });
-
-  it("uses canonical defaults for invalid authored colors", () => {
-    expect(publicSiteThemePalette(siteSettings("not-a-color", "#12"), "light")).toEqual(
-      publicSiteThemePalette(undefined, "light"),
-    );
-    expect(publicSiteThemePalette(siteSettings("javascript:red", "transparent"), "dark")).toEqual(
-      publicSiteThemePalette(undefined, "dark"),
-    );
-  });
-
-  it("uses the authored Site background in the document fallback style", () => {
-    const style = renderPublicSiteThemeBootStyle(siteSettings("#000000", "#FFFFFF"));
-
-    expect(style).toContain("background: rgb(255 255 255)");
-    expect(style).toContain("background: rgb(107 107 107)");
-  });
 });
 
 function siteSettings(
-  accentColor: string,
-  backgroundColor: string,
   theme: Pick<SiteSettingsNode, "initialThemeMode" | "themeSwitchable"> = {},
 ): SiteSettingsNode {
   return {
-    accentColor,
-    backgroundColor,
     id: "site:theme-test",
     label: "Theme test",
     ...theme,
@@ -199,7 +157,6 @@ function runBootstrap(input: {
   storedValue?: string | null;
   systemPrefersDark: boolean;
 }) {
-  const classes = new Set<string>();
   const dataset: Record<string, string> = {};
   const styles = new Map<string, string>();
   const windowValue = {
@@ -222,15 +179,6 @@ function runBootstrap(input: {
   };
   const documentValue = {
     documentElement: {
-      classList: {
-        toggle: (name: string, force: boolean) => {
-          if (force) {
-            classes.add(name);
-          } else {
-            classes.delete(name);
-          }
-        },
-      },
       dataset,
       style: {
         setProperty: (name: string, value: string) => styles.set(name, value),
@@ -244,8 +192,8 @@ function runBootstrap(input: {
   runInNewContext(source, { document: documentValue, window: windowValue });
 
   return {
-    classes: [...classes].sort(),
     colorScheme: styles.get("color-scheme"),
     dataTheme: dataset.siteTheme,
+    rendererMode: dataset.theme,
   };
 }

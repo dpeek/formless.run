@@ -81,7 +81,7 @@ describe("published Site Worker SSR", () => {
     expect(response.headers.get("Vary")).toBe("Accept");
     expect(html).toContain("<!doctype html>");
     expect(html).toContain(
-      '<html lang="en" class="light" data-site-theme="light" style="color-scheme: light;">',
+      '<html lang="en" data-astryx-theme="neutral" data-theme="light" data-site-theme="light" style="color-scheme: light;">',
     );
     expect(html).toContain('<link rel="icon" type="image/svg+xml" href="/favicon.svg" />');
     expect(html).toContain('<link rel="icon" sizes="any" href="/favicon.ico" />');
@@ -96,9 +96,7 @@ describe("published Site Worker SSR", () => {
     expect(html).toContain('<script id="formless-public-site-theme">');
     expect(html).toContain('const storageKey = "formless:public-site:theme";');
     expect(html).toContain("(prefers-color-scheme: dark)");
-    expect(html).toContain('root.classList.toggle("dark", theme === "dark");');
-    expect(html).toContain('<style id="formless-public-site-theme-style">');
-    expect(html).toContain("html.dark #app");
+    expect(html).toContain("root.dataset.theme = theme;");
     expect(html).toContain("<title>Example Site</title>");
     expect(html).toContain('<meta name="description" content="A public test site." />');
     expect(html).toContain('<meta property="og:title" content="Example Site" />');
@@ -224,9 +222,6 @@ describe("published Site Worker SSR", () => {
       '<script type="module" crossorigin src="/assets/public-site-test.js"></script>',
     );
     expect(html.indexOf('<script id="formless-public-site-theme">')).toBeLessThan(
-      html.indexOf('<link rel="stylesheet" crossorigin href="/assets/public-site-test.css">'),
-    );
-    expect(html.indexOf('<style id="formless-public-site-theme-style">')).toBeGreaterThan(
       html.indexOf('<link rel="stylesheet" crossorigin href="/assets/public-site-test.css">'),
     );
     expect(assetRequests).toEqual(["/assets/formless-client-manifest.json"]);

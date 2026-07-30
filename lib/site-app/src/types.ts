@@ -31,8 +31,6 @@ export type SiteSettingsNode = {
   label: string;
   description?: string;
   icon?: string;
-  accentColor?: string;
-  backgroundColor?: string;
   initialThemeMode?: "system" | "light" | "dark";
   themeSwitchable?: boolean;
 };

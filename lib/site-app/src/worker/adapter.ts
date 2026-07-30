@@ -1,7 +1,10 @@
 import type { AppSchema } from "@dpeek/formless-schema";
 
 import type { SitePublicOperationTargetResolver } from "../public-operation-block-projection.ts";
-import type { SitePublicRendererComponent } from "../public-renderer.ts";
+import type {
+  SitePublicRendererComponent,
+  SitePublicRendererDocumentTheme,
+} from "../public-renderer.ts";
 import type { SitePublicSystemStateRendererComponent } from "../public-system-state.ts";
 import { buildSitePageTree } from "../tree.ts";
 import type { SitePageTree, StoredRecord } from "../types.ts";
@@ -36,12 +39,13 @@ export type SitePublicWorkerAdapter = {
 
 export type SitePublicWorkerDocumentRenderInput = Omit<
   PublicSiteDocumentRenderInput,
-  "builtInRenderer" | "builtInSystemStateRenderer" | "workspaceRenderer"
+  "builtInRenderer" | "builtInSystemStateRenderer" | "rendererDocumentTheme" | "workspaceRenderer"
 >;
 
 export type SitePublicWorkerAdapterOptions = {
   builtInRenderer: SitePublicRendererComponent;
   builtInSystemStateRenderer: SitePublicSystemStateRendererComponent;
+  rendererDocumentTheme: SitePublicRendererDocumentTheme;
   workspaceRenderer?: SitePublicRendererComponent;
 };
 
@@ -61,6 +65,7 @@ export function createSitePublicWorkerAdapter(
         ...input,
         builtInRenderer: options.builtInRenderer,
         builtInSystemStateRenderer: options.builtInSystemStateRenderer,
+        rendererDocumentTheme: options.rendererDocumentTheme,
         workspaceRenderer: options.workspaceRenderer,
       });
     },

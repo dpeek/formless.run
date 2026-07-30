@@ -33,7 +33,6 @@ import { createDevRuntimeProfile, findRuntimeWorldMountByRoute } from "./runtime
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
-  document.documentElement.classList.remove("dark", "light");
   document.documentElement.removeAttribute("data-theme");
   document.documentElement.removeAttribute("data-site-theme");
   document.documentElement.removeAttribute("data-formless-application-theme");
@@ -274,6 +273,7 @@ describe("application root runtime", () => {
     );
 
     expect(mounted.container.querySelector("[data-custom-site-renderer]")).not.toBeNull();
+    expect(document.documentElement.dataset.theme).toBe("dark");
     expect(document.documentElement.dataset.formlessApplicationTheme).toBe("dark");
     expect(document.documentElement.dataset.siteTheme).toBe("light");
     expect(document.documentElement.style.getPropertyValue("color-scheme")).toBe("light");
@@ -281,9 +281,17 @@ describe("application root runtime", () => {
     bootstrapBrowserApplicationTheme();
     expect(document.documentElement.style.getPropertyValue("color-scheme")).toBe("light");
 
-    mounted.unmount();
+    mounted.rerender(
+      <ApplicationRendererRoot navigate={() => undefined}>
+        <div data-application-route>Application route</div>
+      </ApplicationRendererRoot>,
+    );
+
+    expect(document.documentElement.dataset.theme).toBe("dark");
     expect(document.documentElement.dataset.siteTheme).toBeUndefined();
     expect(document.documentElement.style.getPropertyValue("color-scheme")).toBe("dark");
+
+    mounted.unmount();
   });
 });
 

@@ -5,6 +5,7 @@ import {
   FormlessSitePageRenderer,
   FormlessSiteSystemStateRenderer,
 } from "@dpeek/formless-renderer/site/renderer";
+import { FORMLESS_SITE_RENDERER_DOCUMENT_THEME } from "@dpeek/formless-renderer/site/provider";
 import { sitePublicRenderer as workspaceSitePublicRenderer } from "virtual:formless/site-public-renderer/browser";
 import {
   FORMLESS_RUNTIME_APP_INSTALL_ID_META_NAME,
@@ -17,6 +18,11 @@ const app = document.getElementById("app");
 if (!app) {
   throw new Error("App root not found.");
 }
+
+document.documentElement.setAttribute(
+  FORMLESS_SITE_RENDERER_DOCUMENT_THEME.attribute,
+  FORMLESS_SITE_RENDERER_DOCUMENT_THEME.value,
+);
 
 const appTree = (
   <StrictMode>

@@ -29,8 +29,6 @@ describe("site page tree projection", () => {
       label: "Example Site",
       description: "A public test site.",
       icon: expect.stringContaining("<svg"),
-      accentColor: "#C98A2E",
-      backgroundColor: "#09090B",
       initialThemeMode: "system",
       themeSwitchable: true,
     });

@@ -107,7 +107,7 @@ export function AstryxSitePresentation({
   const footer = tree.frame.footer;
 
   return (
-    <FormlessSiteRendererProvider mode={theme.mode} site={tree.site}>
+    <FormlessSiteRendererProvider mode={theme.mode}>
       <FormlessSiteShell
         header={
           header ? (
@@ -384,7 +384,7 @@ const styles = stylex.create({
 });
 
 const dynamicStyles = stylex.create({
-  accentColor: (color: string) => ({
+  blockColor: (color: string) => ({
     color,
   }),
   imageAspect: (width: number, height: number) => ({
@@ -1088,7 +1088,7 @@ function ProjectedCardBlock({
           <span
             {...stylex.props(
               styles.cardIcon,
-              block.color ? dynamicStyles.accentColor(block.color) : null,
+              block.color ? dynamicStyles.blockColor(block.color) : null,
             )}
           >
             <SourceIcon source={block.icon} color="inherit" aria-hidden />
@@ -1161,7 +1161,7 @@ function ProjectedMetricBlock({
           as="p"
           {...stylex.props(
             styles.metricValue,
-            block.color ? dynamicStyles.accentColor(block.color) : null,
+            block.color ? dynamicStyles.blockColor(block.color) : null,
           )}
         >
           {block.label}

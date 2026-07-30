@@ -26,6 +26,7 @@ import {
   FormlessSitePageRenderer,
   FormlessSiteSystemStateRenderer,
 } from "@dpeek/formless-renderer/site/renderer";
+import { FORMLESS_SITE_RENDERER_DOCUMENT_THEME } from "@dpeek/formless-renderer/site/provider";
 import { sitePublicRenderer as workspaceSitePublicRenderer } from "virtual:formless/site-public-renderer/worker";
 import { normalizeSiteRoutePath, type SitePageTree } from "@dpeek/formless-site-app";
 import { BadRequestError } from "./errors.ts";
@@ -122,6 +123,7 @@ const emptyClientAssets: PublicSiteDocumentClientAssets = { body: "", head: "" }
 const sitePublicWorkerAdapter = createSitePublicWorkerAdapter({
   builtInRenderer: FormlessSitePageRenderer,
   builtInSystemStateRenderer: FormlessSiteSystemStateRenderer,
+  rendererDocumentTheme: FORMLESS_SITE_RENDERER_DOCUMENT_THEME,
   workspaceRenderer: workspaceSitePublicRenderer,
 });
 const publicSiteWorkerAdapters = new Map<string, PublicSiteWorkerAdapter>([

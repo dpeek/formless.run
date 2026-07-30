@@ -2161,8 +2161,6 @@ describe("home view model collections", () => {
       "label",
       "description",
       "icon",
-      "accentColor",
-      "backgroundColor",
       "initialThemeMode",
       "themeSwitchable",
     ]);
@@ -2180,12 +2178,6 @@ describe("home view model collections", () => {
         commit: "field-commit",
       },
       { fieldName: "icon", editor: "icon", commit: "field-commit" },
-      { fieldName: "accentColor", editor: "color", commit: "field-commit" },
-      {
-        fieldName: "backgroundColor",
-        editor: "color",
-        commit: "field-commit",
-      },
       {
         fieldName: "initialThemeMode",
         editor: "enum",

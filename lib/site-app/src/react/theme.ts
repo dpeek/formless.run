@@ -123,8 +123,6 @@ export function applyBrowserSiteThemeMode(mode: PublicSiteThemeMode) {
 
   const marker = publicSiteThemeDocumentMarker(mode);
   const root = document.documentElement;
-  root.classList.toggle("dark", mode === "dark");
-  root.classList.toggle("light", mode === "light");
   root.dataset[PUBLIC_SITE_THEME_DOCUMENT_DATASET_KEY] = marker.dataValue;
   root.style.setProperty("color-scheme", marker.colorScheme);
 }
@@ -143,8 +141,6 @@ export function persistBrowserSiteThemeMode(mode: PublicSiteThemeMode) {
 
 type BrowserDocumentThemeSnapshot = {
   colorScheme: string;
-  darkClass: boolean;
-  lightClass: boolean;
   siteTheme: string | undefined;
 };
 
@@ -156,8 +152,6 @@ function captureBrowserDocumentTheme(): BrowserDocumentThemeSnapshot | undefined
   const root = document.documentElement;
   return {
     colorScheme: root.style.getPropertyValue("color-scheme"),
-    darkClass: root.classList.contains("dark"),
-    lightClass: root.classList.contains("light"),
     siteTheme: root.dataset[PUBLIC_SITE_THEME_DOCUMENT_DATASET_KEY],
   };
 }
@@ -168,8 +162,6 @@ function restoreBrowserDocumentTheme(snapshot: BrowserDocumentThemeSnapshot | un
   }
 
   const root = document.documentElement;
-  root.classList.toggle("dark", snapshot.darkClass);
-  root.classList.toggle("light", snapshot.lightClass);
 
   if (snapshot.siteTheme === undefined) {
     delete root.dataset[PUBLIC_SITE_THEME_DOCUMENT_DATASET_KEY];

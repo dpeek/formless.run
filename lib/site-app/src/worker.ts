@@ -34,6 +34,7 @@ export type {
 export { renderPublishedSiteDocumentResponse } from "./worker/site-ssr.tsx";
 export type {
   SitePublicRendererComponent,
+  SitePublicRendererDocumentTheme,
   SitePublicRendererProps,
   SitePublicRendererRouteFacts,
   SitePublicRendererSelection,

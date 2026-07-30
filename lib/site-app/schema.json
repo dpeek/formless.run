@@ -33,20 +33,6 @@
           "format": "icon"
         },
         {
-          "key": "accentColor",
-          "type": "text",
-          "required": false,
-          "label": "Accent color",
-          "format": "color"
-        },
-        {
-          "key": "backgroundColor",
-          "type": "text",
-          "required": false,
-          "label": "Background color",
-          "format": "color"
-        },
-        {
           "key": "initialThemeMode",
           "type": "enum",
           "required": false,
@@ -105,14 +91,6 @@
               {
                 "key": "icon",
                 "field": "icon"
-              },
-              {
-                "key": "accentColor",
-                "field": "accentColor"
-              },
-              {
-                "key": "backgroundColor",
-                "field": "backgroundColor"
               },
               {
                 "key": "initialThemeMode",
@@ -1963,16 +1941,6 @@
         {
           "field": "icon",
           "editor": "icon",
-          "commit": "field-commit"
-        },
-        {
-          "field": "accentColor",
-          "editor": "color",
-          "commit": "field-commit"
-        },
-        {
-          "field": "backgroundColor",
-          "editor": "color",
           "commit": "field-commit"
         },
         {

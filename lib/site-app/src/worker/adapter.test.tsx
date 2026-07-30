@@ -5,11 +5,17 @@ import type { SitePublicSystemStateRendererProps } from "../public-system-state.
 import type { SiteBlockNode, SitePageTree } from "../types.ts";
 import { createSitePublicWorkerAdapter } from "./adapter.ts";
 
+const rendererDocumentTheme = {
+  attribute: "data-test-renderer-theme",
+  value: "test-renderer",
+} as const;
+
 describe("Site public Worker presentation assembly", () => {
   it("selects the workspace page renderer ahead of the required built-in renderer", async () => {
     const adapter = createSitePublicWorkerAdapter({
       builtInRenderer: () => <article data-built-in-renderer="unused" />,
       builtInSystemStateRenderer: SystemStateRenderer,
+      rendererDocumentTheme,
       workspaceRenderer: ({ tree }: SitePublicRendererProps) => (
         <article data-workspace-renderer={tree.meta.slug} />
       ),
@@ -22,6 +28,7 @@ describe("Site public Worker presentation assembly", () => {
     const html = await response.text();
 
     expect(html).toContain('data-workspace-renderer="projects"');
+    expect(html).toContain('data-test-renderer-theme="test-renderer"');
     expect(html).not.toContain("data-built-in-renderer");
   });
 
@@ -29,6 +36,7 @@ describe("Site public Worker presentation assembly", () => {
     const adapter = createSitePublicWorkerAdapter({
       builtInRenderer: () => <article data-built-in-renderer="page" />,
       builtInSystemStateRenderer: SystemStateRenderer,
+      rendererDocumentTheme,
       workspaceRenderer: () => <article data-workspace-renderer="page-only" />,
     });
     const notFoundResponse = await adapter.renderDocument({

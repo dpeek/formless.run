@@ -567,6 +567,10 @@ retaining Astryx as an internal component and build dependency.
 - THEN documented public subpaths expose the browser and Worker-compatible Site
   renderers plus the public provider and CSS boundaries needed by production
   public roots
+- AND the public provider boundary exposes the renderer-owned document theme
+  identity needed by SSR and browser root assembly
+- AND the public CSS boundary maps the public document background to the
+  provider's `--color-background-body` token
 - AND fixture route roots, scenario controls, and package-local fixture state
   remain private
 - AND public exports do not import application shell, management, auth, access,

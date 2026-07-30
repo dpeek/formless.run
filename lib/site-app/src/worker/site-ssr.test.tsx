@@ -10,6 +10,11 @@ import {
 } from "./site-cache.ts";
 import { renderPublishedSiteDocumentResponse } from "./site-ssr.tsx";
 
+const rendererDocumentTheme = {
+  attribute: "data-test-renderer-theme",
+  value: "test-renderer",
+} as const;
+
 describe("published Site document rendering", () => {
   it("selects a workspace page renderer ahead of the required built-in renderer", async () => {
     const BuiltInRenderer = () => <article data-built-in-public-site-renderer="unused" />;
@@ -29,6 +34,7 @@ describe("published Site document rendering", () => {
         body: '<script type="module" src="/assets/custom-client.js"></script>',
         head: '<link rel="stylesheet" href="/assets/custom-client.css">',
       },
+      rendererDocumentTheme,
       requestUrl: new URL("https://example.com/projects"),
       routeBase: "/campaign",
       runtimeHints: [{ name: "formless-runtime-profile", content: "publishedSite" }],
@@ -62,6 +68,7 @@ describe("published Site document rendering", () => {
       builtInRenderer: PageRendererProbe,
       builtInSystemStateRenderer: SystemStateRendererProbe,
       clientAssets: { body: "", head: "" },
+      rendererDocumentTheme,
       requestUrl: new URL("https://example.com/"),
       treeResult: { kind: "found", tree: sitePageTree("home") },
     });
@@ -69,7 +76,7 @@ describe("published Site document rendering", () => {
 
     expect(response.status).toBe(200);
     expect(html).toContain(
-      '<html lang="en" class="light" data-site-theme="light" style="color-scheme: light;">',
+      '<html lang="en" data-test-renderer-theme="test-renderer" data-theme="light" data-site-theme="light" style="color-scheme: light;">',
     );
     expect(html).toContain('<main style="min-height:100dvh"><article');
     expect(html).toContain('data-built-in-public-site-renderer="home"');
@@ -77,7 +84,6 @@ describe("published Site document rendering", () => {
     expect(html).toContain('<script id="formless-public-site-theme">');
     expect(html).toContain('const storageKey = "formless:public-site:theme";');
     expect(html).toContain("(prefers-color-scheme: dark)");
-    expect(html).toContain('<style id="formless-public-site-theme-style">');
     expect(html).toContain("<title>Example Site</title>");
     expect(html).not.toContain("data-custom-public-site-renderer");
   });
@@ -93,6 +99,7 @@ describe("published Site document rendering", () => {
         builtInRenderer: PageRendererProbe,
         builtInSystemStateRenderer: SystemStateRendererProbe,
         clientAssets: { body: "", head: "" },
+        rendererDocumentTheme,
         requestUrl: new URL("https://example.com/"),
         treeResult: {
           kind: "found",
@@ -102,13 +109,11 @@ describe("published Site document rendering", () => {
       const html = await response.text();
 
       expect(html).toContain(
-        `<html lang="en" class="${serverMode}" data-site-theme="${serverMode}" style="color-scheme: ${serverMode};">`,
+        `<html lang="en" data-test-renderer-theme="test-renderer" data-theme="${serverMode}" data-site-theme="${serverMode}" style="color-scheme: ${serverMode};">`,
       );
       expect(html).toContain(`<meta name="color-scheme" content="${serverMode}" />`);
       expect(html).toContain(`const switchable = ${String(themeSwitchable)};`);
       expect(html).toContain(`let preference = "${initialThemeMode}";`);
-      expect(html).toContain("background: rgb(248 248 248)");
-      expect(html).toContain("background: rgb(9 9 11)");
     },
   );
 
@@ -126,6 +131,7 @@ describe("published Site document rendering", () => {
       builtInRenderer: PageRendererProbe,
       builtInSystemStateRenderer: SystemStateRenderer,
       clientAssets: { body: "", head: "" },
+      rendererDocumentTheme,
       requestUrl: new URL("https://example.com/missing"),
       treeResult: { kind: "not-found" },
       workspaceRenderer: CustomRenderer,
@@ -154,6 +160,7 @@ describe("published Site document rendering", () => {
       builtInRenderer: PageRendererProbe,
       builtInSystemStateRenderer: SystemStateRenderer,
       clientAssets: { body: "", head: "" },
+      rendererDocumentTheme,
       requestUrl: new URL("https://example.com/broken"),
       treeResult: { kind: "error" },
       workspaceRenderer: () => <article data-workspace-renderer="page-only" />,
@@ -192,7 +199,6 @@ function sitePageTree(
       id: "site",
       label: "Example Site",
       description: "Example public site.",
-      backgroundColor: "#09090B",
       ...theme,
     },
     page: pageNode(slug),

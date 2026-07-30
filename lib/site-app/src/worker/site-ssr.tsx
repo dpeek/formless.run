@@ -7,7 +7,6 @@ import {
   publicSiteThemeDocumentMarker,
   publicSiteThemeSsrMode,
   renderPublicSiteThemeBootScript,
-  renderPublicSiteThemeBootStyle,
 } from "../public-theme.ts";
 import { PublicSiteThemeProvider } from "../react/theme.ts";
 import {
@@ -17,6 +16,7 @@ import {
 import {
   resolveSitePublicRendererComponent,
   type SitePublicRendererComponent,
+  type SitePublicRendererDocumentTheme,
 } from "../public-renderer.ts";
 import { sitePagePathForSlug } from "../public-links.ts";
 import type { SitePublicSystemStateRendererComponent } from "../public-system-state.ts";
@@ -52,6 +52,7 @@ export type PublicSiteDocumentRenderInput = {
   builtInRenderer: SitePublicRendererComponent;
   builtInSystemStateRenderer: SitePublicSystemStateRendererComponent;
   clientAssets: PublicSiteDocumentClientAssets;
+  rendererDocumentTheme: SitePublicRendererDocumentTheme;
   requestUrl: URL;
   routeBase?: `/${string}`;
   runtimeHints?: readonly PublicSiteDocumentRuntimeHint[];
@@ -107,6 +108,7 @@ export async function renderPublishedSiteDocumentResponse(
           tree,
         }),
         runtimeHints: input.runtimeHints,
+        rendererDocumentTheme: input.rendererDocumentTheme,
         site: tree.site,
       }),
     );
@@ -143,6 +145,7 @@ async function renderNotFoundDocument(
         slug,
       }),
       runtimeHints: input.runtimeHints,
+      rendererDocumentTheme: input.rendererDocumentTheme,
     },
   );
 }
@@ -168,6 +171,7 @@ async function renderErrorDocument(
         slug,
       }),
       runtimeHints: input.runtimeHints,
+      rendererDocumentTheme: input.rendererDocumentTheme,
     },
   );
 }
@@ -190,6 +194,7 @@ function renderDocument(
     clientAssets: PublicSiteDocumentClientAssets;
     initialTree?: SitePageTree;
     metadata: PublicDocumentMetadata;
+    rendererDocumentTheme: SitePublicRendererDocumentTheme;
     runtimeHints?: readonly PublicSiteDocumentRuntimeHint[];
     site?: SitePageTree["site"];
   },
@@ -203,7 +208,7 @@ function renderDocument(
   const metadataTags = renderMetadataTags(options.metadata);
 
   return `<!doctype html>
-<html lang="en" class="${themeMarker.className}" ${themeMarker.dataAttribute}="${themeMarker.dataValue}" style="${themeMarker.style}">
+<html lang="en" ${options.rendererDocumentTheme.attribute}="${escapeHtmlAttribute(options.rendererDocumentTheme.value)}" ${themeMarker.rendererModeAttribute}="${themeMarker.rendererModeValue}" ${themeMarker.dataAttribute}="${themeMarker.dataValue}" style="${themeMarker.style}">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -214,7 +219,6 @@ function renderDocument(
 	    ${renderRuntimeHints(options.runtimeHints)}
 	    ${metadataTags}
 	    ${renderPublicSiteThemeBootScript(options.site)}${clientAssetHeadTags}
-    ${renderPublicSiteThemeBootStyle(options.site)}
   </head>
   <body>
     <div id="app">${appHtml}</div>${initialTreeScript}${clientAssetBodyTags}

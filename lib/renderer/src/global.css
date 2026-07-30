@@ -1,11 +1,8 @@
 @import "@astryxdesign/core/reset.css";
 @import "@astryxdesign/theme-neutral/theme.css";
 
+html[data-astryx-theme="neutral"],
+html[data-astryx-theme="neutral"] body,
 [data-astryx-public-site-provider] {
-  --color-accent: var(--formless-public-site-accent);
-  --color-icon-accent: var(--formless-public-site-link);
-  --color-text-accent: var(--formless-public-site-link);
-  --color-on-accent: var(--formless-public-site-on-accent);
-  --color-background-body: var(--formless-public-site-background);
-  background-color: var(--formless-public-site-background);
+  background-color: var(--color-background-body);
 }

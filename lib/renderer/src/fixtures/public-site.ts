@@ -554,8 +554,8 @@ export const publicSitePageTreeFixture = createSitePageTreeFixture({
   site: createSiteSettingsFixture("settings-astryx-studio", "Astryx Studio", {
     description: "Product design and engineering for teams building ambitious software.",
     icon: siteIconSource,
-    accentColor: "#2563eb",
-    backgroundColor: "#f8fafc",
+    initialThemeMode: "system",
+    themeSwitchable: true,
   }),
   frame: createSiteFrameFixture(header, footer),
   page,

@@ -6,6 +6,7 @@ import {
 
 export type {
   SitePublicRendererComponent,
+  SitePublicRendererDocumentTheme,
   SitePublicRendererProps,
   SitePublicRendererRouteFacts,
   SitePublicRendererSelection,

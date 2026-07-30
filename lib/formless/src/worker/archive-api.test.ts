@@ -12,6 +12,7 @@ import {
   FormlessSitePageRenderer,
   FormlessSiteSystemStateRenderer,
 } from "@dpeek/formless-renderer/site/renderer";
+import { FORMLESS_SITE_RENDERER_DOCUMENT_THEME } from "@dpeek/formless-renderer/site/provider";
 import { renderPublishedSiteDocumentResponse } from "@dpeek/formless-site-app/worker";
 import type { AppInstall } from "@dpeek/formless-installed-apps";
 import { instanceControlPlaneRecordsForAppInstall } from "@dpeek/formless-instance-control-plane";
@@ -367,6 +368,7 @@ describe("instance archive restore API", () => {
       builtInRenderer: FormlessSitePageRenderer,
       builtInSystemStateRenderer: FormlessSiteSystemStateRenderer,
       clientAssets: { body: "", head: "" },
+      rendererDocumentTheme: FORMLESS_SITE_RENDERER_DOCUMENT_THEME,
       requestUrl: new URL("https://personal.example/"),
       treeResult: { kind: "found", tree: tree.body },
     });
