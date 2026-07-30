@@ -72,7 +72,7 @@ export function parseAppSchema(value: unknown): AppSchema {
     readModels,
     unionsByKey,
   );
-  const screens = parseScreens(value.screens, definitionsToRecord(views));
+  const screens = parseScreens(value.screens, definitionsToRecord(views), authorization);
   const navigation = parseAppNavigation(value.navigation, screens);
   const runtime = parseRuntimeMetadata(value.runtime, entitiesWithOperationsByKey);
   const schema: AppSchema = {

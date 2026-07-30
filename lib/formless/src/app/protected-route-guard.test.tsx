@@ -3,11 +3,22 @@
 import { act, render } from "@testing-library/react";
 import { Router } from "wouter";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { useEffect } from "react";
 
 import { ProtectedRouteGuard, startProtectedRouteGuardSession } from "../app.tsx";
 
 vi.mock("./routes/application-system-state-runtime.tsx", () => ({
-  ApplicationSystemStateRuntime: () => <output data-route-state="loading" />,
+  ApplicationSystemStateRuntime: ({ snapshot }: { snapshot: { id: string } }) => (
+    <output
+      data-route-state={
+        snapshot.id === "application-system-state:route-forbidden"
+          ? "forbidden"
+          : snapshot.id === "application-system-state:route-access-failed"
+            ? "failed"
+            : "loading"
+      }
+    />
+  ),
 }));
 (
   globalThis as {
@@ -17,55 +28,52 @@ vi.mock("./routes/application-system-state-runtime.tsx", () => ({
 describe("protected route guard", () => {
   it("accepts management navigation only after the protected control-plane boundary accepts it", async () => {
     const accepted = await runGuard("management", {
-      response: Response.json({ records: [] }),
+      response: completeRouteResponse("/access"),
       route: "/access",
     });
     const rejected = await runGuard("management", {
-      response: Response.json({ error: "Management authority is required." }, { status: 401 }),
+      response: Response.json(
+        { error: "Authenticated account session is required." },
+        { status: 401 },
+      ),
       route: "/",
     });
 
-    expect(accepted.calls).toEqual(["/api/formless/program/bootstrap"]);
+    expect(accepted.calls).toEqual(["/formless/auth?returnTo=%2Faccess"]);
     expect(accepted.states).toEqual(["checking", "authorized"]);
-    expect(rejected.calls).toEqual(["/api/formless/program/bootstrap"]);
+    expect(rejected.calls).toEqual(["/formless/auth?returnTo=%2F"]);
     expect(rejected.states).toEqual(["checking", "redirect"]);
   });
 
   it("checks exact app-role authorization before an installed app can mount or sync", async () => {
     const matching = await runGuard("authenticated", {
       requiredRole: "app.admin",
-      response: Response.json({
-        continueTo: "/apps/personal/settings",
-        status: "complete",
-        target: {
-          appInstallId: "personal",
-          returnTo: "/apps/personal/settings",
-          routeId: "route:personal:admin",
-          storageIdentity: "app:personal",
-          targetOrigin: "https://formless.test",
-          targetProfile: "app",
-        },
-      }),
+      response: completeRouteResponse("/apps/personal/settings"),
       route: "/apps/personal/settings",
     });
     const wrongApp = await runGuard("authenticated", {
       requiredRole: "app.admin",
-      response: Response.json(
-        {
-          gates: [{ kind: "role-review", roleKey: "app.admin", scopeKind: "app-install" }],
-          status: "blocked",
-        },
-        { status: 409 },
-      ),
+      response: forbiddenRouteResponse(),
       route: "/apps/work",
+    });
+    const incomplete = await runGuard("authenticated", {
+      requiredRole: "app.admin",
+      response: blockedRouteResponse("/apps/review"),
+      route: "/apps/review",
     });
 
     expect(matching.calls).toEqual(["/formless/auth?returnTo=%2Fapps%2Fpersonal%2Fsettings"]);
     expect(matching.states).toEqual(["checking", "authorized"]);
     expect(wrongApp.calls).toEqual(["/formless/auth?returnTo=%2Fapps%2Fwork"]);
-    expect(wrongApp.states).toEqual(["checking", "redirect"]);
-    expect(`${matching.calls.join(" ")} ${wrongApp.calls.join(" ")}`).not.toContain("/bootstrap");
-    expect(`${matching.calls.join(" ")} ${wrongApp.calls.join(" ")}`).not.toContain("/sync");
+    expect(wrongApp.states).toEqual(["checking", "forbidden"]);
+    expect(incomplete.calls).toEqual(["/formless/auth?returnTo=%2Fapps%2Freview"]);
+    expect(incomplete.states).toEqual(["checking", "redirect"]);
+    expect(
+      `${matching.calls.join(" ")} ${wrongApp.calls.join(" ")} ${incomplete.calls.join(" ")}`,
+    ).not.toContain("/bootstrap");
+    expect(
+      `${matching.calls.join(" ")} ${wrongApp.calls.join(" ")} ${incomplete.calls.join(" ")}`,
+    ).not.toContain("/sync");
   });
 
   it("keeps owner routes on the owner-session check", async () => {
@@ -81,45 +89,61 @@ describe("protected route guard", () => {
     expect(result.states).toEqual(["checking", "redirect"]);
   });
 
-  it("does not reuse an authorized route state while a new app role check is pending", async () => {
+  it("stops rendering and protected loading while current Program authority is rechecked", async () => {
     window.history.replaceState(null, "", "/access");
     let renderer!: ReturnType<typeof render>;
+    const protectedLoads: string[] = [];
+
+    function ProtectedLoad({ route }: { route: string }) {
+      useEffect(() => {
+        protectedLoads.push(route);
+      }, [route]);
+
+      return <output data-protected-child={route} />;
+    }
 
     await act(async () => {
       renderer = render(
         <Router ssrPath="/access">
           <ProtectedRouteGuard
             access="management"
-            fetcher={async () => Response.json({ records: [] })}
+            fetcher={async () => completeRouteResponse("/access")}
           >
-            <output data-protected-child="management" />
+            <ProtectedLoad route="access" />
           </ProtectedRouteGuard>
         </Router>,
       );
       await Promise.resolve();
     });
 
-    expect(renderer.container.querySelector("[data-protected-child=management]")).not.toBeNull();
+    expect(renderer.container.querySelector("[data-protected-child=access]")).not.toBeNull();
+    expect(protectedLoads).toEqual(["access"]);
 
     const pending = deferred<Response>();
-    window.history.replaceState(null, "", "/apps/work");
+    window.history.replaceState(null, "", "/deployments");
     await act(async () => {
       renderer.rerender(
-        <Router ssrPath="/apps/work">
-          <ProtectedRouteGuard
-            access="authenticated"
-            fetcher={async () => pending.promise}
-            requiredRole="app.admin"
-          >
-            <output data-protected-child="app" />
+        <Router ssrPath="/deployments">
+          <ProtectedRouteGuard access="management" fetcher={async () => pending.promise}>
+            <ProtectedLoad route="deployments" />
           </ProtectedRouteGuard>
         </Router>,
       );
       await Promise.resolve();
     });
 
-    expect(renderer.container.querySelector("[data-protected-child=app]")).toBeNull();
+    expect(renderer.container.querySelector("[data-protected-child=deployments]")).toBeNull();
     expect(renderer.container.querySelector("[data-route-state=loading]")).not.toBeNull();
+    expect(protectedLoads).toEqual(["access"]);
+
+    await act(async () => {
+      pending.resolve(forbiddenRouteResponse());
+      await pending.promise;
+    });
+
+    expect(renderer.container.querySelector("[data-protected-child=deployments]")).toBeNull();
+    expect(renderer.container.querySelector("[data-route-state=forbidden]")).not.toBeNull();
+    expect(protectedLoads).toEqual(["access"]);
 
     renderer.unmount();
     window.history.replaceState(null, "", "/");
@@ -181,4 +205,49 @@ function deferred<Value>() {
   });
 
   return { promise, resolve };
+}
+
+function completeRouteResponse(route: `/${string}`): Response {
+  return Response.json({
+    continueTo: route,
+    status: "complete",
+    target: routeTarget(route),
+  });
+}
+
+function blockedRouteResponse(route: `/${string}`): Response {
+  return Response.json(
+    {
+      gate: { kind: "role-review", roleKey: "app.admin", scopeKind: "app-install" },
+      status: "blocked",
+      target: routeTarget(route),
+    },
+    { status: 409 },
+  );
+}
+
+function forbiddenRouteResponse(): Response {
+  return Response.json(
+    {
+      principal: {
+        displayName: "Insufficient member",
+        principalId: "principal:member",
+      },
+      status: "forbidden",
+    },
+    { status: 403 },
+  );
+}
+
+function routeTarget(route: `/${string}`) {
+  const appInstallId = route.startsWith("/apps/") ? route.split("/").filter(Boolean)[1] : undefined;
+
+  return {
+    ...(appInstallId === undefined ? {} : { appInstallId }),
+    returnTo: route,
+    routeId: appInstallId ? `route:${appInstallId}:admin` : "route:instance",
+    storageIdentity: appInstallId ? `app:${appInstallId}` : "formless-program",
+    targetOrigin: "https://formless.test",
+    targetProfile: appInstallId ? "app" : "instance",
+  };
 }

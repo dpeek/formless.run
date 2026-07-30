@@ -35,6 +35,8 @@ import {
   formlessProgramSchema,
   formlessProgramSchemaProvenance,
   formlessProgramWorkspaceSnapshotContract,
+  parseFormlessProgramSchemaArtifact,
+  resolveFormlessProgramScreenRouteTarget,
   validateFormlessProgramRecords,
 } from "./runtime.ts";
 
@@ -85,6 +87,25 @@ describe("Formless Program runtime contracts", () => {
         }
       }
     }
+  });
+
+  it("loads only concrete Program screens with explicit access", () => {
+    expect(resolveFormlessProgramScreenRouteTarget("/deployments")).toEqual({
+      access: { role: "administrator" },
+      key: "deployments",
+      label: "Deployments",
+      path: "/deployments",
+    });
+    expect(resolveFormlessProgramScreenRouteTarget("/unknown")).toBeUndefined();
+
+    const missingAccess: unknown = structuredClone(rawFormlessProgramSchema);
+    const [firstScreen] = (missingAccess as { screens: Array<{ access?: unknown }> }).screens;
+
+    delete firstScreen?.access;
+
+    expect(() => parseFormlessProgramSchemaArtifact(missingAccess)).toThrow(
+      'Formless Program schema screen "routes" must declare explicit access.',
+    );
   });
 
   it("validates mixed records through stable-id-owned package constraints", () => {

@@ -15,7 +15,7 @@ import type {
   FieldVisibilityConditionSchema,
   FieldVisibilityValue,
   FieldSchema,
-  ScreenAccessSchema,
+  ScreenAccessRequirement,
   ScreenLayoutWidthSchema,
   ScreenSchema,
   ToManyRelationshipSchema,
@@ -502,7 +502,7 @@ export type HomeScreenModel = {
   type: "workspace";
   label: string;
   path?: string;
-  access?: ScreenAccessSchema;
+  access?: ScreenAccessRequirement;
   navigation: {
     primary: boolean;
   };

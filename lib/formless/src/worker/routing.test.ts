@@ -14,6 +14,8 @@ import {
   ownerBrowserRouteAccessForRequest,
   protectedBrowserRouteDecisionFromFacts,
   publishedSiteRedirectForRequest,
+  resolveProgramScreenRouteTargetFromFacts,
+  resolveProtectedBrowserRouteTargetFromFacts,
   resolveWorkerRuntimeRequestTopology,
   shouldDeferToStaticAssets,
   shouldBlockMappedSiteHostBrowserRoute,
@@ -265,15 +267,65 @@ describe("Worker document routing", () => {
         ),
       }),
     ).toEqual({ kind: "continue" });
+    const programTopology = resolveWorkerRuntimeRequestTopology(
+      documentRequest("https://admin.example.com/access"),
+      { profile: "instance" },
+    );
+
     expect(
       protectedBrowserRouteDecisionFromFacts({
         session: "unread",
+        topology: programTopology,
+      }),
+    ).toEqual({
+      kind: "validate-session",
+      programScreen: {
+        access: { role: "administrator" },
+        key: "access",
+        label: "Access",
+        path: "/access",
+        requiredAccess: "authenticated",
+        routeAccess: "anonymous",
+      },
+      requiredAccess: "authenticated",
+    });
+
+    const mappedInstanceRoute = {
+      ...mappedRoute,
+      access: "owner",
+      id: "route:host:instance:admin.example.com",
+      matchHost: "admin.example.com",
+      targetProfile: "instance",
+    } as const;
+
+    expect(
+      resolveProgramScreenRouteTargetFromFacts({
+        runtimeRoute: mappedInstanceRoute,
+        topology: programTopology,
+      }),
+    ).toMatchObject({
+      access: { role: "administrator" },
+      key: "access",
+      requiredAccess: "owner",
+      routeAccess: "owner",
+    });
+
+    expect(
+      resolveProtectedBrowserRouteTargetFromFacts({
         topology: resolveWorkerRuntimeRequestTopology(
-          documentRequest("https://admin.example.com/access"),
+          new Request("https://admin.example.com/access", {
+            headers: { Accept: "application/json" },
+          }),
           { profile: "instance" },
         ),
       }),
-    ).toEqual({ kind: "validate-session", requiredAccess: "management" });
+    ).toMatchObject({
+      programScreen: {
+        access: { role: "administrator" },
+        key: "access",
+      },
+      requiredAccess: "authenticated",
+    });
   });
 
   it("routes published Site documents to the Worker SSR path only in the published profile", () => {
@@ -590,13 +642,13 @@ describe("Worker document routing", () => {
         documentRequest("http://example.com/access"),
         instanceProfile,
       ),
-    ).toBe("management");
+    ).toBe("authenticated");
     expect(
       ownerBrowserRouteAccessForRequest(
         documentRequest("http://example.com/deployments"),
         instanceProfile,
       ),
-    ).toBe("anonymous");
+    ).toBe("authenticated");
   });
 
   it("projects shared route policy by runtime profile", () => {

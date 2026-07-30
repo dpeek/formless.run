@@ -223,6 +223,49 @@ describe("instance auth origin and protected-route handoff decisions", () => {
     });
   });
 
+  it("binds mapped Program screen admission above an anonymous route floor", () => {
+    const anonymousInstanceRoute = {
+      ...instanceRoute("management"),
+      access: "anonymous" as const,
+    };
+
+    expect(
+      planProtectedRouteAuthRedirect({
+        allowRouteAccessElevation: true,
+        authOrigin: "https://auth.example.com",
+        entry: "account",
+        requestOrigin: "https://admin.example.com",
+        requiredAccess: "authenticated",
+        runtimeRoute: anonymousInstanceRoute,
+        safeReturnTo: "/deployments",
+      }),
+    ).toMatchObject({
+      kind: "handoff",
+      target: {
+        access: "authenticated",
+        routeId: "route:instance:admin",
+        storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+        targetOrigin: "https://admin.example.com",
+        targetProfile: "instance",
+      },
+    });
+
+    expect(
+      instanceAuthCallbackReservationFromFacts({
+        effectiveAccess: "authenticated",
+        pathname: INSTANCE_AUTH_HANDOFF_CALLBACK_PATH,
+        requestOrigin: "https://admin.example.com",
+        runtimeRoute: anonymousInstanceRoute,
+      }),
+    ).toMatchObject({
+      kind: "reserved",
+      target: {
+        access: "authenticated",
+        routeId: "route:instance:admin",
+      },
+    });
+  });
+
   it("keeps missing targets on the auth account surface and rejects unsafe return facts", () => {
     expect(
       planProtectedRouteAuthRedirect({

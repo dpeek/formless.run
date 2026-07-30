@@ -975,21 +975,40 @@ that compose collection views and own app-relative navigation.
 
 - GIVEN a workspace screen declares access policy
 - WHEN the schema is parsed
-- THEN `access` is `anonymous`, `authenticated`, or `owner`
-- AND `anonymous` means the screen does not require an owner session beyond the
-  access required by its mounted route
-- AND `authenticated` means the screen requires an active principal-backed
-  browser session beyond the access required by its mounted route
-- AND `owner` means the screen requires an active `instance.owner` principal
-  session
-- AND omitted screen access inherits the mounted route access
+- THEN `access` is parsed as the shared access requirement against the complete
+  schema's root-owned role catalog
+- AND a screen accepts a direct `{ role }`, a browser actor requirement for
+  `anonymous`, `authenticated`, or `owner`, or a non-empty flat `anyOf` of
+  those direct requirements
+- AND role requirements use the ordered role catalog so a later ordinary role
+  satisfies an earlier role requirement and protected owner authority
+  satisfies every ordinary role requirement
+- AND screen admission remains additional to the access required by its
+  mounted route
+- AND a non-Program app screen may omit `access` to inherit only its mounted
+  route access
+
+#### Scenario: Require explicit Program screen access
+
+- GIVEN a complete App schema is selected as the active Program schema
+- WHEN the Program artifact is materialized or loaded for runtime use
+- THEN every Program screen declares an explicit browser-applicable access
+  requirement
+- AND a missing or unresolved Program screen requirement fails closed before
+  navigation or route admission
+- AND module keys, schema keys, screen keys, entity keys, and declaration paths
+  do not become runtime authorization identities
 
 #### Scenario: Reject invalid screen access
 
-- GIVEN a workspace screen declares an unsupported access value
+- GIVEN a workspace screen declares an unsupported access value, an unresolved
+  role key, `runner`, `deployer`, `adminBearer`, an empty alternative list, a
+  nested alternative list, or more than one requirement form
 - WHEN the schema is parsed
 - THEN parsing fails
 - AND the invalid screen is not made available for generated UI navigation
+- AND trusted runtime actors remain available only to resource contracts whose
+  runtime channels can supply those actors
 
 ### Requirement: Entity Unions
 

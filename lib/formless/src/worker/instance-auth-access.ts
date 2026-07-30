@@ -2,6 +2,7 @@ import type {
   AccountCompletionGateResolutionResult,
   AccountCompletionGateTarget,
 } from "../shared/instance-auth.ts";
+import type { ScreenAccessRequirement } from "@dpeek/formless-schema";
 import type { OperationInvocationActor } from "../shared/operation-invocation.ts";
 import type { OwnerIdentity } from "../shared/protocol.ts";
 import type {
@@ -39,6 +40,7 @@ export type HostAuthSessionValidationFailureReason =
   | "missing-app-admin-authority"
   | "missing-management-authority"
   | "missing-owner-authority"
+  | "missing-program-screen-authority"
   | "missing-principal"
   | "missing-secret"
   | "missing-target"
@@ -103,6 +105,7 @@ export type InstanceAuthAccessFailureReason =
   | "missing-app-admin-authority"
   | "missing-management-authority"
   | "missing-owner-authority"
+  | "missing-program-screen-authority"
   | "missing-principal";
 
 export type InstanceAuthAccessResult =
@@ -131,6 +134,7 @@ export type InstanceAuthAccessInput = {
   accountCompletionTarget?: AccountCompletionGateTarget;
   appInstallId?: string;
   localOwnerSessionFallbackAllowed: boolean;
+  programScreenAccess?: ScreenAccessRequirement;
   requiredAuthority: InstanceAuthAuthorityRequirement;
   target?: InstanceAuthSessionTargetBinding;
 };
@@ -425,6 +429,31 @@ async function validateCurrentSession(
       ok: false,
       reason: missingAuthorityReason(input.requiredAuthority),
     };
+  }
+
+  if (input.programScreenAccess !== undefined) {
+    const programAuthority = await readers.readManagementAuthority(session);
+
+    if (
+      programAuthority?.id !== session.principalId ||
+      !evaluateAccessRequirement(
+        input.programScreenAccess,
+        programAuthority.callerFacts,
+        formlessProgramSchema,
+      )
+    ) {
+      const authenticated = await readAuthenticatedSessionFacts(session, via, input, readers);
+
+      return authenticated === undefined
+        ? { ok: false, reason: "missing-principal" }
+        : {
+            authenticated,
+            ok: false,
+            reason: "missing-program-screen-authority",
+          };
+    }
+
+    currentAuthority.ownerAuthorized ||= programAuthority.callerFacts.owner;
   }
 
   if (

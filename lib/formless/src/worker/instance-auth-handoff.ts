@@ -87,11 +87,13 @@ import {
   evaluateAccessRequirement,
   type AccessRequirement,
   type AppSchema,
+  type ScreenAccessRequirement,
 } from "@dpeek/formless-schema";
 import {
   isLocalOwnerSessionRuntime,
   type LocalSessionBootstrapEnv,
 } from "./local-session-bootstrap.ts";
+import { resolveProgramScreenRouteTargetFromFacts } from "./routing.ts";
 
 export type {
   HostAuthSession,
@@ -200,6 +202,7 @@ export type ProtectedRouteAuthRedirectPlan =
   | { kind: "unavailable" };
 
 export function planProtectedRouteAuthRedirect(input: {
+  allowRouteAccessElevation?: boolean;
   authOrigin?: string;
   entry: "account" | "handoff";
   requestOrigin: string;
@@ -219,6 +222,7 @@ export function planProtectedRouteAuthRedirect(input: {
   }
 
   const target = hostAuthSessionTargetForRuntimeRouteFacts({
+    ...(input.allowRouteAccessElevation ? { effectiveAccess: input.requiredAccess } : {}),
     minimumAccess: input.requiredAccess,
     requestOrigin: input.requestOrigin,
     runtimeRoute: input.runtimeRoute,
@@ -260,8 +264,10 @@ export async function startProtectedRouteAuthHandoff(
   env: InstanceAuthHandoffEnv,
   runtimeRoute: InstanceRuntimeRouteResolution | undefined,
   requiredAccess: ProtectedRouteAccess,
+  options: { allowRouteAccessElevation?: boolean } = {},
 ): Promise<Response | undefined> {
   return startProtectedRouteAuthRedirect(request, env, runtimeRoute, {
+    ...options,
     entry: "handoff",
     requiredAccess,
   });
@@ -272,8 +278,10 @@ export async function startProtectedRouteAuthAccount(
   env: InstanceAuthHandoffEnv,
   runtimeRoute: InstanceRuntimeRouteResolution | undefined,
   requiredAccess: ProtectedRouteAccess,
+  options: { allowRouteAccessElevation?: boolean } = {},
 ): Promise<Response | undefined> {
   return startProtectedRouteAuthRedirect(request, env, runtimeRoute, {
+    ...options,
     entry: "account",
     requiredAccess,
   });
@@ -283,11 +291,16 @@ async function startProtectedRouteAuthRedirect(
   request: Request,
   env: InstanceAuthHandoffEnv,
   runtimeRoute: InstanceRuntimeRouteResolution | undefined,
-  options: { entry: "account" | "handoff"; requiredAccess: ProtectedRouteAccess },
+  options: {
+    allowRouteAccessElevation?: boolean;
+    entry: "account" | "handoff";
+    requiredAccess: ProtectedRouteAccess;
+  },
 ): Promise<Response | undefined> {
   const authOrigin = await configuredInstanceAuthOrigin(request, env);
   const url = new URL(request.url);
   const plan = planProtectedRouteAuthRedirect({
+    ...(options.allowRouteAccessElevation ? { allowRouteAccessElevation: true } : {}),
     authOrigin,
     entry: options.entry,
     requestOrigin: requestOriginForAuth(request),
@@ -350,6 +363,7 @@ export async function handleInstanceAuthHandoffRequest(
 ): Promise<Response | undefined> {
   const url = new URL(request.url);
   const callback = instanceAuthCallbackReservationFromFacts({
+    effectiveAccess: protectedRouteAccessSearchParam(url, "access"),
     pathname: url.pathname,
     requestOrigin: requestOriginForAuth(request),
     runtimeRoute,
@@ -474,6 +488,9 @@ export async function resolveAuthAccountHandoffContinuation(
   const accountCompletionTarget = accountCompletionTargetForHandoffTarget(target);
   const session = await validateAuthOriginSession(request, env, target.requiredAccess, {
     accountCompletionTarget,
+    ...(target.programScreenAccess === undefined
+      ? {}
+      : { programScreenAccess: target.programScreenAccess }),
     target,
   });
 
@@ -563,6 +580,9 @@ export async function handleInstanceAuthHandoffDurableObjectRequest(
     const target = await verifiedHandoffStartTargetFromSearch(request, env, url);
     const session = await validateAuthOriginSession(request, env, target.requiredAccess, {
       accountCompletionTarget: accountCompletionTargetForHandoffTarget(target),
+      ...(target.programScreenAccess === undefined
+        ? {}
+        : { programScreenAccess: target.programScreenAccess }),
       target,
     });
 
@@ -669,9 +689,13 @@ export function configuredInstanceAuthOriginFromFacts(input: {
 export function hostAuthSessionTargetForRuntimeRoute(
   request: Request,
   runtimeRoute: InstanceRuntimeRouteResolution | undefined,
-  options: { minimumAccess?: ProtectedRouteAccess } = {},
+  options: {
+    effectiveAccess?: ProtectedRouteAccess;
+    minimumAccess?: ProtectedRouteAccess;
+  } = {},
 ): InstanceAuthSessionTargetBinding | undefined {
   return hostAuthSessionTargetForRuntimeRouteFacts({
+    ...(options.effectiveAccess === undefined ? {} : { effectiveAccess: options.effectiveAccess }),
     minimumAccess: options.minimumAccess,
     requestOrigin: requestOriginForAuth(request),
     runtimeRoute,
@@ -681,34 +705,43 @@ export function hostAuthSessionTargetForRuntimeRoute(
 export function routeAccessTargetForRuntimeRoute(
   request: Request,
   runtimeRoute: InstanceRuntimeRouteResolution | undefined,
-  options: { minimumAccess?: ProtectedRouteAccess } = {},
+  options: {
+    effectiveAccess?: ProtectedRouteAccess;
+    minimumAccess?: ProtectedRouteAccess;
+  } = {},
 ): InstanceAuthSessionTargetBinding | undefined {
+  const mountRoute = runtimeRoute?.kind === "mount" ? runtimeRoute : undefined;
+  const effectiveAccess = options.effectiveAccess ?? mountRoute?.access;
+
   if (
-    runtimeRoute?.kind !== "mount" ||
-    runtimeRoute.access === "anonymous" ||
+    mountRoute === undefined ||
+    effectiveAccess === undefined ||
+    effectiveAccess === "anonymous" ||
     (options.minimumAccess !== undefined &&
-      !runtimeRouteAccessSatisfies(runtimeRoute.access, options.minimumAccess))
+      !runtimeRouteAccessSatisfies(effectiveAccess, options.minimumAccess)) ||
+    (options.effectiveAccess !== undefined &&
+      runtimeRouteAccessRank(options.effectiveAccess) < runtimeRouteAccessRank(mountRoute.access))
   ) {
     return undefined;
   }
 
   const common = {
-    access: runtimeRoute.access,
-    ...(runtimeRoute.requiredRole === undefined ? {} : { requiredRole: runtimeRoute.requiredRole }),
-    routeId: runtimeRoute.id,
+    access: effectiveAccess,
+    ...(mountRoute.requiredRole === undefined ? {} : { requiredRole: mountRoute.requiredRole }),
+    routeId: mountRoute.id,
     targetOrigin: requestOriginForAuth(request),
-    targetProfile: runtimeRoute.targetProfile,
+    targetProfile: mountRoute.targetProfile,
   };
 
-  if (runtimeRoute.target !== undefined) {
+  if (mountRoute.target !== undefined) {
     return {
       ...common,
-      appInstallId: runtimeRoute.target.installId,
-      storageIdentity: runtimeRoute.target.authorityName,
+      appInstallId: mountRoute.target.installId,
+      storageIdentity: mountRoute.target.authorityName,
     };
   }
 
-  if (runtimeRoute.targetProfile !== "instance") {
+  if (mountRoute.targetProfile !== "instance") {
     return undefined;
   }
 
@@ -719,53 +752,57 @@ export function routeAccessTargetForRuntimeRoute(
 }
 
 export function hostAuthSessionTargetForRuntimeRouteFacts(input: {
+  effectiveAccess?: ProtectedRouteAccess;
   minimumAccess?: ProtectedRouteAccess;
   requestOrigin: string;
   runtimeRoute: InstanceRuntimeRouteResolution | undefined;
 }): InstanceAuthSessionTargetBinding | undefined {
+  const mountRoute = input.runtimeRoute?.kind === "mount" ? input.runtimeRoute : undefined;
+  const effectiveAccess = input.effectiveAccess ?? mountRoute?.access;
+
   if (
-    input.runtimeRoute?.kind !== "mount" ||
-    input.runtimeRoute.matchHost === undefined ||
-    input.runtimeRoute.access === "anonymous" ||
+    mountRoute === undefined ||
+    mountRoute.matchHost === undefined ||
+    effectiveAccess === undefined ||
+    effectiveAccess === "anonymous" ||
     (input.minimumAccess !== undefined &&
-      !runtimeRouteAccessSatisfies(input.runtimeRoute.access, input.minimumAccess))
+      !runtimeRouteAccessSatisfies(effectiveAccess, input.minimumAccess)) ||
+    (input.effectiveAccess !== undefined &&
+      runtimeRouteAccessRank(input.effectiveAccess) < runtimeRouteAccessRank(mountRoute.access))
   ) {
     return undefined;
   }
 
   const targetOrigin = input.requestOrigin;
 
-  if (input.runtimeRoute.target !== undefined) {
+  if (mountRoute.target !== undefined) {
     return {
-      access: input.runtimeRoute.access,
-      appInstallId: input.runtimeRoute.target.installId,
-      ...(input.runtimeRoute.requiredRole === undefined
-        ? {}
-        : { requiredRole: input.runtimeRoute.requiredRole }),
-      routeId: input.runtimeRoute.id,
-      storageIdentity: input.runtimeRoute.target.authorityName,
+      access: effectiveAccess,
+      appInstallId: mountRoute.target.installId,
+      ...(mountRoute.requiredRole === undefined ? {} : { requiredRole: mountRoute.requiredRole }),
+      routeId: mountRoute.id,
+      storageIdentity: mountRoute.target.authorityName,
       targetOrigin,
-      targetProfile: input.runtimeRoute.targetProfile,
+      targetProfile: mountRoute.targetProfile,
     };
   }
 
-  if (input.runtimeRoute.targetProfile !== "instance") {
+  if (mountRoute.targetProfile !== "instance") {
     return undefined;
   }
 
   return {
-    access: input.runtimeRoute.access,
-    routeId: input.runtimeRoute.id,
-    ...(input.runtimeRoute.requiredRole === undefined
-      ? {}
-      : { requiredRole: input.runtimeRoute.requiredRole }),
+    access: effectiveAccess,
+    routeId: mountRoute.id,
+    ...(mountRoute.requiredRole === undefined ? {} : { requiredRole: mountRoute.requiredRole }),
     storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     targetOrigin,
-    targetProfile: input.runtimeRoute.targetProfile,
+    targetProfile: mountRoute.targetProfile,
   };
 }
 
 export function instanceAuthCallbackReservationFromFacts(input: {
+  effectiveAccess?: ProtectedRouteAccess;
   pathname: string;
   requestOrigin: string;
   runtimeRoute?: InstanceRuntimeRouteResolution;
@@ -775,6 +812,7 @@ export function instanceAuthCallbackReservationFromFacts(input: {
   }
 
   const target = hostAuthSessionTargetForRuntimeRouteFacts({
+    ...(input.effectiveAccess === undefined ? {} : { effectiveAccess: input.effectiveAccess }),
     requestOrigin: input.requestOrigin,
     runtimeRoute: input.runtimeRoute,
   });
@@ -1015,6 +1053,7 @@ async function validateAuthOriginSession(
   options: {
     accountCompletionTarget?: AccountCompletionGateTarget;
     now?: string;
+    programScreenAccess?: ScreenAccessRequirement;
     target?: InstanceAuthSessionTargetBinding;
   } = {},
 ): Promise<
@@ -1031,6 +1070,9 @@ async function validateAuthOriginSession(
         ? {}
         : { accountCompletionTarget: options.accountCompletionTarget }),
       localOwnerSessionFallbackAllowed: isLocalOwnerSessionRuntime(request, env),
+      ...(options.programScreenAccess === undefined
+        ? {}
+        : { programScreenAccess: options.programScreenAccess }),
       requiredAuthority: options.target?.requiredRole ?? requiredAccess,
       ...(options.target === undefined ? {} : { target: options.target }),
     },
@@ -1104,6 +1146,7 @@ export async function validateInstanceAuthAccessSession(
     accountCompletionTarget?: AccountCompletionGateTarget;
     appInstallId?: string;
     now?: string;
+    programScreenAccess?: ScreenAccessRequirement;
     readers?: InstanceAuthAccessReaderOverrides;
     requiredAuthority: InstanceAuthAuthorityRequirement;
     storage?: DurableObjectStorage;
@@ -1117,6 +1160,9 @@ export async function validateInstanceAuthAccessSession(
         : { accountCompletionTarget: options.accountCompletionTarget }),
       ...(options.appInstallId === undefined ? {} : { appInstallId: options.appInstallId }),
       localOwnerSessionFallbackAllowed: isLocalOwnerSessionRuntime(request, env),
+      ...(options.programScreenAccess === undefined
+        ? {}
+        : { programScreenAccess: options.programScreenAccess }),
       requiredAuthority: options.requiredAuthority,
       ...(options.target === undefined ? {} : { target: options.target }),
     },
@@ -1337,6 +1383,7 @@ export async function validateRouteAccessSession(
   env: InstanceAuthHandoffEnv,
   options: {
     now?: string;
+    programScreenAccess?: ScreenAccessRequirement;
     requiredAccess: ProtectedRouteAccess;
     runtimeRoute?: InstanceRuntimeRouteResolution | undefined;
     target?: InstanceAuthSessionTargetBinding | undefined;
@@ -1347,6 +1394,9 @@ export async function validateRouteAccessSession(
     (options.runtimeRoute === undefined
       ? undefined
       : routeAccessTargetForRuntimeRoute(request, options.runtimeRoute, {
+          ...(options.programScreenAccess === undefined
+            ? {}
+            : { effectiveAccess: options.requiredAccess }),
           minimumAccess: options.requiredAccess,
         }));
   const requiredAuthority = target?.requiredRole ?? options.requiredAccess;
@@ -1357,6 +1407,9 @@ export async function validateRouteAccessSession(
       ? { accountCompletionTarget: accountCompletionTargetForRouteRequest(request, target) }
       : {}),
     now: options.now,
+    ...(options.programScreenAccess === undefined
+      ? {}
+      : { programScreenAccess: options.programScreenAccess }),
     requiredAuthority,
     target,
   });
@@ -1913,21 +1966,38 @@ async function verifiedHandoffStartTargetFromSearch(
   url: URL,
 ): Promise<
   Omit<CreateHandoffGrantInput, "expiresAt" | "grantSecretHash" | "instanceId" | "principalId"> & {
+    programScreenAccess?: ScreenAccessRequirement;
     requiredAccess: ProtectedRouteAccess;
   }
 > {
   const target = handoffStartTargetFromSearch(url);
   const route = await runtimeRouteForHandoffTarget(request, env, target);
 
-  if (!route || route.access === "anonymous") {
+  if (!route) {
     throw new Error("Handoff target route is not protected.");
   }
 
   const targetUrl = new URL(target.returnTo, target.targetOrigin);
+  const programScreen = resolveProgramScreenRouteTargetFromFacts({
+    runtimeRoute: route,
+    topology: {
+      pathname: targetUrl.pathname,
+      profileKind: route.targetProfile === "instance" ? "instance" : "app",
+    },
+  });
+  const requiredAccess = programScreen?.requiredAccess ?? route.access;
+
+  if (requiredAccess === "anonymous") {
+    throw new Error("Handoff target route is not protected.");
+  }
+
   const routeTarget = hostAuthSessionTargetForRuntimeRoute(
     new Request(targetUrl.toString()),
     route,
-    { minimumAccess: "authenticated" },
+    {
+      ...(programScreen === undefined ? {} : { effectiveAccess: requiredAccess }),
+      minimumAccess: "authenticated",
+    },
   );
 
   if (!routeTarget || !hostAuthSessionTargetBindingsEqual(routeTarget, target)) {
@@ -1936,7 +2006,8 @@ async function verifiedHandoffStartTargetFromSearch(
 
   return {
     ...target,
-    requiredAccess: route.access,
+    ...(programScreen === undefined ? {} : { programScreenAccess: programScreen.access }),
+    requiredAccess,
   };
 }
 
@@ -1989,6 +2060,7 @@ async function issueHandoffGrantRedirect(
     if (grant.ok) {
       const location = new URL(INSTANCE_AUTH_HANDOFF_CALLBACK_PATH, grant.grant.targetOrigin);
 
+      location.searchParams.set("access", grant.grant.access);
       location.searchParams.set("grantId", grant.grant.grantId);
       location.searchParams.set("grantSecret", grantSecret);
       location.searchParams.set("state", grant.grant.state);
@@ -2456,6 +2528,13 @@ function handoffTargetAccessValue(value: string): ProtectedRouteAccess {
   }
 
   return access;
+}
+
+function protectedRouteAccessSearchParam(url: URL, name: string): ProtectedRouteAccess | undefined {
+  const value = optionalSearchParam(url, name);
+  const access = value === undefined ? undefined : parseRuntimeRouteAccess(value);
+
+  return access === undefined || access === "anonymous" ? undefined : access;
 }
 
 function optionalHandoffRequiredRole(value: string | undefined): {

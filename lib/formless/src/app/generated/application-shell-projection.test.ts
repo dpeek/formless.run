@@ -24,6 +24,7 @@ import {
   projectGeneratedApplicationShellContractHostPublication,
   resolveGeneratedApplicationShellIntent,
 } from "./generated-application-shell-contract-host.ts";
+import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../../program/runtime.ts";
 
 describe("generated application shell projection", () => {
   it("selects multi-app, app-only, and no-shell presentation from profile and route state", () => {
@@ -156,6 +157,7 @@ describe("generated application shell projection", () => {
     const runtimeProfile = createDevRuntimeProfile();
     const settingsProjection = required(
       projectGeneratedApplicationShell({
+        authorizedProgramScreenPaths: FORMLESS_PROGRAM_SCREEN_PATHS,
         currentPath: "/",
         routeWorld: undefined,
         runtimeProfile,
@@ -163,6 +165,7 @@ describe("generated application shell projection", () => {
     );
     const accessProjection = required(
       projectGeneratedApplicationShell({
+        authorizedProgramScreenPaths: FORMLESS_PROGRAM_SCREEN_PATHS,
         currentPath: "/access",
         routeWorld: undefined,
         runtimeProfile,
@@ -228,6 +231,42 @@ describe("generated application shell projection", () => {
       { href: "/policies", label: "Policies", selected: false },
       { href: "/settings", label: "Settings", selected: false },
     ]);
+  });
+
+  it("projects only server-authorized Program destinations in artifact order", () => {
+    const runtimeProfile = createDevRuntimeProfile();
+    const filtered = required(
+      projectGeneratedApplicationShell({
+        authorizedProgramScreenPaths: ["/settings", "/apps", "/deployments"],
+        currentPath: "/deployments",
+        routeWorld: undefined,
+        runtimeProfile,
+      }),
+    );
+    const hidden = required(
+      projectGeneratedApplicationShell({
+        currentPath: "/deployments",
+        routeWorld: undefined,
+        runtimeProfile,
+      }),
+    );
+
+    expect(
+      required(filtered.sections.find((section) => section.role === "instance")).destinations.map(
+        (destination) => ({
+          href: destination.kind === "shellLinkDestination" ? destination.href : undefined,
+          label: destination.label,
+          selected: destination.selected,
+        }),
+      ),
+    ).toEqual([
+      { href: "/apps", label: "Apps", selected: false },
+      { href: "/deployments", label: "Deployments", selected: true },
+      { href: "/settings", label: "Settings", selected: false },
+    ]);
+    expect(
+      required(hidden.sections.find((section) => section.role === "instance")).destinations,
+    ).toEqual([]);
   });
 
   it("projects anonymous session state without synthesizing a sign-in destination", () => {

@@ -68,6 +68,28 @@ export type AccessRequirementSource =
   | {
       anyOf: DirectAccessRequirementSource[];
     };
+/** Intrinsic browser actors accepted by screen access requirements. */
+export type BrowserAccessActor = Exclude<AccessActor, TrustedAccessActor>;
+/** One direct browser-applicable screen access requirement. */
+export type DirectScreenAccessRequirement =
+  | {
+      actor: BrowserAccessActor;
+    }
+  | RoleAccessRequirement;
+/** Parsed browser-applicable access requirement for one screen. */
+export type ScreenAccessRequirement =
+  | DirectScreenAccessRequirement
+  | {
+      anyOf: DirectScreenAccessRequirement[];
+    };
+/** Authored direct browser-applicable screen access requirement. */
+export type DirectScreenAccessRequirementSource = DirectScreenAccessRequirement;
+/** Authored screen access requirement parsed against one complete App schema. */
+export type ScreenAccessRequirementSource =
+  | DirectScreenAccessRequirementSource
+  | {
+      anyOf: DirectScreenAccessRequirementSource[];
+    };
 /** Runtime facts supplied to the pure access evaluator. */
 export type AccessCallerFacts =
   | {
@@ -831,7 +853,6 @@ export type ViewSchemaSource = CollectionViewSchemaSource | CreateViewSchema | E
 export type AppNavigationSchema = {
   primaryScreens?: string[];
 };
-export type ScreenAccessSchema = "anonymous" | "authenticated" | "owner";
 export type CollectionScreenSectionSchema = {
   id: string;
   type: "collection";
@@ -855,10 +876,14 @@ export type WorkspaceScreenSchema = {
   type: "workspace";
   label: string;
   path?: string;
-  access?: ScreenAccessSchema;
+  access?: ScreenAccessRequirement;
   layout: ScreenLayoutSchema;
 };
 export type ScreenSchema = WorkspaceScreenSchema;
+export type WorkspaceScreenSchemaSource = Omit<WorkspaceScreenSchema, "access"> & {
+  access?: ScreenAccessRequirementSource;
+};
+export type ScreenSchemaSource = WorkspaceScreenSchemaSource;
 export type ToOneRelationshipSchema = {
   kind: "toOne";
   label?: string;
@@ -1475,11 +1500,12 @@ export type AppSchemaDefinitionIndex = {
  */
 export type AppSchemaSource = Omit<
   AppSchema,
-  "authorization" | "entities" | "version" | "views"
+  "authorization" | "entities" | "screens" | "version" | "views"
 > & {
   version: 1;
   authorization?: AppAuthorizationSchemaSource;
   entities: KeyedDefinition<EntitySchemaSource>[];
+  screens: KeyedDefinition<ScreenSchemaSource>[];
   views: KeyedDefinition<ViewSchemaSource>[];
 };
 

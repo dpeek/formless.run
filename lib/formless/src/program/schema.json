@@ -4777,6 +4777,9 @@
   },
   "screens": [
     {
+      "access": {
+        "role": "administrator"
+      },
       "key": "routes",
       "label": "Routes",
       "layout": {
@@ -4793,6 +4796,9 @@
       "type": "workspace"
     },
     {
+      "access": {
+        "role": "administrator"
+      },
       "key": "deployments",
       "label": "Deployments",
       "layout": {
@@ -4809,6 +4815,9 @@
       "type": "workspace"
     },
     {
+      "access": {
+        "role": "administrator"
+      },
       "key": "settings",
       "label": "Settings",
       "layout": {
@@ -4835,6 +4844,9 @@
       "type": "workspace"
     },
     {
+      "access": {
+        "role": "administrator"
+      },
       "key": "principals",
       "label": "Principals",
       "layout": {
@@ -4856,6 +4868,9 @@
       "type": "workspace"
     },
     {
+      "access": {
+        "role": "administrator"
+      },
       "key": "organizations",
       "label": "Organizations",
       "layout": {
@@ -4882,6 +4897,9 @@
       "type": "workspace"
     },
     {
+      "access": {
+        "role": "administrator"
+      },
       "key": "access",
       "label": "Access",
       "layout": {
@@ -4908,6 +4926,9 @@
       "type": "workspace"
     },
     {
+      "access": {
+        "role": "administrator"
+      },
       "key": "invitations",
       "label": "Invitations",
       "layout": {
@@ -4924,6 +4945,9 @@
       "type": "workspace"
     },
     {
+      "access": {
+        "role": "administrator"
+      },
       "key": "policies",
       "label": "Policies",
       "layout": {
@@ -4945,6 +4969,9 @@
       "type": "workspace"
     },
     {
+      "access": {
+        "role": "administrator"
+      },
       "key": "apps",
       "label": "Apps",
       "layout": {

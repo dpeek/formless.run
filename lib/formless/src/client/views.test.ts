@@ -2592,12 +2592,12 @@ describe("home view model collections", () => {
       screens: [
         {
           ...rateCardSchema.screens!.find((definition) => definition.key === "rateHome")!,
-          access: "owner",
+          access: { actor: "owner" },
           key: "rateHome",
         },
         {
           ...rateCardSchema.screens!.find((definition) => definition.key === "rateSetup")!,
-          access: "anonymous",
+          access: { actor: "anonymous" },
           key: "rateSetup",
         },
       ],
@@ -2609,8 +2609,8 @@ describe("home view model collections", () => {
         access: model.access,
       })),
     ).toEqual([
-      { screenName: "rateHome", path: "/", access: "owner" },
-      { screenName: "rateSetup", path: "/setup", access: "anonymous" },
+      { screenName: "rateHome", path: "/", access: { actor: "owner" } },
+      { screenName: "rateSetup", path: "/setup", access: { actor: "anonymous" } },
     ]);
     expect(selectScreenModelByPath(rateCardSchema, "/setup")?.screenName).toBe("rateSetup");
     expect(selectScreenModelByPath(rateCardSchema, "/missing")).toBeUndefined();

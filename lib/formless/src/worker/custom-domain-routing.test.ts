@@ -583,13 +583,13 @@ describe("installed Site custom-domain Worker routing", () => {
       expect(matchingAccount.headers.get("Location")).toBe(returnTo);
       expect(matchingBase.status).toBe(200);
       expect(matchingNested.status).toBe(200);
-      expect(wrongInstallStatus.status).toBe(409);
+      expect(wrongInstallStatus.status, JSON.stringify(wrongInstallBody)).toBe(409);
       expect(wrongInstallBody.gate).toMatchObject({
         kind: "role-review",
         roleKey: "app.admin",
         scopeKind: "app-install",
       });
-      expect(ordinaryStatus.status).toBe(409);
+      expect(ordinaryStatus.status, JSON.stringify(ordinaryBody)).toBe(409);
       expect(ordinaryBody.gate).toMatchObject({
         kind: "role-review",
         roleKey: "app.admin",
@@ -629,7 +629,7 @@ describe("installed Site custom-domain Worker routing", () => {
         redirect: "manual",
       });
 
-      expect(status.status).toBe(200);
+      expect(status.status, JSON.stringify(statusBody)).toBe(200);
       expect(statusBody).toMatchObject({
         continueTo: "/access",
         status: "complete",
@@ -1663,7 +1663,7 @@ describe("installed Site custom-domain Worker routing", () => {
     expect(hostRegistry.status).toBe(200);
     expect(hostRegistryBody.installs.map((install) => install.installId)).toEqual([taskInstallId]);
     expect(wrongTarget.status).toBe(401);
-    expect(management.status).toBe(302);
+    expect(management.status).toBe(403);
     expect(ownerRecovery.status).toBe(401);
 
     await deleteIdentityRoleAssignment(removed.roleAssignmentId, "accepted-app-admin");

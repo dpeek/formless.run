@@ -71,9 +71,9 @@ import {
   mappedAuthOriginRouteDecisionFromFacts,
   mappedRuntimeRoutePolicyFromFacts,
   mappedSiteHostRedirectForRequest,
-  ownerBrowserRouteAccessForRequest,
   protectedBrowserRouteDecisionFromFacts,
   publishedSiteRedirectForRequest,
+  resolveProtectedBrowserRouteTargetFromFacts,
   resolveWorkerRuntimeRequestTopology,
   shouldDeferToStaticAssets,
   workerRuntimeProfileInput,
@@ -824,19 +824,20 @@ async function resolveAuthAccountReturnTargetContinuation(
     targetRequest,
     workerRuntimeProfileInput(runtimeProfile),
   );
-  const requiredAccess = ownerBrowserRouteAccessForRequest(
-    targetRequest,
-    targetTopology,
+  const target = resolveProtectedBrowserRouteTargetFromFacts({
     runtimeRoute,
-  );
+    topology: targetTopology,
+  });
 
-  if (requiredAccess === "anonymous") {
+  if (target === undefined) {
     return { error: "Account continuation target is public.", kind: "invalid" };
   }
 
+  const requiredAccess = target.requiredAccess;
+
   const accountCompletionTarget = sameOriginAccountCompletionTargetForRuntimeRouteFacts({
     accountOrigin: requestOriginForAuth(request),
-    minimumAccess: "authenticated",
+    ...(target.programScreen === undefined ? { minimumAccess: "authenticated" as const } : {}),
     requestOrigin: requestOriginForAuth(targetRequest),
     returnTo,
     runtimeProfile: targetTopology.profileKind,
@@ -847,6 +848,9 @@ async function resolveAuthAccountReturnTargetContinuation(
     return { error: "Account completion target is unavailable.", kind: "invalid" };
   }
   const session = await validateRouteAccessSession(targetRequest, env, {
+    ...(target.programScreen === undefined
+      ? {}
+      : { programScreenAccess: target.programScreen.access }),
     requiredAccess,
     ...(runtimeRoute?.kind === "mount" ? { runtimeRoute } : {}),
   });
@@ -1029,10 +1033,14 @@ async function redirectAnonymousProtectedBrowserRoute(
   }
 
   const session = await validateRouteAccessSession(request, env, {
+    ...(decision.programScreen === undefined
+      ? {}
+      : { programScreenAccess: decision.programScreen.access }),
     requiredAccess: decision.requiredAccess,
     ...(runtimeRoute?.kind === "mount" ? { runtimeRoute } : {}),
   });
   const requiredAccess = decision.requiredAccess;
+  const programScreen = decision.programScreen;
 
   decision = protectedBrowserRouteDecisionFromFacts({
     runtimeRoute,
@@ -1050,8 +1058,15 @@ async function redirectAnonymousProtectedBrowserRoute(
 
   if (decision.kind === "account-completion" && !session.ok && session.accountCompletion) {
     return (
-      (await startProtectedRouteAuthAccount(request, env, runtimeRoute, requiredAccess)) ??
-      accountCompletionBlockedResponse(session.accountCompletion)
+      (await startProtectedRouteAuthAccount(request, env, runtimeRoute, requiredAccess, {
+        allowRouteAccessElevation: programScreen !== undefined,
+      })) ?? accountCompletionBlockedResponse(session.accountCompletion)
+    );
+  }
+
+  if (!session.ok && session.authenticated !== undefined) {
+    return accountAuthorizationForbiddenResponse(
+      accountAuthorizationForbiddenResult(session.authenticated.principal),
     );
   }
 
@@ -1060,6 +1075,9 @@ async function redirectAnonymousProtectedBrowserRoute(
     env,
     runtimeRoute,
     requiredAccess,
+    {
+      allowRouteAccessElevation: programScreen !== undefined,
+    },
   );
 
   if (accountRedirect) {

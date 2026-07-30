@@ -84,7 +84,10 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 - AND `/apps` selects the root-owned screen that composes app installs and app
   registrations
 - AND Program navigation order comes from the materialized Program artifact
-- AND the client shell is eligible to render those screens for an active
+- AND Apps, Routes, Deployments, Principals, Organizations, Access, Invitations,
+  Policies, and Settings each declare the schema-defined Program
+  `administrator` role requirement
+- AND the client shell is eligible to render each selected screen for an active
   principal with protected owner authority or the schema-defined Program
   `administrator` role
 - AND owner-only security and recovery behavior remains unavailable to a
@@ -110,10 +113,12 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 
 - GIVEN the runtime profile is `instance`
 - WHEN a browser navigates to `/deployments`
-- THEN the client shell is eligible to render the instance deployment surface
-- AND the route is treated as an owner-only instance browser surface unless a
-  less restrictive route access policy explicitly allows anonymous or
-  authenticated access
+- THEN the client shell is eligible to render the schema-owned Program
+  deployment screen
+- AND the screen requires the schema-defined Program `administrator` role or
+  protected owner authority
+- AND deployment operations, provider cleanup, credential handling, and owner
+  recovery retain their independently evaluated authorization requirements
 - AND installed app routing, public Site routing, account orchestrator routes,
   and account gate routes remain separate route families
 
@@ -164,6 +169,33 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 The system SHALL evaluate route access after runtime profile route eligibility
 and enabled route-record resolution, and before serving protected browser
 surfaces or protected management API data.
+
+#### Scenario: Resolve effective Program screen admission
+
+- GIVEN profile and enabled route-record resolution select a Program browser
+  screen
+- WHEN runtime topology resolves effective browser admission
+- THEN it combines the matched route access floor with the selected screen's
+  browser access requirement
+- AND the browser must satisfy both requirements
+- AND an authenticated, management, or owner route floor cannot be weakened by
+  a less restrictive screen
+- AND a stricter screen can narrow a less restrictive route
+- AND on the default instance host, the selected Program screen requirement
+  replaces hard-coded access classification by pathname
+- AND direct entry, mapped-host entry, account continuation, route-target
+  session status, and client navigation identify the same concrete screen
+  target and requirement
+
+#### Scenario: Reject missing Program screen admission
+
+- GIVEN a browser path selects the active Program
+- WHEN no declared Program screen and explicit screen access requirement
+  resolves for that path
+- THEN runtime does not infer access from the path, primary navigation,
+  declaration order, module key, schema key, or Program replica membership
+- AND protected Program presentation fails closed before serving the screen or
+  protected data
 
 #### Scenario: Anonymous authenticated browser route
 

@@ -74,6 +74,17 @@ describe("Formless Program schema", () => {
       },
     ]);
     expect(formlessProgramSchemaModules.every((module) => !("authorization" in module))).toBe(true);
+    expect(parsed.screens.map(({ access, key }) => ({ access, key }))).toEqual([
+      { access: { role: "administrator" }, key: "routes" },
+      { access: { role: "administrator" }, key: "deployments" },
+      { access: { role: "administrator" }, key: "settings" },
+      { access: { role: "administrator" }, key: "principals" },
+      { access: { role: "administrator" }, key: "organizations" },
+      { access: { role: "administrator" }, key: "access" },
+      { access: { role: "administrator" }, key: "invitations" },
+      { access: { role: "administrator" }, key: "policies" },
+      { access: { role: "administrator" }, key: "apps" },
+    ]);
     expect(screens.principals?.path).toBe("/");
     expect(screens.apps).toMatchObject({
       path: "/apps",

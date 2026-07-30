@@ -76,6 +76,7 @@ import {
   runtimeInstalledAppRouteRegistryRefreshKey,
   type RuntimeInstalledAppRouteRegistry,
 } from "./app/runtime-installed-app-route-registry.ts";
+import { resolveProtectedRouteAccess } from "./app/protected-route-access.ts";
 
 type HomeRouteProps = {
   activePackageResolver?: AppPackageResolver | undefined;
@@ -157,26 +158,57 @@ const defaultRouteComponents: AppRouteComponents = {
   publicSiteReactAdapters: defaultPublicSiteReactAdapters,
 };
 
+export type AppProps = {
+  installedAppRouteInstalls?: readonly AppInstall[];
+  installedAppRoutePackages?: readonly InstallableAppPackage[];
+  localWorkspaceGatewayAvailable?: boolean;
+  routeComponents?: Partial<AppRouteComponents>;
+  runtimeProfile?: RuntimeProfile;
+};
+
 export function App({
   installedAppRouteInstalls: installedAppRouteInstallsProp,
   installedAppRoutePackages: installedAppRoutePackagesProp,
   localWorkspaceGatewayAvailable: localWorkspaceGatewayAvailableProp,
   routeComponents: routeComponentOverrides,
   runtimeProfile: runtimeProfileProp,
-}: {
-  installedAppRouteInstalls?: readonly AppInstall[];
-  installedAppRoutePackages?: readonly InstallableAppPackage[];
-  localWorkspaceGatewayAvailable?: boolean;
-  routeComponents?: Partial<AppRouteComponents>;
-  runtimeProfile?: RuntimeProfile;
-} = {}) {
+}: AppProps = {}) {
   const [location] = useLocation();
-  const rootThemeRuntime = useApplicationRootThemeRuntime();
-  const routeComponents = resolveAppRouteComponents(routeComponentOverrides);
   const runtimeProfile = useMemo(
     () => runtimeProfileProp ?? resolveRuntimeProfile(),
     [runtimeProfileProp],
   );
+  const normalizedLocation = normalizeRuntimeBrowserPath(location);
+  const browserRoutes = runtimeBrowserRoutePatterns(runtimeProfile);
+  const runtime = (
+    <AppRuntime
+      installedAppRouteInstalls={installedAppRouteInstallsProp}
+      installedAppRoutePackages={installedAppRoutePackagesProp}
+      localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailableProp}
+      location={location}
+      routeComponents={routeComponentOverrides}
+      runtimeProfile={runtimeProfile}
+    />
+  );
+
+  return browserRoutes.instanceShellRoute &&
+    FORMLESS_PROGRAM_SCREEN_PATHS.includes(normalizedLocation) ? (
+    <ProtectedRouteGuard access="management">{runtime}</ProtectedRouteGuard>
+  ) : (
+    runtime
+  );
+}
+
+function AppRuntime({
+  installedAppRouteInstalls: installedAppRouteInstallsProp,
+  installedAppRoutePackages: installedAppRoutePackagesProp,
+  localWorkspaceGatewayAvailable: localWorkspaceGatewayAvailableProp,
+  location,
+  routeComponents: routeComponentOverrides,
+  runtimeProfile,
+}: AppProps & { location: string; runtimeProfile: RuntimeProfile }) {
+  const rootThemeRuntime = useApplicationRootThemeRuntime();
+  const routeComponents = resolveAppRouteComponents(routeComponentOverrides);
   const installedAppRouteRegistryRefreshKey = runtimeInstalledAppRouteRegistryRefreshKey(
     runtimeProfile,
     location,
@@ -473,19 +505,13 @@ function AppRoutes({
       ) : null}
       {browserRoutes.instanceShellRoute ? (
         <Route path={browserRoutes.instanceShellRoute}>
-          <ProtectedRouteGuard access="management">
-            <InstanceShellRoute localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable} />
-          </ProtectedRouteGuard>
+          <InstanceShellRoute localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable} />
         </Route>
       ) : null}
       {browserRoutes.instanceShellRoute
         ? FORMLESS_PROGRAM_SCREEN_PATHS.filter((path) => path !== "/").map((path) => (
             <Route key={path} path={path}>
-              <ProtectedRouteGuard access="management">
-                <InstanceShellRoute
-                  localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
-                />
-              </ProtectedRouteGuard>
+              <InstanceShellRoute localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable} />
             </Route>
           ))
         : null}
@@ -854,7 +880,7 @@ function RouteLoading() {
   );
 }
 
-type ProtectedRouteGuardState = "authorized" | "checking" | "redirect";
+type ProtectedRouteGuardState = "authorized" | "checking" | "failed" | "forbidden" | "redirect";
 
 export function ProtectedRouteGuard({
   access,
@@ -904,6 +930,14 @@ export function ProtectedRouteGuard({
     return <Redirect replace to={authAccountContinuationLocationForReturnTarget(routeTarget)} />;
   }
 
+  if (state === "forbidden") {
+    return <ProtectedRouteForbidden />;
+  }
+
+  if (state === "failed") {
+    return <ProtectedRouteFailed />;
+  }
+
   return <ProtectedRouteLoading />;
 }
 
@@ -932,22 +966,30 @@ export function startProtectedRouteGuardSession({
 
   async function checkAccess() {
     try {
-      const requiresExactRouteCheck = access === "authenticated" || requiredRole === "app.admin";
-      const authorized =
-        access === "owner"
-          ? await ownerRouteSessionIsAuthorized(fetcher, controller.signal)
-          : access === "management"
-            ? await managementRouteSessionIsAuthorized(fetcher, controller.signal)
-            : requiresExactRouteCheck
-              ? await exactRouteSessionIsAuthorized(fetcher, location, controller.signal)
-              : false;
+      const decision =
+        access === "owner" && requiredRole === undefined
+          ? {
+              kind: (await ownerRouteSessionIsAuthorized(fetcher, controller.signal))
+                ? ("authorized" as const)
+                : ("continuation" as const),
+            }
+          : await resolveProtectedRouteAccess(location, {
+              fetcher,
+              signal: controller.signal,
+            });
 
       if (!stopped) {
-        onState(authorized ? "authorized" : "redirect");
+        onState(
+          decision.kind === "authorized"
+            ? "authorized"
+            : decision.kind === "forbidden"
+              ? "forbidden"
+              : "redirect",
+        );
       }
     } catch {
       if (!stopped && !controller.signal.aborted) {
-        onState("redirect");
+        onState("failed");
       }
     }
   }
@@ -967,30 +1009,6 @@ async function ownerRouteSessionIsAuthorized(fetcher: typeof fetch, signal: Abor
   return status.authenticated;
 }
 
-async function managementRouteSessionIsAuthorized(fetcher: typeof fetch, signal: AbortSignal) {
-  const response = await fetcher("/api/formless/program/bootstrap", {
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
-    signal,
-  });
-
-  return response.ok;
-}
-
-async function exactRouteSessionIsAuthorized(
-  fetcher: typeof fetch,
-  location: AccountRedirectTarget,
-  signal: AbortSignal,
-) {
-  const response = await fetcher(authAccountContinuationLocationForReturnTarget(location), {
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
-    signal,
-  });
-
-  return response.ok;
-}
-
 function ProtectedRouteLoading() {
   return (
     <ApplicationSystemStateRuntime
@@ -999,6 +1017,32 @@ function ProtectedRouteLoading() {
         id: "application-system-state:route-access",
         message: "Checking route access...",
         state: "loading",
+      })}
+    />
+  );
+}
+
+function ProtectedRouteForbidden() {
+  return (
+    <ApplicationSystemStateRuntime
+      snapshot={projectApplicationSystemState({
+        heading: "Route access forbidden",
+        id: "application-system-state:route-forbidden",
+        message: "Your current account does not have access to this screen.",
+        state: "unavailable",
+      })}
+    />
+  );
+}
+
+function ProtectedRouteFailed() {
+  return (
+    <ApplicationSystemStateRuntime
+      snapshot={projectApplicationSystemState({
+        heading: "Route access unavailable",
+        id: "application-system-state:route-access-failed",
+        message: "Route access could not be checked.",
+        state: "unavailable",
       })}
     />
   );

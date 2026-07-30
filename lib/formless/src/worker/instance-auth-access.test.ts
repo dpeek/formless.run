@@ -276,6 +276,122 @@ describe("instance auth access readers and decisions", () => {
     ).resolves.toEqual({ ok: false, reason: "revoked-session" });
   });
 
+  it("combines current Program screen authority with the route access floor", async () => {
+    const roleIds = {
+      administrator: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+      editor: "role_3e6f3057-22bf-4fb0-8bd5-7b61bb0f45c4",
+      member: "role_de3ae092-31a9-49df-b7f6-9f51f9403ff9",
+    } as const;
+    const centralReader = {
+      readCentralSession: async () => ({
+        ok: true as const,
+        ownerSessionFallbackAllowed: false,
+        session: centralSession,
+      }),
+    };
+    const screenInput = {
+      localOwnerSessionFallbackAllowed: false,
+      programScreenAccess: { role: "administrator" } as const,
+      requiredAuthority: "authenticated" as const,
+    };
+
+    for (const role of ["member", "editor"] as const) {
+      await expect(
+        resolveInstanceAuthAccess(
+          screenInput,
+          accessReaders({
+            ...centralReader,
+            readManagementAuthority: async (session) => ({
+              callerFacts: {
+                active: true,
+                kind: "principal",
+                owner: false,
+                roleId: roleIds[role],
+              },
+              id: session.principalId,
+            }),
+          }),
+        ),
+      ).resolves.toMatchObject({
+        authenticated: { principalId: centralSession.principalId },
+        ok: false,
+        reason: "missing-program-screen-authority",
+      });
+    }
+
+    for (const callerFacts of [
+      {
+        active: true,
+        kind: "principal" as const,
+        owner: false,
+        roleId: roleIds.administrator,
+      },
+      { active: true, kind: "principal" as const, owner: true },
+    ]) {
+      await expect(
+        resolveInstanceAuthAccess(
+          screenInput,
+          accessReaders({
+            ...centralReader,
+            readManagementAuthority: async (session) => ({
+              callerFacts,
+              id: session.principalId,
+            }),
+          }),
+        ),
+      ).resolves.toMatchObject({
+        ok: true,
+        ownerAuthorized: callerFacts.owner,
+        via: "central-session",
+      });
+    }
+
+    await expect(
+      resolveInstanceAuthAccess(
+        { ...screenInput, requiredAuthority: "owner" },
+        accessReaders({
+          ...centralReader,
+          readManagementAuthority: async (session) => ({
+            callerFacts: {
+              active: true,
+              kind: "principal",
+              owner: false,
+              roleId: roleIds.administrator,
+            },
+            id: session.principalId,
+          }),
+          readOwnerAuthority: async () => null,
+        }),
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      reason: "missing-owner-authority",
+    });
+
+    let currentRole: keyof typeof roleIds = "administrator";
+    const currentReaders = accessReaders({
+      ...centralReader,
+      readManagementAuthority: async (session) => ({
+        callerFacts: {
+          active: true,
+          kind: "principal",
+          owner: false,
+          roleId: roleIds[currentRole],
+        },
+        id: session.principalId,
+      }),
+    });
+
+    await expect(resolveInstanceAuthAccess(screenInput, currentReaders)).resolves.toMatchObject({
+      ok: true,
+    });
+    currentRole = "member";
+    await expect(resolveInstanceAuthAccess(screenInput, currentReaders)).resolves.toMatchObject({
+      ok: false,
+      reason: "missing-program-screen-authority",
+    });
+  });
+
   it("accepts only owner or matching app-install admin authority and selects role review", async () => {
     const input = {
       accountCompletionTarget: accountTarget,

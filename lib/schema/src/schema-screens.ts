@@ -1,3 +1,4 @@
+import { parseAccessRequirement, trustedAccessActors } from "./schema-authorization.ts";
 import {
   assertExactKeys,
   definitionsToRecord,
@@ -8,8 +9,9 @@ import {
 } from "./schema-parse-helpers.ts";
 import type {
   AppNavigationSchema,
+  AppAuthorizationSchema,
   CollectionScreenSectionSchema,
-  ScreenAccessSchema,
+  ScreenAccessRequirement,
   ScreenLayoutSchema,
   ScreenLayoutWidthSchema,
   ScreenSchema,
@@ -20,12 +22,13 @@ import type {
 export function parseScreens(
   value: unknown,
   views: Record<string, ViewSchema>,
+  authorization: AppAuthorizationSchema | undefined,
 ): KeyedDefinition<ScreenSchema>[] {
   if (value === undefined) {
     throw new Error('Schema must include "screens".');
   }
   const screens = parseKeyedDefinitionArray("Schema screens", value, (screenName, screen) =>
-    parseScreen(screenName, screen, views),
+    parseScreen(screenName, screen, views, authorization),
   );
   if (screens.length === 0) {
     throw new Error("Schema screens must not be empty.");
@@ -78,6 +81,7 @@ function parseScreen(
   screenName: string,
   value: unknown,
   views: Record<string, ViewSchema>,
+  authorization: AppAuthorizationSchema | undefined,
 ): ScreenSchema {
   if (screenName.trim() === "") {
     throw new Error("Screen names must be non-empty.");
@@ -99,7 +103,7 @@ function parseScreen(
 
   const label = parseRequiredNonEmptyString(`Screen "${screenName}" label`, value.label);
   const path = parseScreenPath(screenName, value.path);
-  const access = parseScreenAccess(screenName, value.access);
+  const access = parseScreenAccess(screenName, value.access, authorization);
   const layout = parseScreenLayout(screenName, value.layout, views);
   return {
     type: "workspace",
@@ -110,18 +114,30 @@ function parseScreen(
   };
 }
 
-function parseScreenAccess(screenName: string, value: unknown): ScreenAccessSchema | undefined {
+function parseScreenAccess(
+  screenName: string,
+  value: unknown,
+  authorization: AppAuthorizationSchema | undefined,
+): ScreenAccessRequirement | undefined {
   if (value === undefined) {
     return undefined;
   }
 
-  if (value !== "anonymous" && value !== "authenticated" && value !== "owner") {
-    throw new Error(
-      `Screen "${screenName}" access must be "anonymous", "authenticated", or "owner".`,
-    );
+  const context = `Screen "${screenName}" access`;
+  const access = parseAccessRequirement(value, { authorization }, context);
+  const alternatives = "anyOf" in access ? access.anyOf : [access];
+  for (const alternative of alternatives) {
+    if (
+      "actor" in alternative &&
+      trustedAccessActors.some((actor) => actor === alternative.actor)
+    ) {
+      throw new Error(
+        `${context} actor "${alternative.actor}" is not available to browser presentation.`,
+      );
+    }
   }
 
-  return value;
+  return access as ScreenAccessRequirement;
 }
 
 function parseScreenPath(screenName: string, value: unknown): string | undefined {

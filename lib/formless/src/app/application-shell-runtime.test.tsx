@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, render } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { ReactNode } from "react";
 import type {
@@ -17,6 +17,7 @@ import type { HomeScreenModel } from "../client/views.ts";
 import { bootstrapResponse } from "../test/protocol-builders.ts";
 import { taskSourceSchema } from "../test/schema-apps.ts";
 import { ApplicationShellRuntimeBoundary } from "./application-shell-runtime.tsx";
+import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
 import {
   selectHomeRouteSectionContextRecordId,
   useHomeRouteSelectionStore,
@@ -312,6 +313,70 @@ describe("application shell runtime boundary", () => {
 
     renderer.unmount();
   });
+
+  it("projects Program navigation only from current exact route decisions", async () => {
+    const runtimeProfile = createDevRuntimeProfile();
+    let host: PresentationHost | undefined;
+    let allowedPaths = new Set(["/apps", "/deployments"]);
+    const routeChecks: string[] = [];
+    const dependencies = {
+      resolveRouteAccess: async (path: `/${string}`) => {
+        routeChecks.push(path);
+        return allowedPaths.has(path)
+          ? ({ kind: "authorized" } as const)
+          : ({ kind: "forbidden" } as const);
+      },
+    };
+    const accountSession = {
+      authenticated: true as const,
+      principal: {
+        displayName: "Program administrator",
+        principalId: "principal:administrator",
+      },
+      session: { expiresAt: "2026-07-31T00:00:00.000Z" },
+      setupComplete: true as const,
+    };
+
+    function HostProbe() {
+      host = usePresentationHost();
+      return null;
+    }
+
+    const renderer = render(
+      <ApplicationShellRuntimeBoundary
+        accountSession={accountSession}
+        currentPath="/deployments"
+        dependencies={dependencies}
+        routeWorld={undefined}
+        runtimeProfile={runtimeProfile}
+        screenModels={[]}
+      >
+        <HostProbe />
+      </ApplicationShellRuntimeBoundary>,
+    );
+
+    await waitFor(() => expect(routeChecks).toHaveLength(FORMLESS_PROGRAM_SCREEN_PATHS.length));
+    expect(programDestinationPaths(required(host))).toEqual(["/apps", "/deployments"]);
+
+    allowedPaths = new Set(["/settings"]);
+    renderer.rerender(
+      <ApplicationShellRuntimeBoundary
+        accountSession={accountSession}
+        currentPath="/settings"
+        dependencies={dependencies}
+        routeWorld={undefined}
+        runtimeProfile={runtimeProfile}
+        screenModels={[]}
+      >
+        <HostProbe />
+      </ApplicationShellRuntimeBoundary>,
+    );
+
+    await waitFor(() => expect(routeChecks).toHaveLength(FORMLESS_PROGRAM_SCREEN_PATHS.length * 2));
+    await waitFor(() => expect(programDestinationPaths(required(host))).toEqual(["/settings"]));
+
+    renderer.unmount();
+  });
 });
 
 function readSections(host: PresentationHost) {
@@ -329,6 +394,18 @@ function readSection(host: PresentationHost, sectionId: string) {
   };
 
   return required(host.read(reference));
+}
+
+function programDestinationPaths(host: PresentationHost): string[] {
+  return required(
+    readSections(host).find((section) => section.role === "instance"),
+  ).destinations.map((destination) => {
+    if (destination.kind !== "shellLinkDestination") {
+      throw new Error("Expected Program navigation to contain only links.");
+    }
+
+    return destination.href;
+  });
 }
 
 function rootScreenFixture(): HomeScreenModel {

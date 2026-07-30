@@ -24,6 +24,7 @@ import { selectPrimaryScreenModels, type HomeScreenModel } from "../client/views
 import { todayDateString } from "../shared/date.ts";
 import type {
   AccountLogoutResponse,
+  AccountRedirectTarget,
   AccountSessionStatusResponse,
 } from "../shared/instance-auth.ts";
 import type { RecordValues } from "@dpeek/formless-storage";
@@ -64,6 +65,10 @@ import {
 } from "./runtime-profile.ts";
 import { FORMLESS_PROGRAM_SCHEMA_KEY } from "../program/target.ts";
 import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
+import {
+  resolveProtectedRouteAccess,
+  type ProtectedRouteAccessDecision,
+} from "./protected-route-access.ts";
 
 const ROOT_CREATE_TRIGGER: GeneratedCreateTriggerPresentation = {
   content: { icon: "add", kind: "iconOnly" },
@@ -75,6 +80,10 @@ export type ApplicationShellRuntimeDependencies = {
   fetchAccountSession?: () => Promise<AccountSessionStatusResponse>;
   logout?: () => Promise<AccountLogoutResponse>;
   navigate?: (path: `/${string}`) => void;
+  resolveRouteAccess?: (
+    path: AccountRedirectTarget,
+    signal: AbortSignal,
+  ) => Promise<ProtectedRouteAccessDecision>;
   submitCreate?: (surfaceId: string, values: RecordValues) => Promise<{ recordId: string }>;
 };
 
@@ -138,6 +147,11 @@ function ApplicationShellRuntime({
   const selectionStore = useHomeRouteSelectionStore();
   const normalizedCurrentPath = normalizeRuntimeBrowserPath(currentPath);
   const programRoute = FORMLESS_PROGRAM_SCREEN_PATHS.includes(normalizedCurrentPath);
+  const authorizedProgramScreenPaths = useAuthorizedProgramScreenPaths({
+    active: programRoute,
+    currentPath: normalizedCurrentPath,
+    resolveRouteAccess: dependencies.resolveRouteAccess,
+  });
   const routeTarget = routeWorld
     ? runtimeWorldClientTarget(routeWorld)
     : programRoute
@@ -241,6 +255,7 @@ function ApplicationShellRuntime({
   const projection = projectGeneratedApplicationShell({
     activePackageResolver,
     activeScreenPath: selectedScreenPath,
+    authorizedProgramScreenPaths,
     currentPath,
     installs: installedAppRouteInstalls,
     logoutState,
@@ -449,6 +464,60 @@ function ApplicationShellRuntime({
       {routeWorkspace}
     </ApplicationRuntimeContractHostProvider>
   );
+}
+
+function useAuthorizedProgramScreenPaths({
+  active,
+  currentPath,
+  resolveRouteAccess: resolveRouteAccessOverride,
+}: {
+  active: boolean;
+  currentPath: string;
+  resolveRouteAccess?: ApplicationShellRuntimeDependencies["resolveRouteAccess"];
+}): readonly string[] {
+  const [authorizedPaths, setAuthorizedPaths] = useState<readonly string[]>([]);
+
+  useEffect(() => {
+    if (!active) {
+      setAuthorizedPaths([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    let stopped = false;
+    const resolveRouteAccessForPath =
+      resolveRouteAccessOverride ??
+      ((path: AccountRedirectTarget, signal: AbortSignal) =>
+        resolveProtectedRouteAccess(path, { signal }));
+
+    setAuthorizedPaths([]);
+
+    void Promise.all(
+      FORMLESS_PROGRAM_SCREEN_PATHS.map(async (path) => {
+        try {
+          const decision = await resolveRouteAccessForPath(
+            path as AccountRedirectTarget,
+            controller.signal,
+          );
+
+          return decision.kind === "authorized" ? path : undefined;
+        } catch {
+          return undefined;
+        }
+      }),
+    ).then((paths) => {
+      if (!stopped) {
+        setAuthorizedPaths(paths.filter((path): path is string => path !== undefined));
+      }
+    });
+
+    return () => {
+      stopped = true;
+      controller.abort();
+    };
+  }, [active, currentPath, resolveRouteAccessOverride]);
+
+  return authorizedPaths;
 }
 
 type RootCreateDescriptor = {

@@ -18,6 +18,7 @@ import {
   type AccessRequirement,
   type AppSchema,
   type EntitySchema,
+  type ScreenAccessRequirement,
 } from "@dpeek/formless-schema";
 import {
   formatStoredRecordsForArtifact,
@@ -35,7 +36,14 @@ import {
 
 export * from "./target.ts";
 
-export const formlessProgramSchema = parseAppSchema(rawFormlessProgramSchema);
+export type FormlessProgramScreenRouteTarget = {
+  access: ScreenAccessRequirement;
+  key: string;
+  label: string;
+  path: `/${string}`;
+};
+
+export const formlessProgramSchema = parseFormlessProgramSchemaArtifact(rawFormlessProgramSchema);
 export const FORMLESS_PROGRAM_REPLICA_ACCESS_REQUIREMENT = {
   anyOf: [{ role: "member" }, { actor: "adminBearer" }],
 } as const satisfies AccessRequirement;
@@ -45,6 +53,38 @@ export const FORMLESS_PROGRAM_MANAGEMENT_ACCESS_REQUIREMENT = {
 export const FORMLESS_PROGRAM_SCREEN_PATHS: readonly string[] = formlessProgramSchema.screens
   .map((screen) => screen.path)
   .filter((path): path is `/${string}` => path !== undefined);
+
+export function parseFormlessProgramSchemaArtifact(value: unknown): AppSchema {
+  const schema = parseAppSchema(value);
+
+  assertExplicitFormlessProgramScreenAccess("Formless Program schema", schema);
+
+  return schema;
+}
+
+export function resolveFormlessProgramScreenRouteTarget(
+  pathname: string,
+  schema: AppSchema = formlessProgramSchema,
+): FormlessProgramScreenRouteTarget | undefined {
+  const screen = schema.screens.find((candidate) => candidate.path === pathname);
+
+  if (screen === undefined) {
+    return undefined;
+  }
+
+  assertExplicitFormlessProgramScreenAccess("Formless Program schema", schema);
+
+  if (screen.access === undefined || screen.path === undefined) {
+    throw new Error(`Formless Program schema screen "${screen.key}" is unavailable.`);
+  }
+
+  return {
+    access: screen.access,
+    key: screen.key,
+    label: screen.label,
+    path: screen.path as `/${string}`,
+  };
+}
 
 export type FormlessProgramValidationOptions = {
   packageResolver?: AppPackageResolver;
@@ -350,6 +390,14 @@ function validateUniqueConstraints(
 function assertFormlessProgramSchema(context: string, schema: AppSchema): void {
   if (stringifySchema(schema) !== stringifySchema(formlessProgramSchema)) {
     throw new Error(`${context} schema must match the current Formless Program artifact.`);
+  }
+}
+
+function assertExplicitFormlessProgramScreenAccess(context: string, schema: AppSchema): void {
+  for (const screen of schema.screens) {
+    if (screen.access === undefined) {
+      throw new Error(`${context} screen "${screen.key}" must declare explicit access.`);
+    }
   }
 }
 

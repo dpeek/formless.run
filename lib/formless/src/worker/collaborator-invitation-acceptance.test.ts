@@ -1313,6 +1313,12 @@ describe("collaborator invitation acceptance status", () => {
       invitationId: `invitation:mapped-instance-${unique}`,
       targetEmail,
       targetSurface: "instance",
+      roleAssignments: [
+        {
+          roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+          scopeKind: "program",
+        },
+      ],
       invitedPrincipal: {
         id: `principal:mapped-instance-${unique}`,
         displayName: "Mapped Instance Collaborator",
@@ -1554,6 +1560,10 @@ async function createInvitation(input: {
     primary?: boolean;
     recovery?: boolean;
   };
+  roleAssignments?: Array<{
+    roleId: `role_${string}`;
+    scopeKind: "program";
+  }>;
   targetAppInstallId?: string;
   targetEmail: string;
   targetOrganization?: string;
@@ -1576,6 +1586,7 @@ async function createInvitation(input: {
       ...(input.principalEmail === undefined ? {} : { principalEmail: input.principalEmail }),
       ...(input.memberships === undefined ? {} : { memberships: input.memberships }),
       ...(input.appRegistrations === undefined ? {} : { appRegistrations: input.appRegistrations }),
+      ...(input.roleAssignments === undefined ? {} : { roleAssignments: input.roleAssignments }),
     }),
     headers: adminHeaders({ "Content-Type": "application/json" }),
     method: "POST",

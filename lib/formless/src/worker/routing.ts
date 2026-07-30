@@ -13,10 +13,17 @@ import {
   resolveRuntimeProfileKind,
   runtimeRoutePolicyForProfileKind,
   runtimeTopologyRoutes,
+  stricterRuntimeRouteAccess,
   stringRuntimeConfigValue,
   type RuntimeRouteAccess,
   type RuntimeProfileKind,
 } from "../shared/runtime-topology.ts";
+import { evaluateAccessRequirement } from "@dpeek/formless-schema";
+import {
+  formlessProgramSchema,
+  resolveFormlessProgramScreenRouteTarget,
+  type FormlessProgramScreenRouteTarget,
+} from "../program/runtime.ts";
 import type { InstanceRuntimeRouteResolution } from "./instance-runtime-routes.ts";
 
 export type WorkerRuntimeProfileInput = {
@@ -70,10 +77,27 @@ export type ProtectedBrowserRouteSessionFact =
   | "unread";
 
 export type ProtectedBrowserRouteDecision =
-  | { kind: "account-completion"; requiredAccess: Exclude<RuntimeRouteAccess, "anonymous"> }
+  | {
+      kind: "account-completion";
+      requiredAccess: Exclude<RuntimeRouteAccess, "anonymous">;
+    }
   | { kind: "authenticate"; requiredAccess: Exclude<RuntimeRouteAccess, "anonymous"> }
   | { kind: "continue" }
-  | { kind: "validate-session"; requiredAccess: Exclude<RuntimeRouteAccess, "anonymous"> };
+  | {
+      kind: "validate-session";
+      programScreen?: ProgramScreenRouteTarget;
+      requiredAccess: Exclude<RuntimeRouteAccess, "anonymous">;
+    };
+
+export type ProgramScreenRouteTarget = FormlessProgramScreenRouteTarget & {
+  requiredAccess: RuntimeRouteAccess;
+  routeAccess: RuntimeRouteAccess;
+};
+
+export type ProtectedBrowserRouteTarget = {
+  programScreen?: ProgramScreenRouteTarget;
+  requiredAccess: Exclude<RuntimeRouteAccess, "anonymous">;
+};
 
 export type MappedAuthOriginRouteDecision =
   | { kind: "continue" }
@@ -193,16 +217,20 @@ export function protectedBrowserRouteDecisionFromFacts(input: {
     return { kind: "continue" };
   }
 
-  const routeAccess = ownerBrowserRouteAccessFromFacts(input.topology, input.runtimeRoute);
+  const target = resolveProtectedBrowserRouteTargetFromFacts(input);
 
-  if (routeAccess === "anonymous" || input.session === "allowed") {
+  if (target === undefined || input.session === "allowed") {
     return { kind: "continue" };
   }
 
-  const requiredAccess = routeAccess;
+  const { programScreen, requiredAccess } = target;
 
   if (input.session === "unread") {
-    return { kind: "validate-session", requiredAccess };
+    return {
+      kind: "validate-session",
+      ...(programScreen === undefined ? {} : { programScreen }),
+      requiredAccess,
+    };
   }
 
   if (input.session === "account-completion-required") {
@@ -210,6 +238,64 @@ export function protectedBrowserRouteDecisionFromFacts(input: {
   }
 
   return { kind: "authenticate", requiredAccess };
+}
+
+export function resolveProtectedBrowserRouteTargetFromFacts(input: {
+  runtimeRoute?: InstanceRuntimeRouteResolution;
+  topology: WorkerRuntimeRequestTopology;
+}): ProtectedBrowserRouteTarget | undefined {
+  const programScreen = resolveProgramScreenRouteTargetFromFacts(input);
+  const routeAccess =
+    programScreen?.requiredAccess ??
+    ownerBrowserRouteAccessFromFacts(input.topology, input.runtimeRoute);
+
+  if (routeAccess === "anonymous") {
+    return undefined;
+  }
+
+  return {
+    ...(programScreen === undefined ? {} : { programScreen }),
+    requiredAccess: routeAccess,
+  };
+}
+
+export function resolveProgramScreenRouteTargetFromFacts(input: {
+  runtimeRoute?: InstanceRuntimeRouteResolution;
+  topology: Pick<WorkerRuntimeRequestTopology, "pathname" | "profileKind">;
+}): ProgramScreenRouteTarget | undefined {
+  const mountRoute = input.runtimeRoute?.kind === "mount" ? input.runtimeRoute : undefined;
+
+  if (input.runtimeRoute !== undefined && mountRoute === undefined) {
+    return undefined;
+  }
+
+  if (mountRoute !== undefined && mountRoute.targetProfile !== "instance") {
+    return undefined;
+  }
+
+  if (
+    mountRoute === undefined &&
+    input.topology.profileKind !== "instance" &&
+    input.topology.profileKind !== "dev"
+  ) {
+    return undefined;
+  }
+
+  const screen = resolveFormlessProgramScreenRouteTarget(input.topology.pathname);
+
+  if (screen === undefined) {
+    return undefined;
+  }
+
+  const routeAccess = mountRoute?.access ?? "anonymous";
+  const screenAccess =
+    evaluateProgramScreenAccessForAnonymous(screen) === true ? "anonymous" : "authenticated";
+
+  return {
+    ...screen,
+    requiredAccess: stricterRuntimeRouteAccess(routeAccess, screenAccess),
+    routeAccess,
+  };
 }
 
 export function workerRuntimeRoutePolicy(
@@ -428,6 +514,11 @@ export function ownerBrowserRouteAccessFromFacts(
   runtimeRoute?: InstanceRuntimeRouteResolution,
 ): RuntimeRouteAccess {
   const mountRoute = runtimeRoute?.kind === "mount" ? runtimeRoute : undefined;
+  const programScreen = resolveProgramScreenRouteTargetFromFacts({ runtimeRoute, topology });
+
+  if (programScreen !== undefined) {
+    return programScreen.requiredAccess;
+  }
 
   if (mountRoute?.matchHost !== undefined) {
     return mountRoute.access;
@@ -444,21 +535,17 @@ export function ownerBrowserRouteAccessFromFacts(
     return mountRoute.access;
   }
 
-  if (
-    topology.pathname === runtimeTopologyRoutes.accessRoute ||
-    topology.pathname === runtimeTopologyRoutes.instanceRootRoute
-  ) {
-    return "management";
-  }
-
-  if (
-    topology.pathname === runtimeTopologyRoutes.appRouteBase ||
-    topology.pathname.startsWith(`${runtimeTopologyRoutes.appRouteBase}/`)
-  ) {
+  if (topology.pathname.startsWith(`${runtimeTopologyRoutes.appRouteBase}/`)) {
     return "owner";
   }
 
   return "anonymous";
+}
+
+function evaluateProgramScreenAccessForAnonymous(
+  screen: FormlessProgramScreenRouteTarget,
+): boolean {
+  return evaluateAccessRequirement(screen.access, { kind: "anonymous" }, formlessProgramSchema);
 }
 
 export function publishedSiteRedirectForRequest(

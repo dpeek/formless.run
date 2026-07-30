@@ -104,8 +104,8 @@ shell.
   default
 - **AND** custom domain management shows desired route state and provider applied
   evidence separately
-- **AND** instance-level navigation does not include a standalone deployments,
-  provider, or workspace sync destination
+- **AND** deployment navigation comes only from the schema-owned Program screen
+  while provider and workspace sync do not become standalone destinations
 - **AND** deployed instance profiles or profiles without an available local
   workspace gateway proxy do not show workspace operation controls
 - **AND** Cloudflare API tokens and Alchemy secret values are not exposed to the
@@ -275,6 +275,25 @@ The system SHALL render generated screens from screen models and collection sect
   sidebar screen subset
 - AND the sidebar title is the app label
 
+#### Scenario: Authorized Program navigation
+
+- GIVEN the active Program schema declares ordered primary screens with
+  explicit access requirements
+- WHEN generated runtime projects Program navigation for the current browser
+  session
+- THEN it includes only destinations whose concrete route target is currently
+  authorized by the server
+- AND destination order and paths remain owned by the materialized Program
+  schema
+- AND omitted destinations remain unavailable through client-side navigation
+  while direct navigation returns the same forbidden outcome
+- AND navigation filtering is a usability boundary rather than a record-secrecy
+  boundary because every authenticated `member`, `editor`, `administrator`, or
+  protected owner admitted to Program sync receives the complete reviewable
+  Program replica
+- AND screen keys, module keys, schema keys, paths, and cached client role facts
+  are not treated as authorization grants
+
 #### Scenario: Schema path app screen
 
 - GIVEN an app schema declares a screen with path `/schema`
@@ -284,21 +303,25 @@ The system SHALL render generated screens from screen models and collection sect
 
 #### Scenario: Protected screen route guard
 
-- GIVEN a generated app route has effective access `owner`, `management`, or
-  `authenticated` with a required app role from its mounted route, selected
-  schema screen, or both
+- GIVEN a generated route selects a protected schema screen
+- AND its effective admission combines profile eligibility, matched mount route
+  access, and the selected screen's browser access requirement
 - WHEN a browser without the required current authority navigates to that route
 - THEN generated UI does not render the screen workspace
-- AND the runtime account continuation or role-review behavior handles the
-  browser route without treating every protected route as owner-only
+- AND an unauthenticated browser enters the runtime account continuation while
+  an authenticated but insufficient browser receives a display-safe forbidden
+  outcome without restarting sign-in
 - AND app record sync, push connection, or protected screen data loading does
   not start before the exact route access check resolves
-- AND client-side navigation uses the same instance-auth route requirement as
-  initial Worker browser routing
+- AND initial Worker entry, mapped-host entry, direct browser entry, and
+  client-side navigation use the same current instance-auth route decision
+- AND client-side routing does not infer admission from a previously synced
+  role assignment or cached session claim
 
 #### Scenario: Anonymous screen route
 
-- GIVEN a generated app route has effective access `anonymous`
+- GIVEN a generated app route and its selected screen both admit the anonymous
+  browser actor
 - WHEN an anonymous browser navigates to that route
 - THEN generated UI can render the selected screen without an owner session
 - AND operation and management controls still use their existing write and
@@ -2424,22 +2447,26 @@ that covers instance paths, host mappings, public Site routes, and redirects.
 - **AND** browser UI does not expose multiple deployment targets, target ids,
   enabled target counts, or route-to-target assignment controls
 
-### Requirement: No Standalone Deployment Surface
+### Requirement: Schema-Owned Program Deployment Surface
 
-The product instance shell SHALL not expose deployment as a standalone browser
-destination or public workflow.
+The product instance shell SHALL expose deployment presentation only through
+the schema-owned Program screen and its independently authorized operations.
 
-#### Scenario: Deployment route is unavailable
+#### Scenario: Program deployment route
 
-- **WHEN** an owner opens `/deployments` or reviews instance-level navigation
-  and overview entry points
-- **THEN** React routing does not select a deployment surface
-- **AND** instance-level navigation and overview entry points do not link to
-  `/deployments`
-- **AND** deployment setup, deployment status, desired-state summaries,
-  deployment operation controls, deployment config management tables, routes
-  grouped by deployment config, primary instance target summaries, and provider
-  cleanup panels are not rendered as standalone browser surfaces
+- **GIVEN** the active Program schema declares the `deployments` screen and
+  includes it in primary navigation
+- **WHEN** a Program administrator or protected owner opens `/deployments`
+- **THEN** React routing selects the generated Program deployment workspace
+- **AND** the destination is omitted for a principal that cannot satisfy the
+  screen's explicit administrator requirement
+- **AND** direct route admission uses the same current server decision as
+  client navigation
+- **AND** deployment operations, provider cleanup, credential handling, and
+  recovery behavior retain their own operation and private-runtime
+  authorization boundaries
+- **AND** the shell does not maintain a second bespoke deployment destination
+  outside Program schema navigation
 
 #### Scenario: Sync controls stay local to workspace operations
 

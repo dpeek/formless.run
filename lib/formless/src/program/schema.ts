@@ -12,18 +12,20 @@ import {
   type AppSchemaSource,
 } from "@dpeek/formless-schema";
 
+const programAdministratorScreenAccess = { role: "administrator" } as const;
+
 export const formlessInstanceControlPlanePresentationSchemaModule = defineAppSchemaModule({
   ...instanceControlPlanePresentationSchemaModule,
-  screens: instanceControlPlanePresentationSchemaModule.screens.filter(
-    (screen) => screen.key !== "apps",
-  ),
+  screens: instanceControlPlanePresentationSchemaModule.screens
+    .filter((screen) => screen.key !== "apps")
+    .map((screen) => ({ ...screen, access: programAdministratorScreenAccess })),
 });
 
 export const formlessIdentityControlPlanePresentationSchemaModule = defineAppSchemaModule({
   ...identityControlPlanePresentationSchemaModule,
-  screens: identityControlPlanePresentationSchemaModule.screens.filter(
-    (screen) => screen.key !== "apps",
-  ),
+  screens: identityControlPlanePresentationSchemaModule.screens
+    .filter((screen) => screen.key !== "apps")
+    .map((screen) => ({ ...screen, access: programAdministratorScreenAccess })),
 });
 
 export const formlessProgramPresentationSchemaModule = defineAppSchemaModule({
@@ -35,6 +37,7 @@ export const formlessProgramPresentationSchemaModule = defineAppSchemaModule({
       type: "workspace",
       label: "Apps",
       path: "/apps",
+      access: programAdministratorScreenAccess,
       layout: {
         type: "stack",
         sections: [

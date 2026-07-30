@@ -72,6 +72,7 @@ export type GeneratedApplicationShellProjection = {
 export type ProjectGeneratedApplicationShellOptions = {
   activePackageResolver?: AppPackageResolver | undefined;
   activeScreenPath?: string | undefined;
+  authorizedProgramScreenPaths?: readonly string[] | undefined;
   currentPath: string;
   installs?: readonly AppInstall[] | undefined;
   logoutState?: GeneratedShellLogoutState | undefined;
@@ -387,6 +388,7 @@ export function selectGeneratedShellActiveDestination(
 export function projectGeneratedApplicationShell({
   activePackageResolver,
   activeScreenPath,
+  authorizedProgramScreenPaths = [],
   currentPath,
   installs = [],
   logoutState = "idle",
@@ -430,7 +432,7 @@ export function projectGeneratedApplicationShell({
     });
 
     if (instanceSelected) {
-      sections.push(instanceSection(currentPath));
+      sections.push(instanceSection(currentPath, authorizedProgramScreenPaths));
     }
   }
 
@@ -514,14 +516,18 @@ export function generatedShellRootSectionId(
   return `${GENERATED_APPLICATION_SHELL_ID}:roots:${screenName}:${sectionId}:${queryName}`;
 }
 
-function instanceSection(currentPath: string): ShellNavigationSectionContract {
+function instanceSection(
+  currentPath: string,
+  authorizedProgramScreenPaths: readonly string[],
+): ShellNavigationSectionContract {
   const path = normalizeRuntimeBrowserPath(currentPath);
+  const authorizedPaths = new Set(authorizedProgramScreenPaths);
   const screens = new Map(formlessProgramSchema.screens.map((screen) => [screen.key, screen]));
   const destinations = (formlessProgramSchema.navigation?.primaryScreens ?? [])
     .map((screenKey) => screens.get(screenKey))
     .filter(
       (screen): screen is NonNullable<typeof screen> & { path: `/${string}` } =>
-        screen?.path !== undefined,
+        screen?.path !== undefined && authorizedPaths.has(screen.path),
     )
     .map((screen) => ({
       href: screen.path,

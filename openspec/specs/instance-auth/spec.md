@@ -526,14 +526,20 @@ sessions, local-dev owner sessions, and mapped host-local sessions.
 
 #### Scenario: Session status evaluates a protected route target
 
-- GIVEN client-side navigation selects an instance management route or an
-  installed app route with a required role
+- GIVEN client-side navigation selects a Program screen, an instance management
+  route, or an installed app route with a required role
 - WHEN the browser requests session status for that resolved route target
-- THEN instance auth evaluates the current principal, authority, role scope,
-  session version, route, app install, storage identity, and host binding
+- THEN instance auth evaluates the current principal, protected owner
+  authority, Program role assignment, app-install role scope, session version,
+  route, selected Program screen requirement, app install, storage identity,
+  and host binding as applicable
 - AND the response reports whether that exact route target is authorized
 - AND the client does not infer management or app access from stale role claims
-  stored in a cookie or from authentication alone
+  stored in a cookie, a previously synced Program replica, or authentication
+  alone
+- AND an unauthenticated target returns account-continuation facts while an
+  authenticated principal with insufficient authority receives a display-safe
+  forbidden result without a repeated sign-in continuation
 
 #### Scenario: Logout clears auth-origin session
 
@@ -1583,13 +1589,71 @@ owner-only recovery authority.
 
 - GIVEN a browser session resolves to an active principal with active
   `administrator` Program role
-- WHEN the principal opens the instance settings surface, app install and route
-  management, or `/access`
-- THEN management route access accepts the request
+- WHEN the principal opens Apps, Routes, Deployments, Principals,
+  Organizations, Access, Invitations, Policies, or Settings in the current
+  Program
+- THEN the selected screen's explicit `{ role: "administrator" }` requirement
+  accepts the request
 - AND backing operational management APIs apply their Program-administrator
   grant limits
 - AND the principal does not receive access to installed app data without a
   separate matching app-install role
+
+### Requirement: Schema-Owned Program Screen Authorization
+
+The system SHALL authorize Program presentation from each selected screen's
+browser access requirement without turning replica admission, navigation
+identity, or module identity into route authority.
+
+#### Scenario: Apply the Program presentation role ladder
+
+- GIVEN a Program screen declares an ordinary role requirement
+- WHEN an active principal requests that screen
+- THEN a `{ role: "member" }` screen admits `member`, `editor`,
+  `administrator`, and protected owner authority
+- AND a `{ role: "editor" }` screen admits `editor`, `administrator`, and
+  protected owner authority
+- AND a `{ role: "administrator" }` screen admits `administrator` and
+  protected owner authority
+- AND an `{ actor: "owner" }` screen admits only protected owner authority
+- AND member-level complete Program replica access does not satisfy a screen
+  requiring editor, administrator, or owner authority
+
+#### Scenario: Combine screen and mounted route requirements
+
+- GIVEN runtime topology selects a Program screen through the default instance
+  host or an enabled mapped instance route
+- WHEN browser admission is evaluated
+- THEN profile and mapped-route eligibility are evaluated first
+- AND the browser must satisfy both the matched route access floor and the
+  selected screen access requirement
+- AND a screen cannot weaken an authenticated, management, or owner route floor
+- AND the default instance host derives Program presentation admission from
+  the selected screen instead of a hard-coded path list
+
+#### Scenario: Keep Program screen authorization current
+
+- GIVEN a central, local-owner, or matching host-local session previously
+  opened a Program screen
+- WHEN the principal is disabled, its Program role assignment changes, owner
+  authority is removed, the session is revoked, or the host target no longer
+  matches
+- THEN later direct entry, client navigation, route-target session status, and
+  protected screen loading re-evaluate current authority
+- AND signed cookie facts, cached client role assignments, schema screen keys,
+  module keys, and navigation membership do not retain authorization
+
+#### Scenario: Keep operation and owner recovery authorization separate
+
+- GIVEN a principal is admitted to a Program screen
+- WHEN the screen presents entity operations, security-sensitive controls, or
+  owner recovery behavior
+- THEN each operation still applies its own schema access requirement and
+  runtime grant limits
+- AND owner credential recovery, owner-role changes, auth-origin policy,
+  browser session signing policy, admin-bearer recovery material, credentials,
+  token hashes, provider secrets, and private session state do not become
+  available through screen admission
 
 ### Requirement: Principal-Backed App Admin Authorization
 
