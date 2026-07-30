@@ -4,10 +4,11 @@ import {
   ARCHIVE_VERSION,
   INSTANCE_ARCHIVE_KIND,
   formatAppArchive,
-  formatInstanceArchive,
+  formatInstanceArchive as formatInstanceArchiveWithContract,
   parseAppArchive,
-  parseInstanceArchive,
-  parsePortableArchive,
+  parseInstanceArchive as parseInstanceArchiveWithContract,
+  parsePortableArchive as parsePortableArchiveWithContract,
+  type ArchiveControlPlaneValidationOptions,
   type AppArchive,
   type AppArchiveMediaObject,
   type InstanceArchive,
@@ -22,7 +23,9 @@ import {
 import {
   INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
   INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+  canonicalizeInstanceControlPlaneStorageSnapshot,
   instanceControlPlaneSchema,
+  parseInstanceControlPlaneStorageSnapshot,
 } from "@dpeek/formless-instance-control-plane";
 import { parseAppSchema } from "@dpeek/formless-schema";
 
@@ -37,6 +40,39 @@ const archivePackageResolver = createAppPackageResolver([
     sourceSchemaHash: siteSourceSchemaHash,
   }),
 ]);
+
+function archiveOptions(
+  options: ArchiveControlPlaneValidationOptions = {},
+): ArchiveControlPlaneValidationOptions {
+  return {
+    ...options,
+    controlPlaneSnapshotContract: {
+      canonicalize: (snapshot) =>
+        canonicalizeInstanceControlPlaneStorageSnapshot(snapshot, {
+          packageResolver: options.packageResolver,
+        }),
+      parse: (context, value) =>
+        parseInstanceControlPlaneStorageSnapshot(context, value, {
+          packageResolver: options.packageResolver,
+        }),
+    },
+  };
+}
+
+function parsePortableArchive(value: unknown, options: ArchiveControlPlaneValidationOptions = {}) {
+  return parsePortableArchiveWithContract(value, archiveOptions(options));
+}
+
+function parseInstanceArchive(value: unknown, options: ArchiveControlPlaneValidationOptions = {}) {
+  return parseInstanceArchiveWithContract(value, archiveOptions(options));
+}
+
+function formatInstanceArchive(
+  archive: InstanceArchive,
+  options: ArchiveControlPlaneValidationOptions = {},
+) {
+  return formatInstanceArchiveWithContract(archive, archiveOptions(options));
+}
 const siteSourceSchema = parseAppSchema({
   version: 1,
   entities: [

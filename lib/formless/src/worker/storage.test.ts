@@ -47,6 +47,103 @@ afterAll(async () => {
   }
 });
 describe("storage", () => {
+  it("imports legacy records once at the Program convergence boundary without copying its cursor", async () => {
+    const survivor = record("survivor", "Surviving record", {
+      createdAt: "2026-07-01T00:00:00.000Z",
+      updatedAt: "2026-07-02T00:00:00.000Z",
+    });
+    const imported = record("imported", "Imported identity record", {
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-02T00:00:00.000Z",
+    });
+    const tombstoned = {
+      ...record("imported-tombstone", "Imported tombstone", {
+        createdAt: "2026-05-01T00:00:00.000Z",
+        updatedAt: "2026-05-03T00:00:00.000Z",
+        values: { title: "Imported tombstone", done: true },
+      }),
+      deletedAt: "2026-05-03T00:00:00.000Z",
+    };
+    const result = await postJson<{
+      changes: ChangeRow[];
+      evidence: {
+        importedRecordCount: number;
+        sourceCursor: number;
+        sourceSchemaUpdatedAt: string;
+      };
+      records: StoredRecord[];
+      repeatedEvidence: unknown;
+      schema: StoredSchema;
+    }>("/program-converge", {
+      importedRecords: [imported, tombstoned],
+      sourceCursor: 41,
+      sourceSchemaUpdatedAt: "2026-06-03T00:00:00.000Z",
+      survivorRecords: [survivor],
+    });
+
+    expect(result.records).toHaveLength(3);
+    expect(result.records).toEqual(expect.arrayContaining([survivor, imported, tombstoned]));
+    expect(result.evidence).toMatchObject({
+      importedRecordCount: 2,
+      sourceCursor: 41,
+      sourceSchemaUpdatedAt: "2026-06-03T00:00:00.000Z",
+    });
+    expect(result.repeatedEvidence).toEqual(result.evidence);
+    expect(result.changes).toHaveLength(3);
+    expect(result.changes.map((change) => change.recordId)).toEqual([
+      "survivor",
+      "imported",
+      "imported-tombstone",
+    ]);
+    expect(result.changes.at(-1)?.seq).toBe(3);
+    expect(result.schema.schemaProvenance).toEqual({
+      kind: "program",
+      sourceSchemaHash: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    });
+  });
+
+  it("leaves survivor storage unchanged when Program convergence preflight finds an id collision", async () => {
+    const survivor = record("collision", "Survivor");
+    const response = await fetchStorage("/program-converge", {
+      body: JSON.stringify({
+        importedRecords: [record("collision", "Imported")],
+        sourceCursor: 7,
+        survivorRecords: [survivor],
+      }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+    const body = (await response.json()) as {
+      changes: ChangeRow[];
+      error: string;
+      evidence: unknown;
+      records: StoredRecord[];
+    };
+
+    expect(response.status).toBe(409);
+    expect(body.error).toBe(
+      'Program convergence record id collision: "collision" exists in both control-plane Authorities.',
+    );
+    expect(body.records).toEqual([survivor]);
+    expect(body.changes).toHaveLength(1);
+    expect(body.evidence).toBeNull();
+  });
+
+  it("reads immutable legacy convergence state without parsing its source schema shape", async () => {
+    const legacy = record("legacy", "Legacy identity record");
+    const result = await postJson<{
+      cursor: number;
+      records: StoredRecord[];
+      schemaUpdatedAt: string;
+    }>("/program-convergence-source-state", { records: [legacy] });
+
+    expect(result).toEqual({
+      cursor: 1,
+      records: [legacy],
+      schemaUpdatedAt: "2026-07-01T00:00:00.000Z",
+    });
+  });
+
   it("seeds the active schema when storage is empty", async () => {
     const stored = await getJson<{
       schema: AppSchema;
@@ -1360,6 +1457,7 @@ async function writeStorageHarness() {
         ActiveSchemaRefreshBlockedError,
         createStoredRecord,
         createStoredRecordOutcome,
+        convergeProgramStorage,
         deleteStoredRecord,
         ensureStorageTables,
         exportStorageSnapshot,
@@ -1374,7 +1472,10 @@ async function writeStorageHarness() {
         applyPackageAppMigrationsOutcome,
         readAppliedPackageAppMigrations,
         readCurrentStoredSchema,
+        readInitializedStorageState,
         readPackageAppMigrationState,
+        readProgramConvergenceSourceState,
+        readProgramConvergenceEvidence,
         resetStorageSchemaToSource,
         resetStorageToEmpty,
         restoreStorageSnapshot,
@@ -1858,6 +1959,107 @@ async function writeStorageHarness() {
                 { status: 500 },
               );
             }
+          }
+
+          if (request.method === "POST" && url.pathname === "/program-converge") {
+            const body = await request.json();
+            const source = {
+              schema: seedSchema,
+              schemaKey: "formless-program",
+              schemaProvenance: {
+                kind: "program",
+                sourceSchemaHash: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+              },
+              storageIdentity: "instance:control-plane",
+            };
+
+            resetStorageToEmpty(this.ctx.storage);
+            restoreStorageSnapshot(this.ctx.storage, {
+              kind: "formless.storageSnapshot",
+              version: 1,
+              storageIdentity: "instance:control-plane",
+              schemaKey: "formless-program",
+              exportedAt: "2026-07-01T00:00:00.000Z",
+              schemaUpdatedAt: "2026-07-01T00:00:00.000Z",
+              sourceCursor: body.survivorRecords.length,
+              schema: seedSchema,
+              records: body.survivorRecords,
+            });
+
+            try {
+              const evidence = convergeProgramStorage(this.ctx.storage, {
+                importedRecords: body.importedRecords,
+                source,
+                sourceCursor: body.sourceCursor,
+                ...(body.sourceSchemaUpdatedAt === undefined
+                  ? {}
+                  : { sourceSchemaUpdatedAt: body.sourceSchemaUpdatedAt }),
+                validate: () => undefined,
+              });
+              const repeatedEvidence = convergeProgramStorage(this.ctx.storage, {
+                importedRecords: body.importedRecords,
+                source,
+                sourceCursor: body.sourceCursor,
+                validate: () => {
+                  throw new Error("Idempotent convergence must not revalidate.");
+                },
+              });
+
+              return Response.json({
+                changes: getChangesAfter(this.ctx.storage, 0),
+                evidence,
+                records: readInitializedStorageState(this.ctx.storage).records,
+                repeatedEvidence,
+                schema: readCurrentStoredSchema(this.ctx.storage),
+              });
+            } catch (error) {
+              return Response.json(
+                {
+                  changes: getChangesAfter(this.ctx.storage, 0),
+                  error: error instanceof Error ? error.message : "Unknown error.",
+                  evidence: readProgramConvergenceEvidence(this.ctx.storage) ?? null,
+                  records: readInitializedStorageState(this.ctx.storage).records,
+                },
+                { status: 409 },
+              );
+            }
+          }
+
+          if (
+            request.method === "POST" &&
+            url.pathname === "/program-convergence-source-state"
+          ) {
+            const body = await request.json();
+
+            resetStorageToEmpty(this.ctx.storage);
+            restoreStorageSnapshot(this.ctx.storage, {
+              kind: "formless.storageSnapshot",
+              version: 1,
+              storageIdentity: "instance:identity",
+              schemaKey: "instance-identity",
+              exportedAt: "2026-07-01T00:00:00.000Z",
+              schemaUpdatedAt: "2026-07-01T00:00:00.000Z",
+              sourceCursor: body.records.length,
+              schema: seedSchema,
+              records: body.records,
+            });
+            this.ctx.storage.sql.exec(
+              "UPDATE app_schema SET schema_json = ?, updated_at = ? WHERE id = 1",
+              JSON.stringify({
+                version: 1,
+                entities: {
+                  task: {
+                    label: "Task",
+                    fields: {
+                      title: { type: "text", label: "Title" },
+                    },
+                  },
+                },
+              }),
+              "2026-07-01T00:00:00.000Z",
+            );
+
+            return Response.json(readProgramConvergenceSourceState(this.ctx.storage));
           }
 
           if (request.method === "POST" && url.pathname === "/package-migrations/apply") {

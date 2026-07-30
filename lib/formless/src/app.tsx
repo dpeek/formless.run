@@ -65,7 +65,7 @@ import {
 } from "./shared/runtime-topology.ts";
 import type { WorkspaceLinkActionContract } from "@dpeek/formless-presentation/contract";
 import { initialInstanceManagementRuntimeContribution } from "./app/routes/instance-management-contract.ts";
-import { initialInstanceAccessRuntimeContribution } from "./app/routes/access-contract.ts";
+import { FORMLESS_PROGRAM_SCREEN_PATHS } from "./program/runtime.ts";
 import { projectApplicationSystemState } from "./app/routes/application-system-state-projection.ts";
 import { ApplicationSystemStateRuntime } from "./app/routes/application-system-state-runtime.tsx";
 import { useApplicationRootThemeRuntime } from "./app/application-root-context.tsx";
@@ -209,14 +209,11 @@ export function App({
   );
   const normalizedLocation = normalizeRuntimeBrowserPath(location);
   const initialRouteContractContributions = useMemo(() => {
-    if (browserRoutes.instanceAccessRoute === normalizedLocation) {
-      return [initialInstanceAccessRuntimeContribution];
-    }
-    if (browserRoutes.instanceShellRoute === normalizedLocation) {
+    if (normalizedLocation === "/apps" || normalizedLocation === "/routes") {
       return [initialInstanceManagementRuntimeContribution];
     }
     return [];
-  }, [browserRoutes.instanceAccessRoute, browserRoutes.instanceShellRoute, normalizedLocation]);
+  }, [normalizedLocation]);
   const localWorkspaceGatewayAvailable = useLocalWorkspaceGatewayAvailable(
     localWorkspaceGatewayAvailableProp,
     routeMayNeedLocalWorkspaceGateway(browserRoutes, normalizedLocation),
@@ -406,7 +403,10 @@ function routeMayNeedLocalWorkspaceGateway(
   routes: ReturnType<typeof runtimeBrowserRoutePatterns>,
   path: string,
 ): boolean {
-  return path === routes.localSessionRoute || path === routes.instanceShellRoute;
+  return (
+    path === routes.localSessionRoute ||
+    (routes.instanceShellRoute !== undefined && FORMLESS_PROGRAM_SCREEN_PATHS.includes(path))
+  );
 }
 
 function AppRoutes({
@@ -421,7 +421,6 @@ function AppRoutes({
   runtimeProfile: RuntimeProfile;
 }) {
   const {
-    AccessRoute,
     AuthAccountRoute,
     CollaboratorInvitationAcceptanceRoute,
     HomeRoute,
@@ -479,13 +478,17 @@ function AppRoutes({
           </ProtectedRouteGuard>
         </Route>
       ) : null}
-      {browserRoutes.instanceAccessRoute ? (
-        <Route path={browserRoutes.instanceAccessRoute}>
-          <ProtectedRouteGuard access="management">
-            <AccessRoute />
-          </ProtectedRouteGuard>
-        </Route>
-      ) : null}
+      {browserRoutes.instanceShellRoute
+        ? FORMLESS_PROGRAM_SCREEN_PATHS.filter((path) => path !== "/").map((path) => (
+            <Route key={path} path={path}>
+              <ProtectedRouteGuard access="management">
+                <InstanceShellRoute
+                  localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
+                />
+              </ProtectedRouteGuard>
+            </Route>
+          ))
+        : null}
       {publishedSite ? (
         <Route path={publishedSite.rootRoute}>
           <PublicSiteRoute
@@ -965,7 +968,7 @@ async function ownerRouteSessionIsAuthorized(fetcher: typeof fetch, signal: Abor
 }
 
 async function managementRouteSessionIsAuthorized(fetcher: typeof fetch, signal: AbortSignal) {
-  const response = await fetcher("/api/formless/control-plane/bootstrap", {
+  const response = await fetcher("/api/formless/program/bootstrap", {
     credentials: "same-origin",
     headers: { Accept: "application/json" },
     signal,

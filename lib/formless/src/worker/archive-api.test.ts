@@ -6,7 +6,7 @@ import {
   INSTANCE_ARCHIVE_KIND,
   type AppArchive,
   type InstanceArchive,
-} from "@dpeek/formless-archive";
+} from "../program/archive.ts";
 import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
 import {
   FormlessSitePageRenderer,
@@ -14,12 +14,12 @@ import {
 } from "@dpeek/formless-renderer/site/renderer";
 import { renderPublishedSiteDocumentResponse } from "@dpeek/formless-site-app/worker";
 import type { AppInstall } from "@dpeek/formless-installed-apps";
+import { instanceControlPlaneRecordsForAppInstall } from "@dpeek/formless-instance-control-plane";
+import { formlessProgramSchema } from "../program/runtime.ts";
 import {
-  INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  instanceControlPlaneRecordsForAppInstall,
-  instanceControlPlaneSchema,
-} from "@dpeek/formless-instance-control-plane";
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import type { AppInstallsResponse, BootstrapResponse } from "../shared/protocol.ts";
@@ -314,7 +314,7 @@ describe("instance archive restore API", () => {
       "/api/app-installs/site/personal/bootstrap",
     );
     const controlPlane = await getJson<BootstrapResponse>(
-      "/api/formless/control-plane/bootstrap?actorKind=owner",
+      "/api/formless/program/bootstrap?actorKind=owner",
     );
     const serializedControlPlane = JSON.stringify(controlPlane.body);
 
@@ -486,7 +486,7 @@ describe("instance archive restore API", () => {
 async function resetWorkerState() {
   await restoreTestStorageSnapshot(
     harness,
-    "/api/formless/control-plane/snapshot/restore",
+    "/api/formless/program/snapshot/restore",
     instanceControlPlaneTestStorageSnapshot(),
     { Authorization: `Bearer ${adminToken}` },
   );
@@ -557,9 +557,11 @@ async function getJson<T>(path: string) {
   const response = await harness.fetch(path, {
     headers: { Authorization: `Bearer ${adminToken}` },
   });
+  const body = await response.json();
+  expect(response.status, JSON.stringify(body)).toBe(200);
 
   return {
-    body: (await response.json()) as T,
+    body: body as T,
     response,
   };
 }
@@ -614,12 +616,12 @@ function controlPlaneInstanceArchive(input: { dryRun: boolean }): InstanceArchiv
     controlPlane: {
       kind: STORAGE_SNAPSHOT_KIND,
       version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-      schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
+      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
       exportedAt: "2026-05-12T00:00:00.000Z",
       schemaUpdatedAt: "2026-05-12T00:00:00.000Z",
       sourceCursor: controlPlaneArchiveRecords().length,
-      schema: instanceControlPlaneSchema,
+      schema: formlessProgramSchema,
       records: controlPlaneArchiveRecords(),
     },
   };
@@ -651,12 +653,12 @@ function exactTasksInstanceArchive(input: {
     controlPlane: {
       kind: STORAGE_SNAPSHOT_KIND,
       version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-      schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
+      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
       exportedAt: now,
       schemaUpdatedAt: now,
       sourceCursor: 1,
-      schema: instanceControlPlaneSchema,
+      schema: formlessProgramSchema,
       records: instanceControlPlaneRecordsForAppInstall({
         install: tasksInstall(),
         now,

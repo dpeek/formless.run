@@ -14,10 +14,6 @@ import {
   type SourceSchemaHash,
 } from "@dpeek/formless-installed-apps";
 import {
-  canonicalizeInstanceControlPlaneStorageSnapshot,
-  parseInstanceControlPlaneStorageSnapshot,
-} from "@dpeek/formless-instance-control-plane";
-import {
   STORAGE_SNAPSHOT_KIND,
   formatStoredRecordsForArtifact,
   parseStorageSnapshot,
@@ -109,7 +105,13 @@ export type InstanceArchive = {
 export type PortableArchive = InstanceArchive | AppArchive;
 
 export type ArchiveControlPlaneValidationOptions = {
+  controlPlaneSnapshotContract?: ArchiveControlPlaneSnapshotContract;
   packageResolver?: AppPackageResolver;
+};
+
+export type ArchiveControlPlaneSnapshotContract = {
+  canonicalize: (snapshot: StorageSnapshot) => StorageSnapshot;
+  parse: (context: string, value: unknown) => StorageSnapshot;
 };
 
 const archiveCapabilitySet = new Set<string>(archiveCapabilities);
@@ -378,9 +380,11 @@ function parseInstanceArchiveControlPlane(
   value: unknown,
   options: ArchiveControlPlaneValidationOptions,
 ): InstanceArchiveControlPlane {
-  return parseInstanceControlPlaneStorageSnapshot(context, value, {
-    packageResolver: options.packageResolver,
-  });
+  if (options.controlPlaneSnapshotContract === undefined) {
+    throw new Error(`${context} requires an injected control-plane snapshot contract.`);
+  }
+
+  return options.controlPlaneSnapshotContract.parse(context, value);
 }
 
 function parseMediaAsset(context: string, value: unknown): MediaAsset {
@@ -651,9 +655,11 @@ function canonicalInstanceArchiveControlPlane(
   controlPlane: InstanceArchiveControlPlane,
   options: ArchiveControlPlaneValidationOptions,
 ): InstanceArchiveControlPlane {
-  return canonicalizeInstanceControlPlaneStorageSnapshot(controlPlane, {
-    packageResolver: options.packageResolver,
-  });
+  if (options.controlPlaneSnapshotContract === undefined) {
+    throw new Error("Instance archive controlPlane requires an injected snapshot contract.");
+  }
+
+  return options.controlPlaneSnapshotContract.canonicalize(controlPlane);
 }
 
 function canonicalAppArchive(archive: AppArchive): AppArchive {

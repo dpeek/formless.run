@@ -8,7 +8,7 @@ import type { StoredRecord } from "@dpeek/formless-storage";
 import {
   readInstanceWorkspaceControlPlaneStorageSnapshot,
   writeInstanceWorkspaceControlPlaneStorageSnapshot,
-} from "@dpeek/formless-workspace/node";
+} from "../program/workspace.ts";
 import {
   FORMLESS_CLOUDFLARE_OAUTH_CLIENT_ID,
   FORMLESS_CLOUDFLARE_OAUTH_DEPLOY_SCOPES,

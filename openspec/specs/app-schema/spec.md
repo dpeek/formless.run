@@ -187,9 +187,22 @@ from reusable package modules.
   authoring ownership are absent from the artifact
 - AND package module declaration order and root-owned navigation remain
   portable, hash-significant source data
-- AND runtime schema loading, Authority storage identities, APIs, cursors,
-  snapshots, browser replicas, authorization, archives, media, and installed
-  app behavior remain unchanged until a later physical Program cutover
+- AND the default runtime loads that materialized artifact as the active
+  `formless-program` schema without evaluating the TypeScript composition root
+
+#### Scenario: Select the default Program for runtime storage
+
+- GIVEN the default Program artifact contains the composed instance and identity
+  declarations
+- WHEN runtime-owned reviewable records are bootstrapped, validated, operated
+  on, synced, snapshotted, archived, or projected
+- THEN the runtime uses that one complete artifact and its canonical source hash
+- AND the Program root owns the runtime schema key, storage target, generic API
+  route, navigation, and complete schema provenance
+- AND standalone package schemas remain reusable package artifacts rather than
+  separate runtime storage mounts
+- AND installed app data remains outside the Program schema until a later
+  domain-data cutover
 
 ### Requirement: Ordered Keyed Definition Registries
 
@@ -708,10 +721,10 @@ preserving opaque entity identity separately.
 - WHEN the Authority validates the write, operation record plan, or restored
   snapshot
 - THEN the field value remains a flat record id
-- AND the runtime resolves the referenced record from identity control-plane
-  storage identity `instance:identity`
+- AND the runtime resolves the referenced record from the identity entity in
+  Program storage identity `instance:control-plane`
 - AND validation rejects missing, tombstoned, wrong-entity, unsupported
-  qualified-target, or unavailable identity storage targets before committing
+  qualified-target, or unavailable Program storage targets before committing
   the app record
 - AND principal status, role assignments, credentials, sessions, and
   authorization policy remain identity auth and operation-policy concerns

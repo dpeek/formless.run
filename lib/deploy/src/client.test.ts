@@ -24,6 +24,9 @@ describe("Deploy control-plane client helpers", () => {
     expect(deployControlPlaneBootstrapPath("runner")).toBe(
       "/api/formless/control-plane/bootstrap?actorKind=runner",
     );
+    expect(deployControlPlaneBootstrapPath("runner", "/api/formless/program")).toBe(
+      "/api/formless/program/bootstrap?actorKind=runner",
+    );
     expect(deployControlPlaneActorHeaders("cliDeployer")).toEqual({
       [DEPLOY_CONTROL_PLANE_ACTOR_HEADER]: "cliDeployer",
     });

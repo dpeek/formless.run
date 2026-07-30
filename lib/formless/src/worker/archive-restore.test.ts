@@ -7,18 +7,18 @@ import {
   type AppArchive,
   type AppArchiveMediaObject,
   type InstanceArchive,
-} from "@dpeek/formless-archive";
+} from "../program/archive.ts";
 import type { AppInstall } from "@dpeek/formless-installed-apps";
 import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
 import { bundledSourceSchemaHashFixtures } from "../shared/upgrade-migrations.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import { type BootstrapResponse } from "../shared/protocol.ts";
+import { formlessProgramSchema } from "../program/runtime.ts";
 import {
-  INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  instanceControlPlaneSchema,
-} from "@dpeek/formless-instance-control-plane";
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import { siteSourceSchema } from "../test/schema-apps.ts";
 import { mediaObjectMetadataForAsset } from "@dpeek/formless-media";
 import {
@@ -639,12 +639,12 @@ function controlPlaneSnapshot(overrides: Partial<StorageSnapshot> = {}): Storage
   return {
     kind: STORAGE_SNAPSHOT_KIND,
     version: STORAGE_SNAPSHOT_VERSION,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-    schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+    schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
     exportedAt: now,
     schemaUpdatedAt: now,
     sourceCursor: 0,
-    schema: instanceControlPlaneSchema,
+    schema: formlessProgramSchema,
     records: [],
     ...overrides,
   };

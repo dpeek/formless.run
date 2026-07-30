@@ -6,11 +6,13 @@ import {
   type AppInstallRoute,
 } from "@dpeek/formless-installed-apps";
 import {
-  INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
   instanceControlPlaneAppLaunchLinksFromRecords,
   instanceControlPlaneAppInstallsFromRecords,
 } from "@dpeek/formless-instance-control-plane";
+import {
+  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import {
   parseCreateAppInstallRequest,
   type AppInstallsResponse,
@@ -253,7 +255,7 @@ function hostAuthSessionTargetForInstanceAppInstallsRequest(request: Request) {
     !target ||
     target.appInstallId !== undefined ||
     target.targetProfile !== "instance" ||
-    target.storageIdentity !== INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY
+    target.storageIdentity !== FORMLESS_PROGRAM_STORAGE_IDENTITY
   ) {
     return undefined;
   }
@@ -505,11 +507,11 @@ async function updateControlPlaneAppInstallPackageFacts(
     sourceSchemaHash: SourceSchemaHash;
   },
 ): Promise<AppInstall[]> {
-  const id = env.FORMLESS_AUTHORITY.idFromName(INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
   const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
     new Request(
       new URL(
-        `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}${INTERNAL_UPDATE_APP_INSTALL_PACKAGE_FACTS_PATH}`,
+        `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${INTERNAL_UPDATE_APP_INSTALL_PACKAGE_FACTS_PATH}`,
         request.url,
       ),
       {
@@ -533,7 +535,7 @@ async function createControlPlaneAppInstall(
   env: InstanceAppInstallsApiEnv,
   input: CreateAppInstallRequest,
 ): Promise<{ body: unknown; response: Response }> {
-  const id = env.FORMLESS_AUTHORITY.idFromName(INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
   const headers = new Headers(request.headers);
 
   headers.set("Content-Type", "application/json");
@@ -541,7 +543,7 @@ async function createControlPlaneAppInstall(
   const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
     new Request(
       new URL(
-        `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}${CREATE_APP_INSTALL_CONTROL_PLANE_OPERATION_PATH}`,
+        `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${CREATE_APP_INSTALL_CONTROL_PLANE_OPERATION_PATH}`,
         request.url,
       ),
       {

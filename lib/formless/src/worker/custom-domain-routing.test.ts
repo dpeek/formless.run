@@ -5,10 +5,11 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { computeSourceSchemaHash } from "@dpeek/formless-installed-apps";
+import { INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID } from "@dpeek/formless-instance-control-plane";
 import {
-  INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-} from "@dpeek/formless-instance-control-plane";
+  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import {
   IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH,
   IDENTITY_COLLABORATOR_INVITATIONS_API_PATH,
@@ -49,7 +50,7 @@ import {
   restoreTestStorageSnapshot,
   schemaAppTestStorageSnapshot,
 } from "../test/authority-write.ts";
-import { ensureTestIdentityOwner, resetTestIdentityStorage } from "../test/identity-owner.ts";
+import { ensureTestIdentityOwner } from "../test/identity-owner.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import {
   FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
@@ -67,7 +68,7 @@ type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 type DispatchFetchInit = Parameters<Harness["mf"]["dispatchFetch"]>[1];
 
 const adminToken = "test-admin-token";
-const controlPlaneApi = "/api/formless/control-plane";
+const controlPlaneApi = "/api/formless/program";
 const createAppInstallOperation = `${controlPlaneApi}/operations/app-install/createAppInstall`;
 const mappedHost = "www.example.com";
 const mappedAppHost = "tasks.example.com";
@@ -1133,14 +1134,11 @@ describe("installed Site custom-domain Worker routing", () => {
       headers: { Accept: "text/html", Cookie: hostCookie },
       redirect: "manual",
     });
-    await postAdminJson(
-      `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/role-assignment/update`,
-      {
-        idempotencyKey: "revoke-matching-app-admin",
-        recordId: matchingAssignment.id,
-        input: { status: "disabled" },
-      },
-    );
+    await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/role-assignment/update`, {
+      idempotencyKey: "revoke-matching-app-admin",
+      recordId: matchingAssignment.id,
+      input: { status: "disabled" },
+    });
     const revokedHostShell = await fetchHost(mappedAppHost, "/schema?view=board", {
       headers: { Accept: "text/html", Cookie: hostCookie },
       redirect: "manual",
@@ -1214,7 +1212,7 @@ describe("installed Site custom-domain Worker routing", () => {
     const instanceAdmin = await createInstanceAdminPrincipalSessionCookie("HTTP Instance Admin");
     const ordinary = await createActivePrincipalSessionCookie("HTTP Ordinary Principal");
     const disabled = await createActivePrincipalSessionCookie("HTTP Disabled Principal");
-    await postAdminJson(`${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/principal/update`, {
+    await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal/update`, {
       idempotencyKey: "disable-http-data-principal",
       recordId: disabled.principalId,
       input: { status: "disabled" },
@@ -1411,7 +1409,7 @@ describe("installed Site custom-domain Worker routing", () => {
     const instanceAdmin = await createInstanceAdminPrincipalSessionCookie("Push Instance Admin");
     const ordinary = await createActivePrincipalSessionCookie("Push Ordinary Principal");
     const disabled = await createActivePrincipalSessionCookie("Push Disabled Principal");
-    await postAdminJson(`${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/principal/update`, {
+    await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal/update`, {
       idempotencyKey: "disable-push-principal-before-upgrade",
       recordId: disabled.principalId,
       input: { status: "disabled" },
@@ -1491,14 +1489,11 @@ describe("installed Site custom-domain Worker routing", () => {
     );
 
     await primeInstalledAppSyncSocket(revokedRoleSocket);
-    await postAdminJson(
-      `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/role-assignment/update`,
-      {
-        idempotencyKey: "revoke-push-role-after-upgrade",
-        recordId: revokedAssignment.id,
-        input: { status: "disabled" },
-      },
-    );
+    await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/role-assignment/update`, {
+      idempotencyKey: "revoke-push-role-after-upgrade",
+      recordId: revokedAssignment.id,
+      input: { status: "disabled" },
+    });
     const revokedRoleClosed = expectInstalledAppSyncSocketClosedWithoutMessage(revokedRoleSocket);
 
     revokedRoleSocket.send(
@@ -1517,7 +1512,7 @@ describe("installed Site custom-domain Worker routing", () => {
     );
 
     await primeInstalledAppSyncSocket(disabledPrincipalSocket);
-    await postAdminJson(`${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/principal/update`, {
+    await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal/update`, {
       idempotencyKey: "disable-push-principal-after-upgrade",
       recordId: disabledPrincipal.principalId,
       input: { status: "disabled" },
@@ -1727,7 +1722,7 @@ describe("installed Site custom-domain Worker routing", () => {
     );
 
     await primeInstalledAppSyncSocket(disabledSocket);
-    await postAdminJson(`${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/principal/update`, {
+    await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal/update`, {
       idempotencyKey: "disable-accepted-app-admin",
       recordId: disabled.principalId,
       input: { status: "disabled" },
@@ -2273,7 +2268,7 @@ describe("installed Site custom-domain Worker routing", () => {
     expect(protectedRouteUrl.searchParams.get("routeId")).toBe(mappedInstanceRouteId);
     expect(protectedRouteUrl.searchParams.get("targetProfile")).toBe("instance");
     expect(protectedRouteUrl.searchParams.get("storageIdentity")).toBe(
-      INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+      FORMLESS_PROGRAM_STORAGE_IDENTITY,
     );
     expect(protectedRouteUrl.searchParams.get("returnTo")).toBe("/deployments");
     expect(protectedRouteUrl.searchParams.get("nonceHash")).toMatch(/^[A-Za-z0-9_-]+$/);
@@ -2327,9 +2322,7 @@ describe("installed Site custom-domain Worker routing", () => {
     expect(startUrl.searchParams.get("targetOrigin")).toBe(`https://${mappedInstanceHost}`);
     expect(startUrl.searchParams.get("routeId")).toBe(mappedInstanceRouteId);
     expect(startUrl.searchParams.get("targetProfile")).toBe("instance");
-    expect(startUrl.searchParams.get("storageIdentity")).toBe(
-      INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-    );
+    expect(startUrl.searchParams.get("storageIdentity")).toBe(FORMLESS_PROGRAM_STORAGE_IDENTITY);
     expect(startUrl.searchParams.get("appInstallId")).toBeNull();
     expect(startUrl.searchParams.get("returnTo")).toBe("/deployments");
 
@@ -2339,9 +2332,7 @@ describe("installed Site custom-domain Worker routing", () => {
     expect(handoffUrl.searchParams.get("targetOrigin")).toBe(`https://${mappedInstanceHost}`);
     expect(handoffUrl.searchParams.get("routeId")).toBe(mappedInstanceRouteId);
     expect(handoffUrl.searchParams.get("targetProfile")).toBe("instance");
-    expect(handoffUrl.searchParams.get("storageIdentity")).toBe(
-      INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-    );
+    expect(handoffUrl.searchParams.get("storageIdentity")).toBe(FORMLESS_PROGRAM_STORAGE_IDENTITY);
     expect(handoffUrl.searchParams.get("appInstallId")).toBeNull();
     expect(handoffUrl.searchParams.get("returnTo")).toBe("/deployments");
 
@@ -2390,7 +2381,7 @@ describe("installed Site custom-domain Worker routing", () => {
         purpose: "host-session",
         routeId: mappedInstanceRouteId,
         sessionVersion: 0,
-        storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+        storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
         targetOrigin: `https://${mappedInstanceHost}`,
         targetProfile: "instance",
         version: 1,
@@ -2698,7 +2689,7 @@ describe("installed Site custom-domain Worker routing", () => {
     await setupPrimaryProductionIdentity();
     await setupMappedApp();
 
-    const { cookie, setCookie } = await createMappedAppHostSession("Stale Host Owner");
+    const { cookie, owner, setCookie } = await createMappedAppHostSession("Stale Host Owner");
     const staleVersionCookie = await hostSessionCookieWithPayload(setCookie, {
       sessionVersion: 1,
     });
@@ -2711,7 +2702,17 @@ describe("installed Site custom-domain Worker routing", () => {
       },
     );
 
-    await resetTestIdentityStorage(harness, adminToken);
+    const disableOwner = recordOperationRequest({
+      entity: "principal",
+      idempotencyKey: "disable-stale-host-owner",
+      operationName: "update",
+      recordId: owner.id,
+      input: { status: "disabled" },
+    });
+    await postAdminJson(
+      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${disableOwner.path.slice("/api".length)}`,
+      disableOwner.body,
+    );
 
     assetRequests = [];
 
@@ -3165,7 +3166,7 @@ async function deleteIdentityRoleAssignment(roleAssignmentId: string, testKey: s
   });
 
   await postAdminJson(
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}${request.path.slice("/api".length)}`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${request.path.slice("/api".length)}`,
     request.body,
   );
 }
@@ -3637,7 +3638,7 @@ async function createActivePrincipalSessionCookie(
   origin = "https://www.example.com",
 ) {
   const response = await postAdminJson(
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/principal/create`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal/create`,
     {
       idempotencyKey: `active-principal-${displayName.replace(/\W+/g, "-").toLowerCase()}`,
       input: {
@@ -3680,40 +3681,34 @@ async function createAccountReadyPrincipalSessionCookie(
 }
 
 async function createVerifiedPrimaryEmail(principalId: string, email: string) {
-  await postAdminJson(
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/principal-email/create`,
-    {
-      idempotencyKey: `verified-email-${principalId.replace(/\W+/g, "-")}`,
-      input: {
-        displayEmail: email,
-        normalizedEmail: email.toLowerCase(),
-        primary: true,
-        principal: principalId,
-        recovery: false,
-        verificationStatus: "verified",
-        verifiedAt: "2026-07-06T00:00:00.000Z",
-      },
+  await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal-email/create`, {
+    idempotencyKey: `verified-email-${principalId.replace(/\W+/g, "-")}`,
+    input: {
+      displayEmail: email,
+      normalizedEmail: email.toLowerCase(),
+      primary: true,
+      principal: principalId,
+      recovery: false,
+      verificationStatus: "verified",
+      verifiedAt: "2026-07-06T00:00:00.000Z",
     },
-  );
+  });
 }
 
 async function createAppRegistration(principalId: string, appInstallId: string) {
-  await postAdminJson(
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/app-registration/create`,
-    {
-      idempotencyKey: [
-        "app-registration",
-        principalId.replace(/\W+/g, "-"),
-        appInstallId.replace(/\W+/g, "-"),
-      ].join("-"),
-      input: {
-        appInstallId,
-        status: "active",
-        targetKind: "principal",
-        targetPrincipal: principalId,
-      },
+  await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/app-registration/create`, {
+    idempotencyKey: [
+      "app-registration",
+      principalId.replace(/\W+/g, "-"),
+      appInstallId.replace(/\W+/g, "-"),
+    ].join("-"),
+    input: {
+      appInstallId,
+      status: "active",
+      targetKind: "principal",
+      targetPrincipal: principalId,
     },
-  );
+  });
 }
 
 async function createAccountPolicy(input: {
@@ -3722,7 +3717,7 @@ async function createAccountPolicy(input: {
   policyKey: string;
 }) {
   const response = await postAdminJson(
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/account-policy/create`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/account-policy/create`,
     {
       idempotencyKey: `account-policy-${input.policyKey}`,
       input: {
@@ -3741,7 +3736,7 @@ async function createAccountPolicy(input: {
 
 async function acceptPolicy(principalId: string, accountPolicy: string) {
   await postAdminJson(
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/principal-policy-acceptance/create`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal-policy-acceptance/create`,
     {
       idempotencyKey: [
         "policy-acceptance",
@@ -3840,7 +3835,7 @@ async function assignIdentityInstanceRole(
   roleKey: "instance.admin" | "instance.owner",
 ) {
   const response = await postAdminJson(
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/role-assignment/create`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/role-assignment/create`,
     {
       idempotencyKey: [
         "custom-domain-assign",
@@ -3862,7 +3857,7 @@ async function assignIdentityInstanceRole(
 
 async function assignIdentityAppRole(principalId: string, appInstallId: string) {
   const response = await postAdminJson(
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/role-assignment/create`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/role-assignment/create`,
     {
       idempotencyKey: [
         "custom-domain-assign",
@@ -3900,7 +3895,7 @@ async function mappedInstanceHostSessionCookieForPrincipal(principalId: string) 
     purpose: "host-session",
     routeId,
     sessionVersion: 0,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     targetOrigin: `https://${mappedInstanceHost}`,
     targetProfile: "instance",
     version: 1,

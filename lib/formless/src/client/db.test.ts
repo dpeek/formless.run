@@ -13,10 +13,7 @@ import {
   readCursor,
   readLocalSnapshot,
 } from "./db.ts";
-import {
-  identityControlPlaneClientTarget,
-  instanceControlPlaneClientTarget,
-} from "./app-target.ts";
+import { programClientTarget } from "./app-target.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { BootstrapResponse, ChangeRow } from "../shared/protocol.ts";
 import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
@@ -26,10 +23,10 @@ import { taskSourceSchema as appSchema } from "../test/schema-apps.ts";
 beforeEach(async () => {
   await deleteClientDb("tasks");
   await deleteClientDb("site");
-  await deleteClientDb(instanceControlPlaneClientTarget());
-  await deleteClientDb(identityControlPlaneClientTarget());
+  await deleteClientDb(programClientTarget());
   await deleteClientDb(installedSiteIdentity("personal"));
   await deleteClientDb(installedSiteIdentity("docs"));
+  await deleteRawDatabase("formless:instance:identity");
   await deleteRawDatabase("notes");
 });
 
@@ -133,29 +130,19 @@ describe("client db", () => {
     });
   });
 
-  it("stores the instance control-plane replica separately from bundled apps", async () => {
-    const controlPlaneTarget = instanceControlPlaneClientTarget();
-    const identityTarget = identityControlPlaneClientTarget();
+  it("stores instance and identity records in one Program replica", async () => {
+    const controlPlaneTarget = programClientTarget();
 
     await saveBootstrapResponse(controlPlaneTarget, {
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [record("install-1", "Personal Site")],
+      records: [record("install-1", "Personal Site"), record("role-1", "Instance owner")],
       cursor: 3,
-    });
-    await saveBootstrapResponse(identityTarget, {
-      schema: appSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:01.000Z",
-      records: [record("role-1", "Instance owner")],
-      cursor: 1,
     });
 
     expect(clientDbName(controlPlaneTarget)).toBe("formless:instance:control-plane");
-    expect(clientDbName(identityTarget)).toBe("formless:instance:identity");
     expect((await readLocalSnapshot(controlPlaneTarget)).records).toEqual([
       record("install-1", "Personal Site"),
-    ]);
-    expect((await readLocalSnapshot(identityTarget)).records).toEqual([
       record("role-1", "Instance owner"),
     ]);
     expect((await readLocalSnapshot("tasks")).records).toEqual([]);
@@ -163,8 +150,7 @@ describe("client db", () => {
 
   it("deletes only same-origin Formless replica databases", async () => {
     const personal = installedSiteIdentity("personal");
-    const controlPlaneTarget = instanceControlPlaneClientTarget();
-    const identityTarget = identityControlPlaneClientTarget();
+    const controlPlaneTarget = programClientTarget();
 
     await saveBootstrapResponse("tasks", {
       schema: appSchema,
@@ -184,12 +170,6 @@ describe("client db", () => {
       records: [record("record-3", "Control plane")],
       cursor: 3,
     });
-    await saveBootstrapResponse(identityTarget, {
-      schema: appSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:01.000Z",
-      records: [record("record-4", "Identity")],
-      cursor: 4,
-    });
     await createRawDatabase("notes");
 
     const result = await deleteFormlessReplicaDatabases();
@@ -198,13 +178,11 @@ describe("client db", () => {
     expect(result.deletedDatabaseNames).toEqual([
       "formless:app:personal",
       "formless:instance:control-plane",
-      "formless:instance:identity",
       "formless:tasks",
     ]);
     expect(result.skippedDatabaseNames).toContain("notes");
     expect(databaseNames).not.toContain("formless:tasks");
     expect(databaseNames).not.toContain("formless:app:personal");
-    expect(databaseNames).not.toContain("formless:instance:identity");
     expect(databaseNames).not.toContain("formless:instance:control-plane");
     expect(databaseNames).toContain("notes");
     expect(isFormlessReplicaDatabaseName("notes")).toBe(false);

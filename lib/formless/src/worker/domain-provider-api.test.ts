@@ -14,7 +14,7 @@ import {
   INSTANCE_DEPLOYMENT_STATUS_API_PATH,
   type InstanceDeploymentStatusResponse,
 } from "../shared/deployment-runtime.ts";
-import { INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-instance-control-plane";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import type { RecordInstanceDomainMappingApplyEvidenceResponse } from "../shared/instance-domain-mappings.ts";
 import type { BootstrapResponse } from "../shared/protocol.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
@@ -172,7 +172,7 @@ describe("instance domain provider API routes", () => {
         });
         await patchRouteRecord("route:host:instance:admin.example.com", { enabled: false });
         const intentBeforeCleanup = await getJson<BootstrapResponse>(
-          `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/bootstrap`,
+          `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/bootstrap`,
         );
 
         const deleteJob = await postAdminJson<InstanceDomainProviderDeleteResponse>(
@@ -232,7 +232,7 @@ describe("instance domain provider API routes", () => {
           INSTANCE_DEPLOYMENT_STATUS_API_PATH,
         );
         const intentAfterCleanup = await getJson<BootstrapResponse>(
-          `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/bootstrap`,
+          `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/bootstrap`,
         );
 
         expect(completion.body.job).toMatchObject({
@@ -268,7 +268,7 @@ describe("instance domain provider API routes", () => {
         });
         await patchRouteRecord("route:host:instance:manual.example.com", { enabled: false });
         const intentBeforeCleanup = await getJson<BootstrapResponse>(
-          `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/bootstrap`,
+          `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/bootstrap`,
         );
 
         const unrelated = await postAdminJson<DomainProviderFailureResponse>(
@@ -293,7 +293,7 @@ describe("instance domain provider API routes", () => {
           },
         );
         const intentAfterCleanup = await getJson<BootstrapResponse>(
-          `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/bootstrap`,
+          `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/bootstrap`,
         );
 
         expect(cleanup.response.status).toBe(200);
@@ -341,7 +341,7 @@ describe("instance domain provider API routes", () => {
     );
     const serialized = JSON.stringify(plan.body);
     const controlPlaneIntent = await getJson<BootstrapResponse>(
-      `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/bootstrap`,
+      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/bootstrap`,
     );
 
     expect(plan.body.redirectIntents).toEqual([
@@ -423,7 +423,7 @@ async function resetWorkerState(target: Harness) {
   routeRecordIds.clear();
   await restoreTestStorageSnapshot(
     target,
-    `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/snapshot/restore`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
     instanceControlPlaneTestStorageSnapshot(),
     { Authorization: `Bearer ${adminToken}` },
   );
@@ -510,7 +510,7 @@ async function postAdminJson<T>(path: string, body: unknown) {
 
 async function createRouteRecord(recordId: string, values: Record<string, unknown>) {
   const created = await postAdminJson<OperationInvocationResponse>(
-    `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/route/create`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/route/create`,
     {
       idempotencyKey: `route-${recordId}`,
       input: values,
@@ -524,7 +524,7 @@ async function createRouteRecord(recordId: string, values: Record<string, unknow
 async function patchRouteRecord(recordId: string, values: Record<string, unknown>) {
   const actualRecordId = routeRecordIds.get(recordId) ?? recordId;
   const patched = await postAdminJson<OperationInvocationResponse>(
-    `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/route/update`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/route/update`,
     {
       idempotencyKey: `route-${actualRecordId}-patch`,
       recordId: actualRecordId,

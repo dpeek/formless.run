@@ -20,13 +20,13 @@
       "version": "0.1.0",
       "dependencies": {
         "@dpeek/formless-installed-apps": "workspace:*",
-        "@dpeek/formless-instance-control-plane": "workspace:*",
         "@dpeek/formless-media": "workspace:*",
         "@dpeek/formless-schema": "workspace:*",
         "@dpeek/formless-storage": "workspace:*",
       },
       "devDependencies": {
         "@dpeek/formless-crm-app": "workspace:*",
+        "@dpeek/formless-instance-control-plane": "workspace:*",
       },
     },
     "lib/crm-app": {
@@ -218,7 +218,6 @@
       "version": "0.1.0",
       "dependencies": {
         "@dpeek/formless-schema": "workspace:*",
-        "@dpeek/formless-storage": "workspace:*",
       },
       "devDependencies": {
         "@dpeek/formless-installed-apps": "workspace:*",

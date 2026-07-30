@@ -115,6 +115,13 @@ type PackageAppStateRow = {
   updated_at: string;
 };
 
+type ProgramConvergenceRow = {
+  converged_at: string;
+  imported_record_count: number;
+  source_cursor: number;
+  source_schema_updated_at: string | null;
+};
+
 type OperationInvocationRow = {
   invocation_id: string;
   operation_key: string;
@@ -156,6 +163,7 @@ const authoritySqlMigrations = createSqlStorageMigrationRegistry([
 ]);
 const appliedPackageAppMigrationsTableName = "formless_applied_package_app_migrations";
 const packageAppStateTableName = "formless_package_app_state";
+const programConvergenceTableName = "formless_program_convergence";
 
 export type StoredSchema = {
   schema: AppSchema;
@@ -180,10 +188,16 @@ export type IdentityControlPlaneSchemaProvenance = {
   sourceSchemaHash: SourceSchemaHash;
 };
 
+export type ProgramSchemaProvenance = {
+  kind: "program";
+  sourceSchemaHash: SourceSchemaHash;
+};
+
 export type StorageSchemaProvenance =
   | IdentityControlPlaneSchemaProvenance
   | PackageAppSchemaProvenance
-  | InstanceControlPlaneSchemaProvenance;
+  | InstanceControlPlaneSchemaProvenance
+  | ProgramSchemaProvenance;
 
 export type ActiveSchemaRefreshBlocker = {
   currentSchemaProvenance?: StorageSchemaProvenance;
@@ -276,6 +290,19 @@ export type StorageSource = {
   storageIdentity?: string;
 };
 
+export type ProgramConvergenceEvidence = {
+  convergedAt: string;
+  importedRecordCount: number;
+  sourceCursor: number;
+  sourceSchemaUpdatedAt?: string;
+};
+
+export type InitializedStorageState = {
+  cursor: number;
+  records: StoredRecord[];
+  schemaUpdatedAt: string;
+};
+
 export type StorageSchemaResetValidator = (
   currentSchema: AppSchema,
   sourceSchema: AppSchema,
@@ -292,6 +319,7 @@ export type RecordConstraintValidator = (
   values: RecordValues,
   options?: {
     additionalRecords?: readonly StoredRecord[];
+    candidateRecordId?: string;
     ignoreRecordId?: string;
   },
 ) => void;
@@ -468,6 +496,14 @@ export function ensureStorageTables(storage: DurableObjectStorage) {
       cursor INTEGER NOT NULL,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS ${programConvergenceTableName} (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      source_cursor INTEGER NOT NULL,
+      source_schema_updated_at TEXT,
+      imported_record_count INTEGER NOT NULL,
+      converged_at TEXT NOT NULL
+    );
   `);
   ensureRecordUpdatedAtColumn(storage);
   ensureAppSchemaProvenanceColumn(storage);
@@ -638,6 +674,180 @@ export function initializeStorageFromSource(
 
     return writeSourceSchema(storage, source);
   });
+}
+
+export function readInitializedStorageState(
+  storage: DurableObjectStorage,
+): InitializedStorageState | undefined {
+  if (
+    !storageTableExists(storage, "app_schema") ||
+    !storageTableExists(storage, "records") ||
+    !storageTableExists(storage, "changes")
+  ) {
+    return undefined;
+  }
+
+  return storage.transactionSync(() => {
+    const schema = readStoredSchema(storage);
+
+    return schema
+      ? {
+          cursor: getCurrentCursor(storage),
+          records: getBootstrapRecords(storage),
+          schemaUpdatedAt: schema.updatedAt,
+        }
+      : undefined;
+  });
+}
+
+export function readProgramConvergenceSourceState(
+  storage: DurableObjectStorage,
+): InitializedStorageState | undefined {
+  if (
+    !storageTableExists(storage, "app_schema") ||
+    !storageTableExists(storage, "records") ||
+    !storageTableExists(storage, "changes")
+  ) {
+    return undefined;
+  }
+
+  return storage.transactionSync(() => {
+    const schemaRow = storage.sql
+      .exec<{ updated_at: string }>("SELECT updated_at FROM app_schema WHERE id = 1")
+      .next();
+
+    return schemaRow.done
+      ? undefined
+      : {
+          cursor: getCurrentCursor(storage),
+          records: getBootstrapRecords(storage),
+          schemaUpdatedAt: schemaRow.value.updated_at,
+        };
+  });
+}
+
+export function convergeProgramStorage(
+  storage: DurableObjectStorage,
+  input: {
+    importedRecords: readonly StoredRecord[];
+    source: StorageSource;
+    sourceCursor: number;
+    sourceSchemaUpdatedAt?: string;
+    validate: (records: readonly StoredRecord[]) => void;
+  },
+): ProgramConvergenceEvidence {
+  return storage.transactionSync(() => {
+    const existingEvidence = readProgramConvergenceEvidence(storage);
+
+    if (existingEvidence) {
+      return existingEvidence;
+    }
+
+    const survivorRecords = getBootstrapRecords(storage);
+    const survivorIds = new Set(survivorRecords.map((record) => record.id));
+    const importedIds = new Set<string>();
+
+    for (const record of input.importedRecords) {
+      if (importedIds.has(record.id)) {
+        throw new Error(`Identity convergence includes duplicate record id "${record.id}".`);
+      }
+      if (survivorIds.has(record.id)) {
+        throw new Error(
+          `Program convergence record id collision: "${record.id}" exists in both control-plane Authorities.`,
+        );
+      }
+      importedIds.add(record.id);
+    }
+
+    input.validate([...survivorRecords, ...input.importedRecords]);
+
+    const convergedAt = nowIsoString();
+    writeActiveSchemaAt(storage, input.source.schema, convergedAt, input.source.schemaProvenance);
+
+    const writeId = "program-convergence:instance:identity";
+    for (const record of input.importedRecords) {
+      storage.sql.exec(
+        `
+          INSERT INTO records (id, entity, values_json, created_at, updated_at, deleted_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `,
+        record.id,
+        record.entity,
+        JSON.stringify(record.values),
+        record.createdAt,
+        record.updatedAt,
+        record.deletedAt ?? null,
+      );
+      appendWriteLogChange(storage, {
+        writeId,
+        operationKind: record.deletedAt === undefined ? "create" : "delete",
+        entity: record.entity,
+        record,
+        createdAt: convergedAt,
+      });
+    }
+
+    storage.sql.exec(
+      `
+        INSERT INTO ${programConvergenceTableName} (
+          id,
+          source_cursor,
+          source_schema_updated_at,
+          imported_record_count,
+          converged_at
+        )
+        VALUES (1, ?, ?, ?, ?)
+      `,
+      input.sourceCursor,
+      input.sourceSchemaUpdatedAt ?? null,
+      input.importedRecords.length,
+      convergedAt,
+    );
+
+    return {
+      convergedAt,
+      importedRecordCount: input.importedRecords.length,
+      sourceCursor: input.sourceCursor,
+      ...(input.sourceSchemaUpdatedAt === undefined
+        ? {}
+        : { sourceSchemaUpdatedAt: input.sourceSchemaUpdatedAt }),
+    };
+  });
+}
+
+export function readProgramConvergenceEvidence(
+  storage: DurableObjectStorage,
+): ProgramConvergenceEvidence | undefined {
+  if (!storageTableExists(storage, programConvergenceTableName)) {
+    return undefined;
+  }
+
+  const row = storage.sql
+    .exec<ProgramConvergenceRow>(
+      `
+        SELECT
+          source_cursor,
+          source_schema_updated_at,
+          imported_record_count,
+          converged_at
+        FROM ${programConvergenceTableName}
+        WHERE id = 1
+      `,
+    )
+    .next();
+
+  if (row.done) {
+    return undefined;
+  }
+
+  return {
+    convergedAt: row.value.converged_at,
+    importedRecordCount: row.value.imported_record_count,
+    sourceCursor: row.value.source_cursor,
+    ...(row.value.source_schema_updated_at === null
+      ? {}
+      : { sourceSchemaUpdatedAt: row.value.source_schema_updated_at }),
+  };
 }
 
 function refreshActiveSchemaFromSource(
@@ -961,6 +1171,49 @@ export function reconcileRuntimeInvariantRecords(
     }
 
     return changedRecords;
+  });
+}
+
+export function removeStorageRecords(
+  storage: DurableObjectStorage,
+  records: readonly StoredRecord[],
+  input: {
+    validate: (records: readonly StoredRecord[]) => void;
+    writeId: string;
+  },
+): StoredRecord[] {
+  return storage.transactionSync(() => {
+    const activeRecords = records.filter((record) => record.deletedAt === undefined);
+
+    if (activeRecords.length === 0) {
+      return [];
+    }
+
+    const deletedAt = nowIsoString();
+    const tombstones = activeRecords.map((record) => ({
+      ...record,
+      deletedAt,
+      updatedAt: deletedAt,
+    }));
+    const removedIds = new Set(tombstones.map((record) => record.id));
+    const candidateRecords = getBootstrapRecords(storage).filter(
+      (record) => !removedIds.has(record.id),
+    );
+
+    input.validate(candidateRecords);
+
+    for (const record of tombstones) {
+      storage.sql.exec("DELETE FROM records WHERE id = ?", record.id);
+      appendWriteLogChange(storage, {
+        writeId: input.writeId,
+        operationKind: "delete",
+        entity: record.entity,
+        record,
+        createdAt: deletedAt,
+      });
+    }
+
+    return tombstones;
   });
 }
 
@@ -2035,6 +2288,7 @@ export function createStoredRecordOutcome(
       storage,
       {
         entity: request.entity,
+        id: request.id,
         values: request.values,
         createdAt,
       },
@@ -2636,7 +2890,10 @@ function materializeCreatedOperationRecord(
   validateConstraints?: RecordConstraintValidator,
   additionalRecords: readonly StoredRecord[] = [],
 ): StoredRecord {
-  validateConstraints?.(input.entity, input.values, { additionalRecords });
+  validateConstraints?.(input.entity, input.values, {
+    additionalRecords,
+    ...(input.id === undefined ? {} : { candidateRecordId: input.id }),
+  });
 
   return insertCreatedRecord(storage, input.entity, input.values, input.createdAt, input.id);
 }
@@ -2665,14 +2922,19 @@ function materializeCreatedRecordWriteRecord(
   storage: DurableObjectStorage,
   input: {
     entity: string;
+    id?: string;
     values: RecordValues;
     createdAt: string;
   },
   validateConstraints?: RecordConstraintValidator,
 ): StoredRecord {
-  validateConstraints?.(input.entity, input.values);
+  validateConstraints?.(
+    input.entity,
+    input.values,
+    input.id === undefined ? {} : { candidateRecordId: input.id },
+  );
 
-  return insertCreatedRecord(storage, input.entity, input.values, input.createdAt);
+  return insertCreatedRecord(storage, input.entity, input.values, input.createdAt, input.id);
 }
 
 function materializePatchedRecordWriteRecord(
@@ -3391,6 +3653,10 @@ function schemaProvenancesEqual(
     return true;
   }
 
+  if (left.kind === "program" && right.kind === "program") {
+    return true;
+  }
+
   return (
     left.kind === "package-app" &&
     right.kind === "package-app" &&
@@ -3454,6 +3720,13 @@ function parseStoredSchemaProvenance(value: string | null): StorageSchemaProvena
     };
   }
 
+  if (parsed.kind === "program") {
+    return {
+      kind: "program",
+      sourceSchemaHash: parsed.sourceSchemaHash,
+    };
+  }
+
   if (
     parsed.kind === "package-app" &&
     typeof parsed.packageAppKey === "string" &&
@@ -3498,6 +3771,10 @@ function formatSchemaProvenance(provenance: StorageSchemaProvenance) {
     return `kind=identity-control-plane sourceSchemaHash=${provenance.sourceSchemaHash}`;
   }
 
+  if (provenance.kind === "program") {
+    return `kind=program sourceSchemaHash=${provenance.sourceSchemaHash}`;
+  }
+
   return `kind=package-app packageAppKey=${provenance.packageAppKey} packageRevision=${provenance.packageRevision} sourceSchemaHash=${provenance.sourceSchemaHash}`;
 }
 
@@ -3525,6 +3802,17 @@ function parseJsonRecord(value: string): RecordValues {
   }
 
   return parsed;
+}
+
+function storageTableExists(storage: DurableObjectStorage, tableName: string): boolean {
+  const row = storage.sql
+    .exec<{ name: string }>(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+      tableName,
+    )
+    .next();
+
+  return !row.done;
 }
 
 function parseStoredSchema(value: string): AppSchema {

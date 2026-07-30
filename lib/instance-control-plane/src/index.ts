@@ -1532,6 +1532,9 @@ export const instanceControlPlaneSourceSchema = composeAppSchema({
 });
 
 export const instanceControlPlaneSchema = parseAppSchema(instanceControlPlaneSourceSchema);
+export const instanceControlPlaneEntityIds = instanceControlPlaneSchema.entities.map(
+  ({ id }) => id,
+);
 
 export function instanceControlPlaneStorageIdentityForInstall(
   installId: AppInstallId,
@@ -2279,6 +2282,7 @@ export type InstanceControlPlaneRecordSourceExcludedEntityName =
   (typeof instanceControlPlaneRecordSourceExcludedEntityNames)[number];
 
 export type InstanceControlPlaneRecordValidationOptions = {
+  candidateRecords?: readonly StoredRecord[];
   context?: string;
   packageResolver?: AppPackageResolver;
   sourceLabel?: string;
@@ -2389,14 +2393,17 @@ export function validateInstanceControlPlaneRecords(
   records: readonly StoredRecord[],
   options: InstanceControlPlaneRecordValidationOptions = {},
 ) {
-  const recordsById = new Map<string, StoredRecord>();
+  const recordsById = new Map<string, StoredRecord>(
+    (options.candidateRecords ?? records).map((record) => [record.id, record]),
+  );
+  const ownedRecordIds = new Set<string>();
 
   for (const record of records) {
-    if (recordsById.has(record.id)) {
+    if (ownedRecordIds.has(record.id)) {
       throw new Error(`${context} includes duplicate control-plane record id "${record.id}".`);
     }
 
-    recordsById.set(record.id, record);
+    ownedRecordIds.add(record.id);
   }
 
   for (const record of records) {

@@ -441,7 +441,7 @@ describe("Formless instance target control-plane client", () => {
           "X-Formless-Control-Plane-Actor": "cliDeployer",
           accept: "application/json",
         },
-        url: "https://instance.example/api/formless/control-plane/bootstrap?actorKind=cliDeployer",
+        url: "https://instance.example/api/formless/program/bootstrap?actorKind=cliDeployer",
       },
     ]);
     expect(records.appInstalls.map((record) => record.id)).toEqual(["site"]);
@@ -510,7 +510,7 @@ describe("Formless instance target control-plane client", () => {
     expect(context.controlPlane?.domainMappings).toHaveLength(1);
     expect(context.desiredStateRef).toEqual(desiredStateRef);
     expect(requests.map((request) => request.url)).toEqual([
-      "https://instance.example/api/formless/control-plane/bootstrap?actorKind=runner",
+      "https://instance.example/api/formless/program/bootstrap?actorKind=runner",
       "https://instance.example/api/formless/deployments/desired-state",
       "https://instance.example/api/formless/deployments/status",
     ]);
@@ -594,7 +594,7 @@ describe("Formless instance target control-plane client", () => {
         "content-type": "application/json",
       },
       method: "POST",
-      url: "https://instance.example/api/formless/control-plane/operations/deployment-config/update",
+      url: "https://instance.example/api/formless/program/operations/deployment-config/update",
     });
     const requestBody = requests[0]?.body;
 

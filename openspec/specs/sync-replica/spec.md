@@ -28,12 +28,16 @@ The system SHALL key each browser replica by storage identity.
 - THEN the local IndexedDB replica uses `formless:app:<installId>`
 - AND the matching broadcast channel uses the same app install id scope
 
-#### Scenario: Instance control-plane browser replica
+#### Scenario: Program browser replica
 
-- GIVEN the browser opens the instance control-plane surface
+- GIVEN the browser opens the default Program management surface
 - WHEN the client target is selected
 - THEN the local IndexedDB replica uses `formless:instance:control-plane`
-- AND the matching broadcast channel uses the same control-plane scope
+- AND the matching broadcast channel uses the same Program scope
+- AND the replica contains instance and reviewable identity records from one
+  active `formless-program` schema and cursor
+- AND there is no separate identity-control-plane browser database or broadcast
+  channel
 
 ### Requirement: Local Replica Stores
 
@@ -125,7 +129,7 @@ truth migrations.
 - WHEN a local dev authenticated session bootstrap URL requests a fresh browser
   replica state
 - THEN the browser deletes same-origin Formless replica IndexedDB databases for
-  schema-key apps, installed apps, and the instance control plane before
+  schema-key apps, installed apps, and the Program before
   rendering owner-only local runtime surfaces
 - AND non-Formless IndexedDB databases on the same origin are not deleted
 - AND after reset, each opened Formless surface re-bootstraps or syncs from
@@ -141,7 +145,7 @@ The system SHALL use a sync cursor to catch up a browser replica from Authority 
 #### Scenario: Catch up from stale cursor
 
 - GIVEN a browser replica has an older sync cursor
-- WHEN the client requests sync for its app storage identity
+- WHEN the client requests sync for its selected storage identity
 - THEN the Authority returns committed changes after that cursor
 - AND the browser replica merges those changes into local records
 - AND the local sync cursor advances
@@ -149,20 +153,20 @@ The system SHALL use a sync cursor to catch up a browser replica from Authority 
 #### Scenario: Current cursor
 
 - GIVEN a browser replica has a current sync cursor
-- WHEN the client requests sync for its app storage identity
+- WHEN the client requests sync for its selected storage identity
 - THEN no older changes are replayed into the local replica
 - AND the local cursor remains ready for future catch-up
 
 ### Requirement: Write Log Cursor Catch-Up
 
 The system SHALL catch browser replicas up from Authority write-log changes for
-the matching app storage identity.
+the matching storage identity.
 
 #### Scenario: HTTP catch-up reads write-log changes
 
 - WHEN a browser replica requests HTTP sync after a stale cursor
 - THEN the Authority returns committed write-log changes after that cursor
-- AND the response cursor advances to the latest committed cursor for that app
+- AND the response cursor advances to the latest committed cursor for that
   storage identity
 - AND write-log change fields use `writeId` and `operationKind`
 
@@ -176,7 +180,32 @@ the matching app storage identity.
 
 ### Requirement: Push Sync Connection
 
-The system SHALL support push sync over hibernatable WebSockets for schema-key and installed app identities.
+The system SHALL support push sync over hibernatable WebSockets for the Program,
+schema-key apps, and installed app identities.
+
+#### Scenario: Program push sync route
+
+- GIVEN a management browser uses the Program storage identity
+- WHEN it connects to `/api/formless/program/sync/ws`
+- THEN the surviving Program Authority catches up from its one write-log cursor
+- AND the socket receives instance and identity record changes through the same
+  connection
+- AND no standalone instance or identity control-plane sync socket exposes a
+  second cursor
+
+#### Scenario: Program push authorization remains current
+
+- GIVEN a Program push socket was accepted for an active instance owner or
+  instance administrator
+- WHEN the socket sends catch-up messages or becomes eligible for a committed
+  change broadcast
+- THEN the runtime rechecks current principal status, instance management
+  authority, session version, route target, and `instance:control-plane`
+  storage identity
+- AND a disabled principal, removed matching authority, changed session,
+  ordinary authenticated principal, or session for another target receives no
+  later Program changes
+- AND an unauthorized socket is closed or suppressed
 
 #### Scenario: Schema-key push sync route
 

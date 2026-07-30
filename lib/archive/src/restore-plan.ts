@@ -42,6 +42,7 @@ export type ArchiveRestoreMediaFile = {
 };
 
 export type ArchiveRestoreTargetState = {
+  controlPlaneSnapshotContract?: ArchiveControlPlaneValidationOptions["controlPlaneSnapshotContract"];
   installedApps?: readonly AppInstall[];
   mediaFiles?: readonly ArchiveRestoreMediaFile[];
   packageResolver?: AppPackageResolver;
@@ -203,7 +204,10 @@ export function planAppArchiveRestore(
 function archiveControlPlaneValidationOptions(
   target: ArchiveRestoreTargetState,
 ): ArchiveControlPlaneValidationOptions {
-  return { packageResolver: target.packageResolver };
+  return {
+    controlPlaneSnapshotContract: target.controlPlaneSnapshotContract,
+    packageResolver: target.packageResolver,
+  };
 }
 
 function planParsedPortableArchiveRestore(

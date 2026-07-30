@@ -13,13 +13,13 @@ import {
   type InstanceArchive,
   type InstanceArchiveControlPlane,
   type PortableArchive,
-} from "@dpeek/formless-archive";
+} from "../program/archive.ts";
 import {
   readPortableArchiveDirectory,
   writePortableArchiveDirectory,
   type ArchiveDiskMediaFile,
   type ArchiveDiskWriteResult,
-} from "@dpeek/formless-archive/node";
+} from "../program/archive-node.ts";
 import {
   findAppInstall,
   type AppInstall,
@@ -32,10 +32,10 @@ import {
 } from "../shared/app-packages.ts";
 import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
 import {
-  INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX,
-  parseInstanceControlPlaneStorageSnapshot,
-  reviewableInstanceControlPlaneStorageSnapshot,
-} from "@dpeek/formless-instance-control-plane";
+  canonicalizeFormlessProgramStorageSnapshot,
+  parseFormlessProgramStorageSnapshot,
+} from "../program/runtime.ts";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import {
   CORE_IMAGE_KEY_PREFIX,
   MEDIA_DOCUMENT_UPLOAD_MAX_BYTES,
@@ -64,7 +64,7 @@ export {
   readPortableArchiveInputStatus,
   type PortableArchiveInputStatus,
 } from "./archive-input-status.ts";
-export type { ArchiveDiskMediaFile, ArchiveDiskWriteResult } from "@dpeek/formless-archive/node";
+export type { ArchiveDiskMediaFile, ArchiveDiskWriteResult } from "../program/archive-node.ts";
 
 const INSTANCE_ARCHIVE_RESTORE_API_PATH = "/api/formless/archive/restore";
 const ARCHIVE_EXPORT_MEDIA_READ_HEADER = "X-Formless-Archive-Export";
@@ -166,19 +166,14 @@ async function fetchRemoteControlPlaneArchive(input: {
 }): Promise<InstanceArchiveControlPlane | undefined> {
   const snapshot = await fetchJson<StorageSnapshot>(
     input.fetcher,
-    apiUrl(
-      input.target,
-      `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/snapshot?actorKind=cliDeployer`,
-    ),
+    apiUrl(input.target, `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot?actorKind=cliDeployer`),
     { headers: archiveExportRequestHeaders(input.auth, "application/json") },
   );
 
-  return parseInstanceControlPlaneStorageSnapshot(
+  return parseFormlessProgramStorageSnapshot(
     "Instance archive controlPlane",
-    reviewableInstanceControlPlaneStorageSnapshot(snapshot, {
-      context: "Instance archive controlPlane records",
+    canonicalizeFormlessProgramStorageSnapshot(snapshot, {
       packageResolver: input.packageResolver,
-      sourceLabel: "Instance archive controlPlane",
     }),
     { packageResolver: input.packageResolver },
   );

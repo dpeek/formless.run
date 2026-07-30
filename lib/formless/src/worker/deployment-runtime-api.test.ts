@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus
 import type { BootstrapResponse, CreateAppInstallResponse } from "../shared/protocol.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
-import { INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-instance-control-plane";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import {
   INSTANCE_DEPLOYMENT_ATTEMPT_FAILURE_API_PATH,
   INSTANCE_DEPLOYMENT_ATTEMPT_HEARTBEAT_API_PATH,
@@ -328,7 +328,7 @@ describe("instance deployment runtime API routes", () => {
       INSTANCE_DEPLOYMENT_DESIRED_STATE_API_PATH,
     );
     const controlPlane = await getJson<BootstrapResponse>(
-      `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/bootstrap?actorKind=runner`,
+      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/bootstrap?actorKind=runner`,
     );
     const serializedControlPlane = JSON.stringify(controlPlane.body.records);
 
@@ -584,7 +584,7 @@ async function getJson<T>(path: string) {
 async function resetWorkerState() {
   await restoreTestStorageSnapshot(
     harness,
-    `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/snapshot/restore`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
     instanceControlPlaneTestStorageSnapshot(),
     { Authorization: `Bearer ${adminToken}` },
   );
@@ -634,7 +634,7 @@ async function createRedirectRoute(input: {
 
 async function createControlPlaneRecord(entity: string, values: Record<string, unknown>) {
   const created = await postAdminJson<OperationInvocationResponse>(
-    `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/${entity}/create`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/${entity}/create`,
     {
       idempotencyKey: `${entity}-${++controlPlaneOperationCounter}`,
       input: withoutLifecycleValues(values),
@@ -653,13 +653,14 @@ async function patchControlPlaneRecord(
   values: Record<string, unknown>,
 ) {
   const patched = await postAdminJson<OperationInvocationResponse>(
-    `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/${entity}/update`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/${entity}/update`,
     {
       idempotencyKey: `${recordId}:patch:${Object.keys(values).join("-")}`,
       recordId,
       input: values,
     },
   );
+  expect(patched.response.status, JSON.stringify(patched.body)).toBe(200);
 
   return {
     body: { record: operationRecord(patched.body) },

@@ -1,4 +1,5 @@
 import { schemaApps } from "./schema-apps.ts";
+import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
 
 export const runtimeProfileKinds = [
   "instance",
@@ -108,8 +109,7 @@ const publishedProfileClientRoutePrefixes = [
   runtimeTopologyRoutes.siteRouteBase,
 ] as const;
 const instanceProfileClientRoutePaths = [
-  runtimeTopologyRoutes.instanceRootRoute,
-  runtimeTopologyRoutes.accessRoute,
+  ...FORMLESS_PROGRAM_SCREEN_PATHS,
   runtimeTopologyRoutes.localSessionRoute,
 ] as const;
 

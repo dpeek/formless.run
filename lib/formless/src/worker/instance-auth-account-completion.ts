@@ -1,5 +1,4 @@
 import {
-  IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
   identityControlPlaneRoleKeys,
   type IdentityControlPlaneRoleKey,
   type IdentityInvitationTargetSurface,
@@ -11,11 +10,11 @@ import {
   projectPublicSafeOperationInputFields,
   type AppSchema,
 } from "@dpeek/formless-schema";
+import { instanceControlPlaneEffectiveRouteAccess } from "@dpeek/formless-instance-control-plane";
 import {
-  INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  instanceControlPlaneEffectiveRouteAccess,
-} from "@dpeek/formless-instance-control-plane";
+  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import {
   parseAppInstallRegistrationOperation,
   parseAppInstallRegistrationPolicy,
@@ -905,10 +904,10 @@ async function readTargetAppInstallRegistrationGate(
     throw new Error("Account completion app install policy lookup requires authority access.");
   }
 
-  const id = env.FORMLESS_AUTHORITY.idFromName(INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
   const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
     new Request(
-      `http://internal${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}${internalReadControlPlaneRecordsPath}`,
+      `http://internal${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${internalReadControlPlaneRecordsPath}`,
       {
         headers: { Accept: "application/json" },
         method: "GET",
@@ -1281,7 +1280,7 @@ async function commitEmailVerifiedAppRegistration(
     selectedOrganization?: string;
   },
 ): Promise<EmailVerifiedAppRegistrationCommitResult> {
-  const id = env.FORMLESS_AUTHORITY.idFromName(IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
   const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
     new Request(`http://internal${internalEmailVerifiedAppRegistrationCommitPath}`, {
       body: JSON.stringify(input),
@@ -1312,7 +1311,7 @@ async function commitTermsAcceptance(
     target: AccountCompletionGateTarget;
   },
 ): Promise<TermsAcceptanceCommitResult> {
-  const id = env.FORMLESS_AUTHORITY.idFromName(IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
   const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
     new Request(`http://internal${internalTermsAcceptanceCommitPath}`, {
       body: JSON.stringify(input),

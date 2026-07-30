@@ -10,8 +10,8 @@ import {
   type InstanceArchive,
   type InstanceArchiveControlPlane as ArchiveControlPlaneSnapshot,
   type PortableArchive,
-} from "@dpeek/formless-archive";
-import type { ArchiveDiskMediaFile } from "@dpeek/formless-archive/node";
+} from "../program/archive.ts";
+import type { ArchiveDiskMediaFile } from "../program/archive-node.ts";
 import {
   defaultAppInstallRegistrationPolicy,
   isAppInstallRegistrationPolicy,
@@ -19,11 +19,11 @@ import {
   type AppInstallRegistrationOperation,
   type AppInstallRegistrationPolicy,
 } from "@dpeek/formless-installed-apps";
+import { formlessProgramSchema } from "../program/runtime.ts";
 import {
-  INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  instanceControlPlaneSchema,
-} from "@dpeek/formless-instance-control-plane";
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
@@ -279,8 +279,6 @@ export function appInstallControlPlaneRecords(install: AppInstall): StoredRecord
         : { registrationOperation: install.registrationOperation }),
       status: install.status,
       storageIdentity: `app:${install.installId}`,
-      createdAt: install.createdAt,
-      updatedAt: install.updatedAt,
     },
     createdAt: install.createdAt,
     updatedAt: install.updatedAt,
@@ -291,14 +289,12 @@ export function appInstallControlPlaneRecords(install: AppInstall): StoredRecord
       entity: "route",
       values: {
         appInstall: install.installId,
-        createdAt: install.createdAt,
         enabled: true,
         kind: "mount",
         matchPath: install.adminRoute,
         matchPrefix: `${install.adminRoute}/`,
         surface: "admin",
         targetProfile: "app",
-        updatedAt: install.updatedAt,
       },
       createdAt: install.createdAt,
       updatedAt: install.updatedAt,
@@ -311,7 +307,6 @@ export function appInstallControlPlaneRecords(install: AppInstall): StoredRecord
       entity: "route",
       values: {
         appInstall: install.installId,
-        createdAt: install.createdAt,
         enabled: true,
         kind: "mount",
         matchPath: install.publicRoute,
@@ -320,7 +315,6 @@ export function appInstallControlPlaneRecords(install: AppInstall): StoredRecord
           : { matchPrefix: install.publicRoutePrefix }),
         surface: "public-site",
         targetProfile: "public-site",
-        updatedAt: install.updatedAt,
       },
       createdAt: install.createdAt,
       updatedAt: install.updatedAt,
@@ -400,12 +394,12 @@ export function workspaceControlPlaneSnapshotFromRecords(input: {
   return {
     kind: STORAGE_SNAPSHOT_KIND,
     version: STORAGE_SNAPSHOT_VERSION,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-    schemaKey: input.current?.schemaKey ?? INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+    schemaKey: input.current?.schemaKey ?? FORMLESS_PROGRAM_SCHEMA_KEY,
     exportedAt: input.exportedAt,
     schemaUpdatedAt: input.schemaUpdatedAt,
     sourceCursor: input.records.length,
-    schema: input.current?.schema ?? instanceControlPlaneSchema,
+    schema: input.current?.schema ?? formlessProgramSchema,
     records: input.records,
   };
 }

@@ -5,14 +5,16 @@ import {
 } from "../shared/app-storage-identity.ts";
 import { normalizeInstanceDomainHost } from "../shared/instance-domain-mappings.ts";
 import {
-  INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
   instanceControlPlaneEffectiveRouteAccess,
   type InstanceControlPlaneRedirectStatusCode,
   type InstanceControlPlaneRouteSurface,
   type InstanceControlPlaneRouteTargetProfile,
   type InstanceControlPlaneRouteValues,
 } from "@dpeek/formless-instance-control-plane";
+import {
+  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import {
   parseRuntimeRouteAccess,
   parseRuntimeRouteRequiredRole,
@@ -90,7 +92,7 @@ export async function resolveInstanceRuntimeRouteForRequest(
 ): Promise<InstanceRuntimeRouteResolution | undefined> {
   const requestUrl = new URL(request.url);
   const resolveUrl = new URL(
-    `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}${INTERNAL_RESOLVE_INSTANCE_RUNTIME_ROUTE_PATH}`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${INTERNAL_RESOLVE_INSTANCE_RUNTIME_ROUTE_PATH}`,
     request.url,
   );
 
@@ -102,7 +104,7 @@ export async function resolveInstanceRuntimeRouteForRequest(
     resolveUrl.searchParams.set("includeHostless", "false");
   }
 
-  const id = env.FORMLESS_AUTHORITY.idFromName(INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
   const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
     new Request(resolveUrl, {
       headers: { Accept: "application/json" },

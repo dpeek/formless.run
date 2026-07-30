@@ -1,12 +1,12 @@
 import { expect } from "vite-plus/test";
-import {
-  IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX,
-  IDENTITY_CONTROL_PLANE_SCHEMA_KEY,
-  IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
-  identityControlPlaneRoleKeys,
-  identityControlPlaneSchema,
-} from "@dpeek/formless-identity-control-plane";
+import { identityControlPlaneRoleKeys } from "@dpeek/formless-identity-control-plane";
 import type { StoredRecord } from "@dpeek/formless-storage";
+import { formlessProgramSchema } from "../program/runtime.ts";
+import {
+  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import type { OwnerIdentity } from "../shared/protocol.ts";
 import type { createWorkerHarness } from "../worker/miniflare-test.ts";
 import {
@@ -26,12 +26,12 @@ export async function resetTestIdentityStorage(
 ): Promise<void> {
   await restoreTestStorageSnapshot(
     harness,
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/snapshot/restore`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
     testStorageSnapshot({
       records: builtInRoleRecords(),
-      schema: identityControlPlaneSchema,
-      schemaKey: IDENTITY_CONTROL_PLANE_SCHEMA_KEY,
-      storageIdentity: IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
+      schema: formlessProgramSchema,
+      schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
+      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     }),
     adminHeaders(adminToken),
   );
@@ -118,7 +118,7 @@ async function readTestIdentityOwner(
   harness: IdentityOwnerHarness,
   adminToken: string,
 ): Promise<OwnerIdentity | null> {
-  const response = await harness.fetch(`${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/bootstrap`, {
+  const response = await harness.fetch(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/bootstrap`, {
     headers: adminHeaders(adminToken),
   });
 
@@ -178,7 +178,7 @@ async function postIdentityRecordOperation(
 ): Promise<StoredRecord> {
   const request = recordOperationRequest(input);
   const response = await harness.fetch(
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}${request.path.slice("/api".length)}`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${request.path.slice("/api".length)}`,
     {
       body: JSON.stringify(request.body),
       headers: adminHeaders(adminToken, { "Content-Type": "application/json" }),

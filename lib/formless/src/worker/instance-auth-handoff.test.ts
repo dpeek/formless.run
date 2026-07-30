@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY } from "@dpeek/formless-instance-control-plane";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
 import type { InstanceRuntimeMountRouteResolution } from "./instance-runtime-routes.ts";
 import {
@@ -216,7 +216,7 @@ describe("instance auth origin and protected-route handoff decisions", () => {
       target: {
         access: "owner",
         routeId: "route:instance:admin",
-        storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+        storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
         targetOrigin: "https://admin.example.com",
         targetProfile: "instance",
       },
@@ -306,7 +306,7 @@ describe("instance auth origin and protected-route handoff decisions", () => {
       target: {
         access: "owner",
         routeId: "route:instance:admin",
-        storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+        storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
         targetOrigin: "https://admin.example.com",
         targetProfile: "instance",
       },
@@ -368,7 +368,7 @@ describe("instance auth origin and protected-route handoff decisions", () => {
     ).toEqual({
       access: "owner",
       routeId: "route:instance:admin",
-      storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
       targetOrigin: "https://admin.example.com",
       targetProfile: "instance",
     });

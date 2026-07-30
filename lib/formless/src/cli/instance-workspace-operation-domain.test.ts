@@ -5,11 +5,11 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { listInstallableAppPackages, packageAppFactsForKey } from "@dpeek/formless-installed-apps";
+import { formlessProgramSchema } from "../program/runtime.ts";
 import {
-  INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  instanceControlPlaneSchema,
-} from "@dpeek/formless-instance-control-plane";
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
@@ -23,7 +23,7 @@ import {
   replaceInstanceWorkspaceMediaFiles,
   writeInstanceWorkspaceAppStorageSnapshot,
   writeInstanceWorkspaceControlPlaneStorageSnapshot,
-} from "@dpeek/formless-workspace/node";
+} from "../program/workspace.ts";
 
 import packageJson from "../../package.json";
 import {
@@ -341,7 +341,7 @@ describe("workspace source sync operation domain", () => {
     );
 
     expect(requests.every((request) => request.method === "GET")).toBe(true);
-    expect(requestPaths).toContain("GET /api/formless/control-plane/snapshot");
+    expect(requestPaths).toContain("GET /api/formless/program/snapshot");
     expect(requestPaths).toContain("GET /api/app-installs/site/david/snapshot");
     expect(requestPaths).not.toContain("POST /api/formless/archive/restore");
     expect(requestPaths).not.toContain("GET /api/formless/deployments/desired-state");
@@ -438,7 +438,7 @@ describe("workspace source sync operation domain", () => {
     expect(restoreBody.exactInstanceReplacement).toBe(true);
     expect(
       requests.map((request) => `${request.method} ${new URL(request.url).pathname}`),
-    ).not.toContain("POST /api/formless/control-plane/operations/deployment-config/update");
+    ).not.toContain("POST /api/formless/program/operations/deployment-config/update");
     expect(JSON.stringify(result)).not.toContain("local-token");
   });
 
@@ -529,7 +529,7 @@ describe("deployment refresh operation domain", () => {
         observedStatus: string;
       };
       recordId: string;
-    }>(requestByPath(requests, "/api/formless/control-plane/operations/deployment-config/update"));
+    }>(requestByPath(requests, "/api/formless/program/operations/deployment-config/update"));
 
     expect(result).toMatchObject({
       deployment: {
@@ -619,7 +619,7 @@ describe("deployment runtime domain", () => {
         observedStatus: string;
       };
       recordId: string;
-    }>(requestByPath(requests, "/api/formless/control-plane/operations/deployment-config/update"));
+    }>(requestByPath(requests, "/api/formless/program/operations/deployment-config/update"));
     const deploymentStateRoot = path.join(workspaceRoot, ".formless/deploy/personal");
 
     expect(deployInputs).toHaveLength(1);
@@ -970,7 +970,7 @@ describe("deployment runtime domain", () => {
         (request) =>
           request.method === "POST" &&
           new URL(request.url).pathname ===
-            "/api/formless/control-plane/operations/deployment-config/update",
+            "/api/formless/program/operations/deployment-config/update",
       ),
     ).toEqual([]);
   });
@@ -1080,7 +1080,7 @@ describe("deployment runtime domain", () => {
         observedSummary: string;
       };
       recordId: string;
-    }>(requestByPath(requests, "/api/formless/control-plane/operations/deployment-config/update"));
+    }>(requestByPath(requests, "/api/formless/program/operations/deployment-config/update"));
 
     expect(deployInputs).toHaveLength(1);
     expect(deployInputs[0]).toMatchObject({
@@ -1638,7 +1638,7 @@ function sourceSyncFetch(
       });
     }
 
-    if (parsedUrl.pathname === "/api/formless/control-plane/bootstrap") {
+    if (parsedUrl.pathname === "/api/formless/program/bootstrap") {
       return Response.json({
         cursor: 1,
         records: options.controlPlaneRecords ?? deployControlPlaneRecords(),
@@ -1646,7 +1646,7 @@ function sourceSyncFetch(
       });
     }
 
-    if (parsedUrl.pathname === "/api/formless/control-plane/snapshot") {
+    if (parsedUrl.pathname === "/api/formless/program/snapshot") {
       return Response.json(
         controlPlaneSnapshot(options.controlPlaneRecords ?? deployControlPlaneRecords()),
       );
@@ -1791,7 +1791,7 @@ function deployFetch(
       });
     }
 
-    if (parsedUrl.pathname === "/api/formless/control-plane/bootstrap") {
+    if (parsedUrl.pathname === "/api/formless/program/bootstrap") {
       return Response.json({
         cursor: 1,
         records: options.controlPlaneRecords ?? deployControlPlaneRecords(),
@@ -1799,7 +1799,7 @@ function deployFetch(
       });
     }
 
-    if (parsedUrl.pathname === "/api/formless/control-plane/snapshot") {
+    if (parsedUrl.pathname === "/api/formless/program/snapshot") {
       return Response.json(
         controlPlaneSnapshot(options.controlPlaneRecords ?? deployControlPlaneRecords()),
       );
@@ -1879,7 +1879,7 @@ function deployFetch(
       });
     }
 
-    if (parsedUrl.pathname === "/api/formless/control-plane/operations/deployment-config/update") {
+    if (parsedUrl.pathname === "/api/formless/program/operations/deployment-config/update") {
       const body = parseCapturedBody<{
         idempotencyKey: string;
         input: Record<string, unknown>;
@@ -1966,11 +1966,11 @@ function controlPlaneSnapshot(records: StoredRecord[]): StorageSnapshot {
     exportedAt: "2026-05-12T02:00:00.000Z",
     kind: STORAGE_SNAPSHOT_KIND,
     records,
-    schema: instanceControlPlaneSchema,
-    schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
+    schema: formlessProgramSchema,
+    schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
     schemaUpdatedAt: "2026-05-01T00:00:00.000Z",
     sourceCursor: records.length,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     version: STORAGE_SNAPSHOT_VERSION,
   };
 }
@@ -1986,14 +1986,12 @@ function controlPlaneRecords(): StoredRecord[] {
       entity: "app-install",
       id: installId,
       values: {
-        createdAt: now,
         installId,
         label: "David Peek",
         packageAppKey: "site",
         registrationPolicy: "closed",
         status: "installed",
         storageIdentity: `app:${installId}`,
-        updatedAt: now,
       },
     },
     {
@@ -2003,13 +2001,11 @@ function controlPlaneRecords(): StoredRecord[] {
       id: `route:${installId}:admin`,
       values: {
         appInstall: installId,
-        createdAt: now,
         enabled: true,
         kind: "mount",
         matchPath: `/apps/${installId}`,
         surface: "admin",
         targetProfile: "app",
-        updatedAt: now,
       },
     },
   ];
@@ -2034,14 +2030,12 @@ function deployControlPlaneRecords(
       id: "route:site:public-site",
       values: {
         appInstall: "david",
-        createdAt: now,
         enabled: true,
         kind: "mount",
         matchPath: "/sites/david",
         matchPrefix: "/sites/david/",
         surface: "public-site",
         targetProfile: "public-site",
-        updatedAt: now,
       },
     },
     {
@@ -2051,7 +2045,6 @@ function deployControlPlaneRecords(
       id: "route:host:public-site:www.example.com",
       values: {
         appInstall: "david",
-        createdAt: now,
         enabled: true,
         kind: "mount",
         matchHost: "www.example.com",
@@ -2060,7 +2053,6 @@ function deployControlPlaneRecords(
         deploymentConfig: "instance.primary",
         surface: "public-site",
         targetProfile: "public-site",
-        updatedAt: now,
       },
     },
     {
@@ -2070,14 +2062,12 @@ function deployControlPlaneRecords(
       id: "instance.primary",
       values: {
         accountId: "account-123",
-        createdAt: now,
         enabled: true,
         label: "Primary instance",
         providerFamily: "cloudflare",
         targetId: "instance.primary",
         targetKind: "instance",
         targetUrl: options.targetUrl ?? "https://personal.dpeek.workers.dev",
-        updatedAt: now,
         ...(options.credentialRef === undefined ? {} : { credentialRef: options.credentialRef }),
         ...(workerName === null ? {} : { workerName }),
       },
@@ -2088,32 +2078,7 @@ function deployControlPlaneRecords(
 function deployControlPlaneRecordsWithProviderObservation(
   options: Parameters<typeof deployControlPlaneRecords>[0] = {},
 ): StoredRecord[] {
-  const now = "2026-05-26T00:00:00.000Z";
-
-  return [
-    ...deployControlPlaneRecords(options).map((record) =>
-      record.entity === "deployment-config"
-        ? {
-            ...record,
-            values: {
-              ...record.values,
-              observedAt: "2026-05-26T00:01:00.000Z",
-              observedStatus: "applied",
-              observedSummary: "raw-provider-evidence",
-            },
-          }
-        : record,
-    ),
-    {
-      createdAt: now,
-      updatedAt: now,
-      entity: "deploy-evidence-summary",
-      id: "provider-evidence",
-      values: {
-        providerState: "raw-provider-evidence",
-      },
-    },
-  ];
+  return deployControlPlaneRecords(options);
 }
 
 function invalidRemoteControlPlaneRecords(

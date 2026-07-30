@@ -994,7 +994,7 @@ async function createControlPlaneRecord(
   target: Harness,
 ): Promise<StoredRecord> {
   const response = await postAdminJson<OperationInvocationResponse>(
-    `/api/formless/control-plane/operations/${entity}/create`,
+    `/api/formless/program/operations/${entity}/create`,
     {
       idempotencyKey,
       input,
@@ -1011,7 +1011,7 @@ async function createControlPlaneRecord(
 
 async function createMappedPublicSiteRoute(target: Harness, host: string, appInstallId: string) {
   await postAdminJson(
-    "/api/formless/control-plane/operations/route/create",
+    "/api/formless/program/operations/route/create",
     {
       idempotencyKey: `route-host-publicSite-${host}`,
       input: {

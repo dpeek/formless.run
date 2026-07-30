@@ -5,6 +5,7 @@ export type RecordWriteKind = "create" | "patch" | "delete";
 export type CreateRecordWriteRequest = {
   writeId: string;
   entity: string;
+  id?: string;
   kind: "create";
   values: RecordValues;
 };

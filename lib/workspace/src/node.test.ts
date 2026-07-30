@@ -9,8 +9,12 @@ import {
   INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID,
   INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
   INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+  canonicalizeInstanceControlPlaneStorageSnapshot,
+  formatInstanceControlPlaneBoundaryEntityName,
+  instanceControlPlaneRecordSourceEntityName,
   instanceControlPlaneSchema,
   instanceControlPlaneSchemaProvenance,
+  parseInstanceControlPlaneStorageSnapshot,
 } from "@dpeek/formless-instance-control-plane";
 import { parseAppSchema } from "@dpeek/formless-schema";
 
@@ -30,6 +34,7 @@ import {
   parseAppPackageManifest,
   type AppPackageCapability,
   type AppPackageManifest,
+  type AppPackageResolver,
   type SourceSchemaHash,
 } from "@dpeek/formless-installed-apps";
 import {
@@ -59,7 +64,7 @@ import {
   parseInstanceWorkspaceSecretState,
   readInstanceWorkspaceAutoSaveState,
   readInstanceWorkspaceAppStorageSnapshot,
-  readInstanceWorkspaceControlPlaneStorageSnapshot,
+  readInstanceWorkspaceControlPlaneStorageSnapshot as readWorkspaceControlPlaneSnapshot,
   readWorkspaceOperationState,
   readInstanceWorkspaceLocalDevSecretState,
   readInstanceWorkspaceMediaFiles,
@@ -72,10 +77,61 @@ import {
   workspaceOperationStateRoot,
   writeInstanceWorkspaceAppStorageSnapshot,
   writeInstanceWorkspaceAutoSaveState,
-  writeInstanceWorkspaceControlPlaneStorageSnapshot,
+  writeInstanceWorkspaceControlPlaneStorageSnapshot as writeWorkspaceControlPlaneSnapshot,
   writeInstanceWorkspaceLocalDevSecretState,
   writeInstanceWorkspaceSecretState,
 } from "./node.ts";
+
+function controlPlaneSnapshotContract(packageResolver?: AppPackageResolver) {
+  return {
+    canonicalize: (
+      snapshot: StorageSnapshot,
+      input: { context?: string; sourceLabel?: string } = {},
+    ) =>
+      canonicalizeInstanceControlPlaneStorageSnapshot(snapshot, {
+        ...input,
+        packageResolver,
+      }),
+    formatRecordEntity: (entity: string) => {
+      const sourceEntity = instanceControlPlaneRecordSourceEntityName(entity);
+      return sourceEntity === undefined
+        ? entity
+        : formatInstanceControlPlaneBoundaryEntityName(sourceEntity);
+    },
+    normalizeRecordEntity: (entity: string) =>
+      instanceControlPlaneRecordSourceEntityName(entity) ?? entity,
+    parse: (context: string, value: unknown) =>
+      parseInstanceControlPlaneStorageSnapshot(context, value, { packageResolver }),
+    schema: instanceControlPlaneSchema,
+    schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
+    schemaProvenance: instanceControlPlaneSchemaProvenance,
+    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+  };
+}
+
+function readInstanceWorkspaceControlPlaneStorageSnapshot(
+  input: Omit<
+    Parameters<typeof readWorkspaceControlPlaneSnapshot>[0],
+    "controlPlaneSnapshotContract"
+  >,
+) {
+  return readWorkspaceControlPlaneSnapshot({
+    ...input,
+    controlPlaneSnapshotContract: controlPlaneSnapshotContract(input.packageResolver),
+  });
+}
+
+function writeInstanceWorkspaceControlPlaneStorageSnapshot(
+  input: Omit<
+    Parameters<typeof writeWorkspaceControlPlaneSnapshot>[0],
+    "controlPlaneSnapshotContract"
+  >,
+) {
+  return writeWorkspaceControlPlaneSnapshot({
+    ...input,
+    controlPlaneSnapshotContract: controlPlaneSnapshotContract(input.packageResolver),
+  });
+}
 
 const tempDirs: string[] = [];
 const workspaceTestBundledManifests = [
@@ -623,7 +679,7 @@ describe("workspace record state node files", () => {
     await expect(
       readInstanceWorkspaceControlPlaneStorageSnapshot({ manifest, workspaceRoot }),
     ).rejects.toThrow(
-      "Workspace instance state state/instance.json schemaProvenance does not match resolved instance control-plane source.",
+      "Workspace instance state state/instance.json schemaProvenance does not match resolved runtime source.",
     );
   });
 

@@ -132,9 +132,7 @@ export function HomeRoute({
 
         setSyncStatus({ state: "idle", message: "Synced." });
         onClientLoadStateChange?.({ state: "ready" });
-        if (appTargetIdentity.kind !== "instanceControlPlane") {
-          stopPushSync = startPushSync(appTarget);
-        }
+        stopPushSync = startPushSync(appTarget);
       } catch (error) {
         if (cancelled) {
           return;

@@ -20,10 +20,10 @@ import { normalizeEmailDeliveryAddress } from "../shared/email-runtime.ts";
 import { nowIsoString } from "../shared/clock.ts";
 import { acceptsRuntimeHtml } from "../shared/runtime-topology.ts";
 import {
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
   instanceControlPlaneEffectiveRouteAccess,
   instanceControlPlanePreferredAdminOriginFromRecords,
 } from "@dpeek/formless-instance-control-plane";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 import type { OwnerIdentity } from "../shared/protocol.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
@@ -554,7 +554,7 @@ function preferredAdminInvitationTarget(
         ...(route.requiredRole === undefined ? {} : { requiredRole: route.requiredRole }),
         returnTo: route.matchPath,
         routeId: route.recordId,
-        storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+        storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
         targetOrigin: parseInstanceAuthCanonicalOrigin(resolution.adminOrigin),
         targetProfile: "instance",
       };

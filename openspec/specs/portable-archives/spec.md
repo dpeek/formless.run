@@ -44,6 +44,16 @@ import, or workspace validation.
 - THEN the archive is rejected before mutation
 - AND target app, instance, and media data remain unchanged
 
+#### Scenario: Program cutover advances current state contracts
+
+- GIVEN an instance archive or `state/instance.json` uses the former standalone
+  instance-control-plane schema key or provenance
+- WHEN current archive or workspace parsing runs after the Program cutover
+- THEN the input is rejected as non-current before mutation
+- AND current output uses schema key `formless-program`, provenance kind
+  `program`, and one mixed Program record set
+- AND the runtime does not retain dual current archive or workspace state shapes
+
 ### Requirement: Export Latest Archive Format
 
 The system SHALL write portable archives using the latest supported archive
@@ -67,8 +77,10 @@ browser replica state.
 
 - GIVEN a target Formless instance has app installs and app data
 - WHEN an instance archive is exported
-- THEN instance control-plane storage snapshots, app storage snapshots, and
+- THEN one Program storage snapshot, app storage snapshots, and
   referenced core media are read from the target
+- AND the Program snapshot contains instance and reviewable identity records
+  from storage identity `instance:control-plane`
 - AND archive media files are written at manifest archive paths
 - AND protected target reads use owner session or admin bearer authorization
   supplied by the caller
@@ -169,8 +181,8 @@ explicit.
 - WHEN restore applies
 - THEN core media objects are written before app records
 - AND app data is restored through installed app storage identity
-- AND instance control-plane data is restored through `instance:control-plane`
-  storage identity when the archive includes it
+- AND Program data is restored through `instance:control-plane` storage identity
+  when the archive includes it
 
 #### Scenario: Create populated install from app archive
 
@@ -237,10 +249,13 @@ package slice.
 - **WHEN** Archive package parsing, formatting, restore planning, local archive
   IO, or package-local tests need storage snapshot contracts, installed app
   metadata contracts, app package resolver contracts, package revision/hash
-  contracts, instance control-plane schema contracts, or App schema behavior
+  contracts, or App schema behavior
 - **THEN** those dependencies come from public package exports such as
-  `@dpeek/formless-storage`, `@dpeek/formless-installed-apps`,
-  `@dpeek/formless-instance-control-plane`, and `@dpeek/formless-schema`
+  `@dpeek/formless-storage`, `@dpeek/formless-installed-apps`, and
+  `@dpeek/formless-schema`
+- **AND** the downstream runtime supplies Program schema resolution,
+  mixed-record validation, and domain-specific reviewable canonicalization
+  through explicit Archive package inputs
 - **AND** the Archive package does not import `lib/formless/src/shared/*` or
   `lib/formless/src/test/*` modules
 
@@ -292,10 +307,11 @@ workspaces.
 #### Scenario: Save from local Authority
 
 - **WHEN** workspace save runs against local Authority state containing active
-  app records, control-plane intent, and referenced core image or document media
+  app records, Program records, and referenced core image or document media
 - **THEN** the system writes deterministic record state files, schema
   provenance, and referenced media payloads from Authority-backed state
-- **AND** instance control-plane records are written to `state/instance.json`
+- **AND** instance control-plane and reviewable identity records are written to
+  `state/instance.json`
 - **AND** installed app records are written to `state/apps/<installId>.json`
 - **AND** browser replica state is not used as the source of truth
 - **AND** secret-looking fields are rejected from reviewable workspace state
@@ -323,7 +339,7 @@ payloads, not portable archive directories or duplicated schema source bodies.
 #### Scenario: Workspace record state files
 
 - **WHEN** workspace source is written
-- **THEN** instance control-plane state is written to `state/instance.json`
+- **THEN** Program state is written to `state/instance.json`
 - **AND** each installed app's Authority storage state is written to
   `state/apps/<installId>.json`
 - **AND** each state file declares kind, version, storage identity, schema key,
@@ -331,13 +347,16 @@ payloads, not portable archive directories or duplicated schema source bodies.
   records
 - **AND** schema provenance identifies the resolved source schema by source
   schema hash, package app key and package revision for installed apps, or
-  runtime-owned schema hash for the instance control-plane schema
+  runtime-owned schema hash for the complete Program schema
 - **AND** installed app state files declare `schemaProvenance.kind`
   `package-app`, `packageAppKey`, `packageRevision`, and `sourceSchemaHash`
 - **AND** `state/instance.json` declares `schemaProvenance.kind`
-  `instance-control-plane` and `sourceSchemaHash`
+  `program` and the complete Program `sourceSchemaHash`
 - **AND** workspace state files do not embed the full App schema object
 - **AND** `state/instance.json` uses storage identity `instance:control-plane`
+- **AND** `state/instance.json` uses schema key `formless-program`
+- **AND** it includes instance and reviewable identity records from the same
+  Authority record-id namespace
 - **AND** app state files use storage identity `app:<installId>`
 - **AND** workspace state kind constants, version constants, and parsing
   behavior come from the Workspace package contract
@@ -599,7 +618,7 @@ resolved schema identified by that state file's schema provenance.
 
 #### Scenario: Write schema-local workspace record entity
 
-- WHEN app or instance control-plane records are written into workspace state
+- WHEN app or Program records are written into workspace state
 - THEN record `entity` values use the entity keys from the resolved schema
 - AND portable archive envelopes do not rewrite workspace state records into a
   separate qualified entity-name format
@@ -611,20 +630,27 @@ resolved schema identified by that state file's schema provenance.
   record state or archive storage snapshots
 - AND installed app records are not stored as instance control-plane records
 
-### Requirement: Schema-Owned Control-Plane Snapshots
+### Requirement: Schema-Owned Program Snapshots
 
-The system SHALL represent `app-install`, unified `route`, and deployment
-intent in workspace state and portable archive envelopes as schema-owned
-control-plane records without storing secrets, deployment observation cache, or
-deployment execution history.
+The system SHALL represent instance control-plane intent and reviewable identity
+records in workspace state and portable archive envelopes through one
+schema-owned Program snapshot without storing secrets, deployment observation
+cache, or deployment execution history.
 
-#### Scenario: Instance archive includes control-plane intent
+#### Scenario: Instance archive includes Program records
 
-- **WHEN** an instance archive includes instance control-plane configuration
+- **WHEN** an instance archive includes Program configuration
 - **THEN** `app-install`, `route`, and `deployment-config` records are
   represented through an `instance:control-plane` storage snapshot
+- **AND** principals, principal emails, organizations, groups, memberships,
+  roles, role assignments, app registrations, invitations, account policies,
+  and policy acceptances are represented through that same snapshot
+- **AND** the snapshot uses schema key `formless-program`, provenance kind
+  `program`, and the complete Program source hash
 - **AND** provider API tokens, Alchemy passwords, Alchemy state tokens, raw lease
   tokens, and full provider resource JSON are excluded
+- **AND** credentials, sessions, challenge secrets, invite token hashes, grants,
+  recovery material, and provider responses are excluded
 - **AND** `deploy-attempt`, `deploy-evidence-summary`,
   cleanup audit summaries, and provider state payloads
   are excluded from instance archives and workspace state
@@ -633,16 +659,18 @@ deployment execution history.
 - **AND** installed app data remains represented through storage snapshots
   scoped by app install identity
 
-#### Scenario: Workspace control-plane state remains reviewable
+#### Scenario: Workspace Program state remains reviewable
 
 - **WHEN** workspace source is written
 - **THEN** `app-install`, unified `route`, and deployment intent is reviewable
   in `state/instance.json`
+- **AND** reviewable identity records from the same Program Authority are present
+  in that file
 - **AND** the file declares a workspace state kind, version,
   storage identity `instance:control-plane`, schema key
-  `instance-control-plane`, schema timestamp, source cursor, control-plane
-  schema provenance, and records
-- **AND** the file does not embed the full control-plane App schema object
+  `formless-program`, schema timestamp, source cursor, Program schema
+  provenance, and records
+- **AND** the file does not embed the full Program App schema object
 - **AND** `formless.json` does not duplicate that intent
 - **AND** deployment attempts, evidence summaries, and cleanup
   audit summaries are available only through deployment runtime projection or
@@ -651,17 +679,19 @@ deployment execution history.
   workspace state
 - **AND** secret-looking fields are rejected from reviewable workspace state
 
-### Requirement: Schema Control-Plane Sync Comparison
+### Requirement: Schema Program Sync Comparison
 
-The system SHALL compare workspace control-plane intent against remote
-schema-owned control-plane records for push and pull sync planning.
+The system SHALL compare workspace Program records against remote schema-owned
+Program records for push and pull sync planning.
 
-#### Scenario: Check control-plane changes
+#### Scenario: Check Program changes
 
-- **GIVEN** a sync operation compares instance control-plane state
-- **WHEN** remote and local control-plane records differ
+- **GIVEN** a sync operation compares Program state
+- **WHEN** remote and local Program records differ
 - **THEN** changes are reported from schema-owned app install, route, and
   deployment config records
+- **AND** reviewable identity record changes are reported from the same Program
+  state comparison
 - **AND** app path, exact-host mapping, and redirect changes are compared through
   `instance:route` records
 - **AND** provider observations remain separate from desired intent comparison

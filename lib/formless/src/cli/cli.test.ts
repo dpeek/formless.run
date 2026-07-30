@@ -17,11 +17,11 @@ import {
   parsePortableArchive,
   type AppArchive,
   type InstanceArchive,
-} from "@dpeek/formless-archive";
+} from "../program/archive.ts";
 import {
   writePortableArchiveDirectory,
   type ArchiveDiskMediaFile,
-} from "@dpeek/formless-archive/node";
+} from "../program/archive-node.ts";
 import type {
   CloudflareDnsRecord,
   CloudflareDomainClient,
@@ -51,12 +51,12 @@ import {
   formatStoredRecordsForArtifact,
 } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
+import { formatInstanceControlPlaneBoundaryEntityName } from "@dpeek/formless-instance-control-plane";
+import { formlessProgramSchema } from "../program/runtime.ts";
 import {
-  INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  formatInstanceControlPlaneBoundaryEntityName,
-  instanceControlPlaneSchema,
-} from "@dpeek/formless-instance-control-plane";
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import { computeSourceSchemaHash, type SourceSchemaHash } from "../shared/upgrade-migrations.ts";
 import { FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME } from "../shared/workspace-runtime-packages.ts";
 import {
@@ -99,7 +99,7 @@ import {
   replaceInstanceWorkspaceMediaFiles,
   writeInstanceWorkspaceAppStorageSnapshot,
   writeInstanceWorkspaceControlPlaneStorageSnapshot,
-} from "@dpeek/formless-workspace/node";
+} from "../program/workspace.ts";
 import {
   FORMLESS_ALCHEMY_APP_NAME,
   discoverFormlessInstanceWorkspaceRoot,
@@ -954,11 +954,11 @@ describe("Formless CLI", () => {
     ).resolves.toContain('"storageIdentity": "app:david"');
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
       "GET https://source-owned.dpeek.workers.dev/api/formless/app-installs",
-      "GET https://source-owned.dpeek.workers.dev/api/formless/control-plane/snapshot?actorKind=cliDeployer",
+      "GET https://source-owned.dpeek.workers.dev/api/formless/program/snapshot?actorKind=cliDeployer",
       "GET https://source-owned.dpeek.workers.dev/api/app-installs/site/david/snapshot",
       "GET https://source-owned.dpeek.workers.dev/api/app-installs/site/james/snapshot",
       "GET https://source-owned.dpeek.workers.dev/api/formless/media/media/images/cover.png",
-      "GET https://source-owned.dpeek.workers.dev/api/formless/control-plane/bootstrap?actorKind=cliDeployer",
+      "GET https://source-owned.dpeek.workers.dev/api/formless/program/bootstrap?actorKind=cliDeployer",
     ]);
     expect(requests.map((request) => request.headers.authorization)).toEqual(
       requests.map(() => "Bearer stored-archive-token"),
@@ -1653,7 +1653,6 @@ describe("Formless CLI", () => {
         id: "staging",
         values: {
           accountId: "old-account",
-          createdAt: now,
           credentialRef: "formless-cloudflare-oauth:staging",
           enabled: true,
           label: "Staging",
@@ -1661,7 +1660,6 @@ describe("Formless CLI", () => {
           targetId: "staging",
           targetKind: "instance",
           targetUrl: "https://staging-sites.old.workers.dev",
-          updatedAt: now,
           workerName: "staging-sites",
         },
       },
@@ -4362,7 +4360,7 @@ describe("Formless CLI", () => {
     ).resolves.toEqual(Buffer.from([4, 5, 6]));
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
       "GET https://instance.example/api/formless/app-installs",
-      "GET https://instance.example/api/formless/control-plane/snapshot?actorKind=cliDeployer",
+      "GET https://instance.example/api/formless/program/snapshot?actorKind=cliDeployer",
       "GET https://instance.example/api/app-installs/site/personal/snapshot",
       "GET https://instance.example/api/app-installs/tasks/work/snapshot",
       "GET https://instance.example/api/app-installs/crm/sales/snapshot",
@@ -4584,7 +4582,7 @@ function expectNoOwnerSetupProtectedBootstrapReads(requests: CapturedFetchReques
   const forbiddenPrefixes = [
     "/api/formless/app-installs",
     "/api/formless/archive",
-    "/api/formless/control-plane",
+    "/api/formless/program",
     "/api/formless/deploy",
     "/api/formless/deployments",
     "/api/formless/session",
@@ -4891,8 +4889,6 @@ function privateControlPlaneRecords(sourceSchemaHash: SourceSchemaHash): StoredR
         registrationPolicy: "closed",
         status: "installed",
         storageIdentity: "app:labs",
-        createdAt: now,
-        updatedAt: now,
       },
       createdAt: now,
       updatedAt: now,
@@ -4907,8 +4903,6 @@ function privateControlPlaneRecords(sourceSchemaHash: SourceSchemaHash): StoredR
         targetProfile: "app",
         appInstall: "labs",
         surface: "admin",
-        createdAt: now,
-        updatedAt: now,
       },
       createdAt: now,
       updatedAt: now,
@@ -5299,7 +5293,7 @@ function archiveFetch(
       });
     }
 
-    if (parsedUrl.pathname === "/api/formless/control-plane/operations/deployment-config/update") {
+    if (parsedUrl.pathname === "/api/formless/program/operations/deployment-config/update") {
       const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}") as {
         input: Record<string, unknown>;
         recordId: string;
@@ -5330,7 +5324,7 @@ function archiveFetch(
       });
     }
 
-    if (parsedUrl.pathname === "/api/formless/control-plane/bootstrap") {
+    if (parsedUrl.pathname === "/api/formless/program/bootstrap") {
       if (controlPlaneRecords === undefined) {
         return Response.json({ error: "not found" }, { status: 404 });
       }
@@ -5342,7 +5336,7 @@ function archiveFetch(
       });
     }
 
-    if (parsedUrl.pathname === "/api/formless/control-plane/snapshot") {
+    if (parsedUrl.pathname === "/api/formless/program/snapshot") {
       if (controlPlaneRecords === undefined) {
         return Response.json({ error: "not found" }, { status: 404 });
       }
@@ -5649,34 +5643,7 @@ function missingWorkersDevScriptResponse(): Response {
 function controlPlaneRecordsWithProviderObservation(
   options: Parameters<typeof controlPlaneRecords>[0] = {},
 ): StoredRecord[] {
-  const now = "2026-05-26T00:00:00.000Z";
-
-  return [
-    ...controlPlaneRecords(options).map((record) =>
-      record.entity === "deployment-config"
-        ? {
-            ...record,
-            values: {
-              ...record.values,
-              observedAt: "2026-05-26T00:01:00.000Z",
-              observedStatus: "applied",
-              observedSummary: "raw-provider-evidence",
-            },
-          }
-        : record,
-    ),
-    {
-      id: "provider-evidence",
-      entity: "deploy-evidence-summary",
-      values: {
-        providerState: "raw-provider-evidence",
-        createdAt: now,
-        updatedAt: now,
-      },
-      createdAt: now,
-      updatedAt: now,
-    },
-  ];
+  return controlPlaneRecords(options);
 }
 
 function localOnlyControlPlaneRecords(): StoredRecord[] {
@@ -6328,12 +6295,12 @@ function controlPlaneSnapshot(records: StoredRecord[]): StorageSnapshot {
   return {
     kind: STORAGE_SNAPSHOT_KIND,
     version: STORAGE_SNAPSHOT_VERSION,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-    schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+    schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
     exportedAt: "2026-05-12T00:00:00.000Z",
     schemaUpdatedAt: "2026-05-26T00:00:00.000Z",
     sourceCursor: records.length,
-    schema: instanceControlPlaneSchema,
+    schema: formlessProgramSchema,
     records,
   };
 }

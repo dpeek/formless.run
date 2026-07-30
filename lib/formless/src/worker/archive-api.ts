@@ -4,7 +4,7 @@ import {
   type AppArchiveData,
   type InstanceArchiveControlPlane,
   type PortableArchive,
-} from "@dpeek/formless-archive";
+} from "../program/archive.ts";
 import {
   installedAppStorageIdentity,
   type InstalledAppStorageIdentity,
@@ -14,13 +14,15 @@ import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless
 import type { StorageSnapshot } from "@dpeek/formless-storage";
 import { type BootstrapResponse } from "../shared/protocol.ts";
 import {
-  INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX,
-  INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
   instanceControlPlaneAppInstallsFromRecords,
   instanceControlPlaneRecordsForAppInstall,
-  instanceControlPlaneSchema,
 } from "@dpeek/formless-instance-control-plane";
+import { formlessProgramSchema } from "../program/runtime.ts";
+import {
+  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import {
   applyPortableArchiveRestore,
   dryRunPortableArchiveRestore,
@@ -352,12 +354,12 @@ async function restoreInstallViaControlPlane(
   await restoreControlPlaneViaAuthority(request, env, {
     kind: STORAGE_SNAPSHOT_KIND,
     version: STORAGE_SNAPSHOT_VERSION,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-    schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+    schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
     exportedAt: now,
     schemaUpdatedAt: now,
     sourceCursor: 0,
-    schema: instanceControlPlaneSchema,
+    schema: formlessProgramSchema,
     records: [
       ...nextRecords,
       ...instanceControlPlaneRecordsForAppInstall({ install: input.install, now }),
@@ -370,16 +372,13 @@ async function restoreControlPlaneViaAuthority(
   env: InstanceArchiveApiEnv,
   controlPlane: InstanceArchiveControlPlane,
 ): Promise<BootstrapResponse> {
-  const id = env.FORMLESS_AUTHORITY.idFromName(INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
   const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
-    new Request(
-      new URL(`${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/snapshot/restore`, request.url),
-      {
-        body: JSON.stringify(controlPlane),
-        headers: archiveRestoreForwardHeaders(request.headers),
-        method: "POST",
-      },
-    ),
+    new Request(new URL(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`, request.url), {
+      body: JSON.stringify(controlPlane),
+      headers: archiveRestoreForwardHeaders(request.headers),
+      method: "POST",
+    }),
   );
   const text = await response.text();
 

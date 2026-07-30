@@ -5,6 +5,7 @@ import { bundledAppPackageResolver } from "../shared/app-packages.ts";
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
 import {
   deleteFormlessReplicaDatabases,
+  deleteLegacyIdentityReplicaDatabase,
   mergeChanges,
   readCursor,
   readSchemaProvenance,
@@ -79,6 +80,10 @@ export type SubmitOperationOptions = BrowserWriteOptions & {
 export async function bootstrapClient(target: ClientAppTarget, fetcher: typeof fetch = fetch) {
   const identity = appStorageIdentityForClientTarget(target);
   const response = await fetchJson<BootstrapResponse>(fetcher, apiPath(identity, "bootstrap"));
+
+  if (identity.kind === "program") {
+    await deleteLegacyIdentityReplicaDatabase();
+  }
 
   await saveBootstrapResponse(identity, response);
   applyBootstrapResponse(response, identity);
@@ -559,9 +564,7 @@ async function addBrowserReplicaWriteHeaders(
     readSchemaProvenance(identity),
   ]);
   const packageFacts =
-    schemaProvenance ||
-    identity.kind === "identityControlPlane" ||
-    identity.kind === "instanceControlPlane"
+    schemaProvenance || identity.kind === "program"
       ? undefined
       : packageAppFactsForKey(
           identity.packageAppKey,
@@ -582,10 +585,7 @@ async function addBrowserReplicaWriteHeaders(
     return;
   }
 
-  if (
-    schemaProvenance?.kind === "identity-control-plane" ||
-    schemaProvenance?.kind === "instance-control-plane"
-  ) {
+  if (schemaProvenance?.kind === "program") {
     headers.set(FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER, schemaProvenance.sourceSchemaHash);
     return;
   }
@@ -615,7 +615,7 @@ function autoSaveSourceForOperation(
   identity: ReturnType<typeof appStorageIdentityForClientTarget>,
   entity: EntityName,
 ): LocalWorkspaceAutoSaveWriteSource {
-  if (identity.kind !== "instanceControlPlane") {
+  if (identity.kind !== "program") {
     return "app-operation";
   }
 

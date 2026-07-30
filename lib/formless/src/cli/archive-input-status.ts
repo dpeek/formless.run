@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { PORTABLE_ARCHIVE_MANIFEST_FILE } from "@dpeek/formless-archive";
+import { PORTABLE_ARCHIVE_MANIFEST_FILE } from "../program/archive.ts";
 
 export { PORTABLE_ARCHIVE_MANIFEST_FILE };
 

@@ -53,6 +53,24 @@ describe("management memory Presentation Host", () => {
       state: "ready",
       workspaces: [{ role: "apps" }, { role: "routes" }],
     });
+
+    const manifest = readyManagementManifestNode();
+    host.publish([
+      {
+        ...manifest,
+        snapshot: {
+          ...manifest.snapshot,
+          workspaces: [manifest.snapshot.workspaces[0]],
+        },
+      },
+      installDialogNode(),
+      workspaceNode(appsWorkspaceReference, "Apps"),
+    ]);
+
+    expect(host.read(managementReference)).toMatchObject({
+      state: "ready",
+      workspaces: [{ role: "apps" }],
+    });
   });
 
   it("provides typed management and install-dialog reads beside shell and workspace nodes", () => {

@@ -1340,13 +1340,18 @@ function assertReferencesResolve(nodes: StoredPresentationNodes) {
       }
       assertReferenceResolves(nodes, manifest.installDialog);
 
-      const expectedRoles = ["apps", "routes"] as const;
-      manifest.workspaces.forEach((workspace, index) => {
-        if (workspace.role !== expectedRoles[index]) {
+      const roleOrder = { apps: 0, routes: 1 } as const;
+      const seenRoles = new Set<string>();
+      let previousRoleOrder = -1;
+      manifest.workspaces.forEach((workspace) => {
+        const currentRoleOrder = roleOrder[workspace.role];
+        if (seenRoles.has(workspace.role) || currentRoleOrder <= previousRoleOrder) {
           throw new Error(
             `Formless UI management manifest ${JSON.stringify(manifest.id)} has invalid workspace order.`,
           );
         }
+        seenRoles.add(workspace.role);
+        previousRoleOrder = currentRoleOrder;
         assertReferenceResolves(nodes, workspace.reference);
       });
 

@@ -1,6 +1,6 @@
 import {
-  parseInstanceControlPlaneApiRoute,
-  type InstanceControlPlaneStorageIdentity,
+  parseProgramApiRoute,
+  type ProgramStorageIdentity,
 } from "../shared/app-storage-identity.ts";
 import {
   appInstallRegistryError,
@@ -15,12 +15,9 @@ import {
 import { findResolvedAppPackage, type AppPackageResolver } from "../shared/app-packages.ts";
 import { nowIsoString } from "../shared/clock.ts";
 import {
-  INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
   INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID,
   instanceControlPlaneAppInstallsFromRecords,
   instanceControlPlaneDefaultRouteAccess,
-  instanceControlPlaneSchemaProvenance,
   type InstanceControlPlaneRecord,
   instanceControlPlaneRecordsForAppInstall,
   instanceControlPlaneSchema,
@@ -28,6 +25,8 @@ import {
   type InstanceControlPlaneRedirectStatusCode,
   type InstanceControlPlaneRouteValues,
 } from "@dpeek/formless-instance-control-plane";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
+import { parseFormlessProgramStorageSnapshot } from "../program/runtime.ts";
 import type { DeploymentTarget } from "../shared/deployment-runtime.ts";
 import type { InstanceDomainProviderRedirectIntent } from "../shared/domain-provider-api.ts";
 import type {
@@ -58,7 +57,6 @@ import {
 import { validateRecordValues } from "./authority-validation.ts";
 import { assertUniqueConstraints } from "./constraints.ts";
 import { BadRequestError } from "./errors.ts";
-import type { WorkerSchemaAppDefinition } from "./schema-apps.ts";
 import {
   createRecordSetForOperationOutcome,
   ensureStorageTables,
@@ -66,14 +64,11 @@ import {
   getBootstrapRecords,
   getOperationInvocationById,
   getStoredRecord,
-  initializeStorageFromSource,
   patchStoredRecordOutcome,
   recordOperationInvocationAccepted,
   recordOperationInvocationFailed,
   recordOperationInvocationOutcome,
   readOperationInvocations,
-  type RecordConstraintValidator,
-  type StorageSource,
   writeRecordSetForOperationOutcome,
   writeRecordSetForCommandOperationOutcome,
 } from "./storage.ts";
@@ -92,6 +87,13 @@ import {
   type ActiveRuntimeAppPackageEnv,
 } from "./runtime-app-packages.ts";
 import { hostAuthSessionTargetFromRequestHeaders } from "./instance-auth-handoff.ts";
+import {
+  ensureFormlessProgramStorage,
+  formlessProgramCreatedRecordId,
+  formlessProgramApp,
+  formlessProgramSource,
+  validateFormlessProgramRecordConstraint,
+} from "./program-authority.ts";
 
 const actorKinds = ["admin", "cliDeployer", "owner", "runner"] as const;
 const operationalControlPlaneEntityNames = new Set([
@@ -121,25 +123,9 @@ export const INTERNAL_READ_OPERATION_INVOCATIONS_PATH = "/_internal/read-operati
 export const INTERNAL_SYNC_DOMAIN_INTENT_PATH = "/_internal/sync-domain-intent";
 export const INTERNAL_SYNC_DEPLOYMENT_PROJECTION_PATH = "/_internal/sync-deployment-projection";
 const instanceControlPlaneSourceSchema = instanceControlPlaneSchema;
-const instanceControlPlaneApp = {
-  key: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-  label: "Instance control plane",
-  route: "/instance-control-plane",
-  sourceSchema: instanceControlPlaneSourceSchema,
-} satisfies WorkerSchemaAppDefinition;
-
-function instanceControlPlaneSource(): StorageSource {
-  return {
-    schema: instanceControlPlaneSourceSchema,
-    schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-    schemaProvenance: instanceControlPlaneSchemaProvenance,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  };
-}
 
 function initializeControlPlaneStorage(storage: DurableObjectStorage) {
-  ensureStorageTables(storage);
-  initializeStorageFromSource(storage, instanceControlPlaneSource());
+  ensureFormlessProgramStorage(storage, undefined);
 }
 
 function ensureControlPlaneStorage(storage: DurableObjectStorage) {
@@ -167,7 +153,7 @@ export async function handleInstanceControlPlaneApiRequest(
   request: Request,
   env: InstanceControlPlaneApiEnv,
 ): Promise<Response | undefined> {
-  const route = parseInstanceControlPlaneApiRoute(new URL(request.url).pathname);
+  const route = parseProgramApiRoute(new URL(request.url).pathname);
 
   if (!route) {
     return undefined;
@@ -177,7 +163,7 @@ export async function handleInstanceControlPlaneApiRequest(
     return jsonResponse({ error: "Not found." }, 404);
   }
 
-  const id = env.FORMLESS_AUTHORITY.idFromName(INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
 
   return env.FORMLESS_AUTHORITY.get(id).fetch(request);
 }
@@ -188,9 +174,13 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
   env: InstanceControlPlaneApiEnv,
 ): Promise<Response | undefined> {
   const url = new URL(request.url);
-  const route = parseInstanceControlPlaneApiRoute(url.pathname);
+  const route = parseProgramApiRoute(url.pathname);
 
   if (!route) {
+    return undefined;
+  }
+
+  if (route.path === "/sync/ws") {
     return undefined;
   }
 
@@ -255,13 +245,21 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
     }
 
     const body = operation.metadata.mode === "write" ? await readJson(request) : undefined;
+
+    if (operation.kind === "restoreSnapshot") {
+      parseFormlessProgramStorageSnapshot("Formless Program storage snapshot", body, {
+        packageResolver: activeAppPackageResolver(env),
+      });
+    }
+
     ensureControlPlaneStorage(storage);
     const packageResolver = activeAppPackageResolver(env);
-    const source = instanceControlPlaneSource();
+    const source = formlessProgramSource();
     const result = await executeAuthorityOperation({
       actorKind,
-      app: instanceControlPlaneApp,
+      app: formlessProgramApp,
       body,
+      createRecordId: formlessProgramCreatedRecordId,
       identity: route.identity,
       operation,
       packageResolver,
@@ -269,7 +267,7 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
       storage,
       validateConstraints:
         operation.metadata.mode === "write"
-          ? validateControlPlaneRecordConstraint(storage, packageResolver)
+          ? validateFormlessProgramRecordConstraint(storage, packageResolver)
           : undefined,
       writes: noopWriteNotifier,
     });
@@ -465,7 +463,7 @@ function handleInternalResolveRuntimeRoute(
 
 async function handleCreateAppInstallOperation(
   request: Request,
-  identity: InstanceControlPlaneStorageIdentity,
+  identity: ProgramStorageIdentity,
   storage: DurableObjectStorage,
   env: InstanceControlPlaneApiEnv,
 ): Promise<Response> {
@@ -603,7 +601,7 @@ function hostAuthSessionTargetForInstanceControlPlaneRequest(request: Request) {
     !target ||
     target.appInstallId !== undefined ||
     target.targetProfile !== "instance" ||
-    target.storageIdentity !== INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY
+    target.storageIdentity !== FORMLESS_PROGRAM_STORAGE_IDENTITY
   ) {
     return undefined;
   }
@@ -630,7 +628,7 @@ function operationalControlPlaneAuthorizationError(operation: AuthorityOperation
 
 function createAppInstallOperationEnvelope(input: {
   actorKind: SchemaOperationActorKind;
-  identity: InstanceControlPlaneStorageIdentity;
+  identity: ProgramStorageIdentity;
   input: CreateAppInstallRequest;
   idempotencyKey: string;
   receivedAt: string;
@@ -755,6 +753,7 @@ function validateControlPlaneRecordWrite(
     entityName: string,
     values: RecordValues,
     recordOptions?: {
+      candidateRecordId?: string;
       ignoreRecordId?: string;
     },
   ) => {
@@ -783,28 +782,22 @@ function validateControlPlaneRecordWrite(
       options,
       recordOptions?.ignoreRecordId,
     );
-    assertUniqueConstraints(storage, schema, entityName, validated, recordOptions);
-  };
-}
-
-function validateControlPlaneRecordConstraint(
-  storage: DurableObjectStorage,
-  packageResolver?: AppPackageResolver,
-): RecordConstraintValidator {
-  return (entityName, values, recordOptions) => {
-    validateControlPlanePackageBoundary(
-      storage,
+    validateFormlessProgramRecordConstraint(storage, options.packageResolver)(
       entityName,
-      values,
+      validated,
       {
-        additionalRecords:
-          recordOptions?.additionalRecords === undefined
-            ? undefined
-            : [...recordOptions.additionalRecords],
-        packageResolver,
+        ...(options.additionalRecords === undefined
+          ? {}
+          : { additionalRecords: options.additionalRecords }),
+        ...(recordOptions?.candidateRecordId === undefined
+          ? {}
+          : { candidateRecordId: recordOptions.candidateRecordId }),
+        ...(recordOptions?.ignoreRecordId === undefined
+          ? {}
+          : { ignoreRecordId: recordOptions.ignoreRecordId }),
       },
-      recordOptions?.ignoreRecordId,
     );
+    assertUniqueConstraints(storage, schema, entityName, validated, recordOptions);
   };
 }
 

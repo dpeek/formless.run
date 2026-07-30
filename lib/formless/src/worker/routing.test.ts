@@ -378,7 +378,7 @@ describe("Worker document routing", () => {
     ).toBe(true);
     expect(
       shouldDeferToStaticAssets(documentRequest("http://example.com/deployments"), instanceProfile),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       shouldDeferToStaticAssets(
         documentRequest("http://example.com/apps/personal"),

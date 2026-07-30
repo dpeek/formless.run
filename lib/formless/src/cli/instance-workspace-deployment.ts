@@ -21,7 +21,7 @@ import {
   type DeployResourceGraph,
   type DeployResourceKind,
 } from "@dpeek/formless-deploy";
-import { type ArchiveDiskWriteResult } from "@dpeek/formless-archive/node";
+import { type ArchiveDiskWriteResult } from "../program/archive-node.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import {
   normalizeInstanceWorkspaceTargetUrl as normalizeFormlessInstanceWorkspaceTargetUrl,
@@ -39,7 +39,7 @@ import {
   writeInstanceWorkspaceControlPlaneStorageSnapshot,
   writeInstanceWorkspaceSecretState as writeFormlessInstanceWorkspaceSecretState,
   parseWorkspaceDotEnv as parseDotEnv,
-} from "@dpeek/formless-workspace/node";
+} from "../program/workspace.ts";
 import {
   deployDesiredStateVersionRef,
   type DeployDesiredStateVersionLike,

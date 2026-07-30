@@ -41,16 +41,18 @@ the product instance profile.
 - GIVEN the runtime profile is `instance`
 - WHEN a request targets schema-key browser or schema-key API routes
 - THEN those schema-key routes are not available
-- AND installed app API routes, installed app browser routes, installed Site
-  public routes, account auth routes, principal-backed browser session routes,
-  instance browser routes, and the workspace gateway API route family remain
-  route-policy eligible
+- AND the Program browser and `/api/formless/program` route family, installed
+  app API routes, installed app browser routes, installed Site public routes,
+  account auth routes, principal-backed browser session routes, instance browser
+  routes, and the workspace gateway API route family remain route-policy
+  eligible
 
 #### Scenario: Dev route policy
 
 - GIVEN the runtime profile is `dev`
-- WHEN a request targets bundled source app, installed app, installed Site,
-  instance, account auth, schema-key API, or workspace gateway API routes
+- WHEN a request targets the Program, bundled source app, installed app,
+  installed Site, instance, account auth, schema-key API, or workspace gateway
+  API routes
 - THEN those route families remain available
 - AND the dev workbench can compose source app and product instance surfaces together
 
@@ -61,7 +63,8 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 #### Scenario: Product instance browser routes
 
 - GIVEN the runtime profile is `instance`
-- WHEN a browser navigates to `/`, `/deployments`, `/access`,
+- WHEN a browser navigates to `/`, `/apps`, `/routes`, `/deployments`,
+  `/organizations`, `/access`, `/invitations`, `/policies`, `/settings`,
   `/apps/<installId>`, `/apps/<installId>/*`, `/sites/<installId>`, or
   `/sites/<installId>/*`
 - THEN the request is eligible for the client shell
@@ -72,11 +75,16 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 - AND source app routes such as `/tasks`, `/crm/audiences`, `/site/schema`, and
   `/pages/home` are not eligible instance browser routes
 
-#### Scenario: Product instance settings route
+#### Scenario: Product instance Program routes
 
 - GIVEN the runtime profile is `instance`
-- WHEN a browser navigates to `/`
-- THEN the client shell is eligible to render Instance Settings for an active
+- WHEN a management browser opens the default Program
+- THEN `/` selects the root-owned principals screen and `/settings` selects
+  Instance Settings
+- AND `/apps` selects the root-owned screen that composes app installs and app
+  registrations
+- AND Program navigation order comes from the materialized Program artifact
+- AND the client shell is eligible to render those screens for an active
   principal with active `instance.owner` or `instance.admin` authority
 - AND owner-only security and recovery behavior remains unavailable to a
   principal authorized only as instance admin
@@ -317,7 +325,7 @@ surfaces or protected management API data.
   effective access `management` or `owner`
 - AND a browser has completed cross-domain auth handoff for that mapped
   instance host route
-- WHEN the browser requests operational instance control-plane management API
+- WHEN the browser requests operational Program management API
   reads or writes through that mapped host
 - THEN the runtime authorizes the request with the host-local session only when
   the session is valid for the same host, route, target profile, and
@@ -466,7 +474,7 @@ profile behavior.
 - **AND** protected access on the mapped admin host uses cross-domain auth
   handoff and a host-local session when the mapped host is not the configured
   auth origin
-- **AND** protected instance control-plane management API requests may use a
+- **AND** protected Program management API requests may use a
   host-local session bound to that admin route, target profile `instance`, and
   storage identity `instance:control-plane`
 - **AND** schema-key browser routes, source app routes, and unrelated installed
@@ -580,7 +588,7 @@ host-specific request handling.
 
 - **GIVEN** runtime topology has selected a route result
 - **WHEN** the request is served through an exact-host or hostless runtime route
-- **THEN** the real Worker remains responsible for fetching current control-plane
+- **THEN** the real Worker remains responsible for fetching current Program
   records, reserved callback ownership, HTTP redirects, public Site adapters,
   document rendering, indexing, icons, media, installed app APIs, static assets,
   and response headers

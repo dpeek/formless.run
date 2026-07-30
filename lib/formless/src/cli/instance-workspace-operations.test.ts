@@ -23,11 +23,11 @@ import { bundledAppPackageResolver } from "../shared/app-packages.ts";
 import { testSiteRecords } from "../test/site-records.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
+import { formlessProgramSchema } from "../program/runtime.ts";
 import {
-  INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  instanceControlPlaneSchema,
-} from "@dpeek/formless-instance-control-plane";
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import {
   createWorkspaceOperationState,
   listWorkspaceOperationStates,
@@ -36,7 +36,7 @@ import {
   writeInstanceWorkspaceAppStorageSnapshot,
   workspaceOperationStatePath,
   writeInstanceWorkspaceControlPlaneStorageSnapshot,
-} from "@dpeek/formless-workspace/node";
+} from "../program/workspace.ts";
 import { siteSourceSchema } from "../test/schema-apps.ts";
 import {
   ALCHEMY_PASSWORD_ENV_NAME,
@@ -374,7 +374,7 @@ describe("Formless workspace operations", () => {
         observedSummary: string;
       };
       recordId: string;
-    }>(requestByPath(requests, "/api/formless/control-plane/operations/deployment-config/update"));
+    }>(requestByPath(requests, "/api/formless/program/operations/deployment-config/update"));
 
     expect(state).toMatchObject({
       actor: "browser",
@@ -405,7 +405,7 @@ describe("Formless workspace operations", () => {
       [
         "GET /api/formless/deployments/desired-state",
         "GET /api/formless/deployments/status",
-        "POST /api/formless/control-plane/operations/deployment-config/update",
+        "POST /api/formless/program/operations/deployment-config/update",
       ],
     );
     expect(observation).toEqual({
@@ -645,7 +645,7 @@ describe("Formless workspace operations", () => {
     const requestPaths = requests.map((request) => new URL(request.url).pathname);
 
     expect(requests.every((request) => request.method === "GET")).toBe(true);
-    expect(requestPaths).toContain("/api/formless/control-plane/snapshot");
+    expect(requestPaths).toContain("/api/formless/program/snapshot");
     expect(requestPaths).toContain("/api/app-installs/site/david/snapshot");
     expect(requestPaths).not.toContain("/api/formless/archive/restore");
     expect(requestPaths).not.toContain("/api/formless/deployments/desired-state");
@@ -1336,7 +1336,7 @@ function authorityExportFetch(
       });
     }
 
-    if (parsedUrl.pathname === "/api/formless/control-plane/bootstrap") {
+    if (parsedUrl.pathname === "/api/formless/program/bootstrap") {
       return Response.json({
         cursor: 1,
         records: options.controlPlaneRecords ?? controlPlaneRecords(),
@@ -1344,7 +1344,7 @@ function authorityExportFetch(
       });
     }
 
-    if (parsedUrl.pathname === "/api/formless/control-plane/snapshot") {
+    if (parsedUrl.pathname === "/api/formless/program/snapshot") {
       return Response.json(
         controlPlaneSnapshot(options.controlPlaneRecords ?? controlPlaneRecords()),
       );
@@ -1430,11 +1430,11 @@ function controlPlaneSnapshot(records: StoredRecord[]): StorageSnapshot {
     exportedAt: "2026-05-12T02:00:00.000Z",
     kind: STORAGE_SNAPSHOT_KIND,
     records,
-    schema: instanceControlPlaneSchema,
-    schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
+    schema: formlessProgramSchema,
+    schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
     schemaUpdatedAt: "2026-05-01T00:00:00.000Z",
     sourceCursor: records.length,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     version: STORAGE_SNAPSHOT_VERSION,
   };
 }
@@ -1485,7 +1485,7 @@ function deployApplyFetch(
       });
     }
 
-    if (parsedUrl.pathname === "/api/formless/control-plane/bootstrap") {
+    if (parsedUrl.pathname === "/api/formless/program/bootstrap") {
       return Response.json({
         cursor: 1,
         records: options.controlPlaneRecords ?? deployControlPlaneRecords(),
@@ -1493,7 +1493,7 @@ function deployApplyFetch(
       });
     }
 
-    if (parsedUrl.pathname === "/api/formless/control-plane/snapshot") {
+    if (parsedUrl.pathname === "/api/formless/program/snapshot") {
       return Response.json(
         controlPlaneSnapshot(options.controlPlaneRecords ?? deployControlPlaneRecords()),
       );
@@ -1561,7 +1561,7 @@ function deployApplyFetch(
       });
     }
 
-    if (parsedUrl.pathname === "/api/formless/control-plane/operations/deployment-config/update") {
+    if (parsedUrl.pathname === "/api/formless/program/operations/deployment-config/update") {
       const body = parseCapturedBody<{
         idempotencyKey: string;
         input: Record<string, unknown>;
@@ -1655,14 +1655,12 @@ function controlPlaneRecords(): StoredRecord[] {
       entity: "app-install",
       id: installId,
       values: {
-        createdAt: now,
         installId,
         label: "David Peek",
         packageAppKey: "site",
         registrationPolicy: "closed",
         status: "installed",
         storageIdentity: `app:${installId}`,
-        updatedAt: now,
       },
     },
     {
@@ -1672,13 +1670,11 @@ function controlPlaneRecords(): StoredRecord[] {
       id: `route:${installId}:admin`,
       values: {
         appInstall: installId,
-        createdAt: now,
         enabled: true,
         kind: "mount",
         matchPath: `/apps/${installId}`,
         surface: "admin",
         targetProfile: "app",
-        updatedAt: now,
       },
     },
   ];
@@ -1704,14 +1700,12 @@ function deployControlPlaneRecords(
       id: "route:site:public-site",
       values: {
         appInstall: "david",
-        createdAt: now,
         enabled: true,
         kind: "mount",
         matchPath: "/sites/david",
         matchPrefix: "/sites/david/",
         surface: "public-site",
         targetProfile: "public-site",
-        updatedAt: now,
       },
     },
     {
@@ -1721,7 +1715,6 @@ function deployControlPlaneRecords(
       id: "route:host:public-site:www.example.com",
       values: {
         appInstall: "david",
-        createdAt: now,
         enabled: true,
         kind: "mount",
         matchHost: "www.example.com",
@@ -1730,7 +1723,6 @@ function deployControlPlaneRecords(
         deploymentConfig: "instance.primary",
         surface: "public-site",
         targetProfile: "public-site",
-        updatedAt: now,
       },
     },
     {
@@ -1739,7 +1731,6 @@ function deployControlPlaneRecords(
       entity: "route",
       id: "route:redirect:old.example.com",
       values: {
-        createdAt: now,
         enabled: true,
         kind: "redirect",
         matchHost: "old.example.com",
@@ -1749,7 +1740,6 @@ function deployControlPlaneRecords(
         preserveQueryString: true,
         statusCode: "308",
         toHost: "www.example.com",
-        updatedAt: now,
       },
     },
     {
@@ -1759,14 +1749,12 @@ function deployControlPlaneRecords(
       id: "instance.primary",
       values: {
         accountId: "account-123",
-        createdAt: now,
         enabled: true,
         label: "Primary instance",
         providerFamily: "cloudflare",
         targetId: "instance.primary",
         targetKind: "instance",
         targetUrl: options.targetUrl ?? "https://personal.dpeek.workers.dev",
-        updatedAt: now,
         ...(options.credentialRef === undefined ? {} : { credentialRef: options.credentialRef }),
         ...(workerName === null ? {} : { workerName }),
       },

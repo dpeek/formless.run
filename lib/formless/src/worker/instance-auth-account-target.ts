@@ -1,4 +1,4 @@
-import { INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY } from "@dpeek/formless-instance-control-plane";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 
 import {
   type AccountCompletionGateTarget,
@@ -48,7 +48,7 @@ export function sameOriginAccountCompletionTargetForRuntimeRouteFacts(input: {
     return {
       returnTo: input.returnTo,
       routeId: input.runtimeRoute.id,
-      storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
       targetOrigin: input.requestOrigin,
       targetProfile: "instance",
     };
@@ -64,7 +64,7 @@ export function sameOriginAccountCompletionTargetForRuntimeRouteFacts(input: {
   return {
     returnTo: input.returnTo,
     routeId: sameOriginInstanceRuntimeRouteId,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     targetOrigin: input.requestOrigin,
     targetProfile: "instance",
   };

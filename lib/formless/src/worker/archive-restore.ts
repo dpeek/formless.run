@@ -11,7 +11,7 @@ import {
   type ArchiveRestorePlanStep,
   type InstanceArchiveControlPlane,
   type PortableArchive,
-} from "@dpeek/formless-archive";
+} from "../program/archive.ts";
 import type { AppInstall, InstallableAppPackage } from "@dpeek/formless-installed-apps";
 import {
   installedAppStorageIdentity,

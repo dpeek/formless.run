@@ -19,11 +19,11 @@ import {
   type AppArchiveMediaReference,
   type InstanceArchive,
   type PortableArchive,
-} from "@dpeek/formless-archive";
+} from "../program/archive.ts";
 import {
   writePortableArchiveDirectory,
   type ArchiveDiskMediaFile,
-} from "@dpeek/formless-archive/node";
+} from "../program/archive-node.ts";
 import {
   coreImageMediaDeliveryFactsForAssetId,
   documentMediaAssetIsCompatible,
@@ -38,8 +38,8 @@ import {
   formatInstanceControlPlaneBoundaryEntityName,
   instanceControlPlaneDeploymentConfigObservedFields,
   isInstanceControlPlaneEntityName,
-  reviewableInstanceControlPlaneStorageSnapshot,
 } from "@dpeek/formless-instance-control-plane";
+import { canonicalizeFormlessProgramStorageSnapshot } from "../program/runtime.ts";
 import { STORAGE_SNAPSHOT_KIND } from "@dpeek/formless-storage";
 import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
@@ -69,7 +69,7 @@ import {
   resolveInstanceWorkspaceAdminToken as resolveFormlessInstanceWorkspaceAdminToken,
   writeInstanceWorkspaceAutoSaveState,
   writeInstanceWorkspaceControlPlaneStorageSnapshot,
-} from "@dpeek/formless-workspace/node";
+} from "../program/workspace.ts";
 import {
   readFormlessInstanceControlPlaneRecords,
   readFormlessInstanceDeploymentStatus,
@@ -840,6 +840,7 @@ function classifyForcedPushRemoteArchiveReadFailure(
     message.startsWith("Instance archive ") ||
     message.startsWith("App archive ") ||
     message.startsWith("Storage snapshot ") ||
+    message.startsWith("Formless Program storage snapshot ") ||
     message.includes("Instance archive controlPlane") ||
     message.includes("Instance archive apps[") ||
     message.includes("controlPlane records")
@@ -928,10 +929,8 @@ export async function workspaceLocalRestoreArchiveSource(input: {
     return undefined;
   }
 
-  const reviewableControlPlane = reviewableInstanceControlPlaneStorageSnapshot(controlPlane, {
-    context: "Formless instance local dev control-plane records",
+  const reviewableControlPlane = canonicalizeFormlessProgramStorageSnapshot(controlPlane, {
     packageResolver: input.activePackages.resolver,
-    sourceLabel: "Formless instance local dev control-plane storage state",
   });
 
   assertWorkspaceControlPlanePackagesAvailable({

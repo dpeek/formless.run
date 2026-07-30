@@ -1,17 +1,12 @@
-import { parseIdentityControlPlaneApiRoute } from "../shared/app-storage-identity.ts";
 import {
   IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH,
   IDENTITY_ACCESS_PERSON_REMOVAL_API_PATH,
   IDENTITY_ACCESS_PERSON_ROLE_REPLACEMENT_API_PATH,
   IDENTITY_COLLABORATOR_INVITATION_REVOKE_API_PATH,
   IDENTITY_COLLABORATOR_INVITATIONS_API_PATH,
-  IDENTITY_CONTROL_PLANE_SCHEMA_KEY,
-  IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
+  IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX,
   identityControlPlaneRecordSourceEntityName,
   identityControlPlaneRoleKeys,
-  identityControlPlaneSchemaProvenance,
-  identityControlPlaneSchema,
-  parseIdentityControlPlaneStorageSnapshot,
   validateIdentityCollaboratorInvitationGrants,
   validateIdentityControlPlaneRecords,
   type IdentityAccessInvitationSummary,
@@ -65,10 +60,7 @@ import { instanceControlPlaneProductionIdentityFromRecords } from "@dpeek/formle
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import type { OperationCommandOutput } from "../shared/operation-invocation.ts";
 import type { OwnerIdentity, OwnerIdentityInput } from "../shared/protocol.ts";
-import type { SchemaOperationActorKind } from "@dpeek/formless-schema";
 import {
-  authorizeAuthorityOperation,
-  authorizeOwnerManagementRead,
   authorizeOperationalManagement,
   type AuthorityAdminGuardEnv,
 } from "./authority-admin-guard.ts";
@@ -89,29 +81,17 @@ import {
   type ActiveIdentityPrincipal,
 } from "./identity-owner-internal.ts";
 import { parseAccountCompletionGateTarget } from "../shared/instance-auth.ts";
-import {
-  executeAuthorityOperation,
-  selectAuthorityOperation,
-  type AuthorityOperation,
-  type AuthorityWriteNotifier,
-} from "./authority-operations.ts";
 import type { OwnerSession } from "./owner-session.ts";
 import { BadRequestError } from "./errors.ts";
 import {
   ActiveSchemaRefreshBlockedError,
-  ensureStorageTables,
   getBootstrapRecords,
-  initializeStorageFromSource,
-  reconcileRuntimeInvariantRecords,
-  resetStorageToEmpty,
+  removeStorageRecords,
   writeRecordSetForCommandOperationOutcome,
   type RecordConstraintValidator,
   type OperationRecordWritePlan,
-  type StorageSource,
   type WriteOutcome,
 } from "./storage.ts";
-import type { WorkerSchemaAppDefinition } from "./schema-apps.ts";
-import { readControlPlaneRecords } from "./deployment-control-plane-client.ts";
 import {
   resolveConfiguredDefaultCloudflareSender,
   resolveDefaultEmailSenderReference,
@@ -119,7 +99,6 @@ import {
   type EmailDeliveryQueueBinding,
 } from "./email-runtime.ts";
 import { readEmailDeliveryByScheduleRequest } from "./email-runtime-state.ts";
-import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import {
   buildCollaboratorInvitationLink,
   createCollaboratorInvitationToken,
@@ -129,9 +108,13 @@ import {
   type RevokeCollaboratorInvitationTokenResult,
 } from "./instance-auth-state.ts";
 import { hostAuthSessionTargetFromRequestHeaders } from "./instance-auth-handoff.ts";
+import { readControlPlaneRecords } from "./deployment-control-plane-client.ts";
+import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { nowIsoString } from "../shared/clock.ts";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
+import { validateFormlessProgramRecords } from "../program/runtime.ts";
+import { ensureFormlessProgramStorage, isIdentityProgramRecord } from "./program-authority.ts";
 
-const actorKinds = ["admin", "owner"] as const;
 const invitationTargetSurfaces = ["app-install", "instance", "organization"] as const;
 const invitationStatuses = [
   "accepted",
@@ -168,30 +151,8 @@ export const INTERNAL_EMAIL_VERIFIED_APP_REGISTRATION_COMMIT_PATH =
 export const INTERNAL_TERMS_ACCEPTANCE_COMMIT_PATH = "/_internal/identity/terms-acceptance-commit";
 export const INTERNAL_IDENTITY_APP_REFERENCE_TARGET_PATH =
   "/_internal/identity/app-reference-target";
-const identityControlPlaneApp = {
-  key: IDENTITY_CONTROL_PLANE_SCHEMA_KEY,
-  label: "Identity control plane",
-  route: "/identity-control-plane",
-  sourceSchema: identityControlPlaneSchema,
-} satisfies WorkerSchemaAppDefinition;
-
-function identityControlPlaneSource(): StorageSource {
-  return {
-    schema: identityControlPlaneSchema,
-    schemaKey: IDENTITY_CONTROL_PLANE_SCHEMA_KEY,
-    schemaProvenance: identityControlPlaneSchemaProvenance,
-    storageIdentity: IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
-  };
-}
-
 function ensureIdentityControlPlaneStorage(storage: DurableObjectStorage) {
-  ensureStorageTables(storage);
-  initializeStorageFromSource(storage, identityControlPlaneSource());
-  reconcileRuntimeInvariantRecords(storage, builtInRoleRecords(), {
-    validate: (records) =>
-      validateIdentityControlPlaneRecords("Identity control-plane records", records),
-    writeIdPrefix: "identity-role-reconcile",
-  });
+  ensureFormlessProgramStorage(storage, undefined);
 }
 
 type IdentityControlPlaneApiEnv = AuthorityAdminGuardEnv & {
@@ -580,17 +541,30 @@ export type EnsureIdentityOwnerInput = {
   ownerId?: string;
 };
 
+function parseIdentityCapabilityApiRoute(pathname: string): { path: `/${string}` } | undefined {
+  if (
+    pathname !== IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX &&
+    !pathname.startsWith(`${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/`)
+  ) {
+    return undefined;
+  }
+
+  const suffix = pathname.slice(IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX.length);
+
+  return suffix.startsWith("/") && suffix !== "/" ? { path: suffix as `/${string}` } : undefined;
+}
+
 export async function handleIdentityControlPlaneApiRequest(
   request: Request,
   env: IdentityControlPlaneApiEnv,
 ): Promise<Response | undefined> {
-  const route = parseIdentityControlPlaneApiRoute(new URL(request.url).pathname);
+  const route = parseIdentityCapabilityApiRoute(new URL(request.url).pathname);
 
   if (!route) {
     return undefined;
   }
 
-  const id = env.FORMLESS_AUTHORITY.idFromName(IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
 
   return env.FORMLESS_AUTHORITY.get(id).fetch(request);
 }
@@ -607,15 +581,13 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
     return identityOwnerResponse;
   }
 
-  const route = parseIdentityControlPlaneApiRoute(url.pathname);
+  const route = parseIdentityCapabilityApiRoute(url.pathname);
 
   if (!route) {
     return undefined;
   }
 
   try {
-    const resolveOwnerSession = (session: OwnerSession) =>
-      Promise.resolve(readActiveIdentityOwnerForPrincipal(storage, session.principalId));
     const resolveManagementAuthority = (session: OwnerSession) =>
       Promise.resolve(readActiveIdentityAuthorityForPrincipal(storage, session.principalId));
 
@@ -641,9 +613,7 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
         readIdentityAccessManagementSummary(
           storage,
           identityAccessGrantAuthorityFromAuthorization(storage, authorization),
-          identityAccessInstalledAppSurfaces(
-            (await readControlPlaneRecords({ env, requestUrl: request.url })) ?? [],
-          ),
+          identityAccessInstalledAppSurfaces(getBootstrapRecords(storage)),
         ),
       );
     }
@@ -739,9 +709,7 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
           grantAuthorityPrincipalId: inviterPrincipalId,
           inviterPrincipalId,
         },
-        identityAccessInstalledAppSurfaces(
-          (await readControlPlaneRecords({ env, requestUrl: request.url })) ?? [],
-        ),
+        identityAccessInstalledAppSurfaces(getBootstrapRecords(storage)),
       );
 
       return jsonResponse({
@@ -786,58 +754,7 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
       return jsonResponse(revoked.body, revoked.ok ? 200 : revoked.status);
     }
 
-    const operation = selectAuthorityOperation({
-      method: request.method,
-      path: route.path,
-      searchParams: url.searchParams,
-    });
-
-    if (!operation) {
-      return jsonResponse({ error: "Not found." }, 404);
-    }
-
-    const actorKind = identityControlPlaneActorKindFromRequest(request, url);
-    const authorization =
-      operation.metadata.mode === "read"
-        ? await authorizeOwnerManagementRead(request, env, { resolveOwnerSession })
-        : await authorizeAuthorityOperation(request, operation, env, { resolveOwnerSession });
-
-    if (!authorization.authorized) {
-      return jsonResponse(
-        { error: authorization.error },
-        authorization.status,
-        authorization.headers,
-      );
-    }
-
-    if (operation.metadata.mode === "write") {
-      assertIdentityControlPlaneWriteActor(actorKind, operation);
-    }
-
-    const body = operation.metadata.mode === "write" ? await readJson(request) : undefined;
-
-    if (operation.kind === "restoreSnapshot") {
-      parseIdentityControlPlaneStorageSnapshot("Identity control-plane storage snapshot", body);
-    }
-
-    ensureIdentityControlPlaneStorage(storage);
-
-    const result = await executeAuthorityOperation({
-      actorKind,
-      app: identityControlPlaneApp,
-      body,
-      identity: route.identity,
-      operation,
-      source: identityControlPlaneSource(),
-      storage,
-      validateConstraints:
-        operation.metadata.mode === "write"
-          ? validateIdentityControlPlaneRecordConstraint(storage)
-          : undefined,
-      writes: noopWriteNotifier,
-    });
-
-    return jsonResponse(result.body, result.status, result.headers);
+    return jsonResponse({ error: "Not found." }, 404);
   } catch (error) {
     if (error instanceof ActiveSchemaRefreshBlockedError) {
       return jsonResponse({ error: error.message, blocker: error.blocker }, 409);
@@ -1137,7 +1054,7 @@ async function fetchIdentityOwnerInternal(
   path: string,
   init: RequestInit,
 ): Promise<Response> {
-  const id = env.FORMLESS_AUTHORITY.idFromName(IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
 
   return env.FORMLESS_AUTHORITY.get(id).fetch(new Request(`http://internal${path}`, init));
 }
@@ -1168,7 +1085,12 @@ async function handleIdentityOwnerInternalRequest(
       return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
     }
 
-    resetStorageToEmpty(storage);
+    ensureIdentityControlPlaneStorage(storage);
+    removeStorageRecords(storage, getBootstrapRecords(storage).filter(isIdentityProgramRecord), {
+      validate: (records) =>
+        validateFormlessProgramRecords("Identity reset Program records", records),
+      writeId: "identity-owner:reset",
+    });
     ensureIdentityControlPlaneStorage(storage);
 
     return jsonResponse({ reset: true });
@@ -1447,7 +1369,12 @@ function ensureIdentityOwnerRecords(
     records,
   });
 
-  validateIdentityControlPlaneRecords("Identity owner records", [...records, ...newRecords]);
+  const candidateRecords = [...records, ...newRecords];
+  validateIdentityControlPlaneRecords(
+    "Identity owner records",
+    candidateRecords.filter(isIdentityProgramRecord),
+    { candidateRecords },
+  );
 
   writeRecordSetForCommandOperationOutcome(
     storage,
@@ -5036,7 +4963,10 @@ async function scheduleCollaboratorInvitationDelivery(input: {
   storage: DurableObjectStorage;
 }): Promise<CollaboratorInvitationDeliveryResult> {
   const controlPlaneRecords =
-    (await readControlPlaneRecords({ env: input.env, requestUrl: input.requestUrl })) ?? [];
+    (await readControlPlaneRecords({
+      env: input.env,
+      requestUrl: input.requestUrl,
+    })) ?? [];
   const productionIdentity = instanceControlPlaneProductionIdentityFromRecords(controlPlaneRecords);
   const senderReference = resolveDefaultEmailSenderReference(controlPlaneRecords, "auth");
 
@@ -5202,7 +5132,7 @@ function collaboratorInvitationDeliveryScheduleRequest(input: {
     sender: { id: input.senderId },
     source: {
       recordId: input.input.invitationId,
-      storageIdentity: IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
+      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     },
   };
 }
@@ -6607,11 +6537,21 @@ function validateIdentityControlPlaneRecordConstraint(
   return (entityName, values, options) => {
     const records = getBootstrapRecords(storage);
     const candidateRecord = candidateIdentityRecord(records, entityName, values, options);
-    const candidateRecords = options?.ignoreRecordId
+    const replacedRecords = options?.ignoreRecordId
       ? records.map((record) => (record.id === options.ignoreRecordId ? candidateRecord : record))
       : [...records, candidateRecord];
+    const additionalRecords = options?.additionalRecords ?? [];
+    const additionalIds = new Set(additionalRecords.map((record) => record.id));
+    const candidateRecords = [
+      ...replacedRecords.filter((record) => !additionalIds.has(record.id)),
+      ...additionalRecords,
+    ];
 
-    validateIdentityControlPlaneRecords("Identity control-plane records", candidateRecords);
+    validateIdentityControlPlaneRecords(
+      "Identity control-plane records",
+      candidateRecords.filter(isIdentityProgramRecord),
+      { candidateRecords },
+    );
   };
 }
 
@@ -6656,60 +6596,6 @@ function pendingRecordId(records: readonly StoredRecord[], entity: string) {
 
   return id;
 }
-
-function builtInRoleRecords(): StoredRecord[] {
-  return identityControlPlaneRoleKeys.map((roleKey) => builtInRoleRecord(roleKey));
-}
-
-function builtInRoleRecord(roleKey: IdentityControlPlaneRoleKey): StoredRecord {
-  return {
-    id: `role:${roleKey}`,
-    entity: "role",
-    values: {
-      key: roleKey,
-      displayLabel: roleKey,
-      status: "active",
-    },
-    createdAt: builtInRoleCreatedAt,
-    updatedAt: builtInRoleCreatedAt,
-  };
-}
-
-function identityControlPlaneActorKindFromRequest(
-  request: Request,
-  url: URL,
-): SchemaOperationActorKind {
-  const value =
-    request.headers.get("X-Formless-Identity-Control-Plane-Actor") ??
-    request.headers.get("X-Formless-Actor-Kind") ??
-    url.searchParams.get("actorKind") ??
-    "owner";
-
-  if (actorKinds.includes(value as (typeof actorKinds)[number])) {
-    return value as SchemaOperationActorKind;
-  }
-
-  throw new BadRequestError(`Unsupported identity control-plane actor "${value}".`);
-}
-
-function assertIdentityControlPlaneWriteActor(
-  actorKind: SchemaOperationActorKind,
-  operation: AuthorityOperation,
-) {
-  if (actorKind === "owner" || actorKind === "admin") {
-    return;
-  }
-
-  throw new BadRequestError(
-    `Identity control-plane ${operation.kind} writes are not exposed to actor "${actorKind}".`,
-  );
-}
-
-const noopWriteNotifier: AuthorityWriteNotifier = {
-  apply(write) {
-    return write();
-  },
-};
 
 async function readJson(request: Request): Promise<unknown> {
   try {

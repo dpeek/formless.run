@@ -278,6 +278,7 @@ function executeGetOperationInvocation(input: {
 }
 
 export async function executeWriteOperationInvocation(input: {
+  createRecordId?: (entity: string, values: RecordValues) => string | undefined;
   envelope: OperationInvocationEnvelope;
   identityReferenceResolver?: IdentityReferenceTargetResolver;
   packageResolver?: AppPackageResolver;
@@ -293,6 +294,7 @@ export async function executeWriteOperationInvocation(input: {
         input.storage,
         input.envelope,
         input.schema,
+        input.createRecordId,
         input.identityReferenceResolver,
         input.packageResolver,
         input.validateConstraints,
@@ -306,6 +308,7 @@ async function prepareWriteOperationInvocationOutcome(
   storage: DurableObjectStorage,
   envelope: OperationInvocationEnvelope,
   schema: AppSchema,
+  createRecordId?: (entity: string, values: RecordValues) => string | undefined,
   identityReferenceResolver?: IdentityReferenceTargetResolver,
   packageResolver?: AppPackageResolver,
   validateConstraints?: RecordConstraintValidator,
@@ -332,6 +335,7 @@ async function prepareWriteOperationInvocationOutcome(
       storage,
       envelope,
       schema,
+      createRecordId,
       identityReferenceResolver,
       packageResolver,
       validateConstraints,
@@ -356,6 +360,7 @@ async function prepareCreateOperationInvocationOutcome(
   storage: DurableObjectStorage,
   envelope: OperationInvocationEnvelope,
   schema: AppSchema,
+  createRecordId?: (entity: string, values: RecordValues) => string | undefined,
   identityReferenceResolver?: IdentityReferenceTargetResolver,
   packageResolver?: AppPackageResolver,
   validateConstraints?: RecordConstraintValidator,
@@ -366,7 +371,7 @@ async function prepareCreateOperationInvocationOutcome(
     validateConstraints,
   );
   const validatedRecordWrite = await validateOperationRecordWriteRequest(
-    operationCreateRecordWriteRequest(envelope, schema, storage),
+    operationCreateRecordWriteRequest(envelope, schema, storage, createRecordId),
     schema,
     storage,
     { identityReferenceResolver, packageResolver },
@@ -814,20 +819,25 @@ function operationCreateRecordWriteRequest(
   envelope: OperationInvocationEnvelope,
   schema: AppSchema,
   storage: DurableObjectStorage,
+  createRecordId?: (entity: string, values: RecordValues) => string | undefined,
 ) {
   const writeId = requiredWriteIdentity(envelope);
 
   if (envelope.operation.kind === "create" && envelope.input.type === "create") {
+    const values = validateOperationInvocationRecordWriteValues({
+      envelope,
+      rawInput: envelope.input.values,
+      schema,
+      storage,
+    }) as RecordValues;
+    const id = createRecordId?.(envelope.operation.entityName, values);
+
     return {
       writeId,
       entity: envelope.operation.entityName,
+      ...(id === undefined ? {} : { id }),
       kind: "create",
-      values: validateOperationInvocationRecordWriteValues({
-        envelope,
-        rawInput: envelope.input.values,
-        schema,
-        storage,
-      }),
+      values,
     } satisfies Omit<CreateRecordWriteRequest, "values"> & {
       values: unknown;
     };

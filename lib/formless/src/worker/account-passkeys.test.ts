@@ -8,7 +8,7 @@ import type {
   AuthenticationResponseJSON,
   PublicKeyCredentialRequestOptionsJSON,
 } from "@simplewebauthn/server";
-import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-identity-control-plane";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 
 import type {
   AccountPasskeyLoginOptionsResponse,
@@ -352,7 +352,7 @@ function accountPrincipalIdentity(owner: { email?: string; id: string; name: str
 
 async function createIdentityPrincipal(displayName: string) {
   const response = await postJson<OperationInvocationResponse>(
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/principal/create`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal/create`,
     {
       idempotencyKey: `account-passkey-principal-${displayName.replace(/\W+/g, "-").toLowerCase()}`,
       input: {
@@ -392,7 +392,7 @@ async function assignIdentityRole(
       },
 ) {
   const response = await postJson(
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/role-assignment/create`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/role-assignment/create`,
     {
       idempotencyKey: `account-passkey-role-${principalId.replace(/\W+/g, "-")}`,
       input: {
@@ -415,7 +415,7 @@ async function assignIdentityRole(
 
 async function updateIdentityPrincipalStatus(principalId: string, status: "active" | "disabled") {
   const response = await postJson(
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/principal/update`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal/update`,
     {
       idempotencyKey: `account-passkey-principal-${status}-${principalId.replace(/\W+/g, "-")}`,
       input: { status },
@@ -668,7 +668,8 @@ async function writeAccountPasskeyHarness() {
       import { nowIsoString } from "${process.cwd()}/src/shared/clock.ts";
       import { FormlessAuthority } from "${process.cwd()}/src/worker/authority.ts";
       import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "${process.cwd()}/src/worker/formless-instance.ts";
-      import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX, IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY } from "@dpeek/formless-identity-control-plane";
+      import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-identity-control-plane";
+      import { FORMLESS_PROGRAM_API_ROUTE_PREFIX, FORMLESS_PROGRAM_STORAGE_IDENTITY } from "${process.cwd()}/src/program/target.ts";
       import { ensureIdentityOwner } from "${process.cwd()}/src/worker/identity-control-plane.ts";
       import { createPasskeyCredential, writeInstanceAuthConfig } from "${process.cwd()}/src/worker/instance-auth-state.ts";
 
@@ -758,8 +759,10 @@ async function writeAccountPasskeyHarness() {
       export default {
         fetch(request, env) {
           const pathname = new URL(request.url).pathname;
-          const authorityName = pathname.startsWith(IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX)
-            ? IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY
+          const authorityName =
+            pathname.startsWith(IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX) ||
+            pathname.startsWith(FORMLESS_PROGRAM_API_ROUTE_PREFIX)
+            ? FORMLESS_PROGRAM_STORAGE_IDENTITY
             : FORMLESS_INSTANCE_AUTHORITY_NAME;
           const id = env.FORMLESS_AUTHORITY.idFromName(authorityName);
 

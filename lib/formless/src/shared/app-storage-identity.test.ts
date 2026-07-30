@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
-  identityControlPlaneStorageIdentity,
-  instanceControlPlaneStorageIdentity,
   installedAppStorageIdentity,
   parseAuthorityApiRoute,
-  parseIdentityControlPlaneApiRoute,
-  parseInstanceControlPlaneApiRoute,
+  parseProgramApiRoute,
+  programStorageIdentity,
   schemaKeyStorageIdentity,
 } from "./app-storage-identity.ts";
 
@@ -121,25 +119,14 @@ describe("app storage identity", () => {
     expect(personal.broadcastChannelName).not.toBe(docs.broadcastChannelName);
   });
 
-  it("maps the runtime-owned instance control-plane storage identity", () => {
-    expect(instanceControlPlaneStorageIdentity()).toEqual({
-      apiRoutePrefix: "/api/formless/control-plane",
+  it("maps the root-owned Program storage identity", () => {
+    expect(programStorageIdentity()).toEqual({
+      apiRoutePrefix: "/api/formless/program",
       authorityName: "instance:control-plane",
       broadcastChannelName: "formless:instance:control-plane",
       browserDatabaseName: "formless:instance:control-plane",
-      kind: "instanceControlPlane",
-      schemaKey: "instance-control-plane",
-    });
-  });
-
-  it("maps the runtime-owned identity control-plane storage identity", () => {
-    expect(identityControlPlaneStorageIdentity()).toEqual({
-      apiRoutePrefix: "/api/formless/identity",
-      authorityName: "instance:identity",
-      broadcastChannelName: "formless:instance:identity",
-      browserDatabaseName: "formless:instance:identity",
-      kind: "identityControlPlane",
-      schemaKey: "identity-control-plane",
+      kind: "program",
+      schemaKey: "formless-program",
     });
   });
 
@@ -183,34 +170,23 @@ describe("app storage identity", () => {
     });
   });
 
-  it("parses instance control-plane API route identities separately from app storage routes", () => {
-    expect(parseInstanceControlPlaneApiRoute("/api/formless/control-plane/bootstrap")).toEqual({
-      identity: instanceControlPlaneStorageIdentity(),
+  it("parses the Program API route as Authority storage", () => {
+    expect(parseProgramApiRoute("/api/formless/program/bootstrap")).toEqual({
+      identity: programStorageIdentity(),
       path: "/bootstrap",
     });
     expect(
-      parseInstanceControlPlaneApiRoute(
-        "/api/formless/control-plane/operations/app-install/createAppInstall",
-      ),
+      parseProgramApiRoute("/api/formless/program/operations/app-install/createAppInstall"),
     ).toEqual({
-      identity: instanceControlPlaneStorageIdentity(),
+      identity: programStorageIdentity(),
       path: "/operations/app-install/createAppInstall",
     });
-    expect(parseAuthorityApiRoute("/api/formless/control-plane/bootstrap")).toBeUndefined();
-  });
-
-  it("parses identity control-plane API route identities separately from app storage routes", () => {
-    expect(parseIdentityControlPlaneApiRoute("/api/formless/identity/bootstrap")).toEqual({
-      identity: identityControlPlaneStorageIdentity(),
+    expect(parseAuthorityApiRoute("/api/formless/program/bootstrap")).toEqual({
+      identity: programStorageIdentity(),
       path: "/bootstrap",
     });
-    expect(
-      parseIdentityControlPlaneApiRoute("/api/formless/identity/operations/role-assignment/create"),
-    ).toEqual({
-      identity: identityControlPlaneStorageIdentity(),
-      path: "/operations/role-assignment/create",
-    });
     expect(parseAuthorityApiRoute("/api/formless/identity/bootstrap")).toBeUndefined();
+    expect(parseAuthorityApiRoute("/api/formless/control-plane/bootstrap")).toBeUndefined();
   });
 
   it("leaves unknown or incomplete API routes unclaimed", () => {

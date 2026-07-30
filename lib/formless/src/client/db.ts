@@ -23,7 +23,7 @@ const REPLICA_VERSION_KEY = "replicaVersion";
 const FORMLESS_REPLICA_DB_PREFIX = "formless:";
 const FORMLESS_INSTALLED_APP_REPLICA_DB_PREFIX = `${FORMLESS_REPLICA_DB_PREFIX}app:`;
 const FORMLESS_INSTANCE_CONTROL_PLANE_REPLICA_DB = `${FORMLESS_REPLICA_DB_PREFIX}instance:control-plane`;
-const FORMLESS_IDENTITY_CONTROL_PLANE_REPLICA_DB = `${FORMLESS_REPLICA_DB_PREFIX}instance:identity`;
+const LEGACY_IDENTITY_CONTROL_PLANE_REPLICA_DB = `${FORMLESS_REPLICA_DB_PREFIX}instance:identity`;
 const SCHEMA_KEY_REPLICA_DB_NAMES = new Set(
   schemaApps.map((app) => `${FORMLESS_REPLICA_DB_PREFIX}${app.key}`),
 );
@@ -281,12 +281,16 @@ export async function deleteFormlessReplicaDatabases(): Promise<FormlessReplicaD
 
 export function isFormlessReplicaDatabaseName(name: string): boolean {
   return (
-    name === FORMLESS_IDENTITY_CONTROL_PLANE_REPLICA_DB ||
+    name === LEGACY_IDENTITY_CONTROL_PLANE_REPLICA_DB ||
     name === FORMLESS_INSTANCE_CONTROL_PLANE_REPLICA_DB ||
     SCHEMA_KEY_REPLICA_DB_NAMES.has(name) ||
     (name.startsWith(FORMLESS_INSTALLED_APP_REPLICA_DB_PREFIX) &&
       name.length > FORMLESS_INSTALLED_APP_REPLICA_DB_PREFIX.length)
   );
+}
+
+export async function deleteLegacyIdentityReplicaDatabase(): Promise<void> {
+  await deleteIndexedDbDatabase(LEGACY_IDENTITY_CONTROL_PLANE_REPLICA_DB);
 }
 
 export function clientDbName(target: ClientAppTarget) {

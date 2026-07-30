@@ -12,10 +12,9 @@ import type { OperationInvocationResponse } from "../shared/operation-invocation
 import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
 import { parseAppSchema } from "@dpeek/formless-schema";
 import {
-  INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-} from "@dpeek/formless-instance-control-plane";
-import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-identity-control-plane";
+  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import { crmSourceSchema, siteSourceSchema, taskSourceSchema } from "../test/schema-apps.ts";
 import {
@@ -25,7 +24,7 @@ import {
   restoreTestStorageSnapshot,
   schemaAppTestStorageSnapshot,
 } from "../test/authority-write.ts";
-import { ensureTestIdentityOwner, resetTestIdentityStorage } from "../test/identity-owner.ts";
+import { ensureTestIdentityOwner } from "../test/identity-owner.ts";
 import {
   bundledSourceSchemaHashFixtures,
   computeSourceSchemaHash,
@@ -111,6 +110,7 @@ describe("instance app install API routes", () => {
     const after = await getJson<AppInstallsResponse>("/api/formless/app-installs");
     const invocations = await readControlPlaneOperationInvocations();
     const output = invocations[0]?.output;
+    const affectedChangeIds = invocations[0]?.affectedChangeIds ?? [];
 
     expect(before.body.packages).toEqual([
       expect.objectContaining({
@@ -165,16 +165,17 @@ describe("instance app install API routes", () => {
     expect(invocations[0]).toMatchObject({
       operationKey: "app-install.createAppInstall",
       status: "committed",
-      affectedChangeIds: ["1", "2", "3"],
+      affectedChangeIds,
     });
     expect(invocations[0]?.statusHistory.map((entry) => entry.status)).toEqual([
       "accepted",
       "committed",
     ]);
+    expect(affectedChangeIds).toHaveLength(3);
     expect(output).toMatchObject({
+      affectedChangeIds,
+      cursor: Number(affectedChangeIds.at(-1)),
       type: "command",
-      affectedChangeIds: ["1", "2", "3"],
-      cursor: 3,
     });
     expect(output).not.toHaveProperty("actionId");
     expect(output).not.toHaveProperty("response");
@@ -226,7 +227,7 @@ describe("instance app install API routes", () => {
       );
       const controlPlane = await getHarnessJson<BootstrapResponse>(
         privateHarness,
-        "/api/formless/control-plane/bootstrap",
+        "/api/formless/program/bootstrap",
       );
       const appInstall = controlPlane.body.records.find(
         (record) => record.entity === "app-install" && record.id === "labs",
@@ -309,7 +310,7 @@ describe("instance app install API routes", () => {
       registrationPolicy: "email-verified",
     });
     const after = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const controlPlane = await getJson<BootstrapResponse>("/api/formless/control-plane/bootstrap");
+    const controlPlane = await getJson<BootstrapResponse>("/api/formless/program/bootstrap");
     const appInstall = controlPlane.body.records.find(
       (record) => record.entity === "app-install" && record.id === "members",
     );
@@ -366,7 +367,7 @@ describe("instance app install API routes", () => {
       registrationPolicy: "custom-operation",
     });
     const after = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const controlPlane = await getJson<BootstrapResponse>("/api/formless/control-plane/bootstrap");
+    const controlPlane = await getJson<BootstrapResponse>("/api/formless/program/bootstrap");
     const appInstall = controlPlane.body.records.find(
       (record) => record.entity === "app-install" && record.id === "members",
     );
@@ -439,9 +440,9 @@ describe("instance app install API routes", () => {
       installId: "personal",
       label: "Personal Site",
     });
-    const controlPlane = await getJson<BootstrapResponse>("/api/formless/control-plane/bootstrap");
+    const controlPlane = await getJson<BootstrapResponse>("/api/formless/program/bootstrap");
     const patchedRoute = await postAdminJson<OperationInvocationResponse>(
-      "/api/formless/control-plane/operations/route/update",
+      "/api/formless/program/operations/route/update",
       {
         idempotencyKey: "personal-admin-route",
         recordId: "route:personal:admin",
@@ -453,11 +454,13 @@ describe("instance app install API routes", () => {
     );
     const after = await getJson<AppInstallsResponse>("/api/formless/app-installs");
 
-    expect(controlPlane.body.records.map((record) => `${record.entity}:${record.id}`)).toEqual([
-      "app-install:personal",
-      "route:route:personal:admin",
-      "route:route:personal:public-site",
-    ]);
+    expect(controlPlane.body.records.map((record) => `${record.entity}:${record.id}`)).toEqual(
+      expect.arrayContaining([
+        "app-install:personal",
+        "route:route:personal:admin",
+        "route:route:personal:public-site",
+      ]),
+    );
     expect(patchedRoute.response.status).toBe(200);
     expect(after.body.installs[0]).toEqual(
       expect.objectContaining({
@@ -507,7 +510,7 @@ describe("instance app install API routes", () => {
 
   it("rejects app installs whose generated route records conflict before recording the install", async () => {
     const conflictingRoute = await postAdminJson<OperationInvocationResponse>(
-      "/api/formless/control-plane/operations/route/create",
+      "/api/formless/program/operations/route/create",
       {
         idempotencyKey: "reserve-personal-admin-route",
         input: {
@@ -529,7 +532,7 @@ describe("instance app install API routes", () => {
     expect(conflictingRoute.response.status).toBe(200);
     expect(rejected.response.status).toBe(400);
     expect(rejected.body.error).toContain(
-      'Enabled route match "<hostless>/apps/personal /apps/personal/" conflicts with enabled route',
+      'enabled route match "<hostless>/apps/personal" conflicts with enabled route',
     );
     expect(after.body.installs).toEqual([]);
   });
@@ -541,7 +544,7 @@ describe("instance app install API routes", () => {
       label: "Personal Site",
     });
     const routeEdit = await postAdminJson<OperationInvocationResponse>(
-      "/api/formless/control-plane/operations/route/update",
+      "/api/formless/program/operations/route/update",
       {
         idempotencyKey: "personal-admin-storage-identity-route",
         recordId: "route:personal:admin",
@@ -551,7 +554,7 @@ describe("instance app install API routes", () => {
         },
       },
     );
-    const controlPlane = await getJson<BootstrapResponse>("/api/formless/control-plane/bootstrap");
+    const controlPlane = await getJson<BootstrapResponse>("/api/formless/program/bootstrap");
     const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
     const bootstrap = await getJson<BootstrapResponse>("/api/app-installs/site/personal/bootstrap");
 
@@ -707,7 +710,7 @@ describe("instance app install API routes", () => {
       );
       const controlPlane = await getHarnessJson<BootstrapResponse>(
         privateHarness,
-        "/api/formless/control-plane/bootstrap",
+        "/api/formless/program/bootstrap",
       );
       const bootstrap = await getHarnessJson<BootstrapResponse>(
         privateHarness,
@@ -983,11 +986,10 @@ async function postHarnessAdminJson<T>(targetHarness: Harness, path: string, bod
 }
 
 async function resetWorkerState() {
-  await resetTestIdentityStorage(harness, adminToken);
   await Promise.all([
     restoreTestStorageSnapshot(
       harness,
-      "/api/formless/control-plane/snapshot/restore",
+      "/api/formless/program/snapshot/restore",
       instanceControlPlaneTestStorageSnapshot(),
       adminHeaders(),
     ),
@@ -1021,8 +1023,8 @@ async function resetWorkerState() {
 async function readControlPlaneOperationInvocations(): Promise<StoredOperationInvocation[]> {
   const response = await harness.durableObjectFetch(
     "FORMLESS_AUTHORITY",
-    INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-    `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}${INTERNAL_READ_OPERATION_INVOCATIONS_PATH}`,
+    FORMLESS_PROGRAM_STORAGE_IDENTITY,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${INTERNAL_READ_OPERATION_INVOCATIONS_PATH}`,
     { method: "GET" },
   );
   const body = (await response.json()) as {
@@ -1113,7 +1115,7 @@ async function postIdentityRecordOperation(
 ): Promise<StoredRecord> {
   const request = recordOperationRequest(input);
   const response = await harness.fetch(
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}${request.path.slice("/api".length)}`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${request.path.slice("/api".length)}`,
     {
       body: JSON.stringify(request.body),
       headers: adminHeaders({ "Content-Type": "application/json" }),

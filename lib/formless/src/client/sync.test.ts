@@ -35,7 +35,7 @@ import {
   FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER,
 } from "../shared/protocol.ts";
 import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
-import { instanceControlPlaneClientTarget } from "./app-target.ts";
+import { programClientTarget } from "./app-target.ts";
 import type {
   BootstrapResponse,
   ChangeRow,
@@ -60,7 +60,7 @@ const privateSourceSchemaHash =
 beforeEach(async () => {
   await deleteClientDb("tasks");
   await deleteClientDb("crm");
-  await deleteClientDb(instanceControlPlaneClientTarget());
+  await deleteClientDb(programClientTarget());
   await deleteClientDb(installedSiteIdentity("personal"));
   await deleteClientDb(installedSiteIdentity("docs"));
   await deleteClientDb(installedTasksIdentity("work"));
@@ -129,11 +129,11 @@ describe("client sync", () => {
   });
 
   it("bootstraps the instance control-plane client target through its runtime API", async () => {
-    const controlPlaneTarget = instanceControlPlaneClientTarget();
+    const controlPlaneTarget = programClientTarget();
 
     await bootstrapClient(
       controlPlaneTarget,
-      jsonFetcher("/api/formless/control-plane/bootstrap", {
+      jsonFetcher("/api/formless/program/bootstrap", {
         schema: appSchema,
         schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
         records: [record("install-1", "Personal Site")],
@@ -146,7 +146,7 @@ describe("client sync", () => {
     ]);
     expect(getClientStoreSnapshot()).toMatchObject({
       activeClientStorageName: "formless:instance:control-plane",
-      activeSchemaKey: "instance-control-plane",
+      activeSchemaKey: "formless-program",
     });
   });
 
@@ -444,14 +444,14 @@ describe("client sync", () => {
   });
 
   it("sends stored control-plane source provenance with operation writes", async () => {
-    const controlPlaneTarget = instanceControlPlaneClientTarget();
+    const controlPlaneTarget = programClientTarget();
     const controlPlaneSourceSchemaHash =
       "sha256:8888888888888888888888888888888888888888888888888888888888888888" as const;
 
     await saveBootstrapResponse(controlPlaneTarget, {
       schema: appSchema,
       schemaProvenance: {
-        kind: "instance-control-plane",
+        kind: "program",
         sourceSchemaHash: controlPlaneSourceSchemaHash,
       },
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
@@ -462,7 +462,7 @@ describe("client sync", () => {
     await submitOperation(controlPlaneTarget, "app-install", "noop", {}, async (input, init) => {
       const headers = new Headers(init?.headers);
 
-      expect(input).toBe("/api/formless/control-plane/operations/app-install/noop");
+      expect(input).toBe("/api/formless/program/operations/app-install/noop");
       expect(headers.get(FORMLESS_CLIENT_RUNTIME_PROTOCOL_HEADER)).toBe(
         String(FORMLESS_RUNTIME_PROTOCOL_VERSION),
       );
@@ -1311,7 +1311,7 @@ describe("client sync", () => {
 
   it("classifies control-plane, deployment intent, and media reference writes", async () => {
     const autoSave = captureAutoSave();
-    const controlPlaneTarget = instanceControlPlaneClientTarget();
+    const controlPlaneTarget = programClientTarget();
     const routeRecord: StoredRecord = {
       createdAt: "2026-04-28T00:00:01.000Z",
       updatedAt: "2026-04-28T00:00:01.000Z",

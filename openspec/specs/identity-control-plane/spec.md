@@ -10,25 +10,24 @@ hashes, sessions, grants, and provider state outside reviewable app records.
 
 ## Requirements
 
-### Requirement: Runtime-Owned Identity Schema
+### Requirement: Runtime-Owned Identity Module
 
-The system SHALL model instance identity facts as a separate runtime-owned App
-schema source.
+The system SHALL model instance identity facts as reusable runtime-owned App
+schema declarations composed into the downstream Program.
 
 #### Scenario: Identity control-plane contract
 
-- GIVEN the identity control-plane schema is loaded
-- WHEN its storage identity is selected
-- THEN it uses schema key `identity-control-plane`, boundary schema key `auth`,
-  storage identity `instance:identity`, and API prefix `/api/formless/identity`
+- GIVEN the identity control-plane record module is composed into a Program
+- WHEN its declarations are loaded
+- THEN it uses boundary schema key `auth` without selecting a separate runtime
+  schema key, storage identity, generic API, cursor, snapshot, or replica
 - AND it defines flat records for principals, principal emails, groups,
   organizations, memberships, roles, role assignments, app registrations, and
   invitations
 - AND it defines flat records for account policies and principal policy
   acceptances used by account completion gates
-- AND broad identity records are not added to the instance control-plane schema
-  that owns app installs, routes, deployments, production identity, and email
-  intent
+- AND identity and instance declarations remain package-owned domains inside one
+  complete Program schema
 - AND credentials, passkey challenges, email verification challenge secrets,
   invite token hashes, auth sessions, cross-domain grants, raw recovery
   material, and provider responses are not identity control-plane records
@@ -36,25 +35,27 @@ schema source.
 #### Scenario: Normal App schema provenance
 
 - GIVEN the runtime loads the identity control-plane schema contract
-- WHEN the schema is parsed for storage, generated UI, workspace, archive, or
-  future sync workflows
+- WHEN the schema is parsed for package validation, standalone package
+  materialization, or downstream composition
 - THEN it uses the normal App schema parser and App schema source hash rules
 - AND entity, field, relationship, query, read model, view, screen, operation,
-  and runtime metadata changes all affect identity schema provenance
+  and runtime metadata changes all affect package schema provenance
 - AND entity records remain flat Authority records with system-owned created
   and updated timestamps
 
 #### Scenario: Identity package boundary
 
 - GIVEN runtime, archive, workspace, generated UI, tests, or future auth
-  runtime code needs identity-control-plane schema keys, storage identity
-  constants, API route constants, entity names, role keys, schema contracts,
-  record value contracts, validation helpers, or display-safe canonicalization
+  runtime code needs identity entity names, role keys, schema modules, record
+  value contracts, validation helpers, or display-safe canonicalization
 - WHEN those contracts are imported
 - THEN they come from `@dpeek/formless-identity-control-plane`
 - AND the package root remains runtime-neutral and does not import browser,
   React, Worker, provider SDK, filesystem, app package registry, or live
   network behavior
+- AND complete Program schema key, storage identity, provenance, generic API,
+  cursor, replica, archive, and workspace selection remain downstream runtime
+  concerns
 
 #### Scenario: Package exposes composable schema modules
 
@@ -71,33 +72,31 @@ schema source.
   composition root
 - AND the recomposed source preserves the current schema data,
   source-schema hash, and package provenance
-- AND the modules remain runtime-neutral and do not change the existing
-  identity Authority, storage identity, API route, cursor, snapshot, or browser
-  replica behavior
+- AND the modules remain runtime-neutral when a downstream Program selects
+  Authority, storage, API, cursor, snapshot, or browser replica behavior
 
-### Requirement: Identity Runtime Storage Mount
+### Requirement: Program Identity Storage
 
-The system SHALL mount the identity control-plane schema as its own
-runtime-owned Authority storage.
+The system SHALL store reviewable identity records in the Program Authority
+without forcing private auth state into reviewable storage.
 
-#### Scenario: Identity API route
+#### Scenario: Identity records use Program storage
 
-- GIVEN a Worker request path starts with `/api/formless/identity/`
-- WHEN the request path selects a normal Authority operation route
-- THEN the Worker forwards the request to the Authority Durable Object named
-  `instance:identity`
-- AND the Durable Object handles the request with identity-control-plane schema
-  key `identity-control-plane`, storage identity `instance:identity`, API route
-  prefix `/api/formless/identity`, and schema provenance from
-  `@dpeek/formless-identity-control-plane`
-- AND generic source-app and installed-app API route parsing does not claim the
-  identity control-plane route
+- GIVEN a Worker request reads or writes reviewable identity records
+- WHEN the request selects generic schema, bootstrap, sync, snapshot, or entity
+  operation behavior
+- THEN it uses the `formless-program` schema in the Authority Durable Object
+  named `instance:control-plane`
+- AND the canonical generic storage prefix is `/api/formless/program`
+- AND `/api/formless/identity` does not expose a second Authority storage mount
+- AND purpose-built identity capability routes may retain an identity-specific
+  HTTP namespace while reading and writing Program storage
 
 #### Scenario: Identity storage initialization
 
-- GIVEN identity control-plane storage is initialized
+- GIVEN Program storage is initialized
 - WHEN the first bootstrap, read, or write operation runs
-- THEN storage is initialized from the identity control-plane schema source
+- THEN storage is initialized from the complete materialized Program source
 - AND it includes one active built-in `role` record for each supported runtime
   role key
 - AND each built-in role record has a deterministic id derived from the role
@@ -105,16 +104,17 @@ runtime-owned Authority storage.
 - AND the built-in role records are normal flat identity records that can be
   referenced by role-assignment records
 
-#### Scenario: Identity management authorization
+#### Scenario: Program identity management authorization
 
-- GIVEN an identity control-plane API request selects a read or write operation
+- GIVEN a Program or purpose-built identity request selects a read or write
+  operation over identity records
 - WHEN the request is authorized
-- THEN a browser request is authorized only when its owner session resolves to
-  an active principal with an active `instance.owner` role assignment at
+- THEN generic Program bootstrap and sync require a management session whose
+  principal has active `instance.owner` or `instance.admin` authority at
   instance scope
 - AND trusted automation remains authorized by valid admin bearer authorization
-- AND anonymous browser requests cannot bootstrap, read, or mutate identity
-  control-plane records
+- AND anonymous or ordinary authenticated browser requests cannot bootstrap,
+  sync, read, or mutate Program identity records
 - AND admin bearer authorization remains separate from browser login and
   identity-control-plane records
 - AND purpose-built collaborator invitation APIs may use their own grant
@@ -122,19 +122,32 @@ runtime-owned Authority storage.
 - AND those grant rules do not make generic identity-control-plane record
   editors, snapshot restore, raw role assignment writes, or owner recovery
   writes available to non-owner browser principals
+- AND owner-only operations still recheck active `instance.owner` authority
+  after Program replica access is granted
 
 #### Scenario: Runtime identity write validation
 
 - GIVEN an identity control-plane write operation creates, patches, or deletes
   reviewable identity records
 - WHEN the runtime validates the write before commit
-- THEN it validates the candidate identity record set with
-  identity-control-plane validation helpers
+- THEN generic Program validation sees the complete mixed record set
+- AND identity-control-plane validation helpers receive only records owned by
+  identity stable entity ids
 - AND selected-target uniqueness for memberships, role assignments, app
   registrations, and policy acceptances is enforced before commit
 - AND invalid references, unsupported entity names, duplicate active role keys,
   duplicate normalized active emails, and duplicate selected-target facts reject
   the write without a partial commit
+
+#### Scenario: Reviewable identity records share Program data movement
+
+- GIVEN Program records are snapshotted, archived, restored, saved to workspace,
+  or synced to the management replica
+- WHEN reviewable identity records are selected
+- THEN they use the same Program schema, record-id namespace, source cursor,
+  snapshot, archive, workspace state file, and browser replica as instance
+  control-plane records
+- AND private auth state remains excluded from each of those boundaries
 
 ### Requirement: Principal And Email Records
 
@@ -217,7 +230,7 @@ flat role assignment records.
 - WHEN role records are inspected
 - THEN each role stores a role key, display label, and status as flat values
 - AND supported first-pass role statuses are `active` and `disabled`
-- AND active role keys are unique within the instance identity storage
+- AND active role keys are unique within the identity records in Program storage
 
 #### Scenario: Role assignment record shape
 
@@ -423,7 +436,7 @@ as reviewable identity records.
 - GIVEN a pending collaborator invitation has been committed by identity storage
 - WHEN the runtime schedules its delivery
 - THEN delivery uses the email runtime with the invitation record id as source
-  record and the identity control-plane storage identity as source storage
+  record and `instance:control-plane` Program identity as source storage
 - AND delivery uses an idempotency key derived from the invitation id and
   delivery purpose
 - AND email scheduling does not grant authentication, activate the invited
@@ -886,8 +899,8 @@ without making app schemas own auth records.
 - GIVEN an app Authority validates a record value for `auth:principal`,
   `auth:organization`, or `auth:group`
 - WHEN it asks the identity control plane to resolve the target record id
-- THEN the lookup reads only the runtime-owned identity storage identity
-  `instance:identity`
+- THEN the lookup reads the identity entity from Program storage identity
+  `instance:control-plane`
 - AND the lookup confirms the record exists, uses the requested identity entity,
   and is not tombstoned
 - AND missing, tombstoned, wrong-entity, or unsupported qualified identity

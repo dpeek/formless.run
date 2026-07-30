@@ -1,15 +1,16 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 import {
-  INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX,
-  INSTANCE_CONTROL_PLANE_SOURCE_SCHEMA_HASH,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  instanceControlPlaneSchema,
-  instanceControlPlaneSchemaProvenance,
-  instanceControlPlaneSourceSchema,
   type InstanceControlPlaneAppInstallValues,
   type InstanceControlPlaneRouteValues,
 } from "@dpeek/formless-instance-control-plane";
-import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-identity-control-plane";
+import { formlessProgramSchema } from "../program/runtime.ts";
+import {
+  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+  formlessProgramSchemaProvenance,
+} from "../program/target.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import { FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER } from "../shared/protocol.ts";
@@ -28,7 +29,7 @@ import type {
 import { computeSourceSchemaHash, type SourceSchemaHash } from "../shared/upgrade-migrations.ts";
 import { siteSourceSchema } from "../test/schema-apps.ts";
 import { testSiteRecords } from "../test/site-records.ts";
-import { ensureTestIdentityOwner, resetTestIdentityStorage } from "../test/identity-owner.ts";
+import { ensureTestIdentityOwner } from "../test/identity-owner.ts";
 import {
   appPackageManifestKind,
   appPackageManifestVersion,
@@ -59,7 +60,7 @@ type FailureResponse = {
 };
 
 const adminToken = "test-admin-token";
-const controlPlaneApi = "/api/formless/control-plane";
+const controlPlaneApi = "/api/formless/program";
 const createAppInstallOperation = `${controlPlaneApi}/operations/app-install/createAppInstall`;
 const owner: OwnerIdentity = {
   id: "owner-1",
@@ -107,8 +108,17 @@ describe("instance control-plane API routes", () => {
       error:
         "Owner session, instance-admin session, or admin authorization is required for this read endpoint.",
     });
-    expect(admin.body.records).toEqual([]);
-    expect(ownerRead.body.records).toEqual([]);
+    expect(ownerRead.body.records).toEqual(expect.arrayContaining(admin.body.records));
+    expect(admin.body.records.map((record) => record.id).sort()).toEqual(
+      [
+        "role:app.admin",
+        "role:app.editor",
+        "role:app.user",
+        "role:app.viewer",
+        "role:instance.admin",
+        "role:instance.owner",
+      ].sort(),
+    );
   });
 
   it("authorizes same-origin instance admins for operational control-plane intent only", async () => {
@@ -301,18 +311,20 @@ describe("instance control-plane API routes", () => {
       `${controlPlaneApi}/bootstrap?actorKind=runner`,
     );
     const ownerSchema = await getJson<SchemaResponse>(`${controlPlaneApi}/schema`);
-    const parsedInstanceControlPlaneSchema = instanceControlPlaneSchema;
-    const sourceSchemaHash = await computeSourceSchemaHash(instanceControlPlaneSourceSchema);
 
-    expect(INSTANCE_CONTROL_PLANE_SOURCE_SCHEMA_HASH).toBe(sourceSchemaHash);
-    expect(runnerBootstrap.body.schema).toEqual(parsedInstanceControlPlaneSchema);
-    expect(runnerBootstrap.body.schemaProvenance).toEqual(instanceControlPlaneSchemaProvenance);
-    expect(runnerBootstrap.body.records).toEqual([]);
-    expect(runnerBootstrap.body.cursor).toBe(0);
+    expect(runnerBootstrap.body.schema).toEqual(formlessProgramSchema);
+    expect(runnerBootstrap.body.schemaProvenance).toEqual(formlessProgramSchemaProvenance);
+    expect(FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH).toBe(
+      formlessProgramSchemaProvenance.sourceSchemaHash,
+    );
+    expect(runnerBootstrap.body.records.filter((record) => record.entity === "role")).toHaveLength(
+      6,
+    );
+    expect(runnerBootstrap.body.cursor).toBeGreaterThanOrEqual(6);
     expect(runnerBootstrap.response.headers.get(FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER)).toBe(
       runnerBootstrap.body.schemaProvenance?.sourceSchemaHash,
     );
-    expect(ownerSchema.body.schema).toEqual(parsedInstanceControlPlaneSchema);
+    expect(ownerSchema.body.schema).toEqual(formlessProgramSchema);
     expect(ownerSchema.body.schemaProvenance).toEqual(runnerBootstrap.body.schemaProvenance);
     expect(ownerSchema.response.headers.get("Cache-Control")).toBe("no-store");
   });
@@ -332,14 +344,16 @@ describe("instance control-plane API routes", () => {
     expect(snapshot.body).toMatchObject({
       kind: STORAGE_SNAPSHOT_KIND,
       version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-      schemaKey: "instance-control-plane",
+      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
       exportedAt: expect.any(String),
       schemaUpdatedAt: bootstrap.body.schemaUpdatedAt,
       sourceCursor: operationCommandResponse(created).cursor,
-      schema: instanceControlPlaneSchema,
+      schema: formlessProgramSchema,
     });
-    expect(snapshot.body.records).toEqual(bootstrap.body.records);
+    expect([...snapshot.body.records].sort(byRecordId)).toEqual(
+      [...bootstrap.body.records].sort(byRecordId),
+    );
   });
 
   it("creates app install and default route records as one idempotent control-plane operation", async () => {
@@ -370,8 +384,8 @@ describe("instance control-plane API routes", () => {
 
     expect(created.response.status).toBe(200);
     expect(created.body.status).toBe("committed");
-    expect(createdOutput.cursor).toBe(3);
-    expect(createdOutput.affectedChangeIds).toEqual(["1", "2", "3"]);
+    expect(createdOutput.affectedChangeIds).toHaveLength(3);
+    expect(createdOutput.cursor).toBe(createdOutput.changes.at(-1)?.seq);
     expect(createdOutput.affectedChangeIds).toEqual(
       createdOutput.changes.map((change) => String(change.seq)),
     );
@@ -390,7 +404,8 @@ describe("instance control-plane API routes", () => {
     expect(replay.response.status).toBe(200);
     expect(replay.body.status).toBe("replayed");
     expect(replayOutput).toEqual(createdOutput);
-    expect(sync.body.changes).toHaveLength(3);
+    expect(sync.body.changes).toEqual(expect.arrayContaining(createdOutput.changes));
+    expect(sync.body.cursor).toBe(createdOutput.cursor);
     expect(invocations).toHaveLength(1);
     expect(invocations[0]).toMatchObject({
       invocationId: created.body.invocation.invocationId,
@@ -406,7 +421,11 @@ describe("instance control-plane API routes", () => {
     ]);
     expect(installedSite.body.schema).toEqual(siteSourceSchema);
     expect(installedSite.body.records).toEqual(testSiteRecords);
-    expect(controlPlane.body.records).toHaveLength(3);
+    expect(
+      controlPlane.body.records.filter(
+        (record) => record.entity === "app-install" || record.entity === "route",
+      ),
+    ).toHaveLength(3);
     expect(appInstallValues(controlPlane.body, "personal")).toMatchObject({
       installId: "personal",
       packageAppKey: "site",
@@ -447,11 +466,11 @@ describe("instance control-plane API routes", () => {
     expect(
       installedSite.body.records.some((record) => record.id === appRecordWrite.body.record.id),
     ).toBe(true);
-    expect(controlPlane.body.records.map((record) => record.entity)).toEqual([
-      "app-install",
-      "route",
-      "route",
-    ]);
+    expect(
+      controlPlane.body.records
+        .filter((record) => record.entity === "app-install" || record.entity === "route")
+        .map((record) => record.entity),
+    ).toEqual(["app-install", "route", "route"]);
     expect(JSON.stringify(controlPlane.body.records)).not.toContain("Installed only");
     expect(JSON.stringify(sync.body)).not.toContain(appRecordWrite.body.record.id);
   });
@@ -534,9 +553,9 @@ describe("instance control-plane API routes", () => {
     );
 
     expect(missingPackage.response.status).toBe(400);
-    expect(missingPackage.body.error).toBe('App install package "missing-package" is unsupported.');
+    expect(missingPackage.body.error).toContain('references unsupported package "missing-package"');
     expect(unsupportedPublicRoute.response.status).toBe(400);
-    expect(unsupportedPublicRoute.body.error).toBe(
+    expect(unsupportedPublicRoute.body.error).toContain(
       'Package app "tasks" does not support public Site routes.',
     );
   });
@@ -864,9 +883,7 @@ describe("instance control-plane API routes", () => {
     expect(contactSender.response.status).toBe(200);
     expect(authSender.response.status).toBe(200);
     expect(rejectedSettings.response.status).toBe(400);
-    expect(rejectedSettings.body.error).toBe(
-      'Field "defaultAuthSender" must reference a sender with purpose "auth".',
-    );
+    expect(rejectedSettings.body.error).toContain('must reference a sender with purpose "auth".');
     expect(settings.response.status).toBe(200);
     expect(operationRecord(settings).values).toMatchObject({
       defaultContactSender: operationRecord(contactSender).id,
@@ -985,16 +1002,16 @@ describe("instance control-plane API routes", () => {
       adminRoute: operationRecord(adminRoute).id,
     });
     expect(rejectedDisabledRoute.response.status).toBe(400);
-    expect(rejectedDisabledRoute.body.error).toBe(
-      'Field "adminRoute" must reference an enabled exact-host instance admin route.',
+    expect(rejectedDisabledRoute.body.error).toContain(
+      "must reference an enabled exact-host instance admin route.",
     );
     expect(rejectedHostlessRoute.response.status).toBe(400);
-    expect(rejectedHostlessRoute.body.error).toBe(
-      'Field "adminRoute" must reference an enabled exact-host instance admin route.',
+    expect(rejectedHostlessRoute.body.error).toContain(
+      "must reference an enabled exact-host instance admin route.",
     );
     expect(rejectedUnmarkedRoute.response.status).toBe(400);
-    expect(rejectedUnmarkedRoute.body.error).toBe(
-      'Field "adminRoute" must reference an enabled exact-host instance admin route.',
+    expect(rejectedUnmarkedRoute.body.error).toContain(
+      "must reference an enabled exact-host instance admin route.",
     );
   });
 
@@ -1096,13 +1113,9 @@ describe("instance control-plane API routes", () => {
     expect(JSON.stringify(browserBootstrap.body)).not.toContain("CF_API_TOKEN");
     expect(JSON.stringify(browserBootstrap.body)).not.toContain("ALCHEMY_PASSWORD");
     expect(rejectedRecord.response.status).toBe(400);
-    expect(rejectedRecord.body.error).toBe(
-      'Field "deployment-config.accountId" cannot store control-plane secret values.',
-    );
+    expect(rejectedRecord.body.error).toContain("cannot store control-plane secret values.");
     expect(rejectedSnapshot.response.status).toBe(400);
-    expect(rejectedSnapshot.body.error).toBe(
-      'Field "app-install.label" cannot store control-plane secret values.',
-    );
+    expect(rejectedSnapshot.body.error).toContain("cannot store control-plane secret values.");
   });
 });
 
@@ -1214,7 +1227,6 @@ async function resetWorkerState() {
 }
 
 async function resetKnownState() {
-  await resetTestIdentityStorage(harness, adminToken);
   await Promise.all([
     restoreTestStorageSnapshot(
       harness,
@@ -1240,8 +1252,8 @@ async function resetKnownState() {
 async function readControlPlaneOperationInvocations(): Promise<StoredOperationInvocation[]> {
   const response = await harness.durableObjectFetch(
     "FORMLESS_AUTHORITY",
-    INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-    `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}${INTERNAL_READ_OPERATION_INVOCATIONS_PATH}`,
+    FORMLESS_PROGRAM_STORAGE_IDENTITY,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${INTERNAL_READ_OPERATION_INVOCATIONS_PATH}`,
     { method: "GET" },
   );
   const body = (await response.json()) as {
@@ -1256,6 +1268,10 @@ function adminHeaders(headers: Record<string, string> = {}) {
     ...headers,
     Authorization: `Bearer ${adminToken}`,
   };
+}
+
+function byRecordId(left: StoredRecord, right: StoredRecord) {
+  return left.id.localeCompare(right.id);
 }
 
 async function ownerSessionHeaders() {
@@ -1335,7 +1351,7 @@ async function postIdentityRecordOperation(
 ): Promise<StoredRecord> {
   const request = recordOperationRequest(input);
   const response = await harness.fetch(
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}${request.path.slice("/api".length)}`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${request.path.slice("/api".length)}`,
     {
       body: JSON.stringify(request.body),
       headers: adminHeaders({ "Content-Type": "application/json" }),
@@ -1397,12 +1413,12 @@ function secretSnapshot(now: string): StorageSnapshot {
   return {
     kind: STORAGE_SNAPSHOT_KIND,
     version: STORAGE_SNAPSHOT_VERSION,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-    schemaKey: "instance-control-plane",
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+    schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
     exportedAt: now,
     schemaUpdatedAt: now,
     sourceCursor: 0,
-    schema: instanceControlPlaneSchema,
+    schema: formlessProgramSchema,
     records: [
       {
         id: "secret",

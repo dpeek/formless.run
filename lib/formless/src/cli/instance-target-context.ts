@@ -8,7 +8,7 @@ import {
   readInstanceWorkspaceControlPlaneStorageSnapshot,
   readInstanceWorkspaceSecretState,
   type InstanceWorkspaceSecretState,
-} from "@dpeek/formless-workspace/node";
+} from "../program/workspace.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import {
   createActiveWorkspaceAppPackages,
@@ -447,8 +447,6 @@ export function formlessCliDeploymentConfigRecordFromTarget(input: {
       targetUrl: normalizeInstanceWorkspaceTargetUrl(input.targetUrl),
       providerFamily: "cloudflare",
       ...(workerName === undefined ? {} : { workerName }),
-      createdAt: now,
-      updatedAt: now,
     },
     createdAt: now,
     updatedAt: now,

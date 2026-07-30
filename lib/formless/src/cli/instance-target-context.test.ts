@@ -10,13 +10,13 @@ import {
 import {
   writeInstanceWorkspaceControlPlaneStorageSnapshot,
   writeInstanceWorkspaceSecretState,
-} from "@dpeek/formless-workspace/node";
+} from "../program/workspace.ts";
 import { describe, expect, it } from "vite-plus/test";
+import { formlessProgramSchema } from "../program/runtime.ts";
 import {
-  INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  instanceControlPlaneSchema,
-} from "@dpeek/formless-instance-control-plane";
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
@@ -134,12 +134,12 @@ function controlPlaneSnapshot(records: StoredRecord[]): StorageSnapshot {
   return {
     kind: STORAGE_SNAPSHOT_KIND,
     version: STORAGE_SNAPSHOT_VERSION,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-    schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+    schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
     exportedAt: "2026-06-11T00:00:00.000Z",
     schemaUpdatedAt: "2026-06-11T00:00:00.000Z",
     sourceCursor: records.length,
-    schema: instanceControlPlaneSchema,
+    schema: formlessProgramSchema,
     records,
   };
 }
@@ -172,8 +172,6 @@ function deploymentConfigRecord(): StoredRecord {
       targetId: "instance.primary",
       targetKind: "instance",
       targetUrl: "https://personal.example",
-      createdAt: now,
-      updatedAt: now,
     },
     createdAt: now,
     updatedAt: now,

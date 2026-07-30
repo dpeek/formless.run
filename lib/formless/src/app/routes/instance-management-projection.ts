@@ -59,6 +59,7 @@ export type InstanceManagementWorkspaceReferences = {
 };
 
 export type ProjectInstanceManagementOptions = {
+  activeWorkspace: keyof InstanceManagementWorkspaceReferences;
   controlPlaneLoadError?: string | undefined;
   installDialogOpen: boolean;
   installDrafts: PackageInstallDrafts;
@@ -204,8 +205,10 @@ export function projectInstanceManagement(
         }),
     ...(workspace.feedback === undefined ? {} : { workspaceFeedback: workspace.feedback }),
     workspaces: [
-      { reference: options.workspaces.apps, role: "apps" },
-      { reference: options.workspaces.routes, role: "routes" },
+      {
+        reference: options.workspaces[options.activeWorkspace],
+        role: options.activeWorkspace,
+      },
     ],
   };
 

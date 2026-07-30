@@ -1,9 +1,11 @@
 import { useCallback, useLayoutEffect, useMemo, useState } from "react";
+import { useLocation } from "wouter";
 import type { PresentationIntent } from "@dpeek/formless-presentation/contract";
 import { isManagementIntent, type PresentationNodeSet } from "@dpeek/formless-presentation/host";
-import { INSTANCE_CONTROL_PLANE_SCHEMA_KEY } from "@dpeek/formless-instance-control-plane";
 import type { PackageAppKey } from "@dpeek/formless-installed-apps";
-import { instanceControlPlaneClientTarget } from "../../client/app-target.ts";
+import { programClientTarget } from "../../client/app-target.ts";
+import { FORMLESS_PROGRAM_SCHEMA_KEY } from "../../program/target.ts";
+import { normalizeRuntimeBrowserPath } from "../runtime-profile.ts";
 import type { GeneratedWorkspaceRuntimeController } from "../generated/generated-workspace-runtime.tsx";
 import {
   type ApplicationRuntimeContractPublication,
@@ -185,11 +187,13 @@ export function InstanceManagementRuntime({
   workspaceGatewayState: WorkspaceGatewayRouteState;
 }) {
   const application = useApplicationRuntimePublicationCoordinatorContext();
+  const [location] = useLocation();
+  const screenPath = normalizeRuntimeBrowserPath(location);
   const [publicationController] = useState(() =>
     createInstanceManagementRuntimePublicationController(application),
   );
   const [controlPlaneLoadError, setControlPlaneLoadError] = useState<string>();
-  const controlPlaneTarget = useMemo(() => instanceControlPlaneClientTarget(), []);
+  const programTarget = useMemo(() => programClientTarget(), []);
   const actions = useMemo<InstanceManagementIntentActions>(
     () => ({
       changeInstallDialogOpen: onInstallDialogOpenChange,
@@ -227,6 +231,7 @@ export function InstanceManagementRuntime({
   useLayoutEffect(() => {
     publicationController.updateRuntime(
       {
+        activeWorkspace: screenPath === "/routes" ? "routes" : "apps",
         ...(controlPlaneLoadError === undefined ? {} : { controlPlaneLoadError }),
         installDialogOpen,
         installDrafts,
@@ -238,6 +243,7 @@ export function InstanceManagementRuntime({
     );
   }, [
     actions,
+    screenPath,
     controlPlaneLoadError,
     installDialogOpen,
     installDrafts,
@@ -258,8 +264,8 @@ export function InstanceManagementRuntime({
         clientSync
         onClientLoadStateChange={updateControlPlaneLoadState}
         onGeneratedWorkspaceController={registerApps}
-        schemaKey={INSTANCE_CONTROL_PLANE_SCHEMA_KEY}
-        screenPath="/"
+        schemaKey={FORMLESS_PROGRAM_SCHEMA_KEY}
+        screenPath="/apps"
         sectionExternalActions={{
           "app-installs": [
             {
@@ -276,21 +282,30 @@ export function InstanceManagementRuntime({
             },
           ],
         }}
-        target={controlPlaneTarget}
+        target={programTarget}
       />
       <HomeRoute
         clientSync={false}
         onGeneratedWorkspaceController={registerRoutes}
-        schemaKey={INSTANCE_CONTROL_PLANE_SCHEMA_KEY}
+        schemaKey={FORMLESS_PROGRAM_SCHEMA_KEY}
         screenPath="/routes"
-        target={controlPlaneTarget}
+        target={programTarget}
       />
-      <ApplicationPresentation
-        presentation={{
-          kind: "management",
-          managementReference: instanceManagementReference,
-        }}
-      />
+      {screenPath === "/apps" || screenPath === "/routes" ? (
+        <ApplicationPresentation
+          presentation={{
+            kind: "management",
+            managementReference: instanceManagementReference,
+          }}
+        />
+      ) : (
+        <HomeRoute
+          clientSync={false}
+          schemaKey={FORMLESS_PROGRAM_SCHEMA_KEY}
+          screenPath={screenPath}
+          target={programTarget}
+        />
+      )}
     </>
   );
 }

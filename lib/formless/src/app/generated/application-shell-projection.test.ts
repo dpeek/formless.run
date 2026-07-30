@@ -171,7 +171,7 @@ describe("generated application shell projection", () => {
 
     expect(settingsProjection.manifest).toMatchObject({
       activeDestination: {
-        destinationId: "instance:settings",
+        destinationId: "instance:principals",
         sectionId: "application-shell:instance",
       },
       title: "Instance",
@@ -206,11 +206,28 @@ describe("generated application shell projection", () => {
       settingsProjection.sections.find((section) => section.role === "instance"),
     );
     expect(settingsSection.label).toBeUndefined();
-    expect(settingsSection.destinations).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ href: "/", label: "Settings", selected: true }),
-      ]),
-    );
+    expect(
+      settingsSection.destinations.map((destination) => {
+        if (destination.kind !== "shellLinkDestination") {
+          throw new Error("Expected instance navigation to contain only links.");
+        }
+        return {
+          href: destination.href,
+          label: destination.label,
+          selected: destination.selected,
+        };
+      }),
+    ).toEqual([
+      { href: "/apps", label: "Apps", selected: false },
+      { href: "/routes", label: "Routes", selected: false },
+      { href: "/deployments", label: "Deployments", selected: false },
+      { href: "/", label: "Principals", selected: true },
+      { href: "/organizations", label: "Organizations", selected: false },
+      { href: "/access", label: "Access", selected: false },
+      { href: "/invitations", label: "Invitations", selected: false },
+      { href: "/policies", label: "Policies", selected: false },
+      { href: "/settings", label: "Settings", selected: false },
+    ]);
   });
 
   it("projects anonymous session state without synthesizing a sign-in destination", () => {

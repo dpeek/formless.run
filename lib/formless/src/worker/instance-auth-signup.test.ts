@@ -26,7 +26,6 @@ const authOrigin = "https://auth.example.com";
 const authEmail = "email-sender:auth@mail.example.com";
 const createdAt = "2026-07-07T00:00:00.000Z";
 const packageRoot = resolve(fileURLToPath(new URL("../../", import.meta.url)));
-const workspaceRoot = resolve(packageRoot, "../..");
 const signupTarget = {
   appInstallId: "crm",
   returnTo: "/apps/crm",
@@ -431,12 +430,9 @@ async function writeSignupHarness() {
     `
       import { DurableObject } from "cloudflare:workers";
       import {
-        INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX,
-        INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-      } from "${workspaceRoot}/lib/instance-control-plane/src/index.ts";
-      import {
-        IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
-      } from "${workspaceRoot}/lib/identity-control-plane/src/index.ts";
+        FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+        FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      } from "${packageRoot}/src/program/target.ts";
       import {
         ensureEmailDeliveryTables,
         listEmailDeliveries,
@@ -489,7 +485,7 @@ async function writeSignupHarness() {
           }
 
           if (url.pathname === "/harness/identity-records") {
-            const id = env.FORMLESS_AUTHORITY.idFromName(IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY);
+            const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
 
             return env.FORMLESS_AUTHORITY.get(id).fetch(request);
           }
@@ -514,7 +510,7 @@ async function writeSignupHarness() {
             });
           }
 
-          if (ctx.id.name === IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY) {
+          if (ctx.id.name === FORMLESS_PROGRAM_STORAGE_IDENTITY) {
             ensureStorageTables(ctx.storage);
           }
         }
@@ -522,18 +518,18 @@ async function writeSignupHarness() {
         async fetch(request) {
           const url = new URL(request.url);
 
-          if (this.ctx.id.name === INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY) {
+          if (this.ctx.id.name === FORMLESS_PROGRAM_STORAGE_IDENTITY) {
             if (
               request.method === "GET" &&
-              url.pathname === \`\${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}\${INTERNAL_READ_RECORDS_PATH}\`
+              url.pathname === \`\${FORMLESS_PROGRAM_API_ROUTE_PREFIX}\${INTERNAL_READ_RECORDS_PATH}\`
             ) {
-              return Response.json({ records: controlPlaneRecords(this.env) });
+              return Response.json({
+                records: [
+                  ...controlPlaneRecords(this.env),
+                  ...getBootstrapRecords(this.ctx.storage),
+                ],
+              });
             }
-
-            return Response.json({ error: "Not found." }, { status: 404 });
-          }
-
-          if (this.ctx.id.name === IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY) {
             if (url.pathname === "/harness/identity-records") {
               return Response.json({ records: getBootstrapRecords(this.ctx.storage) });
             }

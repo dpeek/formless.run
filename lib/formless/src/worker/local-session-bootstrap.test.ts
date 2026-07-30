@@ -48,10 +48,7 @@ describe("local session bootstrap API routes", () => {
       headers: { Cookie: cookie },
     });
     const installsBefore = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const controlPlaneBefore = await getJson<BootstrapResponse>(
-      "/api/formless/control-plane/bootstrap",
-    );
-    const identity = await getJson<BootstrapResponse>("/api/formless/identity/bootstrap");
+    const controlPlaneBefore = await getJson<BootstrapResponse>("/api/formless/program/bootstrap");
     const created = await createSiteInstall({ cookie });
     const installsAfter = await getJson<AppInstallsResponse>("/api/formless/app-installs");
 
@@ -81,7 +78,7 @@ describe("local session bootstrap API routes", () => {
     });
     expect(JSON.stringify(session.body)).not.toContain(adminToken);
     expect(JSON.stringify(session.body)).not.toContain(localSessionBootstrapToken);
-    expect(identity.body.records).toEqual(
+    expect(controlPlaneBefore.body.records).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: "local-dev-owner",
@@ -104,9 +101,9 @@ describe("local session bootstrap API routes", () => {
         }),
       ]),
     );
-    expect(identity.body.records.filter((record) => record.entity === "principal-email")).toEqual(
-      [],
-    );
+    expect(
+      controlPlaneBefore.body.records.filter((record) => record.entity === "principal-email"),
+    ).toEqual([]);
     expect(installsBefore.body.installs).toEqual([]);
     for (const entity of [
       "app-install",
@@ -332,25 +329,22 @@ async function bootstrapLocalSession({
 }
 
 async function configureProductionIdentity(target: Harness, productionOrigin: string) {
-  const response = await target.fetch(
-    "/api/formless/control-plane/operations/instance-settings/create",
-    {
-      body: JSON.stringify({
-        idempotencyKey: "configure-deployed-production-identity",
-        input: {
-          authOrigin: productionOrigin,
-          canonicalOrigin: productionOrigin,
-          productionIdentityStatus: "configured",
-          settingsId: INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID,
-        },
-      }),
-      headers: {
-        Authorization: `Bearer ${adminToken}`,
-        "Content-Type": "application/json",
+  const response = await target.fetch("/api/formless/program/operations/instance-settings/create", {
+    body: JSON.stringify({
+      idempotencyKey: "configure-deployed-production-identity",
+      input: {
+        authOrigin: productionOrigin,
+        canonicalOrigin: productionOrigin,
+        productionIdentityStatus: "configured",
+        settingsId: INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID,
       },
-      method: "POST",
+    }),
+    headers: {
+      Authorization: `Bearer ${adminToken}`,
+      "Content-Type": "application/json",
     },
-  );
+    method: "POST",
+  });
 
   expect(response.status).toBe(200);
 }

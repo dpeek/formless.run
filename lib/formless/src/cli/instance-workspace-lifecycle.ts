@@ -10,7 +10,7 @@ import {
   archiveApps,
   type AppArchive,
   type PortableArchive,
-} from "@dpeek/formless-archive";
+} from "../program/archive.ts";
 import type { AppInstall } from "@dpeek/formless-installed-apps";
 import type { AppInstallsResponse } from "../shared/protocol.ts";
 import { runtimeWorkspaceExtensionsEnvValue } from "../shared/workspace-runtime-extensions.ts";
@@ -34,7 +34,7 @@ import {
   replaceInstanceWorkspaceMediaFiles,
   writeInstanceWorkspaceControlPlaneStorageSnapshot,
   type InstanceWorkspaceLocalDevSecretState as FormlessInstanceWorkspaceLocalDevSecretState,
-} from "@dpeek/formless-workspace/node";
+} from "../program/workspace.ts";
 import {
   readFormlessInstanceTargetStatus,
   type FormlessInstanceTargetStatus,

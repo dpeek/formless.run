@@ -131,6 +131,7 @@ type PreparedRecordWriteValidation =
       entityName: string;
       entitySchema: EntitySchema;
       kind: "create";
+      recordId?: string;
       values: Record<string, unknown>;
       writeId: string;
     }
@@ -238,6 +239,14 @@ function prepareRecordWriteValidation(
     throw new BadRequestError("Record write request values must be an object.");
   }
 
+  if (
+    value.kind === "create" &&
+    value.id !== undefined &&
+    (typeof value.id !== "string" || value.id.trim() === "")
+  ) {
+    throw new BadRequestError("Create record write id must be a non-empty string.");
+  }
+
   if (value.kind === "patch") {
     if (typeof value.recordId !== "string" || value.recordId.trim() === "") {
       throw new BadRequestError("Patch record write must include a recordId.");
@@ -279,6 +288,7 @@ function prepareRecordWriteValidation(
     kind: "create",
     entityName: value.entity,
     entitySchema: entity,
+    ...(typeof value.id === "string" ? { recordId: value.id } : {}),
     values: normalizeStateMachineCreateValues(value.entity, entity, value.values),
     writeId: value.writeId,
   };
@@ -328,6 +338,7 @@ function buildValidatedRecordWrite(
     recordWrite: {
       writeId: prepared.writeId,
       entity: prepared.entityName,
+      ...("recordId" in prepared ? { id: prepared.recordId } : {}),
       kind: "create",
       values: recordValues,
     } satisfies CreateRecordWriteRequest,

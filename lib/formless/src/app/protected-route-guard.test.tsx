@@ -25,9 +25,9 @@ describe("protected route guard", () => {
       route: "/",
     });
 
-    expect(accepted.calls).toEqual(["/api/formless/control-plane/bootstrap"]);
+    expect(accepted.calls).toEqual(["/api/formless/program/bootstrap"]);
     expect(accepted.states).toEqual(["checking", "authorized"]);
-    expect(rejected.calls).toEqual(["/api/formless/control-plane/bootstrap"]);
+    expect(rejected.calls).toEqual(["/api/formless/program/bootstrap"]);
     expect(rejected.states).toEqual(["checking", "redirect"]);
   });
 

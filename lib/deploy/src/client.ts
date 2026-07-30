@@ -91,14 +91,15 @@ export function deployControlPlaneActionPath(actionId: DeployControlPlaneActionI
 
 export function deployControlPlaneBootstrapPath(
   actorKind?: DeployControlPlaneProtocolActorKind,
+  apiRoutePrefix = DEPLOY_CONTROL_PLANE_API_ROUTE_PREFIX,
 ): string {
   if (actorKind === undefined) {
-    return `${DEPLOY_CONTROL_PLANE_API_ROUTE_PREFIX}/bootstrap`;
+    return `${apiRoutePrefix}/bootstrap`;
   }
 
   const searchParams = new URLSearchParams({ actorKind });
 
-  return `${DEPLOY_CONTROL_PLANE_API_ROUTE_PREFIX}/bootstrap?${searchParams.toString()}`;
+  return `${apiRoutePrefix}/bootstrap?${searchParams.toString()}`;
 }
 
 export function deployControlPlaneActorHeaders(

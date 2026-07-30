@@ -7,11 +7,7 @@ import type {
   EntityOperationSchema,
   EntityOperationScope,
 } from "@dpeek/formless-schema";
-import type {
-  AppStorageIdentity,
-  IdentityControlPlaneStorageIdentity,
-  InstanceControlPlaneStorageIdentity,
-} from "./app-storage-identity.ts";
+import type { AuthorityStorageIdentity } from "./app-storage-identity.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { ChangeRow } from "./protocol.ts";
 
@@ -103,10 +99,7 @@ export type OperationInvocationOperation = {
 
 export type OperationInvocationEnvelope = {
   invocationId: string;
-  appStorageIdentity:
-    | AppStorageIdentity
-    | IdentityControlPlaneStorageIdentity
-    | InstanceControlPlaneStorageIdentity;
+  appStorageIdentity: AuthorityStorageIdentity;
   actor: OperationInvocationActor;
   source: OperationInvocationSource;
   input: OperationInvocationInput;

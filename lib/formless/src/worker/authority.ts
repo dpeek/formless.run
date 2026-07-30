@@ -10,7 +10,7 @@ import { isSyncSocketAttachment, isSyncSocketClientMessage } from "../shared/pro
 import {
   installedAppStorageIdentity,
   parseAuthorityApiRoute,
-  type AppStorageIdentity,
+  type AuthorityStorageIdentity,
 } from "../shared/app-storage-identity.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import { handleInstanceArchiveDurableObjectRequest } from "./archive-api.ts";
@@ -20,6 +20,7 @@ import {
   getCurrentCursor,
   initializeStorageFromSource,
   resetStorageToEmpty,
+  readProgramConvergenceSourceState,
   ActiveSchemaRefreshBlockedError,
   type PackageAppSchemaProvenance,
   type StorageSource,
@@ -30,6 +31,7 @@ import type { Env } from "./index.ts";
 import {
   authorizeAuthorityOperation,
   authorizeInstanceWrite,
+  authorizeOperationalManagement,
   authorizeOwnerManagementRead,
   type AuthorityAdminGuardResult,
 } from "./authority-admin-guard.ts";
@@ -72,6 +74,7 @@ import {
   handleInstanceAuthHandoffDurableObjectRequest,
   hostAuthSessionTargetFromRequestHeaders,
   validateBoundInstanceAuthAccessSession,
+  validateBoundInstanceManagementAccessSession,
   validateCentralAuthSessionAuthority,
   validateCentralAuthSessionPrincipal,
   validateHostAuthSessionAuthority,
@@ -107,6 +110,17 @@ import {
   listActiveAppPackages,
 } from "./runtime-app-packages.ts";
 import { INTERNAL_PUBLIC_SITE_BOOTSTRAP_PATH } from "./public-site-worker-runtime.ts";
+import { IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY } from "@dpeek/formless-identity-control-plane";
+import {
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
+import {
+  ensureFormlessProgramStorage,
+  formlessProgramApp,
+  formlessProgramSource,
+  INTERNAL_PROGRAM_CONVERGENCE_SOURCE_PATH,
+} from "./program-authority.ts";
 
 export const INTERNAL_RESET_APP_STORAGE_PATH = "/_internal/reset-app-storage";
 
@@ -120,8 +134,21 @@ type InstalledAppSyncSocketAuthorization =
       storageIdentity: string;
     };
 
+type ProgramSyncSocketAuthorization =
+  | { kind: "open" }
+  | {
+      access: unknown;
+      kind: "program-management";
+      storageIdentity: string;
+    }
+  | {
+      authorization: string;
+      kind: "program-admin-bearer";
+      storageIdentity: string;
+    };
+
 type AuthoritySyncSocketAttachment = SyncSocketAttachment & {
-  authorization?: InstalledAppSyncSocketAuthorization;
+  authorization?: InstalledAppSyncSocketAuthorization | ProgramSyncSocketAuthorization;
 };
 
 export class FormlessAuthority extends DurableObject<Env> {
@@ -134,6 +161,46 @@ export class FormlessAuthority extends DurableObject<Env> {
 
   async fetch(request: Request) {
     const url = new URL(request.url);
+
+    if (url.pathname === INTERNAL_RESET_APP_STORAGE_PATH) {
+      if (request.method !== "POST") {
+        return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
+      }
+
+      resetStorageToEmpty(this.ctx.storage);
+
+      return jsonResponse({ reset: true });
+    }
+
+    if (
+      this.ctx.id.name === IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY &&
+      url.pathname === INTERNAL_PROGRAM_CONVERGENCE_SOURCE_PATH
+    ) {
+      if (request.method !== "GET") {
+        return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "GET" });
+      }
+
+      return jsonResponse({
+        state: readProgramConvergenceSourceState(this.ctx.storage) ?? null,
+      });
+    }
+
+    if (this.ctx.id.name === FORMLESS_PROGRAM_STORAGE_IDENTITY) {
+      try {
+        ensureFormlessProgramStorage(
+          this.ctx.storage,
+          await readLegacyIdentityStorageState(this.bindings),
+          activeAppPackageResolver(this.bindings),
+        );
+      } catch (error) {
+        return jsonResponse(
+          {
+            error: error instanceof Error ? error.message : "Program convergence preflight failed.",
+          },
+          409,
+        );
+      }
+    }
 
     if (this.ctx.id.name === FORMLESS_INSTANCE_AUTHORITY_NAME) {
       await ensureRuntimeInstanceAuthConfig(this.ctx.storage, request, this.bindings);
@@ -346,16 +413,6 @@ export class FormlessAuthority extends DurableObject<Env> {
       return instanceArchiveResponse;
     }
 
-    if (url.pathname === INTERNAL_RESET_APP_STORAGE_PATH) {
-      if (request.method !== "POST") {
-        return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
-      }
-
-      resetStorageToEmpty(this.ctx.storage);
-
-      return jsonResponse({ reset: true });
-    }
-
     if (url.pathname === INTERNAL_PUBLIC_SITE_BOOTSTRAP_PATH) {
       if (request.method !== "GET") {
         return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "GET" });
@@ -442,13 +499,15 @@ export class FormlessAuthority extends DurableObject<Env> {
       }
 
       const appStorageUpgradeStatusResponse =
-        await handleAppStorageUpgradeStatusDurableObjectRequest({
-          env: this.bindings,
-          identity: route.identity,
-          path: route.path,
-          request,
-          storage: this.ctx.storage,
-        });
+        route.identity.kind === "program"
+          ? undefined
+          : await handleAppStorageUpgradeStatusDurableObjectRequest({
+              env: this.bindings,
+              identity: route.identity,
+              path: route.path,
+              request,
+              storage: this.ctx.storage,
+            });
 
       if (appStorageUpgradeStatusResponse) {
         return appStorageUpgradeStatusResponse;
@@ -465,6 +524,11 @@ export class FormlessAuthority extends DurableObject<Env> {
       });
 
       if (publicOperationRoute) {
+        if (route.identity.kind === "program") {
+          return jsonResponse({ error: "Not found." }, 404);
+        }
+
+        const publicIdentity = route.identity;
         const body = await readJson(request);
         ensureStorageTables(this.ctx.storage);
         const { schema } = initializeStorageFromSource(this.ctx.storage, source);
@@ -473,7 +537,7 @@ export class FormlessAuthority extends DurableObject<Env> {
             const operationInputNotificationRecords =
               await publicOperationInputNotificationSourceRecords({
                 env: this.bindings,
-                identity: route.identity,
+                identity: publicIdentity,
                 requestUrl: request.url,
                 response,
               });
@@ -481,13 +545,13 @@ export class FormlessAuthority extends DurableObject<Env> {
             await Promise.allSettled([
               scheduleSiteContactNotificationAfterPublicOperation({
                 adapters: createSiteContactNotificationAdapters(this.bindings),
-                identity: route.identity,
+                identity: publicIdentity,
                 requestUrl: request.url,
                 response,
               }),
               scheduleSiteOperationInputNotificationAfterPublicOperation({
                 adapters: createSiteOperationInputNotificationAdapters(this.bindings),
-                identity: route.identity,
+                identity: publicIdentity,
                 requestUrl: request.url,
                 response,
                 ...(operationInputNotificationRecords === undefined
@@ -500,7 +564,7 @@ export class FormlessAuthority extends DurableObject<Env> {
           },
           body,
           env: this.bindings,
-          identity: route.identity,
+          identity: publicIdentity,
           identityReferenceResolver: (lookup) =>
             resolveIdentityAppReferenceTarget(this.bindings, lookup),
           request,
@@ -638,7 +702,7 @@ export class FormlessAuthority extends DurableObject<Env> {
 
   private async handleSyncWebSocketRequest(
     request: Request,
-    identity: AppStorageIdentity,
+    identity: AuthorityStorageIdentity,
     app: WorkerSchemaAppDefinition,
   ) {
     if (request.method !== "GET") {
@@ -654,11 +718,21 @@ export class FormlessAuthority extends DurableObject<Env> {
     const authorization =
       identity.kind === "appInstall"
         ? await this.installedAppSyncSocketAuthorization(request, identity)
-        : undefined;
+        : identity.kind === "program"
+          ? await this.programSyncSocketAuthorization(request, identity)
+          : undefined;
 
-    if (identity.kind === "appInstall" && authorization === undefined) {
+    if (
+      (identity.kind === "appInstall" || identity.kind === "program") &&
+      authorization === undefined
+    ) {
       return jsonResponse(
-        { error: "Owner or matching app administrator session is required for push sync." },
+        {
+          error:
+            identity.kind === "program"
+              ? "Owner or instance-admin session is required for Program push sync."
+              : "Owner or matching app administrator session is required for push sync.",
+        },
         401,
         { "WWW-Authenticate": 'Bearer realm="formless-app-admin"' },
       );
@@ -679,7 +753,7 @@ export class FormlessAuthority extends DurableObject<Env> {
 
   private async installedAppSyncSocketAuthorization(
     request: Request,
-    identity: Extract<AppStorageIdentity, { kind: "appInstall" }>,
+    identity: Extract<AuthorityStorageIdentity, { kind: "appInstall" }>,
   ): Promise<InstalledAppSyncSocketAuthorization | undefined> {
     const target = hostAuthSessionTargetForAuthorityRoute(request, identity);
     const authorization = await authorizeInstalledAppDataRequest(
@@ -706,6 +780,48 @@ export class FormlessAuthority extends DurableObject<Env> {
     return fallback.authorized && fallback.via === "open" ? { kind: "open" } : undefined;
   }
 
+  private async programSyncSocketAuthorization(
+    request: Request,
+    identity: Extract<AuthorityStorageIdentity, { kind: "program" }>,
+  ): Promise<ProgramSyncSocketAuthorization | undefined> {
+    const target = hostAuthSessionTargetForAuthorityRoute(request, identity);
+    const authorization = await authorizeOperationalManagement(request, this.bindings, {
+      hostSessionTarget: target,
+    });
+
+    if (!authorization.authorized) {
+      return undefined;
+    }
+
+    if (authorization.via === "open") {
+      return { kind: "open" };
+    }
+
+    if (authorization.via === "admin-bearer") {
+      const token = bearerTokenFromRequest(request);
+
+      return token
+        ? {
+            authorization: token,
+            kind: "program-admin-bearer",
+            storageIdentity: identity.authorityName,
+          }
+        : undefined;
+    }
+
+    return authorization.session
+      ? {
+          access: {
+            principalId: authorization.session.principalId,
+            session: authorization.session,
+            via: authorization.via,
+          },
+          kind: "program-management",
+          storageIdentity: identity.authorityName,
+        }
+      : undefined;
+  }
+
   private async syncSocketAuthorized(
     socket: WebSocket,
     attachment: AuthoritySyncSocketAttachment,
@@ -713,11 +829,33 @@ export class FormlessAuthority extends DurableObject<Env> {
     const authorization = attachment.authorization;
 
     if (authorization === undefined) {
-      return this.ctx.id.name?.startsWith("app:") !== true;
+      return (
+        this.ctx.id.name !== FORMLESS_PROGRAM_STORAGE_IDENTITY &&
+        this.ctx.id.name?.startsWith("app:") !== true
+      );
     }
 
     if (authorization.kind === "open") {
       return installedAppOpenSyncAllowed(this.bindings);
+    }
+
+    if (authorization.kind === "program-admin-bearer") {
+      return (
+        authorization.storageIdentity === FORMLESS_PROGRAM_STORAGE_IDENTITY &&
+        authorization.storageIdentity === this.ctx.id.name &&
+        authorization.authorization === this.bindings.FORMLESS_ADMIN_TOKEN?.trim()
+      );
+    }
+
+    if (authorization.kind === "program-management") {
+      return (
+        this.ctx.getTags(socket)[0] === FORMLESS_PROGRAM_SCHEMA_KEY &&
+        authorization.storageIdentity === FORMLESS_PROGRAM_STORAGE_IDENTITY &&
+        authorization.storageIdentity === this.ctx.id.name &&
+        (await validateBoundInstanceManagementAccessSession(authorization.access, this.bindings, {
+          storageIdentity: authorization.storageIdentity,
+        }))
+      );
     }
 
     const identity = installedAppStorageIdentity(
@@ -763,18 +901,50 @@ export class FormlessAuthority extends DurableObject<Env> {
   }
 }
 
-function hostAuthSessionTargetForAuthorityRoute(request: Request, identity: AppStorageIdentity) {
-  if (identity.kind !== "appInstall") {
+async function readLegacyIdentityStorageState(env: Env) {
+  const id = env.FORMLESS_AUTHORITY.idFromName(IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY);
+  const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
+    new Request(`http://internal${INTERNAL_PROGRAM_CONVERGENCE_SOURCE_PATH}`),
+  );
+
+  if (!response.ok) {
+    throw new Error("Could not read the legacy identity Authority convergence snapshot.");
+  }
+
+  const body = (await response.json()) as {
+    state?: ReturnType<typeof readProgramConvergenceSourceState> | null;
+  };
+
+  return body.state ?? undefined;
+}
+
+function hostAuthSessionTargetForAuthorityRoute(
+  request: Request,
+  identity: AuthorityStorageIdentity,
+) {
+  if (identity.kind !== "appInstall" && identity.kind !== "program") {
     return undefined;
   }
 
   const target = hostAuthSessionTargetFromRequestHeaders(request.headers);
 
-  if (!target || target.storageIdentity !== identity.authorityName) {
+  if (
+    !target ||
+    target.storageIdentity !== identity.authorityName ||
+    (identity.kind === "program" &&
+      (target.appInstallId !== undefined || target.targetProfile !== "instance"))
+  ) {
     return undefined;
   }
 
   return target;
+}
+
+function bearerTokenFromRequest(request: Request): string | undefined {
+  const authorization = request.headers.get("Authorization");
+  const match = authorization ? /^Bearer\s+(.+)$/i.exec(authorization.trim()) : null;
+
+  return match?.[1];
 }
 
 function isInstalledAppDataOperation(operation: AuthorityOperation): boolean {
@@ -789,7 +959,7 @@ function isInstalledAppDataOperation(operation: AuthorityOperation): boolean {
 async function authorizeInstalledAppDataRequest(
   request: Request,
   env: Env,
-  identity: Extract<AppStorageIdentity, { kind: "appInstall" }>,
+  identity: Extract<AuthorityStorageIdentity, { kind: "appInstall" }>,
   target: ReturnType<typeof hostAuthSessionTargetFromRequestHeaders>,
 ): Promise<
   | {
@@ -1008,9 +1178,13 @@ class AuthorityWriteModule {
 }
 
 function storageSourceFromRoute(
-  route: { app: WorkerSchemaAppDefinition; identity: AppStorageIdentity },
+  route: { app: WorkerSchemaAppDefinition; identity: AuthorityStorageIdentity },
   env: Env,
 ): StorageSource {
+  if (route.identity.kind === "program") {
+    return formlessProgramSource();
+  }
+
   return storageSourceFromApp(route.app, {
     schemaProvenance: packageSchemaProvenanceForIdentity(route.identity, env),
     schemaKey: route.identity.sourceSchemaKey,
@@ -1037,7 +1211,7 @@ function storageSourceFromApp(
 }
 
 function packageSchemaProvenanceForIdentity(
-  identity: AppStorageIdentity,
+  identity: Exclude<AuthorityStorageIdentity, { kind: "program" }>,
   env: Env,
 ): PackageAppSchemaProvenance {
   const packageApp = activeAppPackageResolver(env).findPackage(identity.packageAppKey);
@@ -1056,7 +1230,7 @@ function packageSchemaProvenanceForIdentity(
 
 async function publicOperationInputNotificationSourceRecords(input: {
   env: Env;
-  identity: AppStorageIdentity;
+  identity: AuthorityStorageIdentity;
   requestUrl: string;
   response: { invocation: { source: { siteBlockId?: string } } };
 }): Promise<readonly StoredRecord[] | undefined> {
@@ -1108,6 +1282,10 @@ function storageSourceFromSyncSocket(
   socket: WebSocket,
   env: Env,
 ): StorageSource {
+  if (ctx.id.name === FORMLESS_PROGRAM_STORAGE_IDENTITY) {
+    return formlessProgramSource();
+  }
+
   return storageSourceFromSchemaKey(ctx.getTags(socket)[0] ?? ctx.id.name, env, ctx.id.name);
 }
 
@@ -1152,7 +1330,7 @@ function packageSchemaProvenanceForSchemaKey(
 }
 
 function initialSyncSocketAttachment(
-  authorization?: InstalledAppSyncSocketAuthorization,
+  authorization?: InstalledAppSyncSocketAuthorization | ProgramSyncSocketAuthorization,
 ): AuthoritySyncSocketAttachment {
   return {
     ...(authorization === undefined ? {} : { authorization }),
@@ -1170,7 +1348,7 @@ function syncSocketAttachment(socket: WebSocket): AuthoritySyncSocketAttachment 
 
   const authorization =
     isObjectRecord(attachment) && "authorization" in attachment
-      ? parseInstalledAppSyncSocketAuthorization(attachment.authorization)
+      ? parseAuthoritySyncSocketAuthorization(attachment.authorization)
       : undefined;
 
   return {
@@ -1264,15 +1442,42 @@ function sendSyncSocketError(socket: WebSocket, message: string) {
   }
 }
 
-function parseInstalledAppSyncSocketAuthorization(
+function parseAuthoritySyncSocketAuthorization(
   value: unknown,
-): InstalledAppSyncSocketAuthorization | undefined {
+): InstalledAppSyncSocketAuthorization | ProgramSyncSocketAuthorization | undefined {
   if (!isObjectRecord(value)) {
     return undefined;
   }
 
   if (value.kind === "open") {
     return { kind: "open" };
+  }
+
+  if (
+    value.kind === "program-management" &&
+    typeof value.storageIdentity === "string" &&
+    value.storageIdentity !== "" &&
+    "access" in value
+  ) {
+    return {
+      access: value.access,
+      kind: "program-management",
+      storageIdentity: value.storageIdentity,
+    };
+  }
+
+  if (
+    value.kind === "program-admin-bearer" &&
+    typeof value.authorization === "string" &&
+    value.authorization !== "" &&
+    typeof value.storageIdentity === "string" &&
+    value.storageIdentity !== ""
+  ) {
+    return {
+      authorization: value.authorization,
+      kind: "program-admin-bearer",
+      storageIdentity: value.storageIdentity,
+    };
   }
 
   if (
@@ -1311,7 +1516,7 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
 async function handleInternalAuthProfileCompletionRequest(input: {
   env: Env;
   request: Request;
-  route: { app: WorkerSchemaAppDefinition; identity: AppStorageIdentity; path: string };
+  route: { app: WorkerSchemaAppDefinition; identity: AuthorityStorageIdentity; path: string };
   source: StorageSource;
   storage: DurableObjectStorage;
   url: URL;
@@ -1404,11 +1609,17 @@ function currentActiveSchemaSource(
 function parseAuthorityRoute(
   pathname: string,
   env: Env,
-): { app: WorkerSchemaAppDefinition; identity: AppStorageIdentity; path: string } | undefined {
+):
+  | { app: WorkerSchemaAppDefinition; identity: AuthorityStorageIdentity; path: string }
+  | undefined {
   const route = parseAuthorityApiRoute(pathname, activeAppPackageResolver(env));
 
   if (!route) {
     return undefined;
+  }
+
+  if (route.identity.kind === "program") {
+    return { app: formlessProgramApp, identity: route.identity, path: route.path };
   }
 
   const app = findActiveWorkerSchemaAppDefinition(route.identity.sourceSchemaKey, env);

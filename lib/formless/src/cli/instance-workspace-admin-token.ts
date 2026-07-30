@@ -12,7 +12,7 @@ import {
   readInstanceWorkspaceSecretState as readFormlessInstanceWorkspaceSecretState,
   resolveInstanceWorkspaceAdminToken as resolveFormlessInstanceWorkspaceAdminToken,
   writeInstanceWorkspaceSecretState as writeFormlessInstanceWorkspaceSecretState,
-} from "@dpeek/formless-workspace/node";
+} from "../program/workspace.ts";
 import { packageExecCommand } from "./package-commands.ts";
 import {
   createActiveWorkspaceAppPackages,

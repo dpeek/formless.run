@@ -157,6 +157,21 @@ domain declarations.
 - AND creating the artifact does not itself combine Authorities, app storage,
   package resolution, browser replicas, sync state, archives, or media
 
+#### Scenario: Program root owns runtime selection
+
+- GIVEN the default Program artifact is selected for runtime-owned reviewable
+  records
+- WHEN storage identity, schema provenance, API routing, browser replication,
+  archive, workspace, or authorization behavior is selected
+- THEN the downstream Formless Program root owns those complete-runtime choices
+- AND the Instance Control Plane and Identity Control Plane packages continue
+  owning their schema modules, stable entity ids, validation helpers, and
+  domain adapters
+- AND package authoring module keys do not become runtime storage,
+  authorization, qualified-entity, route, archive, or provenance identity
+- AND the Schema package does not gain instance, identity, archive, runtime, or
+  provider declarations
+
 ### Requirement: App Package Schema Materialization
 
 An app package that uses TypeScript schema authoring SHALL materialize a
@@ -709,7 +724,7 @@ runtime adapter execution.
 
 The system SHALL provide an Instance Control Plane package slice under
 `lib/instance-control-plane/` for schema-owned instance management contracts and
-reviewable control-plane storage snapshot validation.
+reviewable control-plane record validation.
 
 #### Scenario: Instance Control Plane package scaffold
 
@@ -725,14 +740,15 @@ reviewable control-plane storage snapshot validation.
 #### Scenario: Instance Control Plane package exports
 
 - GIVEN Archive, Workspace, Worker runtime, Site runtime, Deploy runtime, or
-  tests need instance control-plane schema keys, storage identity constants,
-  entity contracts, schema contracts, reviewable record validation, or
-  display-safe control-plane storage snapshot canonicalization
+  tests need instance control-plane entity contracts, schema modules,
+  reviewable record validation, or display-safe record canonicalization
 - WHEN they import instance control-plane behavior
 - THEN they import from `@dpeek/formless-instance-control-plane`
 - AND trusted schema composition imports reusable declaration modules from
   `@dpeek/formless-instance-control-plane/schema`
-- AND they do not import those contracts from root runtime modules
+- AND they do not import domain contracts from root runtime modules
+- AND the downstream Program root owns complete schema key, storage identity,
+  provenance, generic API, replica, archive, and workspace selection
 
 ### Requirement: Instance Control Plane Package Non-Ownership
 
@@ -743,8 +759,8 @@ execution, or provider state.
 #### Scenario: Package owns schema-owned control-plane contracts
 
 - GIVEN app-install, route, or deployment-config entity contracts,
-  control-plane schema constants, reviewable storage snapshot validation, or
-  display-safe canonicalization are needed
+  control-plane schema modules, reviewable record validation, or display-safe
+  canonicalization are needed
 - WHEN runtime-neutral code consumes instance control-plane behavior
 - THEN they come from `lib/instance-control-plane`
 - AND app install metadata contracts come from the Installed Apps package
@@ -1087,13 +1103,16 @@ runtime storage, provider execution, or app records.
 #### Scenario: Package owns workspace contracts and local adapters
 
 - GIVEN `formless.json` manifest parsing, workspace path defaults, target URL
-  normalization, reviewable control-plane storage snapshot contracts, ignored
+  normalization, reviewable Program storage snapshot contracts, ignored
   local or secret state file contracts, semantic workspace operation inputs,
   display-safe operation state, operation result shapes, operation redaction, or
   deterministic local filesystem workspace IO are needed
 - WHEN runtime-neutral or local Node code consumes workspace capability
   behavior
 - THEN they come from `lib/workspace`
+- AND default Program schema resolution, mixed-record validation, and
+  domain-specific canonicalization are supplied by the downstream runtime
+  composition root rather than imported from Formless runtime internals
 - AND Gateway imports or is supplied those semantic operation contracts instead
   of defining Gateway-owned operation shapes
 - AND package consumers import Workspace behavior only from

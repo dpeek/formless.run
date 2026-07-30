@@ -91,7 +91,7 @@ function createGatewayHarness() {
 }
 
 async function createRouteRecord(recordId: string, values: Record<string, unknown>) {
-  const response = await harness.fetch("/api/formless/control-plane/operations/route/create", {
+  const response = await harness.fetch("/api/formless/program/operations/route/create", {
     body: JSON.stringify({
       idempotencyKey: `route-${recordId}`,
       input: values,

@@ -5,12 +5,7 @@ import {
   IDENTITY_ACCESS_PERSON_ROLE_REPLACEMENT_API_PATH,
   IDENTITY_COLLABORATOR_INVITATION_REVOKE_API_PATH,
   IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX,
-  IDENTITY_CONTROL_PLANE_SOURCE_SCHEMA_HASH,
-  IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
   identityControlPlaneRoleKeys,
-  identityControlPlaneSchema,
-  identityControlPlaneSchemaProvenance,
-  identityControlPlaneSourceSchema,
   type IdentityCollaboratorInvitationRevokeErrorResponse,
   type IdentityCollaboratorInvitationRevokeResponse,
   type IdentityAccessManagementSummary,
@@ -18,7 +13,13 @@ import {
   type IdentityAccessPersonRemovalResponse,
   type IdentityAccessPersonRoleReplacementResponse,
 } from "@dpeek/formless-identity-control-plane";
-import { INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-instance-control-plane";
+import { formlessProgramSchema } from "../program/runtime.ts";
+import {
+  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+  formlessProgramSchemaProvenance,
+} from "../program/target.ts";
 import {
   STORAGE_SNAPSHOT_KIND,
   STORAGE_SNAPSHOT_VERSION,
@@ -38,12 +39,7 @@ import {
   WORKSPACE_GATEWAY_PROXY_TOKEN_ENV,
   WORKSPACE_GATEWAY_SIDECAR_URL_ENV,
 } from "@dpeek/formless-gateway";
-import { computeSourceSchemaHash } from "../shared/upgrade-migrations.ts";
-import {
-  instanceControlPlaneTestStorageSnapshot,
-  recordOperationRequest,
-  restoreTestStorageSnapshot,
-} from "../test/authority-write.ts";
+import { recordOperationRequest } from "../test/authority-write.ts";
 import { ensureTestIdentityOwner, resetTestIdentityStorage } from "../test/identity-owner.ts";
 import {
   INTERNAL_IDENTITY_APP_AUTHORITY_PATH,
@@ -58,7 +54,7 @@ type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
 const adminToken = "test-admin-token";
 const identityApi = IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX;
-const controlPlaneApi = INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX;
+const controlPlaneApi = FORMLESS_PROGRAM_API_ROUTE_PREFIX;
 const authOrigin = "https://auth.example.com";
 const ownerEmail = "ada@example.com";
 const owner: OwnerIdentity = {
@@ -128,24 +124,23 @@ function createHarness() {
 
 describe("identity control-plane API routes", () => {
   it("requires owner or admin authorization and bootstraps built-in role records", async () => {
-    const anonymous = await harness.fetch(`${identityApi}/bootstrap`);
-    const admin = await getJson<BootstrapResponse>(`${identityApi}/bootstrap`);
-    const ownerRead = await getOwnerJson<BootstrapResponse>(`${identityApi}/bootstrap`);
-    const ownerSchema = await getJson<SchemaResponse>(`${identityApi}/schema`);
-    const sourceSchemaHash = await computeSourceSchemaHash(identityControlPlaneSourceSchema);
+    const anonymous = await harness.fetch(`${controlPlaneApi}/bootstrap`);
+    const admin = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
+    const ownerRead = await getOwnerJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
+    const ownerSchema = await getJson<SchemaResponse>(`${controlPlaneApi}/schema`);
 
     expect(anonymous.status).toBe(401);
     expect(anonymous.headers.get("WWW-Authenticate")).toBe('Bearer realm="formless-admin"');
     expect(await anonymous.json()).toEqual({
-      error: "Owner session or admin authorization is required for this read endpoint.",
+      error:
+        "Owner session, instance-admin session, or admin authorization is required for this read endpoint.",
     });
-    expect(IDENTITY_CONTROL_PLANE_SOURCE_SCHEMA_HASH).toBe(sourceSchemaHash);
-    expect(admin.body.schema).toEqual(identityControlPlaneSchema);
-    expect(admin.body.schemaProvenance).toEqual(identityControlPlaneSchemaProvenance);
+    expect(admin.body.schema).toEqual(formlessProgramSchema);
+    expect(admin.body.schemaProvenance).toEqual(formlessProgramSchemaProvenance);
     expect(admin.body.records).toEqual(builtInRoleRecords());
     expect(admin.body.cursor).toBe(identityControlPlaneRoleKeys.length);
     expect(admin.response.headers.get(FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER)).toBe(
-      identityControlPlaneSchemaProvenance.sourceSchemaHash,
+      formlessProgramSchemaProvenance.sourceSchemaHash,
     );
     expect(ownerRead.body.records).toEqual(expect.arrayContaining(admin.body.records));
     expect(ownerRead.body.records).toEqual(
@@ -166,14 +161,14 @@ describe("identity control-plane API routes", () => {
         }),
       ]),
     );
-    expect(ownerSchema.body.schema).toEqual(identityControlPlaneSchema);
-    expect(ownerSchema.body.schemaProvenance).toEqual(identityControlPlaneSchemaProvenance);
+    expect(ownerSchema.body.schema).toEqual(formlessProgramSchema);
+    expect(ownerSchema.body.schemaProvenance).toEqual(formlessProgramSchemaProvenance);
     expect(ownerSchema.response.headers.get("Cache-Control")).toBe("no-store");
   });
 
   it("reconciles required role records without advancing an unchanged write log", async () => {
-    const first = await getJson<BootstrapResponse>(`${identityApi}/bootstrap`);
-    const second = await getJson<BootstrapResponse>(`${identityApi}/bootstrap`);
+    const first = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
+    const second = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
 
     expect(second.body.cursor).toBe(first.body.cursor);
     expect(
@@ -182,21 +177,21 @@ describe("identity control-plane API routes", () => {
   });
 
   it("exports identity control-plane storage snapshots with the identity storage boundary", async () => {
-    const bootstrap = await getJson<BootstrapResponse>(`${identityApi}/bootstrap`);
-    const snapshot = await getJson<StorageSnapshot>(`${identityApi}/snapshot`);
+    const bootstrap = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
+    const snapshot = await getJson<StorageSnapshot>(`${controlPlaneApi}/snapshot`);
 
     expect(snapshot.body).toMatchObject({
       kind: STORAGE_SNAPSHOT_KIND,
       version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
-      schemaKey: "identity-control-plane",
+      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
       exportedAt: expect.any(String),
       schemaUpdatedAt: bootstrap.body.schemaUpdatedAt,
       sourceCursor: bootstrap.body.cursor,
-      schema: identityControlPlaneSchema,
+      schema: formlessProgramSchema,
     });
     expect(snapshot.body.records).toEqual(
-      formatStoredRecordsForArtifact(identityControlPlaneSchema, bootstrap.body.records),
+      formatStoredRecordsForArtifact(formlessProgramSchema, bootstrap.body.records),
     );
   });
 
@@ -432,7 +427,7 @@ describe("identity control-plane API routes", () => {
           id: authSender.id,
         },
         sourceRecordId: "invitation:delivery-ada",
-        sourceStorageIdentity: IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
+        sourceStorageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
         status: "pending",
       },
     });
@@ -552,7 +547,7 @@ describe("identity control-plane API routes", () => {
     expect(summary.body.invitations).not.toContainEqual(
       expect.objectContaining({ invitationId: "invitation:revoke-success" }),
     );
-    const retained = await getJson<BootstrapResponse>(`${identityApi}/bootstrap`);
+    const retained = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
     expect(recordById(retained.body.records, "invitation:revoke-success")).toMatchObject({
       values: {
         status: "revoked",
@@ -597,7 +592,7 @@ describe("identity control-plane API routes", () => {
       ownerSession.headers,
     );
     const summary = await getAccessSummary(ownerSession.headers);
-    const retained = await getJson<BootstrapResponse>(`${identityApi}/bootstrap`);
+    const retained = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
     const publicAcceptance = await fetchCollaboratorInvitationAcceptanceStatus(
       "invitation:person-removal",
       "fake-token",
@@ -947,7 +942,7 @@ describe("identity control-plane API routes", () => {
       instanceOwner: false,
     });
 
-    const afterReplacement = await getJson<BootstrapResponse>(`${identityApi}/bootstrap`);
+    const afterReplacement = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
 
     expect(recordById(afterReplacement.body.records, siteViewer.id).values.status).toBe("disabled");
     expect(recordById(afterReplacement.body.records, tasksViewer.id).values.status).toBe("active");
@@ -1107,7 +1102,7 @@ describe("identity control-plane API routes", () => {
       actorHeaders,
     );
     const summary = await getAccessSummary(actorHeaders);
-    const afterRemoval = await getJson<BootstrapResponse>(`${identityApi}/bootstrap`);
+    const afterRemoval = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
 
     expect(removed.response.status).toBe(200);
     expect(removed.body).toMatchObject({
@@ -1155,7 +1150,7 @@ describe("identity control-plane API routes", () => {
       secondOwnerHeaders,
     );
     const summary = await getAccessSummary(secondOwnerHeaders);
-    const retained = await getJson<BootstrapResponse>(`${identityApi}/bootstrap`);
+    const retained = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
 
     expect(removed.response.status).toBe(200);
     expect(summary.body.people).not.toContainEqual(
@@ -1481,19 +1476,19 @@ describe("identity control-plane API routes", () => {
     }
   });
 
-  it("keeps generic identity management paths owner-only for instance admins", async () => {
+  it("allows Program reads but keeps role and snapshot replacement writes owner-only", async () => {
     const adminPrincipal = await createIdentityPrincipal("Access Summary Generic Admin");
     await assignIdentityInstanceRole(adminPrincipal.id, "instance.admin");
 
     const adminSessionHeaders = { Cookie: await ownerCookieForPrincipal(adminPrincipal.id) };
     const summary = await getAccessSummary(adminSessionHeaders);
-    const bootstrap = await harness.fetch(`${identityApi}/bootstrap`, {
+    const bootstrap = await harness.fetch(`${controlPlaneApi}/bootstrap`, {
       headers: adminSessionHeaders,
     });
-    const snapshot = await harness.fetch(`${identityApi}/snapshot`, {
+    const snapshot = await harness.fetch(`${controlPlaneApi}/snapshot`, {
       headers: adminSessionHeaders,
     });
-    const restore = await harness.fetch(`${identityApi}/snapshot/restore`, {
+    const restore = await harness.fetch(`${controlPlaneApi}/snapshot/restore`, {
       body: "{}",
       headers: {
         ...adminSessionHeaders,
@@ -1519,10 +1514,7 @@ describe("identity control-plane API routes", () => {
 
     expect(summary.response.status).toBe(200);
     for (const response of [bootstrap, snapshot]) {
-      expect(response.status).toBe(401);
-      expect(await response.json()).toEqual({
-        error: "Owner session or admin authorization is required for this read endpoint.",
-      });
+      expect(response.status).toBe(200);
     }
     expect(restore.status).toBe(401);
     expect(await restore.json()).toEqual({
@@ -1560,7 +1552,7 @@ describe("identity control-plane API routes", () => {
     const rejected = await postCollaboratorInvitationResponse(input, {
       Cookie: await ownerCookieForPrincipal(adminPrincipal.id),
     });
-    const afterRejected = await getJson<BootstrapResponse>(`${identityApi}/bootstrap`);
+    const afterRejected = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
     const created = await postCollaboratorInvitationResponse(input, adminHeaders());
 
     expect(rejected.response.status).toBe(400);
@@ -1588,7 +1580,7 @@ describe("identity control-plane API routes", () => {
         idempotencyKey: "invitation:blocked-owner-grant:collaborator-invitation-delivery",
         sender: { id: authSender.id },
         sourceRecordId: "invitation:blocked-owner-grant",
-        sourceStorageIdentity: IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
+        sourceStorageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
       },
     });
     expect(JSON.stringify(created.body)).not.toContain("token");
@@ -1614,7 +1606,7 @@ describe("identity control-plane API routes", () => {
       },
       adminHeaders(),
     );
-    const bootstrap = await getJson<BootstrapResponse>(`${identityApi}/bootstrap`);
+    const bootstrap = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
 
     expect(anonymous.response.status).toBe(401);
     expect(anonymous.body).toEqual({
@@ -1742,7 +1734,7 @@ describe("identity control-plane API routes", () => {
       error: 'Collaborator invitation app install "missing" is unavailable.',
     });
 
-    const bootstrap = await getJson<BootstrapResponse>(`${identityApi}/bootstrap`);
+    const bootstrap = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
     expect(
       bootstrap.body.records.some(
         (record) =>
@@ -1789,7 +1781,8 @@ describe("identity control-plane API routes", () => {
       expect(response.status).toBe(401);
       expect(response.headers.get("WWW-Authenticate")).toBe('Bearer realm="formless-admin"');
       expect(await response.json()).toEqual({
-        error: "Owner session or admin authorization is required for this read endpoint.",
+        error:
+          "Owner session, instance-admin session, or admin authorization is required for this read endpoint.",
       });
     }
   });
@@ -1906,21 +1899,13 @@ describe("identity control-plane API routes", () => {
       recordId: "role:app.admin",
       input: { status: "disabled" },
     });
-    const reconciled = await getJson<BootstrapResponse>(`${identityApi}/bootstrap`);
+    const reconciled = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
     expect(recordById(reconciled.body.records, "role:app.admin").values.status).toBe("active");
   });
 });
 
 async function resetKnownState() {
-  await Promise.all([
-    resetTestIdentityStorage(harness, adminToken),
-    restoreTestStorageSnapshot(
-      harness,
-      `${controlPlaneApi}/snapshot/restore`,
-      instanceControlPlaneTestStorageSnapshot(),
-      adminHeaders(),
-    ),
-  ]);
+  await resetTestIdentityStorage(harness, adminToken);
 }
 
 async function createInstalledApp(installId: string, label: string) {
@@ -2151,7 +2136,7 @@ async function readPrincipalAuthority(
 
   const response = await harness.durableObjectFetch(
     "FORMLESS_AUTHORITY",
-    IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
+    FORMLESS_PROGRAM_STORAGE_IDENTITY,
     `${url.pathname}${url.search}`,
     { method: "GET" },
   );
@@ -2176,7 +2161,7 @@ async function readAppAuthority(
 
   const response = await harness.durableObjectFetch(
     "FORMLESS_AUTHORITY",
-    IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
+    FORMLESS_PROGRAM_STORAGE_IDENTITY,
     `${url.pathname}${url.search}`,
     { method: "GET" },
   );
@@ -2191,7 +2176,7 @@ async function readAppAuthority(
 }
 
 async function ownerReadResponse(principalId: string) {
-  return await harness.fetch(`${identityApi}/bootstrap`, {
+  return await harness.fetch(`${controlPlaneApi}/bootstrap`, {
     headers: { Cookie: await ownerCookieForPrincipal(principalId) },
   });
 }
@@ -2217,7 +2202,7 @@ async function postRecordOperationResponse(
   headers: Record<string, string> = adminHeaders(),
 ) {
   const request = recordOperationRequest(input);
-  const response = await harness.fetch(`${identityApi}${request.path.slice("/api".length)}`, {
+  const response = await harness.fetch(`${controlPlaneApi}${request.path.slice("/api".length)}`, {
     body: JSON.stringify(request.body),
     headers: {
       ...headers,

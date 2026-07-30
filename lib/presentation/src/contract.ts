@@ -2974,8 +2974,8 @@ export type ManagementReadyContract = ManagementManifestBaseContract & {
   workspaceFeedback?: ManagementFeedbackContract;
   workspaceOperation?: ManagementWorkspaceOperationContract;
   workspaces: readonly [
-    Extract<ManagementWorkspaceReferenceContract, { role: "apps" }>,
-    Extract<ManagementWorkspaceReferenceContract, { role: "routes" }>,
+    ManagementWorkspaceReferenceContract,
+    ...ManagementWorkspaceReferenceContract[],
   ];
 };
 

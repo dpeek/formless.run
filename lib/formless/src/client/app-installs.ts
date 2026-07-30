@@ -4,7 +4,7 @@ import type {
   CreateAppInstallResponse,
 } from "../shared/protocol.ts";
 import type { AppPackageResolver, InstallableAppPackage } from "@dpeek/formless-installed-apps";
-import { INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY } from "@dpeek/formless-instance-control-plane";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 import {
   enqueueLocalWorkspaceAutoSave,
   type LocalWorkspaceAutoSaveOptions,
@@ -106,7 +106,7 @@ export async function createInstanceAppInstall(
   const body = await readJsonResponse<CreateAppInstallResponse>(response);
 
   await enqueueLocalWorkspaceAutoSave(
-    { source: "app-install", storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY },
+    { source: "app-install", storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY },
     { autoSave },
   );
 

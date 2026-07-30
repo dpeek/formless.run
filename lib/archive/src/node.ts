@@ -50,7 +50,10 @@ export async function writePortableArchiveDirectory(
   await mkdir(archiveDir, { recursive: true });
   await writeFile(
     archivePath,
-    formatPortableArchive(input.archive, { packageResolver: input.packageResolver }),
+    formatPortableArchive(input.archive, {
+      controlPlaneSnapshotContract: input.controlPlaneSnapshotContract,
+      packageResolver: input.packageResolver,
+    }),
   );
 
   for (const file of input.mediaFiles) {
@@ -75,6 +78,7 @@ export async function readPortableArchiveDirectory(
   const archiveDir = path.resolve(dependencies.cwd, archiveDirInput);
   const archivePath = path.join(archiveDir, PORTABLE_ARCHIVE_MANIFEST_FILE);
   const archive = parsePortableArchive(JSON.parse(await readFile(archivePath, "utf8")) as unknown, {
+    controlPlaneSnapshotContract: dependencies.controlPlaneSnapshotContract,
     packageResolver: dependencies.packageResolver,
   });
   const mediaFiles = await Promise.all(

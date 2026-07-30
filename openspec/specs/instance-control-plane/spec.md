@@ -20,10 +20,10 @@ outside reviewable control-plane storage snapshots.
 
 #### Scenario: Control-plane records
 
-- **GIVEN** the instance control-plane schema is loaded
-- **WHEN** its storage identity is selected
-- **THEN** it uses schema key `instance-control-plane`, storage identity
-  `instance:control-plane`, and API prefix `/api/formless/control-plane`
+- **GIVEN** the instance control-plane record module is composed into a Program
+- **WHEN** its declarations are loaded
+- **THEN** the package supplies flat record and presentation declarations
+  without selecting a storage identity or API prefix
 - **AND** it defines flat records for app installs, unified routes, and
   deployment configs, instance settings, email domains, and email senders
 - **AND** each deployment config stores the target identity, display-safe
@@ -111,13 +111,15 @@ through the Instance Control Plane package slice.
 #### Scenario: Package owns control-plane contracts
 
 - GIVEN Archive, Workspace, Worker runtime, Site runtime, Deploy runtime, or
-  tests need control-plane schema keys, storage identity constants, API route
-  constants, entity names, entity contracts, schema contracts, reviewable record
-  validation, display-safe canonicalization, or control-plane storage snapshot
+  tests need entity names, entity contracts, schema modules, reviewable record
+  validation, display-safe canonicalization, or control-plane record snapshot
   validation
 - WHEN those contracts are imported
 - THEN they come from `@dpeek/formless-instance-control-plane`
-- AND code does not import those contracts from root runtime modules
+- AND code does not import domain contracts from root runtime modules
+- AND complete Program schema key, storage identity, provenance, generic API,
+  cursor, replica, archive, and workspace selection remain downstream runtime
+  concerns
 
 #### Scenario: Package exposes composable schema modules
 
@@ -134,9 +136,8 @@ through the Instance Control Plane package slice.
   composition root
 - AND the recomposed source preserves the current schema data,
   source-schema hash, and package provenance
-- AND the modules remain runtime-neutral and do not change the existing
-  control-plane Authority, storage identity, API route, cursor, snapshot, or
-  browser replica behavior
+- AND the modules remain runtime-neutral when a downstream Program selects
+  Authority, storage, API, cursor, snapshot, or browser replica behavior
 
 #### Scenario: Package consumes related public contracts
 
@@ -161,33 +162,33 @@ through the Instance Control Plane package slice.
 - AND the Instance Control Plane package supplies schema contracts, reviewable
   validation, pure helpers, and package-local deterministic tests
 
-### Requirement: Control-Plane Schema Provenance
+### Requirement: Control-Plane Module Provenance
 
-The system SHALL treat the instance control-plane schema as a normal
-runtime-owned App schema source with deterministic provenance.
+The system SHALL keep the instance control-plane package schema deterministic
+while the downstream Program owns complete runtime provenance.
 
 #### Scenario: Resolve control-plane source schema
 
 - GIVEN the runtime loads the instance control-plane schema contract
-- WHEN the schema is parsed for Authority, generated UI, workspace, archive,
-  sync, or deploy workflows
+- WHEN the schema is parsed for package validation, standalone package
+  materialization, or downstream composition
 - THEN it uses the normal App schema parser and App schema source hash rules
 - AND entity, field, relationship, query, read model, view, screen,
-  operation, and runtime metadata changes all affect control-plane schema
-  provenance
+  operation, and runtime metadata changes all affect package schema provenance
 - AND the schema authoring format is not observable through records, workspace
   state, archives, sync, or generated UI behavior
 
-#### Scenario: Refresh stored control-plane schema
+#### Scenario: Refresh stored Program schema
 
-- GIVEN instance control-plane storage already contains committed
-  `app-install`, `route`, or `deployment-config` records
-- WHEN the resolved control-plane source schema hash differs from the active
-  control-plane schema provenance
-- AND active control-plane records validate against the resolved schema without
+- GIVEN Program storage already contains committed instance and identity records
+- WHEN the complete resolved Program source hash differs from active `program`
+  provenance
+- AND all active Program records validate against the resolved schema without
   record materialization
-- THEN the runtime refreshes the active control-plane schema and schema
-  timestamp without materializing or replacing control-plane records
+- THEN the runtime refreshes the active Program schema and schema timestamp
+  without materializing or replacing records
+- AND the standalone instance package hash is not stored as a second active
+  schema provenance
 - AND incompatible control-plane schema changes require an explicit migration,
   backfill, or reset path before they can become active
 
@@ -470,22 +471,22 @@ records.
 - **AND** active `instance.admin` authority alone does not satisfy the app role
   requirement
 
-#### Scenario: Mapped instance route host session authorizes control plane
+#### Scenario: Mapped instance route host session authorizes Program operations
 
 - **GIVEN** an enabled exact-host `route` mounts the instance profile with
   access `management` or `owner`
 - **AND** the browser has a valid host-local session for that route target and
   storage identity `instance:control-plane`
 - **WHEN** the browser reads or writes protected operational instance
-  control-plane operations through the mapped host
-- **THEN** the control-plane API accepts the host-local session as operational
+  Program operations through the mapped host
+- **THEN** the Program API accepts the host-local session as operational
   management authorization only when the current principal has active
   `instance.owner` or `instance.admin` authority for the requested path
-- **AND** owner-only control-plane paths still recheck active `instance.owner`
+- **AND** owner-only Program paths still recheck active `instance.owner`
   authority before privileged reads or writes
 - **AND** host-local sessions minted for installed app storage, public Site
   storage, another route, another profile, another host, or another instance do
-  not authorize instance control-plane operations
+  not authorize Program operations
 
 #### Scenario: Instance admin writes operational control-plane intent
 
@@ -494,9 +495,9 @@ records.
   instance scope
 - **WHEN** the browser writes operational instance intent such as app install,
   route, deployment config, email domain, or email sender records
-- **THEN** the control-plane API authorizes the write without requiring admin
+- **THEN** the Program API authorizes the write without requiring admin
   bearer authorization or `instance.owner` authority
-- **AND** the write still commits through normal control-plane operation
+- **AND** the write still commits through normal Program operation
   handling, record validation, immutable field checks, operation invocation
   recording, and storage provenance rules
 - **AND** app-owned data records, provider secrets, raw deployment history,
@@ -636,17 +637,19 @@ The system SHALL represent deploy target and provider selection as one
   target URL, route intent, and credential reference remain unchanged unless a
   separate authorized intent write is submitted
 
-### Requirement: Workspace Canonical Control-Plane Source
+### Requirement: Workspace Canonical Program Source
 
-The system SHALL use schema-owned instance control-plane records as the
-canonical source for workspace-authored instance intent.
+The system SHALL save instance control-plane and reviewable identity records
+through the one Program workspace state boundary.
 
-#### Scenario: Save control-plane records to workspace state
+#### Scenario: Save Program records to workspace state
 
-- **WHEN** local Authority control-plane state is saved to workspace source
+- **WHEN** local Program Authority state is saved to workspace source
 - **THEN** `app-install`, `route`, `deployment-config`,
   `instance-settings`, `email-domain`, and `email-sender` records are written
   to the schema-owned `state/instance.json` workspace state file
+- **AND** reviewable identity records from the same Program Authority are written
+  to that file rather than a separate identity state file
 - **AND** enabled `deployment-config` records include the display-safe
   deployed HTTP origin in `targetUrl`
 - **AND** workspace and archive boundaries identify those records with
@@ -654,11 +657,11 @@ canonical source for workspace-authored instance intent.
   `instance:email-domain`
 - **AND** `state/instance.json` declares a workspace state kind, version,
   storage identity `instance:control-plane`, schema key
-  `instance-control-plane`, control-plane schema provenance, source cursor, and
+  `formless-program`, Program schema provenance, source cursor, and
   records
-- **AND** control-plane schema provenance uses `schemaProvenance.kind`
-  `instance-control-plane` and `sourceSchemaHash`
-- **AND** `state/instance.json` does not embed the full control-plane App
+- **AND** Program schema provenance uses `schemaProvenance.kind` `program` and
+  the complete Program `sourceSchemaHash`
+- **AND** `state/instance.json` does not embed the full Program App
   schema object
 - **AND** `formless.json` does not duplicate those records as app, route,
   domain, email, or deploy intent
@@ -671,15 +674,16 @@ canonical source for workspace-authored instance intent.
   with the workspace active package resolver before they are written or checked
   as source
 
-#### Scenario: Restore control-plane records from workspace state
+#### Scenario: Restore Program records from workspace state
 
 - **WHEN** local dev, push, or deploy composes runtime state from workspace
   source
-- **THEN** the control-plane storage snapshot is restored through the
+- **THEN** the Program storage snapshot is restored through the
   `instance:control-plane` Authority storage identity
-- **AND** Authority validation rejects invalid references, immutable field
-  changes, route conflicts, email sender/domain conflicts, secret values, and
-  unsupported control-plane entities before behavior changes
+- **AND** Authority validation rejects record-id collisions, invalid references,
+  immutable field changes, route conflicts, identity constraint conflicts,
+  email sender/domain conflicts, secret values, and unsupported Program
+  entities before behavior changes
 - **AND** workspace state containing runtime-observed deployment cache fields is
   rejected or stripped before restore
 - **AND** restore rejects public Site route records when the referenced package

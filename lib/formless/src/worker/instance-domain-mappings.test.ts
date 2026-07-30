@@ -167,7 +167,7 @@ async function createAppInstall(input: {
 }
 
 async function createDomainRoute(recordId: string, values: Record<string, unknown>) {
-  const created = await postAdminJson("/api/formless/control-plane/operations/route/create", {
+  const created = await postAdminJson("/api/formless/program/operations/route/create", {
     idempotencyKey: `route-${recordId}`,
     input: values,
   });
@@ -178,7 +178,7 @@ async function createDomainRoute(recordId: string, values: Record<string, unknow
 async function resetWorkerState() {
   await restoreTestStorageSnapshot(
     harness,
-    "/api/formless/control-plane/snapshot/restore",
+    "/api/formless/program/snapshot/restore",
     instanceControlPlaneTestStorageSnapshot(),
     { Authorization: `Bearer ${adminToken}` },
   );

@@ -19,7 +19,6 @@ const ownerEmail = "ada@example.com";
 const ownerId = "principal:ada";
 const createdAt = "2026-07-07T00:00:00.000Z";
 const packageRoot = resolve(fileURLToPath(new URL("../../", import.meta.url)));
-const workspaceRoot = resolve(packageRoot, "../..");
 
 let harness: Harness | undefined;
 let harnessDir: string | undefined;
@@ -396,12 +395,9 @@ async function writeEmailVerificationHarness() {
     `
       import { DurableObject } from "cloudflare:workers";
       import {
-        INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX,
-        INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-      } from "${workspaceRoot}/lib/instance-control-plane/src/index.ts";
-      import {
-        IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
-      } from "${workspaceRoot}/lib/identity-control-plane/src/index.ts";
+        FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+        FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      } from "${packageRoot}/src/program/target.ts";
       import {
         createCentralAuthSessionCookie,
       } from "${packageRoot}/src/worker/central-auth-session.ts";
@@ -468,7 +464,7 @@ async function writeEmailVerificationHarness() {
           }
 
           if (url.pathname === "/harness/conflicting-email") {
-            const id = env.FORMLESS_AUTHORITY.idFromName(IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY);
+            const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
 
             return env.FORMLESS_AUTHORITY.get(id).fetch(request);
           }
@@ -499,7 +495,7 @@ async function writeEmailVerificationHarness() {
           }
 
           if (url.pathname === "/harness/identity-records") {
-            const id = env.FORMLESS_AUTHORITY.idFromName(IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY);
+            const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
 
             return env.FORMLESS_AUTHORITY.get(id).fetch(request);
           }
@@ -521,18 +517,18 @@ async function writeEmailVerificationHarness() {
         async fetch(request) {
           const url = new URL(request.url);
 
-          if (this.ctx.id.name === INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY) {
+          if (this.ctx.id.name === FORMLESS_PROGRAM_STORAGE_IDENTITY) {
             if (
               request.method === "GET" &&
-              url.pathname === \`\${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}\${INTERNAL_READ_RECORDS_PATH}\`
+              url.pathname === \`\${FORMLESS_PROGRAM_API_ROUTE_PREFIX}\${INTERNAL_READ_RECORDS_PATH}\`
             ) {
-              return Response.json({ records: controlPlaneRecords(this.env.EMAIL_CONFIG_MODE) });
+              return Response.json({
+                records: [
+                  ...controlPlaneRecords(this.env.EMAIL_CONFIG_MODE),
+                  ...getBootstrapRecords(this.ctx.storage),
+                ],
+              });
             }
-
-            return Response.json({ error: "Not found." }, { status: 404 });
-          }
-
-          if (this.ctx.id.name === IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY) {
             if (url.pathname === "/harness/identity-records") {
               return Response.json({ records: getBootstrapRecords(this.ctx.storage) });
             }

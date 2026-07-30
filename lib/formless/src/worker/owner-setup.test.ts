@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
-import {
-  INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX,
-  INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID,
-} from "@dpeek/formless-instance-control-plane";
+import { INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID } from "@dpeek/formless-instance-control-plane";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import type { OwnerSetupStatusResponse } from "../shared/protocol.ts";
@@ -52,7 +50,7 @@ beforeEach(async () => {
   controlPlaneOperationCounter = 0;
   await restoreTestStorageSnapshot(
     harness,
-    `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/snapshot/restore`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
     instanceControlPlaneTestStorageSnapshot(),
     { Authorization: `Bearer ${adminToken}` },
   );
@@ -267,7 +265,7 @@ async function postAdminJson<T>(path: string, body: unknown) {
 
 async function createControlPlaneRecord(entity: string, values: Record<string, unknown>) {
   const created = await postAdminJson<OperationInvocationResponse>(
-    `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/${entity}/create`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/${entity}/create`,
     {
       idempotencyKey: `owner-setup-${entity}-${++controlPlaneOperationCounter}`,
       input: values,

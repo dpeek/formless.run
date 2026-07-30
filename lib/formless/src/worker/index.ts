@@ -1,10 +1,6 @@
 import { FormlessAuthority } from "./authority.ts";
 import { handleWorkspaceGatewayProxyRequest } from "@dpeek/formless-gateway/worker";
-import {
-  parseAuthorityApiRoute,
-  parseIdentityControlPlaneApiRoute,
-  parseInstanceControlPlaneApiRoute,
-} from "../shared/app-storage-identity.ts";
+import { parseAuthorityApiRoute, parseProgramApiRoute } from "../shared/app-storage-identity.ts";
 import { handleInstanceArchiveApiRequest } from "./archive-api.ts";
 import { authorizeInstanceWrite, authorizeOwnerManagementRead } from "./authority-admin-guard.ts";
 import { selectAuthorityOperation } from "./authority-operations.ts";
@@ -149,14 +145,20 @@ export default {
     const authorityForwardRequest: Request | undefined = authorityRoute
       ? (request.clone() as Request)
       : undefined;
-    const instanceControlPlaneRoute = parseInstanceControlPlaneApiRoute(requestUrl.pathname);
-    const instanceControlPlaneForwardRequest: Request | undefined = instanceControlPlaneRoute
+    const programRoute = parseProgramApiRoute(requestUrl.pathname);
+    const programForwardRequest: Request | undefined = programRoute
       ? (request.clone() as Request)
       : undefined;
-    const identityControlPlaneRoute = parseIdentityControlPlaneApiRoute(requestUrl.pathname);
-    const identityControlPlaneForwardRequest: Request | undefined = identityControlPlaneRoute
-      ? (request.clone() as Request)
-      : undefined;
+    const capabilityForwardRequests = {
+      archive: request.clone() as Request,
+      deployment: request.clone() as Request,
+      domainMappings: request.clone() as Request,
+      domainProvider: request.clone() as Request,
+      email: request.clone() as Request,
+      identity: request.clone() as Request,
+      installs: request.clone() as Request,
+      localSession: request.clone() as Request,
+    };
 
     const earlyCollaboratorInvitationAcceptanceBrowserResponse =
       await handleCollaboratorInvitationAcceptanceBrowserRequest(request, env);
@@ -379,7 +381,7 @@ export default {
 
     const localSessionBootstrapResponse = isLocalSessionBootstrapApiPath(requestTopology.pathname)
       ? await handleLocalSessionBootstrapApiRequest(
-          authorityRequestWithOriginalUrlFacts(request),
+          authorityRequestWithOriginalUrlFacts(capabilityForwardRequests.localSession),
           env,
         )
       : undefined;
@@ -400,7 +402,10 @@ export default {
       return accountPasskeyResponse;
     }
 
-    const archiveResponse = await handleInstanceArchiveApiRequest(request, env);
+    const archiveResponse = await handleInstanceArchiveApiRequest(
+      capabilityForwardRequests.archive,
+      env,
+    );
 
     if (archiveResponse) {
       return archiveResponse;
@@ -414,7 +419,7 @@ export default {
 
     const instanceAppInstallsResponse = isInstanceAppInstallsApiPath(requestUrl.pathname)
       ? await handleInstanceAppInstallsApiRequest(
-          authorityRequestWithOriginalUrlFacts(request, {
+          authorityRequestWithOriginalUrlFacts(capabilityForwardRequests.installs, {
             hostSessionTarget: requestHasCookie(request, HOST_AUTH_SESSION_COOKIE_NAME)
               ? hostAuthSessionTargetForRuntimeRoute(request, runtimeRoute)
               : undefined,
@@ -427,9 +432,9 @@ export default {
       return instanceAppInstallsResponse;
     }
 
-    const instanceControlPlaneResponse = instanceControlPlaneRoute
+    const instanceControlPlaneResponse = programRoute
       ? await handleInstanceControlPlaneApiRequest(
-          authorityRequestWithOriginalUrlFacts(instanceControlPlaneForwardRequest ?? request, {
+          authorityRequestWithOriginalUrlFacts(programForwardRequest ?? request, {
             hostSessionTarget: mappedInstanceManagementTargetFromFacts({
               requestOrigin: requestOriginForAuth(request),
               runtimeRoute,
@@ -443,24 +448,22 @@ export default {
       return instanceControlPlaneResponse;
     }
 
-    const identityControlPlaneResponse = identityControlPlaneRoute
-      ? await handleIdentityControlPlaneApiRequest(
-          authorityRequestWithOriginalUrlFacts(identityControlPlaneForwardRequest ?? request, {
-            hostSessionTarget: mappedInstanceManagementTargetFromFacts({
-              requestOrigin: requestOriginForAuth(request),
-              runtimeRoute,
-            }),
-          }),
-          env,
-        )
-      : undefined;
+    const identityControlPlaneResponse = await handleIdentityControlPlaneApiRequest(
+      authorityRequestWithOriginalUrlFacts(capabilityForwardRequests.identity, {
+        hostSessionTarget: mappedInstanceManagementTargetFromFacts({
+          requestOrigin: requestOriginForAuth(request),
+          runtimeRoute,
+        }),
+      }),
+      env,
+    );
 
     if (identityControlPlaneResponse) {
       return identityControlPlaneResponse;
     }
 
     const instanceDomainProviderResponse = await handleInstanceDomainProviderApiRequest(
-      request,
+      capabilityForwardRequests.domainProvider,
       env,
     );
 
@@ -469,7 +472,7 @@ export default {
     }
 
     const instanceDeploymentRuntimeResponse = await handleInstanceDeploymentRuntimeApiRequest(
-      request,
+      capabilityForwardRequests.deployment,
       env,
     );
 
@@ -477,14 +480,17 @@ export default {
       return instanceDeploymentRuntimeResponse;
     }
 
-    const instanceEmailRuntimeResponse = await handleInstanceEmailRuntimeApiRequest(request, env);
+    const instanceEmailRuntimeResponse = await handleInstanceEmailRuntimeApiRequest(
+      capabilityForwardRequests.email,
+      env,
+    );
 
     if (instanceEmailRuntimeResponse) {
       return instanceEmailRuntimeResponse;
     }
 
     const instanceDomainMappingsResponse = await handleInstanceDomainMappingsApiRequest(
-      request,
+      capabilityForwardRequests.domainMappings,
       env,
     );
 

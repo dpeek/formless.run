@@ -35,6 +35,9 @@ export const identityControlPlaneSchemaProvenance = {
 } as const;
 
 export const identityControlPlaneSchema = parseAppSchema(identityControlPlaneSourceSchema);
+export const identityControlPlaneEntityIds = identityControlPlaneSchema.entities.map(
+  ({ id }) => id,
+);
 
 export type IdentityControlPlaneRecord<Entity extends IdentityControlPlaneEntityName> = {
   createdAt: string;
@@ -50,6 +53,7 @@ export type AnyIdentityControlPlaneRecord = {
 }[IdentityControlPlaneEntityName];
 
 export type IdentityControlPlaneRecordValidationOptions = {
+  candidateRecords?: readonly StoredRecord[];
   context?: string;
   sourceLabel?: string;
 };
@@ -202,16 +206,19 @@ export function reviewableIdentityControlPlaneRecords(
 export function validateIdentityControlPlaneRecords(
   context: string,
   records: readonly StoredRecord[],
-  _options: IdentityControlPlaneRecordValidationOptions = {},
+  options: IdentityControlPlaneRecordValidationOptions = {},
 ) {
-  const recordsById = new Map<string, StoredRecord>();
+  const recordsById = new Map<string, StoredRecord>(
+    (options.candidateRecords ?? records).map((record) => [record.id, record]),
+  );
+  const ownedRecordIds = new Set<string>();
 
   for (const record of records) {
-    if (recordsById.has(record.id)) {
+    if (ownedRecordIds.has(record.id)) {
       throw new Error(`${context} includes duplicate identity record id "${record.id}".`);
     }
 
-    recordsById.set(record.id, record);
+    ownedRecordIds.add(record.id);
   }
 
   for (const record of records) {

@@ -1,20 +1,14 @@
 import {
-  identityControlPlaneStorageIdentity,
-  instanceControlPlaneStorageIdentity,
+  programStorageIdentity,
   schemaKeyStorageIdentity,
   type AppStorageIdentity,
-  type IdentityControlPlaneStorageIdentity,
-  type InstanceControlPlaneStorageIdentity,
+  type ProgramStorageIdentity,
 } from "../shared/app-storage-identity.ts";
-import { IDENTITY_CONTROL_PLANE_SCHEMA_KEY } from "@dpeek/formless-identity-control-plane";
-import { INSTANCE_CONTROL_PLANE_SCHEMA_KEY } from "@dpeek/formless-instance-control-plane";
 import { findSchemaAppDefinition, type SchemaKey } from "../shared/schema-apps.ts";
+import { FORMLESS_PROGRAM_SCHEMA_KEY } from "../program/target.ts";
 
 export type ClientAppSchemaKey = string;
-export type ClientAppStorageIdentity =
-  | AppStorageIdentity
-  | IdentityControlPlaneStorageIdentity
-  | InstanceControlPlaneStorageIdentity;
+export type ClientAppStorageIdentity = AppStorageIdentity | ProgramStorageIdentity;
 export type ClientAppTarget = SchemaKey | ClientAppStorageIdentity;
 
 export function appStorageIdentityForClientTarget(
@@ -30,9 +24,7 @@ export function clientTargetStorageName(target: ClientAppTarget): string {
 export function clientTargetSourceSchemaKey(target: ClientAppTarget): ClientAppSchemaKey {
   const identity = appStorageIdentityForClientTarget(target);
 
-  return identity.kind === "identityControlPlane" || identity.kind === "instanceControlPlane"
-    ? identity.schemaKey
-    : identity.sourceSchemaKey;
+  return identity.kind === "program" ? identity.schemaKey : identity.sourceSchemaKey;
 }
 
 export function clientTargetLabel(target: ClientAppTarget): string {
@@ -40,32 +32,20 @@ export function clientTargetLabel(target: ClientAppTarget): string {
 }
 
 export function clientSchemaKeyLabel(schemaKey: ClientAppSchemaKey): string {
-  if (schemaKey === INSTANCE_CONTROL_PLANE_SCHEMA_KEY) {
-    return "Instance control plane";
-  }
-
-  if (schemaKey === IDENTITY_CONTROL_PLANE_SCHEMA_KEY) {
-    return "Identity control plane";
+  if (schemaKey === FORMLESS_PROGRAM_SCHEMA_KEY) {
+    return "Formless Program";
   }
 
   return findSchemaAppDefinition(schemaKey)?.label ?? schemaKey;
 }
 
-export function instanceControlPlaneClientTarget(): InstanceControlPlaneStorageIdentity {
-  return instanceControlPlaneStorageIdentity();
-}
-
-export function identityControlPlaneClientTarget(): IdentityControlPlaneStorageIdentity {
-  return identityControlPlaneStorageIdentity();
+export function programClientTarget(): ProgramStorageIdentity {
+  return programStorageIdentity();
 }
 
 export function clientTargetForSchemaKey(schemaKey: ClientAppSchemaKey): ClientAppTarget {
-  if (schemaKey === INSTANCE_CONTROL_PLANE_SCHEMA_KEY) {
-    return instanceControlPlaneClientTarget();
-  }
-
-  if (schemaKey === IDENTITY_CONTROL_PLANE_SCHEMA_KEY) {
-    return identityControlPlaneClientTarget();
+  if (schemaKey === FORMLESS_PROGRAM_SCHEMA_KEY) {
+    return programClientTarget();
   }
 
   if (findSchemaAppDefinition(schemaKey)) {

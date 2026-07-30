@@ -1,4 +1,4 @@
-import type { StorageSnapshot } from "@dpeek/formless-storage";
+import type { RecordValues, StorageSnapshot } from "@dpeek/formless-storage";
 import {
   FORMLESS_CLIENT_PACKAGE_REVISION_HEADER,
   FORMLESS_CLIENT_RUNTIME_PROTOCOL_HEADER,
@@ -21,9 +21,7 @@ import type {
 } from "../shared/operation-invocation.ts";
 import {
   installedAppStorageIdentity,
-  type AppStorageIdentity,
-  type IdentityControlPlaneStorageIdentity,
-  type InstanceControlPlaneStorageIdentity,
+  type AuthorityStorageIdentity,
 } from "../shared/app-storage-identity.ts";
 import type { PackageAppKey } from "@dpeek/formless-installed-apps";
 import { findResolvedAppPackage, type AppPackageResolver } from "../shared/app-packages.ts";
@@ -191,10 +189,8 @@ type AuthorityOperationExecutionInput = {
   actorKind?: SchemaOperationActorKind;
   app: WorkerSchemaAppDefinition;
   body?: unknown;
-  identity:
-    | AppStorageIdentity
-    | IdentityControlPlaneStorageIdentity
-    | InstanceControlPlaneStorageIdentity;
+  createRecordId?: (entity: string, values: RecordValues) => string | undefined;
+  identity: AuthorityStorageIdentity;
   identityReferenceResolver?: IdentityReferenceTargetResolver;
   operation: AuthorityOperation;
   packageResolver?: AppPackageResolver;
@@ -356,10 +352,7 @@ export async function executeAuthorityOperation(
     }
 
     case "siteTree": {
-      if (
-        input.identity.kind === "identityControlPlane" ||
-        input.identity.kind === "instanceControlPlane"
-      ) {
+      if (input.identity.kind === "program") {
         throw new BadRequestError("Site page trees are only available for app storage.");
       }
 
@@ -479,6 +472,7 @@ export async function executeAuthorityOperation(
 
       return {
         body: await executeWriteOperationInvocation({
+          createRecordId: input.createRecordId,
           envelope,
           identityReferenceResolver: input.identityReferenceResolver,
           packageResolver: input.packageResolver,
@@ -724,10 +718,7 @@ function parseOptionalSourceSchemaHashHeader(headers: Headers | undefined) {
 
 function browserReplicaUpgradeHeaders(
   storage: DurableObjectStorage,
-  identity:
-    | AppStorageIdentity
-    | IdentityControlPlaneStorageIdentity
-    | InstanceControlPlaneStorageIdentity,
+  identity: AuthorityStorageIdentity,
   packageResolver?: AppPackageResolver,
 ): HeadersInit {
   const facts = browserReplicaUpgradeFacts(storage, identity, packageResolver);
@@ -752,23 +743,14 @@ function browserReplicaUpgradeHeaders(
 
 function browserReplicaUpgradeFacts(
   storage: DurableObjectStorage,
-  identity:
-    | AppStorageIdentity
-    | IdentityControlPlaneStorageIdentity
-    | InstanceControlPlaneStorageIdentity,
+  identity: AuthorityStorageIdentity,
   packageResolver?: AppPackageResolver,
 ): BrowserReplicaUpgradeFacts {
   const storedSchema = readCurrentStoredSchema(storage);
 
-  if (identity.kind === "instanceControlPlane" || identity.kind === "identityControlPlane") {
-    const expectedProvenanceKind =
-      identity.kind === "instanceControlPlane"
-        ? "instance-control-plane"
-        : "identity-control-plane";
+  if (identity.kind === "program") {
     const schemaProvenance =
-      storedSchema?.schemaProvenance?.kind === expectedProvenanceKind
-        ? storedSchema.schemaProvenance
-        : null;
+      storedSchema?.schemaProvenance?.kind === "program" ? storedSchema.schemaProvenance : null;
 
     return {
       runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,

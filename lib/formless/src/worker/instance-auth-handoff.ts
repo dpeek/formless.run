@@ -1,8 +1,8 @@
 import {
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
   instanceControlPlaneAppInstallsFromRecords,
   instanceControlPlaneProductionIdentityFromRecords,
 } from "@dpeek/formless-instance-control-plane";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 
 import { nowIsoString } from "../shared/clock.ts";
 import {
@@ -709,7 +709,7 @@ export function routeAccessTargetForRuntimeRoute(
 
   return {
     ...common,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
   };
 }
 
@@ -754,7 +754,7 @@ export function hostAuthSessionTargetForRuntimeRouteFacts(input: {
     ...(input.runtimeRoute.requiredRole === undefined
       ? {}
       : { requiredRole: input.runtimeRoute.requiredRole }),
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     targetOrigin,
     targetProfile: input.runtimeRoute.targetProfile,
   };
@@ -814,7 +814,7 @@ export function mappedInstanceManagementTargetFromFacts(input: {
     !target ||
     target.appInstallId !== undefined ||
     target.targetProfile !== "instance" ||
-    target.storageIdentity !== INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY
+    target.storageIdentity !== FORMLESS_PROGRAM_STORAGE_IDENTITY
   ) {
     return undefined;
   }
@@ -1148,6 +1148,39 @@ export async function validateBoundInstanceAuthAccessSession(
     storageIdentity: string;
   },
 ): Promise<boolean> {
+  return validateBoundInstanceAuthAuthoritySession(value, env, {
+    appInstallId: options.appInstallId,
+    now: options.now,
+    requiredAuthority: "app.admin",
+    storageIdentity: options.storageIdentity,
+  });
+}
+
+export async function validateBoundInstanceManagementAccessSession(
+  value: unknown,
+  env: InstanceAuthAccessEnv,
+  options: {
+    now?: string;
+    storageIdentity: string;
+  },
+): Promise<boolean> {
+  return validateBoundInstanceAuthAuthoritySession(value, env, {
+    now: options.now,
+    requiredAuthority: "management",
+    storageIdentity: options.storageIdentity,
+  });
+}
+
+async function validateBoundInstanceAuthAuthoritySession(
+  value: unknown,
+  env: InstanceAuthAccessEnv,
+  options: {
+    appInstallId?: string;
+    now?: string;
+    requiredAuthority: "app.admin" | "management";
+    storageIdentity: string;
+  },
+): Promise<boolean> {
   const binding = parseInstanceAuthAccessBinding(value);
 
   if (!binding) {
@@ -1161,11 +1194,15 @@ export async function validateBoundInstanceAuthAccessSession(
 
   if (
     target !== undefined &&
-    (target.access !== "authenticated" ||
-      target.requiredRole !== "app.admin" ||
-      target.targetProfile !== "app" ||
-      target.appInstallId !== options.appInstallId ||
-      target.storageIdentity !== options.storageIdentity)
+    (target.storageIdentity !== options.storageIdentity ||
+      (options.requiredAuthority === "app.admin"
+        ? target.access !== "authenticated" ||
+          target.requiredRole !== "app.admin" ||
+          target.targetProfile !== "app" ||
+          target.appInstallId !== options.appInstallId
+        : target.targetProfile !== "instance" ||
+          target.appInstallId !== undefined ||
+          (target.access !== "management" && target.access !== "owner")))
   ) {
     return false;
   }
@@ -1230,9 +1267,9 @@ export async function validateBoundInstanceAuthAccessSession(
   };
   const result = await resolveInstanceAuthAccess(
     {
-      appInstallId: options.appInstallId,
+      ...(options.appInstallId === undefined ? {} : { appInstallId: options.appInstallId }),
       localOwnerSessionFallbackAllowed: binding.via === "owner-session",
-      requiredAuthority: "app.admin",
+      requiredAuthority: options.requiredAuthority,
       ...(target === undefined ? {} : { target }),
     },
     readers,

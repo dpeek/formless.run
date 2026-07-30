@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
-import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-identity-control-plane";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import type { DocumentMediaAsset } from "@dpeek/formless-media";
 
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
@@ -707,7 +707,7 @@ async function createPrincipalSession(input: {
 async function postIdentityRecordOperation(input: Parameters<typeof recordOperationRequest>[0]) {
   const operation = recordOperationRequest(input);
   const response = await guardedHarness.fetch(
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}${operation.path.slice("/api".length)}`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${operation.path.slice("/api".length)}`,
     {
       body: JSON.stringify(operation.body),
       headers: adminHeaders({ "Content-Type": "application/json" }),

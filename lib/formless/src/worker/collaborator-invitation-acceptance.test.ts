@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-identity-control-plane";
-import { INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY } from "@dpeek/formless-instance-control-plane";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type {
   PublicKeyCredentialCreationOptionsJSON,
@@ -66,7 +66,7 @@ const wrongOrigin = "https://app.example.com";
 const mappedAppOrigin = "https://mapped-app.example.com";
 const mappedSiteOrigin = "https://mapped-site.example.com";
 const identityApi = IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX;
-const controlPlaneApi = "/api/formless/control-plane";
+const controlPlaneApi = "/api/formless/program";
 const rawToken = "aW52aXRlLXJhdy10b2tlbi0x";
 const otherRawToken = "aW52aXRlLXJhdy10b2tlbi0y";
 const createdAt = new Date().toISOString();
@@ -1405,7 +1405,7 @@ describe("collaborator invitation acceptance status", () => {
         target: {
           returnTo: "/",
           routeId: adminRoute.id,
-          storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+          storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
           targetOrigin: `https://${adminHost}`,
           targetProfile: "instance",
         },
@@ -1425,7 +1425,7 @@ describe("collaborator invitation acceptance status", () => {
     const target = {
       access: "authenticated" as const,
       routeId: adminRoute.id,
-      storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
       targetOrigin: `https://${adminHost}`,
       targetProfile: "instance" as const,
     };
@@ -1449,7 +1449,7 @@ describe("collaborator invitation acceptance status", () => {
     expect(handoffStartUrl.searchParams.get("routeId")).toBe(adminRoute.id);
     expect(handoffStartUrl.searchParams.get("targetProfile")).toBe("instance");
     expect(handoffStartUrl.searchParams.get("storageIdentity")).toBe(
-      INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+      FORMLESS_PROGRAM_STORAGE_IDENTITY,
     );
     expect(handoffStartUrl.searchParams.get("returnTo")).toBe("/");
 
@@ -1592,7 +1592,7 @@ async function updateInvitationStatus(invitationId: string, status: string) {
     operationName: "update",
     recordId: invitationId,
   });
-  const response = await harness.fetch(`${identityApi}${request.path.slice("/api".length)}`, {
+  const response = await harness.fetch(`${controlPlaneApi}${request.path.slice("/api".length)}`, {
     body: JSON.stringify(request.body),
     headers: adminHeaders({ "Content-Type": "application/json" }),
     method: "POST",
@@ -1654,7 +1654,7 @@ async function createUnrelatedPrincipalForEmail(email: string) {
 
 async function postIdentityOperation(input: Parameters<typeof recordOperationRequest>[0]) {
   const request = recordOperationRequest(input);
-  const response = await harness.fetch(`${identityApi}${request.path.slice("/api".length)}`, {
+  const response = await harness.fetch(`${controlPlaneApi}${request.path.slice("/api".length)}`, {
     body: JSON.stringify(request.body),
     headers: adminHeaders({ "Content-Type": "application/json" }),
     method: "POST",
@@ -1792,7 +1792,7 @@ async function authCounts() {
 }
 
 async function readIdentityRecords(): Promise<StoredRecord[]> {
-  const response = await harness.fetch(`${identityApi}/bootstrap`, {
+  const response = await harness.fetch(`${controlPlaneApi}/bootstrap`, {
     headers: adminHeaders(),
   });
   const body = (await response.json()) as BootstrapResponse;
@@ -2364,8 +2364,8 @@ async function writeCollaboratorInvitationAcceptanceHarness() {
         handleCollaboratorInvitationAcceptanceDurableObjectRequest,
       } from "${process.cwd()}/src/worker/collaborator-invitation-acceptance.ts";
       import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "${process.cwd()}/src/worker/formless-instance.ts";
-      import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX, IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY } from "@dpeek/formless-identity-control-plane";
-      import { INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX, INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY } from "@dpeek/formless-instance-control-plane";
+      import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-identity-control-plane";
+      import { FORMLESS_PROGRAM_API_ROUTE_PREFIX, FORMLESS_PROGRAM_STORAGE_IDENTITY } from "${process.cwd()}/src/program/target.ts";
       import { getBootstrapRecords } from "${process.cwd()}/src/worker/storage.ts";
       import {
         consumeCollaboratorInvitationToken,
@@ -2611,9 +2611,9 @@ async function writeCollaboratorInvitationAcceptanceHarness() {
             ? \`app:\${harnessAppRecordsInstallId}\`
             : url.pathname.startsWith(IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX) ||
             url.pathname.startsWith("/harness/identity/")
-            ? IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY
-            : url.pathname.startsWith(INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX)
-              ? INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY
+            ? FORMLESS_PROGRAM_STORAGE_IDENTITY
+            : url.pathname.startsWith(FORMLESS_PROGRAM_API_ROUTE_PREFIX)
+              ? FORMLESS_PROGRAM_STORAGE_IDENTITY
               : instanceAuthHarnessName
                 ? instanceAuthHarnessName
                 : FORMLESS_INSTANCE_AUTHORITY_NAME;

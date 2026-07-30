@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { channelName } from "./broadcast.ts";
-import { instanceControlPlaneClientTarget } from "./app-target.ts";
+import { programClientTarget } from "./app-target.ts";
 import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
 
 describe("client broadcast channels", () => {
@@ -11,7 +11,7 @@ describe("client broadcast channels", () => {
   });
 
   it("can scope channel names by instance control-plane identity", () => {
-    expect(channelName(instanceControlPlaneClientTarget())).toBe("formless:instance:control-plane");
+    expect(channelName(programClientTarget())).toBe("formless:instance:control-plane");
   });
 });
 

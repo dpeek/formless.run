@@ -1,6 +1,6 @@
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { InstanceWorkspaceTarget as FormlessInstanceWorkspaceTarget } from "@dpeek/formless-workspace";
-import { readInstanceWorkspaceControlPlaneStorageSnapshot } from "@dpeek/formless-workspace/node";
+import { readInstanceWorkspaceControlPlaneStorageSnapshot } from "../program/workspace.ts";
 import {
   planCloudflareWorkerDomainPreflight,
   type CloudflareDomainClient,

@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { rm, writeFile, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-identity-control-plane";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import {
   FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
@@ -32,7 +32,7 @@ import { createWorkerHarness } from "./miniflare-test.ts";
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
 const adminToken = "test-admin-token";
-const identityApi = IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX;
+const controlPlaneApi = FORMLESS_PROGRAM_API_ROUTE_PREFIX;
 
 let harness: Harness;
 let harnessDir: string;
@@ -1492,7 +1492,8 @@ async function createCentralSessionCookie(principalId: string) {
     method: "POST",
   });
   const cookie = response.headers.get("Set-Cookie") ?? "";
-  expect(response.status).toBe(200);
+  const error = response.ok ? "" : await response.clone().text();
+  expect(response.status, error).toBe(200);
   expect(cookie).toContain(`${CENTRAL_AUTH_SESSION_COOKIE_NAME}=`);
   return cookie.split(";")[0] ?? cookie;
 }
@@ -1931,7 +1932,7 @@ async function deleteIdentityRecord(entity: string, recordId: string) {
 }
 async function postIdentityRecordOperation(input: Parameters<typeof recordOperationRequest>[0]) {
   const request = recordOperationRequest(input);
-  const response = await harness.fetch(`${identityApi}${request.path.slice("/api".length)}`, {
+  const response = await harness.fetch(`${controlPlaneApi}${request.path.slice("/api".length)}`, {
     body: JSON.stringify(request.body),
     headers: adminHeaders({ "Content-Type": "application/json" }),
     method: "POST",
@@ -2014,12 +2015,19 @@ async function writeAccountCompletionHarness() {
   await writeFile(
     path,
     `
-      import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX, IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY } from "@dpeek/formless-identity-control-plane";
-      import { INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY } from "@dpeek/formless-instance-control-plane";
+      import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-identity-control-plane";
+      import {
+        FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+        FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      } from "${process.cwd()}/src/program/target.ts";
       import { FormlessAuthority } from "${process.cwd()}/src/worker/authority.ts";
       import { createCentralAuthSessionCookie } from "${process.cwd()}/src/worker/central-auth-session.ts";
       import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "${process.cwd()}/src/worker/formless-instance.ts";
-      import { createPasskeyCredential } from "${process.cwd()}/src/worker/instance-auth-state.ts";
+      import {
+        createPasskeyCredential,
+        ensureInstanceAuthTables,
+      } from "${process.cwd()}/src/worker/instance-auth-state.ts";
+      import { ensureRuntimeInstanceAuthConfig } from "${process.cwd()}/src/worker/instance-auth-runtime.ts";
       import { getBootstrapRecords, writeRecordSetForCommandOperationOutcome } from "${process.cwd()}/src/worker/storage.ts";
 
       export class AccountCompletionHarness extends FormlessAuthority {
@@ -2127,6 +2135,8 @@ async function writeAccountCompletionHarness() {
 
           if (url.pathname === "/harness/auth/session" && request.method === "POST") {
             const body = await request.json();
+            ensureInstanceAuthTables(this.ctx.storage);
+            await ensureRuntimeInstanceAuthConfig(this.ctx.storage, request, this.env);
             const session = await createCentralAuthSessionCookie(this.ctx.storage, {
               env: this.env,
               now: "2026-07-06T00:00:00.000Z",
@@ -2168,12 +2178,14 @@ async function writeAccountCompletionHarness() {
           const authorityName =
             harnessAppRecordsInstallId
               ? \`app:\${harnessAppRecordsInstallId}\`
-              : url.pathname.startsWith("/harness/control-plane")
-              ? INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY
+              : url.pathname.startsWith("/harness/control-plane") ||
+                  url.pathname.startsWith(FORMLESS_PROGRAM_API_ROUTE_PREFIX) ||
+                  url.pathname.startsWith("/api/formless/app-installs")
+              ? FORMLESS_PROGRAM_STORAGE_IDENTITY
               : url.pathname.startsWith(IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX) ||
                   url.pathname === "/harness/identity-records" ||
                   url.pathname === "/harness/identity/tombstone"
-                ? IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY
+                ? FORMLESS_PROGRAM_STORAGE_IDENTITY
                 : FORMLESS_INSTANCE_AUTHORITY_NAME;
           const id = env.FORMLESS_AUTHORITY.idFromName(authorityName);
 

@@ -8,11 +8,7 @@ import {
   type EntitySchema,
   type SchemaOperationActorKind,
 } from "@dpeek/formless-schema";
-import type {
-  AppStorageIdentity,
-  IdentityControlPlaneStorageIdentity,
-  InstanceControlPlaneStorageIdentity,
-} from "../shared/app-storage-identity.ts";
+import type { AuthorityStorageIdentity } from "../shared/app-storage-identity.ts";
 import { nowIsoString } from "../shared/clock.ts";
 import type {
   PublicOperationChallengeVerification,
@@ -28,10 +24,7 @@ import type {
 } from "../shared/operation-invocation.ts";
 import { BadRequestError } from "./errors.ts";
 
-type OperationStorageIdentity =
-  | AppStorageIdentity
-  | IdentityControlPlaneStorageIdentity
-  | InstanceControlPlaneStorageIdentity;
+type OperationStorageIdentity = AuthorityStorageIdentity;
 
 type EntityOperationRoute = {
   entityName: string;

@@ -3,11 +3,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
+import { formlessProgramSchema } from "../program/runtime.ts";
 import {
-  INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  instanceControlPlaneSchema,
-} from "@dpeek/formless-instance-control-plane";
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import {
   INSTANCE_WORKSPACE_MANIFEST_FILE,
   defaultInstanceWorkspaceManifest,
@@ -22,7 +22,7 @@ import {
 import {
   readInstanceWorkspaceControlPlaneStorageSnapshot,
   writeInstanceWorkspaceControlPlaneStorageSnapshot,
-} from "@dpeek/formless-workspace/node";
+} from "../program/workspace.ts";
 
 import {
   FORMLESS_CLOUDFLARE_OAUTH_DEPLOY_SCOPES,
@@ -699,12 +699,12 @@ async function writeWorkspaceControlPlaneStorageSnapshot(
     snapshot: {
       kind: STORAGE_SNAPSHOT_KIND,
       version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-      schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
+      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
       exportedAt: now(),
       schemaUpdatedAt: now(),
       sourceCursor: records.length,
-      schema: instanceControlPlaneSchema,
+      schema: formlessProgramSchema,
       records,
     },
     workspaceRoot,

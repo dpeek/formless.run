@@ -25,6 +25,7 @@ export const WORKSPACE_MEDIA_MANIFEST_KIND = "formless.workspaceMedia";
 export const WORKSPACE_MEDIA_MANIFEST_VERSION = 1;
 
 export const INSTANCE_WORKSPACE_CONTROL_PLANE_SCHEMA_KEY = "instance-control-plane";
+export const INSTANCE_WORKSPACE_PROGRAM_SCHEMA_KEY = "formless-program";
 export const INSTANCE_WORKSPACE_CONTROL_PLANE_BOUNDARY_SCHEMA_KEY = "instance";
 export const INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_FILE_KIND =
   "formless.instanceControlPlaneRecordSource";
@@ -456,9 +457,15 @@ export type WorkspaceControlPlaneSchemaProvenance = {
   sourceSchemaHash: WorkspaceSourceSchemaHash;
 };
 
+export type WorkspaceProgramSchemaProvenance = {
+  kind: "program";
+  sourceSchemaHash: WorkspaceSourceSchemaHash;
+};
+
 export type WorkspaceSchemaProvenance =
   | WorkspacePackageAppSchemaProvenance
-  | WorkspaceControlPlaneSchemaProvenance;
+  | WorkspaceControlPlaneSchemaProvenance
+  | WorkspaceProgramSchemaProvenance;
 
 export type WorkspaceRecordStateFileBase<
   Provenance extends WorkspaceSchemaProvenance = WorkspaceSchemaProvenance,
@@ -485,9 +492,16 @@ export type WorkspaceControlPlaneRecordStateFile =
     schemaKey: typeof INSTANCE_WORKSPACE_CONTROL_PLANE_SCHEMA_KEY;
   };
 
+export type WorkspaceProgramRecordStateFile =
+  WorkspaceRecordStateFileBase<WorkspaceProgramSchemaProvenance> & {
+    storageIdentity: "instance:control-plane";
+    schemaKey: typeof INSTANCE_WORKSPACE_PROGRAM_SCHEMA_KEY;
+  };
+
 export type WorkspaceRecordStateFile =
   | WorkspacePackageAppRecordStateFile
-  | WorkspaceControlPlaneRecordStateFile;
+  | WorkspaceControlPlaneRecordStateFile
+  | WorkspaceProgramRecordStateFile;
 
 export type InstanceWorkspaceControlPlaneRecordSourceControlPlane = {
   schemaKey: typeof INSTANCE_WORKSPACE_CONTROL_PLANE_SCHEMA_KEY;

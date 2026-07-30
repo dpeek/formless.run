@@ -1,11 +1,8 @@
-import {
-  formatInstanceControlPlaneBoundaryEntityName,
-  instanceControlPlaneRecordSourceEntityName,
-} from "@dpeek/formless-instance-control-plane";
 import type { AppSchema } from "@dpeek/formless-schema";
 import { formatStoredRecordsForArtifact } from "@dpeek/formless-storage";
 import {
   INSTANCE_WORKSPACE_CONTROL_PLANE_SCHEMA_KEY,
+  INSTANCE_WORKSPACE_PROGRAM_SCHEMA_KEY,
   WORKSPACE_RECORD_STATE_FILE_KIND,
   WORKSPACE_RECORD_STATE_FILE_VERSION,
 } from "./types.ts";
@@ -14,6 +11,7 @@ import type {
   InstanceWorkspaceStoredRecord,
   WorkspaceControlPlaneRecordStateFile,
   WorkspacePackageAppRecordStateFile,
+  WorkspaceProgramRecordStateFile,
   WorkspaceRecordStateFile,
   WorkspaceSchemaProvenance,
   WorkspaceSourceSchemaHash,
@@ -28,6 +26,11 @@ export type WorkspaceRecordStateFileExpected = {
 export type ParseWorkspaceRecordStateFileOptions = {
   context?: string;
   expected?: WorkspaceRecordStateFileExpected;
+};
+
+export type FormatWorkspaceRecordStateFileOptions = {
+  formatRecordEntity?: (entity: string) => string;
+  normalizeRecordEntity?: (entity: string) => string;
 };
 
 const recordStateKeys = [
@@ -127,18 +130,20 @@ export function parseWorkspaceRecordStateFile(
     records: parseWorkspaceStoredRecords(`${context} records`, value.records),
   };
 
-  if (schemaProvenance.kind === "instance-control-plane") {
+  if (schemaProvenance.kind === "instance-control-plane" || schemaProvenance.kind === "program") {
     if (parsed.storageIdentity !== "instance:control-plane") {
       throw new Error(`${context} storageIdentity must be "instance:control-plane".`);
     }
 
-    if (parsed.schemaKey !== INSTANCE_WORKSPACE_CONTROL_PLANE_SCHEMA_KEY) {
-      throw new Error(
-        `${context} schemaKey must be "${INSTANCE_WORKSPACE_CONTROL_PLANE_SCHEMA_KEY}".`,
-      );
+    const expectedSchemaKey =
+      schemaProvenance.kind === "program"
+        ? INSTANCE_WORKSPACE_PROGRAM_SCHEMA_KEY
+        : INSTANCE_WORKSPACE_CONTROL_PLANE_SCHEMA_KEY;
+    if (parsed.schemaKey !== expectedSchemaKey) {
+      throw new Error(`${context} schemaKey must be "${expectedSchemaKey}".`);
     }
 
-    return parsed as WorkspaceControlPlaneRecordStateFile;
+    return parsed as WorkspaceControlPlaneRecordStateFile | WorkspaceProgramRecordStateFile;
   }
 
   parseAppStorageIdentity(`${context} storageIdentity`, parsed.storageIdentity);
@@ -149,6 +154,7 @@ export function parseWorkspaceRecordStateFile(
 export function formatWorkspaceRecordStateFile(
   state: WorkspaceRecordStateFile,
   schema: AppSchema,
+  options: FormatWorkspaceRecordStateFileOptions = {},
 ): string {
   const parsed = parseWorkspaceRecordStateFile(state);
   const formatted = {
@@ -160,7 +166,7 @@ export function formatWorkspaceRecordStateFile(
     schemaUpdatedAt: parsed.schemaUpdatedAt,
     sourceCursor: parsed.sourceCursor,
     schemaProvenance: parsed.schemaProvenance,
-    records: formatWorkspaceStoredRecords(parsed, schema),
+    records: formatWorkspaceStoredRecords(parsed, schema, options),
   };
 
   return `${JSON.stringify(formatted, null, 2)}\n`;
@@ -200,7 +206,19 @@ function parseWorkspaceSchemaProvenance(
     };
   }
 
-  throw new Error(`${context} kind must be "package-app" or "instance-control-plane".`);
+  if (value.kind === "program") {
+    assertExactKeys(context, value, controlPlaneSchemaProvenanceKeys);
+
+    return {
+      kind: "program",
+      sourceSchemaHash: parseSourceSchemaHash(
+        `${context} sourceSchemaHash`,
+        value.sourceSchemaHash,
+      ),
+    };
+  }
+
+  throw new Error(`${context} kind must be "package-app", "instance-control-plane", or "program".`);
 }
 
 function parseWorkspaceStoredRecords(
@@ -267,28 +285,19 @@ function parseRecordValues(context: string, value: unknown): InstanceWorkspaceRe
 }
 
 function formatWorkspaceStoredRecords(
-  state: WorkspaceRecordStateFile,
+  _state: WorkspaceRecordStateFile,
   schema: AppSchema,
+  options: FormatWorkspaceRecordStateFileOptions,
 ): InstanceWorkspaceStoredRecord[] {
-  const controlPlane = state.schemaProvenance.kind === "instance-control-plane";
-  const records = state.records.map((record) => ({
+  const records = _state.records.map((record) => ({
     ...record,
-    entity: controlPlane
-      ? (instanceControlPlaneRecordSourceEntityName(record.entity) ?? record.entity)
-      : record.entity,
+    entity: options.normalizeRecordEntity?.(record.entity) ?? record.entity,
   }));
 
-  return formatStoredRecordsForArtifact(schema, records).map((record) => {
-    const entity = controlPlane
-      ? instanceControlPlaneRecordSourceEntityName(record.entity)
-      : undefined;
-
-    return {
-      ...record,
-      entity:
-        entity === undefined ? record.entity : formatInstanceControlPlaneBoundaryEntityName(entity),
-    };
-  });
+  return formatStoredRecordsForArtifact(schema, records).map((record) => ({
+    ...record,
+    entity: options.formatRecordEntity?.(record.entity) ?? record.entity,
+  }));
 }
 
 function recordStateContext(options: ParseWorkspaceRecordStateFileOptions): string {

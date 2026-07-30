@@ -1,7 +1,7 @@
 import {
-  INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-} from "@dpeek/formless-instance-control-plane";
+  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import type { DeploymentTarget } from "../shared/deployment-runtime.ts";
 import type { InstanceDomainProviderRedirectIntent } from "../shared/domain-provider-api.ts";
 import type { InstanceDomainMapping } from "../shared/instance-domain-mappings.ts";
@@ -58,11 +58,11 @@ export async function readControlPlaneRecords(input: {
     return undefined;
   }
 
-  const id = input.env.FORMLESS_AUTHORITY.idFromName(INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = input.env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
   const response = await input.env.FORMLESS_AUTHORITY.get(id).fetch(
     new Request(
       new URL(
-        `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}${INTERNAL_READ_RECORDS_PATH}`,
+        `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${INTERNAL_READ_RECORDS_PATH}`,
         input.requestUrl,
       ),
       {
@@ -92,9 +92,9 @@ async function postInternalControlPlaneRecords(
     return undefined;
   }
 
-  const id = env.FORMLESS_AUTHORITY.idFromName(INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
   const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
-    new Request(new URL(`${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}${input.path}`, requestUrl), {
+    new Request(new URL(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${input.path}`, requestUrl), {
       body: JSON.stringify(input.body),
       headers: { "Content-Type": "application/json" },
       method: "POST",

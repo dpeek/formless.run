@@ -14,6 +14,7 @@ import {
   appStorageIdentityForClientTarget,
   clientTargetForSchemaKey,
   clientTargetSourceSchemaKey,
+  programClientTarget,
   type ClientAppTarget,
 } from "../client/app-target.ts";
 import { getClientStoreSnapshot, subscribeToClientStore } from "../client/store.ts";
@@ -56,10 +57,13 @@ import {
 } from "./routes/home-selection.tsx";
 import { fetchAccountSessionStatus, logoutAccountSession } from "./routes/account-sign-in.tsx";
 import {
+  normalizeRuntimeBrowserPath,
   runtimeScreenPathFromRoute,
   type RuntimeProfile,
   type RuntimeWorldMount,
 } from "./runtime-profile.ts";
+import { FORMLESS_PROGRAM_SCHEMA_KEY } from "../program/target.ts";
+import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
 
 const ROOT_CREATE_TRIGGER: GeneratedCreateTriggerPresentation = {
   content: { icon: "add", kind: "iconOnly" },
@@ -132,14 +136,20 @@ function ApplicationShellRuntime({
   );
   const syncStatus = useSyncStatus();
   const selectionStore = useHomeRouteSelectionStore();
-  const routeTarget = routeWorld ? runtimeWorldClientTarget(routeWorld) : undefined;
+  const normalizedCurrentPath = normalizeRuntimeBrowserPath(currentPath);
+  const programRoute = FORMLESS_PROGRAM_SCREEN_PATHS.includes(normalizedCurrentPath);
+  const routeTarget = routeWorld
+    ? runtimeWorldClientTarget(routeWorld)
+    : programRoute
+      ? programClientTarget()
+      : undefined;
   const routeIdentity = routeTarget ? appStorageIdentityForClientTarget(routeTarget) : undefined;
   const routeSchemaKey = routeTarget ? clientTargetSourceSchemaKey(routeTarget) : undefined;
   const storeMatchesRoute =
     snapshot.activeClientStorageName === null ||
     snapshot.activeClientStorageName === routeIdentity?.browserDatabaseName;
   const routeSchema =
-    routeWorld &&
+    (routeWorld || programRoute) &&
     storeMatchesRoute &&
     (snapshot.activeSchemaKey === null || snapshot.activeSchemaKey === routeSchemaKey)
       ? snapshot.schema
@@ -151,7 +161,11 @@ function ApplicationShellRuntime({
   const screenModels = screenModelsProp ?? projectedScreenModels;
   const selectedScreenPath =
     activeScreenPath ??
-    (routeWorld ? runtimeScreenPathFromRoute(routeWorld, currentPath) : undefined);
+    (routeWorld
+      ? runtimeScreenPathFromRoute(routeWorld, currentPath)
+      : programRoute
+        ? normalizedCurrentPath
+        : undefined);
   const activeScreen = screenModels.find((screen) => screen.path === selectedScreenPath);
   const rootFacts = activeScreen ? selectGeneratedRootNavigationFacts(activeScreen) : undefined;
   const selectedRootRecordId =
@@ -244,16 +258,18 @@ function ApplicationShellRuntime({
     routeWorld,
     runtimeProfile,
     screenModels,
-    sync:
-      routeWorld && routeIdentity
-        ? {
-            cursor: storeMatchesRoute ? snapshot.cursor : 0,
-            lastSyncedAt: storeMatchesRoute ? snapshot.lastSyncedAt : null,
-            schemaVersion: storeMatchesRoute ? (snapshot.schema?.version ?? null) : null,
-            status: syncStatus,
-            worldLabel: routeIdentity.authorityName,
-          }
-        : undefined,
+    sync: routeIdentity
+      ? {
+          cursor: storeMatchesRoute ? snapshot.cursor : 0,
+          lastSyncedAt: storeMatchesRoute ? snapshot.lastSyncedAt : null,
+          schemaVersion: storeMatchesRoute ? (snapshot.schema?.version ?? null) : null,
+          status: syncStatus,
+          worldLabel:
+            routeIdentity.kind === "program"
+              ? FORMLESS_PROGRAM_SCHEMA_KEY
+              : routeIdentity.authorityName,
+        }
+      : undefined,
   });
   const projectionRef = useRef(projection);
   projectionRef.current = projection;

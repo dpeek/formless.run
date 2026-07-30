@@ -11,11 +11,11 @@ import type { SchemaKey } from "../shared/schema-apps.ts";
 import type { createWorkerHarness } from "../worker/miniflare-test.ts";
 import { getWorkerSchemaAppDefinition } from "../worker/schema-apps.ts";
 import { schemaAppTestRecords } from "./schema-app-records.ts";
+import { formlessProgramSchema } from "../program/runtime.ts";
 import {
-  INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  instanceControlPlaneSchema,
-} from "@dpeek/formless-instance-control-plane";
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 
 type AuthorityHarness = Pick<
   Awaited<ReturnType<typeof createWorkerHarness>>,
@@ -270,9 +270,9 @@ export function schemaAppTestStorageSnapshot(
 
 export function instanceControlPlaneTestStorageSnapshot(): StorageSnapshot {
   return testStorageSnapshot({
-    schema: instanceControlPlaneSchema,
-    schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+    schema: formlessProgramSchema,
+    schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
   });
 }
 

@@ -1,4 +1,4 @@
-import { IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY } from "@dpeek/formless-identity-control-plane";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { AccountCompletionGateTarget } from "../shared/instance-auth.ts";
 import type { OwnerIdentity } from "../shared/protocol.ts";
@@ -58,7 +58,7 @@ export async function readInternalActiveIdentityPrincipal(
     return null;
   }
 
-  const id = env.FORMLESS_AUTHORITY.idFromName(IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
   const url = new URL(`http://internal${INTERNAL_IDENTITY_ACTIVE_PRINCIPAL_PATH}`);
 
   url.searchParams.set("principalId", principalId);
@@ -88,7 +88,7 @@ export async function readInternalIdentityOwnerForPrincipal(
     return null;
   }
 
-  const id = env.FORMLESS_AUTHORITY.idFromName(IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
   const url = new URL(`http://internal${INTERNAL_IDENTITY_OWNER_PRINCIPAL_PATH}`);
 
   url.searchParams.set("principalId", principalId);
@@ -115,7 +115,7 @@ export async function readInternalIdentityAuthorityForPrincipal(
     return null;
   }
 
-  const id = env.FORMLESS_AUTHORITY.idFromName(IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
   const url = new URL(`http://internal${INTERNAL_IDENTITY_PRINCIPAL_AUTHORITY_PATH}`);
 
   url.searchParams.set("principalId", principalId);
@@ -146,7 +146,7 @@ export async function readInternalIdentityAppAuthorityForPrincipal(
     return null;
   }
 
-  const id = env.FORMLESS_AUTHORITY.idFromName(IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
   const url = new URL(`http://internal${INTERNAL_IDENTITY_APP_AUTHORITY_PATH}`);
 
   url.searchParams.set("principalId", principalId);
@@ -180,7 +180,7 @@ export async function readInternalAccountCompletionIdentityState(
     return null;
   }
 
-  const id = env.FORMLESS_AUTHORITY.idFromName(IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY);
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
   const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
     new Request(`http://internal${INTERNAL_IDENTITY_ACCOUNT_COMPLETION_STATE_PATH}`, {
       body: JSON.stringify(input),

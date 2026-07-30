@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Authority storage owns committed app data, instance control-plane records,
-active schemas, operation invocations, write invariants, and server API
-contracts for each storage identity. It is the durable source of truth that
-browser replicas, storage snapshots, portable archive envelopes, workspace
-state, and installed apps read from or write through.
+Authority storage owns committed app data, Program records, active schemas,
+operation invocations, write invariants, and server API contracts for each
+storage identity. It is the durable source of truth that browser replicas,
+storage snapshots, portable archive envelopes, workspace state, and installed
+apps read from or write through.
 
 ## Requirements
 
@@ -30,12 +30,15 @@ The system SHALL isolate Authority storage by storage identity.
   `app:<installId>` storage
 - AND the installed app storage is separate from package-level schema-key storage
 
-#### Scenario: Instance control-plane identity
+#### Scenario: Program control-plane identity
 
-- GIVEN instance control-plane storage is initialized
-- WHEN instance management records are stored, snapshotted, restored, or synced
+- GIVEN the default Program storage is initialized
+- WHEN instance or identity control-plane records are stored, snapshotted,
+  restored, or synced
 - THEN committed records, changes, schema, and operation invocations belong to
   `instance:control-plane` storage
+- AND one active `formless-program` schema and one `program` provenance hash
+  govern those records
 - AND installed app records remain scoped to their app storage identities
 
 ### Requirement: Authority-Wide Record Identity
@@ -107,8 +110,7 @@ from browser route eligibility and operational instance management.
   operation
 - THEN existing owner, operational-management, admin-bearer, CLI, or automation
   authorization remains required according to that operation
-- AND app admin data authorization does not grant instance control-plane reads
-  or writes
+- AND app admin data authorization does not grant Program reads or writes
 
 #### Scenario: Entity operations keep actor policy
 
@@ -965,40 +967,119 @@ The system MUST guard writes when owner or admin protection is configured and SH
 - THEN the response uses `Cache-Control: no-store`
 - AND public Site tree API reads also use `Cache-Control: no-store`
 
-### Requirement: Instance Control-Plane Storage
+### Requirement: Program Control-Plane Storage
 
-The system SHALL store runtime-owned instance control-plane schema records in an
-Authority-backed app storage identity separate from installed app data.
+The system SHALL store runtime-owned instance and identity control-plane records
+in one Program Authority storage identity separate from installed app data and
+private authentication state.
 
-#### Scenario: Control-plane identity
+#### Scenario: Program identity
 
-- GIVEN instance control-plane storage is initialized
+- GIVEN default Program storage is initialized
 - WHEN committed records, changes, active schema, or operation invocations are
   stored
 - THEN they belong to storage identity `instance:control-plane`
+- AND the active schema key is `formless-program`
+- AND schema provenance has kind `program` with the complete materialized
+  Program source hash
+- AND instance and identity records share one record-id namespace, write log,
+  cursor, snapshot boundary, and operation-invocation store
 - AND installed app records remain scoped to their app storage identities
 - AND app install and route records remain metadata about installed apps, not
   the installed apps' own record storage
+- AND credentials, sessions, challenge secrets, token hashes, provider state,
+  and media blobs remain outside Program Authority records
 
-#### Scenario: Control-plane API
+#### Scenario: Program API
 
 - GIVEN owner, admin, CLI deployer, or runner callers query or write allowed
-  control-plane records
-- WHEN the request is accepted through `/api/formless/control-plane`
-- THEN the request targets the instance control-plane storage identity
+  Program records
+- WHEN the request is accepted through `/api/formless/program`
+- THEN the request targets storage identity `instance:control-plane`
 - AND writes use Authority validation and write-log idempotency
+- AND standalone instance and identity control-plane prefixes do not expose
+  another bootstrap, schema, sync, snapshot, or generic operation mount
+- AND purpose-built identity or auth capability routes may remain separate HTTP
+  behavior while reading and writing the same Program Authority records
+
+#### Scenario: Program replica authorization
+
+- GIVEN a browser requests Program bootstrap, schema, HTTP sync, push sync, or
+  generated management operations
+- WHEN the request is authorized
+- THEN the runtime requires an active `instance.owner` or `instance.admin`
+  management session bound to the Program target, or valid admin bearer
+  authorization where supported
+- AND ordinary authenticated or anonymous sessions cannot read the mixed Program
+  record set
+- AND owner-only identity, recovery, policy, and security operations recheck
+  active `instance.owner` authority independently of replica access
+- AND current authority and session state are rechecked before later push
+  catch-up or broadcast data is returned
 
 #### Scenario: App install creation transaction
 
-- GIVEN a package app install is created through the control-plane API
+- GIVEN a package app install is created through the Program API
 - WHEN the create operation commits
 - THEN the app install and default route records are committed in the
-  control-plane storage identity
+  Program storage identity
 - AND the package source schema is validated before install metadata commits
 - AND the install-scoped app storage identity initializes lazily with that
   schema and no records
 - AND unavailable or invalid package source leaves no usable installed app
   route
+
+### Requirement: Program Record Validation
+
+The system SHALL validate mixed Program records through the complete schema and
+explicit package-owned constraint adapters.
+
+#### Scenario: Validate a mixed Program record set
+
+- GIVEN one Program record set contains instance and identity entities
+- WHEN bootstrap, source refresh, convergence, operation execution, snapshot
+  restore, archive restore, or workspace validation runs
+- THEN generic field, reference, unique, delete-blocker, stable entity identity,
+  and record-id validation sees the complete Program schema and record set
+- AND each package-owned constraint adapter receives only records owned by its
+  declared stable entity ids
+- AND the Program root explicitly dispatches those adapters without using
+  authoring module keys as runtime ownership
+- AND an unknown entity, foreign record passed to a package validator, invalid
+  cross-entity reference, or package constraint failure rejects the whole write
+  before commit
+
+### Requirement: Control-Plane Record Convergence
+
+The system SHALL converge existing instance and identity control-plane records
+into the surviving Program Authority without changing permanent record identity.
+
+#### Scenario: Import identity records into the surviving lineage
+
+- GIVEN `instance:control-plane` and `instance:identity` contain existing active
+  or tombstoned records
+- WHEN the Program convergence operation runs
+- THEN it reads immutable source snapshots, checks every record id across both
+  histories, and rejects any intersection before mutation
+- AND it validates the complete merged record set against the materialized
+  Program schema and package-owned constraints
+- AND successful convergence preserves record ids, entity keys, values,
+  lifecycle timestamps, and tombstone state
+- AND identity records are appended as a single explicit convergence boundary
+  to the surviving `instance:control-plane` write-log lineage
+- AND the legacy identity cursor and change rows are not copied, interleaved, or
+  presented as Program history
+- AND failed convergence leaves both source Authorities unchanged
+
+#### Scenario: Convergence preserves private auth references
+
+- GIVEN private credential or session state refers to an identity principal id
+- WHEN identity records converge into Program storage
+- THEN the principal record id is preserved
+- AND credentials, sessions, challenge secrets, token hashes, grants, and
+  provider state are not copied into Program records
+- AND successful convergence is marked idempotently before the standalone
+  identity storage mount becomes unavailable
 
 ### Requirement: Active Schema Source Refresh
 

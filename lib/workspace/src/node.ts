@@ -43,15 +43,6 @@ import {
   parseWorkspaceOperationStateJson,
   workspaceOperationStateFileName,
 } from "./index.ts";
-import {
-  INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  formatInstanceControlPlaneBoundaryEntityName,
-  instanceControlPlaneRecordSourceEntityName,
-  instanceControlPlaneSchema,
-  instanceControlPlaneSchemaProvenance,
-  reviewableInstanceControlPlaneStorageSnapshot,
-} from "@dpeek/formless-instance-control-plane";
 import type {
   InitialWorkspaceOperationStateInput,
   InstanceWorkspaceManifest,
@@ -137,6 +128,23 @@ export type InstanceWorkspaceMediaFile = {
   bytes: Uint8Array;
   contentType: string;
   object: unknown;
+};
+
+export type WorkspaceControlPlaneSnapshotContract = {
+  canonicalize: (
+    snapshot: StorageSnapshot,
+    input?: {
+      context?: string;
+      sourceLabel?: string;
+    },
+  ) => StorageSnapshot;
+  formatRecordEntity?: (entity: string) => string;
+  normalizeRecordEntity?: (entity: string) => string;
+  parse: (context: string, value: unknown) => StorageSnapshot;
+  schema: AppSchema;
+  schemaKey: string;
+  schemaProvenance: WorkspaceSchemaProvenance;
+  storageIdentity: string;
 };
 
 export type ReadInstanceWorkspaceMediaFilesResult = {
@@ -242,6 +250,7 @@ export function instanceWorkspaceMediaManifestPath(
 }
 
 export async function readInstanceWorkspaceControlPlaneStorageSnapshot(input: {
+  controlPlaneSnapshotContract: WorkspaceControlPlaneSnapshotContract;
   manifest: InstanceWorkspaceManifest;
   packageResolver?: AppPackageResolver;
   workspaceRoot: string;
@@ -252,7 +261,7 @@ export async function readInstanceWorkspaceControlPlaneStorageSnapshot(input: {
     return await parseInstanceWorkspaceControlPlaneStorageSnapshot(
       await readFile(filePath, "utf8"),
       `Workspace instance state ${instanceWorkspaceInstanceStateRelativePath(input.manifest)}`,
-      { packageResolver: input.packageResolver },
+      input.controlPlaneSnapshotContract,
     );
   } catch (error) {
     if (isNodeError(error) && error.code === "ENOENT") {
@@ -264,6 +273,7 @@ export async function readInstanceWorkspaceControlPlaneStorageSnapshot(input: {
 }
 
 export async function writeInstanceWorkspaceControlPlaneStorageSnapshot(input: {
+  controlPlaneSnapshotContract: WorkspaceControlPlaneSnapshotContract;
   manifest: InstanceWorkspaceManifest;
   packageResolver?: AppPackageResolver;
   snapshot: StorageSnapshot | undefined;
@@ -279,18 +289,22 @@ export async function writeInstanceWorkspaceControlPlaneStorageSnapshot(input: {
     return;
   }
 
-  const snapshot = reviewableControlPlaneStorageSnapshot(input.snapshot, {
+  const snapshot = input.controlPlaneSnapshotContract.canonicalize(input.snapshot, {
     context: input.validationContext,
-    packageResolver: input.packageResolver,
     sourceLabel: input.sourceLabel,
   });
   const state = await workspaceRecordStateFileFromStorageSnapshot(snapshot, {
-    formatRecordEntity: formatInstanceControlPlaneRecordStateEntity,
-    schemaProvenance: instanceControlPlaneSchemaProvenance,
+    schemaProvenance: input.controlPlaneSnapshotContract.schemaProvenance,
   });
 
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, formatWorkspaceRecordStateFile(state, snapshot.schema));
+  await writeFile(
+    filePath,
+    formatWorkspaceRecordStateFile(state, snapshot.schema, {
+      formatRecordEntity: input.controlPlaneSnapshotContract.formatRecordEntity,
+      normalizeRecordEntity: input.controlPlaneSnapshotContract.normalizeRecordEntity,
+    }),
+  );
 }
 
 export async function readInstanceWorkspaceAppStorageSnapshot(input: {
@@ -829,7 +843,7 @@ export async function writeWorkspaceOperationState(
 async function parseInstanceWorkspaceControlPlaneStorageSnapshot(
   contents: string,
   context: string,
-  options: { packageResolver?: AppPackageResolver } = {},
+  contract: WorkspaceControlPlaneSnapshotContract,
 ): Promise<StorageSnapshot> {
   const parsed = parseWorkspaceStateJson(contents, context);
 
@@ -837,32 +851,26 @@ async function parseInstanceWorkspaceControlPlaneStorageSnapshot(
     const state = parseWorkspaceRecordStateFile(parsed, {
       context,
       expected: {
-        schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-        schemaProvenanceKind: "instance-control-plane",
-        storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+        schemaKey: contract.schemaKey,
+        schemaProvenanceKind: contract.schemaProvenance.kind,
+        storageIdentity: contract.storageIdentity,
       },
     });
-    const expectedProvenance: WorkspaceSchemaProvenance = instanceControlPlaneSchemaProvenance;
 
-    if (!workspaceSchemaProvenanceEqual(state.schemaProvenance, expectedProvenance)) {
-      throw new Error(
-        `${context} schemaProvenance does not match resolved instance control-plane source.`,
-      );
+    if (!workspaceSchemaProvenanceEqual(state.schemaProvenance, contract.schemaProvenance)) {
+      throw new Error(`${context} schemaProvenance does not match resolved runtime source.`);
     }
 
-    return reviewableControlPlaneStorageSnapshot(
-      storageSnapshotFromWorkspaceRecordState(state, instanceControlPlaneSchema),
-      { packageResolver: options.packageResolver },
-    );
+    return contract.canonicalize(storageSnapshotFromWorkspaceRecordState(state, contract.schema), {
+      context: "Workspace control-plane storage snapshot records",
+      sourceLabel: "Workspace control-plane storage snapshot",
+    });
   }
 
-  return reviewableControlPlaneStorageSnapshot(
-    parseInstanceWorkspaceStorageSnapshotValue(parsed, {
-      schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-      storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-    }),
-    { packageResolver: options.packageResolver },
-  );
+  return contract.canonicalize(contract.parse(context, parsed), {
+    context: "Workspace control-plane storage snapshot records",
+    sourceLabel: "Workspace control-plane storage snapshot",
+  });
 }
 
 function parseInstanceWorkspaceAppStorageStateFile(
@@ -926,26 +934,9 @@ function parseInstanceWorkspaceStorageSnapshotValue(
   return parseStorageSnapshot(value, expected);
 }
 
-function reviewableControlPlaneStorageSnapshot(
-  snapshot: StorageSnapshot,
-  options: { context?: string; packageResolver?: AppPackageResolver; sourceLabel?: string } = {},
-): StorageSnapshot {
-  const parsed = parseStorageSnapshot(snapshot, {
-    schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  });
-
-  return reviewableInstanceControlPlaneStorageSnapshot(parsed, {
-    context: options.context ?? "Workspace control-plane storage snapshot records",
-    packageResolver: options.packageResolver,
-    sourceLabel: options.sourceLabel ?? "Workspace control-plane storage snapshot",
-  });
-}
-
 async function workspaceRecordStateFileFromStorageSnapshot(
   snapshot: StorageSnapshot,
   input: {
-    formatRecordEntity?: (entity: string) => string;
     schemaProvenance: WorkspaceSchemaProvenance;
   },
 ): Promise<WorkspaceRecordStateFile> {
@@ -959,7 +950,7 @@ async function workspaceRecordStateFileFromStorageSnapshot(
     schemaUpdatedAt: parsed.schemaUpdatedAt,
     sourceCursor: parsed.sourceCursor,
     schemaProvenance: input.schemaProvenance,
-    records: parsed.records.map((record) => workspaceStoredRecord(record, input)),
+    records: parsed.records.map(workspaceStoredRecord),
   };
 
   return parseWorkspaceRecordStateFile(formatted);
@@ -990,7 +981,7 @@ function workspaceSchemaProvenanceEqual(
     return false;
   }
 
-  if (left.kind === "instance-control-plane") {
+  if (left.kind === "instance-control-plane" || left.kind === "program") {
     return true;
   }
 
@@ -1011,26 +1002,15 @@ function isWorkspaceRecordStateFile(value: unknown): boolean {
   );
 }
 
-function workspaceStoredRecord(
-  record: StoredRecord,
-  input: { formatRecordEntity?: (entity: string) => string } = {},
-): StoredRecord {
+function workspaceStoredRecord(record: StoredRecord): StoredRecord {
   return {
     id: record.id,
-    entity: input.formatRecordEntity?.(record.entity) ?? record.entity,
+    entity: record.entity,
     values: record.values,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     ...(record.deletedAt === undefined ? {} : { deletedAt: record.deletedAt }),
   };
-}
-
-function formatInstanceControlPlaneRecordStateEntity(entity: string): string {
-  const sourceEntity = instanceControlPlaneRecordSourceEntityName(entity);
-
-  return sourceEntity === undefined
-    ? entity
-    : formatInstanceControlPlaneBoundaryEntityName(sourceEntity);
 }
 
 function stableJsonValue(value: unknown): unknown {

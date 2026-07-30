@@ -64,6 +64,8 @@ describe("instance management projection", () => {
     expect(readyManifest(unavailable).workspaceOperation).toBeUndefined();
     expect(readyManifest(unavailable).workspaces).toEqual([
       { reference: appsReference, role: "apps" },
+    ]);
+    expect(readyManifest(readyProjection({ activeWorkspace: "routes" })).workspaces).toEqual([
       { reference: routesReference, role: "routes" },
     ]);
     expect(gatewayFailed.manifest.state).toBe("ready");
@@ -258,7 +260,7 @@ describe("instance management runtime publication", () => {
     const dialog = required(application.host.read(instanceManagementInstallDialogReference));
     expect(ready.state).toBe("ready");
     expect(application.host.read(ready.workspaces[0].reference)?.label).toBe("Apps · empty");
-    expect(application.host.read(ready.workspaces[1].reference)?.label).toBe("Routes · empty");
+    expect(ready.workspaces).toEqual([{ reference: appsReference, role: "apps" }]);
 
     runtime.updateWorkspace(
       "apps",
@@ -412,6 +414,7 @@ function input(overrides: Partial<ProjectInstanceManagementOptions> = {}): Omit<
   workspaces?: ProjectInstanceManagementOptions["workspaces"];
 } {
   return {
+    activeWorkspace: "apps",
     installDialogOpen: false,
     installDrafts: {
       crm: { installId: "crm", label: "CRM" },

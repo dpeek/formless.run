@@ -40,6 +40,7 @@ import {
   type RuntimeProfile,
   type RuntimeWorldMount,
 } from "../runtime-profile.ts";
+import { FORMLESS_PROGRAM_SCREEN_PATHS, formlessProgramSchema } from "../../program/runtime.ts";
 
 export const GENERATED_APPLICATION_SHELL_ID = "application-shell";
 
@@ -112,9 +113,7 @@ export function selectGeneratedShellScope({
   }
 
   if (runtimeProfile.shell === "instance") {
-    return path === routes.instanceShellRoute || path === routes.instanceAccessRoute || routeWorld
-      ? "multiApp"
-      : undefined;
+    return FORMLESS_PROGRAM_SCREEN_PATHS.includes(path) || routeWorld ? "multiApp" : undefined;
   }
 
   return routeWorld ? "appOnly" : undefined;
@@ -455,16 +454,17 @@ export function projectGeneratedApplicationShell({
     sections.push(...selectGeneratedShellRootSections(root));
   }
 
-  if (routeWorld && sync) {
+  if (sync) {
+    const settingsKey = routeWorld?.app.key ?? "formless-program";
     sections.push({
-      accessibilityLabel: `${routeWorld.app.label} app settings`,
+      accessibilityLabel: `${routeWorld?.app.label ?? "Formless Program"} settings`,
       destinations: [],
-      id: `${GENERATED_APPLICATION_SHELL_ID}:settings:${routeWorld.app.key}`,
+      id: `${GENERATED_APPLICATION_SHELL_ID}:settings:${settingsKey}`,
       kind: "shellNavigationSection",
       label: "Settings",
       role: "appSettings",
       settings: {
-        id: `${GENERATED_APPLICATION_SHELL_ID}:settings:${routeWorld.app.key}:controls`,
+        id: `${GENERATED_APPLICATION_SHELL_ID}:settings:${settingsKey}:controls`,
         kind: "shellSettings",
         sync: selectGeneratedShellSyncStatus(sync),
       },
@@ -503,9 +503,7 @@ export function projectGeneratedApplicationShell({
 function isGeneratedShellInstancePath(currentPath: string): boolean {
   const path = normalizeRuntimeBrowserPath(currentPath);
 
-  return (
-    path === runtimeTopologyRoutes.instanceRootRoute || path === runtimeTopologyRoutes.accessRoute
-  );
+  return FORMLESS_PROGRAM_SCREEN_PATHS.includes(path);
 }
 
 export function generatedShellRootSectionId(
@@ -518,14 +516,18 @@ export function generatedShellRootSectionId(
 
 function instanceSection(currentPath: string): ShellNavigationSectionContract {
   const path = normalizeRuntimeBrowserPath(currentPath);
-  const destinations = [
-    {
-      href: runtimeTopologyRoutes.instanceRootRoute,
-      id: "instance:settings",
-      label: "Settings",
-    },
-    { href: runtimeTopologyRoutes.accessRoute, id: "instance:access", label: "Access" },
-  ] as const;
+  const screens = new Map(formlessProgramSchema.screens.map((screen) => [screen.key, screen]));
+  const destinations = (formlessProgramSchema.navigation?.primaryScreens ?? [])
+    .map((screenKey) => screens.get(screenKey))
+    .filter(
+      (screen): screen is NonNullable<typeof screen> & { path: `/${string}` } =>
+        screen?.path !== undefined,
+    )
+    .map((screen) => ({
+      href: screen.path,
+      id: `instance:${screen.key}`,
+      label: screen.label,
+    }));
   const activeHref = selectGeneratedShellActiveHref(
     path,
     destinations.map(({ href }) => href),

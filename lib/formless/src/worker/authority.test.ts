@@ -39,7 +39,7 @@ import {
   type EntitySchema,
   type RecordPlanStepSchema,
 } from "@dpeek/formless-schema";
-import { IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX } from "@dpeek/formless-identity-control-plane";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import {
   crmTestRecords,
   crmSourceSchema,
@@ -2586,7 +2586,7 @@ async function postIdentityRecordOperation(
   const { harness: targetHarness, ...operationBody } = body;
   const request = recordOperationRequest(operationBody);
   const response = await targetHarness.fetch(
-    `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}${request.path.slice("/api".length)}`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${request.path.slice("/api".length)}`,
     {
       body: JSON.stringify(request.body),
       headers: {

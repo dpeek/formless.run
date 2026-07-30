@@ -58,10 +58,8 @@ import {
   type InstanceDomainProviderManualCleanupResponse,
   type InstanceDomainProviderPlanResponse,
 } from "../shared/domain-provider-api.ts";
-import {
-  INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX,
-  type InstanceControlPlaneRouteTargetProfile,
-} from "@dpeek/formless-instance-control-plane";
+import { type InstanceControlPlaneRouteTargetProfile } from "@dpeek/formless-instance-control-plane";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import type { DomainProviderPlanPolicy } from "../shared/domain-provider-protocol.ts";
 import {
   packageAppFactsForKey,
@@ -763,7 +761,10 @@ export async function readFormlessInstanceControlPlaneRecords(
 ): Promise<FormlessInstanceControlPlaneRecords> {
   const actorKind = input.actorKind ?? "cliDeployer";
   const targetUrl = normalizeInstanceWorkspaceTargetUrl(input.targetUrl);
-  const controlPlaneUrl = apiUrl(targetUrl, deployControlPlaneBootstrapPath(actorKind));
+  const controlPlaneUrl = apiUrl(
+    targetUrl,
+    deployControlPlaneBootstrapPath(actorKind, FORMLESS_PROGRAM_API_ROUTE_PREFIX),
+  );
 
   const bootstrap = parseControlPlaneBootstrapResponse(
     await fetchJson(dependencies.fetch, controlPlaneUrl, {
@@ -922,7 +923,7 @@ export async function patchFormlessInstanceDeploymentConfigObservation(
   const targetUrl = normalizeInstanceWorkspaceTargetUrl(input.targetUrl);
   const operationUrl = apiUrl(
     targetUrl,
-    `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/deployment-config/update`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/deployment-config/update`,
   );
   const values = deployDeploymentObservationPatchValues(input.observation);
   const idempotencyKey =
@@ -959,7 +960,7 @@ async function updateFormlessInstanceRouteRecord(
   const targetUrl = normalizeInstanceWorkspaceTargetUrl(input.targetUrl);
   const operationUrl = apiUrl(
     targetUrl,
-    `${INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX}/operations/route/update`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/route/update`,
   );
 
   return parseOperationInvocationResponse(
