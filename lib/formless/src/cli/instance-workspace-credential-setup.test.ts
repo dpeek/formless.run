@@ -9,11 +9,11 @@ import {
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
 } from "../program/target.ts";
 import {
-  INSTANCE_WORKSPACE_MANIFEST_FILE,
-  defaultInstanceWorkspaceManifest,
-  type InstanceWorkspaceManifest,
-  formatInstanceWorkspaceManifest,
+  FORMLESS_CONFIG_FILE,
+  resolveFormlessConfig,
+  type ResolvedFormlessConfig,
 } from "@dpeek/formless-workspace";
+import { formatTestFormlessConfigModule } from "./instance-workspace-config-test.ts";
 import {
   STORAGE_SNAPSHOT_KIND,
   STORAGE_SNAPSHOT_VERSION,
@@ -147,7 +147,7 @@ describe("Formless Cloudflare OAuth credentials", () => {
 
   it("writes display-safe deployment-config source after OAuth account discovery", async () => {
     const workspaceRoot = await makeTempDir();
-    const manifest = await writeWorkspaceManifest(workspaceRoot);
+    const manifest = await writeWorkspaceConfig(workspaceRoot);
     const listedTokens: string[] = [];
     const oauth = {
       createAuthorization: () => ({
@@ -275,7 +275,7 @@ describe("Formless Cloudflare OAuth credentials", () => {
 
   it("refreshes stored credentials before account discovery and deployment-config writeback", async () => {
     const workspaceRoot = await makeTempDir();
-    const manifest = await writeWorkspaceManifest(workspaceRoot);
+    const manifest = await writeWorkspaceConfig(workspaceRoot);
     const credential = createFormlessCloudflareOAuthCredential({
       id: "personal",
       selectedAccount: teamCloudflareAccount,
@@ -370,7 +370,7 @@ describe("Formless Cloudflare OAuth credentials", () => {
 
   it("enriches the requested deployment-config target without mutating another target", async () => {
     const workspaceRoot = await makeTempDir();
-    const manifest = await writeWorkspaceManifest(workspaceRoot);
+    const manifest = await writeWorkspaceConfig(workspaceRoot);
     const oauth = {
       createAuthorization: () => ({
         requestedScopes: FORMLESS_CLOUDFLARE_OAUTH_DEPLOY_SCOPES,
@@ -677,13 +677,13 @@ async function makeTempDir(): Promise<string> {
   return tempDir;
 }
 
-async function writeWorkspaceManifest(workspaceRoot: string): Promise<InstanceWorkspaceManifest> {
-  const manifest = defaultInstanceWorkspaceManifest({ name: "personal-sites" });
+async function writeWorkspaceConfig(workspaceRoot: string): Promise<ResolvedFormlessConfig> {
+  const manifest = resolveFormlessConfig({ name: "personal-sites" });
 
   await mkdir(workspaceRoot, { recursive: true });
   await writeFile(
-    path.join(workspaceRoot, INSTANCE_WORKSPACE_MANIFEST_FILE),
-    formatInstanceWorkspaceManifest(manifest),
+    path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
+    formatTestFormlessConfigModule(manifest),
   );
 
   return manifest;
@@ -691,7 +691,7 @@ async function writeWorkspaceManifest(workspaceRoot: string): Promise<InstanceWo
 
 async function writeWorkspaceControlPlaneStorageSnapshot(
   workspaceRoot: string,
-  manifest: InstanceWorkspaceManifest,
+  manifest: ResolvedFormlessConfig,
   records: StoredRecord[],
 ): Promise<void> {
   await writeInstanceWorkspaceControlPlaneStorageSnapshot({

@@ -18,7 +18,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const smokeRoot = mkdtempSync(path.join(tmpdir(), "formless-packed-install-"));
 const tarballRoot = path.resolve(smokeRoot, "tarballs");
 const installRoot = path.resolve(smokeRoot, "install");
-const workspaceRoot = path.resolve(smokeRoot, "workspace");
+const workspaceRoot = path.resolve(installRoot, "workspace");
 try {
   mkdirSync(tarballRoot, { recursive: true });
   mkdirSync(installRoot, { recursive: true });
@@ -72,6 +72,34 @@ try {
     throw new Error("Installed CLI help did not print the Formless usage header.");
   }
 
+  mkdirSync(workspaceRoot, { recursive: true });
+  writeFileSync(
+    path.resolve(workspaceRoot, "formless.ts"),
+    [
+      'import { defineConfig } from "@dpeek/formless";',
+      "",
+      'export default defineConfig({ name: "packed-install-smoke" });',
+      "",
+    ].join("\n"),
+  );
+
+  console.log("Loading downstream TypeScript configuration through the installed CLI...");
+  const configLoad = runCommand(
+    cliPath,
+    [
+      "token",
+      "adopt",
+      "--workspace",
+      workspaceRoot,
+      "--admin-token",
+      "packed-install-smoke-token",
+    ],
+    installRoot,
+  );
+  if (!configLoad.includes("Instance workspace admin token adopted.")) {
+    throw new Error("Installed CLI did not load the downstream TypeScript configuration.");
+  }
+
   console.log("Building bundled browser and Worker runtime...");
   runBun(["run", "vp", "build"], formlessRoot, releaseEnv);
   requireRuntimeBuild(formlessRoot);
@@ -107,7 +135,9 @@ try {
     throw new Error("Custom Worker renderer marker is absent from the installed build.");
   }
 
-  console.log("Packed install smoke passed: CLI help, default build, and custom renderer build.");
+  console.log(
+    "Packed install smoke passed: CLI help, downstream config, default build, and custom renderer build.",
+  );
 } finally {
   rmSync(smokeRoot, { force: true, recursive: true });
 }

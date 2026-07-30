@@ -16,7 +16,7 @@ import {
 import { packageExecCommand } from "./package-commands.ts";
 import {
   createActiveWorkspaceAppPackages,
-  readWorkspaceManifest,
+  readWorkspaceConfig,
   workspaceRootForInput,
 } from "./instance-workspace-foundation.ts";
 import {
@@ -70,10 +70,10 @@ export async function adoptFormlessInstanceWorkspaceAdminToken(
   dependencies: AdoptFormlessInstanceWorkspaceAdminTokenDependencies,
 ): Promise<AdoptFormlessInstanceWorkspaceAdminTokenResult> {
   const workspaceRoot = workspaceRootForInput(dependencies.cwd, input.workspacePath);
-  const { manifest } = await readWorkspaceManifest(workspaceRoot);
+  const { config } = await readWorkspaceConfig(workspaceRoot);
   const selectedTarget = await resolveFormlessCliWorkspaceTarget({
     commandName: "token adopt",
-    manifest,
+    config,
     required: false,
     targetAlias: input.targetAlias,
     workspaceRoot,
@@ -105,10 +105,10 @@ export async function rotateFormlessInstanceWorkspaceAdminToken(
   dependencies: RotateFormlessInstanceWorkspaceAdminTokenDependencies,
 ): Promise<RotateFormlessInstanceWorkspaceAdminTokenResult> {
   const workspaceRoot = workspaceRootForInput(dependencies.cwd, input.workspacePath);
-  const { manifest } = await readWorkspaceManifest(workspaceRoot);
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot);
+  const { config } = await readWorkspaceConfig(workspaceRoot);
+  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest,
+    manifest: config,
     packageResolver: activePackages.resolver,
     workspaceRoot,
   });

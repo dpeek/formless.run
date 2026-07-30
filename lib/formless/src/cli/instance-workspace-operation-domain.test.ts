@@ -13,11 +13,11 @@ import {
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
-  INSTANCE_WORKSPACE_MANIFEST_FILE as FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE,
-  defaultInstanceWorkspaceManifest as defaultFormlessInstanceWorkspaceManifest,
-  formatInstanceWorkspaceManifest as formatFormlessInstanceWorkspaceManifest,
-  type InstanceWorkspaceManifest as FormlessInstanceWorkspaceManifest,
+  FORMLESS_CONFIG_FILE,
+  resolveFormlessConfig,
+  type ResolvedFormlessConfig as FormlessResolvedConfig,
 } from "@dpeek/formless-workspace";
+import { formatTestFormlessConfigModule } from "./instance-workspace-config-test.ts";
 import {
   readInstanceWorkspaceControlPlaneStorageSnapshot,
   replaceInstanceWorkspaceMediaFiles,
@@ -82,7 +82,17 @@ describe("workspace source sync operation domain", () => {
       installs: [installedSite("david", "David Peek"), installedSite("james", "James Peek")],
     });
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot, {
+      runtime: {
+        extensions: {
+          "site.publicRenderer": {
+            browser: "renderers/site.browser.tsx",
+            worker: "renderers/site.worker.tsx",
+          },
+        },
+      },
+    });
+    const configBytes = await readFile(path.join(workspaceRoot, FORMLESS_CONFIG_FILE), "utf8");
     await writeDeployStorageSnapshot(workspaceRoot, { targetUrl });
     await writeWorkspaceAppStorageSnapshot(workspaceRoot, "stale", []);
     await mkdir(path.join(workspaceRoot, "state/media/media/stale/media/images"), {
@@ -107,7 +117,7 @@ describe("workspace source sync operation domain", () => {
       operationDeps(tempDir, { fetch: fetcher }),
     );
     const pulledControlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-      manifest: defaultFormlessInstanceWorkspaceManifest({ name: "personal-sites" }),
+      manifest: resolveFormlessConfig({ name: "personal-sites" }),
       packageResolver: bundledAppPackageResolver,
       workspaceRoot,
     });
@@ -157,6 +167,9 @@ describe("workspace source sync operation domain", () => {
     await expect(stat(path.join(workspaceRoot, "state/apps/stale.json"))).rejects.toMatchObject({
       code: "ENOENT",
     });
+    await expect(readFile(path.join(workspaceRoot, FORMLESS_CONFIG_FILE), "utf8")).resolves.toBe(
+      configBytes,
+    );
     expect(requests.map((request) => request.headers.authorization)).toEqual(
       requests.map(() => "Bearer stored-archive-token"),
     );
@@ -173,7 +186,7 @@ describe("workspace source sync operation domain", () => {
       installs: [installedSite("david", "David Peek")],
     });
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot);
     await writeWorkspaceAppStorageSnapshot(workspaceRoot, "david", []);
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
@@ -230,7 +243,7 @@ describe("workspace source sync operation domain", () => {
       installs: [installedSite("david", "David Peek")],
     });
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot);
     await writeWorkspaceAppStorageSnapshot(workspaceRoot, "david", []);
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
@@ -278,7 +291,7 @@ describe("workspace source sync operation domain", () => {
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const requests: CapturedRequest[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot);
     await writeWorkspaceAppStorageSnapshot(workspaceRoot);
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
@@ -357,7 +370,7 @@ describe("workspace source sync operation domain", () => {
       restoreResponses: [restorePlan({ replacedInstalls: ["david"] })],
     });
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot);
     await writeWorkspaceAppStorageSnapshot(workspaceRoot, "david", mediaRecords());
     await writeWorkspaceMediaFile(workspaceRoot, "david", Buffer.from([4, 5, 6]));
@@ -458,7 +471,7 @@ describe("workspace source sync operation domain", () => {
       installs: [installedSite("david", "David Peek")],
     });
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot);
     await writeWorkspaceAppStorageSnapshot(workspaceRoot, "david", []);
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
@@ -505,7 +518,7 @@ describe("deployment refresh operation domain", () => {
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const requests: CapturedRequest[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot);
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
     await writeFile(
@@ -590,7 +603,7 @@ describe("deployment runtime domain", () => {
     const requests: CapturedRequest[] = [];
     const deployInputs: DeployFormlessInstanceInput[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot);
     await writeWorkspaceAppStorageSnapshot(workspaceRoot, "david", mediaRecords());
     await writeWorkspaceMediaFile(workspaceRoot, "david", Buffer.from([4, 5, 6]));
@@ -704,7 +717,7 @@ describe("deployment runtime domain", () => {
       sourceSchemaHash: `sha256:${"a".repeat(64)}` as `sha256:${string}`,
     };
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot);
     await writeWorkspaceAppStorageSnapshot(workspaceRoot);
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
@@ -816,7 +829,7 @@ describe("deployment runtime domain", () => {
       },
     };
 
-    await writeWorkspaceManifest(workspaceRoot, {
+    await writeWorkspaceConfig(workspaceRoot, {
       runtime: { extensions: runtimeExtensions },
     });
     await writeDeployStorageSnapshot(workspaceRoot);
@@ -875,7 +888,7 @@ describe("deployment runtime domain", () => {
     const requests: CapturedRequest[] = [];
     const deployInputs: DeployFormlessInstanceInput[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot);
     await writeWorkspaceAppStorageSnapshot(workspaceRoot);
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
@@ -935,7 +948,7 @@ describe("deployment runtime domain", () => {
     const requests: CapturedRequest[] = [];
     const deployInputs: DeployFormlessInstanceInput[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot);
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
     await writeFile(
@@ -984,7 +997,7 @@ describe("deployment runtime domain", () => {
       (record) => record.id !== "route:host:public-site:www.example.com",
     );
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot, { records: localControlPlaneRecords });
     await writeWorkspaceAppStorageSnapshot(workspaceRoot);
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
@@ -1026,7 +1039,7 @@ describe("deployment runtime domain", () => {
     const requests: CapturedRequest[] = [];
     const deployInputs: DeployFormlessInstanceInput[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot);
     await writeWorkspaceAppStorageSnapshot(workspaceRoot);
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
@@ -1109,7 +1122,7 @@ describe("deployment runtime domain", () => {
     const plan = deploymentPlan();
     const deploymentStateRoot = path.join(workspaceRoot, ".formless/deploy/personal");
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot);
     await writeDeploymentLocalState(deploymentStateRoot, plan);
 
@@ -1473,10 +1486,10 @@ function timestampSequence(...timestamps: string[]): () => string {
   return () =>
     timestamps[index++ % timestamps.length] ?? timestamps.at(-1) ?? new Date(0).toISOString();
 }
-async function writeWorkspaceManifest(
+async function writeWorkspaceConfig(
   workspaceRoot: string,
   options: {
-    runtime?: FormlessInstanceWorkspaceManifest["runtime"];
+    runtime?: FormlessResolvedConfig["runtime"];
   } = {},
 ) {
   const manifest = {
@@ -1489,8 +1502,8 @@ async function writeWorkspaceManifest(
 
   await mkdir(workspaceRoot, { recursive: true });
   await writeFile(
-    path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE),
-    formatFormlessInstanceWorkspaceManifest(manifest),
+    path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
+    formatTestFormlessConfigModule(manifest),
   );
 }
 
@@ -1504,7 +1517,7 @@ async function writeDeployStorageSnapshot(
   } = {},
 ) {
   await writeInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest: defaultFormlessInstanceWorkspaceManifest({ name: "personal-sites" }),
+    manifest: resolveFormlessConfig({ name: "personal-sites" }),
     packageResolver: bundledAppPackageResolver,
     snapshot: controlPlaneSnapshot(options.records ?? deployControlPlaneRecords(options)),
     workspaceRoot,
@@ -1524,7 +1537,7 @@ async function writeWorkspaceAppStorageSnapshot(
 
   await writeInstanceWorkspaceAppStorageSnapshot({
     installId,
-    manifest: defaultFormlessInstanceWorkspaceManifest({ name: "personal-sites" }),
+    manifest: resolveFormlessConfig({ name: "personal-sites" }),
     schemaProvenance: {
       kind: "package-app",
       packageAppKey: "site",
@@ -1541,7 +1554,7 @@ async function writeWorkspaceMediaFile(
   installId: string,
   bytes: Uint8Array,
 ) {
-  const manifest = defaultFormlessInstanceWorkspaceManifest({ name: "personal-sites" });
+  const manifest = resolveFormlessConfig({ name: "personal-sites" });
   const storageKey = "media/images/cover.png";
   const archivePath = `media/${installId}/${storageKey}`;
   const deliveryHref = "/api/formless/media/media/images/cover.png";

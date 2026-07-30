@@ -1,6 +1,6 @@
 import type {
-  InstanceWorkspaceManifest,
   InstanceWorkspaceRuntimeExtensions,
+  ResolvedFormlessConfig,
 } from "@dpeek/formless-workspace";
 
 export const FORMLESS_WORKSPACE_RUNTIME_EXTENSIONS_ENV_NAME =
@@ -17,9 +17,9 @@ export const SITE_PUBLIC_RENDERER_WORKER_ENTRYPOINT_MODULE_ID =
   "virtual:formless/site-public-renderer/worker-entry";
 
 export function workspaceRuntimeExtensionKeys(
-  manifest: Pick<InstanceWorkspaceManifest, "runtime">,
+  config: Pick<ResolvedFormlessConfig, "runtime">,
 ): string[] {
-  const extensions = manifest.runtime?.extensions;
+  const extensions = config.runtime.extensions;
 
   if (extensions?.[SITE_PUBLIC_RENDERER_RUNTIME_EXTENSION_KEY] === undefined) {
     return [];
@@ -29,9 +29,9 @@ export function workspaceRuntimeExtensionKeys(
 }
 
 export function runtimeWorkspaceExtensionsEnvValue(
-  manifest: Pick<InstanceWorkspaceManifest, "runtime">,
+  config: Pick<ResolvedFormlessConfig, "runtime">,
 ): string | undefined {
-  const extensions = manifest.runtime?.extensions;
+  const extensions = config.runtime.extensions;
 
   if (extensions?.[SITE_PUBLIC_RENDERER_RUNTIME_EXTENSION_KEY] === undefined) {
     return undefined;

@@ -15,14 +15,14 @@ import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
   DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT,
-  INSTANCE_WORKSPACE_MANIFEST_FILE as FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE,
+  FORMLESS_CONFIG_FILE,
   WORKSPACE_RECORD_STATE_FILE_KIND,
-  defaultInstanceWorkspaceManifest as defaultFormlessInstanceWorkspaceManifest,
-  formatInstanceWorkspaceManifest as formatFormlessInstanceWorkspaceManifest,
+  resolveFormlessConfig,
   initialWorkspaceAutoSaveState,
   nextWorkspaceAutoSaveEnqueuedState,
   nextWorkspaceAutoSaveFailedState,
 } from "@dpeek/formless-workspace";
+import { formatTestFormlessConfigModule } from "./instance-workspace-config-test.ts";
 import {
   readInstanceWorkspaceAutoSaveState,
   writeInstanceWorkspaceAutoSaveState,
@@ -321,7 +321,13 @@ describe("workspace gateway auto-save", () => {
       }),
     );
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot, {
+      "site.publicRenderer": {
+        browser: "renderers/site.browser.tsx",
+        worker: "renderers/site.worker.tsx",
+      },
+    });
+    const configBytes = await readFile(path.join(workspaceRoot, FORMLESS_CONFIG_FILE), "utf8");
     await writeLocalDevEnv(workspaceRoot);
     await writeInstanceWorkspaceAutoSaveState({
       localStateRoot: workspaceAutoSaveLocalStateRoot(workspaceRoot),
@@ -345,6 +351,9 @@ describe("workspace gateway auto-save", () => {
       suppressed: { reason: "auto-save" },
       writeSources: [],
     });
+    await expect(readFile(path.join(workspaceRoot, FORMLESS_CONFIG_FILE), "utf8")).resolves.toBe(
+      configBytes,
+    );
 
     const instanceState = JSON.parse(
       await readFile(path.join(workspaceRoot, "state/instance.json"), "utf8"),
@@ -420,7 +429,7 @@ describe("workspace gateway auto-save", () => {
       }),
     );
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeLocalDevEnv(workspaceRoot);
     await scheduler.enqueue({
       source: "media-reference",
@@ -554,7 +563,7 @@ describe("workspace gateway auto-save", () => {
         }),
       );
 
-      await writeWorkspaceManifest(workspaceRoot);
+      await writeWorkspaceConfig(workspaceRoot);
       await writeLocalDevEnv(workspaceRoot);
       await scheduler.enqueue({
         source: "media-reference",
@@ -633,7 +642,7 @@ describe("workspace gateway auto-save", () => {
       autoSaveScheduler: createDefaultWorkspaceAutoSaveScheduler(deps),
     });
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeInstanceWorkspaceAutoSaveState({
       localStateRoot,
       state: failedState,
@@ -703,13 +712,19 @@ async function makeTempDir(): Promise<string> {
   return tempDir;
 }
 
-async function writeWorkspaceManifest(workspaceRoot: string) {
-  const manifest = defaultFormlessInstanceWorkspaceManifest({ name: "personal-sites" });
+async function writeWorkspaceConfig(
+  workspaceRoot: string,
+  extensions?: ReturnType<typeof resolveFormlessConfig>["runtime"]["extensions"],
+) {
+  const config = resolveFormlessConfig({
+    name: "personal-sites",
+    ...(extensions === undefined ? {} : { runtime: { extensions } }),
+  });
 
   await mkdir(workspaceRoot, { recursive: true });
   await writeFile(
-    path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE),
-    formatFormlessInstanceWorkspaceManifest(manifest),
+    path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
+    formatTestFormlessConfigModule(config),
   );
 }
 

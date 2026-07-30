@@ -3,10 +3,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
-  formatInstanceWorkspaceManifest,
-  INSTANCE_WORKSPACE_MANIFEST_FILE,
-  type InstanceWorkspaceManifest,
+  FORMLESS_CONFIG_FILE,
+  resolveFormlessConfig,
+  type ResolvedFormlessConfig,
 } from "@dpeek/formless-workspace";
+import { formatTestFormlessConfigModule } from "./instance-workspace-config-test.ts";
 import {
   writeInstanceWorkspaceControlPlaneStorageSnapshot,
   writeInstanceWorkspaceSecretState,
@@ -109,11 +110,11 @@ async function writeTargetWorkspace(
   } = {},
 ) {
   const workspaceRoot = await mkdtemp(path.join(tmpdir(), "formless-target-context-"));
-  const manifest = targetWorkspaceManifest();
+  const manifest = targetWorkspaceConfig();
   await mkdir(workspaceRoot, { recursive: true });
   await writeFile(
-    path.join(workspaceRoot, INSTANCE_WORKSPACE_MANIFEST_FILE),
-    formatInstanceWorkspaceManifest(manifest),
+    path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
+    formatTestFormlessConfigModule(manifest),
   );
   await writeInstanceWorkspaceControlPlaneStorageSnapshot({
     manifest,
@@ -144,19 +145,8 @@ function controlPlaneSnapshot(records: StoredRecord[]): StorageSnapshot {
   };
 }
 
-function targetWorkspaceManifest(): InstanceWorkspaceManifest {
-  return {
-    version: 1,
-    kind: "formless-instance-workspace",
-    name: "personal-sites",
-    state: { root: "state" },
-    targets: [],
-    media: { root: "media" },
-    local: { stateRoot: ".formless/local", secretStateRoot: ".formless" },
-    packages: { links: [] },
-    defaultAppPolicy: "none",
-    apps: [],
-  };
+function targetWorkspaceConfig(): ResolvedFormlessConfig {
+  return resolveFormlessConfig({ name: "personal-sites" });
 }
 
 function deploymentConfigRecord(): StoredRecord {

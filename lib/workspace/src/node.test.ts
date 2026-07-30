@@ -48,7 +48,7 @@ import {
   WORKSPACE_RECORD_STATE_FILE_KIND,
   createWorkspaceAppPackageResolver,
   createWorkspaceOperationState,
-  defaultInstanceWorkspaceManifest,
+  resolveFormlessConfig,
   ensureInstanceWorkspaceLocalDevSecretState,
   ensureInstanceWorkspaceSecretStateIgnored,
   formatInstanceWorkspaceLocalDevSecretState,
@@ -402,7 +402,7 @@ describe("Formless instance workspace secret state", () => {
 describe("workspace app package source resolver", () => {
   it("defaults to bundled packages when package links are omitted", async () => {
     const workspaceRoot = await makeTempDir();
-    const manifest = defaultInstanceWorkspaceManifest({ name: "personal-sites" });
+    const manifest = resolveFormlessConfig({ name: "personal-sites" });
     const result = await createWorkspaceAppPackageResolver({
       bundledManifests: workspaceTestBundledManifests,
       manifest,
@@ -562,7 +562,7 @@ describe("workspace app package source resolver", () => {
 describe("workspace record state node files", () => {
   it("writes and reads control-plane record state without embedding schema source", async () => {
     const workspaceRoot = await makeTempDir();
-    const manifest = defaultInstanceWorkspaceManifest({ name: "personal-sites" });
+    const manifest = resolveFormlessConfig({ name: "personal-sites" });
     const records: StoredRecord[] = [
       {
         id: "settings:instance",
@@ -648,7 +648,7 @@ describe("workspace record state node files", () => {
 
   it("rejects control-plane record state when provenance does not match the resolved schema", async () => {
     const workspaceRoot = await makeTempDir();
-    const manifest = defaultInstanceWorkspaceManifest({ name: "personal-sites" });
+    const manifest = resolveFormlessConfig({ name: "personal-sites" });
     const snapshot: StorageSnapshot = {
       kind: STORAGE_SNAPSHOT_KIND,
       version: STORAGE_SNAPSHOT_VERSION,
@@ -685,7 +685,7 @@ describe("workspace record state node files", () => {
 
   it("validates private public Site route record state through the active package resolver", async () => {
     const workspaceRoot = await makeTempDir();
-    const manifest = defaultInstanceWorkspaceManifest({ name: "personal-sites" });
+    const manifest = resolveFormlessConfig({ name: "personal-sites" });
     const packageResolver = createAppPackageResolver([
       ...workspaceTestBundledManifests,
       workspaceTestPackageManifest({
@@ -772,7 +772,7 @@ describe("workspace record state node files", () => {
 
   it("writes and reads app record state with package schema provenance", async () => {
     const workspaceRoot = await makeTempDir();
-    const manifest = defaultInstanceWorkspaceManifest({ name: "personal-sites" });
+    const manifest = resolveFormlessConfig({ name: "personal-sites" });
     const schemaProvenance = {
       kind: "package-app",
       packageAppKey: "tasks",
@@ -834,7 +834,7 @@ describe("workspace record state node files", () => {
 describe("workspace media source node files", () => {
   it("round-trips deterministic payload paths and validated document metadata", async () => {
     const workspaceRoot = await makeTempDir();
-    const manifest = defaultInstanceWorkspaceManifest({ name: "documents" });
+    const manifest = resolveFormlessConfig({ name: "documents" });
     const privateBytes = new TextEncoder().encode("%PDF-1.7\nprivate");
     const publicBytes = new TextEncoder().encode("%PDF-1.7\npublic");
     const privateObject = workspaceDocumentObject(
@@ -1040,7 +1040,7 @@ async function makeTempDir(): Promise<string> {
 
 function workspaceManifestWithPackageLink(manifest: string) {
   return {
-    ...defaultInstanceWorkspaceManifest({ name: "personal-sites" }),
+    ...resolveFormlessConfig({ name: "personal-sites" }),
     packages: {
       links: [{ manifest }],
     },

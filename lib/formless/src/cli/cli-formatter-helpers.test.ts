@@ -19,7 +19,7 @@ describe("CLI formatter helpers", () => {
     const cwd = path.resolve(path.sep, "repo", "workspace");
 
     expect(formatCliRelativePath(cwd, cwd)).toBe(".");
-    expect(formatCliRelativePath(cwd, path.join(cwd, "formless.json"))).toBe("formless.json");
+    expect(formatCliRelativePath(cwd, path.join(cwd, "formless.ts"))).toBe("formless.ts");
     expect(formatCliRelativePath(cwd, path.join(cwd, "schema", "apps"))).toBe(
       path.join("schema", "apps"),
     );

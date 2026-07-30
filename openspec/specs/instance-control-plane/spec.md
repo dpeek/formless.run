@@ -663,7 +663,7 @@ through the one Program workspace state boundary.
   the complete Program `sourceSchemaHash`
 - **AND** `state/instance.json` does not embed the full Program App
   schema object
-- **AND** `formless.json` does not duplicate those records as app, route,
+- **AND** `formless.ts` does not duplicate those records as app, route,
   domain, email, or deploy intent
 - **AND** `deploy-target`, `provider-config-ref`,
   `deploy-desired-resource`, `deploy-attempt`, `deploy-evidence-summary`, and

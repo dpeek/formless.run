@@ -401,7 +401,7 @@ read-only deployment projection and display status.
 
 #### Scenario: Runtime does not expose mutation secrets
 
-- **WHEN** browser clients, workspace manifests, portable archives, or
+- **WHEN** browser clients, workspace configuration, portable archives, or
   desired-state reads inspect deployment state
 - **THEN** provider API tokens, Cloudflare OAuth access tokens, Cloudflare OAuth
   refresh tokens, Alchemy passwords, and Alchemy state tokens are not returned
@@ -525,7 +525,7 @@ outside reviewable source.
   `instance:deployment-config`
 - **AND** projected deployment resource graph entries are runtime desired-state
   content, not reviewable control-plane storage snapshot records
-- **AND** `formless.json` does not store deployment intent or target facts
+- **AND** `formless.ts` does not declare deployment intent or target facts
 - **AND** `deploy-attempt`, `deploy-evidence-summary`,
   cleanup audit summaries, raw leases, and provider
   state payloads are not written as workspace storage state
@@ -538,12 +538,12 @@ outside reviewable source.
 - **THEN** a schema-owned deployment config worker-name value is used when
   present
 - **AND** otherwise the deployment projection may default the worker name from the
-  layout manifest workspace name
-- **AND** `formless.json` does not store a separate worker-name override
+  workspace configuration name
+- **AND** `formless.ts` does not declare a separate worker-name override
 
 #### Scenario: Exclude execution secrets
 
-- **WHEN** browser clients, workspace manifests, storage snapshots, portable
+- **WHEN** browser clients, workspace configuration, storage snapshots, portable
   archives, or desired-state reads inspect deployment state
 - **THEN** provider API tokens, Cloudflare OAuth access tokens, Cloudflare OAuth
   refresh tokens, Alchemy passwords, Alchemy state tokens, raw lease tokens,

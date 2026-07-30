@@ -44,14 +44,11 @@ import { STORAGE_SNAPSHOT_KIND } from "@dpeek/formless-storage";
 import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
   DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT as DEFAULT_FORMLESS_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT,
-  INSTANCE_WORKSPACE_MANIFEST_FILE as FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE,
   WORKSPACE_MEDIA_MANIFEST_FILE,
-  formatInstanceWorkspaceManifest as formatFormlessInstanceWorkspaceManifest,
   nextWorkspaceAutoSaveSavedState,
   normalizeInstanceWorkspaceTargetUrl as normalizeFormlessInstanceWorkspaceTargetUrl,
-  parseInstanceWorkspaceManifestJson as parseFormlessInstanceWorkspaceManifestJson,
   type InstanceWorkspaceDomainIntent as FormlessInstanceWorkspaceDomainIntent,
-  type InstanceWorkspaceManifest as FormlessInstanceWorkspaceManifest,
+  type ResolvedFormlessConfig as FormlessResolvedConfig,
   type InstanceWorkspaceTarget as FormlessInstanceWorkspaceTarget,
   type WorkspacePackageAppSchemaProvenance,
 } from "@dpeek/formless-workspace";
@@ -88,9 +85,8 @@ import {
   createActiveWorkspaceAppPackages,
   createWorkspaceTempRoot,
   formlessInstanceWorkspaceLocalStateRoot,
-  readWorkspaceManifest,
-  workspaceManifestPath,
-  workspaceRootForInput,
+  readWorkspaceConfig,
+  resolveFormlessInstanceWorkspaceRoot,
   workspaceSchemaProvenanceForPackageApp,
   workspaceSourceSchemaForPackageApp,
   type ActiveWorkspaceAppPackages,
@@ -258,8 +254,8 @@ export type CheckFormlessInstanceWorkspaceResult = {
 
 export type CheckLocalFormlessWorkspaceResult =
   | {
-      manifest: FormlessInstanceWorkspaceManifest;
-      manifestPath: string;
+      config: FormlessResolvedConfig;
+      configPath: string;
       mode: "local";
       workspaceRoot: string;
     }
@@ -281,9 +277,9 @@ export type SaveLocalFormlessWorkspaceAppStateSummary = FormlessInstanceWorkspac
 
 export type SaveLocalFormlessWorkspaceResult = {
   appState: SaveLocalFormlessWorkspaceAppStateSummary[];
+  config: FormlessResolvedConfig;
+  configPath: string;
   instanceState: FormlessInstanceWorkspaceStateSummary;
-  manifest: FormlessInstanceWorkspaceManifest;
-  manifestPath: string;
   mode: "check" | "write";
   source: string;
   workspaceRoot: string;
@@ -339,8 +335,8 @@ export async function pullFormlessInstanceWorkspace(
     },
     { env: dependencies.env },
   );
-  const { adminToken, manifest, manifestPath, selectedTarget, workspaceRoot } = context;
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot);
+  const { adminToken, config, selectedTarget, workspaceRoot } = context;
+  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const tempRoot = await createWorkspaceTempRoot(workspaceRoot, "pull");
 
   try {
@@ -369,7 +365,7 @@ export async function pullFormlessInstanceWorkspace(
     };
 
     const localControlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-      manifest,
+      manifest: config,
       packageResolver: activePackages.resolver,
       workspaceRoot,
     });
@@ -378,21 +374,17 @@ export async function pullFormlessInstanceWorkspace(
       operation: "check",
       packageResolver: activePackages.resolver,
     });
-    const localDomainIntents = workspaceDomainIntentsFromSource(manifest, localControlPlane);
+    const localDomainIntents = workspaceDomainIntentsFromSource(localControlPlane);
     const domains = await readLiveWorkspaceDomainIntents(
       { adminToken, target: selectedTarget },
       dependencies,
     );
-    const domainDesiredDrift = shouldCompareWorkspaceDomainIntents(
-      manifest,
-      localDomainIntents,
-      domains,
-    )
+    const domainDesiredDrift = shouldCompareWorkspaceDomainIntents(localDomainIntents, domains)
       ? compareWorkspaceDomainIntentToLive(localDomainIntents, domains)
       : [];
     const localAppState = await readWorkspaceAppStateMapForCheck(
       workspaceRoot,
-      manifest,
+      config,
       localControlPlane,
       activePackages,
     );
@@ -401,7 +393,7 @@ export async function pullFormlessInstanceWorkspace(
       localControlPlane,
       localAppState,
       localDomains: localDomainIntents,
-      manifest,
+      manifest: config,
       packageResolver: activePackages.resolver,
       remoteArchive: pulledInstanceDirectory,
       remoteDomains: domains,
@@ -411,12 +403,12 @@ export async function pullFormlessInstanceWorkspace(
     });
     const appState = pulledAppStateResults({
       archive: pulledInstanceArchive.archive,
-      manifest,
+      manifest: config,
       workspaceRoot,
     });
     const replacement = await pullWorkspaceReplacementPlan({
       localControlPlane,
-      manifest,
+      manifest: config,
       remoteArchive: pulledInstanceDirectory,
       syncPlan,
       workspaceRoot,
@@ -428,7 +420,7 @@ export async function pullFormlessInstanceWorkspace(
         0,
       ),
       recordCount: pulledInstanceArchive.archive.controlPlane?.records.length ?? 0,
-      statePath: path.join(workspaceRoot, instanceWorkspaceInstanceStateRelativePath(manifest)),
+      statePath: path.join(workspaceRoot, instanceWorkspaceInstanceStateRelativePath(config)),
     };
     const noop = replacement.status === "no-changes";
 
@@ -446,9 +438,9 @@ export async function pullFormlessInstanceWorkspace(
       };
     }
 
-    await prepareWorkspaceDirectories(workspaceRoot, manifest);
+    await prepareWorkspaceDirectories(workspaceRoot, config);
     await writeInstanceWorkspaceControlPlaneStorageSnapshot({
-      manifest,
+      manifest: config,
       packageResolver: activePackages.resolver,
       snapshot: pulledInstanceArchive.archive.controlPlane,
       sourceLabel: "Instance archive controlPlane",
@@ -463,17 +455,15 @@ export async function pullFormlessInstanceWorkspace(
     }));
 
     await replaceInstanceWorkspaceAppStorageSnapshots({
-      manifest,
+      manifest: config,
       snapshots: appSnapshots,
       workspaceRoot,
     });
     await replaceInstanceWorkspaceMediaFiles({
-      manifest,
+      manifest: config,
       mediaFiles: workspaceMediaFilesWithObjects(pulledInstanceArchive),
       workspaceRoot,
     });
-
-    await writeFile(manifestPath, formatFormlessInstanceWorkspaceManifest(manifest));
 
     return {
       appState,
@@ -504,8 +494,8 @@ export async function checkFormlessInstanceWorkspace(
     },
     { env: dependencies.env },
   );
-  const { adminToken, manifest, selectedTarget, workspaceRoot } = context;
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot);
+  const { adminToken, config, selectedTarget, workspaceRoot } = context;
+  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const tempRoot = await createWorkspaceTempRoot(workspaceRoot, "check");
 
   try {
@@ -530,7 +520,7 @@ export async function checkFormlessInstanceWorkspace(
     }
 
     const localControlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-      manifest,
+      manifest: config,
       packageResolver: activePackages.resolver,
       workspaceRoot,
     });
@@ -539,7 +529,7 @@ export async function checkFormlessInstanceWorkspace(
       operation: "check",
       packageResolver: activePackages.resolver,
     });
-    const localDomainIntents = workspaceDomainIntentsFromSource(manifest, localControlPlane);
+    const localDomainIntents = workspaceDomainIntentsFromSource(localControlPlane);
     const liveDomains = await readLiveWorkspaceDomainIntents(
       { adminToken, target: selectedTarget },
       dependencies,
@@ -548,16 +538,12 @@ export async function checkFormlessInstanceWorkspace(
       { adminToken, targetUrl: selectedTarget.url },
       dependencies,
     );
-    const domainDesiredDrift = shouldCompareWorkspaceDomainIntents(
-      manifest,
-      localDomainIntents,
-      liveDomains,
-    )
+    const domainDesiredDrift = shouldCompareWorkspaceDomainIntents(localDomainIntents, liveDomains)
       ? compareWorkspaceDomainIntentToLive(localDomainIntents, liveDomains)
       : [];
     const localAppState = await readWorkspaceAppStateMapForCheck(
       workspaceRoot,
-      manifest,
+      config,
       localControlPlane,
       activePackages,
     );
@@ -569,7 +555,7 @@ export async function checkFormlessInstanceWorkspace(
         localControlPlane,
         localAppState,
         localDomains: localDomainIntents,
-        manifest,
+        manifest: config,
         packageResolver: activePackages.resolver,
         remoteArchive,
         remoteDomains: liveDomains,
@@ -593,10 +579,10 @@ export async function checkLocalFormlessWorkspace(
     cwd: dependencies.cwd,
     workspacePath: input.workspacePath,
   });
-  const { manifest, manifestPath } = await readWorkspaceManifest(workspaceRoot);
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot);
+  const { config, configPath } = await readWorkspaceConfig(workspaceRoot);
+  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest,
+    manifest: config,
     packageResolver: activePackages.resolver,
     workspaceRoot,
   });
@@ -609,7 +595,7 @@ export async function checkLocalFormlessWorkspace(
 
   const selectedTarget = await resolveFormlessCliWorkspaceTarget({
     commandName: "check",
-    manifest,
+    config,
     required: false,
     targetAlias: input.targetAlias,
     workspaceRoot,
@@ -617,8 +603,8 @@ export async function checkLocalFormlessWorkspace(
 
   if (!selectedTarget) {
     return {
-      manifest,
-      manifestPath,
+      config,
+      configPath,
       mode: "local",
       workspaceRoot,
     };
@@ -644,16 +630,16 @@ export async function saveLocalFormlessWorkspace(
     cwd: dependencies.cwd,
     workspacePath: input.workspacePath,
   });
-  const { manifest, manifestPath } = await readWorkspaceManifest(workspaceRoot);
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot);
+  const { config, configPath } = await readWorkspaceConfig(workspaceRoot);
+  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const source = await resolveWorkspaceLocalSource({
+    config,
     explicitSource: input.source,
-    manifest,
     workspaceRoot,
   });
   const adminToken = await readWorkspaceLocalAuthorityAdminToken(
     workspaceRoot,
-    manifest,
+    config,
     dependencies,
   );
   const tempRoot = await createWorkspaceTempRoot(workspaceRoot, "save");
@@ -668,9 +654,8 @@ export async function saveLocalFormlessWorkspace(
       },
       dependencies,
     );
-    const nextManifest = workspaceManifestFromSavedAuthoritySource(manifest, exported.archive);
     const currentControlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-      manifest: nextManifest,
+      manifest: config,
       packageResolver: activePackages.resolver,
       workspaceRoot,
     });
@@ -685,11 +670,13 @@ export async function saveLocalFormlessWorkspace(
     });
     const instanceStatePath = path.join(
       workspaceRoot,
-      instanceWorkspaceInstanceStateRelativePath(nextManifest),
+      instanceWorkspaceInstanceStateRelativePath(config),
     );
-    const appState = savedWorkspaceAppStateSummaries(workspaceRoot, nextManifest, exported);
+    const appState = savedWorkspaceAppStateSummaries(workspaceRoot, config, exported);
     const result: SaveLocalFormlessWorkspaceResult = {
       appState,
+      config,
+      configPath,
       instanceState: {
         appCount: exported.archive.apps.length,
         mediaCount: exported.archive.apps.reduce(
@@ -699,8 +686,6 @@ export async function saveLocalFormlessWorkspace(
         recordCount: sourceControlPlane?.records.length ?? 0,
         statePath: instanceStatePath,
       },
-      manifest: nextManifest,
-      manifestPath,
       mode: input.check ? "check" : "write",
       source,
       workspaceRoot,
@@ -709,10 +694,8 @@ export async function saveLocalFormlessWorkspace(
     if (input.check) {
       const stalePaths = await staleSavedWorkspaceSourcePaths({
         activePackages,
+        config,
         exported,
-        manifest,
-        manifestPath,
-        nextManifest,
         sourceControlPlane,
         workspaceRoot,
       });
@@ -728,9 +711,8 @@ export async function saveLocalFormlessWorkspace(
 
     await writeSavedWorkspaceSource({
       activePackages,
+      config,
       exported,
-      manifestPath,
-      nextManifest,
       sourceControlPlane,
       workspaceRoot,
     });
@@ -914,13 +896,13 @@ function emptyRemoteInstanceArchiveDirectory(exportedAt: string): WorkspaceArchi
 
 export async function workspaceLocalRestoreArchiveSource(input: {
   activePackages: ActiveWorkspaceAppPackages;
+  config: FormlessResolvedConfig;
   exportedAt: string;
-  manifest: FormlessInstanceWorkspaceManifest;
   tempRoot: string;
   workspaceRoot: string;
 }): Promise<WorkspaceLocalRestoreArchiveSource | undefined> {
   const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest: input.manifest,
+    manifest: input.config,
     packageResolver: input.activePackages.resolver,
     workspaceRoot: input.workspaceRoot,
   });
@@ -941,7 +923,7 @@ export async function workspaceLocalRestoreArchiveSource(input: {
 
   const appState = await readCompleteWorkspaceAppState(
     input.workspaceRoot,
-    input.manifest,
+    input.config,
     reviewableControlPlane,
     input.activePackages,
   );
@@ -963,25 +945,25 @@ export async function workspaceLocalRestoreArchiveSource(input: {
 }
 
 export async function resolveWorkspaceLocalSource(input: {
+  config: FormlessResolvedConfig;
   explicitSource?: string | null;
-  manifest: FormlessInstanceWorkspaceManifest;
   workspaceRoot: string;
 }): Promise<string> {
   const source =
     input.explicitSource ??
-    (await readWorkspaceLocalDevStateSource(input.workspaceRoot, input.manifest)) ??
+    (await readWorkspaceLocalDevStateSource(input.workspaceRoot, input.config)) ??
     WORKSPACE_DEFAULT_LOCAL_SOURCE;
 
   return normalizeFormlessInstanceWorkspaceTargetUrl(source);
 }
 
 export async function writeWorkspaceLocalDevState(input: {
-  manifest: FormlessInstanceWorkspaceManifest;
+  config: FormlessResolvedConfig;
   source: string;
   startedAt: string;
   workspaceRoot: string;
 }) {
-  const statePath = workspaceLocalDevStatePath(input.workspaceRoot, input.manifest);
+  const statePath = workspaceLocalDevStatePath(input.workspaceRoot, input.config);
   const state: WorkspaceLocalDevState = {
     sourceUrl: input.source,
     startedAt: input.startedAt,
@@ -993,7 +975,7 @@ export async function writeWorkspaceLocalDevState(input: {
 
 async function readWorkspaceLocalDevStateSource(
   workspaceRoot: string,
-  manifest: FormlessInstanceWorkspaceManifest,
+  manifest: FormlessResolvedConfig,
 ): Promise<string | null> {
   let contents: string;
 
@@ -1020,7 +1002,7 @@ async function readWorkspaceLocalDevStateSource(
 
 function workspaceLocalDevStatePath(
   workspaceRoot: string,
-  manifest: FormlessInstanceWorkspaceManifest,
+  manifest: FormlessResolvedConfig,
 ): string {
   return path.join(
     formlessInstanceWorkspaceLocalStateRoot(workspaceRoot, manifest),
@@ -1030,7 +1012,7 @@ function workspaceLocalDevStatePath(
 
 export async function readCompleteWorkspaceAppState(
   workspaceRoot: string,
-  manifest: FormlessInstanceWorkspaceManifest,
+  manifest: FormlessResolvedConfig,
   controlPlane: WorkspaceControlPlaneRecords,
   activePackages: ActiveWorkspaceAppPackages,
 ): Promise<WorkspaceAppStateArchive[]> {
@@ -1045,7 +1027,7 @@ export async function readCompleteWorkspaceAppState(
 
 async function readWorkspaceAppStateMapForCheck(
   workspaceRoot: string,
-  manifest: FormlessInstanceWorkspaceManifest,
+  manifest: FormlessResolvedConfig,
   controlPlane: WorkspaceControlPlaneRecords | undefined,
   activePackages: ActiveWorkspaceAppPackages,
 ): Promise<Map<string, WorkspaceAppStateArchive>> {
@@ -1070,7 +1052,7 @@ async function readWorkspaceAppStateMapForCheck(
 async function readWorkspaceAppStateForCheck(input: {
   activePackages: ActiveWorkspaceAppPackages;
   install: WorkspaceControlPlaneAppInstallRecord;
-  manifest: FormlessInstanceWorkspaceManifest;
+  manifest: FormlessResolvedConfig;
   workspaceRoot: string;
 }): Promise<WorkspaceAppStateArchive | undefined> {
   const packageApp = findResolvedAppPackage(
@@ -1140,18 +1122,9 @@ async function exportWorkspaceSourceFromLocalAuthority(
   };
 }
 
-function workspaceManifestFromSavedAuthoritySource(
-  manifest: FormlessInstanceWorkspaceManifest,
-  _archive: InstanceArchive,
-): FormlessInstanceWorkspaceManifest {
-  return parseFormlessInstanceWorkspaceManifestJson(
-    formatFormlessInstanceWorkspaceManifest(manifest),
-  );
-}
-
 function savedWorkspaceAppStateSummaries(
   workspaceRoot: string,
-  manifest: FormlessInstanceWorkspaceManifest,
+  manifest: FormlessResolvedConfig,
   directory: WorkspaceInstanceArchiveDirectory,
 ): SaveLocalFormlessWorkspaceAppStateSummary[] {
   return directory.archive.apps.map((app) => ({
@@ -1204,23 +1177,15 @@ function controlPlaneRecordEntity(record: StoredRecord): string | undefined {
 
 async function staleSavedWorkspaceSourcePaths(input: {
   activePackages: ActiveWorkspaceAppPackages;
+  config: FormlessResolvedConfig;
   exported: WorkspaceInstanceArchiveDirectory;
-  manifest: FormlessInstanceWorkspaceManifest;
-  manifestPath: string;
-  nextManifest: FormlessInstanceWorkspaceManifest;
   sourceControlPlane: WorkspaceControlPlaneRecords | undefined;
   workspaceRoot: string;
 }): Promise<string[]> {
   const stalePaths = new Set<string>();
-  const currentManifest = formatFormlessInstanceWorkspaceManifest(input.manifest);
-  const nextManifest = formatFormlessInstanceWorkspaceManifest(input.nextManifest);
-
-  if (currentManifest !== nextManifest) {
-    stalePaths.add(path.basename(input.manifestPath));
-  }
 
   const localControlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest: input.nextManifest,
+    manifest: input.config,
     packageResolver: input.activePackages.resolver,
     workspaceRoot: input.workspaceRoot,
   });
@@ -1229,12 +1194,12 @@ async function staleSavedWorkspaceSourcePaths(input: {
     comparableControlPlaneIntentRecordsJson(localControlPlane, input.activePackages.resolver) !==
     comparableControlPlaneIntentRecordsJson(input.sourceControlPlane, input.activePackages.resolver)
   ) {
-    stalePaths.add(instanceWorkspaceInstanceStateRelativePath(input.nextManifest));
+    stalePaths.add(instanceWorkspaceInstanceStateRelativePath(input.config));
   }
 
   for (const exportedApp of input.exported.archive.apps) {
     const appStatePath = instanceWorkspaceAppStateRelativePath(
-      input.nextManifest,
+      input.config,
       exportedApp.app.installId,
     );
     const expected = workspaceAppStateArchiveFromInstanceExport(
@@ -1251,7 +1216,7 @@ async function staleSavedWorkspaceSourcePaths(input: {
         : await readWorkspaceAppStateForCheck({
             activePackages: input.activePackages,
             install,
-            manifest: input.nextManifest,
+            manifest: input.config,
             workspaceRoot: input.workspaceRoot,
           });
 
@@ -1265,21 +1230,20 @@ async function staleSavedWorkspaceSourcePaths(input: {
 
 async function writeSavedWorkspaceSource(input: {
   activePackages: ActiveWorkspaceAppPackages;
+  config: FormlessResolvedConfig;
   exported: WorkspaceInstanceArchiveDirectory;
-  manifestPath: string;
-  nextManifest: FormlessInstanceWorkspaceManifest;
   sourceControlPlane: WorkspaceControlPlaneRecords | undefined;
   workspaceRoot: string;
 }) {
-  await prepareWorkspaceDirectories(input.workspaceRoot, input.nextManifest);
+  await prepareWorkspaceDirectories(input.workspaceRoot, input.config);
   await writeInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest: input.nextManifest,
+    manifest: input.config,
     packageResolver: input.activePackages.resolver,
     snapshot: input.sourceControlPlane,
     workspaceRoot: input.workspaceRoot,
   });
   await replaceInstanceWorkspaceAppStorageSnapshots({
-    manifest: input.nextManifest,
+    manifest: input.config,
     snapshots: input.exported.archive.apps.map((app) => ({
       installId: app.app.installId,
       schemaProvenance: workspaceSchemaProvenanceForAppArchive(app),
@@ -1288,12 +1252,10 @@ async function writeSavedWorkspaceSource(input: {
     workspaceRoot: input.workspaceRoot,
   });
   await replaceInstanceWorkspaceMediaFiles({
-    manifest: input.nextManifest,
+    manifest: input.config,
     mediaFiles: workspaceMediaFilesWithObjects(input.exported),
     workspaceRoot: input.workspaceRoot,
   });
-
-  await writeFile(input.manifestPath, formatFormlessInstanceWorkspaceManifest(input.nextManifest));
 }
 
 async function markWorkspaceAutoSaveSavedAfterWorkspaceSourceWrite(input: {
@@ -1335,7 +1297,7 @@ function workspaceAppStateArchiveFromInstanceExport(
 async function workspaceAppStateArchiveFromSnapshot(input: {
   activePackages: ActiveWorkspaceAppPackages;
   install: WorkspaceControlPlaneAppInstallRecord;
-  manifest: FormlessInstanceWorkspaceManifest;
+  manifest: FormlessResolvedConfig;
   snapshot: StorageSnapshot;
   workspaceRoot: string;
 }): Promise<WorkspaceAppStateArchive> {
@@ -1404,7 +1366,7 @@ function appArchiveFromWorkspaceSnapshot(input: {
 
 async function workspaceAppArchiveMediaFromSnapshot(input: {
   archive: AppArchive;
-  manifest: FormlessInstanceWorkspaceManifest;
+  manifest: FormlessResolvedConfig;
   workspaceRoot: string;
 }): Promise<{
   mediaFiles: ArchiveDiskMediaFile[];
@@ -1457,7 +1419,7 @@ export function workspaceSchemaProvenanceForAppArchive(
 
 function pulledAppStateResults(input: {
   archive: InstanceArchive;
-  manifest: FormlessInstanceWorkspaceManifest;
+  manifest: FormlessResolvedConfig;
   workspaceRoot: string;
 }): PullFormlessInstanceWorkspaceAppStateResult[] {
   return archiveApps(input.archive)
@@ -1481,7 +1443,7 @@ function pulledAppStateResults(input: {
 
 async function pullWorkspaceReplacementPlan(input: {
   localControlPlane: WorkspaceControlPlaneRecords | undefined;
-  manifest: FormlessInstanceWorkspaceManifest;
+  manifest: FormlessResolvedConfig;
   remoteArchive: WorkspaceInstanceArchiveDirectory;
   syncPlan: FormlessInstanceWorkspaceSyncPlan;
   workspaceRoot: string;
@@ -1747,7 +1709,7 @@ function createWorkspaceSyncPlan(input: {
   localControlPlane: WorkspaceControlPlaneRecords | undefined;
   localAppState: ReadonlyMap<string, WorkspaceAppStateArchive>;
   localDomains: readonly FormlessInstanceWorkspaceDomainIntent[];
-  manifest: FormlessInstanceWorkspaceManifest;
+  manifest: FormlessResolvedConfig;
   packageResolver: AppPackageResolver;
   remoteArchive: WorkspaceArchiveDirectory;
   remoteDomains: readonly FormlessInstanceWorkspaceDomainIntent[];
@@ -1923,7 +1885,7 @@ function createWorkspaceForcedRecoverySyncPlan(input: {
   localControlPlane: WorkspaceControlPlaneRecords | undefined;
   localAppState: ReadonlyMap<string, WorkspaceAppStateArchive>;
   localDomains: readonly FormlessInstanceWorkspaceDomainIntent[];
-  manifest: FormlessInstanceWorkspaceManifest;
+  manifest: FormlessResolvedConfig;
   packageResolver: AppPackageResolver;
   targetLabel: string;
 }): FormlessInstanceWorkspaceSyncPlan {
@@ -2403,7 +2365,7 @@ export type PrepareWorkspacePushSourceSyncInput = {
   existingSelectedTarget?: FormlessInstanceWorkspaceTarget;
   force?: boolean;
   forcedRecoveryStatus: PushFormlessInstanceWorkspaceForcedRecoveryPlan["status"];
-  manifest: FormlessInstanceWorkspaceManifest;
+  manifest: FormlessResolvedConfig;
   selectedTarget: FormlessInstanceWorkspaceTarget;
   tempRoot: string;
   workspaceRoot: string;
@@ -2422,7 +2384,10 @@ export async function prepareWorkspacePushSourceSync(
   input: PrepareWorkspacePushSourceSyncInput,
   dependencies: WorkspacePushSourceSyncDependencies,
 ): Promise<PrepareWorkspacePushSourceSyncResult> {
-  const activePackages = await createActiveWorkspaceAppPackages(input.workspaceRoot);
+  const activePackages = await createActiveWorkspaceAppPackages(
+    input.workspaceRoot,
+    input.manifest,
+  );
   const localControlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
     manifest: input.manifest,
     packageResolver: activePackages.resolver,
@@ -2435,7 +2400,7 @@ export async function prepareWorkspacePushSourceSync(
     packageResolver: activePackages.resolver,
   });
 
-  const localDomainIntents = workspaceDomainIntentsFromSource(input.manifest, localControlPlane);
+  const localDomainIntents = workspaceDomainIntentsFromSource(localControlPlane);
   const liveDomains =
     input.existingSelectedTarget === undefined
       ? []
@@ -2446,11 +2411,7 @@ export async function prepareWorkspacePushSourceSync(
           },
           dependencies,
         );
-  const domainDesiredDrift = shouldCompareWorkspaceDomainIntents(
-    input.manifest,
-    localDomainIntents,
-    liveDomains,
-  )
+  const domainDesiredDrift = shouldCompareWorkspaceDomainIntents(localDomainIntents, liveDomains)
     ? compareWorkspaceDomainIntentToLive(localDomainIntents, liveDomains)
     : [];
   const localAppState = await readWorkspaceAppStateForPush(
@@ -2557,7 +2518,7 @@ export async function restoreWorkspacePushSourceArchive(
 
 async function readWorkspaceAppStateForPush(
   workspaceRoot: string,
-  manifest: FormlessInstanceWorkspaceManifest,
+  manifest: FormlessResolvedConfig,
   controlPlane: WorkspaceControlPlaneRecords | undefined,
   activePackages: ActiveWorkspaceAppPackages,
 ): Promise<WorkspaceAppStateArchive[]> {
@@ -2573,7 +2534,7 @@ async function readWorkspaceAppStateForPush(
 async function readRequiredWorkspaceAppState(input: {
   activePackages: ActiveWorkspaceAppPackages;
   controlPlane: WorkspaceControlPlaneRecords | undefined;
-  manifest: FormlessInstanceWorkspaceManifest;
+  manifest: FormlessResolvedConfig;
   operation: "local dev" | "push";
   workspaceRoot: string;
 }): Promise<WorkspaceAppStateArchive[]> {
@@ -2791,13 +2752,8 @@ export async function readLiveWorkspaceDomainIntents(
 }
 
 export function workspaceDomainIntentsFromSource(
-  manifest: FormlessInstanceWorkspaceManifest,
   controlPlane: WorkspaceControlPlaneRecords | undefined,
 ): FormlessInstanceWorkspaceDomainIntent[] {
-  if (manifest.domains !== undefined) {
-    return [...manifest.domains].sort(compareWorkspaceDomainIntents);
-  }
-
   return (controlPlane?.records ?? [])
     .filter(
       (record) =>
@@ -2811,13 +2767,10 @@ export function workspaceDomainIntentsFromSource(
 }
 
 function shouldCompareWorkspaceDomainIntents(
-  manifest: FormlessInstanceWorkspaceManifest,
   localDomainIntents: readonly FormlessInstanceWorkspaceDomainIntent[],
   liveDomains: readonly FormlessInstanceWorkspaceDomainIntent[],
 ): boolean {
-  return (
-    manifest.domains !== undefined || (localDomainIntents.length > 0 && liveDomains.length > 0)
-  );
+  return localDomainIntents.length > 0 || liveDomains.length > 0;
 }
 
 function workspaceDomainIntentFromRouteRecord(record: {
@@ -2974,40 +2927,9 @@ function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
 }
 
-async function resolveFormlessInstanceWorkspaceRoot(input: {
-  cwd: string;
-  workspacePath?: string | null;
-}): Promise<string> {
-  if (input.workspacePath === undefined || input.workspacePath === null) {
-    return discoverFormlessInstanceWorkspaceRoot(input.cwd);
-  }
-
-  return workspaceRootForInput(input.cwd, input.workspacePath);
-}
-
-async function discoverFormlessInstanceWorkspaceRoot(cwd: string): Promise<string> {
-  let directory = path.resolve(cwd);
-
-  while (true) {
-    if (await pathExists(workspaceManifestPath(directory))) {
-      return directory;
-    }
-
-    const parent = path.dirname(directory);
-
-    if (parent === directory) {
-      throw new Error(
-        `Could not find ${FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE} from ${path.resolve(cwd)}.`,
-      );
-    }
-
-    directory = parent;
-  }
-}
-
 async function readWorkspaceLocalAuthorityAdminToken(
   workspaceRoot: string,
-  manifest: FormlessInstanceWorkspaceManifest,
+  manifest: FormlessResolvedConfig,
   dependencies: { env?: NodeJS.ProcessEnv },
 ): Promise<string | null> {
   const envAdminToken = resolveFormlessInstanceWorkspaceAdminToken({ env: dependencies.env });
@@ -3042,23 +2964,9 @@ async function readWorkspaceAdminToken(
   });
 }
 
-async function pathExists(filePath: string): Promise<boolean> {
-  try {
-    await readFile(filePath);
-
-    return true;
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return false;
-    }
-
-    throw error;
-  }
-}
-
 async function prepareWorkspaceDirectories(
   workspaceRoot: string,
-  manifest: FormlessInstanceWorkspaceManifest,
+  manifest: FormlessResolvedConfig,
 ) {
   await mkdir(path.join(workspaceRoot, manifest.local.stateRoot), { recursive: true });
 }

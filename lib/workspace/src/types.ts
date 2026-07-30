@@ -5,9 +5,9 @@
  * local state, and operation declarations move here as their surfaces are
  * extracted into this package.
  */
-export const INSTANCE_WORKSPACE_MANIFEST_FILE = "formless.json";
-export const INSTANCE_WORKSPACE_MANIFEST_VERSION = 1;
-export const INSTANCE_WORKSPACE_KIND = "formless-instance-workspace";
+export const FORMLESS_CONFIG_FILE = "formless.ts";
+export const FORMLESS_CONFIG_VERSION = 1;
+export const FORMLESS_CONFIG_KIND = "formless-instance-workspace";
 export const DEFAULT_INSTANCE_WORKSPACE_TARGET_ALIAS = "remote";
 export const DEFAULT_INSTANCE_WORKSPACE_ARCHIVE_ROOT = "archives";
 export const DEFAULT_INSTANCE_WORKSPACE_STATE_ROOT = "state";
@@ -812,37 +812,7 @@ export type UpdateWorkspaceOperationStateInput = {
   workspaceRoot: string;
 };
 
-export type InstanceWorkspaceDefaultAppPolicy = "declared-installs" | "none";
-
 export type InstanceWorkspaceDomainProfile = "app" | "instance" | "publicSite";
-
-export type InstanceWorkspaceManifest = {
-  version: typeof INSTANCE_WORKSPACE_MANIFEST_VERSION;
-  kind: typeof INSTANCE_WORKSPACE_KIND;
-  name: string;
-  state: InstanceWorkspaceState;
-  defaultTarget?: string;
-  targets: InstanceWorkspaceTarget[];
-  media: InstanceWorkspaceMedia;
-  local: InstanceWorkspaceLocalState;
-  packages: InstanceWorkspacePackages;
-  defaultAppPolicy: InstanceWorkspaceDefaultAppPolicy;
-  apps: InstanceWorkspaceApp[];
-  domains?: InstanceWorkspaceDomainIntent[];
-  runtime?: InstanceWorkspaceRuntime;
-};
-
-export type FormatInstanceWorkspaceManifestInput = Pick<
-  InstanceWorkspaceManifest,
-  "kind" | "name" | "version"
-> &
-  Partial<
-    Omit<InstanceWorkspaceManifest, "kind" | "local" | "name" | "packages" | "state" | "version">
-  > & {
-    local?: Partial<InstanceWorkspaceLocalState>;
-    packages?: Partial<InstanceWorkspacePackages>;
-    state?: Partial<InstanceWorkspaceState>;
-  };
 
 export type InstanceWorkspaceTarget = {
   alias: string;
@@ -873,6 +843,51 @@ export type InstanceWorkspaceRuntimeExtensions = {
 export type InstanceWorkspaceSitePublicRendererExtension = {
   browser: string;
   worker: string;
+};
+
+export type FormlessConfig = {
+  name: string;
+  state?: FormlessConfigState;
+  media?: FormlessConfigMedia;
+  local?: FormlessConfigLocalState;
+  packages?: FormlessConfigPackages;
+  runtime?: FormlessConfigRuntime;
+};
+
+export type FormlessConfigState = {
+  root?: string;
+};
+
+export type FormlessConfigMedia = {
+  root?: string;
+};
+
+export type FormlessConfigLocalState = {
+  stateRoot?: string;
+  secretStateRoot?: string;
+};
+
+export type FormlessConfigPackages = {
+  links?: readonly WorkspacePackageLink[];
+};
+
+export type FormlessConfigRuntime = {
+  extensions?: InstanceWorkspaceRuntimeExtensions;
+};
+
+export type ResolvedFormlessConfig = {
+  version: typeof FORMLESS_CONFIG_VERSION;
+  kind: typeof FORMLESS_CONFIG_KIND;
+  name: string;
+  state: InstanceWorkspaceState;
+  media: InstanceWorkspaceMedia;
+  local: InstanceWorkspaceLocalState;
+  packages: InstanceWorkspacePackages;
+  runtime: ResolvedFormlessConfigRuntime;
+};
+
+export type ResolvedFormlessConfigRuntime = {
+  extensions: InstanceWorkspaceRuntimeExtensions;
 };
 
 export type InstanceWorkspaceApp = {

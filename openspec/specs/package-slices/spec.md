@@ -1106,8 +1106,9 @@ runtime storage, provider execution, or app records.
 
 #### Scenario: Package owns workspace contracts and local adapters
 
-- GIVEN `formless.json` manifest parsing, workspace path defaults, target URL
-  normalization, reviewable Program storage snapshot contracts, ignored
+- GIVEN `formless.ts` configuration contracts, default resolution, operational
+  path validation, workspace path defaults, target URL normalization,
+  reviewable Program storage snapshot contracts, ignored
   local or secret state file contracts, semantic workspace operation inputs,
   display-safe operation state, operation result shapes, operation redaction, or
   deterministic local filesystem workspace IO are needed

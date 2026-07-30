@@ -246,7 +246,7 @@ async function resolveWorkspaceOperationRoot(
         return path.resolve(dependencies.cwd, input.workspacePath);
       }
 
-      if (error instanceof Error && error.message.includes("Could not find formless.json")) {
+      if (error instanceof Error && error.message.includes("Could not find formless.ts")) {
         return path.resolve(dependencies.cwd);
       }
 

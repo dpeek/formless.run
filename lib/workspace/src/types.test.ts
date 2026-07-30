@@ -2,11 +2,6 @@ import { describe, expect, it } from "vite-plus/test";
 import type { AppSchema } from "@dpeek/formless-schema";
 
 import {
-  DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT,
-  DEFAULT_INSTANCE_WORKSPACE_MEDIA_ROOT,
-  DEFAULT_INSTANCE_WORKSPACE_SECRET_STATE_ROOT,
-  DEFAULT_INSTANCE_WORKSPACE_STATE_ROOT,
-  INSTANCE_WORKSPACE_MANIFEST_FILE,
   WORKSPACE_RECORD_STATE_FILE_KIND,
   WORKSPACE_RECORD_STATE_FILE_VERSION,
   WORKSPACE_BROWSER_OPERATION_DEFINITIONS,
@@ -26,12 +21,9 @@ import {
   WORKSPACE_AUTO_SAVE_STATE_FILE_VERSION,
   WORKSPACE_AUTO_SAVE_SUPPRESSION_REASONS,
   WORKSPACE_AUTO_SAVE_WRITE_SOURCES,
-  defaultInstanceWorkspacePackages,
-  defaultInstanceWorkspaceManifest,
   formatWorkspaceAutoSaveState,
   formatWorkspaceRecordStateFile,
   formatWorkspaceOperationState,
-  formatInstanceWorkspaceManifest,
   assertWorkspaceOperationExecutionRequirements,
   initialWorkspaceAutoSaveState,
   initialWorkspaceOperationState,
@@ -57,18 +49,12 @@ import {
   isWorkspaceOperationExecutionRequirement,
   isWorkspaceOperationKind,
   nextWorkspaceOperationState,
-  normalizeInstanceWorkspaceTargetUrl,
   nextWorkspaceAutoSaveEnqueuedState,
   nextWorkspaceAutoSaveFailedState,
   nextWorkspaceAutoSaveSavedState,
   nextWorkspaceAutoSaveSavingState,
   nextWorkspaceAutoSaveSuppressedState,
-  parseInstanceWorkspaceManifest,
-  parseInstanceWorkspaceManifestJson,
-  parseInstanceWorkspaceRelativePath,
-  parseInstanceWorkspaceResourceSlug,
   parseWorkspaceAutoSaveStateJson,
-  parseWorkspacePackageManifestLinkPath,
   parseWorkspaceRecordStateFile,
   parseWorkspaceRecordStateFileJson,
   parseWorkspaceOperationId,
@@ -86,7 +72,6 @@ import {
   type WorkspacePackageAppRecordStateFile,
 } from "./index.ts";
 
-const sitePublicRendererExtensionKey = "site.publicRenderer";
 const workspaceRecordStateSchema = {
   version: 1,
   entities: [
@@ -106,312 +91,6 @@ const workspaceRecordStateSchema = {
   views: [],
   screens: [],
 } as AppSchema;
-
-describe("instance workspace manifest", () => {
-  it("creates a layout-only reviewable workspace manifest", () => {
-    expect(INSTANCE_WORKSPACE_MANIFEST_FILE).toBe("formless.json");
-    expect(
-      defaultInstanceWorkspaceManifest({
-        name: "personal-sites",
-        targetUrl: "https://formless.example.workers.dev/setup?token=ignored",
-      }),
-    ).toEqual({
-      version: 1,
-      kind: "formless-instance-workspace",
-      name: "personal-sites",
-      state: {
-        root: DEFAULT_INSTANCE_WORKSPACE_STATE_ROOT,
-      },
-      targets: [],
-      media: {
-        root: DEFAULT_INSTANCE_WORKSPACE_MEDIA_ROOT,
-      },
-      local: {
-        stateRoot: DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT,
-        secretStateRoot: DEFAULT_INSTANCE_WORKSPACE_SECRET_STATE_ROOT,
-      },
-      packages: defaultInstanceWorkspacePackages(),
-      defaultAppPolicy: "none",
-      apps: [],
-    });
-  });
-
-  it("parses and formats valid layout paths", () => {
-    const manifest = parseInstanceWorkspaceManifest({
-      version: 1,
-      kind: "formless-instance-workspace",
-      name: "personal-sites",
-      state: {
-        root: "state",
-      },
-      media: {
-        root: "state/media",
-      },
-      local: {
-        stateRoot: ".formless/local",
-        secretStateRoot: ".formless",
-      },
-    });
-    const formatted = formatInstanceWorkspaceManifest(manifest);
-
-    expect(manifest).toEqual({
-      version: 1,
-      kind: "formless-instance-workspace",
-      name: "personal-sites",
-      state: {
-        root: "state",
-      },
-      targets: [],
-      media: {
-        root: "state/media",
-      },
-      local: {
-        stateRoot: ".formless/local",
-        secretStateRoot: ".formless",
-      },
-      packages: defaultInstanceWorkspacePackages(),
-      defaultAppPolicy: "none",
-      apps: [],
-    });
-    expect(formatted).toBe(`${JSON.stringify(JSON.parse(formatted), null, 2)}\n`);
-    expect(JSON.parse(formatted)).toEqual({
-      version: 1,
-      kind: "formless-instance-workspace",
-      name: "personal-sites",
-      state: {
-        root: "state",
-      },
-      media: {
-        root: "state/media",
-      },
-      local: {
-        stateRoot: ".formless/local",
-        secretStateRoot: ".formless",
-      },
-    });
-    expect(parseInstanceWorkspaceManifestJson(formatted)).toEqual(manifest);
-  });
-
-  it("parses and formats optional workspace runtime extensions", () => {
-    const manifest = parseInstanceWorkspaceManifest({
-      ...layoutManifestSource(),
-      runtime: {
-        extensions: {
-          [sitePublicRendererExtensionKey]: {
-            browser: "renderers/site-public.browser.tsx",
-            worker: "renderers/site-public.worker.tsx",
-          },
-        },
-      },
-    });
-    const formatted = formatInstanceWorkspaceManifest(manifest);
-
-    expect(manifest.runtime).toEqual({
-      extensions: {
-        [sitePublicRendererExtensionKey]: {
-          browser: "renderers/site-public.browser.tsx",
-          worker: "renderers/site-public.worker.tsx",
-        },
-      },
-    });
-    expect(JSON.parse(formatted)).toMatchObject({
-      runtime: {
-        extensions: {
-          [sitePublicRendererExtensionKey]: {
-            browser: "renderers/site-public.browser.tsx",
-            worker: "renderers/site-public.worker.tsx",
-          },
-        },
-      },
-    });
-    expect(parseInstanceWorkspaceManifestJson(formatted)).toEqual(manifest);
-  });
-
-  it("rejects secrets and unsupported keys in reviewable workspace manifests", () => {
-    expect(() =>
-      parseInstanceWorkspaceManifest({
-        version: 1,
-        kind: "formless-instance-workspace",
-        name: "personal-sites",
-        state: {
-          root: "state",
-        },
-        media: {
-          root: "state/media",
-        },
-        local: {
-          stateRoot: ".formless/local",
-          secretStateRoot: ".formless",
-        },
-        deploy: {
-          adminToken: "secret",
-        },
-      }),
-    ).toThrow('formless.json must not store secret field "formless.json.deploy.adminToken".');
-
-    expect(() =>
-      parseInstanceWorkspaceManifest({
-        ...layoutManifestSource(),
-        local: {
-          stateRoot: ".formless/local",
-          secretStateRoot: ".formless",
-          apiToken: "secret",
-        },
-      }),
-    ).toThrow('formless.json must not store secret field "formless.json.local.apiToken".');
-
-    expect(() =>
-      parseInstanceWorkspaceManifest({
-        version: 1,
-        kind: "formless-instance-workspace",
-        name: "personal-sites",
-        state: {
-          root: "state",
-        },
-        media: {
-          root: "state/media",
-        },
-        local: {
-          stateRoot: ".formless/local",
-          secretStateRoot: ".formless",
-        },
-        extra: true,
-      }),
-    ).toThrow('formless.json has unsupported key "extra".');
-  });
-
-  it("rejects invalid workspace runtime extension config", () => {
-    const invalidEntryPaths = [
-      ["absolute", "/src/renderer.tsx"],
-      ["URL-like", "https://example.com/renderer.tsx"],
-      ["home-relative", "~/renderer.tsx"],
-      ["parent traversal", "src/../renderer.tsx"],
-      ["empty", ""],
-    ] as const;
-
-    for (const [label, browser] of invalidEntryPaths) {
-      expect(
-        () =>
-          parseInstanceWorkspaceManifest({
-            ...layoutManifestSource(),
-            runtime: {
-              extensions: {
-                [sitePublicRendererExtensionKey]: {
-                  browser,
-                  worker: "renderers/site-public.worker.tsx",
-                },
-              },
-            },
-          }),
-        label,
-      ).toThrow(
-        label === "empty"
-          ? `formless.json runtime.extensions["${sitePublicRendererExtensionKey}"].browser must be a non-empty string.`
-          : `formless.json runtime.extensions["${sitePublicRendererExtensionKey}"].browser must be a local workspace-relative path.`,
-      );
-    }
-
-    expect(() =>
-      parseInstanceWorkspaceManifest({
-        ...layoutManifestSource(),
-        runtime: {
-          extensions: {
-            "site.adminRenderer": {
-              browser: "src/admin.tsx",
-              worker: "src/admin.worker.tsx",
-            },
-          },
-        },
-      }),
-    ).toThrow('formless.json runtime.extensions has unsupported key "site.adminRenderer".');
-
-    expect(() =>
-      parseInstanceWorkspaceManifest({
-        ...layoutManifestSource(),
-        runtime: {
-          extensions: {
-            [sitePublicRendererExtensionKey]: {
-              browser: "renderers/site-public.browser.tsx",
-              worker: "renderers/site-public.worker.tsx",
-              apiToken: "secret",
-            },
-          },
-        },
-      }),
-    ).toThrow(
-      `formless.json must not store secret field "formless.json.runtime.extensions.${sitePublicRendererExtensionKey}.apiToken".`,
-    );
-
-    expect(() =>
-      parseInstanceWorkspaceManifestJson(`{
-  "version": 1,
-  "kind": "formless-instance-workspace",
-  "name": "personal-sites",
-  "state": { "root": "state" },
-  "media": { "root": "state/media" },
-  "local": { "stateRoot": ".formless/local", "secretStateRoot": ".formless" },
-  "runtime": {
-    "extensions": {
-      "site.publicRenderer": {
-        "browser": "renderers/first.browser.tsx",
-        "worker": "renderers/first.worker.tsx"
-      },
-      "site.publicRenderer": {
-        "browser": "renderers/second.browser.tsx",
-        "worker": "renderers/second.worker.tsx"
-      }
-    }
-  }
-}`),
-    ).toThrow('formless.json runtime.extensions has duplicate extension "site.publicRenderer".');
-  });
-
-  it("validates resource slugs and layout paths", () => {
-    expect(parseInstanceWorkspaceResourceSlug("workspace name", "personal-sites")).toBe(
-      "personal-sites",
-    );
-    expect(parseInstanceWorkspaceRelativePath("workspace path", "records/source")).toBe(
-      "records/source",
-    );
-
-    expect(() =>
-      parseInstanceWorkspaceManifest({
-        ...layoutManifestSource(),
-        state: { root: "../state" },
-      }),
-    ).toThrow("formless.json state.root must be a relative workspace path.");
-
-    expect(() =>
-      parseInstanceWorkspaceManifest({
-        ...layoutManifestSource(),
-        state: { root: "/state" },
-      }),
-    ).toThrow("formless.json state.root must be a relative workspace path.");
-
-    expect(() =>
-      parseInstanceWorkspaceManifest({
-        ...layoutManifestSource(),
-        media: { root: "media//files" },
-      }),
-    ).toThrow("formless.json media.root must be a relative workspace path.");
-
-    expect(() =>
-      parseInstanceWorkspaceManifest({
-        ...layoutManifestSource(),
-        local: { stateRoot: ".formless/local", secretStateRoot: ".." },
-      }),
-    ).toThrow("formless.json local.secretStateRoot must be a relative workspace path.");
-  });
-
-  it("normalizes target URLs to origins", () => {
-    expect(normalizeInstanceWorkspaceTargetUrl("https://example.com/path?x=1#top")).toBe(
-      "https://example.com",
-    );
-    expect(() => normalizeInstanceWorkspaceTargetUrl("file:///tmp/archive")).toThrow(
-      "Formless instance workspace target URL is invalid: file:///tmp/archive",
-    );
-  });
-});
 
 describe("workspace record state contracts", () => {
   it("declares package app and control-plane schema provenance fields", () => {
@@ -588,150 +267,6 @@ describe("workspace record state contracts", () => {
       }),
     ).toThrow(
       'Workspace record state file schemaProvenance.kind must be "instance-control-plane".',
-    );
-  });
-});
-
-describe("workspace manifest package links", () => {
-  it("parses omitted package links as empty reviewable dependency config", () => {
-    const manifest = parseInstanceWorkspaceManifest(layoutManifestSource());
-    const formatted = formatInstanceWorkspaceManifest(manifest);
-
-    expect(manifest.packages).toEqual(defaultInstanceWorkspacePackages());
-    expect(formatted).toBe(`${JSON.stringify(JSON.parse(formatted), null, 2)}\n`);
-    expect(JSON.parse(formatted)).not.toHaveProperty("packages");
-    expect(parseInstanceWorkspaceManifestJson(formatted)).toEqual(manifest);
-  });
-
-  it("parses and formats sibling app package manifest links", () => {
-    const manifest = parseInstanceWorkspaceManifest({
-      ...layoutManifestSource(),
-      packages: {
-        links: [
-          {
-            manifest: "../app/formless.app.json",
-          },
-          {
-            manifest: "packages/private-labs/formless.app.json",
-          },
-        ],
-      },
-    });
-    const formatted = formatInstanceWorkspaceManifest(manifest);
-
-    expect(parseWorkspacePackageManifestLinkPath("package link", "../app/formless.app.json")).toBe(
-      "../app/formless.app.json",
-    );
-    expect(manifest.packages).toEqual({
-      links: [
-        {
-          manifest: "../app/formless.app.json",
-        },
-        {
-          manifest: "packages/private-labs/formless.app.json",
-        },
-      ],
-    });
-    expect(JSON.parse(formatted)).toMatchObject({
-      packages: {
-        links: [
-          {
-            manifest: "../app/formless.app.json",
-          },
-          {
-            manifest: "packages/private-labs/formless.app.json",
-          },
-        ],
-      },
-    });
-    expect(parseInstanceWorkspaceManifestJson(formatted)).toEqual(manifest);
-  });
-
-  it("rejects duplicate package manifest links", () => {
-    expect(() =>
-      parseInstanceWorkspaceManifest({
-        ...layoutManifestSource(),
-        packages: {
-          links: [
-            {
-              manifest: "../app/formless.app.json",
-            },
-            {
-              manifest: " ../app/formless.app.json ",
-            },
-          ],
-        },
-      }),
-    ).toThrow('formless.json packages.links has duplicate manifest "../app/formless.app.json".');
-  });
-
-  it("rejects invalid package manifest link paths", () => {
-    for (const manifest of [
-      "/app/formless.app.json",
-      "https://example.com/formless.app.json",
-      "file:///app/formless.app.json",
-      "~/app/formless.app.json",
-      "",
-      " ",
-      "packages\\app\\formless.app.json",
-      "packages//app/formless.app.json",
-      "packages/./app/formless.app.json",
-      "packages/app/../formless.app.json",
-      "packages/app/manifest.json",
-    ]) {
-      expect(() =>
-        parseInstanceWorkspaceManifest({
-          ...layoutManifestSource(),
-          packages: {
-            links: [
-              {
-                manifest,
-              },
-            ],
-          },
-        }),
-      ).toThrow(/formless\.json packages\.links\[0\]\.manifest/);
-    }
-  });
-
-  it("rejects unsupported fields and secret-looking package link fields", () => {
-    expect(() =>
-      parseInstanceWorkspaceManifest({
-        ...layoutManifestSource(),
-        packages: {
-          paths: [],
-        },
-      }),
-    ).toThrow('formless.json packages has unsupported key "paths".');
-
-    expect(() =>
-      parseInstanceWorkspaceManifest({
-        ...layoutManifestSource(),
-        packages: {
-          links: [
-            {
-              manifest: "../app/formless.app.json",
-              label: "Private app",
-            },
-          ],
-        },
-      }),
-    ).toThrow('formless.json packages.links[0] has unsupported key "label".');
-
-    expect(() =>
-      parseInstanceWorkspaceManifest({
-        ...layoutManifestSource(),
-        packages: {
-          links: [
-            {
-              manifest: "../app/formless.app.json",
-              adminToken: "secret",
-            },
-          ],
-        },
-      }),
-    ).toThrow(
-      'formless.json must not store secret field "formless.json.packages.links[0].adminToken".',
     );
   });
 });
@@ -1412,24 +947,6 @@ describe("workspace auto-save state contracts", () => {
     ).toThrow("Workspace auto-save state file is invalid.");
   });
 });
-
-function layoutManifestSource(): Record<string, unknown> {
-  return {
-    version: 1,
-    kind: "formless-instance-workspace",
-    name: "personal-sites",
-    state: {
-      root: "state",
-    },
-    media: {
-      root: "state/media",
-    },
-    local: {
-      stateRoot: ".formless/local",
-      secretStateRoot: ".formless",
-    },
-  };
-}
 
 function workspacePackageAppRecordState(): WorkspacePackageAppRecordStateFile {
   return {

@@ -397,7 +397,7 @@ async function resolveTopLevelFormlessWorkspaceDevPath(
     if (
       (input.workspacePath === undefined || input.workspacePath === null) &&
       error instanceof Error &&
-      error.message.includes("Could not find formless.json")
+      error.message.includes("Could not find formless.ts")
     ) {
       return path.resolve(dependencies.cwd);
     }

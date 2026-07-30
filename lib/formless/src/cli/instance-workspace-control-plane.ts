@@ -179,7 +179,7 @@ export function assertWorkspaceControlPlanePackagesAvailable(input: {
     .join(", ");
 
   throw new Error(
-    `Formless instance ${input.operation} cannot continue because active app installs reference unavailable package apps: ${labels}. Add the packages to formless.json packages.links or install bundled packages.`,
+    `Formless instance ${input.operation} cannot continue because active app installs reference unavailable package apps: ${labels}. Add the packages to formless.ts packages.links or install bundled packages.`,
   );
 }
 export async function readArchiveDirectoryForCheck(

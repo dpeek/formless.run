@@ -1641,7 +1641,7 @@ or provider secrets without storing secret values.
 - WHEN the record is stored, changed, read, archived, or written to a workspace
 - THEN the schema record stores a secret reference or requirement fact
 - AND the secret value is excluded from record values, changes, read models,
-  browser responses, archives, and workspace manifests
+  browser responses, archives, and workspace configuration
 
 ### Requirement: Route Field Validation
 

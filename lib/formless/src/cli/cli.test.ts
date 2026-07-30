@@ -71,13 +71,17 @@ import {
   WORKSPACE_GATEWAY_SIDECAR_URL_ENV,
 } from "@dpeek/formless-gateway";
 import {
-  INSTANCE_WORKSPACE_MANIFEST_FILE as FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE,
+  FORMLESS_CONFIG_FILE,
   WORKSPACE_OPERATION_KINDS,
-  formatInstanceWorkspaceManifest as formatFormlessInstanceWorkspaceManifest,
-  type InstanceWorkspaceManifest,
-  parseInstanceWorkspaceManifestJson as parseFormlessInstanceWorkspaceManifestJson,
+  resolveFormlessConfig,
+  type ResolvedFormlessConfig,
   workspaceOperationDefinitionForKind,
 } from "@dpeek/formless-workspace";
+import {
+  formatFormlessConfigModule,
+  readWorkspaceConfig,
+} from "./instance-workspace-foundation.ts";
+import { formatTestFormlessConfigModule } from "./instance-workspace-config-test.ts";
 import {
   crmTestRecords,
   crmSourceSchema,
@@ -481,11 +485,10 @@ describe("Formless CLI", () => {
       }),
     );
 
-    const manifest = parseFormlessInstanceWorkspaceManifestJson(
-      await readFile(path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE), "utf8"),
+    expect(result.config).toEqual(resolvedWorkspaceConfig("personal-sites"));
+    await expect(readFile(path.join(workspaceRoot, FORMLESS_CONFIG_FILE), "utf8")).resolves.toBe(
+      formatFormlessConfigModule({ name: "personal-sites" }),
     );
-
-    expect(manifest).toEqual(layoutWorkspaceManifest("personal-sites"));
     expect(result.remoteStatus?.deployMetadata.version).toBe(packageJson.version);
     await expect(readFile(path.join(workspaceRoot, ".gitignore"), "utf8")).resolves.toBe(
       ".formless/\n",
@@ -517,11 +520,10 @@ describe("Formless CLI", () => {
       cliDeps(tempDir),
     );
 
-    const manifest = parseFormlessInstanceWorkspaceManifestJson(
-      await readFile(path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE), "utf8"),
+    expect(result.config).toEqual(resolvedWorkspaceConfig("personal-sites"));
+    await expect(readFile(path.join(workspaceRoot, FORMLESS_CONFIG_FILE), "utf8")).resolves.toBe(
+      formatFormlessConfigModule({ name: "personal-sites" }),
     );
-
-    expect(manifest).toEqual(layoutWorkspaceManifest("personal-sites"));
     expect(result.archiveSourcePath).toBe("archives/instance");
   });
 
@@ -536,16 +538,16 @@ describe("Formless CLI", () => {
     });
   });
 
-  it("discovers nearest Formless workspace manifest", async () => {
+  it("discovers nearest exact Formless workspace configuration", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const nestedRoot = path.join(workspaceRoot, "app", "site");
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await mkdir(nestedRoot, { recursive: true });
 
     await expect(discoverFormlessInstanceWorkspaceRoot(nestedRoot)).resolves.toEqual({
-      manifestPath: path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE),
+      configPath: path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
       workspaceRoot,
     });
     await expect(resolveFormlessInstanceWorkspaceRoot({ cwd: nestedRoot })).resolves.toBe(
@@ -561,7 +563,7 @@ describe("Formless CLI", () => {
     const logs: string[] = [];
     const setupInputs: CreateFormlessInstanceOwnerSetupCapabilityInput[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot);
 
     responses.queueJson({ setupComplete: false });
@@ -603,7 +605,7 @@ describe("Formless CLI", () => {
     const authOrigin = "https://auth.example.com";
     const setupUrl = `${authOrigin}/formless/auth/setup?token=${setupToken}`;
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot);
 
     responses.queueJson({ authOrigin, setupComplete: false });
@@ -654,7 +656,7 @@ describe("Formless CLI", () => {
     const authOrigin = "https://auth.example.com";
     const setupUrl = `${authOrigin}/formless/auth/setup?token=${setupToken}`;
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot);
 
     responses.queueJson({ adminOrigin, authOrigin, setupComplete: false });
@@ -707,7 +709,7 @@ describe("Formless CLI", () => {
     const authOrigin = "https://auth.example.com";
     const setupUrl = `${authOrigin}/formless/auth/setup?token=${setupToken}`;
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot);
 
     responses.queueJson({ authOrigin, setupComplete: false });
@@ -746,7 +748,7 @@ describe("Formless CLI", () => {
     const setupInputs: CreateFormlessInstanceOwnerSetupCapabilityInput[] = [];
     const authOrigin = "https://auth.example.com";
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot);
 
     responses.queueJson({ authOrigin, setupComplete: false });
@@ -788,7 +790,7 @@ describe("Formless CLI", () => {
     const logs: string[] = [];
     const setupInputs: CreateFormlessInstanceOwnerSetupCapabilityInput[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot);
 
     responses.queueJson({
@@ -828,7 +830,7 @@ describe("Formless CLI", () => {
     const responses = responseQueue();
     const setupInputs: CreateFormlessInstanceOwnerSetupCapabilityInput[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot);
 
     responses.queueJson({ setupComplete: false });
@@ -864,7 +866,7 @@ describe("Formless CLI", () => {
     const setupInputs: CreateFormlessInstanceOwnerSetupCapabilityInput[] = [];
     const setupUrl = `https://personal.dpeek.workers.dev/formless/auth/setup?token=${setupToken}`;
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot);
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
     await writeFile(
@@ -920,7 +922,7 @@ describe("Formless CLI", () => {
       controlPlaneRecordsWithProviderObservation({ targetUrl }),
     );
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(
       workspaceRoot,
       controlPlaneRecords({ targetUrl }),
@@ -982,14 +984,12 @@ describe("Formless CLI", () => {
     const sourceSchema = documentArchiveSourceSchema();
     const sourceSchemaHash = await computeSourceSchemaHash(sourceSchema);
 
-    await writeWorkspaceManifest(workspaceRoot, { apps: [] });
+    await writeWorkspaceConfig(workspaceRoot, { apps: [] });
     await writeWorkspacePackageLinks(workspaceRoot, "../document-package/formless.app.json");
     await writePrivatePackageFixture(packageRoot, sourceSchemaHash, sourceSchema);
     const activePackages = await createWorkspaceAppPackageResolver({
       bundledManifests: bundledAppPackageManifests,
-      manifest: parseFormlessInstanceWorkspaceManifestJson(
-        await readFile(path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE), "utf8"),
-      ),
+      manifest: (await readWorkspaceConfig(workspaceRoot)).config,
       workspaceRoot,
     });
     const documentPackage = activePackages.resolver.findPackage("private-labs");
@@ -1054,13 +1054,11 @@ describe("Formless CLI", () => {
     ]);
     expect(JSON.stringify(mediaManifest)).not.toContain("unreferenced.pdf");
 
-    const workspaceManifest = parseFormlessInstanceWorkspaceManifestJson(
-      await readFile(path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE), "utf8"),
-    );
+    const workspaceConfig = (await readWorkspaceConfig(workspaceRoot)).config;
 
     await writeInstanceWorkspaceAppStorageSnapshot({
       installId: "reports",
-      manifest: workspaceManifest,
+      manifest: workspaceConfig,
       schemaProvenance: {
         kind: "package-app",
         packageAppKey: documentPackage.packageAppKey,
@@ -1173,7 +1171,7 @@ describe("Formless CLI", () => {
       controlPlaneRecords({ credentialRef: "formless-cloudflare-oauth:default" }),
     );
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(
       workspaceRoot,
       controlPlaneRecords({ credentialRef: "formless-cloudflare-oauth:default" }),
@@ -1215,19 +1213,7 @@ describe("Formless CLI", () => {
       deploymentStatePath: path.join(deploymentStateRoot, "formless.instance.json"),
       deploymentStateRoot,
       localSecretPath: path.join(deploymentStateRoot, "deploy.env"),
-      manifest: {
-        version: 1,
-        kind: "formless-instance-workspace",
-        name: "personal-sites",
-        state: { root: "state" },
-        defaultTarget: "remote",
-        targets: [selectedTarget],
-        media: { root: "media" },
-        local: { stateRoot: ".formless/local", secretStateRoot: ".formless" },
-        packages: { links: [] },
-        defaultAppPolicy: "declared-installs",
-        apps: [workspaceApp("david", "David Peek")],
-      },
+      config: resolvedWorkspaceConfig("personal-sites"),
       plan: planFormlessInstanceDeployment({
         account: {
           id: "account-123",
@@ -1313,7 +1299,7 @@ describe("Formless CLI", () => {
       controlPlaneRecords(),
     );
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot);
     await writeWorkspaceAppStateFromArchive(workspaceRoot, localDavid, Buffer.from([4, 5, 6]));
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
@@ -1408,7 +1394,7 @@ describe("Formless CLI", () => {
       return readFetch(url, init);
     };
 
-    await writeWorkspaceManifest(workspaceRoot, {
+    await writeWorkspaceConfig(workspaceRoot, {
       runtime: {
         extensions: {
           [SITE_PUBLIC_RENDERER_RUNTIME_EXTENSION_KEY]: {
@@ -1497,7 +1483,7 @@ describe("Formless CLI", () => {
       throw new Error(`Unexpected request in missing target dry-run: ${method} ${requestUrl}`);
     };
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(
       workspaceRoot,
       controlPlaneRecords({ credentialRef: "formless-cloudflare-oauth:default" }),
@@ -1563,7 +1549,7 @@ describe("Formless CLI", () => {
       cloudflareAccount,
     );
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(
       workspaceRoot,
       controlPlaneRecords({ credentialRef: "alchemy-profile:default" }),
@@ -1602,9 +1588,7 @@ describe("Formless CLI", () => {
     );
 
     const snapshot = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-      manifest: parseFormlessInstanceWorkspaceManifestJson(
-        await readFile(path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE), "utf8"),
-      ),
+      manifest: (await readWorkspaceConfig(workspaceRoot)).config,
       packageResolver: bundledAppPackageResolver,
       workspaceRoot,
     });
@@ -1736,7 +1720,7 @@ describe("Formless CLI", () => {
       return delegate(url, init);
     };
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot, stagingControlPlane);
     await writeArchiveDirectory(
       path.join(workspaceRoot, "archives/instance"),
@@ -1771,9 +1755,7 @@ describe("Formless CLI", () => {
     );
 
     const snapshot = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-      manifest: parseFormlessInstanceWorkspaceManifestJson(
-        await readFile(path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE), "utf8"),
-      ),
+      manifest: (await readWorkspaceConfig(workspaceRoot)).config,
       packageResolver: bundledAppPackageResolver,
       workspaceRoot,
     });
@@ -1846,7 +1828,7 @@ describe("Formless CLI", () => {
       ],
     );
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(
       workspaceRoot,
       controlPlaneRecords({ credentialRef: "alchemy-profile:default" }),
@@ -1887,9 +1869,7 @@ describe("Formless CLI", () => {
     );
 
     const snapshot = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-      manifest: parseFormlessInstanceWorkspaceManifestJson(
-        await readFile(path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE), "utf8"),
-      ),
+      manifest: (await readWorkspaceConfig(workspaceRoot)).config,
       packageResolver: bundledAppPackageResolver,
       workspaceRoot,
     });
@@ -1966,7 +1946,7 @@ describe("Formless CLI", () => {
       ],
     );
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(
       workspaceRoot,
       controlPlaneRecords({ credentialRef: "alchemy-profile:default" }),
@@ -2010,9 +1990,7 @@ describe("Formless CLI", () => {
     );
 
     const snapshot = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-      manifest: parseFormlessInstanceWorkspaceManifestJson(
-        await readFile(path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE), "utf8"),
-      ),
+      manifest: (await readWorkspaceConfig(workspaceRoot)).config,
       packageResolver: bundledAppPackageResolver,
       workspaceRoot,
     });
@@ -2054,7 +2032,7 @@ describe("Formless CLI", () => {
       [restorePlan({ replacedInstalls: ["david"] })],
     );
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(
       workspaceRoot,
       controlPlaneRecords({ credentialRef: "alchemy-profile:default" }),
@@ -2104,7 +2082,7 @@ describe("Formless CLI", () => {
       [restorePlan({ replacedInstalls: ["david"] })],
     );
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(
       workspaceRoot,
       controlPlaneRecords({ credentialRef: "formless-cloudflare-oauth:default" }),
@@ -2196,7 +2174,7 @@ describe("Formless CLI", () => {
       return delegate(url, init);
     };
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(
       workspaceRoot,
       controlPlaneRecords({ credentialRef: "formless-cloudflare-oauth:default" }),
@@ -2279,9 +2257,7 @@ describe("Formless CLI", () => {
       "utf8",
     );
     const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-      manifest: parseFormlessInstanceWorkspaceManifestJson(
-        await readFile(path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE), "utf8"),
-      ),
+      manifest: (await readWorkspaceConfig(workspaceRoot)).config,
       packageResolver: bundledAppPackageResolver,
       workspaceRoot,
     });
@@ -2312,7 +2288,7 @@ describe("Formless CLI", () => {
       controlPlaneRecords({ credentialRef: "formless-cloudflare-oauth:default" }),
     );
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(
       workspaceRoot,
       controlPlaneRecords({ credentialRef: "formless-cloudflare-oauth:default" }),
@@ -2350,7 +2326,7 @@ describe("Formless CLI", () => {
       controlPlaneRecords({ credentialRef: "formless-cloudflare-oauth:default" }),
     );
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(
       workspaceRoot,
       controlPlaneRecords({ credentialRef: "formless-cloudflare-oauth:default" }),
@@ -2396,7 +2372,7 @@ describe("Formless CLI", () => {
       [restorePlan({ replacedInstalls: ["david"] })],
     );
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot, [
       ...controlPlaneRecords(),
       redirectRouteRecord("old.dpeek.com", "dpeek.com"),
@@ -2469,7 +2445,7 @@ describe("Formless CLI", () => {
       ],
     );
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(
       workspaceRoot,
       controlPlaneRecords({ credentialRef: "formless-cloudflare-oauth:default" }),
@@ -2537,7 +2513,7 @@ describe("Formless CLI", () => {
       ],
     );
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(
       workspaceRoot,
       controlPlaneRecords({ credentialRef: "formless-cloudflare-oauth:default" }),
@@ -2573,7 +2549,7 @@ describe("Formless CLI", () => {
     const commands: CapturedCommand[] = [];
     const logs: string[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot);
 
     await expect(
@@ -2696,11 +2672,9 @@ describe("Formless CLI", () => {
       "Bearer generated-token",
     ]);
     expect(openedUrls).toEqual([]);
-    expect(
-      parseFormlessInstanceWorkspaceManifestJson(
-        await readFile(path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE), "utf8"),
-      ),
-    ).toEqual(layoutWorkspaceManifest("confirmed-workspace"));
+    await expect(readFile(path.join(workspaceRoot, FORMLESS_CONFIG_FILE), "utf8")).resolves.toBe(
+      formatFormlessConfigModule({ name: "confirmed-workspace" }),
+    );
     expect(nameSelections).toEqual([{ defaultName: "empty-workspace", workspaceRoot }]);
     await expect(readFile(path.join(workspaceRoot, ".gitignore"), "utf8")).resolves.toBe(
       ".formless/\n",
@@ -2978,11 +2952,9 @@ describe("Formless CLI", () => {
       "Bearer generated-token",
       "Bearer generated-token",
     ]);
-    expect(
-      parseFormlessInstanceWorkspaceManifestJson(
-        await readFile(path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE), "utf8"),
-      ),
-    ).toEqual(layoutWorkspaceManifest(expectedWorkspaceName(workspaceRoot)));
+    await expect(readFile(path.join(workspaceRoot, FORMLESS_CONFIG_FILE), "utf8")).resolves.toBe(
+      formatFormlessConfigModule({ name: expectedWorkspaceName(workspaceRoot) }),
+    );
     await expect(readFile(path.join(workspaceRoot, ".gitignore"), "utf8")).resolves.toBe(
       ".formless/\n",
     );
@@ -3074,7 +3046,7 @@ describe("Formless CLI", () => {
       records: mediaRecords(),
     });
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await mkdir(path.join(workspaceRoot, ".formless/local"), { recursive: true });
     await writeFile(
       path.join(workspaceRoot, ".formless/local/dev.env"),
@@ -3184,7 +3156,7 @@ describe("Formless CLI", () => {
     const spawnCalls: CapturedSpawn[] = [];
     const sourceSchemaHash = await computeSourceSchemaHash(taskSourceSchema);
 
-    await writeWorkspaceManifest(workspaceRoot, {
+    await writeWorkspaceConfig(workspaceRoot, {
       apps: [],
       runtime: {
         extensions: {
@@ -3287,7 +3259,7 @@ describe("Formless CLI", () => {
     const child = new FakeCliDevChild();
     const requests: CapturedFetchRequest[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot, localOnlyControlPlaneRecords());
 
     await expect(
@@ -3316,7 +3288,7 @@ describe("Formless CLI", () => {
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const child = new FakeCliDevChild();
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot, localOnlyControlPlaneRecords());
     await writeWorkspaceAppStateFromArchive(
       workspaceRoot,
@@ -3380,7 +3352,7 @@ describe("Formless CLI", () => {
       records: mediaRecords(),
     });
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot, localOnlyControlPlaneRecords());
     await writeWorkspaceAppStateFromArchive(workspaceRoot, localDavid);
 
@@ -3406,17 +3378,14 @@ describe("Formless CLI", () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const child = new FakeCliDevChild();
-    const manifestPath = path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE);
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(
       workspaceRoot,
       controlPlaneRecordsWithDisabledDeployTarget(),
     );
 
-    const manifest = parseFormlessInstanceWorkspaceManifestJson(
-      await readFile(manifestPath, "utf8"),
-    );
+    const manifest = (await readWorkspaceConfig(workspaceRoot)).config;
     const deploymentConfigSourcePath = instanceWorkspaceInstanceStatePath(workspaceRoot, manifest);
     const deploymentConfigSource = JSON.parse(
       await readFile(deploymentConfigSourcePath, "utf8"),
@@ -3466,7 +3435,7 @@ describe("Formless CLI", () => {
     const requests: CapturedFetchRequest[] = [];
     const spawnCalls: CapturedSpawn[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await mkdir(nestedRoot, { recursive: true });
 
     const run = runFormlessCli(
@@ -3518,7 +3487,7 @@ describe("Formless CLI", () => {
     const logs: string[] = [];
     const requests: CapturedFetchRequest[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
 
     const run = runFormlessCli(
       ["dev", "--workspace", workspaceRoot],
@@ -3587,7 +3556,7 @@ describe("Formless CLI", () => {
     const openedUrls: string[] = [];
     const requests: CapturedFetchRequest[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await mkdir(path.join(workspaceRoot, ".formless/local/wrangler"), { recursive: true });
     await mkdir(path.join(workspaceRoot, ".formless/backups"), { recursive: true });
     await writeFile(path.join(workspaceRoot, ".formless/local/wrangler/state.txt"), "state");
@@ -3639,7 +3608,7 @@ describe("Formless CLI", () => {
     const logs: string[] = [];
     const requests: CapturedFetchRequest[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot, localOnlyControlPlaneRecords());
     await writeWorkspaceAppStateFromArchive(workspaceRoot, appArchive("david", "David Peek"));
     await mkdir(path.join(workspaceRoot, ".formless/local/wrangler"), { recursive: true });
@@ -3689,7 +3658,7 @@ describe("Formless CLI", () => {
     const destroyInputs: DestroyFormlessInstanceInput[] = [];
     const logs: string[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot);
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
     await writeFile(path.join(workspaceRoot, ".formless/instance.env"), "FORMLESS_ADMIN_TOKEN=x\n");
@@ -3723,7 +3692,7 @@ describe("Formless CLI", () => {
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const destroyInputs: DestroyFormlessInstanceInput[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot);
     await writeWorkspaceDeployState(workspaceRoot);
 
@@ -3756,7 +3725,7 @@ describe("Formless CLI", () => {
     const destroyInputs: DestroyFormlessInstanceInput[] = [];
     const logs: string[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot);
     await writeWorkspaceDeployState(workspaceRoot);
 
@@ -3787,15 +3756,9 @@ describe("Formless CLI", () => {
 
     await mkdir(workspaceRoot, { recursive: true });
     await writeFile(
-      path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE),
-      formatFormlessInstanceWorkspaceManifest({
-        version: 1,
-        kind: "formless-instance-workspace",
+      path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
+      formatTestFormlessConfigModule({
         name: "personal-sites",
-        targets: [],
-        local: { stateRoot: ".formless/local", secretStateRoot: ".formless" },
-        defaultAppPolicy: "declared-installs",
-        apps: [workspaceApp("david", "David Peek")],
       }),
     );
 
@@ -3821,7 +3784,7 @@ describe("Formless CLI", () => {
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const destroyInputs: DestroyFormlessInstanceInput[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot);
     await writeWorkspaceDeployState(workspaceRoot);
 
@@ -3873,7 +3836,7 @@ describe("Formless CLI", () => {
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const destroyInputs: DestroyFormlessInstanceInput[] = [];
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
     await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot);
     await writeWorkspaceDeployState(workspaceRoot, { deployEnv: "CLOUDFLARE_API_TOKEN=token\n" });
 
@@ -4646,7 +4609,7 @@ function readDevSessionBootstrapUrl(logs: readonly string[]): URL {
   return new URL(devSessionBootstrapUrlLogLine(logs));
 }
 
-async function writeWorkspaceManifest(
+async function writeWorkspaceConfig(
   workspaceRoot: string,
   options: {
     apps?: TestWorkspaceApp[];
@@ -4656,37 +4619,27 @@ async function writeWorkspaceManifest(
       profile: "app" | "instance" | "publicSite";
       targetInstallId?: string;
     }>;
-    runtime?: InstanceWorkspaceManifest["runtime"];
+    runtime?: ResolvedFormlessConfig["runtime"];
   } = {},
 ) {
   await mkdir(workspaceRoot, { recursive: true });
   await writeFile(
-    path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE),
-    formatFormlessInstanceWorkspaceManifest({
-      version: 1,
-      kind: "formless-instance-workspace",
+    path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
+    formatTestFormlessConfigModule({
       name: "personal-sites",
-      defaultTarget: "remote",
-      targets: [{ alias: "remote", url: "https://personal.dpeek.workers.dev" }],
-      local: { stateRoot: ".formless/local", secretStateRoot: ".formless" },
-      defaultAppPolicy: "declared-installs",
-      apps: options.apps ?? [workspaceApp("david", "David Peek")],
-      ...(options.domains === undefined ? {} : { domains: options.domains }),
       ...(options.runtime === undefined ? {} : { runtime: options.runtime }),
     }),
   );
 }
 
 async function writeWorkspacePackageLinks(workspaceRoot: string, manifest: string) {
-  const manifestPath = path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE);
-  const workspaceManifest = parseFormlessInstanceWorkspaceManifestJson(
-    await readFile(manifestPath, "utf8"),
-  );
+  const configPath = path.join(workspaceRoot, FORMLESS_CONFIG_FILE);
+  const workspaceConfig = (await readWorkspaceConfig(workspaceRoot)).config;
 
   await writeFile(
-    manifestPath,
-    formatFormlessInstanceWorkspaceManifest({
-      ...workspaceManifest,
+    configPath,
+    formatTestFormlessConfigModule({
+      ...workspaceConfig,
       packages: {
         links: [{ manifest }],
       },
@@ -4738,9 +4691,7 @@ async function writeWorkspaceControlPlaneStorageSnapshot(
   workspaceRoot: string,
   records: StoredRecord[] = controlPlaneRecords(),
 ) {
-  const manifest = parseFormlessInstanceWorkspaceManifestJson(
-    await readFile(path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE), "utf8"),
-  );
+  const manifest = (await readWorkspaceConfig(workspaceRoot)).config;
   const activePackages = await createWorkspaceAppPackageResolver({
     bundledManifests: bundledAppPackageManifests,
     manifest,
@@ -4814,22 +4765,8 @@ function workspaceApp(installId: string, label: string) {
   };
 }
 
-function layoutWorkspaceManifest(name: string) {
-  return {
-    version: 1,
-    kind: "formless-instance-workspace",
-    name,
-    state: { root: "state" },
-    targets: [],
-    media: { root: "state/media" },
-    local: {
-      stateRoot: ".formless/local",
-      secretStateRoot: ".formless",
-    },
-    packages: { links: [] },
-    defaultAppPolicy: "none",
-    apps: [],
-  };
+function resolvedWorkspaceConfig(name: string) {
+  return resolveFormlessConfig({ name });
 }
 
 function expectedWorkspaceName(workspaceRoot: string): string {
@@ -5142,9 +5079,7 @@ async function writeWorkspaceAppStateFromArchive(
   mediaBytes?: Uint8Array,
   installId: string = archive.app.installId,
 ) {
-  const manifest = parseFormlessInstanceWorkspaceManifestJson(
-    await readFile(path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE), "utf8"),
-  );
+  const manifest = (await readWorkspaceConfig(workspaceRoot)).config;
 
   if (archive.data.kind !== STORAGE_SNAPSHOT_KIND) {
     throw new Error(

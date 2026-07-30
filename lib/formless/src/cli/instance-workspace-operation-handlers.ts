@@ -250,16 +250,16 @@ function summarizeInitResult(
   return {
     details: {
       state: {
-        apps: `${result.manifest.state.root}/apps`,
-        instance: `${result.manifest.state.root}/instance.json`,
-        media: result.manifest.media.root,
+        apps: `${result.config.state.root}/apps`,
+        instance: `${result.config.state.root}/instance.json`,
+        media: result.config.media.root,
       },
-      manifest: "formless.json",
+      config: "formless.ts",
     },
     summary: {
       fields: {
         initialized: true,
-        workspace: result.manifest.name,
+        workspace: result.config.name,
       },
       title: "Workspace initialized",
     },
@@ -278,7 +278,7 @@ function summarizeStatusResult(
     };
   }
 
-  const runtimeExtensions = workspaceRuntimeExtensionKeys(result.manifest);
+  const runtimeExtensions = workspaceRuntimeExtensionKeys(result.config);
 
   return {
     details: {

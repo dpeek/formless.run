@@ -21,11 +21,8 @@ import {
   type WorkspaceGatewaySidecar,
   type WorkspaceGatewaySidecarExecutionEnv,
 } from "@dpeek/formless-gateway/sidecar";
-import {
-  INSTANCE_WORKSPACE_MANIFEST_FILE as FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE,
-  defaultInstanceWorkspaceManifest as defaultFormlessInstanceWorkspaceManifest,
-  formatInstanceWorkspaceManifest as formatFormlessInstanceWorkspaceManifest,
-} from "@dpeek/formless-workspace";
+import { FORMLESS_CONFIG_FILE, resolveFormlessConfig } from "@dpeek/formless-workspace";
+import { formatTestFormlessConfigModule } from "./instance-workspace-config-test.ts";
 import { createOwnerSessionCookie } from "../worker/owner-session.ts";
 import { readInstanceWorkspaceAutoSaveState } from "@dpeek/formless-workspace/node";
 import {
@@ -151,7 +148,7 @@ describe("local workspace gateway", () => {
   it("reads runtime workspace status through the local gateway", async () => {
     const workspaceRoot = await makeTempDir();
 
-    await writeWorkspaceManifest(workspaceRoot);
+    await writeWorkspaceConfig(workspaceRoot);
 
     const status = await gatewayJson(
       new Request(`http://local.test${WORKSPACE_GATEWAY_STATUS_API_PATH}`, {
@@ -172,9 +169,7 @@ describe("local workspace gateway", () => {
       },
     });
 
-    await expect(
-      stat(path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE)),
-    ).resolves.toMatchObject({});
+    await expect(stat(path.join(workspaceRoot, FORMLESS_CONFIG_FILE))).resolves.toMatchObject({});
     await expect(stat(path.join(workspaceRoot, "archives"))).rejects.toMatchObject({
       code: "ENOENT",
     });
@@ -631,12 +626,12 @@ async function makeTempDir(): Promise<string> {
   return tempDir;
 }
 
-async function writeWorkspaceManifest(workspaceRoot: string) {
-  const manifest = defaultFormlessInstanceWorkspaceManifest({ name: "personal-sites" });
+async function writeWorkspaceConfig(workspaceRoot: string) {
+  const manifest = resolveFormlessConfig({ name: "personal-sites" });
 
   await mkdir(workspaceRoot, { recursive: true });
   await writeFile(
-    path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE),
-    formatFormlessInstanceWorkspaceManifest(manifest),
+    path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
+    formatTestFormlessConfigModule(manifest),
   );
 }

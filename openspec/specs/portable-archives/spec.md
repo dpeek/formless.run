@@ -283,17 +283,17 @@ package slice.
 
 ### Requirement: Workspace Source Of Truth
 
-The system SHALL treat the `formless.json` workspace manifest, manifest-owned
-workspace package links, workspace record state files, schema provenance, and
-media payloads as the reviewable local source of truth for local-first Formless
-workspaces.
+The system SHALL treat the `formless.ts` workspace configuration,
+configuration-owned workspace package links, workspace record state files,
+schema provenance, and media payloads as the reviewable local source of truth
+for local-first Formless workspaces.
 
 #### Scenario: Fresh local workspace bootstrap
 
 - **WHEN** `formless dev` starts for a selected workspace root without
-  `formless.json`
-- **THEN** the CLI writes a base manifest with the workspace name
-  defaulted from the selected directory or confirmed interactive input
+  `formless.ts`
+- **THEN** the CLI writes a base configuration with an explicit workspace name
+  derived from the selected directory or confirmed interactive input
 - **AND** the CLI prepares ignored local state and `.gitignore` coverage for
   `.formless/`
 - **AND** local admin tokens, owner session signing secrets, local session
@@ -409,14 +409,14 @@ payloads, not portable archive directories or duplicated schema source bodies.
 ### Requirement: Workspace App Package Links
 
 The system SHALL allow a local Formless workspace to link private filesystem app
-package manifests through reviewable workspace manifest package configuration
+package manifests through reviewable workspace configuration
 without storing package links in instance control-plane records.
 
 #### Scenario: Workspace package link source
 
-- **GIVEN** a workspace contains optional `formless.json` `packages.links`
+- **GIVEN** a workspace contains optional `formless.ts` `packages.links`
 - **WHEN** the package link source is read
-- **THEN** the workspace manifest declares an ordered list of app package
+- **THEN** the workspace configuration declares an ordered list of app package
   manifest links in `packages.links`
 - **AND** each link points to a local relative `formless.app.json` path such as
   `../app/formless.app.json`
@@ -443,13 +443,13 @@ without storing package links in instance control-plane records.
 
 - **WHEN** workspace source is saved, checked, pushed, exported, or
   restored
-- **THEN** `formless.json` `packages.links` is treated as reviewable
+- **THEN** `formless.ts` `packages.links` is treated as reviewable
   dependency configuration for resolving package app source
 - **AND** package links are not app install intent, route intent, app data,
   media payloads, provider config, deployment observation, or runtime secret
   state
-- **AND** `formless.json` stores package app source links only inside
-  manifest-owned package configuration
+- **AND** `formless.ts` declares package app source links only inside
+  configuration-owned package configuration
 
 ### Requirement: Workspace Runtime Extension Archive Boundary
 
@@ -463,7 +463,7 @@ module configuration outside portable app and instance archive envelopes.
 - **THEN** the archive includes app data, control-plane data, schemas, package
   facts, and media payloads selected by the archive capabilities
 - **AND** the archive does not include workspace renderer source files,
-  renderer module paths, `formless.json` `runtime.extensions` entries, build
+  renderer module paths, `formless.ts` `runtime.extensions` entries, build
   aliases, local dependency paths, or runtime extension digests
 - **AND** archive package facts do not imply that a restored target has the
   same workspace renderer code available
@@ -482,7 +482,7 @@ module configuration outside portable app and instance archive envelopes.
 
 - **WHEN** a workspace push needs runtime code in addition to archive data
 - **THEN** the workflow resolves runtime extension config from the reviewable
-  workspace manifest outside the portable archive envelope
+  workspace configuration outside the portable archive envelope
 - **AND** archive restore planning, import validation, and archive metadata do
   not read renderer modules or execute workspace renderer code
 
@@ -494,9 +494,10 @@ semantic operation contracts through the Workspace package slice.
 #### Scenario: Package owns workspace source contracts
 
 - **WHEN** CLI runtime, Gateway runtime adapters, archive workflows,
-  tests, or local agent workflows need `formless.json` manifest parsing,
-  manifest package link parsing, workspace path defaults, workspace target URL
-  normalization, workspace storage snapshot contracts, ignored local state
+  tests, or local agent workflows need `formless.ts` configuration contracts,
+  default resolution, package link validation, workspace path defaults,
+  workspace target URL normalization, workspace storage snapshot contracts,
+  ignored local state
   contracts, ignored secret state contracts, semantic workspace operation input
   shapes, display-safe operation state, operation result shapes, operation
   redaction, or deterministic local filesystem workspace IO
@@ -536,24 +537,26 @@ semantic operation contracts through the Workspace package slice.
 ### Requirement: Instance Workspaces
 
 The system SHALL let a local Formless workspace save, pull, push, and dev
-instance state without storing instance intent or secrets in the
-manifest.
+instance state without storing instance intent or secrets in configuration.
 
-#### Scenario: Workspace manifest
+#### Scenario: Workspace configuration
 
-- **WHEN** a Formless workspace manifest is written
-- **THEN** `formless.json` remains manifest version `1` and stores
-  workspace-local configuration such as kind, name, workspace state root, media
-  root, ignored local state root, ignored secret state root, and optional
-  runtime extension declarations
+- **WHEN** a Formless workspace configuration is loaded
+- **THEN** `formless.ts` default-exports trusted typed configuration with a
+  required explicit name and optional workspace state root, media root, ignored
+  local state root, ignored secret state root, package links, and runtime
+  extension declarations
+- **AND** kind, version, layout roots, empty package links, and bundled runtime
+  extensions resolve from defaults when omitted
 - **AND** `app-install`, unified `route`, `deployment-config` intent, remote
   target facts, deployment observation cache, deployment execution history, and
-  default app policy are not stored in `formless.json`
+  default app policy are not declared in `formless.ts`
 - **AND** provider worker-name overrides are deployment intent stored in
-  schema-owned deployment config records, not in `formless.json`
+  schema-owned deployment config records, not in `formless.ts`
 - **AND** deployed remote target origin facts are stored on
   `deployment-config` records as display-safe `targetUrl` values
-- **AND** secret-looking fields are rejected
+- **AND** workspace save, pull, push, reset, export, and restore never rewrite
+  owner-authored `formless.ts`
 
 #### Scenario: Workspace push apply
 
@@ -586,7 +589,7 @@ differences as a safety blocker.
 - **THEN** remote target records and schema provenance are compared with local
   workspace record state and schema provenance
 - **AND** `app-install`, unified `route`, `deployment-config`, app record, and
-  media changes are reported without deriving intent from `formless.json`
+  media changes are reported without deriving intent from `formless.ts`
 - **AND** pull treats target schema-owned control-plane records, routes,
   deployment config intent, installed app set, app storage snapshots, schemas,
   and media payloads as the source for local workspace replacement
@@ -671,7 +674,7 @@ cache, or deployment execution history.
   `formless-program`, schema timestamp, source cursor, Program schema
   provenance, and records
 - **AND** the file does not embed the full Program App schema object
-- **AND** `formless.json` does not duplicate that intent
+- **AND** `formless.ts` does not duplicate that intent
 - **AND** deployment attempts, evidence summaries, and cleanup
   audit summaries are available only through deployment runtime projection or
   gateway operation status, not reviewable workspace state

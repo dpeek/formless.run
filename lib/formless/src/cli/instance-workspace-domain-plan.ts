@@ -63,10 +63,10 @@ export async function planFormlessInstanceWorkspaceDomains(
     },
     { env: dependencies.env },
   );
-  const { adminToken, manifest, selectedTarget, workspaceRoot } = context;
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot);
+  const { adminToken, config, selectedTarget, workspaceRoot } = context;
+  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest,
+    manifest: config,
     packageResolver: activePackages.resolver,
     workspaceRoot,
   });
@@ -85,7 +85,7 @@ export async function planFormlessInstanceWorkspaceDomains(
     deploymentSource.deploymentConfig,
     selectedTarget,
   );
-  const workspaceDomains = workspaceDomainIntentsFromSource(manifest, controlPlane);
+  const workspaceDomains = workspaceDomainIntentsFromSource(controlPlane);
   const liveDomains = await readLiveWorkspaceDomainIntents(
     { adminToken, target: selectedTarget },
     dependencies,

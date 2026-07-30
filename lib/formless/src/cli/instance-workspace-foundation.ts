@@ -1,11 +1,13 @@
-import { mkdir, mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import type { AppSchema } from "@dpeek/formless-schema";
 import {
-  INSTANCE_WORKSPACE_MANIFEST_FILE as FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE,
-  parseInstanceWorkspaceManifestJson as parseFormlessInstanceWorkspaceManifestJson,
-  type InstanceWorkspaceManifest as FormlessInstanceWorkspaceManifest,
+  FORMLESS_CONFIG_FILE,
+  resolveFormlessConfig,
+  type FormlessConfig,
+  type ResolvedFormlessConfig,
   type WorkspacePackageAppSchemaProvenance,
 } from "@dpeek/formless-workspace";
 import {
@@ -23,7 +25,7 @@ import { findWorkerSchemaAppDefinition } from "../worker/schema-apps.ts";
 export type ActiveWorkspaceAppPackages = WorkspaceAppPackageResolverResult;
 
 export type FormlessInstanceWorkspaceDiscoveryResult = {
-  manifestPath: string;
+  configPath: string;
   workspaceRoot: string;
 };
 
@@ -31,20 +33,63 @@ export function workspaceRootForInput(cwd: string, workspacePath = "."): string 
   return path.resolve(cwd, workspacePath);
 }
 
-export function workspaceManifestPath(workspaceRoot: string): string {
-  return path.join(workspaceRoot, FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE);
+export function workspaceConfigPath(workspaceRoot: string): string {
+  return path.join(workspaceRoot, FORMLESS_CONFIG_FILE);
 }
 
-export async function readWorkspaceManifest(workspaceRoot: string): Promise<{
-  manifest: FormlessInstanceWorkspaceManifest;
-  manifestPath: string;
+export async function readWorkspaceConfig(workspaceRoot: string): Promise<{
+  config: ResolvedFormlessConfig;
+  configPath: string;
 }> {
-  const manifestPath = workspaceManifestPath(workspaceRoot);
+  const configPath = workspaceConfigPath(workspaceRoot);
+  const configUrl = pathToFileURL(configPath);
+  const configStat = await stat(configPath, { bigint: true });
+
+  configUrl.searchParams.set("formlessConfigVersion", `${configStat.mtimeNs}-${configStat.size}`);
+
+  const configModule = (await import(configUrl.href)) as {
+    default?: FormlessConfig;
+  };
+
+  if (configModule.default === undefined) {
+    throw new Error(`${FORMLESS_CONFIG_FILE} must default-export Formless configuration.`);
+  }
 
   return {
-    manifest: parseFormlessInstanceWorkspaceManifestJson(await readFile(manifestPath, "utf8")),
-    manifestPath,
+    config: resolveFormlessConfig(configModule.default),
+    configPath,
   };
+}
+
+export function formatFormlessConfigModule(config: FormlessConfig): string {
+  const authorConfig: FormlessConfig = {
+    name: config.name,
+    ...(config.state === undefined ? {} : { state: config.state }),
+    ...(config.media === undefined ? {} : { media: config.media }),
+    ...(config.local === undefined ? {} : { local: config.local }),
+    ...(config.packages === undefined ? {} : { packages: config.packages }),
+    ...(config.runtime === undefined ? {} : { runtime: config.runtime }),
+  };
+  const resolved = resolveFormlessConfig(authorConfig);
+  const properties = Object.keys(authorConfig);
+
+  if (properties.length !== 1 || properties[0] !== "name") {
+    return [
+      'import { defineConfig } from "@dpeek/formless";',
+      "",
+      `export default defineConfig(${JSON.stringify(authorConfig, null, 2)});`,
+      "",
+    ].join("\n");
+  }
+
+  return [
+    'import { defineConfig } from "@dpeek/formless";',
+    "",
+    "export default defineConfig({",
+    `  name: ${JSON.stringify(resolved.name)},`,
+    "});",
+    "",
+  ].join("\n");
 }
 
 export async function discoverFormlessInstanceWorkspaceRoot(
@@ -53,11 +98,11 @@ export async function discoverFormlessInstanceWorkspaceRoot(
   let directory = path.resolve(cwd);
 
   while (true) {
-    const manifestPath = workspaceManifestPath(directory);
+    const configPath = workspaceConfigPath(directory);
 
-    if (await pathExists(manifestPath)) {
+    if (await pathExists(configPath)) {
       return {
-        manifestPath,
+        configPath,
         workspaceRoot: directory,
       };
     }
@@ -65,9 +110,7 @@ export async function discoverFormlessInstanceWorkspaceRoot(
     const parent = path.dirname(directory);
 
     if (parent === directory) {
-      throw new Error(
-        `Could not find ${FORMLESS_INSTANCE_WORKSPACE_MANIFEST_FILE} from ${path.resolve(cwd)}.`,
-      );
+      throw new Error(`Could not find ${FORMLESS_CONFIG_FILE} from ${path.resolve(cwd)}.`);
     }
 
     directory = parent;
@@ -98,27 +141,27 @@ export async function createWorkspaceTempRoot(
 
 export function formlessInstanceWorkspaceLocalStateRoot(
   workspaceRoot: string,
-  manifest: FormlessInstanceWorkspaceManifest,
+  config: ResolvedFormlessConfig,
 ): string {
-  return path.resolve(workspaceRoot, manifest.local.stateRoot);
+  return path.resolve(workspaceRoot, config.local.stateRoot);
 }
 
 export function formlessInstanceWorkspaceWranglerPersistPath(
   workspaceRoot: string,
-  manifest: FormlessInstanceWorkspaceManifest,
+  config: ResolvedFormlessConfig,
 ): string {
-  return path.join(formlessInstanceWorkspaceLocalStateRoot(workspaceRoot, manifest), "wrangler");
+  return path.join(formlessInstanceWorkspaceLocalStateRoot(workspaceRoot, config), "wrangler");
 }
 
 export async function createActiveWorkspaceAppPackages(
   workspaceRoot: string,
-  manifest?: FormlessInstanceWorkspaceManifest,
+  config?: ResolvedFormlessConfig,
 ): Promise<ActiveWorkspaceAppPackages> {
-  const workspaceManifest = manifest ?? (await readWorkspaceManifest(workspaceRoot)).manifest;
+  const workspaceConfig = config ?? (await readWorkspaceConfig(workspaceRoot)).config;
 
   return createWorkspaceAppPackageResolver({
     bundledManifests: bundledAppPackageManifests,
-    manifest: workspaceManifest,
+    manifest: workspaceConfig,
     workspaceRoot,
   });
 }

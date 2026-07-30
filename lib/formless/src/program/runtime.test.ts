@@ -15,10 +15,10 @@ import {
   type StoredRecord,
 } from "@dpeek/formless-storage";
 import {
-  defaultInstanceWorkspaceManifest,
   readInstanceWorkspaceControlPlaneStorageSnapshot,
   writeInstanceWorkspaceControlPlaneStorageSnapshot,
 } from "@dpeek/formless-workspace/node";
+import { resolveFormlessConfig } from "@dpeek/formless-workspace";
 import { describe, expect, it } from "vite-plus/test";
 import { programClientTarget } from "../client/app-target.ts";
 import rawFormlessProgramSchema from "./schema.json";
@@ -137,7 +137,7 @@ describe("Formless Program runtime contracts", () => {
 
   it("writes and reads only the current Program workspace state shape", async () => {
     const workspaceRoot = await mkdtemp(path.join(tmpdir(), "formless-program-workspace-"));
-    const manifest = defaultInstanceWorkspaceManifest({ name: "program-workspace" });
+    const manifest = resolveFormlessConfig({ name: "program-workspace" });
     const contract = formlessProgramWorkspaceSnapshotContract();
 
     try {

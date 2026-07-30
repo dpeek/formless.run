@@ -43,10 +43,11 @@ workspace operations that are promoted to public CLI bindings.
 - **WHEN** a user runs `formless dev`, `formless pull`, `formless push`, or
   `formless destroy`
 - **THEN** the command operates on the local Formless workspace selected by
-  `formless.json`
+  `formless.ts`
 - **AND** `formless dev` and `formless pull` do not mutate remote instance data
   or Cloudflare resources unless `formless pull` is run without `--dry-run`, in
-  which case it rewrites reviewable workspace source
+  which case it rewrites reviewable workspace record state and media without
+  rewriting `formless.ts`
 - **AND** `formless push` is the only normal command that reconciles a deployed
   instance from local workspace source, including runtime code, provider
   resources, control-plane records, app records, schema, and media
@@ -495,6 +496,63 @@ local execution binding handles it.
   terminal formatting, OAuth browser flows, provider secret storage, runtime
   topology definitions, or owner session cookie validation logic
 
+### Requirement: TypeScript Workspace Configuration
+
+The CLI SHALL select one trusted downstream-owned `formless.ts` module as the
+single Formless configuration entrypoint for a workspace.
+
+#### Scenario: Author typed workspace configuration
+
+- **GIVEN** a downstream workspace owns `formless.ts`
+- **WHEN** it declares Formless configuration
+- **THEN** the module default-exports `defineConfig({ name: "workspace-name" })`
+  using `defineConfig` from `@dpeek/formless`
+- **AND** `name` is required, explicit, and stable when the workspace directory
+  moves
+- **AND** current workspace configuration keeps the existing `state`, `media`,
+  `local`, `packages`, and `runtime` nesting
+- **AND** configuration kind and version, workspace state root, media root, ignored
+  local state root, ignored secret state root, empty package links, and bundled
+  runtime behavior have defaults
+- **AND** the author specifies only `name` and values that differ from those
+  defaults
+- **AND** the module may import project-local TypeScript modules so one
+  configuration entrypoint can be split without automatic discovery or a
+  registry
+
+#### Scenario: Discover and load workspace configuration
+
+- **WHEN** a CLI command selects a workspace without an explicit workspace path
+- **THEN** discovery walks upward for the nearest exact `formless.ts`
+- **AND** an explicit workspace path selects the exact `formless.ts` at that
+  workspace root
+- **AND** the Bun-native CLI evaluates the TypeScript module as trusted local
+  code and reads its default-exported configuration object
+- **AND** the CLI resolves omitted configuration values to their defaults
+  before workspace consumers use them
+- **AND** discovery does not select alternate configuration filenames
+
+#### Scenario: Keep operational configuration invariants
+
+- **WHEN** resolved configuration selects workspace write roots, linked package
+  manifests, or runtime extension entrypoints
+- **THEN** those operational consumers reject unsafe or invalid filesystem
+  paths and duplicate package links before mutation or build execution
+- **AND** App and Program schemas still pass through their semantic parsers and
+  validators
+- **AND** trusted TypeScript configuration is not parsed as JSON or recursively
+  scanned as an untrusted data-file shape
+
+#### Scenario: Preserve owner-authored configuration
+
+- **WHEN** workspace save, check, pull, push, export, restore, auto-save, or
+  reset runs
+- **THEN** owner-authored `formless.ts` remains byte-for-byte unchanged
+- **AND** those workflows write only the reviewable record state, schema
+  provenance, and media payloads they own
+- **AND** configuration never derives from Authority state or portable archive
+  data
+
 ### Requirement: Local First Onboarding
 
 The CLI SHALL start the local Formless workspace runtime through `formless dev`
@@ -505,14 +563,15 @@ optional first app install, credential setup, and push operations.
 #### Scenario: Start local workspace runtime
 
 - **WHEN** `formless dev` runs for an empty workspace root
-- **THEN** the CLI writes a base `formless.json` workspace manifest, prepares
+- **THEN** the CLI writes a base `formless.ts` configuration with an explicit
+  workspace name, prepares
   ignored `.formless/local` state, persists local dev secrets, and mints
   process-scoped local session, gateway proxy, gateway CSRF, and sidecar tokens
   before the product instance runtime starts
 - **AND** local gateway lifecycle code owns sidecar creation, process token
   minting, child runtime gateway environment assembly, browser session
   entrypoint creation, and sidecar shutdown
-- **AND** workspace manifest bootstrap, package resolution, local Authority
+- **AND** workspace configuration bootstrap, package resolution, local Authority
   bootstrap, operation execution, and auto-save scheduling remain outside the
   local gateway lifecycle code
 - **AND** the CLI does not create empty storage snapshot or media directories
@@ -520,14 +579,16 @@ optional first app install, credential setup, and push operations.
   Alchemy resource, provider credential, or remote instance is created
 - **AND** the workspace name defaults from the selected directory unless
   interactive confirmation supplies another valid name
+- **AND** the selected name is written explicitly to `formless.ts` and is not
+  inferred again when later commands load the configuration
 
 #### Scenario: Start existing local workspace runtime
 
-- **WHEN** `formless dev` runs for a manifest-only workspace or workspace
+- **WHEN** `formless dev` runs for a config-only workspace or workspace
   source with storage snapshots and media payloads
 - **THEN** the product instance runtime starts with workspace-local persistence
 - **AND** the CLI builds the active package resolver from bundled packages plus
-  linked packages declared in `formless.json` `packages.links` when present
+  linked packages declared in `formless.ts` `packages.links` when present
 - **AND** installable package lists shown before the workspace has installed
   apps come from that active resolver
 - **AND** first-run local runtime state starts from workspace storage snapshots
@@ -597,7 +658,7 @@ optional first app install, credential setup, and push operations.
 
 #### Scenario: Install linked private app locally
 
-- **GIVEN** `formless.json` `packages.links` includes a private local app
+- **GIVEN** `formless.ts` `packages.links` includes a private local app
   package manifest
 - **WHEN** `formless dev` starts and an owner opens the app install flow
 - **THEN** the linked package appears in the installable package list for that
@@ -609,7 +670,7 @@ optional first app install, credential setup, and push operations.
 
 #### Scenario: Reject missing linked package source
 
-- **GIVEN** `formless.json` `packages.links` points at a missing or invalid
+- **GIVEN** `formless.ts` `packages.links` points at a missing or invalid
   package manifest or source schema
 - **WHEN** `formless dev`, `formless push`, or a workspace
   operation builds the active package resolver
@@ -669,7 +730,7 @@ snapshots and media payloads.
 - **THEN** active installed app records, media payloads, and schema-owned
   control-plane intent are written to deterministic workspace storage snapshots
 - **AND** browser IndexedDB state is not used as the source of truth
-- **AND** secrets are not written to `formless.json`, storage snapshots, or
+- **AND** secrets are not written to `formless.ts`, storage snapshots, or
   media files
 
 #### Scenario: Auto-save local workspace state
@@ -743,38 +804,37 @@ The system SHALL allow a local Formless workspace to declare trusted
 owner-authored runtime extension entrypoints through reviewable workspace source
 without storing executable code configuration in app data.
 
-#### Scenario: Runtime config in workspace manifest
+#### Scenario: Runtime config in workspace configuration
 
-- **GIVEN** a workspace `formless.json` may contain optional runtime extension
+- **GIVEN** a workspace `formless.ts` may contain optional runtime extension
   config
 - **WHEN** the runtime extension config is read
-- **THEN** the existing workspace manifest kind and version remain the outer
-  file contract
+- **THEN** the resolved workspace configuration supplies the current default
+  kind and version
 - **AND** runtime extension config lives under optional `runtime.extensions`
 - **AND** the first supported extension point is
   `runtime.extensions["site.publicRenderer"]`
 - **AND** `runtime.extensions["site.publicRenderer"]` declares explicit
   `browser` and `worker` module paths
 - **AND** each module path is a local workspace-relative path
-- **AND** unsupported runtime extension keys, absolute paths, URL-like paths,
-  home-relative paths, parent traversal, empty paths, duplicate extension
-  declarations, and secret-looking fields are rejected before local dev startup,
-  deploy planning, sync planning, or provider mutation continues
+- **AND** absolute paths, URL-like paths, home-relative paths, parent traversal,
+  and empty paths are rejected before local dev startup, deploy planning, sync
+  planning, or provider mutation continues
 
 #### Scenario: Runtime config is deploy-code config
 
 - **WHEN** workspace source is saved, checked, pushed, pulled, exported, or
   restored
-- **THEN** the `formless.json` `runtime.extensions` section is treated as
+- **THEN** the `formless.ts` `runtime.extensions` section is treated as
   reviewable deploy-code configuration for resolving trusted workspace runtime
   extension modules
 - **AND** runtime extension config is not app install intent, route intent, app
   data, Site record data, media payload, package app source data, provider
   credential state, deployment observation state, or runtime secret state
-- **AND** `formless.json` stores runtime extension module paths only inside the
-  manifest-owned `runtime.extensions` section
-- **AND** `formless.json` stores package app source links only inside the
-  manifest-owned `packages.links` section
+- **AND** `formless.ts` declares runtime extension module paths only inside the
+  configuration-owned `runtime.extensions` section
+- **AND** `formless.ts` declares package app source links only inside the
+  configuration-owned `packages.links` section
 - **AND** app-install, route, deployment-config, app records, package manifests,
   and runtime package payloads do not store local renderer module paths
 
@@ -792,7 +852,7 @@ without storing executable code configuration in app data.
 - **AND** Site authoring remains the bundled generated Site admin experience
   backed by flat Site records, schema, media, public actions, and routes
 - **AND** omitting `runtime.extensions["site.publicRenderer"]` from
-  `formless.json` uses the bundled Site renderer
+  `formless.ts` uses the bundled Site renderer
 
 #### Scenario: Push deploys runtime extensions
 
@@ -816,8 +876,8 @@ without storing executable code configuration in app data.
 
 ### Requirement: Instance Workspace
 
-The system SHALL manage reviewable Formless workspaces whose `formless.json`
-manifests describe workspace layout and local configuration while instance
+The system SHALL manage reviewable Formless workspaces whose `formless.ts`
+modules describe workspace layout and local configuration while instance
 intent lives in schema-owned storage snapshots.
 
 #### Scenario: Pull from remote target
@@ -841,7 +901,7 @@ intent lives in schema-owned storage snapshots.
 - **AND** the no-op message is exact and is not accompanied by sync plan, drift,
   deploy, migration, retry, or warning text
 - **AND** pull and push select the remote HTTP origin from an enabled
-  `deployment-config.targetUrl` record rather than `formless.json`
+  `deployment-config.targetUrl` record rather than `formless.ts`
 
 #### Scenario: Push to remote target
 
@@ -975,11 +1035,11 @@ workspace-controlled deployment intent.
   bucket, Worker assets, Worker secrets, custom-domain provider resources, DNS
   provider resources, and Alchemy deploy state are
   destroyed through tracked selected deploy state
-- **AND** `formless.json`, instance archives, and app archives remain in place
+- **AND** `formless.ts`, instance archives, and app archives remain in place
 - **AND** ignored deploy state for the selected target is removed or marked
   destroyed only after provider destroy succeeds
 - **AND** provider credentials and admin tokens remain outside workspace
-  manifests, portable archives, browser responses, and spec artifacts
+  configuration, portable archives, browser responses, and spec artifacts
 
 #### Scenario: Destroy confirmation
 
@@ -1049,7 +1109,7 @@ deployment intent records.
 - **AND** after provider reconciliation or failure it patches the target
   deployment config's display-safe latest observation cache
 - **AND** runner-held credentials remain outside browser, archive, record
-  source, and workspace manifest responses
+  source, and workspace configuration responses
 
 #### Scenario: Push dry-run remains read-only
 

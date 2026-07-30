@@ -13,7 +13,7 @@ import {
   startWorkspaceGatewaySidecar as startPackageWorkspaceGatewaySidecar,
   type WorkspaceGatewaySidecar,
 } from "@dpeek/formless-gateway/sidecar";
-import type { InstanceWorkspaceManifest as FormlessInstanceWorkspaceManifest } from "@dpeek/formless-workspace";
+import type { ResolvedFormlessConfig as FormlessResolvedConfig } from "@dpeek/formless-workspace";
 import {
   INSTANCE_WORKSPACE_ADMIN_TOKEN_ENV_NAME as FORMLESS_INSTANCE_WORKSPACE_ADMIN_TOKEN_ENV_NAME,
   INSTANCE_WORKSPACE_OWNER_SESSION_SECRET_ENV_NAME as FORMLESS_INSTANCE_WORKSPACE_OWNER_SESSION_SECRET_ENV_NAME,
@@ -71,9 +71,9 @@ export type FormlessInstanceWorkspaceDevSessionEntry = {
 };
 
 export type FormlessInstanceWorkspaceGatewayLifecycleChildRuntimeEnvInput = {
+  config: FormlessResolvedConfig;
   env?: NodeJS.ProcessEnv;
   localDevSecrets: FormlessInstanceWorkspaceLocalDevSecretState;
-  manifest: FormlessInstanceWorkspaceManifest;
   workspaceAppPackages?: string;
   workspaceRoot: string;
   workspaceRuntimeExtensions?: string;
@@ -110,7 +110,7 @@ export async function startFormlessInstanceWorkspaceGatewayLifecycle(
       formlessInstanceWorkspaceDevEnv(
         envInput.env ?? {},
         envInput.workspaceRoot,
-        envInput.manifest,
+        envInput.config,
         sidecar,
         {
           localDevSecrets: envInput.localDevSecrets,
@@ -135,7 +135,7 @@ export async function startFormlessInstanceWorkspaceGatewayLifecycle(
 export function formlessInstanceWorkspaceDevEnv(
   env: NodeJS.ProcessEnv,
   workspaceRoot: string,
-  manifest: FormlessInstanceWorkspaceManifest,
+  config: FormlessResolvedConfig,
   sidecar?: FormlessInstanceWorkspaceGatewayLifecycleSidecarEnv | null,
   options: FormlessInstanceWorkspaceDevEnvOptions = {},
 ): NodeJS.ProcessEnv {
@@ -171,10 +171,7 @@ export function formlessInstanceWorkspaceDevEnv(
     FORMLESS_RUNTIME_PROFILE: "instance",
     [WORKSPACE_GATEWAY_BOOTSTRAP_TOKEN_ENV]: bootstrapToken,
     [WORKSPACE_GATEWAY_CSRF_TOKEN_ENV]: csrfToken,
-    FORMLESS_WRANGLER_PERSIST: formlessInstanceWorkspaceWranglerPersistPath(
-      workspaceRoot,
-      manifest,
-    ),
+    FORMLESS_WRANGLER_PERSIST: formlessInstanceWorkspaceWranglerPersistPath(workspaceRoot, config),
     VITE_FORMLESS_WORKSPACE_GATEWAY_API: "/api/formless/workspace",
     VITE_FORMLESS_WORKSPACE_GATEWAY_BOOTSTRAP_TOKEN: bootstrapToken,
     VITE_FORMLESS_RUNTIME_PROFILE: "instance",

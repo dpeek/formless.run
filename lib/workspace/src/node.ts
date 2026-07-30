@@ -45,7 +45,7 @@ import {
 } from "./index.ts";
 import type {
   InitialWorkspaceOperationStateInput,
-  InstanceWorkspaceManifest,
+  ResolvedFormlessConfig,
   UpdateWorkspaceOperationStateInput,
   WorkspacePackageLink,
   WorkspaceAutoSaveState,
@@ -112,7 +112,7 @@ export type WorkspaceAppPackageSource = {
 
 export type CreateWorkspaceAppPackageResolverInput = {
   bundledManifests: readonly unknown[];
-  manifest: Pick<InstanceWorkspaceManifest, "packages">;
+  manifest: Pick<ResolvedFormlessConfig, "packages">;
   workspaceRoot: string;
 };
 
@@ -181,33 +181,33 @@ export function workspaceOperationStatePath(workspaceRoot: string, operationId: 
 
 export function instanceWorkspaceStateRootPath(
   workspaceRoot: string,
-  manifest: InstanceWorkspaceManifest,
+  manifest: ResolvedFormlessConfig,
 ): string {
   return path.join(workspaceRoot, manifest.state.root);
 }
 
 export function instanceWorkspaceInstanceStateRelativePath(
-  manifest: InstanceWorkspaceManifest,
+  manifest: ResolvedFormlessConfig,
 ): string {
   return `${manifest.state.root}/instance.json`;
 }
 
 export function instanceWorkspaceInstanceStatePath(
   workspaceRoot: string,
-  manifest: InstanceWorkspaceManifest,
+  manifest: ResolvedFormlessConfig,
 ): string {
   return path.join(workspaceRoot, instanceWorkspaceInstanceStateRelativePath(manifest));
 }
 
 export function instanceWorkspaceAppStateRootPath(
   workspaceRoot: string,
-  manifest: InstanceWorkspaceManifest,
+  manifest: ResolvedFormlessConfig,
 ): string {
   return path.join(workspaceRoot, manifest.state.root, "apps");
 }
 
 export function instanceWorkspaceAppStateRelativePath(
-  manifest: InstanceWorkspaceManifest,
+  manifest: ResolvedFormlessConfig,
   installId: string,
 ): string {
   return `${manifest.state.root}/apps/${parseWorkspaceStateInstallId(installId)}.json`;
@@ -215,7 +215,7 @@ export function instanceWorkspaceAppStateRelativePath(
 
 export function instanceWorkspaceAppStatePath(
   workspaceRoot: string,
-  manifest: InstanceWorkspaceManifest,
+  manifest: ResolvedFormlessConfig,
   installId: string,
 ): string {
   return path.join(workspaceRoot, instanceWorkspaceAppStateRelativePath(manifest, installId));
@@ -223,14 +223,14 @@ export function instanceWorkspaceAppStatePath(
 
 export function instanceWorkspaceMediaRootPath(
   workspaceRoot: string,
-  manifest: InstanceWorkspaceManifest,
+  manifest: ResolvedFormlessConfig,
 ): string {
   return path.join(workspaceRoot, manifest.media.root);
 }
 
 export function instanceWorkspaceMediaFilePath(
   workspaceRoot: string,
-  manifest: InstanceWorkspaceManifest,
+  manifest: ResolvedFormlessConfig,
   archivePath: string,
 ): string {
   return path.join(
@@ -241,7 +241,7 @@ export function instanceWorkspaceMediaFilePath(
 
 export function instanceWorkspaceMediaManifestPath(
   workspaceRoot: string,
-  manifest: InstanceWorkspaceManifest,
+  manifest: ResolvedFormlessConfig,
 ): string {
   return path.join(
     instanceWorkspaceMediaRootPath(workspaceRoot, manifest),
@@ -251,7 +251,7 @@ export function instanceWorkspaceMediaManifestPath(
 
 export async function readInstanceWorkspaceControlPlaneStorageSnapshot(input: {
   controlPlaneSnapshotContract: WorkspaceControlPlaneSnapshotContract;
-  manifest: InstanceWorkspaceManifest;
+  manifest: ResolvedFormlessConfig;
   packageResolver?: AppPackageResolver;
   workspaceRoot: string;
 }): Promise<StorageSnapshot | undefined> {
@@ -274,7 +274,7 @@ export async function readInstanceWorkspaceControlPlaneStorageSnapshot(input: {
 
 export async function writeInstanceWorkspaceControlPlaneStorageSnapshot(input: {
   controlPlaneSnapshotContract: WorkspaceControlPlaneSnapshotContract;
-  manifest: InstanceWorkspaceManifest;
+  manifest: ResolvedFormlessConfig;
   packageResolver?: AppPackageResolver;
   snapshot: StorageSnapshot | undefined;
   sourceLabel?: string;
@@ -309,7 +309,7 @@ export async function writeInstanceWorkspaceControlPlaneStorageSnapshot(input: {
 
 export async function readInstanceWorkspaceAppStorageSnapshot(input: {
   installId: string;
-  manifest: InstanceWorkspaceManifest;
+  manifest: ResolvedFormlessConfig;
   schemaKey?: string;
   schemaProvenance?: WorkspacePackageAppSchemaProvenance;
   sourceSchema?: AppSchema;
@@ -343,7 +343,7 @@ export async function readInstanceWorkspaceAppStorageSnapshot(input: {
 
 export async function writeInstanceWorkspaceAppStorageSnapshot(input: {
   installId: string;
-  manifest: InstanceWorkspaceManifest;
+  manifest: ResolvedFormlessConfig;
   schemaProvenance: WorkspacePackageAppSchemaProvenance;
   snapshot: StorageSnapshot;
   workspaceRoot: string;
@@ -365,7 +365,7 @@ export async function writeInstanceWorkspaceAppStorageSnapshot(input: {
 }
 
 export async function replaceInstanceWorkspaceAppStorageSnapshots(input: {
-  manifest: InstanceWorkspaceManifest;
+  manifest: ResolvedFormlessConfig;
   snapshots: readonly {
     installId: string;
     schemaProvenance: WorkspacePackageAppSchemaProvenance;
@@ -390,7 +390,7 @@ export async function replaceInstanceWorkspaceAppStorageSnapshots(input: {
 
 export async function readInstanceWorkspaceMediaFiles(input: {
   archivePaths: readonly string[];
-  manifest: InstanceWorkspaceManifest;
+  manifest: ResolvedFormlessConfig;
   workspaceRoot: string;
 }): Promise<ReadInstanceWorkspaceMediaFilesResult> {
   const mediaFiles: InstanceWorkspaceMediaFile[] = [];
@@ -444,7 +444,7 @@ export async function readInstanceWorkspaceMediaFiles(input: {
 }
 
 export async function replaceInstanceWorkspaceMediaFiles(input: {
-  manifest: InstanceWorkspaceManifest;
+  manifest: ResolvedFormlessConfig;
   mediaFiles: readonly InstanceWorkspaceMediaFile[];
   workspaceRoot: string;
 }): Promise<void> {
@@ -1103,7 +1103,7 @@ function parseWorkspaceMediaArchivePath(value: string): string {
 }
 
 async function readWorkspaceMediaObjects(input: {
-  manifest: InstanceWorkspaceManifest;
+  manifest: ResolvedFormlessConfig;
   workspaceRoot: string;
 }): Promise<Map<string, Record<string, unknown>>> {
   const manifestPath = instanceWorkspaceMediaManifestPath(input.workspaceRoot, input.manifest);

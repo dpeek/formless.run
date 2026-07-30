@@ -25,7 +25,7 @@ import { type ArchiveDiskWriteResult } from "../program/archive-node.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import {
   normalizeInstanceWorkspaceTargetUrl as normalizeFormlessInstanceWorkspaceTargetUrl,
-  type InstanceWorkspaceManifest as FormlessInstanceWorkspaceManifest,
+  type ResolvedFormlessConfig as FormlessResolvedConfig,
   type InstanceWorkspaceTarget as FormlessInstanceWorkspaceTarget,
 } from "@dpeek/formless-workspace";
 import {
@@ -77,7 +77,7 @@ import {
   type FormlessInstanceDeploymentObservationPatch,
 } from "./instance-target-client.ts";
 import {
-  formlessCliDeploymentWorkerNameFromConfigOrManifest,
+  formlessCliDeploymentWorkerNameFromConfig,
   formlessCliPrimaryTargetId,
   formlessCliTargetFromDeploymentConfig,
   formlessCliWorkersDevTargetFacts,
@@ -94,7 +94,7 @@ import {
 import {
   createActiveWorkspaceAppPackages,
   createWorkspaceTempRoot,
-  readWorkspaceManifest,
+  readWorkspaceConfig,
   resolveFormlessInstanceWorkspaceRoot,
   runtimeWorkspaceAppPackagesEnvValue,
   workspaceRootForInput,
@@ -277,7 +277,7 @@ export type PlanDeployLocalFormlessWorkspaceDependencies = Pick<
 export type PlanDeployLocalFormlessWorkspaceResult = LocalWorkspaceDeploymentPlanResult & {
   desiredState: LocalWorkspaceDeploymentDesiredState;
   existingSelectedTarget?: FormlessInstanceWorkspaceTarget;
-  manifestPath: string;
+  configPath: string;
   preflight?: CheckFormlessInstanceWorkspaceResult;
   workspaceAppPackages?: string;
   workspaceRuntimeExtensions?: string;
@@ -407,12 +407,12 @@ export type DestroyFormlessInstanceWorkspaceResult = {
 
 export type FormlessInstanceWorkspaceProviderContext = {
   activePackages: ActiveWorkspaceAppPackages;
+  config: FormlessResolvedConfig;
   credential: LocalWorkspaceDeploymentCredential;
   credentialProfile: string | null;
   deploymentStatePath: string;
   deploymentStateRoot: string;
   localSecretPath: string;
-  manifest: FormlessInstanceWorkspaceManifest;
   plan: FormlessInstanceDeploymentPlan;
   providerBearer?: FormlessCliProviderBearerMaterial;
   secrets: {
@@ -453,7 +453,7 @@ export async function pushFormlessInstanceWorkspace(
 
     if (providerApply?.ownerSetup !== undefined) {
       await writeLocalWorkspaceDeploymentConfigSource({
-        manifest: planned.manifest,
+        config: planned.config,
         now: dependencies.now(),
         plan: planned.plan,
         selectedTarget,
@@ -470,7 +470,7 @@ export async function pushFormlessInstanceWorkspace(
           : { existingSelectedTarget: planned.existingSelectedTarget }),
         force: input.force,
         forcedRecoveryStatus: input.apply ? "applied" : "planned",
-        manifest: planned.manifest,
+        manifest: planned.config,
         selectedTarget,
         tempRoot,
         workspaceRoot,
@@ -839,16 +839,16 @@ export async function refreshFormlessInstanceDeploymentObservation(
     cwd: dependencies.cwd,
     workspacePath: input.workspacePath,
   });
-  const { manifest } = await readWorkspaceManifest(workspaceRoot);
+  const { config } = await readWorkspaceConfig(workspaceRoot);
   const selectedTarget = await requireFormlessCliWorkspaceTarget({
     commandName: "deployment refresh",
-    manifest,
+    config,
     targetAlias: input.targetAlias,
     workspaceRoot,
   });
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot);
+  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest,
+    manifest: config,
     packageResolver: activePackages.resolver,
     workspaceRoot,
   });
@@ -988,7 +988,7 @@ export async function deployLocalFormlessWorkspace(
     });
 
     await writeLocalWorkspaceDeploymentConfigSource({
-      manifest: planned.manifest,
+      config: planned.config,
       now: dependencies.now(),
       plan: planned.plan,
       selectedTarget: planned.selectedTarget,
@@ -1254,10 +1254,10 @@ export async function planDeployLocalFormlessWorkspace(
     cwd: dependencies.cwd,
     workspacePath: input.workspacePath,
   });
-  const { manifest, manifestPath } = await readWorkspaceManifest(workspaceRoot);
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot);
+  const { config, configPath } = await readWorkspaceConfig(workspaceRoot);
+  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest,
+    manifest: config,
     packageResolver: activePackages.resolver,
     workspaceRoot,
   });
@@ -1314,11 +1314,11 @@ export async function planDeployLocalFormlessWorkspace(
   const planned = planLocalWorkspaceDeployment({
     account: credentialContext.account,
     adoptExistingDeployment: existingSelectedTarget !== undefined,
+    config,
     credential: credentialContext.credential,
     credentialReference: credentialContext.credentialReference,
     credentialProfile: credentialContext.credentialProfile,
     deploymentConfig: deploymentSource.deploymentConfig,
-    manifest,
     packageVersion: dependencies.packageVersion,
     providerBearer: credentialContext.providerBearer,
     targetAlias: input.targetAlias,
@@ -1329,13 +1329,13 @@ export async function planDeployLocalFormlessWorkspace(
     targetId: planned.selectedTarget.alias,
   });
   const workspaceAppPackages = runtimeWorkspaceAppPackagesEnvValue(activePackages);
-  const workspaceRuntimeExtensions = runtimeWorkspaceExtensionsEnvValue(manifest);
+  const workspaceRuntimeExtensions = runtimeWorkspaceExtensionsEnvValue(config);
 
   return {
     ...planned,
     desiredState,
     ...(existingSelectedTarget === undefined ? {} : { existingSelectedTarget }),
-    manifestPath,
+    configPath,
     ...(preflight === undefined ? {} : { preflight }),
     ...(workspaceAppPackages === undefined ? {} : { workspaceAppPackages }),
     ...(workspaceRuntimeExtensions === undefined ? {} : { workspaceRuntimeExtensions }),
@@ -1351,10 +1351,10 @@ export async function preflightPushFormlessCloudflareOAuthCredential(
     cwd: dependencies.cwd,
     workspacePath: input.workspacePath,
   });
-  const { manifest } = await readWorkspaceManifest(workspaceRoot);
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot);
+  const { config } = await readWorkspaceConfig(workspaceRoot);
+  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest,
+    manifest: config,
     packageResolver: activePackages.resolver,
     workspaceRoot,
   });
@@ -1508,10 +1508,10 @@ export async function planDeployFormlessInstanceWorkspace(
   dependencies: PlanDeployFormlessInstanceWorkspaceDependencies,
 ): Promise<PlanDeployFormlessInstanceWorkspaceResult> {
   const workspaceRoot = workspaceRootForInput(dependencies.cwd, input.workspacePath);
-  const { manifest } = await readWorkspaceManifest(workspaceRoot);
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot);
+  const { config } = await readWorkspaceConfig(workspaceRoot);
+  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest,
+    manifest: config,
     packageResolver: activePackages.resolver,
     workspaceRoot,
   });
@@ -1535,13 +1535,13 @@ export async function planDeployFormlessInstanceWorkspace(
   }
 
   const plan = formlessInstanceWorkspaceDeploymentPlan({
+    config,
     deploymentConfig: deploymentSource.deploymentConfig,
-    manifest,
     packageVersion: dependencies.packageVersion,
     selectedTarget,
   });
   const workspaceAppPackages = runtimeWorkspaceAppPackagesEnvValue(activePackages);
-  const workspaceRuntimeExtensions = runtimeWorkspaceExtensionsEnvValue(manifest);
+  const workspaceRuntimeExtensions = runtimeWorkspaceExtensionsEnvValue(config);
   const credentialContext = await resolveLocalWorkspaceDeploymentCredentialContext({
     credential: deploymentSource.credential,
     credentialAccess: "mutable",
@@ -1653,10 +1653,10 @@ export async function resolveFormlessInstanceWorkspaceProviderContext(
   },
 ): Promise<FormlessInstanceWorkspaceProviderContext> {
   const workspaceRoot = workspaceRootForInput(dependencies.cwd, input.workspacePath);
-  const { manifest } = await readWorkspaceManifest(workspaceRoot);
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot);
+  const { config } = await readWorkspaceConfig(workspaceRoot);
+  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest,
+    manifest: config,
     packageResolver: activePackages.resolver,
     workspaceRoot,
   });
@@ -1681,8 +1681,8 @@ export async function resolveFormlessInstanceWorkspaceProviderContext(
 
   const plan = formlessInstanceWorkspaceDeploymentPlan({
     commandName: input.commandName,
+    config,
     deploymentConfig: deploymentSource.deploymentConfig,
-    manifest,
     packageVersion: dependencies.packageVersion,
     selectedTarget,
   });
@@ -1710,12 +1710,12 @@ export async function resolveFormlessInstanceWorkspaceProviderContext(
 
   return {
     activePackages,
+    config,
     credential: credentialContext.credential,
     credentialProfile: credentialContext.credentialProfile,
     deploymentStatePath,
     deploymentStateRoot,
     localSecretPath: localSecretEnv.path,
-    manifest,
     plan,
     ...(credentialContext.providerBearer === undefined
       ? {}
@@ -1730,11 +1730,11 @@ export async function resolveFormlessInstanceWorkspaceProviderContext(
 }
 
 type LocalWorkspaceDeploymentPlanResult = {
+  config: FormlessResolvedConfig;
   credential: LocalWorkspaceDeploymentCredential;
   credentialProfile: string | null;
   credentialProfileFromConfig: boolean;
   deploymentDisplay: LocalWorkspaceDeploymentDisplayFacts;
-  manifest: FormlessInstanceWorkspaceManifest;
   plan: FormlessInstanceDeploymentPlan;
   providerBearer?: FormlessCliProviderBearerMaterial;
   selectedTarget: FormlessInstanceWorkspaceTarget;
@@ -1766,11 +1766,11 @@ type LocalWorkspaceDeploymentDesiredState = {
 function planLocalWorkspaceDeployment(input: {
   account: FormlessInstanceDeploymentAccount;
   adoptExistingDeployment: boolean;
+  config: FormlessResolvedConfig;
   credential: LocalWorkspaceDeploymentCredential;
   credentialReference: FormlessCliDeploymentCredentialReference;
   credentialProfile: string | null;
   deploymentConfig?: StoredRecord;
-  manifest: FormlessInstanceWorkspaceManifest;
   packageVersion: string;
   providerBearer?: FormlessCliProviderBearerMaterial;
   targetAlias?: string | null;
@@ -1778,9 +1778,9 @@ function planLocalWorkspaceDeployment(input: {
   const credential = input.credential;
   const credentialProfile = input.credentialProfile;
   const credentialProfileFromConfig = input.credential?.kind === "alchemy-profile";
-  const workerName = formlessCliDeploymentWorkerNameFromConfigOrManifest({
+  const workerName = formlessCliDeploymentWorkerNameFromConfig({
+    config: input.config,
     deploymentConfig: input.deploymentConfig,
-    manifest: input.manifest,
   });
   const plan = planFormlessInstanceDeployment({
     account: input.account,
@@ -1810,6 +1810,7 @@ function planLocalWorkspaceDeployment(input: {
   }
 
   return {
+    config: input.config,
     credential,
     credentialProfile,
     credentialProfileFromConfig,
@@ -1820,7 +1821,6 @@ function planLocalWorkspaceDeployment(input: {
       providerFamily: "cloudflare",
       selectedTarget,
     }),
-    manifest: input.manifest,
     plan,
     ...(input.providerBearer === undefined ? {} : { providerBearer: input.providerBearer }),
     selectedTarget,
@@ -1882,16 +1882,16 @@ function projectLocalWorkspaceDeploymentDesiredState(input: {
 
 function formlessInstanceWorkspaceDeploymentPlan(input: {
   commandName?: "deploy" | "destroy" | "domains run";
+  config: FormlessResolvedConfig;
   deploymentConfig?: StoredRecord;
-  manifest: FormlessInstanceWorkspaceManifest;
   packageVersion: string;
   selectedTarget: FormlessInstanceWorkspaceTarget;
 }): FormlessInstanceDeploymentPlan {
   const commandName = input.commandName ?? "deploy";
   const targetUrl = input.selectedTarget.url;
-  const workerName = formlessCliDeploymentWorkerNameFromConfigOrManifest({
+  const workerName = formlessCliDeploymentWorkerNameFromConfig({
+    config: input.config,
     deploymentConfig: input.deploymentConfig,
-    manifest: input.manifest,
   });
   const facts = formlessCliWorkersDevTargetFacts(targetUrl, workerName);
   const accountId = stringRecordValue(input.deploymentConfig, "accountId")?.trim();
@@ -2121,7 +2121,7 @@ async function readDestroyRouteProjectionSource(
   source: DestroyFormlessInstanceWorkspaceRouteProviderResources["source"];
 }> {
   const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest: context.manifest,
+    manifest: context.config,
     packageResolver: context.activePackages.resolver,
     workspaceRoot: context.workspaceRoot,
   });
@@ -2213,15 +2213,15 @@ async function writeLocalWorkspaceDeploymentState(input: {
 }
 
 async function writeLocalWorkspaceDeploymentConfigSource(input: {
-  manifest: FormlessInstanceWorkspaceManifest;
+  config: FormlessResolvedConfig;
   now: string;
   plan: FormlessInstanceDeploymentPlan;
   selectedTarget: FormlessInstanceWorkspaceTarget;
   workspaceRoot: string;
 }) {
-  const activePackages = await createActiveWorkspaceAppPackages(input.workspaceRoot);
+  const activePackages = await createActiveWorkspaceAppPackages(input.workspaceRoot, input.config);
   const current = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest: input.manifest,
+    manifest: input.config,
     packageResolver: activePackages.resolver,
     workspaceRoot: input.workspaceRoot,
   });
@@ -2260,7 +2260,7 @@ async function writeLocalWorkspaceDeploymentConfigSource(input: {
   ];
 
   await writeInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest: input.manifest,
+    manifest: input.config,
     packageResolver: activePackages.resolver,
     snapshot: workspaceControlPlaneSnapshotFromRecords({
       current,

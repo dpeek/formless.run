@@ -124,7 +124,7 @@ contracts through the Installed Apps package slice.
 
 #### Scenario: Workspace resolver has explicit defaults
 
-- GIVEN a workspace package resolver is built from optional `formless.json`
+- GIVEN a workspace package resolver is built from optional `formless.ts`
   `packages.links`
 - WHEN bundled package metadata should be part of that resolver
 - THEN the caller supplies bundled manifests explicitly
@@ -468,7 +468,7 @@ records and the active package resolver.
 ### Requirement: Workspace App Installs From Records
 
 The system SHALL derive workspace app install intent from schema-owned
-`app-install` records rather than `formless.json` app declarations.
+`app-install` records rather than `formless.ts` configuration.
 
 #### Scenario: Compose install from workspace source
 
@@ -476,8 +476,8 @@ The system SHALL derive workspace app install intent from schema-owned
   registry state from workspace source
 - **THEN** each installed app comes from an `app-install` control-plane record
   and its matching app storage snapshot
-- **AND** `formless.json` app declarations, labels, package app keys, and route
-  summaries are not read as install source
+- **AND** `formless.ts` does not declare app labels, package app keys, or route
+  summaries as install source
 
 #### Scenario: Workspace install requires active package
 

@@ -12,7 +12,7 @@ import {
   WORKSPACE_GATEWAY_SIDECAR_URL_ENV,
 } from "@dpeek/formless-gateway";
 import type { WorkspaceGatewaySidecar } from "@dpeek/formless-gateway/sidecar";
-import { defaultInstanceWorkspaceManifest as defaultFormlessInstanceWorkspaceManifest } from "@dpeek/formless-workspace";
+import { resolveFormlessConfig } from "@dpeek/formless-workspace";
 import {
   FORMLESS_TURNSTILE_ALWAYS_PASS_SECRET_KEY,
   FORMLESS_TURNSTILE_ALWAYS_PASS_SITE_KEY,
@@ -57,7 +57,7 @@ describe("local gateway lifecycle child runtime env", () => {
         VITE_FORMLESS_WORKSPACE_GATEWAY_SIDECAR_URL: "http://127.0.0.1:1/",
       },
       workspaceRoot,
-      defaultFormlessInstanceWorkspaceManifest({ name: "local-workspace" }),
+      resolveFormlessConfig({ name: "local-workspace" }),
       {
         endpoint: "http://127.0.0.1:4321/",
         proxyToken: "sidecar-proxy-token",
@@ -113,7 +113,7 @@ describe("local gateway lifecycle child runtime env", () => {
         [FORMLESS_TURNSTILE_SITE_KEY_ENV_NAME]: "explicit-turnstile-site-key",
       },
       path.join("/tmp", "formless-turnstile-workspace"),
-      defaultFormlessInstanceWorkspaceManifest({ name: "local-workspace" }),
+      resolveFormlessConfig({ name: "local-workspace" }),
       null,
     );
 
@@ -129,7 +129,7 @@ describe("local gateway lifecycle child runtime env", () => {
         FORMLESS_OWNER_SESSION_SECRET: "ambient-owner-session-secret",
       },
       workspaceRoot,
-      defaultFormlessInstanceWorkspaceManifest({ name: "local-workspace" }),
+      resolveFormlessConfig({ name: "local-workspace" }),
       null,
       {
         localDevSecrets: {

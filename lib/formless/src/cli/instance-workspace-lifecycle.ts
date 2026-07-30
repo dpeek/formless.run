@@ -4,26 +4,18 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import path from "node:path";
 
 import {
-  APP_ARCHIVE_KIND,
   INSTANCE_ARCHIVE_KIND,
   PORTABLE_ARCHIVE_MANIFEST_FILE,
   archiveApps,
-  type AppArchive,
   type PortableArchive,
 } from "../program/archive.ts";
-import type { AppInstall } from "@dpeek/formless-installed-apps";
 import type { AppInstallsResponse } from "../shared/protocol.ts";
 import { runtimeWorkspaceExtensionsEnvValue } from "../shared/workspace-runtime-extensions.ts";
 import {
   DEFAULT_INSTANCE_WORKSPACE_ARCHIVE_ROOT as DEFAULT_FORMLESS_INSTANCE_WORKSPACE_ARCHIVE_ROOT,
-  DEFAULT_INSTANCE_WORKSPACE_APP_STATE_ROOT as DEFAULT_FORMLESS_INSTANCE_WORKSPACE_APP_STATE_ROOT,
-  defaultInstanceWorkspaceManifest as defaultFormlessInstanceWorkspaceManifest,
-  formatInstanceWorkspaceManifest as formatFormlessInstanceWorkspaceManifest,
   normalizeInstanceWorkspaceTargetUrl as normalizeFormlessInstanceWorkspaceTargetUrl,
-  parseInstanceWorkspaceManifestJson as parseFormlessInstanceWorkspaceManifestJson,
-  type InstanceWorkspaceApp as FormlessInstanceWorkspaceApp,
-  type InstanceWorkspaceDefaultAppPolicy as FormlessInstanceWorkspaceDefaultAppPolicy,
-  type InstanceWorkspaceManifest as FormlessInstanceWorkspaceManifest,
+  resolveFormlessConfig,
+  type ResolvedFormlessConfig as FormlessResolvedConfig,
   type InstanceWorkspaceTarget as FormlessInstanceWorkspaceTarget,
 } from "@dpeek/formless-workspace";
 import {
@@ -50,10 +42,11 @@ import type { StartWorkspaceGatewaySidecarDependencies } from "./workspace-gatew
 import {
   createActiveWorkspaceAppPackages,
   createWorkspaceTempRoot,
+  formatFormlessConfigModule,
   formlessInstanceWorkspaceLocalStateRoot,
-  readWorkspaceManifest,
+  readWorkspaceConfig,
   runtimeWorkspaceAppPackagesEnvValue,
-  workspaceManifestPath,
+  workspaceConfigPath,
   workspaceRootForInput,
   type ActiveWorkspaceAppPackages,
 } from "./instance-workspace-foundation.ts";
@@ -89,7 +82,6 @@ export type {
 } from "./instance-workspace-gateway-lifecycle.ts";
 
 export type InitFormlessInstanceWorkspaceInput = {
-  defaultAppPolicy?: FormlessInstanceWorkspaceDefaultAppPolicy;
   fromArchive?: string | null;
   fromRemote?: boolean;
   name?: string | null;
@@ -110,9 +102,9 @@ export type InitFormlessInstanceWorkspaceDependencies = {
 
 export type InitFormlessInstanceWorkspaceResult = {
   archiveSourcePath?: string;
+  config: FormlessResolvedConfig;
+  configPath: string;
   gitignorePath: string;
-  manifest: FormlessInstanceWorkspaceManifest;
-  manifestPath: string;
   remoteStatus?: FormlessInstanceTargetStatus;
   workspaceRoot: string;
 };
@@ -131,8 +123,8 @@ export type FormlessInstanceWorkspaceStatusDependencies = {
 };
 
 export type FormlessInstanceWorkspaceStatusResult = {
-  manifest: FormlessInstanceWorkspaceManifest;
-  manifestPath: string;
+  config: FormlessResolvedConfig;
+  configPath: string;
   remoteStatus?: FormlessInstanceTargetStatus;
   secretState: "env" | "missing" | "stored";
   selectedTarget?: FormlessInstanceWorkspaceTarget;
@@ -167,12 +159,12 @@ export type EnsureFormlessInstanceWorkspaceDevBootstrapDependencies = {
 };
 
 export type EnsureFormlessInstanceWorkspaceDevBootstrapResult = {
+  config: FormlessResolvedConfig;
+  configPath: string;
   gitignorePath: string;
   localDevSecretStatePath: string;
   localDevSecrets: FormlessInstanceWorkspaceLocalDevSecretState;
   localStateRoot: string;
-  manifest: FormlessInstanceWorkspaceManifest;
-  manifestPath: string;
   workspaceRoot: string;
 };
 
@@ -215,8 +207,8 @@ export type ResetFormlessInstanceWorkspaceLocalStateDependencies = {
 };
 
 export type ResetFormlessInstanceWorkspaceLocalStateResult = {
+  configPath: string;
   localStateRoot: string;
-  manifestPath: string;
   workspaceRoot: string;
 };
 
@@ -225,29 +217,22 @@ export async function initFormlessInstanceWorkspace(
   dependencies: InitFormlessInstanceWorkspaceDependencies,
 ): Promise<InitFormlessInstanceWorkspaceResult> {
   const workspaceRoot = workspaceRootForInput(dependencies.cwd, input.workspacePath);
-  const manifestPath = workspaceManifestPath(workspaceRoot);
+  const configPath = workspaceConfigPath(workspaceRoot);
 
-  await assertNoExistingWorkspaceManifest(workspaceRoot);
+  await assertNoExistingWorkspaceConfig(workspaceRoot);
   await mkdir(workspaceRoot, { recursive: true });
 
   const name = input.name ?? defaultWorkspaceName(workspaceRoot);
+  const config = resolveFormlessConfig({ name });
   const targetUrl =
     input.targetUrl === undefined || input.targetUrl === null
       ? null
       : normalizeFormlessInstanceWorkspaceTargetUrl(input.targetUrl);
   const targetAlias = input.targetAlias ?? "remote";
-  let manifest = {
-    ...defaultFormlessInstanceWorkspaceManifest({ name, targetUrl }),
-    ...(input.defaultAppPolicy === undefined ? {} : { defaultAppPolicy: input.defaultAppPolicy }),
-  };
   let remoteStatus: FormlessInstanceTargetStatus | undefined;
   let archive: PortableArchive | undefined;
   let archiveDir: string | undefined;
   let archiveSourcePath: string | undefined;
-
-  if (targetUrl) {
-    manifest = withSingleTarget(manifest, { alias: targetAlias, url: targetUrl });
-  }
 
   if (input.fromRemote) {
     if (!targetUrl) {
@@ -256,12 +241,11 @@ export async function initFormlessInstanceWorkspace(
 
     remoteStatus = await readFormlessInstanceTargetStatus(
       {
-        packageResolver: (await createActiveWorkspaceAppPackages(workspaceRoot, manifest)).resolver,
+        packageResolver: (await createActiveWorkspaceAppPackages(workspaceRoot, config)).resolver,
         targetUrl,
       },
       dependencies,
     );
-    manifest = withRemoteStatus(manifest, remoteStatus);
   }
 
   if (input.fromArchive) {
@@ -269,15 +253,14 @@ export async function initFormlessInstanceWorkspace(
     archive = await readWorkspaceArchive(archiveDir);
 
     archiveSourcePath = relativeWorkspacePath(workspaceRoot, archiveDir);
-    manifest = withArchiveSource(manifest, archive, archiveSourcePath);
   }
 
-  await prepareWorkspaceDirectories(workspaceRoot, manifest);
-  await writeFile(manifestPath, formatFormlessInstanceWorkspaceManifest(manifest));
+  await prepareWorkspaceDirectories(workspaceRoot, config);
+  await writeFile(configPath, formatFormlessConfigModule({ name: config.name }));
   await writeInitialInstanceWorkspaceState({
     archive,
     archiveDir,
-    manifest,
+    config,
     remoteStatus,
     targetAlias,
     targetUrl,
@@ -287,9 +270,9 @@ export async function initFormlessInstanceWorkspace(
 
   return {
     ...(archiveSourcePath === undefined ? {} : { archiveSourcePath }),
+    config,
+    configPath,
     gitignorePath,
-    manifest,
-    manifestPath,
     ...(remoteStatus === undefined ? {} : { remoteStatus }),
     workspaceRoot,
   };
@@ -305,7 +288,6 @@ export async function initLocalFormlessWorkspaceOnboarding(
 
   return initFormlessInstanceWorkspace(
     {
-      defaultAppPolicy: "none",
       name: input.name,
       targetUrl: null,
       workspacePath: input.workspacePath,
@@ -345,8 +327,8 @@ export async function getFormlessInstanceWorkspaceStatus(
     : undefined;
 
   return {
-    manifest: context.manifest,
-    manifestPath: context.manifestPath,
+    config: context.config,
+    configPath: context.configPath,
     ...(remoteStatus === undefined ? {} : { remoteStatus }),
     secretState: formlessCliWorkspaceStatusSecretStateLabel(context),
     ...(context.selectedTarget === undefined ? {} : { selectedTarget: context.selectedTarget }),
@@ -359,17 +341,17 @@ export async function runFormlessInstanceWorkspaceDev(
   dependencies: DevFormlessInstanceWorkspaceDependencies,
 ): Promise<void> {
   const devBootstrap = await ensureFormlessInstanceWorkspaceDevBootstrap(input, dependencies);
-  const { localDevSecrets, manifest, workspaceRoot } = devBootstrap;
+  const { config, localDevSecrets, workspaceRoot } = devBootstrap;
 
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot);
+  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest,
+    manifest: config,
     packageResolver: activePackages.resolver,
     workspaceRoot,
   });
 
   if (controlPlane !== undefined) {
-    await readCompleteWorkspaceAppState(workspaceRoot, manifest, controlPlane, activePackages);
+    await readCompleteWorkspaceAppState(workspaceRoot, config, controlPlane, activePackages);
   }
 
   const candidateOrigins = new Set<string>();
@@ -384,12 +366,12 @@ export async function runFormlessInstanceWorkspaceDev(
     child = dependencies.spawn(dependencies.devCommand.command, dependencies.devCommand.args, {
       cwd: dependencies.packageRoot,
       env: gatewayLifecycle.childRuntimeEnv({
+        config,
         env: dependencies.env,
         localDevSecrets,
-        manifest,
         workspaceRoot,
         workspaceAppPackages: runtimeWorkspaceAppPackagesEnvValue(activePackages),
-        workspaceRuntimeExtensions: runtimeWorkspaceExtensionsEnvValue(manifest),
+        workspaceRuntimeExtensions: runtimeWorkspaceExtensionsEnvValue(config),
       }),
       stdio: "pipe",
     });
@@ -406,7 +388,7 @@ export async function runFormlessInstanceWorkspaceDev(
       {
         adminToken: localDevSecrets.adminToken,
         activePackages,
-        manifest,
+        config,
         source,
         workspaceRoot,
       },
@@ -414,7 +396,7 @@ export async function runFormlessInstanceWorkspaceDev(
     );
 
     await writeWorkspaceLocalDevState({
-      manifest,
+      config,
       source,
       startedAt: dependencies.now(),
       workspaceRoot,
@@ -450,28 +432,24 @@ export async function ensureFormlessInstanceWorkspaceDevBootstrap(
   dependencies: EnsureFormlessInstanceWorkspaceDevBootstrapDependencies,
 ): Promise<EnsureFormlessInstanceWorkspaceDevBootstrapResult> {
   const workspaceRoot = workspaceRootForInput(dependencies.cwd, input.workspacePath);
-  const manifestPath = workspaceManifestPath(workspaceRoot);
-  let manifest: FormlessInstanceWorkspaceManifest;
+  const configPath = workspaceConfigPath(workspaceRoot);
+  let config: FormlessResolvedConfig;
 
-  if (await pathExists(manifestPath)) {
-    manifest = parseFormlessInstanceWorkspaceManifestJson(await readFile(manifestPath, "utf8"));
+  if (await pathExists(configPath)) {
+    config = (await readWorkspaceConfig(workspaceRoot)).config;
   } else {
     await assertLocalOnboardingWorkspaceReady(workspaceRoot);
     await mkdir(workspaceRoot, { recursive: true });
 
     const defaultName = input.name ?? defaultWorkspaceName(workspaceRoot);
-    manifest = defaultFormlessInstanceWorkspaceManifest({
-      name:
-        input.name ??
-        (await selectFormlessInstanceWorkspaceDevName(
-          { defaultName, workspaceRoot },
-          dependencies,
-        )),
-    });
-    await writeFile(manifestPath, formatFormlessInstanceWorkspaceManifest(manifest));
+    const name =
+      input.name ??
+      (await selectFormlessInstanceWorkspaceDevName({ defaultName, workspaceRoot }, dependencies));
+    config = resolveFormlessConfig({ name });
+    await writeFile(configPath, formatFormlessConfigModule({ name: config.name }));
   }
 
-  const localStateRoot = formlessInstanceWorkspaceLocalStateRoot(workspaceRoot, manifest);
+  const localStateRoot = formlessInstanceWorkspaceLocalStateRoot(workspaceRoot, config);
 
   if (input.reset) {
     await rm(localStateRoot, { force: true, recursive: true });
@@ -486,12 +464,12 @@ export async function ensureFormlessInstanceWorkspaceDevBootstrap(
   const gitignorePath = await ensureFormlessInstanceWorkspaceSecretStateIgnored(workspaceRoot);
 
   return {
+    config,
+    configPath,
     gitignorePath,
     localDevSecretStatePath: localDevSecrets.path,
     localDevSecrets: localDevSecrets.state,
     localStateRoot,
-    manifest,
-    manifestPath,
     workspaceRoot,
   };
 }
@@ -514,15 +492,15 @@ export async function resetFormlessInstanceWorkspaceLocalState(
   dependencies: ResetFormlessInstanceWorkspaceLocalStateDependencies,
 ): Promise<ResetFormlessInstanceWorkspaceLocalStateResult> {
   const workspaceRoot = workspaceRootForInput(dependencies.cwd, input.workspacePath);
-  const { manifest, manifestPath } = await readWorkspaceManifest(workspaceRoot);
-  const localStateRoot = formlessInstanceWorkspaceLocalStateRoot(workspaceRoot, manifest);
+  const { config, configPath } = await readWorkspaceConfig(workspaceRoot);
+  const localStateRoot = formlessInstanceWorkspaceLocalStateRoot(workspaceRoot, config);
 
   await rm(localStateRoot, { force: true, recursive: true });
   await mkdir(localStateRoot, { recursive: true });
 
   return {
+    configPath,
     localStateRoot,
-    manifestPath,
     workspaceRoot,
   };
 }
@@ -551,7 +529,7 @@ async function bootstrapWorkspaceLocalInstance(
   input: {
     adminToken: string;
     activePackages: ActiveWorkspaceAppPackages;
-    manifest: FormlessInstanceWorkspaceManifest;
+    config: FormlessResolvedConfig;
     source: string;
     workspaceRoot: string;
   },
@@ -579,7 +557,7 @@ async function bootstrapWorkspaceLocalInstance(
     const sourceArchive = await workspaceLocalRestoreArchiveSource({
       activePackages: input.activePackages,
       exportedAt: dependencies.now(),
-      manifest: input.manifest,
+      config: input.config,
       tempRoot,
       workspaceRoot: input.workspaceRoot,
     });
@@ -623,55 +601,10 @@ async function bootstrapWorkspaceLocalInstance(
   }
 }
 
-function withSingleTarget(
-  manifest: FormlessInstanceWorkspaceManifest,
-  target: FormlessInstanceWorkspaceTarget,
-): FormlessInstanceWorkspaceManifest {
-  return {
-    ...manifest,
-    defaultTarget: target.alias,
-    targets: [target],
-  };
-}
-
-function withRemoteStatus(
-  manifest: FormlessInstanceWorkspaceManifest,
-  status: FormlessInstanceTargetStatus,
-): FormlessInstanceWorkspaceManifest {
-  const appDeclarations = status.appRegistry.installs.map(appDeclarationFromInstall);
-
-  return {
-    ...manifest,
-    apps: appDeclarations,
-    defaultAppPolicy: appDeclarations.length === 0 ? "none" : "declared-installs",
-  };
-}
-
-function withArchiveSource(
-  manifest: FormlessInstanceWorkspaceManifest,
-  archive: PortableArchive,
-  archiveSourcePath: string,
-): FormlessInstanceWorkspaceManifest {
-  const apps = archiveApps(archive);
-
-  return {
-    ...manifest,
-    apps: apps.map((app) =>
-      appDeclarationFromArchive(
-        app,
-        archive.kind === APP_ARCHIVE_KIND
-          ? archiveSourcePath
-          : `${DEFAULT_FORMLESS_INSTANCE_WORKSPACE_APP_STATE_ROOT}/${app.app.installId}.json`,
-      ),
-    ),
-    defaultAppPolicy: "declared-installs",
-  };
-}
-
 async function writeInitialInstanceWorkspaceState(input: {
   archive: PortableArchive | undefined;
   archiveDir: string | undefined;
-  manifest: FormlessInstanceWorkspaceManifest;
+  config: FormlessResolvedConfig;
   remoteStatus: FormlessInstanceTargetStatus | undefined;
   targetAlias: string;
   targetUrl: string | null;
@@ -699,10 +632,13 @@ async function writeInitialInstanceWorkspaceState(input: {
     archiveRecords.length === 0 ? records : [...records, ...archiveRecords];
 
   if (controlPlaneRecords.length > 0) {
-    const activePackages = await createActiveWorkspaceAppPackages(input.workspaceRoot);
+    const activePackages = await createActiveWorkspaceAppPackages(
+      input.workspaceRoot,
+      input.config,
+    );
 
     await writeInstanceWorkspaceControlPlaneStorageSnapshot({
-      manifest: input.manifest,
+      manifest: input.config,
       packageResolver: activePackages.resolver,
       snapshot: workspaceControlPlaneSnapshotFromRecords({
         current: archiveControlPlane,
@@ -722,7 +658,7 @@ async function writeInitialInstanceWorkspaceState(input: {
 
   if (input.archive) {
     await replaceInstanceWorkspaceAppStorageSnapshots({
-      manifest: input.manifest,
+      manifest: input.config,
       snapshots: archiveApps(input.archive).map((app) => ({
         installId: app.app.installId,
         schemaProvenance: workspaceSchemaProvenanceForAppArchive(app),
@@ -733,7 +669,7 @@ async function writeInitialInstanceWorkspaceState(input: {
 
     if (input.archiveDir) {
       await replaceInstanceWorkspaceMediaFiles({
-        manifest: input.manifest,
+        manifest: input.config,
         mediaFiles: await readArchiveMediaFiles(input.archiveDir, input.archive),
         workspaceRoot: input.workspaceRoot,
       });
@@ -741,49 +677,16 @@ async function writeInitialInstanceWorkspaceState(input: {
   }
 }
 
-function appDeclarationFromInstall(install: AppInstall): FormlessInstanceWorkspaceApp {
-  return {
-    installId: install.installId,
-    packageAppKey: install.packageAppKey,
-    label: install.label,
-    statePath: `${DEFAULT_FORMLESS_INSTANCE_WORKSPACE_APP_STATE_ROOT}/${install.installId}.json`,
-    routes: {
-      admin: install.adminRoute as `/apps/${string}`,
-      ...(install.publicRoute === undefined
-        ? {}
-        : { public: install.publicRoute as `/sites/${string}` }),
-    },
-  };
-}
+async function assertNoExistingWorkspaceConfig(workspaceRoot: string) {
+  const configPath = workspaceConfigPath(workspaceRoot);
 
-function appDeclarationFromArchive(
-  archive: AppArchive,
-  statePath: string,
-): FormlessInstanceWorkspaceApp {
-  const installId = archive.app.installId;
-
-  return {
-    installId,
-    packageAppKey: archive.app.packageAppKey,
-    label: archive.app.label,
-    statePath,
-    routes: {
-      admin: `/apps/${installId}`,
-      ...(archive.app.packageAppKey === "site" ? { public: `/sites/${installId}` } : {}),
-    },
-  };
-}
-
-async function assertNoExistingWorkspaceManifest(workspaceRoot: string) {
-  const manifestPath = workspaceManifestPath(workspaceRoot);
-
-  if (await pathExists(manifestPath)) {
-    throw new Error(`Formless instance workspace already exists at ${manifestPath}.`);
+  if (await pathExists(configPath)) {
+    throw new Error(`Formless instance workspace already exists at ${configPath}.`);
   }
 }
 
 async function assertLocalOnboardingWorkspaceReady(workspaceRoot: string) {
-  await assertNoExistingWorkspaceManifest(workspaceRoot);
+  await assertNoExistingWorkspaceConfig(workspaceRoot);
   await assertNoLocalOnboardingConflict(
     workspaceRoot,
     PORTABLE_ARCHIVE_MANIFEST_FILE,
@@ -869,10 +772,10 @@ async function pathExists(filePath: string): Promise<boolean> {
 
 async function prepareWorkspaceDirectories(
   workspaceRoot: string,
-  manifest: FormlessInstanceWorkspaceManifest,
+  config: FormlessResolvedConfig,
   _options: { appArchiveRoot?: boolean } = {},
 ) {
-  await mkdir(path.join(workspaceRoot, manifest.local.stateRoot), { recursive: true });
+  await mkdir(path.join(workspaceRoot, config.local.stateRoot), { recursive: true });
 }
 
 function requiredGeneratedToken(value: string): string {

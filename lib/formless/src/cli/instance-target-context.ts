@@ -1,6 +1,6 @@
 import {
   normalizeInstanceWorkspaceTargetUrl,
-  type InstanceWorkspaceManifest,
+  type ResolvedFormlessConfig,
   type InstanceWorkspaceTarget,
 } from "@dpeek/formless-workspace";
 import {
@@ -12,8 +12,8 @@ import {
 import type { StoredRecord } from "@dpeek/formless-storage";
 import {
   createActiveWorkspaceAppPackages,
-  readWorkspaceManifest,
-  workspaceRootForInput,
+  readWorkspaceConfig,
+  resolveFormlessInstanceWorkspaceRoot,
 } from "./instance-workspace-foundation.ts";
 import { stringRecordValue } from "./instance-workspace-control-plane.ts";
 
@@ -35,8 +35,8 @@ export type FormlessCliTargetContext = {
     targetUrl: string | null;
     workspaceRoot: string;
   };
-  manifest: InstanceWorkspaceManifest;
-  manifestPath: string;
+  config: ResolvedFormlessConfig;
+  configPath: string;
   secretState: InstanceWorkspaceSecretState;
   selectedTarget?: InstanceWorkspaceTarget;
   targetUrl?: string;
@@ -87,11 +87,14 @@ export async function resolveFormlessCliTargetContext(
   input: ResolveFormlessCliTargetContextInput,
   dependencies: ResolveFormlessCliTargetContextDependencies,
 ): Promise<FormlessCliTargetContext> {
-  const workspaceRoot = workspaceRootForInput(input.cwd, input.workspacePath ?? ".");
-  const { manifest, manifestPath } = await readWorkspaceManifest(workspaceRoot);
+  const workspaceRoot = await resolveFormlessInstanceWorkspaceRoot({
+    cwd: input.cwd,
+    workspacePath: input.workspacePath,
+  });
+  const { config, configPath } = await readWorkspaceConfig(workspaceRoot);
   const selectedTarget = await resolveFormlessCliWorkspaceTarget({
     commandName: input.commandName,
-    manifest,
+    config,
     required: input.requireTarget === true,
     targetAlias: input.targetAlias,
     workspaceRoot,
@@ -113,8 +116,8 @@ export async function resolveFormlessCliTargetContext(
       targetUrl: selectedTarget?.url ?? null,
       workspaceRoot,
     },
-    manifest,
-    manifestPath,
+    config,
+    configPath,
     secretState,
     ...(selectedTarget === undefined ? {} : { selectedTarget, targetUrl: selectedTarget.url }),
     workspaceRoot,
@@ -139,7 +142,7 @@ export async function requireFormlessCliTargetContext(
 
 export async function requireFormlessCliWorkspaceTarget(input: {
   commandName: FormlessCliWorkspaceTargetCommandName;
-  manifest: InstanceWorkspaceManifest;
+  config: ResolvedFormlessConfig;
   targetAlias: string | null | undefined;
   workspaceRoot: string;
 }): Promise<InstanceWorkspaceTarget> {
@@ -271,17 +274,14 @@ export function formlessCliWorkspaceStatusSecretStateLabel(
 
 export async function resolveFormlessCliWorkspaceTarget(input: {
   commandName: string;
-  manifest: InstanceWorkspaceManifest;
+  config: ResolvedFormlessConfig;
   required: boolean;
   targetAlias: string | null | undefined;
   workspaceRoot: string;
 }): Promise<InstanceWorkspaceTarget | undefined> {
-  const activePackages = await createActiveWorkspaceAppPackages(
-    input.workspaceRoot,
-    input.manifest,
-  );
+  const activePackages = await createActiveWorkspaceAppPackages(input.workspaceRoot, input.config);
   const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest: input.manifest,
+    manifest: input.config,
     packageResolver: activePackages.resolver,
     workspaceRoot: input.workspaceRoot,
   });
@@ -459,13 +459,13 @@ export function formatFormlessCliSelectedTargetDisplay(
   return target ? `${target.alias} (${target.url})` : "<none>";
 }
 
-export function formlessCliDeploymentWorkerNameFromConfigOrManifest(input: {
+export function formlessCliDeploymentWorkerNameFromConfig(input: {
   deploymentConfig?: StoredRecord;
-  manifest: InstanceWorkspaceManifest;
+  config: ResolvedFormlessConfig;
 }): string {
   const workerName = stringRecordValue(input.deploymentConfig, "workerName")?.trim();
 
-  return workerName === undefined || workerName === "" ? input.manifest.name : workerName;
+  return workerName === undefined || workerName === "" ? input.config.name : workerName;
 }
 
 export function formlessCliWorkersDevTargetUrl(input: {
@@ -500,7 +500,7 @@ export function formlessCliWorkersDevTargetFacts(
 
   if (expectedWorkerName !== undefined && expectedWorkerName !== workerName) {
     throw new Error(
-      `Formless push provider target worker "${workerName}" does not match deployment-config.workerName or manifest name "${expectedWorkerName}".`,
+      `Formless push provider target worker "${workerName}" does not match deployment-config.workerName or workspace configuration name "${expectedWorkerName}".`,
     );
   }
 

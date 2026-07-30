@@ -38,7 +38,7 @@ import type {
 } from "@dpeek/formless-workspace";
 import {
   createActiveWorkspaceAppPackages,
-  readWorkspaceManifest,
+  readWorkspaceConfig,
 } from "./instance-workspace-foundation.ts";
 import {
   stringRecordValue,
@@ -342,10 +342,10 @@ async function writeFormlessOAuthDeploymentConfigSource(input: {
   targetUrl: string;
   workerName: string;
 }> {
-  const { manifest } = await readWorkspaceManifest(input.workspaceRoot);
-  const activePackages = await createActiveWorkspaceAppPackages(input.workspaceRoot, manifest);
+  const { config } = await readWorkspaceConfig(input.workspaceRoot);
+  const activePackages = await createActiveWorkspaceAppPackages(input.workspaceRoot, config);
   const current = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest,
+    manifest: config,
     packageResolver: activePackages.resolver,
     workspaceRoot: input.workspaceRoot,
   });
@@ -359,7 +359,7 @@ async function writeFormlessOAuthDeploymentConfigSource(input: {
     normalizeOptionalTargetAlias(input.targetAlias) ??
     formlessCliPrimaryTargetId();
   const workerName =
-    stringRecordValue(existing, "workerName") ?? normalizeFormlessInstanceName(manifest.name);
+    stringRecordValue(existing, "workerName") ?? normalizeFormlessInstanceName(config.name);
   const targetUrl = formlessCliWorkersDevTargetUrl({
     workerName,
     workersDevSubdomain: input.account.workersDevSubdomain,
@@ -395,7 +395,7 @@ async function writeFormlessOAuthDeploymentConfigSource(input: {
   ];
 
   await writeInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest,
+    manifest: config,
     packageResolver: activePackages.resolver,
     snapshot: workspaceControlPlaneSnapshotFromRecords({
       current,

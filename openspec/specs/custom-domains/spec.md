@@ -88,7 +88,7 @@ facts, and applied provider state.
 
 #### Scenario: Provider credentials boundary
 
-- **GIVEN** browser clients, portable archives, or workspace manifests consume
+- **GIVEN** browser clients, portable archives, or workspace configuration consume
   domain state
 - **WHEN** domain provider state is shown or exported
 - **THEN** Cloudflare API credentials and Alchemy secret values are not
