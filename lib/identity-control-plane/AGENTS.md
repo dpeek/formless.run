@@ -24,12 +24,13 @@ Read this when editing `lib/identity-control-plane/*`.
 
 ## Map
 
-- `package.json`: package metadata and the root public export for
-  `@dpeek/formless-identity-control-plane`.
+- `package.json`: package metadata plus root and runtime-neutral `./schema`
+  public exports.
 - `tsconfig.json`: package-local TypeScript project extending the repo config.
 - `src/types.ts`: public contract version, identity constants, entity names, and
   role key declarations.
-- `src/schema.ts`: normal App schema source for runtime-owned identity records.
+- `src/schema.ts`: reusable identity control-plane record and presentation
+  schema modules plus the complete App schema source.
 - `src/index.ts`: runtime-neutral package root entrypoint.
 - `src/*.test.ts`: package-local contract and helper coverage.
 
@@ -46,8 +47,9 @@ Read this when editing `lib/identity-control-plane/*`.
 - Keep identity records flat and reviewable.
 - Keep private auth state outside identity control-plane records.
 - Keep runtime execution outside this package.
-- Import this package from the public root only:
-  `@dpeek/formless-identity-control-plane`.
+- Import runtime contracts from `@dpeek/formless-identity-control-plane`.
+- Import reusable authoring modules from
+  `@dpeek/formless-identity-control-plane/schema`.
 - Do not add client, React, Worker, Node, or sidecar subpaths.
 - Do not deep-import `lib/identity-control-plane/src/*` from external runtime
   code.

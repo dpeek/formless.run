@@ -21,7 +21,7 @@ describe("Tasks schema authoring", () => {
     });
     expect(tasksPresentationSchemaModule).toMatchObject({
       key: "tasks-presentation",
-      requires: [tasksRecordSchemaModule],
+      requires: ["tasks-records"],
       itemViews: [expect.objectContaining({ key: "taskListItem" })],
       views: [
         expect.objectContaining({ key: "taskHome" }),

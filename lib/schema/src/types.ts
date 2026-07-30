@@ -1405,6 +1405,14 @@ export type AppSchemaSource = Omit<AppSchema, "entities" | "version" | "views"> 
   entities: KeyedDefinition<EntitySchemaSource>[];
   views: KeyedDefinition<ViewSchemaSource>[];
 };
+
+/** Runtime policy contribution owned by one authoring module. */
+export type AppSchemaModuleRuntimeSource = {
+  controlPlane: {
+    entities: Record<string, RuntimeSchemaControlPlaneEntitySchema>;
+  };
+};
+
 /**
  * Package-local contribution to a complete App schema source.
  *
@@ -1413,7 +1421,7 @@ export type AppSchemaSource = Omit<AppSchema, "entities" | "version" | "views"> 
  */
 export type AppSchemaModuleSource = {
   key: string;
-  requires?: readonly AppSchemaModuleSource[];
+  requires?: readonly string[];
   entities?: AppSchemaSource["entities"];
   relationships?: NonNullable<AppSchemaSource["relationships"]>;
   queries?: AppSchemaSource["queries"];
@@ -1423,12 +1431,13 @@ export type AppSchemaModuleSource = {
   tableViews?: AppSchemaSource["tableViews"];
   views?: AppSchemaSource["views"];
   screens?: AppSchemaSource["screens"];
+  runtime?: AppSchemaModuleRuntimeSource;
 };
 
 /** Explicit root input for composing one complete App schema source. */
 export type AppSchemaCompositionSource = {
   version: AppSchemaSource["version"];
   navigation?: AppSchemaSource["navigation"];
-  runtime?: AppSchemaSource["runtime"];
+  runtime?: Pick<RuntimeSchemaMetadata, "owner">;
   modules: readonly AppSchemaModuleSource[];
 };

@@ -23,6 +23,8 @@ import {
   type ControlPlaneDeploymentConfigObservedStatus,
 } from "@dpeek/formless-deploy";
 import {
+  composeAppSchema,
+  defineAppSchemaModule,
   formatQualifiedEntityName,
   isRuntimeControlPlaneObservedField,
   isRuntimeControlPlaneSecretReferenceField,
@@ -341,8 +343,8 @@ export const instanceControlPlaneReservedRoutePaths = [
   "/sitemap.xml",
   "/static",
 ] as const;
-export const instanceControlPlaneSourceSchema = {
-  version: 1,
+export const instanceControlPlaneRecordSchemaModule = defineAppSchemaModule({
+  key: "instance-control-plane-records",
   entities: [
     {
       id: "entity_703e0070-a642-4c2d-8103-3221222a6c35",
@@ -1015,6 +1017,37 @@ export const instanceControlPlaneSourceSchema = {
       ...whereQuery("Enabled email senders", "email-sender", "enabled", true),
     },
   ],
+  runtime: {
+    controlPlane: {
+      entities: {
+        "app-install": {
+          immutableFields: [...instanceControlPlaneImmutableFields["app-install"]],
+        },
+        route: {
+          immutableFields: [...instanceControlPlaneImmutableFields.route],
+        },
+        "deployment-config": {
+          immutableFields: [...instanceControlPlaneImmutableFields["deployment-config"]],
+          observedFields: [...instanceControlPlaneDeploymentConfigObservedFields],
+          secretReferenceFields: ["credentialRef"],
+        },
+        "instance-settings": {
+          immutableFields: [...instanceControlPlaneImmutableFields["instance-settings"]],
+        },
+        "email-domain": {
+          immutableFields: [...instanceControlPlaneImmutableFields["email-domain"]],
+        },
+        "email-sender": {
+          immutableFields: [...instanceControlPlaneImmutableFields["email-sender"]],
+        },
+      },
+    },
+  },
+});
+
+export const instanceControlPlanePresentationSchemaModule = defineAppSchemaModule({
+  key: "instance-control-plane-presentation",
+  requires: ["instance-control-plane-records"],
   itemViews: [
     {
       key: "appInstallItem",
@@ -1488,34 +1521,15 @@ export const instanceControlPlaneSourceSchema = {
       },
     },
   ],
+});
+
+export const instanceControlPlaneSourceSchema = composeAppSchema({
+  version: 1,
+  modules: [instanceControlPlaneRecordSchemaModule, instanceControlPlanePresentationSchemaModule],
   runtime: {
     owner: "runtime",
-    controlPlane: {
-      entities: {
-        "app-install": {
-          immutableFields: [...instanceControlPlaneImmutableFields["app-install"]],
-        },
-        route: {
-          immutableFields: [...instanceControlPlaneImmutableFields.route],
-        },
-        "deployment-config": {
-          immutableFields: [...instanceControlPlaneImmutableFields["deployment-config"]],
-          observedFields: [...instanceControlPlaneDeploymentConfigObservedFields],
-          secretReferenceFields: ["credentialRef"],
-        },
-        "instance-settings": {
-          immutableFields: [...instanceControlPlaneImmutableFields["instance-settings"]],
-        },
-        "email-domain": {
-          immutableFields: [...instanceControlPlaneImmutableFields["email-domain"]],
-        },
-        "email-sender": {
-          immutableFields: [...instanceControlPlaneImmutableFields["email-sender"]],
-        },
-      },
-    },
   },
-};
+});
 
 export const instanceControlPlaneSchema = parseAppSchema(instanceControlPlaneSourceSchema);
 

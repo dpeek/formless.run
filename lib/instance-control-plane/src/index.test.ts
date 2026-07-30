@@ -41,6 +41,10 @@ import {
   isRuntimeControlPlaneObservedField,
   isRuntimeControlPlaneSecretReferenceField,
 } from "@dpeek/formless-schema";
+import {
+  instanceControlPlanePresentationSchemaModule,
+  instanceControlPlaneRecordSchemaModule,
+} from "@dpeek/formless-instance-control-plane/schema";
 
 const siteSourceSchemaHash =
   "sha256:1111111111111111111111111111111111111111111111111111111111111111";
@@ -64,6 +68,46 @@ const controlPlanePackageManifests = [
 const controlPlanePackageResolver = createAppPackageResolver(controlPlanePackageManifests);
 
 describe("instance control-plane schema contracts", () => {
+  it("publishes record declarations before dependent presentation declarations", () => {
+    expect(instanceControlPlaneRecordSchemaModule).toMatchObject({
+      key: "instance-control-plane-records",
+      entities: instanceControlPlaneEntityNames.map((key) => expect.objectContaining({ key })),
+      relationships: expect.arrayContaining([
+        expect.objectContaining({ key: "routeInstall" }),
+        expect.objectContaining({ key: "emailDomainSenders" }),
+      ]),
+      queries: expect.arrayContaining([
+        expect.objectContaining({ key: "appInstallAll" }),
+        expect.objectContaining({ key: "emailSenderEnabled" }),
+      ]),
+      runtime: expect.objectContaining({
+        controlPlane: expect.objectContaining({
+          entities: expect.any(Object),
+        }),
+      }),
+    });
+    expect(instanceControlPlanePresentationSchemaModule).toMatchObject({
+      key: "instance-control-plane-presentation",
+      requires: ["instance-control-plane-records"],
+      itemViews: expect.arrayContaining([expect.objectContaining({ key: "appInstallItem" })]),
+      tableViews: expect.arrayContaining([expect.objectContaining({ key: "appInstallTable" })]),
+      views: expect.arrayContaining([
+        expect.objectContaining({ key: "appInstallList" }),
+        expect.objectContaining({ key: "emailSenderList" }),
+      ]),
+      screens: expect.arrayContaining([
+        expect.objectContaining({ key: "apps" }),
+        expect.objectContaining({ key: "routes" }),
+        expect.objectContaining({ key: "deployments" }),
+        expect.objectContaining({ key: "settings" }),
+      ]),
+    });
+    expect(instanceControlPlaneSourceSchema.runtime?.owner).toBe("runtime");
+    expect(instanceControlPlaneRecordSchemaModule.runtime.controlPlane.entities).toEqual(
+      instanceControlPlaneSourceSchema.runtime?.controlPlane?.entities,
+    );
+  });
+
   it("publishes deterministic source provenance for the full control-plane schema", async () => {
     const baseHash = await computeSourceSchemaHash(instanceControlPlaneSourceSchema);
     const mutationCases: Array<[string, (schema: AppSchema) => void]> = [

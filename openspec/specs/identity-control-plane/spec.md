@@ -56,6 +56,25 @@ schema source.
   React, Worker, provider SDK, filesystem, app package registry, or live
   network behavior
 
+#### Scenario: Package exposes composable schema modules
+
+- GIVEN trusted TypeScript authoring needs reusable identity control-plane
+  declarations
+- WHEN it imports `@dpeek/formless-identity-control-plane/schema`
+- THEN the package exports one record module that owns the identity
+  control-plane entities, relationships, queries, and runtime control-plane
+  entity policies
+- AND it exports one presentation module that depends on the record module key
+  and owns item views, table views, views, and screens
+- AND the package's complete source schema explicitly composes the record
+  module before the presentation module and supplies runtime ownership at the
+  composition root
+- AND the recomposed source preserves the current schema data,
+  source-schema hash, and package provenance
+- AND the modules remain runtime-neutral and do not change the existing
+  identity Authority, storage identity, API route, cursor, snapshot, or browser
+  replica behavior
+
 ### Requirement: Identity Runtime Storage Mount
 
 The system SHALL mount the identity control-plane schema as its own

@@ -92,6 +92,27 @@ package owns source schema and package-specific runtime adapters.
 - AND root `schema/apps/<packageAppKey>` source files are removed for extracted
   app packages
 
+### Requirement: Package-Owned Schema Authoring Modules
+
+The system SHALL let a package that owns runtime-neutral App schema
+declarations expose composable TypeScript schema modules without moving those
+domain declarations into the Schema package.
+
+#### Scenario: Publish schema authoring modules
+
+- GIVEN an in-repo package owns a complete App schema source or a reusable
+  portion of one
+- WHEN another trusted TypeScript composition root needs those declarations
+- THEN the package exposes them through a documented `./schema` subpath
+- AND each exported module is runtime-neutral and contains only App schema
+  declarations and supported authoring metadata
+- AND the Schema package owns the generic authoring DSL and compositor while
+  the capability package owns its domain declarations
+- AND consumers use the package's public subpath rather than deep-importing its
+  source files
+- AND the composed portable schema contains only existing App schema source
+  data rather than package or module implementation identity
+
 ### Requirement: App Package Schema Materialization
 
 An app package that uses TypeScript schema authoring SHALL materialize a
@@ -653,7 +674,7 @@ reviewable control-plane storage snapshot validation.
 - THEN it contains package-local `AGENTS.md`, `package.json`, `tsconfig.json`,
   and `src/` entrypoints for public contracts and runtime-neutral helpers
 - AND the package is published as `@dpeek/formless-instance-control-plane`
-  with a root public subpath
+  with root and `./schema` public subpaths
 - AND it follows package slice import and documentation boundaries
 - AND it does not expose client, React, Worker, Node, or sidecar subpaths
 
@@ -665,6 +686,8 @@ reviewable control-plane storage snapshot validation.
   display-safe control-plane storage snapshot canonicalization
 - WHEN they import instance control-plane behavior
 - THEN they import from `@dpeek/formless-instance-control-plane`
+- AND trusted schema composition imports reusable declaration modules from
+  `@dpeek/formless-instance-control-plane/schema`
 - AND they do not import those contracts from root runtime modules
 
 ### Requirement: Instance Control Plane Package Non-Ownership

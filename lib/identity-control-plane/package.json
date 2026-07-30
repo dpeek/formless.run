@@ -10,20 +10,25 @@
   ],
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts"
   },
   "publishConfig": {
     "exports": {
       ".": {
         "types": "./dist/index.d.mts",
         "import": "./dist/index.mjs"
+      },
+      "./schema": {
+        "types": "./dist/schema.d.mts",
+        "import": "./dist/schema.mjs"
       }
     },
     "access": "public"
   },
   "scripts": {
     "check": "vp check --fix && vp test --configLoader runner",
-    "pack": "vp pack src/index.ts"
+    "pack": "vp pack src/index.ts src/schema.ts"
   },
   "dependencies": {
     "@dpeek/formless-installed-apps": "workspace:*",

@@ -1,9 +1,8 @@
 import { defineAppSchemaModule } from "@dpeek/formless-schema";
-import { tasksRecordSchemaModule } from "./schema-records.ts";
 
 export const tasksPresentationSchemaModule = defineAppSchemaModule({
   key: "tasks-presentation",
-  requires: [tasksRecordSchemaModule],
+  requires: ["tasks-records"],
   itemViews: [
     {
       key: "taskListItem",

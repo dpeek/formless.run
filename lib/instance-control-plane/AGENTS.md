@@ -22,10 +22,11 @@ Read this when editing `lib/instance-control-plane/*`.
 
 ## Map
 
-- `package.json`: package metadata and the root public export for `@dpeek/formless-instance-control-plane`.
+- `package.json`: package metadata plus root and runtime-neutral `./schema` public exports.
 - `tsconfig.json`: package-local TypeScript project extending the repo config.
 - `src/types.ts`: public contract version declaration.
 - `src/index.ts`: runtime-neutral package root entrypoint and pure helpers.
+- `src/schema.ts`: reusable instance control-plane record and presentation schema modules.
 - `src/*.test.ts`: package-local contract and helper coverage.
 
 ## Read Path
@@ -39,7 +40,8 @@ Read this when editing `lib/instance-control-plane/*`.
 
 - Keep control-plane records flat.
 - Keep runtime execution outside this package.
-- Import this package from the public root only: `@dpeek/formless-instance-control-plane`.
+- Import runtime contracts from `@dpeek/formless-instance-control-plane`.
+- Import reusable authoring modules from `@dpeek/formless-instance-control-plane/schema`.
 - Do not add client, React, Worker, Node, or sidecar subpaths.
 - Do not deep-import `lib/instance-control-plane/src/*` from external runtime code.
 - Do not import bundled app schemas, runtime package registries, React, filesystem APIs, provider SDKs, or Worker adapters.

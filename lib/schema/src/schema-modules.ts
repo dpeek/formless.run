@@ -16,6 +16,7 @@ export function composeAppSchema<const Composition extends AppSchemaCompositionS
 ): AppSchemaSource {
   assertUniqueModuleKeys(composition.modules);
   assertDependenciesPrecedeConsumers(composition.modules);
+  const runtime = composeRuntimeMetadata(composition);
   const declarationOwners = new Map<string, string>();
   const entityIdOwners = new Map<string, { entityKey: string; moduleKey: string }>();
   const entities: AppSchemaSource["entities"] = [];
@@ -111,11 +112,99 @@ export function composeAppSchema<const Composition extends AppSchemaCompositionS
     views,
     screens,
     ...(composition.navigation === undefined ? {} : { navigation: composition.navigation }),
-    ...(composition.runtime === undefined ? {} : { runtime: composition.runtime }),
+    ...(runtime === undefined ? {} : { runtime }),
   };
   parseAppSchema(source);
   return source;
 }
+
+function composeRuntimeMetadata(
+  composition: AppSchemaCompositionSource,
+): AppSchemaSource["runtime"] {
+  const entityOwners = new Map<string, string>();
+  const policyOwners = new Map<string, string>();
+  const entities: NonNullable<NonNullable<AppSchemaSource["runtime"]>["controlPlane"]>["entities"] =
+    {};
+  let hasModuleRuntime = false;
+
+  for (const module of composition.modules) {
+    for (const entity of module.entities ?? []) {
+      if (!entityOwners.has(entity.key)) {
+        entityOwners.set(entity.key, module.key);
+      }
+    }
+  }
+
+  for (const module of composition.modules) {
+    if (module.runtime === undefined) {
+      continue;
+    }
+
+    assertNarrowModuleRuntime(module);
+    hasModuleRuntime = true;
+
+    if (composition.runtime === undefined) {
+      throw new Error(
+        `Schema module "${module.key}" contributes runtime controlPlane entity policy, but the composition root has no runtime owner.`,
+      );
+    }
+
+    const ownedEntities = new Set((module.entities ?? []).map((entity) => entity.key));
+    for (const [entityKey, policy] of Object.entries(module.runtime.controlPlane.entities)) {
+      const currentPolicyOwner = policyOwners.get(entityKey);
+      if (currentPolicyOwner !== undefined) {
+        throw new Error(
+          `Schema runtime controlPlane entity policy "${entityKey}" is contributed by both modules "${currentPolicyOwner}" and "${module.key}".`,
+        );
+      }
+
+      if (!ownedEntities.has(entityKey)) {
+        const entityOwner = entityOwners.get(entityKey);
+        throw new Error(
+          entityOwner === undefined
+            ? `Schema module "${module.key}" contributes runtime controlPlane policy for entity "${entityKey}", but does not declare that entity.`
+            : `Schema module "${module.key}" contributes runtime controlPlane policy for entity "${entityKey}", but that entity is owned by module "${entityOwner}".`,
+        );
+      }
+
+      policyOwners.set(entityKey, module.key);
+      entities[entityKey] = policy;
+    }
+  }
+
+  if (composition.runtime === undefined) {
+    return undefined;
+  }
+
+  return {
+    owner: composition.runtime.owner,
+    ...(hasModuleRuntime ? { controlPlane: { entities } } : {}),
+  };
+}
+
+function assertNarrowModuleRuntime(module: AppSchemaModuleSource): void {
+  if (
+    !isRecord(module.runtime) ||
+    !hasExactKeys(module.runtime, ["controlPlane"]) ||
+    !isRecord(module.runtime.controlPlane) ||
+    !hasExactKeys(module.runtime.controlPlane, ["entities"]) ||
+    !isRecord(module.runtime.controlPlane.entities)
+  ) {
+    throw new Error(
+      `Schema module "${module.key}" runtime contribution must contain only "controlPlane.entities".`,
+    );
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const actualKeys = Object.keys(value);
+  return actualKeys.length === keys.length && keys.every((key) => Object.hasOwn(value, key));
+}
+
 function appendEntityDeclarations(
   target: AppSchemaSource["entities"],
   declarations: AppSchemaModuleSource["entities"],
@@ -151,23 +240,23 @@ function assertUniqueModuleKeys(modules: readonly AppSchemaModuleSource[]): void
 }
 
 function assertDependenciesPrecedeConsumers(modules: readonly AppSchemaModuleSource[]): void {
-  const moduleIndexes = new Map<AppSchemaModuleSource, number>(
-    modules.map((module, index) => [module, index]),
+  const moduleIndexes = new Map<string, number>(
+    modules.map((module, index) => [module.key, index]),
   );
 
   for (const [consumerIndex, module] of modules.entries()) {
-    for (const dependency of module.requires ?? []) {
-      const dependencyIndex = moduleIndexes.get(dependency);
+    for (const dependencyKey of module.requires ?? []) {
+      const dependencyIndex = moduleIndexes.get(dependencyKey);
 
       if (dependencyIndex === undefined) {
         throw new Error(
-          `Schema module "${module.key}" requires module "${dependency.key}", but "${dependency.key}" is not listed.`,
+          `Schema module "${module.key}" requires module "${dependencyKey}", but "${dependencyKey}" is not listed.`,
         );
       }
 
       if (dependencyIndex >= consumerIndex) {
         throw new Error(
-          `Schema module "${module.key}" requires module "${dependency.key}" to be listed before it.`,
+          `Schema module "${module.key}" requires module "${dependencyKey}" to be listed before it.`,
         );
       }
     }

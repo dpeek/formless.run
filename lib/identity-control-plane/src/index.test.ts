@@ -8,6 +8,10 @@ import {
   type StoredRecord,
 } from "@dpeek/formless-storage";
 import {
+  identityControlPlanePresentationSchemaModule,
+  identityControlPlaneRecordSchemaModule,
+} from "@dpeek/formless-identity-control-plane/schema";
+import {
   IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH,
   IDENTITY_ACCESS_PERSON_REMOVAL_API_PATH,
   IDENTITY_ACCESS_PERSON_ROLE_REPLACEMENT_API_PATH,
@@ -54,6 +58,48 @@ const privateAuthStateEntities = [
 ] as const;
 
 describe("identity control-plane schema contracts", () => {
+  it("publishes record declarations before dependent presentation declarations", () => {
+    expect(identityControlPlaneRecordSchemaModule).toMatchObject({
+      key: "identity-control-plane-records",
+      entities: identityControlPlaneEntityNames.map((key) => expect.objectContaining({ key })),
+      relationships: expect.arrayContaining([
+        expect.objectContaining({ key: "principalEmailPrincipal" }),
+        expect.objectContaining({ key: "policyAcceptances" }),
+      ]),
+      queries: expect.arrayContaining([
+        expect.objectContaining({ key: "principalAll" }),
+        expect.objectContaining({ key: "principalPolicyAcceptanceAll" }),
+      ]),
+      runtime: expect.objectContaining({
+        controlPlane: expect.objectContaining({
+          entities: expect.any(Object),
+        }),
+      }),
+    });
+    expect(identityControlPlanePresentationSchemaModule).toMatchObject({
+      key: "identity-control-plane-presentation",
+      requires: ["identity-control-plane-records"],
+      itemViews: expect.arrayContaining([expect.objectContaining({ key: "principalItem" })]),
+      tableViews: expect.arrayContaining([expect.objectContaining({ key: "principalTable" })]),
+      views: expect.arrayContaining([
+        expect.objectContaining({ key: "principalList" }),
+        expect.objectContaining({ key: "principalPolicyAcceptanceList" }),
+      ]),
+      screens: expect.arrayContaining([
+        expect.objectContaining({ key: "principals" }),
+        expect.objectContaining({ key: "organizations" }),
+        expect.objectContaining({ key: "access" }),
+        expect.objectContaining({ key: "apps" }),
+        expect.objectContaining({ key: "invitations" }),
+        expect.objectContaining({ key: "policies" }),
+      ]),
+    });
+    expect(identityControlPlaneSourceSchema.runtime?.owner).toBe("runtime");
+    expect(identityControlPlaneRecordSchemaModule.runtime.controlPlane.entities).toEqual(
+      identityControlPlaneSourceSchema.runtime?.controlPlane?.entities,
+    );
+  });
+
   it("publishes deterministic source provenance for the identity schema", async () => {
     const baseHash = await computeSourceSchemaHash(identityControlPlaneSourceSchema);
     const mutationCases: Array<[string, (schema: AppSchema) => void]> = [

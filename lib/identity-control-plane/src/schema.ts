@@ -5,6 +5,7 @@ import type {
   ToManyRelationshipSchema,
   ToOneRelationshipSchema,
 } from "@dpeek/formless-schema";
+import { composeAppSchema, defineAppSchemaModule } from "@dpeek/formless-schema";
 import {
   identityControlPlaneEntityNames,
   identityControlPlaneImmutableFields,
@@ -368,8 +369,8 @@ const entityViewConfig = {
     tableFields: readonly IdentityControlPlaneTableField[];
   }
 >;
-export const identityControlPlaneSourceSchema = {
-  version: 1,
+export const identityControlPlaneRecordSchemaModule = defineAppSchemaModule({
+  key: "identity-control-plane-records",
   entities: [
     {
       id: "entity_9a973724-79ed-4e91-b5a3-6364bb03aa18",
@@ -1005,6 +1006,21 @@ export const identityControlPlaneSourceSchema = {
     key: `${camelEntityName(entityName)}All`,
     ...allQuery(entityViewConfig[entityName].label, entityName),
   })),
+  runtime: {
+    controlPlane: {
+      entities: Object.fromEntries(
+        identityControlPlaneEntityNames.map((entityName) => [
+          entityName,
+          { immutableFields: [...identityControlPlaneImmutableFields[entityName]] },
+        ]),
+      ),
+    },
+  },
+});
+
+export const identityControlPlanePresentationSchemaModule = defineAppSchemaModule({
+  key: "identity-control-plane-presentation",
+  requires: ["identity-control-plane-records"],
   itemViews: identityControlPlaneEntityNames.map((entityName) => ({
     key: `${camelEntityName(entityName)}Item`,
     ...itemView(entityName, entityViewConfig[entityName].itemFields),
@@ -1075,18 +1091,15 @@ export const identityControlPlaneSourceSchema = {
       ]),
     },
   ],
+});
+
+export const identityControlPlaneSourceSchema = composeAppSchema({
+  version: 1,
+  modules: [identityControlPlaneRecordSchemaModule, identityControlPlanePresentationSchemaModule],
   runtime: {
     owner: "runtime",
-    controlPlane: {
-      entities: Object.fromEntries(
-        identityControlPlaneEntityNames.map((entityName) => [
-          entityName,
-          { immutableFields: [...identityControlPlaneImmutableFields[entityName]] },
-        ]),
-      ),
-    },
   },
-} satisfies AppSchema;
+});
 
 function textField(label: string, format?: "href" | "longText"): FieldSchema {
   return { type: "text", required: true, label, ...(format === undefined ? {} : { format }) };

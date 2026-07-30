@@ -6,7 +6,7 @@ describe("App schema module authoring", () => {
   it("preserves literal declarations and composes cross-module references", () => {
     const records = taskRecordsModule();
     const projects = projectRecordsModule();
-    const presentation = taskPresentationModule(records);
+    const presentation = taskPresentationModule();
     const moduleKey: "task-records" = records.key;
     const fieldType: "number" = records.entities
       .find((definition) => definition.key === "task")!
@@ -53,15 +53,15 @@ describe("App schema module authoring", () => {
     const source = composeAppSchema({
       version: 1,
       runtime: { owner: "runtime" },
-      modules: [records, taskPresentationModule(records)],
+      modules: [records, taskPresentationModule()],
     });
 
     expect(source.runtime).toEqual({ owner: "runtime" });
   });
 
-  it("requires direct dependencies to be present before their consumers", () => {
+  it("requires dependency keys to be present before their consumers", () => {
     const records = taskRecordsModule();
-    const presentation = taskPresentationModule(records);
+    const presentation = taskPresentationModule();
 
     expect(() => composeAppSchema({ version: 1, modules: [presentation] })).toThrow(
       'Schema module "task-presentation" requires module "task-records", but "task-records" is not listed.',
@@ -70,6 +70,24 @@ describe("App schema module authoring", () => {
       'Schema module "task-presentation" requires module "task-records" to be listed before it.',
     );
     expect(() => composeAppSchema({ version: 1, modules: [records, presentation] })).not.toThrow();
+  });
+
+  it("lets an ejected same-key replacement satisfy an upstream dependent", () => {
+    const upstream = taskRecordsModule();
+    const replacement = defineAppSchemaModule({
+      key: upstream.key,
+      entities: upstream.entities,
+      queries: upstream.queries,
+      readModels: upstream.readModels,
+    });
+    const presentation = taskPresentationModule();
+
+    expect(replacement).not.toBe(upstream);
+    expect(
+      composeAppSchema({ version: 1, modules: [replacement, presentation] }).entities.map(
+        ({ key }) => key,
+      ),
+    ).toEqual(["task"]);
   });
 
   it("rejects duplicate module keys before final schema parsing", () => {
@@ -188,7 +206,7 @@ describe("App schema module authoring", () => {
     const records = taskRecordsModule();
     const invalidQueries = defineAppSchemaModule({
       key: "invalid-queries",
-      requires: [records],
+      requires: [records.key],
       queries: [
         {
           key: "missingTasks",
@@ -205,9 +223,105 @@ describe("App schema module authoring", () => {
       'Query "missingTasks" references unknown entity "missing".',
     );
   });
+
+  it("composes control-plane policy for an entity owned by the same module", () => {
+    const records = runtimeRecordsModule();
+    const source = composeAppSchema({
+      version: 1,
+      runtime: { owner: "runtime" },
+      modules: [records],
+    });
+
+    expect(source.runtime).toEqual({
+      owner: "runtime",
+      controlPlane: {
+        entities: {
+          managed: {
+            immutableFields: ["name"],
+          },
+        },
+      },
+    });
+    expect(source.runtime).not.toHaveProperty("module");
+  });
+
+  it("rejects module control-plane policy without a root runtime owner", () => {
+    expect(() => composeAppSchema({ version: 1, modules: [runtimeRecordsModule()] })).toThrow(
+      'Schema module "runtime-records" contributes runtime controlPlane entity policy, but the composition root has no runtime owner.',
+    );
+  });
+
+  it("rejects module control-plane policy for an entity owned elsewhere", () => {
+    const records = runtimeRecordsModule({ runtime: false });
+    const foreignPolicy = defineAppSchemaModule({
+      key: "foreign-policy",
+      runtime: {
+        controlPlane: {
+          entities: {
+            managed: {
+              immutableFields: ["name"],
+            },
+          },
+        },
+      },
+    });
+
+    expect(() =>
+      composeAppSchema({
+        version: 1,
+        runtime: { owner: "runtime" },
+        modules: [records, foreignPolicy],
+      }),
+    ).toThrow(
+      'Schema module "foreign-policy" contributes runtime controlPlane policy for entity "managed", but that entity is owned by module "runtime-records".',
+    );
+  });
+
+  it("rejects duplicate module control-plane policy ownership", () => {
+    const records = runtimeRecordsModule();
+    const duplicatePolicy = defineAppSchemaModule({
+      key: "duplicate-policy",
+      runtime: {
+        controlPlane: {
+          entities: {
+            managed: {
+              observedFields: ["name"],
+            },
+          },
+        },
+      },
+    });
+
+    expect(() =>
+      composeAppSchema({
+        version: 1,
+        runtime: { owner: "runtime" },
+        modules: [records, duplicatePolicy],
+      }),
+    ).toThrow(
+      'Schema runtime controlPlane entity policy "managed" is contributed by both modules "runtime-records" and "duplicate-policy".',
+    );
+  });
+
+  it("rejects module runtime metadata outside control-plane entity policy", () => {
+    const invalidRuntime = defineAppSchemaModule({
+      key: "invalid-runtime",
+      runtime: { owner: "runtime" } as never,
+    });
+
+    expect(() =>
+      composeAppSchema({
+        version: 1,
+        runtime: { owner: "runtime" },
+        modules: [invalidRuntime],
+      }),
+    ).toThrow(
+      'Schema module "invalid-runtime" runtime contribution must contain only "controlPlane.entities".',
+    );
+  });
 });
 
-type ModuleDeclarations = Omit<AppSchemaModuleSource, "key" | "requires">;
+type ModuleDeclarations = Omit<AppSchemaModuleSource, "key" | "requires" | "runtime">;
 
 const declarationCollisionCases: Array<{
   path: string;
@@ -305,10 +419,10 @@ function projectRecordsModule() {
     ],
   });
 }
-function taskPresentationModule(records: ReturnType<typeof taskRecordsModule>) {
+function taskPresentationModule() {
   return defineAppSchemaModule({
     key: "task-presentation",
-    requires: [records],
+    requires: ["task-records"],
     itemViews: [
       {
         key: "taskItem",
@@ -347,5 +461,72 @@ function taskPresentationModule(records: ReturnType<typeof taskRecordsModule>) {
         },
       },
     ],
+  });
+}
+
+function runtimeRecordsModule(options: { runtime?: boolean } = {}) {
+  return defineAppSchemaModule({
+    key: "runtime-records",
+    entities: [
+      {
+        key: "managed",
+        id: "entity_4bac01cf-56f7-43aa-8914-8a2d2ea251c4",
+        label: "Managed",
+        fields: [{ key: "name", type: "text", required: true }],
+      },
+    ],
+    queries: [
+      {
+        key: "managedAll",
+        label: "All managed",
+        entity: "managed",
+        expression: { kind: "all" },
+      },
+    ],
+    itemViews: [
+      {
+        key: "managedItem",
+        entity: "managed",
+        fields: [{ field: "name", editor: "text", commit: "field-commit" }],
+      },
+    ],
+    views: [
+      {
+        key: "managedHome",
+        type: "collection",
+        label: "Managed",
+        entity: "managed",
+        queries: [{ query: "managedAll" }],
+        defaultQuery: "managedAll",
+        result: {
+          type: "list",
+          itemView: "managedItem",
+        },
+      },
+    ],
+    screens: [
+      {
+        key: "managedHome",
+        type: "workspace",
+        label: "Managed",
+        layout: {
+          type: "stack",
+          sections: [{ id: "managed", type: "collection", view: "managedHome" }],
+        },
+      },
+    ],
+    ...(options.runtime === false
+      ? {}
+      : {
+          runtime: {
+            controlPlane: {
+              entities: {
+                managed: {
+                  immutableFields: ["name"],
+                },
+              },
+            },
+          },
+        }),
   });
 }

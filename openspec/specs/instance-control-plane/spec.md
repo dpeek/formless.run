@@ -119,6 +119,25 @@ through the Instance Control Plane package slice.
 - THEN they come from `@dpeek/formless-instance-control-plane`
 - AND code does not import those contracts from root runtime modules
 
+#### Scenario: Package exposes composable schema modules
+
+- GIVEN trusted TypeScript authoring needs reusable instance control-plane
+  declarations
+- WHEN it imports `@dpeek/formless-instance-control-plane/schema`
+- THEN the package exports one record module that owns the instance
+  control-plane entities, relationships, queries, and runtime control-plane
+  entity policies
+- AND it exports one presentation module that depends on the record module key
+  and owns item views, table views, views, and screens
+- AND the package's complete source schema explicitly composes the record
+  module before the presentation module and supplies runtime ownership at the
+  composition root
+- AND the recomposed source preserves the current schema data,
+  source-schema hash, and package provenance
+- AND the modules remain runtime-neutral and do not change the existing
+  control-plane Authority, storage identity, API route, cursor, snapshot, or
+  browser replica behavior
+
 #### Scenario: Package consumes related public contracts
 
 - GIVEN the Instance Control Plane package needs app install identity,

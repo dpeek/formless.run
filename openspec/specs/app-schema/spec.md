@@ -92,13 +92,17 @@ parsed runtime contracts.
 - AND an individual module is not required to be a valid App schema in
   isolation
 
-#### Scenario: Enforce explicit module dependencies
+#### Scenario: Enforce explicit replaceable module dependencies
 
-- GIVEN a schema module declares another module as a dependency
-- WHEN the composition root omits that dependency or lists it after the
-  dependent module
-- THEN composition fails with an error identifying both module keys
-- AND composition does not automatically include or reorder modules
+- GIVEN a schema module declares another authoring module key as a dependency
+- WHEN the composition root supplies an upstream or project-owned module with
+  that exact key before the dependent module
+- THEN the dependency is satisfied without requiring object identity with the
+  original upstream module
+- AND a project may eject and replace a module while preserving its key
+- AND when the composition root omits that key or lists it after the dependent
+  module, composition fails with an error identifying both module keys
+- AND composition does not fetch, automatically include, or reorder modules
 - AND duplicate module keys fail before App schema parsing
 
 #### Scenario: Reject declaration collisions
@@ -110,13 +114,28 @@ parsed runtime contracts.
 - AND the error identifies the declaration path and both owning module keys
 - AND declaration keys in different App schema namespaces remain independent
 
+#### Scenario: Compose module-owned control-plane entity policy
+
+- GIVEN a schema module contributes an entity declaration
+- WHEN that module contributes runtime control-plane policy for the same entity
+- THEN composition adds that policy to the complete source schema's
+  `runtime.controlPlane.entities` map
+- AND the composition root owns the complete schema's runtime owner
+- AND a module cannot contribute policy for an entity owned by another module
+- AND duplicate policy ownership, policy without the matching module-owned
+  entity, or module policy without a runtime-owned composition root fails
+  before App schema parsing
+- AND module runtime contribution is limited to control-plane entity policy
+  rather than a generic deep merge of runtime metadata
+
 #### Scenario: Preserve the portable schema artifact
 
 - GIVEN valid modules compose an App schema source
 - WHEN that source is materialized and hashed
 - THEN the output contains only the existing App schema source data
-- AND module keys, dependencies, module references, and provenance are absent
-  from the materialized artifact and parsed runtime model
+- AND module keys, dependencies, module references, module policy ownership,
+  and provenance are absent from the materialized artifact and parsed runtime
+  model
 - AND authored omissions and nested declaration order remain source data
 - AND equivalent composed and monolithic sources produce the same canonical
   schema data and source-schema hash
