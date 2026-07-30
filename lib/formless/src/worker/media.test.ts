@@ -380,9 +380,9 @@ describe("media worker routes", () => {
       displayName: "Second App Admin",
       role: "app.admin",
     });
-    const instanceAdmin = await createPrincipalSession({
-      displayName: "Instance Admin",
-      role: "instance.admin",
+    const programAdministrator = await createPrincipalSession({
+      displayName: "Program Administrator",
+      role: "administrator",
     });
     const uploaded = await uploadAppDocument(
       firstInstallId,
@@ -400,11 +400,11 @@ describe("media worker routes", () => {
       documentFile("cross-install.pdf"),
       firstAdmin.headers,
     );
-    const instanceAdminUpload = await uploadAppDocument(
+    const programAdministratorUpload = await uploadAppDocument(
       firstInstallId,
       privateDocumentField,
-      documentFile("instance-admin.pdf"),
-      instanceAdmin.headers,
+      documentFile("program-administrator.pdf"),
+      programAdministrator.headers,
     );
     const adminBearerUpload = await uploadAppDocument(
       firstInstallId,
@@ -473,7 +473,7 @@ describe("media worker routes", () => {
       documentDeliveryPath(firstInstallId, uploadedBody.asset.id),
     );
     expect(crossInstallUpload.status).toBe(403);
-    expect(instanceAdminUpload.status).toBe(403);
+    expect(programAdministratorUpload.status).toBe(403);
     expect(adminBearerUpload.status).toBe(401);
     expect(unsupportedTypeUpload.status).toBe(415);
     expect(oversizedUpload.status).toBe(413);
@@ -662,7 +662,7 @@ async function configureDocumentSchema(installId: string) {
 async function createPrincipalSession(input: {
   appInstallId?: string;
   displayName: string;
-  role: "app.admin" | "instance.admin";
+  role: "app.admin" | "administrator";
 }) {
   const key = input.displayName.replace(/\W+/g, "-").toLowerCase();
   const principal = await postIdentityRecordOperation({
@@ -677,7 +677,7 @@ async function createPrincipalSession(input: {
   });
 
   await postIdentityRecordOperation({
-    entity: "role-assignment",
+    entity: input.role === "administrator" ? "program-role-assignment" : "role-assignment",
     idempotencyKey: `document-media-role-${key}`,
     operationName: "create",
     input:
@@ -691,11 +691,9 @@ async function createPrincipalSession(input: {
             targetPrincipal: principal.id,
           }
         : {
-            role: "role:instance.admin",
-            scopeKind: "instance",
+            principal: principal.id,
+            roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
             status: "active",
-            targetKind: "principal",
-            targetPrincipal: principal.id,
           },
   });
   return {

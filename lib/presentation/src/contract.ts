@@ -2400,7 +2400,7 @@ export type AccessRoleContract = {
   scope?: AccessDisplayFactContract;
 };
 
-export type AccessSurfaceKind = "app-install" | "instance" | "organization";
+export type AccessSurfaceKind = "app-install" | "instance" | "organization" | "program";
 
 export type AccessRoleOptionContract = {
   disabledReason?: string;

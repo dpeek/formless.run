@@ -11,6 +11,11 @@ import {
   type OwnerSessionAuthorityResolver,
   type OwnerSessionEnv,
 } from "./owner-session.ts";
+import { evaluateAccessRequirement } from "@dpeek/formless-schema";
+import {
+  FORMLESS_PROGRAM_MANAGEMENT_ACCESS_REQUIREMENT,
+  formlessProgramSchema,
+} from "../program/runtime.ts";
 
 export type AuthorityAdminGuardEnv = OwnerSessionEnv & {
   FORMLESS_ADMIN_TOKEN?: string;
@@ -50,6 +55,7 @@ export function authorizeAuthorityOperation(
   env: AuthorityAdminGuardEnv,
   options: {
     hostSessionTarget?: InstanceAuthSessionTargetBinding | undefined;
+    openAccessAllowed?: boolean;
     resolveOwnerSession?: OwnerSessionAuthorityResolver;
   } = {},
 ): Promise<AuthorityAdminGuardResult> {
@@ -89,6 +95,7 @@ export async function authorizeInstanceWrite(
   env: AuthorityAdminGuardEnv,
   options: {
     hostSessionTarget?: InstanceAuthSessionTargetBinding | undefined;
+    openAccessAllowed?: boolean;
     resolveOwnerSession?: OwnerSessionAuthorityResolver;
   } = {},
 ): Promise<InstanceWriteAuthorizationResult> {
@@ -125,7 +132,7 @@ export async function authorizeOperationalManagement(
     ...options,
     error:
       options.error ??
-      "Owner session, instance-admin session, or admin authorization is required for this endpoint.",
+      "Owner session, Program administrator session, or admin authorization is required for this endpoint.",
   });
 }
 
@@ -135,6 +142,7 @@ async function authorizeOwnerSessionOrAdmin(
   options: {
     error: string;
     hostSessionTarget?: InstanceAuthSessionTargetBinding | undefined;
+    openAccessAllowed?: boolean;
     resolveOwnerSession?: OwnerSessionAuthorityResolver;
   },
 ): Promise<InstanceWriteAuthorizationResult> {
@@ -142,7 +150,7 @@ async function authorizeOwnerSessionOrAdmin(
   const sessionProtectionConfigured =
     normalizedAdminToken(env.FORMLESS_OWNER_SESSION_SECRET) !== undefined;
 
-  if (!adminToken && !sessionProtectionConfigured) {
+  if (!adminToken && !sessionProtectionConfigured && options.openAccessAllowed !== false) {
     return { authorized: true, via: "open" };
   }
 
@@ -187,14 +195,16 @@ async function authorizeManagementSessionOrAdmin(
   },
 ): Promise<OperationalManagementAuthorizationResult> {
   const adminToken = normalizedAdminToken(env.FORMLESS_ADMIN_TOKEN);
-  const sessionProtectionConfigured =
-    normalizedAdminToken(env.FORMLESS_OWNER_SESSION_SECRET) !== undefined;
 
-  if (!adminToken && !sessionProtectionConfigured) {
-    return { authorized: true, via: "open" };
-  }
-
-  if (adminToken && requestAdminToken(request) === adminToken) {
+  if (
+    adminToken &&
+    requestAdminToken(request) === adminToken &&
+    evaluateAccessRequirement(
+      FORMLESS_PROGRAM_MANAGEMENT_ACCESS_REQUIREMENT,
+      { actor: "adminBearer", kind: "trusted" },
+      formlessProgramSchema,
+    )
+  ) {
     return { authorized: true, via: "admin-bearer" };
   }
 

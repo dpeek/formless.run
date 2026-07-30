@@ -270,7 +270,6 @@ describe("identity control-plane schema contracts", () => {
         required: true,
         values: [
           { key: "instance.owner", label: "instance.owner" },
-          { key: "instance.admin", label: "instance.admin" },
           { key: "app.admin", label: "app.admin" },
           { key: "app.editor", label: "app.editor" },
           { key: "app.viewer", label: "app.viewer" },
@@ -708,7 +707,11 @@ describe("identity control-plane schema contracts", () => {
   it("validates identity record invariants that are outside field shape", () => {
     const records = identityRecords();
 
-    expect(validateIdentityControlPlaneRecords("Identity records", records)).toBeUndefined();
+    expect(
+      validateIdentityControlPlaneRecords("Identity records", records, {
+        authorizationRoles: testAuthorizationRoles,
+      }),
+    ).toBeUndefined();
     expect(() =>
       validateIdentityControlPlaneRecords("Identity records", [
         ...records,
@@ -1014,35 +1017,6 @@ describe("identity control-plane schema contracts", () => {
     expect(() =>
       validateIdentityControlPlaneRecords("Identity records", [
         ...records,
-        roleRecord("role:admin", {
-          displayLabel: "Administrator",
-          key: "instance.admin",
-        }),
-        roleAssignmentRecord("role-assignment:ada-admin-conflict", {
-          role: "role:admin",
-        }),
-      ]),
-    ).toThrow('violates identity uniqueness "auth:role-assignment.uniqueActiveAssignment"');
-    expect(() =>
-      validateIdentityControlPlaneRecords("Identity records", [
-        ...replaceRecord(
-          records,
-          roleAssignmentRecord("role-assignment:ada-owner", {
-            status: "disabled",
-          }),
-        ),
-        roleRecord("role:admin", {
-          displayLabel: "Administrator",
-          key: "instance.admin",
-        }),
-        roleAssignmentRecord("role-assignment:ada-admin-replacement", {
-          role: "role:admin",
-        }),
-      ]),
-    ).not.toThrow();
-    expect(() =>
-      validateIdentityControlPlaneRecords("Identity records", [
-        ...records,
         roleAssignmentRecord("role-assignment:ada-owner-app", {
           appInstallId: "site",
           scopeKind: "app-install",
@@ -1131,21 +1105,30 @@ describe("identity control-plane schema contracts", () => {
       }),
     ];
 
-    expect(validateIdentityControlPlaneRecords("Identity records", records)).toBeUndefined();
     expect(
-      resolveIdentityCollaboratorInvitationGrantAuthority(records, "principal:ordinary"),
+      validateIdentityControlPlaneRecords("Identity records", records, {
+        authorizationRoles: testAuthorizationRoles,
+      }),
+    ).toBeUndefined();
+    expect(
+      resolveIdentityCollaboratorInvitationGrantAuthority(
+        records,
+        "principal:ordinary",
+        testAuthorizationRoles,
+      ),
     ).toEqual({
-      instanceAdmin: false,
       instanceOwner: false,
       principalId: "principal:ordinary",
+      programAdministrator: false,
     });
     expect(() =>
       validateIdentityCollaboratorInvitationGrants("Collaborator invitation grants", {
+        authorizationRoles: testAuthorizationRoles,
         grantRecords: [invitedPrincipalGrantRecord()],
         inviterPrincipalId: "principal:ordinary",
         records,
       }),
-    ).toThrow("requires current instance owner or instance admin authority");
+    ).toThrow("requires current instance owner or Program administrator authority");
 
     const policy = records.find((record) => record.entity === "account-policy");
     const acceptance = records.find((record) => record.entity === "principal-policy-acceptance");
@@ -1197,27 +1180,32 @@ describe("identity control-plane schema contracts", () => {
       }),
     ];
 
-    expect(resolveIdentityCollaboratorInvitationGrantAuthority(records, "principal:owner")).toEqual(
-      {
-        instanceAdmin: false,
-        instanceOwner: true,
-        principalId: "principal:owner",
-      },
-    );
+    expect(
+      resolveIdentityCollaboratorInvitationGrantAuthority(
+        records,
+        "principal:owner",
+        testAuthorizationRoles,
+      ),
+    ).toEqual({
+      instanceOwner: true,
+      principalId: "principal:owner",
+      programAdministrator: false,
+    });
     expect(
       validateIdentityCollaboratorInvitationGrants("Collaborator invitation grants", {
+        authorizationRoles: testAuthorizationRoles,
         grantRecords,
         inviterPrincipalId: "principal:owner",
         records,
       }),
     ).toEqual({
-      instanceAdmin: false,
       instanceOwner: true,
       principalId: "principal:owner",
+      programAdministrator: false,
     });
   });
 
-  it("accepts instance-admin collaborator invitation grant authority for non-owner grants", () => {
+  it("accepts Program administrator collaborator invitation grant authority for non-owner grants", () => {
     const records = identityCollaboratorInvitationGrantPolicyRecords();
     const grantRecords = [
       invitedPrincipalGrantRecord(),
@@ -1226,9 +1214,9 @@ describe("identity control-plane schema contracts", () => {
         selectedOrganization: undefined,
         targetPrincipal: "principal:invitee",
       }),
-      roleAssignmentRecord("role-assignment:invitee-admin", {
-        role: "role:instance.admin",
-        targetPrincipal: "principal:invitee",
+      programRoleAssignmentRecord("program-role-assignment:invitee-admin", {
+        principal: "principal:invitee",
+        roleId: testAuthorizationRoles[2].id,
       }),
       roleAssignmentRecord("role-assignment:invitee-app-editor", {
         role: "role:app.editor",
@@ -1240,25 +1228,27 @@ describe("identity control-plane schema contracts", () => {
 
     expect(
       validateIdentityCollaboratorInvitationGrants("Collaborator invitation grants", {
+        authorizationRoles: testAuthorizationRoles,
         grantRecords,
         inviterPrincipalId: "principal:admin",
         records,
       }),
     ).toEqual({
-      instanceAdmin: true,
       instanceOwner: false,
       principalId: "principal:admin",
+      programAdministrator: true,
     });
   });
 
   it("rejects collaborator invitation grants from non-admin principals", () => {
     expect(() =>
       validateIdentityCollaboratorInvitationGrants("Collaborator invitation grants", {
+        authorizationRoles: testAuthorizationRoles,
         grantRecords: [invitedPrincipalGrantRecord()],
         inviterPrincipalId: "principal:ordinary",
         records: identityCollaboratorInvitationGrantPolicyRecords(),
       }),
-    ).toThrow("requires current instance owner or instance admin authority");
+    ).toThrow("requires current instance owner or Program administrator authority");
   });
 
   it("rejects collaborator invitation grants from stale or disabled inviter principals", () => {
@@ -1266,6 +1256,7 @@ describe("identity control-plane schema contracts", () => {
 
     expect(() =>
       validateIdentityCollaboratorInvitationGrants("Collaborator invitation grants", {
+        authorizationRoles: testAuthorizationRoles,
         grantRecords: [invitedPrincipalGrantRecord()],
         inviterPrincipalId: "principal:missing",
         records,
@@ -1273,6 +1264,7 @@ describe("identity control-plane schema contracts", () => {
     ).toThrow("requires an active inviter principal");
     expect(() =>
       validateIdentityCollaboratorInvitationGrants("Collaborator invitation grants", {
+        authorizationRoles: testAuthorizationRoles,
         grantRecords: [invitedPrincipalGrantRecord()],
         inviterPrincipalId: "principal:disabled",
         records,
@@ -1285,27 +1277,33 @@ describe("identity control-plane schema contracts", () => {
       removedAdminAuthority: true,
     });
 
-    expect(resolveIdentityCollaboratorInvitationGrantAuthority(records, "principal:admin")).toEqual(
-      {
-        instanceAdmin: false,
-        instanceOwner: false,
-        principalId: "principal:admin",
-      },
-    );
+    expect(
+      resolveIdentityCollaboratorInvitationGrantAuthority(
+        records,
+        "principal:admin",
+        testAuthorizationRoles,
+      ),
+    ).toEqual({
+      instanceOwner: false,
+      principalId: "principal:admin",
+      programAdministrator: false,
+    });
     expect(() =>
       validateIdentityCollaboratorInvitationGrants("Collaborator invitation grants", {
+        authorizationRoles: testAuthorizationRoles,
         grantRecords: [invitedPrincipalGrantRecord()],
         inviterPrincipalId: "principal:admin",
         records,
       }),
-    ).toThrow("requires current instance owner or instance admin authority");
+    ).toThrow("requires current instance owner or Program administrator authority");
   });
 
-  it("rejects instance-admin collaborator invitation role and membership grants outside policy", () => {
+  it("rejects Program administrator collaborator invitation role and membership grants outside policy", () => {
     const records = identityCollaboratorInvitationGrantPolicyRecords();
 
     expect(() =>
       validateIdentityCollaboratorInvitationGrants("Collaborator invitation grants", {
+        authorizationRoles: testAuthorizationRoles,
         grantRecords: [
           roleAssignmentRecord("role-assignment:invitee-owner", {
             role: "role:instance.owner",
@@ -1315,9 +1313,10 @@ describe("identity control-plane schema contracts", () => {
         inviterPrincipalId: "principal:admin",
         records,
       }),
-    ).toThrow("cannot grant instance.owner with instance admin authority");
+    ).toThrow("cannot grant instance.owner with Program administrator authority");
     expect(() =>
       validateIdentityCollaboratorInvitationGrants("Collaborator invitation grants", {
+        authorizationRoles: testAuthorizationRoles,
         grantRecords: [
           roleAssignmentRecord("role-assignment:invitee-org-editor", {
             appInstallId: undefined,
@@ -1330,9 +1329,10 @@ describe("identity control-plane schema contracts", () => {
         inviterPrincipalId: "principal:admin",
         records,
       }),
-    ).toThrow("cannot grant organization-scoped roles with instance admin authority");
+    ).toThrow("cannot grant organization-scoped roles with Program administrator authority");
     expect(() =>
       validateIdentityCollaboratorInvitationGrants("Collaborator invitation grants", {
+        authorizationRoles: testAuthorizationRoles,
         grantRecords: [
           membershipRecord("membership:invitee-acme", {
             principal: "principal:invitee",
@@ -1345,7 +1345,7 @@ describe("identity control-plane schema contracts", () => {
         inviterPrincipalId: "principal:admin",
         records,
       }),
-    ).toThrow("cannot grant collaborator memberships with instance admin authority");
+    ).toThrow("cannot grant collaborator memberships with Program administrator authority");
   });
 });
 function operation<T extends { key: string }>(
@@ -1359,6 +1359,24 @@ function operation<T extends { key: string }>(
   return value;
 }
 const testNow = "2026-06-26T00:00:00.000Z";
+const testAuthorizationRoles = [
+  {
+    id: "role_de3ae092-31a9-49df-b7f6-9f51f9403ff9",
+    key: "member",
+    label: "Member",
+  },
+  {
+    id: "role_3e6f3057-22bf-4fb0-8bd5-7b61bb0f45c4",
+    key: "editor",
+    label: "Editor",
+  },
+  {
+    id: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+    key: "administrator",
+    label: "Administrator",
+  },
+] as const;
+
 function identityCollaboratorInvitationGrantPolicyRecords(
   options: {
     removedAdminAuthority?: boolean;
@@ -1399,9 +1417,9 @@ function identityCollaboratorInvitationGrantPolicyRecords(
       targetPrincipal: "principal:owner",
     }),
     {
-      ...roleAssignmentRecord("role-assignment:admin-admin", {
-        role: "role:instance.admin",
-        targetPrincipal: "principal:admin",
+      ...programRoleAssignmentRecord("program-role-assignment:admin-admin", {
+        principal: "principal:admin",
+        roleId: testAuthorizationRoles[2].id,
       }),
       ...(options.removedAdminAuthority === true ? { deletedAt: testNow } : {}),
     },
@@ -1555,6 +1573,22 @@ function roleAssignmentRecord(
       targetKind: "principal",
       targetPrincipal: "principal:ada",
       scopeKind: "instance",
+      status: "active",
+      ...overrides,
+    }),
+  );
+}
+
+function programRoleAssignmentRecord(
+  id: string,
+  overrides: Record<string, string | undefined> = {},
+): StoredRecord {
+  return identityRecord(
+    "program-role-assignment",
+    id,
+    omitUndefined({
+      principal: "principal:ada",
+      roleId: testAuthorizationRoles[0].id,
       status: "active",
       ...overrides,
     }),

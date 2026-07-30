@@ -85,9 +85,10 @@ The system SHALL mount browser surfaces according to the active runtime profile.
   registrations
 - AND Program navigation order comes from the materialized Program artifact
 - AND the client shell is eligible to render those screens for an active
-  principal with active `instance.owner` or `instance.admin` authority
+  principal with protected owner authority or the schema-defined Program
+  `administrator` role
 - AND owner-only security and recovery behavior remains unavailable to a
-  principal authorized only as instance admin
+  principal authorized only as Program administrator
 
 #### Scenario: Product instance access management route
 
@@ -97,10 +98,10 @@ The system SHALL mount browser surfaces according to the active runtime profile.
   surface
 - AND the route is treated as a management instance browser surface unless an
   explicit route access policy requires owner access
-- AND active `instance.owner` or `instance.admin` authority satisfies the
-  management route while identity summary reads, collaborator invitation
-  creation, role grants, and destructive identity actions remain authorized by
-  identity-control-plane management rules
+- AND protected owner authority or the schema-defined Program `administrator`
+  role satisfies the management route while identity summary reads,
+  collaborator invitation creation, role grants, and destructive identity
+  actions remain authorized by identity-control-plane management rules
 - AND installed app routing, public Site routing, account orchestrator routes,
   account gate routes, and raw generated identity-control-plane record editing
   remain separate route families
@@ -193,10 +194,13 @@ surfaces or protected management API data.
 - GIVEN a runtime browser route has effective access `management`
 - WHEN the request includes a valid central auth session on the configured auth
   origin, local-dev owner session, or matching host-local session for an active
-  principal with active `instance.owner` or `instance.admin` authority at
-  instance scope
+  principal with protected owner authority or the schema-defined Program
+  `administrator` role
 - THEN the route remains eligible for the instance settings or access
   management surface
+- AND `management` remains presentation and route-admission terminology whose
+  authoritative Program check is the shared `{ role: "administrator" }`
+  requirement
 - AND owner recovery, owner-role management, auth-origin policy, browser
   session signing policy, and admin-bearer recovery remain owner-only
 
@@ -216,7 +220,7 @@ surfaces or protected management API data.
 
 - GIVEN a runtime browser route has effective access `management`
 - AND the request includes a valid session for an active principal without
-  active `instance.owner` or `instance.admin` authority at instance scope
+  protected owner authority or the schema-defined Program `administrator` role
 - WHEN the runtime evaluates the route
 - THEN it does not serve the management surface
 - AND the account orchestrator returns a display-safe forbidden outcome instead
@@ -231,8 +235,9 @@ surfaces or protected management API data.
 - THEN the route remains eligible only when the principal has active
   `app.admin` authority at app-install scope for the route's referenced app
   install or has active `instance.owner` authority
-- AND active `instance.admin` authority, a role for another app install, or an
-  ordinary authenticated session does not satisfy the route requirement
+- AND the schema-defined Program `administrator` role, a role for another app
+  install, or an ordinary authenticated session does not satisfy the route
+  requirement
 
 #### Scenario: Anonymous owner browser route
 

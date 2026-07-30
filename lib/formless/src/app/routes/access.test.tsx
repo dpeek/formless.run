@@ -81,7 +81,7 @@ describe("access route runtime", () => {
     await runtime.dispatch({
       ...runtime.invitationAuthoring().roleSelection.changeIntent,
       selectedOptionIds: [
-        "instance-access:role-option:instance:instance:instance.admin",
+        "instance-access:role-option:program:program:administrator",
         "instance-access:role-option:app-install:install_3Asite:app.editor",
       ],
     });
@@ -112,7 +112,7 @@ describe("access route runtime", () => {
       idempotencyKey: "access:invitation:test",
       invitedPrincipal: { displayName: "New Person" },
       roleAssignments: [
-        { roleKey: "instance.admin", scopeKind: "instance" },
+        { roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357", scopeKind: "program" },
         {
           appInstallId: "install:site",
           roleKey: "app.editor",
@@ -265,7 +265,7 @@ function summary(): IdentityAccessManagementSummary {
     appRegistrations: [],
     groups: [],
     invitationGrantOptions: {
-      authority: { instanceAdmin: false, instanceOwner: true },
+      authority: { instanceOwner: true, programAdministrator: false },
       memberships: [],
       roles: [
         {
@@ -274,9 +274,10 @@ function summary(): IdentityAccessManagementSummary {
           scopeKind: "instance",
         },
         {
-          displayLabel: "Instance — Administrator",
-          roleKey: "instance.admin",
-          scopeKind: "instance",
+          displayLabel: "Program — Administrator",
+          roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+          roleKey: "administrator",
+          scopeKind: "program",
         },
         {
           appInstallId: "install:site",
@@ -301,10 +302,20 @@ function summary(): IdentityAccessManagementSummary {
     memberships: [],
     organizations: [],
     people: [person("principal:ada", "Ada Owner"), person("principal:bo", "Bo Admin")],
-    roles: [
-      role("assignment:ada-owner", "principal:ada", "instance.owner"),
-      role("assignment:bo-admin", "principal:bo", "instance.admin"),
+    programRoles: [
+      {
+        createdAt: "2026-01-01T00:00:00.000Z",
+        displayLabel: "Administrator",
+        roleAssignmentId: "program-role-assignment:bo",
+        roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+        roleKey: "administrator",
+        scopeKind: "program",
+        status: "active",
+        targetPrincipalId: "principal:bo",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
     ],
+    roles: [role("assignment:ada-owner", "principal:ada")],
   };
 }
 
@@ -319,17 +330,13 @@ function person(principalId: string, displayName: string) {
   };
 }
 
-function role(
-  roleAssignmentId: string,
-  targetPrincipalId: string,
-  roleKey: "instance.admin" | "instance.owner",
-) {
+function role(roleAssignmentId: string, targetPrincipalId: string) {
   return {
     createdAt: "2026-01-01T00:00:00.000Z",
-    displayLabel: roleKey,
+    displayLabel: "instance.owner",
     roleAssignmentId,
-    roleId: `role:${roleKey}`,
-    roleKey,
+    roleId: "role:instance.owner",
+    roleKey: "instance.owner" as const,
     scopeKind: "instance" as const,
     status: "active" as const,
     targetKind: "principal" as const,

@@ -822,7 +822,7 @@ describe("instance app install API routes", () => {
     expect(rejected.headers.get("WWW-Authenticate")).toBe('Bearer realm="formless-admin"');
     expect(await rejected.json()).toEqual({
       error:
-        "Owner session, instance-admin session, or admin authorization is required for this write endpoint.",
+        "Owner session, Program administrator session, or admin authorization is required for this write endpoint.",
     });
     expect(accepted.response.status).toBe(201);
   });
@@ -838,8 +838,8 @@ describe("instance app install API routes", () => {
       installId: "work",
       label: "Work Tasks",
     });
-    const instanceAdmin = await createIdentityPrincipal("Registry Instance Admin");
-    await assignIdentityRole(instanceAdmin.id, "instance.admin");
+    const programAdministrator = await createIdentityPrincipal("Registry Program Administrator");
+    await assignIdentityRole(programAdministrator.id, "administrator");
     const personalAdmin = await createIdentityPrincipal("Registry Personal App Admin");
     await assignIdentityRole(personalAdmin.id, "app.admin", "personal");
     const workAdmin = await createIdentityPrincipal("Registry Work App Admin");
@@ -848,7 +848,7 @@ describe("instance app install API routes", () => {
     const anonymous = await harness.fetch("/api/formless/app-installs");
     const admin = await getJson<AppInstallsResponse>("/api/formless/app-installs");
     const ownerRead = await getOwnerJson<AppInstallsResponse>("/api/formless/app-installs");
-    const instanceAdminRead = await getRegistryForPrincipal(instanceAdmin.id);
+    const programAdministratorRead = await getRegistryForPrincipal(programAdministrator.id);
     const personalAdminRead = await getRegistryForPrincipal(personalAdmin.id);
     const workAdminRead = await getRegistryForPrincipal(workAdmin.id);
     const ordinaryRead = await getRegistryForPrincipal(ordinary.id);
@@ -857,11 +857,11 @@ describe("instance app install API routes", () => {
     expect(anonymous.headers.get("WWW-Authenticate")).toBe('Bearer realm="formless-admin"');
     expect(await anonymous.json()).toEqual({
       error:
-        "Owner session, instance-admin session, or admin authorization is required for this read endpoint.",
+        "Owner session, Program administrator session, or admin authorization is required for this read endpoint.",
     });
     expect(admin.body.installs.map((install) => install.installId)).toEqual(["personal", "work"]);
     expect(ownerRead.body).toEqual(admin.body);
-    expect(instanceAdminRead).toEqual(admin.body);
+    expect(programAdministratorRead).toEqual(admin.body);
     expect(personalAdminRead.installs.map((install) => install.installId)).toEqual(["personal"]);
     expect(personalAdminRead.packages.map((appPackage) => appPackage.packageAppKey)).toEqual([
       "site",
@@ -1087,11 +1087,11 @@ async function createIdentityPrincipal(displayName: string): Promise<StoredRecor
 
 async function assignIdentityRole(
   principalId: string,
-  roleKey: "app.admin" | "instance.admin",
+  roleKey: "app.admin" | "administrator",
   appInstallId?: string,
 ): Promise<StoredRecord> {
   return await postIdentityRecordOperation({
-    entity: "role-assignment",
+    entity: roleKey === "administrator" ? "program-role-assignment" : "role-assignment",
     idempotencyKey: [
       "registry-assign",
       principalId.replace(/\W+/g, "-"),
@@ -1099,14 +1099,21 @@ async function assignIdentityRole(
       appInstallId ?? "instance",
     ].join("-"),
     operationName: "create",
-    input: {
-      ...(appInstallId === undefined ? {} : { appInstallId }),
-      role: `role:${roleKey}`,
-      scopeKind: appInstallId === undefined ? "instance" : "app-install",
-      status: "active",
-      targetKind: "principal",
-      targetPrincipal: principalId,
-    },
+    input:
+      roleKey === "administrator"
+        ? {
+            principal: principalId,
+            roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+            status: "active",
+          }
+        : {
+            appInstallId,
+            role: `role:${roleKey}`,
+            scopeKind: "app-install",
+            status: "active",
+            targetKind: "principal",
+            targetPrincipal: principalId,
+          },
   });
 }
 

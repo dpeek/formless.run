@@ -96,7 +96,7 @@ function createHarness() {
 }
 
 describe("instance control-plane API routes", () => {
-  it("requires owner, instance-admin, or admin authorization for dashboard control-plane reads", async () => {
+  it("requires owner, Program-administrator, or admin authorization for dashboard control-plane reads", async () => {
     const anonymous = await harness.fetch(`${controlPlaneApi}/bootstrap`);
     const anonymousBody = await anonymous.json();
     const admin = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
@@ -106,7 +106,7 @@ describe("instance control-plane API routes", () => {
     expect(anonymous.headers.get("WWW-Authenticate")).toBe('Bearer realm="formless-admin"');
     expect(anonymousBody).toEqual({
       error:
-        "Owner session, instance-admin session, or admin authorization is required for this read endpoint.",
+        "Owner session, Program administrator session, or admin authorization is required for this read endpoint.",
     });
     expect(ownerRead.body.records).toEqual(expect.arrayContaining(admin.body.records));
     expect(admin.body.records.map((record) => record.id).sort()).toEqual(
@@ -115,23 +115,19 @@ describe("instance control-plane API routes", () => {
         "role:app.editor",
         "role:app.user",
         "role:app.viewer",
-        "role:instance.admin",
         "role:instance.owner",
       ].sort(),
     );
   });
 
-  it("authorizes same-origin instance admins for operational control-plane intent only", async () => {
-    const adminPrincipal = await createIdentityPrincipal("Same Origin Instance Admin");
-    await assignIdentityInstanceRole(adminPrincipal.id, "instance.admin");
+  it("authorizes same-origin Program administrators for operational control-plane intent only", async () => {
+    const adminPrincipal = await createIdentityPrincipal("Same Origin Program Administrator");
+    await assignIdentityProgramRole(adminPrincipal.id);
     const ordinaryPrincipal = await createIdentityPrincipal("Same Origin Ordinary Principal");
     const removedAdminPrincipal = await createIdentityPrincipal("Same Origin Removed Admin");
-    const removedAdminAssignment = await assignIdentityInstanceRole(
-      removedAdminPrincipal.id,
-      "instance.admin",
-    );
+    const removedAdminAssignment = await assignIdentityProgramRole(removedAdminPrincipal.id);
     const disabledAdminPrincipal = await createIdentityPrincipal("Same Origin Disabled Admin");
-    await assignIdentityInstanceRole(disabledAdminPrincipal.id, "instance.admin");
+    await assignIdentityProgramRole(disabledAdminPrincipal.id);
 
     const adminSession = await principalSessionHeaders(adminPrincipal.id);
     const ordinarySession = await principalSessionHeaders(ordinaryPrincipal.id);
@@ -244,7 +240,7 @@ describe("instance control-plane API routes", () => {
     );
 
     await postIdentityRecordOperation({
-      entity: "role-assignment",
+      entity: "program-role-assignment",
       idempotencyKey: "same-origin-remove-admin-role",
       operationName: "delete",
       recordId: removedAdminAssignment.id,
@@ -288,11 +284,11 @@ describe("instance control-plane API routes", () => {
     expect(ordinaryRead.status).toBe(401);
     expect(await ordinaryRead.json()).toEqual({
       error:
-        "Owner session, instance-admin session, or admin authorization is required for this read endpoint.",
+        "Owner session, Program administrator session, or admin authorization is required for this read endpoint.",
     });
     expect(ordinaryWrite.response.status).toBe(401);
     expect(ordinaryWrite.body.error).toBe(
-      "Owner session, instance-admin session, or admin authorization is required for this write endpoint.",
+      "Owner session, Program administrator session, or admin authorization is required for this write endpoint.",
     );
     expect(removedAdminRead.status).toBe(200);
     expect(await removedAdminRead.json()).toEqual({
@@ -302,7 +298,7 @@ describe("instance control-plane API routes", () => {
     });
     expect(disabledAdminWrite.response.status).toBe(401);
     expect(disabledAdminWrite.body.error).toBe(
-      "Owner session, instance-admin session, or admin authorization is required for this write endpoint.",
+      "Owner session, Program administrator session, or admin authorization is required for this write endpoint.",
     );
   });
 
@@ -318,7 +314,7 @@ describe("instance control-plane API routes", () => {
       formlessProgramSchemaProvenance.sourceSchemaHash,
     );
     expect(runnerBootstrap.body.records.filter((record) => record.entity === "role")).toHaveLength(
-      6,
+      5,
     );
     expect(runnerBootstrap.body.cursor).toBeGreaterThanOrEqual(6);
     expect(runnerBootstrap.response.headers.get(FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER)).toBe(
@@ -1054,7 +1050,7 @@ describe("instance control-plane API routes", () => {
 
     expect(unauthenticated.response.status).toBe(401);
     expect(unauthenticated.body.error).toBe(
-      "Owner session, instance-admin session, or admin authorization is required for this write endpoint.",
+      "Owner session, Program administrator session, or admin authorization is required for this write endpoint.",
     );
     expect(runner.response.status).toBe(400);
     expect(runner.body.error).toBe(
@@ -1324,23 +1320,14 @@ async function createIdentityPrincipal(displayName: string): Promise<StoredRecor
   });
 }
 
-async function assignIdentityInstanceRole(
-  principalId: string,
-  roleKey: "instance.admin" | "instance.owner",
-): Promise<StoredRecord> {
+async function assignIdentityProgramRole(principalId: string): Promise<StoredRecord> {
   return await postIdentityRecordOperation({
-    entity: "role-assignment",
-    idempotencyKey: [
-      "control-plane-assign",
-      principalId.replace(/\W+/g, "-"),
-      roleKey.replace(/\./g, "-"),
-    ].join("-"),
+    entity: "program-role-assignment",
+    idempotencyKey: ["control-plane-assign", principalId.replace(/\W+/g, "-")].join("-"),
     operationName: "create",
     input: {
-      role: `role:${roleKey}`,
-      targetKind: "principal",
-      targetPrincipal: principalId,
-      scopeKind: "instance",
+      principal: principalId,
+      roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
       status: "active",
     },
   });

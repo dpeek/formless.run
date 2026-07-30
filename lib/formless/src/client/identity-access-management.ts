@@ -15,6 +15,7 @@ import {
   type IdentityCollaboratorInvitationRevokeResponse,
   type IdentityInvitationTargetSurface,
   type IdentityMembershipTargetKind,
+  type IdentityProgramRoleId,
   type IdentityRoleAssignmentScopeKind,
 } from "@dpeek/formless-identity-control-plane";
 
@@ -62,8 +63,12 @@ export type CreateIdentityAccessManagementInvitationInput = {
         scopeKind: Extract<IdentityRoleAssignmentScopeKind, "app-install">;
       }
     | {
-        roleKey: Extract<IdentityControlPlaneRoleKey, "instance.admin" | "instance.owner">;
+        roleKey: Extract<IdentityControlPlaneRoleKey, "instance.owner">;
         scopeKind: Extract<IdentityRoleAssignmentScopeKind, "instance">;
+      }
+    | {
+        roleId: IdentityProgramRoleId;
+        scopeKind: "program";
       }
     | {
         roleKey: Extract<

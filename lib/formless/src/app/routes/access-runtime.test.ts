@@ -46,14 +46,14 @@ describe("access projection", () => {
     const authoring = required(projectAccess(input()).authoring);
     expect(authoring.roleSelection.options.map(({ label }) => label)).toEqual([
       "Instance — Owner",
-      "Instance — Administrator",
+      "Program — Administrator",
       "Site — Administrator",
       "Site — Editor",
       "Formless — Administrator",
     ]);
     expect(authoring.roleSelection.options.map(({ surfaceId }) => surfaceId)).toEqual([
       "instance",
-      "instance",
+      "program",
       "app-install:install:site",
       "app-install:install:site",
       "organization:organization:formless",
@@ -72,6 +72,7 @@ describe("access projection", () => {
     );
     expect(selected.roleSelection.options.map(({ label }) => label)).toEqual([
       "Instance — Owner",
+      "Program — Administrator",
       "Site — Administrator",
       "Site — Editor",
       "Formless — Administrator",
@@ -94,7 +95,7 @@ describe("access projection", () => {
 
     expect(authoring.fields.acceptanceTarget).toMatchObject({
       options: [
-        { label: "Instance", value: "instance" },
+        { label: "Program", value: "program" },
         { label: "Site", value: "app-install:install:site" },
       ],
       value: "app-install:install:site",
@@ -139,6 +140,7 @@ describe("access projection", () => {
     });
     expect(authoring.roleSelection.options.map(({ label }) => label)).toEqual([
       "Instance — Owner",
+      "Program — Administrator",
       "Site — Editor",
       "Formless — Administrator",
     ]);
@@ -153,9 +155,9 @@ describe("access projection", () => {
       control: {
         content: { kind: "label", label: "Remove person" },
         disabled: true,
-        disabledReason: "Instance administrators cannot remove an owner.",
+        disabledReason: "Program administrators cannot remove an owner.",
       },
-      disabledReason: "Instance administrators cannot remove an owner.",
+      disabledReason: "Program administrators cannot remove an owner.",
     });
   });
 });
@@ -166,7 +168,7 @@ describe("access intent resolution", () => {
     const projection = projectAccess(options);
     const authoring = required(projection.authoring);
     const selectedIds = [
-      roleOptionId("instance", "instance", "instance.admin"),
+      roleOptionId("program", "program", "administrator"),
       roleOptionId("app-install", "install:site", "app.editor"),
     ];
     const intent = {
@@ -191,7 +193,7 @@ describe("access intent resolution", () => {
       request: {
         appRegistrations: [{ appInstallId: "install:site" }],
         roleAssignments: [
-          { roleKey: "instance.admin", scopeKind: "instance" },
+          { roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357", scopeKind: "program" },
           {
             appInstallId: "install:site",
             roleKey: "app.editor",
@@ -358,7 +360,7 @@ function selectedDraft(): AccessInvitationDraft {
     ...validDraft(),
     acceptanceTargetId: "app-install:install:site",
     roleOptionIds: [
-      roleOptionId("instance", "instance", "instance.admin"),
+      roleOptionId("program", "program", "administrator"),
       roleOptionId("app-install", "install:site", "app.editor"),
     ],
   };
@@ -383,7 +385,7 @@ function populatedSummary({
       },
     ],
     invitationGrantOptions: {
-      authority: { instanceAdmin: !owner, instanceOwner: owner },
+      authority: { instanceOwner: owner, programAdministrator: !owner },
       memberships: [
         {
           displayLabel: "Research",
@@ -402,9 +404,10 @@ function populatedSummary({
             ]
           : []),
         {
-          displayLabel: "Instance — Administrator",
-          roleKey: "instance.admin",
-          scopeKind: "instance",
+          displayLabel: "Program — Administrator",
+          roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+          roleKey: "administrator",
+          scopeKind: "program",
         },
         {
           appInstallId: "install:site",
@@ -457,6 +460,21 @@ function populatedSummary({
       person("principal:ada", "Ada Owner"),
       ...(secondOwner ? [person("principal:bo", "Bo Owner")] : []),
     ],
+    programRoles: owner
+      ? []
+      : [
+          {
+            createdAt: "2026-01-01T00:00:00.000Z",
+            displayLabel: "Administrator",
+            roleAssignmentId: "program-role-assignment:ada",
+            roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+            roleKey: "administrator",
+            scopeKind: "program",
+            status: "active",
+            targetPrincipalId: "principal:ada",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
     roles: [
       role("role-assignment:ada-owner", "principal:ada", "instance.owner", "instance"),
       {

@@ -22,7 +22,7 @@ describe("identity access management client", () => {
       appRegistrations: [],
       groups: [],
       invitationGrantOptions: {
-        authority: { instanceAdmin: false, instanceOwner: true },
+        authority: { instanceOwner: true, programAdministrator: false },
         memberships: [],
         roles: [],
       },
@@ -30,6 +30,7 @@ describe("identity access management client", () => {
       memberships: [],
       organizations: [],
       people: [],
+      programRoles: [],
       roles: [],
     };
 
@@ -219,13 +220,14 @@ describe("identity access management client", () => {
           scopeKind: "app-install" as const,
         },
         {
-          roleKey: "instance.admin" as const,
-          scopeKind: "instance" as const,
+          roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357" as const,
+          scopeKind: "program" as const,
         },
       ],
     };
     const body = {
       principalId: input.principalId,
+      programRoles: [],
       roles: [],
       status: "committed",
     } as const;

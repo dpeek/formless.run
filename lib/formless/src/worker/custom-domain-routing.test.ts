@@ -69,6 +69,7 @@ type DispatchFetchInit = Parameters<Harness["mf"]["dispatchFetch"]>[1];
 
 const adminToken = "test-admin-token";
 const controlPlaneApi = "/api/formless/program";
+const programAdministratorRoleId = "role_04144de6-7927-49f2-826a-cdcc70c47357";
 const createAppInstallOperation = `${controlPlaneApi}/operations/app-install/createAppInstall`;
 const mappedHost = "www.example.com";
 const mappedAppHost = "tasks.example.com";
@@ -597,7 +598,7 @@ describe("installed Site custom-domain Worker routing", () => {
     });
   });
 
-  it("returns owners and instance admins through account continuation to instance management", async () => {
+  it("returns owners and Program administrators through account continuation to instance management", async () => {
     await resetWorkerState(harness, ["controlPlane", "auth"]);
     await setupPrimaryProductionIdentity();
     await patchRouteRecord("route:primary-production", { access: "management" });
@@ -606,13 +607,13 @@ describe("installed Site custom-domain Worker routing", () => {
       name: "Management Journey Owner",
     });
     const ownerCookie = await createCentralAuthSessionCookieForPrincipal(owner.id);
-    const instanceAdmin = await createInstanceAdminPrincipalSessionCookie(
+    const programAdministrator = await createInstanceAdminPrincipalSessionCookie(
       "Management Journey Admin",
     );
     const ordinary = await createActivePrincipalSessionCookie("Management Journey App User");
     const accountPath = `${runtimeTopologyRoutes.authAccountRoute}?returnTo=%2Faccess`;
 
-    for (const cookie of [ownerCookie, instanceAdmin.cookie]) {
+    for (const cookie of [ownerCookie, programAdministrator.cookie]) {
       const status = await fetchAuth(accountPath, {
         headers: { Accept: "application/json", Cookie: cookie },
         redirect: "manual",
@@ -747,14 +748,16 @@ describe("installed Site custom-domain Worker routing", () => {
     expect(afterLogoutBody).not.toHaveProperty("principal");
   });
 
-  it("accepts central auth-origin instance-admin sessions for management APIs", async () => {
+  it("accepts central auth-origin Program administrator sessions for management APIs", async () => {
     await resetWorkerState(harness, ["controlPlane", "auth"]);
     await setupPrimaryProductionIdentity();
 
-    const instanceAdmin = await createInstanceAdminPrincipalSessionCookie("Central Instance Admin");
+    const programAdministrator = await createInstanceAdminPrincipalSessionCookie(
+      "Central Program Administrator",
+    );
     const ordinary = await createActivePrincipalSessionCookie("Central Ordinary Principal");
     const adminRead = await fetchHost("www.example.com", `${controlPlaneApi}/bootstrap`, {
-      headers: { Cookie: instanceAdmin.cookie },
+      headers: { Cookie: programAdministrator.cookie },
     });
     const ordinaryRead = await fetchHost("www.example.com", `${controlPlaneApi}/bootstrap`, {
       headers: { Cookie: ordinary.cookie },
@@ -769,26 +772,26 @@ describe("installed Site custom-domain Worker routing", () => {
     expect(Array.isArray(adminReadBody.records)).toBe(true);
     expect(ordinaryRead.status).toBe(401);
     expect(ordinaryReadBody.error).toBe(
-      "Owner session, instance-admin session, or admin authorization is required for this read endpoint.",
+      "Owner session, Program administrator session, or admin authorization is required for this read endpoint.",
     );
   });
 
-  it("carries an accepted instance-admin invitation into Settings and Access without app authority", async () => {
+  it("carries an accepted Program administrator invitation into Settings and Access without app authority", async () => {
     await resetWorkerState(harness, ["controlPlane", "taskStorage", "auth"]);
     await setupPrimaryProductionIdentity();
     await patchRouteRecord("route:primary-production", { access: "management" });
-    await configureAuthEmail({ settingsMode: "update", testKey: "instance-admin-journey" });
+    await configureAuthEmail({ settingsMode: "update", testKey: "program-administrator-journey" });
     await setupMappedApp({ access: "authenticated", requiredRole: "app.admin" });
 
     const accepted = await inviteAndAcceptCollaborator({
-      displayName: "Invited Instance Admin",
+      displayName: "Invited Program Administrator",
       roleAssignment: {
-        roleKey: "instance.admin",
-        scopeKind: "instance",
+        roleId: programAdministratorRoleId,
+        scopeKind: "program",
       },
-      targetEmail: "invited-instance-admin@example.com",
+      targetEmail: "invited-program-administrator@example.com",
       targetSurface: "instance",
-      testKey: "instance-admin-journey",
+      testKey: "program-administrator-journey",
     });
     const settings = await fetchAuth("/", {
       headers: { Accept: "text/html", Cookie: accepted.cookie },
@@ -1209,7 +1212,9 @@ describe("installed Site custom-domain Worker routing", () => {
     await assignIdentityAppRole(matching.principalId, taskInstallId);
     const wrongInstall = await createActivePrincipalSessionCookie("HTTP Wrong App Admin");
     await assignIdentityAppRole(wrongInstall.principalId, "other-workspace");
-    const instanceAdmin = await createInstanceAdminPrincipalSessionCookie("HTTP Instance Admin");
+    const programAdministrator = await createInstanceAdminPrincipalSessionCookie(
+      "HTTP Program Administrator",
+    );
     const ordinary = await createActivePrincipalSessionCookie("HTTP Ordinary Principal");
     const disabled = await createActivePrincipalSessionCookie("HTTP Disabled Principal");
     await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal/update`, {
@@ -1233,10 +1238,11 @@ describe("installed Site custom-domain Worker routing", () => {
       headers: { Cookie: ownerCookie },
     });
     const deniedBootstraps = await Promise.all(
-      [wrongInstall.cookie, instanceAdmin.cookie, ordinary.cookie, disabled.cookie].map((cookie) =>
-        fetchMappedHost(`${dataApi}/bootstrap`, {
-          headers: { Cookie: cookie },
-        }),
+      [wrongInstall.cookie, programAdministrator.cookie, ordinary.cookie, disabled.cookie].map(
+        (cookie) =>
+          fetchMappedHost(`${dataApi}/bootstrap`, {
+            headers: { Cookie: cookie },
+          }),
       ),
     );
 
@@ -1406,7 +1412,9 @@ describe("installed Site custom-domain Worker routing", () => {
     await assignIdentityAppRole(matching.principalId, taskInstallId);
     const wrongInstall = await createActivePrincipalSessionCookie("Push Wrong App Admin");
     await assignIdentityAppRole(wrongInstall.principalId, "other-workspace");
-    const instanceAdmin = await createInstanceAdminPrincipalSessionCookie("Push Instance Admin");
+    const programAdministrator = await createInstanceAdminPrincipalSessionCookie(
+      "Push Program Administrator",
+    );
     const ordinary = await createActivePrincipalSessionCookie("Push Ordinary Principal");
     const disabled = await createActivePrincipalSessionCookie("Push Disabled Principal");
     await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal/update`, {
@@ -1447,10 +1455,11 @@ describe("installed Site custom-domain Worker routing", () => {
     }
 
     const denied = await Promise.all(
-      [wrongInstall.cookie, instanceAdmin.cookie, ordinary.cookie, disabled.cookie].map((cookie) =>
-        fetchHost("www.example.com", syncPath, {
-          headers: { Cookie: cookie, Upgrade: "websocket" },
-        }),
+      [wrongInstall.cookie, programAdministrator.cookie, ordinary.cookie, disabled.cookie].map(
+        (cookie) =>
+          fetchHost("www.example.com", syncPath, {
+            headers: { Cookie: cookie, Upgrade: "websocket" },
+          }),
       ),
     );
     const hostSession = await createMappedAppHostSessionFromCentralCookie(matching.cookie);
@@ -2403,7 +2412,7 @@ describe("installed Site custom-domain Worker routing", () => {
     expect(logoutSetCookie).not.toContain(`${OWNER_SESSION_COOKIE_NAME}=`);
   });
 
-  it("serves owner auth routes on mapped instance admin hosts that are also the auth origin", async () => {
+  it("serves owner auth routes on mapped Program administrator hosts that are also the auth origin", async () => {
     await resetWorkerState(harness, ["controlPlane", "auth"]);
     await setupMappedInstance();
 
@@ -2621,9 +2630,11 @@ describe("installed Site custom-domain Worker routing", () => {
     await setupPrimaryProductionIdentity();
     await setupMappedInstance();
 
-    const instanceAdmin = await createInstanceAdminPrincipalSessionCookie("Mapped Instance Admin");
+    const programAdministrator = await createInstanceAdminPrincipalSessionCookie(
+      "Mapped Program Administrator",
+    );
     const adminCookie = await mappedInstanceHostSessionCookieForPrincipal(
-      instanceAdmin.principalId,
+      programAdministrator.principalId,
     );
     const owner = await createMappedInstanceHostSession("Mapped Instance Owner Still Works");
 
@@ -2635,7 +2646,7 @@ describe("installed Site custom-domain Worker routing", () => {
       `${controlPlaneApi}/operations/email-domain/create`,
       {
         body: JSON.stringify({
-          idempotencyKey: "mapped-instance-admin-email-domain",
+          idempotencyKey: "mapped-Program-administrator-email-domain",
           input: {
             enabled: true,
             providerFamily: "cloudflare",
@@ -3014,8 +3025,8 @@ async function inviteAndAcceptCollaborator(input: {
         scopeKind: "app-install";
       }
     | {
-        roleKey: "instance.admin";
-        scopeKind: "instance";
+        roleId: typeof programAdministratorRoleId;
+        scopeKind: "program";
       };
   targetAppInstallId?: string;
   targetEmail: string;
@@ -3822,37 +3833,23 @@ async function configureHarnessAuth(origin: string) {
 
 async function createInstanceAdminPrincipalSessionCookie(displayName: string) {
   const principal = await createActivePrincipalSessionCookie(displayName);
-  const assignment = await assignIdentityInstanceRole(principal.principalId, "instance.admin");
+  const response = await postAdminJson(
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/program-role-assignment/create`,
+    {
+      idempotencyKey: `custom-domain-assign-${principal.principalId.replace(/\W+/g, "-")}-administrator`,
+      input: {
+        principal: principal.principalId,
+        roleId: programAdministratorRoleId,
+        status: "active",
+      },
+    },
+  );
+  const assignment = operationRecord((await response.json()) as OperationInvocationResponse);
 
   return {
     ...principal,
     assignmentId: assignment.id,
   };
-}
-
-async function assignIdentityInstanceRole(
-  principalId: string,
-  roleKey: "instance.admin" | "instance.owner",
-) {
-  const response = await postAdminJson(
-    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/role-assignment/create`,
-    {
-      idempotencyKey: [
-        "custom-domain-assign",
-        principalId.replace(/\W+/g, "-"),
-        roleKey.replace(/\./g, "-"),
-      ].join("-"),
-      input: {
-        role: `role:${roleKey}`,
-        targetKind: "principal",
-        targetPrincipal: principalId,
-        scopeKind: "instance",
-        status: "active",
-      },
-    },
-  );
-
-  return operationRecord((await response.json()) as OperationInvocationResponse);
 }
 
 async function assignIdentityAppRole(principalId: string, appInstallId: string) {

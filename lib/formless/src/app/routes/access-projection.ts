@@ -35,6 +35,7 @@ import type {
   IdentityAccessManagementSummary,
   IdentityAccessPersonRoleReplacementRequest,
   IdentityAccessPersonRoleSelection,
+  IdentityAccessProgramRoleSummary,
   IdentityAccessRoleSummary,
 } from "@dpeek/formless-identity-control-plane";
 import type { AppInstall } from "@dpeek/formless-installed-apps";
@@ -201,11 +202,11 @@ export function createInitialAccessPersonRoleDraft(
 
   return {
     personId,
-    roleOptionIds: summary.roles
+    roleOptionIds: [...summary.programRoles, ...summary.roles]
       .filter(
         (role) =>
           role.status === "active" &&
-          role.targetKind === "principal" &&
+          (role.scopeKind === "program" || role.targetKind === "principal") &&
           role.targetPrincipalId === personId,
       )
       .map(accessRoleSummaryOptionId)
@@ -921,7 +922,7 @@ function projectAccessPeople(
     const removalReason = !canManage
       ? "Owner or administrator access is required."
       : !summary.invitationGrantOptions.authority.instanceOwner && hasOwner
-        ? "Instance administrators cannot remove an owner."
+        ? "Program administrators cannot remove an owner."
         : hasOwner && activeOwnerIds.size <= 1
           ? "The last active owner cannot be removed."
           : undefined;
@@ -1486,6 +1487,9 @@ function accessRoleSurface(
       label: labels.organizations.get(role.scopeOrganizationId) ?? "Unavailable organization",
     };
   }
+  if (role.scopeKind === "program") {
+    return { id: "program", label: "Program" };
+  }
   return { id: "instance", label: "Instance" };
 }
 
@@ -1524,6 +1528,9 @@ function invitationRoleAssignment(
       scopeOrganization: role.scopeOrganizationId,
     };
   }
+  if (role.scopeKind === "program") {
+    return { roleId: role.roleId, scopeKind: "program" };
+  }
   return { roleKey: role.roleKey, scopeKind: "instance" };
 }
 
@@ -1544,11 +1551,23 @@ function identityPersonRoleSelection(
       scopeOrganizationId: role.scopeOrganizationId,
     };
   }
+  if (role.scopeKind === "program") {
+    return { roleId: role.roleId, scopeKind: "program" };
+  }
   return { roleKey: role.roleKey, scopeKind: "instance" };
 }
 
 function rolesByPrincipal(summary: IdentityAccessManagementSummary) {
-  const roles = new Map<string, IdentityAccessRoleSummary[]>();
+  const roles = new Map<
+    string,
+    Array<IdentityAccessProgramRoleSummary | IdentityAccessRoleSummary>
+  >();
+  for (const role of summary.programRoles) {
+    if (role.status !== "active") {
+      continue;
+    }
+    roles.set(role.targetPrincipalId, [...(roles.get(role.targetPrincipalId) ?? []), role]);
+  }
   for (const role of summary.roles) {
     if (
       role.status !== "active" ||
@@ -1588,7 +1607,13 @@ function accessLabels(
   };
 }
 
-function accessRoleScopeLabel(role: IdentityAccessRoleSummary, labels: AccessLabels): string {
+function accessRoleScopeLabel(
+  role: IdentityAccessProgramRoleSummary | IdentityAccessRoleSummary,
+  labels: AccessLabels,
+): string {
+  if (role.scopeKind === "program") {
+    return "Program";
+  }
   if (role.scopeKind === "app-install") {
     return role.appInstallId
       ? (labels.installs.get(role.appInstallId) ?? "Unavailable app install")
@@ -1602,11 +1627,10 @@ function accessRoleScopeLabel(role: IdentityAccessRoleSummary, labels: AccessLab
   return "Instance";
 }
 
-function accessRoleLabel(roleKey: IdentityAccessRoleSummary["roleKey"]): string {
+function accessRoleLabel(roleKey: string): string {
   switch (roleKey) {
     case "instance.owner":
       return "Owner";
-    case "instance.admin":
     case "app.admin":
       return "Administrator";
     case "app.editor":
@@ -1615,6 +1639,8 @@ function accessRoleLabel(roleKey: IdentityAccessRoleSummary["roleKey"]): string 
       return "Viewer";
     case "app.user":
       return "User";
+    default:
+      return fieldKeyLabel(roleKey);
   }
 }
 
@@ -1635,13 +1661,17 @@ function accessInvitationScopeLabel(
   return "Instance";
 }
 
-function accessRoleSummaryOptionId(role: IdentityAccessRoleSummary): string {
+function accessRoleSummaryOptionId(
+  role: IdentityAccessProgramRoleSummary | IdentityAccessRoleSummary,
+): string {
   const surface =
     role.scopeKind === "app-install"
       ? (role.appInstallId ?? "unavailable")
       : role.scopeKind === "organization"
         ? (role.scopeOrganizationId ?? "unavailable")
-        : "instance";
+        : role.scopeKind === "program"
+          ? "program"
+          : "instance";
   return `${INSTANCE_ACCESS_ID}:role-option:${correlationSegment(role.scopeKind)}:${correlationSegment(surface)}:${correlationSegment(role.roleKey)}`;
 }
 
@@ -1651,7 +1681,9 @@ function accessRoleOptionId(option: IdentityAccessInvitationRoleGrantOption): st
       ? option.appInstallId
       : option.scopeKind === "organization"
         ? option.scopeOrganizationId
-        : "instance";
+        : option.scopeKind === "program"
+          ? "program"
+          : "instance";
   return `${INSTANCE_ACCESS_ID}:role-option:${correlationSegment(option.scopeKind)}:${correlationSegment(surface)}:${correlationSegment(option.roleKey)}`;
 }
 
@@ -1916,7 +1948,7 @@ function invitationAuthorityDisabledReason(
 }
 
 function canManageInvitations(grantOptions: IdentityAccessInvitationGrantOptions): boolean {
-  return grantOptions.authority.instanceOwner || grantOptions.authority.instanceAdmin;
+  return grantOptions.authority.instanceOwner || grantOptions.authority.programAdministrator;
 }
 
 function accessDraftWithFieldValue(

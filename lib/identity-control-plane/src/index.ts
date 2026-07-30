@@ -22,12 +22,18 @@ import {
   type IdentityControlPlaneRecordValuesByEntity,
   type IdentityControlPlaneRoleKey,
 } from "./types.ts";
+import type {
+  AccessCallerFacts,
+  AuthorizationRoleId,
+  AuthorizationRoleSchema,
+  KeyedDefinition,
+} from "@dpeek/formless-schema";
 
 export * from "./types.ts";
 export { identityControlPlaneSourceSchema } from "./schema.ts";
 
 export const IDENTITY_CONTROL_PLANE_SOURCE_SCHEMA_HASH =
-  "sha256:1074a454fd09bd0eed3f251d031942eec570b60f467466f2d3cc121348b74f03" satisfies SourceSchemaHash;
+  "sha256:bc1f7c0931d869ae32bd4d1c2d94aa61e1a3b174dd77760689d5d7b76efa4110" satisfies SourceSchemaHash;
 
 export const identityControlPlaneSchemaProvenance = {
   kind: "identity-control-plane",
@@ -53,15 +59,16 @@ export type AnyIdentityControlPlaneRecord = {
 }[IdentityControlPlaneEntityName];
 
 export type IdentityControlPlaneRecordValidationOptions = {
+  authorizationRoles?: readonly KeyedDefinition<AuthorizationRoleSchema>[];
   candidateRecords?: readonly StoredRecord[];
   context?: string;
   sourceLabel?: string;
 };
 
 export type IdentityCollaboratorInvitationGrantAuthority = {
-  instanceAdmin: boolean;
   instanceOwner: boolean;
   principalId: string;
+  programAdministrator: boolean;
 };
 
 export type IdentityCollaboratorInvitationGrantRecord = Pick<
@@ -70,10 +77,47 @@ export type IdentityCollaboratorInvitationGrantRecord = Pick<
 >;
 
 export type IdentityCollaboratorInvitationGrantValidationInput = {
+  authorizationRoles: readonly KeyedDefinition<AuthorizationRoleSchema>[];
   grantRecords: readonly IdentityCollaboratorInvitationGrantRecord[];
   inviterPrincipalId: string;
   records: readonly StoredRecord[];
 };
+
+export function resolveIdentityProgramCallerFacts(
+  records: readonly StoredRecord[],
+  principalId: string,
+  authorizationRoles: readonly KeyedDefinition<AuthorizationRoleSchema>[],
+): Extract<AccessCallerFacts, { kind: "principal" }> {
+  const principal = records.find(
+    (record) =>
+      identityControlPlaneRecordSourceEntityName(record.entity) === "principal" &&
+      record.id === principalId &&
+      !record.deletedAt,
+  );
+  const active = principal?.values.status === "active";
+
+  if (!active) {
+    return { active: false, kind: "principal", owner: false };
+  }
+
+  const ownerRoleId = activeIdentityRoleIdsByKey(records).get("instance.owner");
+  const owner = hasActiveIdentityPrincipalRoleAssignment(records, principalId, ownerRoleId);
+  const programAssignment = activeStatusRecordsForEntity(records, "program-role-assignment").find(
+    (record) => record.values.principal === principalId,
+  );
+  const roleId = programAssignment?.values.roleId;
+  const validRoleId =
+    typeof roleId === "string" && authorizationRoles.some((role) => role.id === roleId)
+      ? (roleId as AuthorizationRoleId)
+      : undefined;
+
+  return {
+    active: true,
+    kind: "principal",
+    owner,
+    ...(validRoleId === undefined ? {} : { roleId: validRoleId }),
+  };
+}
 
 export function isIdentityControlPlaneEntityName(
   value: string,
@@ -222,12 +266,13 @@ export function validateIdentityControlPlaneRecords(
   }
 
   for (const record of records) {
-    validateIdentityControlPlaneRecord(context, record, recordsById);
+    validateIdentityControlPlaneRecord(context, record, recordsById, options);
   }
 
   validateUniqueNormalizedEmails(context, records);
   validateUniqueRoleKeys(context, records);
   validateUniqueActiveMemberships(context, records);
+  validateUniqueActiveProgramRoleAssignments(context, records);
   validateUniqueActiveRoleAssignments(context, records);
   validateUniqueActiveAppRegistrations(context, records);
   validateUniqueAcceptedPolicyAcceptances(context, records);
@@ -247,6 +292,7 @@ export function reviewableIdentityControlPlaneRecordValues(
 export function resolveIdentityCollaboratorInvitationGrantAuthority(
   records: readonly StoredRecord[],
   principalId: string,
+  authorizationRoles: readonly KeyedDefinition<AuthorizationRoleSchema>[],
 ): IdentityCollaboratorInvitationGrantAuthority | null {
   const parsedPrincipalId = parseNonEmptyString(
     "Identity collaborator invitation inviter principal id",
@@ -264,20 +310,14 @@ export function resolveIdentityCollaboratorInvitationGrantAuthority(
     return null;
   }
 
-  const rolesByKey = activeIdentityRoleIdsByKey(records);
+  const callerFacts = resolveIdentityProgramCallerFacts(records, principal.id, authorizationRoles);
+  const administratorRole = authorizationRoles.find((role) => role.key === "administrator");
 
   return {
     principalId: principal.id,
-    instanceAdmin: hasActiveIdentityPrincipalRoleAssignment(
-      records,
-      principal.id,
-      rolesByKey.get("instance.admin"),
-    ),
-    instanceOwner: hasActiveIdentityPrincipalRoleAssignment(
-      records,
-      principal.id,
-      rolesByKey.get("instance.owner"),
-    ),
+    instanceOwner: callerFacts.owner,
+    programAdministrator:
+      administratorRole !== undefined && callerFacts.roleId === administratorRole.id,
   };
 }
 
@@ -288,14 +328,17 @@ export function validateIdentityCollaboratorInvitationGrants(
   const authority = resolveIdentityCollaboratorInvitationGrantAuthority(
     input.records,
     input.inviterPrincipalId,
+    input.authorizationRoles,
   );
 
   if (!authority) {
     throw new Error(`${context} requires an active inviter principal.`);
   }
 
-  if (!authority.instanceOwner && !authority.instanceAdmin) {
-    throw new Error(`${context} requires current instance owner or instance admin authority.`);
+  if (!authority.instanceOwner && !authority.programAdministrator) {
+    throw new Error(
+      `${context} requires current instance owner or Program administrator authority.`,
+    );
   }
 
   if (authority.instanceOwner) {
@@ -303,8 +346,9 @@ export function validateIdentityCollaboratorInvitationGrants(
     return authority;
   }
 
-  validateInstanceAdminIdentityCollaboratorInvitationGrants(
+  validateProgramAdministratorIdentityCollaboratorInvitationGrants(
     context,
+    input.authorizationRoles,
     input.records,
     input.grantRecords,
   );
@@ -345,6 +389,7 @@ function validateIdentityControlPlaneRecord(
   context: string,
   record: StoredRecord,
   recordsById: ReadonlyMap<string, StoredRecord>,
+  options: IdentityControlPlaneRecordValidationOptions,
 ) {
   const entity = identityControlPlaneRecordSourceEntityName(record.entity);
 
@@ -395,6 +440,10 @@ function validateIdentityControlPlaneRecord(
 
   if (entity === "role-assignment") {
     validateRoleAssignmentRecord(context, record);
+  }
+
+  if (entity === "program-role-assignment") {
+    validateProgramRoleAssignmentRecord(context, record, options.authorizationRoles);
   }
 
   if (entity === "app-registration") {
@@ -520,6 +569,25 @@ function validateUniqueActiveRoleAssignments(context: string, records: readonly 
   }
 }
 
+function validateUniqueActiveProgramRoleAssignments(
+  context: string,
+  records: readonly StoredRecord[],
+) {
+  const seen = new Set<string>();
+
+  for (const record of activeStatusRecordsForEntity(records, "program-role-assignment")) {
+    const principal = requiredStringValue(context, record, "principal");
+
+    if (seen.has(principal)) {
+      throw new Error(
+        `${context} violates identity uniqueness "${formatIdentityControlPlaneBoundaryEntityName("program-role-assignment")}.uniqueActiveAssignment".`,
+      );
+    }
+
+    seen.add(principal);
+  }
+}
+
 function validateUniqueActiveAppRegistrations(context: string, records: readonly StoredRecord[]) {
   const seen = new Set<string>();
 
@@ -604,8 +672,9 @@ function validateOwnerIdentityCollaboratorInvitationGrants(
   }
 }
 
-function validateInstanceAdminIdentityCollaboratorInvitationGrants(
+function validateProgramAdministratorIdentityCollaboratorInvitationGrants(
   context: string,
+  authorizationRoles: readonly KeyedDefinition<AuthorizationRoleSchema>[],
   currentRecords: readonly StoredRecord[],
   grantRecords: readonly IdentityCollaboratorInvitationGrantRecord[],
 ) {
@@ -614,24 +683,32 @@ function validateInstanceAdminIdentityCollaboratorInvitationGrants(
 
     if (entity === "membership") {
       throw new Error(
-        `${context} record "${grantRecord.id}" cannot grant collaborator memberships with instance admin authority.`,
+        `${context} record "${grantRecord.id}" cannot grant collaborator memberships with Program administrator authority.`,
       );
     }
 
     if (entity === "app-registration") {
-      validateInstanceAdminCollaboratorInvitationAppRegistration(context, grantRecord);
+      validateProgramAdministratorCollaboratorInvitationAppRegistration(context, grantRecord);
       continue;
     }
 
     if (entity === "principal-email") {
-      validateInstanceAdminCollaboratorInvitationPrincipalEmail(context, grantRecord);
+      validateProgramAdministratorCollaboratorInvitationPrincipalEmail(context, grantRecord);
       continue;
     }
 
     if (entity === "role-assignment") {
-      validateInstanceAdminCollaboratorInvitationRoleAssignment(
+      validateProgramAdministratorCollaboratorInvitationRoleAssignment(
         context,
         currentRecords,
+        grantRecord,
+      );
+    }
+
+    if (entity === "program-role-assignment") {
+      validateProgramAdministratorCollaboratorInvitationProgramRoleAssignment(
+        context,
+        authorizationRoles,
         grantRecord,
       );
     }
@@ -641,7 +718,13 @@ function validateInstanceAdminIdentityCollaboratorInvitationGrants(
 function parseIdentityCollaboratorInvitationGrantEntity(
   context: string,
   record: IdentityCollaboratorInvitationGrantRecord,
-): "app-registration" | "membership" | "principal" | "principal-email" | "role-assignment" {
+):
+  | "app-registration"
+  | "membership"
+  | "principal"
+  | "principal-email"
+  | "program-role-assignment"
+  | "role-assignment" {
   const entity = identityControlPlaneRecordSourceEntityName(record.entity);
 
   if (
@@ -649,6 +732,7 @@ function parseIdentityCollaboratorInvitationGrantEntity(
     entity === "membership" ||
     entity === "principal" ||
     entity === "principal-email" ||
+    entity === "program-role-assignment" ||
     entity === "role-assignment"
   ) {
     return entity;
@@ -659,31 +743,31 @@ function parseIdentityCollaboratorInvitationGrantEntity(
   );
 }
 
-function validateInstanceAdminCollaboratorInvitationAppRegistration(
+function validateProgramAdministratorCollaboratorInvitationAppRegistration(
   context: string,
   record: IdentityCollaboratorInvitationGrantRecord,
 ) {
   if (record.values.targetKind !== "principal") {
     throw new Error(
-      `${context} record "${record.id}" cannot grant organization app registrations with instance admin authority.`,
+      `${context} record "${record.id}" cannot grant organization app registrations with Program administrator authority.`,
     );
   }
 
   requiredStringValue(context, storedGrantRecord(record, "app-registration"), "appInstallId");
 }
 
-function validateInstanceAdminCollaboratorInvitationPrincipalEmail(
+function validateProgramAdministratorCollaboratorInvitationPrincipalEmail(
   context: string,
   record: IdentityCollaboratorInvitationGrantRecord,
 ) {
   if (record.values.recovery === true) {
     throw new Error(
-      `${context} record "${record.id}" cannot grant recovery email authority with instance admin authority.`,
+      `${context} record "${record.id}" cannot grant recovery email authority with Program administrator authority.`,
     );
   }
 }
 
-function validateInstanceAdminCollaboratorInvitationRoleAssignment(
+function validateProgramAdministratorCollaboratorInvitationRoleAssignment(
   context: string,
   currentRecords: readonly StoredRecord[],
   record: IdentityCollaboratorInvitationGrantRecord,
@@ -695,30 +779,26 @@ function validateInstanceAdminCollaboratorInvitationRoleAssignment(
 
   if (targetKind !== "principal") {
     throw new Error(
-      `${context} record "${record.id}" cannot grant non-principal role assignments with instance admin authority.`,
+      `${context} record "${record.id}" cannot grant non-principal role assignments with Program administrator authority.`,
     );
   }
 
   if (scopeKind === "organization") {
     throw new Error(
-      `${context} record "${record.id}" cannot grant organization-scoped roles with instance admin authority.`,
+      `${context} record "${record.id}" cannot grant organization-scoped roles with Program administrator authority.`,
     );
   }
 
   if (roleKey === "instance.owner") {
     throw new Error(
-      `${context} record "${record.id}" cannot grant instance.owner with instance admin authority.`,
+      `${context} record "${record.id}" cannot grant instance.owner with Program administrator authority.`,
     );
   }
 
   if (scopeKind === "instance") {
-    if (roleKey !== "instance.admin") {
-      throw new Error(
-        `${context} record "${record.id}" can only grant instance.admin at instance scope with instance admin authority.`,
-      );
-    }
-
-    return;
+    throw new Error(
+      `${context} record "${record.id}" cannot grant legacy instance roles with Program administrator authority.`,
+    );
   }
 
   if (scopeKind === "app-install") {
@@ -733,13 +813,35 @@ function validateInstanceAdminCollaboratorInvitationRoleAssignment(
     }
 
     throw new Error(
-      `${context} record "${record.id}" can only grant app roles at app-install scope with instance admin authority.`,
+      `${context} record "${record.id}" can only grant app roles at app-install scope with Program administrator authority.`,
     );
   }
 
   throw new Error(
-    `${context} record "${record.id}" cannot grant scope "${scopeKind}" with instance admin authority.`,
+    `${context} record "${record.id}" cannot grant scope "${scopeKind}" with Program administrator authority.`,
   );
+}
+
+function validateProgramAdministratorCollaboratorInvitationProgramRoleAssignment(
+  context: string,
+  authorizationRoles: readonly KeyedDefinition<AuthorizationRoleSchema>[],
+  record: IdentityCollaboratorInvitationGrantRecord,
+) {
+  const roleId = requiredStringValue(
+    context,
+    storedGrantRecord(record, "program-role-assignment"),
+    "roleId",
+  );
+  const role = authorizationRoles.find((candidate) => candidate.id === roleId);
+
+  if (
+    role === undefined ||
+    (role.key !== "member" && role.key !== "editor" && role.key !== "administrator")
+  ) {
+    throw new Error(
+      `${context} record "${record.id}" references a Program role unavailable to Program administrators.`,
+    );
+  }
 }
 
 function identityCollaboratorInvitationGrantRoleKey(
@@ -842,6 +944,20 @@ function validateRoleAssignmentRecord(context: string, record: StoredRecord) {
 
   if (scopeKind === "instance") {
     assertUnsetFields(context, record, "scopeKind", ["appInstallId", "scopeOrganization"]);
+  }
+}
+
+function validateProgramRoleAssignmentRecord(
+  context: string,
+  record: StoredRecord,
+  roles: readonly KeyedDefinition<AuthorizationRoleSchema>[] | undefined,
+) {
+  const roleId = requiredStringValue(context, record, "roleId");
+
+  if (roles === undefined || !roles.some((role) => role.id === roleId)) {
+    throw new Error(
+      `${context} record "${record.id}" field "${identityFieldLabel(record, "roleId")}" references unknown Program role id "${roleId}".`,
+    );
   }
 }
 

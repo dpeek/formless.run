@@ -135,7 +135,6 @@ type InstalledAppSyncSocketAuthorization =
     };
 
 type ProgramSyncSocketAuthorization =
-  | { kind: "open" }
   | {
       access: unknown;
       kind: "program-management";
@@ -730,7 +729,7 @@ export class FormlessAuthority extends DurableObject<Env> {
         {
           error:
             identity.kind === "program"
-              ? "Owner or instance-admin session is required for Program push sync."
+              ? "Owner or Program administrator session is required for Program push sync."
               : "Owner or matching app administrator session is required for push sync.",
         },
         401,
@@ -793,10 +792,6 @@ export class FormlessAuthority extends DurableObject<Env> {
       return undefined;
     }
 
-    if (authorization.via === "open") {
-      return { kind: "open" };
-    }
-
     if (authorization.via === "admin-bearer") {
       const token = bearerTokenFromRequest(request);
 
@@ -836,7 +831,9 @@ export class FormlessAuthority extends DurableObject<Env> {
     }
 
     if (authorization.kind === "open") {
-      return installedAppOpenSyncAllowed(this.bindings);
+      return (
+        this.ctx.id.name?.startsWith("app:") === true && installedAppOpenSyncAllowed(this.bindings)
+      );
     }
 
     if (authorization.kind === "program-admin-bearer") {

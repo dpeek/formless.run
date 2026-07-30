@@ -40,6 +40,7 @@ export const identityControlPlaneEntityNames = [
   "membership",
   "role",
   "role-assignment",
+  "program-role-assignment",
   "app-registration",
   "invitation",
   "account-policy",
@@ -50,7 +51,6 @@ export type IdentityControlPlaneEntityName = (typeof identityControlPlaneEntityN
 
 export const identityControlPlaneRoleKeys = [
   "instance.owner",
-  "instance.admin",
   "app.admin",
   "app.editor",
   "app.viewer",
@@ -69,6 +69,8 @@ export type IdentityRoleStatus = "active" | "disabled";
 export type IdentityRoleAssignmentTargetKind = "group" | "organization" | "principal";
 export type IdentityRoleAssignmentScopeKind = "app-install" | "instance" | "organization";
 export type IdentityRoleAssignmentStatus = "active" | "disabled";
+export type IdentityProgramRoleAssignmentStatus = "active" | "disabled";
+export type IdentityProgramRoleId = `role_${string}`;
 export type IdentityAppRegistrationTargetKind = "organization" | "principal";
 export type IdentityAppRegistrationStatus = "active" | "disabled" | "pending";
 export type IdentityInvitationTargetSurface = "app-install" | "instance" | "organization";
@@ -129,6 +131,12 @@ export type IdentityRoleAssignmentValues = {
   status: IdentityRoleAssignmentStatus;
 };
 
+export type IdentityProgramRoleAssignmentValues = {
+  principal: string;
+  roleId: IdentityProgramRoleId;
+  status: IdentityProgramRoleAssignmentStatus;
+};
+
 export type IdentityAppRegistrationValues = {
   appInstallId: string;
   targetKind: IdentityAppRegistrationTargetKind;
@@ -180,6 +188,7 @@ export type IdentityControlPlaneRecordValuesByEntity = {
   principal: IdentityPrincipalValues;
   "principal-email": IdentityPrincipalEmailValues;
   "principal-policy-acceptance": IdentityPrincipalPolicyAcceptanceValues;
+  "program-role-assignment": IdentityProgramRoleAssignmentValues;
   role: IdentityRoleValues;
   "role-assignment": IdentityRoleAssignmentValues;
 };
@@ -201,6 +210,7 @@ export const identityControlPlaneImmutableFields = {
     "appInstallId",
     "scopeOrganization",
   ],
+  "program-role-assignment": ["principal", "roleId"],
   "app-registration": ["appInstallId", "targetKind", "targetPrincipal", "targetOrganization"],
   invitation: ["targetEmail", "targetSurface", "targetAppInstallId", "targetOrganization"],
   "account-policy": [
@@ -247,6 +257,18 @@ export type IdentityAccessRoleSummary = {
   targetKind: IdentityRoleAssignmentTargetKind;
   targetOrganizationId?: string;
   targetPrincipalId?: string;
+  updatedAt: string;
+};
+
+export type IdentityAccessProgramRoleSummary = {
+  createdAt: string;
+  displayLabel: string;
+  roleAssignmentId: string;
+  roleId: IdentityProgramRoleId;
+  roleKey: string;
+  scopeKind: "program";
+  status: IdentityProgramRoleAssignmentStatus;
+  targetPrincipalId: string;
   updatedAt: string;
 };
 
@@ -305,15 +327,21 @@ export type IdentityAccessInvitationSummary = {
 };
 
 export type IdentityAccessInvitationGrantAuthoritySummary = {
-  instanceAdmin: boolean;
   instanceOwner: boolean;
+  programAdministrator: boolean;
 };
 
 export type IdentityAccessInvitationRoleGrantOption =
   | {
       displayLabel: string;
-      roleKey: Extract<IdentityControlPlaneRoleKey, "instance.admin" | "instance.owner">;
+      roleKey: Extract<IdentityControlPlaneRoleKey, "instance.owner">;
       scopeKind: Extract<IdentityRoleAssignmentScopeKind, "instance">;
+    }
+  | {
+      displayLabel: string;
+      roleId: IdentityProgramRoleId;
+      roleKey: string;
+      scopeKind: "program";
     }
   | {
       appInstallId: string;
@@ -355,13 +383,18 @@ export type IdentityAccessManagementSummary = {
   memberships: IdentityAccessMembershipSummary[];
   organizations: IdentityAccessOrganizationSummary[];
   people: IdentityAccessPersonSummary[];
+  programRoles: IdentityAccessProgramRoleSummary[];
   roles: IdentityAccessRoleSummary[];
 };
 
 export type IdentityAccessPersonRoleSelection =
   | {
-      roleKey: Extract<IdentityControlPlaneRoleKey, "instance.admin" | "instance.owner">;
+      roleKey: Extract<IdentityControlPlaneRoleKey, "instance.owner">;
       scopeKind: Extract<IdentityRoleAssignmentScopeKind, "instance">;
+    }
+  | {
+      roleId: IdentityProgramRoleId;
+      scopeKind: "program";
     }
   | {
       appInstallId: string;
@@ -389,6 +422,7 @@ export type IdentityAccessPersonRoleReplacementRequest = {
 
 export type IdentityAccessPersonRoleReplacementResponse = {
   principalId: string;
+  programRoles: IdentityAccessProgramRoleSummary[];
   roles: IdentityAccessRoleSummary[];
   status: "committed" | "replayed";
 };

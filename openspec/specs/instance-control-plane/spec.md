@@ -441,7 +441,7 @@ records.
 - **AND** `authenticated` means browser reads require a valid owner session or
   host-local session for an active principal on the matched route target
 - **AND** `management` means browser reads require an active principal with
-  active `instance.owner` or `instance.admin` authority at instance scope
+  protected owner authority or the schema-defined Program `administrator` role
 - **AND** `owner` means browser reads require an owner session or host-local
   session for the matched owner route target whose principal has active
   `instance.owner` authority
@@ -452,9 +452,9 @@ records.
 - **AND** `requiredRole` is rejected on anonymous, management, owner, redirect,
   non-app, or app routes without one referenced app install
 - **AND** operational management API reads and writes require a session whose
-  principal has active `instance.owner` or `instance.admin` authority, a
-  matching host-local session with that current authority, or admin bearer
-  authorization
+  principal has protected owner authority or the schema-defined Program
+  `administrator` role, a matching host-local session with that current
+  authority, or admin bearer authorization
 - **AND** owner-only recovery, owner role management, auth origin policy, and
   admin bearer recovery remain outside operational management authorization
 - **AND** omitted access defaults to `management` for instance management
@@ -468,8 +468,8 @@ records.
 - **THEN** the route uses access `authenticated` with required role `app.admin`
 - **AND** active `instance.owner` authority remains an override for local and
   deployed owner operation of the installed app
-- **AND** active `instance.admin` authority alone does not satisfy the app role
-  requirement
+- **AND** the schema-defined Program `administrator` role alone does not satisfy
+  the app role requirement
 
 #### Scenario: Mapped instance route host session authorizes Program operations
 
@@ -481,18 +481,19 @@ records.
   Program operations through the mapped host
 - **THEN** the Program API accepts the host-local session as operational
   management authorization only when the current principal has active
-  `instance.owner` or `instance.admin` authority for the requested path
+  protected owner authority or the schema-defined `administrator` role for the
+  requested path
 - **AND** owner-only Program paths still recheck active `instance.owner`
   authority before privileged reads or writes
 - **AND** host-local sessions minted for installed app storage, public Site
   storage, another route, another profile, another host, or another instance do
   not authorize Program operations
 
-#### Scenario: Instance admin writes operational control-plane intent
+#### Scenario: Program administrator writes operational control-plane intent
 
 - **GIVEN** a browser session or matching mapped-instance host-local session
-  resolves to an active principal with active `instance.admin` authority at
-  instance scope
+  resolves to an active principal with the schema-defined Program
+  `administrator` role
 - **WHEN** the browser writes operational instance intent such as app install,
   route, deployment config, email domain, or email sender records
 - **THEN** the Program API authorizes the write without requiring admin
@@ -504,10 +505,10 @@ records.
   auth session material, and identity records are not written by the
   control-plane operation
 
-#### Scenario: Instance admin cannot write owner-only control-plane policy
+#### Scenario: Program administrator cannot write owner-only control-plane policy
 
 - **GIVEN** a browser session or matching mapped-instance host-local session is
-  authorized only by active `instance.admin` authority
+  authorized only by the schema-defined Program `administrator` role
 - **WHEN** the browser attempts an owner-only control-plane write
 - **THEN** the write is rejected unless the principal also has active
   `instance.owner` authority or the request uses valid admin bearer
@@ -520,8 +521,8 @@ records.
 #### Scenario: Non-admin principal cannot write operational control-plane intent
 
 - **GIVEN** a browser session or matching mapped-instance host-local session
-  resolves to an active principal without active `instance.admin` or
-  `instance.owner` authority at instance scope
+  resolves to an active principal without the schema-defined Program
+  `administrator` role or protected owner authority
 - **WHEN** the browser reads or writes protected operational control-plane
   intent
 - **THEN** the control-plane API rejects the request as unauthorized management

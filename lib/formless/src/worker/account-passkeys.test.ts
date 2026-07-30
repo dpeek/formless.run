@@ -169,13 +169,16 @@ describe("account passkey login API routes", () => {
     });
   });
 
-  it("authenticates active instance admins and app principals without preselecting a role", async () => {
+  it("authenticates active Program administrators and app principals without preselecting a role", async () => {
     await seedOwnerPasskey(new VirtualPasskey(credentialId));
 
     for (const account of [
       {
-        displayName: "Instance Admin",
-        role: { kind: "instance" as const, roleKey: "instance.admin" as const },
+        displayName: "Program Administrator",
+        role: {
+          kind: "program" as const,
+          roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357" as const,
+        },
       },
       {
         displayName: "Tasks App Admin",
@@ -382,8 +385,8 @@ async function assignIdentityRole(
   principalId: string,
   role:
     | {
-        kind: "instance";
-        roleKey: "instance.admin";
+        kind: "program";
+        roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357";
       }
     | {
         appInstallId: string;
@@ -392,18 +395,26 @@ async function assignIdentityRole(
       },
 ) {
   const response = await postJson(
-    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/role-assignment/create`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/${
+      role.kind === "program" ? "program-role-assignment" : "role-assignment"
+    }/create`,
     {
       idempotencyKey: `account-passkey-role-${principalId.replace(/\W+/g, "-")}`,
-      input: {
-        ...(role.kind === "app"
-          ? { appInstallId: role.appInstallId, scopeKind: "app-install" }
-          : { scopeKind: "instance" }),
-        role: `role:${role.roleKey}`,
-        status: "active",
-        targetKind: "principal",
-        targetPrincipal: principalId,
-      },
+      input:
+        role.kind === "program"
+          ? {
+              principal: principalId,
+              roleId: role.roleId,
+              status: "active",
+            }
+          : {
+              appInstallId: role.appInstallId,
+              role: `role:${role.roleKey}`,
+              scopeKind: "app-install",
+              status: "active",
+              targetKind: "principal",
+              targetPrincipal: principalId,
+            },
     },
     {
       headers: { Authorization: `Bearer ${adminToken}` },

@@ -230,7 +230,10 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
           error: operationalControlPlaneAuthorizationError(operation),
           hostSessionTarget,
         })
-      : await authorizeAuthorityOperation(request, operation, env, { hostSessionTarget });
+      : await authorizeAuthorityOperation(request, operation, env, {
+          hostSessionTarget,
+          openAccessAllowed: false,
+        });
 
     if (!authorization.authorized) {
       return jsonResponse(
@@ -476,7 +479,7 @@ async function handleCreateAppInstallOperation(
 
   const authorization = await authorizeOperationalManagement(request, env, {
     error:
-      "Owner session, instance-admin session, or admin authorization is required for this write endpoint.",
+      "Owner session, Program administrator session, or admin authorization is required for this write endpoint.",
     hostSessionTarget: hostAuthSessionTargetForInstanceControlPlaneRequest(request),
   });
 
@@ -622,8 +625,8 @@ function isOperationalControlPlaneOperation(operation: AuthorityOperation): bool
 
 function operationalControlPlaneAuthorizationError(operation: AuthorityOperation) {
   return operation.metadata.mode === "read"
-    ? "Owner session, instance-admin session, or admin authorization is required for this read endpoint."
-    : "Owner session, instance-admin session, or admin authorization is required for this write endpoint.";
+    ? "Owner session, Program administrator session, or admin authorization is required for this read endpoint."
+    : "Owner session, Program administrator session, or admin authorization is required for this write endpoint.";
 }
 
 function createAppInstallOperationEnvelope(input: {

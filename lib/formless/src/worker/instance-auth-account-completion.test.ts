@@ -1877,7 +1877,7 @@ async function createOrganization(displayName: string) {
 
 async function assignRole(
   principalId: string,
-  roleKey: "app.admin" | "app.user" | "instance.admin" | "instance.owner",
+  roleKey: "app.admin" | "app.user" | "instance.owner",
   input: {
     appInstallId?: string;
     scopeKind: "app-install" | "instance" | "organization";

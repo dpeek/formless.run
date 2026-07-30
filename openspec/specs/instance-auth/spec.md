@@ -485,8 +485,8 @@ verification.
 - AND the response includes a display-safe continuation target back through
   `/formless/auth`
 - AND passkey authentication does not require `instance.owner`,
-  `instance.admin`, app-install role, or target-route authority before creating
-  the principal session
+  a Program role assignment, app-install role, or target-route authority before
+  creating the principal session
 - AND deployed passkey login does not issue a host-local session cookie
 
 #### Scenario: Reject invalid passkey login
@@ -747,9 +747,9 @@ one-time grants.
   revocation or version facts
 - AND owner-only routes and owner-only management reads or writes also recheck
   active `instance.owner` authority
-- AND instance-admin management reads or writes recheck active
-  `instance.admin` authority or active `instance.owner` authority according to
-  the path's required management role
+- AND Program management reads or writes recheck the active principal's current
+  schema role assignment or active `instance.owner` authority according to the
+  path's access requirement
 - AND app-admin routes, reads, writes, and sync recheck active `app.admin`
   authority at the host session target's app-install scope or active
   `instance.owner` authority
@@ -1406,9 +1406,9 @@ app installs whose registration policy is `email-verified` or
 - AND duplicate normalized active emails, duplicate credentials, wrong-origin
   passkey ceremonies, wrong-target signup state, unsupported registration
   policy, and stale target facts reject signup without a partial commit
-- AND signup does not grant owner authority, create `instance.admin` authority,
-  create app-owned profile records, issue host-local sessions directly from the
-  auth origin, or expose raw verification tokens, token hashes, credential
+- AND signup does not grant owner authority, create a Program role assignment,
+  create app-owned profile records, issue host-local sessions directly from
+  the auth origin, or expose raw verification tokens, token hashes, credential
   material, central session ids, host session cookies, or handoff grant secrets
 - AND after signup commits for an `email-verified` target, the runtime
   re-evaluates account completion for the target before returning a path-only
@@ -1498,41 +1498,42 @@ with active `instance.owner` authority.
 - AND privileged writes do not rely only on stale role facts in the signed
   cookie payload
 
-### Requirement: Principal-Backed Instance Admin Authorization
+### Requirement: Principal-Backed Program Administrator Authorization
 
-The system SHALL authorize operational instance management through active
-principals with active `instance.admin` authority while preserving owner-only
-recovery authority.
+The system SHALL authorize operational Program management through active
+principals with the schema-defined `administrator` role while preserving
+owner-only recovery authority.
 
-#### Scenario: Instance admin session resolves to management authority
+#### Scenario: Administrator session resolves to management authority
 
 - GIVEN a browser request includes a valid central auth session on the configured
   auth origin, local-dev owner session, or matching host-local session
 - WHEN the session principal is active
-- AND the principal has an active `instance.admin` role assignment at instance
-  scope
+- AND the principal has one active `program-role-assignment` whose stable role
+  id resolves to the Program schema's `administrator` role
 - THEN operational instance management reads and writes accept the request as
-  instance-admin-authorized
+  Program-administrator-authorized
 - AND an active `instance.owner` role assignment at instance scope also
-  satisfies instance-admin authorization
-- AND authorization is based on current identity-control-plane principal and
-  role-assignment records rather than stale role facts in signed cookies
+  satisfies the ordinary administrator role requirement
+- AND authorization uses the shared Program access evaluator with current
+  identity principal, protected owner, and Program role-assignment facts rather
+  than stale role facts in signed cookies
 
-#### Scenario: Instance admin session without active admin authority
+#### Scenario: Administrator session without active authority
 
 - GIVEN a browser request includes a valid central auth session, local-dev owner
   session, or matching host-local session
 - WHEN the session principal is missing, disabled, or no longer has active
-  `instance.admin` or `instance.owner` authority at instance scope
+  `administrator` role or protected owner authority
 - THEN operational instance management reads and writes reject the request as
   unauthorized management access
 - AND removed admin authority, disabled principals, or changed role assignments
   invalidate or narrow future management authorization
 
-#### Scenario: Instance admin does not receive owner recovery authority
+#### Scenario: Administrator does not receive owner recovery authority
 
-- GIVEN a browser request is authorized only by active `instance.admin`
-  authority
+- GIVEN a browser request is authorized only by the schema-defined
+  `administrator` role
 - WHEN the request attempts owner-only recovery or auth-sensitive management
 - THEN the request is rejected unless the principal also has active
   `instance.owner` authority or the request uses valid admin bearer
@@ -1543,14 +1544,14 @@ recovery authority.
   rotating browser session signing policy, and creating or rotating admin-bearer
   recovery material
 
-#### Scenario: Instance admin opens instance settings
+#### Scenario: Administrator opens instance settings
 
 - GIVEN a browser session resolves to an active principal with active
-  `instance.admin` authority at instance scope
+  `administrator` Program role
 - WHEN the principal opens the instance settings surface, app install and route
   management, or `/access`
 - THEN management route access accepts the request
-- AND backing operational management APIs apply their existing instance-admin
+- AND backing operational management APIs apply their Program-administrator
   grant limits
 - AND the principal does not receive access to installed app data without a
   separate matching app-install role
@@ -1584,8 +1585,8 @@ instance management and owner authority separate.
 - THEN the app role does not authorize the request
 - AND the principal cannot list, read, upload, replace, or inspect private
   documents owned by another app install
-- AND active `instance.admin` authority alone does not authorize installed app
-  data
+- AND the schema-defined Program `administrator` role alone does not authorize
+  installed app data
 
 #### Scenario: App admin authority is revoked
 

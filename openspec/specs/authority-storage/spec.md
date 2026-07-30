@@ -97,8 +97,9 @@ from browser route eligibility and operational instance management.
 - THEN the request requires an active principal with active `app.admin`
   authority at app-install scope for that exact install or active
   `instance.owner` authority
-- AND active `instance.admin` authority alone, `app.admin` for another install,
-  or an ordinary authenticated session does not authorize the request
+- AND the schema-defined Program `administrator` role alone, `app.admin` for
+  another install, or an ordinary authenticated session does not authorize the
+  request
 - AND central and host-local sessions are evaluated through the same current
   instance-auth authority reader
 
@@ -992,8 +993,8 @@ private authentication state.
 
 #### Scenario: Program API
 
-- GIVEN owner, admin, CLI deployer, or runner callers query or write allowed
-  Program records
+- GIVEN owner, Program administrator, CLI deployer, or runner callers query or
+  write allowed Program records
 - WHEN the request is accepted through `/api/formless/program`
 - THEN the request targets storage identity `instance:control-plane`
 - AND writes use Authority validation and write-log idempotency
@@ -1007,11 +1008,17 @@ private authentication state.
 - GIVEN a browser requests Program bootstrap, schema, HTTP sync, push sync, or
   generated management operations
 - WHEN the request is authorized
-- THEN the runtime requires an active `instance.owner` or `instance.admin`
-  management session bound to the Program target, or valid admin bearer
-  authorization where supported
+- THEN the runtime evaluates the schema-defined `administrator` role
+  requirement against current active principal, protected owner, and
+  `program-role-assignment` facts
+- AND valid admin bearer authorization remains an explicit trusted actor
+  alternative where supported
 - AND ordinary authenticated or anonymous sessions cannot read the mixed Program
   record set
+- AND missing owner-session and admin-bearer configuration does not open the
+  Program API or its replica to unauthenticated callers
+- AND local development obtains Program access through explicit local owner
+  session bootstrap rather than an open management fallback
 - AND owner-only identity, recovery, policy, and security operations recheck
   active `instance.owner` authority independently of replica access
 - AND current authority and session state are rechecked before later push

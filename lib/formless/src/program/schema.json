@@ -2073,10 +2073,6 @@
               "label": "instance.owner"
             },
             {
-              "key": "instance.admin",
-              "label": "instance.admin"
-            },
-            {
               "key": "app.admin",
               "label": "app.admin"
             },
@@ -2395,6 +2391,124 @@
           "key": "delete",
           "kind": "delete",
           "label": "Delete role assignment",
+          "output": {
+            "type": "delete"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "displayField": "displayName",
+          "key": "principal",
+          "label": "Principal",
+          "required": true,
+          "to": "principal",
+          "type": "reference"
+        },
+        {
+          "key": "roleId",
+          "label": "Program role id",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "default": "active",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "active",
+              "label": "Active"
+            },
+            {
+              "key": "disabled",
+              "label": "Disabled"
+            }
+          ]
+        }
+      ],
+      "id": "entity_2f180371-22d4-461e-8a97-1964cc175d43",
+      "key": "program-role-assignment",
+      "label": "Program role assignment",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "principal",
+                "key": "principal"
+              },
+              {
+                "field": "roleId",
+                "key": "roleId"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Program role assignment",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Program role assignment",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "deleteRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "key": "delete",
+          "kind": "delete",
+          "label": "Delete Program role assignment",
           "output": {
             "type": "delete"
           },
@@ -3390,6 +3504,27 @@
       "key": "roleAssignmentItem"
     },
     {
+      "entity": "program-role-assignment",
+      "fields": [
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "principal"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "roleId"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "programRoleAssignmentItem"
+    },
+    {
       "entity": "app-registration",
       "fields": [
         {
@@ -3789,6 +3924,14 @@
       "label": "Role assignments"
     },
     {
+      "entity": "program-role-assignment",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "programRoleAssignmentAll",
+      "label": "Program role assignments"
+    },
+    {
       "entity": "app-registration",
       "expression": {
         "kind": "all"
@@ -4115,6 +4258,32 @@
     },
     {
       "from": {
+        "entity": "program-role-assignment",
+        "field": "principal"
+      },
+      "inverse": "principalProgramRoleAssignments",
+      "key": "programRoleAssignmentPrincipal",
+      "kind": "toOne",
+      "label": "Program role assignment principal",
+      "to": {
+        "entity": "principal"
+      }
+    },
+    {
+      "from": {
+        "entity": "principal"
+      },
+      "inverse": "programRoleAssignmentPrincipal",
+      "key": "principalProgramRoleAssignments",
+      "kind": "toMany",
+      "label": "Principal Program role assignments",
+      "to": {
+        "entity": "program-role-assignment",
+        "field": "principal"
+      }
+    },
+    {
+      "from": {
         "entity": "role"
       },
       "inverse": "roleAssignmentRole",
@@ -4383,6 +4552,9 @@
         "principal-policy-acceptance": {
           "immutableFields": ["principal", "accountPolicy", "acceptedAt"]
         },
+        "program-role-assignment": {
+          "immutableFields": ["principal", "roleId"]
+        },
         "role": {
           "immutableFields": ["key"]
         },
@@ -4516,6 +4688,11 @@
       "label": "Access",
       "layout": {
         "sections": [
+          {
+            "id": "program-role-assignments",
+            "type": "collection",
+            "view": "programRoleAssignmentList"
+          },
           {
             "id": "roles",
             "type": "collection",
@@ -5340,6 +5517,45 @@
           "editView": "roleAssignmentEdit",
           "label": "Edit role assignment",
           "operation": "role-assignment.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    },
+    {
+      "columns": [
+        {
+          "display": "readOnly",
+          "field": "principal",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "roleId",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "status",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "program role assignment operations",
+          "operations": ["program-role-assignment.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "program-role-assignment",
+      "key": "programRoleAssignmentTable",
+      "operations": [
+        {
+          "editView": "programRoleAssignmentEdit",
+          "label": "Edit program role assignment",
+          "operation": "program-role-assignment.update",
           "target": {
             "kind": "row"
           }
@@ -6852,6 +7068,62 @@
       ],
       "result": {
         "tableView": "roleAssignmentTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "program-role-assignment",
+      "fields": [
+        {
+          "editor": "reference",
+          "field": "principal"
+        },
+        {
+          "editor": "text",
+          "field": "roleId"
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "programRoleAssignmentCreate",
+      "type": "create"
+    },
+    {
+      "entity": "program-role-assignment",
+      "fields": [
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "programRoleAssignmentEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "programRoleAssignmentAll",
+      "entity": "program-role-assignment",
+      "key": "programRoleAssignmentList",
+      "label": "Program role assignments",
+      "operations": [
+        {
+          "createView": "programRoleAssignmentCreate",
+          "operation": "program-role-assignment.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "programRoleAssignmentAll"
+        }
+      ],
+      "result": {
+        "tableView": "programRoleAssignmentTable",
         "type": "table"
       },
       "type": "collection"

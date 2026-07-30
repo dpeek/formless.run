@@ -2,6 +2,7 @@ import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { AccountCompletionGateTarget } from "../shared/instance-auth.ts";
 import type { OwnerIdentity } from "../shared/protocol.ts";
+import type { AccessCallerFacts } from "@dpeek/formless-schema";
 
 export const INTERNAL_IDENTITY_OWNER_PATH = "/_internal/identity-owner";
 export const INTERNAL_IDENTITY_OWNER_RESET_PATH = "/_internal/identity-owner/reset";
@@ -26,9 +27,8 @@ export type ActiveIdentityPrincipal = {
 };
 
 export type ActiveIdentityAuthority = {
+  callerFacts: Extract<AccessCallerFacts, { kind: "principal" }>;
   id: string;
-  instanceAdmin: boolean;
-  instanceOwner: boolean;
 };
 
 export type ActiveIdentityAppAuthority = {

@@ -24,6 +24,7 @@ import {
   type IdentityPrincipalEmailVerificationStatus,
   type IdentityPrincipalKind,
   type IdentityPrincipalStatus,
+  type IdentityProgramRoleAssignmentStatus,
   type IdentityRoleAssignmentScopeKind,
   type IdentityRoleAssignmentStatus,
   type IdentityRoleAssignmentTargetKind,
@@ -99,6 +100,11 @@ const roleAssignmentStatusLabels = {
   active: "Active",
   disabled: "Disabled",
 } satisfies Record<IdentityRoleAssignmentStatus, string>;
+
+const programRoleAssignmentStatusLabels = {
+  active: "Active",
+  disabled: "Disabled",
+} satisfies Record<IdentityProgramRoleAssignmentStatus, string>;
 
 const appRegistrationTargetKindLabels = {
   organization: "Organization",
@@ -256,6 +262,13 @@ const entityViewConfig = {
       "scopeOrganization",
       "status",
     ],
+  },
+  "program-role-assignment": {
+    createFields: ["principal", "roleId", "status"],
+    editFields: ["status"],
+    itemFields: ["principal", "roleId", "status"],
+    label: "Program role assignments",
+    tableFields: ["principal", "roleId", "status"],
   },
   "app-registration": {
     createFields: [
@@ -600,6 +613,29 @@ export const identityControlPlaneRecordSchemaModule = defineAppSchemaModule({
       ),
     },
     {
+      id: "entity_2f180371-22d4-461e-8a97-1964cc175d43",
+      key: "program-role-assignment",
+      label: "Program role assignment",
+      fields: [
+        {
+          key: "principal",
+          ...referenceField("Principal", "principal", "displayName"),
+        },
+        {
+          key: "roleId",
+          ...textField("Program role id"),
+        },
+        {
+          key: "status",
+          ...enumField("Status", programRoleAssignmentStatusLabels, "active"),
+        },
+      ],
+      operations: writeOperations("Program role assignment", ["principal", "roleId", "status"], {
+        delete: true,
+        updateFields: ["status"],
+      }),
+    },
+    {
       id: "entity_735d1c4d-dc89-4423-9cc7-0daa06559d75",
       key: "app-registration",
       label: "App registration",
@@ -874,6 +910,26 @@ export const identityControlPlaneRecordSchemaModule = defineAppSchemaModule({
       ...toOne("Role assignment role", "role-assignment", "role", "role", "roleAssignments"),
     },
     {
+      key: "programRoleAssignmentPrincipal",
+      ...toOne(
+        "Program role assignment principal",
+        "program-role-assignment",
+        "principal",
+        "principal",
+        "principalProgramRoleAssignments",
+      ),
+    },
+    {
+      key: "principalProgramRoleAssignments",
+      ...toMany(
+        "Principal Program role assignments",
+        "principal",
+        "program-role-assignment",
+        "principal",
+        "programRoleAssignmentPrincipal",
+      ),
+    },
+    {
       key: "roleAssignments",
       ...toMany("Role assignments", "role", "role-assignment", "role", "roleAssignmentRole"),
     },
@@ -1071,6 +1127,7 @@ export const identityControlPlanePresentationSchemaModule = defineAppSchemaModul
     {
       key: "access",
       ...screen("Access", "/access", [
+        ["program-role-assignments", "programRoleAssignmentList"],
         ["roles", "roleList"],
         ["role-assignments", "roleAssignmentList"],
       ]),

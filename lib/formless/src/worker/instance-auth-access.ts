@@ -16,6 +16,11 @@ import type {
 import type { RuntimeRouteRequiredRole } from "../shared/runtime-topology.ts";
 import type { InstanceAuthSessionTargetBinding } from "./instance-auth-state.ts";
 import type { OwnerSession, OwnerSessionValidationFailureReason } from "./owner-session.ts";
+import { evaluateAccessRequirement } from "@dpeek/formless-schema";
+import {
+  FORMLESS_PROGRAM_MANAGEMENT_ACCESS_REQUIREMENT,
+  formlessProgramSchema,
+} from "../program/runtime.ts";
 
 export type HostAuthSession = InstanceAuthSessionTargetBinding & {
   expiresAt: string;
@@ -500,8 +505,12 @@ async function readCurrentAuthority(
       const authority = await readers.readManagementAuthority(session);
 
       return authority?.id === session.principalId &&
-        (authority.instanceAdmin === true || authority.instanceOwner === true)
-        ? { ownerAuthorized: authority.instanceOwner }
+        evaluateAccessRequirement(
+          FORMLESS_PROGRAM_MANAGEMENT_ACCESS_REQUIREMENT,
+          authority.callerFacts,
+          formlessProgramSchema,
+        )
+        ? { ownerAuthorized: authority.callerFacts.owner }
         : null;
     }
     case "owner":

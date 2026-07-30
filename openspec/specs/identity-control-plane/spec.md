@@ -97,12 +97,13 @@ without forcing private auth state into reviewable storage.
 - GIVEN Program storage is initialized
 - WHEN the first bootstrap, read, or write operation runs
 - THEN storage is initialized from the complete materialized Program source
-- AND it includes one active built-in `role` record for each supported runtime
-  role key
-- AND each built-in role record has a deterministic id derived from the role
-  key, such as `role:instance.owner` for `instance.owner`
-- AND the built-in role records are normal flat identity records that can be
-  referenced by role-assignment records
+- AND schema-defined Program roles come from the root-owned
+  `authorization.roles` catalog rather than mutable identity `role` records
+- AND built-in `role` records remain only for protected owner authority and
+  installed-app authorization while those boundaries still use legacy
+  role-assignment records
+- AND each remaining built-in role record has a deterministic id derived from
+  its role key, such as `role:instance.owner` for `instance.owner`
 
 #### Scenario: Program identity management authorization
 
@@ -110,8 +111,10 @@ without forcing private auth state into reviewable storage.
   operation over identity records
 - WHEN the request is authorized
 - THEN generic Program bootstrap and sync require a management session whose
-  principal has active `instance.owner` or `instance.admin` authority at
-  instance scope
+  active principal has protected owner authority or one active
+  `program-role-assignment` for the schema-defined `administrator` role
+- AND the shared Program access evaluator resolves that requirement against the
+  active Program schema and current principal and assignment records
 - AND trusted automation remains authorized by valid admin bearer authorization
 - AND anonymous or ordinary authenticated browser requests cannot bootstrap,
   sync, read, or mutate Program identity records
@@ -133,11 +136,14 @@ without forcing private auth state into reviewable storage.
 - THEN generic Program validation sees the complete mixed record set
 - AND identity-control-plane validation helpers receive only records owned by
   identity stable entity ids
-- AND selected-target uniqueness for memberships, role assignments, app
+- AND each Program role assignment references a stable role id from the active
+  Program schema and at most one active Program role assignment exists for a
+  principal
+- AND selected-target uniqueness for memberships, legacy role assignments, app
   registrations, and policy acceptances is enforced before commit
 - AND invalid references, unsupported entity names, duplicate active role keys,
-  duplicate normalized active emails, and duplicate selected-target facts reject
-  the write without a partial commit
+  unknown Program role ids, duplicate normalized active emails, and duplicate
+  assignment or selected-target facts reject the write without a partial commit
 
 #### Scenario: Reviewable identity records share Program data movement
 
@@ -209,45 +215,37 @@ boundaries as flat identity records.
   target record
 - AND membership facts do not duplicate app-specific account or profile records
 
-### Requirement: Roles And Role Assignments
+### Requirement: Program And Legacy Role Assignments
 
-The system SHALL represent runtime-enforceable authorization as role records and
-flat role assignment records.
+The system SHALL store Program-wide schema role assignments without adapting
+installed-app scopes or protected owner authority into the Program role model.
 
-#### Scenario: Runtime role vocabulary
+#### Scenario: Program role assignment record shape
 
-- GIVEN the identity control-plane package exposes first-pass runtime role keys
-- WHEN role keys are inspected
-- THEN the supported role keys are `instance.owner`, `instance.admin`,
+- GIVEN the identity control-plane schema defines `program-role-assignment`
+- WHEN Program role assignments are inspected
+- THEN each assignment stores one principal reference, one stable schema role
+  id, and one status as flat values
+- AND supported statuses are `active` and `disabled`
+- AND the stable role id resolves against the active Program schema's
+  root-owned `authorization.roles` catalog
+- AND one principal has at most one active Program role assignment
+- AND the assignment has no target-kind selector, scope kind, app-install id,
+  organization id, mutable role record reference, grants, or inheritance
+
+#### Scenario: Legacy role vocabulary remains isolated
+
+- GIVEN installed-app data remains in external installed-app Authorities
+- WHEN protected owner or installed-app authority is inspected
+- THEN built-in legacy role records are limited to `instance.owner`,
   `app.admin`, `app.editor`, `app.viewer`, and `app.user`
-- AND app packages may model richer domain roles in their own app records later
-- AND the identity control plane only ships role keys the runtime can enforce
-  directly
-
-#### Scenario: Role record shape
-
-- GIVEN the identity control-plane schema defines `role`
-- WHEN role records are inspected
-- THEN each role stores a role key, display label, and status as flat values
-- AND supported first-pass role statuses are `active` and `disabled`
-- AND active role keys are unique within the identity records in Program storage
-
-#### Scenario: Role assignment record shape
-
-- GIVEN the identity control-plane schema defines `role-assignment`
-- WHEN role assignments are inspected
-- THEN each assignment stores one role reference, one target kind, one target
-  reference, one scope kind, optional scope id, and one status as flat values
-- AND supported target kinds are `principal`, `group`, and `organization`
-- AND supported scope kinds are `instance`, `app-install`, and `organization`
-- AND `instance` scope does not require a scope id
-- AND `app-install` and `organization` scopes require a scope id
-- AND supported first-pass statuses are `active` and `disabled`
-- AND active role assignments are unique by target kind, selected target
-  record, scope kind, and selected scope id so one target has at most one
-  active runtime role level on a given access surface
-- AND the first owner is represented as an `instance.owner` role assignment for
-  a principal at instance scope
+- AND `instance.admin` is not a role record, assignment, or authorization fact
+- AND legacy role assignments retain their existing target and scope fields
+  only for protected owner and installed-app or organization authorization
+- AND those legacy assignments are not interpreted as Program schema role
+  assignments
+- AND the first owner remains represented as an `instance.owner` role
+  assignment for a principal at instance scope
 
 #### Scenario: App admin runtime scope
 
@@ -360,8 +358,8 @@ as reviewable identity records.
 - AND the inviter principal reference is recorded when the request is
   authorized by a browser principal session
 - AND optional invited principal, principal-email, membership,
-  role-assignment, or app-registration records are normal flat identity records
-  linked by id
+  `program-role-assignment`, legacy role-assignment, or app-registration
+  records are normal flat identity records linked by id
 - AND invited principal and membership records use invited status until invite
   acceptance activates them
 - AND app-registration records created before acceptance use pending status
@@ -372,8 +370,8 @@ as reviewable identity records.
 
 #### Scenario: Select invitation roles across access surfaces
 
-- GIVEN access management offers current grant-authorized role levels for the
-  instance, installed apps, and organizations
+- GIVEN access management offers current grant-authorized Program role levels,
+  protected owner authority, and installed-app or organization role levels
 - WHEN an invitation selects role grants
 - THEN each choice identifies one exact access surface and one role level
 - AND the invitation may select role levels for more than one access surface
@@ -394,25 +392,26 @@ as reviewable identity records.
   `instance.owner` authority at instance scope
 - WHEN the principal creates a collaborator invitation
 - THEN the request may include invited principal, principal-email, membership,
-  app-registration, and role-assignment records for any supported runtime role,
-  including `instance.owner`
+  app-registration, Program role-assignment, and legacy role-assignment records
+  for any schema-defined Program role or supported legacy role, including
+  `instance.owner`
 - AND owner-only last-owner, recovery, credential, and admin-bearer safety
   rules remain enforced by the owner-only paths that manage those capabilities
 - AND the invitation still does not authorize browser access until invite
   acceptance activates the invited principal and current authorization checks
   pass
 
-#### Scenario: Instance admin grants non-owner collaborator invitation roles
+#### Scenario: Administrator grants non-owner collaborator invitation roles
 
-- GIVEN a browser session resolves to an active principal with active
-  `instance.admin` authority at instance scope
+- GIVEN a browser session resolves to an active principal with one active
+  Program role assignment for the schema-defined `administrator` role
 - AND the principal does not have active `instance.owner` authority
 - WHEN the principal creates a collaborator invitation
 - THEN the request may include invited principal and principal-email records
 - AND it may include app-registration records for app-install targets
-- AND it may include role assignments for `instance.admin` at instance scope
-  and app-scoped `app.admin`, `app.editor`, `app.viewer`, or `app.user` roles
-  at app-install scope
+- AND it may include one Program role assignment for `administrator`, `editor`,
+  or `member` and app-scoped `app.admin`, `app.editor`, `app.viewer`, or
+  `app.user` assignments at app-install scope
 - AND it may not include `instance.owner`, organization-scoped role
   assignments, group memberships, organization memberships, or owner recovery
   capabilities
@@ -445,13 +444,13 @@ as reviewable identity records.
 ### Requirement: Access Management Surface
 
 The system SHALL expose dedicated instance access management behavior for
-owner and operational-admin principals without exposing the raw generated
+owner and administrator principals without exposing the raw generated
 identity-control-plane record editor to normal administrators.
 
 #### Scenario: Read access management summary
 
-- GIVEN a browser session resolves to an active principal with active
-  `instance.owner` or `instance.admin` authority at instance scope
+- GIVEN a browser session resolves to an active principal with protected owner
+  authority or the schema-defined `administrator` role
 - WHEN the principal opens the dedicated instance access management surface and
   reads `GET /api/formless/identity/access-summary`
 - THEN the surface reads identity data through purpose-built access management
@@ -460,8 +459,8 @@ identity-control-plane record editor to normal administrators.
   app-registration, organization, group, and invitation summary facts needed by
   the surface
 - AND the response includes display-safe collaborator invitation grant choices
-  derived from the current actor's active owner or instance-admin authority and
-  exact available instance, app-install, and organization surfaces
+  derived from the current actor's active owner or Program administrator
+  authority and exact available Program, app-install, and organization surfaces
 - AND revoked invitations and disabled principals may remain reviewable
   identity records without remaining in the active invitation or people lists
 - AND raw invite tokens, token hashes, credential material, passkey challenge
@@ -481,9 +480,9 @@ identity-control-plane record editor to normal administrators.
   token boundary
 - AND the role and membership choices are limited to grants authorized for the
   current browser principal
-- AND a principal with only active `instance.admin` authority cannot grant
-  `instance.owner`, owner recovery capabilities, admin bearer capabilities, or
-  destructive identity authority
+- AND a principal authorized only by the `administrator` Program role cannot
+  grant `instance.owner`, owner recovery capabilities, admin bearer
+  capabilities, or destructive identity authority
 - AND raw invite tokens and token hashes remain unavailable to the browser
   surface except for the delivery path that renders the invitation link
 
@@ -491,8 +490,8 @@ identity-control-plane record editor to normal administrators.
 
 - GIVEN the dedicated access management surface submits a delete request for a
   pending collaborator invitation
-- AND the browser session resolves to an active principal with active
-  `instance.owner` or `instance.admin` authority at instance scope
+- AND the browser session resolves to an active principal with protected owner
+  authority or the schema-defined `administrator` role
 - WHEN the request is accepted
 - THEN identity storage changes the matching `invitation` record status to
   `revoked`
@@ -535,8 +534,9 @@ identity-control-plane record editor to normal administrators.
   rather than partially applied
 - AND only an active `instance.owner` may grant, replace, or remove
   `instance.owner`
-- AND `instance.admin` may manage `instance.admin` and app-install role levels
-  but may not manage owner or organization authority
+- AND a Program administrator may manage `administrator`, `editor`, `member`,
+  and app-install role levels but may not manage owner or organization
+  authority
 - AND current principal, role, assignment, target, and actor authority are
   re-read during the mutation instead of trusted from the browser summary
 - AND successful replacement immediately narrows subsequent route, data,
@@ -574,13 +574,14 @@ identity-control-plane record editor to normal administrators.
 - AND the disabled principal and its retained assignments cannot authorize
   subsequent browser entry, data access, operations, handoff, host sessions, or
   push delivery
-- AND an `instance.admin` cannot remove a principal with active
+- AND a Program administrator cannot remove a principal with active
   `instance.owner` authority
 
 #### Scenario: Reject unauthorized access management request
 
 - GIVEN a browser session is missing, stale, disabled, scoped to the wrong
-  instance, or lacks active `instance.owner` or `instance.admin` authority
+  Program, or lacks protected owner authority or the schema-defined
+  `administrator` role
 - WHEN it reads the access management summary, creates or deletes an
   invitation, replaces person roles, or removes a person through the dedicated
   access management behavior
@@ -749,7 +750,7 @@ revocation, refresh, validation, and private auth state.
 - GIVEN runtime publishes complete production access contracts
 - WHEN access UX is evaluated with package-local renderer fixtures
 - THEN serializable data-only memory-host fixtures cover owner and
-  instance-admin grants, loading, unauthorized, failed, empty and populated
+  Program administrator grants, loading, unauthorized, failed, empty and populated
   summaries, people and roles, organizations and groups, app-scoped grants,
   flat invitation and person-role authoring, multi-surface acceptance-target
   selection, exclusive role levels, pending and successful creation and role

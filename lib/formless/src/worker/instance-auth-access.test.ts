@@ -174,8 +174,19 @@ describe("instance auth access readers and decisions", () => {
 
     for (const authority of [
       null,
-      { id: centralSession.principalId, instanceAdmin: false, instanceOwner: false },
-      { id: "principal:other", instanceAdmin: true, instanceOwner: false },
+      {
+        callerFacts: { active: true, kind: "principal" as const, owner: false },
+        id: centralSession.principalId,
+      },
+      {
+        callerFacts: {
+          active: true,
+          kind: "principal" as const,
+          owner: false,
+          roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357" as const,
+        },
+        id: "principal:other",
+      },
     ]) {
       const missingManagementAuthority = await resolveInstanceAuthAccess(
         {
@@ -204,8 +215,19 @@ describe("instance auth access readers and decisions", () => {
     }
 
     for (const authority of [
-      { id: centralSession.principalId, instanceAdmin: true, instanceOwner: false },
-      { id: centralSession.principalId, instanceAdmin: false, instanceOwner: true },
+      {
+        callerFacts: {
+          active: true,
+          kind: "principal" as const,
+          owner: false,
+          roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357" as const,
+        },
+        id: centralSession.principalId,
+      },
+      {
+        callerFacts: { active: true, kind: "principal" as const, owner: true },
+        id: centralSession.principalId,
+      },
     ]) {
       await expect(
         resolveInstanceAuthAccess(
@@ -542,9 +564,13 @@ function accessReaders(
     readHostSessionVersion: async (session) => session.sessionVersion,
     readLocalOwnerSession: async () => ({ ok: false, reason: "missing-cookie" }),
     readManagementAuthority: async (session) => ({
+      callerFacts: {
+        active: true,
+        kind: "principal",
+        owner: false,
+        roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+      },
       id: session.principalId,
-      instanceAdmin: true,
-      instanceOwner: false,
     }),
     readOwnerAuthority: async (session) => ({
       createdAt: "2030-01-01T00:00:00.000Z",

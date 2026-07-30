@@ -111,7 +111,7 @@ export async function handleInstanceAppInstallsDurableObjectRequest(
 
       const authorization = await authorizeOperationalManagement(request, env, {
         error:
-          "Owner session, instance-admin session, or admin authorization is required for this write endpoint.",
+          "Owner session, Program administrator session, or admin authorization is required for this write endpoint.",
         hostSessionTarget: hostAuthSessionTargetForInstanceAppInstallsRequest(request),
       });
 
@@ -161,7 +161,7 @@ export async function handleInstanceAppInstallsDurableObjectRequest(
     if (request.method === "GET") {
       const authorization = await authorizeOperationalManagement(request, env, {
         error:
-          "Owner session, instance-admin session, or admin authorization is required for this read endpoint.",
+          "Owner session, Program administrator session, or admin authorization is required for this read endpoint.",
         hostSessionTarget: hostAuthSessionTargetForInstanceAppInstallsRequest(request),
       });
 
@@ -193,7 +193,7 @@ export async function handleInstanceAppInstallsDurableObjectRequest(
     if (request.method === "POST") {
       const authorization = await authorizeOperationalManagement(request, env, {
         error:
-          "Owner session, instance-admin session, or admin authorization is required for this write endpoint.",
+          "Owner session, Program administrator session, or admin authorization is required for this write endpoint.",
         hostSessionTarget: hostAuthSessionTargetForInstanceAppInstallsRequest(request),
       });
 

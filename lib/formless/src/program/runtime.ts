@@ -15,6 +15,7 @@ import {
   isValidStoredFieldValue,
   parseAppSchema,
   stringifySchema,
+  type AccessRequirement,
   type AppSchema,
   type EntitySchema,
 } from "@dpeek/formless-schema";
@@ -35,6 +36,9 @@ import {
 export * from "./target.ts";
 
 export const formlessProgramSchema = parseAppSchema(rawFormlessProgramSchema);
+export const FORMLESS_PROGRAM_MANAGEMENT_ACCESS_REQUIREMENT = {
+  anyOf: [{ role: "administrator" }, { actor: "adminBearer" }],
+} as const satisfies AccessRequirement;
 export const FORMLESS_PROGRAM_SCREEN_PATHS: readonly string[] = formlessProgramSchema.screens
   .map((screen) => screen.path)
   .filter((path): path is `/${string}` => path !== undefined);
@@ -95,7 +99,10 @@ const formlessProgramConstraintAdapters: readonly FormlessProgramConstraintAdapt
       validateIdentityControlPlaneRecords(
         context,
         records.filter((record) => record.deletedAt === undefined),
-        { candidateRecords },
+        {
+          authorizationRoles: formlessProgramSchema.authorization?.roles,
+          candidateRecords,
+        },
       ),
   },
 ];
@@ -208,6 +215,7 @@ export function canonicalizeFormlessProgramStorageSnapshot(
       packageResolver: options.packageResolver,
     }),
     ...reviewableIdentityControlPlaneRecords(identityRecords, {
+      authorizationRoles: formlessProgramSchema.authorization?.roles,
       candidateRecords: parsed.records,
     }),
   ];
