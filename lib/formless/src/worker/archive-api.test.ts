@@ -38,22 +38,36 @@ import {
 } from "../test/authority-write.ts";
 import { testSiteRecords } from "../test/site-records.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
+import {
+  FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
+  formatRuntimeWorkspaceAppPackages,
+} from "../shared/workspace-runtime-packages.ts";
+import { runtimeWorkspaceTaskAppPackageFixture } from "../test/workspace-app-package.ts";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
 const adminToken = "test-admin-token";
 const internalResetAppStoragePath = "/_internal/reset-app-storage";
+const taskPackageAppKey = "test-tasks";
 
 let harness: Harness;
 
 beforeAll(async () => {
+  const taskPackage = await runtimeWorkspaceTaskAppPackageFixture({
+    packageAppKey: taskPackageAppKey,
+  });
   harness = await createWorkerHarness(
     "src/worker/index.ts",
     {
       FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true },
     },
     {
-      bindings: { FORMLESS_ADMIN_TOKEN: adminToken },
+      bindings: {
+        FORMLESS_ADMIN_TOKEN: adminToken,
+        [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
+          taskPackage,
+        ]),
+      },
       r2Buckets: ["FORMLESS_MEDIA"],
     },
   );
@@ -106,7 +120,9 @@ describe("instance archive restore API", () => {
     const dryRun = await postArchiveRestore(tasksAppArchive({ dryRun: true }));
     const applied = await postArchiveRestore(tasksAppArchive({ dryRun: false }));
     const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const bootstrap = await getJson<BootstrapResponse>("/api/app-installs/tasks/work/bootstrap");
+    const bootstrap = await getJson<BootstrapResponse>(
+      `/api/app-installs/${taskPackageAppKey}/work/bootstrap`,
+    );
 
     expect(dryRun.response.status).toBe(200);
     expect(dryRun.body).toMatchObject({
@@ -136,7 +152,7 @@ describe("instance archive restore API", () => {
       expect.objectContaining({
         adminRoute: "/apps/work",
         installId: "work",
-        packageAppKey: "tasks",
+        packageAppKey: taskPackageAppKey,
       }),
     ]);
     expect(installs.body.installs[0]).not.toHaveProperty("publicRoute");
@@ -151,8 +167,10 @@ describe("instance archive restore API", () => {
         records: [taskRecord({ done: true, id: "task-before-replace", title: "Before replace" })],
       }),
     );
-    const before = await getJson<BootstrapResponse>("/api/app-installs/tasks/work/bootstrap");
-    const firstAction = await postInstalledAppAction("tasks", "work", {
+    const before = await getJson<BootstrapResponse>(
+      `/api/app-installs/${taskPackageAppKey}/work/bootstrap`,
+    );
+    const firstAction = await postInstalledAppAction(taskPackageAppKey, "work", {
       idempotencyKey: "command-archive-clear",
       entity: "task",
       operationName: "clearCompletedTasks",
@@ -169,8 +187,10 @@ describe("instance archive restore API", () => {
         records: [replacementRecord],
       }),
     );
-    const after = await getJson<BootstrapResponse>("/api/app-installs/tasks/work/bootstrap");
-    const secondAction = await postInstalledAppAction("tasks", "work", {
+    const after = await getJson<BootstrapResponse>(
+      `/api/app-installs/${taskPackageAppKey}/work/bootstrap`,
+    );
+    const secondAction = await postInstalledAppAction(taskPackageAppKey, "work", {
       idempotencyKey: "command-archive-clear",
       entity: "task",
       operationName: "clearCompletedTasks",
@@ -262,7 +282,9 @@ describe("instance archive restore API", () => {
     const applied = await postArchiveRestore(mixedInstanceArchive({ dryRun: false }));
     const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
     const site = await getJson<BootstrapResponse>("/api/app-installs/site/personal/bootstrap");
-    const tasks = await getJson<BootstrapResponse>("/api/app-installs/tasks/work/bootstrap");
+    const tasks = await getJson<BootstrapResponse>(
+      `/api/app-installs/${taskPackageAppKey}/work/bootstrap`,
+    );
     const crm = await getJson<BootstrapResponse>("/api/app-installs/crm/rates/bootstrap");
 
     expect(dryRun.response.status).toBe(200);
@@ -292,7 +314,7 @@ describe("instance archive restore API", () => {
     expect(installs.body.installs.map((install) => install.packageAppKey)).toEqual([
       "site",
       "crm",
-      "tasks",
+      taskPackageAppKey,
     ]);
     expect(
       installs.body.installs.find((install) => install.installId === "work"),
@@ -308,7 +330,7 @@ describe("instance archive restore API", () => {
     expect(crm.body.records).toEqual(crmTestRecords);
   });
 
-  it("restores schema-owned control-plane records through the archive API", async () => {
+  it("restores Program Task records while dormant Tasks metadata stays non-authoritative", async () => {
     const restored = await postArchiveRestore(controlPlaneInstanceArchive({ dryRun: false }));
     const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
     const installedApp = await getJson<BootstrapResponse>(
@@ -349,16 +371,33 @@ describe("instance archive restore API", () => {
     expect(installedApp.body.records).toContainEqual(siteRecord());
     expect(controlPlane.body.records.map((record) => `${record.entity}:${record.id}`)).toEqual(
       expect.arrayContaining([
+        "app-install:legacy-tasks",
         "app-install:personal",
+        "task:task-program-restored",
         "route:route:host:publicSite:archive.example.com",
         "route:route:redirect:old.archive.example.com",
         "deployment-config:instance.primary",
       ]),
     );
+    expect(installs.body.installs.some((install) => install.installId === "legacy-tasks")).toBe(
+      false,
+    );
     expect(serializedControlPlane).not.toContain("site-main");
     expect(serializedControlPlane).not.toContain("CF_API_TOKEN");
     expect(serializedControlPlane).not.toContain("ALCHEMY_PASSWORD");
     expect(serializedControlPlane).not.toContain("raw-lease-token");
+  });
+
+  it("rejects legacy Tasks app archives without adopting their records", async () => {
+    const restored = await postArchiveRestore(legacyTasksAppArchive({ dryRun: false }));
+    const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
+    const program = await getJson<BootstrapResponse>(
+      "/api/formless/program/bootstrap?actorKind=owner",
+    );
+
+    expect(restored.response.status).toBe(400);
+    expect(installs.body.installs).toEqual([]);
+    expect(program.body.records.some((record) => record.entity === "task")).toBe(false);
   });
 
   it("restores core Site media before public tree reads reference it", async () => {
@@ -432,7 +471,9 @@ describe("instance archive restore API", () => {
       { exactInstanceReplacement: true },
     );
     const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const tasks = await getJson<BootstrapResponse>("/api/app-installs/tasks/work/bootstrap");
+    const tasks = await getJson<BootstrapResponse>(
+      `/api/app-installs/${taskPackageAppKey}/work/bootstrap`,
+    );
     const personal = await getJson<BootstrapResponse>("/api/app-installs/site/personal/bootstrap");
     const media = await bucket.list({ prefix: "media/images/" });
     const documents = await bucket.list({ prefix: "media/app-installs/" });
@@ -672,8 +713,8 @@ function exactTasksInstanceArchive(input: {
 function tasksInstall(): AppInstall {
   return {
     installId: "work",
-    packageAppKey: "tasks",
-    packageRevision: 1,
+    packageAppKey: taskPackageAppKey,
+    packageRevision: 7,
     sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
     label: "Work Tasks",
     registrationPolicy: "closed",
@@ -717,6 +758,25 @@ function controlPlaneArchiveRecords(): StoredRecord[] {
 
   return [
     ...records,
+    ...instanceControlPlaneRecordsForAppInstall({
+      install: {
+        adminRoute: "/apps/legacy-tasks",
+        createdAt: now,
+        installId: "legacy-tasks",
+        label: "Legacy Tasks",
+        packageAppKey: "tasks",
+        packageRevision: 1,
+        registrationPolicy: "closed",
+        sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
+        status: "installed",
+        updatedAt: now,
+      },
+      now,
+    }).map(storedControlPlaneRecord),
+    taskRecord({
+      id: "task-program-restored",
+      title: "Program archive task",
+    }),
     {
       id: "instance.primary",
       entity: "deployment-config",
@@ -835,9 +895,9 @@ function tasksAppArchive(input: {
     restorePolicy: { dryRun: input.dryRun, installCollisions: input.installCollisions ?? "reject" },
     app: {
       installId: "work",
-      packageAppKey: "tasks",
-      packageRevision: 1,
-      sourceSchemaKey: "tasks",
+      packageAppKey: taskPackageAppKey,
+      packageRevision: 7,
+      sourceSchemaKey: taskPackageAppKey,
       sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
       label: "Work Tasks",
       registrationPolicy: "closed",
@@ -849,7 +909,7 @@ function tasksAppArchive(input: {
       kind: STORAGE_SNAPSHOT_KIND,
       version: STORAGE_SNAPSHOT_VERSION,
       storageIdentity: "app:work",
-      schemaKey: "tasks",
+      schemaKey: taskPackageAppKey,
       exportedAt: "2026-05-12T00:00:00.000Z",
       schemaUpdatedAt: "2026-05-12T00:00:00.000Z",
       sourceCursor: 1,
@@ -857,6 +917,27 @@ function tasksAppArchive(input: {
       records: input.records ?? [taskRecord()],
     },
     media: { objects: [] },
+  };
+}
+
+function legacyTasksAppArchive(input: { dryRun: boolean }): AppArchive {
+  const archive = tasksAppArchive(input);
+
+  return {
+    ...archive,
+    app: {
+      ...archive.app,
+      installId: "legacy-tasks",
+      packageAppKey: "tasks",
+      packageRevision: 1,
+      sourceSchemaKey: "tasks",
+      sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
+    },
+    data: {
+      ...archive.data,
+      storageIdentity: "app:legacy-tasks",
+      schemaKey: "tasks",
+    },
   };
 }
 

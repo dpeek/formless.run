@@ -22,7 +22,11 @@ import {
   selectHomeRouteSectionContextRecordId,
   useHomeRouteSelectionStore,
 } from "./routes/home-selection.tsx";
-import { createDevRuntimeProfile, findRuntimeWorldMountByRoute } from "./runtime-profile.ts";
+import {
+  createDevRuntimeProfile,
+  createInstanceRuntimeProfile,
+  findRuntimeWorldMountByRoute,
+} from "./runtime-profile.ts";
 
 vi.mock("./application-presentation.tsx", () => ({
   ApplicationPresentation: ({
@@ -41,9 +45,9 @@ beforeEach(() => {
 
 describe("application shell runtime boundary", () => {
   it("publishes the selected root theme into the existing stable shell host", async () => {
-    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), "tasks");
+    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), "site");
     const runtimeProfile = createDevRuntimeProfile();
-    const routeWorld = required(findRuntimeWorldMountByRoute(runtimeProfile, "/tasks"));
+    const routeWorld = required(findRuntimeWorldMountByRoute(runtimeProfile, "/site"));
     const reference = documentThemeReference("theme:application");
     const snapshot: DocumentThemeContract = {
       activeMode: "dark",
@@ -64,7 +68,7 @@ describe("application shell runtime boundary", () => {
           publication: { nodes: [{ reference, snapshot }] },
           reference,
         }}
-        currentPath="/tasks"
+        currentPath="/site"
         accountSession={{ authenticated: false, setupComplete: true }}
         routeWorld={routeWorld}
         runtimeProfile={runtimeProfile}
@@ -83,10 +87,10 @@ describe("application shell runtime boundary", () => {
   it("keeps one host while resolving root selection and controlled create against current state", async () => {
     applyBootstrapResponse(
       bootstrapResponse(taskSourceSchema, [projectRecord("project-1"), projectRecord("project-2")]),
-      "tasks",
+      "site",
     );
     const runtimeProfile = createDevRuntimeProfile();
-    const routeWorld = required(findRuntimeWorldMountByRoute(runtimeProfile, "/tasks"));
+    const routeWorld = required(findRuntimeWorldMountByRoute(runtimeProfile, "/site"));
     const screen = rootScreenFixture();
     let host: PresentationHost | undefined;
     let selectedRecordId: string | null = null;
@@ -122,7 +126,7 @@ describe("application shell runtime boundary", () => {
     const renderer = render(
       <ApplicationShellRuntimeBoundary
         activeScreenPath="/"
-        currentPath="/tasks"
+        currentPath="/site"
         dependencies={dependencies}
         accountSession={{ authenticated: false, setupComplete: true }}
         routeWorld={routeWorld}
@@ -245,9 +249,9 @@ describe("application shell runtime boundary", () => {
   });
 
   it("executes logout effects while projecting only display-safe session status", async () => {
-    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), "tasks");
+    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), "site");
     const runtimeProfile = createDevRuntimeProfile();
-    const routeWorld = required(findRuntimeWorldMountByRoute(runtimeProfile, "/tasks"));
+    const routeWorld = required(findRuntimeWorldMountByRoute(runtimeProfile, "/site"));
     let host: PresentationHost | undefined;
     let logoutCount = 0;
     const navigations: string[] = [];
@@ -266,7 +270,7 @@ describe("application shell runtime boundary", () => {
 
     const renderer = render(
       <ApplicationShellRuntimeBoundary
-        currentPath="/tasks"
+        currentPath="/site"
         dependencies={dependencies}
         accountSession={{
           authenticated: true,
@@ -315,7 +319,7 @@ describe("application shell runtime boundary", () => {
   });
 
   it("projects Program navigation only from current exact route decisions", async () => {
-    const runtimeProfile = createDevRuntimeProfile();
+    const runtimeProfile = createInstanceRuntimeProfile();
     let host: PresentationHost | undefined;
     let allowedPaths = new Set(["/apps", "/deployments"]);
     const routeChecks: string[] = [];

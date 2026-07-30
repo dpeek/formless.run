@@ -16,9 +16,11 @@ The system SHALL select generated surfaces from the active runtime profile and r
 #### Scenario: Dev workbench routes
 
 - **GIVEN** the dev workbench profile
-- **WHEN** the user visits `/tasks`, `/site`, `/crm`, installed app admin
-  routes, or installed Site public routes
-- **THEN** the matching generated app, admin, or public Site surface mounts
+- **WHEN** the user visits Program `/tasks`, `/site`, `/crm`, installed app
+  admin routes, or installed Site public routes
+- **THEN** the matching Program, generated app, admin, or public Site surface
+  mounts
+- **AND** `/tasks` does not mount a schema-key or installed-app Tasks surface
 
 #### Scenario: Installed workspace package admin routes
 
@@ -29,7 +31,7 @@ The system SHALL select generated surfaces from the active runtime profile and r
 - **THEN** generated UI mounts the installed app using package metadata from the
   active install registry response
 - **AND** the source schema key can be a resolved package source schema key
-  outside the bundled `tasks`, `site`, and `crm` source app set
+  outside the bundled `site` and `crm` source app set
 - **AND** app bootstrap, sync, operations, reset, and schema reads use the
   install-scoped app API prefix for that app install
 - **AND** generated UI does not require the package source schema to be bundled
@@ -100,8 +102,8 @@ shell.
 
 - **GIVEN** the product instance shell renders
 - **WHEN** bundled app packages and custom domains are available
-- **THEN** install controls support Site, Tasks, and CRM packages by
-  default
+- **THEN** install controls support Site and CRM packages by default
+- **AND** Tasks appears as a Program destination rather than an install choice
 - **AND** custom domain management shows desired route state and provider applied
   evidence separately
 - **AND** deployment navigation comes only from the schema-owned Program screen
@@ -293,6 +295,17 @@ The system SHALL render generated screens from screen models and collection sect
   Program replica
 - AND screen keys, module keys, schema keys, paths, and cached client role facts
   are not treated as authorization grants
+
+#### Scenario: Program Tasks workspace
+
+- GIVEN the materialized Program declares the Tasks screen at `/tasks`
+- WHEN a current Program member opens the screen
+- THEN generated UI renders the package-owned Tasks views against the Program
+  client target and complete Program replica
+- AND Task operation controls remain present only when their schema-declared
+  `editor` access requirement can be satisfied by the current caller
+- AND operation requests use `/api/formless/program` and Program write
+  compatibility facts
 
 #### Scenario: Schema path app screen
 
@@ -2337,8 +2350,8 @@ records that matches current table-driven install management behavior.
 - **WHEN** installed apps are rendered
 - **THEN** app installs render in a scannable collection with package, label,
   status, and route summary fields derived from `route` records
-- **AND** install controls support Site, Tasks, and CRM package creation
-  by default
+- **AND** install controls support Site and CRM package creation by default
+- **AND** Program-native Tasks is absent from package selection
 - **AND** workspace-linked packages returned by the active package resolver are
   selectable only in that resolver scope
 

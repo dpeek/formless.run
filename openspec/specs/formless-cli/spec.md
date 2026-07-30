@@ -591,6 +591,8 @@ optional first app install, credential setup, and push operations.
   linked packages declared in `formless.ts` `packages.links` when present
 - **AND** installable package lists shown before the workspace has installed
   apps come from that active resolver
+- **AND** Program-native package key `tasks` is excluded from the installable
+  resolver even when its standalone package manifest is bundled or linked
 - **AND** first-run local runtime state starts from workspace storage snapshots
   and media payloads when present
 - **AND** the browser can complete onboarding before any Cloudflare deploy
@@ -727,11 +729,27 @@ snapshots and media payloads.
 
 - **WHEN** the workspace source save operation runs for a local Formless
   workspace
-- **THEN** active installed app records, media payloads, and schema-owned
-  control-plane intent are written to deterministic workspace storage snapshots
+- **THEN** active runtime-installable app records, media payloads, and
+  schema-owned Program state are written to deterministic workspace storage
+  snapshots
+- **AND** Task records are written through the Program snapshot in
+  `state/instance.json`
+- **AND** dormant Tasks install metadata does not produce
+  `state/apps/<installId>.json`
 - **AND** browser IndexedDB state is not used as the source of truth
 - **AND** secrets are not written to `formless.ts`, storage snapshots, or
   media files
+
+#### Scenario: Tasks installed-app workflows are absent
+
+- **WHEN** CLI archive, workspace, package upgrade, reset, deploy, or source
+  synchronization selects runtime-installed apps
+- **THEN** it does not select package key `tasks` as an installed app target
+- **AND** it does not read, write, reset, migrate, import, or export a legacy
+  Tasks Authority
+- **AND** Task data participates only through the complete Program snapshot and
+  Program source hash
+- **AND** Site, CRM, and workspace-linked package workflows remain unchanged
 
 #### Scenario: Auto-save local workspace state
 

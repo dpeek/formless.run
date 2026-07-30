@@ -221,6 +221,7 @@ describe("generated application shell projection", () => {
         };
       }),
     ).toEqual([
+      { href: "/tasks", label: "Tasks", selected: false },
       { href: "/apps", label: "Apps", selected: false },
       { href: "/routes", label: "Routes", selected: false },
       { href: "/deployments", label: "Deployments", selected: false },
@@ -231,6 +232,14 @@ describe("generated application shell projection", () => {
       { href: "/policies", label: "Policies", selected: false },
       { href: "/settings", label: "Settings", selected: false },
     ]);
+    expect(
+      settingsProjection.sections
+        .flatMap((section) => section.destinations)
+        .filter(
+          (destination) =>
+            destination.kind === "shellLinkDestination" && destination.href === "/tasks",
+        ),
+    ).toHaveLength(1);
   });
 
   it("projects only server-authorized Program destinations in artifact order", () => {

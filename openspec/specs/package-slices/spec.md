@@ -136,17 +136,29 @@ domain declarations.
 #### Scenario: Default Formless Program root
 
 - GIVEN the Formless runtime package composes the default product Program
-- WHEN it selects reusable instance and identity schema modules
+- WHEN it selects reusable instance, identity, and Tasks schema modules
 - THEN it imports them through their documented package `./schema` subpaths
 - AND the root owns the explicit module list, runtime owner, navigation,
   project-local modules, and deliberate replacements for conflicting
   presentation declarations
-- AND the Instance Control Plane and Identity Control Plane packages continue
-  owning their record and presentation declarations
+- AND the Instance Control Plane, Identity Control Plane, and Tasks packages
+  continue owning their record and presentation declarations and domain
+  adapters
 - AND the Schema package continues owning only the generic App schema
   authoring and composition contracts
 - AND no generic Program package or registry automatically discovers, fetches,
   versions, includes, or reorders domain modules
+
+#### Scenario: Program root specializes Tasks without forking the domain
+
+- GIVEN the Tasks package exposes standalone record and presentation modules
+- WHEN the default Program needs Program-specific access and navigation
+- THEN the Program root uses deliberate same-key replacements for only those
+  complete module declarations
+- AND the replacements preserve the Task stable entity id, fields, queries,
+  operation effects, views, and adapter ownership
+- AND the Program root owns the complete Program roles, screen path,
+  navigation, storage, replica, archive, workspace, and runtime availability
 
 #### Scenario: Program root supports omission and ejection
 
@@ -178,9 +190,9 @@ domain declarations.
 - WHEN storage identity, schema provenance, API routing, browser replication,
   archive, workspace, or authorization behavior is selected
 - THEN the downstream Formless Program root owns those complete-runtime choices
-- AND the Instance Control Plane and Identity Control Plane packages continue
-  owning their schema modules, stable entity ids, validation helpers, and
-  domain adapters
+- AND the Instance Control Plane, Identity Control Plane, and Tasks packages
+  continue owning their schema modules, stable entity ids, validation helpers,
+  and domain adapters
 - AND package authoring module keys do not become runtime storage,
   authorization, qualified-entity, route, archive, or provenance identity
 - AND the Schema package does not gain instance, identity, archive, runtime, or
@@ -730,11 +742,13 @@ runtime adapter execution.
 
 #### Scenario: Package does not own bundled defaults
 
-- GIVEN the default runtime resolver needs bundled Site, Tasks, or CRM package
-  manifests
+- GIVEN the default runtime resolver needs bundled Site or CRM package
+  manifests and the Program composition needs the Tasks package artifact
 - WHEN bundled package metadata is composed
-- THEN root runtime code supplies bundled manifests to the Installed Apps
-  package resolver
+- THEN root runtime code supplies runtime-installable manifests to the Installed
+  Apps package resolver
+- AND root Program code may retain Tasks package facts for artifact or dormant
+  metadata validation without making Tasks runtime-installable
 - AND package source does not import bundled schema JSON or root-only bundled
   package lists
 

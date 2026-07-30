@@ -1,11 +1,15 @@
 export type SchemaKey = "tasks" | "site" | "crm";
+export type SourceSchemaKey = Exclude<SchemaKey, "tasks">;
 
-export const defaultSchemaKey = "tasks" satisfies SchemaKey;
+export const defaultSchemaKey = "site" satisfies SourceSchemaKey;
 
 export type SchemaAppDefinition = {
   key: SchemaKey;
   label: string;
   route: `/${string}`;
+};
+export type SourceSchemaAppDefinition = SchemaAppDefinition & {
+  key: SourceSchemaKey;
 };
 
 export const schemaAppDefinitions = {
@@ -27,24 +31,25 @@ export const schemaAppDefinitions = {
 } as const satisfies Record<SchemaKey, SchemaAppDefinition>;
 
 export const schemaApps = [
-  schemaAppDefinitions.tasks,
   schemaAppDefinitions.site,
   schemaAppDefinitions.crm,
-] as const satisfies readonly SchemaAppDefinition[];
+] as const satisfies readonly SourceSchemaAppDefinition[];
 
-export function isSchemaKey(value: string): value is SchemaKey {
-  return Object.prototype.hasOwnProperty.call(schemaAppDefinitions, value);
+export function isSchemaKey(value: string): value is SourceSchemaKey {
+  return schemaApps.some((app) => app.key === value);
 }
 
 export function getSchemaAppDefinition(key: SchemaKey): SchemaAppDefinition {
   return schemaAppDefinitions[key];
 }
 
-export function findSchemaAppDefinition(key: string): SchemaAppDefinition | undefined {
-  return isSchemaKey(key) ? getSchemaAppDefinition(key) : undefined;
+export function findSchemaAppDefinition(key: string): SourceSchemaAppDefinition | undefined {
+  return schemaApps.find((app) => app.key === key);
 }
 
-export function findSchemaAppDefinitionByRoute(pathname: string): SchemaAppDefinition | undefined {
+export function findSchemaAppDefinitionByRoute(
+  pathname: string,
+): SourceSchemaAppDefinition | undefined {
   return schemaApps.find((app) => schemaAppScreenPathFromRoute(app, pathname));
 }
 

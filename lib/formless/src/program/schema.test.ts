@@ -7,6 +7,10 @@ import {
   instanceControlPlanePresentationSchemaModule,
   instanceControlPlaneRecordSchemaModule,
 } from "@dpeek/formless-instance-control-plane/schema";
+import {
+  tasksPresentationSchemaModule,
+  tasksRecordSchemaModule,
+} from "@dpeek/formless-tasks-app/schema";
 import { composeAppSchema, parseAppSchema, type AppSchemaSource } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 import {
@@ -14,6 +18,8 @@ import {
   formlessInstanceControlPlanePresentationSchemaModule,
   formlessProgramSchemaModules,
   formlessProgramSourceSchema,
+  formlessTasksPresentationSchemaModule,
+  formlessTasksRecordSchemaModule,
 } from "./schema.ts";
 
 describe("Formless Program schema", () => {
@@ -33,9 +39,10 @@ describe("Formless Program schema", () => {
       'Schema declaration "screens.apps" is contributed by both modules "instance-control-plane-presentation" and "identity-control-plane-presentation".',
     );
 
-    expect(formlessProgramSchemaModules.slice(0, 2)).toEqual([
+    expect(formlessProgramSchemaModules.slice(0, 3)).toEqual([
       instanceControlPlaneRecordSchemaModule,
       identityControlPlaneRecordSchemaModule,
+      formlessTasksRecordSchemaModule,
     ]);
     expect(formlessInstanceControlPlanePresentationSchemaModule.key).toBe(
       instanceControlPlanePresentationSchemaModule.key,
@@ -49,6 +56,29 @@ describe("Formless Program schema", () => {
     expect(
       formlessIdentityControlPlanePresentationSchemaModule.screens.map(({ key }) => key),
     ).toEqual(["principals", "organizations", "access", "invitations", "policies"]);
+  });
+
+  it("specializes Tasks through same-key Program replacements", () => {
+    expect(formlessTasksRecordSchemaModule).toEqual({
+      ...tasksRecordSchemaModule,
+      entities: tasksRecordSchemaModule.entities.map((entity) => ({
+        ...entity,
+        operations: entity.operations?.map((operation) => ({
+          ...operation,
+          access: { role: "editor" },
+        })),
+      })),
+    });
+    expect(formlessTasksPresentationSchemaModule).toEqual({
+      ...tasksPresentationSchemaModule,
+      screens: tasksPresentationSchemaModule.screens.map((screen) => ({
+        ...screen,
+        path: "/tasks",
+        access: { role: "member" },
+      })),
+    });
+    expect(formlessTasksRecordSchemaModule.key).toBe(tasksRecordSchemaModule.key);
+    expect(formlessTasksPresentationSchemaModule.key).toBe(tasksPresentationSchemaModule.key);
   });
 
   it("composes one complete root-owned Program presentation", () => {
@@ -83,6 +113,7 @@ describe("Formless Program schema", () => {
       { access: { role: "administrator" }, key: "access" },
       { access: { role: "administrator" }, key: "invitations" },
       { access: { role: "administrator" }, key: "policies" },
+      { access: { role: "member" }, key: "taskHome" },
       { access: { role: "administrator" }, key: "apps" },
     ]);
     expect(screens.principals?.path).toBe("/");
@@ -95,7 +126,9 @@ describe("Formless Program schema", () => {
         ],
       },
     });
+    expect(screens.taskHome?.path).toBe("/tasks");
     expect(parsed.navigation?.primaryScreens).toEqual([
+      "taskHome",
       "apps",
       "routes",
       "deployments",
@@ -111,6 +144,7 @@ describe("Formless Program schema", () => {
       [
         ...instanceControlPlaneRecordSchemaModule.entities,
         ...identityControlPlaneRecordSchemaModule.entities,
+        ...tasksRecordSchemaModule.entities,
       ].map(({ id, key }) => [key, id]),
     );
     expect(Object.fromEntries(parsed.entities.map(({ id, key }) => [key, id]))).toEqual(
@@ -127,6 +161,8 @@ describe("Formless Program schema", () => {
     expect(artifactText).not.toContain('"requires"');
     expect(artifactText).not.toContain("instance-control-plane-records");
     expect(artifactText).not.toContain("identity-control-plane-records");
+    expect(artifactText).not.toContain("tasks-records");
+    expect(artifactText).not.toContain("tasks-presentation");
     expect(artifactText).not.toContain("formless-program-presentation");
     expect(artifactText).not.toContain("@dpeek/");
   });

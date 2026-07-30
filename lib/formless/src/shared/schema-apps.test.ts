@@ -10,15 +10,16 @@ import {
 } from "./schema-apps.ts";
 
 describe("schema app definitions", () => {
-  it("declares the first route-backed schema apps in order", () => {
-    expect(schemaApps.map((app) => app.key)).toEqual(["tasks", "site", "crm"]);
-    expect(schemaApps.map((app) => app.route)).toEqual(["/tasks", "/site", "/crm"]);
+  it("declares only runtime-routable source apps in order", () => {
+    expect(schemaApps.map((app) => app.key)).toEqual(["site", "crm"]);
+    expect(schemaApps.map((app) => app.route)).toEqual(["/site", "/crm"]);
   });
 
   it("looks up app definitions by schema key and route", () => {
-    expect(isSchemaKey("tasks")).toBe(true);
+    expect(isSchemaKey("tasks")).toBe(false);
     expect(isSchemaKey("missing")).toBe(false);
     expect(getSchemaAppDefinition("tasks").label).toBe("Tasks");
+    expect(findSchemaAppDefinition("tasks")).toBeUndefined();
     expect(findSchemaAppDefinition("rates")).toBeUndefined();
     expect(findSchemaAppDefinition("site")?.label).toBe("Site");
     expect(findSchemaAppDefinition("crm")?.label).toBe("CRM");

@@ -22,6 +22,26 @@ export type WorkspaceAppPackageFixture = {
   sourceSchemaPath: string;
 };
 
+export async function runtimeWorkspaceTaskAppPackageFixture(
+  options: WorkspaceAppPackageFixtureOptions = {},
+) {
+  const sourceSchema = options.sourceSchema ?? rawTaskSourceSchema;
+  const sourceSchemaHash =
+    options.sourceSchemaHash ?? (await computeSourceSchemaHash(sourceSchema));
+
+  return {
+    manifest: workspaceAppPackageManifestFixture({
+      defaultInstallId: "test-tasks",
+      label: "Test Tasks",
+      packageAppKey: "test-tasks",
+      supportsMultipleInstalls: true,
+      ...options,
+      sourceSchemaHash,
+    }),
+    sourceSchema,
+  };
+}
+
 type WorkspaceAppPackageFixtureOptions = {
   capabilities?: AppPackageCapability[];
   defaultInstallId?: string;

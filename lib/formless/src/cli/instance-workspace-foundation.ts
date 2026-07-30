@@ -17,6 +17,7 @@ import {
 import {
   bundledAppPackageManifests,
   findResolvedAppPackage,
+  runtimeInstallableAppPackageResolver,
   type AppPackageResolver,
 } from "../shared/app-packages.ts";
 import { formatRuntimeWorkspaceAppPackages } from "../shared/workspace-runtime-packages.ts";
@@ -159,11 +160,20 @@ export async function createActiveWorkspaceAppPackages(
 ): Promise<ActiveWorkspaceAppPackages> {
   const workspaceConfig = config ?? (await readWorkspaceConfig(workspaceRoot)).config;
 
-  return createWorkspaceAppPackageResolver({
+  const activePackages = await createWorkspaceAppPackageResolver({
     bundledManifests: bundledAppPackageManifests,
     manifest: workspaceConfig,
     workspaceRoot,
   });
+  const resolver = runtimeInstallableAppPackageResolver(activePackages.resolver);
+
+  return {
+    ...activePackages,
+    linkedPackages: activePackages.linkedPackages.filter(
+      (appPackage) => resolver.findPackage(appPackage.appPackage.packageAppKey) !== undefined,
+    ),
+    resolver,
+  };
 }
 
 export function workspaceSourceSchemaForPackageApp(input: {

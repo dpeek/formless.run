@@ -16,7 +16,8 @@ The system SHALL treat an app install id as the stable instance-local identity f
 
 #### Scenario: Valid install id
 
-- GIVEN a create app install request uses an install id such as `site`, `tasks`, `docs-site`, or `project-site-2026`
+- GIVEN a create app install request uses an install id such as `site`, `crm`,
+  `docs-site`, or `project-site-2026`
 - WHEN the install id is route-safe and unique within the Formless instance
 - THEN the app install can be created
 - AND the app install id is used in admin, API, Authority, browser replica, and broadcast identity
@@ -41,11 +42,13 @@ app install can be created.
   default install id, multiple-install policy, source origin, source schema key,
   package revision, source schema hash, admin route base, and optional public
   route capability
-- **AND** the default runtime resolver includes the bundled Site, Tasks, and
-  CRM packages with package app keys `site`, `tasks`, and `crm`
-- **AND** Site, Tasks, and CRM package metadata comes from app package manifest
-  facts, not from app install records, instance control-plane route records, or
-  root schema path conventions
+- **AND** the default runtime-installable resolver includes the bundled Site and
+  CRM packages with package app keys `site` and `crm`
+- **AND** Site and CRM package metadata comes from app package manifest facts,
+  not from app install records, instance control-plane route records, or root
+  schema path conventions
+- **AND** the Program-native package key `tasks` is absent from the
+  runtime-installable resolver
 
 #### Scenario: Active resolver is authoritative
 
@@ -95,6 +98,19 @@ app install can be created.
 - **THEN** the request is rejected
 - **AND** no app install metadata or initial app data is committed
 
+#### Scenario: Program-native package is not installable
+
+- **GIVEN** package key `tasks` identifies a domain composed into the default
+  Program
+- **WHEN** package lists, create-install APIs, generic Program app-install
+  writes, installed-app route admission, browser registries, archive app
+  selection, workspace app selection, or upgrade planning run
+- **THEN** Tasks is unavailable as a runtime-installed package
+- **AND** a workspace-linked manifest cannot reintroduce `tasks` as an
+  installable package key
+- **AND** package facts retained for standalone artifact or dormant metadata
+  validation do not confer runtime availability
+
 ### Requirement: Installed Apps Package Boundary
 
 The system SHALL expose reusable installed-app and app-package metadata
@@ -111,14 +127,16 @@ contracts through the Installed Apps package slice.
 - THEN they come from `@dpeek/formless-installed-apps`
 - AND code does not import those contracts from root runtime modules
 
-#### Scenario: Runtime supplies bundled package manifests
+#### Scenario: Runtime supplies installable bundled package manifests
 
-- GIVEN the default runtime resolver needs bundled Site, Tasks, and CRM package
+- GIVEN the default runtime resolver needs bundled Site and CRM package
   metadata
 - WHEN the resolver is composed
 - THEN root runtime code supplies bundled package manifests as resolver input
-- AND bundled Site, Tasks, and CRM manifests can be imported from their app
-  packages through documented public exports
+- AND bundled Site and CRM manifests can be imported from their app packages
+  through documented public exports
+- AND the root may import the Tasks manifest separately without supplying it to
+  the runtime-installable resolver
 - AND the Installed Apps package does not import bundled app schema JSON,
   root-only bundled package lists, or package-specific runtime adapters
 
@@ -284,14 +302,13 @@ planning.
 The system MUST initialize a created package app install from that resolved
 package's source schema without creating package-owned records.
 
-#### Scenario: Tasks initialization
+#### Scenario: Program-native Tasks bypasses install initialization
 
-- **GIVEN** a Tasks app install is created with install id `tasks`
-- **WHEN** `/api/app-installs/tasks/tasks/bootstrap` is read
-- **THEN** the bootstrap response contains the bundled Tasks app package source
-  schema
-- **AND** the bootstrap response contains no records and its cursor reflects no
-  record changes
+- **GIVEN** the default Program contains the package-owned Task entity
+- **WHEN** Task storage is initialized
+- **THEN** it uses the Program Authority and complete Program schema
+- **AND** no Tasks install-scoped Authority, API prefix, replica, broadcast
+  channel, or package initialization plan is created
 
 #### Scenario: CRM initialization
 
@@ -427,6 +444,8 @@ records and the active package resolver.
 - **THEN** the response derives installed apps from schema-owned app install and
   route records
 - **AND** package lists come from the active package resolver
+- **AND** Program-native Tasks install metadata and routes are omitted from the
+  operational registry even when dormant records remain in Program storage
 
 #### Scenario: Role-filtered browser registry read
 
@@ -491,6 +510,18 @@ The system SHALL derive workspace app install intent from schema-owned
   configuration are not copied into the `app-install` record
 - **AND** workspace source that contains public Site route records is validated
   against that same active resolver before those routes are accepted
+
+#### Scenario: Dormant Tasks install records do not become workspace app intent
+
+- **GIVEN** `state/instance.json` contains legacy Tasks `app-install` or `route`
+  records
+- **WHEN** local dev, check, push, deploy, archive restore, or workspace app
+  state selection runs
+- **THEN** those records do not require or create a
+  `state/apps/<installId>.json` Tasks snapshot
+- **AND** they do not resolve an install-scoped route or Authority
+- **AND** Site, CRM, and other runtime-installable records retain their existing
+  package and storage behavior
 
 #### Scenario: Missing app storage snapshot
 

@@ -243,7 +243,7 @@ describe("runtime topology", () => {
     expect(isRuntimeInstanceProfileClientShellRoute("/deployments")).toBe(true);
     expect(isRuntimeInstanceProfileClientShellRoute("/apps/personal")).toBe(true);
     expect(isRuntimeInstanceProfileClientShellRoute("/sites/personal")).toBe(true);
-    expect(isRuntimeInstanceProfileClientShellRoute("/tasks")).toBe(false);
+    expect(isRuntimeInstanceProfileClientShellRoute("/tasks")).toBe(true);
     expect(isRuntimeInstanceProfileClientShellRoute("/pages/home")).toBe(false);
     expect(isRuntimeAuthAccountRoutePath("/formless/auth")).toBe(true);
     expect(isRuntimeAuthAccountRoutePath("/formless/auth/profile-completion")).toBe(true);

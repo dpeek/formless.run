@@ -131,6 +131,8 @@ export function resolveInstanceRuntimeRouteFromRecords(input: {
   packageResolver?: AppPackageResolver;
 }): InstanceRuntimeRouteResolution | undefined {
   const candidate = selectInstanceRuntimeRouteCandidate({
+    appInstalls: input.appInstalls,
+    packageResolver: input.packageResolver,
     records: input.records,
     request: input.request,
     options: input.options,
@@ -149,6 +151,8 @@ export function resolveInstanceRuntimeRouteFromRecords(input: {
 }
 
 function selectInstanceRuntimeRouteCandidate(input: {
+  appInstalls: readonly AppInstall[];
+  packageResolver?: AppPackageResolver;
   records: readonly StoredRecord[];
   request: InstanceRuntimeRouteRequest;
   options?: InstanceRuntimeRouteResolutionOptions;
@@ -162,7 +166,10 @@ function selectInstanceRuntimeRouteCandidate(input: {
         pathname: input.request.pathname,
       });
 
-      return candidate ? [candidate] : [];
+      return candidate &&
+        routeCandidateHasAvailableRuntimeTarget(candidate, input.appInstalls, input.packageResolver)
+        ? [candidate]
+        : [];
     })
     .sort(compareRouteCandidates);
 
@@ -184,6 +191,18 @@ function selectInstanceRuntimeRouteCandidate(input: {
   }
 
   return candidates[0];
+}
+
+function routeCandidateHasAvailableRuntimeTarget(
+  candidate: RouteCandidate,
+  appInstalls: readonly AppInstall[],
+  packageResolver?: AppPackageResolver,
+): boolean {
+  const targetProfile = candidate.values.targetProfile;
+
+  return targetProfile !== "app" && targetProfile !== "public-site"
+    ? true
+    : installTarget(candidate.values, appInstalls, packageResolver) !== undefined;
 }
 
 function routeCandidateFromRecord(

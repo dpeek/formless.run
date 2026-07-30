@@ -11,6 +11,7 @@ import type { SchemaKey } from "../shared/schema-apps.ts";
 import type { createWorkerHarness } from "../worker/miniflare-test.ts";
 import { getWorkerSchemaAppDefinition } from "../worker/schema-apps.ts";
 import { schemaAppTestRecords } from "./schema-app-records.ts";
+import { taskSourceSchema } from "./schema-apps.ts";
 import { formlessProgramSchema } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
@@ -21,6 +22,8 @@ type AuthorityHarness = Pick<
   Awaited<ReturnType<typeof createWorkerHarness>>,
   "durableObjectFetch" | "fetch"
 >;
+const taskTestPackageAppKey = "test-tasks";
+const taskTestInstallId = "test-tasks";
 
 export type AuthorityWriteHelpers = ReturnType<typeof createAuthorityWriteHelpers>;
 export type AuthorityTestRecordOperationResult = {
@@ -63,26 +66,41 @@ export function createAuthorityWriteHelpers(
       throw new Error(`Expected API path, received "${path}".`);
     }
 
-    return `/api/${schemaKey}${path.slice("/api".length)}`;
+    return schemaKey === "tasks"
+      ? `/api/app-installs/${taskTestPackageAppKey}/${taskTestInstallId}${path.slice("/api".length)}`
+      : `/api/${schemaKey}${path.slice("/api".length)}`;
+  }
+
+  function fetchAuthority(
+    path: string,
+    init?: Parameters<AuthorityHarness["fetch"]>[1],
+    schemaKey: SchemaKey = currentSchemaKey,
+  ) {
+    return harness.fetch(apiPath(path, schemaKey), init);
   }
 
   async function resetSchemaApp(schemaKey: SchemaKey) {
-    const app = getWorkerSchemaAppDefinition(schemaKey);
+    const schema =
+      schemaKey === "tasks"
+        ? taskSourceSchema
+        : getWorkerSchemaAppDefinition(schemaKey).sourceSchema;
+
+    const snapshot = testStorageSnapshot({
+      records: schemaAppTestRecords(schemaKey),
+      schema,
+      schemaKey: schemaKey === "tasks" ? taskTestPackageAppKey : schemaKey,
+      storageIdentity: schemaKey === "tasks" ? `app:${taskTestInstallId}` : schemaKey,
+    });
 
     await restoreTestStorageSnapshot(
       harness,
-      `/api/${schemaKey}/snapshot/restore`,
-      testStorageSnapshot({
-        records: schemaAppTestRecords(schemaKey),
-        schema: app.sourceSchema,
-        schemaKey,
-        storageIdentity: schemaKey,
-      }),
+      apiPath("/api/snapshot/restore", schemaKey),
+      snapshot,
     );
   }
 
   async function getJson<T>(path: string) {
-    const response = await harness.fetch(apiPath(path));
+    const response = await fetchAuthority(path);
 
     expect(response.status).toBe(200);
 
@@ -90,7 +108,7 @@ export function createAuthorityWriteHelpers(
   }
 
   async function postJson<T>(path: string, body: unknown) {
-    const response = await harness.fetch(apiPath(path), {
+    const response = await fetchAuthority(path, {
       body: JSON.stringify(body),
       headers: { "Content-Type": "application/json" },
       method: "POST",
@@ -110,7 +128,7 @@ export function createAuthorityWriteHelpers(
     entity: string,
     values: Record<string, unknown>,
   ) {
-    const response = await harness.fetch(apiPath(`/api/operations/${entity}/create`), {
+    const response = await fetchAuthority(`/api/operations/${entity}/create`, {
       body: JSON.stringify({
         idempotencyKey,
         input: values,
@@ -151,7 +169,7 @@ export function createAuthorityWriteHelpers(
 
   async function postRecordOperationRequest(requestBody: AuthorityTestRecordOperationRequest) {
     const request = recordOperationRequest(requestBody);
-    const response = await harness.fetch(apiPath(request.path), {
+    const response = await fetchAuthority(request.path, {
       body: JSON.stringify(request.body),
       headers: { "Content-Type": "application/json" },
       method: "POST",
@@ -167,7 +185,7 @@ export function createAuthorityWriteHelpers(
     message: string,
   ) {
     const request = recordOperationRequest(requestBody);
-    const response = await harness.fetch(apiPath(request.path), {
+    const response = await fetchAuthority(request.path, {
       body: JSON.stringify(request.body),
       headers: { "Content-Type": "application/json" },
       method: "POST",
@@ -184,7 +202,7 @@ export function createAuthorityWriteHelpers(
     message: string,
   ) {
     const request = commandOperationRequest(requestBody);
-    const response = await harness.fetch(apiPath(request.path), {
+    const response = await fetchAuthority(request.path, {
       body: JSON.stringify(request.body),
       headers: { "Content-Type": "application/json" },
       method: "POST",
@@ -197,7 +215,7 @@ export function createAuthorityWriteHelpers(
   }
 
   async function expectError(path: string, body: unknown, message: string) {
-    const response = await harness.fetch(apiPath(path), {
+    const response = await fetchAuthority(path, {
       body: body === undefined ? undefined : JSON.stringify(body),
       headers: body === undefined ? undefined : { "Content-Type": "application/json" },
       method: body === undefined ? "GET" : "POST",
@@ -221,6 +239,7 @@ export function createAuthorityWriteHelpers(
     expectError,
     expectRecordOperationError,
     expectNotFound,
+    fetch: fetchAuthority,
     getJson,
     postCommandOperation,
     postCommandOperationForEntity,
@@ -258,11 +277,12 @@ export function schemaAppTestStorageSnapshot(
   schemaKey: SchemaKey,
   storageIdentity: string = schemaKey,
 ): StorageSnapshot {
-  const app = getWorkerSchemaAppDefinition(schemaKey);
+  const schema =
+    schemaKey === "tasks" ? taskSourceSchema : getWorkerSchemaAppDefinition(schemaKey).sourceSchema;
 
   return testStorageSnapshot({
     records: schemaAppTestRecords(schemaKey),
-    schema: app.sourceSchema,
+    schema,
     schemaKey,
     storageIdentity,
   });

@@ -21,6 +21,11 @@ import {
 import { CENTRAL_AUTH_SESSION_COOKIE_NAME } from "./central-auth-session.ts";
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { createOwnerSessionCookie } from "./owner-session.ts";
+import {
+  FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
+  formatRuntimeWorkspaceAppPackages,
+} from "../shared/workspace-runtime-packages.ts";
+import { runtimeWorkspaceTaskAppPackageFixture } from "../test/workspace-app-package.ts";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 type HarnessResponse = Awaited<ReturnType<Harness["fetch"]>>;
@@ -33,6 +38,7 @@ const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
 const pdfBytes = new TextEncoder().encode("%PDF-1.7\nFormless document media test\n%%EOF");
 const privateDocumentField = "privateReport";
 const publicDocumentField = "publicReport";
+const taskPackageAppKey = "test-tasks";
 const owner: OwnerIdentity = {
   id: "owner-1",
   name: "Ada Owner",
@@ -51,12 +57,18 @@ let guardedHarness: Harness;
 let guardedHarnessDir: string;
 
 beforeAll(async () => {
+  const taskPackages = formatRuntimeWorkspaceAppPackages([
+    await runtimeWorkspaceTaskAppPackageFixture({ packageAppKey: taskPackageAppKey }),
+  ]);
   harness = await createWorkerHarness(
     "src/worker/index.ts",
     {
       FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true },
     },
     {
+      bindings: {
+        [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: taskPackages,
+      },
       compatibilityDate: FORMLESS_WORKER_COMPATIBILITY_DATE,
       r2Buckets: mediaBuckets,
     },
@@ -72,6 +84,7 @@ beforeAll(async () => {
       bindings: {
         FORMLESS_ADMIN_TOKEN: adminToken,
         FORMLESS_OWNER_SESSION_SECRET: sessionSecret,
+        [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: taskPackages,
       },
       compatibilityDate: FORMLESS_WORKER_COMPATIBILITY_DATE,
       r2Buckets: mediaBuckets,
@@ -611,7 +624,7 @@ describe("media worker routes", () => {
 });
 
 async function configureDocumentSchema(installId: string) {
-  const schemaPath = `/api/app-installs/tasks/${installId}/schema`;
+  const schemaPath = `/api/app-installs/${taskPackageAppKey}/${installId}/schema`;
   const current = await guardedHarness.fetch(schemaPath, {
     headers: adminHeaders(),
   });
@@ -787,11 +800,11 @@ function documentCollectionPath(installId: string, fieldName: string) {
     field: fieldName,
   });
 
-  return `/api/app-installs/tasks/${installId}/media/documents?${query.toString()}`;
+  return `/api/app-installs/${taskPackageAppKey}/${installId}/media/documents?${query.toString()}`;
 }
 
 function documentDeliveryPath(installId: string, assetId: string) {
-  return `/api/app-installs/tasks/${installId}/media/documents/${assetId}`;
+  return `/api/app-installs/${taskPackageAppKey}/${installId}/media/documents/${assetId}`;
 }
 
 function documentFile(name: string): TestFile {

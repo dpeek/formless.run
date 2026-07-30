@@ -3,10 +3,12 @@ import type { AppSchema } from "@dpeek/formless-schema";
 
 import {
   bundledAppPackageManifests,
+  bundledAppPackageResolver,
   createAppPackageResolver,
   findResolvedAppPackage,
   listResolvedAppPackages,
   parseAppPackageManifest,
+  runtimeInstallableAppPackageResolver,
   type AppPackageManifest,
   type AppPackageResolver,
   type ResolvedAppPackage,
@@ -82,10 +84,12 @@ function activeRuntimeAppPackages(env?: ActiveRuntimeAppPackageEnv): ActiveRunti
   const linked = parsed.packages.map((source, index) =>
     parseRuntimeWorkspaceAppPackageSource(source, `workspace app packages[${index}]`),
   );
-  const resolver = createAppPackageResolver([
-    ...bundledAppPackageManifests,
-    ...linked.map((source) => source.manifest),
-  ]);
+  const resolver = runtimeInstallableAppPackageResolver(
+    createAppPackageResolver([
+      ...bundledAppPackageManifests,
+      ...linked.map((source) => source.manifest),
+    ]),
+  );
   const schemaDefinitions = new Map<string, WorkerSchemaAppDefinition>(
     Object.entries(workerSchemaAppDefinitions),
   );
@@ -100,7 +104,7 @@ function activeRuntimeAppPackages(env?: ActiveRuntimeAppPackageEnv): ActiveRunti
     const appPackage = resolver.findPackage(source.manifest.packageAppKey);
 
     if (!appPackage) {
-      throw new Error(`Workspace app package "${source.manifest.packageAppKey}" was not resolved.`);
+      continue;
     }
 
     const definition = workerSchemaAppDefinitionFromPackageSource(appPackage, source);
@@ -143,7 +147,7 @@ function bundledRuntimeAppPackages(): ActiveRuntimeAppPackages {
   );
 
   return {
-    resolver: createAppPackageResolver(bundledAppPackageManifests),
+    resolver: bundledAppPackageResolver,
     schemaDefinitions,
     sourceSchemas: new Map(
       [...schemaDefinitions.entries()].map(([key, definition]) => [key, definition.sourceSchema]),

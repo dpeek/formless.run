@@ -26,6 +26,11 @@ import {
   schemaWithEmailStylePublicIntake,
 } from "../test/public-intake-schema.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
+import {
+  FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
+  formatRuntimeWorkspaceAppPackages,
+} from "../shared/workspace-runtime-packages.ts";
+import { runtimeWorkspaceTaskAppPackageFixture } from "../test/workspace-app-package.ts";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 type DispatchFetchInit = Parameters<Harness["mf"]["dispatchFetch"]>[1];
@@ -42,6 +47,8 @@ const mappedHost = "subscribe.example.com";
 const installId = "personal";
 const defaultSiteInstallId = "site";
 const recordPlanInstallId = "public-intake";
+const taskPackageAppKey = "test-tasks";
+const taskApi = `/api/app-installs/${taskPackageAppKey}/test-tasks`;
 
 let harness: Harness;
 let mappedHarness: Harness;
@@ -272,7 +279,7 @@ describe("public operation runtime", () => {
         },
       },
       harness,
-      "/api/tasks",
+      taskApi,
     );
     await postAdminRecordOperation(
       {
@@ -290,11 +297,11 @@ describe("public operation runtime", () => {
         },
       },
       harness,
-      "/api/tasks",
+      taskApi,
     );
-    const before = await getJson<BootstrapResponse>("/api/tasks/bootstrap");
+    const before = await getJson<BootstrapResponse>(`${taskApi}/bootstrap`);
     const matched = await postPublicOperation(
-      "/api/tasks/public/operations/task/lookup",
+      `${taskApi}/public/operations/task/lookup`,
       {
         input: { lookup: "CODE-ALPHA" },
       },
@@ -302,7 +309,7 @@ describe("public operation runtime", () => {
       { "CF-Connecting-IP": "203.0.113.77" },
     );
     const empty = await postPublicOperation(
-      "/api/tasks/public/operations/task/lookup",
+      `${taskApi}/public/operations/task/lookup`,
       {
         input: { lookup: "NO-MATCH" },
       },
@@ -310,14 +317,14 @@ describe("public operation runtime", () => {
       { "CF-Connecting-IP": "203.0.113.77" },
     );
     const limited = await postPublicOperation(
-      "/api/tasks/public/operations/task/lookup",
+      `${taskApi}/public/operations/task/lookup`,
       {
         input: { lookup: "CODE-ALPHA" },
       },
       harness,
       { "CF-Connecting-IP": "203.0.113.77" },
     );
-    const after = await getJson<BootstrapResponse>("/api/tasks/bootstrap");
+    const after = await getJson<BootstrapResponse>(`${taskApi}/bootstrap`);
     const matchedBody = (await matched.json()) as Record<string, unknown>;
     const emptyBody = (await empty.json()) as Record<string, unknown>;
 
@@ -368,10 +375,10 @@ describe("public operation runtime", () => {
 
   it("schedules generic operation input notifications from installed Site forms targeting another app install", async () => {
     const publicIdempotencyKey = "cross-app-operation-input-notify";
-    const targetApiPrefix = `/api/app-installs/tasks/${recordPlanInstallId}`;
+    const targetApiPrefix = `/api/app-installs/${taskPackageAppKey}/${recordPlanInstallId}`;
 
     await resetInstalledApp("site", defaultSiteInstallId);
-    await resetInstalledApp("tasks", recordPlanInstallId);
+    await resetInstalledApp(taskPackageAppKey, recordPlanInstallId);
     await installEmailStylePublicIntakeSchema(harness, targetApiPrefix);
     const emailConfig = await configureContactNotificationEmail(harness);
 
@@ -559,13 +566,22 @@ async function createPublicOperationWorkerHarness(input: {
   bindings: Record<string, string>;
   turnstileVerify: (request: Request) => Promise<Response> | Response;
 }) {
+  const taskPackage = await runtimeWorkspaceTaskAppPackageFixture({
+    packageAppKey: taskPackageAppKey,
+  });
+
   return createWorkerHarness(
     "src/worker/index.ts",
     {
       FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true },
     },
     {
-      bindings: input.bindings,
+      bindings: {
+        ...input.bindings,
+        [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
+          taskPackage,
+        ]),
+      },
       compatibilityDate: "2026-04-28",
       queueProducers: {
         FORMLESS_EMAIL_DELIVERY_QUEUE: "formless-email-delivery",
@@ -607,23 +623,33 @@ function isUuid(value: string) {
 }
 
 async function resetSchemaApp(schemaKey: "tasks" | "site", target: Harness = harness) {
+  const taskSchema = schemaKey === "tasks";
   await restoreTestStorageSnapshot(
     target,
-    `/api/${schemaKey}/snapshot/restore`,
-    schemaAppTestStorageSnapshot(schemaKey),
+    `${taskSchema ? taskApi : `/api/${schemaKey}`}/snapshot/restore`,
+    {
+      ...schemaAppTestStorageSnapshot(schemaKey, taskSchema ? "app:test-tasks" : schemaKey),
+      schemaKey: taskSchema ? taskPackageAppKey : schemaKey,
+    },
     adminHeaders(),
   );
 }
 
 async function resetInstalledApp(
-  packageAppKey: "crm" | "site" | "tasks",
+  packageAppKey: "crm" | "site" | "tasks" | typeof taskPackageAppKey,
   appInstallId: string,
   target: Harness = harness,
 ) {
   await restoreTestStorageSnapshot(
     target,
     `/api/app-installs/${packageAppKey}/${appInstallId}/snapshot/restore`,
-    schemaAppTestStorageSnapshot(packageAppKey, `app:${appInstallId}`),
+    {
+      ...schemaAppTestStorageSnapshot(
+        packageAppKey === taskPackageAppKey ? "tasks" : packageAppKey,
+        `app:${appInstallId}`,
+      ),
+      schemaKey: packageAppKey,
+    },
     adminHeaders(),
   );
 }
@@ -662,8 +688,8 @@ async function installAffirmativePublicIntakeSchema(
   await postAdminJson<SchemaUpdateResponse>(`${apiPrefix}/schema`, { schema }, target);
 }
 async function installTaskPublicLookupSchema() {
-  const current = await getJson<SchemaResponse>("/api/tasks/schema");
-  await postAdminJson<SchemaUpdateResponse>("/api/tasks/schema", {
+  const current = await getJson<SchemaResponse>(`${taskApi}/schema`);
+  await postAdminJson<SchemaUpdateResponse>(`${taskApi}/schema`, {
     schema: schemaWithPublicTaskLookup(current.schema),
   });
 }
@@ -911,7 +937,7 @@ function crossAppEmailStylePublicIntakeFormBlockValues(): Record<string, unknown
   const values = {
     ...emailStylePublicIntakeFormBlockValues,
     operationTargetKind: "appInstall",
-    operationTargetPackageAppKey: "tasks",
+    operationTargetPackageAppKey: taskPackageAppKey,
     operationTargetInstallId: recordPlanInstallId,
   };
 

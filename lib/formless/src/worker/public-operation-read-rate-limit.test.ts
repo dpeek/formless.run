@@ -15,12 +15,12 @@ describe("public operation read rate limit", () => {
     const store = memoryRateLimitStore();
     const schemaIdentity = schemaKeyStorageIdentity("tasks");
     const installedIdentity = installedAppStorageIdentity({
-      packageAppKey: "tasks",
+      packageAppKey: "crm",
       installId: "verification",
     });
 
     if (!installedIdentity) {
-      throw new Error("Expected installed Tasks identity.");
+      throw new Error("Expected installed CRM identity.");
     }
 
     const base = {

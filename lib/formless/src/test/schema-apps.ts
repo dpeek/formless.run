@@ -1,4 +1,5 @@
 import { getWorkerSchemaAppDefinition } from "../worker/schema-apps.ts";
+import rawTaskSourceSchema from "@dpeek/formless-tasks-app/schema.json";
 import rawRateCardRecords from "./fixtures/rate-card-records.json";
 import rawRateCardSourceSchema from "./fixtures/rate-card-schema.json";
 import { parseAppSchema } from "@dpeek/formless-schema";
@@ -14,11 +15,10 @@ export {
   taskTestRecords,
 } from "./schema-app-records.ts";
 
-export const taskSourceApp = getWorkerSchemaAppDefinition("tasks");
 export const siteSourceApp = getWorkerSchemaAppDefinition("site");
 export const crmSourceApp = getWorkerSchemaAppDefinition("crm");
 
-export const taskSourceSchema = taskSourceApp.sourceSchema;
+export const taskSourceSchema = parseAppSchema(rawTaskSourceSchema);
 export const rateSourceSchema = parseAppSchema(rawRateCardSourceSchema);
 export const siteSourceSchema = siteSourceApp.sourceSchema;
 export const crmSourceSchema = crmSourceApp.sourceSchema;

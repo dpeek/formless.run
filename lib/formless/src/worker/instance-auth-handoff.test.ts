@@ -483,7 +483,10 @@ function appRoute(
   installId: string,
   access: "authenticated" | "owner",
 ): InstanceRuntimeMountRouteResolution {
-  const target = installedAppStorageIdentity({ installId, packageAppKey: installId });
+  const target = installedAppStorageIdentity({
+    installId,
+    packageAppKey: installId === "tasks" ? "crm" : installId,
+  });
 
   if (!target) {
     throw new Error(`Missing ${installId} test app storage identity.`);

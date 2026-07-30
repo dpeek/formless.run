@@ -7,12 +7,38 @@ import {
   instanceControlPlaneRecordSchemaModule,
 } from "@dpeek/formless-instance-control-plane/schema";
 import {
+  tasksPresentationSchemaModule,
+  tasksRecordSchemaModule,
+} from "@dpeek/formless-tasks-app/schema";
+import {
   composeAppSchema,
   defineAppSchemaModule,
   type AppSchemaSource,
 } from "@dpeek/formless-schema";
 
 const programAdministratorScreenAccess = { role: "administrator" } as const;
+const programEditorOperationAccess = { role: "editor" } as const;
+const programMemberScreenAccess = { role: "member" } as const;
+
+export const formlessTasksRecordSchemaModule = defineAppSchemaModule({
+  ...tasksRecordSchemaModule,
+  entities: tasksRecordSchemaModule.entities.map((entity) => ({
+    ...entity,
+    operations: entity.operations?.map((operation) => ({
+      ...operation,
+      access: programEditorOperationAccess,
+    })),
+  })),
+});
+
+export const formlessTasksPresentationSchemaModule = defineAppSchemaModule({
+  ...tasksPresentationSchemaModule,
+  screens: tasksPresentationSchemaModule.screens.map((screen) => ({
+    ...screen,
+    path: "/tasks",
+    access: programMemberScreenAccess,
+  })),
+});
 
 export const formlessInstanceControlPlanePresentationSchemaModule = defineAppSchemaModule({
   ...instanceControlPlanePresentationSchemaModule,
@@ -60,8 +86,10 @@ export const formlessProgramPresentationSchemaModule = defineAppSchemaModule({
 export const formlessProgramSchemaModules = [
   instanceControlPlaneRecordSchemaModule,
   identityControlPlaneRecordSchemaModule,
+  formlessTasksRecordSchemaModule,
   formlessInstanceControlPlanePresentationSchemaModule,
   formlessIdentityControlPlanePresentationSchemaModule,
+  formlessTasksPresentationSchemaModule,
   formlessProgramPresentationSchemaModule,
 ] as const;
 
@@ -89,6 +117,7 @@ export const formlessProgramSourceSchema: AppSchemaSource = composeAppSchema({
   modules: formlessProgramSchemaModules,
   navigation: {
     primaryScreens: [
+      "taskHome",
       "apps",
       "routes",
       "deployments",

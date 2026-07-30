@@ -11,18 +11,19 @@ browser replicas, public bindings, automation, and package adapters.
 
 ### Requirement: Bundled Source Apps
 
-The system SHALL provide source schemas for the current bundled schema keys
-`tasks`, `site`, and `crm` without coupling package source to initial app
-records.
+The system SHALL provide source schemas for the current routable bundled schema
+keys `site` and `crm` without coupling package source to initial app records.
 
 #### Scenario: Load current source app
 
-- **GIVEN** a current schema key `tasks`, `site`, or `crm`
+- **GIVEN** a current schema key `site` or `crm`
 - **WHEN** the runtime loads the source schema
 - **THEN** the app schema is available for that schema key
 - **AND** package source loading does not supply initial stored records
 - **AND** app records enter Authority through operations, workspace state,
   storage snapshot restore, or portable archive restore
+- **AND** the standalone Tasks package schema remains a portable package
+  artifact rather than a routable default schema-key app
 
 ### Requirement: TypeScript Schema Authoring
 
@@ -146,19 +147,20 @@ The system SHALL let a downstream-owned TypeScript composition root use the
 existing App schema language to produce one complete Program schema artifact
 from reusable package modules.
 
-#### Scenario: Compose the default control-plane Program schema
+#### Scenario: Compose the default Program schema
 
-- GIVEN the Instance Control Plane and Identity Control Plane packages expose
-  record and presentation modules through their public `./schema` subpaths
+- GIVEN the Instance Control Plane, Identity Control Plane, and Tasks packages
+  expose record and presentation modules through their public `./schema`
+  subpaths
 - WHEN the Formless product composition root builds its default Program schema
-- THEN it explicitly lists both record modules before their dependent
+- THEN it explicitly lists the package record modules before their dependent
   presentation modules
 - AND it supplies complete runtime ownership, navigation, and any
   project-owned modules at the composition root
 - AND the result is one valid `AppSchemaSource` rather than a second Program
   schema language or wrapper contract
-- AND instance and identity entities retain their package-owned stable entity
-  ids in the complete source
+- AND instance, identity, and Task entities retain their package-owned stable
+  entity ids in the complete source
 
 #### Scenario: Resolve package presentation collisions at the Program root
 
@@ -173,6 +175,21 @@ from reusable package modules.
   order for the complete Program
 - AND generic schema composition continues rejecting declaration collisions
   rather than merging, overwriting, renaming, or deep-merging them
+
+#### Scenario: Apply Program-specific Tasks policy
+
+- GIVEN the reusable Tasks modules retain standalone package presentation and
+  operation declarations
+- WHEN the default Program composes Tasks
+- THEN the root supplies a same-key Tasks record-module replacement that
+  preserves the Task entity and operation declarations while adding `editor`
+  operation access
+- AND the root supplies a same-key Tasks presentation-module replacement that
+  preserves package-owned views while selecting screen path `/tasks` and
+  `member` screen access
+- AND the Program root owns navigation and access policy without taking
+  ownership of Task domain declarations
+- AND the standalone Tasks artifact does not need to declare Program roles
 
 #### Scenario: Materialize the Program schema artifact
 
@@ -192,17 +209,17 @@ from reusable package modules.
 
 #### Scenario: Select the default Program for runtime storage
 
-- GIVEN the default Program artifact contains the composed instance and identity
-  declarations
+- GIVEN the default Program artifact contains the composed instance, identity,
+  and Tasks declarations
 - WHEN runtime-owned reviewable records are bootstrapped, validated, operated
   on, synced, snapshotted, archived, or projected
 - THEN the runtime uses that one complete artifact and its canonical source hash
 - AND the Program root owns the runtime schema key, storage target, generic API
   route, navigation, and complete schema provenance
-- AND standalone package schemas remain reusable package artifacts rather than
-  separate runtime storage mounts
-- AND installed app data remains outside the Program schema until a later
-  domain-data cutover
+- AND the standalone Tasks schema remains a reusable package artifact rather
+  than a separate runtime storage mount
+- AND Task records use Program storage while Site, CRM, and other installed app
+  data remain outside the Program schema until their own domain-data cutovers
 
 ### Requirement: Program Authorization Definitions
 

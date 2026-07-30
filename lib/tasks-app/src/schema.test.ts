@@ -1,6 +1,13 @@
 import { computeSourceSchemaHash, parseAppPackageManifest } from "@dpeek/formless-installed-apps";
 import { parseAppSchema } from "@dpeek/formless-schema";
+import type { StoredRecord } from "@dpeek/formless-storage";
 import { describe, expect, it } from "vite-plus/test";
+import {
+  TASK_ENTITY_ID,
+  reviewableTaskRecords,
+  tasksEntityIds,
+  validateTaskRecords,
+} from "@dpeek/formless-tasks-app";
 import rawAppPackageManifest from "@dpeek/formless-tasks-app/formless.app.json";
 import {
   tasksPresentationSchemaModule,
@@ -19,7 +26,7 @@ describe("Tasks schema authoring", () => {
       key: "tasks-records",
       entities: [
         expect.objectContaining({
-          id: "entity_dc20cc24-23e4-4a16-98fe-bd6e09427c68",
+          id: TASK_ENTITY_ID,
           key: "task",
         }),
       ],
@@ -54,4 +61,54 @@ describe("Tasks schema authoring", () => {
     });
     expect(await computeSourceSchemaHash(tasksSchemaSource)).toBe(manifest.sourceSchemaHash);
   });
+
+  it("owns Task stable identity and preserves active and tombstoned reviewable records", () => {
+    const active = taskRecord("task:active", {
+      priority: "high",
+      done: false,
+      title: "Active",
+    });
+    const tombstone = {
+      ...taskRecord("task:deleted", {
+        done: true,
+        title: "Deleted",
+        priority: "low",
+      }),
+      deletedAt: "2026-07-30T01:00:00.000Z",
+    };
+
+    expect(tasksEntityIds).toEqual([TASK_ENTITY_ID]);
+    expect(() => validateTaskRecords("Tasks records", [active, tombstone])).not.toThrow();
+    expect(reviewableTaskRecords([tombstone, active])).toEqual([
+      {
+        ...active,
+        values: {
+          title: "Active",
+          done: false,
+          priority: "high",
+        },
+      },
+      {
+        ...tombstone,
+        values: {
+          title: "Deleted",
+          done: true,
+          priority: "low",
+        },
+      },
+    ]);
+    expect(() =>
+      validateTaskRecords("Tasks records", [{ ...active, entity: "app-install" }]),
+    ).toThrow('Tasks records does not support entity "app-install" for record "task:active".');
+  });
 });
+
+function taskRecord(id: string, values: StoredRecord["values"]): StoredRecord {
+  return {
+    id,
+    entity: "task",
+    values,
+    createdAt: "2026-07-30T00:00:00.000Z",
+    updatedAt: "2026-07-30T00:00:00.000Z",
+  };
+}

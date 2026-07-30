@@ -28,6 +28,7 @@ import {
 import {
   bundledAppPackageResolver,
   findResolvedAppPackage,
+  isRuntimeInstallableAppPackageKey,
   type AppPackageResolver,
 } from "../shared/app-packages.ts";
 import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
@@ -718,11 +719,20 @@ async function fetchRemoteAppRegistry(
   target: string,
   dependencies: ArchiveExportAuth & Pick<ArchiveWorkflowDependencies, "fetch">,
 ): Promise<AppInstallsResponse> {
-  return fetchJson<AppInstallsResponse>(
+  const registry = await fetchJson<AppInstallsResponse>(
     dependencies.fetch,
     apiUrl(target, "/api/formless/app-installs"),
     { headers: archiveExportRequestHeaders(dependencies, "application/json") },
   );
+
+  return {
+    installs: registry.installs.filter((install) =>
+      isRuntimeInstallableAppPackageKey(install.packageAppKey),
+    ),
+    packages: registry.packages.filter((appPackage) =>
+      isRuntimeInstallableAppPackageKey(appPackage.packageAppKey),
+    ),
+  };
 }
 
 type ArchiveExportAuth = {

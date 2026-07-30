@@ -277,7 +277,7 @@ describe("Site operation input notification scheduling", () => {
 
   it("requires declared public operation form targets to match the committed operation target", async () => {
     const scheduled: EmailDeliveryScheduleRequest[] = [];
-    const identity = installedAppStorageIdentity({ installId: "requests", packageAppKey: "tasks" });
+    const identity = installedAppStorageIdentity({ installId: "requests", packageAppKey: "crm" });
 
     if (!identity) {
       throw new Error("Expected installed app identity.");
@@ -287,14 +287,14 @@ describe("Site operation input notification scheduling", () => {
       target: {
         installId: "requests",
         kind: "appInstall",
-        packageAppKey: "tasks",
+        packageAppKey: "crm",
       },
     });
     const mismatchedRecords = operationFormSourceRecords({
       target: {
         installId: "other",
         kind: "appInstall",
-        packageAppKey: "tasks",
+        packageAppKey: "crm",
       },
     });
 
@@ -306,7 +306,7 @@ describe("Site operation input notification scheduling", () => {
       identity,
       records: matchingRecords,
       requestUrl:
-        "https://www.example.com/api/app-installs/tasks/requests/public/operations/request/submit",
+        "https://www.example.com/api/app-installs/crm/requests/public/operations/request/submit",
       response: operationInputResponse({ identity }),
       schema: operationInputSchema(),
     });

@@ -942,7 +942,7 @@ describe("Authority record validation readers", () => {
       validateRecordWriteRequest(routeRequest("tasks"), instanceControlPlaneSchema, reader, {
         additionalRecords: [appInstall("tasks", "tasks")],
       }),
-    ).toThrow(new BadRequestError('Package app "tasks" does not support public Site routes.'));
+    ).toThrow(new BadRequestError('Route app install "tasks" uses unsupported package.'));
     expect(
       validateRecordWriteRequest(routeRequest("site"), instanceControlPlaneSchema, reader, {
         additionalRecords: [appInstall("site", "site")],

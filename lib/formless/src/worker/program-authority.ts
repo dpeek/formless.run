@@ -62,6 +62,7 @@ export function ensureFormlessProgramStorage(
       : { sourceSchemaUpdatedAt: legacyIdentityState.schemaUpdatedAt }),
     validate: (records) =>
       validateFormlessProgramRecords("Program convergence records", records, {
+        allowDormantPackageFacts: true,
         packageResolver,
       }),
   });
@@ -70,6 +71,7 @@ export function ensureFormlessProgramStorage(
   reconcileRuntimeInvariantRecords(storage, builtInRoleRecords(), {
     validate: (records) =>
       validateFormlessProgramRecords("Formless Program records", records, {
+        allowDormantPackageFacts: true,
         packageResolver,
       }),
     writeIdPrefix: "identity-role-reconcile",

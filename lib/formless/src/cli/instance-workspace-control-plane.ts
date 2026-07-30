@@ -29,6 +29,7 @@ import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formles
 import {
   bundledAppPackageResolver,
   findResolvedAppPackage,
+  isRuntimeInstallableAppPackageKey,
   type AppPackageResolver,
 } from "../shared/app-packages.ts";
 export type WorkspaceControlPlaneRecords = StorageSnapshot;
@@ -124,7 +125,8 @@ export function controlPlaneAppInstallRecords(
       (record) =>
         record.entity === "app-install" &&
         !record.deletedAt &&
-        stringRecordValue(record, "status") === "installed",
+        stringRecordValue(record, "status") === "installed" &&
+        isRuntimeInstallableAppPackageKey(stringRecordValue(record, "packageAppKey") ?? ""),
     )
     .map((record) => ({
       createdAt: record.createdAt,

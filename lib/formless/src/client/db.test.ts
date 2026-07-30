@@ -148,7 +148,7 @@ describe("client db", () => {
     expect((await readLocalSnapshot("tasks")).records).toEqual([]);
   });
 
-  it("deletes only same-origin Formless replica databases", async () => {
+  it("deletes active Formless replicas without adopting the legacy Tasks replica", async () => {
     const personal = installedSiteIdentity("personal");
     const controlPlaneTarget = programClientTarget();
 
@@ -178,10 +178,10 @@ describe("client db", () => {
     expect(result.deletedDatabaseNames).toEqual([
       "formless:app:personal",
       "formless:instance:control-plane",
-      "formless:tasks",
     ]);
+    expect(result.skippedDatabaseNames).toContain("formless:tasks");
     expect(result.skippedDatabaseNames).toContain("notes");
-    expect(databaseNames).not.toContain("formless:tasks");
+    expect(databaseNames).toContain("formless:tasks");
     expect(databaseNames).not.toContain("formless:app:personal");
     expect(databaseNames).not.toContain("formless:instance:control-plane");
     expect(databaseNames).toContain("notes");
@@ -191,11 +191,11 @@ describe("client db", () => {
   });
 
   it("reports blocked Formless replica database deletion", async () => {
-    const db = await openRawDatabase("formless:tasks");
+    const db = await openRawDatabase("formless:site");
 
     try {
       await expect(deleteFormlessReplicaDatabases()).rejects.toMatchObject({
-        blockedDatabaseNames: ["formless:tasks"],
+        blockedDatabaseNames: ["formless:site"],
         name: "FormlessReplicaDatabaseDeleteBlockedError",
       } satisfies Partial<FormlessReplicaDatabaseDeleteBlockedError>);
     } finally {
@@ -204,10 +204,10 @@ describe("client db", () => {
   });
 
   it("migrates older local replica metadata without replacing records", async () => {
-    await createLegacyReplica("formless:tasks", { recordsKeyPath: "id" });
+    await createLegacyReplica("formless:site", { recordsKeyPath: "id" });
 
-    const snapshot = await readLocalSnapshot("tasks");
-    const replicaVersion = await readRawMetaValue<number>("formless:tasks", "replicaVersion");
+    const snapshot = await readLocalSnapshot("site");
+    const replicaVersion = await readRawMetaValue<number>("formless:site", "replicaVersion");
 
     expect(snapshot.records).toEqual([record("record-1", "Legacy")]);
     expect(snapshot.cursor).toBe(3);

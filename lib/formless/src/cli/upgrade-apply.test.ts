@@ -7,15 +7,97 @@ import {
 } from "../shared/deploy-metadata.ts";
 import { bundledSourceSchemaHashFixtures } from "../shared/upgrade-migrations.ts";
 import {
+  applyCliAutoSafeUpgradeMigrations,
   assertCliUpgradeApplyGateEvidence,
   formatCliAutoSafeUpgradeApplyEvidence,
   type CliAutoSafeUpgradeApplyResult,
 } from "./upgrade-apply.ts";
 import type { CliUpgradePlanStep, CliUpgradePlanningReport } from "./upgrade-plan.ts";
+import { listInstallableAppPackages } from "@dpeek/formless-installed-apps";
+import { bundledAppPackageResolver } from "../shared/app-packages.ts";
 
 const checksum = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
 
 describe("CLI upgrade apply evidence gates", () => {
+  it("does not apply package migrations to dormant Tasks installs", async () => {
+    const requests: string[] = [];
+    const result = await applyCliAutoSafeUpgradeMigrations(
+      {
+        adminToken: "upgrade-token",
+        targetUrl: "https://live.example",
+      },
+      {
+        fetch: async (url, init) => {
+          const requestUrl =
+            typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+          const parsedUrl = new URL(requestUrl);
+          const method = init?.method ?? "GET";
+
+          requests.push(`${method} ${parsedUrl.pathname}`);
+
+          if (parsedUrl.pathname === "/api/formless/deploy") {
+            return Response.json(
+              {
+                packageApps: listInstallableAppPackages(bundledAppPackageResolver).map(
+                  (appPackage) => ({
+                    packageAppKey: appPackage.packageAppKey,
+                    packageRevision: appPackage.packageRevision,
+                    sourceSchemaHash: appPackage.sourceSchemaHash,
+                  }),
+                ),
+                packageVersion: packageJson.version,
+                runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
+                storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
+                version: packageJson.version,
+              },
+              { headers: { "Cache-Control": "no-store" } },
+            );
+          }
+
+          if (parsedUrl.pathname === "/api/formless/setup") {
+            return Response.json({ setupComplete: true });
+          }
+
+          if (parsedUrl.pathname === "/api/formless/app-installs") {
+            return Response.json({
+              installs: [
+                {
+                  adminRoute: "/apps/legacy-tasks",
+                  createdAt: "2026-05-28T00:00:00.000Z",
+                  installId: "legacy-tasks",
+                  label: "Legacy Tasks",
+                  packageAppKey: "tasks",
+                  packageRevision: 1,
+                  registrationPolicy: "closed",
+                  sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
+                  status: "installed",
+                  updatedAt: "2026-05-28T00:00:00.000Z",
+                },
+              ],
+              packages: [],
+            });
+          }
+
+          if (
+            parsedUrl.pathname === "/api/formless/upgrade/apply" ||
+            parsedUrl.pathname === "/api/formless/upgrade/status"
+          ) {
+            return Response.json({ storageIdentities: [] });
+          }
+
+          return Response.json({ error: "not found" }, { status: 404 });
+        },
+        log: () => undefined,
+      },
+    );
+
+    expect(result.packageApps).toEqual([]);
+    expect(result.planning.status.installedApps).toEqual([]);
+    expect(requests).not.toContain(
+      "POST /api/formless/app-installs/tasks/legacy-tasks/package-migrations/apply",
+    );
+  });
+
   it("requires backup evidence before auto-with-backup migration steps", () => {
     const report = planningReport([
       {

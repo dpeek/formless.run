@@ -94,6 +94,7 @@ const accountSessionClientRoutePaths = [runtimeTopologyRoutes.authAccountRoute] 
 const clientRoutePaths = [
   runtimeTopologyRoutes.localSessionRoute,
   ...accountSessionClientRoutePaths,
+  "/tasks",
 ] as const;
 const clientRoutePrefixes = [
   runtimeTopologyRoutes.appRouteBase,

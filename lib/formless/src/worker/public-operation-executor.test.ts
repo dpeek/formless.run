@@ -22,6 +22,7 @@ import type {
 } from "./public-operation-read-rate-limit.ts";
 import { shapePublicOperationResponse } from "./public-operation-response.ts";
 import { workerSchemaAppDefinitions } from "./schema-apps.ts";
+import { taskSourceSchema } from "../test/schema-apps.ts";
 
 describe("public operation executor adapters", () => {
   it("shapes committed public responses before after-commit adapters run", async () => {
@@ -973,7 +974,7 @@ function publicListOutput(): Extract<
   };
 }
 function publicReadSchema(): AppSchema {
-  const schema = structuredClone(workerSchemaAppDefinitions.tasks.sourceSchema);
+  const schema = structuredClone(taskSourceSchema);
   setKeyedDefinition(schema.entities, "certificate", {
     id: "entity_9c225234-e616-4807-a0c3-d4333e8128d6",
     label: "Certificate",

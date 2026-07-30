@@ -20,11 +20,9 @@ import {
 } from "../shared/protocol.ts";
 import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
-import { packageAppFactsForKey } from "@dpeek/formless-installed-apps";
 import {
   appPackageManifestKind,
   appPackageManifestVersion,
-  bundledAppPackageResolver,
   type AppPackageManifest,
 } from "../shared/app-packages.ts";
 import type { SchemaKey } from "../shared/schema-apps.ts";
@@ -66,33 +64,41 @@ import {
 } from "../test/identity-owner.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import { PUBLIC_SITE_TREE_CACHE_CONTROL } from "@dpeek/formless-site-app/worker";
+import { runtimeWorkspaceTaskAppPackageFixture } from "../test/workspace-app-package.ts";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
 let harness: Harness;
 let authority: AuthorityWriteHelpers;
+let taskTestPackageManifest: AppPackageManifest;
 const adminToken = "test-admin-token";
 const taskEntityId = appSchema.entities.find((definition) => definition.key === "task")!.id;
 
 function taskSchemaProvenance() {
-  const packageFacts = packageAppFactsForKey("tasks", bundledAppPackageResolver);
-
-  if (!packageFacts) {
-    throw new Error("Expected bundled Tasks package facts.");
-  }
-
   return {
     kind: "package-app" as const,
-    packageAppKey: "tasks",
-    packageRevision: packageFacts.packageRevision,
-    sourceSchemaHash: packageFacts.sourceSchemaHash,
+    packageAppKey: taskTestPackageManifest.packageAppKey,
+    packageRevision: taskTestPackageManifest.packageRevision,
+    sourceSchemaHash: taskTestPackageManifest.sourceSchemaHash,
   };
 }
 
 beforeAll(async () => {
-  harness = await createWorkerHarness("src/worker/index.ts", {
-    FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true },
-  });
+  const taskPackage = await runtimeWorkspaceTaskAppPackageFixture();
+  taskTestPackageManifest = taskPackage.manifest;
+  harness = await createWorkerHarness(
+    "src/worker/index.ts",
+    {
+      FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true },
+    },
+    {
+      bindings: {
+        [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
+          taskPackage,
+        ]),
+      },
+    },
+  );
   authority = createAuthorityWriteHelpers(harness);
 });
 
@@ -119,15 +125,13 @@ describe("authority", () => {
   });
 
   it("returns browser replica upgrade facts on compatible bootstrap and sync reads", async () => {
-    const bootstrap = await harness.fetch(apiPath("/api/bootstrap"));
+    const bootstrap = await authority.fetch("/api/bootstrap");
     const bootstrapBody = (await bootstrap.json()) as BootstrapResponse;
-    const sync = await harness.fetch(
-      apiPath(
-        `/api/sync?after=${bootstrapBody.cursor}&schemaUpdatedAt=${encodeURIComponent("2026-01-01T00:00:00.000Z")}`,
-      ),
+    const sync = await authority.fetch(
+      `/api/sync?after=${bootstrapBody.cursor}&schemaUpdatedAt=${encodeURIComponent("2026-01-01T00:00:00.000Z")}`,
     );
     const syncBody = (await sync.json()) as SyncResponse;
-    const packageFacts = packageAppFactsForKey("tasks", bundledAppPackageResolver);
+    const packageFacts = taskTestPackageManifest;
 
     expect(bootstrap.status).toBe(200);
     expect(sync.status).toBe(200);
@@ -138,16 +142,16 @@ describe("authority", () => {
       bootstrapBody.schemaUpdatedAt,
     );
     expect(sync.headers.get(FORMLESS_CLIENT_PACKAGE_REVISION_HEADER)).toBe(
-      String(packageFacts?.packageRevision),
+      String(packageFacts.packageRevision),
     );
     expect(sync.headers.get(FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER)).toBe(
-      packageFacts?.sourceSchemaHash,
+      packageFacts.sourceSchemaHash,
     );
     expect(bootstrapBody.schemaProvenance).toEqual({
       kind: "package-app",
-      packageAppKey: "tasks",
-      packageRevision: packageFacts?.packageRevision,
-      sourceSchemaHash: packageFacts?.sourceSchemaHash,
+      packageAppKey: "test-tasks",
+      packageRevision: packageFacts.packageRevision,
+      sourceSchemaHash: packageFacts.sourceSchemaHash,
     });
     expect(syncBody).toMatchObject({
       changes: [],
@@ -180,7 +184,7 @@ describe("authority", () => {
     try {
       await primeSyncSocket(socket, before.cursor, before.schemaUpdatedAt);
       const capture = captureSyncSocketMessages(socket);
-      const response = await harness.fetch(apiPath("/api/operations/task/create"), {
+      const response = await authority.fetch("/api/operations/task/create", {
         body: JSON.stringify({
           idempotencyKey: "operation-stale-client-rejected",
           input: {
@@ -258,12 +262,16 @@ describe("authority", () => {
     expect(legacySite.schema).toEqual(siteSourceSchema);
   });
 
-  it("isolates installed Tasks storage, sync, snapshot restore, and command operations by install id", async () => {
-    await resetInstalledApp("tasks", "work");
-    await resetInstalledApp("tasks", "team");
+  it("isolates private task-package storage, sync, snapshot restore, and command operations by install id", async () => {
+    await resetInstalledApp("test-tasks", "work");
+    await resetInstalledApp("test-tasks", "team");
 
-    const initialSync = await getInstalledAppJson<SyncResponse>("tasks", "work", "/sync?after=0");
-    const created = await postInstalledAppRecordOperation("tasks", "work", {
+    const initialSync = await getInstalledAppJson<SyncResponse>(
+      "test-tasks",
+      "work",
+      "/sync?after=0",
+    );
+    const created = await postInstalledAppRecordOperation("test-tasks", "work", {
       idempotencyKey: "write-installed-tasks-work",
       entity: "task",
       operationName: "create",
@@ -272,10 +280,14 @@ describe("authority", () => {
         done: true,
       },
     });
-    const workSnapshot = await getInstalledAppJson<StorageSnapshot>("tasks", "work", "/snapshot");
+    const workSnapshot = await getInstalledAppJson<StorageSnapshot>(
+      "test-tasks",
+      "work",
+      "/snapshot",
+    );
     const restoredRecord = taskSnapshotRecord("snapshot-installed-task", "Restored installed task");
     const restored = await postInstalledAppJson<BootstrapResponse>(
-      "tasks",
+      "test-tasks",
       "work",
       "/snapshot/restore",
       storageSnapshot({
@@ -285,7 +297,7 @@ describe("authority", () => {
         records: [restoredRecord],
       }),
     );
-    const cleared = await postInstalledAppRecordOperation("tasks", "work", {
+    const cleared = await postInstalledAppRecordOperation("test-tasks", "work", {
       idempotencyKey: "write-installed-tasks-completed",
       entity: "task",
       operationName: "create",
@@ -294,14 +306,14 @@ describe("authority", () => {
         done: true,
       },
     });
-    const command = await postInstalledAppCommandOperation("tasks", "work", {
+    const command = await postInstalledAppCommandOperation("test-tasks", "work", {
       idempotencyKey: "command-installed-tasks-clear-completed",
       entity: "task",
       operationName: "clearCompletedTasks",
     });
-    await resetInstalledApp("tasks", "work");
-    const work = await getInstalledAppJson<BootstrapResponse>("tasks", "work", "/bootstrap");
-    const team = await getInstalledAppJson<BootstrapResponse>("tasks", "team", "/bootstrap");
+    await resetInstalledApp("test-tasks", "work");
+    const work = await getInstalledAppJson<BootstrapResponse>("test-tasks", "work", "/bootstrap");
+    const team = await getInstalledAppJson<BootstrapResponse>("test-tasks", "team", "/bootstrap");
     const legacy = await getJson<BootstrapResponse>("/api/bootstrap");
 
     expect(initialSync.cursor).toBe(taskTestRecords.length);
@@ -309,7 +321,7 @@ describe("authority", () => {
     expect(workSnapshot).toMatchObject({
       kind: STORAGE_SNAPSHOT_KIND,
       storageIdentity: "app:work",
-      schemaKey: "tasks",
+      schemaKey: "test-tasks",
       schema: appSchema,
       sourceCursor: created.cursor,
     });
@@ -410,7 +422,7 @@ describe("authority", () => {
     useSchemaApp("site");
     await postJson<BootstrapResponse>("/api/snapshot/restore", siteStorageSnapshot());
 
-    const response = await harness.fetch(apiPath("/api/tree/home"));
+    const response = await authority.fetch("/api/tree/home");
     const body = (await response.json()) as SitePageTreeResponse;
 
     expect(response.status).toBe(200);
@@ -489,7 +501,7 @@ describe("authority", () => {
   it("returns 404 for a missing site page href", async () => {
     await resetSchemaApp("site");
     useSchemaApp("site");
-    const response = await harness.fetch(apiPath("/api/tree/missing-page"));
+    const response = await authority.fetch("/api/tree/missing-page");
     expect(response.status).toBe(404);
     expect(response.headers.get("Cache-Control")).toBe(PUBLIC_SITE_TREE_CACHE_CONTROL);
     expect(
@@ -501,14 +513,14 @@ describe("authority", () => {
     });
   });
   it("rejects page tree requests for non-site schema keys", async () => {
-    const response = await harness.fetch(apiPath("/api/tree/home"));
+    const response = await authority.fetch("/api/tree/home");
     expect(response.status).toBe(400);
     expect(
       (await response.json()) as {
         error: string;
       },
     ).toEqual({
-      error: 'Package app "tasks" does not declare public Site runtime support.',
+      error: 'Package app "test-tasks" does not declare public Site runtime support.',
     });
   });
 
@@ -738,8 +750,8 @@ describe("authority", () => {
     expect(snapshot).toMatchObject({
       kind: STORAGE_SNAPSHOT_KIND,
       version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: "tasks",
-      schemaKey: "tasks",
+      storageIdentity: "app:test-tasks",
+      schemaKey: "test-tasks",
       exportedAt: expect.any(String),
       schemaUpdatedAt: schemaResponse.updatedAt,
       sourceCursor: created.cursor,
@@ -830,7 +842,7 @@ describe("authority", () => {
       await expectError(
         "/api/snapshot/restore",
         storageSnapshot({ storageIdentity: "app:work" }),
-        'Storage snapshot storageIdentity must be "tasks".',
+        'Storage snapshot storageIdentity must be "app:test-tasks".',
       );
       await expectNoCapturedMessages(capture);
       capture.stop();
@@ -1025,8 +1037,8 @@ describe("authority", () => {
   it("rejects missing schema keys, non-upgrade requests, and non-GET sync WebSocket requests", async () => {
     await expectNotFound("/api/missing/sync/ws");
 
-    const missingUpgrade = await harness.fetch(apiPath("/api/sync/ws"));
-    const wrongMethod = await harness.fetch(apiPath("/api/sync/ws"), {
+    const missingUpgrade = await authority.fetch("/api/sync/ws");
+    const wrongMethod = await authority.fetch("/api/sync/ws", {
       method: "POST",
     });
 
@@ -1213,7 +1225,7 @@ describe("authority", () => {
       };
       const committedMessage = readSyncSocketMessage(socket);
       const committedRequest = recordOperationRequest(write);
-      const committedResponse = await harness.fetch(apiPath(committedRequest.path), {
+      const committedResponse = await authority.fetch(committedRequest.path, {
         body: JSON.stringify(committedRequest.body),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -1234,7 +1246,7 @@ describe("authority", () => {
 
       const replayCapture = captureSyncSocketMessages(socket);
       const replayRequest = recordOperationRequest(write);
-      const replayResponse = await harness.fetch(apiPath(replayRequest.path), {
+      const replayResponse = await authority.fetch(replayRequest.path, {
         body: JSON.stringify(replayRequest.body),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -1253,7 +1265,7 @@ describe("authority", () => {
         operationName: "create",
         input: {},
       });
-      const invalidResponse = await harness.fetch(apiPath(invalidRequest.path), {
+      const invalidResponse = await authority.fetch(invalidRequest.path, {
         body: JSON.stringify(invalidRequest.body),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -1473,7 +1485,7 @@ describe("authority", () => {
         operationName: "create",
         input: { title: "   " },
       });
-      const invalid = await harness.fetch(apiPath(invalidRequest.path), {
+      const invalid = await authority.fetch(invalidRequest.path, {
         body: JSON.stringify(invalidRequest.body),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -1490,7 +1502,7 @@ describe("authority", () => {
         operationName: "create",
         input: { title: "Constraint source", done: false },
       });
-      const constraintFailure = await harness.fetch(apiPath(constraintRequest.path), {
+      const constraintFailure = await authority.fetch(constraintRequest.path, {
         body: JSON.stringify(constraintRequest.body),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -1587,7 +1599,7 @@ describe("authority", () => {
       await primeSyncSocket(socket, taskTestRecords.length, schemaResponse.updatedAt);
 
       const schemaCapture = captureSyncSocketMessages(socket);
-      const invalidSchema = await harness.fetch(apiPath("/api/schema"), {
+      const invalidSchema = await authority.fetch("/api/schema", {
         body: JSON.stringify({
           schema: {
             version: 1,
@@ -1619,7 +1631,7 @@ describe("authority", () => {
         entity: "task",
         operationName: "missing",
       });
-      const invalidCommand = await harness.fetch(apiPath(invalidCommandRequest.path), {
+      const invalidCommand = await authority.fetch(invalidCommandRequest.path, {
         body: JSON.stringify(invalidCommandRequest.body),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -1634,6 +1646,8 @@ describe("authority", () => {
   });
 
   it("rejects invalid sync cursors", async () => {
+    await resetSchemaApp("crm");
+    useSchemaApp("crm");
     await expectError("/api/sync?after=bad", undefined, "Sync cursor must be");
   });
 
@@ -1873,7 +1887,7 @@ describe("authority", () => {
   });
 
   it("rejects bad JSON request bodies", async () => {
-    const response = await harness.fetch(apiPath("/api/operations/task/create"), {
+    const response = await authority.fetch("/api/operations/task/create", {
       body: "{",
       headers: { "Content-Type": "application/json" },
       method: "POST",
@@ -1902,8 +1916,8 @@ function storageSnapshot(overrides: Partial<StorageSnapshot> = {}): StorageSnaps
   return {
     kind: STORAGE_SNAPSHOT_KIND,
     version: STORAGE_SNAPSHOT_VERSION,
-    storageIdentity: "tasks",
-    schemaKey: "tasks",
+    storageIdentity: "app:test-tasks",
+    schemaKey: "test-tasks",
     exportedAt: "2026-04-28T00:00:00.000Z",
     schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
     sourceCursor: taskTestRecords.length,
@@ -2431,10 +2445,6 @@ function useSchemaApp(schemaKey: SchemaKey) {
   authority.useSchemaApp(schemaKey);
 }
 
-function apiPath(path: string, schemaKey?: SchemaKey) {
-  return authority.apiPath(path, schemaKey);
-}
-
 async function getInstalledAppJson<T>(packageAppKey: string, installId: string, path: string) {
   const response = await harness.fetch(installedAppApiPath(packageAppKey, installId, path));
 
@@ -2505,10 +2515,18 @@ async function postInstalledAppCommandOperation(
 }
 
 async function resetInstalledApp(packageAppKey: string, installId: string) {
+  const snapshot = schemaAppTestStorageSnapshot(
+    packageAppKey === "test-tasks" ? "tasks" : (packageAppKey as SchemaKey),
+    `app:${installId}`,
+  );
+
   await restoreTestStorageSnapshot(
     harness,
     installedAppApiPath(packageAppKey, installId, "/snapshot/restore"),
-    schemaAppTestStorageSnapshot(packageAppKey as SchemaKey, `app:${installId}`),
+    {
+      ...snapshot,
+      schemaKey: packageAppKey,
+    },
   );
 }
 
@@ -2521,12 +2539,21 @@ function installedAppApiPath(packageAppKey: string, installId: string, path: str
 }
 
 async function createIdentityReferenceHarness() {
+  const taskPackage = await runtimeWorkspaceTaskAppPackageFixture();
+
   return await createWorkerHarness(
     "src/worker/index.ts",
     {
       FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true },
     },
-    { bindings: { FORMLESS_ADMIN_TOKEN: adminToken } },
+    {
+      bindings: {
+        FORMLESS_ADMIN_TOKEN: adminToken,
+        [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
+          taskPackage,
+        ]),
+      },
+    },
   );
 }
 
@@ -2625,7 +2652,7 @@ function privateTasksApiPath(path: string) {
     throw new Error(`Expected API path, received "${path}".`);
   }
 
-  return `/api/tasks${path.slice("/api".length)}`;
+  return `/api/app-installs/test-tasks/test-tasks${path.slice("/api".length)}`;
 }
 
 function privateWriteHeaders() {
@@ -2665,9 +2692,7 @@ async function postCommandOperationForEntity(
 }
 
 async function openSyncSocket(path = "/api/sync/ws", schemaKey?: SchemaKey) {
-  const response = await harness.fetch(apiPath(path, schemaKey), {
-    headers: { Upgrade: "websocket" },
-  });
+  const response = await authority.fetch(path, { headers: { Upgrade: "websocket" } }, schemaKey);
 
   expect(response.status).toBe(101);
   expect(response.webSocket).toBeTruthy();

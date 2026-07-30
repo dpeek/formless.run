@@ -117,7 +117,7 @@ describe("instance deployment runtime API routes", () => {
   });
 
   it("projects enabled custom-domain mappings into desired-state resources", async () => {
-    await createAppInstall({ packageAppKey: "tasks", installId: "tasks", label: "Tasks" });
+    await createAppInstall({ packageAppKey: "crm", installId: "work", label: "Work" });
     await createAppInstall({ packageAppKey: "site", installId: "personal", label: "Personal" });
     await createControlPlaneRecord("route", {
       enabled: false,
@@ -136,7 +136,7 @@ describe("instance deployment runtime API routes", () => {
       targetProfile: "instance",
     });
     await createControlPlaneRecord("route", {
-      appInstall: "tasks",
+      appInstall: "work",
       enabled: true,
       kind: "mount",
       matchHost: "app.example.com",
@@ -196,11 +196,11 @@ describe("instance deployment runtime API routes", () => {
           name: "app.example.com",
           overrideExistingOrigin: false,
           profile: "app",
-          targetInstallId: "tasks",
+          targetInstallId: "work",
           workerName: "formless-primary",
         },
         kind: "cloudflare-worker-custom-domain",
-        logicalId: "primary-custom-domain-app-example-com-app-tasks",
+        logicalId: "primary-custom-domain-app-example-com-app-work",
         providerFamily: "cloudflare",
         targetId: INSTANCE_DEPLOYMENT_PRIMARY_TARGET_ID,
       },
@@ -308,9 +308,9 @@ describe("instance deployment runtime API routes", () => {
   });
 
   it("does not materialize projected desired resources as control-plane records", async () => {
-    await createAppInstall({ packageAppKey: "tasks", installId: "tasks", label: "Tasks" });
+    await createAppInstall({ packageAppKey: "crm", installId: "work", label: "Work" });
     await createControlPlaneRecord("route", {
-      appInstall: "tasks",
+      appInstall: "work",
       enabled: true,
       kind: "mount",
       matchHost: "app.example.com",

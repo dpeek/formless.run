@@ -50,11 +50,14 @@ the product instance profile.
 #### Scenario: Dev route policy
 
 - GIVEN the runtime profile is `dev`
-- WHEN a request targets the Program, bundled source app, installed app,
+- WHEN a request targets the Program, a remaining bundled source app, installed app,
   installed Site, instance, account auth, schema-key API, or workspace gateway
   API routes
 - THEN those route families remain available
-- AND the dev workbench can compose source app and product instance surfaces together
+- AND the dev workbench can compose remaining source app and product instance
+  surfaces together
+- AND Tasks is available through the Program rather than a `/tasks`
+  schema-key source-app mount
 
 ### Requirement: Browser Route Mounts
 
@@ -63,7 +66,7 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 #### Scenario: Product instance browser routes
 
 - GIVEN the runtime profile is `instance`
-- WHEN a browser navigates to `/`, `/apps`, `/routes`, `/deployments`,
+- WHEN a browser navigates to `/`, `/tasks`, `/apps`, `/routes`, `/deployments`,
   `/organizations`, `/access`, `/invitations`, `/policies`, `/settings`,
   `/apps/<installId>`, `/apps/<installId>/*`, `/sites/<installId>`, or
   `/sites/<installId>/*`
@@ -72,7 +75,7 @@ The system SHALL mount browser surfaces according to the active runtime profile.
   nested screen paths through `/apps/<installId>/`
 - AND a more-specific exact path or longer nested route outranks that base
   admin prefix
-- AND source app routes such as `/tasks`, `/crm/audiences`, `/site/schema`, and
+- AND source app routes such as `/crm/audiences`, `/site/schema`, and
   `/pages/home` are not eligible instance browser routes
 
 #### Scenario: Product instance Program routes
@@ -81,12 +84,15 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 - WHEN a management browser opens the default Program
 - THEN `/` selects the root-owned principals screen and `/settings` selects
   Instance Settings
+- AND `/tasks` selects the package-owned Tasks workspace through its
+  Program-owned path and `member` access requirement
 - AND `/apps` selects the root-owned screen that composes app installs and app
   registrations
 - AND Program navigation order comes from the materialized Program artifact
 - AND Apps, Routes, Deployments, Principals, Organizations, Access, Invitations,
   Policies, and Settings each declare the schema-defined Program
   `administrator` role requirement
+- AND Tasks declares the schema-defined Program `member` role requirement
 - AND the client shell is eligible to render each selected screen for an active
   principal with protected owner authority or the schema-defined Program
   `administrator` role
@@ -566,6 +572,17 @@ routes from enabled schema-owned `route` records.
 - **THEN** the route is not eligible for runtime mounting
 - **AND** route validation prevents the conflict from becoming active
 
+#### Scenario: Program-native Tasks install route is unavailable
+
+- **GIVEN** dormant `app-install` or `route` records refer to package key
+  `tasks`
+- **WHEN** runtime topology selects installed app routes, mapped hosts, or
+  launch navigation
+- **THEN** those records are ineligible because Tasks is absent from the
+  runtime-installable package resolver
+- **AND** an unavailable Tasks mount is discarded before candidate ranking can
+  shadow a routable Site, CRM, private-package, instance, or redirect route
+
 ### Requirement: Unified Route Resolution
 
 The system SHALL resolve enabled instance `route` records as the desired route
@@ -579,6 +596,8 @@ source for hostless mounts, exact-host mounts, and redirects.
 - **AND** more specific exact path matches are evaluated before prefix matches
 - **AND** disabled route records are not eligible for runtime mounting or
   redirect handling
+- **AND** mount candidates whose target package is not runtime-installable are
+  not eligible and do not stop selection of the next valid candidate
 
 #### Scenario: Hostless mount preserves configured profile policy
 

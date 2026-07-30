@@ -28,22 +28,79 @@ export {
   type ResolvedAppPackage,
 } from "@dpeek/formless-installed-apps";
 
-export const bundledAppPackageManifests = [
-  bundledAppPackageManifestFromSource(rawSiteAppPackageManifest, {
+const bundledSiteAppPackageManifest = bundledAppPackageManifestFromSource(
+  rawSiteAppPackageManifest,
+  {
     context: "bundled Site app package manifest",
     packageAppKey: "site",
-  }),
-  bundledAppPackageManifestFromSource(rawTasksAppPackageManifest, {
+  },
+);
+const bundledTasksAppPackageManifest = bundledAppPackageManifestFromSource(
+  rawTasksAppPackageManifest,
+  {
     context: "bundled Tasks app package manifest",
     packageAppKey: "tasks",
-  }),
-  bundledAppPackageManifestFromSource(rawCrmAppPackageManifest, {
-    context: "bundled CRM app package manifest",
-    packageAppKey: "crm",
-  }),
+  },
+);
+const bundledCrmAppPackageManifest = bundledAppPackageManifestFromSource(rawCrmAppPackageManifest, {
+  context: "bundled CRM app package manifest",
+  packageAppKey: "crm",
+});
+
+export const rootKnownAppPackageManifests = [
+  bundledSiteAppPackageManifest,
+  bundledTasksAppPackageManifest,
+  bundledCrmAppPackageManifest,
+] as const satisfies readonly AppPackageManifest[];
+
+export const bundledAppPackageManifests = [
+  bundledSiteAppPackageManifest,
+  bundledCrmAppPackageManifest,
 ] as const satisfies readonly AppPackageManifest[];
 
 export const bundledAppPackageResolver = createAppPackageResolver(bundledAppPackageManifests);
+const rootKnownAppPackageResolver = createAppPackageResolver(rootKnownAppPackageManifests);
+
+export function isRuntimeInstallableAppPackageKey(packageAppKey: string): boolean {
+  return packageAppKey !== "tasks";
+}
+
+export function runtimeInstallableAppPackageResolver(
+  resolver: AppPackageResolver,
+): AppPackageResolver {
+  return {
+    findPackage(packageAppKey) {
+      return isRuntimeInstallableAppPackageKey(packageAppKey)
+        ? resolver.findPackage(packageAppKey)
+        : undefined;
+    },
+    listPackages() {
+      return resolver
+        .listPackages()
+        .filter((appPackage) => isRuntimeInstallableAppPackageKey(appPackage.packageAppKey));
+    },
+  };
+}
+
+export function rootKnownPackageFactsResolver(
+  runtimeResolver: AppPackageResolver = bundledAppPackageResolver,
+): AppPackageResolver {
+  return {
+    findPackage(packageAppKey) {
+      return !isRuntimeInstallableAppPackageKey(packageAppKey)
+        ? rootKnownAppPackageResolver.findPackage(packageAppKey)
+        : runtimeResolver.findPackage(packageAppKey);
+    },
+    listPackages() {
+      return [
+        ...runtimeResolver
+          .listPackages()
+          .filter((appPackage) => isRuntimeInstallableAppPackageKey(appPackage.packageAppKey)),
+        rootKnownAppPackageResolver.findPackage("tasks")!,
+      ];
+    },
+  };
+}
 
 export function listResolvedAppPackages(
   resolver: AppPackageResolver = bundledAppPackageResolver,

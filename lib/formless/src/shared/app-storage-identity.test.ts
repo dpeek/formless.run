@@ -9,15 +9,6 @@ import {
 
 describe("app storage identity", () => {
   it("maps source schema keys to package-level storage names and API paths", () => {
-    expect(schemaKeyStorageIdentity("tasks")).toMatchObject({
-      apiRoutePrefix: "/api/tasks",
-      authorityName: "tasks",
-      broadcastChannelName: "formless:tasks",
-      browserDatabaseName: "formless:tasks",
-      kind: "schemaKey",
-      packageAppKey: "tasks",
-      sourceSchemaKey: "tasks",
-    });
     expect(schemaKeyStorageIdentity("site")).toMatchObject({
       apiRoutePrefix: "/api/site",
       authorityName: "site",
@@ -53,16 +44,7 @@ describe("app storage identity", () => {
         installId: "tasks",
         packageAppKey: "tasks",
       }),
-    ).toEqual({
-      apiRoutePrefix: "/api/app-installs/tasks/tasks",
-      authorityName: "app:tasks",
-      broadcastChannelName: "formless:app:tasks",
-      browserDatabaseName: "formless:app:tasks",
-      installId: "tasks",
-      kind: "appInstall",
-      packageAppKey: "tasks",
-      sourceSchemaKey: "tasks",
-    });
+    ).toBeUndefined();
     expect(
       installedAppStorageIdentity({
         installId: "crm",
@@ -159,15 +141,8 @@ describe("app storage identity", () => {
       },
       path: "/bootstrap",
     });
-    expect(parseAuthorityApiRoute("/api/app-installs/tasks/tasks/bootstrap")).toMatchObject({
-      identity: {
-        authorityName: "app:tasks",
-        installId: "tasks",
-        kind: "appInstall",
-        packageAppKey: "tasks",
-      },
-      path: "/bootstrap",
-    });
+    expect(parseAuthorityApiRoute("/api/tasks/bootstrap")).toBeUndefined();
+    expect(parseAuthorityApiRoute("/api/app-installs/tasks/tasks/bootstrap")).toBeUndefined();
   });
 
   it("parses the Program API route as Authority storage", () => {

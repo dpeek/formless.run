@@ -16,7 +16,7 @@ The system SHALL key each browser replica by storage identity.
 
 #### Scenario: Schema-key browser replica
 
-- GIVEN a schema-key app such as `tasks`, `site`, or `crm`
+- GIVEN a schema-key app such as `site` or `crm`
 - WHEN the browser opens the app
 - THEN the local IndexedDB replica uses a schema-key-specific database name
 - AND the matching broadcast channel is scoped to the same schema key
@@ -34,10 +34,10 @@ The system SHALL key each browser replica by storage identity.
 - WHEN the client target is selected
 - THEN the local IndexedDB replica uses `formless:instance:control-plane`
 - AND the matching broadcast channel uses the same Program scope
-- AND the replica contains instance and reviewable identity records from one
-  active `formless-program` schema and cursor
-- AND there is no separate identity-control-plane browser database or broadcast
-  channel
+- AND the replica contains instance, reviewable identity, and Task records from
+  one active `formless-program` schema and cursor
+- AND there is no separate identity-control-plane or Tasks browser database or
+  broadcast channel
 
 ### Requirement: Local Replica Stores
 
@@ -188,10 +188,11 @@ schema-key apps, and installed app identities.
 - GIVEN a management browser uses the Program storage identity
 - WHEN it connects to `/api/formless/program/sync/ws`
 - THEN the surviving Program Authority catches up from its one write-log cursor
-- AND the socket receives instance and identity record changes through the same
-  connection
+- AND the socket receives instance, identity, and Task record changes through
+  the same connection
 - AND no standalone instance or identity control-plane sync socket exposes a
   second cursor
+- AND no schema-key or installed-app Tasks socket exposes another Task cursor
 
 #### Scenario: Program push authorization remains current
 

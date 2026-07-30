@@ -54,6 +54,16 @@ import, or workspace validation.
   `program`, and one mixed Program record set
 - AND the runtime does not retain dual current archive or workspace state shapes
 
+#### Scenario: Tasks cutover advances current state contracts
+
+- GIVEN an archive or workspace contains Tasks as an installed-app storage
+  snapshot or `state/apps/<installId>.json`
+- WHEN current archive or workspace parsing runs after the Tasks Program cutover
+- THEN that input is not adopted as the authoritative Tasks record set
+- AND current output carries Task records only inside the Program snapshot
+- AND no legacy Tasks record, cursor, change history, operation history,
+  archive, workspace state, replica, or provenance is imported or merged
+
 ### Requirement: Export Latest Archive Format
 
 The system SHALL write portable archives using the latest supported archive
@@ -79,8 +89,9 @@ browser replica state.
 - WHEN an instance archive is exported
 - THEN one Program storage snapshot, app storage snapshots, and
   referenced core media are read from the target
-- AND the Program snapshot contains instance and reviewable identity records
-  from storage identity `instance:control-plane`
+- AND the Program snapshot contains instance, reviewable identity, and Task
+  records from storage identity `instance:control-plane`
+- AND legacy Tasks installs do not contribute app storage snapshots
 - AND archive media files are written at manifest archive paths
 - AND protected target reads use owner session or admin bearer authorization
   supplied by the caller
@@ -310,9 +321,10 @@ for local-first Formless workspaces.
   app records, Program records, and referenced core image or document media
 - **THEN** the system writes deterministic record state files, schema
   provenance, and referenced media payloads from Authority-backed state
-- **AND** instance control-plane and reviewable identity records are written to
-  `state/instance.json`
+- **AND** instance control-plane, reviewable identity, and Task records are
+  written to `state/instance.json`
 - **AND** installed app records are written to `state/apps/<installId>.json`
+- **AND** no Program-native Tasks install produces an app state file
 - **AND** browser replica state is not used as the source of truth
 - **AND** secret-looking fields are rejected from reviewable workspace state
 
@@ -342,6 +354,9 @@ payloads, not portable archive directories or duplicated schema source bodies.
 - **THEN** Program state is written to `state/instance.json`
 - **AND** each installed app's Authority storage state is written to
   `state/apps/<installId>.json`
+- **AND** Task records are written only to `state/instance.json`
+- **AND** no Program-native Tasks install produces
+  `state/apps/<installId>.json`
 - **AND** each state file declares kind, version, storage identity, schema key,
   exported timestamp, schema timestamp, source cursor, schema provenance, and
   records
@@ -355,8 +370,8 @@ payloads, not portable archive directories or duplicated schema source bodies.
 - **AND** workspace state files do not embed the full App schema object
 - **AND** `state/instance.json` uses storage identity `instance:control-plane`
 - **AND** `state/instance.json` uses schema key `formless-program`
-- **AND** it includes instance and reviewable identity records from the same
-  Authority record-id namespace
+- **AND** it includes instance, reviewable identity, and Task records from the
+  same Authority record-id namespace
 - **AND** app state files use storage identity `app:<installId>`
 - **AND** workspace state kind constants, version constants, and parsing
   behavior come from the Workspace package contract
@@ -632,13 +647,14 @@ resolved schema identified by that state file's schema provenance.
 - THEN installed app records remain scoped by app install identity through app
   record state or archive storage snapshots
 - AND installed app records are not stored as instance control-plane records
+- AND singleton Task records are Program records rather than installed app data
 
 ### Requirement: Schema-Owned Program Snapshots
 
-The system SHALL represent instance control-plane intent and reviewable identity
-records in workspace state and portable archive envelopes through one
-schema-owned Program snapshot without storing secrets, deployment observation
-cache, or deployment execution history.
+The system SHALL represent instance control-plane intent, reviewable identity
+records, and singleton Task records in workspace state and portable archive
+envelopes through one schema-owned Program snapshot without storing secrets,
+deployment observation cache, or deployment execution history.
 
 #### Scenario: Instance archive includes Program records
 
@@ -648,6 +664,8 @@ cache, or deployment execution history.
 - **AND** principals, principal emails, organizations, groups, memberships,
   roles, role assignments, app registrations, invitations, account policies,
   and policy acceptances are represented through that same snapshot
+- **AND** active and tombstoned Task records are represented through that same
+  snapshot
 - **AND** the snapshot uses schema key `formless-program`, provenance kind
   `program`, and the complete Program source hash
 - **AND** provider API tokens, Alchemy passwords, Alchemy state tokens, raw lease
@@ -661,6 +679,8 @@ cache, or deployment execution history.
   records are excluded from instance archives and workspace state
 - **AND** installed app data remains represented through storage snapshots
   scoped by app install identity
+- **AND** dormant legacy Tasks install metadata may remain as Program metadata
+  while legacy Tasks app storage remains absent from current archive output
 
 #### Scenario: Workspace Program state remains reviewable
 
@@ -669,6 +689,8 @@ cache, or deployment execution history.
   in `state/instance.json`
 - **AND** reviewable identity records from the same Program Authority are present
   in that file
+- **AND** reviewable Task records from the same Program Authority are present in
+  that file
 - **AND** the file declares a workspace state kind, version,
   storage identity `instance:control-plane`, schema key
   `formless-program`, schema timestamp, source cursor, Program schema
@@ -695,6 +717,8 @@ Program records for push and pull sync planning.
   deployment config records
 - **AND** reviewable identity record changes are reported from the same Program
   state comparison
+- **AND** Task record changes are reported from the same Program state
+  comparison
 - **AND** app path, exact-host mapping, and redirect changes are compared through
   `instance:route` records
 - **AND** provider observations remain separate from desired intent comparison

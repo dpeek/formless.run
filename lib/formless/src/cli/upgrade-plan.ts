@@ -4,6 +4,7 @@ import {
   FORMLESS_RUNTIME_PROTOCOL_VERSION,
   FORMLESS_STORAGE_MIGRATION_SET_ID,
 } from "../shared/deploy-metadata.ts";
+import { isRuntimeInstallableAppPackageKey } from "../shared/app-packages.ts";
 import type {
   PackageAppRevision,
   SourceSchemaHash,
@@ -162,7 +163,7 @@ export function buildCliUpgradePlanningReport(input: {
   target: CliUpgradePlanTargetIdentity;
 }): CliUpgradePlanningReport {
   const target = input.target;
-  const status = input.status;
+  const status = runtimeInstallableUpgradeStatus(input.status);
   const verificationBlockers = [
     ...status.verificationFailures.map(blockerFromVerificationFailure),
     ...packageDriftBlockers(status),
@@ -184,6 +185,26 @@ export function buildCliUpgradePlanningReport(input: {
       target,
     },
     status,
+  };
+}
+
+function runtimeInstallableUpgradeStatus(
+  status: FormlessInstanceTargetUpgradeStatus,
+): FormlessInstanceTargetUpgradeStatus {
+  return {
+    ...status,
+    deployedMetadata: {
+      ...status.deployedMetadata,
+      packageApps: status.deployedMetadata.packageApps.filter((appPackage) =>
+        isRuntimeInstallableAppPackageKey(appPackage.packageAppKey),
+      ),
+    },
+    installedApps: status.installedApps.filter((install) =>
+      isRuntimeInstallableAppPackageKey(install.packageAppKey),
+    ),
+    localPackages: status.localPackages.filter((appPackage) =>
+      isRuntimeInstallableAppPackageKey(appPackage.packageAppKey),
+    ),
   };
 }
 

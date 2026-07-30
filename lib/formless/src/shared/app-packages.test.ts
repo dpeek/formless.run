@@ -13,6 +13,9 @@ import {
   findResolvedAppPackage,
   listResolvedAppPackages,
   parseAppPackageManifest,
+  rootKnownAppPackageManifests,
+  rootKnownPackageFactsResolver,
+  runtimeInstallableAppPackageResolver,
 } from "./app-packages.ts";
 import { bundledSourceSchemaHashFixtures, computeSourceSchemaHash } from "./upgrade-migrations.ts";
 
@@ -175,10 +178,14 @@ describe("app package manifests", () => {
     }
   });
 
-  it("resolves bundled packages from manifest facts without changing existing metadata", () => {
-    expect(bundledAppPackageManifests.map((manifest) => manifest.packageAppKey)).toEqual([
+  it("separates root-known package facts from runtime-installable packages", () => {
+    expect(rootKnownAppPackageManifests.map((manifest) => manifest.packageAppKey)).toEqual([
       "site",
       "tasks",
+      "crm",
+    ]);
+    expect(bundledAppPackageManifests.map((manifest) => manifest.packageAppKey)).toEqual([
+      "site",
       "crm",
     ]);
 
@@ -196,16 +203,6 @@ describe("app package manifests", () => {
       }),
       expect.objectContaining({
         adminRouteBase: "/apps",
-        defaultInstallId: "tasks",
-        label: "Tasks",
-        packageAppKey: "tasks",
-        packageRevision: 1,
-        sourceOrigin: "bundled",
-        sourceSchemaKey: "tasks",
-        sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
-      }),
-      expect.objectContaining({
-        adminRouteBase: "/apps",
         defaultInstallId: "crm",
         label: "CRM",
         packageAppKey: "crm",
@@ -220,7 +217,8 @@ describe("app package manifests", () => {
       key: "site",
       path: "schema.json",
     });
-    expect(findResolvedAppPackage("tasks")).toEqual(
+    expect(findResolvedAppPackage("tasks")).toBeUndefined();
+    expect(rootKnownPackageFactsResolver().findPackage("tasks")).toEqual(
       expect.objectContaining({
         adminRouteBase: "/apps",
         defaultInstallId: "tasks",
@@ -232,8 +230,8 @@ describe("app package manifests", () => {
         sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
       }),
     );
-    expect(findResolvedAppPackage("tasks")?.publicRouteBase).toBeUndefined();
-    expect(findResolvedAppPackage("tasks")?.sourceSchemaLocation).toEqual({
+    expect(rootKnownPackageFactsResolver().findPackage("tasks")?.publicRouteBase).toBeUndefined();
+    expect(rootKnownPackageFactsResolver().findPackage("tasks")?.sourceSchemaLocation).toEqual({
       kind: "bundled",
       key: "tasks",
       path: "schema.json",
@@ -266,9 +264,30 @@ describe("app package manifests", () => {
     );
     expect(resolver.listPackages().map((appPackage) => appPackage.packageAppKey)).toEqual([
       "site",
-      "tasks",
       "crm",
       "private-labs",
+    ]);
+  });
+
+  it("filters a workspace-linked Tasks manifest from runtime installation", () => {
+    const resolver = runtimeInstallableAppPackageResolver(
+      createAppPackageResolver([
+        ...bundledAppPackageManifests,
+        {
+          ...rawTasksAppPackageManifest,
+          sourceSchema: {
+            kind: "workspace",
+            key: "tasks",
+            path: "packages/tasks/schema.json",
+          },
+        },
+      ]),
+    );
+
+    expect(resolver.findPackage("tasks")).toBeUndefined();
+    expect(resolver.listPackages().map((appPackage) => appPackage.packageAppKey)).toEqual([
+      "site",
+      "crm",
     ]);
   });
 
@@ -280,7 +299,7 @@ describe("app package manifests", () => {
     };
     const expectedHashes: Record<string, string> = bundledSourceSchemaHashFixtures;
 
-    for (const manifest of bundledAppPackageManifests) {
+    for (const manifest of rootKnownAppPackageManifests) {
       const sourceSchema = packageSchemas[manifest.packageAppKey];
 
       expect(sourceSchema, manifest.packageAppKey).toBeDefined();

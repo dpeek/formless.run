@@ -106,7 +106,6 @@ describe("instance management projection", () => {
     expect(invalidDialog.open).toBe(true);
     expect(invalidDialog.packageOptions.map(({ packageAppKey }) => packageAppKey)).toEqual([
       "site",
-      "tasks",
       "crm",
     ]);
     expect(invalidDialog.errors).toEqual([
@@ -119,8 +118,8 @@ describe("instance management projection", () => {
     expect(invalidDialog.submit.disabled).toBe(true);
 
     const pending = readyProjection({
-      state: readyState({ installing: true, installingPackageAppKey: "tasks" }),
-      selectedPackageAppKey: "tasks",
+      state: readyState({ installing: true, installingPackageAppKey: "crm" }),
+      selectedPackageAppKey: "crm",
     });
     const pendingDialog = required(pending.dialog);
     expect(pendingDialog.pending).toEqual({ isPending: true, label: "Installing app" });
@@ -287,7 +286,7 @@ describe("instance management runtime publication", () => {
     await application.host.dispatch(managementPushIntent({ manifest: ready }));
     expect(calls).toEqual([
       { kind: "dialog", value: true },
-      { kind: "package", value: "tasks" },
+      { kind: "package", value: "crm" },
       { kind: "draft", value: ["site", { installId: "site", label: "Task Space" }] },
       { kind: "submit", value: "site" },
       { kind: "push" },

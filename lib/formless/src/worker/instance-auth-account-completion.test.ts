@@ -9,7 +9,10 @@ import {
   formatRuntimeWorkspaceAppPackages,
 } from "../shared/workspace-runtime-packages.ts";
 import { computeSourceSchemaHash } from "../shared/upgrade-migrations.ts";
-import { workspaceAppPackageManifestFixture } from "../test/workspace-app-package.ts";
+import {
+  runtimeWorkspaceTaskAppPackageFixture,
+  workspaceAppPackageManifestFixture,
+} from "../test/workspace-app-package.ts";
 
 import {
   parseAccountCompletionGateResolutionResult,
@@ -47,6 +50,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   writeCounter = 0;
   const profilePackage = await profileCompletionWorkspacePackage();
+  const taskPackage = await runtimeWorkspaceTaskAppPackageFixture();
   harness = await createWorkerHarness(
     harnessPath,
     {
@@ -59,12 +63,13 @@ beforeEach(async () => {
         FORMLESS_OWNER_SESSION_SECRET: "test-owner-session-secret",
         [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
           profilePackage,
+          taskPackage,
         ]),
       },
     },
   );
   await createAppInstall({ installId: "crm", label: "CRM", packageAppKey: "crm" });
-  await createAppInstall({ installId: "billing", label: "Billing", packageAppKey: "tasks" });
+  await createAppInstall({ installId: "billing", label: "Billing", packageAppKey: "crm" });
 });
 
 afterEach(async () => {
@@ -368,7 +373,7 @@ describe("instance auth account completion resolver", () => {
     await createAppInstall({
       installId: "portal",
       label: "Portal",
-      packageAppKey: "tasks",
+      packageAppKey: "crm",
       registrationPolicy: "email-verified",
     });
     const principal = await createPrincipal("Email Verified Registration");
@@ -411,7 +416,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "members",
       label: "Members",
-      packageAppKey: "tasks",
+      packageAppKey: "test-tasks",
       registrationOperation: "task.create",
       registrationPolicy: "custom-operation",
     });
@@ -511,7 +516,7 @@ describe("instance auth account completion resolver", () => {
       const install = await createAppInstall({
         installId: testCase.installId,
         label: testCase.installId,
-        packageAppKey: "tasks",
+        packageAppKey: "test-tasks",
         registrationOperation: "task.create",
         registrationPolicy: "custom-operation",
       });
@@ -546,7 +551,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "portal",
       label: "Portal",
-      packageAppKey: "tasks",
+      packageAppKey: "crm",
       registrationPolicy: "email-verified",
     });
     const principal = await createPrincipal("Complete Registration");
@@ -600,7 +605,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "portal",
       label: "Portal",
-      packageAppKey: "tasks",
+      packageAppKey: "crm",
       registrationPolicy: "email-verified",
     });
     const principal = await createPrincipal("Blocked After Registration");
@@ -641,7 +646,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "members",
       label: "Members",
-      packageAppKey: "tasks",
+      packageAppKey: "test-tasks",
       registrationOperation: "task.create",
       registrationPolicy: "custom-operation",
     });
@@ -716,7 +721,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "custom-reuse",
       label: "Custom Reuse",
-      packageAppKey: "tasks",
+      packageAppKey: "test-tasks",
       registrationOperation: "task.create",
       registrationPolicy: "custom-operation",
     });
@@ -780,7 +785,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "closed-portal",
       label: "Closed Portal",
-      packageAppKey: "tasks",
+      packageAppKey: "crm",
     });
     const principal = await createPrincipal("Reject Closed Registration");
     const target = appTargetForInstall(install);
@@ -820,7 +825,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "credential-portal",
       label: "Credential Portal",
-      packageAppKey: "tasks",
+      packageAppKey: "crm",
       registrationPolicy: "email-verified",
     });
     const principal = await createPrincipal("Reject Missing Credential");
@@ -1055,7 +1060,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "terms-portal",
       label: "Terms Portal",
-      packageAppKey: "tasks",
+      packageAppKey: "crm",
     });
     const principal = await createPrincipal("Terms Acceptance");
     const target = appTargetForInstall(install);
@@ -1139,7 +1144,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "reject-terms",
       label: "Reject Terms",
-      packageAppKey: "tasks",
+      packageAppKey: "crm",
     });
     const principal = await createPrincipal("Reject Terms");
     const target = appTargetForInstall(install);
@@ -1200,7 +1205,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "partial-terms",
       label: "Partial Terms",
-      packageAppKey: "tasks",
+      packageAppKey: "crm",
     });
     const principal = await createPrincipal("Partial Terms");
     const target = appTargetForInstall(install);
@@ -1261,7 +1266,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "stale-acceptances",
       label: "Stale Acceptances",
-      packageAppKey: "tasks",
+      packageAppKey: "crm",
     });
     const principal = await createPrincipal("Stale Acceptances");
     const target = appTargetForInstall(install);

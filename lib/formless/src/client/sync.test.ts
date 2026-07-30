@@ -63,10 +63,9 @@ beforeEach(async () => {
   await deleteClientDb(programClientTarget());
   await deleteClientDb(installedSiteIdentity("personal"));
   await deleteClientDb(installedSiteIdentity("docs"));
-  await deleteClientDb(installedTasksIdentity("work"));
-  await deleteClientDb(installedTasksIdentity("team"));
   await deleteClientDb(installedCRMIdentity("rates"));
   await deleteClientDb(installedCRMIdentity("alt-rates"));
+  await deleteClientDb(installedCRMIdentity("work"));
   await deleteClientDb(installedWorkspaceSiteIdentity("private-site"));
   resetClientStore();
 });
@@ -150,13 +149,12 @@ describe("client sync", () => {
     });
   });
 
-  it("bootstraps installed Tasks into an install-scoped replica only", async () => {
-    const work = installedTasksIdentity("work");
-    const team = installedTasksIdentity("team");
+  it("bootstraps Tasks through the Program replica only", async () => {
+    const program = programClientTarget();
 
     await bootstrapClient(
-      work,
-      jsonFetcher("/api/app-installs/tasks/work/bootstrap", {
+      program,
+      jsonFetcher("/api/formless/program/bootstrap", {
         schema: appSchema,
         schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
         records: [record("record-1", "Work task")],
@@ -164,12 +162,11 @@ describe("client sync", () => {
       } satisfies BootstrapResponse),
     );
 
-    expect((await readLocalSnapshot(work)).records).toEqual([record("record-1", "Work task")]);
-    expect((await readLocalSnapshot(team)).records).toEqual([]);
+    expect((await readLocalSnapshot(program)).records).toEqual([record("record-1", "Work task")]);
     expect((await readLocalSnapshot("tasks")).records).toEqual([]);
     expect(getClientStoreSnapshot()).toMatchObject({
-      activeClientStorageName: "formless:app:work",
-      activeSchemaKey: "tasks",
+      activeClientStorageName: "formless:instance:control-plane",
+      activeSchemaKey: "formless-program",
     });
   });
 
@@ -210,7 +207,7 @@ describe("client sync", () => {
 
     const reset = await resetLocalBrowserReplicaState();
 
-    expect(reset.deletedDatabaseNames).toEqual(["formless:tasks"]);
+    expect(reset.deletedDatabaseNames).toEqual([]);
     expect(getClientStoreSnapshot()).toMatchObject({
       activeClientStorageName: null,
       activeSchemaKey: null,
@@ -351,7 +348,7 @@ describe("client sync", () => {
   });
 
   it("sends bundled package facts with bundled installed app operation writes", async () => {
-    const work = installedTasksIdentity("work");
+    const work = installedCRMIdentity("work");
 
     await saveBootstrapResponse(work, {
       schema: appSchema,
@@ -368,7 +365,7 @@ describe("client sync", () => {
       async (input, init) => {
         const headers = new Headers(init?.headers);
 
-        expect(input).toBe("/api/app-installs/tasks/work/operations/task/create");
+        expect(input).toBe("/api/app-installs/crm/work/operations/task/create");
         expect(headers.get(FORMLESS_CLIENT_RUNTIME_PROTOCOL_HEADER)).toBe(
           String(FORMLESS_RUNTIME_PROTOCOL_VERSION),
         );
@@ -619,15 +616,15 @@ describe("client sync", () => {
     }
   });
 
-  it("opens installed Tasks push sync on the Tasks install API path", () => {
+  it("opens Tasks push sync on the Program API path", () => {
     const sockets = fakeSocketFactory();
-    const stop = startPushSync(installedTasksIdentity("work"), {
+    const stop = startPushSync(programClientTarget(), {
       socketFactory: sockets.create,
     });
 
     try {
       expect(new URL(sockets.instances[0]?.url ?? "").pathname).toBe(
-        "/api/app-installs/tasks/work/sync/ws",
+        "/api/formless/program/sync/ws",
       );
     } finally {
       stop();
@@ -1439,8 +1436,8 @@ describe("client sync", () => {
     expect(autoSave.inputs).toEqual([]);
   });
 
-  it("uses installed Tasks API paths for sync, operation writes, snapshots, and schema reset", async () => {
-    const work = installedTasksIdentity("work");
+  it("uses Program API paths for Task sync, writes, snapshots, and schema reset", async () => {
+    const work = programClientTarget();
     const createdRecord = record("record-2", "Created in work");
     const tombstone = {
       ...createdRecord,
@@ -1459,7 +1456,7 @@ describe("client sync", () => {
     await syncClient(
       work,
       jsonFetcher(
-        "/api/app-installs/tasks/work/sync?after=1&schemaUpdatedAt=2026-04-28T00%3A00%3A00.000Z",
+        "/api/formless/program/sync?after=1&schemaUpdatedAt=2026-04-28T00%3A00%3A00.000Z",
         {
           changes: [writeLogChange(2, "record-2", "Created in work")],
           cursor: 2,
@@ -1478,7 +1475,7 @@ describe("client sync", () => {
           materializedRecordChange(3, operation.idempotencyKey, createdRecord, "create"),
         ];
 
-        expect(input).toBe("/api/app-installs/tasks/work/operations/task/create");
+        expect(input).toBe("/api/formless/program/operations/task/create");
         expect(init?.method).toBe("POST");
 
         return Response.json(
@@ -1497,7 +1494,7 @@ describe("client sync", () => {
       const operation = parseOperationRequestBody(init?.body);
       const changes = [commandMaterializationChange(4, tombstone, operation.idempotencyKey)];
 
-      expect(input).toBe("/api/app-installs/tasks/work/operations/task/clearCompletedTasks");
+      expect(input).toBe("/api/formless/program/operations/task/clearCompletedTasks");
       expect(init?.method).toBe("POST");
 
       return Response.json(
@@ -1513,15 +1510,25 @@ describe("client sync", () => {
     const exported = await exportStorageSnapshot(
       work,
       jsonFetcher(
-        "/api/app-installs/tasks/work/snapshot",
-        storageSnapshot({ records: [tombstone], sourceCursor: 4, storageIdentity: "app:work" }),
+        "/api/formless/program/snapshot",
+        storageSnapshot({
+          records: [tombstone],
+          schemaKey: "formless-program",
+          sourceCursor: 4,
+          storageIdentity: "instance:control-plane",
+        }),
       ),
     );
     const restored = await restoreStorageSnapshot(
       work,
-      storageSnapshot({ records: [restoredRecord], sourceCursor: 4, storageIdentity: "app:work" }),
+      storageSnapshot({
+        records: [restoredRecord],
+        schemaKey: "formless-program",
+        sourceCursor: 4,
+        storageIdentity: "instance:control-plane",
+      }),
       async (input, init) => {
-        expect(input).toBe("/api/app-installs/tasks/work/snapshot/restore");
+        expect(input).toBe("/api/formless/program/snapshot/restore");
         expect(init?.method).toBe("POST");
 
         return Response.json({
@@ -1535,7 +1542,7 @@ describe("client sync", () => {
 
     await resetSourceSchema(
       work,
-      jsonFetcher("/api/app-installs/tasks/work/reset/schema", {
+      jsonFetcher("/api/formless/program/reset/schema", {
         schema: appSchema,
         schemaUpdatedAt: "2026-04-28T00:05:00.000Z",
         records: [restoredRecord],
@@ -1548,8 +1555,8 @@ describe("client sync", () => {
     expect((await readLocalSnapshot("tasks")).records).toEqual([]);
     expect((await readLocalSnapshot(work)).records).toEqual([restoredRecord]);
     expect(getClientStoreSnapshot()).toMatchObject({
-      activeClientStorageName: "formless:app:work",
-      activeSchemaKey: "tasks",
+      activeClientStorageName: "formless:instance:control-plane",
+      activeSchemaKey: "formless-program",
       cursor: 6,
     });
   });
@@ -2292,16 +2299,6 @@ function installedSiteIdentity(installId: string) {
 
   if (!identity) {
     throw new Error(`Expected installed Site identity for ${installId}.`);
-  }
-
-  return identity;
-}
-
-function installedTasksIdentity(installId: string) {
-  const identity = installedAppStorageIdentity({ installId, packageAppKey: "tasks" });
-
-  if (!identity) {
-    throw new Error(`Expected installed Tasks identity for ${installId}.`);
   }
 
   return identity;

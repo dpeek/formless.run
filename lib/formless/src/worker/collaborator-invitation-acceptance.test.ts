@@ -2016,7 +2016,7 @@ async function createDefaultAppInstall(
         input: {
           installId,
           label: "Invitation target",
-          packageAppKey: "tasks",
+          packageAppKey: "crm",
           ...values,
         },
       }),

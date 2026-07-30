@@ -34,7 +34,6 @@ describe("client app install API helpers", () => {
 
     expect(resolver.listPackages().map((appPackage) => appPackage.packageAppKey)).toEqual([
       "site",
-      "tasks",
       "crm",
     ]);
     expect(sitePackage).toMatchObject({

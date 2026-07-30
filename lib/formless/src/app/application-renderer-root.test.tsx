@@ -44,9 +44,9 @@ afterEach(() => {
 
 describe("application root runtime", () => {
   it("updates the production subscribed application shell and document when theme mode changes", async () => {
-    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), "tasks");
+    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), "site");
     const runtimeProfile = createDevRuntimeProfile();
-    const routeWorld = required(findRuntimeWorldMountByRoute(runtimeProfile, "/tasks"));
+    const routeWorld = required(findRuntimeWorldMountByRoute(runtimeProfile, "/site"));
     const mediaQuery = matchMediaFixture(true);
     vi.stubGlobal("matchMedia", () => mediaQuery);
     window.localStorage.setItem("formless:application:theme", "dark");
@@ -72,7 +72,7 @@ describe("application root runtime", () => {
       return (
         <ApplicationShellRuntimeBoundary
           applicationTheme={applicationTheme}
-          currentPath="/tasks"
+          currentPath="/site"
           accountSession={{ authenticated: false, setupComplete: true }}
           routeWorld={routeWorld}
           runtimeProfile={runtimeProfile}

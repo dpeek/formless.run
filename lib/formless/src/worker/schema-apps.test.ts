@@ -50,14 +50,10 @@ describe("worker schema app definitions", () => {
       crm.sourceSchema.entities.find((definition) => definition.key === "contact")?.label,
     ).toBe("Contact");
   });
-  it("loads parsed source schemas for each app", () => {
-    const tasks = getWorkerSchemaAppDefinition("tasks");
+  it("loads parsed source schemas for each routable source app", () => {
     const site = getWorkerSchemaAppDefinition("site");
     const crm = getWorkerSchemaAppDefinition("crm");
-    expect(workerSchemaApps.map((app) => app.key)).toEqual(["tasks", "site", "crm"]);
-    expect(tasks.sourceSchema.entities.find((definition) => definition.key === "task")?.label).toBe(
-      "Task",
-    );
+    expect(workerSchemaApps.map((app) => app.key)).toEqual(["site", "crm"]);
     expect(site.sourceSchema.entities.find((definition) => definition.key === "site")?.label).toBe(
       "Site",
     );

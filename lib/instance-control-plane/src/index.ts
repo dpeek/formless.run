@@ -1602,13 +1602,15 @@ export function instanceControlPlaneAppInstallsFromRecords(
   return listAppInstalls(
     activeRecords
       .filter((record) => record.entity === "app-install" && record.values.status === "installed")
-      .map((record) =>
-        appInstallFromControlPlaneRecord(
+      .flatMap((record) => {
+        const install = appInstallFromControlPlaneRecord(
           record,
           hostlessRouteRecordsForInstall(routeRecords, record.id),
           packageResolver,
-        ),
-      ),
+        );
+
+        return install === undefined ? [] : [install];
+      }),
   );
 }
 
@@ -1637,7 +1639,7 @@ function appInstallFromControlPlaneRecord(
     values: InstanceControlPlaneRouteValues;
   }[],
   packageResolver?: AppPackageResolver,
-): AppInstall {
+): AppInstall | undefined {
   const values = record.values;
   const packageAppKey = stringControlPlaneValue(values.packageAppKey);
   const packageApp =
@@ -1646,7 +1648,7 @@ function appInstallFromControlPlaneRecord(
       : undefined;
 
   if (!packageApp) {
-    throw new Error(`Stored app install "${String(values.installId)}" has unsupported package.`);
+    return undefined;
   }
 
   const installId = stringControlPlaneValue(values.installId) ?? "";

@@ -4,7 +4,7 @@ import {
   getSchemaAppDefinition,
   schemaApps,
   type SchemaAppDefinition,
-  type SchemaKey,
+  type SourceSchemaKey,
 } from "../shared/schema-apps.ts";
 import {
   installedAppStorageIdentity,
@@ -338,7 +338,7 @@ export function normalizeRuntimeBrowserPath(path: string): string {
 }
 
 export function createAppRuntimeProfile(
-  schemaKey: SchemaKey = defaultSchemaKey,
+  schemaKey: SourceSchemaKey = defaultSchemaKey,
   options: AppRuntimeProfileOptions = {},
 ): RuntimeProfile {
   const app = getSchemaAppDefinition(schemaKey);
@@ -854,7 +854,7 @@ export function selectBrowserRuntimeProfileHint(input: {
   );
 }
 
-function parseSchemaKey(value: string | undefined): SchemaKey | undefined {
+function parseSchemaKey(value: string | undefined): SourceSchemaKey | undefined {
   return value ? findSchemaAppDefinition(value)?.key : undefined;
 }
 

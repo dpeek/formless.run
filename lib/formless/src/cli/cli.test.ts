@@ -86,7 +86,6 @@ import {
   crmTestRecords,
   crmSourceSchema,
   siteSourceSchema,
-  taskTestRecords,
   taskSourceSchema,
 } from "../test/schema-apps.ts";
 import {
@@ -4135,7 +4134,7 @@ describe("Formless CLI", () => {
     ]);
   });
 
-  it("exports installed Tasks app archives without media requests", async () => {
+  it("exports installed CRM app archives without media requests", async () => {
     const tempDir = await makeTempDir();
     const outDir = path.join(tempDir, "tasks-backup");
     const requests: CapturedFetchRequest[] = [];
@@ -4148,16 +4147,16 @@ describe("Formless CLI", () => {
           adminRoute: "/apps/work",
           createdAt: "2026-05-01T00:00:00.000Z",
           installId: "work",
-          label: "Work Tasks",
-          packageAppKey: "tasks",
-          ...packageAppFactsForKey("tasks", bundledAppPackageResolver)!,
+          label: "Work CRM",
+          packageAppKey: "crm",
+          ...packageAppFactsForKey("crm", bundledAppPackageResolver)!,
           registrationPolicy: "closed",
           status: "installed",
           updatedAt: "2026-05-01T00:00:00.000Z",
         },
       ],
     });
-    responses.queueJson(taskSnapshot(taskTestRecords));
+    responses.queueJson(crmSnapshot(crmTestRecords, "app:work"));
 
     await exportAppArchive(
       {
@@ -4182,16 +4181,16 @@ describe("Formless CLI", () => {
 
     expect(archive.app).toMatchObject({
       installId: "work",
-      packageAppKey: "tasks",
-      packageRevision: packageAppFactsForKey("tasks", bundledAppPackageResolver)!.packageRevision,
-      sourceSchemaKey: "tasks",
-      sourceSchemaHash: packageAppFactsForKey("tasks", bundledAppPackageResolver)!.sourceSchemaHash,
+      packageAppKey: "crm",
+      packageRevision: packageAppFactsForKey("crm", bundledAppPackageResolver)!.packageRevision,
+      sourceSchemaKey: "crm",
+      sourceSchemaHash: packageAppFactsForKey("crm", bundledAppPackageResolver)!.sourceSchemaHash,
     });
-    expect(archive.data).toEqual(taskSnapshot(taskTestRecords));
+    expect(archive.data).toEqual(crmSnapshot(crmTestRecords, "app:work"));
     expect(archive.media.objects).toEqual([]);
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
       "GET https://instance.example/api/formless/app-installs",
-      "GET https://instance.example/api/app-installs/tasks/work/snapshot",
+      "GET https://instance.example/api/app-installs/crm/work/snapshot",
     ]);
   });
 
@@ -4222,9 +4221,9 @@ describe("Formless CLI", () => {
           adminRoute: "/apps/work",
           createdAt: "2026-05-01T00:00:00.000Z",
           installId: "work",
-          label: "Work Tasks",
-          packageAppKey: "tasks",
-          ...packageAppFactsForKey("tasks", bundledAppPackageResolver)!,
+          label: "Work CRM",
+          packageAppKey: "crm",
+          ...packageAppFactsForKey("crm", bundledAppPackageResolver)!,
           registrationPolicy: "closed",
           status: "installed",
           updatedAt: "2026-05-01T00:00:00.000Z",
@@ -4244,7 +4243,7 @@ describe("Formless CLI", () => {
     });
     responses.queueJson(controlPlaneSnapshot(controlPlaneRecords()));
     responses.queueJson(snapshot(sourceSnapshotRecords));
-    responses.queueJson(taskSnapshot(taskTestRecords));
+    responses.queueJson(crmSnapshot(crmTestRecords, "app:work"));
     responses.queueJson(crmSnapshot(crmTestRecords, "app:sales"));
     responses.queueBinary(Buffer.from([4, 5, 6]), "image/png");
 
@@ -4295,9 +4294,9 @@ describe("Formless CLI", () => {
       ],
       [
         "work",
-        "tasks",
-        packageAppFactsForKey("tasks", bundledAppPackageResolver)!.packageRevision,
-        packageAppFactsForKey("tasks", bundledAppPackageResolver)!.sourceSchemaHash,
+        "crm",
+        packageAppFactsForKey("crm", bundledAppPackageResolver)!.packageRevision,
+        packageAppFactsForKey("crm", bundledAppPackageResolver)!.sourceSchemaHash,
       ],
     ]);
     expect(archive.capabilities).toEqual([
@@ -4325,7 +4324,7 @@ describe("Formless CLI", () => {
       "GET https://instance.example/api/formless/app-installs",
       "GET https://instance.example/api/formless/program/snapshot?actorKind=cliDeployer",
       "GET https://instance.example/api/app-installs/site/personal/snapshot",
-      "GET https://instance.example/api/app-installs/tasks/work/snapshot",
+      "GET https://instance.example/api/app-installs/crm/work/snapshot",
       "GET https://instance.example/api/app-installs/crm/sales/snapshot",
       "GET https://instance.example/api/formless/media/media/images/cover.png",
     ]);
@@ -4349,7 +4348,7 @@ describe("Formless CLI", () => {
           recordCountsByApp: {
             personal: { total: sourceSnapshotRecords.length },
             sales: { total: crmTestRecords.length },
-            work: { total: taskTestRecords.length },
+            work: { total: crmTestRecords.length },
           },
           replacedInstalls: [],
         },

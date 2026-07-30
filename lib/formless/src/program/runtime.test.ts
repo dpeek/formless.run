@@ -10,6 +10,7 @@ import {
 import { computeSourceSchemaHash } from "@dpeek/formless-installed-apps";
 import { identityControlPlaneEntityIds } from "@dpeek/formless-identity-control-plane";
 import { instanceControlPlaneEntityIds } from "@dpeek/formless-instance-control-plane";
+import { tasksEntityIds } from "@dpeek/formless-tasks-app";
 import {
   STORAGE_SNAPSHOT_KIND,
   STORAGE_SNAPSHOT_VERSION,
@@ -47,7 +48,7 @@ describe("Formless Program runtime contracts", () => {
     expect(await computeSourceSchemaHash(rawFormlessProgramSchema)).toBe(
       FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
     );
-    expect(formlessProgramSchema.entities).toHaveLength(18);
+    expect(formlessProgramSchema.entities).toHaveLength(19);
     expect(formlessProgramSchemaProvenance).toEqual({
       kind: "program",
       sourceSchemaHash: FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
@@ -65,16 +66,22 @@ describe("Formless Program runtime contracts", () => {
   it("materializes explicit access for every current Program operation", () => {
     const identityEntityIds = new Set(identityControlPlaneEntityIds);
     const instanceEntityIds = new Set(instanceControlPlaneEntityIds);
+    const taskEntityIds = new Set<string>(tasksEntityIds);
 
     for (const entity of formlessProgramSchema.entities) {
-      expect(identityEntityIds.has(entity.id) || instanceEntityIds.has(entity.id), entity.key).toBe(
-        true,
-      );
+      expect(
+        identityEntityIds.has(entity.id) ||
+          instanceEntityIds.has(entity.id) ||
+          taskEntityIds.has(entity.id),
+        entity.key,
+      ).toBe(true);
 
       for (const operation of entity.operations ?? []) {
         expect(operation.access, `${entity.key}.${operation.key}`).toBeDefined();
 
-        if (identityEntityIds.has(entity.id)) {
+        if (taskEntityIds.has(entity.id)) {
+          expect(operation.access).toEqual({ role: "editor" });
+        } else if (identityEntityIds.has(entity.id)) {
           expect(operation.access).toEqual({ actor: "owner" });
         } else if (entity.key === "instance-settings") {
           expect(operation.access).toEqual({
@@ -96,6 +103,12 @@ describe("Formless Program runtime contracts", () => {
       label: "Deployments",
       path: "/deployments",
     });
+    expect(resolveFormlessProgramScreenRouteTarget("/tasks")).toEqual({
+      access: { role: "member" },
+      key: "taskHome",
+      label: "Tasks",
+      path: "/tasks",
+    });
     expect(resolveFormlessProgramScreenRouteTarget("/unknown")).toBeUndefined();
 
     const missingAccess: unknown = structuredClone(rawFormlessProgramSchema);
@@ -109,7 +122,10 @@ describe("Formless Program runtime contracts", () => {
   });
 
   it("validates mixed records through stable-id-owned package constraints", () => {
-    const records = programRecords();
+    const records = [
+      ...programRecords(),
+      taskRecord("task:active", { title: "Active", done: false, priority: "high" }),
+    ];
 
     expect(() => validateFormlessProgramRecords("Program records", records)).not.toThrow();
     expect(() =>
@@ -123,6 +139,55 @@ describe("Formless Program runtime contracts", () => {
     expect(() => validateFormlessProgramRecords("Program records", missingPrincipal)).toThrow(
       'references unknown principal record "principal:ada"',
     );
+    expect(() =>
+      validateFormlessProgramRecords("Program records", [
+        ...records,
+        taskRecord("principal:ada", {
+          title: "Duplicate",
+          done: false,
+          priority: "normal",
+        }),
+      ]),
+    ).toThrow('includes duplicate record id "principal:ada"');
+  });
+
+  it("retains active and tombstoned Task records in canonical Program snapshots", () => {
+    const active = taskRecord("task:active", {
+      priority: "high",
+      title: "Active",
+      done: false,
+    });
+    const tombstone = {
+      ...taskRecord("task:deleted", {
+        done: true,
+        priority: "normal",
+        title: "Deleted",
+      }),
+      deletedAt: "2026-07-30T01:00:00.000Z",
+    };
+    const canonical = canonicalizeFormlessProgramStorageSnapshot(
+      programSnapshot([tombstone, ...programRecords(), active]),
+    );
+
+    expect(canonical.records.filter(({ entity }) => entity === "task")).toEqual([
+      {
+        ...active,
+        values: {
+          title: "Active",
+          done: false,
+          priority: "high",
+        },
+      },
+      {
+        ...tombstone,
+        values: {
+          title: "Deleted",
+          done: true,
+          priority: "normal",
+        },
+      },
+    ]);
+    expect(canonicalizeFormlessProgramStorageSnapshot(canonical)).toEqual(canonical);
   });
 
   it("excludes private state and formats one mixed snapshot deterministically", () => {
@@ -291,4 +356,8 @@ function storedRecord(id: string, entity: string, values: StoredRecord["values"]
     createdAt: now,
     updatedAt: now,
   };
+}
+
+function taskRecord(id: string, values: StoredRecord["values"]): StoredRecord {
+  return storedRecord(id, "task", values);
 }

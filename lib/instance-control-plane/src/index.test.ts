@@ -1724,7 +1724,7 @@ describe("instance control-plane schema contracts", () => {
     });
   });
 
-  it("omits launch links for app installs whose package is unsupported", () => {
+  it("omits operational projections for app installs whose package is unsupported", () => {
     const records: StoredRecord[] = [
       storedAppInstallRecord({
         installId: "missing",
@@ -1747,6 +1747,9 @@ describe("instance control-plane schema contracts", () => {
 
     expect(
       instanceControlPlaneAppLaunchLinksFromRecords(records, controlPlanePackageResolver),
+    ).toEqual([]);
+    expect(
+      instanceControlPlaneAppInstallsFromRecords(records, controlPlanePackageResolver),
     ).toEqual([]);
   });
 

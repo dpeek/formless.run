@@ -131,7 +131,7 @@ export async function applyCliAutoSafeUpgradeMigrations(
 
   verifySqlApplyEvidence(sql, verifiedSqlStatus);
 
-  for (const install of targetStatus.upgradeStatus.installedApps) {
+  for (const install of planning.status.installedApps) {
     const response = await applyFormlessInstalledAppAutoSafePackageMigrations(
       {
         adminToken: input.adminToken,

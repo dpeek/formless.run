@@ -14,15 +14,15 @@ import { bundledSourceSchemaHashFixtures } from "./shared/upgrade-migrations.ts"
 describe("application route selection", () => {
   it("selects instance and generated app surfaces inside the application shell", () => {
     const instance = renderRoute("/");
-    const tasks = renderRoute("/tasks/completed");
+    const sourceApp = renderRoute("/site/completed");
 
     expect(instance).toContain('data-surface="application-shell"');
     expect(instance).toContain('data-route="instance"');
-    expect(tasks).toContain('data-surface="application-shell"');
-    expect(tasks).toContain('data-route="home"');
-    expect(tasks).toContain('data-schema-key="tasks"');
-    expect(tasks).toContain('data-screen-path="/completed"');
-    expect(tasks).toContain('data-target-kind="none"');
+    expect(sourceApp).toContain('data-surface="application-shell"');
+    expect(sourceApp).toContain('data-route="home"');
+    expect(sourceApp).toContain('data-schema-key="site"');
+    expect(sourceApp).toContain('data-screen-path="/completed"');
+    expect(sourceApp).toContain('data-target-kind="none"');
   });
 
   it("selects local session, account, and published Site surfaces outside the shell", () => {

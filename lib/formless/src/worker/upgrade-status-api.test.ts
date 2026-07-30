@@ -35,7 +35,7 @@ describe("runtime upgrade status API", () => {
   it("requires instance write authorization for status reads", async () => {
     const instanceStatus = await harness.fetch(INSTANCE_UPGRADE_STATUS_API_PATH);
     const appStatus = await harness.fetch(
-      `/api/app-installs/tasks/tasks${APP_STORAGE_UPGRADE_STATUS_API_PATH_SUFFIX}`,
+      `/api/app-installs/crm/work${APP_STORAGE_UPGRADE_STATUS_API_PATH_SUFFIX}`,
     );
 
     expect(instanceStatus.status).toBe(401);
@@ -49,11 +49,11 @@ describe("runtime upgrade status API", () => {
 
   it("reports SQL and package app migration evidence scoped by storage identity", async () => {
     await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
-      installId: "tasks",
-      label: "Tasks",
-      packageAppKey: "tasks",
+      installId: "work",
+      label: "Work",
+      packageAppKey: "crm",
     });
-    await postAdminJson("/api/formless/app-installs/tasks/tasks/package-migrations/apply", {});
+    await postAdminJson("/api/formless/app-installs/crm/work/package-migrations/apply", {});
 
     const status = await getAdminJson<InstanceUpgradeStatusResponse>(
       INSTANCE_UPGRADE_STATUS_API_PATH,
@@ -61,8 +61,8 @@ describe("runtime upgrade status API", () => {
     const instance = status.body.storageIdentities.find(
       (storage) => storage.identity.kind === "instance",
     );
-    const tasks = status.body.storageIdentities.find(
-      (storage) => storage.identity.kind === "appInstall" && storage.identity.installId === "tasks",
+    const work = status.body.storageIdentities.find(
+      (storage) => storage.identity.kind === "appInstall" && storage.identity.installId === "work",
     );
 
     expect(status.response.headers.get("Cache-Control")).toBe("no-store");
@@ -81,20 +81,20 @@ describe("runtime upgrade status API", () => {
         storageFamily: "instance-app-installs",
       }),
     );
-    expect(tasks).toEqual(
+    expect(work).toEqual(
       expect.objectContaining({
         identity: expect.objectContaining({
-          authorityName: "app:tasks",
-          installId: "tasks",
+          authorityName: "app:work",
+          installId: "work",
           kind: "appInstall",
-          packageAppKey: "tasks",
+          packageAppKey: "crm",
         }),
         packageAppMigrations: {
           applied: [],
           state: expect.objectContaining({
-            packageAppKey: "tasks",
+            packageAppKey: "crm",
             packageRevision: 1,
-            sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
+            sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
           }),
         },
       }),
@@ -109,9 +109,9 @@ describe("runtime upgrade status API", () => {
 
   it("applies auto-safe SQL migration evidence through the secured runtime API", async () => {
     await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
-      installId: "tasks",
-      label: "Tasks",
-      packageAppKey: "tasks",
+      installId: "work",
+      label: "Work",
+      packageAppKey: "crm",
     });
 
     const apply = await postAdminJson<InstanceUpgradeStatusResponse>(

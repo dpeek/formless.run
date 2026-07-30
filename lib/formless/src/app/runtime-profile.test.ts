@@ -174,13 +174,13 @@ describe("runtime profile resolver", () => {
       homeSlug: "home",
       siteRouteBase: "/sites",
     });
-    expect(profile.worlds.map((world) => world.app.key)).toEqual(["tasks", "site", "crm"]);
-    expect(profile.worlds.map((world) => world.generatedRoutes)).toEqual([true, true, true]);
-    expect(profile.worlds.map((world) => world.route)).toEqual(["/tasks", "/site", "/crm"]);
+    expect(profile.worlds.map((world) => world.app.key)).toEqual(["site", "crm"]);
+    expect(profile.worlds.map((world) => world.generatedRoutes)).toEqual([true, true]);
+    expect(profile.worlds.map((world) => world.route)).toEqual(["/site", "/crm"]);
     expect(profile.publicSitePreview?.homeRoute).toBe("/pages/home");
     expect(findRuntimeWorldMountByRoute(profile, "/rates")).toBeUndefined();
     expect(findRuntimeWorldMountByRoute(profile, "/rates/schema")).toBeUndefined();
-    expect(runtimeScreenPathFromRoute(profile.worlds[0]!, "/tasks/schema")).toBe("/schema");
+    expect(runtimeScreenPathFromRoute(profile.worlds[0]!, "/site/schema")).toBe("/schema");
     expect(runtimeRoutePolicy(profile)).toEqual({
       instanceBrowserRoutes: true,
       installedAppBrowserRoutes: true,
@@ -229,10 +229,6 @@ describe("runtime profile resolver", () => {
       throw new Error("Missing installed Site world.");
     }
 
-    if (!tasksWorld?.target || tasksWorld.target.kind !== "appInstall") {
-      throw new Error("Missing installed Tasks world.");
-    }
-
     if (!crmWorld?.target || crmWorld.target.kind !== "appInstall") {
       throw new Error("Missing installed CRM world.");
     }
@@ -242,10 +238,7 @@ describe("runtime profile resolver", () => {
     expect(world.access).toBe("owner");
     expect(world.target.installId).toBe("personal");
     expect(world.target.apiRoutePrefix).toBe("/api/app-installs/site/personal");
-    expect(tasksWorld.app.key).toBe("tasks");
-    expect(tasksWorld.route).toBe("/apps/task-workspace");
-    expect(tasksWorld.target.installId).toBe("task-workspace");
-    expect(tasksWorld.target.apiRoutePrefix).toBe("/api/app-installs/tasks/task-workspace");
+    expect(tasksWorld).toBeUndefined();
     expect(crmWorld.app.key).toBe("crm");
     expect(crmWorld.route).toBe("/apps/crm");
     expect(crmWorld.target.installId).toBe("crm");
@@ -261,8 +254,8 @@ describe("runtime profile resolver", () => {
       findRuntimeWorldMountByRoute(profile, "/apps/personal/settings", { appInstalls })?.target,
     ).toEqual(world.target);
     expect(
-      findRuntimeWorldMountByRoute(profile, "/apps/task-workspace", { appInstalls })?.target,
-    ).toEqual(tasksWorld.target);
+      findRuntimeWorldMountByRoute(profile, "/apps/task-workspace", { appInstalls }),
+    ).toBeUndefined();
     expect(
       findRuntimeWorldMountByRoute(profile, "/apps/crm/audiences", { appInstalls })?.target,
     ).toEqual(crmWorld.target);
@@ -308,7 +301,7 @@ describe("runtime profile resolver", () => {
     );
   });
 
-  it("resolves product instance installed app screen paths without schema route metadata", () => {
+  it("does not resolve dormant Tasks installs as product app worlds", () => {
     const profile = createInstanceRuntimeProfile();
     const appInstalls = [
       appInstallFixture({
@@ -319,19 +312,13 @@ describe("runtime profile resolver", () => {
     ];
     const world = installedAppWorldMountFromInstallId(profile, "task-workspace", { appInstalls });
 
-    if (!world?.target || world.target.kind !== "appInstall") {
-      throw new Error("Missing installed Tasks world.");
-    }
-
-    expect(world.app.key).toBe("tasks");
-    expect(world.route).toBe("/apps/task-workspace");
-    expect(world.target.apiRoutePrefix).toBe("/api/app-installs/tasks/task-workspace");
-    expect(findRuntimeWorldMountByRoute(profile, "/apps/task-workspace", { appInstalls })).toEqual(
-      world,
-    );
+    expect(world).toBeUndefined();
+    expect(
+      findRuntimeWorldMountByRoute(profile, "/apps/task-workspace", { appInstalls }),
+    ).toBeUndefined();
     expect(
       findRuntimeWorldMountByRoute(profile, "/apps/task-workspace/schema", { appInstalls }),
-    ).toEqual(world);
+    ).toBeUndefined();
   });
 
   it("resolves installed app browser routes from enabled appRoute records", () => {
@@ -474,28 +461,20 @@ describe("runtime profile resolver", () => {
     expect(runtimeProfileNeedsInstalledAppRouteInstalls(profile)).toBe(false);
   });
 
-  it("resolves an installed app profile with install-scoped root paths", () => {
+  it("keeps a dormant Tasks app profile pending without an installed world", () => {
     const profile = createInstalledAppRuntimeProfile({
       installId: "task-workspace",
       packageAppKey: "tasks",
     });
-    const world = profile?.worlds[0];
-
-    if (!profile || !world?.target || world.target.kind !== "appInstall") {
-      throw new Error("Missing installed app profile world mount.");
-    }
-
-    expect(profile.kind).toBe("app");
-    expect(profile.shell).toBe("app");
-    expect(world.app.key).toBe("tasks");
-    expect(world.route).toBe("/");
-    expect(world.target.installId).toBe("task-workspace");
-    expect(world.target.apiRoutePrefix).toBe("/api/app-installs/tasks/task-workspace");
-    expect(world.target.browserDatabaseName).toBe("formless:app:task-workspace");
-    expect(findRuntimeWorldMountByRoute(profile, "/")?.target).toEqual(world.target);
-    expect(findRuntimeWorldMountByRoute(profile, "/schema")?.target).toEqual(world.target);
-    expect(runtimeScreenRoute(world, "/")).toBe("/");
-    expect(runtimeScreenPathFromRoute(world, "/schema")).toBe("/schema");
+    expect(profile).toMatchObject({
+      appProfileTarget: {
+        installId: "task-workspace",
+        packageAppKey: "tasks",
+      },
+      kind: "app",
+      shell: "app",
+      worlds: [],
+    });
   });
 
   it("hydrates workspace package app-profile root paths from the active package resolver", () => {
@@ -659,17 +638,13 @@ describe("runtime profile resolver", () => {
       hostname: "tasks.example.com",
       ...hints,
     });
-    const world = profile.worlds[0];
-
-    if (!world?.target || world.target.kind !== "appInstall") {
-      throw new Error("Missing installed app target.");
-    }
-
     expect(readRuntimeProfileDocumentHint(doc)).toBe("app");
     expect(profile.kind).toBe("app");
-    expect(world.app.key).toBe("tasks");
-    expect(world.route).toBe("/");
-    expect(world.target.installId).toBe("task-workspace");
+    expect(profile.appProfileTarget).toEqual({
+      installId: "task-workspace",
+      packageAppKey: "tasks",
+    });
+    expect(profile.worlds).toEqual([]);
   });
 
   it("uses document public Site target hints for mapped installed public hosts", () => {

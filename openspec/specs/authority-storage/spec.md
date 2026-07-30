@@ -16,7 +16,7 @@ The system SHALL isolate Authority storage by storage identity.
 
 #### Scenario: Schema-key app identity
 
-- GIVEN a schema-key app such as `tasks`, `site`, or `crm`
+- GIVEN a schema-key app such as `site` or `crm`
 - WHEN the app uses its schema-key API prefix
 - THEN committed records, changes, schema, and operation invocations belong to
   the Authority for that schema key
@@ -30,16 +30,17 @@ The system SHALL isolate Authority storage by storage identity.
   `app:<installId>` storage
 - AND the installed app storage is separate from package-level schema-key storage
 
-#### Scenario: Program control-plane identity
+#### Scenario: Program identity
 
 - GIVEN the default Program storage is initialized
-- WHEN instance or identity control-plane records are stored, snapshotted,
-  restored, or synced
+- WHEN instance, identity, or Task records are stored, snapshotted, restored, or
+  synced
 - THEN committed records, changes, schema, and operation invocations belong to
   `instance:control-plane` storage
 - AND one active `formless-program` schema and one `program` provenance hash
   govern those records
-- AND installed app records remain scoped to their app storage identities
+- AND Site, CRM, and other installed app records remain scoped to their app
+  storage identities
 
 ### Requirement: Authority-Wide Record Identity
 
@@ -970,9 +971,9 @@ The system MUST guard writes when owner or admin protection is configured and SH
 
 ### Requirement: Program Control-Plane Storage
 
-The system SHALL store runtime-owned instance and identity control-plane records
-in one Program Authority storage identity separate from installed app data and
-private authentication state.
+The system SHALL store runtime-owned instance, identity, and singleton Tasks
+records in one Program Authority storage identity separate from remaining
+installed app data and private authentication state.
 
 #### Scenario: Program identity
 
@@ -983,13 +984,25 @@ private authentication state.
 - AND the active schema key is `formless-program`
 - AND schema provenance has kind `program` with the complete materialized
   Program source hash
-- AND instance and identity records share one record-id namespace, write log,
-  cursor, snapshot boundary, and operation-invocation store
-- AND installed app records remain scoped to their app storage identities
+- AND instance, identity, and Task records share one record-id namespace, write
+  log, cursor, snapshot boundary, and operation-invocation store
+- AND Site, CRM, and other installed app records remain scoped to their app
+  storage identities
 - AND app install and route records remain metadata about installed apps, not
   the installed apps' own record storage
 - AND credentials, sessions, challenge secrets, token hashes, provider state,
   and media blobs remain outside Program Authority records
+
+#### Scenario: Tasks starts in Program Authority
+
+- GIVEN the default Program schema contains the package-owned Task entity
+- WHEN the first Task record or Task operation is committed
+- THEN it is written directly to storage identity `instance:control-plane`
+- AND ordinary globally unique Program record ids remain separate from the
+  stable Task entity id
+- AND the runtime does not inspect, import, merge, or mutate records, cursors,
+  changes, operation invocations, archives, workspaces, browser replicas, or
+  provenance from any legacy `app:<installId>` Tasks Authority
 
 #### Scenario: Program API
 
@@ -1015,8 +1028,8 @@ private authentication state.
   the member requirement
 - AND valid admin bearer authorization remains an explicit trusted actor
   alternative where supported
-- AND the complete reviewable Program record set is readable by every caller
-  satisfying the member requirement
+- AND the complete reviewable Program record set, including Task records, is
+  readable by every caller satisfying the member requirement
 - AND an unassigned authenticated principal or anonymous session cannot read
   the mixed Program record set
 - AND missing owner-session and admin-bearer configuration does not open the
@@ -1040,6 +1053,7 @@ private authentication state.
 - AND ordinary domain writes may require `editor`, operational management
   writes may require `administrator`, and security-sensitive writes may
   require the exact `owner` actor
+- AND Task create, update, and clear-completed operations require `editor`
 - AND trusted runner, deployer, or admin-bearer channels satisfy an operation
   only when its access requirement names that exact actor alternative
 - AND missing or invalid Program operation access fails closed
@@ -1047,9 +1061,10 @@ private authentication state.
   credential management, and other non-entity storage or security operations
   retain their separate owner or trusted-channel authorization
 
-#### Scenario: Installed-app operations retain their boundary
+#### Scenario: Remaining installed-app operations retain their boundary
 
-- GIVEN an installed app still stores data in `app:<installId>`
+- GIVEN a Site, CRM, or another runtime-installable app stores data in
+  `app:<installId>`
 - WHEN its entity operation is invoked
 - THEN the exact installed-app data admission and legacy operation actor policy
   remain authoritative for that external Authority
@@ -1076,7 +1091,7 @@ explicit package-owned constraint adapters.
 
 #### Scenario: Validate a mixed Program record set
 
-- GIVEN one Program record set contains instance and identity entities
+- GIVEN one Program record set contains instance, identity, and Task entities
 - WHEN bootstrap, source refresh, convergence, operation execution, snapshot
   restore, archive restore, or workspace validation runs
 - THEN generic field, reference, unique, delete-blocker, stable entity identity,
@@ -1088,6 +1103,15 @@ explicit package-owned constraint adapters.
 - AND an unknown entity, foreign record passed to a package validator, invalid
   cross-entity reference, or package constraint failure rejects the whole write
   before commit
+
+#### Scenario: Canonicalize Task records through their package adapter
+
+- GIVEN a Program snapshot contains active or tombstoned Task records
+- WHEN archive or workspace canonicalization runs
+- THEN the Program root dispatches the records to the Tasks adapter by stable
+  entity id
+- AND reviewable flat Task records remain in the canonical Program snapshot
+- AND no app-install identity or package provenance is added to Task records
 
 ### Requirement: Control-Plane Record Convergence
 
@@ -1110,6 +1134,7 @@ into the surviving Program Authority without changing permanent record identity.
 - AND the legacy identity cursor and change rows are not copied, interleaved, or
   presented as Program history
 - AND failed convergence leaves both source Authorities unchanged
+- AND the convergence operation never reads or imports legacy Tasks Authorities
 
 #### Scenario: Convergence preserves private auth references
 
@@ -1165,15 +1190,16 @@ canonical provider state out of control-plane records and change rows.
   tokens, and runtime secrets are not included
 - AND display-safe secret references may be stored
 
-#### Scenario: Installed app data is excluded
+#### Scenario: Remaining installed app data is excluded
 
-- GIVEN app install or route metadata records are stored, synced, snapshotted,
-  or exported as control-plane records
+- GIVEN Site, CRM, or other runtime-installable app metadata records are stored,
+  synced, snapshotted, or exported as Program records
 - WHEN installed app data exists for those installs
 - THEN the installed app's records, changes, active schema, and operation
   handler execution state are not nested into control-plane records
 - AND app data continues to move through storage snapshots scoped to
   `app:<installId>` identities
+- AND singleton Task records are Program records rather than installed app data
 
 #### Scenario: Provider truth remains external
 

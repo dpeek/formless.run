@@ -21,6 +21,11 @@ import {
   type ScreenAccessRequirement,
 } from "@dpeek/formless-schema";
 import {
+  reviewableTaskRecords,
+  tasksEntityIds,
+  validateTaskRecords,
+} from "@dpeek/formless-tasks-app";
+import {
   formatStoredRecordsForArtifact,
   parseStorageSnapshot,
   type StorageSnapshot,
@@ -33,6 +38,7 @@ import {
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
   formlessProgramSchemaProvenance,
 } from "./target.ts";
+import { rootKnownPackageFactsResolver } from "../shared/app-packages.ts";
 
 export * from "./target.ts";
 
@@ -87,6 +93,7 @@ export function resolveFormlessProgramScreenRouteTarget(
 }
 
 export type FormlessProgramValidationOptions = {
+  allowDormantPackageFacts?: boolean;
   packageResolver?: AppPackageResolver;
 };
 
@@ -117,6 +124,11 @@ export function formlessProgramWorkspaceSnapshotContract(
 type FormlessProgramConstraintAdapter = {
   entityIds: ReadonlySet<string>;
   label: string;
+  reviewable: (
+    records: readonly StoredRecord[],
+    candidateRecords: readonly StoredRecord[],
+    options: FormlessProgramValidationOptions,
+  ) => StoredRecord[];
   validate: (
     context: string,
     records: readonly StoredRecord[],
@@ -129,15 +141,29 @@ const formlessProgramConstraintAdapters: readonly FormlessProgramConstraintAdapt
   {
     label: "instance control plane",
     entityIds: new Set(instanceControlPlaneEntityIds),
+    reviewable: (records, candidateRecords, options) =>
+      reviewableInstanceControlPlaneRecords(records, {
+        candidateRecords,
+        packageResolver: options.allowDormantPackageFacts
+          ? rootKnownPackageFactsResolver(options.packageResolver)
+          : options.packageResolver,
+      }),
     validate: (context, records, candidateRecords, options) =>
       validateInstanceControlPlaneRecords(context, reviewableActiveInstanceRecords(records), {
         candidateRecords: candidateRecords.map(reviewableInstanceCandidateRecord),
-        packageResolver: options.packageResolver,
+        packageResolver: options.allowDormantPackageFacts
+          ? rootKnownPackageFactsResolver(options.packageResolver)
+          : options.packageResolver,
       }),
   },
   {
     label: "identity control plane",
     entityIds: new Set(identityControlPlaneEntityIds),
+    reviewable: (records, candidateRecords) =>
+      reviewableIdentityControlPlaneRecords(records, {
+        authorizationRoles: formlessProgramSchema.authorization?.roles,
+        candidateRecords,
+      }),
     validate: (context, records, candidateRecords) =>
       validateIdentityControlPlaneRecords(
         context,
@@ -147,6 +173,12 @@ const formlessProgramConstraintAdapters: readonly FormlessProgramConstraintAdapt
           candidateRecords,
         },
       ),
+  },
+  {
+    label: "tasks",
+    entityIds: new Set(tasksEntityIds),
+    reviewable: (records) => reviewableTaskRecords(records),
+    validate: (context, records) => validateTaskRecords(context, records),
   },
 ];
 
@@ -227,7 +259,10 @@ export function parseFormlessProgramStorageSnapshot(
   });
 
   assertFormlessProgramSchema(context, snapshot.schema);
-  validateFormlessProgramRecords(`${context} records`, snapshot.records, options);
+  validateFormlessProgramRecords(`${context} records`, snapshot.records, {
+    ...options,
+    allowDormantPackageFacts: true,
+  });
 
   return snapshot;
 }
@@ -236,40 +271,51 @@ export function canonicalizeFormlessProgramStorageSnapshot(
   snapshot: StorageSnapshot,
   options: FormlessProgramValidationOptions = {},
 ): StorageSnapshot {
+  const validationOptions = {
+    ...options,
+    allowDormantPackageFacts: true,
+  };
   const parsed = parseFormlessProgramStorageSnapshot(
     "Formless Program storage snapshot",
     snapshot,
-    options,
+    validationOptions,
   );
-  const entityIdsByKey = new Map(
-    formlessProgramSchema.entities.map((entity) => [entity.key, entity.id]),
+  const recordsByAdapter = recordsByFormlessProgramConstraintAdapter(parsed.records);
+  const records = formlessProgramConstraintAdapters.flatMap((adapter) =>
+    adapter.reviewable(recordsByAdapter.get(adapter)!, parsed.records, validationOptions),
   );
-  const instanceEntityIds = new Set(instanceControlPlaneEntityIds);
-  const identityEntityIds = new Set(identityControlPlaneEntityIds);
-  const instanceRecords = parsed.records.filter((record) =>
-    instanceEntityIds.has(entityIdsByKey.get(record.entity)!),
-  );
-  const identityRecords = parsed.records.filter((record) =>
-    identityEntityIds.has(entityIdsByKey.get(record.entity)!),
-  );
-  const records = [
-    ...reviewableInstanceControlPlaneRecords(instanceRecords, {
-      candidateRecords: parsed.records,
-      packageResolver: options.packageResolver,
-    }),
-    ...reviewableIdentityControlPlaneRecords(identityRecords, {
-      authorizationRoles: formlessProgramSchema.authorization?.roles,
-      candidateRecords: parsed.records,
-    }),
-  ];
 
-  validateFormlessProgramRecords("Formless Program reviewable records", records, options);
+  validateFormlessProgramRecords("Formless Program reviewable records", records, validationOptions);
 
   return {
     ...parsed,
     schema: formlessProgramSchema,
     records: formatStoredRecordsForArtifact(formlessProgramSchema, records),
   };
+}
+
+function recordsByFormlessProgramConstraintAdapter(
+  records: readonly StoredRecord[],
+): Map<FormlessProgramConstraintAdapter, StoredRecord[]> {
+  const entityIdsByKey = new Map(
+    formlessProgramSchema.entities.map((entity) => [entity.key, entity.id]),
+  );
+  const recordsByAdapter = new Map(
+    formlessProgramConstraintAdapters.map((adapter) => [adapter, [] as StoredRecord[]]),
+  );
+
+  for (const record of records) {
+    const entityId = entityIdsByKey.get(record.entity);
+    const adapter = formlessProgramConstraintAdapters.find((candidate) =>
+      candidate.entityIds.has(entityId ?? ""),
+    );
+
+    if (adapter !== undefined) {
+      recordsByAdapter.get(adapter)!.push(record);
+    }
+  }
+
+  return recordsByAdapter;
 }
 
 function validateRecordsAgainstSchema(

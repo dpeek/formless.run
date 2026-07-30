@@ -190,6 +190,71 @@ describe("instance control-plane API routes", () => {
       error: "Current Program operation access is required for this endpoint.",
     });
 
+    const memberTaskWrite = await harness.fetch(`${controlPlaneApi}/operations/task/create`, {
+      body: JSON.stringify({
+        idempotencyKey: "member-cannot-create-task",
+        input: {
+          done: false,
+          priority: "normal",
+          title: "Member task",
+        },
+      }),
+      headers: {
+        ...memberSession,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
+    expect(memberTaskWrite.status).toBe(401);
+
+    const pushedTaskChange = readProgramSyncSocketMessage(memberSocket);
+    const editorTaskWrite = await harness.fetch(`${controlPlaneApi}/operations/task/create`, {
+      body: JSON.stringify({
+        idempotencyKey: "editor-creates-program-task",
+        input: {
+          done: false,
+          priority: "high",
+          title: "Program-native task",
+        },
+      }),
+      headers: {
+        ...editorSession,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
+    const editorTaskBody = (await editorTaskWrite.json()) as OperationInvocationResponse;
+    const pushedTaskBody = await pushedTaskChange;
+    const memberBootstrap = await harness.fetch(`${controlPlaneApi}/bootstrap`, {
+      headers: memberSession,
+    });
+    const memberBootstrapBody = (await memberBootstrap.json()) as BootstrapResponse;
+
+    expect(editorTaskWrite.status).toBe(200);
+    expect(editorTaskBody.output).toMatchObject({
+      changes: [expect.objectContaining({ entity: "task" })],
+      cursor: expect.any(Number),
+      type: "create",
+    });
+    expect(pushedTaskBody).toMatchObject({
+      type: "sync",
+      payload: {
+        changes: [expect.objectContaining({ entity: "task" })],
+        cursor: expect.any(Number),
+      },
+    });
+    expect(memberBootstrapBody.schema.entities).toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: "task" })]),
+    );
+    expect(memberBootstrapBody.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          entity: "task",
+          values: expect.objectContaining({ title: "Program-native task" }),
+        }),
+      ]),
+    );
+
     const administratorManagement = await harness.fetch(
       `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}${IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH}`,
       { headers: administratorSession },
@@ -613,11 +678,11 @@ describe("instance control-plane API routes", () => {
     );
 
     await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
-      idempotencyKey: "create-tasks",
+      idempotencyKey: "create-crm-workspace",
       input: {
-        packageAppKey: "tasks",
+        packageAppKey: "crm",
         installId: "tasks",
-        label: "Tasks",
+        label: "CRM Workspace",
       },
     });
 
@@ -642,7 +707,7 @@ describe("instance control-plane API routes", () => {
     expect(missingPackage.body.error).toContain('references unsupported package "missing-package"');
     expect(unsupportedPublicRoute.response.status).toBe(400);
     expect(unsupportedPublicRoute.body.error).toContain(
-      'Package app "tasks" does not support public Site routes.',
+      'Package app "crm" does not support public Site routes.',
     );
   });
 

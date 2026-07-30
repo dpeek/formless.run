@@ -58,7 +58,10 @@ import {
   formatRuntimeWorkspaceAppPackages,
 } from "../shared/workspace-runtime-packages.ts";
 import { siteSourceSchema } from "../test/schema-apps.ts";
-import { workspaceAppPackageManifestFixture } from "../test/workspace-app-package.ts";
+import {
+  runtimeWorkspaceTaskAppPackageFixture,
+  workspaceAppPackageManifestFixture,
+} from "../test/workspace-app-package.ts";
 import type {
   PublicKeyCredentialCreationOptionsJSON,
   RegistrationResponseJSON,
@@ -78,6 +81,7 @@ const mappedInstanceHost = "admin.example.com";
 const installId = "personal";
 const privateSitePackageAppKey = "private-site";
 const privateSiteInstallId = "private-site";
+const taskPackageAppKey = "test-tasks";
 const taskInstallId = "task-workspace";
 const setupToken = "abcDEF0123456789_-abcDEF0123456789_-";
 
@@ -308,7 +312,7 @@ describe("installed Site custom-domain Worker routing", () => {
     const schemaKeyApi = await fetchHost(mappedAppHost, "/api/tasks/bootstrap");
     const installApi = await fetchHost(
       mappedAppHost,
-      `/api/app-installs/tasks/${taskInstallId}/bootstrap`,
+      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
       { headers: adminHeaders() },
     );
     const homeHtml = await home.text();
@@ -322,7 +326,7 @@ describe("installed Site custom-domain Worker routing", () => {
       `<meta name="${FORMLESS_RUNTIME_APP_INSTALL_ID_META_NAME}" content="${taskInstallId}" />`,
     );
     expect(homeHtml).toContain(
-      `<meta name="${FORMLESS_RUNTIME_PACKAGE_APP_KEY_META_NAME}" content="tasks" />`,
+      `<meta name="${FORMLESS_RUNTIME_PACKAGE_APP_KEY_META_NAME}" content="${taskPackageAppKey}" />`,
     );
     expect(homeHtml).not.toContain("Personal custom-domain home");
     expect(schema.status).toBe(200);
@@ -508,7 +512,7 @@ describe("installed Site custom-domain Worker routing", () => {
         label: "Personal",
       });
       await postAdminJson("/api/formless/app-installs", {
-        packageAppKey: "tasks",
+        packageAppKey: taskPackageAppKey,
         installId: "verifi",
         label: "Verifi",
       });
@@ -815,12 +819,18 @@ describe("installed Site custom-domain Worker routing", () => {
         installId?: string;
       }>;
     };
-    const appBootstrap = await fetchAuth(`/api/app-installs/tasks/${taskInstallId}/bootstrap`, {
-      headers: { Cookie: accepted.cookie },
-    });
-    const appSync = await fetchAuth(`/api/app-installs/tasks/${taskInstallId}/sync?after=0`, {
-      headers: { Cookie: accepted.cookie },
-    });
+    const appBootstrap = await fetchAuth(
+      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
+      {
+        headers: { Cookie: accepted.cookie },
+      },
+    );
+    const appSync = await fetchAuth(
+      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/sync?after=0`,
+      {
+        headers: { Cookie: accepted.cookie },
+      },
+    );
     const ownerRecovery = await fetchAuth("/api/formless/setup/capability", {
       body: "not-json",
       headers: {
@@ -960,14 +970,14 @@ describe("installed Site custom-domain Worker routing", () => {
     });
     const bootstrap = await fetchHost(
       mappedAppHost,
-      `/api/app-installs/tasks/${taskInstallId}/bootstrap`,
+      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
       {
         headers: { Cookie: cookie },
       },
     );
     const write = await fetchHost(
       mappedAppHost,
-      `/api/app-installs/tasks/${taskInstallId}${writeRequest.path.slice("/api".length)}`,
+      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}${writeRequest.path.slice("/api".length)}`,
       {
         body: JSON.stringify(writeRequest.body),
         headers: {
@@ -1170,7 +1180,7 @@ describe("installed Site custom-domain Worker routing", () => {
     await setupPrimaryProductionIdentity();
     await setupMappedApp({ access: "authenticated", requiredRole: "app.admin" });
     await postAdminJson("/api/formless/app-installs", {
-      packageAppKey: "tasks",
+      packageAppKey: taskPackageAppKey,
       installId: "other-workspace",
       label: "Other Workspace",
     });
@@ -1186,7 +1196,7 @@ describe("installed Site custom-domain Worker routing", () => {
       adminHeaders(),
     );
 
-    const dataApi = `/api/app-installs/tasks/${taskInstallId}`;
+    const dataApi = `/api/app-installs/${taskPackageAppKey}/${taskInstallId}`;
     const schemaResponse = await fetchMappedHost(`${dataApi}/schema`, {
       headers: adminHeaders(),
     });
@@ -1405,7 +1415,7 @@ describe("installed Site custom-domain Worker routing", () => {
     await setupPrimaryProductionIdentity();
     await setupMappedApp({ access: "authenticated", requiredRole: "app.admin" });
     await postAdminJson("/api/formless/app-installs", {
-      packageAppKey: "tasks",
+      packageAppKey: taskPackageAppKey,
       installId: "other-workspace",
       label: "Other Workspace",
     });
@@ -1428,7 +1438,7 @@ describe("installed Site custom-domain Worker routing", () => {
       name: "Push Owner",
     });
     const ownerCookie = await createCentralAuthSessionCookieForPrincipal(owner.id);
-    const syncPath = `/api/app-installs/tasks/${taskInstallId}/sync/ws`;
+    const syncPath = `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/sync/ws`;
     const ownerSocket = await openInstalledAppSyncSocket("www.example.com", syncPath, ownerCookie);
     const matchingSocket = await openInstalledAppSyncSocket(
       "www.example.com",
@@ -1472,7 +1482,7 @@ describe("installed Site custom-domain Worker routing", () => {
     );
     const wrongTarget = await fetchHost(
       mappedAppHost,
-      "/api/app-installs/tasks/other-workspace/sync/ws",
+      `/api/app-installs/${taskPackageAppKey}/other-workspace/sync/ws`,
       {
         headers: { Cookie: hostSession.cookie, Upgrade: "websocket" },
       },
@@ -1489,7 +1499,7 @@ describe("installed Site custom-domain Worker routing", () => {
     await setupPrimaryProductionIdentity();
     await setupMappedApp({ access: "authenticated", requiredRole: "app.admin" });
 
-    const syncPath = `/api/app-installs/tasks/${taskInstallId}/sync/ws`;
+    const syncPath = `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/sync/ws`;
     const revokedRole =
       await createCompletionReadyPrincipalSessionCookie("Push Revoked Role Admin");
     const revokedAssignment = await assignIdentityAppRole(revokedRole.principalId, taskInstallId);
@@ -1531,7 +1541,7 @@ describe("installed Site custom-domain Worker routing", () => {
     const disabledPrincipalClosed =
       expectInstalledAppSyncSocketClosedWithoutMessage(disabledPrincipalSocket);
 
-    await postInstalledAppRecordOperation("tasks", taskInstallId, {
+    await postInstalledAppRecordOperation(taskPackageAppKey, taskInstallId, {
       entity: "task",
       idempotencyKey: "push-broadcast-after-principal-disable",
       input: { done: false, title: "No stale push delivery" },
@@ -1567,7 +1577,7 @@ describe("installed Site custom-domain Worker routing", () => {
     await configureAuthEmail({ settingsMode: "update", testKey: "app-admin-journey" });
     await setupMappedApp({ access: "authenticated", requiredRole: "app.admin" });
     await postAdminJson("/api/formless/app-installs", {
-      packageAppKey: "tasks",
+      packageAppKey: taskPackageAppKey,
       installId: "other-workspace",
       label: "Other Workspace",
     });
@@ -1586,7 +1596,7 @@ describe("installed Site custom-domain Worker routing", () => {
       testKey: "app-admin-journey",
     });
     const removedHostSession = await createMappedAppHostSessionFromCentralCookie(removed.cookie);
-    const dataApi = `/api/app-installs/tasks/${taskInstallId}`;
+    const dataApi = `/api/app-installs/${taskPackageAppKey}/${taskInstallId}`;
     const centralRegistry = await fetchAuth("/api/formless/app-installs", {
       headers: { Cookie: removed.cookie },
     });
@@ -1629,7 +1639,7 @@ describe("installed Site custom-domain Worker routing", () => {
     };
     const wrongTarget = await fetchHost(
       mappedAppHost,
-      "/api/app-installs/tasks/other-workspace/bootstrap",
+      `/api/app-installs/${taskPackageAppKey}/other-workspace/bootstrap`,
       { headers: { Cookie: removedHostSession.cookie } },
     );
     const management = await fetchAuth("/access", {
@@ -1740,7 +1750,7 @@ describe("installed Site custom-domain Worker routing", () => {
     });
     const disabledSocketClosed = expectInstalledAppSyncSocketClosedWithoutMessage(disabledSocket);
 
-    await postInstalledAppRecordOperation("tasks", taskInstallId, {
+    await postInstalledAppRecordOperation(taskPackageAppKey, taskInstallId, {
       entity: "task",
       idempotencyKey: "broadcast-after-accepted-principal-disable",
       input: { done: false, title: "No disabled collaborator delivery" },
@@ -2096,11 +2106,11 @@ describe("installed Site custom-domain Worker routing", () => {
     const principalId = principal.principalId;
     const unauthenticatedBootstrap = await fetchHost(
       mappedAppHost,
-      `/api/app-installs/tasks/${taskInstallId}/bootstrap`,
+      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
     );
     const bootstrap = await fetchHost(
       mappedAppHost,
-      `/api/app-installs/tasks/${taskInstallId}/bootstrap`,
+      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
       {
         headers: { Cookie: cookie },
       },
@@ -2137,11 +2147,14 @@ describe("installed Site custom-domain Worker routing", () => {
           : entity,
       ),
     };
-    const schemaWrite = await harness.fetch(`/api/app-installs/tasks/${taskInstallId}/schema`, {
-      body: JSON.stringify({ schema }),
-      headers: adminHeaders({ "Content-Type": "application/json" }),
-      method: "POST",
-    });
+    const schemaWrite = await harness.fetch(
+      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/schema`,
+      {
+        body: JSON.stringify({ schema }),
+        headers: adminHeaders({ "Content-Type": "application/json" }),
+        method: "POST",
+      },
+    );
     const writeRequest = recordOperationRequest({
       idempotencyKey: "authenticated-host-session-create",
       entity: "task",
@@ -2150,7 +2163,7 @@ describe("installed Site custom-domain Worker routing", () => {
     });
     const write = await fetchHost(
       mappedAppHost,
-      `/api/app-installs/tasks/${taskInstallId}${writeRequest.path.slice("/api".length)}`,
+      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}${writeRequest.path.slice("/api".length)}`,
       {
         body: JSON.stringify(writeRequest.body),
         headers: {
@@ -2198,7 +2211,7 @@ describe("installed Site custom-domain Worker routing", () => {
 
     const blocked = await fetchHost(
       mappedAppHost,
-      `/api/app-installs/tasks/${taskInstallId}/bootstrap`,
+      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
       {
         headers: { Cookie: cookie },
       },
@@ -2223,7 +2236,7 @@ describe("installed Site custom-domain Worker routing", () => {
     await acceptPolicy(principalId, policy.id);
     const continued = await fetchHost(
       mappedAppHost,
-      `/api/app-installs/tasks/${taskInstallId}/bootstrap`,
+      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
       {
         headers: { Cookie: cookie },
       },
@@ -2709,7 +2722,7 @@ describe("installed Site custom-domain Worker routing", () => {
 
     const staleVersionRead = await fetchHost(
       mappedAppHost,
-      `/api/app-installs/tasks/${taskInstallId}/bootstrap`,
+      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
       {
         headers: { Cookie: staleVersionCookie },
       },
@@ -2738,7 +2751,7 @@ describe("installed Site custom-domain Worker routing", () => {
     });
     const staleOwnerRead = await fetchHost(
       mappedAppHost,
-      `/api/app-installs/tasks/${taskInstallId}/bootstrap`,
+      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
       {
         headers: { Cookie: cookie },
       },
@@ -3144,7 +3157,7 @@ async function inviteAndAcceptCollaborator(input: {
 }
 
 async function allowTaskAdminCreates() {
-  const dataApi = `/api/app-installs/tasks/${taskInstallId}`;
+  const dataApi = `/api/app-installs/${taskPackageAppKey}/${taskInstallId}`;
   const schemaResponse = await harness.fetch(`${dataApi}/schema`, {
     headers: adminHeaders(),
   });
@@ -3266,7 +3279,7 @@ async function setupMappedAppRouteRecord(
 
 async function setupTaskAppInstall(values: Record<string, unknown> = {}) {
   await postAdminJson("/api/formless/app-installs", {
-    packageAppKey: "tasks",
+    packageAppKey: taskPackageAppKey,
     installId: taskInstallId,
     label: "Task Workspace",
     ...values,
@@ -4389,8 +4402,11 @@ async function resetWorkerState(target: Harness, resources: readonly WorkerState
     taskStorage: () =>
       restoreTestStorageSnapshot(
         target,
-        `/api/app-installs/tasks/${taskInstallId}/snapshot/restore`,
-        schemaAppTestStorageSnapshot("tasks", `app:${taskInstallId}`),
+        `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/snapshot/restore`,
+        {
+          ...schemaAppTestStorageSnapshot("tasks", `app:${taskInstallId}`),
+          schemaKey: taskPackageAppKey,
+        },
         adminHeaders(),
       ),
   };
@@ -4450,10 +4466,14 @@ async function withWorkersDevAuthHarness(run: (deploymentOrigin: string) => Prom
   }
 }
 
-function createCustomDomainHarness(
+async function createCustomDomainHarness(
   runtimeProfile?: "instance" | "publishedSite",
   bindings: Record<string, string> = {},
 ) {
+  const taskPackage = await runtimeWorkspaceTaskAppPackageFixture({
+    packageAppKey: taskPackageAppKey,
+  });
+
   return createWorkerHarness(
     harnessPath,
     {
@@ -4462,6 +4482,9 @@ function createCustomDomainHarness(
     {
       bindings: {
         FORMLESS_ADMIN_TOKEN: adminToken,
+        [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
+          taskPackage,
+        ]),
         ...bindings,
         ...(runtimeProfile === undefined ? {} : { FORMLESS_RUNTIME_PROFILE: runtimeProfile }),
       },

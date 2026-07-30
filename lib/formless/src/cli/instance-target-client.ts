@@ -73,6 +73,7 @@ import {
 import {
   bundledAppPackageResolver,
   findResolvedAppPackage,
+  isRuntimeInstallableAppPackageKey,
   listResolvedAppPackages,
   type AppPackageResolver,
   type ResolvedAppPackage,
@@ -1295,19 +1296,31 @@ function parseAppRegistry(
     throw new Error(`${context} failed: app registry must include packages and installs arrays.`);
   }
 
-  const packages = value.packages.map((appPackage, index) =>
-    parseInstallablePackageApp(appPackage, `${context} packages[${index}]`, packageResolver),
-  );
+  const packages = value.packages
+    .filter(isRuntimeInstallablePackageMetadata)
+    .map((appPackage, index) =>
+      parseInstallablePackageApp(appPackage, `${context} packages[${index}]`, packageResolver),
+    );
   const packagesByKey = new Map(
     packages.map((appPackage) => [appPackage.packageAppKey, appPackage]),
   );
 
   return {
-    installs: value.installs.map((install, index) =>
-      parseAppInstall(install, packagesByKey, `${context} installs[${index}]`, packageResolver),
-    ),
+    installs: value.installs
+      .filter(isRuntimeInstallablePackageMetadata)
+      .map((install, index) =>
+        parseAppInstall(install, packagesByKey, `${context} installs[${index}]`, packageResolver),
+      ),
     packages,
   };
+}
+
+function isRuntimeInstallablePackageMetadata(value: unknown): boolean {
+  return (
+    !isRecord(value) ||
+    typeof value.packageAppKey !== "string" ||
+    isRuntimeInstallableAppPackageKey(value.packageAppKey)
+  );
 }
 
 function parseInstanceUpgradeStatusResponse(
@@ -1438,9 +1451,11 @@ function parseDeployPackageApps(
     ? value
     : deployPackageAppMetadataFromResolver(packageResolver);
 
-  return packageApps.map((appPackage, index) =>
-    parseDeployPackageApp(appPackage, `${context} packageApps[${index}]`, packageResolver),
-  );
+  return packageApps
+    .filter(isRuntimeInstallablePackageMetadata)
+    .map((appPackage, index) =>
+      parseDeployPackageApp(appPackage, `${context} packageApps[${index}]`, packageResolver),
+    );
 }
 
 function parseDeployPackageApp(

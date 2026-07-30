@@ -11,7 +11,7 @@ import {
   schemaAppTestStorageSnapshot,
 } from "../test/authority-write.ts";
 import { ensureTestIdentityOwner, resetTestIdentityStorage } from "../test/identity-owner.ts";
-import { siteSourceSchema, taskTestRecords } from "../test/schema-apps.ts";
+import { siteSourceSchema } from "../test/schema-apps.ts";
 import { testSiteRecords } from "../test/site-records.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import { createOwnerSessionCookie } from "./owner-session.ts";
@@ -46,7 +46,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await resetTestIdentityStorage(harness, adminToken);
-  await resetSchemaApp("tasks");
+  await resetSchemaApp("crm");
   await resetSchemaApp("site");
 });
 
@@ -57,13 +57,13 @@ afterAll(async () => {
 describe("authority admin guard", () => {
   it("rejects protected write endpoints before parsing request JSON", async () => {
     const protectedRoutes = [
-      "/api/tasks/schema",
-      "/api/tasks/snapshot/restore",
-      "/api/tasks/operations/task/create",
-      "/api/tasks/mutations",
-      "/api/tasks/actions",
-      "/api/tasks/reset/schema",
-      "/api/tasks/package-migrations/apply",
+      "/api/crm/schema",
+      "/api/crm/snapshot/restore",
+      "/api/crm/operations/contact/create",
+      "/api/crm/mutations",
+      "/api/crm/actions",
+      "/api/crm/reset/schema",
+      "/api/crm/package-migrations/apply",
     ];
 
     for (const route of protectedRoutes) {
@@ -87,27 +87,27 @@ describe("authority admin guard", () => {
   it("accepts the configured admin bearer token for write endpoints", async () => {
     const created = await postAdminTaskRecordOperation({
       idempotencyKey: "write-admin-guard-allowed",
-      entity: "task",
+      entity: "contact",
       operationName: "create",
-      input: { title: "Authorized write", done: false },
+      input: { label: "Authorized write" },
     });
-    const bootstrap = await getJson<BootstrapResponse>("/api/tasks/bootstrap");
+    const bootstrap = await getJson<BootstrapResponse>("/api/crm/bootstrap");
 
-    expect(created.record.values.title).toBe("Authorized write");
-    expect(bootstrap.records).toEqual([...taskTestRecords, created.record]);
+    expect(created.record.values.label).toBe("Authorized write");
+    expect(contactRecords(bootstrap)).toContainEqual(created.record);
   });
 
   it("accepts signed owner session cookies for write endpoints", async () => {
     const created = await postOwnerTaskRecordOperation({
       idempotencyKey: "write-owner-session-allowed",
-      entity: "task",
+      entity: "contact",
       operationName: "create",
-      input: { title: "Owner session write", done: false },
+      input: { label: "Owner session write" },
     });
-    const bootstrap = await getJson<BootstrapResponse>("/api/tasks/bootstrap");
+    const bootstrap = await getJson<BootstrapResponse>("/api/crm/bootstrap");
 
-    expect(created.record.values.title).toBe("Owner session write");
-    expect(bootstrap.records).toEqual([...taskTestRecords, created.record]);
+    expect(created.record.values.label).toBe("Owner session write");
+    expect(contactRecords(bootstrap)).toContainEqual(created.record);
   });
 
   it("rejects signed owner session cookies for writes when current owner authority is missing", async () => {
@@ -120,11 +120,11 @@ describe("authority admin guard", () => {
     });
     const request = recordOperationRequest({
       idempotencyKey: "write-owner-session-stale",
-      entity: "task",
+      entity: "contact",
       operationName: "create",
-      input: { title: "Rejected stale owner session write", done: false },
+      input: { label: "Rejected stale owner session write" },
     });
-    const response = await harness.fetch(`/api/tasks${request.path.slice("/api".length)}`, {
+    const response = await harness.fetch(`/api/crm${request.path.slice("/api".length)}`, {
       body: JSON.stringify(request.body),
       headers: {
         Cookie: cookiePair(created.cookie),
@@ -132,13 +132,17 @@ describe("authority admin guard", () => {
       },
       method: "POST",
     });
-    const bootstrap = await getJson<BootstrapResponse>("/api/tasks/bootstrap");
+    const bootstrap = await getJson<BootstrapResponse>("/api/crm/bootstrap");
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({
       error: "Owner session or admin authorization is required for this write endpoint.",
     });
-    expect(bootstrap.records).toEqual(taskTestRecords);
+    expect(
+      contactRecords(bootstrap).some(
+        (record) => record.values.label === "Rejected stale owner session write",
+      ),
+    ).toBe(false);
   });
 
   it("keeps public Site tree reads open while guarding Site writes", async () => {
@@ -205,7 +209,7 @@ async function postAdminJson<T>(path: string, body: unknown) {
 
 async function postAdminTaskRecordOperation(body: Parameters<typeof recordOperationRequest>[0]) {
   const request = recordOperationRequest(body);
-  const response = await harness.fetch(`/api/tasks${request.path.slice("/api".length)}`, {
+  const response = await harness.fetch(`/api/crm${request.path.slice("/api".length)}`, {
     body: JSON.stringify(request.body),
     headers: adminHeaders(),
     method: "POST",
@@ -218,7 +222,7 @@ async function postAdminTaskRecordOperation(body: Parameters<typeof recordOperat
 
 async function postOwnerTaskRecordOperation(body: Parameters<typeof recordOperationRequest>[0]) {
   const request = recordOperationRequest(body);
-  const response = await harness.fetch(`/api/tasks${request.path.slice("/api".length)}`, {
+  const response = await harness.fetch(`/api/crm${request.path.slice("/api".length)}`, {
     body: JSON.stringify(request.body),
     headers: {
       ...(await ownerSessionHeaders()),
@@ -256,6 +260,10 @@ async function ownerSessionHeaders() {
 
 function cookiePair(cookie: string) {
   return cookie.split(";")[0] ?? cookie;
+}
+
+function contactRecords(bootstrap: BootstrapResponse) {
+  return bootstrap.records.filter((record) => record.entity === "contact");
 }
 
 function expectRecordsIgnoringOrder(actual: StoredRecord[], expected: StoredRecord[]) {

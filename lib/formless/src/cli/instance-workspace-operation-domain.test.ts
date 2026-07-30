@@ -8,6 +8,7 @@ import { listInstallableAppPackages, packageAppFactsForKey } from "@dpeek/formle
 import { formlessProgramSchema } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
 } from "../program/target.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
@@ -30,7 +31,10 @@ import {
   FORMLESS_RUNTIME_PROTOCOL_VERSION,
   FORMLESS_STORAGE_MIGRATION_SET_ID,
 } from "../shared/deploy-metadata.ts";
-import { bundledAppPackageResolver } from "../shared/app-packages.ts";
+import {
+  bundledAppPackageResolver,
+  rootKnownPackageFactsResolver,
+} from "../shared/app-packages.ts";
 import { SITE_PUBLIC_RENDERER_RUNTIME_EXTENSION_KEY } from "../shared/workspace-runtime-extensions.ts";
 import { siteSourceSchema } from "../test/schema-apps.ts";
 import {
@@ -68,6 +72,120 @@ afterEach(async () => {
 });
 
 describe("workspace source sync operation domain", () => {
+  it("round-trips Program Task records without adopting dormant Tasks app state", async () => {
+    const tempDir = await makeTempDir();
+    const workspaceRoot = path.join(tempDir, "personal-sites");
+    const pullRequests: CapturedRequest[] = [];
+    const targetUrl = "https://personal.dpeek.workers.dev";
+    const programRecords = [
+      ...deployControlPlaneRecords({ targetUrl }),
+      ...dormantTasksProgramRecords(),
+    ];
+    const pullFetch = sourceSyncFetch(pullRequests, {
+      appData: { david: { records: [] } },
+      controlPlaneRecords: programRecords,
+      installs: [installedSite("david", "David Peek"), installedDormantTasks("legacy-tasks")],
+    });
+
+    await writeWorkspaceConfig(workspaceRoot);
+    await writeDeployStorageSnapshot(workspaceRoot, { targetUrl });
+    await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, ".formless/instance.env"),
+      "FORMLESS_ADMIN_TOKEN=source-token\n",
+    );
+
+    await runPullWorkspaceSourceOperation(
+      {
+        dryRun: false,
+        kind: "pull",
+        workspacePath: workspaceRoot,
+      },
+      operationDeps(tempDir, { fetch: pullFetch }),
+    );
+
+    const instanceState = JSON.parse(
+      await readFile(path.join(workspaceRoot, "state/instance.json"), "utf8"),
+    ) as {
+      records: StoredRecord[];
+      schemaProvenance: unknown;
+    };
+
+    expect(instanceState.schemaProvenance).toEqual({
+      kind: "program",
+      sourceSchemaHash: FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
+    });
+    expect(instanceState.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ entity: "task", id: "task:program-native" }),
+        expect.objectContaining({ entity: "app-install", id: "legacy-tasks" }),
+      ]),
+    );
+    expect(instanceState).not.toHaveProperty("media");
+    await expect(
+      stat(path.join(workspaceRoot, "state/apps/legacy-tasks.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    expect(pullRequests.map((request) => new URL(request.url).pathname)).not.toContain(
+      "/api/app-installs/tasks/legacy-tasks/snapshot",
+    );
+
+    const pushRequests: CapturedRequest[] = [];
+    const pushFetch = sourceSyncFetch(pushRequests, {
+      appData: { david: { records: [] } },
+      controlPlaneRecords: deployControlPlaneRecords({ targetUrl }),
+      installs: [installedSite("david", "David Peek")],
+      restoreResponses: [restorePlan({ replacedInstalls: ["david"] })],
+    });
+
+    await runPushWorkspaceSourceOperation(
+      {
+        dryRun: true,
+        kind: "push",
+        workspacePath: workspaceRoot,
+      },
+      operationDepsWithAccessGuards(
+        operationDeps(tempDir, {
+          accountDiscovery: {
+            listAccounts: async () => [{ id: "account-123", workersDevSubdomain: "dpeek" }],
+          },
+          fetch: pushFetch,
+          packageVersion: packageJson.version,
+        }),
+        [
+          "credentialSetup",
+          "deploymentAdapter",
+          "healthCheck",
+          "localSecretEnv",
+          "packageRoot",
+          "randomToken",
+          "setupCapability",
+        ],
+      ),
+    );
+
+    const restoreBody = capturedRequestJson<{
+      archive: {
+        apps: Array<{ app: { installId: string; packageAppKey: string } }>;
+        controlPlane: { records: StoredRecord[] };
+      };
+    }>(requestByPath(pushRequests, "/api/formless/archive/restore"));
+
+    expect(restoreBody.archive.apps).toEqual([
+      expect.objectContaining({
+        app: expect.objectContaining({ installId: "david", packageAppKey: "site" }),
+      }),
+    ]);
+    expect(restoreBody.archive.controlPlane.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ entity: "task", id: "task:program-native" }),
+        expect.objectContaining({ entity: "app-install", id: "legacy-tasks" }),
+      ]),
+    );
+    expect(pushRequests.map((request) => new URL(request.url).pathname)).not.toContain(
+      "/api/app-installs/tasks/legacy-tasks/snapshot",
+    );
+  });
+
   it("pulls remote source into workspace with display-safe writeback results", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
@@ -1611,7 +1729,7 @@ function sourceSyncFetch(
       }
     >;
     controlPlaneRecords?: StoredRecord[];
-    installs?: ReturnType<typeof installedSite>[];
+    installs?: Array<ReturnType<typeof installedSite> | ReturnType<typeof installedDormantTasks>>;
     restoreResponses?: unknown[];
   } = {},
 ): typeof fetch {
@@ -1957,6 +2075,27 @@ function installedSite(installId: string, label: string) {
   };
 }
 
+function installedDormantTasks(installId: string) {
+  const facts = packageAppFactsForKey("tasks", rootKnownPackageFactsResolver());
+
+  if (!facts) {
+    throw new Error("Missing root-known package facts for tasks.");
+  }
+
+  return {
+    adminRoute: `/apps/${installId}` as `/apps/${string}`,
+    createdAt: "2026-05-01T00:00:00.000Z",
+    installId,
+    label: "Legacy Tasks",
+    packageAppKey: "tasks" as const,
+    packageRevision: facts.packageRevision,
+    registrationPolicy: "closed" as const,
+    sourceSchemaHash: facts.sourceSchemaHash,
+    status: "installed" as const,
+    updatedAt: "2026-05-01T00:00:00.000Z",
+  };
+}
+
 function snapshot(
   records: StoredRecord[],
   storageIdentity: `app:${string}` = "app:david",
@@ -2083,6 +2222,56 @@ function deployControlPlaneRecords(
         targetUrl: options.targetUrl ?? "https://personal.dpeek.workers.dev",
         ...(options.credentialRef === undefined ? {} : { credentialRef: options.credentialRef }),
         ...(workerName === null ? {} : { workerName }),
+      },
+    },
+  ];
+}
+
+function dormantTasksProgramRecords(): StoredRecord[] {
+  const install = installedDormantTasks("legacy-tasks");
+  const now = install.createdAt;
+
+  return [
+    {
+      createdAt: now,
+      updatedAt: now,
+      entity: "app-install",
+      id: install.installId,
+      values: {
+        installId: install.installId,
+        label: install.label,
+        packageAppKey: install.packageAppKey,
+        packageRevision: install.packageRevision,
+        registrationPolicy: install.registrationPolicy,
+        sourceSchemaHash: install.sourceSchemaHash,
+        status: install.status,
+        storageIdentity: `app:${install.installId}`,
+      },
+    },
+    {
+      createdAt: now,
+      updatedAt: now,
+      entity: "route",
+      id: `route:${install.installId}:admin`,
+      values: {
+        appInstall: install.installId,
+        enabled: true,
+        kind: "mount",
+        matchPath: install.adminRoute,
+        matchPrefix: `${install.adminRoute}/`,
+        surface: "admin",
+        targetProfile: "app",
+      },
+    },
+    {
+      createdAt: now,
+      updatedAt: now,
+      entity: "task",
+      id: "task:program-native",
+      values: {
+        done: false,
+        priority: "normal",
+        title: "Program-native task",
       },
     },
   ];

@@ -9,6 +9,11 @@ import {
   type AuthorityWriteHelpers,
 } from "../test/authority-write.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
+import {
+  FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
+  formatRuntimeWorkspaceAppPackages,
+} from "../shared/workspace-runtime-packages.ts";
+import { runtimeWorkspaceTaskAppPackageFixture } from "../test/workspace-app-package.ts";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
@@ -16,9 +21,20 @@ let harness: Harness;
 let authority: AuthorityWriteHelpers;
 
 beforeAll(async () => {
-  harness = await createWorkerHarness("src/worker/index.ts", {
-    FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true },
-  });
+  const taskPackage = await runtimeWorkspaceTaskAppPackageFixture();
+  harness = await createWorkerHarness(
+    "src/worker/index.ts",
+    {
+      FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true },
+    },
+    {
+      bindings: {
+        [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
+          taskPackage,
+        ]),
+      },
+    },
+  );
   authority = createAuthorityWriteHelpers(harness);
 });
 
@@ -135,7 +151,7 @@ describe("control-plane schema runtime validation", () => {
     await authority.postJson("/api/schema", { schema: instanceRouteRuntimeSchema() });
 
     const siteInstall = await createControlPlaneAppInstall("site", "Personal Site");
-    const tasksInstall = await createControlPlaneAppInstall("tasks", "Team Tasks");
+    const tasksInstall = await createControlPlaneAppInstall("test-tasks", "Team Tasks");
     const deploymentConfig = await authority.postRecordOperationRequest({
       idempotencyKey: "write-control-plane-deployment-config",
       entity: "deployment-config",
@@ -324,7 +340,7 @@ describe("control-plane schema runtime validation", () => {
           surface: "public-site",
         }),
       },
-      'Package app "tasks" does not support public Site routes.',
+      'Package app "test-tasks" does not support public Site routes.',
     );
 
     await authority.expectRecordOperationError(
@@ -503,7 +519,7 @@ describe("control-plane schema runtime validation", () => {
   });
 });
 
-async function createControlPlaneAppInstall(packageAppKey: "site" | "tasks", label: string) {
+async function createControlPlaneAppInstall(packageAppKey: "site" | "test-tasks", label: string) {
   const installId = packageAppKey === "site" ? "personal" : "tasks";
 
   return authority.postRecordOperationRequest({
@@ -513,8 +529,9 @@ async function createControlPlaneAppInstall(packageAppKey: "site" | "tasks", lab
     input: {
       installId,
       packageAppKey,
-      packageRevision: 1,
-      sourceSchemaHash: bundledSourceSchemaHashFixtures[packageAppKey],
+      packageRevision: packageAppKey === "site" ? 1 : 7,
+      sourceSchemaHash:
+        bundledSourceSchemaHashFixtures[packageAppKey === "site" ? "site" : "tasks"],
       label,
       registrationPolicy: "closed",
       status: "installed",

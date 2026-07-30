@@ -4145,6 +4145,7 @@ async function writeAuthorityOperationHarness() {
       import { executePublicOperationInvocationLifecycle } from "${process.cwd()}/src/worker/operation-invocation-lifecycle.ts";
       import { workerSchemaAppDefinitions } from "${process.cwd()}/src/worker/schema-apps.ts";
       import { schemaAppTestRecords } from "${process.cwd()}/src/test/schema-app-records.ts";
+      import { taskSourceSchema } from "${process.cwd()}/src/test/schema-apps.ts";
       import {
         ensureStorageTables,
         initializeStorageFromSource,
@@ -4168,7 +4169,9 @@ async function writeAuthorityOperationHarness() {
 
           const input = await request.json();
           const appKey = input.appKey ?? "tasks";
-          const app = workerSchemaAppDefinitions[appKey];
+          const app = appKey === "tasks"
+            ? { key: "tasks", sourceSchema: taskSourceSchema }
+            : workerSchemaAppDefinitions[appKey];
           const operation = selectAuthorityOperation({
             method: input.method,
             path: input.path,

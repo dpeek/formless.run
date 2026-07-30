@@ -282,7 +282,7 @@ describe("CLI upgrade planning package drift", () => {
     expect(report.plan.steps).toEqual([]);
   });
 
-  it("preserves bundled package revision and source schema hash drift blockers", () => {
+  it("preserves installable package drift blockers and ignores dormant Tasks metadata", () => {
     const report = buildCliUpgradePlanningReport({
       localPackageVersion: "0.1.9",
       status: upgradeStatus({
@@ -309,12 +309,8 @@ describe("CLI upgrade planning package drift", () => {
         code: "installed-app-package-revision-ahead",
         message: 'Installed app "site" package revision 2 is ahead of local package revision 1.',
       },
-      {
-        code: "installed-app-source-schema-hash-drift",
-        message:
-          'Installed app "tasks" source schema hash differs from local package facts at revision 1.',
-      },
     ]);
+    expect(report.status.installedApps.map((install) => install.packageAppKey)).toEqual(["site"]);
   });
 });
 

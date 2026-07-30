@@ -1,9 +1,11 @@
 import { defineAppSchemaModule } from "@dpeek/formless-schema";
+import { TASK_ENTITY_ID } from "./types.ts";
+
 export const tasksRecordSchemaModule = defineAppSchemaModule({
   key: "tasks-records",
   entities: [
     {
-      id: "entity_dc20cc24-23e4-4a16-98fe-bd6e09427c68",
+      id: TASK_ENTITY_ID,
       key: "task",
       label: "Task",
       fields: [
