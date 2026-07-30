@@ -2886,6 +2886,7 @@ describe("home view model collections", () => {
       { screenName: "siteSettings", path: "/settings" },
       { screenName: "siteEditor", path: "/" },
       { screenName: "siteSubscribers", path: "/subscribers" },
+      { screenName: "siteContacts", path: "/contacts" },
     ]);
     expect(models.map(summarizeScreenModel)).toEqual([
       {
@@ -2939,6 +2940,20 @@ describe("home view model collections", () => {
             label: "Audiences",
             viewName: "audienceHome",
             entityName: "audience",
+          },
+        ],
+      },
+      {
+        screenName: "siteContacts",
+        label: "Contacts",
+        primary: true,
+        layoutType: "stack",
+        sections: [
+          {
+            id: "messages",
+            label: "Contact messages",
+            viewName: "contactMessageHome",
+            entityName: "contact-message",
           },
         ],
       },

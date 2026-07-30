@@ -49,6 +49,7 @@ describe("generated workspace production path", () => {
         { results: ["record"], screen: "siteSettings", width: "narrow" },
         { results: ["tree"], screen: "siteEditor", width: "wide" },
         { results: ["table", "table", "table"], screen: "siteSubscribers", width: "wide" },
+        { results: ["table"], screen: "siteContacts", width: "wide" },
       ],
       tasks: [{ results: ["list"], screen: "taskHome", width: "standard" }],
     });

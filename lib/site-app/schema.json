@@ -1920,6 +1920,14 @@
       }
     },
     {
+      "key": "contactMessageAll",
+      "label": "All",
+      "entity": "contact-message",
+      "expression": {
+        "kind": "all"
+      }
+    },
+    {
       "key": "placementsForSelectedBlock",
       "label": "Selected block",
       "entity": "block-placement",
@@ -3030,6 +3038,27 @@
           "width": "md"
         }
       ]
+    },
+    {
+      "key": "contactMessageTable",
+      "entity": "contact-message",
+      "columns": [
+        {
+          "type": "field",
+          "field": "name",
+          "width": "md"
+        },
+        {
+          "type": "field",
+          "field": "email",
+          "width": "lg"
+        },
+        {
+          "type": "field",
+          "field": "message",
+          "width": "lg"
+        }
+      ]
     }
   ],
   "views": [
@@ -3180,6 +3209,28 @@
       "result": {
         "type": "table",
         "tableView": "subscriptionTable"
+      }
+    },
+    {
+      "key": "contactMessageHome",
+      "type": "collection",
+      "label": "Contact messages",
+      "entity": "contact-message",
+      "navigation": {
+        "primary": false
+      },
+      "queries": [
+        {
+          "query": "contactMessageAll",
+          "count": {
+            "type": "count"
+          }
+        }
+      ],
+      "defaultQuery": "contactMessageAll",
+      "result": {
+        "type": "table",
+        "tableView": "contactMessageTable"
       }
     },
     {
@@ -4426,6 +4477,23 @@
             "id": "audiences",
             "type": "collection",
             "view": "audienceHome"
+          }
+        ]
+      }
+    },
+    {
+      "key": "siteContacts",
+      "type": "workspace",
+      "label": "Contacts",
+      "path": "/contacts",
+      "layout": {
+        "type": "stack",
+        "width": "wide",
+        "sections": [
+          {
+            "id": "messages",
+            "type": "collection",
+            "view": "contactMessageHome"
           }
         ]
       }

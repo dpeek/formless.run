@@ -12,7 +12,7 @@
     "key": "site",
     "path": "schema.json"
   },
-  "sourceSchemaHash": "sha256:35bab7bc5f554af247fb10b66d27c3b0fb422d5c29b870050a2e91bf8cfa4c81",
+  "sourceSchemaHash": "sha256:ac277564e8d410718fcffee7d6ba42de5f59b51b8fb3e3f0ac664af92ec2d092",
   "capabilities": [
     {
       "kind": "generatedAdmin",

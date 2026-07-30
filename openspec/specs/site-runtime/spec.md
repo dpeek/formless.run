@@ -406,6 +406,12 @@ without exposing raw implementation-only fields as primary controls.
 - AND key is hidden
 - AND create and delete controls for Site settings are unavailable
 
+#### Scenario: Review contact messages
+
+- GIVEN public contact operations have stored flat `contact-message` records
+- WHEN an author opens the Contacts screen after Subscribers
+- THEN the generated admin table shows each message name, email, and message
+
 #### Scenario: Tree child creation
 
 - GIVEN an author selects a Site tree root
