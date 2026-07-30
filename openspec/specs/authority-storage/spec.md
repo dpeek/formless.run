@@ -993,8 +993,9 @@ private authentication state.
 
 #### Scenario: Program API
 
-- GIVEN owner, Program administrator, CLI deployer, or runner callers query or
-  write allowed Program records
+- GIVEN a current Program member, editor, administrator, owner, CLI deployer,
+  runner, or explicitly accepted trusted actor queries or writes allowed
+  Program records
 - WHEN the request is accepted through `/api/formless/program`
 - THEN the request targets storage identity `instance:control-plane`
 - AND writes use Authority validation and write-log idempotency
@@ -1005,16 +1006,19 @@ private authentication state.
 
 #### Scenario: Program replica authorization
 
-- GIVEN a browser requests Program bootstrap, schema, HTTP sync, push sync, or
-  generated management operations
+- GIVEN a browser requests Program bootstrap, schema, HTTP sync, or push sync
 - WHEN the request is authorized
-- THEN the runtime evaluates the schema-defined `administrator` role
+- THEN the runtime evaluates the schema-defined `member` role
   requirement against current active principal, protected owner, and
   `program-role-assignment` facts
+- AND the ordered role ladder lets current editors and administrators satisfy
+  the member requirement
 - AND valid admin bearer authorization remains an explicit trusted actor
   alternative where supported
-- AND ordinary authenticated or anonymous sessions cannot read the mixed Program
-  record set
+- AND the complete reviewable Program record set is readable by every caller
+  satisfying the member requirement
+- AND an unassigned authenticated principal or anonymous session cannot read
+  the mixed Program record set
 - AND missing owner-session and admin-bearer configuration does not open the
   Program API or its replica to unauthenticated callers
 - AND local development obtains Program access through explicit local owner
@@ -1023,6 +1027,35 @@ private authentication state.
   active `instance.owner` authority independently of replica access
 - AND current authority and session state are rechecked before later push
   catch-up or broadcast data is returned
+
+#### Scenario: Program operations enforce schema access
+
+- GIVEN a caller can read the complete Program replica
+- WHEN the caller invokes an entity operation through
+  `/api/formless/program/operations/:entity/:operation`
+- THEN Authority resolves current caller facts and evaluates the operation's
+  top-level access requirement before parsing operation input or executing an
+  effect
+- AND member-level replica admission does not itself authorize any operation
+- AND ordinary domain writes may require `editor`, operational management
+  writes may require `administrator`, and security-sensitive writes may
+  require the exact `owner` actor
+- AND trusted runner, deployer, or admin-bearer channels satisfy an operation
+  only when its access requirement names that exact actor alternative
+- AND missing or invalid Program operation access fails closed
+- AND schema writes, reset, snapshot restore, archive restore, owner recovery,
+  credential management, and other non-entity storage or security operations
+  retain their separate owner or trusted-channel authorization
+
+#### Scenario: Installed-app operations retain their boundary
+
+- GIVEN an installed app still stores data in `app:<installId>`
+- WHEN its entity operation is invoked
+- THEN the exact installed-app data admission and legacy operation actor policy
+  remain authoritative for that external Authority
+- AND Program member, editor, or administrator roles do not cross that boundary
+- AND no generic role scope or actor translation is introduced for the
+  transitional split
 
 #### Scenario: App install creation transaction
 

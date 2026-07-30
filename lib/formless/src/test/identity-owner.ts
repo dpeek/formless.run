@@ -1,6 +1,6 @@
 import { expect } from "vite-plus/test";
 import { identityControlPlaneRoleKeys } from "@dpeek/formless-identity-control-plane";
-import type { StoredRecord } from "@dpeek/formless-storage";
+import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import { formlessProgramSchema } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_API_ROUTE_PREFIX,
@@ -9,11 +9,8 @@ import {
 } from "../program/target.ts";
 import type { OwnerIdentity } from "../shared/protocol.ts";
 import type { createWorkerHarness } from "../worker/miniflare-test.ts";
-import {
-  recordOperationRequest,
-  restoreTestStorageSnapshot,
-  testStorageSnapshot,
-} from "./authority-write.ts";
+import { createOwnerSessionCookie } from "../worker/owner-session.ts";
+import { restoreTestStorageSnapshot, testStorageSnapshot } from "./authority-write.ts";
 
 type IdentityOwnerHarness = Pick<
   Awaited<ReturnType<typeof createWorkerHarness>>,
@@ -65,45 +62,69 @@ export async function ensureTestIdentityOwner(
     return existing;
   }
 
-  const principal = await postIdentityRecordOperation(harness, adminToken, {
-    entity: "principal",
-    idempotencyKey: "test-owner-principal",
-    operationName: "create",
-    input: {
-      displayName: input.name,
-      kind: "human",
-      status: "active",
-    },
+  const snapshotResponse = await harness.fetch(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot`, {
+    headers: adminHeaders(adminToken),
   });
-
-  if (input.email !== undefined) {
-    await postIdentityRecordOperation(harness, adminToken, {
-      entity: "principal-email",
-      idempotencyKey: "test-owner-principal-email",
-      operationName: "create",
-      input: {
-        principal: principal.id,
-        displayEmail: input.email,
-        normalizedEmail: input.email.toLowerCase(),
-        verificationStatus: "unverified",
-        primary: true,
-        recovery: true,
+  expect(snapshotResponse.status).toBe(200);
+  const snapshot = (await snapshotResponse.json()) as StorageSnapshot;
+  const principalId = "principal:test-owner";
+  const createdAt = "2026-06-26T00:00:00.000Z";
+  const ownerRecords: StoredRecord[] = [
+    {
+      id: principalId,
+      entity: "principal",
+      values: {
+        displayName: input.name,
+        kind: "human",
+        status: "active",
       },
-    });
-  }
-
-  await postIdentityRecordOperation(harness, adminToken, {
-    entity: "role-assignment",
-    idempotencyKey: "test-owner-role-assignment",
-    operationName: "create",
-    input: {
-      role: "role:instance.owner",
-      targetKind: "principal",
-      targetPrincipal: principal.id,
-      scopeKind: "instance",
-      status: "active",
+      createdAt,
+      updatedAt: createdAt,
     },
-  });
+    ...(input.email === undefined
+      ? []
+      : [
+          {
+            id: "principal-email:test-owner",
+            entity: "principal-email",
+            values: {
+              principal: principalId,
+              displayEmail: input.email,
+              normalizedEmail: input.email.toLowerCase(),
+              verificationStatus: "unverified",
+              primary: true,
+              recovery: true,
+            },
+            createdAt,
+            updatedAt: createdAt,
+          },
+        ]),
+    {
+      id: "role-assignment:test-owner",
+      entity: "role-assignment",
+      values: {
+        role: "role:instance.owner",
+        targetKind: "principal",
+        targetPrincipal: principalId,
+        scopeKind: "instance",
+        status: "active",
+      },
+      createdAt,
+      updatedAt: createdAt,
+    },
+  ];
+
+  await restoreTestStorageSnapshot(
+    harness,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
+    testStorageSnapshot({
+      records: [...snapshot.records, ...ownerRecords],
+      schema: formlessProgramSchema,
+      schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
+      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+    }),
+    adminHeaders(adminToken),
+  );
 
   const owner = await readTestIdentityOwner(harness, adminToken);
 
@@ -112,6 +133,35 @@ export async function ensureTestIdentityOwner(
   }
 
   return owner;
+}
+
+export async function testIdentityOwnerSessionHeaders(
+  harness: IdentityOwnerHarness,
+  adminToken: string,
+  input: {
+    email?: string;
+    name?: string;
+    sessionSecret?: string;
+  } = {},
+): Promise<Record<string, string>> {
+  const owner = await ensureTestIdentityOwner(harness, adminToken, {
+    ...(input.email === undefined ? {} : { email: input.email }),
+    name: input.name ?? "Test Owner",
+  });
+  const created = await createOwnerSessionCookie({
+    env:
+      input.sessionSecret === undefined
+        ? { FORMLESS_ADMIN_TOKEN: adminToken }
+        : { FORMLESS_OWNER_SESSION_SECRET: input.sessionSecret },
+    maxAgeSeconds: 60,
+    now: "2999-01-01T00:00:00.000Z",
+    owner,
+    request: new Request("http://example.com/"),
+  });
+
+  return {
+    Cookie: created.cookie.split(";")[0] ?? created.cookie,
+  };
 }
 
 async function readTestIdentityOwner(
@@ -169,26 +219,6 @@ async function readTestIdentityOwner(
     ...(typeof email?.values.displayEmail === "string" ? { email: email.values.displayEmail } : {}),
     createdAt: principal.createdAt,
   };
-}
-
-async function postIdentityRecordOperation(
-  harness: IdentityOwnerHarness,
-  adminToken: string,
-  input: Parameters<typeof recordOperationRequest>[0],
-): Promise<StoredRecord> {
-  const request = recordOperationRequest(input);
-  const response = await harness.fetch(
-    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${request.path.slice("/api".length)}`,
-    {
-      body: JSON.stringify(request.body),
-      headers: adminHeaders(adminToken, { "Content-Type": "application/json" }),
-      method: "POST",
-    },
-  );
-
-  expect(response.status).toBe(200);
-
-  return request.response(await response.json()).record;
 }
 
 function adminHeaders(adminToken: string, headers: Record<string, string> = {}) {

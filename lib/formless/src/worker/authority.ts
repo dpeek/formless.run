@@ -31,8 +31,8 @@ import type { Env } from "./index.ts";
 import {
   authorizeAuthorityOperation,
   authorizeInstanceWrite,
-  authorizeOperationalManagement,
   authorizeOwnerManagementRead,
+  authorizeProgramAccess,
   type AuthorityAdminGuardResult,
 } from "./authority-admin-guard.ts";
 import type { WorkerSchemaAppDefinition } from "./schema-apps.ts";
@@ -74,7 +74,7 @@ import {
   handleInstanceAuthHandoffDurableObjectRequest,
   hostAuthSessionTargetFromRequestHeaders,
   validateBoundInstanceAuthAccessSession,
-  validateBoundInstanceManagementAccessSession,
+  validateBoundProgramAccessSession,
   validateCentralAuthSessionAuthority,
   validateCentralAuthSessionPrincipal,
   validateHostAuthSessionAuthority,
@@ -112,6 +112,10 @@ import {
 import { INTERNAL_PUBLIC_SITE_BOOTSTRAP_PATH } from "./public-site-worker-runtime.ts";
 import { IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY } from "@dpeek/formless-identity-control-plane";
 import {
+  FORMLESS_PROGRAM_REPLICA_ACCESS_REQUIREMENT,
+  formlessProgramSchema,
+} from "../program/runtime.ts";
+import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
 } from "../program/target.ts";
@@ -137,7 +141,7 @@ type InstalledAppSyncSocketAuthorization =
 type ProgramSyncSocketAuthorization =
   | {
       access: unknown;
-      kind: "program-management";
+      kind: "program-access";
       storageIdentity: string;
     }
   | {
@@ -386,6 +390,7 @@ export class FormlessAuthority extends DurableObject<Env> {
       request,
       this.ctx.storage,
       this.bindings,
+      new AuthorityWriteModule(() => this.scheduleCommittedWriteBroadcast(formlessProgramSource())),
     );
 
     if (instanceControlPlaneResponse) {
@@ -729,7 +734,7 @@ export class FormlessAuthority extends DurableObject<Env> {
         {
           error:
             identity.kind === "program"
-              ? "Owner or Program administrator session is required for Program push sync."
+              ? "Current Program member, owner, or admin authorization is required for Program push sync."
               : "Owner or matching app administrator session is required for push sync.",
         },
         401,
@@ -784,9 +789,17 @@ export class FormlessAuthority extends DurableObject<Env> {
     identity: Extract<AuthorityStorageIdentity, { kind: "program" }>,
   ): Promise<ProgramSyncSocketAuthorization | undefined> {
     const target = hostAuthSessionTargetForAuthorityRoute(request, identity);
-    const authorization = await authorizeOperationalManagement(request, this.bindings, {
-      hostSessionTarget: target,
-    });
+    const authorization = await authorizeProgramAccess(
+      request,
+      this.bindings,
+      FORMLESS_PROGRAM_REPLICA_ACCESS_REQUIREMENT,
+      formlessProgramSchema,
+      {
+        error:
+          "Current Program member, owner, or admin authorization is required for Program push sync.",
+        hostSessionTarget: target,
+      },
+    );
 
     if (!authorization.authorized) {
       return undefined;
@@ -806,12 +819,15 @@ export class FormlessAuthority extends DurableObject<Env> {
 
     return authorization.session
       ? {
-          access: {
+          access: bindInstanceAuthAccessSession({
+            ok: true,
+            ownerAuthorized:
+              authorization.callerFacts.kind === "principal" && authorization.callerFacts.owner,
             principalId: authorization.session.principalId,
             session: authorization.session,
             via: authorization.via,
-          },
-          kind: "program-management",
+          }),
+          kind: "program-access",
           storageIdentity: identity.authorityName,
         }
       : undefined;
@@ -844,12 +860,14 @@ export class FormlessAuthority extends DurableObject<Env> {
       );
     }
 
-    if (authorization.kind === "program-management") {
+    if (authorization.kind === "program-access") {
       return (
         this.ctx.getTags(socket)[0] === FORMLESS_PROGRAM_SCHEMA_KEY &&
         authorization.storageIdentity === FORMLESS_PROGRAM_STORAGE_IDENTITY &&
         authorization.storageIdentity === this.ctx.id.name &&
-        (await validateBoundInstanceManagementAccessSession(authorization.access, this.bindings, {
+        (await validateBoundProgramAccessSession(authorization.access, this.bindings, {
+          access: FORMLESS_PROGRAM_REPLICA_ACCESS_REQUIREMENT,
+          schema: formlessProgramSchema,
           storageIdentity: authorization.storageIdentity,
         }))
       );
@@ -1451,14 +1469,14 @@ function parseAuthoritySyncSocketAuthorization(
   }
 
   if (
-    value.kind === "program-management" &&
+    value.kind === "program-access" &&
     typeof value.storageIdentity === "string" &&
     value.storageIdentity !== "" &&
     "access" in value
   ) {
     return {
       access: value.access,
-      kind: "program-management",
+      kind: "program-access",
       storageIdentity: value.storageIdentity,
     };
   }

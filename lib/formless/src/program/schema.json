@@ -123,6 +123,16 @@
       "label": "App install",
       "operations": [
         {
+          "access": {
+            "anyOf": [
+              {
+                "role": "administrator"
+              },
+              {
+                "actor": "adminBearer"
+              }
+            ]
+          },
           "audit": {
             "input": "summary"
           },
@@ -181,6 +191,16 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "anyOf": [
+              {
+                "role": "administrator"
+              },
+              {
+                "actor": "adminBearer"
+              }
+            ]
+          },
           "audit": {
             "input": "summary"
           },
@@ -432,6 +452,16 @@
       "label": "Route",
       "operations": [
         {
+          "access": {
+            "anyOf": [
+              {
+                "role": "administrator"
+              },
+              {
+                "actor": "adminBearer"
+              }
+            ]
+          },
           "audit": {
             "input": "summary"
           },
@@ -518,6 +548,16 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "anyOf": [
+              {
+                "role": "administrator"
+              },
+              {
+                "actor": "adminBearer"
+              }
+            ]
+          },
           "audit": {
             "input": "summary"
           },
@@ -748,6 +788,16 @@
       "label": "Deployment config",
       "operations": [
         {
+          "access": {
+            "anyOf": [
+              {
+                "role": "administrator"
+              },
+              {
+                "actor": "adminBearer"
+              }
+            ]
+          },
           "audit": {
             "input": "summary"
           },
@@ -806,6 +856,16 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "anyOf": [
+              {
+                "role": "administrator"
+              },
+              {
+                "actor": "adminBearer"
+              }
+            ]
+          },
           "audit": {
             "input": "summary"
           },
@@ -1000,6 +1060,16 @@
       "label": "Instance settings",
       "operations": [
         {
+          "access": {
+            "anyOf": [
+              {
+                "actor": "owner"
+              },
+              {
+                "actor": "adminBearer"
+              }
+            ]
+          },
           "audit": {
             "input": "summary"
           },
@@ -1074,6 +1144,16 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "anyOf": [
+              {
+                "actor": "owner"
+              },
+              {
+                "actor": "adminBearer"
+              }
+            ]
+          },
           "audit": {
             "input": "summary"
           },
@@ -1225,6 +1305,16 @@
       "label": "Email domain",
       "operations": [
         {
+          "access": {
+            "anyOf": [
+              {
+                "role": "administrator"
+              },
+              {
+                "actor": "adminBearer"
+              }
+            ]
+          },
           "audit": {
             "input": "summary"
           },
@@ -1275,6 +1365,16 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "anyOf": [
+              {
+                "role": "administrator"
+              },
+              {
+                "actor": "adminBearer"
+              }
+            ]
+          },
           "audit": {
             "input": "summary"
           },
@@ -1377,6 +1477,16 @@
       "label": "Email sender",
       "operations": [
         {
+          "access": {
+            "anyOf": [
+              {
+                "role": "administrator"
+              },
+              {
+                "actor": "adminBearer"
+              }
+            ]
+          },
           "audit": {
             "input": "summary"
           },
@@ -1419,6 +1529,16 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "anyOf": [
+              {
+                "role": "administrator"
+              },
+              {
+                "actor": "adminBearer"
+              }
+            ]
+          },
           "audit": {
             "input": "summary"
           },
@@ -1509,6 +1629,9 @@
       "label": "Principal",
       "operations": [
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -1543,6 +1666,9 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -1646,6 +1772,9 @@
       "label": "Principal email",
       "operations": [
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -1696,6 +1825,9 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -1770,6 +1902,9 @@
       "label": "Group",
       "operations": [
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -1800,6 +1935,9 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -1858,6 +1996,9 @@
       "label": "Organization",
       "operations": [
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -1888,6 +2029,9 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -1984,6 +2128,9 @@
       "label": "Membership",
       "operations": [
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -2026,6 +2173,9 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -2119,6 +2269,9 @@
       "label": "Role",
       "operations": [
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -2153,6 +2306,9 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -2295,6 +2451,9 @@
       "label": "Role assignment",
       "operations": [
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -2353,6 +2512,9 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -2379,6 +2541,9 @@
           "scope": "record"
         },
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -2437,6 +2602,9 @@
       "label": "Program role assignment",
       "operations": [
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -2471,6 +2639,9 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -2497,6 +2668,9 @@
           "scope": "record"
         },
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -2591,6 +2765,9 @@
       "label": "App registration",
       "operations": [
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -2637,6 +2814,9 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -2769,6 +2949,9 @@
       "label": "Invitation",
       "operations": [
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -2827,6 +3010,9 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -2954,6 +3140,9 @@
       "label": "Account policy",
       "operations": [
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -3016,6 +3205,9 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -3098,6 +3290,9 @@
       "label": "Principal policy acceptance",
       "operations": [
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },
@@ -3136,6 +3331,9 @@
           "scope": "collection"
         },
         {
+          "access": {
+            "actor": "owner"
+          },
           "audit": {
             "input": "summary"
           },

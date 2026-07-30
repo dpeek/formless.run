@@ -22,7 +22,10 @@ import {
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import type { BootstrapResponse } from "../shared/protocol.ts";
 import { recordOperationRequest } from "../test/authority-write.ts";
-import { resetTestIdentityStorage } from "../test/identity-owner.ts";
+import {
+  resetTestIdentityStorage,
+  testIdentityOwnerSessionHeaders,
+} from "../test/identity-owner.ts";
 import {
   customOnboardingPackageAppKey,
   customOnboardingProfileCompletionOperation,
@@ -1594,7 +1597,10 @@ async function updateInvitationStatus(invitationId: string, status: string) {
   });
   const response = await harness.fetch(`${controlPlaneApi}${request.path.slice("/api".length)}`, {
     body: JSON.stringify(request.body),
-    headers: adminHeaders({ "Content-Type": "application/json" }),
+    headers: {
+      ...(await testIdentityOwnerSessionHeaders(harness, adminToken)),
+      "Content-Type": "application/json",
+    },
     method: "POST",
   });
   const body = (await response.json()) as
@@ -1656,7 +1662,10 @@ async function postIdentityOperation(input: Parameters<typeof recordOperationReq
   const request = recordOperationRequest(input);
   const response = await harness.fetch(`${controlPlaneApi}${request.path.slice("/api".length)}`, {
     body: JSON.stringify(request.body),
-    headers: adminHeaders({ "Content-Type": "application/json" }),
+    headers: {
+      ...(await testIdentityOwnerSessionHeaders(harness, adminToken)),
+      "Content-Type": "application/json",
+    },
     method: "POST",
   });
   const body = await response.json();

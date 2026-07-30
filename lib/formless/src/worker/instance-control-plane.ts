@@ -26,7 +26,11 @@ import {
   type InstanceControlPlaneRouteValues,
 } from "@dpeek/formless-instance-control-plane";
 import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
-import { parseFormlessProgramStorageSnapshot } from "../program/runtime.ts";
+import {
+  FORMLESS_PROGRAM_REPLICA_ACCESS_REQUIREMENT,
+  formlessProgramSchema,
+  parseFormlessProgramStorageSnapshot,
+} from "../program/runtime.ts";
 import type { DeploymentTarget } from "../shared/deployment-runtime.ts";
 import type { InstanceDomainProviderRedirectIntent } from "../shared/domain-provider-api.ts";
 import type {
@@ -44,8 +48,11 @@ import {
 } from "../shared/upgrade-migrations.ts";
 import {
   authorizeAuthorityOperation,
+  authorizeOwnerManagementRead,
   authorizeOperationalManagement,
+  authorizeProgramAccess,
   type AuthorityAdminGuardEnv,
+  type ProgramAccessAuthorizationResult,
 } from "./authority-admin-guard.ts";
 import { authorityStorageRecordValidationReader } from "./authority-record-validation-reader.ts";
 import {
@@ -86,7 +93,10 @@ import {
   findActiveWorkerSchemaAppDefinition,
   type ActiveRuntimeAppPackageEnv,
 } from "./runtime-app-packages.ts";
-import { hostAuthSessionTargetFromRequestHeaders } from "./instance-auth-handoff.ts";
+import {
+  authenticatedOperationActorForSession,
+  hostAuthSessionTargetFromRequestHeaders,
+} from "./instance-auth-handoff.ts";
 import {
   ensureFormlessProgramStorage,
   formlessProgramCreatedRecordId,
@@ -96,13 +106,6 @@ import {
 } from "./program-authority.ts";
 
 const actorKinds = ["admin", "cliDeployer", "owner", "runner"] as const;
-const operationalControlPlaneEntityNames = new Set([
-  "app-install",
-  "deployment-config",
-  "email-domain",
-  "email-sender",
-  "route",
-]);
 const createAppInstallControlPlaneOperation = "createAppInstall";
 const createAppInstallControlPlaneOperationKey = "app-install.createAppInstall";
 export const CREATE_APP_INSTALL_CONTROL_PLANE_OPERATION_PATH =
@@ -172,6 +175,7 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
   request: Request,
   storage: DurableObjectStorage,
   env: InstanceControlPlaneApiEnv,
+  writes: AuthorityWriteNotifier = noopWriteNotifier,
 ): Promise<Response | undefined> {
   const url = new URL(request.url);
   const route = parseProgramApiRoute(url.pathname);
@@ -223,17 +227,57 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
       return jsonResponse({ error: "Not found." }, 404);
     }
 
-    const actorKind = controlPlaneActorKindFromRequest(request, url);
     const hostSessionTarget = hostAuthSessionTargetForInstanceControlPlaneRequest(request);
-    const authorization = isOperationalControlPlaneOperation(operation)
-      ? await authorizeOperationalManagement(request, env, {
-          error: operationalControlPlaneAuthorizationError(operation),
-          hostSessionTarget,
-        })
-      : await authorizeAuthorityOperation(request, operation, env, {
-          hostSessionTarget,
-          openAccessAllowed: false,
-        });
+    const operationSchema =
+      operation.kind === "entityOperation"
+        ? formlessProgramSchema.entities
+            .find((entity) => entity.key === operation.entityName)
+            ?.operations?.find((candidate) => candidate.key === operation.operationName)
+        : undefined;
+    const programAuthorization =
+      operation.kind === "entityOperation" && operationSchema?.access !== undefined
+        ? await authorizeProgramAccess(
+            request,
+            env,
+            operationSchema.access,
+            formlessProgramSchema,
+            {
+              error: "Current Program operation access is required for this endpoint.",
+              hostSessionTarget,
+            },
+          )
+        : undefined;
+    const authorization =
+      operation.kind === "entityOperation"
+        ? operationSchema?.access === undefined
+          ? {
+              authorized: false as const,
+              error: `Program operation "${operation.entityName}.${operation.operationName}" is missing access.`,
+              headers: { "WWW-Authenticate": 'Bearer realm="formless-admin"' },
+              status: 401,
+            }
+          : programAuthorization!
+        : isProgramReplicaReadOperation(operation)
+          ? await authorizeProgramAccess(
+              request,
+              env,
+              FORMLESS_PROGRAM_REPLICA_ACCESS_REQUIREMENT,
+              formlessProgramSchema,
+              {
+                error:
+                  "Current Program member, owner, or admin authorization is required for this read endpoint.",
+                hostSessionTarget,
+              },
+            )
+          : operation.metadata.mode === "read"
+            ? await authorizeOwnerManagementRead(request, env, {
+                hostSessionTarget,
+                openAccessAllowed: false,
+              })
+            : await authorizeAuthorityOperation(request, operation, env, {
+                hostSessionTarget,
+                openAccessAllowed: false,
+              });
 
     if (!authorization.authorized) {
       return jsonResponse(
@@ -243,7 +287,12 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
       );
     }
 
-    if (operation.metadata.mode === "write") {
+    const actorKind =
+      operation.kind === "entityOperation"
+        ? controlPlaneActorKindFromRequest(request, url)
+        : undefined;
+
+    if (operation.metadata.mode === "write" && actorKind !== undefined) {
       assertBrowserControlPlaneWriteActor(actorKind, operation);
     }
 
@@ -259,7 +308,16 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
     const packageResolver = activeAppPackageResolver(env);
     const source = formlessProgramSource();
     const result = await executeAuthorityOperation({
-      actorKind,
+      ...(operation.kind === "entityOperation" && programAuthorization?.authorized
+        ? {
+            actor: programOperationInvocationActor(
+              programAuthorization,
+              actorKind!,
+              hostSessionTarget,
+            ),
+            programOperationAuthorized: true,
+          }
+        : {}),
       app: formlessProgramApp,
       body,
       createRecordId: formlessProgramCreatedRecordId,
@@ -272,7 +330,7 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
         operation.metadata.mode === "write"
           ? validateFormlessProgramRecordConstraint(storage, packageResolver)
           : undefined,
-      writes: noopWriteNotifier,
+      writes,
     });
 
     return jsonResponse(result.body, result.status, result.headers);
@@ -612,21 +670,45 @@ function hostAuthSessionTargetForInstanceControlPlaneRequest(request: Request) {
   return target;
 }
 
-function isOperationalControlPlaneOperation(operation: AuthorityOperation): boolean {
-  if (operation.metadata.mode === "read") {
-    return true;
-  }
-
+function isProgramReplicaReadOperation(operation: AuthorityOperation): boolean {
   return (
-    operation.kind === "entityOperation" &&
-    operationalControlPlaneEntityNames.has(operation.entityName)
+    operation.kind === "bootstrap" || operation.kind === "readSchema" || operation.kind === "sync"
   );
 }
 
-function operationalControlPlaneAuthorizationError(operation: AuthorityOperation) {
-  return operation.metadata.mode === "read"
-    ? "Owner session, Program administrator session, or admin authorization is required for this read endpoint."
-    : "Owner session, Program administrator session, or admin authorization is required for this write endpoint.";
+function programOperationInvocationActor(
+  authorization: Extract<ProgramAccessAuthorizationResult, { authorized: true }>,
+  requestedActorKind: SchemaOperationActorKind,
+  target: ReturnType<typeof hostAuthSessionTargetForInstanceControlPlaneRequest>,
+): OperationInvocationEnvelope["actor"] {
+  if (authorization.callerFacts.kind === "trusted") {
+    return {
+      kind:
+        requestedActorKind === "cliDeployer" || requestedActorKind === "runner"
+          ? requestedActorKind
+          : "admin",
+    };
+  }
+
+  if (authorization.callerFacts.kind === "principal" && authorization.callerFacts.owner) {
+    return { kind: "owner" };
+  }
+
+  const authenticated =
+    authorization.session === undefined
+      ? undefined
+      : authenticatedOperationActorForSession({
+          principalId: authorization.session.principalId,
+          session: authorization.session,
+          target,
+        });
+
+  return (
+    authenticated ?? {
+      kind: "authenticated",
+      principalId: authorization.session?.principalId,
+    }
+  );
 }
 
 function createAppInstallOperationEnvelope(input: {

@@ -5,13 +5,21 @@ import {
 } from "./instance-auth-handoff.ts";
 import type { CentralAuthSession } from "./central-auth-session.ts";
 import type { InstanceAuthSessionTargetBinding } from "./instance-auth-state.ts";
-import type { ActiveIdentityAuthority } from "./identity-owner-internal.ts";
+import {
+  readInternalIdentityAuthorityForPrincipal,
+  type ActiveIdentityAuthority,
+} from "./identity-owner-internal.ts";
 import {
   type OwnerSession,
   type OwnerSessionAuthorityResolver,
   type OwnerSessionEnv,
 } from "./owner-session.ts";
-import { evaluateAccessRequirement } from "@dpeek/formless-schema";
+import {
+  evaluateAccessRequirement,
+  type AccessCallerFacts,
+  type AccessRequirement,
+  type AppSchema,
+} from "@dpeek/formless-schema";
 import {
   FORMLESS_PROGRAM_MANAGEMENT_ACCESS_REQUIREMENT,
   formlessProgramSchema,
@@ -45,9 +53,80 @@ export type InstanceWriteAuthorizationResult =
 
 export type OwnerManagementReadAuthorizationResult = InstanceWriteAuthorizationResult;
 export type OperationalManagementAuthorizationResult = InstanceWriteAuthorizationResult;
+export type ProgramAccessAuthorizationResult =
+  | {
+      authorized: true;
+      callerFacts: AccessCallerFacts;
+      session?: CentralAuthSession | HostAuthSession | OwnerSession;
+      via: "admin-bearer" | "central-session" | "host-session" | "owner-session";
+    }
+  | {
+      authorized: false;
+      error: string;
+      headers: HeadersInit;
+      status: number;
+    };
 export type OperationalManagementAuthorityResolver = (
   session: OwnerSession,
 ) => Promise<ActiveIdentityAuthority | null>;
+
+export async function authorizeProgramAccess(
+  request: Request,
+  env: AuthorityAdminGuardEnv,
+  requirement: AccessRequirement,
+  schema: AppSchema,
+  options: {
+    error: string;
+    hostSessionTarget?: InstanceAuthSessionTargetBinding | undefined;
+    resolveAuthority?: (principalId: string) => Promise<ActiveIdentityAuthority | null>;
+  },
+): Promise<ProgramAccessAuthorizationResult> {
+  const adminToken = normalizedAdminToken(env.FORMLESS_ADMIN_TOKEN);
+  const trustedCaller = { actor: "adminBearer", kind: "trusted" } as const;
+
+  if (
+    adminToken &&
+    requestAdminToken(request) === adminToken &&
+    evaluateAccessRequirement(requirement, trustedCaller, schema)
+  ) {
+    return {
+      authorized: true,
+      callerFacts: trustedCaller,
+      via: "admin-bearer",
+    };
+  }
+
+  const access = await validateInstanceAuthAccessSession(request, env, {
+    requiredAuthority: "authenticated",
+    target: options.hostSessionTarget,
+  });
+
+  if (access.ok) {
+    const authority = await (options.resolveAuthority?.(access.principalId) ??
+      readInternalIdentityAuthorityForPrincipal(env, access.principalId));
+
+    if (
+      authority?.id === access.principalId &&
+      evaluateAccessRequirement(requirement, authority.callerFacts, schema)
+    ) {
+      return {
+        authorized: true,
+        callerFacts: authority.callerFacts,
+        session: access.session,
+        via: access.via,
+      };
+    }
+  }
+
+  return {
+    authorized: false,
+    error: options.error,
+    headers: {
+      "WWW-Authenticate": 'Bearer realm="formless-admin"',
+    },
+    status: 401,
+  };
+}
 
 export function authorizeAuthorityOperation(
   request: Request,
@@ -110,6 +189,7 @@ export async function authorizeOwnerManagementRead(
   env: AuthorityAdminGuardEnv,
   options: {
     hostSessionTarget?: InstanceAuthSessionTargetBinding | undefined;
+    openAccessAllowed?: boolean;
     resolveOwnerSession?: OwnerSessionAuthorityResolver;
   } = {},
 ): Promise<OwnerManagementReadAuthorizationResult> {

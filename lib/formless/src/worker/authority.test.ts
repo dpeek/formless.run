@@ -60,7 +60,10 @@ import {
   type AuthorityTestCommandOperationRequest,
   type AuthorityTestRecordOperationRequest,
 } from "../test/authority-write.ts";
-import { resetTestIdentityStorage } from "../test/identity-owner.ts";
+import {
+  resetTestIdentityStorage,
+  testIdentityOwnerSessionHeaders,
+} from "../test/identity-owner.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import { PUBLIC_SITE_TREE_CACHE_CONTROL } from "@dpeek/formless-site-app/worker";
 
@@ -2590,7 +2593,7 @@ async function postIdentityRecordOperation(
     {
       body: JSON.stringify(request.body),
       headers: {
-        Authorization: `Bearer ${adminToken}`,
+        ...(await testIdentityOwnerSessionHeaders(targetHarness, adminToken)),
         "Content-Type": "application/json",
       },
       method: "POST",

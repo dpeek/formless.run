@@ -47,6 +47,7 @@ export function parseAppSchema(value: unknown): AppSchema {
     parsedEntities.operationInputsByEntity,
     queriesByKey,
     relationshipsByKey,
+    authorization,
   );
   const entitiesWithOperationsByKey = definitionsToRecord(entitiesWithOperations);
   const readModels = parseReadModels(value.readModels, entitiesWithOperationsByKey, queriesByKey);

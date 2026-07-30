@@ -8,6 +8,8 @@ import {
   parseInstanceArchive,
 } from "@dpeek/formless-archive";
 import { computeSourceSchemaHash } from "@dpeek/formless-installed-apps";
+import { identityControlPlaneEntityIds } from "@dpeek/formless-identity-control-plane";
+import { instanceControlPlaneEntityIds } from "@dpeek/formless-instance-control-plane";
 import {
   STORAGE_SNAPSHOT_KIND,
   STORAGE_SNAPSHOT_VERSION,
@@ -56,6 +58,33 @@ describe("Formless Program runtime contracts", () => {
       browserDatabaseName: FORMLESS_PROGRAM_BROWSER_STORAGE_NAME,
       broadcastChannelName: FORMLESS_PROGRAM_BROWSER_STORAGE_NAME,
     });
+  });
+
+  it("materializes explicit access for every current Program operation", () => {
+    const identityEntityIds = new Set(identityControlPlaneEntityIds);
+    const instanceEntityIds = new Set(instanceControlPlaneEntityIds);
+
+    for (const entity of formlessProgramSchema.entities) {
+      expect(identityEntityIds.has(entity.id) || instanceEntityIds.has(entity.id), entity.key).toBe(
+        true,
+      );
+
+      for (const operation of entity.operations ?? []) {
+        expect(operation.access, `${entity.key}.${operation.key}`).toBeDefined();
+
+        if (identityEntityIds.has(entity.id)) {
+          expect(operation.access).toEqual({ actor: "owner" });
+        } else if (entity.key === "instance-settings") {
+          expect(operation.access).toEqual({
+            anyOf: [{ actor: "owner" }, { actor: "adminBearer" }],
+          });
+        } else {
+          expect(operation.access).toEqual({
+            anyOf: [{ role: "administrator" }, { actor: "adminBearer" }],
+          });
+        }
+      }
+    }
   });
 
   it("validates mixed records through stable-id-owned package constraints", () => {

@@ -49,8 +49,8 @@ describe("control-plane schema runtime metadata", () => {
       actors: ["runner"],
       responseFields: { runner: ["done"] },
     });
-    expect(operation?.policy?.actors.includes("runner")).toBe(true);
-    expect(operation?.policy?.actors.includes("owner")).toBe(false);
+    expect(operation?.policy?.actors?.includes("runner")).toBe(true);
+    expect(operation?.policy?.actors?.includes("owner")).toBe(false);
     expect(operation && isEntityOperationVisibleToBrowser(operation)).toBe(false);
   });
 

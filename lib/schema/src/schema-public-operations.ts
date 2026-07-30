@@ -159,7 +159,7 @@ export function hasAnonymousTurnstileSameOriginAccess(operation: EntityOperation
   const access = operation.policy?.access;
 
   return (
-    operation.policy?.actors.includes("anonymous") === true &&
+    operationAdmissionIncludesAnonymous(operation) &&
     access !== undefined &&
     access.actor === "anonymous" &&
     access.challenge?.kind === "turnstile" &&
@@ -215,7 +215,7 @@ function hasAnonymousPublicOperationAccess(
 ): boolean {
   const access = operation.policy?.access;
   const hasSameOriginAnonymousAccess =
-    operation.policy?.actors.includes("anonymous") === true &&
+    operationAdmissionIncludesAnonymous(operation) &&
     access !== undefined &&
     access.actor === "anonymous" &&
     access.origin.kind === "same-origin";
@@ -238,6 +238,18 @@ function hasAnonymousPublicOperationAccess(
     (access.challenge === undefined || access.challenge.kind === "turnstile") &&
     (operation.policy?.responseFields?.anonymous?.length ?? 0) > 0
   );
+}
+
+function operationAdmissionIncludesAnonymous(operation: EntityOperationSchema): boolean {
+  if (operation.access === undefined) {
+    return operation.policy?.actors?.includes("anonymous") === true;
+  }
+  if ("anyOf" in operation.access) {
+    return operation.access.anyOf.some(
+      (alternative) => "actor" in alternative && alternative.actor === "anonymous",
+    );
+  }
+  return "actor" in operation.access && operation.access.actor === "anonymous";
 }
 
 export function projectPublicSafeOperationInputFields(input: {

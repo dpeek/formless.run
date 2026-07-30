@@ -133,7 +133,7 @@ describe("identity control-plane API routes", () => {
     expect(anonymous.headers.get("WWW-Authenticate")).toBe('Bearer realm="formless-admin"');
     expect(await anonymous.json()).toEqual({
       error:
-        "Owner session, Program administrator session, or admin authorization is required for this read endpoint.",
+        "Current Program member, owner, or admin authorization is required for this read endpoint.",
     });
     expect(admin.body.schema).toEqual(formlessProgramSchema);
     expect(admin.body.schemaProvenance).toEqual(formlessProgramSchemaProvenance);
@@ -813,7 +813,7 @@ describe("identity control-plane API routes", () => {
 
     expect(rawWrite.response.status).toBe(401);
     expect(rawWrite.body).toEqual({
-      error: "Owner session or admin authorization is required for this write endpoint.",
+      error: "Current Program operation access is required for this endpoint.",
     });
     expect(created.response.status).toBe(200);
     expect(created.body.status).toBe("committed");
@@ -1527,16 +1527,18 @@ describe("identity control-plane API routes", () => {
     );
 
     expect(summary.response.status).toBe(200);
-    for (const response of [bootstrap, snapshot]) {
-      expect(response.status).toBe(200);
-    }
+    expect(bootstrap.status).toBe(200);
+    expect(snapshot.status).toBe(401);
+    expect(await snapshot.json()).toEqual({
+      error: "Owner session or admin authorization is required for this read endpoint.",
+    });
     expect(restore.status).toBe(401);
     expect(await restore.json()).toEqual({
       error: "Owner session or admin authorization is required for this write endpoint.",
     });
     expect(rawRoleAssignmentWrite.response.status).toBe(401);
     expect(rawRoleAssignmentWrite.body).toEqual({
-      error: "Owner session or admin authorization is required for this write endpoint.",
+      error: "Current Program operation access is required for this endpoint.",
     });
   });
 
@@ -1796,7 +1798,7 @@ describe("identity control-plane API routes", () => {
       expect(response.headers.get("WWW-Authenticate")).toBe('Bearer realm="formless-admin"');
       expect(await response.json()).toEqual({
         error:
-          "Owner session, Program administrator session, or admin authorization is required for this read endpoint.",
+          "Current Program member, owner, or admin authorization is required for this read endpoint.",
       });
     }
   });
@@ -2209,13 +2211,13 @@ async function ownerCookieForPrincipal(principalId: string) {
 
 async function postRecordOperationResponse(
   input: Parameters<typeof recordOperationRequest>[0],
-  headers: Record<string, string> = adminHeaders(),
+  headers?: Record<string, string>,
 ) {
   const request = recordOperationRequest(input);
   const response = await harness.fetch(`${controlPlaneApi}${request.path.slice("/api".length)}`, {
     body: JSON.stringify(request.body),
     headers: {
-      ...headers,
+      ...(headers ?? (await ownerSessionHeaders())),
       "Content-Type": "application/json",
     },
     method: "POST",

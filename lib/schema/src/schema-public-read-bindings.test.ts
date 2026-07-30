@@ -79,6 +79,30 @@ describe("schema public read bindings", () => {
     }
   });
 
+  it("keeps explicit anonymous public safeguards separate from operation admission", () => {
+    const schema = parseAppSchema(
+      publicLookupSchema({
+        access: { actor: "anonymous" },
+        policy: {
+          access: publicReadAccess(),
+          responseFields: { anonymous: ["code"] },
+        },
+      }),
+    );
+    const operation = schema.entities[0].operations?.[0];
+
+    expect(operation?.access).toEqual({ actor: "anonymous" });
+    expect(operation?.policy).toEqual({
+      access: publicReadAccess(),
+      responseFields: { anonymous: ["code"] },
+    });
+    expect(selectAnonymousPublicOperationByKey(schema, "certificate.lookup")).toMatchObject({
+      kind: "available",
+      canonicalKey: "certificate.lookup",
+      executionKind: "list",
+    });
+  });
+
   it("accepts disjunctive lookups only when every matching branch requires exact input", () => {
     const expression = {
       kind: "or",
@@ -281,6 +305,7 @@ describe("schema public read bindings", () => {
 
 function publicLookupSchema(
   overrides: {
+    access?: unknown;
     expression?: unknown;
     extraFields?: Array<Record<string, unknown>>;
     field?: unknown;
@@ -312,6 +337,7 @@ function publicLookupSchema(
         operations: [
           {
             key: "lookup",
+            ...(overrides.access === undefined ? {} : { access: overrides.access }),
             kind: "list",
             scope: "collection",
             input: {

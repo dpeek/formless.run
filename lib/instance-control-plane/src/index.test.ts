@@ -108,6 +108,26 @@ describe("instance control-plane schema contracts", () => {
     );
   });
 
+  it("owns its administrator role and materializes exact operation access", () => {
+    expect(instanceControlPlaneSchema.authorization?.roles).toEqual([
+      {
+        id: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+        key: "administrator",
+        label: "Administrator",
+      },
+    ]);
+
+    for (const entity of instanceControlPlaneSchema.entities) {
+      for (const operation of entity.operations ?? []) {
+        expect(operation.access, `${entity.key}.${operation.key}`).toEqual(
+          entity.key === "instance-settings"
+            ? { anyOf: [{ actor: "owner" }, { actor: "adminBearer" }] }
+            : { anyOf: [{ role: "administrator" }, { actor: "adminBearer" }] },
+        );
+      }
+    }
+  });
+
   it("publishes deterministic source provenance for the full control-plane schema", async () => {
     const baseHash = await computeSourceSchemaHash(instanceControlPlaneSourceSchema);
     const mutationCases: Array<[string, (schema: AppSchema) => void]> = [

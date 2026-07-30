@@ -16,6 +16,7 @@ import type {
 } from "../shared/instance-auth.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import { CENTRAL_AUTH_SESSION_COOKIE_NAME } from "./central-auth-session.ts";
+import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { HOST_AUTH_SESSION_COOKIE_NAME } from "./instance-auth-handoff.ts";
 import { OWNER_SESSION_COOKIE_NAME } from "./owner-session.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
@@ -365,7 +366,7 @@ async function createIdentityPrincipal(displayName: string) {
       },
     },
     {
-      headers: { Authorization: `Bearer ${adminToken}` },
+      headers: await programOwnerHeaders(),
     },
   );
 
@@ -417,7 +418,7 @@ async function assignIdentityRole(
             },
     },
     {
-      headers: { Authorization: `Bearer ${adminToken}` },
+      headers: await programOwnerHeaders(),
     },
   );
 
@@ -433,7 +434,7 @@ async function updateIdentityPrincipalStatus(principalId: string, status: "activ
       recordId: principalId,
     },
     {
-      headers: { Authorization: `Bearer ${adminToken}` },
+      headers: await programOwnerHeaders(),
     },
   );
 
@@ -452,6 +453,27 @@ async function createStoredCredential(
   });
 
   expect(response.response.status).toBe(200);
+}
+
+async function programOwnerHeaders() {
+  const response = await harness.durableObjectFetch(
+    "FORMLESS_AUTHORITY",
+    FORMLESS_INSTANCE_AUTHORITY_NAME,
+    "/harness/central-session",
+    {
+      body: JSON.stringify({ principalId: "owner" }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    },
+  );
+  const cookie = response.headers.get("Set-Cookie");
+
+  expect(response.status).toBe(200);
+  expect(cookie).toContain(`${CENTRAL_AUTH_SESSION_COOKIE_NAME}=`);
+
+  return {
+    Cookie: cookiePair(cookie),
+  };
 }
 
 function cookiePair(setCookie: string | null): string {
@@ -683,6 +705,7 @@ async function writeAccountPasskeyHarness() {
       import { FORMLESS_PROGRAM_API_ROUTE_PREFIX, FORMLESS_PROGRAM_STORAGE_IDENTITY } from "${process.cwd()}/src/program/target.ts";
       import { ensureIdentityOwner } from "${process.cwd()}/src/worker/identity-control-plane.ts";
       import { createPasskeyCredential, writeInstanceAuthConfig } from "${process.cwd()}/src/worker/instance-auth-state.ts";
+      import { createCentralAuthSessionCookie } from "${process.cwd()}/src/worker/central-auth-session.ts";
 
       export class AccountPasskeyApiHarness extends FormlessAuthority {
         async fetch(request) {
@@ -692,6 +715,21 @@ async function writeAccountPasskeyHarness() {
             const config = writeInstanceAuthConfig(this.ctx.storage, await request.json());
 
             return Response.json({ config });
+          }
+
+          if (request.method === "POST" && url.pathname === "/harness/central-session") {
+            const body = await request.json();
+            const created = await createCentralAuthSessionCookie(this.ctx.storage, {
+              env: this.env,
+              now: nowIsoString(),
+              principalId: body.principalId,
+              request,
+            });
+
+            return Response.json(
+              { session: created.session },
+              { headers: { "Set-Cookie": created.cookie } },
+            );
           }
 
           if (request.method === "POST" && url.pathname === "/harness/owner-passkey") {

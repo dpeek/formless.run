@@ -1349,6 +1349,7 @@ function writeOperations(
   };
   return [
     {
+      access: { actor: "owner" },
       key: "create",
       label: `Create ${label}`,
       kind: "create",
@@ -1360,6 +1361,7 @@ function writeOperations(
       audit: { input: "summary" },
     },
     {
+      access: { actor: "owner" },
       key: "update",
       label: `Update ${label}`,
       kind: "update",
@@ -1373,6 +1375,7 @@ function writeOperations(
     ...(options.delete
       ? [
           {
+            access: { actor: "owner" },
             key: "delete",
             label: `Delete ${label}`,
             kind: "delete",

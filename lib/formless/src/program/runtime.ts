@@ -36,6 +36,9 @@ import {
 export * from "./target.ts";
 
 export const formlessProgramSchema = parseAppSchema(rawFormlessProgramSchema);
+export const FORMLESS_PROGRAM_REPLICA_ACCESS_REQUIREMENT = {
+  anyOf: [{ role: "member" }, { actor: "adminBearer" }],
+} as const satisfies AccessRequirement;
 export const FORMLESS_PROGRAM_MANAGEMENT_ACCESS_REQUIREMENT = {
   anyOf: [{ role: "administrator" }, { actor: "adminBearer" }],
 } as const satisfies AccessRequirement;

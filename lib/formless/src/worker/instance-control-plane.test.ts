@@ -1,8 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
+import type { WebSocketEventMap } from "miniflare";
 import {
   type InstanceControlPlaneAppInstallValues,
   type InstanceControlPlaneRouteValues,
 } from "@dpeek/formless-instance-control-plane";
+import {
+  IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH,
+  IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX,
+} from "@dpeek/formless-identity-control-plane";
 import { formlessProgramSchema } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_API_ROUTE_PREFIX,
@@ -21,6 +26,7 @@ import type {
   OwnerIdentity,
   SchemaResponse,
   SyncResponse,
+  SyncSocketServerMessage,
 } from "../shared/protocol.ts";
 import type {
   OperationCommandOutput,
@@ -106,7 +112,7 @@ describe("instance control-plane API routes", () => {
     expect(anonymous.headers.get("WWW-Authenticate")).toBe('Bearer realm="formless-admin"');
     expect(anonymousBody).toEqual({
       error:
-        "Owner session, Program administrator session, or admin authorization is required for this read endpoint.",
+        "Current Program member, owner, or admin authorization is required for this read endpoint.",
     });
     expect(ownerRead.body.records).toEqual(expect.arrayContaining(admin.body.records));
     expect(admin.body.records.map((record) => record.id).sort()).toEqual(
@@ -118,6 +124,90 @@ describe("instance control-plane API routes", () => {
         "role:instance.owner",
       ].sort(),
     );
+  });
+
+  it("grants the complete replica by ordered Program role while separating management and operations", async () => {
+    const member = await createIdentityPrincipal("Replica Member");
+    const memberAssignment = await assignIdentityProgramRole(member.id, "member");
+    const editor = await createIdentityPrincipal("Replica Editor");
+    await assignIdentityProgramRole(editor.id, "editor");
+    const administrator = await createIdentityPrincipal("Replica Administrator");
+    await assignIdentityProgramRole(administrator.id, "administrator");
+    const memberSession = await principalSessionHeaders(member.id);
+    const editorSession = await principalSessionHeaders(editor.id);
+    const administratorSession = await principalSessionHeaders(administrator.id);
+    const ownerSession = await ownerSessionHeaders();
+    const memberSocket = await openProgramSyncSocket(memberSession);
+
+    memberSocket.send(JSON.stringify({ type: "hello", cursor: 0, schemaUpdatedAt: null }));
+    await expect(readProgramSyncSocketMessage(memberSocket)).resolves.toMatchObject({
+      type: "sync",
+      payload: { cursor: expect.any(Number) },
+    });
+
+    const replicaBodiesByPath = new Map<string, unknown>();
+    for (const headers of [memberSession, editorSession, administratorSession, ownerSession]) {
+      for (const path of [
+        `${controlPlaneApi}/bootstrap`,
+        `${controlPlaneApi}/schema`,
+        `${controlPlaneApi}/sync?after=0`,
+      ]) {
+        const response = await harness.fetch(path, { headers });
+        expect(response.status, path).toBe(200);
+        const body = await response.json();
+        if (!replicaBodiesByPath.has(path)) {
+          replicaBodiesByPath.set(path, body);
+        } else {
+          expect(body, path).toEqual(replicaBodiesByPath.get(path));
+        }
+      }
+    }
+
+    for (const headers of [memberSession, editorSession]) {
+      const management = await harness.fetch(
+        `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}${IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH}`,
+        { headers },
+      );
+      const snapshot = await harness.fetch(`${controlPlaneApi}/snapshot`, { headers });
+
+      expect(management.status).toBe(401);
+      expect(snapshot.status).toBe(401);
+    }
+
+    const unauthorizedOperation = await harness.fetch(
+      `${controlPlaneApi}/operations/email-domain/create`,
+      {
+        body: "{invalid-json",
+        headers: {
+          ...memberSession,
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      },
+    );
+    expect(unauthorizedOperation.status).toBe(401);
+    expect(await unauthorizedOperation.json()).toEqual({
+      error: "Current Program operation access is required for this endpoint.",
+    });
+
+    const administratorManagement = await harness.fetch(
+      `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}${IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH}`,
+      { headers: administratorSession },
+    );
+    expect(administratorManagement.status).toBe(200);
+
+    const memberSocketClosed = expectProgramSyncSocketClosedWithoutMessage(memberSocket);
+    await postIdentityRecordOperation({
+      entity: "program-role-assignment",
+      idempotencyKey: "revoke-replica-member",
+      operationName: "delete",
+      recordId: memberAssignment.id,
+    });
+    await memberSocketClosed;
+    const revokedRead = await harness.fetch(`${controlPlaneApi}/bootstrap`, {
+      headers: memberSession,
+    });
+    expect(revokedRead.status).toBe(401);
   });
 
   it("authorizes same-origin Program administrators for operational control-plane intent only", async () => {
@@ -279,16 +369,16 @@ describe("instance control-plane API routes", () => {
     expect(ownerSettings.response.status).toBe(200);
     expect(adminSettings.response.status).toBe(401);
     expect(adminSettings.body.error).toBe(
-      "Owner session or admin authorization is required for this write endpoint.",
+      "Current Program operation access is required for this endpoint.",
     );
     expect(ordinaryRead.status).toBe(401);
     expect(await ordinaryRead.json()).toEqual({
       error:
-        "Owner session, Program administrator session, or admin authorization is required for this read endpoint.",
+        "Current Program member, owner, or admin authorization is required for this read endpoint.",
     });
     expect(ordinaryWrite.response.status).toBe(401);
     expect(ordinaryWrite.body.error).toBe(
-      "Owner session, Program administrator session, or admin authorization is required for this write endpoint.",
+      "Current Program operation access is required for this endpoint.",
     );
     expect(removedAdminRead.status).toBe(200);
     expect(await removedAdminRead.json()).toEqual({
@@ -298,7 +388,7 @@ describe("instance control-plane API routes", () => {
     });
     expect(disabledAdminWrite.response.status).toBe(401);
     expect(disabledAdminWrite.body.error).toBe(
-      "Owner session, Program administrator session, or admin authorization is required for this write endpoint.",
+      "Current Program operation access is required for this endpoint.",
     );
   });
 
@@ -1320,14 +1410,23 @@ async function createIdentityPrincipal(displayName: string): Promise<StoredRecor
   });
 }
 
-async function assignIdentityProgramRole(principalId: string): Promise<StoredRecord> {
+async function assignIdentityProgramRole(
+  principalId: string,
+  roleKey: "administrator" | "editor" | "member" = "administrator",
+): Promise<StoredRecord> {
+  const roleId = {
+    administrator: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+    editor: "role_3e6f3057-22bf-4fb0-8bd5-7b61bb0f45c4",
+    member: "role_de3ae092-31a9-49df-b7f6-9f51f9403ff9",
+  }[roleKey];
+
   return await postIdentityRecordOperation({
     entity: "program-role-assignment",
-    idempotencyKey: ["control-plane-assign", principalId.replace(/\W+/g, "-")].join("-"),
+    idempotencyKey: ["control-plane-assign", principalId.replace(/\W+/g, "-"), roleKey].join("-"),
     operationName: "create",
     input: {
       principal: principalId,
-      roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+      roleId,
       status: "active",
     },
   });
@@ -1341,7 +1440,10 @@ async function postIdentityRecordOperation(
     `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${request.path.slice("/api".length)}`,
     {
       body: JSON.stringify(request.body),
-      headers: adminHeaders({ "Content-Type": "application/json" }),
+      headers: {
+        ...(await ownerSessionHeaders()),
+        "Content-Type": "application/json",
+      },
       method: "POST",
     },
   );
@@ -1353,6 +1455,84 @@ async function postIdentityRecordOperation(
 
 function cookiePair(cookie: string) {
   return cookie.split(";")[0] ?? cookie;
+}
+
+async function openProgramSyncSocket(headers: Record<string, string>) {
+  const response = await harness.fetch(`${controlPlaneApi}/sync/ws`, {
+    headers: { ...headers, Upgrade: "websocket" },
+  });
+
+  expect(response.status).toBe(101);
+  expect(response.webSocket).toBeTruthy();
+
+  const socket = response.webSocket;
+  if (!socket) {
+    throw new Error("Program WebSocket upgrade did not return a client socket.");
+  }
+  socket.accept();
+  return socket;
+}
+
+function readProgramSyncSocketMessage(socket: Awaited<ReturnType<typeof openProgramSyncSocket>>) {
+  return new Promise<SyncSocketServerMessage>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("Timed out waiting for Program sync message."));
+    }, 1000);
+    const cleanup = () => {
+      clearTimeout(timeout);
+      socket.removeEventListener("message", onMessage);
+      socket.removeEventListener("error", onError);
+    };
+    const onMessage = (event: WebSocketEventMap["message"]) => {
+      cleanup();
+      if (typeof event.data !== "string") {
+        reject(new Error("Program sync message was not text."));
+        return;
+      }
+      resolve(JSON.parse(event.data) as SyncSocketServerMessage);
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error("Program sync socket emitted an error."));
+    };
+
+    socket.addEventListener("message", onMessage);
+    socket.addEventListener("error", onError);
+  });
+}
+
+function expectProgramSyncSocketClosedWithoutMessage(
+  socket: Awaited<ReturnType<typeof openProgramSyncSocket>>,
+) {
+  return new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("Timed out waiting for Program sync socket to close."));
+    }, 1000);
+    const cleanup = () => {
+      clearTimeout(timeout);
+      socket.removeEventListener("close", onClose);
+      socket.removeEventListener("message", onMessage);
+      socket.removeEventListener("error", onError);
+    };
+    const onClose = () => {
+      cleanup();
+      resolve();
+    };
+    const onMessage = () => {
+      cleanup();
+      reject(new Error("Revoked Program sync socket received protected data."));
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error("Program sync socket errored before closing."));
+    };
+
+    socket.addEventListener("close", onClose);
+    socket.addEventListener("message", onMessage);
+    socket.addEventListener("error", onError);
+  });
 }
 
 function appInstallValues(

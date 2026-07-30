@@ -704,11 +704,15 @@ async function createPrincipalSession(input: {
 
 async function postIdentityRecordOperation(input: Parameters<typeof recordOperationRequest>[0]) {
   const operation = recordOperationRequest(input);
+  const ownerIdentity = await ensureTestIdentityOwner(guardedHarness, adminToken, owner);
   const response = await guardedHarness.fetch(
     `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${operation.path.slice("/api".length)}`,
     {
       body: JSON.stringify(operation.body),
-      headers: adminHeaders({ "Content-Type": "application/json" }),
+      headers: {
+        ...(await centralSessionHeaders(ownerIdentity.id)),
+        "Content-Type": "application/json",
+      },
       method: "POST",
     },
   );

@@ -81,7 +81,7 @@ export function parseAppAuthorization(value: unknown): AppAuthorizationSchema | 
 
 export function parseAccessRequirement(
   value: unknown,
-  schema: AppSchema,
+  schema: Pick<AppSchema, "authorization">,
   context = "Access requirement",
 ): AccessRequirement {
   if (!isRecord(value)) {
@@ -156,7 +156,7 @@ function parseAuthorizationRole(
 function parseDirectAccessRequirement(
   context: string,
   value: unknown,
-  schema: AppSchema,
+  schema: Pick<AppSchema, "authorization">,
 ): DirectAccessRequirement {
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
@@ -192,7 +192,7 @@ function parseActorAccessRequirement(
 function parseRoleAccessRequirement(
   context: string,
   value: Record<string, unknown>,
-  schema: AppSchema,
+  schema: Pick<AppSchema, "authorization">,
 ): DirectAccessRequirement {
   assertExactKeys(context, value, ["role"]);
   const role = parseRequiredNonEmptyString(`${context} role`, value.role);
@@ -204,7 +204,7 @@ function parseRoleAccessRequirement(
 }
 
 function validatedAuthorizationRoles(
-  schema: AppSchema,
+  schema: Pick<AppSchema, "authorization">,
 ): KeyedDefinition<AuthorizationRoleSchema>[] {
   const roles = schema.authorization?.roles ?? [];
   const keys = new Set<string>();

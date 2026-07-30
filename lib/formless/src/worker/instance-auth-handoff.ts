@@ -84,6 +84,11 @@ import {
   type ActiveRuntimeAppPackageEnv,
 } from "./runtime-app-packages.ts";
 import {
+  evaluateAccessRequirement,
+  type AccessRequirement,
+  type AppSchema,
+} from "@dpeek/formless-schema";
+import {
   isLocalOwnerSessionRuntime,
   type LocalSessionBootstrapEnv,
 } from "./local-session-bootstrap.ts";
@@ -1171,13 +1176,44 @@ export async function validateBoundInstanceManagementAccessSession(
   });
 }
 
+export async function validateBoundProgramAccessSession(
+  value: unknown,
+  env: InstanceAuthAccessEnv,
+  options: {
+    access: AccessRequirement;
+    now?: string;
+    schema: AppSchema;
+    storageIdentity: string;
+  },
+): Promise<boolean> {
+  const binding = parseInstanceAuthAccessBinding(value);
+
+  if (
+    !binding ||
+    !(await validateBoundInstanceAuthAuthoritySession(binding, env, {
+      now: options.now,
+      requiredAuthority: "authenticated",
+      storageIdentity: options.storageIdentity,
+    }))
+  ) {
+    return false;
+  }
+
+  const authority = await readInternalIdentityAuthorityForPrincipal(env, binding.principalId);
+
+  return (
+    authority?.id === binding.principalId &&
+    evaluateAccessRequirement(options.access, authority.callerFacts, options.schema)
+  );
+}
+
 async function validateBoundInstanceAuthAuthoritySession(
   value: unknown,
   env: InstanceAuthAccessEnv,
   options: {
     appInstallId?: string;
     now?: string;
-    requiredAuthority: "app.admin" | "management";
+    requiredAuthority: "app.admin" | "authenticated" | "management";
     storageIdentity: string;
   },
 ): Promise<boolean> {
@@ -1195,14 +1231,7 @@ async function validateBoundInstanceAuthAuthoritySession(
   if (
     target !== undefined &&
     (target.storageIdentity !== options.storageIdentity ||
-      (options.requiredAuthority === "app.admin"
-        ? target.access !== "authenticated" ||
-          target.requiredRole !== "app.admin" ||
-          target.targetProfile !== "app" ||
-          target.appInstallId !== options.appInstallId
-        : target.targetProfile !== "instance" ||
-          target.appInstallId !== undefined ||
-          (target.access !== "management" && target.access !== "owner")))
+      !boundTargetMatchesAuthority(target, options.requiredAuthority, options.appInstallId))
   ) {
     return false;
   }
@@ -1276,6 +1305,31 @@ async function validateBoundInstanceAuthAuthoritySession(
   );
 
   return result.ok && result.principalId === binding.principalId && result.via === binding.via;
+}
+
+function boundTargetMatchesAuthority(
+  target: InstanceAuthSessionTargetBinding,
+  requiredAuthority: "app.admin" | "authenticated" | "management",
+  appInstallId: string | undefined,
+): boolean {
+  if (requiredAuthority === "app.admin") {
+    return (
+      target.access === "authenticated" &&
+      target.requiredRole === "app.admin" &&
+      target.targetProfile === "app" &&
+      target.appInstallId === appInstallId
+    );
+  }
+
+  if (target.targetProfile !== "instance" || target.appInstallId !== undefined) {
+    return false;
+  }
+
+  return (
+    requiredAuthority === "authenticated" ||
+    target.access === "management" ||
+    target.access === "owner"
+  );
 }
 
 export async function validateRouteAccessSession(

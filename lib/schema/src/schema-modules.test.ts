@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { composeAppSchema, defineAppSchemaModule, type AppSchemaModuleSource } from "./index.ts";
+import {
+  composeAppSchema,
+  defineAppSchemaModule,
+  parseAppSchema,
+  type AccessRequirementSource,
+  type AppSchemaModuleSource,
+} from "./index.ts";
 
 describe("App schema module authoring", () => {
   it("preserves literal declarations and composes cross-module references", () => {
@@ -75,6 +81,27 @@ describe("App schema module authoring", () => {
       ],
     });
     expect(source.runtime).toEqual({ owner: "runtime" });
+  });
+
+  it("resolves module operation access against the root-owned role catalog", () => {
+    const records = taskRecordsModule({ role: "member" });
+    const source = composeAppSchema({
+      version: 1,
+      authorization: {
+        roles: [
+          {
+            key: "member",
+            id: "role_350205b8-5c45-4985-9caa-79e51fb8a5a4",
+            label: "Member",
+          },
+        ],
+      },
+      modules: [records, taskPresentationModule()],
+    });
+
+    expect(parseAppSchema(source).entities[0].operations?.[0].access).toEqual({
+      role: "member",
+    });
   });
 
   it("requires dependency keys to be present before their consumers", () => {
@@ -365,7 +392,7 @@ const declarationCollisionCases: Array<{
   { path: "views.shared", declarations: { views: [{ key: "shared" } as never] } },
   { path: "screens.shared", declarations: { screens: [{ key: "shared" } as never] } },
 ];
-function taskRecordsModule() {
+function taskRecordsModule(operationAccess?: AccessRequirementSource) {
   return defineAppSchemaModule({
     key: "task-records",
     entities: [
@@ -377,6 +404,18 @@ function taskRecordsModule() {
           { key: "title", type: "text", required: true },
           { key: "estimate", type: "number", required: false },
         ],
+        ...(operationAccess === undefined
+          ? {}
+          : {
+              operations: [
+                {
+                  key: "read",
+                  access: operationAccess,
+                  kind: "get",
+                  scope: "record",
+                },
+              ],
+            }),
       },
     ],
     queries: [

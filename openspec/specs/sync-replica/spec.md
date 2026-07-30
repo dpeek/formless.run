@@ -196,15 +196,17 @@ schema-key apps, and installed app identities.
 #### Scenario: Program push authorization remains current
 
 - GIVEN a Program push socket was accepted for an active protected owner or a
-  principal with the schema-defined Program `administrator` role
+  principal satisfying the schema-defined Program `member` role requirement
 - WHEN the socket sends catch-up messages or becomes eligible for a committed
   change broadcast
 - THEN the runtime rechecks current principal status, protected owner or
   Program role-assignment facts, session version, route target, and
   `instance:control-plane` storage identity through the shared access evaluator
-- AND a disabled principal, removed matching authority, changed session,
-  ordinary authenticated principal, or session for another target receives no
-  later Program changes
+- AND current editor and administrator assignments satisfy the ordered member
+  requirement
+- AND a disabled principal, removed matching assignment, unassigned
+  authenticated principal, changed session, or session for another target
+  receives no later Program changes
 - AND an unauthorized socket is closed or suppressed
 
 #### Scenario: Schema-key push sync route

@@ -305,16 +305,32 @@ language.
 - AND a screen or route that admits anonymous presentation does not make its
   underlying records available through generic reads or sync
 
-#### Scenario: Introduce the contract without changing existing guards
+#### Scenario: Attach the contract to entity operations
 
-- GIVEN existing screens, entity operations, runtime routes, and installed-app
-  Authorities use their current access and actor declarations
-- WHEN Program authorization definitions and the shared access requirement
-  contract are introduced
-- THEN those existing declarations and enforcement paths remain unchanged
-- AND attaching the shared contract to resources, admitting Program replicas,
-  persisting assignments, and migrating installed-app authorization require
-  later explicit capability changes
+- GIVEN an entity operation declares top-level `access`
+- WHEN the complete App schema is parsed
+- THEN the value is parsed as the shared access requirement against that
+  schema's root-owned role catalog
+- AND unresolved role keys, invalid actors, mixed requirement forms, empty
+  alternatives, and nested alternatives fail schema parsing
+- AND an operation using top-level `access` does not also use legacy
+  `policy.actors` as a second authorization source
+- AND operation visibility, response projection, input, output, effect,
+  idempotency, audit, and explicit anonymous public policy remain separate
+  contracts
+
+#### Scenario: Isolate legacy operation actors
+
+- GIVEN installed app data still uses an external installed-app Authority
+- WHEN its existing schema operation is parsed and invoked
+- THEN its existing `policy.actors` declaration remains available for that
+  installed-app boundary
+- AND the shared top-level operation access requirement does not adapt a
+  Program role into `admin`, `app.admin`, or an app-install scope
+- AND migrated Program operations use top-level access requirements instead of
+  legacy actor admission
+- AND the legacy operation actor vocabulary can be deleted with installed-app
+  authorization after no external app Authority depends on it
 
 ### Requirement: Ordered Keyed Definition Registries
 
@@ -1175,7 +1191,8 @@ public forms, automation, audit, and authorization.
 
 #### Scenario: Parse operation actor policy
 
-- GIVEN an entity operation declares actor policy
+- GIVEN an entity operation owned by a legacy installed-app boundary declares
+  actor policy
 - WHEN the schema is parsed
 - THEN operation actors may include `anonymous`, `authenticated`, `owner`,
   `admin`, `cliDeployer`, or `runner`

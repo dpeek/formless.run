@@ -1312,7 +1312,7 @@ export type EntityOperationAuditSchema = {
 };
 
 export type EntityOperationPolicySchema = {
-  actors: EntityOperationActorKind[];
+  actors?: EntityOperationActorKind[];
   access?: OperationAccessPolicySchema;
   responseFields?: Partial<Record<EntityOperationActorKind, string[]>>;
   visible?: boolean;
@@ -1320,6 +1320,7 @@ export type EntityOperationPolicySchema = {
 
 export type EntityOperationSchema = {
   label?: string;
+  access?: AccessRequirement;
   kind: EntityOperationKind;
   scope: EntityOperationScope;
   input?: EntityOperationInputContractSchema;
@@ -1340,8 +1341,9 @@ export type EntityOperationSchema = {
  */
 export type EntityOperationSchemaSource = Omit<
   EntityOperationSchema,
-  "audit" | "effect" | "idempotency" | "output"
+  "access" | "audit" | "effect" | "idempotency" | "output"
 > & {
+  access?: AccessRequirementSource;
   audit?: EntityOperationAuditSchema;
   effect?: EntityOperationEffectSchema;
   idempotency?: EntityOperationIdempotencySchema;

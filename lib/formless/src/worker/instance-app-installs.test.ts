@@ -1125,7 +1125,10 @@ async function postIdentityRecordOperation(
     `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${request.path.slice("/api".length)}`,
     {
       body: JSON.stringify(request.body),
-      headers: adminHeaders({ "Content-Type": "application/json" }),
+      headers: {
+        ...(await ownerSessionHeaders()),
+        "Content-Type": "application/json",
+      },
       method: "POST",
     },
   );

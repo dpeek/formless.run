@@ -747,9 +747,11 @@ one-time grants.
   revocation or version facts
 - AND owner-only routes and owner-only management reads or writes also recheck
   active `instance.owner` authority
-- AND Program management reads or writes recheck the active principal's current
-  schema role assignment or active `instance.owner` authority according to the
-  path's access requirement
+- AND Program replica reads and Program operations recheck the active
+  principal's current schema role assignment or active `instance.owner`
+  authority according to the exact read or operation access requirement
+- AND management browser routes continue to require Program administrator or
+  protected owner authority independently of member-level replica admission
 - AND app-admin routes, reads, writes, and sync recheck active `app.admin`
   authority at the host session target's app-install scope or active
   `instance.owner` authority
@@ -1497,6 +1499,39 @@ with active `instance.owner` authority.
   reject the request as unauthenticated owner access
 - AND privileged writes do not rely only on stale role facts in the signed
   cookie payload
+
+### Requirement: Principal-Backed Program Replica Authorization
+
+The system SHALL authorize complete reviewable Program replica reads through
+active principals satisfying the schema-defined `member` role requirement
+without treating read access as operation or route authority.
+
+#### Scenario: Member session resolves to Program replica authority
+
+- GIVEN a browser request includes a valid central auth session on the
+  configured auth origin, local-dev owner session, or matching host-local
+  session
+- WHEN the session principal is active
+- AND the principal has one active `program-role-assignment` whose stable role
+  id resolves to `member`, `editor`, or `administrator` in the ordered Program
+  role catalog
+- THEN Program bootstrap, schema, HTTP sync, and push sync accept the request
+  through the shared `{ role: "member" }` requirement
+- AND the complete reviewable Program replica may include identity,
+  control-plane, and migrated domain records
+- AND the member requirement does not authorize a management browser route,
+  entity operation, owner-only route, storage-control operation, or
+  installed-app Authority
+
+#### Scenario: Program replica authority is revoked
+
+- GIVEN a Program browser session was previously accepted through the member
+  requirement
+- WHEN the principal is disabled, its active Program role assignment is
+  removed or changed below the required role, its session is revoked, or its
+  host target no longer matches
+- THEN later Program HTTP reads and push delivery reject the session
+- AND signed session role facts do not retain stale replica authority
 
 ### Requirement: Principal-Backed Program Administrator Authorization
 

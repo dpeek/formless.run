@@ -17,6 +17,7 @@ import {
   type AccountCompletionGateTarget,
 } from "../shared/instance-auth.ts";
 import { recordOperationRequest } from "../test/authority-write.ts";
+import { ensureTestIdentityOwner } from "../test/identity-owner.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import {
   INSTANCE_AUTH_APP_REGISTRATION_GATE_COMPLETE_PATH,
@@ -1932,9 +1933,15 @@ async function deleteIdentityRecord(entity: string, recordId: string) {
 }
 async function postIdentityRecordOperation(input: Parameters<typeof recordOperationRequest>[0]) {
   const request = recordOperationRequest(input);
-  const response = await harness.fetch(`${controlPlaneApi}${request.path.slice("/api".length)}`, {
+  const owner = await ensureTestIdentityOwner(harness, adminToken, {
+    name: "Account Completion Test Owner",
+  });
+  const response = await fetchAuthOrigin(`${controlPlaneApi}${request.path.slice("/api".length)}`, {
     body: JSON.stringify(request.body),
-    headers: adminHeaders({ "Content-Type": "application/json" }),
+    headers: {
+      Cookie: await createCentralSessionCookie(owner.id),
+      "Content-Type": "application/json",
+    },
     method: "POST",
   });
   const body = (await response.json()) as OperationInvocationResponse;

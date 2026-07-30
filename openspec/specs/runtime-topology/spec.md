@@ -226,6 +226,17 @@ surfaces or protected management API data.
 - AND the account orchestrator returns a display-safe forbidden outcome instead
   of restarting account sign-in
 
+#### Scenario: Program replica access does not open management routes
+
+- GIVEN an active principal satisfies the Program `{ role: "member" }` replica
+  requirement but not the `{ role: "administrator" }` management requirement
+- WHEN the principal requests a management browser route
+- THEN the runtime does not serve the management surface
+- AND possession of a complete local Program replica is treated as read access,
+  not route or operation authority
+- AND editor or member role authority does not become administrator or owner
+  authority
+
 #### Scenario: App role browser route
 
 - GIVEN an app route has effective access `authenticated`

@@ -51,6 +51,7 @@ import {
   schemaAppTestStorageSnapshot,
 } from "../test/authority-write.ts";
 import { ensureTestIdentityOwner } from "../test/identity-owner.ts";
+import { identityControlPlaneEntityNames } from "@dpeek/formless-identity-control-plane";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import {
   FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
@@ -85,6 +86,7 @@ let defaultHarness: Harness;
 let harnessDir: string;
 let harnessPath: string;
 let assetRequests: string[];
+let activeAuthOrigin = "https://www.example.com";
 const routeRecordIds = new Map<string, string>();
 
 beforeAll(async () => {
@@ -772,7 +774,7 @@ describe("installed Site custom-domain Worker routing", () => {
     expect(Array.isArray(adminReadBody.records)).toBe(true);
     expect(ordinaryRead.status).toBe(401);
     expect(ordinaryReadBody.error).toBe(
-      "Owner session, Program administrator session, or admin authorization is required for this read endpoint.",
+      "Current Program member, owner, or admin authorization is required for this read endpoint.",
     );
   });
 
@@ -3524,7 +3526,7 @@ async function completeEmailVerifiedSignup(input: {
 }
 
 function fetchAuth(path: string, init?: DispatchFetchInit) {
-  return harness.mf.dispatchFetch(`https://www.example.com${path}`, init);
+  return harness.mf.dispatchFetch(`${activeAuthOrigin}${path}`, init);
 }
 
 async function postAuthJson<T>(path: string, body: unknown): Promise<T> {
@@ -4261,11 +4263,23 @@ function requiredHeader(
 
 async function postAdminJson(path: string, body: unknown) {
   const request = operationWriteRequest(path, body);
-  const response = await harness.fetch(request.path, {
+  const operationEntity = path.match(/^\/api\/formless\/program\/operations\/([^/]+)\//)?.[1];
+  const identityOperation =
+    operationEntity !== undefined &&
+    identityControlPlaneEntityNames.includes(
+      operationEntity as (typeof identityControlPlaneEntityNames)[number],
+    );
+  const init = {
     body: JSON.stringify(request.body),
-    headers: adminHeaders({ "Content-Type": "application/json" }),
+    headers: {
+      ...(identityOperation ? await programOwnerHeaders() : adminHeaders()),
+      "Content-Type": "application/json",
+    },
     method: "POST",
-  });
+  } as const;
+  const response = identityOperation
+    ? await fetchAuth(request.path, init)
+    : await harness.fetch(request.path, init);
 
   if (![200, 201].includes(response.status)) {
     throw new Error(
@@ -4274,6 +4288,16 @@ async function postAdminJson(path: string, body: unknown) {
   }
 
   return response;
+}
+
+async function programOwnerHeaders() {
+  const owner = await ensureTestIdentityOwner(harness, adminToken, {
+    name: "Program Operation Owner",
+  });
+
+  return {
+    Cookie: await createCentralAuthSessionCookieForPrincipal(owner.id, activeAuthOrigin),
+  };
 }
 
 async function postInstalledAppRecordOperation(
@@ -4411,13 +4435,19 @@ async function withHarness(target: Harness, run: () => Promise<void>) {
 
 async function withWorkersDevAuthHarness(run: (deploymentOrigin: string) => Promise<void>) {
   const deploymentOrigin = "https://personal.dpeek.workers.dev";
+  const previousAuthOrigin = activeAuthOrigin;
+  activeAuthOrigin = deploymentOrigin;
 
-  await withHarness(
-    await createCustomDomainHarness("instance", {
-      FORMLESS_INSTANCE_AUTH_ORIGIN: deploymentOrigin,
-    }),
-    () => run(deploymentOrigin),
-  );
+  try {
+    await withHarness(
+      await createCustomDomainHarness("instance", {
+        FORMLESS_INSTANCE_AUTH_ORIGIN: deploymentOrigin,
+      }),
+      () => run(deploymentOrigin),
+    );
+  } finally {
+    activeAuthOrigin = previousAuthOrigin;
+  }
 }
 
 function createCustomDomainHarness(

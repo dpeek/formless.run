@@ -1,6 +1,7 @@
 import { assertSchemaLocalEntityKey, parseQualifiedEntityName } from "./entity-names.ts";
 import { fieldHasCreateDefault } from "./field-types.ts";
 import { isSystemFieldName } from "./fields.ts";
+import { parseAccessRequirement } from "./schema-authorization.ts";
 import {
   isSupportedIdentityReferenceTarget,
   parseOptionalOperationTextFieldFormat,
@@ -23,6 +24,8 @@ import {
   parseRequiredNonEmptyString,
 } from "./schema-parse-helpers.ts";
 import type {
+  AccessRequirement,
+  AppAuthorizationSchema,
   CollectionOperationBindingSchema,
   CollectionQuerySchema,
   CreateRecordEntityOperationEffectSchema,
@@ -244,19 +247,38 @@ export function isEntityOperationVisibleToBrowser(operation: EntityOperationSche
     return false;
   }
 
+  if (operation.access !== undefined) {
+    return accessRequirementHasBrowserActor(operation.access);
+  }
+
+  const actors = operation.policy?.actors;
   return (
-    operation.policy === undefined ||
-    operation.policy.actors.includes("admin") ||
-    operation.policy.actors.includes("authenticated") ||
-    operation.policy.actors.includes("owner") ||
-    operation.policy.actors.includes("anonymous")
+    actors === undefined ||
+    actors.includes("admin") ||
+    actors.includes("authenticated") ||
+    actors.includes("owner") ||
+    actors.includes("anonymous")
   );
 }
+
+function accessRequirementHasBrowserActor(requirement: AccessRequirement): boolean {
+  if ("anyOf" in requirement) {
+    return requirement.anyOf.some(accessRequirementHasBrowserActor);
+  }
+  return (
+    "role" in requirement ||
+    requirement.actor === "anonymous" ||
+    requirement.actor === "authenticated" ||
+    requirement.actor === "owner"
+  );
+}
+
 export function parseEntityOperationsForEntities(
   entities: KeyedDefinition<EntitySchema>[],
   operationInputsByEntity: Record<string, unknown>,
   queries: Record<string, CollectionQuerySchema>,
   relationships: Record<string, RelationshipSchema> | undefined,
+  authorization: AppAuthorizationSchema | undefined,
 ): KeyedDefinition<EntitySchema>[] {
   const entitiesByKey = definitionsToRecord(entities);
   const entitiesWithOperations = entities.map((entity) => {
@@ -269,6 +291,7 @@ export function parseEntityOperationsForEntities(
         entitiesByKey,
         queries,
         relationships,
+        authorization,
       ) ?? [];
     return operations.length > 0 ? { ...entity, operations } : entity;
   });
@@ -281,6 +304,7 @@ function parseEntityOperations(
   entities: Record<string, EntitySchema>,
   queries: Record<string, CollectionQuerySchema>,
   relationships: Record<string, RelationshipSchema> | undefined,
+  authorization: AppAuthorizationSchema | undefined,
 ): KeyedDefinition<EntityOperationSchema>[] | undefined {
   if (value === undefined) {
     return undefined;
@@ -304,6 +328,7 @@ function parseEntityOperations(
         entities,
         queries,
         relationships,
+        authorization,
       );
     },
   );
@@ -316,6 +341,7 @@ function parseEntityOperation(
   entities: Record<string, EntitySchema>,
   queries: Record<string, CollectionQuerySchema>,
   relationships: Record<string, RelationshipSchema> | undefined,
+  authorization: AppAuthorizationSchema | undefined,
 ): EntityOperationSchema {
   const context = `Entity operation "${formatEntityOperationKey({
     entityKey: entityName,
@@ -330,13 +356,17 @@ function parseEntityOperation(
     context,
     value,
     ["key", "kind", "scope"],
-    ["label", "input", "target", "effect", "output", "policy", "audit", "idempotency"],
+    ["access", "label", "input", "target", "effect", "output", "policy", "audit", "idempotency"],
   );
   const kind = parseOperationKind(`${context} kind`, value.kind);
   const scope = parseOperationScope(`${context} scope`, value.scope);
   validateOperationKindScope(context, kind, scope);
 
   const label = parseOptionalNonEmptyString(`${context} label`, value.label);
+  const access =
+    value.access === undefined
+      ? undefined
+      : parseAccessRequirement(value.access, { authorization }, `${context} access`);
   const input = parseOperationInput(`${context} input`, value.input, kind, entity);
   const target = parseOperationTarget(`${context} target`, value.target, entityName, queries);
   const output = parseOperationOutput(
@@ -363,10 +393,22 @@ function parseEntityOperation(
   const idempotency = parseOperationIdempotency(`${context} idempotency`, value.idempotency, kind);
   const audit = parseOperationAudit(`${context} audit`, value.audit);
   const policy = parseOperationPolicy(`${context} policy`, value.policy);
-  validateOperationPublicPolicy(context, kind, input, effect, output, policy, entity, queries);
+  validateOperationAuthorizationSources(context, access, policy);
+  validateOperationPublicPolicy(
+    context,
+    kind,
+    input,
+    effect,
+    output,
+    access,
+    policy,
+    entity,
+    queries,
+  );
 
   return {
     ...(label === undefined ? {} : { label }),
+    ...(access === undefined ? {} : { access }),
     kind,
     scope,
     ...(input === undefined ? {} : { input }),
@@ -379,17 +421,49 @@ function parseEntityOperation(
   };
 }
 
+function validateOperationAuthorizationSources(
+  context: string,
+  access: AccessRequirement | undefined,
+  policy: EntityOperationPolicySchema | undefined,
+) {
+  if (access !== undefined && policy?.actors !== undefined) {
+    throw new Error(`${context} must not declare both top-level access and policy.actors.`);
+  }
+  if (access === undefined && policy !== undefined && policy.actors === undefined) {
+    throw new Error(`${context} policy must declare actors when top-level access is absent.`);
+  }
+  if (policy?.access !== undefined && !operationAdmissionIncludesAnonymous(access, policy)) {
+    throw new Error(`${context} policy access requires anonymous actor policy.`);
+  }
+}
+
+function operationAdmissionIncludesAnonymous(
+  access: AccessRequirement | undefined,
+  policy: EntityOperationPolicySchema | undefined,
+): boolean {
+  if (access === undefined) {
+    return policy?.actors?.includes("anonymous") === true;
+  }
+  if ("anyOf" in access) {
+    return access.anyOf.some(
+      (alternative) => "actor" in alternative && alternative.actor === "anonymous",
+    );
+  }
+  return "actor" in access && access.actor === "anonymous";
+}
+
 function validateOperationPublicPolicy(
   context: string,
   kind: EntityOperationKind,
   input: EntityOperationInputContractSchema | undefined,
   effect: EntityOperationEffectSchema | undefined,
   output: EntityOperationOutputContractSchema,
+  access: AccessRequirement | undefined,
   policy: EntityOperationPolicySchema | undefined,
   entity: EntitySchema,
   queries: Record<string, CollectionQuerySchema>,
 ) {
-  if (!policy?.actors.includes("anonymous")) {
+  if (!operationAdmissionIncludesAnonymous(access, policy)) {
     return;
   }
 
@@ -402,6 +476,9 @@ function validateOperationPublicPolicy(
 
   if (input === undefined) {
     throw new Error(`${context} anonymous actor policy requires explicit input.`);
+  }
+  if (policy === undefined) {
+    throw new Error(`${context} anonymous operation access requires explicit public policy.`);
   }
 
   if (kind === "list") {
@@ -1908,9 +1985,12 @@ function parseOperationPolicy(
     throw new Error(`${context} must be an object.`);
   }
 
-  assertExactKeys(context, value, ["actors"], ["access", "responseFields", "visible"]);
+  assertExactKeys(context, value, [], ["actors", "access", "responseFields", "visible"]);
 
-  const actors = parseOperationActorKinds(`${context} actors`, value.actors);
+  const actors =
+    value.actors === undefined
+      ? undefined
+      : parseOperationActorKinds(`${context} actors`, value.actors);
   const access = parseOptionalOperationAccessPolicy(`${context} access`, value.access);
   const responseFields = parseOperationResponseFields(
     `${context} responseFields`,
@@ -1919,12 +1999,8 @@ function parseOperationPolicy(
   );
   const visible = parseOptionalBoolean(`${context} visible`, value.visible);
 
-  if (access !== undefined && !actors.includes("anonymous")) {
-    throw new Error(`${context} access requires anonymous actor policy.`);
-  }
-
   return {
-    actors,
+    ...(actors === undefined ? {} : { actors }),
     ...(access === undefined ? {} : { access }),
     ...(responseFields === undefined ? {} : { responseFields }),
     ...(visible === undefined ? {} : { visible }),
@@ -2038,7 +2114,7 @@ function parseOperationRateLimitPolicy(
 function parseOperationResponseFields(
   context: string,
   value: unknown,
-  actors: EntityOperationActorKind[],
+  actors: EntityOperationActorKind[] | undefined,
 ): EntityOperationPolicySchema["responseFields"] {
   if (value === undefined) {
     return undefined;
@@ -2055,7 +2131,7 @@ function parseOperationResponseFields(
       throw new Error(`${context} has unsupported actor "${actor}".`);
     }
 
-    if (!actors.includes(actor)) {
+    if (actors !== undefined && !actors.includes(actor)) {
       throw new Error(`${context}.${actor} must reference an operation actor.`);
     }
 

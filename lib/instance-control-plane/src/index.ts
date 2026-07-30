@@ -33,6 +33,7 @@ import {
   parseQualifiedEntityName,
 } from "@dpeek/formless-schema";
 import type {
+  AccessRequirement,
   AppSchema,
   FieldEditor,
   FieldSchema,
@@ -53,7 +54,7 @@ export const INSTANCE_CONTROL_PLANE_BOUNDARY_SCHEMA_KEY = "instance";
 export const INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY = "instance:control-plane";
 export const INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX = "/api/formless/control-plane";
 export const INSTANCE_CONTROL_PLANE_SOURCE_SCHEMA_HASH =
-  "sha256:778ddfc129904de4a69b2fc8249d0832a25132d11138e342ef1b5bf96f88f0b2" satisfies SourceSchemaHash;
+  "sha256:10766e68d9a1d4ba4cc677cdc8ee272fa7132edcb41e69ef2aada14203f24290" satisfies SourceSchemaHash;
 export const INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID = "instance";
 export const instanceControlPlaneSchemaProvenance = {
   kind: "instance-control-plane",
@@ -714,6 +715,9 @@ export const instanceControlPlaneRecordSchemaModule = defineAppSchemaModule({
           "productionIdentityStatus",
         ],
         {
+          access: {
+            anyOf: [{ actor: "owner" }, { actor: "adminBearer" }],
+          },
           updateFields: [
             "canonicalOrigin",
             "primaryRoute",
@@ -1525,6 +1529,15 @@ export const instanceControlPlanePresentationSchemaModule = defineAppSchemaModul
 
 export const instanceControlPlaneSourceSchema = composeAppSchema({
   version: 1,
+  authorization: {
+    roles: [
+      {
+        id: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+        key: "administrator",
+        label: "Administrator",
+      },
+    ],
+  },
   modules: [instanceControlPlaneRecordSchemaModule, instanceControlPlanePresentationSchemaModule],
   runtime: {
     owner: "runtime",
@@ -4284,15 +4297,22 @@ function writeOperations(
   label: string,
   fields: string[],
   options: {
+    access?: AccessRequirement;
     updateFields?: string[];
   } = {},
 ) {
+  const access =
+    options.access ??
+    ({
+      anyOf: [{ role: "administrator" }, { actor: "adminBearer" }],
+    } as const satisfies AccessRequirement);
   const input = { fields: fields.map((field) => ({ key: field, field })) };
   const updateInput = {
     fields: (options.updateFields ?? fields).map((field) => ({ key: field, field })),
   };
   return [
     {
+      access,
       key: "create",
       label: `Create ${label}`,
       kind: "create",
@@ -4304,6 +4324,7 @@ function writeOperations(
       audit: { input: "summary" },
     },
     {
+      access,
       key: "update",
       label: `Update ${label}`,
       kind: "update",

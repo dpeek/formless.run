@@ -16,6 +16,7 @@ import type {
   OperationInvocationResponse,
 } from "../shared/operation-invocation.ts";
 import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
+import { formlessProgramTarget } from "../program/target.ts";
 import type { SchemaKey } from "../shared/schema-apps.ts";
 import type {
   AppSchema,
@@ -104,6 +105,21 @@ afterAll(async () => {
 });
 
 describe("authority operation execution", () => {
+  it("fails closed on a Program operation without access before parsing input or writing", async () => {
+    const rejected = await executeOperationFailure({
+      body: "invalid-operation-input",
+      identity: formlessProgramTarget,
+      method: "POST",
+      path: "/operations/task/create",
+    });
+
+    expect(rejected.response.status).toBe(400);
+    expect(rejected.body).toEqual({
+      error: 'Program operation "task.create" is missing access.',
+      writes: [],
+    });
+  });
+
   it("builds operation envelopes and returns operation-shaped committed and replayed output", async () => {
     const body = {
       idempotencyKey: "operation-create-task",

@@ -526,6 +526,7 @@ function instanceRouteRuntimeSchema(): AppSchema {
   const controlPlaneSchema: AppSchema = instanceControlPlaneSchema;
   const sourceSchema = {
     ...taskSourceSchema,
+    authorization: controlPlaneSchema.authorization,
     entities: [
       ...taskSourceSchema.entities,
       {

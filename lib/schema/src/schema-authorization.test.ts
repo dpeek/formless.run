@@ -5,6 +5,7 @@ import {
   evaluateAccessRequirement,
   getAppSchemaDefinitionIndex,
   isAuthorizationRoleId,
+  isEntityOperationVisibleToBrowser,
   parseAccessRequirement,
   parseAppSchema,
   parseAuthorizationRoleId,
@@ -15,8 +16,9 @@ import {
   type AppAuthorizationSchema,
   type AppSchema,
   type AppSchemaSource,
+  type EntityOperationSchemaSource,
 } from "./index.ts";
-import { taskSchema } from "./schema-test-fixtures.ts";
+import { taskEntity, taskSchema } from "./schema-test-fixtures.ts";
 
 const roleDefinitions = [
   {
@@ -156,6 +158,132 @@ describe("schema authorization", () => {
       expect(() => parseAccessRequirement(invalidCase.requirement, schema)).toThrow(
         invalidCase.message,
       );
+    }
+  });
+
+  it("attaches access requirements to operations without conflating legacy actor policy", () => {
+    const roleAccess = {
+      role: "editor",
+    } satisfies NonNullable<EntityOperationSchemaSource["access"]>;
+    const existingOperations = taskEntity().operations;
+    const source = taskSchema({
+      authorization: { roles: roleDefinitions },
+      entities: [
+        {
+          key: "task",
+          ...taskEntity({
+            operations: [
+              ...existingOperations,
+              {
+                key: "roleRead",
+                access: roleAccess,
+                kind: "get",
+                scope: "record",
+                policy: { visible: false },
+              },
+              {
+                key: "ownerRead",
+                access: { actor: "owner" },
+                kind: "get",
+                scope: "record",
+              },
+              {
+                key: "automationRead",
+                access: { actor: "runner" },
+                kind: "get",
+                scope: "record",
+                policy: { responseFields: { runner: ["id"] } },
+              },
+              {
+                key: "editorOrRunnerRead",
+                access: {
+                  anyOf: [{ role: "editor" }, { actor: "runner" }],
+                },
+                kind: "get",
+                scope: "record",
+              },
+              {
+                key: "legacyInstalledAppRead",
+                kind: "get",
+                scope: "record",
+                policy: {
+                  actors: ["authenticated"],
+                  responseFields: { authenticated: ["id"] },
+                },
+              },
+            ],
+          }),
+        },
+      ],
+    }) as AppSchemaSource;
+    const schema = parseAppSchema(source);
+    const operationIndex = getAppSchemaDefinitionIndex(schema).operationsByEntity.get("task");
+
+    expect(operationIndex?.byKey.get("roleRead")?.access).toEqual({ role: "editor" });
+    expect(operationIndex?.byKey.get("roleRead")?.policy).toEqual({ visible: false });
+    expect(operationIndex?.byKey.get("ownerRead")?.access).toEqual({ actor: "owner" });
+    expect(operationIndex?.byKey.get("automationRead")).toMatchObject({
+      access: { actor: "runner" },
+      policy: { responseFields: { runner: ["id"] } },
+    });
+    expect(operationIndex?.byKey.get("editorOrRunnerRead")?.access).toEqual({
+      anyOf: [{ role: "editor" }, { actor: "runner" }],
+    });
+    expect(operationIndex?.byKey.get("legacyInstalledAppRead")?.policy).toEqual({
+      actors: ["authenticated"],
+      responseFields: { authenticated: ["id"] },
+    });
+    expect(isEntityOperationVisibleToBrowser(operationIndex!.byKey.get("roleRead")!)).toBe(false);
+    expect(isEntityOperationVisibleToBrowser(operationIndex!.byKey.get("ownerRead")!)).toBe(true);
+    expect(isEntityOperationVisibleToBrowser(operationIndex!.byKey.get("automationRead")!)).toBe(
+      false,
+    );
+    expect(
+      isEntityOperationVisibleToBrowser(operationIndex!.byKey.get("editorOrRunnerRead")!),
+    ).toBe(true);
+
+    const artifact = stringifySchema(schema);
+    expect(stringifySchema(schema)).toBe(artifact);
+    expect(parseAppSchema(JSON.parse(artifact))).toEqual(schema);
+  });
+
+  it("rejects unresolved operation roles and mixed operation admission sources", () => {
+    const invalidCases = [
+      {
+        operation: {
+          key: "missingRole",
+          access: { role: "missing" },
+          kind: "get",
+          scope: "record",
+        },
+        message: 'references unknown authorization role "missing"',
+      },
+      {
+        operation: {
+          key: "mixedAdmission",
+          access: { actor: "owner" },
+          kind: "get",
+          scope: "record",
+          policy: { actors: ["owner"] },
+        },
+        message: "must not declare both top-level access and policy.actors",
+      },
+    ];
+
+    for (const invalidCase of invalidCases) {
+      expect(() =>
+        parseAppSchema(
+          taskSchema({
+            authorization: { roles: roleDefinitions },
+            entities: [
+              {
+                key: "task",
+                ...taskEntity({ operations: [invalidCase.operation] }),
+              },
+            ],
+          }),
+        ),
+      ).toThrow(invalidCase.message);
     }
   });
 

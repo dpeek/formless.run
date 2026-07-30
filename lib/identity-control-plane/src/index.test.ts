@@ -100,6 +100,23 @@ describe("identity control-plane schema contracts", () => {
     );
   });
 
+  it("requires exact owner access for every generic identity mutation", () => {
+    const operations = identityControlPlaneSchema.entities.flatMap((entity) =>
+      (entity.operations ?? []).map((operation) => ({
+        access: operation.access,
+        key: `${entity.key}.${operation.key}`,
+      })),
+    );
+
+    expect(operations.length).toBeGreaterThan(0);
+    expect(operations).toEqual(
+      operations.map(({ key }) => ({
+        access: { actor: "owner" },
+        key,
+      })),
+    );
+  });
+
   it("publishes deterministic source provenance for the identity schema", async () => {
     const baseHash = await computeSourceSchemaHash(identityControlPlaneSourceSchema);
     const mutationCases: Array<[string, (schema: AppSchema) => void]> = [

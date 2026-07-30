@@ -194,6 +194,7 @@ type AuthorityOperationExecutionInput = {
   identityReferenceResolver?: IdentityReferenceTargetResolver;
   operation: AuthorityOperation;
   packageResolver?: AppPackageResolver;
+  programOperationAuthorized?: boolean;
   requestHeaders?: Headers;
   source: StorageSource;
   sourceSchemas?: Partial<Record<string, AppSchema>>;
@@ -439,6 +440,20 @@ export async function executeAuthorityOperation(
       const operationSchema = schema.entities
         .find((definition) => definition.key === operation.entityName)
         ?.operations?.find((definition) => definition.key === operation.operationName);
+
+      if (input.identity.kind === "program") {
+        if (operationSchema?.access === undefined) {
+          throw new BadRequestError(
+            `Program operation "${operation.entityName}.${operation.operationName}" is missing access.`,
+          );
+        }
+        if (input.programOperationAuthorized !== true) {
+          throw new BadRequestError(
+            `Program operation "${operation.entityName}.${operation.operationName}" is not authorized.`,
+          );
+        }
+      }
+
       const envelope = buildProtocolOperationInvocationEnvelope({
         actor:
           input.actor ??
@@ -456,7 +471,9 @@ export async function executeAuthorityOperation(
         schema,
       });
 
-      assertOperationInvocationAllowed(input.storage, envelope);
+      if (input.identity.kind !== "program") {
+        assertOperationInvocationAllowed(input.storage, envelope);
+      }
 
       if (envelope.operation.kind === "list" || envelope.operation.kind === "get") {
         return {
