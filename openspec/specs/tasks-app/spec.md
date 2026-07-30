@@ -33,6 +33,38 @@ manifest and source schema.
 - **AND** package metadata comes from the Tasks package manifest rather than
   synthetic root runtime metadata
 
+### Requirement: Reusable Tasks Schema Modules
+
+The Tasks package SHALL expose its runtime-neutral schema declarations through
+a documented TypeScript schema subpath while preserving its complete portable
+installed-app artifact.
+
+#### Scenario: Import Tasks schema authoring
+
+- **GIVEN** a trusted TypeScript composition root needs Tasks declarations
+- **WHEN** it imports `@dpeek/formless-tasks-app/schema`
+- **THEN** the package exports the `tasksRecordSchemaModule`,
+  `tasksPresentationSchemaModule`, and complete `tasksSchemaSource`
+- **AND** the record module owns the Task entity, its stable entity id,
+  operations, and queries
+- **AND** the presentation module depends on the record module and owns the
+  Tasks item views, collection views, create view, and screen
+- **AND** the complete source composes the record module before the dependent
+  presentation module
+- **AND** consumers do not deep-import Tasks package source files
+
+#### Scenario: Publish Tasks schema authoring
+
+- **GIVEN** the Tasks package is packed for publication
+- **WHEN** its documented entrypoints are emitted
+- **THEN** the root and `./schema` entrypoints have executable ESM,
+  declarations, and source maps
+- **AND** `schema.json` remains the deterministic portable schema artifact
+- **AND** `formless.app.json` continues to identify and hash that artifact
+- **AND** exporting the TypeScript modules does not itself compose Tasks into
+  the default Program, move Tasks records, or change installed-app runtime
+  selection
+
 ### Requirement: Tasks Source App
 
 The system SHALL provide a bundled `tasks` source app schema for task tracking

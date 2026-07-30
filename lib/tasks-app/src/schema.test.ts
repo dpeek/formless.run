@@ -2,16 +2,27 @@ import { computeSourceSchemaHash, parseAppPackageManifest } from "@dpeek/formles
 import { parseAppSchema } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 import rawAppPackageManifest from "@dpeek/formless-tasks-app/formless.app.json";
+import {
+  tasksPresentationSchemaModule,
+  tasksRecordSchemaModule,
+  tasksSchemaSource,
+} from "@dpeek/formless-tasks-app/schema";
 import rawSourceSchema from "@dpeek/formless-tasks-app/schema.json";
-import { tasksPresentationSchemaModule } from "./schema-presentation.ts";
-import { tasksRecordSchemaModule } from "./schema-records.ts";
-import { tasksSchemaSource } from "./schema.ts";
 
 describe("Tasks schema authoring", () => {
   it("composes record declarations before dependent presentation declarations", () => {
+    expect([tasksRecordSchemaModule.key, tasksPresentationSchemaModule.key]).toEqual([
+      "tasks-records",
+      "tasks-presentation",
+    ]);
     expect(tasksRecordSchemaModule).toMatchObject({
       key: "tasks-records",
-      entities: [expect.objectContaining({ key: "task" })],
+      entities: [
+        expect.objectContaining({
+          id: "entity_dc20cc24-23e4-4a16-98fe-bd6e09427c68",
+          key: "task",
+        }),
+      ],
       queries: [
         expect.objectContaining({ key: "taskAll" }),
         expect.objectContaining({ key: "taskActive" }),
@@ -21,7 +32,7 @@ describe("Tasks schema authoring", () => {
     });
     expect(tasksPresentationSchemaModule).toMatchObject({
       key: "tasks-presentation",
-      requires: ["tasks-records"],
+      requires: [tasksRecordSchemaModule.key],
       itemViews: [expect.objectContaining({ key: "taskListItem" })],
       views: [
         expect.objectContaining({ key: "taskHome" }),

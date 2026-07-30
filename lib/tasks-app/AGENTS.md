@@ -18,14 +18,14 @@ Read this when editing `lib/tasks-app/*`.
 
 ## Map
 
-- `package.json`: package metadata and exported root and source JSON subpaths.
+- `package.json`: package metadata and exported root, schema authoring, and source JSON subpaths.
 - `tsconfig.json`: package-local TypeScript project extending the repo config.
 - `formless.app.json`: runtime-neutral Tasks app package manifest.
 - `schema.json`: materialized flat Tasks app schema source.
 - `scripts/materialize-schema.ts`: package-local schema materialization command.
 - `src/schema-records.ts`: Tasks record and query declarations.
 - `src/schema-presentation.ts`: Tasks item view, view, and screen declarations.
-- `src/schema.ts`: authoritative Tasks schema composition entrypoint.
+- `src/schema.ts`: public schema authoring subpath and authoritative Tasks schema composition.
 - `src/types.ts`: versioned public Tasks package constants.
 - `src/index.ts`: runtime-neutral Tasks package exports.
 

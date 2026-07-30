@@ -13,6 +13,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./schema": "./src/schema.ts",
     "./formless.app.json": "./formless.app.json",
     "./schema.json": "./schema.json"
   },
@@ -22,6 +23,10 @@
         "types": "./dist/index.d.mts",
         "import": "./dist/index.mjs"
       },
+      "./schema": {
+        "types": "./dist/schema.d.mts",
+        "import": "./dist/schema.mjs"
+      },
       "./formless.app.json": "./formless.app.json",
       "./schema.json": "./schema.json"
     },
@@ -30,7 +35,7 @@
   "scripts": {
     "check": "vp check --fix && vp test --configLoader runner",
     "schema:materialize": "bun run scripts/materialize-schema.ts",
-    "pack": "vp pack src/index.ts"
+    "pack": "vp pack src/index.ts src/schema.ts"
   },
   "dependencies": {
     "@dpeek/formless-schema": "workspace:*"

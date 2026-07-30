@@ -113,6 +113,20 @@ domain declarations into the Schema package.
 - AND the composed portable schema contains only existing App schema source
   data rather than package or module implementation identity
 
+#### Scenario: Tasks package publishes its existing modules
+
+- GIVEN the Tasks package owns a record module, a dependent presentation
+  module, and a complete standalone schema source
+- WHEN trusted TypeScript composition imports Tasks declarations
+- THEN it imports them through `@dpeek/formless-tasks-app/schema`
+- AND the package publishes that subpath with executable ESM, declarations,
+  and source maps
+- AND the complete standalone source continues to materialize the existing
+  Tasks `schema.json` artifact
+- AND the public schema boundary does not compose Tasks into a Program, select
+  an Authority, change installed-app routing, or create another authoritative
+  copy of Tasks records
+
 ### Requirement: Downstream Program Composition Root
 
 The system SHALL keep complete Program composition in a downstream-owned root
