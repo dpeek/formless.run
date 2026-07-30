@@ -1,4 +1,23 @@
 {
+  "authorization": {
+    "roles": [
+      {
+        "id": "role_de3ae092-31a9-49df-b7f6-9f51f9403ff9",
+        "key": "member",
+        "label": "Member"
+      },
+      {
+        "id": "role_3e6f3057-22bf-4fb0-8bd5-7b61bb0f45c4",
+        "key": "editor",
+        "label": "Editor"
+      },
+      {
+        "id": "role_04144de6-7927-49f2-826a-cdcc70c47357",
+        "key": "administrator",
+        "label": "Administrator"
+      }
+    ]
+  },
   "entities": [
     {
       "constraints": [

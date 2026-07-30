@@ -1,6 +1,8 @@
 import type {
   AppSchema,
   AppSchemaDefinitionIndex,
+  AuthorizationRoleId,
+  AuthorizationRoleSchema,
   DefinitionIndex,
   EntityConstraintSchema,
   EntityId,
@@ -50,6 +52,13 @@ export function getAppSchemaDefinitionIndex(schema: AppSchema): AppSchemaDefinit
 }
 
 export function createAppSchemaDefinitionIndex(schema: AppSchema): AppSchemaDefinitionIndex {
+  const rolesById = new Map<AuthorizationRoleId, KeyedDefinition<AuthorizationRoleSchema>>();
+  for (const role of schema.authorization?.roles ?? []) {
+    if (rolesById.has(role.id)) {
+      throw new Error(`Schema authorization roles contain duplicate role id "${role.id}".`);
+    }
+    rolesById.set(role.id, role);
+  }
   const entitiesById = new Map<EntityId, KeyedDefinition<EntitySchema>>();
   for (const entity of schema.entities) {
     if (entitiesById.has(entity.id)) {
@@ -178,6 +187,10 @@ export function createAppSchemaDefinitionIndex(schema: AppSchema): AppSchemaDefi
     );
   }
   return {
+    authorization: {
+      roles: createDefinitionIndex(schema.authorization?.roles ?? [], "Schema authorization roles"),
+      rolesById,
+    },
     entities: createDefinitionIndex(schema.entities, "Schema entities"),
     entitiesById,
     relationships: createDefinitionIndex(schema.relationships ?? [], "Schema relationships"),

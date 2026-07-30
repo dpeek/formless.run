@@ -48,14 +48,32 @@ describe("App schema module authoring", () => {
     expect(source).not.toHaveProperty("runtime");
   });
 
-  it("preserves optional root runtime metadata", () => {
+  it("preserves optional root authorization and runtime metadata", () => {
     const records = taskRecordsModule();
     const source = composeAppSchema({
       version: 1,
+      authorization: {
+        roles: [
+          {
+            key: "member",
+            id: "role_350205b8-5c45-4985-9caa-79e51fb8a5a4",
+            label: "Member",
+          },
+        ],
+      },
       runtime: { owner: "runtime" },
       modules: [records, taskPresentationModule()],
     });
 
+    expect(source.authorization).toEqual({
+      roles: [
+        {
+          key: "member",
+          id: "role_350205b8-5c45-4985-9caa-79e51fb8a5a4",
+          label: "Member",
+        },
+      ],
+    });
     expect(source.runtime).toEqual({ owner: "runtime" });
   });
 

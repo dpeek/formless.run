@@ -17,6 +17,72 @@ export type KeyedDefinition<Definition extends object> = Definition & {
 };
 /** Opaque stable identity for one logical App schema entity. */
 export type EntityId = `entity_${string}`;
+/** Opaque stable identity for one schema-defined human authorization role. */
+export type AuthorizationRoleId = `role_${string}`;
+/** One ordered schema-defined human authorization role. */
+export type AuthorizationRoleSchema = {
+  id: AuthorizationRoleId;
+  label: string;
+};
+/** Authored form of one ordered schema-defined human authorization role. */
+export type AuthorizationRoleSchemaSource = AuthorizationRoleSchema;
+/** Root-owned Program authorization definitions in a parsed App schema. */
+export type AppAuthorizationSchema = {
+  roles: KeyedDefinition<AuthorizationRoleSchema>[];
+};
+/** Root-owned Program authorization definitions in App schema source. */
+export type AppAuthorizationSchemaSource = {
+  roles: KeyedDefinition<AuthorizationRoleSchemaSource>[];
+};
+/** Intrinsic human facts and exact trusted runtime channels accepted by access requirements. */
+export type AccessActor =
+  | "anonymous"
+  | "authenticated"
+  | "owner"
+  | "runner"
+  | "deployer"
+  | "adminBearer";
+/** Trusted runtime channels that are not assignable human roles. */
+export type TrustedAccessActor = Extract<AccessActor, "runner" | "deployer" | "adminBearer">;
+/** One direct intrinsic or trusted actor requirement. */
+export type ActorAccessRequirement = {
+  actor: AccessActor;
+};
+/** One direct minimum ordered human-role requirement. */
+export type RoleAccessRequirement = {
+  role: string;
+};
+/** One non-nested access alternative. */
+export type DirectAccessRequirement = ActorAccessRequirement | RoleAccessRequirement;
+/** Parsed access requirement for a schema-defined resource. */
+export type AccessRequirement =
+  | DirectAccessRequirement
+  | {
+      anyOf: DirectAccessRequirement[];
+    };
+/** Authored direct access requirement. */
+export type DirectAccessRequirementSource = DirectAccessRequirement;
+/** Authored access requirement parsed against one complete App schema. */
+export type AccessRequirementSource =
+  | DirectAccessRequirementSource
+  | {
+      anyOf: DirectAccessRequirementSource[];
+    };
+/** Runtime facts supplied to the pure access evaluator. */
+export type AccessCallerFacts =
+  | {
+      kind: "anonymous";
+    }
+  | {
+      kind: "principal";
+      active: boolean;
+      owner: boolean;
+      roleId?: AuthorizationRoleId;
+    }
+  | {
+      kind: "trusted";
+      actor: TrustedAccessActor;
+    };
 /** Entity identity at cross-schema and external boundaries. */
 export type QualifiedEntityName = {
   entityKey: string;
@@ -1332,6 +1398,7 @@ export type RuntimeSchemaMetadata = {
 };
 export type AppSchema = {
   version: 1;
+  authorization?: AppAuthorizationSchema;
   entities: KeyedDefinition<EntitySchema>[];
   relationships?: KeyedDefinition<RelationshipSchema>[];
   queries: KeyedDefinition<CollectionQuerySchema>[];
@@ -1355,6 +1422,10 @@ export type DefinitionIndex<
 };
 
 export type AppSchemaDefinitionIndex = {
+  authorization: {
+    roles: DefinitionIndex<KeyedDefinition<AuthorizationRoleSchema>>;
+    rolesById: ReadonlyMap<AuthorizationRoleId, KeyedDefinition<AuthorizationRoleSchema>>;
+  };
   entities: DefinitionIndex<KeyedDefinition<EntitySchema>>;
   entitiesById: ReadonlyMap<EntityId, KeyedDefinition<EntitySchema>>;
   relationships: DefinitionIndex<KeyedDefinition<RelationshipSchema>>;
@@ -1400,8 +1471,12 @@ export type AppSchemaDefinitionIndex = {
  * This source contract preserves authored omissions. `AppSchema` is the
  * parser-defaulted runtime model.
  */
-export type AppSchemaSource = Omit<AppSchema, "entities" | "version" | "views"> & {
+export type AppSchemaSource = Omit<
+  AppSchema,
+  "authorization" | "entities" | "version" | "views"
+> & {
   version: 1;
+  authorization?: AppAuthorizationSchemaSource;
   entities: KeyedDefinition<EntitySchemaSource>[];
   views: KeyedDefinition<ViewSchemaSource>[];
 };
@@ -1437,6 +1512,7 @@ export type AppSchemaModuleSource = {
 /** Explicit root input for composing one complete App schema source. */
 export type AppSchemaCompositionSource = {
   version: AppSchemaSource["version"];
+  authorization?: AppSchemaSource["authorization"];
   navigation?: AppSchemaSource["navigation"];
   runtime?: Pick<RuntimeSchemaMetadata, "owner">;
   modules: readonly AppSchemaModuleSource[];

@@ -15,6 +15,7 @@ export * from "./read-model.ts";
 export * from "./schema-collection-contexts.ts";
 export * from "./schema-collection-results.ts";
 export * from "./schema-count-display.ts";
+export * from "./schema-authorization.ts";
 export * from "./schema-definition-index.ts";
 export * from "./schema-fields.ts";
 export * from "./schema-operation-execution.ts";

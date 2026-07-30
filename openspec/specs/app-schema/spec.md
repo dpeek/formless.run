@@ -204,6 +204,118 @@ from reusable package modules.
 - AND installed app data remains outside the Program schema until a later
   domain-data cutover
 
+### Requirement: Program Authorization Definitions
+
+The system SHALL let a Program composition root declare one ordered catalog of
+schema-defined human roles without making intrinsic or trusted runtime actors
+assignable roles.
+
+#### Scenario: Declare the Program role catalog
+
+- GIVEN an App schema source declares `authorization.roles`
+- WHEN the complete source is parsed
+- THEN each role carries a stable opaque `id`, portable `key`, and human label
+- AND role declaration order is increasing ordinary human authority
+- AND duplicate role ids or keys are rejected
+- AND the role catalog remains data-only, materialized, and source-hash
+  significant
+- AND persisted role assignments may reference stable role identity without
+  making mutable assignment records part of App schema
+
+#### Scenario: Keep role ownership at the Program root
+
+- GIVEN reusable schema modules contribute Program domains
+- WHEN the Program schema is composed
+- THEN the composition root owns the complete role catalog
+- AND modules may reference root-owned role keys through access requirements
+- AND modules do not contribute, extend, replace, or reorder roles
+- AND schema module composition does not introduce scoped role catalogs,
+  app-install roles, role inheritance, or role grants
+
+#### Scenario: Materialize the default Program role ladder
+
+- GIVEN the Formless product composition root builds the default Program schema
+- WHEN its schema artifact is materialized
+- THEN the root declares `member`, `editor`, and `administrator` roles in
+  increasing authority order
+- AND each default role has a stable opaque id owned by that root
+- AND `anonymous`, `authenticated`, `owner`, `runner`, `deployer`, and
+  `adminBearer` are absent from the role catalog
+
+### Requirement: Shared Access Requirement Contract
+
+The system SHALL expose one runtime-neutral access requirement contract for
+schema-defined resources without introducing a general policy-expression
+language.
+
+#### Scenario: Parse a direct actor requirement
+
+- GIVEN an access requirement declares `{ actor }`
+- WHEN it is parsed against a complete App schema
+- THEN `actor` is `anonymous`, `authenticated`, `owner`, `runner`, `deployer`,
+  or `adminBearer`
+- AND `anonymous` permits admission without a principal but does not assign a
+  role or expose any generic read, sync, snapshot, or write surface
+- AND `authenticated` requires an active principal-backed session
+- AND `owner` requires protected built-in owner authority
+- AND each trusted system actor requires its exact runtime channel
+
+#### Scenario: Parse a direct role requirement
+
+- GIVEN an access requirement declares `{ role }`
+- WHEN it is parsed against a complete App schema
+- THEN the role key resolves against `authorization.roles`
+- AND an active principal satisfies the requirement when its assigned role is
+  the required role or a later role in the ordered catalog
+- AND an active owner satisfies every ordinary role requirement
+- AND an administrator, editor, or member never satisfies an `owner` actor
+  requirement
+- AND a trusted system actor satisfies a role requirement only when the
+  resource explicitly supplies a separate accepted alternative
+
+#### Scenario: Parse explicit access alternatives
+
+- GIVEN one resource accepts either a human requirement or a trusted system
+  actor
+- WHEN its access declares `{ anyOf: [...] }`
+- THEN each entry is one direct actor or direct role requirement
+- AND one satisfied entry admits the caller
+- AND `anyOf` is non-empty and cannot contain another `anyOf`
+- AND conjunctions, negation, deny rules, wildcard grants, scoped grants,
+  field policy, row policy, and relationship traversal are not part of the
+  contract
+
+#### Scenario: Reject unresolved access requirements
+
+- GIVEN an access requirement contains an unknown actor, an unresolved role
+  key, an empty alternative list, a nested alternative list, or more than one
+  requirement form
+- WHEN the App schema or standalone access requirement is parsed
+- THEN parsing fails closed before the requirement reaches runtime enforcement
+- AND the pure evaluator denies missing or inactive caller facts
+
+#### Scenario: Keep public operation policy additional
+
+- GIVEN a schema resource accepts the anonymous actor
+- WHEN anonymous operation execution is considered
+- THEN the access requirement alone does not create a public operation binding
+- AND explicit public input, response projection, challenge, origin,
+  rate-limit, idempotency, target-route, and audit requirements remain
+  additional contracts
+- AND a screen or route that admits anonymous presentation does not make its
+  underlying records available through generic reads or sync
+
+#### Scenario: Introduce the contract without changing existing guards
+
+- GIVEN existing screens, entity operations, runtime routes, and installed-app
+  Authorities use their current access and actor declarations
+- WHEN Program authorization definitions and the shared access requirement
+  contract are introduced
+- THEN those existing declarations and enforcement paths remain unchanged
+- AND attaching the shared contract to resources, admitting Program replicas,
+  persisting assignments, and migrating installed-app authorization require
+  later explicit capability changes
+
 ### Requirement: Ordered Keyed Definition Registries
 
 The system SHALL represent every addressable App schema definition registry as
@@ -211,9 +323,9 @@ an ordered array whose definitions carry their existing portable `key`.
 
 #### Scenario: Parse ordered definition registries
 
-- GIVEN App schema source declares top-level entities, relationships, queries,
-  computed values, aggregates, unions, item views, table views, views, or
-  screens
+- GIVEN App schema source declares top-level authorization roles, entities,
+  relationships, queries, computed values, aggregates, unions, item views,
+  table views, views, or screens
 - OR it declares nested entity fields, enum values, constraints, state
   machines, transitions, operations, operation input fields, or union variants
 - WHEN the source is parsed
@@ -222,6 +334,8 @@ an ordered array whose definitions carry their existing portable `key`.
 - AND a duplicate key within one registry is rejected
 - AND definition keys remain portable addressable names
 - AND entity definitions additionally carry stable entity identity
+- AND role definitions additionally carry stable role identity because
+  persisted assignments may reference them
 - AND other definition registries do not gain a universal stable id
 
 #### Scenario: Keep non-registry objects as objects

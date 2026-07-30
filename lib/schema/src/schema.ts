@@ -1,3 +1,4 @@
+import { parseAppAuthorization } from "./schema-authorization.ts";
 import { parseEntities } from "./schema-fields.ts";
 import { parseEntityOperationsForEntities } from "./schema-operations.ts";
 import { assertExactKeys, definitionsToRecord, isRecord } from "./schema-parse-helpers.ts";
@@ -25,12 +26,13 @@ export function parseAppSchema(value: unknown): AppSchema {
     "Schema",
     value,
     ["version", "entities", "queries", "itemViews", "tableViews", "views"],
-    ["navigation", "relationships", "readModels", "runtime", "screens", "unions"],
+    ["authorization", "navigation", "relationships", "readModels", "runtime", "screens", "unions"],
   );
   const version = value.version;
   if (version !== 1) {
     throw new Error("Schema version must be 1.");
   }
+  const authorization = parseAppAuthorization(value.authorization);
   const parsedEntities = parseEntities(value.entities);
   if (parsedEntities.entities.length === 0) {
     throw new Error("Schema must define at least one entity.");
@@ -74,6 +76,7 @@ export function parseAppSchema(value: unknown): AppSchema {
   const runtime = parseRuntimeMetadata(value.runtime, entitiesWithOperationsByKey);
   const schema: AppSchema = {
     version,
+    ...(authorization === undefined ? {} : { authorization }),
     entities: entitiesWithOperations,
     ...(relationships === undefined ? {} : { relationships }),
     queries,

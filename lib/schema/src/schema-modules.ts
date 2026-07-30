@@ -95,6 +95,9 @@ export function composeAppSchema<const Composition extends AppSchemaCompositionS
 
   const source: AppSchemaSource = {
     version: composition.version,
+    ...(composition.authorization === undefined
+      ? {}
+      : { authorization: composition.authorization }),
     entities,
     ...(hasRelationships ? { relationships } : {}),
     queries,

@@ -56,6 +56,24 @@ describe("Formless Program schema", () => {
     const screens = Object.fromEntries(parsed.screens.map((screen) => [screen.key, screen]));
 
     expect(parsed.runtime?.owner).toBe("runtime");
+    expect(parsed.authorization?.roles).toEqual([
+      {
+        id: "role_de3ae092-31a9-49df-b7f6-9f51f9403ff9",
+        key: "member",
+        label: "Member",
+      },
+      {
+        id: "role_3e6f3057-22bf-4fb0-8bd5-7b61bb0f45c4",
+        key: "editor",
+        label: "Editor",
+      },
+      {
+        id: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+        key: "administrator",
+        label: "Administrator",
+      },
+    ]);
+    expect(formlessProgramSchemaModules.every((module) => !("authorization" in module))).toBe(true);
     expect(screens.principals?.path).toBe("/");
     expect(screens.apps).toMatchObject({
       path: "/apps",
