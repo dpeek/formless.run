@@ -140,6 +140,57 @@ parsed runtime contracts.
 - AND equivalent composed and monolithic sources produce the same canonical
   schema data and source-schema hash
 
+### Requirement: Downstream Program Schema Composition
+
+The system SHALL let a downstream-owned TypeScript composition root use the
+existing App schema language to produce one complete Program schema artifact
+from reusable package modules.
+
+#### Scenario: Compose the default control-plane Program schema
+
+- GIVEN the Instance Control Plane and Identity Control Plane packages expose
+  record and presentation modules through their public `./schema` subpaths
+- WHEN the Formless product composition root builds its default Program schema
+- THEN it explicitly lists both record modules before their dependent
+  presentation modules
+- AND it supplies complete runtime ownership, navigation, and any
+  project-owned modules at the composition root
+- AND the result is one valid `AppSchemaSource` rather than a second Program
+  schema language or wrapper contract
+- AND instance and identity entities retain their package-owned stable entity
+  ids in the complete source
+
+#### Scenario: Resolve package presentation collisions at the Program root
+
+- GIVEN the reusable instance and identity presentation modules both declare
+  `screens.apps`
+- WHEN the default Program root composes both packages
+- THEN the root supplies deliberate same-key presentation module replacements
+  that omit the conflicting package screens
+- AND a root-owned presentation module contributes one `apps` screen that
+  composes the installed-app and app-registration collection views
+- AND the root explicitly selects unique screen paths and primary navigation
+  order for the complete Program
+- AND generic schema composition continues rejecting declaration collisions
+  rather than merging, overwriting, renaming, or deep-merging them
+
+#### Scenario: Materialize the Program schema artifact
+
+- GIVEN trusted TypeScript is the authoritative source for the default Program
+  composition
+- WHEN the Program schema is materialized
+- THEN it produces deterministic, data-only JSON containing one complete
+  existing App schema source
+- AND the materialized source parses through the normal App schema parser and
+  uses the normal canonical source-schema hash semantics
+- AND module keys, dependency keys, package paths, runtime callbacks, and
+  authoring ownership are absent from the artifact
+- AND package module declaration order and root-owned navigation remain
+  portable, hash-significant source data
+- AND runtime schema loading, Authority storage identities, APIs, cursors,
+  snapshots, browser replicas, authorization, archives, media, and installed
+  app behavior remain unchanged until a later physical Program cutover
+
 ### Requirement: Ordered Keyed Definition Registries
 
 The system SHALL represent every addressable App schema definition registry as

@@ -22,7 +22,8 @@
   "scripts": {
     "check": "vp check --fix && vp test --configLoader runner",
     "dev": "bun bin/formless.ts dev --workspace ../../tmp/dev-workspace --reset",
-    "dev:instance": "FORMLESS_RUNTIME_PROFILE=instance VITE_FORMLESS_RUNTIME_PROFILE=instance vp dev"
+    "dev:instance": "FORMLESS_RUNTIME_PROFILE=instance VITE_FORMLESS_RUNTIME_PROFILE=instance vp dev",
+    "schema:materialize": "bun run scripts/materialize-program-schema.ts"
   },
   "dependencies": {
     "@astryxdesign/build": "0.1.4",

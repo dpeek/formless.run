@@ -1,0 +1,7177 @@
+{
+  "entities": [
+    {
+      "constraints": [
+        {
+          "fields": ["installId"],
+          "key": "uniqueInstallId",
+          "kind": "unique"
+        },
+        {
+          "fields": ["storageIdentity"],
+          "key": "uniqueStorageIdentity",
+          "kind": "unique"
+        }
+      ],
+      "fields": [
+        {
+          "key": "installId",
+          "label": "Install id",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "packageAppKey",
+          "label": "Package",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "integer": true,
+          "key": "packageRevision",
+          "label": "Package revision",
+          "min": 0,
+          "required": false,
+          "type": "number"
+        },
+        {
+          "key": "sourceSchemaHash",
+          "label": "Source schema hash",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "key": "label",
+          "label": "Label",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "registrationPolicy",
+          "label": "Registration policy",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "closed",
+              "label": "Closed"
+            },
+            {
+              "key": "email-verified",
+              "label": "Email verified"
+            },
+            {
+              "key": "custom-operation",
+              "label": "Custom operation"
+            }
+          ]
+        },
+        {
+          "key": "registrationOperation",
+          "label": "Registration operation",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "disabled",
+              "label": "Disabled"
+            },
+            {
+              "key": "failed",
+              "label": "Failed"
+            },
+            {
+              "key": "installed",
+              "label": "Installed"
+            }
+          ]
+        },
+        {
+          "key": "storageIdentity",
+          "label": "Storage identity",
+          "required": true,
+          "type": "text"
+        }
+      ],
+      "id": "entity_703e0070-a642-4c2d-8103-3221222a6c35",
+      "key": "app-install",
+      "label": "App install",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "installId",
+                "key": "installId"
+              },
+              {
+                "field": "packageAppKey",
+                "key": "packageAppKey"
+              },
+              {
+                "field": "packageRevision",
+                "key": "packageRevision"
+              },
+              {
+                "field": "sourceSchemaHash",
+                "key": "sourceSchemaHash"
+              },
+              {
+                "field": "label",
+                "key": "label"
+              },
+              {
+                "field": "registrationPolicy",
+                "key": "registrationPolicy"
+              },
+              {
+                "field": "registrationOperation",
+                "key": "registrationOperation"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "storageIdentity",
+                "key": "storageIdentity"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create App install",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "installId",
+                "key": "installId"
+              },
+              {
+                "field": "packageAppKey",
+                "key": "packageAppKey"
+              },
+              {
+                "field": "packageRevision",
+                "key": "packageRevision"
+              },
+              {
+                "field": "sourceSchemaHash",
+                "key": "sourceSchemaHash"
+              },
+              {
+                "field": "label",
+                "key": "label"
+              },
+              {
+                "field": "registrationPolicy",
+                "key": "registrationPolicy"
+              },
+              {
+                "field": "registrationOperation",
+                "key": "registrationOperation"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "storageIdentity",
+                "key": "storageIdentity"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update App install",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "default": true,
+          "key": "enabled",
+          "label": "Enabled",
+          "required": true,
+          "type": "boolean"
+        },
+        {
+          "key": "matchHost",
+          "label": "Match host",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "key": "matchPath",
+          "label": "Match path",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "matchPrefix",
+          "label": "Match prefix",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "key": "kind",
+          "label": "Kind",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "mount",
+              "label": "Mount"
+            },
+            {
+              "key": "redirect",
+              "label": "Redirect"
+            }
+          ]
+        },
+        {
+          "key": "targetProfile",
+          "label": "Target profile",
+          "required": false,
+          "type": "enum",
+          "values": [
+            {
+              "key": "app",
+              "label": "App"
+            },
+            {
+              "key": "instance",
+              "label": "Instance"
+            },
+            {
+              "key": "public-site",
+              "label": "Public Site"
+            }
+          ]
+        },
+        {
+          "displayField": "label",
+          "key": "appInstall",
+          "label": "App install",
+          "required": false,
+          "to": "app-install",
+          "type": "reference"
+        },
+        {
+          "key": "surface",
+          "label": "Surface",
+          "required": false,
+          "type": "enum",
+          "values": [
+            {
+              "key": "admin",
+              "label": "Admin"
+            },
+            {
+              "key": "public-site",
+              "label": "Public Site"
+            }
+          ]
+        },
+        {
+          "key": "access",
+          "label": "Access",
+          "required": false,
+          "type": "enum",
+          "values": [
+            {
+              "key": "anonymous",
+              "label": "Anonymous"
+            },
+            {
+              "key": "authenticated",
+              "label": "Authenticated"
+            },
+            {
+              "key": "management",
+              "label": "Management"
+            },
+            {
+              "key": "owner",
+              "label": "Owner"
+            }
+          ]
+        },
+        {
+          "key": "requiredRole",
+          "label": "Required role",
+          "required": false,
+          "type": "enum",
+          "values": [
+            {
+              "key": "app.admin",
+              "label": "App admin"
+            }
+          ]
+        },
+        {
+          "displayField": "label",
+          "key": "deploymentConfig",
+          "label": "Deployment config",
+          "required": false,
+          "to": "deployment-config",
+          "type": "reference"
+        },
+        {
+          "key": "toHost",
+          "label": "To host",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "format": "href",
+          "key": "toUrl",
+          "label": "To URL",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "key": "statusCode",
+          "label": "Status code",
+          "required": false,
+          "type": "enum",
+          "values": [
+            {
+              "key": "301",
+              "label": "301"
+            },
+            {
+              "key": "302",
+              "label": "302"
+            },
+            {
+              "key": "303",
+              "label": "303"
+            },
+            {
+              "key": "307",
+              "label": "307"
+            },
+            {
+              "key": "308",
+              "label": "308"
+            }
+          ]
+        },
+        {
+          "default": true,
+          "key": "preservePath",
+          "label": "Preserve path",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "default": true,
+          "key": "preserveQueryString",
+          "label": "Preserve query string",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "id": "entity_6f9905f7-05cd-41b1-a233-148b1718c6f0",
+      "key": "route",
+      "label": "Route",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "enabled",
+                "key": "enabled"
+              },
+              {
+                "field": "matchHost",
+                "key": "matchHost"
+              },
+              {
+                "field": "matchPath",
+                "key": "matchPath"
+              },
+              {
+                "field": "matchPrefix",
+                "key": "matchPrefix"
+              },
+              {
+                "field": "kind",
+                "key": "kind"
+              },
+              {
+                "field": "targetProfile",
+                "key": "targetProfile"
+              },
+              {
+                "field": "appInstall",
+                "key": "appInstall"
+              },
+              {
+                "field": "surface",
+                "key": "surface"
+              },
+              {
+                "field": "access",
+                "key": "access"
+              },
+              {
+                "field": "requiredRole",
+                "key": "requiredRole"
+              },
+              {
+                "field": "deploymentConfig",
+                "key": "deploymentConfig"
+              },
+              {
+                "field": "toHost",
+                "key": "toHost"
+              },
+              {
+                "field": "toUrl",
+                "key": "toUrl"
+              },
+              {
+                "field": "statusCode",
+                "key": "statusCode"
+              },
+              {
+                "field": "preservePath",
+                "key": "preservePath"
+              },
+              {
+                "field": "preserveQueryString",
+                "key": "preserveQueryString"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Route",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "enabled",
+                "key": "enabled"
+              },
+              {
+                "field": "matchHost",
+                "key": "matchHost"
+              },
+              {
+                "field": "matchPath",
+                "key": "matchPath"
+              },
+              {
+                "field": "matchPrefix",
+                "key": "matchPrefix"
+              },
+              {
+                "field": "kind",
+                "key": "kind"
+              },
+              {
+                "field": "targetProfile",
+                "key": "targetProfile"
+              },
+              {
+                "field": "appInstall",
+                "key": "appInstall"
+              },
+              {
+                "field": "surface",
+                "key": "surface"
+              },
+              {
+                "field": "access",
+                "key": "access"
+              },
+              {
+                "field": "requiredRole",
+                "key": "requiredRole"
+              },
+              {
+                "field": "deploymentConfig",
+                "key": "deploymentConfig"
+              },
+              {
+                "field": "toHost",
+                "key": "toHost"
+              },
+              {
+                "field": "toUrl",
+                "key": "toUrl"
+              },
+              {
+                "field": "statusCode",
+                "key": "statusCode"
+              },
+              {
+                "field": "preservePath",
+                "key": "preservePath"
+              },
+              {
+                "field": "preserveQueryString",
+                "key": "preserveQueryString"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Route",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "constraints": [
+        {
+          "fields": ["targetId"],
+          "key": "uniqueTargetId",
+          "kind": "unique"
+        }
+      ],
+      "fields": [
+        {
+          "key": "targetId",
+          "label": "Target id",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "targetKind",
+          "label": "Kind",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "instance",
+              "label": "Instance"
+            }
+          ]
+        },
+        {
+          "key": "label",
+          "label": "Label",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "default": true,
+          "key": "enabled",
+          "label": "Enabled",
+          "required": true,
+          "type": "boolean"
+        },
+        {
+          "format": "href",
+          "key": "targetUrl",
+          "label": "Target URL",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "providerFamily",
+          "label": "Provider",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "cloudflare",
+              "label": "Cloudflare"
+            }
+          ]
+        },
+        {
+          "key": "accountId",
+          "label": "Account id",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "key": "workerName",
+          "label": "Worker name",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "key": "credentialRef",
+          "label": "Credential ref",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "key": "observedStatus",
+          "label": "Observed status",
+          "required": false,
+          "type": "enum",
+          "values": [
+            {
+              "key": "deployed",
+              "label": "Deployed"
+            },
+            {
+              "key": "drifted",
+              "label": "Drifted"
+            },
+            {
+              "key": "failed",
+              "label": "Failed"
+            },
+            {
+              "key": "in-sync",
+              "label": "In sync"
+            },
+            {
+              "key": "unknown",
+              "label": "Unknown"
+            }
+          ]
+        },
+        {
+          "key": "observedAt",
+          "label": "Observed at",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "key": "observedDesiredStateHash",
+          "label": "Observed desired-state hash",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "format": "longText",
+          "key": "observedSummary",
+          "label": "Observed summary",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "format": "longText",
+          "key": "observedError",
+          "label": "Observed error",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "key": "observedRunnerId",
+          "label": "Observed runner",
+          "required": false,
+          "type": "text"
+        }
+      ],
+      "id": "entity_726ab70a-10a0-404b-8489-757a7b6c7aca",
+      "key": "deployment-config",
+      "label": "Deployment config",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "targetId",
+                "key": "targetId"
+              },
+              {
+                "field": "targetKind",
+                "key": "targetKind"
+              },
+              {
+                "field": "label",
+                "key": "label"
+              },
+              {
+                "field": "enabled",
+                "key": "enabled"
+              },
+              {
+                "field": "targetUrl",
+                "key": "targetUrl"
+              },
+              {
+                "field": "providerFamily",
+                "key": "providerFamily"
+              },
+              {
+                "field": "accountId",
+                "key": "accountId"
+              },
+              {
+                "field": "workerName",
+                "key": "workerName"
+              },
+              {
+                "field": "credentialRef",
+                "key": "credentialRef"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Deployment config",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "targetId",
+                "key": "targetId"
+              },
+              {
+                "field": "targetKind",
+                "key": "targetKind"
+              },
+              {
+                "field": "label",
+                "key": "label"
+              },
+              {
+                "field": "enabled",
+                "key": "enabled"
+              },
+              {
+                "field": "targetUrl",
+                "key": "targetUrl"
+              },
+              {
+                "field": "providerFamily",
+                "key": "providerFamily"
+              },
+              {
+                "field": "accountId",
+                "key": "accountId"
+              },
+              {
+                "field": "workerName",
+                "key": "workerName"
+              },
+              {
+                "field": "credentialRef",
+                "key": "credentialRef"
+              },
+              {
+                "field": "observedStatus",
+                "key": "observedStatus"
+              },
+              {
+                "field": "observedAt",
+                "key": "observedAt"
+              },
+              {
+                "field": "observedDesiredStateHash",
+                "key": "observedDesiredStateHash"
+              },
+              {
+                "field": "observedSummary",
+                "key": "observedSummary"
+              },
+              {
+                "field": "observedError",
+                "key": "observedError"
+              },
+              {
+                "field": "observedRunnerId",
+                "key": "observedRunnerId"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Deployment config",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "key": "settingsId",
+          "label": "Settings id",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "format": "href",
+          "key": "canonicalOrigin",
+          "label": "Canonical origin",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "displayField": "matchHost",
+          "key": "primaryRoute",
+          "label": "Primary route",
+          "required": false,
+          "to": "route",
+          "type": "reference"
+        },
+        {
+          "displayField": "matchHost",
+          "key": "adminRoute",
+          "label": "Admin route",
+          "required": false,
+          "to": "route",
+          "type": "reference"
+        },
+        {
+          "displayField": "matchHost",
+          "key": "authRoute",
+          "label": "Auth route",
+          "required": false,
+          "to": "route",
+          "type": "reference"
+        },
+        {
+          "format": "href",
+          "key": "authOrigin",
+          "label": "Auth origin",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "key": "authRelyingPartyId",
+          "label": "Auth relying-party id",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "key": "authRelyingPartyName",
+          "label": "Auth relying-party name",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "displayField": "domain",
+          "key": "defaultEmailDomain",
+          "label": "Default email domain",
+          "required": false,
+          "to": "email-domain",
+          "type": "reference"
+        },
+        {
+          "displayField": "address",
+          "key": "defaultContactSender",
+          "label": "Default contact sender",
+          "required": false,
+          "to": "email-sender",
+          "type": "reference"
+        },
+        {
+          "displayField": "address",
+          "key": "defaultAuthSender",
+          "label": "Default auth sender",
+          "required": false,
+          "to": "email-sender",
+          "type": "reference"
+        },
+        {
+          "key": "contactNotificationRecipient",
+          "label": "Contact notification recipient",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "default": "unconfigured",
+          "key": "productionIdentityStatus",
+          "label": "Production identity status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "configured",
+              "label": "Configured"
+            },
+            {
+              "key": "unconfigured",
+              "label": "Unconfigured"
+            }
+          ]
+        }
+      ],
+      "id": "entity_1a429b35-c2e8-4ba7-8d31-18570948de4b",
+      "key": "instance-settings",
+      "label": "Instance settings",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "settingsId",
+                "key": "settingsId"
+              },
+              {
+                "field": "canonicalOrigin",
+                "key": "canonicalOrigin"
+              },
+              {
+                "field": "primaryRoute",
+                "key": "primaryRoute"
+              },
+              {
+                "field": "adminRoute",
+                "key": "adminRoute"
+              },
+              {
+                "field": "authRoute",
+                "key": "authRoute"
+              },
+              {
+                "field": "authOrigin",
+                "key": "authOrigin"
+              },
+              {
+                "field": "authRelyingPartyId",
+                "key": "authRelyingPartyId"
+              },
+              {
+                "field": "authRelyingPartyName",
+                "key": "authRelyingPartyName"
+              },
+              {
+                "field": "defaultEmailDomain",
+                "key": "defaultEmailDomain"
+              },
+              {
+                "field": "defaultContactSender",
+                "key": "defaultContactSender"
+              },
+              {
+                "field": "defaultAuthSender",
+                "key": "defaultAuthSender"
+              },
+              {
+                "field": "contactNotificationRecipient",
+                "key": "contactNotificationRecipient"
+              },
+              {
+                "field": "productionIdentityStatus",
+                "key": "productionIdentityStatus"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Instance settings",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "canonicalOrigin",
+                "key": "canonicalOrigin"
+              },
+              {
+                "field": "primaryRoute",
+                "key": "primaryRoute"
+              },
+              {
+                "field": "adminRoute",
+                "key": "adminRoute"
+              },
+              {
+                "field": "authRoute",
+                "key": "authRoute"
+              },
+              {
+                "field": "authOrigin",
+                "key": "authOrigin"
+              },
+              {
+                "field": "authRelyingPartyId",
+                "key": "authRelyingPartyId"
+              },
+              {
+                "field": "authRelyingPartyName",
+                "key": "authRelyingPartyName"
+              },
+              {
+                "field": "defaultEmailDomain",
+                "key": "defaultEmailDomain"
+              },
+              {
+                "field": "defaultContactSender",
+                "key": "defaultContactSender"
+              },
+              {
+                "field": "defaultAuthSender",
+                "key": "defaultAuthSender"
+              },
+              {
+                "field": "contactNotificationRecipient",
+                "key": "contactNotificationRecipient"
+              },
+              {
+                "field": "productionIdentityStatus",
+                "key": "productionIdentityStatus"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Instance settings",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "default": true,
+          "key": "enabled",
+          "label": "Enabled",
+          "required": true,
+          "type": "boolean"
+        },
+        {
+          "key": "providerFamily",
+          "label": "Provider",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "cloudflare",
+              "label": "Cloudflare"
+            }
+          ]
+        },
+        {
+          "key": "domain",
+          "label": "Domain",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "displayField": "matchHost",
+          "key": "primaryRoute",
+          "label": "Primary route",
+          "required": false,
+          "to": "route",
+          "type": "reference"
+        },
+        {
+          "displayField": "label",
+          "key": "deploymentConfig",
+          "label": "Deployment config",
+          "required": false,
+          "to": "deployment-config",
+          "type": "reference"
+        },
+        {
+          "key": "dnsStatus",
+          "label": "DNS status",
+          "required": false,
+          "type": "enum",
+          "values": [
+            {
+              "key": "failed",
+              "label": "Failed"
+            },
+            {
+              "key": "pending",
+              "label": "Pending"
+            },
+            {
+              "key": "unconfigured",
+              "label": "Unconfigured"
+            },
+            {
+              "key": "verified",
+              "label": "Verified"
+            }
+          ]
+        },
+        {
+          "format": "longText",
+          "key": "latestError",
+          "label": "Latest error",
+          "required": false,
+          "type": "text"
+        }
+      ],
+      "id": "entity_4df3b716-c71a-4714-86d7-45728f94daa8",
+      "key": "email-domain",
+      "label": "Email domain",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "enabled",
+                "key": "enabled"
+              },
+              {
+                "field": "providerFamily",
+                "key": "providerFamily"
+              },
+              {
+                "field": "domain",
+                "key": "domain"
+              },
+              {
+                "field": "primaryRoute",
+                "key": "primaryRoute"
+              },
+              {
+                "field": "deploymentConfig",
+                "key": "deploymentConfig"
+              },
+              {
+                "field": "dnsStatus",
+                "key": "dnsStatus"
+              },
+              {
+                "field": "latestError",
+                "key": "latestError"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Email domain",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "enabled",
+                "key": "enabled"
+              },
+              {
+                "field": "domain",
+                "key": "domain"
+              },
+              {
+                "field": "primaryRoute",
+                "key": "primaryRoute"
+              },
+              {
+                "field": "deploymentConfig",
+                "key": "deploymentConfig"
+              },
+              {
+                "field": "dnsStatus",
+                "key": "dnsStatus"
+              },
+              {
+                "field": "latestError",
+                "key": "latestError"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Email domain",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "default": true,
+          "key": "enabled",
+          "label": "Enabled",
+          "required": true,
+          "type": "boolean"
+        },
+        {
+          "key": "address",
+          "label": "Address",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "displayName",
+          "label": "Display name",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "key": "purpose",
+          "label": "Purpose",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "contact-notification",
+              "label": "Contact notification"
+            },
+            {
+              "key": "auth",
+              "label": "Auth messages"
+            },
+            {
+              "key": "system",
+              "label": "System"
+            }
+          ]
+        },
+        {
+          "displayField": "domain",
+          "key": "emailDomain",
+          "label": "Email domain",
+          "required": true,
+          "to": "email-domain",
+          "type": "reference"
+        }
+      ],
+      "id": "entity_cabf8d1e-002f-427d-8c46-1da32e1641c2",
+      "key": "email-sender",
+      "label": "Email sender",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "enabled",
+                "key": "enabled"
+              },
+              {
+                "field": "address",
+                "key": "address"
+              },
+              {
+                "field": "displayName",
+                "key": "displayName"
+              },
+              {
+                "field": "purpose",
+                "key": "purpose"
+              },
+              {
+                "field": "emailDomain",
+                "key": "emailDomain"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Email sender",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "enabled",
+                "key": "enabled"
+              },
+              {
+                "field": "address",
+                "key": "address"
+              },
+              {
+                "field": "displayName",
+                "key": "displayName"
+              },
+              {
+                "field": "purpose",
+                "key": "purpose"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Email sender",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "key": "displayName",
+          "label": "Display name",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "kind",
+          "label": "Kind",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "human",
+              "label": "Human"
+            },
+            {
+              "key": "service",
+              "label": "Service"
+            }
+          ]
+        },
+        {
+          "default": "active",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "active",
+              "label": "Active"
+            },
+            {
+              "key": "disabled",
+              "label": "Disabled"
+            },
+            {
+              "key": "invited",
+              "label": "Invited"
+            }
+          ]
+        }
+      ],
+      "id": "entity_9a973724-79ed-4e91-b5a3-6364bb03aa18",
+      "key": "principal",
+      "label": "Principal",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "displayName",
+                "key": "displayName"
+              },
+              {
+                "field": "kind",
+                "key": "kind"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create principal",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "displayName",
+                "key": "displayName"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update principal",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "constraints": [
+        {
+          "fields": ["normalizedEmail"],
+          "key": "uniqueNormalizedEmail",
+          "kind": "unique"
+        }
+      ],
+      "fields": [
+        {
+          "displayField": "displayName",
+          "key": "principal",
+          "label": "Principal",
+          "required": true,
+          "to": "principal",
+          "type": "reference"
+        },
+        {
+          "key": "displayEmail",
+          "label": "Display email",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "normalizedEmail",
+          "label": "Normalized email",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "default": "unverified",
+          "key": "verificationStatus",
+          "label": "Verification status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "unverified",
+              "label": "Unverified"
+            },
+            {
+              "key": "verified",
+              "label": "Verified"
+            }
+          ]
+        },
+        {
+          "default": false,
+          "key": "primary",
+          "label": "Primary",
+          "required": true,
+          "type": "boolean"
+        },
+        {
+          "default": false,
+          "key": "recovery",
+          "label": "Recovery",
+          "required": true,
+          "type": "boolean"
+        },
+        {
+          "key": "verifiedAt",
+          "label": "Verified at",
+          "required": false,
+          "type": "text"
+        }
+      ],
+      "id": "entity_44ca1842-9aa9-44de-8f84-3b6348ba781f",
+      "key": "principal-email",
+      "label": "Principal email",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "principal",
+                "key": "principal"
+              },
+              {
+                "field": "displayEmail",
+                "key": "displayEmail"
+              },
+              {
+                "field": "normalizedEmail",
+                "key": "normalizedEmail"
+              },
+              {
+                "field": "verificationStatus",
+                "key": "verificationStatus"
+              },
+              {
+                "field": "primary",
+                "key": "primary"
+              },
+              {
+                "field": "recovery",
+                "key": "recovery"
+              },
+              {
+                "field": "verifiedAt",
+                "key": "verifiedAt"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create principal email",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "displayEmail",
+                "key": "displayEmail"
+              },
+              {
+                "field": "verificationStatus",
+                "key": "verificationStatus"
+              },
+              {
+                "field": "primary",
+                "key": "primary"
+              },
+              {
+                "field": "recovery",
+                "key": "recovery"
+              },
+              {
+                "field": "verifiedAt",
+                "key": "verifiedAt"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update principal email",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "key": "displayName",
+          "label": "Display name",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "default": "active",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "active",
+              "label": "Active"
+            },
+            {
+              "key": "disabled",
+              "label": "Disabled"
+            }
+          ]
+        }
+      ],
+      "id": "entity_7fdc2084-9c69-46e7-8ae6-3abdef0844e6",
+      "key": "group",
+      "label": "Group",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "displayName",
+                "key": "displayName"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create group",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update group",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "key": "displayName",
+          "label": "Display name",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "default": "active",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "active",
+              "label": "Active"
+            },
+            {
+              "key": "disabled",
+              "label": "Disabled"
+            }
+          ]
+        }
+      ],
+      "id": "entity_a1f3cd81-3ff7-49af-8613-c9551a0ef673",
+      "key": "organization",
+      "label": "Organization",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "displayName",
+                "key": "displayName"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create organization",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update organization",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "displayField": "displayName",
+          "key": "principal",
+          "label": "Principal",
+          "required": true,
+          "to": "principal",
+          "type": "reference"
+        },
+        {
+          "key": "targetKind",
+          "label": "Target kind",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "group",
+              "label": "Group"
+            },
+            {
+              "key": "organization",
+              "label": "Organization"
+            }
+          ]
+        },
+        {
+          "displayField": "displayName",
+          "key": "targetGroup",
+          "label": "Target group",
+          "required": false,
+          "to": "group",
+          "type": "reference"
+        },
+        {
+          "displayField": "displayName",
+          "key": "targetOrganization",
+          "label": "Target organization",
+          "required": false,
+          "to": "organization",
+          "type": "reference"
+        },
+        {
+          "default": "active",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "active",
+              "label": "Active"
+            },
+            {
+              "key": "disabled",
+              "label": "Disabled"
+            },
+            {
+              "key": "invited",
+              "label": "Invited"
+            }
+          ]
+        }
+      ],
+      "id": "entity_dba733fd-fcce-4183-98ea-092f2e54d676",
+      "key": "membership",
+      "label": "Membership",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "principal",
+                "key": "principal"
+              },
+              {
+                "field": "targetKind",
+                "key": "targetKind"
+              },
+              {
+                "field": "targetGroup",
+                "key": "targetGroup"
+              },
+              {
+                "field": "targetOrganization",
+                "key": "targetOrganization"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create membership",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update membership",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "constraints": [
+        {
+          "fields": ["key"],
+          "key": "uniqueKey",
+          "kind": "unique"
+        }
+      ],
+      "fields": [
+        {
+          "key": "key",
+          "label": "Key",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "instance.owner",
+              "label": "instance.owner"
+            },
+            {
+              "key": "instance.admin",
+              "label": "instance.admin"
+            },
+            {
+              "key": "app.admin",
+              "label": "app.admin"
+            },
+            {
+              "key": "app.editor",
+              "label": "app.editor"
+            },
+            {
+              "key": "app.viewer",
+              "label": "app.viewer"
+            },
+            {
+              "key": "app.user",
+              "label": "app.user"
+            }
+          ]
+        },
+        {
+          "key": "displayLabel",
+          "label": "Display label",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "default": "active",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "active",
+              "label": "Active"
+            },
+            {
+              "key": "disabled",
+              "label": "Disabled"
+            }
+          ]
+        }
+      ],
+      "id": "entity_3d39cc7b-afd7-49c2-92a2-95c17eb382d6",
+      "key": "role",
+      "label": "Role",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "key",
+                "key": "key"
+              },
+              {
+                "field": "displayLabel",
+                "key": "displayLabel"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create role",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "displayLabel",
+                "key": "displayLabel"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update role",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "displayField": "displayLabel",
+          "key": "role",
+          "label": "Role",
+          "required": true,
+          "to": "role",
+          "type": "reference"
+        },
+        {
+          "key": "targetKind",
+          "label": "Target kind",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "group",
+              "label": "Group"
+            },
+            {
+              "key": "organization",
+              "label": "Organization"
+            },
+            {
+              "key": "principal",
+              "label": "Principal"
+            }
+          ]
+        },
+        {
+          "displayField": "displayName",
+          "key": "targetPrincipal",
+          "label": "Target principal",
+          "required": false,
+          "to": "principal",
+          "type": "reference"
+        },
+        {
+          "displayField": "displayName",
+          "key": "targetGroup",
+          "label": "Target group",
+          "required": false,
+          "to": "group",
+          "type": "reference"
+        },
+        {
+          "displayField": "displayName",
+          "key": "targetOrganization",
+          "label": "Target organization",
+          "required": false,
+          "to": "organization",
+          "type": "reference"
+        },
+        {
+          "key": "scopeKind",
+          "label": "Scope kind",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "app-install",
+              "label": "App install"
+            },
+            {
+              "key": "instance",
+              "label": "Instance"
+            },
+            {
+              "key": "organization",
+              "label": "Organization"
+            }
+          ]
+        },
+        {
+          "key": "appInstallId",
+          "label": "App install id",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "displayField": "displayName",
+          "key": "scopeOrganization",
+          "label": "Scope organization",
+          "required": false,
+          "to": "organization",
+          "type": "reference"
+        },
+        {
+          "default": "active",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "active",
+              "label": "Active"
+            },
+            {
+              "key": "disabled",
+              "label": "Disabled"
+            }
+          ]
+        }
+      ],
+      "id": "entity_59caf16c-c00f-424c-8f40-337ee7043326",
+      "key": "role-assignment",
+      "label": "Role assignment",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "role",
+                "key": "role"
+              },
+              {
+                "field": "targetKind",
+                "key": "targetKind"
+              },
+              {
+                "field": "targetPrincipal",
+                "key": "targetPrincipal"
+              },
+              {
+                "field": "targetGroup",
+                "key": "targetGroup"
+              },
+              {
+                "field": "targetOrganization",
+                "key": "targetOrganization"
+              },
+              {
+                "field": "scopeKind",
+                "key": "scopeKind"
+              },
+              {
+                "field": "appInstallId",
+                "key": "appInstallId"
+              },
+              {
+                "field": "scopeOrganization",
+                "key": "scopeOrganization"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create role assignment",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update role assignment",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "deleteRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "key": "delete",
+          "kind": "delete",
+          "label": "Delete role assignment",
+          "output": {
+            "type": "delete"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "key": "appInstallId",
+          "label": "App install id",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "targetKind",
+          "label": "Target kind",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "organization",
+              "label": "Organization"
+            },
+            {
+              "key": "principal",
+              "label": "Principal"
+            }
+          ]
+        },
+        {
+          "displayField": "displayName",
+          "key": "targetPrincipal",
+          "label": "Target principal",
+          "required": false,
+          "to": "principal",
+          "type": "reference"
+        },
+        {
+          "displayField": "displayName",
+          "key": "targetOrganization",
+          "label": "Target organization",
+          "required": false,
+          "to": "organization",
+          "type": "reference"
+        },
+        {
+          "default": "pending",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "active",
+              "label": "Active"
+            },
+            {
+              "key": "disabled",
+              "label": "Disabled"
+            },
+            {
+              "key": "pending",
+              "label": "Pending"
+            }
+          ]
+        },
+        {
+          "displayField": "displayName",
+          "key": "selectedOrganization",
+          "label": "Selected organization",
+          "required": false,
+          "to": "organization",
+          "type": "reference"
+        }
+      ],
+      "id": "entity_735d1c4d-dc89-4423-9cc7-0daa06559d75",
+      "key": "app-registration",
+      "label": "App registration",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "appInstallId",
+                "key": "appInstallId"
+              },
+              {
+                "field": "targetKind",
+                "key": "targetKind"
+              },
+              {
+                "field": "targetPrincipal",
+                "key": "targetPrincipal"
+              },
+              {
+                "field": "targetOrganization",
+                "key": "targetOrganization"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "selectedOrganization",
+                "key": "selectedOrganization"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create app registration",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "selectedOrganization",
+                "key": "selectedOrganization"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update app registration",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "key": "targetEmail",
+          "label": "Target email",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "targetSurface",
+          "label": "Target surface",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "app-install",
+              "label": "App install"
+            },
+            {
+              "key": "instance",
+              "label": "Instance"
+            },
+            {
+              "key": "organization",
+              "label": "Organization"
+            }
+          ]
+        },
+        {
+          "key": "targetAppInstallId",
+          "label": "Target app install id",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "displayField": "displayName",
+          "key": "targetOrganization",
+          "label": "Target organization",
+          "required": false,
+          "to": "organization",
+          "type": "reference"
+        },
+        {
+          "displayField": "displayName",
+          "key": "invitedPrincipal",
+          "label": "Invited principal",
+          "required": false,
+          "to": "principal",
+          "type": "reference"
+        },
+        {
+          "displayField": "displayName",
+          "key": "inviterPrincipal",
+          "label": "Inviter principal",
+          "required": false,
+          "to": "principal",
+          "type": "reference"
+        },
+        {
+          "default": "pending",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "accepted",
+              "label": "Accepted"
+            },
+            {
+              "key": "expired",
+              "label": "Expired"
+            },
+            {
+              "key": "pending",
+              "label": "Pending"
+            },
+            {
+              "key": "revoked",
+              "label": "Revoked"
+            }
+          ]
+        },
+        {
+          "key": "expiresAt",
+          "label": "Expires at",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "acceptedAt",
+          "label": "Accepted at",
+          "required": false,
+          "type": "text"
+        }
+      ],
+      "id": "entity_f176ed5c-3e07-4107-8e4d-50e89539c9e1",
+      "key": "invitation",
+      "label": "Invitation",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "targetEmail",
+                "key": "targetEmail"
+              },
+              {
+                "field": "targetSurface",
+                "key": "targetSurface"
+              },
+              {
+                "field": "targetAppInstallId",
+                "key": "targetAppInstallId"
+              },
+              {
+                "field": "targetOrganization",
+                "key": "targetOrganization"
+              },
+              {
+                "field": "invitedPrincipal",
+                "key": "invitedPrincipal"
+              },
+              {
+                "field": "inviterPrincipal",
+                "key": "inviterPrincipal"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "expiresAt",
+                "key": "expiresAt"
+              },
+              {
+                "field": "acceptedAt",
+                "key": "acceptedAt"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create invitation",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "acceptedAt",
+                "key": "acceptedAt"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update invitation",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "key": "displayName",
+          "label": "Display name",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "policyKey",
+          "label": "Policy key",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "version",
+          "label": "Version",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "scopeKind",
+          "label": "Scope kind",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "app-install",
+              "label": "App install"
+            },
+            {
+              "key": "instance",
+              "label": "Instance"
+            },
+            {
+              "key": "organization",
+              "label": "Organization"
+            }
+          ]
+        },
+        {
+          "key": "appInstallId",
+          "label": "App install id",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "displayField": "displayName",
+          "key": "scopeOrganization",
+          "label": "Scope organization",
+          "required": false,
+          "to": "organization",
+          "type": "reference"
+        },
+        {
+          "default": "active",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "active",
+              "label": "Active"
+            },
+            {
+              "key": "retired",
+              "label": "Retired"
+            }
+          ]
+        },
+        {
+          "key": "publishedAt",
+          "label": "Published at",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "format": "href",
+          "key": "policyDocumentUrl",
+          "label": "Policy document URL",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "key": "policyContentRef",
+          "label": "Policy content ref",
+          "required": false,
+          "type": "text"
+        }
+      ],
+      "id": "entity_954732d5-5b4b-4cc5-a7c5-644e6f964a62",
+      "key": "account-policy",
+      "label": "Account policy",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "displayName",
+                "key": "displayName"
+              },
+              {
+                "field": "policyKey",
+                "key": "policyKey"
+              },
+              {
+                "field": "version",
+                "key": "version"
+              },
+              {
+                "field": "scopeKind",
+                "key": "scopeKind"
+              },
+              {
+                "field": "appInstallId",
+                "key": "appInstallId"
+              },
+              {
+                "field": "scopeOrganization",
+                "key": "scopeOrganization"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "publishedAt",
+                "key": "publishedAt"
+              },
+              {
+                "field": "policyDocumentUrl",
+                "key": "policyDocumentUrl"
+              },
+              {
+                "field": "policyContentRef",
+                "key": "policyContentRef"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create account policy",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "displayName",
+                "key": "displayName"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "publishedAt",
+                "key": "publishedAt"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update account policy",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "displayField": "displayName",
+          "key": "principal",
+          "label": "Principal",
+          "required": true,
+          "to": "principal",
+          "type": "reference"
+        },
+        {
+          "displayField": "displayName",
+          "key": "accountPolicy",
+          "label": "Account policy",
+          "required": true,
+          "to": "account-policy",
+          "type": "reference"
+        },
+        {
+          "default": "accepted",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "accepted",
+              "label": "Accepted"
+            },
+            {
+              "key": "revoked",
+              "label": "Revoked"
+            }
+          ]
+        },
+        {
+          "key": "acceptedAt",
+          "label": "Accepted at",
+          "required": true,
+          "type": "text"
+        }
+      ],
+      "id": "entity_edc192f5-9b11-4f79-ac18-b256a842a6e8",
+      "key": "principal-policy-acceptance",
+      "label": "Principal policy acceptance",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "principal",
+                "key": "principal"
+              },
+              {
+                "field": "accountPolicy",
+                "key": "accountPolicy"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "acceptedAt",
+                "key": "acceptedAt"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create principal policy acceptance",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update principal policy acceptance",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    }
+  ],
+  "itemViews": [
+    {
+      "entity": "app-install",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "installId"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "packageAppKey"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "registrationPolicy"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "registrationOperation"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "appInstallItem"
+    },
+    {
+      "entity": "route",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "matchHost"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "matchPath"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "kind"
+        },
+        {
+          "commit": "immediate",
+          "editor": "boolean",
+          "field": "enabled"
+        }
+      ],
+      "key": "routeItem"
+    },
+    {
+      "entity": "deployment-config",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "targetId"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "providerFamily"
+        },
+        {
+          "commit": "immediate",
+          "editor": "boolean",
+          "field": "enabled"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "observedStatus"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "observedAt"
+        }
+      ],
+      "key": "deploymentConfigItem"
+    },
+    {
+      "entity": "instance-settings",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "settingsId"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "primaryRoute"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "adminRoute"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "href",
+          "field": "canonicalOrigin"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "productionIdentityStatus"
+        }
+      ],
+      "key": "instanceSettingsItem"
+    },
+    {
+      "entity": "email-domain",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "domain"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "providerFamily"
+        },
+        {
+          "commit": "immediate",
+          "editor": "boolean",
+          "field": "enabled"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "dnsStatus"
+        }
+      ],
+      "key": "emailDomainItem"
+    },
+    {
+      "entity": "email-sender",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "address"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "purpose"
+        },
+        {
+          "commit": "immediate",
+          "editor": "boolean",
+          "field": "enabled"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "emailDomain"
+        }
+      ],
+      "key": "emailSenderItem"
+    },
+    {
+      "entity": "principal",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "displayName"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "kind"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "principalItem"
+    },
+    {
+      "entity": "principal-email",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "displayEmail"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "normalizedEmail"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "verificationStatus"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "principal"
+        }
+      ],
+      "key": "principalEmailItem"
+    },
+    {
+      "entity": "group",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "displayName"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "groupItem"
+    },
+    {
+      "entity": "organization",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "displayName"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "organizationItem"
+    },
+    {
+      "entity": "membership",
+      "fields": [
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "principal"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "targetKind"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "targetGroup"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "targetOrganization"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "membershipItem"
+    },
+    {
+      "entity": "role",
+      "fields": [
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "key"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "displayLabel"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "roleItem"
+    },
+    {
+      "entity": "role-assignment",
+      "fields": [
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "role"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "targetKind"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "scopeKind"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "roleAssignmentItem"
+    },
+    {
+      "entity": "app-registration",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "appInstallId"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "targetKind"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "selectedOrganization"
+        }
+      ],
+      "key": "appRegistrationItem"
+    },
+    {
+      "entity": "invitation",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "targetEmail"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "targetSurface"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "expiresAt"
+        }
+      ],
+      "key": "invitationItem"
+    },
+    {
+      "entity": "account-policy",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "displayName"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "policyKey"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "version"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "scopeKind"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "accountPolicyItem"
+    },
+    {
+      "entity": "principal-policy-acceptance",
+      "fields": [
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "principal"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "accountPolicy"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "acceptedAt"
+        }
+      ],
+      "key": "principalPolicyAcceptanceItem"
+    }
+  ],
+  "navigation": {
+    "primaryScreens": [
+      "apps",
+      "routes",
+      "deployments",
+      "principals",
+      "organizations",
+      "access",
+      "invitations",
+      "policies",
+      "settings"
+    ]
+  },
+  "queries": [
+    {
+      "entity": "app-install",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "appInstallAll",
+      "label": "App installs"
+    },
+    {
+      "entity": "route",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "routeAll",
+      "label": "Routes"
+    },
+    {
+      "entity": "route",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "enabled"
+        },
+        "value": true
+      },
+      "key": "routeEnabled",
+      "label": "Enabled routes"
+    },
+    {
+      "entity": "route",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "kind"
+        },
+        "value": "mount"
+      },
+      "key": "routeMount",
+      "label": "Mounts"
+    },
+    {
+      "entity": "route",
+      "expression": {
+        "expressions": [
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "kind"
+            },
+            "value": "mount"
+          },
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "matchPath"
+            },
+            "value": "/"
+          }
+        ],
+        "kind": "and"
+      },
+      "key": "routeHostMapping",
+      "label": "Host mappings"
+    },
+    {
+      "entity": "route",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "kind"
+        },
+        "value": "redirect"
+      },
+      "key": "routeRedirect",
+      "label": "Redirects"
+    },
+    {
+      "entity": "route",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "targetProfile"
+        },
+        "value": "instance"
+      },
+      "key": "routeInstanceMount",
+      "label": "Instance paths"
+    },
+    {
+      "entity": "route",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "targetProfile"
+        },
+        "value": "app"
+      },
+      "key": "routeAppMount",
+      "label": "App install routes"
+    },
+    {
+      "entity": "route",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "targetProfile"
+        },
+        "value": "public-site"
+      },
+      "key": "routePublicSiteMount",
+      "label": "Public Site routes"
+    },
+    {
+      "entity": "route",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "deploymentConfig"
+        },
+        "value": {
+          "kind": "context",
+          "name": "deploymentConfig"
+        }
+      },
+      "key": "routesForSelectedDeploymentConfig",
+      "label": "Selected deployment config"
+    },
+    {
+      "entity": "deployment-config",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "deploymentConfigAll",
+      "label": "Deployment configs"
+    },
+    {
+      "entity": "deployment-config",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "enabled"
+        },
+        "value": true
+      },
+      "key": "deploymentConfigEnabled",
+      "label": "Enabled deployment configs"
+    },
+    {
+      "entity": "instance-settings",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "instanceSettingsAll",
+      "label": "Instance settings"
+    },
+    {
+      "entity": "email-domain",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "emailDomainAll",
+      "label": "Email domains"
+    },
+    {
+      "entity": "email-domain",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "enabled"
+        },
+        "value": true
+      },
+      "key": "emailDomainEnabled",
+      "label": "Enabled email domains"
+    },
+    {
+      "entity": "email-sender",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "emailSenderAll",
+      "label": "Email senders"
+    },
+    {
+      "entity": "email-sender",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "enabled"
+        },
+        "value": true
+      },
+      "key": "emailSenderEnabled",
+      "label": "Enabled email senders"
+    },
+    {
+      "entity": "principal",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "principalAll",
+      "label": "Principals"
+    },
+    {
+      "entity": "principal-email",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "principalEmailAll",
+      "label": "Principal emails"
+    },
+    {
+      "entity": "group",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "groupAll",
+      "label": "Groups"
+    },
+    {
+      "entity": "organization",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "organizationAll",
+      "label": "Organizations"
+    },
+    {
+      "entity": "membership",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "membershipAll",
+      "label": "Memberships"
+    },
+    {
+      "entity": "role",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "roleAll",
+      "label": "Roles"
+    },
+    {
+      "entity": "role-assignment",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "roleAssignmentAll",
+      "label": "Role assignments"
+    },
+    {
+      "entity": "app-registration",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "appRegistrationAll",
+      "label": "App registrations"
+    },
+    {
+      "entity": "invitation",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "invitationAll",
+      "label": "Invitations"
+    },
+    {
+      "entity": "account-policy",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "accountPolicyAll",
+      "label": "Account policies"
+    },
+    {
+      "entity": "principal-policy-acceptance",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "principalPolicyAcceptanceAll",
+      "label": "Policy acceptances"
+    }
+  ],
+  "relationships": [
+    {
+      "from": {
+        "entity": "route",
+        "field": "appInstall"
+      },
+      "key": "routeInstall",
+      "kind": "toOne",
+      "label": "Route install",
+      "to": {
+        "entity": "app-install"
+      }
+    },
+    {
+      "from": {
+        "entity": "route",
+        "field": "deploymentConfig"
+      },
+      "inverse": "deploymentConfigRoutes",
+      "key": "routeDeploymentConfig",
+      "kind": "toOne",
+      "label": "Route deployment config",
+      "to": {
+        "entity": "deployment-config"
+      }
+    },
+    {
+      "from": {
+        "entity": "instance-settings",
+        "field": "primaryRoute"
+      },
+      "key": "settingsPrimaryRoute",
+      "kind": "toOne",
+      "label": "Settings primary route",
+      "to": {
+        "entity": "route"
+      }
+    },
+    {
+      "from": {
+        "entity": "instance-settings",
+        "field": "adminRoute"
+      },
+      "key": "settingsAdminRoute",
+      "kind": "toOne",
+      "label": "Settings admin route",
+      "to": {
+        "entity": "route"
+      }
+    },
+    {
+      "from": {
+        "entity": "instance-settings",
+        "field": "authRoute"
+      },
+      "key": "settingsAuthRoute",
+      "kind": "toOne",
+      "label": "Settings auth route",
+      "to": {
+        "entity": "route"
+      }
+    },
+    {
+      "from": {
+        "entity": "instance-settings",
+        "field": "defaultEmailDomain"
+      },
+      "key": "settingsDefaultEmailDomain",
+      "kind": "toOne",
+      "label": "Settings default email domain",
+      "to": {
+        "entity": "email-domain"
+      }
+    },
+    {
+      "from": {
+        "entity": "instance-settings",
+        "field": "defaultContactSender"
+      },
+      "key": "settingsDefaultContactSender",
+      "kind": "toOne",
+      "label": "Settings default contact sender",
+      "to": {
+        "entity": "email-sender"
+      }
+    },
+    {
+      "from": {
+        "entity": "instance-settings",
+        "field": "defaultAuthSender"
+      },
+      "key": "settingsDefaultAuthSender",
+      "kind": "toOne",
+      "label": "Settings default auth sender",
+      "to": {
+        "entity": "email-sender"
+      }
+    },
+    {
+      "from": {
+        "entity": "email-domain",
+        "field": "primaryRoute"
+      },
+      "key": "emailDomainPrimaryRoute",
+      "kind": "toOne",
+      "label": "Email domain primary route",
+      "to": {
+        "entity": "route"
+      }
+    },
+    {
+      "from": {
+        "entity": "email-domain",
+        "field": "deploymentConfig"
+      },
+      "inverse": "deploymentConfigEmailDomains",
+      "key": "emailDomainDeploymentConfig",
+      "kind": "toOne",
+      "label": "Email domain deployment config",
+      "to": {
+        "entity": "deployment-config"
+      }
+    },
+    {
+      "from": {
+        "entity": "email-sender",
+        "field": "emailDomain"
+      },
+      "inverse": "emailDomainSenders",
+      "key": "emailSenderDomain",
+      "kind": "toOne",
+      "label": "Email sender domain",
+      "to": {
+        "entity": "email-domain"
+      }
+    },
+    {
+      "from": {
+        "entity": "deployment-config"
+      },
+      "inverse": "routeDeploymentConfig",
+      "key": "deploymentConfigRoutes",
+      "kind": "toMany",
+      "label": "Deployment config routes",
+      "to": {
+        "entity": "route",
+        "field": "deploymentConfig"
+      }
+    },
+    {
+      "from": {
+        "entity": "deployment-config"
+      },
+      "inverse": "emailDomainDeploymentConfig",
+      "key": "deploymentConfigEmailDomains",
+      "kind": "toMany",
+      "label": "Deployment config email domains",
+      "to": {
+        "entity": "email-domain",
+        "field": "deploymentConfig"
+      }
+    },
+    {
+      "from": {
+        "entity": "email-domain"
+      },
+      "inverse": "emailSenderDomain",
+      "key": "emailDomainSenders",
+      "kind": "toMany",
+      "label": "Email domain senders",
+      "to": {
+        "entity": "email-sender",
+        "field": "emailDomain"
+      }
+    },
+    {
+      "from": {
+        "entity": "principal-email",
+        "field": "principal"
+      },
+      "inverse": "principalEmails",
+      "key": "principalEmailPrincipal",
+      "kind": "toOne",
+      "label": "Principal email principal",
+      "to": {
+        "entity": "principal"
+      }
+    },
+    {
+      "from": {
+        "entity": "principal"
+      },
+      "inverse": "principalEmailPrincipal",
+      "key": "principalEmails",
+      "kind": "toMany",
+      "label": "Principal emails",
+      "to": {
+        "entity": "principal-email",
+        "field": "principal"
+      }
+    },
+    {
+      "from": {
+        "entity": "membership",
+        "field": "principal"
+      },
+      "inverse": "principalMemberships",
+      "key": "membershipPrincipal",
+      "kind": "toOne",
+      "label": "Membership principal",
+      "to": {
+        "entity": "principal"
+      }
+    },
+    {
+      "from": {
+        "entity": "principal"
+      },
+      "inverse": "membershipPrincipal",
+      "key": "principalMemberships",
+      "kind": "toMany",
+      "label": "Principal memberships",
+      "to": {
+        "entity": "membership",
+        "field": "principal"
+      }
+    },
+    {
+      "from": {
+        "entity": "membership",
+        "field": "targetGroup"
+      },
+      "inverse": "groupMemberships",
+      "key": "membershipGroup",
+      "kind": "toOne",
+      "label": "Membership group",
+      "to": {
+        "entity": "group"
+      }
+    },
+    {
+      "from": {
+        "entity": "group"
+      },
+      "inverse": "membershipGroup",
+      "key": "groupMemberships",
+      "kind": "toMany",
+      "label": "Group memberships",
+      "to": {
+        "entity": "membership",
+        "field": "targetGroup"
+      }
+    },
+    {
+      "from": {
+        "entity": "membership",
+        "field": "targetOrganization"
+      },
+      "inverse": "organizationMemberships",
+      "key": "membershipOrganization",
+      "kind": "toOne",
+      "label": "Membership organization",
+      "to": {
+        "entity": "organization"
+      }
+    },
+    {
+      "from": {
+        "entity": "organization"
+      },
+      "inverse": "membershipOrganization",
+      "key": "organizationMemberships",
+      "kind": "toMany",
+      "label": "Organization memberships",
+      "to": {
+        "entity": "membership",
+        "field": "targetOrganization"
+      }
+    },
+    {
+      "from": {
+        "entity": "role-assignment",
+        "field": "role"
+      },
+      "inverse": "roleAssignments",
+      "key": "roleAssignmentRole",
+      "kind": "toOne",
+      "label": "Role assignment role",
+      "to": {
+        "entity": "role"
+      }
+    },
+    {
+      "from": {
+        "entity": "role"
+      },
+      "inverse": "roleAssignmentRole",
+      "key": "roleAssignments",
+      "kind": "toMany",
+      "label": "Role assignments",
+      "to": {
+        "entity": "role-assignment",
+        "field": "role"
+      }
+    },
+    {
+      "from": {
+        "entity": "role-assignment",
+        "field": "targetPrincipal"
+      },
+      "key": "roleAssignmentTargetPrincipal",
+      "kind": "toOne",
+      "label": "Role assignment principal target",
+      "to": {
+        "entity": "principal"
+      }
+    },
+    {
+      "from": {
+        "entity": "role-assignment",
+        "field": "targetGroup"
+      },
+      "key": "roleAssignmentTargetGroup",
+      "kind": "toOne",
+      "label": "Role assignment group target",
+      "to": {
+        "entity": "group"
+      }
+    },
+    {
+      "from": {
+        "entity": "role-assignment",
+        "field": "targetOrganization"
+      },
+      "key": "roleAssignmentTargetOrganization",
+      "kind": "toOne",
+      "label": "Role assignment organization target",
+      "to": {
+        "entity": "organization"
+      }
+    },
+    {
+      "from": {
+        "entity": "role-assignment",
+        "field": "scopeOrganization"
+      },
+      "key": "roleAssignmentScopeOrganization",
+      "kind": "toOne",
+      "label": "Role assignment scope organization",
+      "to": {
+        "entity": "organization"
+      }
+    },
+    {
+      "from": {
+        "entity": "app-registration",
+        "field": "targetPrincipal"
+      },
+      "key": "appRegistrationTargetPrincipal",
+      "kind": "toOne",
+      "label": "App registration principal target",
+      "to": {
+        "entity": "principal"
+      }
+    },
+    {
+      "from": {
+        "entity": "app-registration",
+        "field": "targetOrganization"
+      },
+      "key": "appRegistrationTargetOrganization",
+      "kind": "toOne",
+      "label": "App registration organization target",
+      "to": {
+        "entity": "organization"
+      }
+    },
+    {
+      "from": {
+        "entity": "app-registration",
+        "field": "selectedOrganization"
+      },
+      "key": "appRegistrationSelectedOrganization",
+      "kind": "toOne",
+      "label": "App registration selected organization",
+      "to": {
+        "entity": "organization"
+      }
+    },
+    {
+      "from": {
+        "entity": "invitation",
+        "field": "targetOrganization"
+      },
+      "key": "invitationTargetOrganization",
+      "kind": "toOne",
+      "label": "Invitation target organization",
+      "to": {
+        "entity": "organization"
+      }
+    },
+    {
+      "from": {
+        "entity": "invitation",
+        "field": "invitedPrincipal"
+      },
+      "key": "invitationInvitedPrincipal",
+      "kind": "toOne",
+      "label": "Invitation invited principal",
+      "to": {
+        "entity": "principal"
+      }
+    },
+    {
+      "from": {
+        "entity": "invitation",
+        "field": "inviterPrincipal"
+      },
+      "key": "invitationInviterPrincipal",
+      "kind": "toOne",
+      "label": "Invitation inviter principal",
+      "to": {
+        "entity": "principal"
+      }
+    },
+    {
+      "from": {
+        "entity": "account-policy",
+        "field": "scopeOrganization"
+      },
+      "key": "accountPolicyScopeOrganization",
+      "kind": "toOne",
+      "label": "Account policy scope organization",
+      "to": {
+        "entity": "organization"
+      }
+    },
+    {
+      "from": {
+        "entity": "principal-policy-acceptance",
+        "field": "principal"
+      },
+      "inverse": "principalPolicyAcceptances",
+      "key": "principalPolicyAcceptancePrincipal",
+      "kind": "toOne",
+      "label": "Principal policy acceptance principal",
+      "to": {
+        "entity": "principal"
+      }
+    },
+    {
+      "from": {
+        "entity": "principal"
+      },
+      "inverse": "principalPolicyAcceptancePrincipal",
+      "key": "principalPolicyAcceptances",
+      "kind": "toMany",
+      "label": "Principal policy acceptances",
+      "to": {
+        "entity": "principal-policy-acceptance",
+        "field": "principal"
+      }
+    },
+    {
+      "from": {
+        "entity": "principal-policy-acceptance",
+        "field": "accountPolicy"
+      },
+      "inverse": "policyAcceptances",
+      "key": "principalPolicyAcceptancePolicy",
+      "kind": "toOne",
+      "label": "Principal policy acceptance policy",
+      "to": {
+        "entity": "account-policy"
+      }
+    },
+    {
+      "from": {
+        "entity": "account-policy"
+      },
+      "inverse": "principalPolicyAcceptancePolicy",
+      "key": "policyAcceptances",
+      "kind": "toMany",
+      "label": "Policy acceptances",
+      "to": {
+        "entity": "principal-policy-acceptance",
+        "field": "accountPolicy"
+      }
+    }
+  ],
+  "runtime": {
+    "controlPlane": {
+      "entities": {
+        "account-policy": {
+          "immutableFields": [
+            "policyKey",
+            "version",
+            "scopeKind",
+            "appInstallId",
+            "scopeOrganization",
+            "policyDocumentUrl",
+            "policyContentRef"
+          ]
+        },
+        "app-install": {
+          "immutableFields": [
+            "installId",
+            "packageAppKey",
+            "registrationOperation",
+            "storageIdentity"
+          ]
+        },
+        "app-registration": {
+          "immutableFields": ["appInstallId", "targetKind", "targetPrincipal", "targetOrganization"]
+        },
+        "deployment-config": {
+          "immutableFields": ["targetId", "targetKind", "providerFamily"],
+          "observedFields": [
+            "observedStatus",
+            "observedAt",
+            "observedDesiredStateHash",
+            "observedSummary",
+            "observedError",
+            "observedRunnerId"
+          ],
+          "secretReferenceFields": ["credentialRef"]
+        },
+        "email-domain": {
+          "immutableFields": ["providerFamily"]
+        },
+        "email-sender": {
+          "immutableFields": ["emailDomain"]
+        },
+        "group": {
+          "immutableFields": ["displayName"]
+        },
+        "instance-settings": {
+          "immutableFields": ["settingsId"]
+        },
+        "invitation": {
+          "immutableFields": [
+            "targetEmail",
+            "targetSurface",
+            "targetAppInstallId",
+            "targetOrganization"
+          ]
+        },
+        "membership": {
+          "immutableFields": ["principal", "targetKind", "targetGroup", "targetOrganization"]
+        },
+        "organization": {
+          "immutableFields": ["displayName"]
+        },
+        "principal": {
+          "immutableFields": ["kind"]
+        },
+        "principal-email": {
+          "immutableFields": ["principal", "normalizedEmail"]
+        },
+        "principal-policy-acceptance": {
+          "immutableFields": ["principal", "accountPolicy", "acceptedAt"]
+        },
+        "role": {
+          "immutableFields": ["key"]
+        },
+        "role-assignment": {
+          "immutableFields": [
+            "role",
+            "targetKind",
+            "targetPrincipal",
+            "targetGroup",
+            "targetOrganization",
+            "scopeKind",
+            "appInstallId",
+            "scopeOrganization"
+          ]
+        },
+        "route": {
+          "immutableFields": ["kind"]
+        }
+      }
+    },
+    "owner": "runtime"
+  },
+  "screens": [
+    {
+      "key": "routes",
+      "label": "Routes",
+      "layout": {
+        "sections": [
+          {
+            "id": "routes",
+            "type": "collection",
+            "view": "routeList"
+          }
+        ],
+        "type": "stack"
+      },
+      "path": "/routes",
+      "type": "workspace"
+    },
+    {
+      "key": "deployments",
+      "label": "Deployments",
+      "layout": {
+        "sections": [
+          {
+            "id": "deployment-configs",
+            "type": "collection",
+            "view": "deploymentConfigList"
+          }
+        ],
+        "type": "stack"
+      },
+      "path": "/deployments",
+      "type": "workspace"
+    },
+    {
+      "key": "settings",
+      "label": "Settings",
+      "layout": {
+        "sections": [
+          {
+            "id": "instance-settings",
+            "type": "collection",
+            "view": "instanceSettingsList"
+          },
+          {
+            "id": "email-domains",
+            "type": "collection",
+            "view": "emailDomainList"
+          },
+          {
+            "id": "email-senders",
+            "type": "collection",
+            "view": "emailSenderList"
+          }
+        ],
+        "type": "stack"
+      },
+      "path": "/settings",
+      "type": "workspace"
+    },
+    {
+      "key": "principals",
+      "label": "Principals",
+      "layout": {
+        "sections": [
+          {
+            "id": "principals",
+            "type": "collection",
+            "view": "principalList"
+          },
+          {
+            "id": "principal-emails",
+            "type": "collection",
+            "view": "principalEmailList"
+          }
+        ],
+        "type": "stack"
+      },
+      "path": "/",
+      "type": "workspace"
+    },
+    {
+      "key": "organizations",
+      "label": "Organizations",
+      "layout": {
+        "sections": [
+          {
+            "id": "organizations",
+            "type": "collection",
+            "view": "organizationList"
+          },
+          {
+            "id": "groups",
+            "type": "collection",
+            "view": "groupList"
+          },
+          {
+            "id": "memberships",
+            "type": "collection",
+            "view": "membershipList"
+          }
+        ],
+        "type": "stack"
+      },
+      "path": "/organizations",
+      "type": "workspace"
+    },
+    {
+      "key": "access",
+      "label": "Access",
+      "layout": {
+        "sections": [
+          {
+            "id": "roles",
+            "type": "collection",
+            "view": "roleList"
+          },
+          {
+            "id": "role-assignments",
+            "type": "collection",
+            "view": "roleAssignmentList"
+          }
+        ],
+        "type": "stack"
+      },
+      "path": "/access",
+      "type": "workspace"
+    },
+    {
+      "key": "invitations",
+      "label": "Invitations",
+      "layout": {
+        "sections": [
+          {
+            "id": "invitations",
+            "type": "collection",
+            "view": "invitationList"
+          }
+        ],
+        "type": "stack"
+      },
+      "path": "/invitations",
+      "type": "workspace"
+    },
+    {
+      "key": "policies",
+      "label": "Policies",
+      "layout": {
+        "sections": [
+          {
+            "id": "account-policies",
+            "type": "collection",
+            "view": "accountPolicyList"
+          },
+          {
+            "id": "policy-acceptances",
+            "type": "collection",
+            "view": "principalPolicyAcceptanceList"
+          }
+        ],
+        "type": "stack"
+      },
+      "path": "/policies",
+      "type": "workspace"
+    },
+    {
+      "key": "apps",
+      "label": "Apps",
+      "layout": {
+        "sections": [
+          {
+            "id": "app-installs",
+            "type": "collection",
+            "view": "appInstallList"
+          },
+          {
+            "id": "app-registrations",
+            "type": "collection",
+            "view": "appRegistrationList"
+          }
+        ],
+        "type": "stack"
+      },
+      "path": "/apps",
+      "type": "workspace"
+    }
+  ],
+  "tableViews": [
+    {
+      "columns": [
+        {
+          "display": "editor",
+          "field": "label",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "installId",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "packageAppKey",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "registrationPolicy",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "registrationOperation",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "status",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "storageIdentity",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "packageRevision",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "sourceSchemaHash",
+          "type": "field"
+        }
+      ],
+      "entity": "app-install",
+      "key": "appInstallTable"
+    },
+    {
+      "columns": [
+        {
+          "display": "editor",
+          "field": "enabled",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "matchHost",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "matchPath",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "matchPrefix",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "kind",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetProfile",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "appInstall",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "surface",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "access",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "requiredRole",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "toHost",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "toUrl",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "statusCode",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "Route operations",
+          "operations": ["route.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "route",
+      "key": "routeTable",
+      "operations": [
+        {
+          "editView": "routeEdit",
+          "label": "Edit route",
+          "operation": "route.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    },
+    {
+      "columns": [
+        {
+          "display": "readOnly",
+          "field": "label",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetId",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetKind",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "providerFamily",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "accountId",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "workerName",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetUrl",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "enabled",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "observedStatus",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "observedAt",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "observedDesiredStateHash",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "observedSummary",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "observedError",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "observedRunnerId",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "Deployment config operations",
+          "operations": ["deployment-config.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "deployment-config",
+      "key": "deploymentConfigTable",
+      "operations": [
+        {
+          "editView": "deploymentConfigEdit",
+          "label": "Edit deployment config",
+          "operation": "deployment-config.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    },
+    {
+      "columns": [
+        {
+          "display": "readOnly",
+          "field": "settingsId",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "canonicalOrigin",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "primaryRoute",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "adminRoute",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "authRoute",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "authOrigin",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "authRelyingPartyId",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "authRelyingPartyName",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "defaultEmailDomain",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "defaultContactSender",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "defaultAuthSender",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "contactNotificationRecipient",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "productionIdentityStatus",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "Settings operations",
+          "operations": ["instance-settings.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "instance-settings",
+      "key": "instanceSettingsTable",
+      "operations": [
+        {
+          "editView": "instanceSettingsEdit",
+          "label": "Edit settings",
+          "operation": "instance-settings.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    },
+    {
+      "columns": [
+        {
+          "display": "editor",
+          "field": "enabled",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "domain",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "providerFamily",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "primaryRoute",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "deploymentConfig",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "dnsStatus",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "latestError",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "Email domain operations",
+          "operations": ["email-domain.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "email-domain",
+      "key": "emailDomainTable",
+      "operations": [
+        {
+          "editView": "emailDomainEdit",
+          "label": "Edit email domain",
+          "operation": "email-domain.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    },
+    {
+      "columns": [
+        {
+          "display": "editor",
+          "field": "enabled",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "address",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "displayName",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "purpose",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "emailDomain",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "Email sender operations",
+          "operations": ["email-sender.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "email-sender",
+      "key": "emailSenderTable",
+      "operations": [
+        {
+          "editView": "emailSenderEdit",
+          "label": "Edit email sender",
+          "operation": "email-sender.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    },
+    {
+      "columns": [
+        {
+          "display": "readOnly",
+          "field": "displayName",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "kind",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "status",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "principal operations",
+          "operations": ["principal.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "principal",
+      "key": "principalTable",
+      "operations": [
+        {
+          "editView": "principalEdit",
+          "label": "Edit principal",
+          "operation": "principal.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    },
+    {
+      "columns": [
+        {
+          "display": "readOnly",
+          "field": "displayEmail",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "normalizedEmail",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "principal",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "verificationStatus",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "primary",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "recovery",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "verifiedAt",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "principal email operations",
+          "operations": ["principal-email.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "principal-email",
+      "key": "principalEmailTable",
+      "operations": [
+        {
+          "editView": "principalEmailEdit",
+          "label": "Edit principal email",
+          "operation": "principal-email.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    },
+    {
+      "columns": [
+        {
+          "display": "readOnly",
+          "field": "displayName",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "status",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "group operations",
+          "operations": ["group.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "group",
+      "key": "groupTable",
+      "operations": [
+        {
+          "editView": "groupEdit",
+          "label": "Edit group",
+          "operation": "group.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    },
+    {
+      "columns": [
+        {
+          "display": "readOnly",
+          "field": "displayName",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "status",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "organization operations",
+          "operations": ["organization.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "organization",
+      "key": "organizationTable",
+      "operations": [
+        {
+          "editView": "organizationEdit",
+          "label": "Edit organization",
+          "operation": "organization.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    },
+    {
+      "columns": [
+        {
+          "display": "readOnly",
+          "field": "principal",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetKind",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetGroup",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetOrganization",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "status",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "membership operations",
+          "operations": ["membership.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "membership",
+      "key": "membershipTable",
+      "operations": [
+        {
+          "editView": "membershipEdit",
+          "label": "Edit membership",
+          "operation": "membership.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    },
+    {
+      "columns": [
+        {
+          "display": "readOnly",
+          "field": "key",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "displayLabel",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "status",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "role operations",
+          "operations": ["role.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "role",
+      "key": "roleTable",
+      "operations": [
+        {
+          "editView": "roleEdit",
+          "label": "Edit role",
+          "operation": "role.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    },
+    {
+      "columns": [
+        {
+          "display": "readOnly",
+          "field": "role",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetKind",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetPrincipal",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetGroup",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetOrganization",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "scopeKind",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "appInstallId",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "scopeOrganization",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "status",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "role assignment operations",
+          "operations": ["role-assignment.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "role-assignment",
+      "key": "roleAssignmentTable",
+      "operations": [
+        {
+          "editView": "roleAssignmentEdit",
+          "label": "Edit role assignment",
+          "operation": "role-assignment.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    },
+    {
+      "columns": [
+        {
+          "display": "readOnly",
+          "field": "appInstallId",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetKind",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetPrincipal",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetOrganization",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "status",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "selectedOrganization",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "app registration operations",
+          "operations": ["app-registration.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "app-registration",
+      "key": "appRegistrationTable",
+      "operations": [
+        {
+          "editView": "appRegistrationEdit",
+          "label": "Edit app registration",
+          "operation": "app-registration.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    },
+    {
+      "columns": [
+        {
+          "display": "readOnly",
+          "field": "targetEmail",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetSurface",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetAppInstallId",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "targetOrganization",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "invitedPrincipal",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "inviterPrincipal",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "status",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "expiresAt",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "acceptedAt",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "invitation operations",
+          "operations": ["invitation.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "invitation",
+      "key": "invitationTable",
+      "operations": [
+        {
+          "editView": "invitationEdit",
+          "label": "Edit invitation",
+          "operation": "invitation.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    },
+    {
+      "columns": [
+        {
+          "display": "readOnly",
+          "field": "displayName",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "policyKey",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "version",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "scopeKind",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "appInstallId",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "scopeOrganization",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "status",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "publishedAt",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "policyDocumentUrl",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "policyContentRef",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "account policy operations",
+          "operations": ["account-policy.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "account-policy",
+      "key": "accountPolicyTable",
+      "operations": [
+        {
+          "editView": "accountPolicyEdit",
+          "label": "Edit account policy",
+          "operation": "account-policy.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    },
+    {
+      "columns": [
+        {
+          "display": "readOnly",
+          "field": "principal",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "accountPolicy",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "status",
+          "type": "field"
+        },
+        {
+          "display": "readOnly",
+          "field": "acceptedAt",
+          "type": "field"
+        },
+        {
+          "align": "end",
+          "label": "principal policy acceptance operations",
+          "operations": ["principal-policy-acceptance.update"],
+          "presentation": "dropdown",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "principal-policy-acceptance",
+      "key": "principalPolicyAcceptanceTable",
+      "operations": [
+        {
+          "editView": "principalPolicyAcceptanceEdit",
+          "label": "Edit principal policy acceptance",
+          "operation": "principal-policy-acceptance.update",
+          "target": {
+            "kind": "row"
+          }
+        }
+      ]
+    }
+  ],
+  "version": 1,
+  "views": [
+    {
+      "entity": "app-install",
+      "fields": [
+        {
+          "editor": "text",
+          "field": "installId"
+        },
+        {
+          "editor": "text",
+          "field": "packageAppKey"
+        },
+        {
+          "editor": "number",
+          "field": "packageRevision"
+        },
+        {
+          "editor": "text",
+          "field": "sourceSchemaHash"
+        },
+        {
+          "editor": "text",
+          "field": "label"
+        },
+        {
+          "editor": "enum",
+          "field": "registrationPolicy"
+        },
+        {
+          "editor": "text",
+          "field": "registrationOperation"
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "editor": "text",
+          "field": "storageIdentity"
+        }
+      ],
+      "key": "appInstallCreate",
+      "type": "create"
+    },
+    {
+      "defaultQuery": "appInstallAll",
+      "entity": "app-install",
+      "key": "appInstallList",
+      "label": "App installs",
+      "navigation": {
+        "primary": true
+      },
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "appInstallAll"
+        }
+      ],
+      "result": {
+        "tableView": "appInstallTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "route",
+      "fields": [
+        {
+          "editor": "boolean",
+          "field": "enabled"
+        },
+        {
+          "editor": "text",
+          "field": "matchHost"
+        },
+        {
+          "editor": "text",
+          "field": "matchPath"
+        },
+        {
+          "editor": "text",
+          "field": "matchPrefix"
+        },
+        {
+          "editor": "enum",
+          "field": "kind"
+        },
+        {
+          "editor": "enum",
+          "field": "targetProfile",
+          "visibleWhen": {
+            "field": "kind",
+            "values": ["mount"]
+          }
+        },
+        {
+          "editor": "reference",
+          "field": "appInstall",
+          "visibleWhen": {
+            "field": "targetProfile",
+            "values": ["app", "public-site"]
+          }
+        },
+        {
+          "editor": "enum",
+          "field": "surface",
+          "visibleWhen": {
+            "field": "targetProfile",
+            "values": ["app", "public-site"]
+          }
+        },
+        {
+          "editor": "enum",
+          "field": "access",
+          "visibleWhen": {
+            "field": "kind",
+            "values": ["mount"]
+          }
+        },
+        {
+          "editor": "enum",
+          "field": "requiredRole",
+          "visibleWhen": {
+            "field": "targetProfile",
+            "values": ["app"]
+          }
+        },
+        {
+          "editor": "reference",
+          "field": "deploymentConfig"
+        },
+        {
+          "editor": "text",
+          "field": "toHost",
+          "visibleWhen": {
+            "field": "kind",
+            "values": ["redirect"]
+          }
+        },
+        {
+          "editor": "href",
+          "field": "toUrl",
+          "visibleWhen": {
+            "field": "kind",
+            "values": ["redirect"]
+          }
+        },
+        {
+          "editor": "enum",
+          "field": "statusCode",
+          "visibleWhen": {
+            "field": "kind",
+            "values": ["redirect"]
+          }
+        },
+        {
+          "editor": "boolean",
+          "field": "preservePath",
+          "visibleWhen": {
+            "field": "kind",
+            "values": ["redirect"]
+          }
+        },
+        {
+          "editor": "boolean",
+          "field": "preserveQueryString",
+          "visibleWhen": {
+            "field": "kind",
+            "values": ["redirect"]
+          }
+        }
+      ],
+      "key": "routeCreate",
+      "type": "create"
+    },
+    {
+      "entity": "route",
+      "fields": [
+        {
+          "commit": "immediate",
+          "editor": "boolean",
+          "field": "enabled"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "matchHost"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "matchPath"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "matchPrefix"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "targetProfile",
+          "visibleWhen": {
+            "field": "kind",
+            "values": ["mount"]
+          }
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "appInstall",
+          "visibleWhen": {
+            "field": "targetProfile",
+            "values": ["app", "public-site"]
+          }
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "surface",
+          "visibleWhen": {
+            "field": "targetProfile",
+            "values": ["app", "public-site"]
+          }
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "access",
+          "visibleWhen": {
+            "field": "kind",
+            "values": ["mount"]
+          }
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "requiredRole",
+          "visibleWhen": {
+            "field": "targetProfile",
+            "values": ["app"]
+          }
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "deploymentConfig"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "toHost",
+          "visibleWhen": {
+            "field": "kind",
+            "values": ["redirect"]
+          }
+        },
+        {
+          "commit": "field-commit",
+          "editor": "href",
+          "field": "toUrl",
+          "visibleWhen": {
+            "field": "kind",
+            "values": ["redirect"]
+          }
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "statusCode",
+          "visibleWhen": {
+            "field": "kind",
+            "values": ["redirect"]
+          }
+        },
+        {
+          "commit": "immediate",
+          "editor": "boolean",
+          "field": "preservePath",
+          "visibleWhen": {
+            "field": "kind",
+            "values": ["redirect"]
+          }
+        },
+        {
+          "commit": "immediate",
+          "editor": "boolean",
+          "field": "preserveQueryString",
+          "visibleWhen": {
+            "field": "kind",
+            "values": ["redirect"]
+          }
+        }
+      ],
+      "key": "routeEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "routeAll",
+      "entity": "route",
+      "key": "routeList",
+      "label": "Routes",
+      "navigation": {
+        "primary": true
+      },
+      "operations": [
+        {
+          "createView": "routeCreate",
+          "operation": "route.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "routeAll"
+        }
+      ],
+      "result": {
+        "tableView": "routeTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "deployment-config",
+      "fields": [
+        {
+          "editor": "text",
+          "field": "targetId"
+        },
+        {
+          "editor": "enum",
+          "field": "targetKind"
+        },
+        {
+          "editor": "text",
+          "field": "label"
+        },
+        {
+          "editor": "boolean",
+          "field": "enabled"
+        },
+        {
+          "editor": "text",
+          "field": "targetUrl"
+        },
+        {
+          "editor": "enum",
+          "field": "providerFamily"
+        },
+        {
+          "editor": "text",
+          "field": "accountId"
+        },
+        {
+          "editor": "text",
+          "field": "workerName"
+        },
+        {
+          "editor": "text",
+          "field": "credentialRef"
+        }
+      ],
+      "key": "deploymentConfigCreate",
+      "type": "create"
+    },
+    {
+      "entity": "deployment-config",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label"
+        },
+        {
+          "commit": "immediate",
+          "editor": "boolean",
+          "field": "enabled"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "targetUrl"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "accountId"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "workerName"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "credentialRef"
+        }
+      ],
+      "key": "deploymentConfigEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "deploymentConfigAll",
+      "entity": "deployment-config",
+      "key": "deploymentConfigList",
+      "label": "Deployment configs",
+      "operations": [
+        {
+          "createView": "deploymentConfigCreate",
+          "operation": "deployment-config.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "deploymentConfigAll"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "deploymentConfigEnabled"
+        }
+      ],
+      "result": {
+        "tableView": "deploymentConfigTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "instance-settings",
+      "fields": [
+        {
+          "editor": "text",
+          "field": "settingsId"
+        },
+        {
+          "editor": "href",
+          "field": "canonicalOrigin"
+        },
+        {
+          "editor": "reference",
+          "field": "primaryRoute"
+        },
+        {
+          "editor": "reference",
+          "field": "adminRoute"
+        },
+        {
+          "editor": "reference",
+          "field": "authRoute"
+        },
+        {
+          "editor": "href",
+          "field": "authOrigin"
+        },
+        {
+          "editor": "text",
+          "field": "authRelyingPartyId"
+        },
+        {
+          "editor": "text",
+          "field": "authRelyingPartyName"
+        },
+        {
+          "editor": "reference",
+          "field": "defaultEmailDomain"
+        },
+        {
+          "editor": "reference",
+          "field": "defaultContactSender"
+        },
+        {
+          "editor": "reference",
+          "field": "defaultAuthSender"
+        },
+        {
+          "editor": "text",
+          "field": "contactNotificationRecipient"
+        },
+        {
+          "editor": "enum",
+          "field": "productionIdentityStatus"
+        }
+      ],
+      "key": "instanceSettingsCreate",
+      "type": "create"
+    },
+    {
+      "entity": "instance-settings",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "href",
+          "field": "canonicalOrigin"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "primaryRoute"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "adminRoute"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "authRoute"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "href",
+          "field": "authOrigin"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "authRelyingPartyId"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "authRelyingPartyName"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "defaultEmailDomain"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "defaultContactSender"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "defaultAuthSender"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "contactNotificationRecipient"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "productionIdentityStatus"
+        }
+      ],
+      "key": "instanceSettingsEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "instanceSettingsAll",
+      "entity": "instance-settings",
+      "key": "instanceSettingsList",
+      "label": "Instance settings",
+      "operations": [
+        {
+          "createView": "instanceSettingsCreate",
+          "operation": "instance-settings.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "instanceSettingsAll"
+        }
+      ],
+      "result": {
+        "tableView": "instanceSettingsTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "email-domain",
+      "fields": [
+        {
+          "editor": "boolean",
+          "field": "enabled"
+        },
+        {
+          "editor": "enum",
+          "field": "providerFamily"
+        },
+        {
+          "editor": "text",
+          "field": "domain"
+        },
+        {
+          "editor": "reference",
+          "field": "primaryRoute"
+        },
+        {
+          "editor": "reference",
+          "field": "deploymentConfig"
+        },
+        {
+          "editor": "enum",
+          "field": "dnsStatus"
+        },
+        {
+          "editor": "textarea",
+          "field": "latestError"
+        }
+      ],
+      "key": "emailDomainCreate",
+      "type": "create"
+    },
+    {
+      "entity": "email-domain",
+      "fields": [
+        {
+          "commit": "immediate",
+          "editor": "boolean",
+          "field": "enabled"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "domain"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "primaryRoute"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "deploymentConfig"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "dnsStatus"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "textarea",
+          "field": "latestError"
+        }
+      ],
+      "key": "emailDomainEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "emailDomainAll",
+      "entity": "email-domain",
+      "key": "emailDomainList",
+      "label": "Email domains",
+      "operations": [
+        {
+          "createView": "emailDomainCreate",
+          "operation": "email-domain.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "emailDomainAll"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "emailDomainEnabled"
+        }
+      ],
+      "result": {
+        "tableView": "emailDomainTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "email-sender",
+      "fields": [
+        {
+          "editor": "boolean",
+          "field": "enabled"
+        },
+        {
+          "editor": "text",
+          "field": "address"
+        },
+        {
+          "editor": "text",
+          "field": "displayName"
+        },
+        {
+          "editor": "enum",
+          "field": "purpose"
+        },
+        {
+          "editor": "reference",
+          "field": "emailDomain"
+        }
+      ],
+      "key": "emailSenderCreate",
+      "type": "create"
+    },
+    {
+      "entity": "email-sender",
+      "fields": [
+        {
+          "commit": "immediate",
+          "editor": "boolean",
+          "field": "enabled"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "address"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "displayName"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "purpose"
+        }
+      ],
+      "key": "emailSenderEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "emailSenderAll",
+      "entity": "email-sender",
+      "key": "emailSenderList",
+      "label": "Email senders",
+      "operations": [
+        {
+          "createView": "emailSenderCreate",
+          "operation": "email-sender.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "emailSenderAll"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "emailSenderEnabled"
+        }
+      ],
+      "result": {
+        "tableView": "emailSenderTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "principal",
+      "fields": [
+        {
+          "editor": "text",
+          "field": "displayName"
+        },
+        {
+          "editor": "enum",
+          "field": "kind"
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "principalCreate",
+      "type": "create"
+    },
+    {
+      "entity": "principal",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "displayName"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "principalEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "principalAll",
+      "entity": "principal",
+      "key": "principalList",
+      "label": "Principals",
+      "operations": [
+        {
+          "createView": "principalCreate",
+          "operation": "principal.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "principalAll"
+        }
+      ],
+      "result": {
+        "tableView": "principalTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "principal-email",
+      "fields": [
+        {
+          "editor": "reference",
+          "field": "principal"
+        },
+        {
+          "editor": "text",
+          "field": "displayEmail"
+        },
+        {
+          "editor": "text",
+          "field": "normalizedEmail"
+        },
+        {
+          "editor": "enum",
+          "field": "verificationStatus"
+        },
+        {
+          "editor": "boolean",
+          "field": "primary"
+        },
+        {
+          "editor": "boolean",
+          "field": "recovery"
+        },
+        {
+          "editor": "text",
+          "field": "verifiedAt"
+        }
+      ],
+      "key": "principalEmailCreate",
+      "type": "create"
+    },
+    {
+      "entity": "principal-email",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "displayEmail"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "verificationStatus"
+        },
+        {
+          "commit": "immediate",
+          "editor": "boolean",
+          "field": "primary"
+        },
+        {
+          "commit": "immediate",
+          "editor": "boolean",
+          "field": "recovery"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "verifiedAt"
+        }
+      ],
+      "key": "principalEmailEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "principalEmailAll",
+      "entity": "principal-email",
+      "key": "principalEmailList",
+      "label": "Principal emails",
+      "operations": [
+        {
+          "createView": "principalEmailCreate",
+          "operation": "principal-email.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "principalEmailAll"
+        }
+      ],
+      "result": {
+        "tableView": "principalEmailTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "group",
+      "fields": [
+        {
+          "editor": "text",
+          "field": "displayName"
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "groupCreate",
+      "type": "create"
+    },
+    {
+      "entity": "group",
+      "fields": [
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "groupEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "groupAll",
+      "entity": "group",
+      "key": "groupList",
+      "label": "Groups",
+      "operations": [
+        {
+          "createView": "groupCreate",
+          "operation": "group.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "groupAll"
+        }
+      ],
+      "result": {
+        "tableView": "groupTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "organization",
+      "fields": [
+        {
+          "editor": "text",
+          "field": "displayName"
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "organizationCreate",
+      "type": "create"
+    },
+    {
+      "entity": "organization",
+      "fields": [
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "organizationEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "organizationAll",
+      "entity": "organization",
+      "key": "organizationList",
+      "label": "Organizations",
+      "operations": [
+        {
+          "createView": "organizationCreate",
+          "operation": "organization.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "organizationAll"
+        }
+      ],
+      "result": {
+        "tableView": "organizationTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "membership",
+      "fields": [
+        {
+          "editor": "reference",
+          "field": "principal"
+        },
+        {
+          "editor": "enum",
+          "field": "targetKind"
+        },
+        {
+          "editor": "reference",
+          "field": "targetGroup",
+          "visibleWhen": {
+            "field": "targetKind",
+            "values": ["group"]
+          }
+        },
+        {
+          "editor": "reference",
+          "field": "targetOrganization",
+          "visibleWhen": {
+            "field": "targetKind",
+            "values": ["organization"]
+          }
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "membershipCreate",
+      "type": "create"
+    },
+    {
+      "entity": "membership",
+      "fields": [
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "membershipEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "membershipAll",
+      "entity": "membership",
+      "key": "membershipList",
+      "label": "Memberships",
+      "operations": [
+        {
+          "createView": "membershipCreate",
+          "operation": "membership.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "membershipAll"
+        }
+      ],
+      "result": {
+        "tableView": "membershipTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "role",
+      "fields": [
+        {
+          "editor": "enum",
+          "field": "key"
+        },
+        {
+          "editor": "text",
+          "field": "displayLabel"
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "roleCreate",
+      "type": "create"
+    },
+    {
+      "entity": "role",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "displayLabel"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "roleEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "roleAll",
+      "entity": "role",
+      "key": "roleList",
+      "label": "Roles",
+      "operations": [
+        {
+          "createView": "roleCreate",
+          "operation": "role.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "roleAll"
+        }
+      ],
+      "result": {
+        "tableView": "roleTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "role-assignment",
+      "fields": [
+        {
+          "editor": "reference",
+          "field": "role"
+        },
+        {
+          "editor": "enum",
+          "field": "targetKind"
+        },
+        {
+          "editor": "reference",
+          "field": "targetPrincipal",
+          "visibleWhen": {
+            "field": "targetKind",
+            "values": ["principal"]
+          }
+        },
+        {
+          "editor": "reference",
+          "field": "targetGroup",
+          "visibleWhen": {
+            "field": "targetKind",
+            "values": ["group"]
+          }
+        },
+        {
+          "editor": "reference",
+          "field": "targetOrganization",
+          "visibleWhen": {
+            "field": "targetKind",
+            "values": ["organization"]
+          }
+        },
+        {
+          "editor": "enum",
+          "field": "scopeKind"
+        },
+        {
+          "editor": "text",
+          "field": "appInstallId",
+          "visibleWhen": {
+            "field": "scopeKind",
+            "values": ["app-install"]
+          }
+        },
+        {
+          "editor": "reference",
+          "field": "scopeOrganization",
+          "visibleWhen": {
+            "field": "scopeKind",
+            "values": ["organization"]
+          }
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "roleAssignmentCreate",
+      "type": "create"
+    },
+    {
+      "entity": "role-assignment",
+      "fields": [
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "roleAssignmentEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "roleAssignmentAll",
+      "entity": "role-assignment",
+      "key": "roleAssignmentList",
+      "label": "Role assignments",
+      "operations": [
+        {
+          "createView": "roleAssignmentCreate",
+          "operation": "role-assignment.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "roleAssignmentAll"
+        }
+      ],
+      "result": {
+        "tableView": "roleAssignmentTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "app-registration",
+      "fields": [
+        {
+          "editor": "text",
+          "field": "appInstallId"
+        },
+        {
+          "editor": "enum",
+          "field": "targetKind"
+        },
+        {
+          "editor": "reference",
+          "field": "targetPrincipal",
+          "visibleWhen": {
+            "field": "targetKind",
+            "values": ["principal"]
+          }
+        },
+        {
+          "editor": "reference",
+          "field": "targetOrganization",
+          "visibleWhen": {
+            "field": "targetKind",
+            "values": ["organization"]
+          }
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "editor": "reference",
+          "field": "selectedOrganization"
+        }
+      ],
+      "key": "appRegistrationCreate",
+      "type": "create"
+    },
+    {
+      "entity": "app-registration",
+      "fields": [
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "selectedOrganization"
+        }
+      ],
+      "key": "appRegistrationEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "appRegistrationAll",
+      "entity": "app-registration",
+      "key": "appRegistrationList",
+      "label": "App registrations",
+      "operations": [
+        {
+          "createView": "appRegistrationCreate",
+          "operation": "app-registration.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "appRegistrationAll"
+        }
+      ],
+      "result": {
+        "tableView": "appRegistrationTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "invitation",
+      "fields": [
+        {
+          "editor": "text",
+          "field": "targetEmail"
+        },
+        {
+          "editor": "enum",
+          "field": "targetSurface"
+        },
+        {
+          "editor": "text",
+          "field": "targetAppInstallId",
+          "visibleWhen": {
+            "field": "targetSurface",
+            "values": ["app-install"]
+          }
+        },
+        {
+          "editor": "reference",
+          "field": "targetOrganization",
+          "visibleWhen": {
+            "field": "targetSurface",
+            "values": ["organization"]
+          }
+        },
+        {
+          "editor": "reference",
+          "field": "invitedPrincipal"
+        },
+        {
+          "editor": "reference",
+          "field": "inviterPrincipal"
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "editor": "text",
+          "field": "expiresAt"
+        },
+        {
+          "editor": "text",
+          "field": "acceptedAt"
+        }
+      ],
+      "key": "invitationCreate",
+      "type": "create"
+    },
+    {
+      "entity": "invitation",
+      "fields": [
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "acceptedAt"
+        }
+      ],
+      "key": "invitationEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "invitationAll",
+      "entity": "invitation",
+      "key": "invitationList",
+      "label": "Invitations",
+      "operations": [
+        {
+          "createView": "invitationCreate",
+          "operation": "invitation.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "invitationAll"
+        }
+      ],
+      "result": {
+        "tableView": "invitationTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "account-policy",
+      "fields": [
+        {
+          "editor": "text",
+          "field": "displayName"
+        },
+        {
+          "editor": "text",
+          "field": "policyKey"
+        },
+        {
+          "editor": "text",
+          "field": "version"
+        },
+        {
+          "editor": "enum",
+          "field": "scopeKind"
+        },
+        {
+          "editor": "text",
+          "field": "appInstallId",
+          "visibleWhen": {
+            "field": "scopeKind",
+            "values": ["app-install"]
+          }
+        },
+        {
+          "editor": "reference",
+          "field": "scopeOrganization",
+          "visibleWhen": {
+            "field": "scopeKind",
+            "values": ["organization"]
+          }
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "editor": "text",
+          "field": "publishedAt"
+        },
+        {
+          "editor": "text",
+          "field": "policyDocumentUrl"
+        },
+        {
+          "editor": "text",
+          "field": "policyContentRef"
+        }
+      ],
+      "key": "accountPolicyCreate",
+      "type": "create"
+    },
+    {
+      "entity": "account-policy",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "displayName"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "publishedAt"
+        }
+      ],
+      "key": "accountPolicyEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "accountPolicyAll",
+      "entity": "account-policy",
+      "key": "accountPolicyList",
+      "label": "Account policies",
+      "operations": [
+        {
+          "createView": "accountPolicyCreate",
+          "operation": "account-policy.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "accountPolicyAll"
+        }
+      ],
+      "result": {
+        "tableView": "accountPolicyTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "principal-policy-acceptance",
+      "fields": [
+        {
+          "editor": "reference",
+          "field": "principal"
+        },
+        {
+          "editor": "reference",
+          "field": "accountPolicy"
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "editor": "text",
+          "field": "acceptedAt"
+        }
+      ],
+      "key": "principalPolicyAcceptanceCreate",
+      "type": "create"
+    },
+    {
+      "entity": "principal-policy-acceptance",
+      "fields": [
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "principalPolicyAcceptanceEdit",
+      "type": "edit"
+    },
+    {
+      "defaultQuery": "principalPolicyAcceptanceAll",
+      "entity": "principal-policy-acceptance",
+      "key": "principalPolicyAcceptanceList",
+      "label": "Policy acceptances",
+      "operations": [
+        {
+          "createView": "principalPolicyAcceptanceCreate",
+          "operation": "principal-policy-acceptance.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "principalPolicyAcceptanceAll"
+        }
+      ],
+      "result": {
+        "tableView": "principalPolicyAcceptanceTable",
+        "type": "table"
+      },
+      "type": "collection"
+    }
+  ]
+}

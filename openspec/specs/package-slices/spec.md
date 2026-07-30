@@ -113,6 +113,50 @@ domain declarations into the Schema package.
 - AND the composed portable schema contains only existing App schema source
   data rather than package or module implementation identity
 
+### Requirement: Downstream Program Composition Root
+
+The system SHALL keep complete Program composition in a downstream-owned root
+that consumes package-owned schema modules without taking ownership of their
+domain declarations.
+
+#### Scenario: Default Formless Program root
+
+- GIVEN the Formless runtime package composes the default product Program
+- WHEN it selects reusable instance and identity schema modules
+- THEN it imports them through their documented package `./schema` subpaths
+- AND the root owns the explicit module list, runtime owner, navigation,
+  project-local modules, and deliberate replacements for conflicting
+  presentation declarations
+- AND the Instance Control Plane and Identity Control Plane packages continue
+  owning their record and presentation declarations
+- AND the Schema package continues owning only the generic App schema
+  authoring and composition contracts
+- AND no generic Program package or registry automatically discovers, fetches,
+  versions, includes, or reorders domain modules
+
+#### Scenario: Program root supports omission and ejection
+
+- GIVEN a downstream project owns its ordered Program module list
+- WHEN it omits an optional package module, supplies a local module, or replaces
+  an upstream module while preserving the upstream authoring key
+- THEN normal explicit schema composition selects that project-owned source
+- AND a same-key replacement preserves stable entity ids for logical entities
+  it continues to represent
+- AND authoring module keys do not become runtime storage, routing,
+  authorization, archive, record, or qualified-entity identity
+
+#### Scenario: Materialize a downstream Program artifact
+
+- GIVEN the default Program root composes a valid complete App schema source
+- WHEN its materialization command runs
+- THEN the checked-in Program artifact is deterministic plain schema data
+- AND focused package checks reject canonical drift between the TypeScript
+  composition and the materialized artifact
+- AND runtime code does not evaluate the TypeScript composition root merely to
+  load the portable artifact
+- AND creating the artifact does not itself combine Authorities, app storage,
+  package resolution, browser replicas, sync state, archives, or media
+
 ### Requirement: App Package Schema Materialization
 
 An app package that uses TypeScript schema authoring SHALL materialize a
