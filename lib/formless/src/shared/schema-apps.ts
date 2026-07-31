@@ -1,7 +1,7 @@
 export type SchemaKey = "tasks" | "site" | "crm";
-export type SourceSchemaKey = Exclude<SchemaKey, "tasks">;
+export type SourceSchemaKey = Exclude<SchemaKey, "tasks" | "site">;
 
-export const defaultSchemaKey = "site" satisfies SourceSchemaKey;
+export const defaultSchemaKey = "crm" satisfies SourceSchemaKey;
 
 export type SchemaAppDefinition = {
   key: SchemaKey;
@@ -31,7 +31,6 @@ export const schemaAppDefinitions = {
 } as const satisfies Record<SchemaKey, SchemaAppDefinition>;
 
 export const schemaApps = [
-  schemaAppDefinitions.site,
   schemaAppDefinitions.crm,
 ] as const satisfies readonly SourceSchemaAppDefinition[];
 

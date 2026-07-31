@@ -24,7 +24,9 @@ import { applyBootstrapResponse, resetClientStore } from "../client/store.ts";
 import { resetSyncStatus } from "../client/sync-status.ts";
 import { bootstrapResponse } from "../test/protocol-builders.ts";
 import { taskSourceSchema } from "../test/schema-apps.ts";
-import { createDevRuntimeProfile, findRuntimeWorldMountByRoute } from "./runtime-profile.ts";
+import { programStorageIdentity } from "../shared/app-storage-identity.ts";
+import { getSchemaAppDefinition } from "../shared/schema-apps.ts";
+import { createInstanceRuntimeProfile } from "./runtime-profile.ts";
 (
   globalThis as {
     IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -44,9 +46,14 @@ afterEach(() => {
 
 describe("application root runtime", () => {
   it("updates the production subscribed application shell and document when theme mode changes", async () => {
-    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), "site");
-    const runtimeProfile = createDevRuntimeProfile();
-    const routeWorld = required(findRuntimeWorldMountByRoute(runtimeProfile, "/site"));
+    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), programStorageIdentity());
+    const runtimeProfile = createInstanceRuntimeProfile();
+    const routeWorld = {
+      app: getSchemaAppDefinition("site"),
+      generatedRoutes: true,
+      route: "/site" as const,
+      target: programStorageIdentity(),
+    };
     const mediaQuery = matchMediaFixture(true);
     vi.stubGlobal("matchMedia", () => mediaQuery);
     window.localStorage.setItem("formless:application:theme", "dark");

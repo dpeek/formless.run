@@ -21,7 +21,10 @@ The system SHALL store desired exact-host profile mappings as instance
 - **THEN** the host is normalized
 - **AND** an enabled mount `route` record stores the exact match host and
   target profile `instance`, `app`, or `public-site`
-- **AND** `app` and `public-site` mappings require a target app install id
+- **AND** `app` mappings require a target app install id
+- **AND** a `public-site` mapping without an app install selects the
+  Program-native Site while one with an app install selects a
+  runtime-installable private public-Site-capable package
 
 #### Scenario: Mapping uniqueness
 
@@ -48,7 +51,10 @@ exact-host `route` records before ordinary host profile behavior.
 
 - **GIVEN** an enabled mapping route targets profile `public-site`
 - **WHEN** the mapped host receives public document requests
-- **THEN** the target installed Site serves top-level public routes
+- **THEN** the Program-native Site serves top-level public routes when the route
+  has no app install target
+- **AND** the selected private public-Site-capable install serves those routes
+  when an app install target is present
 - **AND** generated app and admin shell routes are blocked for that host
 
 ### Requirement: Provider Evidence

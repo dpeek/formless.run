@@ -96,18 +96,15 @@ describe("instance management projection", () => {
     const invalid = readyProjection({
       installDialogOpen: true,
       installDrafts: {
-        site: { installId: "Bad Id", label: "" },
+        crm: { installId: "Bad Id", label: "" },
         tasks: { installId: "tasks", label: "Tasks" },
       },
-      selectedPackageAppKey: "site",
+      selectedPackageAppKey: "crm",
     });
     const invalidDialog = required(invalid.dialog);
 
     expect(invalidDialog.open).toBe(true);
-    expect(invalidDialog.packageOptions.map(({ packageAppKey }) => packageAppKey)).toEqual([
-      "site",
-      "crm",
-    ]);
+    expect(invalidDialog.packageOptions.map(({ packageAppKey }) => packageAppKey)).toEqual(["crm"]);
     expect(invalidDialog.errors).toEqual([
       "Install label is required.",
       "Install id must start with a lowercase letter and use lowercase letters, numbers, and single hyphens.",
@@ -136,7 +133,7 @@ describe("instance management projection", () => {
           'Install failed at /Users/ada/formless with ALCHEMY_API_KEY="secret-alchemy-key".',
         installErrorPackageAppKey: "crm",
       }),
-      selectedPackageAppKey: "site",
+      selectedPackageAppKey: "crm",
     });
     expect(failed.selectedPackageAppKey).toBe("crm");
     expect(required(failed.dialog).feedback?.detail).toContain("<path>");
@@ -270,7 +267,7 @@ describe("instance management runtime publication", () => {
     expect(application.host.read(ready.workspaces[0].reference)?.label).toBe("Apps · 2 installed");
 
     await application.host.dispatch({ ...dialog.closeIntent, open: true });
-    await application.host.dispatch(dialog.packageOptions[1]!.selectionIntent);
+    await application.host.dispatch(dialog.packageOptions[0]!.selectionIntent);
     await application.host.dispatch({
       dialogId: dialog.id,
       fieldId: dialog.fields.label.fieldId,
@@ -287,8 +284,8 @@ describe("instance management runtime publication", () => {
     expect(calls).toEqual([
       { kind: "dialog", value: true },
       { kind: "package", value: "crm" },
-      { kind: "draft", value: ["site", { installId: "site", label: "Task Space" }] },
-      { kind: "submit", value: "site" },
+      { kind: "draft", value: ["crm", { installId: "crm", label: "Task Space" }] },
+      { kind: "submit", value: "crm" },
       { kind: "push" },
     ]);
 
@@ -383,7 +380,7 @@ describe("instance management runtime publication", () => {
     runtime.updateWorkspace("apps", workspaceController("instance-apps", "Apps"));
     runtime.updateWorkspace("routes", workspaceController("instance-routes", "Routes"));
     runtime.updateRuntime(
-      input({ installDrafts: { site: { installId: "Bad Id", label: "" } } }),
+      input({ installDrafts: { crm: { installId: "Bad Id", label: "" } } }),
       actions,
     );
 
@@ -395,7 +392,7 @@ describe("instance management runtime publication", () => {
       input({
         state: readyState({
           installError: "Install failed with API_TOKEN=private-install-token",
-          installErrorPackageAppKey: "site",
+          installErrorPackageAppKey: "crm",
         }),
       }),
       actions,

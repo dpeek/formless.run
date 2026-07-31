@@ -6,8 +6,8 @@ import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
 
 describe("client broadcast channels", () => {
   it("can scope channel names by installed app identity", () => {
-    expect(channelName(installedSiteIdentity("personal"))).toBe("formless:app:personal");
-    expect(channelName(installedSiteIdentity("docs"))).toBe("formless:app:docs");
+    expect(channelName(installedCRMIdentity("personal"))).toBe("formless:app:personal");
+    expect(channelName(installedCRMIdentity("docs"))).toBe("formless:app:docs");
   });
 
   it("can scope channel names by instance control-plane identity", () => {
@@ -15,11 +15,11 @@ describe("client broadcast channels", () => {
   });
 });
 
-function installedSiteIdentity(installId: string) {
-  const identity = installedAppStorageIdentity({ installId, packageAppKey: "site" });
+function installedCRMIdentity(installId: string) {
+  const identity = installedAppStorageIdentity({ installId, packageAppKey: "crm" });
 
   if (!identity) {
-    throw new Error(`Expected installed Site identity for ${installId}.`);
+    throw new Error(`Expected installed CRM identity for ${installId}.`);
   }
 
   return identity;

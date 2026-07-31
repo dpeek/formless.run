@@ -1,5 +1,6 @@
 export { encodeIcoFromPngs } from "./ico.ts";
 export type { IcoPngEntry } from "./ico.ts";
+export { reviewableSiteRecords, siteEntityIds, validateSiteRecords } from "./records.ts";
 export {
   LINK_TARGET_BLOCK_FIELD,
   LINK_TARGET_MODE_FIELD,

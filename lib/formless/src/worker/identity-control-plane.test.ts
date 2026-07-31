@@ -1764,9 +1764,9 @@ describe("identity control-plane API routes", () => {
   });
 
   it("rejects owner sessions without current active owner authority", async () => {
-    const missingPrincipal = await ownerReadResponse("missing-principal");
+    await expectOwnerReadDenied(await ownerReadResponse("missing-principal"));
     const principalOnly = await createIdentityPrincipal("Principal Only");
-    const missingRole = await ownerReadResponse(principalOnly.id);
+    await expectOwnerReadDenied(await ownerReadResponse(principalOnly.id));
     const disabledPrincipal = await createIdentityOwnerAuthority("Disabled Principal");
     const disabledAssignment = await createIdentityOwnerAuthority("Disabled Role");
 
@@ -1785,22 +1785,8 @@ describe("identity control-plane API routes", () => {
       input: { status: "disabled" },
     });
 
-    const disabledPrincipalRead = await ownerReadResponse(disabledPrincipal.principal.id);
-    const disabledAssignmentRead = await ownerReadResponse(disabledAssignment.principal.id);
-
-    for (const response of [
-      missingPrincipal,
-      missingRole,
-      disabledPrincipalRead,
-      disabledAssignmentRead,
-    ]) {
-      expect(response.status).toBe(401);
-      expect(response.headers.get("WWW-Authenticate")).toBe('Bearer realm="formless-admin"');
-      expect(await response.json()).toEqual({
-        error:
-          "Current Program member, owner, or admin authorization is required for this read endpoint.",
-      });
-    }
+    await expectOwnerReadDenied(await ownerReadResponse(disabledPrincipal.principal.id));
+    await expectOwnerReadDenied(await ownerReadResponse(disabledAssignment.principal.id));
   });
 
   it("resolves current owner and Program administrator authority from identity records", async () => {
@@ -1930,7 +1916,7 @@ async function createInstalledApp(installId: string, label: string) {
     body: JSON.stringify({
       installId,
       label,
-      packageAppKey: "site",
+      packageAppKey: "crm",
     }),
     headers: adminHeaders({ "Content-Type": "application/json" }),
     method: "POST",
@@ -2190,6 +2176,15 @@ async function readAppAuthority(
 async function ownerReadResponse(principalId: string) {
   return await harness.fetch(`${controlPlaneApi}/bootstrap`, {
     headers: { Cookie: await ownerCookieForPrincipal(principalId) },
+  });
+}
+
+async function expectOwnerReadDenied(response: Awaited<ReturnType<typeof ownerReadResponse>>) {
+  expect(response.status).toBe(401);
+  expect(response.headers.get("WWW-Authenticate")).toBe('Bearer realm="formless-admin"');
+  expect(await response.json()).toEqual({
+    error:
+      "Current Program member, owner, or admin authorization is required for this read endpoint.",
   });
 }
 

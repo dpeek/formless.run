@@ -364,7 +364,7 @@ describe("Worker document routing", () => {
     ).toBe(false);
     expect(
       shouldHandlePublishedSiteDocument(documentRequest("http://example.com/"), {
-        profile: "siteAuthoring",
+        profile: "dev",
       }),
     ).toBe(false);
   });
@@ -390,7 +390,7 @@ describe("Worker document routing", () => {
     ).toBe(true);
     expect(
       shouldDeferToStaticAssets(documentRequest("http://example.com/admin"), {
-        profile: "siteAuthoring",
+        profile: "dev",
       }),
     ).toBe(true);
   });
@@ -675,7 +675,6 @@ describe("Worker document routing", () => {
       dev: true,
       instance: true,
       publishedSite: false,
-      siteAuthoring: false,
     });
     expect(
       areSchemaKeyApiRoutesEnabledForRequest(
@@ -684,7 +683,7 @@ describe("Worker document routing", () => {
     ).toBe(false);
     expect(
       areSchemaKeyApiRoutesEnabledForRequest(new Request("http://example.com/api/site/bootstrap"), {
-        profile: "siteAuthoring",
+        profile: "dev",
       }),
     ).toBe(true);
   });
@@ -717,7 +716,6 @@ describe("Worker document routing", () => {
       documentRequest("http://example.com/pages/home"),
       documentRequest("http://example.com/tasks"),
       documentRequest("http://example.com/crm/audiences"),
-      documentRequest("http://example.com/site/schema"),
       documentRequest("http://example.com/schema"),
       documentRequest(`http://example.com${runtimeTopologyRoutes.authAccountSetupRoute}`),
       documentRequest(`http://example.com${runtimeTopologyRoutes.authAccountSignInRoute}`),
@@ -780,7 +778,6 @@ describe("Worker document routing", () => {
     const generatedAppRequests = [
       documentRequest("http://example.com/tasks"),
       documentRequest("http://example.com/crm/audiences"),
-      documentRequest("http://example.com/site/schema"),
       documentRequest("http://example.com/schema"),
     ];
 
@@ -1015,7 +1012,7 @@ describe("Worker document routing", () => {
     );
     expect(
       publishedSiteRedirectForRequest(documentRequest("http://example.com/pages/home"), {
-        profile: "siteAuthoring",
+        profile: "dev",
       }),
     ).toBe(undefined);
     expect(
@@ -1043,7 +1040,7 @@ describe("Worker document routing", () => {
     expect(isClientShellRoute("/pages/home")).toBe(true);
     expect(isClientShellRoute("/tasks")).toBe(true);
     expect(isClientShellRoute("/crm/audiences")).toBe(true);
-    expect(isClientShellRoute("/site/schema")).toBe(true);
+    expect(isClientShellRoute("/site/schema")).toBe(false);
     expect(isClientShellRoute("/apps/personal")).toBe(true);
     expect(isClientShellRoute("/sites/personal/blog")).toBe(true);
     expect(isClientShellRoute("/formless/auth")).toBe(true);

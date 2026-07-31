@@ -8,7 +8,7 @@ import {
   type AppArchiveMediaObject,
   type InstanceArchive,
 } from "../program/archive.ts";
-import type { AppInstall } from "@dpeek/formless-installed-apps";
+import type { AppInstall, InstallableAppPackage } from "@dpeek/formless-installed-apps";
 import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
 import { bundledSourceSchemaHashFixtures } from "../shared/upgrade-migrations.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
@@ -32,6 +32,29 @@ import {
 const now = "2026-05-23T00:00:00.000Z";
 const pngBytes = new Uint8Array([1, 2, 3, 4]);
 const documentBytes = new TextEncoder().encode("%PDF-1.7\nprivate report");
+const privateSitePackage: InstallableAppPackage = {
+  adminRouteBase: "/apps",
+  defaultInstallId: "personal",
+  description: "Private Site archive fixture.",
+  label: "Private Site",
+  packageAppKey: "private-site",
+  packageRevision: 1,
+  publicRouteBase: "/sites",
+  sourceOrigin: "workspace",
+  sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
+  sourceSchemaKey: "private-site",
+  sourceSchemaLocation: {
+    kind: "workspace",
+    key: "private-site",
+    path: "source/schema.json",
+  },
+  supportsMultipleInstalls: true,
+};
+const privateSitePackageResolver = {
+  findPackage: (packageAppKey: string) =>
+    packageAppKey === privateSitePackage.packageAppKey ? privateSitePackage : undefined,
+  listPackages: () => [privateSitePackage],
+};
 
 describe("archive restore execution", () => {
   it("dry-runs restore plans without mutating the target", async () => {
@@ -125,6 +148,49 @@ describe("archive restore execution", () => {
       "install:create:personal",
       "control-plane:0",
     ]);
+  });
+
+  it("restores Program Site media before Program records", async () => {
+    const object = {
+      ...coreMediaObject("hero"),
+      archivePath: "media/program/media/images/hero.png",
+    };
+    const archive = instanceArchive({
+      apps: [],
+      capabilities: ["schema-owned-control-plane", "core-media-assets"],
+      restorePolicy: { dryRun: false, installCollisions: "reject" },
+      controlPlane: controlPlaneSnapshot({
+        records: [siteRecord("rec_site_settings_program", "program"), coreImageBlock("hero")],
+      }),
+      media: { objects: [object] },
+    });
+    const events: string[] = [];
+    const result = await applyPortableArchiveRestore(
+      archive,
+      memoryRestoreTarget({
+        events,
+        mediaFiles: [
+          {
+            ...coreMediaFile("hero"),
+            archivePath: object.archivePath,
+          },
+        ],
+        restoreControlPlane: true,
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(events).toEqual([
+      "media:instance:control-plane:media/images/hero.png",
+      "control-plane:2",
+    ]);
+
+    if (!result.ok) {
+      throw new Error(result.errors.map((error) => error.message).join("\n"));
+    }
+
+    expect(result.report.steps.map((step) => step.kind)).toEqual(["programMedia"]);
+    expect(result.report.summary.programMediaCount).toBe(1);
   });
 
   it("does not activate a new install when media restore fails", async () => {
@@ -249,7 +315,7 @@ describe("archive restore execution", () => {
         ],
         restoredDataIdentities,
         restoredMedia,
-        sourceSchemas: { site: schema },
+        sourceSchemas: { "private-site": schema },
       }),
     );
 
@@ -265,11 +331,11 @@ describe("archive restore execution", () => {
         authorityName: "app:personal-copy",
         object: expect.objectContaining({
           asset: expect.objectContaining({
-            deliveryHref: "/api/app-installs/site/personal-copy/media/documents/report.pdf",
+            deliveryHref: "/api/app-installs/private-site/personal-copy/media/documents/report.pdf",
             ownerAppInstallId: "personal-copy",
             storageKey: "media/app-installs/personal-copy/documents/report.pdf",
           }),
-          deliveryHref: "/api/app-installs/site/personal-copy/media/documents/report.pdf",
+          deliveryHref: "/api/app-installs/private-site/personal-copy/media/documents/report.pdf",
           storageKey: "media/app-installs/personal-copy/documents/report.pdf",
         }),
       },
@@ -343,10 +409,13 @@ describe("archive restore execution", () => {
   });
 
   it("restores core media archive objects through the media core", async () => {
-    const identity = installedAppStorageIdentity({
-      installId: "personal",
-      packageAppKey: "site",
-    });
+    const identity = installedAppStorageIdentity(
+      {
+        installId: "personal",
+        packageAppKey: "private-site",
+      },
+      privateSitePackageResolver,
+    );
     const writes: unknown[] = [];
 
     if (!identity) {
@@ -381,10 +450,13 @@ describe("archive restore execution", () => {
   });
 
   it("restores immutable documents and rejects incompatible target collisions", async () => {
-    const identity = installedAppStorageIdentity({
-      installId: "personal",
-      packageAppKey: "site",
-    });
+    const identity = installedAppStorageIdentity(
+      {
+        installId: "personal",
+        packageAppKey: "private-site",
+      },
+      privateSitePackageResolver,
+    );
     const object = documentMediaObject("report", "private");
     const writes: unknown[] = [];
 
@@ -407,7 +479,7 @@ describe("archive restore execution", () => {
 
     expect(response).toMatchObject({
       assetId: "report.pdf",
-      href: "/api/app-installs/site/personal/media/documents/report.pdf",
+      href: "/api/app-installs/private-site/personal/media/documents/report.pdf",
       key: "media/app-installs/personal/documents/report.pdf",
     });
     expect(writes).toEqual([
@@ -467,7 +539,7 @@ describe("archive restore execution", () => {
             contentType: "application/pdf",
           },
         ],
-        sourceSchemas: { site: schema },
+        sourceSchemas: { "private-site": schema },
         validateObject: async () => {
           throw new Error("Immutable document collision.");
         },
@@ -508,6 +580,7 @@ function memoryRestoreTarget(input: {
 }): ArchiveRestoreApplyTarget {
   return {
     listInstalledApps: () => input.installedApps ?? [],
+    packageResolver: privateSitePackageResolver,
     media: {
       listFiles: async () => input.mediaFiles ?? [],
       readFile: async (archivePath) =>
@@ -558,7 +631,7 @@ function memoryRestoreTarget(input: {
 
       input.activeInstalls?.add(install.installId);
     },
-    ...(input.sourceSchemas === undefined ? {} : { sourceSchemas: input.sourceSchemas }),
+    sourceSchemas: input.sourceSchemas ?? { "private-site": siteSourceSchema },
   };
 }
 
@@ -578,6 +651,7 @@ function instanceArchive(overrides: Partial<InstanceArchive> = {}): InstanceArch
     exportedAt: now,
     capabilities: ["installed-app-registry", "app-store-snapshots"],
     restorePolicy: { dryRun: true, installCollisions: "reject" },
+    media: { objects: [] },
     apps: [appArchive()],
     ...overrides,
   };
@@ -608,9 +682,9 @@ function appArchive(overrides: Partial<AppArchive> = {}): AppArchive {
 function archivedInstall(installId: string, label: string): AppArchive["app"] {
   return {
     installId,
-    packageAppKey: "site",
+    packageAppKey: "private-site",
     packageRevision: 1,
-    sourceSchemaKey: "site",
+    sourceSchemaKey: "private-site",
     sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
     label,
     registrationPolicy: "closed",
@@ -625,7 +699,7 @@ function storageSnapshot(overrides: Partial<StorageSnapshot> = {}): StorageSnaps
     kind: STORAGE_SNAPSHOT_KIND,
     version: STORAGE_SNAPSHOT_VERSION,
     storageIdentity: "app:personal",
-    schemaKey: "site",
+    schemaKey: "private-site",
     exportedAt: now,
     schemaUpdatedAt: now,
     sourceCursor: 7,
@@ -730,7 +804,7 @@ function documentMediaObject(
 ): AppArchiveMediaObject {
   const id = `${name}.pdf`;
   const storageKey = `media/app-installs/${installId}/documents/${id}`;
-  const deliveryHref = `/api/app-installs/site/${installId}/media/documents/${id}`;
+  const deliveryHref = `/api/app-installs/private-site/${installId}/media/documents/${id}`;
 
   return {
     archivePath: `media/personal/media/app-installs/personal/documents/${id}`,
@@ -779,7 +853,7 @@ function siteInstall(installId: string): AppInstall {
     createdAt: now,
     installId,
     label: "Personal",
-    packageAppKey: "site",
+    packageAppKey: "private-site",
     packageRevision: 1,
     publicRoute: `/sites/${installId}`,
     publicRoutePrefix: `/sites/${installId}/`,

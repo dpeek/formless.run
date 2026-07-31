@@ -38,7 +38,7 @@ describe("Worker workspace gateway proxy routes", () => {
       { expectedStatus: 502, host: "instance.example.com" },
       { expectedStatus: 502, host: "example.com" },
       { expectedStatus: 404, host: "app.example.com" },
-      { expectedStatus: 404, host: "site-authoring.example.com" },
+      { expectedStatus: 502, host: "site-authoring.example.com" },
       { expectedStatus: 404, host: "published-site.example.com" },
     ]) {
       const response = await fetchHost(testCase.host, WORKSPACE_GATEWAY_STATUS_API_PATH, {

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
+import { formlessProgramSchema } from "../program/runtime.ts";
 import type { DocumentMediaAsset } from "@dpeek/formless-media";
 
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
@@ -298,6 +299,23 @@ describe("media worker routes", () => {
     await expectMediaBucketKeysUnordered(guardedHarness, [
       expect.stringMatching(/^media\/images\/.+\.png$/),
       "media/images/restored-by-owner.png",
+    ]);
+  });
+
+  it("authorizes Program editors for core image uploads", async () => {
+    const editor = await createPrincipalSession({
+      displayName: "Program Editor",
+      role: "editor",
+    });
+    const uploaded = await uploadCoreImage(
+      guardedHarness,
+      imageFile("editor.png", "image/png", pngBytes),
+      editor.headers,
+    );
+
+    expect(uploaded.status).toBe(200);
+    await expectMediaBucketKeys(guardedHarness, [
+      expect.stringMatching(/^media\/images\/.+\.png$/),
     ]);
   });
 
@@ -675,7 +693,7 @@ async function configureDocumentSchema(installId: string) {
 async function createPrincipalSession(input: {
   appInstallId?: string;
   displayName: string;
-  role: "app.admin" | "administrator";
+  role: "app.admin" | "administrator" | "editor";
 }) {
   const key = input.displayName.replace(/\W+/g, "-").toLowerCase();
   const principal = await postIdentityRecordOperation({
@@ -690,7 +708,7 @@ async function createPrincipalSession(input: {
   });
 
   await postIdentityRecordOperation({
-    entity: input.role === "administrator" ? "program-role-assignment" : "role-assignment",
+    entity: input.role === "app.admin" ? "role-assignment" : "program-role-assignment",
     idempotencyKey: `document-media-role-${key}`,
     operationName: "create",
     input:
@@ -705,7 +723,7 @@ async function createPrincipalSession(input: {
           }
         : {
             principal: principal.id,
-            roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+            roleId: programRoleId(input.role),
             status: "active",
           },
   });
@@ -713,6 +731,18 @@ async function createPrincipalSession(input: {
     headers: await centralSessionHeaders(principal.id),
     principalId: principal.id,
   };
+}
+
+function programRoleId(roleKey: "administrator" | "editor"): string {
+  const role = formlessProgramSchema.authorization?.roles.find(
+    (candidate) => candidate.key === roleKey,
+  );
+
+  if (!role) {
+    throw new Error(`Expected Program role "${roleKey}".`);
+  }
+
+  return role.id;
 }
 
 async function postIdentityRecordOperation(input: Parameters<typeof recordOperationRequest>[0]) {

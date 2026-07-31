@@ -61,6 +61,7 @@ import {
   type AuthorityOperation,
   type AuthorityWriteNotifier,
 } from "./authority-operations.ts";
+import { selectPublicOperationRoute } from "./public-operations.ts";
 import { validateRecordValues } from "./authority-validation.ts";
 import { assertUniqueConstraints } from "./constraints.ts";
 import { BadRequestError } from "./errors.ts";
@@ -217,6 +218,15 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
       return await handleCreateAppInstallOperation(request, route.identity, storage, env);
     }
 
+    if (
+      selectPublicOperationRoute({
+        method: request.method,
+        path: route.path,
+      })
+    ) {
+      return undefined;
+    }
+
     const operation = selectAuthorityOperation({
       method: request.method,
       path: route.path,
@@ -225,6 +235,10 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
 
     if (!operation) {
       return jsonResponse({ error: "Not found." }, 404);
+    }
+
+    if (operation.kind === "siteTree") {
+      return undefined;
     }
 
     const hostSessionTarget = hostAuthSessionTargetForInstanceControlPlaneRequest(request);

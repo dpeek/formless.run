@@ -30,7 +30,6 @@ import {
 } from "../shared/instance-auth.ts";
 import type { SyncSocketServerMessage } from "../shared/protocol.ts";
 import type { EmailDeliveryRenderedMessage } from "../shared/email-runtime.ts";
-import { PUBLIC_SITE_INDEXING_CACHE_CONTROL } from "@dpeek/formless-site-app/worker";
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { INTERNAL_RESET_INSTANCE_DOMAIN_MAPPINGS_PATH } from "./instance-domain-mappings.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
@@ -115,104 +114,6 @@ describe("installed Site custom-domain Worker routing", () => {
     await setupPrimaryProductionIdentity();
     await expectAuthConfigMissing(harness);
     await expectAuthConfigRp(harness, "www.example.com", "example.com");
-  });
-
-  it("renders mapped host documents from installed Site storage", async () => {
-    await resetWorkerState(harness, ["controlPlane", "siteStorage"]);
-    await setupMappedSite();
-    await postInstalledAppRecordOperation("site", installId, {
-      idempotencyKey: "write-custom-domain-home-label",
-      entity: "block",
-      operationName: "update",
-      recordId: "rec_site_content_home",
-      input: {
-        label: "Personal custom-domain home",
-      },
-    });
-
-    const home = await fetchMappedHost("/", {
-      headers: { Accept: "text/html" },
-    });
-    const nested = await fetchMappedHost("/blog/shipping-schema-backed-authoring", {
-      headers: { Accept: "text/html" },
-    });
-    const homeHtml = await home.text();
-    const nestedHtml = await nested.text();
-
-    expect(home.status).toBe(200);
-    expect(homeHtml).toContain("Personal custom-domain home");
-    expect(homeHtml).toContain(`<meta name="formless-runtime-profile" content="publishedSite" />`);
-    expect(homeHtml).toContain('href="/blog"');
-    expect(homeHtml).not.toContain('href="/sites/personal/blog"');
-    expect(homeHtml).not.toContain("Loading site page...");
-
-    expect(nested.status).toBe(200);
-    expect(nestedHtml).toContain("Shipping schema-backed authoring");
-    expect(nestedHtml).toContain('<meta property="og:type" content="article" />');
-    expect(nestedHtml).not.toContain("Loading site page...");
-  });
-
-  it("serves mapped host indexing, icons, and core media from the instance", async () => {
-    await resetWorkerState(harness, ["controlPlane", "siteStorage", "media"]);
-    await setupMappedSite();
-    await postInstalledAppRecordOperation("site", installId, {
-      idempotencyKey: "write-custom-domain-sitemap-page",
-      entity: "block",
-      operationName: "create",
-      input: {
-        type: "page",
-        label: "Custom domain sitemap page",
-        href: "/custom-domain-sitemap-page",
-      },
-    });
-    await postInstalledAppRecordOperation("site", installId, {
-      idempotencyKey: "write-custom-domain-site-icon",
-      entity: "site",
-      operationName: "update",
-      recordId: "rec_site_settings_primary",
-      input: {
-        icon: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" fill="#16a34a"/></svg>',
-      },
-    });
-    await putAdminBytes(
-      "/api/formless/media/media/images/custom-domain.png",
-      new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
-      "image/png",
-    );
-
-    const robots = await fetchMappedHost("/robots.txt", {
-      headers: { Accept: "text/html" },
-    });
-    const robotsText = await robots.text();
-
-    const sitemap = await fetchMappedHost("/sitemap.xml", {
-      headers: { Accept: "text/html" },
-    });
-    const sitemapText = await sitemap.text();
-
-    const favicon = await fetchMappedHost("/favicon.svg", {
-      headers: { Accept: "text/html" },
-    });
-    const faviconText = await favicon.text();
-
-    const media = await fetchMappedHost("/api/formless/media/media/images/custom-domain.png");
-    const mediaBytes = new Uint8Array(await media.arrayBuffer());
-
-    expect(robots.status).toBe(200);
-    expect(robots.headers.get("Cache-Control")).toBe(PUBLIC_SITE_INDEXING_CACHE_CONTROL);
-    expect(robotsText).toContain(`Sitemap: http://${mappedHost}/sitemap.xml`);
-
-    expect(sitemap.status).toBe(200);
-    expect(sitemap.headers.get("Content-Type")).toBe("application/xml; charset=utf-8");
-    expect(sitemapText).toContain(`<loc>http://${mappedHost}/custom-domain-sitemap-page</loc>`);
-
-    expect(favicon.status).toBe(200);
-    expect(favicon.headers.get("Content-Type")).toBe("image/svg+xml; charset=utf-8");
-    expect(faviconText).toContain("#16a34a");
-
-    expect(media.status).toBe(200);
-    expect(media.headers.get("Content-Type")).toBe("image/png");
-    expect(mediaBytes).toEqual(new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]));
   });
 
   it("keeps path-based installed Site fallback off the mapped-host admin shell", async () => {
@@ -507,7 +408,7 @@ describe("installed Site custom-domain Worker routing", () => {
 
       await configureHarnessAuth(deploymentOrigin);
       await postAdminJson("/api/formless/app-installs", {
-        packageAppKey: "site",
+        packageAppKey: privateSitePackageAppKey,
         installId,
         label: "Personal",
       });
@@ -1184,18 +1085,6 @@ describe("installed Site custom-domain Worker routing", () => {
       installId: "other-workspace",
       label: "Other Workspace",
     });
-    await postAdminJson("/api/formless/app-installs", {
-      packageAppKey: "site",
-      installId: "public-site",
-      label: "Public Site",
-    });
-    await restoreTestStorageSnapshot(
-      harness,
-      "/api/app-installs/site/public-site/snapshot/restore",
-      schemaAppTestStorageSnapshot("site", "app:public-site"),
-      adminHeaders(),
-    );
-
     const dataApi = `/api/app-installs/${taskPackageAppKey}/${taskInstallId}`;
     const schemaResponse = await fetchMappedHost(`${dataApi}/schema`, {
       headers: adminHeaders(),
@@ -1393,22 +1282,10 @@ describe("installed Site custom-domain Worker routing", () => {
         method: "POST",
       }),
     ]);
-    const publicTree = await fetchMappedHost("/api/app-installs/site/public-site/tree/home");
-    const publicOperation = await fetchMappedHost(
-      "/api/app-installs/site/public-site/public/operations/subscription/subscribe",
-      {
-        body: "not-json",
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      },
-    );
-
     expect(deniedControls.map((response) => response.status)).toEqual(
       deniedControls.map(() => 401),
     );
-    expect(publicTree.status).toBe(200);
-    expect(publicOperation.status).toBe(400);
-  });
+  }, 10000);
 
   it("authorizes installed app push sync by current principal and exact app target", async () => {
     await resetWorkerState(harness, ["controlPlane", "taskStorage", "auth"]);
@@ -1492,7 +1369,7 @@ describe("installed Site custom-domain Worker routing", () => {
 
     expect(denied.map((response) => response.status)).toEqual([401, 401, 401, 401]);
     expect(wrongTarget.status).toBe(401);
-  });
+  }, 10000);
 
   it("closes installed app push sockets after authority or session version narrows", async () => {
     await resetWorkerState(harness, ["controlPlane", "taskStorage", "auth"]);
@@ -1810,6 +1687,15 @@ describe("installed Site custom-domain Worker routing", () => {
       },
       redirect: "manual",
     });
+    const missingEmailBody = (await missingEmail.json()) as {
+      gate?: {
+        kind?: string;
+      };
+      status?: string;
+      target?: {
+        returnTo?: string;
+      };
+    };
     const missingEmailHtml = await harness.mf.dispatchFetch(startLocation, {
       headers: {
         Accept: "text/html",
@@ -1829,6 +1715,15 @@ describe("installed Site custom-domain Worker routing", () => {
       },
       redirect: "manual",
     });
+    const missingEmailHandoffBody = (await missingEmailHandoff.json()) as {
+      gate?: {
+        kind?: string;
+      };
+      status?: string;
+      target?: {
+        returnTo?: string;
+      };
+    };
     const accountSurface = await harness.mf.dispatchFetch(accountSurfaceUrl.toString(), {
       headers: {
         Accept: "text/html",
@@ -1843,24 +1738,6 @@ describe("installed Site custom-domain Worker routing", () => {
       },
       redirect: "manual",
     });
-    const missingEmailBody = (await missingEmail.json()) as {
-      gate?: {
-        kind?: string;
-      };
-      status?: string;
-      target?: {
-        returnTo?: string;
-      };
-    };
-    const missingEmailHandoffBody = (await missingEmailHandoff.json()) as {
-      gate?: {
-        kind?: string;
-      };
-      status?: string;
-      target?: {
-        returnTo?: string;
-      };
-    };
     const accountStatusBody = (await accountStatus.json()) as {
       gate?: {
         kind?: string;
@@ -2583,7 +2460,7 @@ describe("installed Site custom-domain Worker routing", () => {
       body: JSON.stringify({
         idempotencyKey: "mapped-instance-host-session-create-install",
         input: {
-          packageAppKey: "site",
+          packageAppKey: privateSitePackageAppKey,
           installId: "host-session-site",
           label: "Host Session Site",
         },
@@ -2605,7 +2482,7 @@ describe("installed Site custom-domain Worker routing", () => {
     };
     const installedAppBootstrap = await fetchHost(
       mappedInstanceHost,
-      "/api/app-installs/site/host-session-site/bootstrap",
+      `/api/app-installs/${privateSitePackageAppKey}/host-session-site/bootstrap`,
       {
         headers: { Cookie: cookie },
       },
@@ -2770,7 +2647,7 @@ describe("installed Site custom-domain Worker routing", () => {
     await resetWorkerState(harness, ["controlPlane", "auth"]);
     await setupPrimaryProductionIdentity();
     await postAdminJson("/api/formless/app-installs", {
-      packageAppKey: "site",
+      packageAppKey: privateSitePackageAppKey,
       installId,
       label: "Personal",
     });
@@ -3243,7 +3120,7 @@ async function setupMappedInstance(values: Record<string, unknown> = {}) {
 
 async function setupMappedSiteRouteRecord() {
   await postAdminJson("/api/formless/app-installs", {
-    packageAppKey: "site",
+    packageAppKey: privateSitePackageAppKey,
     installId,
     label: "Personal",
   });
@@ -4333,18 +4210,6 @@ async function postInstalledAppRecordOperation(
   return request.response(await response.json());
 }
 
-async function putAdminBytes(path: string, body: Uint8Array, contentType: string) {
-  const response = await harness.fetch(path, {
-    body,
-    headers: adminHeaders({ "Content-Type": contentType }),
-    method: "PUT",
-  });
-
-  expect(response.status).toBe(200);
-
-  return response;
-}
-
 function adminHeaders(headers: Record<string, string> = {}) {
   return {
     ...headers,
@@ -4395,8 +4260,11 @@ async function resetWorkerState(target: Harness, resources: readonly WorkerState
     siteStorage: () =>
       restoreTestStorageSnapshot(
         target,
-        `/api/app-installs/site/${installId}/snapshot/restore`,
-        schemaAppTestStorageSnapshot("site", `app:${installId}`),
+        `/api/app-installs/${privateSitePackageAppKey}/${installId}/snapshot/restore`,
+        {
+          ...schemaAppTestStorageSnapshot("site", `app:${installId}`),
+          schemaKey: privateSitePackageAppKey,
+        },
         adminHeaders(),
       ),
     taskStorage: () =>
@@ -4473,6 +4341,16 @@ async function createCustomDomainHarness(
   const taskPackage = await runtimeWorkspaceTaskAppPackageFixture({
     packageAppKey: taskPackageAppKey,
   });
+  const privateSitePackage = await runtimeWorkspaceTaskAppPackageFixture({
+    capabilities: [
+      { kind: "generatedAdmin", routeBase: "/apps" },
+      { kind: "publicSite", routeBase: "/sites" },
+    ],
+    defaultInstallId: privateSiteInstallId,
+    label: "Private Site",
+    packageAppKey: privateSitePackageAppKey,
+    sourceSchema: siteSourceSchema,
+  });
 
   return createWorkerHarness(
     harnessPath,
@@ -4484,6 +4362,7 @@ async function createCustomDomainHarness(
         FORMLESS_ADMIN_TOKEN: adminToken,
         [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
           taskPackage,
+          privateSitePackage,
         ]),
         ...bindings,
         ...(runtimeProfile === undefined ? {} : { FORMLESS_RUNTIME_PROFILE: runtimeProfile }),
@@ -4650,8 +4529,12 @@ async function writeCustomDomainHarness() {
 
 async function privatePublicSiteRuntimePackages(): Promise<string> {
   const sourceSchemaHash = await computeSourceSchemaHash(siteSourceSchema);
+  const taskPackage = await runtimeWorkspaceTaskAppPackageFixture({
+    packageAppKey: taskPackageAppKey,
+  });
 
   return formatRuntimeWorkspaceAppPackages([
+    taskPackage,
     {
       manifest: workspaceAppPackageManifestFixture({
         packageAppKey: privateSitePackageAppKey,

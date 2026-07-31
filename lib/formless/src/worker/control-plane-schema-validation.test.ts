@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus
 
 import { instanceControlPlaneSchema } from "@dpeek/formless-instance-control-plane";
 import type { AppSchema } from "@dpeek/formless-schema";
-import { taskSourceSchema } from "../test/schema-apps.ts";
+import { siteSourceSchema, taskSourceSchema } from "../test/schema-apps.ts";
 import { bundledSourceSchemaHashFixtures } from "../shared/upgrade-migrations.ts";
 import {
   createAuthorityWriteHelpers,
@@ -19,9 +19,20 @@ type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
 let harness: Harness;
 let authority: AuthorityWriteHelpers;
+let privateSitePackage: Awaited<ReturnType<typeof runtimeWorkspaceTaskAppPackageFixture>>;
 
 beforeAll(async () => {
   const taskPackage = await runtimeWorkspaceTaskAppPackageFixture();
+  privateSitePackage = await runtimeWorkspaceTaskAppPackageFixture({
+    capabilities: [
+      { kind: "generatedAdmin", routeBase: "/apps" },
+      { kind: "publicSite", routeBase: "/sites" },
+    ],
+    defaultInstallId: "personal",
+    label: "Private Site",
+    packageAppKey: "private-site",
+    sourceSchema: siteSourceSchema,
+  });
   harness = await createWorkerHarness(
     "src/worker/index.ts",
     {
@@ -31,6 +42,7 @@ beforeAll(async () => {
       bindings: {
         [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
           taskPackage,
+          privateSitePackage,
         ]),
       },
     },
@@ -150,7 +162,7 @@ describe("control-plane schema runtime validation", () => {
   it("validates unified instance route records before they become active", async () => {
     await authority.postJson("/api/schema", { schema: instanceRouteRuntimeSchema() });
 
-    const siteInstall = await createControlPlaneAppInstall("site", "Personal Site");
+    const siteInstall = await createControlPlaneAppInstall("private-site", "Personal Site");
     const tasksInstall = await createControlPlaneAppInstall("test-tasks", "Team Tasks");
     const deploymentConfig = await authority.postRecordOperationRequest({
       idempotencyKey: "write-control-plane-deployment-config",
@@ -519,8 +531,11 @@ describe("control-plane schema runtime validation", () => {
   });
 });
 
-async function createControlPlaneAppInstall(packageAppKey: "site" | "test-tasks", label: string) {
-  const installId = packageAppKey === "site" ? "personal" : "tasks";
+async function createControlPlaneAppInstall(
+  packageAppKey: "private-site" | "test-tasks",
+  label: string,
+) {
+  const installId = packageAppKey === "private-site" ? "personal" : "tasks";
 
   return authority.postRecordOperationRequest({
     idempotencyKey: `write-control-plane-install-${installId}`,
@@ -529,9 +544,12 @@ async function createControlPlaneAppInstall(packageAppKey: "site" | "test-tasks"
     input: {
       installId,
       packageAppKey,
-      packageRevision: packageAppKey === "site" ? 1 : 7,
+      packageRevision:
+        packageAppKey === "private-site" ? privateSitePackage.manifest.packageRevision : 7,
       sourceSchemaHash:
-        bundledSourceSchemaHashFixtures[packageAppKey === "site" ? "site" : "tasks"],
+        packageAppKey === "private-site"
+          ? privateSitePackage.manifest.sourceSchemaHash
+          : bundledSourceSchemaHashFixtures.tasks,
       label,
       registrationPolicy: "closed",
       status: "installed",

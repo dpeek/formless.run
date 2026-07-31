@@ -3148,6 +3148,23 @@ function validateSourceMountRoute(
     );
   }
 
+  if (targetProfile === "app" && appInstall === undefined) {
+    throw new Error(
+      `${context} route "${route.id}" field "${controlPlaneFieldLabel(route, "appInstall")}" is required for ${targetProfile} mount routes.`,
+    );
+  }
+
+  if (targetProfile === "public-site" && surface !== "public-site") {
+    throw new Error(
+      `${context} route "${route.id}" field "${controlPlaneFieldLabel(route, "surface")}" must be "public-site" for public-site mount routes.`,
+    );
+  }
+
+  if (targetProfile === "public-site" && appInstall === undefined) {
+    assertHostMountedPublicSiteRoute(context, route, matchHost, matchPath, matchPrefix);
+    return;
+  }
+
   if (appInstall === undefined) {
     throw new Error(
       `${context} route "${route.id}" field "${controlPlaneFieldLabel(route, "appInstall")}" is required for ${targetProfile} mount routes.`,
@@ -3178,14 +3195,17 @@ function validateSourceMountRoute(
     return;
   }
 
-  if (surface !== "public-site") {
-    throw new Error(
-      `${context} route "${route.id}" field "${controlPlaneFieldLabel(route, "surface")}" must be "public-site" for public-site mount routes.`,
-    );
-  }
-
   assertInstallSupportsPublicSiteRoute(context, route, install, appInstall, options);
+  assertHostMountedPublicSiteRoute(context, route, matchHost, matchPath, matchPrefix);
+}
 
+function assertHostMountedPublicSiteRoute(
+  context: string,
+  route: StoredRecord,
+  matchHost: string | undefined,
+  matchPath: string,
+  matchPrefix: string | undefined,
+) {
   if (matchHost !== undefined && (matchPath !== "/" || matchPrefix !== "/")) {
     throw new Error(
       `${context} route "${route.id}" host-mounted public Site routes must set field "${controlPlaneFieldLabel(route, "matchPath")}" to "/" and field "${controlPlaneFieldLabel(route, "matchPrefix")}" to "/".`,

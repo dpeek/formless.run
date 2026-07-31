@@ -1,13 +1,7 @@
 import { schemaApps } from "./schema-apps.ts";
 import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
 
-export const runtimeProfileKinds = [
-  "instance",
-  "dev",
-  "app",
-  "siteAuthoring",
-  "publishedSite",
-] as const;
+export const runtimeProfileKinds = ["instance", "dev", "app", "publishedSite"] as const;
 
 export type RuntimeProfileKind = (typeof runtimeProfileKinds)[number];
 
@@ -76,7 +70,6 @@ export const runtimeTopologyRoutes = {
   publicSiteHomeSlug: "home",
   publicSitePackageAppKey: "site",
   publicSitePreviewRouteBase: "/pages",
-  siteAdminRoute: "/admin",
   siteRouteBase: "/sites",
   staticAssetPathPrefixes: ["/@fs/", "/@id/", "/@vite/", "/@react-refresh"],
 } as const;
@@ -130,7 +123,6 @@ export function parseRuntimeProfileKind(value: string | undefined): RuntimeProfi
     case "instance":
     case "dev":
     case "app":
-    case "siteAuthoring":
     case "publishedSite":
       return value;
     default:
@@ -209,10 +201,6 @@ export function runtimeProfileKindFromHost(
 
   if (normalized.startsWith("app.")) {
     return "app";
-  }
-
-  if (normalized.startsWith("site-authoring.")) {
-    return "siteAuthoring";
   }
 
   if (isWorkersDevHost(normalized)) {

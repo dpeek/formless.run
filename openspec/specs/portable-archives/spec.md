@@ -64,6 +64,18 @@ import, or workspace validation.
 - AND no legacy Tasks record, cursor, change history, operation history,
   archive, workspace state, replica, or provenance is imported or merged
 
+#### Scenario: Site cutover advances current state contracts
+
+- GIVEN an archive or workspace contains built-in Site records in an installed
+  app storage snapshot or `state/apps/<installId>.json`
+- WHEN current archive or workspace parsing runs after the Site Program cutover
+- THEN that input is not adopted as the authoritative Site record set
+- AND current output carries built-in Site records only inside the Program
+  snapshot
+- AND no legacy Site record, cursor, change history, operation history, media
+  provenance, archive, workspace state, replica, or provenance is imported or
+  merged
+
 ### Requirement: Export Latest Archive Format
 
 The system SHALL write portable archives using the latest supported archive
@@ -89,9 +101,12 @@ browser replica state.
 - WHEN an instance archive is exported
 - THEN one Program storage snapshot, app storage snapshots, and
   referenced core media are read from the target
-- AND the Program snapshot contains instance, reviewable identity, and Task
-  records from storage identity `instance:control-plane`
-- AND legacy Tasks installs do not contribute app storage snapshots
+- AND the Program snapshot contains instance, reviewable identity, Task, and
+  Site records from storage identity `instance:control-plane`
+- AND legacy Tasks and built-in Site installs do not contribute app storage
+  snapshots
+- AND core images referenced by Program-native Site records are carried by a
+  Program media manifest using archive paths under `media/program/`
 - AND archive media files are written at manifest archive paths
 - AND protected target reads use owner session or admin bearer authorization
   supplied by the caller
@@ -190,10 +205,12 @@ explicit.
 
 - GIVEN restore validation succeeds and mutation is explicitly requested
 - WHEN restore applies
-- THEN core media objects are written before app records
+- THEN core media objects are written before Program or app records
 - AND app data is restored through installed app storage identity
 - AND Program data is restored through `instance:control-plane` storage identity
   when the archive includes it
+- AND Program-native Site image references use existing instance core media
+  identities without app-install retargeting
 
 #### Scenario: Create populated install from app archive
 
@@ -217,13 +234,15 @@ explicit.
 The system SHALL allow app archives to restore to a selected install id when the
 restore command supports retargeting.
 
-#### Scenario: Retarget Site app archive
+#### Scenario: Retarget private app archive
 
-- GIVEN a Site app archive exists
+- GIVEN an archive for a runtime-installable private app exists
 - WHEN a workspace or restore workflow applies the archive with a target
   install id
 - THEN the app archive can be restored to that install id
 - AND install-scoped storage and routes use the target install id
+- AND this behavior does not restore a built-in Site archive into Program
+  storage
 
 #### Scenario: Retarget app-scoped document media
 
@@ -321,10 +340,11 @@ for local-first Formless workspaces.
   app records, Program records, and referenced core image or document media
 - **THEN** the system writes deterministic record state files, schema
   provenance, and referenced media payloads from Authority-backed state
-- **AND** instance control-plane, reviewable identity, and Task records are
-  written to `state/instance.json`
+- **AND** instance control-plane, reviewable identity, Task, and Site records
+  are written to `state/instance.json`
 - **AND** installed app records are written to `state/apps/<installId>.json`
-- **AND** no Program-native Tasks install produces an app state file
+- **AND** no Program-native Tasks or built-in Site install produces an app state
+  file
 - **AND** browser replica state is not used as the source of truth
 - **AND** secret-looking fields are rejected from reviewable workspace state
 
@@ -354,8 +374,9 @@ payloads, not portable archive directories or duplicated schema source bodies.
 - **THEN** Program state is written to `state/instance.json`
 - **AND** each installed app's Authority storage state is written to
   `state/apps/<installId>.json`
-- **AND** Task records are written only to `state/instance.json`
-- **AND** no Program-native Tasks install produces
+- **AND** Task and built-in Site records are written only to
+  `state/instance.json`
+- **AND** no Program-native Tasks or built-in Site install produces
   `state/apps/<installId>.json`
 - **AND** each state file declares kind, version, storage identity, schema key,
   exported timestamp, schema timestamp, source cursor, schema provenance, and
@@ -370,8 +391,8 @@ payloads, not portable archive directories or duplicated schema source bodies.
 - **AND** workspace state files do not embed the full App schema object
 - **AND** `state/instance.json` uses storage identity `instance:control-plane`
 - **AND** `state/instance.json` uses schema key `formless-program`
-- **AND** it includes instance, reviewable identity, and Task records from the
-  same Authority record-id namespace
+- **AND** it includes instance, reviewable identity, Task, and Site records from
+  the same Authority record-id namespace
 - **AND** app state files use storage identity `app:<installId>`
 - **AND** workspace state kind constants, version constants, and parsing
   behavior come from the Workspace package contract
@@ -386,7 +407,8 @@ payloads, not portable archive directories or duplicated schema source bodies.
 
 #### Scenario: Workspace media state
 
-- **WHEN** workspace source contains core media referenced by app records
+- **WHEN** workspace source contains core media referenced by Program or
+  installed app records
 - **THEN** media payloads are stored under `state/media`
 - **AND** document payload content types and metadata come from validated media
   manifest facts rather than filename-only inference
@@ -647,14 +669,16 @@ resolved schema identified by that state file's schema provenance.
 - THEN installed app records remain scoped by app install identity through app
   record state or archive storage snapshots
 - AND installed app records are not stored as instance control-plane records
-- AND singleton Task records are Program records rather than installed app data
+- AND singleton Task and Site records are Program records rather than installed
+  app data
 
 ### Requirement: Schema-Owned Program Snapshots
 
 The system SHALL represent instance control-plane intent, reviewable identity
-records, and singleton Task records in workspace state and portable archive
-envelopes through one schema-owned Program snapshot without storing secrets,
-deployment observation cache, or deployment execution history.
+records, singleton Task records, and singleton Site records in workspace state
+and portable archive envelopes through one schema-owned Program snapshot
+without storing secrets, deployment observation cache, or deployment execution
+history.
 
 #### Scenario: Instance archive includes Program records
 
@@ -666,6 +690,8 @@ deployment observation cache, or deployment execution history.
   and policy acceptances are represented through that same snapshot
 - **AND** active and tombstoned Task records are represented through that same
   snapshot
+- **AND** active and tombstoned records for all eight Site entities are
+  represented through that same snapshot
 - **AND** the snapshot uses schema key `formless-program`, provenance kind
   `program`, and the complete Program source hash
 - **AND** provider API tokens, Alchemy passwords, Alchemy state tokens, raw lease
@@ -679,8 +705,9 @@ deployment observation cache, or deployment execution history.
   records are excluded from instance archives and workspace state
 - **AND** installed app data remains represented through storage snapshots
   scoped by app install identity
-- **AND** dormant legacy Tasks install metadata may remain as Program metadata
-  while legacy Tasks app storage remains absent from current archive output
+- **AND** dormant legacy Tasks or built-in Site install metadata may remain as
+  Program metadata while their legacy app storage remains absent from current
+  archive output
 
 #### Scenario: Workspace Program state remains reviewable
 
@@ -691,6 +718,8 @@ deployment observation cache, or deployment execution history.
   in that file
 - **AND** reviewable Task records from the same Program Authority are present in
   that file
+- **AND** reviewable Site records from the same Program Authority are present
+  in that file
 - **AND** the file declares a workspace state kind, version,
   storage identity `instance:control-plane`, schema key
   `formless-program`, schema timestamp, source cursor, Program schema
@@ -718,6 +747,8 @@ Program records for push and pull sync planning.
 - **AND** reviewable identity record changes are reported from the same Program
   state comparison
 - **AND** Task record changes are reported from the same Program state
+  comparison
+- **AND** Site record changes are reported from the same Program state
   comparison
 - **AND** app path, exact-host mapping, and redirect changes are compared through
   `instance:route` records

@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { Router } from "wouter";
 import { describe, expect, it } from "vite-plus/test";
-import type { AppInstall } from "@dpeek/formless-installed-apps";
+import type { AppInstall, InstallableAppPackage } from "@dpeek/formless-installed-apps";
 import { App, type AppRouteComponents } from "./app.tsx";
 import type { ClientAppTarget } from "./client/app-target.ts";
 import {
@@ -14,14 +14,14 @@ import { bundledSourceSchemaHashFixtures } from "./shared/upgrade-migrations.ts"
 describe("application route selection", () => {
   it("selects instance and generated app surfaces inside the application shell", () => {
     const instance = renderRoute("/");
-    const sourceApp = renderRoute("/site/completed");
+    const sourceApp = renderRoute("/crm/audiences");
 
     expect(instance).toContain('data-surface="application-shell"');
     expect(instance).toContain('data-route="instance"');
     expect(sourceApp).toContain('data-surface="application-shell"');
     expect(sourceApp).toContain('data-route="home"');
-    expect(sourceApp).toContain('data-schema-key="site"');
-    expect(sourceApp).toContain('data-screen-path="/completed"');
+    expect(sourceApp).toContain('data-schema-key="crm"');
+    expect(sourceApp).toContain('data-screen-path="/audiences"');
     expect(sourceApp).toContain('data-target-kind="none"');
   });
 
@@ -38,6 +38,7 @@ describe("application route selection", () => {
     const publishedSite = renderRoute("/blog/shipping", {
       runtimeProfile: createPublishedSiteRuntimeProfile(),
     });
+    const previewSite = renderRoute("/pages/blog/shipping");
 
     expect(localSession).toContain('data-route="local-session"');
     expect(account).toContain('data-route="auth-account"');
@@ -45,29 +46,36 @@ describe("application route selection", () => {
     expect(publishedSite).toContain('data-route="public-site"');
     expect(publishedSite).toContain('data-link-mode="published"');
     expect(publishedSite).toContain('data-slug="blog/shipping"');
-    expect(`${localSession}${account}${publishedSite}`).not.toContain(
+    expect(publishedSite).toContain('data-target-kind="program"');
+    expect(previewSite).toContain('data-link-mode="preview"');
+    expect(previewSite).toContain('data-slug="blog/shipping"');
+    expect(previewSite).toContain('data-target-kind="program"');
+    expect(`${localSession}${account}${publishedSite}${previewSite}`).not.toContain(
       'data-surface="application-shell"',
     );
   });
 
-  it("passes installed admin and public route targets to the selected surfaces", () => {
-    const install = siteInstall();
-    const admin = renderRoute("/apps/personal/settings", { installs: [install] });
-    const publicSite = renderRoute("/sites/personal/blog/shipping", { installs: [install] });
+  it("passes installed admin targets and fails closed without a package renderer adapter", () => {
+    const appPackage = privateSitePackage();
+    const install = privateSiteInstall(appPackage);
+    const admin = renderRoute("/apps/private-site/settings", {
+      installs: [install],
+      packages: [appPackage],
+    });
+    const publicSite = renderRoute("/sites/private-site/blog/shipping", {
+      installs: [install],
+      packages: [appPackage],
+    });
 
     expect(admin).toContain('data-surface="application-shell"');
     expect(admin).toContain('data-route="home"');
-    expect(admin).toContain('data-schema-key="site"');
+    expect(admin).toContain('data-schema-key="private-site"');
     expect(admin).toContain('data-screen-path="/settings"');
     expect(admin).toContain('data-target-kind="appInstall"');
-    expect(admin).toContain('data-install-id="personal"');
-    expect(admin).toContain('data-workspace-href="/sites/personal"');
-    expect(publicSite).toContain('data-route="public-site"');
-    expect(publicSite).toContain('data-link-mode="installed"');
-    expect(publicSite).toContain('data-route-base="/sites/personal"');
-    expect(publicSite).toContain('data-slug="blog/shipping"');
-    expect(publicSite).toContain('data-target-kind="appInstall"');
-    expect(publicSite).toContain('data-install-id="personal"');
+    expect(admin).toContain('data-install-id="private-site"');
+    expect(admin).toContain('data-workspace-href="/sites/private-site"');
+    expect(publicSite).toContain("Unsupported public Site package");
+    expect(publicSite).toContain("private-site");
     expect(publicSite).not.toContain('data-surface="application-shell"');
   });
 });
@@ -76,6 +84,7 @@ function renderRoute(
   path: string,
   options: {
     installs?: readonly AppInstall[];
+    packages?: readonly InstallableAppPackage[];
     localWorkspaceGatewayAvailable?: boolean;
     runtimeProfile?: RuntimeProfile;
   } = {},
@@ -84,6 +93,7 @@ function renderRoute(
     <Router ssrPath={path}>
       <App
         installedAppRouteInstalls={options.installs}
+        installedAppRoutePackages={options.packages}
         localWorkspaceGatewayAvailable={options.localWorkspaceGatewayAvailable}
         routeComponents={routeComponents()}
         runtimeProfile={options.runtimeProfile ?? createDevRuntimeProfile()}
@@ -139,19 +149,40 @@ function targetInstallId(target: ClientAppTarget | undefined) {
   return typeof target === "object" && target.kind === "appInstall" ? target.installId : undefined;
 }
 
-function siteInstall(): AppInstall {
+function privateSiteInstall(appPackage: InstallableAppPackage): AppInstall {
   return {
-    adminRoute: "/apps/personal",
+    adminRoute: "/apps/private-site",
     createdAt: "2026-05-25T00:00:00.000Z",
-    installId: "personal",
-    label: "Personal Site",
-    packageAppKey: "site",
-    packageRevision: 1,
-    publicRoute: "/sites/personal",
-    publicRoutePrefix: "/sites/personal/",
+    installId: "private-site",
+    label: "Private Site",
+    packageAppKey: appPackage.packageAppKey,
+    packageRevision: appPackage.packageRevision,
+    publicRoute: "/sites/private-site",
+    publicRoutePrefix: "/sites/private-site/",
     registrationPolicy: "closed",
-    sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
+    sourceSchemaHash: appPackage.sourceSchemaHash,
     status: "installed",
     updatedAt: "2026-05-25T00:00:00.000Z",
+  };
+}
+
+function privateSitePackage(): InstallableAppPackage {
+  return {
+    adminRouteBase: "/apps",
+    defaultInstallId: "private-site",
+    description: "Workspace-linked public Site package.",
+    label: "Private Site",
+    packageAppKey: "private-site",
+    packageRevision: 7,
+    publicRouteBase: "/sites",
+    sourceOrigin: "workspace",
+    sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
+    sourceSchemaKey: "private-site",
+    sourceSchemaLocation: {
+      kind: "workspace",
+      key: "private-site",
+      path: "source/schema.json",
+    },
+    supportsMultipleInstalls: false,
   };
 }

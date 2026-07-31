@@ -741,7 +741,7 @@ export function routeAccessTargetForRuntimeRoute(
     };
   }
 
-  if (mountRoute.targetProfile !== "instance") {
+  if (mountRoute.targetProfile !== "instance" && mountRoute.targetProfile !== "public-site") {
     return undefined;
   }
 
@@ -787,7 +787,7 @@ export function hostAuthSessionTargetForRuntimeRouteFacts(input: {
     };
   }
 
-  if (mountRoute.targetProfile !== "instance") {
+  if (mountRoute.targetProfile !== "instance" && mountRoute.targetProfile !== "public-site") {
     return undefined;
   }
 

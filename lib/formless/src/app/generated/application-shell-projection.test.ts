@@ -10,7 +10,6 @@ import {
   createDevRuntimeProfile,
   createInstanceRuntimeProfile,
   createPublishedSiteRuntimeProfile,
-  createSiteAuthoringRuntimeProfile,
   findRuntimeWorldMountByRoute,
 } from "../runtime-profile.ts";
 import { projectInitialGeneratedCreateRuntimeSurface } from "./generated-create-runtime.ts";
@@ -25,31 +24,29 @@ import {
   resolveGeneratedApplicationShellIntent,
 } from "./generated-application-shell-contract-host.ts";
 import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../../program/runtime.ts";
+import { programStorageIdentity } from "../../shared/app-storage-identity.ts";
+import { getSchemaAppDefinition } from "../../shared/schema-apps.ts";
 
 describe("generated application shell projection", () => {
   it("selects multi-app, app-only, and no-shell presentation from profile and route state", () => {
     const dev = createDevRuntimeProfile();
-    const devWorld = required(findRuntimeWorldMountByRoute(dev, "/site"));
+    const devWorld = required(findRuntimeWorldMountByRoute(dev, "/crm"));
     const instance = createInstanceRuntimeProfile();
     const app = createAppRuntimeProfile("crm");
     const appWorld = required(findRuntimeWorldMountByRoute(app, "/audiences"));
-    const siteAuthoring = createSiteAuthoringRuntimeProfile();
-    const siteAdminWorld = required(findRuntimeWorldMountByRoute(siteAuthoring, "/admin"));
 
-    expect(shellScope(dev, "/site", devWorld)).toBe("multiApp");
+    expect(shellScope(dev, "/crm", devWorld)).toBe("multiApp");
     expect(shellScope(dev, "/unknown", undefined)).toBe("multiApp");
     expect(shellScope(instance, "/", undefined)).toBe("multiApp");
     expect(shellScope(instance, "/access", undefined)).toBe("multiApp");
     expect(shellScope(instance, "/apps/personal", devWorld)).toBe("multiApp");
     expect(shellScope(app, "/audiences", appWorld)).toBe("appOnly");
-    expect(shellScope(siteAuthoring, "/admin", siteAdminWorld)).toBe("appOnly");
 
     expect(shellScope(instance, "/unknown", undefined)).toBeUndefined();
     expect(shellScope(dev, "/formless/auth/sign-in", undefined)).toBeUndefined();
     expect(shellScope(dev, "/formless/auth/invitations/accept", undefined)).toBeUndefined();
     expect(shellScope(dev, "/local-session", undefined)).toBeUndefined();
     expect(shellScope(dev, "/sites/personal", undefined)).toBeUndefined();
-    expect(shellScope(siteAuthoring, "/", undefined)).toBeUndefined();
     expect(
       shellScope(createPublishedSiteRuntimeProfile(), "/blog/launch", undefined),
     ).toBeUndefined();
@@ -93,6 +90,7 @@ describe("generated application shell projection", () => {
     });
     expect(roles).toEqual([
       "appSwitcher",
+      "instance",
       "screens",
       "rootRecords",
       "rootRecords",
@@ -103,8 +101,7 @@ describe("generated application shell projection", () => {
     ]);
     expect(appSection.destinations).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ href: "/", label: "Instance", selected: false }),
-        expect.objectContaining({ href: "/site", label: "Site", selected: true }),
+        expect.objectContaining({ href: "/", label: "Instance", selected: true }),
       ]),
     );
     expect(appSection.destinations).not.toEqual(
@@ -222,6 +219,7 @@ describe("generated application shell projection", () => {
       }),
     ).toEqual([
       { href: "/tasks", label: "Tasks", selected: false },
+      { href: "/site", label: "Blocks", selected: false },
       { href: "/apps", label: "Apps", selected: false },
       { href: "/routes", label: "Routes", selected: false },
       { href: "/deployments", label: "Deployments", selected: false },
@@ -406,8 +404,13 @@ describe("generated application shell host and intents", () => {
 });
 
 function completeProjection(): GeneratedApplicationShellProjection {
-  const runtimeProfile = createDevRuntimeProfile();
-  const routeWorld = required(findRuntimeWorldMountByRoute(runtimeProfile, "/site"));
+  const runtimeProfile = createInstanceRuntimeProfile();
+  const routeWorld = {
+    app: getSchemaAppDefinition("site"),
+    generatedRoutes: true,
+    route: "/site" as const,
+    target: programStorageIdentity(),
+  };
   const screenModels = selectPrimaryScreenModels(siteSourceSchema);
   const activeScreen = required(
     screenModels.find((screen) => selectGeneratedRootNavigationFacts(screen) !== undefined),

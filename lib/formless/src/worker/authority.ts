@@ -10,6 +10,7 @@ import { isSyncSocketAttachment, isSyncSocketClientMessage } from "../shared/pro
 import {
   installedAppStorageIdentity,
   parseAuthorityApiRoute,
+  programStorageIdentity,
   type AuthorityStorageIdentity,
 } from "../shared/app-storage-identity.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
@@ -124,6 +125,7 @@ import {
   formlessProgramApp,
   formlessProgramSource,
   INTERNAL_PROGRAM_CONVERGENCE_SOURCE_PATH,
+  validateFormlessProgramRecordConstraint,
 } from "./program-authority.ts";
 
 export const INTERNAL_RESET_APP_STORAGE_PATH = "/_internal/reset-app-storage";
@@ -528,11 +530,8 @@ export class FormlessAuthority extends DurableObject<Env> {
       });
 
       if (publicOperationRoute) {
-        if (route.identity.kind === "program") {
-          return jsonResponse({ error: "Not found." }, 404);
-        }
-
         const publicIdentity = route.identity;
+        const packageResolver = activeAppPackageResolver(this.bindings);
         const body = await readJson(request);
         ensureStorageTables(this.ctx.storage);
         const { schema } = initializeStorageFromSource(this.ctx.storage, source);
@@ -575,6 +574,10 @@ export class FormlessAuthority extends DurableObject<Env> {
           route: publicOperationRoute,
           schema,
           storage: this.ctx.storage,
+          validateConstraints:
+            publicIdentity.kind === "program"
+              ? validateFormlessProgramRecordConstraint(this.ctx.storage, packageResolver)
+              : undefined,
           writes,
         });
 
@@ -1253,30 +1256,17 @@ async function publicOperationInputNotificationSourceRecords(input: {
     return undefined;
   }
 
-  const defaultSiteIdentity = installedAppStorageIdentity(
-    {
-      installId: "site",
-      packageAppKey: "site",
-    },
-    activeAppPackageResolver(input.env),
-  );
-
-  if (!defaultSiteIdentity) {
+  if (publicOperationTargetOwnsSiteBlock(input.identity, input.env)) {
     return undefined;
   }
 
-  if (
-    (input.identity.kind === "schemaKey" && input.identity.sourceSchemaKey === "site") ||
-    input.identity.authorityName === defaultSiteIdentity.authorityName
-  ) {
-    return undefined;
-  }
+  const programIdentity = programStorageIdentity();
 
   try {
-    const id = input.env.FORMLESS_AUTHORITY.idFromName(defaultSiteIdentity.authorityName);
+    const id = input.env.FORMLESS_AUTHORITY.idFromName(programIdentity.authorityName);
     const url = new URL(INTERNAL_PUBLIC_SITE_BOOTSTRAP_PATH, input.requestUrl);
 
-    url.searchParams.set("apiRoutePrefix", defaultSiteIdentity.apiRoutePrefix);
+    url.searchParams.set("apiRoutePrefix", programIdentity.apiRoutePrefix);
 
     const response = await input.env.FORMLESS_AUTHORITY.get(id).fetch(
       new Request(url, {
@@ -1290,6 +1280,20 @@ async function publicOperationInputNotificationSourceRecords(input: {
   } catch {
     return undefined;
   }
+}
+
+function publicOperationTargetOwnsSiteBlock(identity: AuthorityStorageIdentity, env: Env): boolean {
+  if (identity.kind === "program") {
+    return true;
+  }
+
+  if (identity.kind === "schemaKey") {
+    return identity.sourceSchemaKey === "site";
+  }
+
+  return Boolean(
+    activeAppPackageResolver(env).findPackage(identity.packageAppKey)?.publicRouteBase,
+  );
 }
 
 function storageSourceFromSyncSocket(

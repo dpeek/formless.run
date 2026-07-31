@@ -1,5 +1,5 @@
 import type { OperationRateLimitPolicySchema } from "@dpeek/formless-schema";
-import type { AppStorageIdentity } from "../shared/app-storage-identity.ts";
+import type { AuthorityStorageIdentity } from "../shared/app-storage-identity.ts";
 
 export type PublicOperationReadRateLimitDecision =
   | { allowed: true }
@@ -9,7 +9,7 @@ export type PublicOperationReadRateLimitDecision =
     };
 
 export type PublicOperationReadRateLimitAdapterInput = {
-  identity: AppStorageIdentity;
+  identity: AuthorityStorageIdentity;
   nowMs: number;
   operationKey: string;
   policy: OperationRateLimitPolicySchema;

@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
-import type { CreateAppInstallResponse } from "../shared/protocol.ts";
 import type {
   InstanceDomainMappingLookupResponse,
   RecordInstanceDomainMappingApplyEvidenceResponse,
@@ -45,7 +44,6 @@ function createHarness() {
 
 describe("instance domain mapping route boundary", () => {
   it("looks up enabled route-backed Site domain mappings", async () => {
-    await createAppInstall({ packageAppKey: "site", installId: "personal", label: "Personal" });
     await createDomainRoute("route:host:publicSite:www.example.com", {
       enabled: true,
       matchHost: "www.example.com",
@@ -53,7 +51,6 @@ describe("instance domain mapping route boundary", () => {
       matchPrefix: "/",
       kind: "mount",
       targetProfile: "public-site",
-      appInstall: "personal",
       surface: "public-site",
     });
 
@@ -64,15 +61,12 @@ describe("instance domain mapping route boundary", () => {
     expect(lookup.body.mapping).toMatchObject({
       enabled: true,
       host: "www.example.com",
-      installId: "personal",
       profile: "publicSite",
       surface: "site",
-      targetInstallId: "personal",
     });
   });
 
   it("keeps disabled route-backed mappings out of enabled host lookup", async () => {
-    await createAppInstall({ packageAppKey: "site", installId: "personal", label: "Personal" });
     await createDomainRoute("route:host:publicSite:disabled.example.com", {
       enabled: false,
       matchHost: "disabled.example.com",
@@ -80,7 +74,6 @@ describe("instance domain mapping route boundary", () => {
       matchPrefix: "/",
       kind: "mount",
       targetProfile: "public-site",
-      appInstall: "personal",
       surface: "public-site",
     });
 
@@ -92,7 +85,6 @@ describe("instance domain mapping route boundary", () => {
   });
 
   it("records provider apply evidence against route-backed domain mappings", async () => {
-    await createAppInstall({ packageAppKey: "site", installId: "personal", label: "Personal" });
     await createDomainRoute("route:host:publicSite:applied.example.com", {
       enabled: true,
       matchHost: "applied.example.com",
@@ -100,7 +92,6 @@ describe("instance domain mapping route boundary", () => {
       matchPrefix: "/",
       kind: "mount",
       targetProfile: "public-site",
-      appInstall: "personal",
       surface: "public-site",
     });
 
@@ -109,7 +100,6 @@ describe("instance domain mapping route boundary", () => {
       {
         host: "applied.example.com",
         surface: "site",
-        installId: "personal",
         provider: "cloudflare-worker-custom-domain",
         accountId: "account-123",
         zoneId: "zone-1",
@@ -125,7 +115,6 @@ describe("instance domain mapping route boundary", () => {
       action: "created",
       host: "applied.example.com",
       profile: "publicSite",
-      targetInstallId: "personal",
     });
     expect(applied.body.auditEvent).toMatchObject({
       action: "created",
@@ -157,14 +146,6 @@ describe("instance domain mapping route boundary", () => {
     });
   });
 });
-
-async function createAppInstall(input: {
-  packageAppKey: string;
-  installId: string;
-  label: string;
-}) {
-  return postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", input);
-}
 
 async function createDomainRoute(recordId: string, values: Record<string, unknown>) {
   const created = await postAdminJson("/api/formless/program/operations/route/create", {

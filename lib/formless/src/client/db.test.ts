@@ -4,7 +4,6 @@ import {
   clientDbName,
   deleteClientDb,
   deleteFormlessReplicaDatabases,
-  FormlessReplicaDatabaseDeleteBlockedError,
   isFormlessReplicaDatabaseName,
   saveBootstrapResponse,
   saveSchema,
@@ -19,13 +18,14 @@ import type { BootstrapResponse, ChangeRow } from "../shared/protocol.ts";
 import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
 import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
 import { taskSourceSchema as appSchema } from "../test/schema-apps.ts";
+import { testSiteRecords } from "../test/site-records.ts";
 
 beforeEach(async () => {
   await deleteClientDb("tasks");
   await deleteClientDb("site");
   await deleteClientDb(programClientTarget());
-  await deleteClientDb(installedSiteIdentity("personal"));
-  await deleteClientDb(installedSiteIdentity("docs"));
+  await deleteClientDb(installedCRMIdentity("personal"));
+  await deleteClientDb(installedCRMIdentity("docs"));
   await deleteRawDatabase("formless:instance:identity");
   await deleteRawDatabase("notes");
 });
@@ -103,8 +103,8 @@ describe("client db", () => {
   });
 
   it("stores installed app replicas by install id", async () => {
-    const personal = installedSiteIdentity("personal");
-    const docs = installedSiteIdentity("docs");
+    const personal = installedCRMIdentity("personal");
+    const docs = installedCRMIdentity("docs");
 
     await saveBootstrapResponse(personal, {
       schema: appSchema,
@@ -130,13 +130,18 @@ describe("client db", () => {
     });
   });
 
-  it("stores instance and identity records in one Program replica", async () => {
+  it("stores instance, identity, and Site records in one Program replica", async () => {
     const controlPlaneTarget = programClientTarget();
+    const site = testSiteRecords.find((record) => record.entity === "site");
+
+    if (!site) {
+      throw new Error("Expected a Site record fixture.");
+    }
 
     await saveBootstrapResponse(controlPlaneTarget, {
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [record("install-1", "Personal Site"), record("role-1", "Instance owner")],
+      records: [record("install-1", "Personal Site"), record("role-1", "Instance owner"), site],
       cursor: 3,
     });
 
@@ -144,12 +149,14 @@ describe("client db", () => {
     expect((await readLocalSnapshot(controlPlaneTarget)).records).toEqual([
       record("install-1", "Personal Site"),
       record("role-1", "Instance owner"),
+      site,
     ]);
     expect((await readLocalSnapshot("tasks")).records).toEqual([]);
+    expect((await readLocalSnapshot("site")).records).toEqual([]);
   });
 
   it("deletes active Formless replicas without adopting the legacy Tasks replica", async () => {
-    const personal = installedSiteIdentity("personal");
+    const personal = installedCRMIdentity("personal");
     const controlPlaneTarget = programClientTarget();
 
     await saveBootstrapResponse("tasks", {
@@ -190,14 +197,14 @@ describe("client db", () => {
     expect(isFormlessReplicaDatabaseName("formless:app:")).toBe(false);
   });
 
-  it("reports blocked Formless replica database deletion", async () => {
+  it("does not open dormant built-in Site replica databases during cleanup", async () => {
     const db = await openRawDatabase("formless:site");
 
     try {
-      await expect(deleteFormlessReplicaDatabases()).rejects.toMatchObject({
-        blockedDatabaseNames: ["formless:site"],
-        name: "FormlessReplicaDatabaseDeleteBlockedError",
-      } satisfies Partial<FormlessReplicaDatabaseDeleteBlockedError>);
+      await expect(deleteFormlessReplicaDatabases()).resolves.toEqual({
+        deletedDatabaseNames: [],
+        skippedDatabaseNames: ["formless:site"],
+      });
     } finally {
       db.close();
     }
@@ -436,11 +443,11 @@ function readRawMetaValue<T>(name: string, key: string): Promise<T | undefined> 
   });
 }
 
-function installedSiteIdentity(installId: string) {
-  const identity = installedAppStorageIdentity({ installId, packageAppKey: "site" });
+function installedCRMIdentity(installId: string) {
+  const identity = installedAppStorageIdentity({ installId, packageAppKey: "crm" });
 
   if (!identity) {
-    throw new Error(`Expected installed Site identity for ${installId}.`);
+    throw new Error(`Expected installed CRM identity for ${installId}.`);
   }
 
   return identity;

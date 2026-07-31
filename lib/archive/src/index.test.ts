@@ -629,6 +629,7 @@ function instanceArchive(overrides: Partial<InstanceArchive> = {}): InstanceArch
     exportedAt: now,
     capabilities: ["installed-app-registry", "app-store-snapshots", "core-media-assets"],
     restorePolicy: { dryRun: true, installCollisions: "reject" },
+    media: { objects: [] },
     apps: [appArchive()],
     ...overrides,
   };

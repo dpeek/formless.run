@@ -61,8 +61,8 @@ beforeEach(async () => {
   await deleteClientDb("tasks");
   await deleteClientDb("crm");
   await deleteClientDb(programClientTarget());
-  await deleteClientDb(installedSiteIdentity("personal"));
-  await deleteClientDb(installedSiteIdentity("docs"));
+  await deleteClientDb(installedWorkspaceSiteIdentity("personal"));
+  await deleteClientDb(installedWorkspaceSiteIdentity("docs"));
   await deleteClientDb(installedCRMIdentity("rates"));
   await deleteClientDb(installedCRMIdentity("alt-rates"));
   await deleteClientDb(installedCRMIdentity("work"));
@@ -106,12 +106,12 @@ describe("client sync", () => {
   });
 
   it("bootstraps installed app data into the selected install replica only", async () => {
-    const personal = installedSiteIdentity("personal");
-    const docs = installedSiteIdentity("docs");
+    const personal = installedWorkspaceSiteIdentity("personal");
+    const docs = installedWorkspaceSiteIdentity("docs");
 
     await bootstrapClient(
       personal,
-      jsonFetcher("/api/app-installs/site/personal/bootstrap", {
+      jsonFetcher("/api/app-installs/private-site/personal/bootstrap", {
         schema: appSchema,
         schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
         records: [record("record-1", "Personal")],
@@ -123,7 +123,7 @@ describe("client sync", () => {
     expect((await readLocalSnapshot(docs)).records).toEqual([]);
     expect(getClientStoreSnapshot()).toMatchObject({
       activeClientStorageName: "formless:app:personal",
-      activeSchemaKey: "site",
+      activeSchemaKey: "private-site",
     });
   });
 
@@ -603,13 +603,13 @@ describe("client sync", () => {
 
   it("opens installed app push sync on the install API path", () => {
     const sockets = fakeSocketFactory();
-    const stop = startPushSync(installedSiteIdentity("personal"), {
+    const stop = startPushSync(installedWorkspaceSiteIdentity("personal"), {
       socketFactory: sockets.create,
     });
 
     try {
       expect(new URL(sockets.instances[0]?.url ?? "").pathname).toBe(
-        "/api/app-installs/site/personal/sync/ws",
+        "/api/app-installs/private-site/personal/sync/ws",
       );
     } finally {
       stop();
@@ -1380,7 +1380,7 @@ describe("client sync", () => {
     );
 
     await submitOperation(
-      "site",
+      controlPlaneTarget,
       "block",
       "update",
       { input: { mediaAsset: "hero.webp" }, recordId: mediaRecord.id },
@@ -1406,7 +1406,7 @@ describe("client sync", () => {
     expect(autoSave.inputs).toEqual([
       { source: "control-plane-write", storageIdentity: "instance:control-plane" },
       { source: "deployment-intent", storageIdentity: "instance:control-plane" },
-      { source: "media-reference", storageIdentity: "site" },
+      { source: "media-reference", storageIdentity: "instance:control-plane" },
     ]);
   });
 
@@ -1829,8 +1829,8 @@ describe("client sync", () => {
     });
 
     const response = await exportStorageSnapshot(
-      installedSiteIdentity("personal"),
-      jsonFetcher("/api/app-installs/site/personal/snapshot", snapshot),
+      installedWorkspaceSiteIdentity("personal"),
+      jsonFetcher("/api/app-installs/private-site/personal/snapshot", snapshot),
     );
 
     expect(response).toEqual(snapshot);
@@ -2292,16 +2292,6 @@ function storageSnapshot(overrides: Partial<StorageSnapshot> = {}): StorageSnaps
     records: [],
     ...overrides,
   };
-}
-
-function installedSiteIdentity(installId: string) {
-  const identity = installedAppStorageIdentity({ installId, packageAppKey: "site" });
-
-  if (!identity) {
-    throw new Error(`Expected installed Site identity for ${installId}.`);
-  }
-
-  return identity;
 }
 
 function installedCRMIdentity(installId: string) {

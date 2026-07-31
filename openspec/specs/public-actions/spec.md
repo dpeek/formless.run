@@ -39,7 +39,7 @@ through an explicit actor policy and public binding.
 - GIVEN a public form targets an entity operation key
 - WHEN the schema or public Site tree is selected for public execution
 - THEN the operation key resolves to one source-declared public operation on the
-  target app storage identity
+  target Authority storage identity
 - AND anonymous callers invoke that operation through the public operation
   executor
 
@@ -59,8 +59,9 @@ through an explicit actor policy and public binding.
 - THEN it consumes the schema-owned public operation eligibility facts for the
   declared operation
 - AND target route resolution, request origin evaluation, Turnstile secret
-  verification, rate-limit counters, app storage identity selection, Authority
-  reads or writes, audit rows, idempotency, and post-commit delivery side
+  verification, rate-limit counters, Authority storage identity selection,
+  Authority reads or writes, audit rows, idempotency, and post-commit delivery
+  side
   effects remain runtime-owned
 
 #### Scenario: Execute public operations
@@ -223,6 +224,19 @@ operation endpoints.
 - THEN the runtime resolves the matching schema-key storage identity
 - AND public operation effects are committed only to that schema-key storage identity
 
+#### Scenario: Program-native Site public operation route
+
+- GIVEN a visitor posts to
+  `/api/formless/program/public/operations/:entityKey/:operationKey`
+- WHEN the route resolves a package-owned Site operation with anonymous public
+  policy
+- THEN the dedicated public executor uses Program storage identity
+  `instance:control-plane`
+- AND effects are committed through Program record validation and the Program
+  write log
+- AND the request does not gain Program bootstrap, schema, sync, WebSocket,
+  snapshot, generic operation, or replica access
+
 #### Scenario: Shared public operation route contract
 
 - GIVEN public Site projection builds a target public operation route or Worker
@@ -231,8 +245,8 @@ operation endpoints.
 - THEN one public operation route contract owns
   `/public/operations/:entityKey/:operationKey` path construction, segment
   encoding, segment decoding, and suffix shape validation
-- AND target app storage identity resolution remains runtime-owned outside that
-  route contract
+- AND target Authority storage identity resolution remains runtime-owned
+  outside that route contract
 - AND invalid public operation suffixes fail before public operation policy,
   JSON body parsing, or app storage initialization
 
@@ -250,8 +264,8 @@ operation endpoints.
 #### Scenario: Public operation route stays narrow
 
 - GIVEN a visitor posts to a target-scoped public operation route
-- WHEN the route does not resolve a declared public operation on the target app
-  storage identity
+- WHEN the route does not resolve a declared public operation on the target
+  Authority storage identity
 - THEN the runtime returns a public-safe unavailable response
 - AND no operation effect is committed
 - AND the unavailable response does not expose whether a protected generic write
@@ -275,8 +289,9 @@ invocation envelope before validating input or committing effects.
 
 - GIVEN an anonymous public operation request is accepted for evaluation
 - WHEN the public operation executor builds the envelope
-- THEN the envelope includes actor mode `anonymous`, target app storage identity,
-  canonical operation key, request host, request path, source block id when
+- THEN the envelope includes actor mode `anonymous`, target Authority storage
+  identity, canonical operation key, request host, request path, source block id
+  when
   supplied, public input, received timestamp, and proof or idempotency facts
   only when required by the operation policy
 - AND the public executor builds an auditable public envelope from request
@@ -291,11 +306,22 @@ invocation envelope before validating input or committing effects.
 - GIVEN a public operation commits records
 - WHEN operation effects are written
 - THEN committed records or operation response metadata include enough source
-  context to identify the operation, target app storage identity, host, path,
+  context to identify the operation, target Authority storage identity, host,
+  path,
   and Site block that caused the write
 - AND source records identify the causing operation by canonical operation key
 - AND source records are produced by operation-native create, record-plan, or
   operation handler execution
+
+#### Scenario: Program-native Site source context
+
+- GIVEN a Program-native Site public operation commits records
+- WHEN source context is recorded
+- THEN its source target kind is `program`, package app key is `site`, schema
+  key is `formless-program`, and API prefix is `/api/formless/program`
+- AND no source install id or legacy Site install provenance is recorded
+- AND installed CRM and other installed public-operation targets retain their
+  installed-app source identity
 
 #### Scenario: Public operation contracts are operation-named
 

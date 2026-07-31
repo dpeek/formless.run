@@ -42,12 +42,11 @@ app install can be created.
   default install id, multiple-install policy, source origin, source schema key,
   package revision, source schema hash, admin route base, and optional public
   route capability
-- **AND** the default runtime-installable resolver includes the bundled Site and
-  CRM packages with package app keys `site` and `crm`
-- **AND** Site and CRM package metadata comes from app package manifest facts,
-  not from app install records, instance control-plane route records, or root
-  schema path conventions
-- **AND** the Program-native package key `tasks` is absent from the
+- **AND** the default runtime-installable resolver includes bundled CRM
+- **AND** CRM package metadata comes from app package manifest facts, not from
+  app install records, instance control-plane route records, or root schema
+  path conventions
+- **AND** the Program-native package keys `tasks` and `site` are absent from the
   runtime-installable resolver
 
 #### Scenario: Active resolver is authoritative
@@ -100,14 +99,15 @@ app install can be created.
 
 #### Scenario: Program-native package is not installable
 
-- **GIVEN** package key `tasks` identifies a domain composed into the default
-  Program
+- **GIVEN** package key `tasks` or `site` identifies a domain composed into the
+  default Program
 - **WHEN** package lists, create-install APIs, generic Program app-install
-  writes, installed-app route admission, browser registries, archive app
-  selection, workspace app selection, or upgrade planning run
-- **THEN** Tasks is unavailable as a runtime-installed package
-- **AND** a workspace-linked manifest cannot reintroduce `tasks` as an
-  installable package key
+  writes, source-app registries, installed-app route admission, browser
+  registries, handoff, reset, migration, archive app selection, workspace app
+  selection, deploy targeting, or upgrade planning run
+- **THEN** the package is unavailable as a runtime-installed package
+- **AND** a workspace-linked manifest cannot reintroduce `tasks` or `site` as
+  an installable package key
 - **AND** package facts retained for standalone artifact or dormant metadata
   validation do not confer runtime availability
 
@@ -129,13 +129,13 @@ contracts through the Installed Apps package slice.
 
 #### Scenario: Runtime supplies installable bundled package manifests
 
-- GIVEN the default runtime resolver needs bundled Site and CRM package
-  metadata
+- GIVEN the default runtime resolver needs bundled CRM package metadata
 - WHEN the resolver is composed
 - THEN root runtime code supplies bundled package manifests as resolver input
-- AND bundled Site and CRM manifests can be imported from their app packages
-  through documented public exports
-- AND the root may import the Tasks manifest separately without supplying it to
+- AND the bundled CRM manifest can be imported from its app package through
+  documented public exports
+- AND the root may import the Site and Tasks manifests separately for known
+  package artifacts or dormant metadata validation without supplying them to
   the runtime-installable resolver
 - AND the Installed Apps package does not import bundled app schema JSON,
   root-only bundled package lists, or package-specific runtime adapters
@@ -154,19 +154,6 @@ contracts through the Installed Apps package slice.
 The system SHALL store app installs as flat instance metadata that binds install
 id, package app key, label, and status while route behavior is stored in
 instance `route` records.
-
-#### Scenario: Site install routes
-
-- **GIVEN** a Site app install with install id `personal` and label
-  `Personal Site`
-- **WHEN** the install is created
-- **THEN** its app install metadata stores package app key `site`, label
-  `Personal Site`, and status `installed`
-- **AND** route records target the install for admin route `/apps/personal`,
-  admin route prefix `/apps/personal/`, public route `/sites/personal`, and
-  public route prefix `/sites/personal/`
-- **AND** app install API metadata can include route summaries derived from route
-  records
 
 #### Scenario: Private public Site install routes
 
@@ -336,10 +323,14 @@ The system MUST keep installed app storage, APIs, browser replicas, broadcast ch
 
 #### Scenario: Installed app storage identity
 
-- GIVEN an installed Site with install id `personal`
+- GIVEN an installed private public-Site-capable package with package key
+  `docs` and install id `personal`
 - WHEN the app storage identity is selected
-- THEN the API prefix is `/api/app-installs/site/personal`, the Authority name is `app:personal`, and browser database and broadcast channel names use `formless:app:personal`
-- AND those names are distinct from schema-key Site storage and from other installed Sites
+- THEN the API prefix is `/api/app-installs/docs/personal`, the Authority name
+  is `app:personal`, and browser database and broadcast channel names use
+  `formless:app:personal`
+- AND those names are distinct from Program storage and from other installed
+  apps
 - AND storage snapshots for that install use storage identity `app:personal`
 - AND Authority storage does not own media object bytes or provider metadata
 
@@ -348,7 +339,8 @@ The system MUST keep installed app storage, APIs, browser replicas, broadcast ch
 - GIVEN an installed app API prefix `/api/app-installs/:packageAppKey/:installId`
 - WHEN app data is read, synced, reset, snapshotted, restored, mutated, or acted on
 - THEN operations use that install-scoped prefix
-- AND Site public tree reads use `/api/app-installs/site/:installId/tree/:slug` for installed Sites
+- AND public Site tree reads use the same target prefix for installed private
+  public-Site-capable packages
 
 #### Scenario: Installed app document media route
 
@@ -391,14 +383,15 @@ control-plane records.
 The system SHALL represent app admin and public Site routes as schema-owned
 `route` records that target app install records.
 
-#### Scenario: Site install route records
+#### Scenario: Private public Site install route records
 
-- **GIVEN** a Site app install with install id `personal` is created
+- **GIVEN** an install of a private package with public Site capability and
+  install id `personal` is created
 - **WHEN** default route records are created
 - **THEN** route records target the `personal` app install for admin route
   `/apps/personal`, admin route prefix `/apps/personal/`, public route
   `/sites/personal`, and public route prefix `/sites/personal/`
-- **AND** Site public route metadata is scoped to that app install record
+- **AND** public Site route metadata is scoped to that app install record
 
 #### Scenario: Non-Site install route records
 
@@ -412,9 +405,10 @@ The system SHALL represent app admin and public Site routes as schema-owned
   `app.admin` scoped through that app install target
 - **AND** no public Site route record is created for that install
 
-#### Scenario: Site admin route role
+#### Scenario: Private public Site admin route role
 
-- **GIVEN** a Site app install creates its default admin and public route records
+- **GIVEN** a private public-Site-capable install creates its default admin and
+  public route records
 - **WHEN** route access is projected
 - **THEN** the admin route uses authenticated access with required role
   `app.admin` scoped through that app install target
@@ -444,8 +438,9 @@ records and the active package resolver.
 - **THEN** the response derives installed apps from schema-owned app install and
   route records
 - **AND** package lists come from the active package resolver
-- **AND** Program-native Tasks install metadata and routes are omitted from the
-  operational registry even when dormant records remain in Program storage
+- **AND** Program-native Tasks and built-in Site install metadata and routes are
+  omitted from the operational registry even when dormant records remain in
+  Program storage
 
 #### Scenario: Role-filtered browser registry read
 
@@ -511,17 +506,17 @@ The system SHALL derive workspace app install intent from schema-owned
 - **AND** workspace source that contains public Site route records is validated
   against that same active resolver before those routes are accepted
 
-#### Scenario: Dormant Tasks install records do not become workspace app intent
+#### Scenario: Dormant Program-native install records do not become workspace app intent
 
-- **GIVEN** `state/instance.json` contains legacy Tasks `app-install` or `route`
-  records
+- **GIVEN** `state/instance.json` contains legacy Tasks or built-in Site
+  `app-install` or `route` records
 - **WHEN** local dev, check, push, deploy, archive restore, or workspace app
   state selection runs
-- **THEN** those records do not require or create a
-  `state/apps/<installId>.json` Tasks snapshot
+- **THEN** those records do not require or create a matching
+  `state/apps/<installId>.json` snapshot
 - **AND** they do not resolve an install-scoped route or Authority
-- **AND** Site, CRM, and other runtime-installable records retain their existing
-  package and storage behavior
+- **AND** CRM and other runtime-installable private records retain their
+  existing package and storage behavior
 
 #### Scenario: Missing app storage snapshot
 

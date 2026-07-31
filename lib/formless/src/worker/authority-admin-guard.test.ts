@@ -1,17 +1,15 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
-import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
-import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
+import type { StoredRecord } from "@dpeek/formless-storage";
 import type { BootstrapResponse, OwnerIdentity } from "../shared/protocol.ts";
 import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
 import type { SchemaKey } from "../shared/schema-apps.ts";
 import {
-  operationWriteRequest,
   recordOperationRequest,
+  instanceControlPlaneTestStorageSnapshot,
   restoreTestStorageSnapshot,
   schemaAppTestStorageSnapshot,
 } from "../test/authority-write.ts";
 import { ensureTestIdentityOwner, resetTestIdentityStorage } from "../test/identity-owner.ts";
-import { siteSourceSchema } from "../test/schema-apps.ts";
 import { testSiteRecords } from "../test/site-records.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import { createOwnerSessionCookie } from "./owner-session.ts";
@@ -47,7 +45,12 @@ beforeAll(async () => {
 beforeEach(async () => {
   await resetTestIdentityStorage(harness, adminToken);
   await resetSchemaApp("crm");
-  await resetSchemaApp("site");
+  await restoreTestStorageSnapshot(
+    harness,
+    "/api/formless/program/snapshot/restore",
+    instanceControlPlaneTestStorageSnapshot(testSiteRecords),
+    adminHeaders(),
+  );
 });
 
 afterAll(async () => {
@@ -146,36 +149,26 @@ describe("authority admin guard", () => {
   });
 
   it("keeps public Site tree reads open while guarding Site writes", async () => {
-    await postAdminJson<BootstrapResponse>("/api/site/snapshot/restore", siteStorageSnapshot());
-
-    const tree = await getJson<SitePageTreeResponse>("/api/site/tree/home");
-    const before = await getJson<BootstrapResponse>("/api/site/bootstrap");
-    const write = await harness.fetch("/api/site/mutations", {
+    const tree = await getJson<SitePageTreeResponse>("/api/formless/program/tree/home");
+    const before = await getJson<BootstrapResponse>(
+      "/api/formless/program/bootstrap",
+      adminHeaders(),
+    );
+    const write = await harness.fetch("/api/formless/program/mutations", {
       body: "{}",
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
-    const bootstrap = await getJson<BootstrapResponse>("/api/site/bootstrap");
+    const bootstrap = await getJson<BootstrapResponse>(
+      "/api/formless/program/bootstrap",
+      adminHeaders(),
+    );
 
     expect(tree.page.id).toBe("rec_site_content_home");
-    expect(write.status).toBe(401);
+    expect(write.status).toBe(404);
     expectRecordsIgnoringOrder(bootstrap.records, before.records);
   });
 });
-
-function siteStorageSnapshot(): StorageSnapshot {
-  return {
-    kind: STORAGE_SNAPSHOT_KIND,
-    version: STORAGE_SNAPSHOT_VERSION,
-    storageIdentity: "site",
-    schemaKey: "site",
-    exportedAt: "2026-05-07T00:00:00.000Z",
-    schemaUpdatedAt: "2026-05-07T00:00:00.000Z",
-    sourceCursor: testSiteRecords.length,
-    schema: siteSourceSchema,
-    records: testSiteRecords,
-  };
-}
 
 async function resetSchemaApp(schemaKey: SchemaKey) {
   await restoreTestStorageSnapshot(
@@ -186,25 +179,12 @@ async function resetSchemaApp(schemaKey: SchemaKey) {
   );
 }
 
-async function getJson<T>(path: string) {
-  const response = await harness.fetch(path);
+async function getJson<T>(path: string, headers: Record<string, string> = {}) {
+  const response = await harness.fetch(path, { headers });
 
   expect(response.status).toBe(200);
 
   return (await response.json()) as T;
-}
-
-async function postAdminJson<T>(path: string, body: unknown) {
-  const request = operationWriteRequest(path, body);
-  const response = await harness.fetch(request.path, {
-    body: JSON.stringify(request.body),
-    headers: adminHeaders(),
-    method: "POST",
-  });
-
-  expect(response.status).toBe(200);
-
-  return request.response(await response.json()) as T;
 }
 
 async function postAdminTaskRecordOperation(body: Parameters<typeof recordOperationRequest>[0]) {

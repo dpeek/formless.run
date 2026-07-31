@@ -414,6 +414,10 @@ function resolveDomainMappingTargetInstallId(
     return { ok: true };
   }
 
+  if (target === undefined && profile === "publicSite") {
+    return { ok: true };
+  }
+
   if (target === undefined) {
     return {
       ok: false,

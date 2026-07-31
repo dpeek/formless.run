@@ -1,4 +1,4 @@
-import type { AppStorageIdentity } from "../shared/app-storage-identity.ts";
+import type { AuthorityStorageIdentity } from "../shared/app-storage-identity.ts";
 import {
   PublicOperationRouteError,
   parsePublicOperationRouteSuffix,
@@ -54,12 +54,15 @@ type PublicOperationExecutionInput = {
   afterCommit?: (response: OperationInvocationResponse) => Promise<void> | void;
   body: unknown;
   env: PublicOperationEnv;
-  identity: AppStorageIdentity;
+  identity: AuthorityStorageIdentity;
   identityReferenceResolver?: IdentityReferenceTargetResolver;
   request: Request;
   route: PublicOperationRoute;
   schema: AppSchema;
   storage: DurableObjectStorage;
+  validateConstraints?: Parameters<
+    typeof executeWriteOperationInvocation
+  >[0]["validateConstraints"];
   writes: PublicOperationWriteNotifier;
 };
 
@@ -136,6 +139,7 @@ function publicOperationExecutorAdapters(
               identityReferenceResolver: input.identityReferenceResolver,
               schema: input.schema,
               storage: input.storage,
+              validateConstraints: input.validateConstraints,
               writes: input.writes,
             }),
     },

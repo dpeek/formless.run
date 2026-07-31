@@ -114,6 +114,16 @@ export type ArchiveRestorePlanStep =
       storageKey: string;
     }
   | {
+      archivePath: string;
+      asset?: AppArchiveMediaObject["asset"];
+      byteSize: number;
+      contentType: string;
+      deliveryHref: string;
+      kind: "restoreMedia";
+      program: true;
+      storageKey: string;
+    }
+  | {
       appInstallId: string;
       dataKind: AppArchiveData["kind"];
       kind: "restoreAppData";
@@ -127,6 +137,7 @@ export type ArchiveRestorePlanSummary = {
   appCount: number;
   createdInstalls: string[];
   mediaCountsByApp: Record<string, number>;
+  programMediaCount: number;
   recordCountsByApp: Record<string, ArchiveRestoreRecordCounts>;
   replacedInstalls: string[];
 };
@@ -225,7 +236,10 @@ function planParsedInstanceArchiveRestore(
   archive: InstanceArchive,
   target: ArchiveRestoreTargetState,
 ): ArchiveRestorePlanResult {
-  return planArchives(archive.apps, archive.restorePolicy, target);
+  return planArchives(archive.apps, archive.restorePolicy, target, {
+    controlPlane: archive.controlPlane,
+    media: archive.media.objects,
+  });
 }
 
 function planParsedAppArchiveRestore(
@@ -239,12 +253,19 @@ function planArchives(
   apps: readonly AppArchive[],
   policy: ArchiveRestorePolicy,
   target: ArchiveRestoreTargetState,
+  program?: {
+    controlPlane: InstanceArchive["controlPlane"];
+    media: readonly AppArchiveMediaObject[];
+  },
 ): ArchiveRestorePlanResult {
   const context = plannerContext(target);
   const errors: ArchiveRestorePlanError[] = [];
   const appPlans: ArchiveRestoreAppPlan[] = [];
   const mediaByApp = new Map<string, AppArchiveMediaObject[]>();
   const seenInstallIds = new Set<string>();
+  const programMedia = sortedMediaObjects(program?.media ?? []);
+
+  validateProgramMedia(program, programMedia, context, errors);
 
   for (const app of appsByInstallId(apps)) {
     if (seenInstallIds.has(app.app.installId)) {
@@ -282,10 +303,77 @@ function planArchives(
       dryRun: policy.dryRun,
       policy: { ...policy },
       apps: sortedPlans,
-      steps: planSteps(sortedPlans, mediaByApp),
-      summary: planSummary(sortedPlans),
+      steps: planSteps(sortedPlans, mediaByApp, programMedia),
+      summary: planSummary(sortedPlans, programMedia.length),
     },
   };
+}
+
+function validateProgramMedia(
+  program:
+    | {
+        controlPlane: InstanceArchive["controlPlane"];
+        media: readonly AppArchiveMediaObject[];
+      }
+    | undefined,
+  mediaObjects: AppArchiveMediaObject[],
+  context: PlannerContext,
+  errors: ArchiveRestorePlanError[],
+) {
+  if (program === undefined) {
+    return;
+  }
+
+  if (program.controlPlane === undefined) {
+    if (mediaObjects.length > 0) {
+      errors.push(
+        planError("invalid-media", {
+          message: "Instance archive Program media requires Program data.",
+        }),
+      );
+    }
+    return;
+  }
+
+  for (const object of mediaObjects) {
+    if (!object.archivePath.startsWith("media/program/")) {
+      errors.push(
+        planError("invalid-media", {
+          message: `Instance archive Program media path "${object.archivePath}" must live under "media/program/".`,
+          storageKey: object.storageKey,
+        }),
+      );
+    }
+
+    if (object.asset?.kind === "document") {
+      errors.push(
+        planError("invalid-media", {
+          message: `Instance archive Program media "${object.storageKey}" cannot contain installed-app document metadata.`,
+          storageKey: object.storageKey,
+        }),
+      );
+    }
+  }
+
+  validateMedia(
+    {
+      installId: "program",
+      packageAppKey: "program",
+      packageRevision: 1,
+      sourceSchemaKey: program.controlPlane.schemaKey,
+      sourceSchemaHash: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      label: "Program",
+      registrationPolicy: "closed",
+      status: "installed",
+      createdAt: program.controlPlane.exportedAt,
+      updatedAt: program.controlPlane.exportedAt,
+    },
+    mediaObjects,
+    program.controlPlane.schema,
+    program.controlPlane.records,
+    context,
+    errors,
+  );
 }
 
 function plannerContext(target: ArchiveRestoreTargetState): PlannerContext {
@@ -956,8 +1044,18 @@ function documentDeliveryHref(app: ArchivedAppInstall, assetId: string): string 
 function planSteps(
   appPlans: ArchiveRestoreAppPlan[],
   mediaByApp: Map<string, AppArchiveMediaObject[]>,
+  programMedia: readonly AppArchiveMediaObject[] = [],
 ): ArchiveRestorePlanStep[] {
-  const steps: ArchiveRestorePlanStep[] = [];
+  const steps: ArchiveRestorePlanStep[] = programMedia.map((object) => ({
+    archivePath: object.archivePath,
+    ...(object.asset === undefined ? {} : { asset: object.asset }),
+    byteSize: object.byteSize,
+    contentType: object.contentType,
+    deliveryHref: object.deliveryHref,
+    kind: "restoreMedia" as const,
+    program: true as const,
+    storageKey: object.storageKey,
+  }));
 
   for (const appPlan of appPlans) {
     const installStep: ArchiveRestorePlanStep = {
@@ -1000,7 +1098,10 @@ function planSteps(
   return steps;
 }
 
-function planSummary(appPlans: ArchiveRestoreAppPlan[]): ArchiveRestorePlanSummary {
+function planSummary(
+  appPlans: ArchiveRestoreAppPlan[],
+  programMediaCount = 0,
+): ArchiveRestorePlanSummary {
   return {
     appCount: appPlans.length,
     createdInstalls: appPlans
@@ -1009,6 +1110,7 @@ function planSummary(appPlans: ArchiveRestoreAppPlan[]): ArchiveRestorePlanSumma
     mediaCountsByApp: Object.fromEntries(
       appPlans.map((app) => [app.app.installId, app.mediaCount]),
     ),
+    programMediaCount,
     recordCountsByApp: Object.fromEntries(
       appPlans.map((app) => [app.app.installId, app.recordCounts]),
     ),

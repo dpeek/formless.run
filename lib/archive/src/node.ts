@@ -7,6 +7,7 @@ import path from "node:path";
 import {
   PORTABLE_ARCHIVE_MANIFEST_FILE,
   archiveApps,
+  archiveMediaObjects,
   archiveRecordCount,
   formatPortableArchive,
   parsePortableArchive,
@@ -82,20 +83,18 @@ export async function readPortableArchiveDirectory(
     packageResolver: dependencies.packageResolver,
   });
   const mediaFiles = await Promise.all(
-    archiveApps(archive).flatMap((app) =>
-      app.media.objects.map(async (object) => {
-        const bytes = new Uint8Array(
-          await readFile(path.join(archiveDir, assertArchiveRelativePath(object.archivePath))),
-        );
+    archiveMediaObjects(archive).map(async (object) => {
+      const bytes = new Uint8Array(
+        await readFile(path.join(archiveDir, assertArchiveRelativePath(object.archivePath))),
+      );
 
-        return {
-          archivePath: object.archivePath,
-          byteSize: bytes.byteLength,
-          bytes,
-          contentType: object.contentType,
-        };
-      }),
-    ),
+      return {
+        archivePath: object.archivePath,
+        byteSize: bytes.byteLength,
+        bytes,
+        contentType: object.contentType,
+      };
+    }),
   );
 
   return {

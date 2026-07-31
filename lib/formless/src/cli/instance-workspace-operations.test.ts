@@ -19,7 +19,7 @@ import {
   FORMLESS_STORAGE_MIGRATION_SET_ID,
 } from "../shared/deploy-metadata.ts";
 import { listInstallableAppPackages, packageAppFactsForKey } from "@dpeek/formless-installed-apps";
-import { bundledAppPackageResolver } from "../shared/app-packages.ts";
+import { rootKnownPackageFactsResolver } from "../shared/app-packages.ts";
 import { testSiteRecords } from "../test/site-records.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
@@ -59,6 +59,31 @@ import {
 } from "./instance-workspace-operations.ts";
 
 const tempDirs: string[] = [];
+const privateSitePackageAppKey = "private-site";
+const rootKnownSitePackage = rootKnownPackageFactsResolver().findPackage("site")!;
+const privateSiteSourceSchemaHash =
+  "sha256:3801668b6420076d9d63fe15f2a294501ccf44f5c4c509efcc9a13444d6fb930" as typeof rootKnownSitePackage.sourceSchemaHash;
+const privateSitePackageResolver = {
+  findPackage: (packageAppKey: string) =>
+    packageAppKey === privateSitePackageAppKey
+      ? {
+          ...rootKnownSitePackage,
+          defaultInstallId: "personal",
+          packageAppKey: privateSitePackageAppKey,
+          sourceOrigin: "workspace" as const,
+          sourceSchemaHash: privateSiteSourceSchemaHash,
+          sourceSchemaKey: privateSitePackageAppKey,
+          sourceSchemaLocation: {
+            kind: "workspace" as const,
+            key: privateSitePackageAppKey,
+            path: "packages/private-site/schema.json",
+          },
+        }
+      : undefined,
+  listPackages() {
+    return [this.findPackage(privateSitePackageAppKey)!];
+  },
+};
 
 afterEach(async () => {
   await Promise.all(
@@ -641,7 +666,7 @@ describe("Formless workspace operations", () => {
 
     expect(requests.every((request) => request.method === "GET")).toBe(true);
     expect(requestPaths).toContain("/api/formless/program/snapshot");
-    expect(requestPaths).toContain("/api/app-installs/site/david/snapshot");
+    expect(requestPaths).toContain("/api/app-installs/private-site/david/snapshot");
     expect(requestPaths).not.toContain("/api/formless/archive/restore");
     expect(requestPaths).not.toContain("/api/formless/deployments/desired-state");
   });
@@ -1228,12 +1253,45 @@ async function writeWorkspaceConfig(
     runtime?: ResolvedFormlessConfig["runtime"];
   } = {},
 ) {
-  await mkdir(workspaceRoot, { recursive: true });
+  await writePrivateSitePackage(workspaceRoot);
   await writeFile(
     path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
     formatTestFormlessConfigModule({
       name: "personal-sites",
+      packages: {
+        links: [{ manifest: "packages/private-site/formless.app.json" }],
+      },
       ...(options.runtime === undefined ? {} : { runtime: options.runtime }),
+    }),
+  );
+}
+
+async function writePrivateSitePackage(workspaceRoot: string) {
+  const packageRoot = path.join(workspaceRoot, "packages/private-site");
+
+  await mkdir(packageRoot, { recursive: true });
+  await writeFile(path.join(packageRoot, "schema.json"), JSON.stringify(siteSourceSchema));
+  await writeFile(
+    path.join(packageRoot, "formless.app.json"),
+    JSON.stringify({
+      kind: "formless.appPackage",
+      version: 1,
+      packageAppKey: privateSitePackageAppKey,
+      label: "Private Site",
+      description: "Private Site test package.",
+      defaultInstallId: "personal",
+      supportsMultipleInstalls: true,
+      packageRevision: rootKnownSitePackage.packageRevision,
+      sourceSchema: {
+        kind: "workspace",
+        key: privateSitePackageAppKey,
+        path: "schema.json",
+      },
+      sourceSchemaHash: privateSiteSourceSchemaHash,
+      capabilities: [
+        { kind: "generatedAdmin", routeBase: "/apps" },
+        { kind: "publicSite", routeBase: "/sites" },
+      ],
     }),
   );
 }
@@ -1251,7 +1309,7 @@ async function writeDeployStorageSnapshot(
 
   await writeInstanceWorkspaceControlPlaneStorageSnapshot({
     manifest,
-    packageResolver: bundledAppPackageResolver,
+    packageResolver: privateSitePackageResolver,
     snapshot: controlPlaneSnapshot(deployControlPlaneRecords(options)),
     workspaceRoot,
   });
@@ -1263,7 +1321,7 @@ async function writeWorkspaceAppStorageSnapshot(
   records: StoredRecord[] = [],
 ) {
   const manifest = (await readWorkspaceConfig(workspaceRoot)).config;
-  const facts = packageAppFactsForKey("site", bundledAppPackageResolver);
+  const facts = packageAppFactsForKey(privateSitePackageAppKey, privateSitePackageResolver);
 
   if (!facts) {
     throw new Error("Missing bundled package facts for site.");
@@ -1274,7 +1332,7 @@ async function writeWorkspaceAppStorageSnapshot(
     manifest,
     schemaProvenance: {
       kind: "package-app",
-      packageAppKey: "site",
+      packageAppKey: privateSitePackageAppKey,
       packageRevision: facts.packageRevision,
       sourceSchemaHash: facts.sourceSchemaHash,
     },
@@ -1302,7 +1360,7 @@ function authorityExportFetch(
     if (parsedUrl.pathname === "/api/formless/deploy") {
       return Response.json(
         {
-          packageApps: listInstallableAppPackages(bundledAppPackageResolver).map((appPackage) => ({
+          packageApps: listInstallableAppPackages(privateSitePackageResolver).map((appPackage) => ({
             packageAppKey: appPackage.packageAppKey,
             packageRevision: appPackage.packageRevision,
             sourceSchemaHash: appPackage.sourceSchemaHash,
@@ -1319,7 +1377,7 @@ function authorityExportFetch(
     if (parsedUrl.pathname === "/api/formless/app-installs") {
       return Response.json({
         installs,
-        packages: listInstallableAppPackages(bundledAppPackageResolver),
+        packages: listInstallableAppPackages(privateSitePackageResolver),
       });
     }
 
@@ -1373,7 +1431,7 @@ function authorityExportFetch(
 }
 
 function installedSite(installId: string, label: string) {
-  const facts = packageAppFactsForKey("site", bundledAppPackageResolver);
+  const facts = packageAppFactsForKey(privateSitePackageAppKey, privateSitePackageResolver);
 
   if (!facts) {
     throw new Error("Missing bundled package facts for site.");
@@ -1384,7 +1442,7 @@ function installedSite(installId: string, label: string) {
     createdAt: "2026-05-01T00:00:00.000Z",
     installId,
     label,
-    packageAppKey: "site" as const,
+    packageAppKey: privateSitePackageAppKey,
     packageRevision: facts.packageRevision,
     publicRoute: `/sites/${installId}` as `/sites/${string}`,
     publicRoutePrefix: `/sites/${installId}/` as `/sites/${string}/`,
@@ -1404,7 +1462,7 @@ function snapshot(
     kind: STORAGE_SNAPSHOT_KIND,
     records,
     schema: siteSourceSchema,
-    schemaKey: "site",
+    schemaKey: privateSitePackageAppKey,
     schemaUpdatedAt: "2026-05-01T00:00:00.000Z",
     sourceCursor: 1,
     storageIdentity,
@@ -1453,7 +1511,7 @@ function deployApplyFetch(
 
     if (parsedUrl.pathname === "/api/formless/deploy") {
       return Response.json({
-        packageApps: listInstallableAppPackages(bundledAppPackageResolver).map((appPackage) => ({
+        packageApps: listInstallableAppPackages(privateSitePackageResolver).map((appPackage) => ({
           packageAppKey: appPackage.packageAppKey,
           packageRevision: appPackage.packageRevision,
           sourceSchemaHash: appPackage.sourceSchemaHash,
@@ -1468,7 +1526,7 @@ function deployApplyFetch(
     if (parsedUrl.pathname === "/api/formless/app-installs") {
       return Response.json({
         installs: [installedSite("david", "David Peek")],
-        packages: listInstallableAppPackages(bundledAppPackageResolver),
+        packages: listInstallableAppPackages(privateSitePackageResolver),
       });
     }
 
@@ -1486,7 +1544,7 @@ function deployApplyFetch(
       );
     }
 
-    if (parsedUrl.pathname === "/api/app-installs/site/david/snapshot") {
+    if (parsedUrl.pathname === "/api/app-installs/private-site/david/snapshot") {
       return Response.json(snapshot([]));
     }
 
@@ -1644,7 +1702,7 @@ function controlPlaneRecords(): StoredRecord[] {
       values: {
         installId,
         label: "David Peek",
-        packageAppKey: "site",
+        packageAppKey: privateSitePackageAppKey,
         registrationPolicy: "closed",
         status: "installed",
         storageIdentity: `app:${installId}`,

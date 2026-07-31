@@ -7,16 +7,31 @@ import {
 } from "../app/runtime-profile.ts";
 import { INITIAL_SITE_PAGE_TREE_SCRIPT_ID } from "@dpeek/formless-site-app/react";
 import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
-import type { SchemaKey } from "../shared/schema-apps.ts";
+import {
+  installedPublicSiteRuntimeTarget,
+  programPublicSiteRuntimeTarget,
+} from "../shared/public-site-runtime-target.ts";
 import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
 import {
-  recordOperationRequest,
+  instanceControlPlaneTestStorageSnapshot,
   restoreTestStorageSnapshot,
-  schemaAppTestStorageSnapshot,
 } from "../test/authority-write.ts";
+import { testSiteRecords } from "../test/site-records.ts";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
+import type { StoredRecord } from "@dpeek/formless-storage";
 import type { Env } from "./index.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
-import { handlePublicSiteDocumentRequest } from "./public-site-worker-runtime.ts";
+import {
+  FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
+  formatRuntimeWorkspaceAppPackages,
+} from "../shared/workspace-runtime-packages.ts";
+import { createAppPackageResolver, type AppPackageResolver } from "../shared/app-packages.ts";
+import { siteSourceSchema } from "../test/schema-apps.ts";
+import { runtimeWorkspaceTaskAppPackageFixture } from "../test/workspace-app-package.ts";
+import {
+  handlePublicSiteDocumentRequest,
+  mappedPublicSiteHostFromRuntimeRoute,
+} from "./public-site-worker-runtime.ts";
 import {
   PUBLISHED_SITE_ERROR_CACHE_CONTROL,
   PUBLISHED_SITE_HTML_CACHE_CONTROL,
@@ -26,12 +41,24 @@ import {
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
 const adminToken = "test-admin-token";
-const publishedPackageAppKey = "site";
-const publishedInstallId = "site";
-
+const privateSitePackageAppKey = "private-site";
 let harness: Harness;
+let privateSitePackages: string;
+let privateSitePackageResolver: AppPackageResolver;
 
 beforeAll(async () => {
+  const privateSitePackage = await runtimeWorkspaceTaskAppPackageFixture({
+    capabilities: [
+      { kind: "generatedAdmin", routeBase: "/apps" },
+      { kind: "publicSite", routeBase: "/sites" },
+    ],
+    defaultInstallId: "personal",
+    label: "Private Site",
+    packageAppKey: privateSitePackageAppKey,
+    sourceSchema: siteSourceSchema,
+  });
+  privateSitePackages = formatRuntimeWorkspaceAppPackages([privateSitePackage]);
+  privateSitePackageResolver = createAppPackageResolver([privateSitePackage.manifest]);
   harness = await createWorkerHarness(
     "src/worker/index.ts",
     {
@@ -40,9 +67,8 @@ beforeAll(async () => {
     {
       bindings: {
         FORMLESS_RUNTIME_PROFILE: "publishedSite",
-        FORMLESS_RUNTIME_APP_INSTALL_ID: publishedInstallId,
-        FORMLESS_RUNTIME_PACKAGE_APP_KEY: publishedPackageAppKey,
         FORMLESS_ADMIN_TOKEN: adminToken,
+        [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: privateSitePackages,
       },
       compatibilityDate: "2026-04-28",
     },
@@ -50,8 +76,12 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await resetSchemaApp("site");
-  await resetInstalledApp(publishedPackageAppKey, publishedInstallId);
+  await restoreTestStorageSnapshot(
+    harness,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
+    instanceControlPlaneTestStorageSnapshot(testSiteRecords),
+    adminHeaders(),
+  );
 });
 
 afterAll(async () => {
@@ -59,6 +89,45 @@ afterAll(async () => {
 });
 
 describe("published Site Worker SSR", () => {
+  it("maps install-free and installed public-site host routes to distinct storage targets", () => {
+    const installedStorage = installedAppStorageIdentity(
+      {
+        installId: "personal",
+        packageAppKey: privateSitePackageAppKey,
+      },
+      privateSitePackageResolver,
+    );
+
+    if (!installedStorage) {
+      throw new Error("Missing installed Site target.");
+    }
+
+    const route = {
+      access: "anonymous" as const,
+      id: "route:host:public-site",
+      kind: "mount" as const,
+      matchHost: "example.com",
+      matchPath: "/" as const,
+      matchPrefix: "/" as const,
+      surface: "public-site" as const,
+      targetProfile: "public-site" as const,
+    };
+
+    expect(mappedPublicSiteHostFromRuntimeRoute(route)).toEqual({
+      host: "example.com",
+      target: programPublicSiteRuntimeTarget(),
+    });
+    expect(
+      mappedPublicSiteHostFromRuntimeRoute({
+        ...route,
+        target: installedStorage,
+      }),
+    ).toEqual({
+      host: "example.com",
+      target: installedPublicSiteRuntimeTarget(installedStorage),
+    });
+  });
+
   it("does not render published Site documents outside the published runtime profile", async () => {
     const response = await handlePublicSiteDocumentRequest(
       new Request("https://example.com/", {
@@ -124,7 +193,7 @@ describe("published Site Worker SSR", () => {
     expect(html).not.toContain("Loading site page...");
   });
 
-  it("reads published Site documents from the configured installed target", async () => {
+  it("reads published Site documents from Program storage without installed target metadata", async () => {
     const authorityRequests: string[] = [];
     const response = await handlePublicSiteDocumentRequest(
       new Request("https://example.com/", {
@@ -132,17 +201,30 @@ describe("published Site Worker SSR", () => {
       }),
       envWithTreeResponse(Response.json(testSitePageTree("home")), undefined, "publishedSite", {
         authorityRequests,
-        installId: "personal",
-        packageAppKey: "site",
       }),
     );
 
-    if (!response) {
-      throw new Error("Expected a published Site document response.");
-    }
+    expect(response?.status).toBe(200);
+    expect(authorityRequests).toEqual([`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/tree/home`]);
+  });
 
-    expect(response.status).toBe(200);
-    expect(authorityRequests).toEqual(["/api/app-installs/site/personal/tree/home"]);
+  it("fails closed when published target metadata is partial", async () => {
+    const [installOnly, packageOnly] = await Promise.all([
+      handlePublicSiteDocumentRequest(
+        new Request("https://example.com/", { headers: { Accept: "text/html" } }),
+        envWithTreeResponse(Response.json(testSitePageTree("home")), undefined, "publishedSite", {
+          installId: "personal",
+        }),
+      ),
+      handlePublicSiteDocumentRequest(
+        new Request("https://example.com/", { headers: { Accept: "text/html" } }),
+        envWithTreeResponse(Response.json(testSitePageTree("home")), undefined, "publishedSite", {
+          packageAppKey: "site",
+        }),
+      ),
+    ]);
+
+    expect([installOnly?.status, packageOnly?.status]).toEqual([400, 400]);
   });
 
   it("returns HEAD headers for public documents without a response body", async () => {
@@ -270,46 +352,32 @@ describe("published Site Worker SSR", () => {
     expect(html).not.toContain("/src/public-site-main.tsx");
   });
 
-  it("emits runtime target hints for mapped installed public Site documents", async () => {
-    const target = installedAppStorageIdentity({
-      installId: "personal",
-      packageAppKey: "site",
-    });
-
-    if (!target) {
-      throw new Error("Missing installed Site target.");
-    }
-
+  it("keeps mapped Program Site documents free of installed target hints", async () => {
+    const authorityRequests: string[] = [];
     const response = await handlePublicSiteDocumentRequest(
       new Request("https://example.com/projects", {
         headers: { Accept: "text/html" },
       }),
-      envWithTreeResponse(Response.json(testSitePageTree("projects"))),
+      envWithTreeResponse(Response.json(testSitePageTree("projects")), undefined, "publishedSite", {
+        authorityRequests,
+      }),
       {
         mappedSiteHost: {
           host: "example.com",
-          installId: "personal",
-          target,
+          target: programPublicSiteRuntimeTarget(),
         },
       },
     );
 
-    if (!response) {
-      throw new Error("Expected a mapped public Site document response.");
-    }
+    const html = await response?.text();
 
-    const html = await response.text();
-
-    expect(html).toContain('data-site-theme="light"');
+    expect(response?.status).toBe(200);
+    expect(authorityRequests).toEqual([`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/tree/projects`]);
     expect(html).toContain(
       `<meta name="${FORMLESS_RUNTIME_PROFILE_META_NAME}" content="publishedSite" />`,
     );
-    expect(html).toContain(
-      `<meta name="${FORMLESS_RUNTIME_APP_INSTALL_ID_META_NAME}" content="personal" />`,
-    );
-    expect(html).toContain(
-      `<meta name="${FORMLESS_RUNTIME_PACKAGE_APP_KEY_META_NAME}" content="site" />`,
-    );
+    expect(html).not.toContain(FORMLESS_RUNTIME_APP_INSTALL_ID_META_NAME);
+    expect(html).not.toContain(FORMLESS_RUNTIME_PACKAGE_APP_KEY_META_NAME);
   });
 
   it("returns server-rendered HTML for nested published Site slugs", async () => {
@@ -419,16 +487,20 @@ describe("published Site Worker SSR", () => {
   });
 
   it("uses the current public tree from the Site authority", async () => {
-    await postAdminRecordOperation({
-      idempotencyKey: "write-site-ssr-extra-page",
-      entity: "block",
-      operationName: "create",
-      input: {
-        type: "page",
-        label: "Server rendered extra page",
-        href: "/extra-page",
+    await restoreProgramSiteRecords([
+      ...testSiteRecords,
+      {
+        id: "rec_site_content_extra_page",
+        entity: "block",
+        values: {
+          type: "page",
+          label: "Server rendered extra page",
+          href: "/extra-page",
+        },
+        createdAt: "2026-07-31T00:00:00.000Z",
+        updatedAt: "2026-07-31T00:00:00.000Z",
       },
-    });
+    ]);
 
     const response = await getDocument("/extra-page");
     const html = await response.text();
@@ -441,15 +513,17 @@ describe("published Site Worker SSR", () => {
   it("escapes embedded initial tree data for hostile Site content", async () => {
     const hostileLabel = 'Hostile </script><script type="module">alert(1)</script> & text';
 
-    await postAdminRecordOperation({
-      idempotencyKey: "write-site-ssr-hostile-home-label",
-      entity: "block",
-      operationName: "update",
-      recordId: "rec_site_content_home",
-      input: {
-        label: hostileLabel,
-      },
-    });
+    await restoreProgramSiteRecords(
+      testSiteRecords.map((record) =>
+        record.id === "rec_site_content_home"
+          ? {
+              ...record,
+              values: { ...record.values, label: hostileLabel },
+              updatedAt: "2026-07-31T00:00:00.000Z",
+            }
+          : record,
+      ),
+    );
 
     const response = await getDocument("/");
     const html = await response.text();
@@ -464,7 +538,7 @@ describe("published Site Worker SSR", () => {
   });
 
   it("keeps API requests dispatched as API responses instead of Site documents", async () => {
-    const response = await harness.fetch("/api/site/tree/home", {
+    const response = await harness.fetch(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/tree/home`, {
       headers: {
         Accept: "text/html",
       },
@@ -544,24 +618,6 @@ describe("published Site Worker SSR", () => {
   });
 });
 
-async function resetSchemaApp(schemaKey: SchemaKey) {
-  await restoreTestStorageSnapshot(
-    harness,
-    `/api/${schemaKey}/snapshot/restore`,
-    schemaAppTestStorageSnapshot(schemaKey),
-    adminHeaders(),
-  );
-}
-
-async function resetInstalledApp(packageAppKey: string, installId: string) {
-  await restoreTestStorageSnapshot(
-    harness,
-    `/api/app-installs/${packageAppKey}/${installId}/snapshot/restore`,
-    schemaAppTestStorageSnapshot(packageAppKey as SchemaKey, `app:${installId}`),
-    adminHeaders(),
-  );
-}
-
 async function getDocument(path: string) {
   return harness.fetch(path, {
     headers: {
@@ -598,20 +654,13 @@ async function headDocumentWithoutFollowingRedirect(path: string) {
   });
 }
 
-async function postAdminRecordOperation(body: Parameters<typeof recordOperationRequest>[0]) {
-  const request = recordOperationRequest(body);
-  const response = await harness.fetch(
-    `/api/app-installs/${publishedPackageAppKey}/${publishedInstallId}${request.path.slice("/api".length)}`,
-    {
-      body: JSON.stringify(request.body),
-      headers: adminHeaders(),
-      method: "POST",
-    },
+async function restoreProgramSiteRecords(records: StoredRecord[]) {
+  await restoreTestStorageSnapshot(
+    harness,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
+    instanceControlPlaneTestStorageSnapshot(records),
+    adminHeaders(),
   );
-
-  expect(response.status).toBe(200);
-
-  return response;
 }
 
 function adminHeaders() {
@@ -671,9 +720,6 @@ function envWithTreeResponse(
       : (runtimeProfileOrOptions.runtimeProfile ?? "publishedSite");
   const assetRequests =
     typeof runtimeProfileOrOptions === "string" ? undefined : runtimeProfileOrOptions.assetRequests;
-  const installId = options.installId ?? publishedInstallId;
-  const packageAppKey = options.packageAppKey ?? publishedPackageAppKey;
-
   return {
     ASSETS: clientAssetManifest
       ? {
@@ -697,12 +743,13 @@ function envWithTreeResponse(
       idFromName: () => "site-id",
     },
     FORMLESS_RUNTIME_PROFILE: runtimeProfile,
-    ...(runtimeProfile === "publishedSite"
-      ? {
-          FORMLESS_RUNTIME_APP_INSTALL_ID: installId,
-          FORMLESS_RUNTIME_PACKAGE_APP_KEY: packageAppKey,
-        }
-      : {}),
+    [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: privateSitePackages,
+    ...(options.installId === undefined
+      ? {}
+      : { FORMLESS_RUNTIME_APP_INSTALL_ID: options.installId }),
+    ...(options.packageAppKey === undefined
+      ? {}
+      : { FORMLESS_RUNTIME_PACKAGE_APP_KEY: options.packageAppKey }),
   } as unknown as Env;
 }
 

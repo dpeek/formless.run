@@ -1,11 +1,16 @@
 import type { AppSchema } from "@dpeek/formless-schema";
 
+import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
 import {
-  installedAppStorageIdentity,
-  type AppStorageIdentity,
-  type InstalledAppStorageIdentity,
-} from "../shared/app-storage-identity.ts";
-import { findResolvedAppPackage, type AppPackageResolver } from "../shared/app-packages.ts";
+  installedPublicSiteRuntimeTarget,
+  programPublicSiteRuntimeTarget,
+  type PublicSiteRuntimeTarget,
+} from "../shared/public-site-runtime-target.ts";
+import {
+  findResolvedAppPackage,
+  rootKnownPackageFactsResolver,
+  type AppPackageResolver,
+} from "../shared/app-packages.ts";
 import {
   FORMLESS_RUNTIME_APP_INSTALL_ID_META_NAME,
   FORMLESS_RUNTIME_PACKAGE_APP_KEY_META_NAME,
@@ -42,7 +47,6 @@ import {
   shouldHandleMappedSiteHostIndexingResource,
   shouldHandlePublishedSiteDocument,
   shouldHandlePublishedSiteIndexingResource,
-  resolveWorkerRuntimeRequestTopology,
   type WorkerRuntimeProfileInput,
   type WorkerRuntimeRequestTopology,
   workerRuntimeProfileInput,
@@ -61,15 +65,14 @@ export type PublicSiteWorkerTreeInput = {
 
 export type PublicSiteWorkerRequestOptions = {
   mappedSiteHost?: MappedSiteHost;
-  publishedSiteTarget?: InstalledAppStorageIdentity;
+  publishedSiteTarget?: PublicSiteRuntimeTarget;
   runtimeProfile?: WorkerRuntimeProfileInput;
   runtimeTopology?: WorkerRuntimeRequestTopology;
 };
 
 export type MappedSiteHost = {
   host: string;
-  installId: string;
-  target: InstalledAppStorageIdentity;
+  target: PublicSiteRuntimeTarget;
 };
 
 export type PublicSiteWorkerAdapter = {
@@ -97,7 +100,6 @@ export type PublicSiteWorkerAdapter = {
   ): Response;
 };
 
-const siteSchemaKey = "site";
 const viteReactRefreshPreamble = `<script type="module">
 import RefreshRuntime from "/@react-refresh";
 RefreshRuntime.injectIntoGlobalHook(window);
@@ -192,7 +194,7 @@ export async function handlePublicSiteIconRequest(
   const response = await adapter.renderIcon({
     request: getRequest,
     route,
-    svg: await fetchAuthoredSiteIconSource(getRequest, env, requestTarget.target),
+    svg: await fetchAuthoredSiteIconSource(getRequest, env, requestTarget.storageIdentity),
   });
 
   return responseWithoutBodyForHead(request, response);
@@ -242,7 +244,7 @@ export async function handlePublicSiteIndexingRequest(
             ...schemaApps.map((app) => app.route),
           ],
           origin: url.origin,
-          records: await fetchSiteBootstrapRecords(getRequest, env, requestTarget.target),
+          records: await fetchSiteBootstrapRecords(getRequest, env, requestTarget.storageIdentity),
           resource,
         },
   );
@@ -289,7 +291,12 @@ export async function handlePublicSiteDocumentRequest(
   const getRequest = getEquivalentRequestForHead(request);
   const requestUrl = new URL(getRequest.url);
   const slug = normalizeSiteRoutePath(requestUrl.pathname);
-  const treeResult = await fetchSitePageTreeResult(getRequest, env, slug, requestTarget.target);
+  const treeResult = await fetchSitePageTreeResult(
+    getRequest,
+    env,
+    slug,
+    requestTarget.storageIdentity,
+  );
   const response = await adapter.renderDocument({
     clientAssets: await loadClientDocumentAssets(getRequest, env, {
       includeScripts: publicSiteDocumentNeedsClientScripts(treeResult, {
@@ -297,7 +304,7 @@ export async function handlePublicSiteDocumentRequest(
       }),
     }),
     requestUrl,
-    runtimeHints: publicSiteRuntimeHints(requestTarget.target),
+    runtimeHints: publicSiteRuntimeHints(requestTarget),
     slug,
     treeResult,
   });
@@ -313,16 +320,16 @@ export function mappedPublicSiteHostFromRuntimeRoute(
     route.kind !== "mount" ||
     route.targetProfile !== "public-site" ||
     route.surface !== "public-site" ||
-    !route.matchHost ||
-    !route.target
+    !route.matchHost
   ) {
     return undefined;
   }
 
   return {
     host: route.matchHost,
-    installId: route.target.installId,
-    target: route.target,
+    target: route.target
+      ? installedPublicSiteRuntimeTarget(route.target)
+      : programPublicSiteRuntimeTarget(),
   };
 }
 
@@ -333,38 +340,17 @@ export class UnsupportedPackageCapabilityError extends BadRequestError {
   }
 }
 
-type PublicSiteRequestTarget =
-  | {
-      source: "installed";
-      target: InstalledAppStorageIdentity;
-    }
-  | {
-      packageAppKey: string;
-      source: "source";
-      target?: undefined;
-    };
-
 function publicSiteRequestTarget(
   env: Env,
   options: PublicSiteWorkerRequestOptions & { packageResolver?: AppPackageResolver },
-): PublicSiteRequestTarget | Response {
+): PublicSiteRuntimeTarget | Response {
   try {
     const target =
       options.mappedSiteHost?.target ??
       options.publishedSiteTarget ??
       publishedSiteTargetFromRuntimeEnv(env, options.packageResolver);
 
-    if (target) {
-      return { source: "installed", target };
-    }
-
-    if (publicSiteRequestRequiresInstalledTarget(env, options)) {
-      throw new UnsupportedPackageCapabilityError(
-        "Published Site runtime target is not configured.",
-      );
-    }
-
-    return { packageAppKey: runtimeTopologyRoutes.publicSitePackageAppKey, source: "source" };
+    return target ?? programPublicSiteRuntimeTarget();
   } catch (error) {
     if (error instanceof UnsupportedPackageCapabilityError) {
       return Response.json({ error: error.message }, { status: 400 });
@@ -375,17 +361,19 @@ function publicSiteRequestTarget(
 }
 
 function publicSiteWorkerAdapterForRequest(
-  target: PublicSiteRequestTarget,
+  target: PublicSiteRuntimeTarget,
   options: PublicSiteWorkerRequestOptions & { packageResolver?: AppPackageResolver },
 ): PublicSiteWorkerAdapter {
-  const packageAppKey =
-    target.source === "installed" ? target.target.packageAppKey : target.packageAppKey;
-
-  return publicSiteWorkerAdapterForPackageAppKey(packageAppKey, options.packageResolver);
+  return publicSiteWorkerAdapterForPackageAppKey(
+    target.packageAppKey,
+    target.storageIdentity.kind === "program"
+      ? rootKnownPackageFactsResolver(options.packageResolver)
+      : options.packageResolver,
+  );
 }
 
 function publicSiteWorkerAdapterForRequestResponse(
-  target: PublicSiteRequestTarget,
+  target: PublicSiteRuntimeTarget,
   options: PublicSiteWorkerRequestOptions & { packageResolver?: AppPackageResolver },
 ): PublicSiteWorkerAdapter | Response {
   try {
@@ -402,7 +390,7 @@ function publicSiteWorkerAdapterForRequestResponse(
 function publishedSiteTargetFromRuntimeEnv(
   env: Env,
   resolver?: AppPackageResolver,
-): InstalledAppStorageIdentity | undefined {
+): PublicSiteRuntimeTarget | undefined {
   const installId = stringConfigValue(env.FORMLESS_RUNTIME_APP_INSTALL_ID);
   const packageAppKey = stringConfigValue(env.FORMLESS_RUNTIME_PACKAGE_APP_KEY);
 
@@ -424,22 +412,7 @@ function publishedSiteTargetFromRuntimeEnv(
     );
   }
 
-  return target;
-}
-
-function publicSiteRequestRequiresInstalledTarget(
-  env: Env,
-  options: PublicSiteWorkerRequestOptions,
-): boolean {
-  const topology =
-    options.runtimeTopology ??
-    options.runtimeProfile ??
-    workerRuntimeProfileInput(env.FORMLESS_RUNTIME_PROFILE);
-
-  return (
-    resolveWorkerRuntimeRequestTopology(new Request("https://formless.local/"), topology)
-      .profileKind === "publishedSite"
-  );
+  return installedPublicSiteRuntimeTarget(target);
 }
 
 function stringConfigValue(value: unknown): string | undefined {
@@ -471,7 +444,7 @@ async function fetchSitePageTreeResult(
   request: Request,
   env: Env,
   slug: string,
-  target?: AppStorageIdentity,
+  target: PublicSiteRuntimeTarget["storageIdentity"],
 ): Promise<PublicSiteDocumentTreeResult> {
   try {
     const response = await fetchAuthorityJson(
@@ -498,14 +471,14 @@ async function fetchSitePageTreeResult(
 async function fetchSiteBootstrapRecords(
   request: Request,
   env: Env,
-  target?: AppStorageIdentity,
+  target: PublicSiteRuntimeTarget["storageIdentity"],
 ): Promise<StoredRecord[] | undefined> {
   try {
-    const authorityId = env.FORMLESS_AUTHORITY.idFromName(target?.authorityName ?? siteSchemaKey);
+    const authorityId = env.FORMLESS_AUTHORITY.idFromName(target.authorityName);
     const authority = env.FORMLESS_AUTHORITY.get(authorityId);
     const url = new URL(INTERNAL_PUBLIC_SITE_BOOTSTRAP_PATH, request.url);
 
-    url.searchParams.set("apiRoutePrefix", target?.apiRoutePrefix ?? `/api/${siteSchemaKey}`);
+    url.searchParams.set("apiRoutePrefix", target.apiRoutePrefix);
 
     const response = await authority.fetch(
       new Request(url, {
@@ -527,12 +500,12 @@ async function fetchSiteBootstrapRecords(
 async function fetchAuthorityJson(
   request: Request,
   env: Env,
-  target: AppStorageIdentity | undefined,
+  target: PublicSiteRuntimeTarget["storageIdentity"],
   path: `/${string}`,
 ): Promise<Response> {
-  const authorityId = env.FORMLESS_AUTHORITY.idFromName(target?.authorityName ?? siteSchemaKey);
+  const authorityId = env.FORMLESS_AUTHORITY.idFromName(target.authorityName);
   const authority = env.FORMLESS_AUTHORITY.get(authorityId);
-  const url = new URL(`${target?.apiRoutePrefix ?? `/api/${siteSchemaKey}`}${path}`, request.url);
+  const url = new URL(`${target.apiRoutePrefix}${path}`, request.url);
 
   return authority.fetch(
     new Request(url, {
@@ -545,7 +518,7 @@ async function fetchAuthorityJson(
 async function fetchAuthoredSiteIconSource(
   request: Request,
   env: Env,
-  target?: AppStorageIdentity,
+  target: PublicSiteRuntimeTarget["storageIdentity"],
 ): Promise<string | undefined> {
   const records = await fetchSiteBootstrapRecords(request, env, target);
   const settings = records ? primarySiteSettingsRecord(records) : undefined;
@@ -769,17 +742,17 @@ function arrayOfStrings(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
-function publicSiteRuntimeHints(target?: AppStorageIdentity): PublicSiteDocumentRuntimeHint[] {
+function publicSiteRuntimeHints(target: PublicSiteRuntimeTarget): PublicSiteDocumentRuntimeHint[] {
   return [
     {
       name: FORMLESS_RUNTIME_PROFILE_META_NAME,
       content: "publishedSite",
     },
-    ...(target?.kind === "appInstall"
+    ...(target.storageIdentity.kind === "appInstall"
       ? [
           {
             name: FORMLESS_RUNTIME_APP_INSTALL_ID_META_NAME,
-            content: target.installId,
+            content: target.storageIdentity.installId,
           },
           {
             name: FORMLESS_RUNTIME_PACKAGE_APP_KEY_META_NAME,

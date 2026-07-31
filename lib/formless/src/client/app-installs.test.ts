@@ -30,25 +30,23 @@ describe("client app install API helpers", () => {
   it("builds an active package resolver from bundled registry packages", () => {
     const packages = listInstallableAppPackages(bundledAppPackageResolver);
     const resolver = activeAppPackageResolverFromAppInstallsResponse({ packages });
-    const sitePackage = resolver.findPackage("site");
+    const crmPackage = resolver.findPackage("crm");
 
-    expect(resolver.listPackages().map((appPackage) => appPackage.packageAppKey)).toEqual([
-      "site",
-      "crm",
-    ]);
-    expect(sitePackage).toMatchObject({
-      packageAppKey: "site",
+    expect(resolver.listPackages().map((appPackage) => appPackage.packageAppKey)).toEqual(["crm"]);
+    expect(crmPackage).toMatchObject({
+      packageAppKey: "crm",
       sourceOrigin: "bundled",
-      sourceSchemaKey: "site",
+      sourceSchemaKey: "crm",
     });
+    expect(resolver.findPackage("site")).toBeUndefined();
     expect(resolver.findPackage("missing")).toBeUndefined();
 
-    if (!sitePackage) {
-      throw new Error("Missing active Site package.");
+    if (!crmPackage) {
+      throw new Error("Missing active CRM package.");
     }
 
-    sitePackage.sourceSchemaLocation.path = "mutated/schema.json";
-    expect(resolver.findPackage("site")?.sourceSchemaLocation.path).not.toBe("mutated/schema.json");
+    crmPackage.sourceSchemaLocation.path = "mutated/schema.json";
+    expect(resolver.findPackage("crm")?.sourceSchemaLocation.path).not.toBe("mutated/schema.json");
   });
 
   it("builds an active package resolver from workspace registry packages", () => {

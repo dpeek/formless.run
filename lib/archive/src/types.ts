@@ -99,6 +99,7 @@ export type InstanceArchive = {
   capabilities: ArchiveCapability[];
   restorePolicy: ArchiveRestorePolicy;
   controlPlane?: InstanceArchiveControlPlane;
+  media: AppArchiveMediaManifest;
   apps: AppArchive[];
 };
 
@@ -150,6 +151,7 @@ export function parseInstanceArchive(
     "capabilities",
     "restorePolicy",
     ...("controlPlane" in object ? ["controlPlane"] : []),
+    "media",
     "apps",
   ]);
 
@@ -180,6 +182,7 @@ export function parseInstanceArchive(
             options,
           ),
         }),
+    media: parseMediaManifest("Instance archive media", object.media),
     apps: object.apps.map((app, index) =>
       parseAppArchiveAt(`Instance archive apps[${index}]`, app),
     ),
@@ -645,6 +648,7 @@ function canonicalInstanceArchive(
     ...(archive.controlPlane === undefined
       ? {}
       : { controlPlane: canonicalInstanceArchiveControlPlane(archive.controlPlane, options) }),
+    media: canonicalMediaManifest(archive.media),
     apps: archive.apps
       .map(canonicalAppArchive)
       .sort((left, right) => left.app.installId.localeCompare(right.app.installId)),

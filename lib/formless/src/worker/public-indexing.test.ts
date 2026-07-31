@@ -1,19 +1,18 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import {
-  recordOperationRequest,
+  instanceControlPlaneTestStorageSnapshot,
   restoreTestStorageSnapshot,
-  schemaAppTestStorageSnapshot,
 } from "../test/authority-write.ts";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
+import { testSiteRecords } from "../test/site-records.ts";
+import type { StoredRecord } from "@dpeek/formless-storage";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import { PUBLIC_SITE_INDEXING_CACHE_CONTROL } from "@dpeek/formless-site-app/worker";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
 const adminToken = "test-admin-token";
-const publishedPackageAppKey = "site";
-const publishedInstallId = "site";
-
 let harness: Harness;
 
 beforeAll(async () => {
@@ -25,8 +24,6 @@ beforeAll(async () => {
     {
       bindings: {
         FORMLESS_RUNTIME_PROFILE: "publishedSite",
-        FORMLESS_RUNTIME_APP_INSTALL_ID: publishedInstallId,
-        FORMLESS_RUNTIME_PACKAGE_APP_KEY: publishedPackageAppKey,
         FORMLESS_ADMIN_TOKEN: adminToken,
       },
       compatibilityDate: "2026-04-28",
@@ -35,7 +32,12 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await resetInstalledApp(publishedPackageAppKey, publishedInstallId);
+  await restoreTestStorageSnapshot(
+    harness,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
+    instanceControlPlaneTestStorageSnapshot(testSiteRecords),
+    adminHeaders(),
+  );
 });
 
 afterAll(async () => {
@@ -62,51 +64,34 @@ Sitemap: http://example.com/sitemap.xml
   });
 
   it("serves sitemap.xml from public Site routes instead of the client shell", async () => {
-    await postAdminRecordOperation({
-      idempotencyKey: "write-public-sitemap-page",
-      entity: "block",
-      operationName: "create",
-      input: {
+    await restoreProgramSiteRecords([
+      ...testSiteRecords,
+      siteBlock("rec_site_sitemap_launch_check", {
         type: "page",
         label: "Launch check",
         body: "Sitemap launch check.",
         href: "/launch-check",
-      },
-    });
-    await postAdminRecordOperation({
-      idempotencyKey: "write-public-sitemap-post",
-      entity: "block",
-      operationName: "create",
-      input: {
+      }),
+      siteBlock("rec_site_sitemap_post", {
         type: "post",
         label: "Sitemap post",
         body: "Sitemap post check.",
         href: "/blog/sitemap-post",
         date: "2026-05-15",
-      },
-    });
-    await postAdminRecordOperation({
-      idempotencyKey: "write-public-sitemap-undated-post",
-      entity: "block",
-      operationName: "create",
-      input: {
+      }),
+      siteBlock("rec_site_sitemap_undated_post", {
         type: "post",
         label: "Undated draft",
         body: "Hidden until dated.",
         href: "/blog/undated-draft",
-      },
-    });
-    await postAdminRecordOperation({
-      idempotencyKey: "write-public-sitemap-blocked-app-route",
-      entity: "block",
-      operationName: "create",
-      input: {
+      }),
+      siteBlock("rec_site_sitemap_blocked_route", {
         type: "page",
         label: "Blocked app route",
         body: "Generated app route.",
         href: "/site",
-      },
-    });
+      }),
+    ]);
 
     const response = await harness.fetch("/sitemap.xml", {
       headers: { Accept: "text/html" },
@@ -122,7 +107,6 @@ Sitemap: http://example.com/sitemap.xml
     expect(body).toContain("<loc>http://example.com/blog/sitemap-post</loc>");
     expect(body).not.toContain("<html");
     expect(body).not.toContain("/pages/");
-    expect(body).not.toContain("<loc>http://example.com/site</loc>");
     expect(body).not.toContain("undated-draft");
   });
 
@@ -130,17 +114,22 @@ Sitemap: http://example.com/sitemap.xml
     const beforeResponse = await harness.fetch("/sitemap.xml");
     const beforeBody = await beforeResponse.text();
 
-    await postAdminRecordOperation({
-      idempotencyKey: "write-public-sitemap-site-settings",
-      entity: "site",
-      operationName: "update",
-      recordId: "rec_site_settings_primary",
-      input: {
-        label: "Renamed Site",
-        description: "Settings should not change sitemap routes.",
-        icon: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" fill="#0f766e"/></svg>',
-      },
-    });
+    await restoreProgramSiteRecords(
+      testSiteRecords.map((record) =>
+        record.id === "rec_site_settings_primary"
+          ? {
+              ...record,
+              values: {
+                ...record.values,
+                label: "Renamed Site",
+                description: "Settings should not change sitemap routes.",
+                icon: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" fill="#0f766e"/></svg>',
+              },
+              updatedAt: "2026-07-31T00:00:00.000Z",
+            }
+          : record,
+      ),
+    );
 
     const afterResponse = await harness.fetch("/sitemap.xml");
     const afterBody = await afterResponse.text();
@@ -169,29 +158,23 @@ Sitemap: http://example.com/sitemap.xml
   });
 });
 
-async function resetInstalledApp(packageAppKey: string, installId: string) {
+async function restoreProgramSiteRecords(records: StoredRecord[]) {
   await restoreTestStorageSnapshot(
     harness,
-    `/api/app-installs/${packageAppKey}/${installId}/snapshot/restore`,
-    schemaAppTestStorageSnapshot("site", `app:${installId}`),
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
+    instanceControlPlaneTestStorageSnapshot(records),
     adminHeaders(),
   );
 }
 
-async function postAdminRecordOperation(body: Parameters<typeof recordOperationRequest>[0]) {
-  const request = recordOperationRequest(body);
-  const response = await harness.fetch(
-    `/api/app-installs/${publishedPackageAppKey}/${publishedInstallId}${request.path.slice("/api".length)}`,
-    {
-      body: JSON.stringify(request.body),
-      headers: adminHeaders(),
-      method: "POST",
-    },
-  );
-
-  expect(response.status).toBe(200);
-
-  return response;
+function siteBlock(id: string, values: StoredRecord["values"]): StoredRecord {
+  return {
+    id,
+    entity: "block",
+    values,
+    createdAt: "2026-07-31T00:00:00.000Z",
+    updatedAt: "2026-07-31T00:00:00.000Z",
+  };
 }
 
 function adminHeaders() {

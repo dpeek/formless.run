@@ -2,7 +2,11 @@ import { FormlessAuthority } from "./authority.ts";
 import { handleWorkspaceGatewayProxyRequest } from "@dpeek/formless-gateway/worker";
 import { parseAuthorityApiRoute, parseProgramApiRoute } from "../shared/app-storage-identity.ts";
 import { handleInstanceArchiveApiRequest } from "./archive-api.ts";
-import { authorizeInstanceWrite, authorizeOwnerManagementRead } from "./authority-admin-guard.ts";
+import {
+  authorizeInstanceWrite,
+  authorizeOwnerManagementRead,
+  authorizeProgramAccess,
+} from "./authority-admin-guard.ts";
 import { selectAuthorityOperation } from "./authority-operations.ts";
 import { handleClientAssetRequest, handleClientShellDocumentRequest } from "./client-shell.ts";
 import { handleDeployMetadataRequest } from "./deploy-metadata.ts";
@@ -100,6 +104,10 @@ import { validateOwnerSessionCookie } from "./owner-session.ts";
 import type { TurnstileRuntimeEnv } from "../shared/turnstile-config.ts";
 import { activeAppPackageResolver } from "./runtime-app-packages.ts";
 import { WORKSPACE_OPERATION_CAPABILITIES } from "@dpeek/formless-workspace";
+import {
+  FORMLESS_PROGRAM_EDITOR_ACCESS_REQUIREMENT,
+  formlessProgramSchema,
+} from "../program/runtime.ts";
 
 export { FormlessAuthority } from "./authority.ts";
 
@@ -219,7 +227,29 @@ export default {
     }
 
     const mediaResponse = await handleMediaPackageRequest(request, {
-      authorizeWrite: (writeRequest) => authorizeInstanceWrite(writeRequest, env),
+      authorizeWrite: async (writeRequest) => {
+        const instanceAuthorization = await authorizeInstanceWrite(writeRequest, env);
+
+        if (instanceAuthorization.authorized) {
+          return instanceAuthorization;
+        }
+
+        const programAuthorization = await authorizeProgramAccess(
+          writeRequest,
+          env,
+          FORMLESS_PROGRAM_EDITOR_ACCESS_REQUIREMENT,
+          formlessProgramSchema,
+          {
+            error:
+              "Current Program editor, administrator, owner, or admin authorization is required for core media writes.",
+            hostSessionTarget: requestHasCookie(request, HOST_AUTH_SESSION_COOKIE_NAME)
+              ? hostAuthSessionTargetForRuntimeRoute(request, runtimeRoute)
+              : undefined,
+          },
+        );
+
+        return programAuthorization.authorized ? programAuthorization : instanceAuthorization;
+      },
       pathname: requestTopology.pathname,
       provider: "r2",
       store: mediaObjectStoreFromR2Bucket(env.FORMLESS_MEDIA),

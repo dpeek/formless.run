@@ -66,7 +66,7 @@ describe("local workspace gateway", () => {
       ),
     ).resolves.toMatchObject({ response: { status: 404 } });
 
-    for (const profile of ["app", "siteAuthoring", "publishedSite"]) {
+    for (const profile of ["app", "publishedSite"]) {
       const blocked = await gatewayJson(
         new Request(`http://local.test${WORKSPACE_GATEWAY_STATUS_API_PATH}`, {
           headers: bootstrapHeaders(),

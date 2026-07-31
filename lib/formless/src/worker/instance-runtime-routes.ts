@@ -200,9 +200,15 @@ function routeCandidateHasAvailableRuntimeTarget(
 ): boolean {
   const targetProfile = candidate.values.targetProfile;
 
-  return targetProfile !== "app" && targetProfile !== "public-site"
-    ? true
-    : installTarget(candidate.values, appInstalls, packageResolver) !== undefined;
+  if (targetProfile !== "app" && targetProfile !== "public-site") {
+    return true;
+  }
+
+  if (targetProfile === "public-site" && candidate.values.appInstall === undefined) {
+    return true;
+  }
+
+  return installTarget(candidate.values, appInstalls, packageResolver) !== undefined;
 }
 
 function routeCandidateFromRecord(
@@ -358,7 +364,11 @@ function runtimeRouteResolutionFromCandidate(
 
   const target = installTarget(values, appInstalls, packageResolver);
 
-  if ((targetProfile === "app" || targetProfile === "public-site") && !target) {
+  if (
+    (targetProfile === "app" ||
+      (targetProfile === "public-site" && values.appInstall !== undefined)) &&
+    !target
+  ) {
     return undefined;
   }
 

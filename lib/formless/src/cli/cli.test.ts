@@ -40,6 +40,7 @@ import {
   appPackageManifestVersion,
   bundledAppPackageManifests,
   bundledAppPackageResolver,
+  rootKnownPackageFactsResolver,
 } from "../shared/app-packages.ts";
 import {
   FORMLESS_RUNTIME_PROTOCOL_VERSION,
@@ -107,11 +108,9 @@ import {
   FORMLESS_ALCHEMY_APP_NAME,
   discoverFormlessInstanceWorkspaceRoot,
   exportAppArchive,
-  exportInstanceArchive,
   initFormlessInstanceWorkspace,
   planFormlessInstanceDeployment,
   resolveFormlessInstanceWorkspaceRoot,
-  restoreAppArchive,
   restorePortableArchive,
   runFormlessCli,
   workspaceDomainProviderAlchemyRuntime,
@@ -952,13 +951,10 @@ describe("Formless CLI", () => {
 
     await expect(
       readFile(path.join(workspaceRoot, "state/apps/david.json"), "utf8"),
-    ).resolves.toContain('"storageIdentity": "app:david"');
+    ).rejects.toMatchObject({ code: "ENOENT" });
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
       "GET https://source-owned.dpeek.workers.dev/api/formless/app-installs",
       "GET https://source-owned.dpeek.workers.dev/api/formless/program/snapshot?actorKind=cliDeployer",
-      "GET https://source-owned.dpeek.workers.dev/api/app-installs/site/david/snapshot",
-      "GET https://source-owned.dpeek.workers.dev/api/app-installs/site/james/snapshot",
-      "GET https://source-owned.dpeek.workers.dev/api/formless/media/media/images/cover.png",
       "GET https://source-owned.dpeek.workers.dev/api/formless/program/bootstrap?actorKind=cliDeployer",
     ]);
     expect(requests.map((request) => request.headers.authorization)).toEqual(
@@ -966,9 +962,9 @@ describe("Formless CLI", () => {
     );
     expect(logs).toHaveLength(1);
     expect(logs.join("\n")).not.toContain("stored-archive-token");
-    await expect(
-      readFile(path.join(workspaceRoot, "state/apps/david.json")),
-    ).resolves.not.toContain("stored-archive-token");
+    await expect(stat(path.join(workspaceRoot, "state/apps/stale.json"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 
   it("pulls, pushes, and rebuilds referenced document workspace source", async () => {
@@ -1320,23 +1316,13 @@ describe("Formless CLI", () => {
       }),
     );
 
-    const restoreRequest = requests.at(-1);
-    const restoreBody = capturedRequestJson<{
-      archive: {
-        restorePolicy: unknown;
-      };
-      exactInstanceReplacement: boolean;
-    }>(restoreRequest);
-
-    expect(`${restoreRequest?.method} ${restoreRequest?.url}`).toBe(
-      "POST https://personal.dpeek.workers.dev/api/formless/archive/restore",
-    );
-    expect(restoreRequest?.headers.authorization).toBe("Bearer local-token");
-    expect(restoreBody.archive.restorePolicy).toEqual({
-      dryRun: true,
-      installCollisions: "replace",
-    });
-    expect(restoreBody.exactInstanceReplacement).toBe(true);
+    expect(
+      requests.some(
+        (request) =>
+          request.method === "POST" &&
+          new URL(request.url).pathname === "/api/formless/archive/restore",
+      ),
+    ).toBe(false);
     expect(deployInputs).toEqual([]);
     expect(logs).toHaveLength(1);
   });
@@ -3033,118 +3019,6 @@ describe("Formless CLI", () => {
     }
   });
 
-  it("runs instance workspace dev with product profile, isolated persistence, and first-run archive restore from storage state", async () => {
-    const tempDir = await makeTempDir();
-    const workspaceRoot = path.join(tempDir, "personal-sites");
-    const child = new FakeCliDevChild();
-    const logs: string[] = [];
-    const requests: CapturedFetchRequest[] = [];
-    const spawnCalls: CapturedSpawn[] = [];
-    const localDavid = appArchive("david", "David Peek", {
-      mediaBytes: Buffer.from([4, 5, 6]),
-      records: mediaRecords(),
-    });
-
-    await writeWorkspaceConfig(workspaceRoot);
-    await mkdir(path.join(workspaceRoot, ".formless/local"), { recursive: true });
-    await writeFile(
-      path.join(workspaceRoot, ".formless/local/dev.env"),
-      "FORMLESS_ADMIN_TOKEN=persisted-local-admin\nFORMLESS_OWNER_SESSION_SECRET=persisted-owner-session\n",
-    );
-    await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot, localOnlyControlPlaneRecords());
-    await writeWorkspaceAppStateFromArchive(workspaceRoot, localDavid, Buffer.from([4, 5, 6]));
-
-    const run = runFormlessCli(
-      ["dev", "--workspace", workspaceRoot],
-      cliDeps(tempDir, {
-        env: {
-          FORMLESS_ADMIN_TOKEN: "remote-token",
-          KEEP: "value",
-          PORT: "4444",
-        },
-        fetch: localInstanceDevFetch(requests, []),
-        logs,
-        packageRoot: "/package",
-        spawn: ((command: string, args: string[], options: CapturedSpawnOptions) => {
-          spawnCalls.push({
-            args,
-            command,
-            cwd: options.cwd,
-            env: options.env,
-          });
-          announceFakeCliDevServer(child, options.env);
-
-          return child as unknown as ReturnType<typeof spawn>;
-        }) as typeof spawn,
-      }),
-    );
-
-    await waitUntil(() => logs.some((line) => line.includes(LOCAL_SESSION_BOOTSTRAP_API_PATH)));
-    child.close(0);
-    await run;
-
-    expect(spawnCalls).toHaveLength(1);
-    expect(spawnCalls[0]).toMatchObject({
-      args: ["run", "vp", "dev", "--port", "4444", "--strictPort"],
-      command: "bun",
-      cwd: "/package",
-    });
-    expect(spawnCalls[0]?.env).toMatchObject({
-      FORMLESS_ADMIN_TOKEN: "persisted-local-admin",
-      FORMLESS_OWNER_SESSION_SECRET: "persisted-owner-session",
-      [LOCAL_SESSION_BOOTSTRAP_TOKEN_ENV]: expect.any(String),
-      FORMLESS_RUNTIME_PROFILE: "instance",
-      FORMLESS_WRANGLER_PERSIST: path.join(workspaceRoot, ".formless/local/wrangler"),
-      KEEP: "value",
-      PORT: "4444",
-      VITE_FORMLESS_RUNTIME_PROFILE: "instance",
-    });
-    expect(spawnCalls[0]?.env?.[LOCAL_SESSION_BOOTSTRAP_TOKEN_ENV]).not.toBe(
-      "persisted-local-admin",
-    );
-    await expect(
-      readFile(path.join(workspaceRoot, ".formless/local/dev.env"), "utf8"),
-    ).resolves.toBe(
-      "FORMLESS_ADMIN_TOKEN=persisted-local-admin\nFORMLESS_OWNER_SESSION_SECRET=persisted-owner-session\n",
-    );
-    expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
-      "GET http://localhost:4444/api/formless/app-installs",
-      "GET http://localhost:4444/api/formless/app-installs",
-      "POST http://localhost:4444/api/formless/archive/restore",
-    ]);
-    expect(requests.map((request) => request.headers.authorization)).toEqual([
-      "Bearer persisted-local-admin",
-      "Bearer persisted-local-admin",
-      "Bearer persisted-local-admin",
-    ]);
-
-    const restoreRequest = requests.at(-1);
-    const restoreBody = capturedRequestJson<{
-      archive: InstanceArchive;
-      mediaFiles: {
-        bytesBase64: string;
-      }[];
-    }>(restoreRequest);
-    expect(restoreRequest?.headers.authorization).toBe("Bearer persisted-local-admin");
-    expect(restoreBody.archive.restorePolicy).toEqual({
-      dryRun: false,
-      installCollisions: "reject",
-    });
-    expect(restoreBody.archive.controlPlane?.records.map((record) => record.entity)).toEqual([
-      "app-install",
-      "route",
-      "route",
-    ]);
-    expect(restoreBody.archive.apps.map((app) => app.app.installId)).toEqual(["david"]);
-    expect(restoreBody.archive.apps[0]?.data.kind).toBe(STORAGE_SNAPSHOT_KIND);
-    expect(JSON.stringify(restoreBody.archive.controlPlane)).not.toContain(
-      "media/images/cover.png",
-    );
-    expect(restoreBody.mediaFiles[0]?.bytesBase64).toBe(Buffer.from([4, 5, 6]).toString("base64"));
-    expect(logs).toEqual([devSessionBootstrapUrlLogLine(logs)]);
-    expect(child.killed).toBe(false);
-  });
-
   it("starts workspace dev with a linked private app package and clean install records", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "instance");
@@ -3250,127 +3124,6 @@ describe("Formless CLI", () => {
     expect(controlPlaneJson).not.toContain(packageRoot);
     expect(restoreBody.mediaFiles).toEqual([]);
     expect(logs).toEqual([devSessionBootstrapUrlLogLine(logs)]);
-  });
-
-  it("rejects missing local app state before local dev restore", async () => {
-    const tempDir = await makeTempDir();
-    const workspaceRoot = path.join(tempDir, "personal-sites");
-    const child = new FakeCliDevChild();
-    const requests: CapturedFetchRequest[] = [];
-
-    await writeWorkspaceConfig(workspaceRoot);
-    await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot, localOnlyControlPlaneRecords());
-
-    await expect(
-      runFormlessCli(
-        ["dev", "--workspace", workspaceRoot],
-        cliDeps(tempDir, {
-          env: { PORT: "4447" },
-          fetch: localInstanceDevFetch(requests, []),
-          spawn: ((_command: string, _args: string[], options: CapturedSpawnOptions) => {
-            announceFakeCliDevServer(child, options.env);
-
-            return child as unknown as ReturnType<typeof spawn>;
-          }) as typeof spawn,
-        }),
-      ),
-    ).rejects.toThrow(
-      "Formless instance local dev requires local app state state/apps/david.json.",
-    );
-
-    expect(child.killed).toBe(false);
-    expect(requests).toEqual([]);
-  });
-
-  it("rejects mismatched app state identity and package facts before local dev restore", async () => {
-    const tempDir = await makeTempDir();
-    const workspaceRoot = path.join(tempDir, "personal-sites");
-    const child = new FakeCliDevChild();
-
-    await writeWorkspaceConfig(workspaceRoot);
-    await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot, localOnlyControlPlaneRecords());
-    await writeWorkspaceAppStateFromArchive(
-      workspaceRoot,
-      appArchive("james", "James Peek"),
-      undefined,
-      "david",
-    );
-
-    await expect(
-      runFormlessCli(
-        ["dev", "--workspace", workspaceRoot],
-        cliDeps(tempDir, {
-          env: { PORT: "4448" },
-          fetch: localInstanceDevFetch([], []),
-          spawn: ((_command: string, _args: string[], options: CapturedSpawnOptions) => {
-            announceFakeCliDevServer(child, options.env);
-
-            return child as unknown as ReturnType<typeof spawn>;
-          }) as typeof spawn,
-        }),
-      ),
-    ).rejects.toThrow('Storage snapshot storageIdentity must be "app:david".');
-
-    await writeWorkspaceControlPlaneStorageSnapshot(
-      workspaceRoot,
-      localOnlyControlPlaneRecords().map((record) =>
-        record.entity === "app-install"
-          ? {
-              ...record,
-              values: {
-                ...record.values,
-                packageRevision: 999,
-              },
-            }
-          : record,
-      ),
-    );
-    await writeWorkspaceAppStateFromArchive(workspaceRoot, appArchive("david", "David Peek"));
-
-    await expect(
-      runFormlessCli(
-        ["dev", "--workspace", workspaceRoot],
-        cliDeps(tempDir, {
-          env: { PORT: "4449" },
-          fetch: localInstanceDevFetch([], []),
-          spawn: ((_command: string, _args: string[], _options: CapturedSpawnOptions) =>
-            child as unknown as ReturnType<typeof spawn>) as typeof spawn,
-        }),
-      ),
-    ).rejects.toThrow(
-      'Formless instance local dev app install "david" has package revision 999, expected 1.',
-    );
-  });
-
-  it("rejects missing media payloads before local dev restore", async () => {
-    const tempDir = await makeTempDir();
-    const workspaceRoot = path.join(tempDir, "personal-sites");
-    const child = new FakeCliDevChild();
-    const localDavid = appArchive("david", "David Peek", {
-      mediaBytes: Buffer.from([4, 5, 6]),
-      records: mediaRecords(),
-    });
-
-    await writeWorkspaceConfig(workspaceRoot);
-    await writeWorkspaceControlPlaneStorageSnapshot(workspaceRoot, localOnlyControlPlaneRecords());
-    await writeWorkspaceAppStateFromArchive(workspaceRoot, localDavid);
-
-    await expect(
-      runFormlessCli(
-        ["dev", "--workspace", workspaceRoot],
-        cliDeps(tempDir, {
-          env: { PORT: "4450" },
-          fetch: localInstanceDevFetch([], []),
-          spawn: ((_command: string, _args: string[], options: CapturedSpawnOptions) => {
-            announceFakeCliDevServer(child, options.env);
-
-            return child as unknown as ReturnType<typeof spawn>;
-          }) as typeof spawn,
-        }),
-      ),
-    ).rejects.toThrow(
-      "Formless instance local dev app state state/apps/david.json is missing media files: media/david/media/images/cover.png.",
-    );
   });
 
   it("rejects secret-looking control-plane storage state before local dev restore", async () => {
@@ -3856,284 +3609,6 @@ describe("Formless CLI", () => {
     expect(destroyInputs).toEqual([]);
   });
 
-  it("exports app archives and restores them through the archive API", async () => {
-    const tempDir = await makeTempDir();
-    const outDir = path.join(tempDir, "personal-backup");
-    const requests: CapturedFetchRequest[] = [];
-    const responses = responseQueue();
-    const sourceSnapshotRecords = mediaRecords();
-
-    responses.queueJson({
-      packages: listInstallableAppPackages(bundledAppPackageResolver),
-      installs: [
-        {
-          adminRoute: "/apps/personal",
-          createdAt: "2026-05-01T00:00:00.000Z",
-          installId: "personal",
-          label: "Personal",
-          packageAppKey: "site",
-          publicRoute: "/sites/personal",
-          publicRoutePrefix: "/sites/personal/",
-          registrationPolicy: "closed",
-          status: "installed",
-          updatedAt: "2026-05-01T00:00:00.000Z",
-        },
-      ],
-    });
-    responses.queueJson(snapshot(sourceSnapshotRecords));
-    responses.queueBinary(Buffer.from([4, 5, 6]), "image/png");
-
-    await exportAppArchive(
-      {
-        installId: "personal",
-        outDir,
-        target: "https://instance.example",
-      },
-      cliDeps(tempDir, {
-        env: { FORMLESS_ADMIN_TOKEN: "export-token" },
-        fetch: responses.fetcher(requests),
-      }),
-    );
-
-    const archivePath = path.join(outDir, PORTABLE_ARCHIVE_MANIFEST_FILE);
-    const archive = parsePortableArchive(
-      JSON.parse(await readFile(archivePath, "utf8")) as unknown,
-      { packageResolver: bundledAppPackageResolver },
-    );
-
-    if (archive.kind !== APP_ARCHIVE_KIND) {
-      throw new Error("Expected app archive.");
-    }
-
-    expect(archive.app.installId).toBe("personal");
-    expect(archive.capabilities).toEqual(["app-store-snapshots", "core-media-assets"]);
-    expectPortableArchiveExcludesRuntimeExtensions(archive);
-    expect(archive.media.objects).toEqual([
-      expect.objectContaining({
-        archivePath: "media/personal/media/images/cover.png",
-        deliveryHref: "/api/formless/media/media/images/cover.png",
-        storageKey: "media/images/cover.png",
-      }),
-    ]);
-    await expect(
-      readFile(path.join(outDir, "media/personal/media/images/cover.png")),
-    ).resolves.toEqual(Buffer.from([4, 5, 6]));
-    expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
-      "GET https://instance.example/api/formless/app-installs",
-      "GET https://instance.example/api/app-installs/site/personal/snapshot",
-      "GET https://instance.example/api/formless/media/media/images/cover.png",
-    ]);
-    expect(requests.slice(0, 3).map((request) => request.headers.authorization)).toEqual([
-      "Bearer export-token",
-      "Bearer export-token",
-      "Bearer export-token",
-    ]);
-
-    responses.queueJson({
-      ok: true,
-      report: {
-        applied: true,
-        summary: {
-          appCount: 1,
-          createdInstalls: ["personal-copy"],
-          mediaCountsByApp: { "personal-copy": 1 },
-          recordCountsByApp: { "personal-copy": { total: sourceSnapshotRecords.length } },
-          replacedInstalls: [],
-        },
-      },
-    });
-
-    await restoreAppArchive(
-      {
-        adminToken: "secret",
-        apply: true,
-        archiveDir: outDir,
-        installId: "personal-copy",
-        replace: false,
-        target: "https://instance.example",
-      },
-      cliDeps(tempDir, {
-        fetch: responses.fetcher(requests),
-      }),
-    );
-
-    const restoreRequest = requests.at(-1);
-    const restoreBody = capturedRequestJson<{
-      archive: AppArchive;
-      mediaFiles: {
-        bytesBase64: string;
-      }[];
-    }>(restoreRequest);
-    expect(`${restoreRequest?.method} ${restoreRequest?.url}`).toBe(
-      "POST https://instance.example/api/formless/archive/restore",
-    );
-    expect(restoreRequest?.headers.authorization).toBe("Bearer secret");
-    expect(restoreBody.archive.app.installId).toBe("personal-copy");
-    expect(restoreBody.archive.restorePolicy).toEqual({
-      dryRun: false,
-      installCollisions: "reject",
-    });
-    expect(restoreBody.archive.media.objects[0]).toMatchObject({
-      deliveryHref: "/api/formless/media/media/images/cover.png",
-      storageKey: "media/images/cover.png",
-    });
-    expect(restoreBody.mediaFiles[0]?.bytesBase64).toBe(Buffer.from([4, 5, 6]).toString("base64"));
-  });
-
-  it("exports protected public and private documents and retargets their ownership", async () => {
-    const tempDir = await makeTempDir();
-    const outDir = path.join(tempDir, "document-backup");
-    const requests: CapturedFetchRequest[] = [];
-    const responses = responseQueue();
-    const privateBytes = new TextEncoder().encode("%PDF-1.7\nprivate draft");
-    const publicBytes = new TextEncoder().encode("%PDF-1.7\nissued document");
-    const schema = documentArchiveSourceSchema();
-    const records = [
-      block("block-documents", "2026-05-05T00:00:01.000Z", {
-        type: "image",
-        label: "Documents",
-        privateDocument: "private.pdf",
-        publicDocument: "public.pdf",
-      }),
-    ];
-    const privateAsset = appDocumentAsset(
-      "personal",
-      "private",
-      "private",
-      privateBytes.byteLength,
-    );
-    const publicAsset = appDocumentAsset("personal", "public", "public", publicBytes.byteLength);
-
-    responses.queueJson({
-      packages: listInstallableAppPackages(bundledAppPackageResolver),
-      installs: [installedSite("personal", "Personal")],
-    });
-    responses.queueJson({
-      ...snapshot(records),
-      schema,
-    });
-    responses.queueJson({ assets: [privateAsset] });
-    responses.queueJson({ assets: [publicAsset] });
-    responses.queueBinary(privateBytes, "application/pdf");
-    responses.queueBinary(publicBytes, "application/pdf");
-
-    await exportAppArchive(
-      {
-        installId: "personal",
-        outDir,
-        target: "https://instance.example",
-      },
-      cliDeps(tempDir, {
-        env: { FORMLESS_ADMIN_TOKEN: "protected-export" },
-        fetch: responses.fetcher(requests),
-      }),
-    );
-
-    const archive = parsePortableArchive(
-      JSON.parse(
-        await readFile(path.join(outDir, PORTABLE_ARCHIVE_MANIFEST_FILE), "utf8"),
-      ) as unknown,
-      { packageResolver: bundledAppPackageResolver },
-    );
-
-    if (archive.kind !== APP_ARCHIVE_KIND) {
-      throw new Error("Expected app archive.");
-    }
-
-    expect(archive.media.objects.map((object) => object.asset)).toEqual([
-      expect.objectContaining({
-        access: "private",
-        filename: "private.pdf",
-        ownerAppInstallId: "personal",
-      }),
-      expect.objectContaining({
-        access: "public",
-        filename: "public.pdf",
-        ownerAppInstallId: "personal",
-      }),
-    ]);
-    expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
-      "GET https://instance.example/api/formless/app-installs",
-      "GET https://instance.example/api/app-installs/site/personal/snapshot",
-      "GET https://instance.example/api/app-installs/site/personal/media/documents?entity=block&field=privateDocument",
-      "GET https://instance.example/api/app-installs/site/personal/media/documents?entity=block&field=publicDocument",
-      "GET https://instance.example/api/app-installs/site/personal/media/documents/private.pdf",
-      "GET https://instance.example/api/app-installs/site/personal/media/documents/public.pdf",
-    ]);
-    expect(requests.map((request) => request.headers.authorization)).toEqual(
-      Array.from({ length: 6 }, () => "Bearer protected-export"),
-    );
-    expect(requests.map((request) => request.headers["x-formless-archive-export"])).toEqual([
-      undefined,
-      undefined,
-      "1",
-      "1",
-      "1",
-      "1",
-    ]);
-
-    responses.queueJson({
-      ok: true,
-      report: {
-        applied: true,
-        summary: {
-          appCount: 1,
-          createdInstalls: ["personal-copy"],
-          mediaCountsByApp: { "personal-copy": 2 },
-          recordCountsByApp: { "personal-copy": { total: records.length } },
-          replacedInstalls: [],
-        },
-      },
-    });
-
-    await restoreAppArchive(
-      {
-        adminToken: "restore-token",
-        apply: true,
-        archiveDir: outDir,
-        installId: "personal-copy",
-        replace: false,
-        target: "https://instance.example",
-      },
-      cliDeps(tempDir, {
-        fetch: responses.fetcher(requests),
-      }),
-    );
-    const restoreBody = capturedRequestJson<{
-      archive: AppArchive;
-      mediaFiles: {
-        archivePath: string;
-        bytesBase64: string;
-      }[];
-    }>(requests.at(-1));
-    expect(restoreBody.archive.app.installId).toBe("personal-copy");
-    expect(restoreBody.archive.media.objects).toEqual([
-      expect.objectContaining({
-        archivePath: "media/personal/media/app-installs/personal/documents/private.pdf",
-        asset: expect.objectContaining({
-          access: "private",
-          id: "private.pdf",
-          ownerAppInstallId: "personal-copy",
-          storageKey: "media/app-installs/personal-copy/documents/private.pdf",
-          deliveryHref: "/api/app-installs/site/personal-copy/media/documents/private.pdf",
-        }),
-        storageKey: "media/app-installs/personal-copy/documents/private.pdf",
-        deliveryHref: "/api/app-installs/site/personal-copy/media/documents/private.pdf",
-      }),
-      expect.objectContaining({
-        asset: expect.objectContaining({
-          access: "public",
-          id: "public.pdf",
-          ownerAppInstallId: "personal-copy",
-        }),
-      }),
-    ]);
-    expect(restoreBody.mediaFiles.map((file) => file.archivePath)).toEqual([
-      "media/personal/media/app-installs/personal/documents/private.pdf",
-      "media/personal/media/app-installs/personal/documents/public.pdf",
-    ]);
-  });
-
   it("exports installed CRM app archives without media requests", async () => {
     const tempDir = await makeTempDir();
     const outDir = path.join(tempDir, "tasks-backup");
@@ -4192,206 +3667,6 @@ describe("Formless CLI", () => {
       "GET https://instance.example/api/formless/app-installs",
       "GET https://instance.example/api/app-installs/crm/work/snapshot",
     ]);
-  });
-
-  it("exports and restores mixed instance archives without non-Site media requests", async () => {
-    const tempDir = await makeTempDir();
-    const outDir = path.join(tempDir, "instance-backup");
-    const requests: CapturedFetchRequest[] = [];
-    const responses = responseQueue();
-    const sourceSnapshotRecords = mediaRecords();
-
-    responses.queueJson({
-      packages: listInstallableAppPackages(bundledAppPackageResolver),
-      installs: [
-        {
-          adminRoute: "/apps/personal",
-          createdAt: "2026-05-01T00:00:00.000Z",
-          installId: "personal",
-          label: "Personal",
-          packageAppKey: "site",
-          ...packageAppFactsForKey("site", bundledAppPackageResolver)!,
-          publicRoute: "/sites/personal",
-          publicRoutePrefix: "/sites/personal/",
-          registrationPolicy: "closed",
-          status: "installed",
-          updatedAt: "2026-05-01T00:00:00.000Z",
-        },
-        {
-          adminRoute: "/apps/work",
-          createdAt: "2026-05-01T00:00:00.000Z",
-          installId: "work",
-          label: "Work CRM",
-          packageAppKey: "crm",
-          ...packageAppFactsForKey("crm", bundledAppPackageResolver)!,
-          registrationPolicy: "closed",
-          status: "installed",
-          updatedAt: "2026-05-01T00:00:00.000Z",
-        },
-        {
-          adminRoute: "/apps/sales",
-          createdAt: "2026-05-01T00:00:00.000Z",
-          installId: "sales",
-          label: "Sales CRM",
-          packageAppKey: "crm",
-          ...packageAppFactsForKey("crm", bundledAppPackageResolver)!,
-          registrationPolicy: "closed",
-          status: "installed",
-          updatedAt: "2026-05-01T00:00:00.000Z",
-        },
-      ],
-    });
-    responses.queueJson(controlPlaneSnapshot(controlPlaneRecords()));
-    responses.queueJson(snapshot(sourceSnapshotRecords));
-    responses.queueJson(crmSnapshot(crmTestRecords, "app:work"));
-    responses.queueJson(crmSnapshot(crmTestRecords, "app:sales"));
-    responses.queueBinary(Buffer.from([4, 5, 6]), "image/png");
-
-    await exportInstanceArchive(
-      {
-        outDir,
-        target: "https://instance.example",
-      },
-      cliDeps(tempDir, {
-        env: { FORMLESS_ADMIN_TOKEN: "export-token" },
-        fetch: responses.fetcher(requests),
-      }),
-    );
-
-    const archivePath = path.join(outDir, PORTABLE_ARCHIVE_MANIFEST_FILE);
-    const archive = parsePortableArchive(
-      JSON.parse(await readFile(archivePath, "utf8")) as unknown,
-      { packageResolver: bundledAppPackageResolver },
-    );
-
-    if (archive.kind !== INSTANCE_ARCHIVE_KIND) {
-      throw new Error("Expected instance archive.");
-    }
-
-    const personal = archive.apps.find((app) => app.app.installId === "personal");
-    const sales = archive.apps.find((app) => app.app.installId === "sales");
-    const work = archive.apps.find((app) => app.app.installId === "work");
-
-    expect(
-      archive.apps.map((app) => [
-        app.app.installId,
-        app.app.packageAppKey,
-        app.app.packageRevision,
-        app.app.sourceSchemaHash,
-      ]),
-    ).toEqual([
-      [
-        "personal",
-        "site",
-        packageAppFactsForKey("site", bundledAppPackageResolver)!.packageRevision,
-        packageAppFactsForKey("site", bundledAppPackageResolver)!.sourceSchemaHash,
-      ],
-      [
-        "sales",
-        "crm",
-        packageAppFactsForKey("crm", bundledAppPackageResolver)!.packageRevision,
-        packageAppFactsForKey("crm", bundledAppPackageResolver)!.sourceSchemaHash,
-      ],
-      [
-        "work",
-        "crm",
-        packageAppFactsForKey("crm", bundledAppPackageResolver)!.packageRevision,
-        packageAppFactsForKey("crm", bundledAppPackageResolver)!.sourceSchemaHash,
-      ],
-    ]);
-    expect(archive.capabilities).toEqual([
-      "installed-app-registry",
-      "schema-owned-control-plane",
-      "app-store-snapshots",
-      "core-media-assets",
-    ]);
-    expectPortableArchiveExcludesRuntimeExtensions(archive);
-    for (const app of archive.apps) {
-      expectPortableArchiveExcludesRuntimeExtensions(app);
-    }
-    expect(personal?.media.objects).toEqual([
-      expect.objectContaining({
-        archivePath: "media/personal/media/images/cover.png",
-        storageKey: "media/images/cover.png",
-      }),
-    ]);
-    expect(sales?.media.objects).toEqual([]);
-    expect(work?.media.objects).toEqual([]);
-    await expect(
-      readFile(path.join(outDir, "media/personal/media/images/cover.png")),
-    ).resolves.toEqual(Buffer.from([4, 5, 6]));
-    expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
-      "GET https://instance.example/api/formless/app-installs",
-      "GET https://instance.example/api/formless/program/snapshot?actorKind=cliDeployer",
-      "GET https://instance.example/api/app-installs/site/personal/snapshot",
-      "GET https://instance.example/api/app-installs/crm/work/snapshot",
-      "GET https://instance.example/api/app-installs/crm/sales/snapshot",
-      "GET https://instance.example/api/formless/media/media/images/cover.png",
-    ]);
-    expect(requests.slice(0, 6).map((request) => request.headers.authorization)).toEqual([
-      "Bearer export-token",
-      "Bearer export-token",
-      "Bearer export-token",
-      "Bearer export-token",
-      "Bearer export-token",
-      "Bearer export-token",
-    ]);
-
-    responses.queueJson({
-      ok: true,
-      report: {
-        applied: true,
-        summary: {
-          appCount: 3,
-          createdInstalls: ["personal", "sales", "work"],
-          mediaCountsByApp: { personal: 1, sales: 0, work: 0 },
-          recordCountsByApp: {
-            personal: { total: sourceSnapshotRecords.length },
-            sales: { total: crmTestRecords.length },
-            work: { total: crmTestRecords.length },
-          },
-          replacedInstalls: [],
-        },
-      },
-    });
-
-    await restorePortableArchive(
-      {
-        adminToken: "secret",
-        apply: true,
-        archiveDir: outDir,
-        replace: false,
-        target: "https://instance.example",
-      },
-      cliDeps(tempDir, {
-        fetch: responses.fetcher(requests),
-      }),
-    );
-
-    const restoreRequest = requests.at(-1);
-    const restoreBody = capturedRequestJson<{
-      archive: InstanceArchive;
-      mediaFiles: {
-        bytesBase64: string;
-      }[];
-    }>(restoreRequest);
-    expect(`${restoreRequest?.method} ${restoreRequest?.url}`).toBe(
-      "POST https://instance.example/api/formless/archive/restore",
-    );
-    expect(restoreRequest?.headers.authorization).toBe("Bearer secret");
-    expect(restoreBody.archive.kind).toBe(INSTANCE_ARCHIVE_KIND);
-    expect(restoreBody.archive.restorePolicy).toEqual({
-      dryRun: false,
-      installCollisions: "reject",
-    });
-    expect(
-      restoreBody.archive.apps.find((app) => app.app.installId === "sales")?.media.objects,
-    ).toEqual([]);
-    expect(
-      restoreBody.archive.apps.find((app) => app.app.installId === "work")?.media.objects,
-    ).toEqual([]);
-    expect(restoreBody.mediaFiles).toHaveLength(1);
-    expect(restoreBody.mediaFiles[0]?.bytesBase64).toBe(Buffer.from([4, 5, 6]).toString("base64"));
   });
 
   it("omits upgrade planning from archive restore dry-run without mutating target", async () => {
@@ -4524,20 +3799,6 @@ function capturedRequestJson<T>(request: CapturedFetchRequest | undefined): T {
   }
 
   return JSON.parse(request.body) as T;
-}
-
-function expectPortableArchiveExcludesRuntimeExtensions(archive: AppArchive | InstanceArchive) {
-  const serialized = JSON.stringify(archive);
-
-  expect(serialized).not.toContain("site.publicRenderer");
-  expect(serialized).not.toContain("runtime.extensions");
-  expect(serialized).not.toContain("FORMLESS_WORKSPACE_RUNTIME_EXTENSIONS");
-  expect(serialized).not.toContain("virtual:formless/site-public-renderer");
-  expect(serialized).not.toContain("site-public-renderer");
-  expect(serialized).not.toContain("public-renderer.browser.tsx");
-  expect(serialized).not.toContain("public-renderer.worker.tsx");
-  expect(serialized).not.toContain("extensionDigest");
-  expect(serialized).not.toContain("runtimeExtensionDigest");
 }
 
 function expectNoOwnerSetupProtectedBootstrapReads(requests: CapturedFetchRequest[]) {
@@ -4783,7 +4044,7 @@ function installedSite(installId: string, label: string) {
 }
 
 function installedApp(installId: string, label: string, packageAppKey: "site" | "tasks") {
-  const facts = packageAppFactsForKey(packageAppKey, bundledAppPackageResolver);
+  const facts = packageAppFactsForKey(packageAppKey, rootKnownPackageFactsResolver());
 
   if (!facts) {
     throw new Error(`Missing bundled package facts for ${packageAppKey}.`);
@@ -4910,6 +4171,7 @@ function instanceArchive(apps: AppArchive[]): InstanceArchive {
     exportedAt: "2026-05-12T00:00:00.000Z",
     capabilities: ["installed-app-registry", "app-store-snapshots", "core-media-assets"],
     restorePolicy: { dryRun: true, installCollisions: "reject" },
+    media: { objects: [] },
     apps,
   };
 }
@@ -4924,7 +4186,7 @@ function appArchive(
   } = {},
 ): AppArchive {
   const packageAppKey = options.packageAppKey ?? "site";
-  const packageFacts = packageAppFactsForKey(packageAppKey, bundledAppPackageResolver);
+  const packageFacts = packageAppFactsForKey(packageAppKey, rootKnownPackageFactsResolver());
 
   if (!packageFacts) {
     throw new Error(`Missing bundled package facts for ${packageAppKey}.`);

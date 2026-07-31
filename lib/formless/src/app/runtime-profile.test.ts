@@ -6,7 +6,6 @@ import {
   createInstalledAppRuntimeProfile,
   createInstanceRuntimeProfile,
   createPublishedSiteRuntimeProfile,
-  createSiteAuthoringRuntimeProfile,
   FORMLESS_RUNTIME_APP_INSTALL_ID_META_NAME,
   FORMLESS_RUNTIME_PACKAGE_APP_KEY_META_NAME,
   FORMLESS_RUNTIME_PROFILE_META_NAME,
@@ -32,6 +31,8 @@ import type {
   InstallableAppPackage,
 } from "@dpeek/formless-installed-apps";
 import type { SchemaKey } from "../shared/schema-apps.ts";
+import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
+import { installedPublicSiteRuntimeTarget } from "../shared/public-site-runtime-target.ts";
 import { bundledSourceSchemaHashFixtures } from "../shared/upgrade-migrations.ts";
 
 function appInstallFixture({
@@ -100,6 +101,12 @@ function appInstallFromPackage({
     label,
     packageAppKey: appPackage.packageAppKey,
     packageRevision: appPackage.packageRevision,
+    ...(appPackage.publicRouteBase
+      ? {
+          publicRoute: `${appPackage.publicRouteBase}/${installId}` as `/${string}`,
+          publicRoutePrefix: `${appPackage.publicRouteBase}/${installId}/` as `/${string}/`,
+        }
+      : {}),
     registrationPolicy: "closed",
     sourceSchemaHash: appPackage.sourceSchemaHash,
     status: "installed",
@@ -174,13 +181,24 @@ describe("runtime profile resolver", () => {
       homeSlug: "home",
       siteRouteBase: "/sites",
     });
-    expect(profile.worlds.map((world) => world.app.key)).toEqual(["site", "crm"]);
-    expect(profile.worlds.map((world) => world.generatedRoutes)).toEqual([true, true]);
-    expect(profile.worlds.map((world) => world.route)).toEqual(["/site", "/crm"]);
+    expect(profile.worlds.map((world) => world.app.key)).toEqual(["crm"]);
+    expect(profile.worlds.map((world) => world.generatedRoutes)).toEqual([true]);
+    expect(profile.worlds.map((world) => world.route)).toEqual(["/crm"]);
     expect(profile.publicSitePreview?.homeRoute).toBe("/pages/home");
+    expect(profile.publicSitePreview?.target).toEqual({
+      packageAppKey: "site",
+      storageIdentity: {
+        apiRoutePrefix: "/api/formless/program",
+        authorityName: "instance:control-plane",
+        broadcastChannelName: "formless:instance:control-plane",
+        browserDatabaseName: "formless:instance:control-plane",
+        kind: "program",
+        schemaKey: "formless-program",
+      },
+    });
     expect(findRuntimeWorldMountByRoute(profile, "/rates")).toBeUndefined();
     expect(findRuntimeWorldMountByRoute(profile, "/rates/schema")).toBeUndefined();
-    expect(runtimeScreenPathFromRoute(profile.worlds[0]!, "/site/schema")).toBe("/schema");
+    expect(runtimeScreenPathFromRoute(profile.worlds[0]!, "/crm/schema")).toBe("/schema");
     expect(runtimeRoutePolicy(profile)).toEqual({
       instanceBrowserRoutes: true,
       installedAppBrowserRoutes: true,
@@ -207,7 +225,7 @@ describe("runtime profile resolver", () => {
   it("resolves installed admin route mounts from install records", () => {
     const profile = createDevRuntimeProfile();
     const appInstalls = [
-      appInstallFixture({ installId: "personal", label: "Personal Site" }),
+      appInstallFixture({ installId: "personal", label: "Dormant Site", packageAppKey: "site" }),
       appInstallFixture({
         installId: "task-workspace",
         label: "Task Workspace",
@@ -225,34 +243,21 @@ describe("runtime profile resolver", () => {
     });
     const crmWorld = installedAppWorldMountFromInstallId(profile, "crm", { appInstalls });
 
-    if (!world?.target || world.target.kind !== "appInstall") {
-      throw new Error("Missing installed Site world.");
-    }
-
     if (!crmWorld?.target || crmWorld.target.kind !== "appInstall") {
       throw new Error("Missing installed CRM world.");
     }
 
-    expect(world.app.key).toBe("site");
-    expect(world.route).toBe("/apps/personal");
-    expect(world.access).toBe("owner");
-    expect(world.target.installId).toBe("personal");
-    expect(world.target.apiRoutePrefix).toBe("/api/app-installs/site/personal");
+    expect(world).toBeUndefined();
     expect(tasksWorld).toBeUndefined();
     expect(crmWorld.app.key).toBe("crm");
     expect(crmWorld.route).toBe("/apps/crm");
     expect(crmWorld.target.installId).toBe("crm");
     expect(crmWorld.target.apiRoutePrefix).toBe("/api/app-installs/crm/crm");
-    expect(runtimeScreenRoute(world, "/")).toBe("/apps/personal");
-    expect(runtimeScreenRoute(world, "/settings")).toBe("/apps/personal/settings");
     expect(runtimeScreenRoute(crmWorld, "/audiences")).toBe("/apps/crm/audiences");
-    expect(runtimeScreenPathFromRoute(world, "/apps/personal")).toBe("/");
-    expect(runtimeScreenPathFromRoute(world, "/apps/personal/settings")).toBe("/settings");
-    expect(runtimeScreenPathFromRoute(world, "/apps/personal/schema")).toBe("/schema");
     expect(runtimeScreenPathFromRoute(crmWorld, "/apps/crm/audiences")).toBe("/audiences");
-    expect(
-      findRuntimeWorldMountByRoute(profile, "/apps/personal/settings", { appInstalls })?.target,
-    ).toEqual(world.target);
+    expect(findRuntimeWorldMountByRoute(profile, "/apps/personal/settings", { appInstalls })).toBe(
+      undefined,
+    );
     expect(
       findRuntimeWorldMountByRoute(profile, "/apps/task-workspace", { appInstalls }),
     ).toBeUndefined();
@@ -323,73 +328,90 @@ describe("runtime profile resolver", () => {
 
   it("resolves installed app browser routes from enabled appRoute records", () => {
     const profile = createDevRuntimeProfile();
+    const appPackage = privateSitePackage();
     const appInstalls: AppInstall[] = [
       {
-        ...appInstallFixture({ installId: "personal", label: "Personal Site" }),
+        ...appInstallFromPackage({
+          appPackage,
+          installId: "private-site",
+          label: "Private Site",
+        }),
         routes: [
           {
             enabled: false,
-            id: "app-route:personal:admin",
-            path: "/apps/personal",
+            id: "app-route:private-site:admin",
+            path: "/apps/private-site",
             routeKind: "admin",
           },
           {
             access: "authenticated",
             enabled: true,
-            id: "app-route:personal:admin-custom",
-            path: "/apps/personal-admin",
+            id: "app-route:private-site:admin-custom",
+            path: "/apps/private-site-admin",
             requiredRole: "app.admin",
             routeKind: "admin",
           },
         ],
       },
     ];
-    const world = findRuntimeWorldMountByRoute(profile, "/apps/personal-admin/settings", {
+    const context = {
+      activePackageResolver: appPackageResolver([appPackage]),
       appInstalls,
-    });
+    };
+    const world = findRuntimeWorldMountByRoute(
+      profile,
+      "/apps/private-site-admin/settings",
+      context,
+    );
 
     if (!world?.target || world.target.kind !== "appInstall") {
       throw new Error("Missing custom installed app route world.");
     }
 
-    expect(world.route).toBe("/apps/personal-admin");
+    expect(world.route).toBe("/apps/private-site-admin");
     expect(world.access).toBe("authenticated");
     expect(world.requiredRole).toBe("app.admin");
-    expect(world.target.installId).toBe("personal");
-    expect(
-      findRuntimeWorldMountByRoute(profile, "/apps/personal", { appInstalls }),
-    ).toBeUndefined();
+    expect(world.target.installId).toBe("private-site");
+    expect(findRuntimeWorldMountByRoute(profile, "/apps/private-site", context)).toBeUndefined();
   });
 
   it("resolves installed Site public route surfaces from install ids", () => {
     const profile = createDevRuntimeProfile();
+    const appPackage = privateSitePackage();
     const appInstalls = [
-      appInstallFixture({ installId: "personal", label: "Personal Site" }),
+      appInstallFromPackage({ appPackage, installId: "private-site", label: "Private Site" }),
       appInstallFixture({
         installId: "task-workspace",
         label: "Task Workspace",
         packageAppKey: "tasks",
       }),
     ];
-    const home = installedSitePublicSurfaceFromRoute(profile, "/sites/personal", { appInstalls });
-    const nested = installedSitePublicSurfaceFromRoute(profile, "/sites/personal/blog/post", {
+    const context = {
+      activePackageResolver: appPackageResolver([appPackage]),
       appInstalls,
-    });
+    };
+    const home = installedSitePublicSurfaceFromRoute(profile, "/sites/private-site", context);
+    const nested = installedSitePublicSurfaceFromRoute(
+      profile,
+      "/sites/private-site/blog/post",
+      context,
+    );
 
-    if (!home?.target || home.target.kind !== "appInstall") {
+    if (!home?.target || home.target.storageIdentity.kind !== "appInstall") {
       throw new Error("Missing installed Site public surface.");
     }
 
-    expect(home.routeBase).toBe("/sites/personal");
+    expect(home.routeBase).toBe("/sites/private-site");
     expect(home.slug).toBe("home");
-    expect(home.target.installId).toBe("personal");
-    expect(home.target.apiRoutePrefix).toBe("/api/app-installs/site/personal");
-    expect(nested?.routeBase).toBe("/sites/personal");
-    expect(nested?.slug).toBe("blog/post");
-    expect(isRuntimePublicSiteRoute(profile, "/sites/personal", { appInstalls })).toBe(true);
-    expect(isRuntimePublicSiteRoute(profile, "/sites/personal/blog/post", { appInstalls })).toBe(
-      true,
+    expect(home.target.packageAppKey).toBe("private-site");
+    expect(home.target.storageIdentity.installId).toBe("private-site");
+    expect(home.target.storageIdentity.apiRoutePrefix).toBe(
+      "/api/app-installs/private-site/private-site",
     );
+    expect(nested?.routeBase).toBe("/sites/private-site");
+    expect(nested?.slug).toBe("blog/post");
+    expect(isRuntimePublicSiteRoute(profile, "/sites/private-site", context)).toBe(true);
+    expect(isRuntimePublicSiteRoute(profile, "/sites/private-site/blog/post", context)).toBe(true);
     expect(
       installedSitePublicSurfaceFromRoute(profile, "/sites/task-workspace", { appInstalls }),
     ).toBeUndefined();
@@ -398,43 +420,56 @@ describe("runtime profile resolver", () => {
     ).toBeUndefined();
     expect(isRuntimePublicSiteRoute(profile, "/sites/task-workspace", { appInstalls })).toBe(false);
     expect(isRuntimePublicSiteRoute(profile, "/sites/rates", { appInstalls })).toBe(false);
-    expect(runtimeInstalledSitePublicPath(profile, "personal", "home")).toBe("/sites/personal");
-    expect(runtimeInstalledSitePublicPath(profile, "personal", "blog/post")).toBe(
-      "/sites/personal/blog/post",
+    expect(runtimeInstalledSitePublicPath(profile, "private-site", "home")).toBe(
+      "/sites/private-site",
+    );
+    expect(runtimeInstalledSitePublicPath(profile, "private-site", "blog/post")).toBe(
+      "/sites/private-site/blog/post",
     );
   });
 
   it("resolves installed Site public surfaces from enabled public appRoute records", () => {
     const profile = createDevRuntimeProfile();
+    const appPackage = privateSitePackage();
     const appInstalls: AppInstall[] = [
       {
-        ...appInstallFixture({ installId: "personal", label: "Personal Site" }),
+        ...appInstallFromPackage({
+          appPackage,
+          installId: "private-site",
+          label: "Private Site",
+        }),
         routes: [
           {
             enabled: false,
-            id: "app-route:personal:publicSite",
-            path: "/sites/personal",
-            prefix: "/sites/personal/",
+            id: "app-route:private-site:publicSite",
+            path: "/sites/private-site",
+            prefix: "/sites/private-site/",
             routeKind: "publicSite",
           },
           {
             enabled: true,
-            id: "app-route:personal:publicSite-custom",
-            path: "/public/personal",
-            prefix: "/public/personal/",
+            id: "app-route:private-site:publicSite-custom",
+            path: "/public/private-site",
+            prefix: "/public/private-site/",
             routeKind: "publicSite",
           },
         ],
       },
     ];
-    const custom = installedSitePublicSurfaceFromRoute(profile, "/public/personal/blog/post", {
+    const context = {
+      activePackageResolver: appPackageResolver([appPackage]),
       appInstalls,
-    });
+    };
+    const custom = installedSitePublicSurfaceFromRoute(
+      profile,
+      "/public/private-site/blog/post",
+      context,
+    );
 
-    expect(custom?.routeBase).toBe("/public/personal");
+    expect(custom?.routeBase).toBe("/public/private-site");
     expect(custom?.slug).toBe("blog/post");
     expect(
-      installedSitePublicSurfaceFromRoute(profile, "/sites/personal", { appInstalls }),
+      installedSitePublicSurfaceFromRoute(profile, "/sites/private-site", context),
     ).toBeUndefined();
   });
 
@@ -516,34 +551,6 @@ describe("runtime profile resolver", () => {
     expect(runtimeScreenPathFromRoute(world, "/schema")).toBe("/schema");
   });
 
-  it("resolves the Site authoring profile with top-level preview and admin routes", () => {
-    const profile = createSiteAuthoringRuntimeProfile();
-    const world = profile.worlds[0];
-
-    if (!world) {
-      throw new Error("Missing Site authoring profile world mount.");
-    }
-
-    expect(profile.kind).toBe("siteAuthoring");
-    expect(profile.shell).toBe("app");
-    expect(profile.defaultRedirect).toBeUndefined();
-    expect(world.app.key).toBe("site");
-    expect(world.generatedRoutes).toBe(true);
-    expect(world.route).toBe("/admin");
-    expect(profile.publicSitePreview).toEqual({
-      packageAppKey: "site",
-      rootRoute: "/",
-      routePattern: "/*",
-      homeSlug: "home",
-      linkMode: "authoring",
-    });
-    expect(runtimeBrowserRoutePatterns(profile)).toEqual({});
-    expect(runtimeScreenRoute(world, "/")).toBe("/admin");
-    expect(runtimeScreenRoute(world, "/header")).toBe("/admin/header");
-    expect(runtimeScreenPathFromRoute(world, "/admin")).toBe("/");
-    expect(runtimeScreenPathFromRoute(world, "/admin/header")).toBe("/header");
-  });
-
   it("resolves the published Site profile without generated admin routes", () => {
     const profile = createPublishedSiteRuntimeProfile();
     const world = profile.worlds[0];
@@ -559,9 +566,19 @@ describe("runtime profile resolver", () => {
     expect(world.route).toBe("/");
     expect(profile.publishedSite).toEqual({
       homeSlug: "home",
-      packageAppKey: "site",
       rootRoute: "/",
       routePattern: "/*",
+      target: {
+        packageAppKey: "site",
+        storageIdentity: {
+          apiRoutePrefix: "/api/formless/program",
+          authorityName: "instance:control-plane",
+          broadcastChannelName: "formless:instance:control-plane",
+          browserDatabaseName: "formless:instance:control-plane",
+          kind: "program",
+          schemaKey: "formless-program",
+        },
+      },
     });
     expect(runtimeBrowserRoutePatterns(profile)).toEqual({
       authAccountGateRoutePattern: "/formless/auth/*",
@@ -571,10 +588,19 @@ describe("runtime profile resolver", () => {
     });
   });
 
+  it("rejects partial published Site target metadata", () => {
+    expect(() => createPublishedSiteRuntimeProfile({ installId: "personal" })).toThrow(
+      "requires both install id and package app key",
+    );
+    expect(() => createPublishedSiteRuntimeProfile({ packageAppKey: "site" })).toThrow(
+      "requires both install id and package app key",
+    );
+  });
+
   it("uses explicit config first and host config only as a deterministic fallback", () => {
     expect(resolveRuntimeProfile({ profile: "instance" }).kind).toBe("instance");
     expect(resolveRuntimeProfile({ profile: "app", schemaKey: "crm" }).kind).toBe("app");
-    expect(resolveRuntimeProfile({ profile: "siteAuthoring" }).kind).toBe("siteAuthoring");
+    expect(resolveRuntimeProfile({ profile: "siteAuthoring" }).kind).toBe("dev");
     expect(resolveRuntimeProfile({ profile: "publishedSite" }).kind).toBe("publishedSite");
     expect(
       resolveRuntimeProfile({
@@ -585,9 +611,7 @@ describe("runtime profile resolver", () => {
     expect(resolveRuntimeProfile({ hostname: "app.formless.local", schemaKey: "site" }).kind).toBe(
       "app",
     );
-    expect(resolveRuntimeProfile({ hostname: "site-authoring.formless.local" }).kind).toBe(
-      "siteAuthoring",
-    );
+    expect(resolveRuntimeProfile({ hostname: "site-authoring.formless.local" }).kind).toBe("dev");
     expect(resolveRuntimeProfile({ hostname: "published-site.formless.local" }).kind).toBe(
       "publishedSite",
     );
@@ -648,20 +672,31 @@ describe("runtime profile resolver", () => {
   });
 
   it("uses document public Site target hints for mapped installed public hosts", () => {
-    const profile = resolveRuntimeProfile({
-      profile: "publishedSite",
-      appInstallId: "personal",
-      packageAppKey: "site",
+    const privatePackage = privateSitePackage();
+    const storageIdentity = installedAppStorageIdentity(
+      { installId: "private-site", packageAppKey: "private-site" },
+      appPackageResolver([privatePackage]),
+    );
+    if (!storageIdentity) {
+      throw new Error("Missing private Site storage identity.");
+    }
+    const profile = createPublishedSiteRuntimeProfile({
+      target: installedPublicSiteRuntimeTarget(storageIdentity),
     });
 
-    if (!profile.publishedSite?.target || profile.publishedSite.target.kind !== "appInstall") {
+    if (
+      !profile.publishedSite?.target ||
+      profile.publishedSite.target.storageIdentity.kind !== "appInstall"
+    ) {
       throw new Error("Missing published Site target.");
     }
 
     expect(profile.kind).toBe("publishedSite");
-    expect(profile.publishedSite.packageAppKey).toBe("site");
-    expect(profile.publishedSite.target.installId).toBe("personal");
-    expect(profile.publishedSite.target.apiRoutePrefix).toBe("/api/app-installs/site/personal");
+    expect(profile.publishedSite.target.packageAppKey).toBe("private-site");
+    expect(profile.publishedSite.target.storageIdentity.installId).toBe("private-site");
+    expect(profile.publishedSite.target.storageIdentity.apiRoutePrefix).toBe(
+      "/api/app-installs/private-site/private-site",
+    );
   });
 
   it("lets SSR document profile hints override the baked browser env profile", () => {

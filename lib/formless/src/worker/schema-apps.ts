@@ -1,5 +1,4 @@
 import rawCrmSourceSchema from "@dpeek/formless-crm-app/schema.json";
-import rawSiteSourceSchema from "@dpeek/formless-site-app/schema.json";
 import {
   findSchemaAppDefinition,
   schemaAppDefinitions,
@@ -14,14 +13,9 @@ export type WorkerSchemaAppDefinition = Omit<SchemaAppDefinition, "key"> & {
   sourceSchema: AppSchema;
 };
 
-const siteSourceSchema = parseAppSchema(rawSiteSourceSchema);
 const crmSourceSchema = parseAppSchema(rawCrmSourceSchema);
 
 export const workerSchemaAppDefinitions = {
-  site: {
-    ...schemaAppDefinitions.site,
-    sourceSchema: siteSourceSchema,
-  },
   crm: {
     ...schemaAppDefinitions.crm,
     sourceSchema: crmSourceSchema,

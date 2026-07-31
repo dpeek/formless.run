@@ -16,7 +16,7 @@ The system SHALL key each browser replica by storage identity.
 
 #### Scenario: Schema-key browser replica
 
-- GIVEN a schema-key app such as `site` or `crm`
+- GIVEN a remaining schema-key app such as `crm`
 - WHEN the browser opens the app
 - THEN the local IndexedDB replica uses a schema-key-specific database name
 - AND the matching broadcast channel is scoped to the same schema key
@@ -34,10 +34,10 @@ The system SHALL key each browser replica by storage identity.
 - WHEN the client target is selected
 - THEN the local IndexedDB replica uses `formless:instance:control-plane`
 - AND the matching broadcast channel uses the same Program scope
-- AND the replica contains instance, reviewable identity, and Task records from
-  one active `formless-program` schema and cursor
-- AND there is no separate identity-control-plane or Tasks browser database or
-  broadcast channel
+- AND the replica contains instance, reviewable identity, Task, and Site records
+  from one active `formless-program` schema and cursor
+- AND there is no separate identity-control-plane, Tasks, or built-in Site
+  browser database or broadcast channel
 
 ### Requirement: Local Replica Stores
 
@@ -188,11 +188,13 @@ schema-key apps, and installed app identities.
 - GIVEN a management browser uses the Program storage identity
 - WHEN it connects to `/api/formless/program/sync/ws`
 - THEN the surviving Program Authority catches up from its one write-log cursor
-- AND the socket receives instance, identity, and Task record changes through
-  the same connection
+- AND the socket receives instance, identity, Task, and Site record changes
+  through the same connection
 - AND no standalone instance or identity control-plane sync socket exposes a
   second cursor
 - AND no schema-key or installed-app Tasks socket exposes another Task cursor
+- AND no schema-key or installed-app built-in Site socket exposes another Site
+  cursor
 
 #### Scenario: Program push authorization remains current
 
@@ -209,6 +211,16 @@ schema-key apps, and installed app identities.
   authenticated principal, changed session, or session for another target
   receives no later Program changes
 - AND an unauthorized socket is closed or suppressed
+
+#### Scenario: Public Site visitors do not receive Program push sync
+
+- GIVEN a visitor opens a Program-native Site document on a mapped or published
+  host
+- WHEN public browser interactivity starts
+- THEN it does not bootstrap or synchronize the authenticated Program replica
+- AND it does not open `/api/formless/program/sync/ws`
+- AND authenticated `/pages` preview may use the existing Program socket
+  because it is a Program member surface
 
 #### Scenario: Schema-key push sync route
 
@@ -291,8 +303,8 @@ outcomes, not browser replica cache writes.
 - WHEN a browser operation, schema save, app install, control-plane operation,
   reset schema, snapshot restore, or deployment intent write returns a
   committed local write response
-- OR a core media upload is accepted and then referenced by a committed app
-  record
+- OR a core media upload is accepted and then referenced by a committed Program
+  or installed-app record
 - THEN the client emits a local workspace dirty signal with the storage identity
   and write source
 - AND the dirty signal is emitted after Authority or media storage accepts the

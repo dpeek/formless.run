@@ -4,7 +4,7 @@ import {
 } from "@dpeek/formless-instance-control-plane";
 import type { AppSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
-import type { AppStorageIdentity } from "../shared/app-storage-identity.ts";
+import type { AuthorityStorageIdentity } from "../shared/app-storage-identity.ts";
 import {
   parseEmailDeliveryAddress,
   type EmailDeliveryAddress,
@@ -74,7 +74,7 @@ export function createSiteOperationInputNotificationAdapters(
 
 export async function scheduleSiteOperationInputNotificationAfterPublicOperation(input: {
   adapters: SiteOperationInputNotificationAdapters;
-  identity: AppStorageIdentity;
+  identity: AuthorityStorageIdentity;
   records?: readonly StoredRecord[];
   requestUrl: string;
   response: OperationInvocationResponse;
@@ -174,7 +174,7 @@ function isCommittedPublicOperation(response: OperationInvocationResponse): bool
 function operationInputNotificationSourceBlock(
   records: readonly StoredRecord[],
   response: OperationInvocationResponse,
-  identity: AppStorageIdentity,
+  identity: AuthorityStorageIdentity,
 ): StoredRecord | undefined {
   const siteBlockId = response.invocation.source.siteBlockId;
 
@@ -198,7 +198,10 @@ function operationInputNotificationSourceBlock(
   return block;
 }
 
-function sourceBlockTargetsIdentity(block: StoredRecord, identity: AppStorageIdentity): boolean {
+function sourceBlockTargetsIdentity(
+  block: StoredRecord,
+  identity: AuthorityStorageIdentity,
+): boolean {
   const targetKind = stringRecordValue(block.values.operationTargetKind);
 
   if (!targetKind) {

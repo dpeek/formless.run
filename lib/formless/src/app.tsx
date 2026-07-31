@@ -519,11 +519,11 @@ function AppRoutes({
         <Route path={publishedSite.rootRoute}>
           <PublicSiteRoute
             adapters={publicSiteReactAdapters}
-            packageAppKey={publishedSite.packageAppKey}
+            packageAppKey={publishedSite.target.packageAppKey}
             routeProps={{
               linkMode: "published",
               slug: publishedSite.homeSlug,
-              target: publishedSite.target,
+              target: publishedSite.target.storageIdentity,
             }}
           />
         </Route>
@@ -533,11 +533,11 @@ function AppRoutes({
           {(params) => (
             <PublicSiteRoute
               adapters={publicSiteReactAdapters}
-              packageAppKey={publishedSite.packageAppKey}
+              packageAppKey={publishedSite.target.packageAppKey}
               routeProps={{
                 linkMode: "published",
                 slug: runtimeWildcardSiteSlug(params),
-                target: publishedSite.target,
+                target: publishedSite.target.storageIdentity,
               }}
             />
           )}
@@ -648,10 +648,14 @@ function AppRoutes({
           ) : (
             <PublicSiteRoute
               adapters={publicSiteReactAdapters}
-              packageAppKey={publicSitePreview.packageAppKey}
+              packageAppKey={
+                publicSitePreview.target?.packageAppKey ??
+                runtimeTopologyRoutes.publicSitePackageAppKey
+              }
               routeProps={{
                 linkMode: publicSitePreview.linkMode,
                 slug: publicSitePreview.homeSlug,
+                target: publicSitePreview.target?.storageIdentity,
               }}
             />
           )}
@@ -662,10 +666,14 @@ function AppRoutes({
           {(params) => (
             <PublicSiteRoute
               adapters={publicSiteReactAdapters}
-              packageAppKey={publicSitePreview.packageAppKey}
+              packageAppKey={
+                publicSitePreview.target?.packageAppKey ??
+                runtimeTopologyRoutes.publicSitePackageAppKey
+              }
               routeProps={{
                 linkMode: publicSitePreview.linkMode,
                 slug: runtimeWildcardSiteSlug(params),
+                target: publicSitePreview.target?.storageIdentity,
               }}
             />
           )}
@@ -742,7 +750,11 @@ function siteWorkspaceLinkActionsForWorld(
     return siteWorkspaceLinkActionsForInstall(install);
   }
 
-  if (!publicSitePreview || world.app.key !== publicSitePreview.packageAppKey) {
+  if (
+    !publicSitePreview ||
+    world.app.key !==
+      (publicSitePreview.target?.packageAppKey ?? runtimeTopologyRoutes.publicSitePackageAppKey)
+  ) {
     return [];
   }
 
@@ -823,7 +835,7 @@ function InstalledSitePublicRoute({
         linkMode: "installed",
         routeBase: surface.routeBase,
         slug: surface.slug,
-        target: surface.target,
+        target: surface.target.storageIdentity,
       }}
     />
   );

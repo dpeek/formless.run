@@ -1192,6 +1192,10 @@
           "type": "enum",
           "values": [
             {
+              "key": "program",
+              "label": "Program"
+            },
+            {
               "key": "schemaKey",
               "label": "Schema key"
             },

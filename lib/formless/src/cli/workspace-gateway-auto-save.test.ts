@@ -29,7 +29,7 @@ import {
 } from "@dpeek/formless-workspace/node";
 
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
-import { bundledAppPackageResolver } from "../shared/app-packages.ts";
+import { rootKnownPackageFactsResolver } from "../shared/app-packages.ts";
 import { siteSourceSchema } from "../test/schema-apps.ts";
 import {
   createDefaultWorkspaceAutoSaveScheduler,
@@ -44,6 +44,28 @@ import {
 } from "../worker/miniflare-test.ts";
 
 const tempDirs: string[] = [];
+const privateSitePackageAppKey = "private-site";
+const rootKnownSitePackage = rootKnownPackageFactsResolver().findPackage("site")!;
+const privateSiteSourceSchemaHash =
+  "sha256:3801668b6420076d9d63fe15f2a294501ccf44f5c4c509efcc9a13444d6fb930" as typeof rootKnownSitePackage.sourceSchemaHash;
+const privateSitePackage = {
+  ...rootKnownSitePackage,
+  defaultInstallId: "personal",
+  packageAppKey: privateSitePackageAppKey,
+  sourceOrigin: "workspace" as const,
+  sourceSchemaHash: privateSiteSourceSchemaHash,
+  sourceSchemaKey: privateSitePackageAppKey,
+  sourceSchemaLocation: {
+    kind: "workspace" as const,
+    key: privateSitePackageAppKey,
+    path: "packages/private-site/schema.json",
+  },
+};
+const privateSitePackageResolver = {
+  findPackage: (packageAppKey: string) =>
+    packageAppKey === privateSitePackageAppKey ? privateSitePackage : undefined,
+  listPackages: () => [privateSitePackage],
+};
 
 afterEach(async () => {
   await Promise.all(
@@ -396,7 +418,7 @@ describe("workspace gateway auto-save", () => {
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
       "GET http://localhost:5173/api/formless/app-installs",
       "GET http://localhost:5173/api/formless/program/snapshot?actorKind=cliDeployer",
-      "GET http://localhost:5173/api/app-installs/site/site/snapshot",
+      "GET http://localhost:5173/api/app-installs/private-site/site/snapshot",
     ]);
     expect(requests.map((request) => request.headers.authorization)).toEqual([
       "Bearer local-save-token",
@@ -496,7 +518,7 @@ describe("workspace gateway auto-save", () => {
       ),
     ).rejects.toMatchObject({ code: "ENOENT" });
     expect(requests.map((request) => request.url)).not.toContain(
-      "http://localhost:5173/api/app-installs/site/reports/media/documents/unreferenced.pdf",
+      "http://localhost:5173/api/app-installs/private-site/reports/media/documents/unreferenced.pdf",
     );
   });
 
@@ -536,7 +558,7 @@ describe("workspace gateway auto-save", () => {
       );
 
       const list = await mediaHarness.fetch(
-        "/api/app-installs/site/reports/media/documents?entity=block&field=privateDocument",
+        "/api/app-installs/private-site/reports/media/documents?entity=block&field=privateDocument",
       );
 
       expect(list.status).toBe(200);
@@ -718,13 +740,46 @@ async function writeWorkspaceConfig(
 ) {
   const config = resolveFormlessConfig({
     name: "personal-sites",
+    packages: {
+      links: [{ manifest: "packages/private-site/formless.app.json" }],
+    },
     ...(extensions === undefined ? {} : { runtime: { extensions } }),
   });
 
-  await mkdir(workspaceRoot, { recursive: true });
+  await writePrivateSitePackage(workspaceRoot);
   await writeFile(
     path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
     formatTestFormlessConfigModule(config),
+  );
+}
+
+async function writePrivateSitePackage(workspaceRoot: string) {
+  const packageRoot = path.join(workspaceRoot, "packages/private-site");
+
+  await mkdir(packageRoot, { recursive: true });
+  await writeFile(path.join(packageRoot, "schema.json"), JSON.stringify(siteSourceSchema));
+  await writeFile(
+    path.join(packageRoot, "formless.app.json"),
+    JSON.stringify({
+      kind: "formless.appPackage",
+      version: 1,
+      packageAppKey: privateSitePackageAppKey,
+      label: "Private Site",
+      description: "Private Site test package.",
+      defaultInstallId: "personal",
+      supportsMultipleInstalls: true,
+      packageRevision: rootKnownSitePackage.packageRevision,
+      sourceSchema: {
+        kind: "workspace",
+        key: privateSitePackageAppKey,
+        path: "schema.json",
+      },
+      sourceSchemaHash: privateSiteSourceSchemaHash,
+      capabilities: [
+        { kind: "generatedAdmin", routeBase: "/apps" },
+        { kind: "publicSite", routeBase: "/sites" },
+      ],
+    }),
   );
 }
 
@@ -793,7 +848,7 @@ function workspaceSaveFetch(requests: CapturedRequest[], installId: string): typ
     if (parsedUrl.pathname === "/api/formless/app-installs") {
       return Response.json({
         installs: [installedSite(installId, "Site")],
-        packages: listInstallableAppPackages(bundledAppPackageResolver),
+        packages: listInstallableAppPackages(privateSitePackageResolver),
       });
     }
 
@@ -801,7 +856,7 @@ function workspaceSaveFetch(requests: CapturedRequest[], installId: string): typ
       return Response.json(controlPlaneSnapshot(gatewayControlPlaneRecords(installId)));
     }
 
-    if (parsedUrl.pathname === `/api/app-installs/site/${installId}/snapshot`) {
+    if (parsedUrl.pathname === `/api/app-installs/private-site/${installId}/snapshot`) {
       return Response.json(snapshot([], `app:${installId}`));
     }
 
@@ -844,7 +899,7 @@ function workspaceDocumentSaveFetch(
     if (parsedUrl.pathname === "/api/formless/app-installs") {
       return Response.json({
         installs: [installedSite(installId, "Reports")],
-        packages: listInstallableAppPackages(bundledAppPackageResolver),
+        packages: listInstallableAppPackages(privateSitePackageResolver),
       });
     }
 
@@ -852,7 +907,7 @@ function workspaceDocumentSaveFetch(
       return Response.json(controlPlaneSnapshot(gatewayControlPlaneRecords(installId)));
     }
 
-    if (parsedUrl.pathname === `/api/app-installs/site/${installId}/snapshot`) {
+    if (parsedUrl.pathname === `/api/app-installs/private-site/${installId}/snapshot`) {
       return Response.json({
         ...snapshot(
           [
@@ -874,7 +929,7 @@ function workspaceDocumentSaveFetch(
       });
     }
 
-    if (parsedUrl.pathname === `/api/app-installs/site/${installId}/media/documents`) {
+    if (parsedUrl.pathname === `/api/app-installs/private-site/${installId}/media/documents`) {
       const field = parsedUrl.searchParams.get("field");
       const access = field === "privateDocument" ? "private" : "public";
 
@@ -882,7 +937,7 @@ function workspaceDocumentSaveFetch(
     }
 
     const deliveryMatch = parsedUrl.pathname.match(
-      /^\/api\/app-installs\/site\/reports\/media\/documents\/([^/]+)$/,
+      /^\/api\/app-installs\/private-site\/reports\/media\/documents\/([^/]+)$/,
     );
 
     if (deliveryMatch) {
@@ -911,7 +966,9 @@ function workspaceDocumentWorkerFetch(
       typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
     const parsedUrl = new URL(requestUrl);
 
-    if (parsedUrl.pathname.startsWith(`/api/app-installs/site/${installId}/media/documents`)) {
+    if (
+      parsedUrl.pathname.startsWith(`/api/app-installs/private-site/${installId}/media/documents`)
+    ) {
       return (await mediaHarness.fetch(`${parsedUrl.pathname}${parsedUrl.search}`, {
         headers: normalizeHeaders(init?.headers),
         method: init?.method,
@@ -921,7 +978,7 @@ function workspaceDocumentWorkerFetch(
     if (parsedUrl.pathname === "/api/formless/app-installs") {
       return Response.json({
         installs: [installedSite(installId, "Reports")],
-        packages: listInstallableAppPackages(bundledAppPackageResolver),
+        packages: listInstallableAppPackages(privateSitePackageResolver),
       });
     }
 
@@ -929,7 +986,7 @@ function workspaceDocumentWorkerFetch(
       return Response.json(controlPlaneSnapshot(gatewayControlPlaneRecords(installId)));
     }
 
-    if (parsedUrl.pathname === `/api/app-installs/site/${installId}/snapshot`) {
+    if (parsedUrl.pathname === `/api/app-installs/private-site/${installId}/snapshot`) {
       return Response.json({
         ...snapshot(
           [
@@ -974,7 +1031,7 @@ async function uploadWorkspaceDocument(
   body.set(suffix, prefix.byteLength + pdfBytesForWorkspace.byteLength);
 
   return mediaHarness.fetch(
-    "/api/app-installs/site/reports/media/documents?entity=block&field=privateDocument",
+    "/api/app-installs/private-site/reports/media/documents?entity=block&field=privateDocument",
     {
       body,
       headers: {
@@ -986,7 +1043,7 @@ async function uploadWorkspaceDocument(
 }
 
 function installedSite(installId: string, label: string) {
-  const facts = packageAppFactsForKey("site", bundledAppPackageResolver);
+  const facts = packageAppFactsForKey(privateSitePackageAppKey, privateSitePackageResolver);
 
   if (!facts) {
     throw new Error("Missing bundled package facts for site.");
@@ -997,7 +1054,7 @@ function installedSite(installId: string, label: string) {
     createdAt: "2026-05-01T00:00:00.000Z",
     installId,
     label,
-    packageAppKey: "site" as const,
+    packageAppKey: privateSitePackageAppKey,
     packageRevision: facts.packageRevision,
     publicRoute: `/sites/${installId}` as `/sites/${string}`,
     publicRoutePrefix: `/sites/${installId}/` as `/sites/${string}/`,
@@ -1017,7 +1074,7 @@ function snapshot(
     kind: STORAGE_SNAPSHOT_KIND,
     records,
     schema: siteSourceSchema,
-    schemaKey: "site",
+    schemaKey: privateSitePackageAppKey,
     schemaUpdatedAt: "2026-05-01T00:00:00.000Z",
     sourceCursor: 1,
     storageIdentity,
@@ -1066,7 +1123,7 @@ function workspaceDocumentAsset(
     access,
     byteSize: bytes.byteLength,
     contentType: "application/pdf",
-    deliveryHref: `/api/app-installs/site/${installId}/media/documents/${assetId}`,
+    deliveryHref: `/api/app-installs/private-site/${installId}/media/documents/${assetId}`,
     filename: assetId,
     id: assetId,
     kind: "document",
@@ -1104,7 +1161,7 @@ function gatewayControlPlaneRecords(installId: string): StoredRecord[] {
       values: {
         installId,
         label: "Site",
-        packageAppKey: "site",
+        packageAppKey: privateSitePackageAppKey,
         registrationPolicy: "closed",
         status: "installed",
         storageIdentity: `app:${installId}`,

@@ -2,19 +2,17 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus
 
 import { DEFAULT_SITE_ICON_SVG, resolveSiteIconSvgSource } from "@dpeek/formless-site-app";
 import {
-  recordOperationRequest,
+  instanceControlPlaneTestStorageSnapshot,
   restoreTestStorageSnapshot,
-  schemaAppTestStorageSnapshot,
 } from "../test/authority-write.ts";
 import { testSiteRecords } from "../test/site-records.ts";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import { PUBLIC_SITE_ICON_CACHE_CONTROL } from "@dpeek/formless-site-app/worker";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
 const adminToken = "test-admin-token";
-const publishedPackageAppKey = "site";
-const publishedInstallId = "site";
 const iconPaths = ["/favicon.svg", "/favicon.ico", "/apple-touch-icon.png"] as const;
 
 let harness: Harness;
@@ -30,8 +28,6 @@ beforeAll(async () => {
       bindings: {
         FORMLESS_ADMIN_TOKEN: adminToken,
         FORMLESS_RUNTIME_PROFILE: "publishedSite",
-        FORMLESS_RUNTIME_APP_INSTALL_ID: publishedInstallId,
-        FORMLESS_RUNTIME_PACKAGE_APP_KEY: publishedPackageAppKey,
       },
       compatibilityDate: "2026-04-28",
       serviceBindings: {
@@ -91,7 +87,7 @@ describe("published Site launch assets", () => {
     const authored =
       '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><circle cx="32" cy="32" r="28" fill="#ef4444"/></svg>';
 
-    await patchSiteIcon("write-site-icon-authored", authored);
+    await patchSiteIcon(authored);
 
     const after = await assetBytes("/favicon.svg");
 
@@ -100,10 +96,7 @@ describe("published Site launch assets", () => {
   });
 
   it("falls back to the default icon when the authored Site icon is unsafe", async () => {
-    await patchSiteIcon(
-      "write-site-icon-unsafe",
-      '<svg viewBox="0 0 64 64"><script>alert(1)</script></svg>',
-    );
+    await patchSiteIcon('<svg viewBox="0 0 64 64"><script>alert(1)</script></svg>');
 
     const svg = await assetBytes("/favicon.svg");
     const png = await assetBytes("/apple-touch-icon.png");
@@ -153,8 +146,8 @@ async function assetBytes(path: string) {
 async function restoreSiteState() {
   await restoreTestStorageSnapshot(
     harness,
-    `/api/app-installs/${publishedPackageAppKey}/${publishedInstallId}/snapshot/restore`,
-    schemaAppTestStorageSnapshot("site", `app:${publishedInstallId}`),
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
+    instanceControlPlaneTestStorageSnapshot(testSiteRecords),
     adminHeaders(),
   );
 }
@@ -169,24 +162,23 @@ function testSiteIconSource(): string {
   return icon;
 }
 
-async function patchSiteIcon(idempotencyKey: string, icon: string) {
-  const request = recordOperationRequest({
-    idempotencyKey,
-    entity: "site",
-    operationName: "update",
-    recordId: "rec_site_settings_primary",
-    input: { icon },
-  });
-  const response = await harness.fetch(
-    `/api/app-installs/${publishedPackageAppKey}/${publishedInstallId}${request.path.slice("/api".length)}`,
-    {
-      body: JSON.stringify(request.body),
-      headers: adminHeaders(),
-      method: "POST",
-    },
+async function patchSiteIcon(icon: string) {
+  const records = testSiteRecords.map((record) =>
+    record.id === "rec_site_settings_primary"
+      ? {
+          ...record,
+          values: { ...record.values, icon },
+          updatedAt: "2026-07-31T00:00:00.000Z",
+        }
+      : record,
   );
 
-  expect(response.status).toBe(200);
+  await restoreTestStorageSnapshot(
+    harness,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
+    instanceControlPlaneTestStorageSnapshot(records),
+    adminHeaders(),
+  );
 }
 
 function adminHeaders() {

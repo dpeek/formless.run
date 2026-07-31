@@ -15,6 +15,8 @@ import {
 import type { AppInstall, InstallableAppPackage } from "@dpeek/formless-installed-apps";
 import {
   installedAppStorageIdentity,
+  programStorageIdentity,
+  type AuthorityStorageIdentity,
   type InstalledAppStorageIdentity,
 } from "../shared/app-storage-identity.ts";
 import { listResolvedAppPackages, type AppPackageResolver } from "../shared/app-packages.ts";
@@ -50,12 +52,12 @@ export type ArchiveRestoreMediaAdapter = {
   readFile: (archivePath: string) => Promise<ArchiveRestoreMediaRead | undefined>;
   restoreObject: (input: {
     bytes: Uint8Array;
-    identity: InstalledAppStorageIdentity;
+    identity: AuthorityStorageIdentity;
     object: AppArchiveMediaObject;
   }) => Promise<MediaWriteResponse>;
   validateObject?: (input: {
     bytes: Uint8Array;
-    identity: InstalledAppStorageIdentity;
+    identity: AuthorityStorageIdentity;
     object: AppArchiveMediaObject;
   }) => Promise<void>;
 };
@@ -109,6 +111,12 @@ export type ArchiveRestoreStepReport =
       archivePath: string;
       byteSize: number;
       kind: "media";
+      storageKey: string;
+    }
+  | {
+      archivePath: string;
+      byteSize: number;
+      kind: "programMedia";
       storageKey: string;
     }
   | {
@@ -264,6 +272,90 @@ export async function applyPortableArchiveRestore(
       continue;
     }
 
+    if (step.kind === "restoreMedia") {
+      const programMedia = "program" in step;
+      const archiveApp = programMedia ? undefined : archiveApps.get(step.appInstallId);
+      const identity = programMedia
+        ? programStorageIdentity()
+        : archiveApp &&
+          installedAppStorageIdentity(
+            {
+              installId: archiveApp.app.installId,
+              packageAppKey: archiveApp.app.packageAppKey,
+            },
+            target.packageResolver,
+          );
+      const mediaRead = mediaReads.files.get(step.archivePath);
+
+      if (!identity || (!programMedia && !archiveApp) || !mediaRead || !target.media) {
+        return {
+          errors: [
+            {
+              ...(programMedia ? {} : { appInstallId: step.appInstallId }),
+              archivePath: step.archivePath,
+              code:
+                !identity || (!programMedia && !archiveApp)
+                  ? "missing-app-storage-identity"
+                  : "media-read-failed",
+              message:
+                !identity || (!programMedia && !archiveApp)
+                  ? programMedia
+                    ? "Program media does not resolve to Program storage."
+                    : `Archive app "${step.appInstallId}" does not resolve to installed app storage.`
+                  : `Archive media file "${step.archivePath}" was not prepared for restore.`,
+              storageKey: step.storageKey,
+            },
+          ],
+          ok: false,
+          plan: planned.plan,
+        };
+      }
+
+      try {
+        await target.media.restoreObject({
+          bytes: mediaRead.bytes,
+          identity,
+          object: {
+            archivePath: step.archivePath,
+            ...(step.asset === undefined ? {} : { asset: step.asset }),
+            byteSize: step.byteSize,
+            contentType: step.contentType,
+            deliveryHref: step.deliveryHref,
+            storageKey: step.storageKey,
+          },
+        });
+      } catch (error) {
+        return restoreFailure(
+          "media-restore-failed",
+          programMedia ? undefined : step.appInstallId,
+          error,
+          planned.plan,
+          {
+            archivePath: step.archivePath,
+            storageKey: step.storageKey,
+          },
+        );
+      }
+
+      reports.push(
+        programMedia
+          ? {
+              archivePath: step.archivePath,
+              byteSize: step.byteSize,
+              kind: "programMedia",
+              storageKey: step.storageKey,
+            }
+          : {
+              appInstallId: step.appInstallId,
+              archivePath: step.archivePath,
+              byteSize: step.byteSize,
+              kind: "media",
+              storageKey: step.storageKey,
+            },
+      );
+      continue;
+    }
+
     const archiveApp = archiveApps.get(step.appInstallId);
     const identity =
       archiveApp &&
@@ -287,55 +379,6 @@ export async function applyPortableArchiveRestore(
         ok: false,
         plan: planned.plan,
       };
-    }
-
-    if (step.kind === "restoreMedia") {
-      const mediaRead = mediaReads.files.get(step.archivePath);
-
-      if (!mediaRead || !target.media) {
-        return {
-          errors: [
-            {
-              appInstallId: step.appInstallId,
-              archivePath: step.archivePath,
-              code: "media-read-failed",
-              message: `Archive media file "${step.archivePath}" was not prepared for restore.`,
-              storageKey: step.storageKey,
-            },
-          ],
-          ok: false,
-          plan: planned.plan,
-        };
-      }
-
-      try {
-        await target.media.restoreObject({
-          bytes: mediaRead.bytes,
-          identity,
-          object: {
-            archivePath: step.archivePath,
-            ...(step.asset === undefined ? {} : { asset: step.asset }),
-            byteSize: step.byteSize,
-            contentType: step.contentType,
-            deliveryHref: step.deliveryHref,
-            storageKey: step.storageKey,
-          },
-        });
-      } catch (error) {
-        return restoreFailure("media-restore-failed", step.appInstallId, error, planned.plan, {
-          archivePath: step.archivePath,
-          storageKey: step.storageKey,
-        });
-      }
-
-      reports.push({
-        appInstallId: step.appInstallId,
-        archivePath: step.archivePath,
-        byteSize: step.byteSize,
-        kind: "media",
-        storageKey: step.storageKey,
-      });
-      continue;
     }
 
     try {
@@ -420,7 +463,7 @@ export function restoreArchiveAppDataToStorageOutcome(
 
 export async function restoreArchiveMediaObjectToStore(
   store: MediaObjectStore,
-  identity: InstalledAppStorageIdentity,
+  identity: AuthorityStorageIdentity,
   object: AppArchiveMediaObject,
   bytes: Uint8Array,
 ): Promise<MediaWriteResponse> {
@@ -455,6 +498,10 @@ export async function restoreArchiveMediaObjectToStore(
   }
 
   if (object.asset?.kind === "document") {
+    if (identity.kind !== "appInstall") {
+      throw new Error("Program media cannot restore installed-app documents.");
+    }
+
     const asset = object.asset;
     const expectedHref = documentArchiveDeliveryHref(identity, asset.id);
     const existing = await compatibleExistingArchiveDocument(store, object, bytes);
@@ -500,7 +547,9 @@ export async function restoreArchiveMediaObjectToStore(
   }
 
   throw new Error(
-    `Archive media key "${object.storageKey}" is not restorable media for "${identity.installId}".`,
+    `Archive media key "${object.storageKey}" is not restorable media for "${
+      identity.kind === "appInstall" ? identity.installId : identity.authorityName
+    }".`,
   );
 }
 
@@ -689,7 +738,7 @@ async function prepareMediaReads(
 
       if (!file) {
         errors.push({
-          appInstallId: step.appInstallId,
+          ...("program" in step ? {} : { appInstallId: step.appInstallId }),
           archivePath: step.archivePath,
           code: "media-read-failed",
           message: `Archive media file "${step.archivePath}" is missing.`,
@@ -704,7 +753,7 @@ async function prepareMediaReads(
         file.bytes.byteLength !== step.byteSize
       ) {
         errors.push({
-          appInstallId: step.appInstallId,
+          ...("program" in step ? {} : { appInstallId: step.appInstallId }),
           archivePath: step.archivePath,
           code: "media-read-failed",
           message: `Archive media file "${step.archivePath}" does not match the restore plan.`,
@@ -716,7 +765,7 @@ async function prepareMediaReads(
       files.set(step.archivePath, file);
     } catch (error) {
       errors.push({
-        appInstallId: step.appInstallId,
+        ...("program" in step ? {} : { appInstallId: step.appInstallId }),
         archivePath: step.archivePath,
         code: "media-read-failed",
         message: error instanceof Error ? error.message : "Archive media file could not be read.",
@@ -754,25 +803,29 @@ async function validatePreparedMediaRestores(
       continue;
     }
 
-    const app = apps.get(step.appInstallId);
-    const identity =
-      app &&
-      installedAppStorageIdentity(
-        {
-          installId: app.app.installId,
-          packageAppKey: app.app.packageAppKey,
-        },
-        target.packageResolver,
-      );
+    const programMedia = "program" in step;
+    const app = programMedia ? undefined : apps.get(step.appInstallId);
+    const identity = programMedia
+      ? programStorageIdentity()
+      : app &&
+        installedAppStorageIdentity(
+          {
+            installId: app.app.installId,
+            packageAppKey: app.app.packageAppKey,
+          },
+          target.packageResolver,
+        );
     const file = files.get(step.archivePath);
 
     if (!identity || !file) {
       errors.push({
-        appInstallId: step.appInstallId,
+        ...(programMedia ? {} : { appInstallId: step.appInstallId }),
         archivePath: step.archivePath,
         code: !identity ? "missing-app-storage-identity" : "media-read-failed",
         message: !identity
-          ? `Archive app "${step.appInstallId}" does not resolve to installed app storage.`
+          ? programMedia
+            ? "Program media does not resolve to Program storage."
+            : `Archive app "${step.appInstallId}" does not resolve to installed app storage.`
           : `Archive media file "${step.archivePath}" was not prepared for restore.`,
         storageKey: step.storageKey,
       });
@@ -794,7 +847,7 @@ async function validatePreparedMediaRestores(
       });
     } catch (error) {
       errors.push({
-        appInstallId: step.appInstallId,
+        ...(programMedia ? {} : { appInstallId: step.appInstallId }),
         archivePath: step.archivePath,
         code: "media-restore-failed",
         message: error instanceof Error ? error.message : "Archive media restore is incompatible.",
@@ -842,13 +895,20 @@ function stepReports(steps: readonly ArchiveRestorePlanStep[]): ArchiveRestoreSt
     }
 
     if (step.kind === "restoreMedia") {
-      return {
-        appInstallId: step.appInstallId,
-        archivePath: step.archivePath,
-        byteSize: step.byteSize,
-        kind: "media",
-        storageKey: step.storageKey,
-      };
+      return "program" in step
+        ? {
+            archivePath: step.archivePath,
+            byteSize: step.byteSize,
+            kind: "programMedia",
+            storageKey: step.storageKey,
+          }
+        : {
+            appInstallId: step.appInstallId,
+            archivePath: step.archivePath,
+            byteSize: step.byteSize,
+            kind: "media",
+            storageKey: step.storageKey,
+          };
     }
 
     return {
@@ -868,7 +928,7 @@ function workerSourceSchemas(): Partial<Record<string, AppSchema>> {
 
 function restoreFailure(
   code: ArchiveRestoreExecutionErrorCode,
-  appInstallId: string,
+  appInstallId: string | undefined,
   error: unknown,
   plan: ArchiveRestorePlan,
   details: { archivePath?: string; storageKey?: string } = {},
@@ -876,7 +936,7 @@ function restoreFailure(
   return {
     errors: [
       {
-        appInstallId,
+        ...(appInstallId === undefined ? {} : { appInstallId }),
         code,
         message: error instanceof Error ? error.message : "Archive restore failed.",
         ...details,

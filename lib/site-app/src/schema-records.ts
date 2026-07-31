@@ -1191,6 +1191,10 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
           label: "Target kind",
           values: [
             {
+              key: "program",
+              label: "Program",
+            },
+            {
               key: "schemaKey",
               label: "Schema key",
             },

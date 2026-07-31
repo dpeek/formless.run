@@ -16,17 +16,15 @@ import { resetSyncStatus } from "../client/sync-status.ts";
 import type { HomeScreenModel } from "../client/views.ts";
 import { bootstrapResponse } from "../test/protocol-builders.ts";
 import { taskSourceSchema } from "../test/schema-apps.ts";
+import { programStorageIdentity } from "../shared/app-storage-identity.ts";
+import { getSchemaAppDefinition } from "../shared/schema-apps.ts";
 import { ApplicationShellRuntimeBoundary } from "./application-shell-runtime.tsx";
 import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
 import {
   selectHomeRouteSectionContextRecordId,
   useHomeRouteSelectionStore,
 } from "./routes/home-selection.tsx";
-import {
-  createDevRuntimeProfile,
-  createInstanceRuntimeProfile,
-  findRuntimeWorldMountByRoute,
-} from "./runtime-profile.ts";
+import { createInstanceRuntimeProfile } from "./runtime-profile.ts";
 
 vi.mock("./application-presentation.tsx", () => ({
   ApplicationPresentation: ({
@@ -45,9 +43,9 @@ beforeEach(() => {
 
 describe("application shell runtime boundary", () => {
   it("publishes the selected root theme into the existing stable shell host", async () => {
-    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), "site");
-    const runtimeProfile = createDevRuntimeProfile();
-    const routeWorld = required(findRuntimeWorldMountByRoute(runtimeProfile, "/site"));
+    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), programStorageIdentity());
+    const runtimeProfile = createInstanceRuntimeProfile();
+    const routeWorld = programSiteWorld();
     const reference = documentThemeReference("theme:application");
     const snapshot: DocumentThemeContract = {
       activeMode: "dark",
@@ -87,10 +85,10 @@ describe("application shell runtime boundary", () => {
   it("keeps one host while resolving root selection and controlled create against current state", async () => {
     applyBootstrapResponse(
       bootstrapResponse(taskSourceSchema, [projectRecord("project-1"), projectRecord("project-2")]),
-      "site",
+      programStorageIdentity(),
     );
-    const runtimeProfile = createDevRuntimeProfile();
-    const routeWorld = required(findRuntimeWorldMountByRoute(runtimeProfile, "/site"));
+    const runtimeProfile = createInstanceRuntimeProfile();
+    const routeWorld = programSiteWorld();
     const screen = rootScreenFixture();
     let host: PresentationHost | undefined;
     let selectedRecordId: string | null = null;
@@ -249,9 +247,9 @@ describe("application shell runtime boundary", () => {
   });
 
   it("executes logout effects while projecting only display-safe session status", async () => {
-    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), "site");
-    const runtimeProfile = createDevRuntimeProfile();
-    const routeWorld = required(findRuntimeWorldMountByRoute(runtimeProfile, "/site"));
+    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), programStorageIdentity());
+    const runtimeProfile = createInstanceRuntimeProfile();
+    const routeWorld = programSiteWorld();
     let host: PresentationHost | undefined;
     let logoutCount = 0;
     const navigations: string[] = [];
@@ -360,7 +358,9 @@ describe("application shell runtime boundary", () => {
     );
 
     await waitFor(() => expect(routeChecks).toHaveLength(FORMLESS_PROGRAM_SCREEN_PATHS.length));
-    expect(programDestinationPaths(required(host))).toEqual(["/apps", "/deployments"]);
+    await waitFor(() =>
+      expect(programDestinationPaths(required(host))).toEqual(["/apps", "/deployments"]),
+    );
 
     allowedPaths = new Set(["/settings"]);
     renderer.rerender(
@@ -495,4 +495,13 @@ function required<T>(value: T | null | undefined): T {
   }
 
   return value;
+}
+
+function programSiteWorld() {
+  return {
+    app: getSchemaAppDefinition("site"),
+    generatedRoutes: true,
+    route: "/site" as const,
+    target: programStorageIdentity(),
+  };
 }

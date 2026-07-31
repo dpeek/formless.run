@@ -58,13 +58,7 @@ describe("Formless instance target client", () => {
     expect(result).toEqual({
       cacheControl: "no-store",
       metadataUrl: "https://instance.example/api/formless/deploy",
-      packageApps: [
-        {
-          packageAppKey: "site",
-          packageRevision: 1,
-          sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
-        },
-      ],
+      packageApps: [],
       packageVersion: "0.1.8",
       runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
       storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
@@ -111,23 +105,8 @@ describe("Formless instance target client", () => {
       },
     );
 
-    expect(result.installs).toEqual([
-      expect.objectContaining({
-        installId: "site",
-        packageAppKey: "site",
-        packageRevision: 1,
-        registrationOperation: "profile.register",
-        registrationPolicy: "custom-operation",
-        sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
-      }),
-    ]);
-    expect(result.packages).toEqual([
-      expect.objectContaining({
-        packageAppKey: "site",
-        packageRevision: 1,
-        sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
-      }),
-    ]);
+    expect(result.installs).toEqual([]);
+    expect(result.packages).toEqual([]);
   });
 
   it("surfaces target upgrade facts through HTTP reads without Durable Object SQLite access", async () => {
@@ -258,14 +237,7 @@ describe("Formless instance target client", () => {
         sourceSchemaHash: appPackage.sourceSchemaHash,
       })),
     );
-    expect(result.upgradeStatus.installedApps).toEqual([
-      {
-        installId: "site",
-        packageAppKey: "site",
-        packageRevision: 1,
-        sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
-      },
-    ]);
+    expect(result.upgradeStatus.installedApps).toEqual([]);
     expect(result.upgradeStatus.deployedMetadata.packageVersion).toBe("0.1.8");
     expect(result.upgradeStatus.deployment?.status.state).toBe("deployed");
   });
@@ -386,7 +358,6 @@ describe("Formless instance target client", () => {
       "deploy-metadata-runtime-protocol-version-missing",
       "deploy-metadata-storage-migration-set-missing",
       "deploy-metadata-package-apps-missing",
-      "installed-app-package-facts-missing",
       "deployment-status-unavailable",
     ]);
   });

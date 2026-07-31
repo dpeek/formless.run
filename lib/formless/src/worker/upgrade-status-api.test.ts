@@ -133,20 +133,20 @@ describe("runtime upgrade status API", () => {
 
   it("keeps status evidence out of public app and browser write routes", async () => {
     await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
-      installId: "site",
-      label: "Site",
-      packageAppKey: "site",
+      installId: "crm",
+      label: "CRM",
+      packageAppKey: "crm",
     });
 
     const appStatusWrite = await harness.fetch(
-      `/api/app-installs/site/site${APP_STORAGE_UPGRADE_STATUS_API_PATH_SUFFIX}`,
+      `/api/app-installs/crm/crm${APP_STORAGE_UPGRADE_STATUS_API_PATH_SUFFIX}`,
       {
         headers: adminHeaders(),
         method: "POST",
       },
     );
     const publicRoute = await harness.fetch(
-      `/api/app-installs/site/site/public${APP_STORAGE_UPGRADE_STATUS_API_PATH_SUFFIX}`,
+      `/api/app-installs/crm/crm/public${APP_STORAGE_UPGRADE_STATUS_API_PATH_SUFFIX}`,
       {
         headers: adminHeaders(),
       },

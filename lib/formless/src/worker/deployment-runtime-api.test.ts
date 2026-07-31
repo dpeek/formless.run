@@ -118,7 +118,6 @@ describe("instance deployment runtime API routes", () => {
 
   it("projects enabled custom-domain mappings into desired-state resources", async () => {
     await createAppInstall({ packageAppKey: "crm", installId: "work", label: "Work" });
-    await createAppInstall({ packageAppKey: "site", installId: "personal", label: "Personal" });
     await createControlPlaneRecord("route", {
       enabled: false,
       kind: "mount",
@@ -146,7 +145,6 @@ describe("instance deployment runtime API routes", () => {
       targetProfile: "app",
     });
     await createControlPlaneRecord("route", {
-      appInstall: "personal",
       enabled: true,
       kind: "mount",
       matchHost: "www.example.com",
@@ -211,11 +209,10 @@ describe("instance deployment runtime API routes", () => {
           name: "www.example.com",
           overrideExistingOrigin: false,
           profile: "publicSite",
-          targetInstallId: "personal",
           workerName: "formless-primary",
         },
         kind: "cloudflare-worker-custom-domain",
-        logicalId: "primary-custom-domain-www-example-com-publicsite-personal",
+        logicalId: "primary-custom-domain-www-example-com-publicsite",
         providerFamily: "cloudflare",
         targetId: INSTANCE_DEPLOYMENT_PRIMARY_TARGET_ID,
       },

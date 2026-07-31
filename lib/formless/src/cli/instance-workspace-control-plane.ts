@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
-  archiveApps,
+  archiveMediaObjects,
   parsePortableArchive,
   PORTABLE_ARCHIVE_MANIFEST_FILE,
   type AppArchive,
@@ -209,25 +209,23 @@ export async function readArchiveDirectoryForCheck(
   const mediaFiles: ArchiveDiskMediaFile[] = [];
   const missingMediaFiles: string[] = [];
 
-  for (const app of archiveApps(archive)) {
-    for (const object of app.media.objects) {
-      try {
-        const bytes = new Uint8Array(await readFile(path.join(archiveRoot, object.archivePath)));
+  for (const object of archiveMediaObjects(archive)) {
+    try {
+      const bytes = new Uint8Array(await readFile(path.join(archiveRoot, object.archivePath)));
 
-        mediaFiles.push({
-          archivePath: object.archivePath,
-          byteSize: bytes.byteLength,
-          bytes,
-          contentType: object.contentType,
-        });
-      } catch (error) {
-        if (isNodeError(error) && error.code === "ENOENT") {
-          missingMediaFiles.push(object.archivePath);
-          continue;
-        }
-
-        throw error;
+      mediaFiles.push({
+        archivePath: object.archivePath,
+        byteSize: bytes.byteLength,
+        bytes,
+        contentType: object.contentType,
+      });
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        missingMediaFiles.push(object.archivePath);
+        continue;
       }
+
+      throw error;
     }
   }
 
@@ -341,24 +339,22 @@ export async function readArchiveMediaFiles(
       object: AppArchiveMediaObject;
     }
   > = [];
-  for (const app of archiveApps(archive)) {
-    for (const object of app.media.objects) {
-      const filePath = path.join(archiveDir, object.archivePath);
+  for (const object of archiveMediaObjects(archive)) {
+    const filePath = path.join(archiveDir, object.archivePath);
 
-      try {
-        const bytes = await readFile(filePath);
+    try {
+      const bytes = await readFile(filePath);
 
-        files.push({
-          archivePath: object.archivePath,
-          byteSize: bytes.byteLength,
-          bytes,
-          contentType: object.contentType,
-          object,
-        });
-      } catch (error) {
-        if (!isNodeError(error) || error.code !== "ENOENT") {
-          throw error;
-        }
+      files.push({
+        archivePath: object.archivePath,
+        byteSize: bytes.byteLength,
+        bytes,
+        contentType: object.contentType,
+        object,
+      });
+    } catch (error) {
+      if (!isNodeError(error) || error.code !== "ENOENT") {
+        throw error;
       }
     }
   }

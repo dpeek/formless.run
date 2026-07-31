@@ -943,11 +943,38 @@ describe("Authority record validation readers", () => {
         additionalRecords: [appInstall("tasks", "tasks")],
       }),
     ).toThrow(new BadRequestError('Route app install "tasks" uses unsupported package.'));
-    expect(
+    expect(() =>
       validateRecordWriteRequest(routeRequest("site"), instanceControlPlaneSchema, reader, {
         additionalRecords: [appInstall("site", "site")],
       }),
+    ).toThrow(new BadRequestError('Route app install "site" uses unsupported package.'));
+    expect(
+      validateRecordWriteRequest(
+        {
+          writeId: "create-route-program-site",
+          entity: "route",
+          kind: "create",
+          values: {
+            enabled: true,
+            matchPath: "/pages",
+            kind: "mount",
+            targetProfile: "public-site",
+            surface: "public-site",
+            access: "anonymous",
+          },
+        },
+        instanceControlPlaneSchema,
+        reader,
+        {
+          additionalRecords: [],
+        },
+      ),
     ).toMatchObject({ recordWrite: { entity: "route", kind: "create" } });
+    expect(() =>
+      validateRecordWriteRequest(routeRequest("crm"), instanceControlPlaneSchema, reader, {
+        additionalRecords: [appInstall("crm", "crm")],
+      }),
+    ).toThrow(new BadRequestError('Package app "crm" does not support public Site routes.'));
   });
 
   it("maps every identity-reference resolver outcome for record writes", async () => {

@@ -31,10 +31,7 @@ import {
   FORMLESS_RUNTIME_PROTOCOL_VERSION,
   FORMLESS_STORAGE_MIGRATION_SET_ID,
 } from "../shared/deploy-metadata.ts";
-import {
-  bundledAppPackageResolver,
-  rootKnownPackageFactsResolver,
-} from "../shared/app-packages.ts";
+import { rootKnownPackageFactsResolver } from "../shared/app-packages.ts";
 import { SITE_PUBLIC_RENDERER_RUNTIME_EXTENSION_KEY } from "../shared/workspace-runtime-extensions.ts";
 import { siteSourceSchema } from "../test/schema-apps.ts";
 import {
@@ -64,6 +61,28 @@ import {
 } from "./instance-workspace-source-sync-operation.ts";
 
 const tempDirs: string[] = [];
+const privateSitePackageAppKey = "private-site";
+const rootKnownSitePackage = rootKnownPackageFactsResolver().findPackage("site")!;
+const privateSiteSourceSchemaHash =
+  "sha256:3801668b6420076d9d63fe15f2a294501ccf44f5c4c509efcc9a13444d6fb930" as typeof rootKnownSitePackage.sourceSchemaHash;
+const privateSitePackage = {
+  ...rootKnownSitePackage,
+  defaultInstallId: "personal",
+  packageAppKey: privateSitePackageAppKey,
+  sourceOrigin: "workspace" as const,
+  sourceSchemaHash: privateSiteSourceSchemaHash,
+  sourceSchemaKey: privateSitePackageAppKey,
+  sourceSchemaLocation: {
+    kind: "workspace" as const,
+    key: privateSitePackageAppKey,
+    path: "packages/private-site/schema.json",
+  },
+};
+const privateSitePackageResolver = {
+  findPackage: (packageAppKey: string) =>
+    packageAppKey === privateSitePackageAppKey ? privateSitePackage : undefined,
+  listPackages: () => [privateSitePackage],
+};
 
 afterEach(async () => {
   await Promise.all(
@@ -72,19 +91,25 @@ afterEach(async () => {
 });
 
 describe("workspace source sync operation domain", () => {
-  it("round-trips Program Task records without adopting dormant Tasks app state", async () => {
+  it("round-trips Program Task and Site records with Program media", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const pullRequests: CapturedRequest[] = [];
     const targetUrl = "https://personal.dpeek.workers.dev";
     const programRecords = [
       ...deployControlPlaneRecords({ targetUrl }),
-      ...dormantTasksProgramRecords(),
+      ...dormantBuiltInProgramRecords(),
+      ...programSiteMediaRecords(),
     ];
     const pullFetch = sourceSyncFetch(pullRequests, {
       appData: { david: { records: [] } },
       controlPlaneRecords: programRecords,
-      installs: [installedSite("david", "David Peek"), installedDormantTasks("legacy-tasks")],
+      installs: [
+        installedSite("david", "David Peek"),
+        installedDormantPackage("legacy-tasks", "tasks"),
+        installedDormantPackage("legacy-site", "site"),
+      ],
+      programMediaBytes: Buffer.from([7, 8, 9]),
     });
 
     await writeWorkspaceConfig(workspaceRoot);
@@ -118,16 +143,28 @@ describe("workspace source sync operation domain", () => {
     expect(instanceState.records).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ entity: "task", id: "task:program-native" }),
+        expect.objectContaining({ entity: "block", id: "block:program-cover" }),
         expect.objectContaining({ entity: "app-install", id: "legacy-tasks" }),
+        expect.objectContaining({ entity: "app-install", id: "legacy-site" }),
       ]),
     );
     expect(instanceState).not.toHaveProperty("media");
-    await expect(
-      stat(path.join(workspaceRoot, "state/apps/legacy-tasks.json")),
-    ).rejects.toMatchObject({ code: "ENOENT" });
-    expect(pullRequests.map((request) => new URL(request.url).pathname)).not.toContain(
-      "/api/app-installs/tasks/legacy-tasks/snapshot",
+    for (const installId of ["legacy-tasks", "legacy-site"]) {
+      await expect(
+        stat(path.join(workspaceRoot, `state/apps/${installId}.json`)),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    }
+    expect(pullRequests.map((request) => new URL(request.url).pathname)).not.toEqual(
+      expect.arrayContaining([
+        "/api/app-installs/tasks/legacy-tasks/snapshot",
+        "/api/app-installs/site/legacy-site/snapshot",
+      ]),
     );
+    await expect(
+      readFile(
+        path.join(workspaceRoot, "state/media/media/program/media/images/program-cover.png"),
+      ),
+    ).resolves.toEqual(Buffer.from([7, 8, 9]));
 
     const pushRequests: CapturedRequest[] = [];
     const pushFetch = sourceSyncFetch(pushRequests, {
@@ -167,22 +204,43 @@ describe("workspace source sync operation domain", () => {
       archive: {
         apps: Array<{ app: { installId: string; packageAppKey: string } }>;
         controlPlane: { records: StoredRecord[] };
+        media: { objects: Array<{ archivePath: string; storageKey: string }> };
       };
+      mediaFiles: Array<{ archivePath: string }>;
     }>(requestByPath(pushRequests, "/api/formless/archive/restore"));
 
     expect(restoreBody.archive.apps).toEqual([
       expect.objectContaining({
-        app: expect.objectContaining({ installId: "david", packageAppKey: "site" }),
+        app: expect.objectContaining({
+          installId: "david",
+          packageAppKey: privateSitePackageAppKey,
+        }),
       }),
     ]);
     expect(restoreBody.archive.controlPlane.records).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ entity: "task", id: "task:program-native" }),
+        expect.objectContaining({ entity: "block", id: "block:program-cover" }),
         expect.objectContaining({ entity: "app-install", id: "legacy-tasks" }),
+        expect.objectContaining({ entity: "app-install", id: "legacy-site" }),
       ]),
     );
-    expect(pushRequests.map((request) => new URL(request.url).pathname)).not.toContain(
-      "/api/app-installs/tasks/legacy-tasks/snapshot",
+    expect(restoreBody.archive.media.objects).toEqual([
+      expect.objectContaining({
+        archivePath: "media/program/media/images/program-cover.png",
+        storageKey: "media/images/program-cover.png",
+      }),
+    ]);
+    expect(restoreBody.mediaFiles).toEqual([
+      expect.objectContaining({
+        archivePath: "media/program/media/images/program-cover.png",
+      }),
+    ]);
+    expect(pushRequests.map((request) => new URL(request.url).pathname)).not.toEqual(
+      expect.arrayContaining([
+        "/api/app-installs/tasks/legacy-tasks/snapshot",
+        "/api/app-installs/site/legacy-site/snapshot",
+      ]),
     );
   });
 
@@ -236,7 +294,7 @@ describe("workspace source sync operation domain", () => {
     );
     const pulledControlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
       manifest: resolveFormlessConfig({ name: "personal-sites" }),
-      packageResolver: bundledAppPackageResolver,
+      packageResolver: privateSitePackageResolver,
       workspaceRoot,
     });
     const pulledControlPlaneRecords = pulledControlPlane?.records ?? [];
@@ -473,7 +531,7 @@ describe("workspace source sync operation domain", () => {
 
     expect(requests.every((request) => request.method === "GET")).toBe(true);
     expect(requestPaths).toContain("GET /api/formless/program/snapshot");
-    expect(requestPaths).toContain("GET /api/app-installs/site/david/snapshot");
+    expect(requestPaths).toContain("GET /api/app-installs/private-site/david/snapshot");
     expect(requestPaths).not.toContain("POST /api/formless/archive/restore");
     expect(requestPaths).not.toContain("GET /api/formless/deployments/desired-state");
   });
@@ -823,7 +881,10 @@ describe("deployment runtime domain", () => {
     const requests: CapturedRequest[] = [];
     const deployInputs: DeployFormlessInstanceInput[] = [];
     const restoreEvents: string[] = [];
-    const localPackageFacts = packageAppFactsForKey("site", bundledAppPackageResolver);
+    const localPackageFacts = packageAppFactsForKey(
+      privateSitePackageAppKey,
+      privateSitePackageResolver,
+    );
 
     if (!localPackageFacts) {
       throw new Error("Missing bundled package facts for site.");
@@ -1615,13 +1676,46 @@ async function writeWorkspaceConfig(
     kind: "formless-instance-workspace" as const,
     name: "personal-sites",
     local: { stateRoot: ".formless/local", secretStateRoot: ".formless" },
+    packages: {
+      links: [{ manifest: "packages/private-site/formless.app.json" }],
+    },
     ...(options.runtime === undefined ? {} : { runtime: options.runtime }),
   };
 
-  await mkdir(workspaceRoot, { recursive: true });
+  await writePrivateSitePackage(workspaceRoot);
   await writeFile(
     path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
     formatTestFormlessConfigModule(manifest),
+  );
+}
+
+async function writePrivateSitePackage(workspaceRoot: string) {
+  const packageRoot = path.join(workspaceRoot, "packages/private-site");
+
+  await mkdir(packageRoot, { recursive: true });
+  await writeFile(path.join(packageRoot, "schema.json"), JSON.stringify(siteSourceSchema));
+  await writeFile(
+    path.join(packageRoot, "formless.app.json"),
+    JSON.stringify({
+      kind: "formless.appPackage",
+      version: 1,
+      packageAppKey: privateSitePackageAppKey,
+      label: "Private Site",
+      description: "Private Site test package.",
+      defaultInstallId: "personal",
+      supportsMultipleInstalls: true,
+      packageRevision: rootKnownSitePackage.packageRevision,
+      sourceSchema: {
+        kind: "workspace",
+        key: privateSitePackageAppKey,
+        path: "schema.json",
+      },
+      sourceSchemaHash: privateSiteSourceSchemaHash,
+      capabilities: [
+        { kind: "generatedAdmin", routeBase: "/apps" },
+        { kind: "publicSite", routeBase: "/sites" },
+      ],
+    }),
   );
 }
 
@@ -1636,7 +1730,7 @@ async function writeDeployStorageSnapshot(
 ) {
   await writeInstanceWorkspaceControlPlaneStorageSnapshot({
     manifest: resolveFormlessConfig({ name: "personal-sites" }),
-    packageResolver: bundledAppPackageResolver,
+    packageResolver: privateSitePackageResolver,
     snapshot: controlPlaneSnapshot(options.records ?? deployControlPlaneRecords(options)),
     workspaceRoot,
   });
@@ -1647,7 +1741,7 @@ async function writeWorkspaceAppStorageSnapshot(
   installId: string = "david",
   records: StoredRecord[] = [],
 ) {
-  const facts = packageAppFactsForKey("site", bundledAppPackageResolver);
+  const facts = packageAppFactsForKey(privateSitePackageAppKey, privateSitePackageResolver);
 
   if (!facts) {
     throw new Error("Missing bundled package facts for site.");
@@ -1658,7 +1752,7 @@ async function writeWorkspaceAppStorageSnapshot(
     manifest: resolveFormlessConfig({ name: "personal-sites" }),
     schemaProvenance: {
       kind: "package-app",
-      packageAppKey: "site",
+      packageAppKey: privateSitePackageAppKey,
       packageRevision: facts.packageRevision,
       sourceSchemaHash: facts.sourceSchemaHash,
     },
@@ -1729,7 +1823,8 @@ function sourceSyncFetch(
       }
     >;
     controlPlaneRecords?: StoredRecord[];
-    installs?: Array<ReturnType<typeof installedSite> | ReturnType<typeof installedDormantTasks>>;
+    installs?: Array<ReturnType<typeof installedSite> | ReturnType<typeof installedDormantPackage>>;
+    programMediaBytes?: Uint8Array;
     restoreResponses?: unknown[];
   } = {},
 ): typeof fetch {
@@ -1750,7 +1845,7 @@ function sourceSyncFetch(
 
     if (parsedUrl.pathname === "/api/formless/deploy") {
       return Response.json({
-        packageApps: listInstallableAppPackages(bundledAppPackageResolver).map((appPackage) => ({
+        packageApps: listInstallableAppPackages(privateSitePackageResolver).map((appPackage) => ({
           packageAppKey: appPackage.packageAppKey,
           packageRevision: appPackage.packageRevision,
           sourceSchemaHash: appPackage.sourceSchemaHash,
@@ -1765,7 +1860,7 @@ function sourceSyncFetch(
     if (parsedUrl.pathname === "/api/formless/app-installs") {
       return Response.json({
         installs: options.installs ?? [installedSite("david", "David Peek")],
-        packages: listInstallableAppPackages(bundledAppPackageResolver),
+        packages: listInstallableAppPackages(privateSitePackageResolver),
       });
     }
 
@@ -1784,7 +1879,7 @@ function sourceSyncFetch(
     }
 
     const snapshotMatch = parsedUrl.pathname.match(
-      /^\/api\/app-installs\/site\/([^/]+)\/snapshot$/,
+      /^\/api\/app-installs\/private-site\/([^/]+)\/snapshot$/,
     );
 
     if (snapshotMatch) {
@@ -1798,7 +1893,7 @@ function sourceSyncFetch(
     }
 
     const mediaMatch = parsedUrl.pathname.match(
-      /^\/api\/app-installs\/site\/([^/]+)\/media\/media\/images\/cover\.png$/,
+      /^\/api\/app-installs\/private-site\/([^/]+)\/media\/media\/images\/cover\.png$/,
     );
 
     if (mediaMatch) {
@@ -1812,10 +1907,14 @@ function sourceSyncFetch(
       }
     }
 
-    if (parsedUrl.pathname === "/api/formless/media/media/images/cover.png") {
-      const mediaBytes = Object.values(options.appData ?? {}).find(
-        (data) => data.mediaBytes !== undefined,
-      )?.mediaBytes;
+    if (
+      parsedUrl.pathname === "/api/formless/media/media/images/cover.png" ||
+      parsedUrl.pathname === "/api/formless/media/media/images/program-cover.png"
+    ) {
+      const mediaBytes =
+        options.programMediaBytes ??
+        Object.values(options.appData ?? {}).find((data) => data.mediaBytes !== undefined)
+          ?.mediaBytes;
 
       if (mediaBytes) {
         return new Response(Buffer.from(mediaBytes), {
@@ -1903,7 +2002,7 @@ function deployFetch(
 
     if (parsedUrl.pathname === "/api/formless/deploy") {
       return Response.json({
-        packageApps: listInstallableAppPackages(bundledAppPackageResolver).map((appPackage) => ({
+        packageApps: listInstallableAppPackages(privateSitePackageResolver).map((appPackage) => ({
           packageAppKey: appPackage.packageAppKey,
           packageRevision: appPackage.packageRevision,
           sourceSchemaHash: appPackage.sourceSchemaHash,
@@ -1918,7 +2017,7 @@ function deployFetch(
     if (parsedUrl.pathname === "/api/formless/app-installs") {
       return Response.json({
         installs: options.installs ?? [installedSite("david", "David Peek")],
-        packages: listInstallableAppPackages(bundledAppPackageResolver),
+        packages: listInstallableAppPackages(privateSitePackageResolver),
       });
     }
 
@@ -1937,7 +2036,7 @@ function deployFetch(
     }
 
     const snapshotMatch = parsedUrl.pathname.match(
-      /^\/api\/app-installs\/site\/([^/]+)\/snapshot$/,
+      /^\/api\/app-installs\/private-site\/([^/]+)\/snapshot$/,
     );
 
     if (snapshotMatch) {
@@ -2053,7 +2152,7 @@ function deployFetch(
 }
 
 function installedSite(installId: string, label: string) {
-  const facts = packageAppFactsForKey("site", bundledAppPackageResolver);
+  const facts = packageAppFactsForKey(privateSitePackageAppKey, privateSitePackageResolver);
 
   if (!facts) {
     throw new Error("Missing bundled package facts for site.");
@@ -2064,7 +2163,7 @@ function installedSite(installId: string, label: string) {
     createdAt: "2026-05-01T00:00:00.000Z",
     installId,
     label,
-    packageAppKey: "site" as const,
+    packageAppKey: privateSitePackageAppKey,
     packageRevision: facts.packageRevision,
     publicRoute: `/sites/${installId}` as `/sites/${string}`,
     publicRoutePrefix: `/sites/${installId}/` as `/sites/${string}/`,
@@ -2075,19 +2174,19 @@ function installedSite(installId: string, label: string) {
   };
 }
 
-function installedDormantTasks(installId: string) {
-  const facts = packageAppFactsForKey("tasks", rootKnownPackageFactsResolver());
+function installedDormantPackage(installId: string, packageAppKey: "site" | "tasks") {
+  const facts = packageAppFactsForKey(packageAppKey, rootKnownPackageFactsResolver());
 
   if (!facts) {
-    throw new Error("Missing root-known package facts for tasks.");
+    throw new Error(`Missing root-known package facts for ${packageAppKey}.`);
   }
 
   return {
     adminRoute: `/apps/${installId}` as `/apps/${string}`,
     createdAt: "2026-05-01T00:00:00.000Z",
     installId,
-    label: "Legacy Tasks",
-    packageAppKey: "tasks" as const,
+    label: `Legacy ${packageAppKey === "site" ? "Site" : "Tasks"}`,
+    packageAppKey,
     packageRevision: facts.packageRevision,
     registrationPolicy: "closed" as const,
     sourceSchemaHash: facts.sourceSchemaHash,
@@ -2105,7 +2204,7 @@ function snapshot(
     kind: STORAGE_SNAPSHOT_KIND,
     records,
     schema: siteSourceSchema,
-    schemaKey: "site",
+    schemaKey: privateSitePackageAppKey,
     schemaUpdatedAt: "2026-05-01T00:00:00.000Z",
     sourceCursor: 1,
     storageIdentity,
@@ -2140,7 +2239,7 @@ function controlPlaneRecords(): StoredRecord[] {
       values: {
         installId,
         label: "David Peek",
-        packageAppKey: "site",
+        packageAppKey: privateSitePackageAppKey,
         registrationPolicy: "closed",
         status: "installed",
         storageIdentity: `app:${installId}`,
@@ -2227,14 +2326,17 @@ function deployControlPlaneRecords(
   ];
 }
 
-function dormantTasksProgramRecords(): StoredRecord[] {
-  const install = installedDormantTasks("legacy-tasks");
-  const now = install.createdAt;
+function dormantBuiltInProgramRecords(): StoredRecord[] {
+  const installs = [
+    installedDormantPackage("legacy-tasks", "tasks"),
+    installedDormantPackage("legacy-site", "site"),
+  ];
+  const records: StoredRecord[] = [];
 
-  return [
-    {
-      createdAt: now,
-      updatedAt: now,
+  for (const install of installs) {
+    records.push({
+      createdAt: install.createdAt,
+      updatedAt: install.updatedAt,
       entity: "app-install",
       id: install.installId,
       values: {
@@ -2247,10 +2349,10 @@ function dormantTasksProgramRecords(): StoredRecord[] {
         status: install.status,
         storageIdentity: `app:${install.installId}`,
       },
-    },
-    {
-      createdAt: now,
-      updatedAt: now,
+    });
+    records.push({
+      createdAt: install.createdAt,
+      updatedAt: install.updatedAt,
       entity: "route",
       id: `route:${install.installId}:admin`,
       values: {
@@ -2262,10 +2364,14 @@ function dormantTasksProgramRecords(): StoredRecord[] {
         surface: "admin",
         targetProfile: "app",
       },
-    },
+    });
+  }
+
+  return [
+    ...records,
     {
-      createdAt: now,
-      updatedAt: now,
+      createdAt: installs[0]!.createdAt,
+      updatedAt: installs[0]!.updatedAt,
       entity: "task",
       id: "task:program-native",
       values: {
@@ -2314,6 +2420,7 @@ function restoreSummary() {
     appCount: 1,
     createdInstalls: [],
     mediaCountsByApp: { david: 0 },
+    programMediaCount: 0,
     recordCountsByApp: { david: { total: 0 } },
     replacedInstalls: ["david"],
   };
@@ -2348,6 +2455,16 @@ function mediaRecords(): StoredRecord[] {
       type: "image",
       label: "Cover",
       mediaAssetId: "cover.png",
+    }),
+  ];
+}
+
+function programSiteMediaRecords(): StoredRecord[] {
+  return [
+    block("block:program-cover", "2026-05-05T00:00:02.000Z", {
+      type: "image",
+      label: "Program cover",
+      mediaAssetId: "program-cover.png",
     }),
   ];
 }

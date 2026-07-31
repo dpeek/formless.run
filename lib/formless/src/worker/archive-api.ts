@@ -1,5 +1,6 @@
 import {
   INSTANCE_ARCHIVE_KIND,
+  archiveMediaObjects,
   parsePortableArchive,
   type AppArchiveData,
   type InstanceArchiveControlPlane,
@@ -257,10 +258,7 @@ async function pruneCoreMediaObjects(
   bucket: R2Bucket,
   desiredStorageKeys: ReadonlySet<string>,
 ): Promise<void> {
-  const prefixes = [
-    mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX),
-    mediaKeyPrefix(APP_DOCUMENT_MEDIA_KEY_PREFIX),
-  ];
+  const prefixes = [mediaKeyPrefix(APP_DOCUMENT_MEDIA_KEY_PREFIX)];
   const keysToDelete: string[] = [];
   for (const prefix of prefixes) {
     let cursor: string | undefined;
@@ -292,17 +290,14 @@ async function pruneCoreMediaObjects(
 
 function archiveCoreMediaKeys(archive: PortableArchive): ReadonlySet<string> {
   const keys = new Set<string>();
-  const apps = archive.kind === INSTANCE_ARCHIVE_KIND ? archive.apps : [archive];
   const prefixes = [
     mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX),
     mediaKeyPrefix(APP_DOCUMENT_MEDIA_KEY_PREFIX),
   ];
 
-  for (const app of apps) {
-    for (const object of app.media.objects) {
-      if (prefixes.some((prefix) => object.storageKey.startsWith(prefix))) {
-        keys.add(object.storageKey);
-      }
+  for (const object of archiveMediaObjects(archive)) {
+    if (prefixes.some((prefix) => object.storageKey.startsWith(prefix))) {
+      keys.add(object.storageKey);
     }
   }
 

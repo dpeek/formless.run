@@ -182,16 +182,15 @@ describe("instance auth origin and protected-route handoff decisions", () => {
         entry: "account",
         requestOrigin: "https://site.example.com",
         requiredAccess: "authenticated",
-        runtimeRoute: appRoute("public-site", "site", "authenticated"),
+        runtimeRoute: programPublicSiteRoute("authenticated"),
         safeReturnTo: "/blog/shipping-schema-backed-authoring?ref=nav",
       }),
     ).toMatchObject({
       kind: "handoff",
       target: {
         access: "authenticated",
-        appInstallId: "site",
-        routeId: "route:public-site:site",
-        storageIdentity: "app:site",
+        routeId: "route:public-site:program",
+        storageIdentity: "instance:control-plane",
         targetOrigin: "https://site.example.com",
         targetProfile: "public-site",
       },
@@ -501,5 +500,19 @@ function appRoute(
     matchPrefix: "/",
     target,
     targetProfile,
+  };
+}
+
+function programPublicSiteRoute(
+  access: "authenticated" | "owner",
+): InstanceRuntimeMountRouteResolution {
+  return {
+    access,
+    id: "route:public-site:program",
+    kind: "mount",
+    matchHost: "site.example.com",
+    matchPath: "/",
+    matchPrefix: "/",
+    targetProfile: "public-site",
   };
 }

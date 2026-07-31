@@ -93,6 +93,7 @@ export type ArchiveRestoreSummary = {
   appCount: number;
   createdInstalls: string[];
   mediaCountsByApp: Record<string, number>;
+  programMediaCount: number;
   recordCountsByApp: Record<string, { total: number }>;
   replacedInstalls: string[];
 };
@@ -138,6 +139,15 @@ export async function exportInstanceArchive(
       ),
     ),
   ]);
+  const programMedia =
+    controlPlane === undefined
+      ? { files: [], objects: [] }
+      : await exportRemoteProgramMedia({
+          auth,
+          fetcher: dependencies.fetch,
+          snapshot: controlPlane,
+          target,
+        });
   const archive: InstanceArchive = {
     kind: INSTANCE_ARCHIVE_KIND,
     version: ARCHIVE_VERSION,
@@ -145,18 +155,91 @@ export async function exportInstanceArchive(
     capabilities: instanceArchiveCapabilities(controlPlane),
     restorePolicy: { dryRun: true, installCollisions: "reject" },
     ...(controlPlane === undefined ? {} : { controlPlane }),
+    media: { objects: programMedia.objects },
     apps: entries.map((entry) => entry.archive),
   };
 
   return writePortableArchiveDirectory(
     {
       archive,
-      mediaFiles: entries.flatMap((entry) => entry.mediaFiles),
+      mediaFiles: [...programMedia.files, ...entries.flatMap((entry) => entry.mediaFiles)],
       outDir: input.outDir,
       packageResolver,
     },
     dependencies,
   );
+}
+
+async function exportRemoteProgramMedia(input: {
+  auth?: ArchiveExportAuth;
+  fetcher: typeof fetch;
+  snapshot: StorageSnapshot;
+  target: string;
+}): Promise<{ files: ArchiveDiskMediaFile[]; objects: AppArchiveMediaObject[] }> {
+  const referencesByKey = new Map<string, AppArchiveMediaObject>();
+
+  for (const reference of appArchiveMediaReferences(
+    input.snapshot.schema,
+    input.snapshot.records,
+  )) {
+    if (reference.kind !== "image") {
+      throw new Error(
+        `Program media field "${reference.entity}.${reference.field}" cannot reference an installed-app document asset.`,
+      );
+    }
+
+    const facts = coreImageMediaDeliveryFactsForAssetId(reference.assetId);
+
+    if (!facts) {
+      throw new Error(
+        `Program media field "${reference.entity}.${reference.field}" references invalid image asset "${reference.assetId}".`,
+      );
+    }
+
+    referencesByKey.set(facts.storageKey, coreMediaReference(facts.storageKey, facts.href));
+  }
+
+  const files: ArchiveDiskMediaFile[] = [];
+  const objects: AppArchiveMediaObject[] = [];
+
+  for (const reference of [...referencesByKey.values()].sort((left, right) =>
+    left.storageKey.localeCompare(right.storageKey),
+  )) {
+    const response = await input.fetcher(apiUrl(input.target, reference.deliveryHref), {
+      headers: archiveExportRequestHeaders(input.auth, reference.contentType, {
+        mediaRead: true,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed GET ${apiUrl(input.target, reference.deliveryHref)}: HTTP ${
+          response.status
+        } ${await response.text()}`,
+      );
+    }
+
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const archivePath = `media/program/${reference.storageKey}`;
+    const object = {
+      ...reference,
+      archivePath,
+      ...(reference.asset === undefined
+        ? {}
+        : { asset: mediaAssetForArchiveObject(reference.asset, bytes.byteLength) }),
+      byteSize: bytes.byteLength,
+    };
+
+    objects.push(object);
+    files.push({
+      archivePath,
+      byteSize: bytes.byteLength,
+      bytes,
+      contentType: reference.contentType,
+    });
+  }
+
+  return { files, objects };
 }
 
 async function fetchRemoteControlPlaneArchive(input: {

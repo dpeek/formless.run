@@ -23,7 +23,11 @@ import {
   type GeneratedWorkspaceRuntimeController,
 } from "./generated-workspace-runtime.tsx";
 import { SchemaAppProvider } from "./schema-app-context.tsx";
-import { installedAppStorageIdentity } from "../../shared/app-storage-identity.ts";
+import {
+  installedAppStorageIdentity,
+  programStorageIdentity,
+} from "../../shared/app-storage-identity.ts";
+import { bundledSourceSchemaHashFixtures } from "../../shared/upgrade-migrations.ts";
 
 const submitOperationMock = vi.hoisted(() => vi.fn());
 const listAppDocumentMediaAssetsMock = vi.hoisted(() => vi.fn());
@@ -61,7 +65,10 @@ beforeEach(() => {
 
 describe("generated workspace tree selection runtime", () => {
   it("owns selection across intents, refresh, creation, removal, and stale identities", async () => {
-    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords), "site");
+    applyBootstrapResponse(
+      bootstrapResponse(siteSourceSchema, testSiteRecords),
+      programStorageIdentity(),
+    );
     const screen = required(
       selectScreenModels(siteSourceSchema).find(
         (candidate) => candidate.screenName === "siteEditor",
@@ -85,7 +92,7 @@ describe("generated workspace tree selection runtime", () => {
 
     await act(async () => {
       renderer = render(
-        <SchemaAppProvider schemaKey="site">
+        <SchemaAppProvider schemaKey="site" target={programStorageIdentity()}>
           <RuntimeProbe />
         </SchemaAppProvider>,
       );
@@ -126,7 +133,7 @@ describe("generated workspace tree selection runtime", () => {
           },
         ],
         undefined,
-        "site",
+        programStorageIdentity(),
       );
     });
     expect(currentTree(required(controller)).selectedEditor).toMatchObject({
@@ -137,7 +144,7 @@ describe("generated workspace tree selection runtime", () => {
     const createdBlock = block("block-created", "Created block");
     const createdPlacement = placement("placement-created", createdBlock.id);
     await act(async () => {
-      applyRecordMerge([createdBlock, createdPlacement], undefined, "site");
+      applyRecordMerge([createdBlock, createdPlacement], undefined, programStorageIdentity());
     });
     const createdItem = required(
       flattenTreeItems(currentTree(required(controller)).items).find(
@@ -183,7 +190,7 @@ describe("generated workspace tree selection runtime", () => {
           },
         ],
         undefined,
-        "site",
+        programStorageIdentity(),
       );
     });
     const fallbackTree = currentTree(required(controller));
@@ -197,14 +204,21 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("owns controlled disclosure through exact tree intents", async () => {
-    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords), "site");
+    applyBootstrapResponse(
+      bootstrapResponse(siteSourceSchema, testSiteRecords),
+      programStorageIdentity(),
+    );
     const branch = typedBlock("block-disclosure-branch", "group", "Disclosure branch");
     const child = typedBlock("block-disclosure-child", "markdown", "Disclosure child", {
       body: "Nested disclosure coverage.",
     });
     const branchPlacement = placement("placement-disclosure-branch", branch.id);
     const childPlacement = placementForParent("placement-disclosure-child", branch.id, child.id);
-    applyRecordMerge([branch, child, branchPlacement, childPlacement], undefined, "site");
+    applyRecordMerge(
+      [branch, child, branchPlacement, childPlacement],
+      undefined,
+      programStorageIdentity(),
+    );
     const screen = required(
       selectScreenModels(siteSourceSchema).find(
         (candidate) => candidate.screenName === "siteEditor",
@@ -226,7 +240,7 @@ describe("generated workspace tree selection runtime", () => {
 
     await act(async () => {
       renderer = render(
-        <SchemaAppProvider schemaKey="site">
+        <SchemaAppProvider schemaKey="site" target={programStorageIdentity()}>
           <RuntimeProbe />
         </SchemaAppProvider>,
       );
@@ -280,11 +294,14 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("routes item context navigation and child field failures by exact identity", async () => {
-    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords), "site");
+    applyBootstrapResponse(
+      bootstrapResponse(siteSourceSchema, testSiteRecords),
+      programStorageIdentity(),
+    );
     applyRecordMerge(
       [placement("placement-header-context", "rec_site_content_group_header")],
       undefined,
-      "site",
+      programStorageIdentity(),
     );
     const screen = required(
       selectScreenModels(siteSourceSchema).find(
@@ -309,7 +326,7 @@ describe("generated workspace tree selection runtime", () => {
 
     await act(async () => {
       renderer = render(
-        <SchemaAppProvider schemaKey="site">
+        <SchemaAppProvider schemaKey="site" target={programStorageIdentity()}>
           <RuntimeProbe />
         </SchemaAppProvider>,
       );
@@ -386,7 +403,7 @@ describe("generated workspace tree selection runtime", () => {
     });
     expect(submitOperationMock).toHaveBeenCalledTimes(1);
     expect(submitOperationMock).toHaveBeenCalledWith(
-      "site",
+      programStorageIdentity(),
       "block",
       "update",
       expect.objectContaining({ input: { label: "Next hero" } }),
@@ -405,14 +422,17 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("loads and uploads media for selected tree records and tree child creation", async () => {
-    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords), "site");
+    applyBootstrapResponse(
+      bootstrapResponse(siteSourceSchema, testSiteRecords),
+      programStorageIdentity(),
+    );
     const image = typedBlock("block-tree-media", "image", "Tree media", {
       height: 180,
       mediaAssetId: "old.webp",
       width: 320,
     });
     const imagePlacement = placement("placement-tree-media", image.id);
-    applyRecordMerge([image, imagePlacement], undefined, "site");
+    applyRecordMerge([image, imagePlacement], undefined, programStorageIdentity());
     listCoreImageMediaAssetsMock.mockResolvedValue([
       { href: "/media/existing.webp", id: "existing.webp", label: "Existing" },
     ]);
@@ -437,7 +457,7 @@ describe("generated workspace tree selection runtime", () => {
 
     await act(async () => {
       renderer = render(
-        <SchemaAppProvider schemaKey="site">
+        <SchemaAppProvider schemaKey="site" target={programStorageIdentity()}>
           <RuntimeProbe />
         </SchemaAppProvider>,
       );
@@ -482,7 +502,7 @@ describe("generated workspace tree selection runtime", () => {
 
     expect(uploadCoreImageMediaFileMock).toHaveBeenCalledWith(recordFile);
     expect(submitOperationMock).toHaveBeenCalledWith(
-      "site",
+      programStorageIdentity(),
       "block",
       "update",
       {
@@ -561,8 +581,33 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("loads compatible app documents and replaces a tree record with a new flat asset id", async () => {
+    const privatePackage = {
+      adminRouteBase: "/apps" as const,
+      defaultInstallId: "private",
+      description: "Private Site fixture.",
+      label: "Private Site",
+      packageAppKey: "private-site",
+      packageRevision: 1,
+      publicRouteBase: "/sites" as const,
+      sourceOrigin: "workspace" as const,
+      sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
+      sourceSchemaKey: "private-site",
+      sourceSchemaLocation: {
+        kind: "workspace" as const,
+        key: "private-site",
+        path: "source/schema.json",
+      },
+      supportsMultipleInstalls: true,
+    };
     const appTarget = required(
-      installedAppStorageIdentity({ installId: "private", packageAppKey: "site" }),
+      installedAppStorageIdentity(
+        { installId: "private", packageAppKey: "private-site" },
+        {
+          findPackage: (packageAppKey) =>
+            packageAppKey === privatePackage.packageAppKey ? privatePackage : undefined,
+          listPackages: () => [privatePackage],
+        },
+      ),
     );
     const documentSchema = siteSchemaWithDocumentMedia();
     applyBootstrapResponse(bootstrapResponse(documentSchema, testSiteRecords), appTarget);
@@ -575,9 +620,10 @@ describe("generated workspace tree selection runtime", () => {
       access: "private",
       byteSize: 1200,
       contentType: "application/pdf",
-      downloadHref: "/api/app-installs/site/private/media/documents/existing.pdf?download=1",
+      downloadHref:
+        "/api/app-installs/private-site/private/media/documents/existing.pdf?download=1",
       filename: "Existing report.pdf",
-      href: "/api/app-installs/site/private/media/documents/existing.pdf",
+      href: "/api/app-installs/private-site/private/media/documents/existing.pdf",
       id: "existing.pdf",
       label: "Existing report.pdf",
     } as const;
@@ -608,7 +654,7 @@ describe("generated workspace tree selection runtime", () => {
     });
 
     const documentTarget = {
-      documentsPath: "/api/app-installs/site/private/media/documents",
+      documentsPath: "/api/app-installs/private-site/private/media/documents",
       field: { entityName: "block", fieldName: "mediaAssetId" },
     };
     expect(listCoreImageMediaAssetsMock).not.toHaveBeenCalled();
@@ -649,7 +695,7 @@ describe("generated workspace tree selection runtime", () => {
         access: "private",
         byteSize: replacementFile.size,
         contentType: "application/pdf",
-        deliveryHref: `/api/app-installs/site/private/media/documents/${replacementId}`,
+        deliveryHref: `/api/app-installs/private-site/private/media/documents/${replacementId}`,
         filename: "replacement.pdf",
         id: replacementId,
         kind: "document",
@@ -661,7 +707,7 @@ describe("generated workspace tree selection runtime", () => {
       },
       assetId: replacementId,
       contentType: "application/pdf",
-      href: `/api/app-installs/site/private/media/documents/${replacementId}`,
+      href: `/api/app-installs/private-site/private/media/documents/${replacementId}`,
       key: `media/app-installs/private/documents/${replacementId}`,
       size: replacementFile.size,
     });
@@ -697,9 +743,9 @@ describe("generated workspace tree selection runtime", () => {
     expect(mediaField.options?.mediaAssetOptions).toContainEqual({
       byteSize: replacementFile.size,
       contentType: "application/pdf",
-      downloadHref: `/api/app-installs/site/private/media/documents/${replacementId}?download=1`,
+      downloadHref: `/api/app-installs/private-site/private/media/documents/${replacementId}?download=1`,
       filename: "replacement.pdf",
-      href: `/api/app-installs/site/private/media/documents/${replacementId}`,
+      href: `/api/app-installs/private-site/private/media/documents/${replacementId}`,
       id: replacementId,
       label: "replacement.pdf",
     });
@@ -710,12 +756,19 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("owns root cancel and nested child create validation, failure, retry, pending, and selection", async () => {
-    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords), "site");
+    applyBootstrapResponse(
+      bootstrapResponse(siteSourceSchema, testSiteRecords),
+      programStorageIdentity(),
+    );
     const feature = typedBlock("block-feature-create", "feature", "Feature create parent");
     const featurePlacement = placement("placement-feature-create", feature.id);
     const leaf = typedBlock("block-leaf-create", "card", "Leaf create target");
     const leafPlacement = placement("placement-leaf-create", leaf.id);
-    applyRecordMerge([feature, featurePlacement, leaf, leafPlacement], undefined, "site");
+    applyRecordMerge(
+      [feature, featurePlacement, leaf, leafPlacement],
+      undefined,
+      programStorageIdentity(),
+    );
     const screen = required(
       selectScreenModels(siteSourceSchema).find(
         (candidate) => candidate.screenName === "siteEditor",
@@ -737,7 +790,7 @@ describe("generated workspace tree selection runtime", () => {
 
     await act(async () => {
       renderer = render(
-        <SchemaAppProvider schemaKey="site">
+        <SchemaAppProvider schemaKey="site" target={programStorageIdentity()}>
           <RuntimeProbe />
         </SchemaAppProvider>,
       );
@@ -880,14 +933,14 @@ describe("generated workspace tree selection runtime", () => {
         .form.submit,
     ).toMatchObject({ disabled: true, pending: { isPending: true } });
     await act(async () => {
-      applyRecordMerge([createdChild, createdPlacement], undefined, "site");
+      applyRecordMerge([createdChild, createdPlacement], undefined, programStorageIdentity());
       required(resolveSubmission)(commandResponse([createdChild, createdPlacement]));
       await submission;
     });
 
     expect(submitOperationMock).toHaveBeenCalledTimes(2);
     expect(submitOperationMock).toHaveBeenLastCalledWith(
-      "site",
+      programStorageIdentity(),
       "block-placement",
       "addTreeChild",
       expect.objectContaining({
@@ -915,7 +968,10 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("executes semantic tree moves inside the exact scope with safe retry feedback", async () => {
-    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords), "site");
+    applyBootstrapResponse(
+      bootstrapResponse(siteSourceSchema, testSiteRecords),
+      programStorageIdentity(),
+    );
     const root = typedBlock("ordering-root", "page", "Ordering root");
     const mainFirstChild = block("ordering-main-first-child", "Main first");
     const mainSecondChild = block("ordering-main-second-child", "Main second");
@@ -950,7 +1006,7 @@ describe("generated workspace tree selection runtime", () => {
         sideSecond,
       ],
       undefined,
-      "site",
+      programStorageIdentity(),
     );
     const screen = required(
       selectScreenModels(siteSourceSchema).find(
@@ -973,7 +1029,7 @@ describe("generated workspace tree selection runtime", () => {
 
     await act(async () => {
       renderer = render(
-        <SchemaAppProvider schemaKey="site">
+        <SchemaAppProvider schemaKey="site" target={programStorageIdentity()}>
           <RuntimeProbe />
         </SchemaAppProvider>,
       );
@@ -1001,7 +1057,7 @@ describe("generated workspace tree selection runtime", () => {
     await dispatchTreeIntent(required(controller), moveUp.intent);
     expect(submitOperationMock).toHaveBeenCalledTimes(1);
     expect(submitOperationMock).toHaveBeenLastCalledWith(
-      "site",
+      programStorageIdentity(),
       "block-placement",
       "update",
       {
@@ -1057,7 +1113,7 @@ describe("generated workspace tree selection runtime", () => {
     expect(tree.feedback).toMatchObject([{ status: "pending", title: "Moving placement." }]);
 
     await act(async () => {
-      applyRecordMerge([movedPlacement], undefined, "site");
+      applyRecordMerge([movedPlacement], undefined, programStorageIdentity());
       required(resolveMove)(commandResponse([movedPlacement]));
       await submission;
     });
@@ -1079,7 +1135,10 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("routes placement removal confirmation, retry, refresh, and fallback by exact identity", async () => {
-    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords), "site");
+    applyBootstrapResponse(
+      bootstrapResponse(siteSourceSchema, testSiteRecords),
+      programStorageIdentity(),
+    );
     const screen = required(
       selectScreenModels(siteSourceSchema).find(
         (candidate) => candidate.screenName === "siteEditor",
@@ -1101,7 +1160,7 @@ describe("generated workspace tree selection runtime", () => {
 
     await act(async () => {
       renderer = render(
-        <SchemaAppProvider schemaKey="site">
+        <SchemaAppProvider schemaKey="site" target={programStorageIdentity()}>
           <RuntimeProbe />
         </SchemaAppProvider>,
       );
@@ -1200,14 +1259,14 @@ describe("generated workspace tree selection runtime", () => {
     });
 
     await act(async () => {
-      applyRecordMerge([removedPlacement], undefined, "site");
+      applyRecordMerge([removedPlacement], undefined, programStorageIdentity());
       required(resolveRemoval)(commandResponse([removedPlacement]));
       await submission;
     });
 
     expect(submitOperationMock).toHaveBeenCalledTimes(2);
     expect(submitOperationMock).toHaveBeenLastCalledWith(
-      "site",
+      programStorageIdentity(),
       "block-placement",
       "removeTreePlacement",
       {

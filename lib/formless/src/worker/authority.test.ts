@@ -46,7 +46,6 @@ import {
   taskStorageSnapshotRecords,
   taskSourceSchema as appSchema,
 } from "../test/schema-apps.ts";
-import { testSiteRecords } from "../test/site-records.ts";
 import {
   commandOperationRequest,
   createAuthorityWriteHelpers,
@@ -71,6 +70,7 @@ type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 let harness: Harness;
 let authority: AuthorityWriteHelpers;
 let taskTestPackageManifest: AppPackageManifest;
+const ownerSessionHeaders: Record<string, string> = {};
 const adminToken = "test-admin-token";
 const taskEntityId = appSchema.entities.find((definition) => definition.key === "task")!.id;
 
@@ -93,13 +93,17 @@ beforeAll(async () => {
     },
     {
       bindings: {
+        FORMLESS_ADMIN_TOKEN: adminToken,
         [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
           taskPackage,
         ]),
       },
     },
   );
-  authority = createAuthorityWriteHelpers(harness);
+  Object.assign(ownerSessionHeaders, await testIdentityOwnerSessionHeaders(harness, adminToken));
+  authority = createAuthorityWriteHelpers(harness, "tasks", ownerSessionHeaders, {
+    Authorization: `Bearer ${adminToken}`,
+  });
 });
 
 beforeEach(async () => {
@@ -162,21 +166,6 @@ describe("authority", () => {
     });
   });
 
-  it("returns the site source schema from the site bootstrap path", async () => {
-    await resetSchemaApp("site");
-    useSchemaApp("site");
-
-    const body = await getJson<BootstrapResponse>("/api/bootstrap");
-
-    expect(body.schema).toEqual(siteSourceSchema);
-    expect(body.schemaUpdatedAt).toEqual(expect.any(String));
-    expect(body.cursor).toBe(testSiteRecords.length);
-    expectRecordsIgnoringOrder(body.records, testSiteRecords);
-    expect(new Set(body.records.map((record) => record.entity))).toEqual(
-      new Set(["site", "block", "block-placement"]),
-    );
-  });
-
   it("rejects stale browser writes before commit or push notification", async () => {
     const before = await getJson<BootstrapResponse>("/api/bootstrap");
     const socket = await openSyncSocket();
@@ -221,45 +210,6 @@ describe("authority", () => {
     } finally {
       socket.close();
     }
-  });
-
-  it("restores installed Site test state through the installed-app storage identity", async () => {
-    await resetInstalledApp("site", "starter");
-
-    const body = await getInstalledAppJson<BootstrapResponse>("site", "starter", "/bootstrap");
-
-    expect(body.schema).toEqual(siteSourceSchema);
-    expect(body.schemaUpdatedAt).toEqual(expect.any(String));
-    expect(body.cursor).toBe(testSiteRecords.length);
-    expectRecordsIgnoringOrder(body.records, testSiteRecords);
-  });
-
-  it("isolates installed Site storage by install id while preserving legacy Site storage", async () => {
-    await resetInstalledApp("site", "personal");
-    await resetInstalledApp("site", "docs");
-
-    const created = await postInstalledAppRecordOperation("site", "personal", {
-      idempotencyKey: "write-installed-site-page",
-      entity: "block",
-      operationName: "create",
-      input: {
-        type: "page",
-        label: "Personal only",
-        href: "/personal-only",
-      },
-    });
-
-    const personal = await getInstalledAppJson<BootstrapResponse>("site", "personal", "/bootstrap");
-    const docs = await getInstalledAppJson<BootstrapResponse>("site", "docs", "/bootstrap");
-    await resetSchemaApp("site");
-    useSchemaApp("site");
-    const legacySite = await getJson<BootstrapResponse>("/api/bootstrap");
-
-    expect(personal.records).toContainEqual(created.record);
-    expect(docs.records).not.toContainEqual(created.record);
-    expect(legacySite.records).not.toContainEqual(created.record);
-    expect(docs.schema).toEqual(siteSourceSchema);
-    expect(legacySite.schema).toEqual(siteSourceSchema);
   });
 
   it("isolates private task-package storage, sync, snapshot restore, and command operations by install id", async () => {
@@ -342,85 +292,9 @@ describe("authority", () => {
     expect(legacy.records).not.toContainEqual(created.record);
   });
 
-  it("projects installed Site tree media asset ids through core delivery without manual hrefs", async () => {
-    await postInstalledAppJson<BootstrapResponse>(
-      "site",
-      "personal",
-      "/snapshot/restore",
-      siteStorageSnapshot({
-        storageIdentity: "app:personal",
-        records: [
-          ...testSiteRecords,
-          {
-            id: "rec_installed_site_image",
-            entity: "block",
-            values: {
-              type: "image",
-              label: "Installed image",
-              mediaAssetId: "installed.webp",
-              href: "https://cdn.example.com/installed-manual.webp",
-            },
-            createdAt: "2026-05-22T00:00:00.000Z",
-            updatedAt: "2026-05-22T00:00:00.000Z",
-          },
-          {
-            id: "rec_installed_site_image_place",
-            entity: "block-placement",
-            values: {
-              parent: "rec_site_content_home",
-              block: "rec_installed_site_image",
-              order: 9000,
-            },
-            createdAt: "2026-05-22T00:00:01.000Z",
-            updatedAt: "2026-05-22T00:00:01.000Z",
-          },
-        ],
-      }),
-    );
-
-    const body = await getInstalledAppJson<SitePageTreeResponse>("site", "personal", "/tree/home");
-
-    expect(JSON.stringify(body)).toContain("/api/formless/media/media/images/installed.webp");
-    expect(JSON.stringify(body)).not.toContain("https://cdn.example.com/installed-manual.webp");
-  });
-
-  it("renders duplicate installed Site public slugs from the selected install storage", async () => {
-    await postInstalledAppJson<BootstrapResponse>(
-      "site",
-      "personal",
-      "/snapshot/restore",
-      siteStorageSnapshot({
-        storageIdentity: "app:personal",
-        records: siteRecordsWithHomeLabel("Personal Home"),
-      }),
-    );
-    await postInstalledAppJson<BootstrapResponse>(
-      "site",
-      "docs",
-      "/snapshot/restore",
-      siteStorageSnapshot({
-        storageIdentity: "app:docs",
-        records: siteRecordsWithHomeLabel("Docs Home"),
-      }),
-    );
-
-    const personal = await getInstalledAppJson<SitePageTreeResponse>(
-      "site",
-      "personal",
-      "/tree/home",
-    );
-    const docs = await getInstalledAppJson<SitePageTreeResponse>("site", "docs", "/tree/home");
-
-    expect(personal.page.label).toBe("Personal Home");
-    expect(docs.page.label).toBe("Docs Home");
-    expect(personal.meta.slug).toBe("home");
-    expect(docs.meta.slug).toBe("home");
-  });
-
   it("returns a public page tree for a published site page", async () => {
     await resetSchemaApp("site");
     useSchemaApp("site");
-    await postJson<BootstrapResponse>("/api/snapshot/restore", siteStorageSnapshot());
 
     const response = await authority.fetch("/api/tree/home");
     const body = (await response.json()) as SitePageTreeResponse;
@@ -473,7 +347,6 @@ describe("authority", () => {
   it("returns regular blog and dated post route trees for the site app", async () => {
     await resetSchemaApp("site");
     useSchemaApp("site");
-    await postJson<BootstrapResponse>("/api/snapshot/restore", siteStorageSnapshot());
 
     const blog = await getJson<SitePageTreeResponse>("/api/tree/blog");
     const post = await getJson<SitePageTreeResponse>(
@@ -1927,31 +1800,6 @@ function storageSnapshot(overrides: Partial<StorageSnapshot> = {}): StorageSnaps
   };
 }
 
-function siteStorageSnapshot(overrides: Partial<StorageSnapshot> = {}): StorageSnapshot {
-  return storageSnapshot({
-    storageIdentity: "site",
-    schemaKey: "site",
-    sourceCursor: testSiteRecords.length,
-    schema: siteSourceSchema,
-    records: testSiteRecords,
-    ...overrides,
-  });
-}
-
-function siteRecordsWithHomeLabel(label: string): StoredRecord[] {
-  return testSiteRecords.map((record) =>
-    record.id === "rec_site_content_home"
-      ? {
-          ...record,
-          values: {
-            ...record.values,
-            label,
-          },
-        }
-      : record,
-  );
-}
-
 function taskSnapshotRecord(id: string, title: string): StoredRecord {
   return {
     id,
@@ -2439,6 +2287,10 @@ function defaultCollectionView(): Extract<
 
 async function resetSchemaApp(schemaKey: SchemaKey) {
   await authority.resetSchemaApp(schemaKey);
+
+  if (schemaKey === "site") {
+    Object.assign(ownerSessionHeaders, await testIdentityOwnerSessionHeaders(harness, adminToken));
+  }
 }
 
 function useSchemaApp(schemaKey: SchemaKey) {
@@ -2446,7 +2298,9 @@ function useSchemaApp(schemaKey: SchemaKey) {
 }
 
 async function getInstalledAppJson<T>(packageAppKey: string, installId: string, path: string) {
-  const response = await harness.fetch(installedAppApiPath(packageAppKey, installId, path));
+  const response = await harness.fetch(installedAppApiPath(packageAppKey, installId, path), {
+    headers: ownerSessionHeaders,
+  });
 
   expect(response.status).toBe(200);
 
@@ -2464,7 +2318,7 @@ async function postInstalledAppJson<T>(
     installedAppApiPath(packageAppKey, installId, request.path),
     {
       body: JSON.stringify(request.body),
-      headers: { "Content-Type": "application/json" },
+      headers: { ...ownerSessionHeaders, "Content-Type": "application/json" },
       method: "POST",
     },
   );
@@ -2484,7 +2338,7 @@ async function postInstalledAppRecordOperation(
     installedAppApiPath(packageAppKey, installId, request.path.slice("/api".length)),
     {
       body: JSON.stringify(request.body),
-      headers: { "Content-Type": "application/json" },
+      headers: { ...ownerSessionHeaders, "Content-Type": "application/json" },
       method: "POST",
     },
   );
@@ -2504,7 +2358,7 @@ async function postInstalledAppCommandOperation(
     installedAppApiPath(packageAppKey, installId, request.path.slice("/api".length)),
     {
       body: JSON.stringify(request.body),
-      headers: { "Content-Type": "application/json" },
+      headers: { ...ownerSessionHeaders, "Content-Type": "application/json" },
       method: "POST",
     },
   );
@@ -2527,6 +2381,7 @@ async function resetInstalledApp(packageAppKey: string, installId: string) {
       ...snapshot,
       schemaKey: packageAppKey,
     },
+    ownerSessionHeaders,
   );
 }
 
@@ -2797,14 +2652,6 @@ async function expectError(path: string, body: unknown, message: string) {
 
 async function expectNotFound(path: string) {
   await authority.expectNotFound(path);
-}
-
-function expectRecordsIgnoringOrder(actual: StoredRecord[], expected: StoredRecord[]) {
-  expect(recordsById(actual)).toEqual(recordsById(expected));
-}
-
-function recordsById(records: StoredRecord[]) {
-  return Object.fromEntries(records.map((record) => [record.id, record]));
 }
 
 function privatePublicSitePackageManifest(sourceSchemaHash: SourceSchemaHash): AppPackageManifest {

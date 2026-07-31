@@ -62,7 +62,8 @@ and app-scoped document APIs under the target installed-app API prefix.
 
 #### Scenario: Upload image
 
-- GIVEN an authorized writer posts one raster image file field named `file`
+- GIVEN a Program editor, administrator, protected owner, or existing trusted
+  management channel posts one raster image file field named `file`
 - WHEN the file is JPEG, PNG, WebP, or GIF and is at most 5 MB
 - THEN `/api/formless/media/images` stores the media object and asset metadata
 - AND the upload uses the `FORMLESS_MEDIA` R2 binding
@@ -171,8 +172,8 @@ field editors.
 
 ### Requirement: Site Media Usage
 
-The Site app SHALL render owned images through core media delivery while keeping
-Site usage metadata in flat Site records.
+The Site domain SHALL render instance-owned images through core media delivery
+while keeping Site usage metadata in flat Site records.
 
 #### Scenario: Site image block
 
@@ -180,6 +181,8 @@ Site usage metadata in flat Site records.
 - WHEN the public Site tree and renderer process the block
 - THEN public rendering uses the resolved core media delivery href
 - AND image rendering does not use a manual `href` fallback
+- AND a Program-native Site does not derive image ownership, storage key, or
+  delivery route from an app install id
 
 #### Scenario: Site media fields
 
@@ -203,6 +206,8 @@ capabilities.
 - WHEN the archive is exported
 - THEN the archive declares the `core-media-assets` capability
 - AND referenced media files are included at manifest archive paths
+- AND Program-native Site image media is represented in the instance archive's
+  Program media manifest rather than an installed Site app archive
 - AND document metadata preserves filename, MIME type, byte size, access policy,
   and logical owner app install
 
@@ -210,7 +215,7 @@ capabilities.
 
 - GIVEN archive restore or Site publish applies media-backed records
 - WHEN the workflow mutates the target
-- THEN core media objects are restored before app records
+- THEN core media objects are restored before Program or app records
 - AND media object keys, content types, byte sizes, asset metadata, and files are
   validated before mutation
 - AND app archive retargeting preserves document asset ids and access policy
@@ -219,12 +224,12 @@ capabilities.
 
 #### Scenario: Referenced upload participates in workspace auto-save
 
-- GIVEN a local generated media editor uploads a core image and commits an app
-  record reference to that image
+- GIVEN a local generated media editor uploads a core image and commits a
+  Program or installed-app record reference to that image
 - WHEN local workspace auto-save persists workspace source
 - THEN the referenced media payload is written with workspace media state
-- AND standalone uploaded media that is not referenced by active app records is
-  not written as reviewable workspace source
+- AND standalone uploaded media that is not referenced by active Program or
+  installed-app records is not written as reviewable workspace source
 
 #### Scenario: Private document workspace payload
 

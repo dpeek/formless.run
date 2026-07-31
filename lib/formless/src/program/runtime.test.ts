@@ -10,6 +10,7 @@ import {
 import { computeSourceSchemaHash } from "@dpeek/formless-installed-apps";
 import { identityControlPlaneEntityIds } from "@dpeek/formless-identity-control-plane";
 import { instanceControlPlaneEntityIds } from "@dpeek/formless-instance-control-plane";
+import { siteEntityIds } from "@dpeek/formless-site-app";
 import { tasksEntityIds } from "@dpeek/formless-tasks-app";
 import {
   STORAGE_SNAPSHOT_KIND,
@@ -24,6 +25,7 @@ import {
 import { resolveFormlessConfig } from "@dpeek/formless-workspace";
 import { describe, expect, it } from "vite-plus/test";
 import { programClientTarget } from "../client/app-target.ts";
+import { testSiteRecords } from "../test/site-records.ts";
 import rawFormlessProgramSchema from "./schema.json";
 import {
   FORMLESS_PROGRAM_API_ROUTE_PREFIX,
@@ -48,7 +50,7 @@ describe("Formless Program runtime contracts", () => {
     expect(await computeSourceSchemaHash(rawFormlessProgramSchema)).toBe(
       FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
     );
-    expect(formlessProgramSchema.entities).toHaveLength(19);
+    expect(formlessProgramSchema.entities).toHaveLength(27);
     expect(formlessProgramSchemaProvenance).toEqual({
       kind: "program",
       sourceSchemaHash: FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
@@ -66,20 +68,37 @@ describe("Formless Program runtime contracts", () => {
   it("materializes explicit access for every current Program operation", () => {
     const identityEntityIds = new Set(identityControlPlaneEntityIds);
     const instanceEntityIds = new Set(instanceControlPlaneEntityIds);
+    const siteStableEntityIds = new Set<string>(siteEntityIds);
     const taskEntityIds = new Set<string>(tasksEntityIds);
 
     for (const entity of formlessProgramSchema.entities) {
       expect(
         identityEntityIds.has(entity.id) ||
           instanceEntityIds.has(entity.id) ||
-          taskEntityIds.has(entity.id),
+          taskEntityIds.has(entity.id) ||
+          siteStableEntityIds.has(entity.id),
         entity.key,
       ).toBe(true);
 
       for (const operation of entity.operations ?? []) {
-        expect(operation.access, `${entity.key}.${operation.key}`).toBeDefined();
+        const operationName = `${entity.key}.${operation.key}`;
+        const isAnonymousSiteOperation =
+          operationName === "contact-message.submit" || operationName === "subscription.subscribe";
 
-        if (taskEntityIds.has(entity.id)) {
+        if (isAnonymousSiteOperation) {
+          expect(operation.access, operationName).toBeUndefined();
+          expect(operation.policy?.actors, operationName).toEqual(["anonymous"]);
+          expect(operation.policy?.access, operationName).toEqual({
+            actor: "anonymous",
+            challenge: { kind: "turnstile" },
+            origin: { kind: "same-origin" },
+          });
+          continue;
+        }
+
+        expect(operation.access, operationName).toBeDefined();
+
+        if (taskEntityIds.has(entity.id) || siteStableEntityIds.has(entity.id)) {
           expect(operation.access).toEqual({ role: "editor" });
         } else if (identityEntityIds.has(entity.id)) {
           expect(operation.access).toEqual({ actor: "owner" });
@@ -109,6 +128,19 @@ describe("Formless Program runtime contracts", () => {
       label: "Tasks",
       path: "/tasks",
     });
+    expect(resolveFormlessProgramScreenRouteTarget("/site")).toEqual({
+      access: { role: "member" },
+      key: "siteEditor",
+      label: "Blocks",
+      path: "/site",
+    });
+    expect(resolveFormlessProgramScreenRouteTarget("/site/settings")).toEqual({
+      access: { role: "member" },
+      key: "siteSettings",
+      label: "Settings",
+      path: "/site/settings",
+    });
+    expect(resolveFormlessProgramScreenRouteTarget("/pages")).toBeUndefined();
     expect(resolveFormlessProgramScreenRouteTarget("/unknown")).toBeUndefined();
 
     const missingAccess: unknown = structuredClone(rawFormlessProgramSchema);
@@ -125,6 +157,7 @@ describe("Formless Program runtime contracts", () => {
     const records = [
       ...programRecords(),
       taskRecord("task:active", { title: "Active", done: false, priority: "high" }),
+      testSiteRecord("site"),
     ];
 
     expect(() => validateFormlessProgramRecords("Program records", records)).not.toThrow();
@@ -142,11 +175,7 @@ describe("Formless Program runtime contracts", () => {
     expect(() =>
       validateFormlessProgramRecords("Program records", [
         ...records,
-        taskRecord("principal:ada", {
-          title: "Duplicate",
-          done: false,
-          priority: "normal",
-        }),
+        { ...testSiteRecord("site"), id: "principal:ada" },
       ]),
     ).toThrow('includes duplicate record id "principal:ada"');
   });
@@ -190,6 +219,34 @@ describe("Formless Program runtime contracts", () => {
     expect(canonicalizeFormlessProgramStorageSnapshot(canonical)).toEqual(canonical);
   });
 
+  it("retains active and tombstoned Site records in the Program snapshot", () => {
+    const active = testSiteRecord("site");
+    const tombstone = {
+      ...testSiteRecord("block"),
+      deletedAt: "2026-07-31T01:00:00.000Z",
+    };
+    const canonical = canonicalizeFormlessProgramStorageSnapshot(
+      programSnapshot([tombstone, ...programRecords(), active]),
+    );
+    const canonicalSiteRecords = canonical.records.filter(
+      ({ entity }) => entity === "site" || entity === "block",
+    );
+
+    expect(canonical.storageIdentity).toBe(FORMLESS_PROGRAM_STORAGE_IDENTITY);
+    expect(canonical.schemaKey).toBe(FORMLESS_PROGRAM_SCHEMA_KEY);
+    expect(
+      canonicalSiteRecords.map(({ id, entity, deletedAt }) => ({
+        deletedAt,
+        entity,
+        id,
+      })),
+    ).toEqual([
+      { deletedAt: undefined, entity: "site", id: active.id },
+      { deletedAt: tombstone.deletedAt, entity: "block", id: tombstone.id },
+    ]);
+    expect(canonicalizeFormlessProgramStorageSnapshot(canonical)).toEqual(canonical);
+  });
+
   it("excludes private state and formats one mixed snapshot deterministically", () => {
     const records = programRecords();
     const snapshot = programSnapshot([...records].reverse());
@@ -227,6 +284,7 @@ describe("Formless Program runtime contracts", () => {
       capabilities: [],
       restorePolicy: { dryRun: false, installCollisions: "reject" },
       controlPlane: programSnapshot(programRecords()),
+      media: { objects: [] },
       apps: [],
     } as const;
     const options = {
@@ -360,4 +418,14 @@ function storedRecord(id: string, entity: string, values: StoredRecord["values"]
 
 function taskRecord(id: string, values: StoredRecord["values"]): StoredRecord {
   return storedRecord(id, "task", values);
+}
+
+function testSiteRecord(entity: "block" | "site"): StoredRecord {
+  const record = testSiteRecords.find((candidate) => candidate.entity === entity);
+
+  if (record === undefined) {
+    throw new Error(`Missing Site test record for entity "${entity}".`);
+  }
+
+  return structuredClone(record);
 }

@@ -21,8 +21,7 @@ import type {
   PublicOperationReadRateLimitDecision,
 } from "./public-operation-read-rate-limit.ts";
 import { shapePublicOperationResponse } from "./public-operation-response.ts";
-import { workerSchemaAppDefinitions } from "./schema-apps.ts";
-import { taskSourceSchema } from "../test/schema-apps.ts";
+import { siteSourceSchema, taskSourceSchema } from "../test/schema-apps.ts";
 
 describe("public operation executor adapters", () => {
   it("shapes committed public responses before after-commit adapters run", async () => {
@@ -42,7 +41,7 @@ describe("public operation executor adapters", () => {
         operationName: "submit",
         path: "/api/site/public/operations/contact-message/submit",
       },
-      schema: workerSchemaAppDefinitions.site.sourceSchema,
+      schema: siteSourceSchema,
     });
 
     expect(result.body).toMatchObject({
@@ -120,7 +119,7 @@ describe("public operation executor adapters", () => {
         operationName: "submit",
         path: "/api/site/public/operations/contact-message/submit",
       },
-      schema: workerSchemaAppDefinitions.site.sourceSchema,
+      schema: siteSourceSchema,
     });
 
     expect(result.body.status).toBe("replayed");
@@ -153,7 +152,7 @@ describe("public operation executor adapters", () => {
           operationName: "submit",
           path: "/api/site/public/operations/contact-message/submit",
         },
-        schema: workerSchemaAppDefinitions.site.sourceSchema,
+        schema: siteSourceSchema,
       }),
     );
 
@@ -187,7 +186,7 @@ describe("public operation executor adapters", () => {
           operationName: "submit",
           path: "/api/site/public/operations/contact-message/submit",
         },
-        schema: workerSchemaAppDefinitions.site.sourceSchema,
+        schema: siteSourceSchema,
       }),
     );
 
@@ -221,10 +220,10 @@ describe("public operation executor adapters", () => {
         identity: schemaKeyStorageIdentity("site"),
         request: publicOperationRequest(route.path),
         route,
-        schema: workerSchemaAppDefinitions.site.sourceSchema,
+        schema: siteSourceSchema,
       }),
     );
-    const nonPublicSchema = structuredClone(workerSchemaAppDefinitions.site.sourceSchema);
+    const nonPublicSchema = structuredClone(siteSourceSchema);
     const submit = nonPublicSchema.entities
       .find((definition) => definition.key === "contact-message")
       ?.operations!.find((definition) => definition.key === "submit")!;
@@ -316,7 +315,7 @@ describe("public operation executor adapters", () => {
             operationName: "submit",
             path: "/api/site/public/operations/contact-message/submit",
           },
-          schema: workerSchemaAppDefinitions.site.sourceSchema,
+          schema: siteSourceSchema,
         }),
       );
 
@@ -394,7 +393,7 @@ describe("public operation executor adapters", () => {
         operationName: "subscribe",
         path: "/api/site/public/operations/subscription/subscribe",
       },
-      schema: workerSchemaAppDefinitions.site.sourceSchema,
+      schema: siteSourceSchema,
     });
 
     expect(harness.state.authorityEnvelopes[0]).toMatchObject({
@@ -860,7 +859,7 @@ function executeContactMessage(
       operationName: "submit",
       path: "/api/site/public/operations/contact-message/submit",
     },
-    schema: workerSchemaAppDefinitions.site.sourceSchema,
+    schema: siteSourceSchema,
   });
 }
 

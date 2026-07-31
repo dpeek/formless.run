@@ -282,7 +282,7 @@ describe("CLI upgrade planning package drift", () => {
     expect(report.plan.steps).toEqual([]);
   });
 
-  it("preserves installable package drift blockers and ignores dormant Tasks metadata", () => {
+  it("ignores dormant Site and Tasks package metadata", () => {
     const report = buildCliUpgradePlanningReport({
       localPackageVersion: "0.1.9",
       status: upgradeStatus({
@@ -304,13 +304,8 @@ describe("CLI upgrade planning package drift", () => {
       target: { targetUrl: "https://live.example" },
     });
 
-    expect(report.blockers).toEqual([
-      {
-        code: "installed-app-package-revision-ahead",
-        message: 'Installed app "site" package revision 2 is ahead of local package revision 1.',
-      },
-    ]);
-    expect(report.status.installedApps.map((install) => install.packageAppKey)).toEqual(["site"]);
+    expect(report.blockers).toEqual([]);
+    expect(report.status.installedApps).toEqual([]);
   });
 });
 

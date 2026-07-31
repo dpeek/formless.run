@@ -268,6 +268,89 @@ function writeOperations(
   ];
 }
 describe("archive restore planner", () => {
+  it("plans Program image media before Program records", () => {
+    const controlPlane = storageSnapshot({
+      storageIdentity: "instance:control-plane",
+      schemaKey: "formless-program",
+      records: [siteRecord("rec_site_settings_program", "program"), coreImageBlock("hero")],
+    });
+    const object = coreMediaObject("hero", {
+      archivePath: "media/program/media/images/hero.png",
+    });
+    const plan = expectPlan(
+      planInstanceArchiveRestore(
+        instanceArchive({
+          apps: [],
+          controlPlane,
+          media: { objects: [object] },
+        }),
+        {
+          controlPlaneSnapshotContract: {
+            canonicalize: (snapshot) => snapshot,
+            parse: (_context, value) => value as StorageSnapshot,
+          },
+          mediaFiles: [
+            {
+              archivePath: object.archivePath,
+              byteSize: object.byteSize,
+              contentType: object.contentType,
+            },
+          ],
+        },
+      ),
+    );
+
+    expect(plan.summary.programMediaCount).toBe(1);
+    expect(plan.steps).toEqual([
+      expect.objectContaining({
+        archivePath: "media/program/media/images/hero.png",
+        kind: "restoreMedia",
+        program: true,
+        storageKey: "media/images/hero.png",
+      }),
+    ]);
+  });
+
+  it("rejects Program media outside the Program archive path", () => {
+    const controlPlane = storageSnapshot({
+      storageIdentity: "instance:control-plane",
+      schemaKey: "formless-program",
+      records: [siteRecord("rec_site_settings_program", "program"), coreImageBlock("hero")],
+    });
+    const object = coreMediaObject("hero");
+    const errors = expectFailure(
+      planInstanceArchiveRestore(
+        instanceArchive({
+          apps: [],
+          controlPlane,
+          media: { objects: [object] },
+        }),
+        {
+          controlPlaneSnapshotContract: {
+            canonicalize: (snapshot) => snapshot,
+            parse: (_context, value) => value as StorageSnapshot,
+          },
+          mediaFiles: [
+            {
+              archivePath: object.archivePath,
+              byteSize: object.byteSize,
+              contentType: object.contentType,
+            },
+          ],
+        },
+      ),
+    );
+
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "invalid-media",
+          message: expect.stringContaining('must live under "media/program/"'),
+        }),
+      ]),
+    );
+  });
+
   it("plans mixed Site, Tasks, and CRM instance archive restores with current core media", () => {
     const archive = instanceArchive({
       apps: [
@@ -330,7 +413,11 @@ describe("archive restore planner", () => {
       tasks: 0,
     });
     expect(
-      plan.steps.filter((step) => step.kind === "restoreMedia").map((step) => step.appInstallId),
+      plan.steps
+        .map((step) =>
+          step.kind === "restoreMedia" && !("program" in step) ? step.appInstallId : undefined,
+        )
+        .filter((installId) => installId !== undefined),
     ).toEqual(["site"]);
     expect(
       plan.steps.filter((step) => step.kind === "restoreMedia").map((step) => step.storageKey),
@@ -722,6 +809,7 @@ function instanceArchive(overrides: Partial<InstanceArchive> = {}): InstanceArch
     exportedAt: now,
     capabilities: ["installed-app-registry", "app-store-snapshots"],
     restorePolicy: { dryRun: true, installCollisions: "reject" },
+    media: { objects: [] },
     apps: [appArchive()],
     ...overrides,
   };

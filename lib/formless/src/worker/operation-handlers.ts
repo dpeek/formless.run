@@ -1340,25 +1340,22 @@ function findActiveRecordByField(
 }
 
 function subscribeSourceValues(envelope: OperationInvocationEnvelope): RecordValues {
-  if (envelope.appStorageIdentity.kind === "program") {
-    throw new BadRequestError("Public operations are only available for app storage.");
-  }
-
   const host = parseNonEmptyString("Public operation source host", envelope.source.host);
   const path = parseNonEmptyString("Public operation source path", envelope.source.path);
+  const identity = envelope.appStorageIdentity;
   const values: RecordValues = {
     sourceKind: "publicOperation",
-    sourceTargetKind: envelope.appStorageIdentity.kind,
-    sourcePackageAppKey: envelope.appStorageIdentity.packageAppKey,
-    sourceSchemaKey: envelope.appStorageIdentity.sourceSchemaKey,
-    sourceApiRoutePrefix: envelope.appStorageIdentity.apiRoutePrefix,
+    sourceTargetKind: identity.kind,
+    sourcePackageAppKey: identity.kind === "program" ? "site" : identity.packageAppKey,
+    sourceSchemaKey: identity.kind === "program" ? identity.schemaKey : identity.sourceSchemaKey,
+    sourceApiRoutePrefix: identity.apiRoutePrefix,
     sourceOperationKey: envelope.operation.canonicalKey,
     sourceHost: host,
     sourcePath: path,
   };
 
-  if (envelope.appStorageIdentity.kind === "appInstall") {
-    values.sourceInstallId = envelope.appStorageIdentity.installId;
+  if (identity.kind === "appInstall") {
+    values.sourceInstallId = identity.installId;
   }
 
   if (envelope.source.siteBlockId !== undefined) {

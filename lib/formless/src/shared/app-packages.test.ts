@@ -184,23 +184,9 @@ describe("app package manifests", () => {
       "tasks",
       "crm",
     ]);
-    expect(bundledAppPackageManifests.map((manifest) => manifest.packageAppKey)).toEqual([
-      "site",
-      "crm",
-    ]);
+    expect(bundledAppPackageManifests.map((manifest) => manifest.packageAppKey)).toEqual(["crm"]);
 
     expect(listResolvedAppPackages()).toEqual([
-      expect.objectContaining({
-        adminRouteBase: "/apps",
-        defaultInstallId: "site",
-        label: "Site",
-        packageAppKey: "site",
-        packageRevision: 1,
-        publicRouteBase: "/sites",
-        sourceOrigin: "bundled",
-        sourceSchemaKey: "site",
-        sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
-      }),
       expect.objectContaining({
         adminRouteBase: "/apps",
         defaultInstallId: "crm",
@@ -212,7 +198,8 @@ describe("app package manifests", () => {
         sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
       }),
     ]);
-    expect(findResolvedAppPackage("site")?.sourceSchemaLocation).toEqual({
+    expect(findResolvedAppPackage("site")).toBeUndefined();
+    expect(rootKnownPackageFactsResolver().findPackage("site")?.sourceSchemaLocation).toEqual({
       kind: "bundled",
       key: "site",
       path: "schema.json",
@@ -263,16 +250,23 @@ describe("app package manifests", () => {
       }),
     );
     expect(resolver.listPackages().map((appPackage) => appPackage.packageAppKey)).toEqual([
-      "site",
       "crm",
       "private-labs",
     ]);
   });
 
-  it("filters a workspace-linked Tasks manifest from runtime installation", () => {
+  it("filters workspace-linked Program-native manifests from runtime installation", () => {
     const resolver = runtimeInstallableAppPackageResolver(
       createAppPackageResolver([
         ...bundledAppPackageManifests,
+        {
+          ...rawSiteAppPackageManifest,
+          sourceSchema: {
+            kind: "workspace",
+            key: "site",
+            path: "packages/site/schema.json",
+          },
+        },
         {
           ...rawTasksAppPackageManifest,
           sourceSchema: {
@@ -285,10 +279,8 @@ describe("app package manifests", () => {
     );
 
     expect(resolver.findPackage("tasks")).toBeUndefined();
-    expect(resolver.listPackages().map((appPackage) => appPackage.packageAppKey)).toEqual([
-      "site",
-      "crm",
-    ]);
+    expect(resolver.findPackage("site")).toBeUndefined();
+    expect(resolver.listPackages().map((appPackage) => appPackage.packageAppKey)).toEqual(["crm"]);
   });
 
   it("checks bundled package hashes against complete source schemas", async () => {

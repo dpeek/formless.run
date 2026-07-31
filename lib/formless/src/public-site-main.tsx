@@ -11,6 +11,7 @@ import {
   FORMLESS_RUNTIME_APP_INSTALL_ID_META_NAME,
   FORMLESS_RUNTIME_PACKAGE_APP_KEY_META_NAME,
 } from "./shared/runtime-topology.ts";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "./program/target.ts";
 import "@dpeek/formless-renderer/site/global.css";
 
 const app = document.getElementById("app");
@@ -53,7 +54,7 @@ function publicSiteApiRoutePrefix(): `/${string}` {
     )}` as `/${string}`;
   }
 
-  return "/api/site";
+  return FORMLESS_PROGRAM_API_ROUTE_PREFIX;
 }
 
 function runtimeMetaContent(name: string): string | undefined {

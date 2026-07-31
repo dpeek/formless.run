@@ -13,9 +13,11 @@ import {
   INSTANCE_ARCHIVE_KIND,
   appArchiveMediaReferences,
   archiveApps,
+  archiveMediaObjects,
   archiveRecordCount,
   parseAppArchive,
   type AppArchive,
+  type AppArchiveMediaObject,
   type AppArchiveMediaReference,
   type InstanceArchive,
   type PortableArchive,
@@ -31,15 +33,23 @@ import {
   isDocumentMediaAsset,
   validatePdfDocumentMediaFile,
 } from "@dpeek/formless-media";
+import { siteEntityIds } from "@dpeek/formless-site-app";
 import { packageAppFactsForKey } from "@dpeek/formless-installed-apps";
-import { findResolvedAppPackage, type AppPackageResolver } from "../shared/app-packages.ts";
+import {
+  findResolvedAppPackage,
+  isRuntimeInstallableAppPackageKey,
+  type AppPackageResolver,
+} from "../shared/app-packages.ts";
 import { normalizeInstanceDomainHost } from "../shared/instance-domain-mappings.ts";
 import {
   formatInstanceControlPlaneBoundaryEntityName,
   instanceControlPlaneDeploymentConfigObservedFields,
   isInstanceControlPlaneEntityName,
 } from "@dpeek/formless-instance-control-plane";
-import { canonicalizeFormlessProgramStorageSnapshot } from "../program/runtime.ts";
+import {
+  canonicalizeFormlessProgramStorageSnapshot,
+  formlessProgramSchema,
+} from "../program/runtime.ts";
 import { STORAGE_SNAPSHOT_KIND } from "@dpeek/formless-storage";
 import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
@@ -111,6 +121,12 @@ import {
 const deploymentConfigObservedFieldSet = new Set<string>(
   instanceControlPlaneDeploymentConfigObservedFields,
 );
+const siteEntityIdSet = new Set<string>(siteEntityIds);
+const programSiteEntityKeys = new Set(
+  formlessProgramSchema.entities
+    .filter((entity) => siteEntityIdSet.has(entity.id))
+    .map((entity) => entity.key),
+);
 
 type WorkspaceLocalDevState = {
   sourceUrl: string;
@@ -123,6 +139,10 @@ type WorkspaceLocalRestoreArchiveSource = {
   mediaCount: number;
   recordCount: number;
   sourceKind: "storage state";
+};
+
+type WorkspaceProgramMediaSource = WorkspaceArchiveMediaComparisonSource & {
+  objects: AppArchiveMediaObject[];
 };
 
 const WORKSPACE_LOCAL_DEV_STATE_FILE = "dev.json";
@@ -388,10 +408,16 @@ export async function pullFormlessInstanceWorkspace(
       localControlPlane,
       activePackages,
     );
+    const localProgramMedia = await workspaceProgramMediaFromSnapshot({
+      controlPlane: localControlPlane,
+      manifest: config,
+      workspaceRoot,
+    });
     const syncPlan = createWorkspaceSyncPlan({
       domainDesiredDrift,
       localControlPlane,
       localAppState,
+      localProgramMedia,
       localDomains: localDomainIntents,
       manifest: config,
       packageResolver: activePackages.resolver,
@@ -415,10 +441,12 @@ export async function pullFormlessInstanceWorkspace(
     });
     const instanceState: FormlessInstanceWorkspaceStateSummary = {
       appCount: pulledInstanceArchive.archive.apps.length,
-      mediaCount: pulledInstanceArchive.archive.apps.reduce(
-        (count, app) => count + app.media.objects.length,
-        0,
-      ),
+      mediaCount:
+        pulledInstanceArchive.archive.media.objects.length +
+        pulledInstanceArchive.archive.apps.reduce(
+          (count, app) => count + app.media.objects.length,
+          0,
+        ),
       recordCount: pulledInstanceArchive.archive.controlPlane?.records.length ?? 0,
       statePath: path.join(workspaceRoot, instanceWorkspaceInstanceStateRelativePath(config)),
     };
@@ -547,6 +575,11 @@ export async function checkFormlessInstanceWorkspace(
       localControlPlane,
       activePackages,
     );
+    const localProgramMedia = await workspaceProgramMediaFromSnapshot({
+      controlPlane: localControlPlane,
+      manifest: config,
+      workspaceRoot,
+    });
 
     return {
       deploymentStatus: deployLatestStatusDisplaySummary(deploymentStatus.status),
@@ -554,6 +587,7 @@ export async function checkFormlessInstanceWorkspace(
         domainDesiredDrift,
         localControlPlane,
         localAppState,
+        localProgramMedia,
         localDomains: localDomainIntents,
         manifest: config,
         packageResolver: activePackages.resolver,
@@ -679,10 +713,9 @@ export async function saveLocalFormlessWorkspace(
       configPath,
       instanceState: {
         appCount: exported.archive.apps.length,
-        mediaCount: exported.archive.apps.reduce(
-          (count, app) => count + app.media.objects.length,
-          0,
-        ),
+        mediaCount:
+          exported.archive.media.objects.length +
+          exported.archive.apps.reduce((count, app) => count + app.media.objects.length, 0),
         recordCount: sourceControlPlane?.records.length ?? 0,
         statePath: instanceStatePath,
       },
@@ -886,6 +919,7 @@ function emptyRemoteInstanceArchiveDirectory(exportedAt: string): WorkspaceArchi
       ],
       restorePolicy: { dryRun: true, installCollisions: "reject" },
       controlPlane,
+      media: { objects: [] },
       apps: [],
     },
     archivePath: "",
@@ -927,12 +961,19 @@ export async function workspaceLocalRestoreArchiveSource(input: {
     reviewableControlPlane,
     input.activePackages,
   );
+  const programMedia = await workspaceProgramMediaFromSnapshot({
+    controlPlane: reviewableControlPlane,
+    manifest: input.config,
+    workspaceRoot: input.workspaceRoot,
+  });
+  assertWorkspaceProgramMediaComplete(programMedia, "local dev");
   const write = await writeComposedWorkspacePushArchive({
     archiveRoot: path.join(input.tempRoot, "archive"),
     appState,
     controlPlane: reviewableControlPlane,
     exportedAt: input.exportedAt,
     packageResolver: input.activePackages.resolver,
+    programMedia,
   });
 
   return {
@@ -1197,6 +1238,27 @@ async function staleSavedWorkspaceSourcePaths(input: {
     stalePaths.add(instanceWorkspaceInstanceStateRelativePath(input.config));
   }
 
+  const localProgramMedia = await workspaceProgramMediaFromSnapshot({
+    controlPlane: input.sourceControlPlane,
+    manifest: input.config,
+    workspaceRoot: input.workspaceRoot,
+  });
+  const expectedProgramMedia = programMediaFromInstanceArchive(input.exported);
+
+  if (
+    comparableMediaJson(localProgramMedia, localProgramMedia.objects) !==
+    comparableMediaJson(expectedProgramMedia, expectedProgramMedia.objects)
+  ) {
+    stalePaths.add(path.posix.join(input.config.media.root, WORKSPACE_MEDIA_MANIFEST_FILE));
+
+    for (const archivePath of new Set([
+      ...localProgramMedia.objects.map((object) => object.archivePath),
+      ...expectedProgramMedia.objects.map((object) => object.archivePath),
+    ])) {
+      stalePaths.add(path.posix.join(input.config.media.root, archivePath));
+    }
+  }
+
   for (const exportedApp of input.exported.archive.apps) {
     const appStatePath = instanceWorkspaceAppStateRelativePath(
       input.config,
@@ -1398,6 +1460,61 @@ async function workspaceAppArchiveMediaFromSnapshot(input: {
   };
 }
 
+async function workspaceProgramMediaFromSnapshot(input: {
+  controlPlane: WorkspaceControlPlaneRecords | undefined;
+  manifest: FormlessResolvedConfig;
+  workspaceRoot: string;
+}): Promise<WorkspaceProgramMediaSource> {
+  if (input.controlPlane === undefined) {
+    return { mediaFiles: [], missingMediaFiles: [], objects: [] };
+  }
+
+  const references = programMediaReferences(input.controlPlane);
+  const diskMedia = await readInstanceWorkspaceMediaFiles({
+    archivePaths: references.map((reference) => reference.archivePath),
+    manifest: input.manifest,
+    workspaceRoot: input.workspaceRoot,
+  });
+  const objects = diskMedia.mediaFiles.map((file) => file.object as AppArchiveMediaObject);
+
+  validateWorkspaceMediaObjects({
+    files: diskMedia.mediaFiles,
+    objects,
+    references,
+  });
+
+  return {
+    mediaFiles: diskMedia.mediaFiles.map(({ object: _, ...file }) => file),
+    missingMediaFiles: diskMedia.missingMediaFiles,
+    objects,
+  };
+}
+
+function programMediaFromInstanceArchive(
+  directory: WorkspaceInstanceArchiveDirectory,
+): WorkspaceProgramMediaSource {
+  const archivePaths = new Set(directory.archive.media.objects.map((object) => object.archivePath));
+
+  return {
+    mediaFiles: directory.mediaFiles.filter((file) => archivePaths.has(file.archivePath)),
+    missingMediaFiles: directory.missingMediaFiles.filter((archivePath) =>
+      archivePaths.has(archivePath),
+    ),
+    objects: directory.archive.media.objects,
+  };
+}
+
+function assertWorkspaceProgramMediaComplete(
+  media: WorkspaceProgramMediaSource,
+  operation: "local dev" | "push",
+) {
+  if (media.missingMediaFiles.length > 0) {
+    throw new Error(
+      `Formless instance ${operation} Program state is missing media files: ${media.missingMediaFiles.join(", ")}.`,
+    );
+  }
+}
+
 export function appStorageSnapshotFromArchive(app: AppArchive): StorageSnapshot {
   if (app.data.kind !== STORAGE_SNAPSHOT_KIND) {
     throw new Error(`Workspace app state for "${app.app.installId}" must be a storage snapshot.`);
@@ -1583,6 +1700,43 @@ type WorkspaceMediaReference = {
   storageKey: string;
 };
 
+function programMediaReferences(
+  controlPlane: WorkspaceControlPlaneRecords,
+): WorkspaceMediaReference[] {
+  const references: WorkspaceMediaReference[] = [];
+
+  for (const reference of appArchiveMediaReferences(controlPlane.schema, controlPlane.records)) {
+    if (reference.kind !== "image") {
+      throw new Error(
+        `Workspace Program state references installed-app document asset "${reference.assetId}".`,
+      );
+    }
+
+    const facts = coreImageMediaDeliveryFactsForAssetId(reference.assetId);
+
+    if (!facts) {
+      throw new Error(
+        `Workspace Program state references invalid image asset "${reference.assetId}".`,
+      );
+    }
+
+    references.push({
+      archivePath: `media/program/${facts.storageKey}`,
+      ownerAppInstallId: "program",
+      reference,
+      storageKey: facts.storageKey,
+    });
+  }
+
+  return references.sort(
+    (left, right) =>
+      left.storageKey.localeCompare(right.storageKey) ||
+      left.reference.entity.localeCompare(right.reference.entity) ||
+      left.reference.field.localeCompare(right.reference.field) ||
+      left.reference.recordId.localeCompare(right.reference.recordId),
+  );
+}
+
 function appMediaReferences(archive: AppArchive): WorkspaceMediaReference[] {
   const references: WorkspaceMediaReference[] = [];
 
@@ -1709,6 +1863,7 @@ function createWorkspaceSyncPlan(input: {
   localControlPlane: WorkspaceControlPlaneRecords | undefined;
   localAppState: ReadonlyMap<string, WorkspaceAppStateArchive>;
   localDomains: readonly FormlessInstanceWorkspaceDomainIntent[];
+  localProgramMedia: WorkspaceProgramMediaSource;
   manifest: FormlessResolvedConfig;
   packageResolver: AppPackageResolver;
   remoteArchive: WorkspaceArchiveDirectory;
@@ -1730,6 +1885,13 @@ function createWorkspaceSyncPlan(input: {
     input.remoteArchive.archive.kind === INSTANCE_ARCHIVE_KIND
       ? input.remoteArchive.archive.controlPlane
       : undefined;
+  const remoteProgramMedia: WorkspaceProgramMediaSource =
+    input.remoteArchive.archive.kind === INSTANCE_ARCHIVE_KIND
+      ? programMediaFromInstanceArchive({
+          ...input.remoteArchive,
+          archive: input.remoteArchive.archive,
+        })
+      : { mediaFiles: [], missingMediaFiles: [], objects: [] };
   const missingInstalls = localApps
     .filter((app) => !remoteAppsByInstall.has(app.installId))
     .map((app) => app.installId)
@@ -1802,6 +1964,23 @@ function createWorkspaceSyncPlan(input: {
     }
   }
 
+  if (
+    comparableMediaJson(input.localProgramMedia, input.localProgramMedia.objects) !==
+    comparableMediaJson(remoteProgramMedia, remoteProgramMedia.objects)
+  ) {
+    changedMedia.add("program");
+    changedStatePaths.add(
+      path.posix.join(input.manifest.media.root, WORKSPACE_MEDIA_MANIFEST_FILE),
+    );
+
+    for (const archivePath of new Set([
+      ...input.localProgramMedia.objects.map((object) => object.archivePath),
+      ...remoteProgramMedia.objects.map((object) => object.archivePath),
+    ])) {
+      changedStatePaths.add(path.posix.join(input.manifest.media.root, archivePath));
+    }
+  }
+
   const localAppArchivePayloads = [...input.localAppState.values()].map(
     (state) => state.appArchive,
   );
@@ -1834,8 +2013,11 @@ function createWorkspaceSyncPlan(input: {
     controlPlaneRecordCount: input.localControlPlane?.records.length ?? 0,
     domains: input.localDomains,
     label: input.sourceSide === "local" ? input.sourceLabel : input.targetLabel,
-    mediaCount: localAppArchivePayloads.reduce((count, app) => count + app.media.objects.length, 0),
+    mediaCount:
+      input.localProgramMedia.objects.length +
+      localAppArchivePayloads.reduce((count, app) => count + app.media.objects.length, 0),
     packageResolver: input.packageResolver,
+    programMediaJson: comparableMediaJson(input.localProgramMedia, input.localProgramMedia.objects),
     recordCount: localAppArchivePayloads.reduce((count, app) => count + archiveRecordCount(app), 0),
   });
   const remoteControlPlaneRecordCount = remoteControlPlane?.records.length ?? 0;
@@ -1851,8 +2033,11 @@ function createWorkspaceSyncPlan(input: {
     controlPlaneRecordCount: remoteControlPlaneRecordCount,
     domains: input.remoteDomains,
     label: input.sourceSide === "remote" ? input.sourceLabel : input.targetLabel,
-    mediaCount: remoteApps.reduce((count, app) => count + app.media.objects.length, 0),
+    mediaCount:
+      remoteProgramMedia.objects.length +
+      remoteApps.reduce((count, app) => count + app.media.objects.length, 0),
     packageResolver: input.packageResolver,
+    programMediaJson: comparableMediaJson(remoteProgramMedia, remoteProgramMedia.objects),
     recordCount: remoteApps.reduce((count, app) => count + archiveRecordCount(app), 0),
   });
   const source = input.sourceSide === "local" ? localEndpoint : remoteEndpoint;
@@ -1885,6 +2070,7 @@ function createWorkspaceForcedRecoverySyncPlan(input: {
   localControlPlane: WorkspaceControlPlaneRecords | undefined;
   localAppState: ReadonlyMap<string, WorkspaceAppStateArchive>;
   localDomains: readonly FormlessInstanceWorkspaceDomainIntent[];
+  localProgramMedia: WorkspaceProgramMediaSource;
   manifest: FormlessResolvedConfig;
   packageResolver: AppPackageResolver;
   targetLabel: string;
@@ -1916,6 +2102,16 @@ function createWorkspaceForcedRecoverySyncPlan(input: {
     }
   }
 
+  if (input.localProgramMedia.objects.length > 0) {
+    changedMedia.add("program");
+    changedStatePaths.add(
+      path.posix.join(input.manifest.media.root, WORKSPACE_MEDIA_MANIFEST_FILE),
+    );
+    for (const object of input.localProgramMedia.objects) {
+      changedStatePaths.add(path.posix.join(input.manifest.media.root, object.archivePath));
+    }
+  }
+
   const changedDomainCount =
     input.domainDesiredDrift.length > 0
       ? input.domainDesiredDrift.length
@@ -1942,8 +2138,11 @@ function createWorkspaceForcedRecoverySyncPlan(input: {
     controlPlaneRecordCount: input.localControlPlane?.records.length ?? 0,
     domains: input.localDomains,
     label: "workspace",
-    mediaCount: localAppArchivePayloads.reduce((count, app) => count + app.media.objects.length, 0),
+    mediaCount:
+      input.localProgramMedia.objects.length +
+      localAppArchivePayloads.reduce((count, app) => count + app.media.objects.length, 0),
     packageResolver: input.packageResolver,
+    programMediaJson: comparableMediaJson(input.localProgramMedia, input.localProgramMedia.objects),
     recordCount: localAppArchivePayloads.reduce((count, app) => count + archiveRecordCount(app), 0),
   });
   const target: FormlessInstanceWorkspaceSyncPlanEndpoint = {
@@ -2028,6 +2227,7 @@ function workspaceSyncPlanEndpoint(input: {
   label: string;
   mediaCount: number;
   packageResolver: AppPackageResolver;
+  programMediaJson: string;
   recordCount: number;
 }): FormlessInstanceWorkspaceSyncPlanEndpoint {
   return {
@@ -2041,6 +2241,7 @@ function workspaceSyncPlanEndpoint(input: {
         input.packageResolver,
       ),
       domains: comparableWorkspaceDomainIntentsJson(input.domains),
+      programMedia: input.programMediaJson,
     }),
     label: input.label,
     mediaCount: input.mediaCount,
@@ -2182,15 +2383,12 @@ function comparableControlPlaneIntentRecords(
 ): Map<string, string> {
   const records = new Map<string, string>();
 
-  for (const record of controlPlane?.records ?? []) {
-    if (record.deletedAt || controlPlaneRecordEntity(record) === undefined) {
-      continue;
-    }
-
+  for (const record of comparableProgramWorkspaceRecords(controlPlane?.records ?? [])) {
     records.set(
       controlPlaneRecordKey(record),
       JSON.stringify(
         stableValue({
+          deleted: record.deletedAt !== undefined,
           entity: record.entity,
           id: record.id,
           values: comparableControlPlaneValues(record, packageResolver),
@@ -2200,6 +2398,41 @@ function comparableControlPlaneIntentRecords(
   }
 
   return records;
+}
+
+function comparableProgramWorkspaceRecords(records: readonly StoredRecord[]): StoredRecord[] {
+  const dormantInstallIds = new Set(
+    records.flatMap((record) => {
+      const packageAppKey =
+        controlPlaneRecordEntity(record) === "app-install"
+          ? stringRecordValue(record, "packageAppKey")
+          : undefined;
+
+      return packageAppKey !== undefined && !isRuntimeInstallableAppPackageKey(packageAppKey)
+        ? [record.id]
+        : [];
+    }),
+  );
+
+  return records.filter((record) => {
+    if (programSiteEntityKeys.has(record.entity)) {
+      return true;
+    }
+
+    const entity = controlPlaneRecordEntity(record);
+
+    if (record.deletedAt !== undefined || entity === undefined) {
+      return false;
+    }
+
+    if (entity === "app-install") {
+      return !dormantInstallIds.has(record.id);
+    }
+
+    return (
+      entity !== "route" || !dormantInstallIds.has(stringRecordValue(record, "appInstall") ?? "")
+    );
+  });
 }
 
 function comparableControlPlaneIntentRecordsJson(
@@ -2273,11 +2506,18 @@ function comparableAppMediaJson(
   source: WorkspaceArchiveMediaComparisonSource,
   archive: AppArchive,
 ): string {
+  return comparableMediaJson(source, archive.media.objects);
+}
+
+function comparableMediaJson(
+  source: WorkspaceArchiveMediaComparisonSource,
+  objects: readonly AppArchiveMediaObject[],
+): string {
   const bytesByArchivePath = new Map(
     source.mediaFiles.map((file) => [file.archivePath, Buffer.from(file.bytes).toString("base64")]),
   );
   const missing = new Set(source.missingMediaFiles);
-  const media = archive.media.objects
+  const media = objects
     .map((object) => ({
       archivePath: object.archivePath,
       byteSize: object.byteSize,
@@ -2303,9 +2543,7 @@ function workspaceMediaFilesWithObjects(
   directory: WorkspaceArchiveDirectory,
 ): Array<ArchiveDiskMediaFile & { object: AppArchive["media"]["objects"][number] }> {
   const objectsByArchivePath = new Map(
-    archiveApps(directory.archive).flatMap((app) =>
-      app.media.objects.map((object) => [object.archivePath, object] as const),
-    ),
+    archiveMediaObjects(directory.archive).map((object) => [object.archivePath, object] as const),
   );
 
   return directory.mediaFiles.map((file) => {
@@ -2332,14 +2570,15 @@ function normalizeGeneratedArchiveTimestamps<T extends PortableArchive>(archive:
       nextArchive.controlPlane.exportedAt = generatedAt;
       nextArchive.controlPlane.schemaUpdatedAt = generatedAt;
       nextArchive.controlPlane.sourceCursor = 0;
-      nextArchive.controlPlane.records = nextArchive.controlPlane.records
-        .filter((record) => !record.deletedAt && controlPlaneRecordEntity(record) !== undefined)
-        .map((record) => ({
-          ...record,
-          values: withoutControlPlaneLifecycleValues(record.values),
-          createdAt: generatedAt,
-          updatedAt: generatedAt,
-        }));
+      nextArchive.controlPlane.records = comparableProgramWorkspaceRecords(
+        nextArchive.controlPlane.records,
+      ).map((record) => ({
+        ...record,
+        ...(record.deletedAt === undefined ? {} : { deletedAt: generatedAt }),
+        values: withoutControlPlaneLifecycleValues(record.values),
+        createdAt: generatedAt,
+        updatedAt: generatedAt,
+      }));
     }
 
     return nextArchive;
@@ -2420,12 +2659,19 @@ export async function prepareWorkspacePushSourceSync(
     localControlPlane,
     activePackages,
   );
+  const localProgramMedia = await workspaceProgramMediaFromSnapshot({
+    controlPlane: localControlPlane,
+    manifest: input.manifest,
+    workspaceRoot: input.workspaceRoot,
+  });
+  assertWorkspaceProgramMediaComplete(localProgramMedia, "push");
   const source = await writeComposedWorkspacePushArchive({
     archiveRoot: input.archiveRoot,
     appState: localAppState,
     controlPlane: localControlPlane,
     exportedAt: dependencies.now(),
     packageResolver: activePackages.resolver,
+    programMedia: localProgramMedia,
   });
 
   await assertWorkspacePushArchiveReadable({
@@ -2458,6 +2704,7 @@ export async function prepareWorkspacePushSourceSync(
           domainDesiredDrift,
           localControlPlane,
           localAppState: localAppStateByInstall,
+          localProgramMedia,
           localDomains: localDomainIntents,
           manifest: input.manifest,
           packageResolver: activePackages.resolver,
@@ -2473,6 +2720,7 @@ export async function prepareWorkspacePushSourceSync(
           localControlPlane,
           localAppState: localAppStateByInstall,
           localDomains: localDomainIntents,
+          localProgramMedia,
           manifest: input.manifest,
           packageResolver: activePackages.resolver,
           targetLabel: input.selectedTarget.alias,
@@ -2696,6 +2944,7 @@ async function writeComposedWorkspacePushArchive(input: {
   controlPlane?: WorkspaceControlPlaneRecords;
   exportedAt: string;
   packageResolver: AppPackageResolver;
+  programMedia: WorkspaceProgramMediaSource;
 }): Promise<PushFormlessInstanceWorkspaceSource> {
   const appArchives = input.appState.map((state) => state.appArchive);
   const instanceArchive: InstanceArchive = {
@@ -2712,12 +2961,16 @@ async function writeComposedWorkspacePushArchive(input: {
     ...(input.controlPlane === undefined
       ? {}
       : { controlPlane: controlPlaneSnapshotForArchive(input.controlPlane, input.exportedAt) }),
+    media: { objects: input.programMedia.objects },
     apps: appArchives,
   };
   return writePortableArchiveDirectory(
     {
       archive: instanceArchive,
-      mediaFiles: input.appState.flatMap((state) => state.mediaFiles),
+      mediaFiles: [
+        ...input.programMedia.mediaFiles,
+        ...input.appState.flatMap((state) => state.mediaFiles),
+      ],
       outDir: input.archiveRoot,
       packageResolver: input.packageResolver,
     },

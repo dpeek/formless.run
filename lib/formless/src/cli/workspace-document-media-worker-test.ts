@@ -3,7 +3,7 @@ import {
   mediaObjectStoreFromR2Bucket,
 } from "@dpeek/formless-media/worker";
 
-const documentsPath = "/api/app-installs/site/reports/media/documents";
+const documentsPath = "/api/app-installs/private-site/reports/media/documents";
 
 export default {
   async fetch(request: Request, env: { FORMLESS_MEDIA: R2Bucket }) {

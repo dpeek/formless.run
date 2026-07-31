@@ -29,6 +29,12 @@ export function archiveApps(archive: PortableArchive): AppArchive[] {
   return archive.kind === INSTANCE_ARCHIVE_KIND ? archive.apps : [archive];
 }
 
+export function archiveMediaObjects(archive: PortableArchive) {
+  return archive.kind === INSTANCE_ARCHIVE_KIND
+    ? [...archive.media.objects, ...archive.apps.flatMap((app) => app.media.objects)]
+    : archive.media.objects;
+}
+
 export function archiveRecordCount(archive: PortableArchive): number {
   return archiveApps(archive).reduce((count, app) => count + appRecordCount(app), 0);
 }

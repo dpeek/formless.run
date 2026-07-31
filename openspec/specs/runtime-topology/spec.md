@@ -4,7 +4,7 @@
 
 Runtime topology defines the observable profile, route policy, route access,
 mapped host, and request routing contracts for a Formless instance. It keeps
-product instance, dev workbench, app, Site authoring, and published Site
+product instance, dev workbench, app, and published Site
 behavior coherent across browser shells, APIs, static assets, SSR documents,
 indexing, icons, public Site routes, cross-domain auth callback routes, and
 local workspace gateway route eligibility.
@@ -13,7 +13,8 @@ local workspace gateway route eligibility.
 
 ### Requirement: Profile Resolution
 
-The system SHALL resolve each runtime request to one runtime profile kind: `instance`, `dev`, `app`, `siteAuthoring`, or `publishedSite`.
+The system SHALL resolve each runtime request to one runtime profile kind:
+`instance`, `dev`, `app`, or `publishedSite`.
 
 #### Scenario: Explicit profile wins
 
@@ -25,8 +26,9 @@ The system SHALL resolve each runtime request to one runtime profile kind: `inst
 #### Scenario: Host convention infers profile
 
 - GIVEN no explicit runtime profile is configured
-- WHEN the hostname starts with `app.`, `instance.`, `site-authoring.`, or `published-site.`
-- THEN the request resolves to the matching `app`, `instance`, `siteAuthoring`, or `publishedSite` profile
+- WHEN the hostname starts with `app.`, `instance.`, or `published-site.`
+- THEN the request resolves to the matching `app`, `instance`, or
+  `publishedSite` profile
 - AND a `*.workers.dev` host resolves to `publishedSite`
 
 ### Requirement: Profile Route Policy
@@ -42,22 +44,24 @@ the product instance profile.
 - WHEN a request targets schema-key browser or schema-key API routes
 - THEN those schema-key routes are not available
 - AND the Program browser and `/api/formless/program` route family, installed
-  app API routes, installed app browser routes, installed Site public routes,
-  account auth routes, principal-backed browser session routes, instance browser
-  routes, and the workspace gateway API route family remain route-policy
-  eligible
+  app API routes, installed app browser routes, Program-native Site preview and
+  public routes, installed private public-Site-capable routes, account auth
+  routes, principal-backed browser session routes, instance browser routes, and
+  the workspace gateway API route family remain route-policy eligible
 
 #### Scenario: Dev route policy
 
 - GIVEN the runtime profile is `dev`
-- WHEN a request targets the Program, a remaining bundled source app, installed app,
-  installed Site, instance, account auth, schema-key API, or workspace gateway
-  API routes
+- WHEN a request targets the Program, a remaining bundled source app, installed
+  app, installed private public Site, instance, account auth, schema-key API, or
+  workspace gateway API routes
 - THEN those route families remain available
 - AND the dev workbench can compose remaining source app and product instance
   surfaces together
 - AND Tasks is available through the Program rather than a `/tasks`
   schema-key source-app mount
+- AND Site is available through the Program rather than a `/site` schema-key
+  source-app mount
 
 ### Requirement: Browser Route Mounts
 
@@ -66,7 +70,9 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 #### Scenario: Product instance browser routes
 
 - GIVEN the runtime profile is `instance`
-- WHEN a browser navigates to `/`, `/tasks`, `/apps`, `/routes`, `/deployments`,
+- WHEN a browser navigates to `/`, `/tasks`, `/site`, `/site/settings`,
+  `/site/contacts`, `/site/subscribers`, `/pages`, `/pages/*`, `/apps`,
+  `/routes`, `/deployments`,
   `/organizations`, `/access`, `/invitations`, `/policies`, `/settings`,
   `/apps/<installId>`, `/apps/<installId>/*`, `/sites/<installId>`, or
   `/sites/<installId>/*`
@@ -75,8 +81,8 @@ The system SHALL mount browser surfaces according to the active runtime profile.
   nested screen paths through `/apps/<installId>/`
 - AND a more-specific exact path or longer nested route outranks that base
   admin prefix
-- AND source app routes such as `/crm/audiences`, `/site/schema`, and
-  `/pages/home` are not eligible instance browser routes
+- AND source app routes such as `/crm/audiences` are not eligible instance
+  browser routes
 
 #### Scenario: Product instance Program routes
 
@@ -86,6 +92,11 @@ The system SHALL mount browser surfaces according to the active runtime profile.
   Instance Settings
 - AND `/tasks` selects the package-owned Tasks workspace through its
   Program-owned path and `member` access requirement
+- AND `/site`, `/site/settings`, `/site/contacts`, and `/site/subscribers`
+  select package-owned Site screens through Program-owned paths and `member`
+  access requirements
+- AND `/pages` and nested `/pages/*` paths select the authenticated
+  Program-native Site preview
 - AND `/apps` selects the root-owned screen that composes app installs and app
   registrations
 - AND Program navigation order comes from the materialized Program artifact
@@ -93,6 +104,7 @@ The system SHALL mount browser surfaces according to the active runtime profile.
   Policies, and Settings each declare the schema-defined Program
   `administrator` role requirement
 - AND Tasks declares the schema-defined Program `member` role requirement
+- AND Site screens declare the schema-defined Program `member` role requirement
 - AND the client shell is eligible to render each selected screen for an active
   principal with protected owner authority or the schema-defined Program
   `administrator` role
@@ -163,12 +175,6 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 - WHEN a browser navigates to `/` or an app screen path such as `/schema`
 - THEN the selected installed app is mounted as the app surface
 - AND `/schema` is not reserved for frontend schema editing
-
-#### Scenario: Site authoring profile mounts preview and admin
-
-- GIVEN the runtime profile is `siteAuthoring`
-- WHEN a browser navigates to `/` or `/admin`
-- THEN the public Site preview and generated Site admin are mounted in the same profile
 
 ### Requirement: Route Access Policy
 
@@ -333,9 +339,10 @@ surfaces or protected management API data.
 - GIVEN a runtime browser route has effective access `anonymous`
 - WHEN the request is otherwise eligible for the active runtime profile
 - THEN the route can be served without a principal-backed browser session
-- AND account orchestrator routes, account gate routes, installed Site public
-  routes, published Site documents, public Site resources, static assets, and
-  public actions remain available according to their existing route policies
+- AND account orchestrator routes, account gate routes, Program-native and
+  installed-private public Site routes, published Site documents, public Site
+  resources, static assets, and public actions remain available according to
+  their existing route policies
 
 #### Scenario: Authenticated app API route
 
@@ -402,13 +409,18 @@ The system MUST route public Site documents through published Site behavior only
 
 #### Scenario: Published document adapter selection
 
-- GIVEN the runtime profile or a route record selects an installed app whose
-  resolved package declares public Site runtime support
+- GIVEN the runtime profile or a route record selects a Program-native or
+  installed-private public Site target
 - WHEN a public Site document request is eligible for SSR
-- THEN route topology selects the target app install and package app key before
-  document rendering
+- THEN route topology selects its package app key and Program or installed-app
+  storage identity before document rendering
 - AND Worker document rendering is dispatched through the registered public Site
   adapter for that package app key
+- AND absent published install metadata selects package app key `site` and
+  Program storage identity
+- AND complete installed-target metadata may select a private
+  public-Site-capable package
+- AND partial installed-target metadata is rejected
 - AND no published document path is rendered by hard-coding the bundled `site`
   package implementation when the selected package has no adapter
 
@@ -469,11 +481,14 @@ profile behavior.
 
 #### Scenario: Mapped public Site host
 
-- **GIVEN** an enabled exact-host `route` mounts a public Site for an installed
-  Site app
+- **GIVEN** an enabled exact-host `route` mounts a Program-native or installed
+  private public Site
 - **WHEN** the mapped host receives a public document request for `/` or a
   nested page path
-- **THEN** the response is rendered from that installed Site storage
+- **THEN** the response is rendered from Program storage when the route has no
+  app install target
+- **AND** it is rendered from installed-app storage when the route targets a
+  private public-Site-capable install
 - **AND** public links, indexing resources, root icons, and core media use
   top-level mapped-host paths
 - **AND** generated app routes, schema-key routes, instance shell routes,
@@ -542,8 +557,9 @@ profile behavior.
 
 ### Requirement: Schema-Owned App Route Resolution
 
-The system SHALL resolve installed app browser routes and installed Site public
-routes from enabled schema-owned `route` records.
+The system SHALL resolve installed app browser routes, installed-private public
+Site routes, and the Program-native public Site from enabled schema-owned
+`route` records.
 
 #### Scenario: Installed app browser route
 
@@ -553,16 +569,27 @@ routes from enabled schema-owned `route` records.
   `app-install` record
 - **AND** the selected installed app mounts with that app install identity
 
-#### Scenario: Installed Site public route
+#### Scenario: Installed private Site public route
 
-- **GIVEN** a browser requests an enabled public Site route
+- **GIVEN** a browser requests an enabled public Site route for a
+  runtime-installable private package
 - **WHEN** runtime topology resolves the route
 - **THEN** the route record resolves through `appInstall` to its referenced
-  Site `app-install` record
+  private `app-install` record
 - **AND** public Site reads use the matching install-scoped app storage
   identity
 - **AND** public Site runtime behavior is dispatched through the package
   adapter registered for that app install's package app key
+
+#### Scenario: Program-native Site public route
+
+- **GIVEN** a browser requests the built-in Site preview or an enabled
+  public-Site mapping without an app install target
+- **WHEN** runtime topology resolves the route
+- **THEN** public reads use Program storage identity `instance:control-plane`
+- **AND** behavior uses the package adapter registered for package app key
+  `site`
+- **AND** no `app-install` record is synthesized or selected
 
 #### Scenario: Disabled or conflicting route
 
@@ -572,15 +599,15 @@ routes from enabled schema-owned `route` records.
 - **THEN** the route is not eligible for runtime mounting
 - **AND** route validation prevents the conflict from becoming active
 
-#### Scenario: Program-native Tasks install route is unavailable
+#### Scenario: Program-native package install route is unavailable
 
 - **GIVEN** dormant `app-install` or `route` records refer to package key
-  `tasks`
+  `tasks` or `site`
 - **WHEN** runtime topology selects installed app routes, mapped hosts, or
   launch navigation
-- **THEN** those records are ineligible because Tasks is absent from the
+- **THEN** those records are ineligible because the package is absent from the
   runtime-installable package resolver
-- **AND** an unavailable Tasks mount is discarded before candidate ranking can
+- **AND** an unavailable mount is discarded before candidate ranking can
   shadow a routable Site, CRM, private-package, instance, or redirect route
 
 ### Requirement: Unified Route Resolution
@@ -596,8 +623,11 @@ source for hostless mounts, exact-host mounts, and redirects.
 - **AND** more specific exact path matches are evaluated before prefix matches
 - **AND** disabled route records are not eligible for runtime mounting or
   redirect handling
-- **AND** mount candidates whose target package is not runtime-installable are
-  not eligible and do not stop selection of the next valid candidate
+- **AND** installed mount candidates whose target package is not
+  runtime-installable are not eligible and do not stop selection of the next
+  valid candidate
+- **AND** a Program-native public Site route without an app install is not
+  subjected to installed-package availability
 
 #### Scenario: Hostless mount preserves configured profile policy
 
@@ -674,7 +704,7 @@ runtime profiles that have local gateway sidecar proxy configuration.
   workspace gateway route availability for a request
 - **THEN** shared runtime topology route policy marks the workspace gateway API
   route family eligible only for the `instance` and `dev` runtime profiles
-- **AND** the `app`, `siteAuthoring`, and `publishedSite` runtime profiles mark
+- **AND** the `app` and `publishedSite` runtime profiles mark
   the workspace gateway API route family unavailable
 - **AND** Worker and local Node runtime adapters may combine that shared route
   policy fact with adapter-local sidecar target, gateway enabled, proxy token,
@@ -697,7 +727,7 @@ runtime profiles that have local gateway sidecar proxy configuration.
 
 #### Scenario: Deployed runtime blocks gateway route
 
-- **WHEN** an instance, app, site-authoring, or published Site runtime without
+- **WHEN** an instance, app, or published Site runtime without
   `FORMLESS_WORKSPACE_GATEWAY_SIDECAR_URL` and
   `FORMLESS_WORKSPACE_GATEWAY_PROXY_TOKEN` handles a request for the workspace
   gateway API family
@@ -707,7 +737,7 @@ runtime profiles that have local gateway sidecar proxy configuration.
 
 #### Scenario: Gateway does not affect app routing
 
-- **WHEN** installed app browser routes, installed Site public routes,
+- **WHEN** installed app browser routes, installed-private public Site routes,
   schema-key routes, or static assets are resolved
 - **THEN** workspace gateway route policy is evaluated separately
 - **AND** app route resolution continues to use runtime profile and

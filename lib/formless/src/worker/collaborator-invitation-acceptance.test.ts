@@ -111,7 +111,7 @@ beforeEach(async () => {
   await writeAuthConfig();
   await createDefaultAppInstall("site", {
     label: "Site",
-    packageAppKey: "site",
+    packageAppKey: "crm",
   });
 });
 

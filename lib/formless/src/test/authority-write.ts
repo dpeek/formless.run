@@ -11,7 +11,7 @@ import type { SchemaKey } from "../shared/schema-apps.ts";
 import type { createWorkerHarness } from "../worker/miniflare-test.ts";
 import { getWorkerSchemaAppDefinition } from "../worker/schema-apps.ts";
 import { schemaAppTestRecords } from "./schema-app-records.ts";
-import { taskSourceSchema } from "./schema-apps.ts";
+import { siteSourceSchema, taskSourceSchema } from "./schema-apps.ts";
 import { formlessProgramSchema } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
@@ -54,6 +54,8 @@ export type AuthorityTestCommandOperationRequest = {
 export function createAuthorityWriteHelpers(
   harness: AuthorityHarness,
   initialSchemaKey: SchemaKey = "tasks",
+  authHeaders: Record<string, string> = {},
+  snapshotRestoreHeaders: Record<string, string> = authHeaders,
 ) {
   let currentSchemaKey = initialSchemaKey;
 
@@ -68,7 +70,9 @@ export function createAuthorityWriteHelpers(
 
     return schemaKey === "tasks"
       ? `/api/app-installs/${taskTestPackageAppKey}/${taskTestInstallId}${path.slice("/api".length)}`
-      : `/api/${schemaKey}${path.slice("/api".length)}`;
+      : schemaKey === "site"
+        ? `/api/formless/program${path.slice("/api".length)}`
+        : `/api/${schemaKey}${path.slice("/api".length)}`;
   }
 
   function fetchAuthority(
@@ -76,6 +80,16 @@ export function createAuthorityWriteHelpers(
     init?: Parameters<AuthorityHarness["fetch"]>[1],
     schemaKey: SchemaKey = currentSchemaKey,
   ) {
+    if (Object.keys(authHeaders).length > 0) {
+      return harness.fetch(apiPath(path, schemaKey), {
+        ...init,
+        headers: {
+          ...(init?.headers as Record<string, string> | undefined),
+          ...authHeaders,
+        },
+      });
+    }
+
     return harness.fetch(apiPath(path, schemaKey), init);
   }
 
@@ -83,19 +97,32 @@ export function createAuthorityWriteHelpers(
     const schema =
       schemaKey === "tasks"
         ? taskSourceSchema
-        : getWorkerSchemaAppDefinition(schemaKey).sourceSchema;
+        : schemaKey === "site"
+          ? formlessProgramSchema
+          : getWorkerSchemaAppDefinition(schemaKey).sourceSchema;
 
     const snapshot = testStorageSnapshot({
       records: schemaAppTestRecords(schemaKey),
       schema,
-      schemaKey: schemaKey === "tasks" ? taskTestPackageAppKey : schemaKey,
-      storageIdentity: schemaKey === "tasks" ? `app:${taskTestInstallId}` : schemaKey,
+      schemaKey:
+        schemaKey === "tasks"
+          ? taskTestPackageAppKey
+          : schemaKey === "site"
+            ? FORMLESS_PROGRAM_SCHEMA_KEY
+            : schemaKey,
+      storageIdentity:
+        schemaKey === "tasks"
+          ? `app:${taskTestInstallId}`
+          : schemaKey === "site"
+            ? FORMLESS_PROGRAM_STORAGE_IDENTITY
+            : schemaKey,
     });
 
     await restoreTestStorageSnapshot(
       harness,
       apiPath("/api/snapshot/restore", schemaKey),
       snapshot,
+      snapshotRestoreHeaders,
     );
   }
 
@@ -278,7 +305,11 @@ export function schemaAppTestStorageSnapshot(
   storageIdentity: string = schemaKey,
 ): StorageSnapshot {
   const schema =
-    schemaKey === "tasks" ? taskSourceSchema : getWorkerSchemaAppDefinition(schemaKey).sourceSchema;
+    schemaKey === "tasks"
+      ? taskSourceSchema
+      : schemaKey === "site"
+        ? siteSourceSchema
+        : getWorkerSchemaAppDefinition(schemaKey).sourceSchema;
 
   return testStorageSnapshot({
     records: schemaAppTestRecords(schemaKey),
@@ -288,8 +319,11 @@ export function schemaAppTestStorageSnapshot(
   });
 }
 
-export function instanceControlPlaneTestStorageSnapshot(): StorageSnapshot {
+export function instanceControlPlaneTestStorageSnapshot(
+  records: StoredRecord[] = [],
+): StorageSnapshot {
   return testStorageSnapshot({
+    records,
     schema: formlessProgramSchema,
     schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
     storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,

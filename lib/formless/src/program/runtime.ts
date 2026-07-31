@@ -26,6 +26,11 @@ import {
   validateTaskRecords,
 } from "@dpeek/formless-tasks-app";
 import {
+  reviewableSiteRecords,
+  siteEntityIds,
+  validateSiteRecords,
+} from "@dpeek/formless-site-app";
+import {
   formatStoredRecordsForArtifact,
   parseStorageSnapshot,
   type StorageSnapshot,
@@ -52,6 +57,9 @@ export type FormlessProgramScreenRouteTarget = {
 export const formlessProgramSchema = parseFormlessProgramSchemaArtifact(rawFormlessProgramSchema);
 export const FORMLESS_PROGRAM_REPLICA_ACCESS_REQUIREMENT = {
   anyOf: [{ role: "member" }, { actor: "adminBearer" }],
+} as const satisfies AccessRequirement;
+export const FORMLESS_PROGRAM_EDITOR_ACCESS_REQUIREMENT = {
+  anyOf: [{ role: "editor" }, { actor: "adminBearer" }],
 } as const satisfies AccessRequirement;
 export const FORMLESS_PROGRAM_MANAGEMENT_ACCESS_REQUIREMENT = {
   anyOf: [{ role: "administrator" }, { actor: "adminBearer" }],
@@ -179,6 +187,12 @@ const formlessProgramConstraintAdapters: readonly FormlessProgramConstraintAdapt
     entityIds: new Set(tasksEntityIds),
     reviewable: (records) => reviewableTaskRecords(records),
     validate: (context, records) => validateTaskRecords(context, records),
+  },
+  {
+    label: "site",
+    entityIds: new Set(siteEntityIds),
+    reviewable: (records) => reviewableSiteRecords(records),
+    validate: (context, records) => validateSiteRecords(context, records),
   },
 ];
 

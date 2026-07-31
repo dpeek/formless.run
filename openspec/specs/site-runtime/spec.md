@@ -2,13 +2,17 @@
 
 ## Purpose
 
-Site runtime turns flat Site app records into authorable admin surfaces, nested public trees, and public documents for preview, installed, and published Site profiles.
+Site runtime turns flat Site records into authorable Program surfaces, nested
+public trees, and public documents for preview, mapped, installed-private, and
+published Site targets.
 
 ## Requirements
 
 ### Requirement: Site Records
 
-The system SHALL model Site content as flat records and use Site scope from the schema key or app install id instead of storing a Site reference on content records.
+The system SHALL model Site content as flat records and use the selected
+Authority storage identity as Site scope instead of storing a Site reference on
+content records.
 
 #### Scenario: Settings singleton exists
 
@@ -22,7 +26,7 @@ The system SHALL model Site content as flat records and use Site scope from the 
 - GIVEN page, post, project, block, and placement records exist
 - WHEN those records are stored
 - THEN they do not store a Site reference
-- AND the current schema key or app install id supplies the Site scope
+- AND the selected Program or installed-app Authority supplies the Site scope
 
 ### Requirement: Reusable Site Schema Modules
 
@@ -50,24 +54,73 @@ declarations through a documented schema authoring subpath.
 - WHEN the Site schema artifact is materialized
 - THEN the complete source composes the record module before the dependent
   presentation module
-- AND materialization produces the existing deterministic data-only
-  `schema.json` source
+- AND materialization produces the deterministic data-only `schema.json`
+  source
 - AND authored and materialized source parse to the same App schema
-- AND the materialized source retains the manifest `sourceSchemaHash`
+- AND the manifest `sourceSchemaHash` matches the materialized source
 - AND Worker, workspace, install, archive, upgrade, deploy, and public Site
   runtime paths continue loading `schema.json` without evaluating the
   TypeScript authoring entrypoint
 
-#### Scenario: Site schema publication does not select runtime ownership
+#### Scenario: Site schema publication remains runtime neutral
 
 - GIVEN the Site package publishes its standalone schema modules and source
 - WHEN the authoring boundary is consumed or packaged
-- THEN it does not compose Site into the Formless Program
-- AND it does not change Site package metadata, install availability, source or
-  installed routes, Authority storage, browser replicas, sync, public runtime
-  adapters, media, archives, workspaces, provenance, or CLI behavior
-- AND existing Site schema-key and installed-app runtime behavior remains
-  unchanged until a later Site domain-data cutover
+- THEN the package declarations do not select a Program, Authority, route,
+  replica, archive, workspace, or CLI behavior by themselves
+- AND the downstream Program root may compose and specialize those declarations
+  without moving Site domain ownership into core runtime
+
+### Requirement: Program-Native Singleton Site
+
+The default Formless Program SHALL compose one built-in Site domain whose
+records are written directly to Program Authority from first use.
+
+#### Scenario: Compose the singleton Site
+
+- GIVEN the default Program composition imports the package-owned Site modules
+- WHEN its materialized schema is selected
+- THEN all eight Site entities share storage identity
+  `instance:control-plane`, schema key `formless-program`, the Program record-id
+  namespace, cursor, change log, snapshot boundary, browser replica, and
+  WebSocket
+- AND no composite record identity, Site reference field, built-in Site
+  workspace identity, or second built-in Site storage identity is introduced
+- AND the runtime does not discover, import, merge, or migrate Site records,
+  cursors, changes, operation histories, media provenance, archives,
+  workspaces, replicas, or provenance from legacy `app:<installId>` storage
+
+#### Scenario: Validate Site records through the package adapter
+
+- GIVEN active or tombstoned Program records use any of the eight stable Site
+  entity ids
+- WHEN Program validation or reviewable canonicalization runs
+- THEN the Program root dispatches those records to the package-owned Site
+  constraint and reviewable-record adapter
+- AND the adapter does not require app install identity
+- AND generic Program schema validation remains responsible for field,
+  reference, unique, delete-blocker, stable-entity, and record-id constraints
+- AND no additional Site constraint is introduced without current Site
+  behavior that consumes it
+
+#### Scenario: Program specializes Site presentation and access
+
+- GIVEN the standalone Site presentation contains paths that conflict with the
+  default Program
+- WHEN the Program root composes Site
+- THEN deliberate same-key replacements mount Site at `/site`,
+  `/site/settings`, `/site/contacts`, and `/site/subscribers`
+- AND `/pages` remains the authenticated singleton public preview
+- AND Site screens require Program `member` access and appear once in Program
+  navigation
+- AND `site.update`, `block.create`, `block.update`, `block.delete`,
+  `block-placement.create`, `block-placement.update`,
+  `block-placement.addTreeChild`, `block-placement.removeTreePlacement`,
+  `contact.update`, `email-address.update`, `audience.update`, and
+  `subscription.update` require Program `editor` access
+- AND `contact-message.submit` and `subscription.subscribe` retain their
+  package-owned anonymous public policies without receiving top-level Program
+  role access
 
 ### Requirement: Public Tree Projection
 
@@ -97,16 +150,17 @@ The system SHALL project live Site block and block placement records into a nest
 ### Requirement: Site App Runtime Adapter
 
 The system SHALL select Site-specific public runtime behavior through a
-package-owned runtime adapter for the resolved Site app package.
+package-owned adapter and an explicit target that separates package behavior
+from Authority storage identity.
 
 #### Scenario: Adapter owns public tree behavior
 
-- GIVEN an installed app uses a package app key whose resolved package declares
-  public Site runtime support
-- WHEN the runtime receives a public tree read for that install
+- GIVEN a public Site runtime target supplies a package app key and Program or
+  installed-app storage identity
+- WHEN the runtime receives a public tree read for that target
 - THEN the runtime dispatches to that package's registered public Site adapter
 - AND the adapter builds the public tree from flat app records and placement
-  edges in the selected app storage identity
+  edges in the selected Authority storage identity
 - AND the core Authority route does not branch on a hard-coded package app key
   to call Site tree projection behavior
 - AND a package app key other than `site` can use public Site tree behavior when
@@ -115,8 +169,8 @@ package-owned runtime adapter for the resolved Site app package.
 
 #### Scenario: Adapter owns public document behavior
 
-- GIVEN a preview route, installed public route, mapped host, or published Site
-  profile targets a Site-capable installed app
+- GIVEN a Program preview route, installed-private public route, mapped host, or
+  published Site profile selects a public Site runtime target
 - WHEN the runtime handles a public document, metadata, indexing, or root icon
   request for that target
 - THEN Worker dispatch selects the public Site adapter for the target package
@@ -125,8 +179,9 @@ package-owned runtime adapter for the resolved Site app package.
   icon, PNG icon, and ICO icon behavior
 - AND request routing, route access, app storage identity, and core media
   delivery remain owned by Formless core runtime boundaries
-- AND mapped public Site hosts select the adapter from the resolved route target
-  package app key rather than assuming package app key `site`
+- AND the built-in target uses package app key `site` with Program storage
+- AND mapped private Site hosts select the adapter from the resolved installed
+  package rather than assuming package app key `site`
 
 #### Scenario: Adapter absence is unsupported
 
@@ -138,15 +193,16 @@ package-owned runtime adapter for the resolved Site app package.
 - THEN the runtime rejects the request as an unsupported package capability
 - AND it does not fall back to the built-in Site implementation by package name
 
-#### Scenario: Source Site fallback is limited to source preview
+#### Scenario: Built-in Site has no source fallback
 
-- GIVEN the dev workbench exposes the bundled source Site app through schema-key
-  routes such as `/site` and `/api/site`
-- WHEN preview public Site rendering has no install-scoped target
-- THEN the runtime may read the schema-key Site storage identity for source
-  preview only
-- AND installed, mapped-host, and published Site rendering do not silently fall
-  back to `/api/site` when their install-scoped target or adapter is missing
+- GIVEN preview, mapped-host, or published rendering selects the built-in Site
+- WHEN its public runtime target is resolved
+- THEN it uses package app key `site` with Program storage identity
+  `instance:control-plane`
+- AND preview uses `/pages` with API prefix `/api/formless/program`
+- AND `/site` and `/api/site` do not expose a schema-key Site source app
+- AND a missing Program target or adapter does not fall back to dormant
+  install-scoped or schema-key Site storage
 
 ### Requirement: Workspace Site Renderer Extension
 
@@ -301,14 +357,14 @@ canonical Site page and system-state renderer contracts through
 ### Requirement: Subscribe Form Public Tree Projection
 
 The system SHALL project subscribe form blocks into public Site trees for the
-current Site app or an explicitly configured CRM app target without exposing
+current Site target or an explicitly configured CRM app target without exposing
 private challenge or runtime secrets.
 
 #### Scenario: Project subscribe form operation facts
 
 - GIVEN the public Site tree includes a `subscribeForm` block
 - WHEN the block references a publicly executable operation on the current Site
-  app or a configured installed CRM app target
+  target or a configured installed CRM app target
 - THEN the projected block includes the operation key and target public operation route
 - AND the referenced operation is a public-eligible create, record-plan, or
   subscribe operation handler
@@ -317,6 +373,9 @@ private challenge or runtime secrets.
   entity key, and operation key
 - AND an installed CRM target route is resolved from the block's stored target
   route identity rather than inferred from public request path
+- AND the Program-native Site source target records target kind `program`,
+  package app key `site`, schema key `formless-program`, and API prefix
+  `/api/formless/program` without a source install id
 - AND subscribe-specific operation eligibility, operation binding warnings, and
   projected route facts are owned by the Site subscribe public operation adapter
 - AND generic public operation input field projection is not used to render the
@@ -391,7 +450,7 @@ runtime secrets.
 - THEN the projected block includes the canonical operation key, target public
   operation route, challenge facts required for browser rendering, and
   public-safe operation input field metadata
-- AND the target may be a schema-key app route or an installed app route
+- AND the target may be the Program-native Site or an installed app route
 - AND projected field metadata uses the schema-owned public-safe operation input
   projection and includes only field names, labels, required flags, affirmative
   boolean acceptance flags, supported scalar control types, text formats, text
@@ -830,9 +889,9 @@ operation execution behavior.
 
 ### Requirement: Public Site Client Runtime
 
-The system SHALL keep published, mapped, and installed public Site browser
-assets scoped to public Site interactivity rather than the generated admin app
-shell.
+The system SHALL keep preview, published, mapped, and installed-private public
+Site browser assets scoped to public Site interactivity rather than the
+generated admin app shell or authenticated Program replica.
 
 #### Scenario: Published documents inject public Site assets
 
@@ -845,6 +904,8 @@ shell.
   to boot on the public page
 - AND public Site documents that do not need browser interactivity may omit
   public Site script assets
+- AND anonymous public clients do not bootstrap, synchronize, or open a
+  WebSocket for the Program replica
 
 #### Scenario: Public theme and CSS remain package scoped
 
@@ -1032,7 +1093,9 @@ The system SHALL generate public document metadata, robots output, and sitemap o
 
 ### Requirement: Published And Installed Sites
 
-The system SHALL support schema-key preview routes, installed Site routes, mapped public Site hosts, and published Site profile redirects with consistent public rendering.
+The system SHALL support one Program-native Site, installed private
+public-Site-capable packages, mapped public Site hosts, and published Site
+profile redirects with consistent public rendering.
 
 #### Scenario: Public Site capability remains the route contract
 
@@ -1045,19 +1108,42 @@ The system SHALL support schema-key preview routes, installed Site routes, mappe
   contract until another shipped capability requires different public rendering
   semantics
 
-#### Scenario: Installed Site fallback route
+#### Scenario: Program-native preview route
 
-- GIVEN an installed Site app has install id `site`
-- WHEN a visitor opens `/sites/site/*` on the instance host
-- THEN public rendering reads the install-scoped tree
-- AND public links keep the `/sites/site` route base
+- GIVEN an authenticated Program member opens the built-in Site preview
+- WHEN the browser requests `/pages` or `/pages/*`
+- THEN public rendering reads the Program-native Site tree
+- AND public links keep the `/pages` preview route base
+- AND preview change synchronization uses the authenticated Program WebSocket
+
+#### Scenario: Installed private Site fallback route
+
+- GIVEN a runtime-installable private package declares public Site capability
+  and has an install id
+- WHEN a visitor opens `/sites/<installId>/*` on the instance host
+- THEN public rendering reads that install-scoped tree
+- AND public links keep the `/sites/<installId>` route base
+- AND package key `site` is not required for the installed target
 
 #### Scenario: Mapped public Site host
 
-- GIVEN an enabled exact-host mapping uses profile `publicSite` and targets an installed Site
+- GIVEN an enabled exact-host mapping uses profile `publicSite`
 - WHEN a visitor opens the mapped host
-- THEN top-level public routes render from the target installed Site
+- THEN a mapping without an app install renders top-level routes from the
+  Program-native Site
+- AND a mapping with an app install renders from the selected installed private
+  public-Site-capable package
 - AND generated admin and app shell routes are blocked on that host
+
+#### Scenario: Published Site target selection
+
+- GIVEN a published Site runtime starts
+- WHEN package app key and install id environment metadata are both absent
+- THEN it renders the Program-native Site from Program storage
+- WHEN both values identify an installed private public-Site-capable package
+- THEN it renders that installed target
+- AND partial installed-target metadata is rejected rather than falling back to
+  Program or schema-key Site storage
 
 #### Scenario: Published SSR response policy
 

@@ -119,12 +119,12 @@ describe("local session bootstrap API routes", () => {
     expect(created.status).toBe(201);
     expect((await created.json()) as CreateAppInstallResponse).toMatchObject({
       install: {
-        installId: "site",
-        label: "Site",
-        packageAppKey: "site",
+        installId: "crm",
+        label: "CRM",
+        packageAppKey: "crm",
       },
     });
-    expect(installsAfter.body.installs.map((install) => install.installId)).toEqual(["site"]);
+    expect(installsAfter.body.installs.map((install) => install.installId)).toEqual(["crm"]);
   });
 
   it("redirects same-origin local bootstrap requests back to the original named proxy origin", async () => {
@@ -352,9 +352,9 @@ async function configureProductionIdentity(target: Harness, productionOrigin: st
 async function createSiteInstall(input: { cookie: string | null }) {
   return harness.fetch("/api/formless/app-installs", {
     body: JSON.stringify({
-      packageAppKey: "site",
-      installId: "site",
-      label: "Site",
+      packageAppKey: "crm",
+      installId: "crm",
+      label: "CRM",
     }),
     headers: {
       "Content-Type": "application/json",

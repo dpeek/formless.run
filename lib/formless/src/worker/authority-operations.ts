@@ -23,8 +23,16 @@ import {
   installedAppStorageIdentity,
   type AuthorityStorageIdentity,
 } from "../shared/app-storage-identity.ts";
+import {
+  programPublicSiteRuntimeTarget,
+  type PublicSiteRuntimeTarget,
+} from "../shared/public-site-runtime-target.ts";
 import type { PackageAppKey } from "@dpeek/formless-installed-apps";
-import { findResolvedAppPackage, type AppPackageResolver } from "../shared/app-packages.ts";
+import {
+  findResolvedAppPackage,
+  rootKnownPackageFactsResolver,
+  type AppPackageResolver,
+} from "../shared/app-packages.ts";
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
 import type {
   AppSchema,
@@ -353,15 +361,15 @@ export async function executeAuthorityOperation(
     }
 
     case "siteTree": {
-      if (input.identity.kind === "program") {
-        throw new BadRequestError("Site page trees are only available for app storage.");
-      }
-
       const slug = parseSiteTreeSlug(operation.metadata.path);
       const { schema } = initializeStorageFromSource(input.storage, input.source);
+      const target = publicSiteRuntimeTargetForAuthority(input.identity);
       const adapter = publicSiteWorkerAdapterForPackageAppKey(
-        input.identity.packageAppKey,
-        input.packageResolver,
+        target?.packageAppKey ??
+          (input.identity.kind === "program" ? "site" : input.identity.packageAppKey),
+        input.identity.kind === "program"
+          ? rootKnownPackageFactsResolver(input.packageResolver)
+          : input.packageResolver,
       );
       const projection = adapter.buildPublicTree({
         records: getBootstrapRecords(input.storage),
@@ -371,7 +379,7 @@ export async function executeAuthorityOperation(
           packageResolver: input.packageResolver,
           sourceSchemas: input.sourceSchemas,
         }),
-        target: input.identity,
+        target: target?.storageIdentity ?? input.identity,
         turnstileSiteKey: input.turnstileSiteKey,
       });
 
@@ -545,6 +553,18 @@ export async function executeAuthorityOperation(
       );
     }
   }
+}
+
+function publicSiteRuntimeTargetForAuthority(
+  identity: AuthorityStorageIdentity,
+): PublicSiteRuntimeTarget | undefined {
+  if (identity.kind === "program") {
+    return programPublicSiteRuntimeTarget();
+  }
+
+  return identity.kind === "appInstall"
+    ? { packageAppKey: identity.packageAppKey, storageIdentity: identity }
+    : undefined;
 }
 
 function operationInvocationActorFromCandidates(

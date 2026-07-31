@@ -591,8 +591,9 @@ optional first app install, credential setup, and push operations.
   linked packages declared in `formless.ts` `packages.links` when present
 - **AND** installable package lists shown before the workspace has installed
   apps come from that active resolver
-- **AND** Program-native package key `tasks` is excluded from the installable
-  resolver even when its standalone package manifest is bundled or linked
+- **AND** Program-native package keys `tasks` and `site` are excluded from the
+  installable resolver even when their standalone package manifests are bundled
+  or linked
 - **AND** first-run local runtime state starts from workspace storage snapshots
   and media payloads when present
 - **AND** the browser can complete onboarding before any Cloudflare deploy
@@ -732,24 +733,25 @@ snapshots and media payloads.
 - **THEN** active runtime-installable app records, media payloads, and
   schema-owned Program state are written to deterministic workspace storage
   snapshots
-- **AND** Task records are written through the Program snapshot in
+- **AND** Task and Site records are written through the Program snapshot in
   `state/instance.json`
-- **AND** dormant Tasks install metadata does not produce
+- **AND** dormant Tasks or built-in Site install metadata does not produce
   `state/apps/<installId>.json`
 - **AND** browser IndexedDB state is not used as the source of truth
 - **AND** secrets are not written to `formless.ts`, storage snapshots, or
   media files
 
-#### Scenario: Tasks installed-app workflows are absent
+#### Scenario: Program-native installed-app workflows are absent
 
 - **WHEN** CLI archive, workspace, package upgrade, reset, deploy, or source
   synchronization selects runtime-installed apps
-- **THEN** it does not select package key `tasks` as an installed app target
+- **THEN** it does not select package key `tasks` or `site` as an installed app
+  target
 - **AND** it does not read, write, reset, migrate, import, or export a legacy
-  Tasks Authority
-- **AND** Task data participates only through the complete Program snapshot and
-  Program source hash
-- **AND** Site, CRM, and workspace-linked package workflows remain unchanged
+  Tasks or built-in Site Authority
+- **AND** Task and Site data participates only through the complete Program
+  snapshot and Program source hash
+- **AND** CRM and workspace-linked private package workflows remain unchanged
 
 #### Scenario: Auto-save local workspace state
 
@@ -1142,6 +1144,9 @@ deployment intent records.
 - **THEN** the CLI reads `app-install` and `route` records
 - **AND** route changes are reported by comparing route records rather than
   hand-derived install route strings or manifest route summaries
+- **AND** a Program-native public Site route may omit `appInstall`
+- **AND** dormant routes targeting built-in package key `site` are not selected
+  as operational installed-app routes
 
 #### Scenario: CLI reads domain routes
 

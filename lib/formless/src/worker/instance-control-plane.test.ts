@@ -33,8 +33,7 @@ import type {
   OperationInvocationResponse,
 } from "../shared/operation-invocation.ts";
 import { computeSourceSchemaHash, type SourceSchemaHash } from "../shared/upgrade-migrations.ts";
-import { siteSourceSchema } from "../test/schema-apps.ts";
-import { testSiteRecords } from "../test/site-records.ts";
+import { crmSourceSchema, siteSourceSchema } from "../test/schema-apps.ts";
 import { ensureTestIdentityOwner } from "../test/identity-owner.ts";
 import {
   appPackageManifestKind,
@@ -50,7 +49,6 @@ import {
   recordOperationRequest,
   operationWriteRequest,
   restoreTestStorageSnapshot,
-  schemaAppTestStorageSnapshot,
 } from "../test/authority-write.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import { INTERNAL_READ_OPERATION_INVOCATIONS_PATH } from "./instance-control-plane.ts";
@@ -225,6 +223,24 @@ describe("instance control-plane API routes", () => {
     });
     const editorTaskBody = (await editorTaskWrite.json()) as OperationInvocationResponse;
     const pushedTaskBody = await pushedTaskChange;
+    const pushedSiteChange = readProgramSyncSocketMessage(memberSocket);
+    const editorSiteWrite = await harness.fetch(`${controlPlaneApi}/operations/block/create`, {
+      body: JSON.stringify({
+        idempotencyKey: "editor-creates-program-site-page",
+        input: {
+          href: "/replica-site",
+          label: "Program-native Site page",
+          type: "page",
+        },
+      }),
+      headers: {
+        ...editorSession,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
+    const editorSiteBody = (await editorSiteWrite.json()) as OperationInvocationResponse;
+    const pushedSiteBody = await pushedSiteChange;
     const memberBootstrap = await harness.fetch(`${controlPlaneApi}/bootstrap`, {
       headers: memberSession,
     });
@@ -243,6 +259,19 @@ describe("instance control-plane API routes", () => {
         cursor: expect.any(Number),
       },
     });
+    expect(editorSiteWrite.status).toBe(200);
+    expect(editorSiteBody.output).toMatchObject({
+      changes: [expect.objectContaining({ entity: "block" })],
+      cursor: expect.any(Number),
+      type: "create",
+    });
+    expect(pushedSiteBody).toMatchObject({
+      type: "sync",
+      payload: {
+        changes: [expect.objectContaining({ entity: "block" })],
+        cursor: expect.any(Number),
+      },
+    });
     expect(memberBootstrapBody.schema.entities).toEqual(
       expect.arrayContaining([expect.objectContaining({ key: "task" })]),
     );
@@ -251,6 +280,10 @@ describe("instance control-plane API routes", () => {
         expect.objectContaining({
           entity: "task",
           values: expect.objectContaining({ title: "Program-native task" }),
+        }),
+        expect.objectContaining({
+          entity: "block",
+          values: expect.objectContaining({ label: "Program-native Site page" }),
         }),
       ]),
     );
@@ -292,9 +325,9 @@ describe("instance control-plane API routes", () => {
     const appInstall = await postJson<CreateAppInstallResponse>(
       "/api/formless/app-installs",
       {
-        packageAppKey: "site",
-        installId: "admin-site",
-        label: "Admin Site",
+        packageAppKey: "crm",
+        installId: "admin-crm",
+        label: "Admin CRM",
       },
       adminSession,
     );
@@ -323,7 +356,6 @@ describe("instance control-plane API routes", () => {
           matchPrefix: "/admin-site/",
           kind: "mount",
           targetProfile: "public-site",
-          appInstall: "admin-site",
           surface: "public-site",
           access: "anonymous",
         },
@@ -425,7 +457,7 @@ describe("instance control-plane API routes", () => {
     );
 
     expect(appInstall.response.status).toBe(201);
-    expect(appInstall.body.install.installId).toBe("admin-site");
+    expect(appInstall.body.install.installId).toBe("admin-crm");
     expect(deploymentConfig.response.status).toBe(200);
     expect(route.response.status).toBe(200);
     expect(emailDomain.response.status).toBe(200);
@@ -484,9 +516,9 @@ describe("instance control-plane API routes", () => {
     const created = await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
       idempotencyKey: "create-snapshot-export",
       input: {
-        packageAppKey: "site",
+        packageAppKey: "crm",
         installId: "snapshot-export",
-        label: "Snapshot Export Site",
+        label: "Snapshot Export CRM",
       },
     });
     const bootstrap = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
@@ -511,22 +543,22 @@ describe("instance control-plane API routes", () => {
     const created = await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
       idempotencyKey: "create-personal",
       input: {
-        packageAppKey: "site",
+        packageAppKey: "crm",
         installId: "personal",
-        label: "Personal Site",
+        label: "Personal CRM",
       },
     });
     const replay = await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
       idempotencyKey: "create-personal",
       input: {
-        packageAppKey: "site",
+        packageAppKey: "crm",
         installId: "personal",
-        label: "Personal Site",
+        label: "Personal CRM",
       },
     });
     const controlPlane = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
-    const installedSite = await getJson<BootstrapResponse>(
-      "/api/app-installs/site/personal/bootstrap",
+    const installedCrm = await getJson<BootstrapResponse>(
+      "/api/app-installs/crm/personal/bootstrap",
     );
     const sync = await getJson<SyncResponse>(`${controlPlaneApi}/sync?after=0`);
     const createdOutput = operationCommandResponse(created);
@@ -535,7 +567,7 @@ describe("instance control-plane API routes", () => {
 
     expect(created.response.status).toBe(200);
     expect(created.body.status).toBe("committed");
-    expect(createdOutput.affectedChangeIds).toHaveLength(3);
+    expect(createdOutput.affectedChangeIds).toHaveLength(2);
     expect(createdOutput.cursor).toBe(createdOutput.changes.at(-1)?.seq);
     expect(createdOutput.affectedChangeIds).toEqual(
       createdOutput.changes.map((change) => String(change.seq)),
@@ -543,10 +575,8 @@ describe("instance control-plane API routes", () => {
     expect(createdOutput.changes.map((change) => change.payload.id)).toEqual([
       "personal",
       "route:personal:admin",
-      "route:personal:public-site",
     ]);
     expect(createdOutput.changes.map((change) => change.writeId)).toEqual([
-      created.body.invocation.invocationId,
       created.body.invocation.invocationId,
       created.body.invocation.invocationId,
     ]);
@@ -570,22 +600,21 @@ describe("instance control-plane API routes", () => {
       "committed",
       "replayed",
     ]);
-    expect(installedSite.body.schema).toEqual(siteSourceSchema);
-    expect(installedSite.body.records).toEqual(testSiteRecords);
+    expect(installedCrm.body.schema).toEqual(crmSourceSchema);
+    expect(installedCrm.body.records).toEqual([]);
     expect(
       controlPlane.body.records.filter(
         (record) => record.entity === "app-install" || record.entity === "route",
       ),
-    ).toHaveLength(3);
+    ).toHaveLength(2);
     expect(appInstallValues(controlPlane.body, "personal")).toMatchObject({
       installId: "personal",
-      packageAppKey: "site",
-      label: "Personal Site",
+      packageAppKey: "crm",
+      label: "Personal CRM",
       storageIdentity: "app:personal",
     });
     expect(routeValues(controlPlane.body).map((route) => route["matchPath"])).toEqual([
       "/apps/personal",
-      "/sites/personal",
     ]);
     expect(JSON.stringify(controlPlane.body.records)).not.toContain("block-placement");
   });
@@ -594,34 +623,32 @@ describe("instance control-plane API routes", () => {
     await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
       idempotencyKey: "create-work",
       input: {
-        packageAppKey: "site",
+        packageAppKey: "crm",
         installId: "work",
-        label: "Work Site",
+        label: "Work CRM",
       },
     });
-    const appRecordWrite = await postInstalledAppRecordOperation("site", "work", {
-      idempotencyKey: "write-installed-site-page",
-      entity: "block",
+    const appRecordWrite = await postInstalledAppRecordOperation("crm", "work", {
+      idempotencyKey: "write-installed-crm-contact",
+      entity: "contact",
       operationName: "create",
       input: {
-        type: "page",
         label: "Installed only",
-        href: "/installed-only",
       },
     });
     const controlPlane = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
-    const installedSite = await getJson<BootstrapResponse>("/api/app-installs/site/work/bootstrap");
+    const installedCrm = await getJson<BootstrapResponse>("/api/app-installs/crm/work/bootstrap");
     const sync = await getJson<SyncResponse>(`${controlPlaneApi}/sync?after=0`);
 
-    expect(appRecordWrite.body.record.entity).toBe("block");
+    expect(appRecordWrite.body.record.entity).toBe("contact");
     expect(
-      installedSite.body.records.some((record) => record.id === appRecordWrite.body.record.id),
+      installedCrm.body.records.some((record) => record.id === appRecordWrite.body.record.id),
     ).toBe(true);
     expect(
       controlPlane.body.records
         .filter((record) => record.entity === "app-install" || record.entity === "route")
         .map((record) => record.entity),
-    ).toEqual(["app-install", "route", "route"]);
+    ).toEqual(["app-install", "route"]);
     expect(JSON.stringify(controlPlane.body.records)).not.toContain("Installed only");
     expect(JSON.stringify(sync.body)).not.toContain(appRecordWrite.body.record.id);
   });
@@ -630,9 +657,9 @@ describe("instance control-plane API routes", () => {
     await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
       idempotencyKey: "create-route-validation",
       input: {
-        packageAppKey: "site",
+        packageAppKey: "crm",
         installId: "personal",
-        label: "Personal Site",
+        label: "Personal CRM",
       },
     });
     const before = await getJson<AppInstallsResponse>("/api/formless/app-installs");
@@ -715,9 +742,9 @@ describe("instance control-plane API routes", () => {
     await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
       idempotencyKey: "create-route-authorization",
       input: {
-        packageAppKey: "site",
+        packageAppKey: "crm",
         installId: "personal",
-        label: "Personal Site",
+        label: "Personal CRM",
       },
     });
 
@@ -869,15 +896,6 @@ describe("instance control-plane API routes", () => {
   });
 
   it("commits generated route and deployment config management writes through operation routes", async () => {
-    await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
-      idempotencyKey: "create-operation-managed-site",
-      input: {
-        packageAppKey: "site",
-        installId: "operation-managed-site",
-        label: "Operation Managed Site",
-      },
-    });
-
     const deploymentConfig = await postAdminJson<OperationInvocationResponse>(
       `${controlPlaneApi}/operations/deployment-config/create`,
       {
@@ -907,7 +925,6 @@ describe("instance control-plane API routes", () => {
           matchPrefix: "/",
           kind: "mount",
           targetProfile: "public-site",
-          appInstall: "operation-managed-site",
           surface: "public-site",
           access: "anonymous",
           deploymentConfig: deploymentConfigRecord.id,
@@ -949,7 +966,7 @@ describe("instance control-plane API routes", () => {
     expect(route.body.invocation.operation.canonicalKey).toBe("route.create");
     expect(operationRecord(route).values).toMatchObject({
       deploymentConfig: deploymentConfigRecord.id,
-      appInstall: "operation-managed-site",
+      targetProfile: "public-site",
     });
     expect(routePatch.body.invocation.operation.canonicalKey).toBe("route.update");
     expect(operationRecord(routePatch).values).toMatchObject({
@@ -1170,7 +1187,7 @@ describe("instance control-plane API routes", () => {
     const unauthenticated = await postJson<FailureResponse>(createAppInstallOperation, {
       idempotencyKey: "create-private",
       input: {
-        packageAppKey: "site",
+        packageAppKey: "crm",
         installId: "private",
         label: "Private",
       },
@@ -1180,7 +1197,7 @@ describe("instance control-plane API routes", () => {
       {
         idempotencyKey: "create-runner",
         input: {
-          packageAppKey: "site",
+          packageAppKey: "crm",
           installId: "runner",
           label: "Runner",
         },
@@ -1193,7 +1210,7 @@ describe("instance control-plane API routes", () => {
         idempotencyKey: "runner-install",
         input: {
           installId: "runner",
-          packageAppKey: "site",
+          packageAppKey: "crm",
           label: "Runner",
           registrationPolicy: "closed",
           status: "installed",
@@ -1378,26 +1395,12 @@ async function resetWorkerState() {
 }
 
 async function resetKnownState() {
-  await Promise.all([
-    restoreTestStorageSnapshot(
-      harness,
-      `${controlPlaneApi}/snapshot/restore`,
-      instanceControlPlaneTestStorageSnapshot(),
-      adminHeaders(),
-    ),
-    restoreTestStorageSnapshot(
-      harness,
-      "/api/app-installs/site/personal/snapshot/restore",
-      schemaAppTestStorageSnapshot("site", "app:personal"),
-      adminHeaders(),
-    ),
-    restoreTestStorageSnapshot(
-      harness,
-      "/api/app-installs/site/work/snapshot/restore",
-      schemaAppTestStorageSnapshot("site", "app:work"),
-      adminHeaders(),
-    ),
-  ]);
+  await restoreTestStorageSnapshot(
+    harness,
+    `${controlPlaneApi}/snapshot/restore`,
+    instanceControlPlaneTestStorageSnapshot(),
+    adminHeaders(),
+  );
 }
 
 async function readControlPlaneOperationInvocations(): Promise<StoredOperationInvocation[]> {
@@ -1659,7 +1662,7 @@ function secretSnapshot(now: string): StorageSnapshot {
         updatedAt: now,
         values: {
           installId: "secret",
-          packageAppKey: "site",
+          packageAppKey: "crm",
           label: "CF_API_TOKEN=hidden",
           registrationPolicy: "closed",
           status: "installed",

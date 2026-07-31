@@ -54,7 +54,6 @@ export const rootKnownAppPackageManifests = [
 ] as const satisfies readonly AppPackageManifest[];
 
 export const bundledAppPackageManifests = [
-  bundledSiteAppPackageManifest,
   bundledCrmAppPackageManifest,
 ] as const satisfies readonly AppPackageManifest[];
 
@@ -62,7 +61,7 @@ export const bundledAppPackageResolver = createAppPackageResolver(bundledAppPack
 const rootKnownAppPackageResolver = createAppPackageResolver(rootKnownAppPackageManifests);
 
 export function isRuntimeInstallableAppPackageKey(packageAppKey: string): boolean {
-  return packageAppKey !== "tasks";
+  return packageAppKey !== "tasks" && packageAppKey !== "site";
 }
 
 export function runtimeInstallableAppPackageResolver(
@@ -96,6 +95,7 @@ export function rootKnownPackageFactsResolver(
         ...runtimeResolver
           .listPackages()
           .filter((appPackage) => isRuntimeInstallableAppPackageKey(appPackage.packageAppKey)),
+        rootKnownAppPackageResolver.findPackage("site")!,
         rootKnownAppPackageResolver.findPackage("tasks")!,
       ];
     },

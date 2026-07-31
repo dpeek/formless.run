@@ -11,6 +11,10 @@ import {
   tasksRecordSchemaModule,
 } from "@dpeek/formless-tasks-app/schema";
 import {
+  sitePresentationSchemaModule,
+  siteRecordSchemaModule,
+} from "@dpeek/formless-site-app/schema";
+import {
   composeAppSchema,
   defineAppSchemaModule,
   type AppSchemaSource,
@@ -36,6 +40,37 @@ export const formlessTasksPresentationSchemaModule = defineAppSchemaModule({
   screens: tasksPresentationSchemaModule.screens.map((screen) => ({
     ...screen,
     path: "/tasks",
+    access: programMemberScreenAccess,
+  })),
+});
+
+export const formlessSiteRecordSchemaModule = defineAppSchemaModule({
+  ...siteRecordSchemaModule,
+  entities: siteRecordSchemaModule.entities.map((entity) => ({
+    ...entity,
+    operations: entity.operations?.map((operation) =>
+      "policy" in operation && operation.policy.actors.includes("anonymous")
+        ? operation
+        : {
+            ...operation,
+            access: programEditorOperationAccess,
+          },
+    ),
+  })),
+});
+
+const formlessSiteScreenPaths = {
+  siteEditor: "/site",
+  siteSettings: "/site/settings",
+  siteContacts: "/site/contacts",
+  siteSubscribers: "/site/subscribers",
+} as const;
+
+export const formlessSitePresentationSchemaModule = defineAppSchemaModule({
+  ...sitePresentationSchemaModule,
+  screens: sitePresentationSchemaModule.screens.map((screen) => ({
+    ...screen,
+    path: formlessSiteScreenPaths[screen.key],
     access: programMemberScreenAccess,
   })),
 });
@@ -87,9 +122,11 @@ export const formlessProgramSchemaModules = [
   instanceControlPlaneRecordSchemaModule,
   identityControlPlaneRecordSchemaModule,
   formlessTasksRecordSchemaModule,
+  formlessSiteRecordSchemaModule,
   formlessInstanceControlPlanePresentationSchemaModule,
   formlessIdentityControlPlanePresentationSchemaModule,
   formlessTasksPresentationSchemaModule,
+  formlessSitePresentationSchemaModule,
   formlessProgramPresentationSchemaModule,
 ] as const;
 
@@ -118,6 +155,7 @@ export const formlessProgramSourceSchema: AppSchemaSource = composeAppSchema({
   navigation: {
     primaryScreens: [
       "taskHome",
+      "siteEditor",
       "apps",
       "routes",
       "deployments",

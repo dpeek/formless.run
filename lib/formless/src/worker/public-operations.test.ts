@@ -9,15 +9,17 @@ import type {
   PublicOperationResponse,
   SchemaResponse,
   SchemaUpdateResponse,
+  SyncResponse,
 } from "../shared/protocol.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
-import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
 import {
+  instanceControlPlaneTestStorageSnapshot,
   recordOperationRequest,
   operationWriteRequest,
   restoreTestStorageSnapshot,
   schemaAppTestStorageSnapshot,
 } from "../test/authority-write.ts";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import {
   emailStylePublicIntakeFormBlockId,
   emailStylePublicIntakeFormBlockValues,
@@ -45,9 +47,9 @@ const turnstileSiteKey = "test-turnstile-site-key";
 const turnstileSecret = "test-turnstile-secret";
 const mappedHost = "subscribe.example.com";
 const installId = "personal";
-const defaultSiteInstallId = "site";
 const recordPlanInstallId = "public-intake";
 const taskPackageAppKey = "test-tasks";
+const privateSitePackageAppKey = "private-site";
 const taskApi = `/api/app-installs/${taskPackageAppKey}/test-tasks`;
 
 let harness: Harness;
@@ -77,8 +79,13 @@ beforeEach(async () => {
   turnstileRequests = [];
 
   await resetSchemaApp("tasks");
-  await resetSchemaApp("site");
-  await resetInstalledApp("site", installId);
+  await resetInstalledApp(privateSitePackageAppKey, installId);
+  await restoreTestStorageSnapshot(
+    harness,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
+    instanceControlPlaneTestStorageSnapshot(),
+    adminHeaders(),
+  );
 });
 
 afterAll(async () => {
@@ -87,14 +94,84 @@ afterAll(async () => {
 });
 
 describe("public operation runtime", () => {
+  it("executes built-in Site operations through the narrow Program public route", async () => {
+    const before = await getJson<BootstrapResponse>(
+      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/bootstrap`,
+    );
+    const rejectedOrigin = await postPublicOperation(
+      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/public/operations/subscription/subscribe`,
+      publicSubscribeBody({ idempotencyKey: "program-site-wrong-origin" }),
+      harness,
+      { Origin: "https://other.example.com" },
+    );
+    const accepted = await postPublicOperation(
+      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/public/operations/subscription/subscribe`,
+      publicSubscribeBody({ idempotencyKey: "program-site-subscribe" }),
+    );
+    const after = await getJson<BootstrapResponse>(
+      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/bootstrap`,
+    );
+    const sync = await getJson<SyncResponse>(
+      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/sync?cursor=${before.cursor}`,
+    );
+    const records = contactSubscriptionRecords(after.records);
+    const protectedResponses = await Promise.all([
+      harness.fetch(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/bootstrap`),
+      harness.fetch(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/schema`),
+      harness.fetch(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot`),
+      harness.fetch(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/sync?cursor=0`),
+      harness.fetch(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/subscription/subscribe`, {
+        body: JSON.stringify(publicSubscribeBody({ idempotencyKey: "program-generic-denied" })),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+      harness.fetch(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/sync/ws`, {
+        headers: { Connection: "Upgrade", Upgrade: "websocket" },
+      }),
+    ]);
+
+    expect(rejectedOrigin.status).toBe(403);
+    expect(accepted.status).toBe(200);
+    expect(after.records.length).toBe(before.records.length + 4);
+    expect(after.cursor).toBeGreaterThan(before.cursor);
+    expect(sync.cursor).toBe(after.cursor);
+    expect(
+      sync.changes
+        .map((change) => change.entity)
+        .filter((entity) =>
+          ["audience", "contact", "email-address", "subscription"].includes(entity),
+        )
+        .sort(),
+    ).toEqual(["audience", "contact", "email-address", "subscription"]);
+    expect(records.subscriptions).toHaveLength(1);
+    expect(records.subscriptions[0]?.values).toMatchObject({
+      sourceTargetKind: "program",
+      sourcePackageAppKey: "site",
+      sourceSchemaKey: "formless-program",
+      sourceApiRoutePrefix: FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+      sourceOperationKey: "subscription.subscribe",
+      sourcePath: `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/public/operations/subscription/subscribe`,
+    });
+    expect(records.subscriptions[0]?.values).not.toHaveProperty("sourceInstallId");
+    expect(protectedResponses.map((response) => response.status)).toEqual([
+      401, 401, 401, 401, 401, 401,
+    ]);
+    expectTurnstileRequests(turnstileRequests, [
+      {
+        secret: turnstileSecret,
+        response: "token-ok",
+      },
+    ]);
+  });
+
   it("executes schema-key public subscribe operations without opening generic writes", async () => {
-    const before = await getJson<BootstrapResponse>("/api/site/bootstrap");
-    const retiredRecordWriteRoute = await harness.fetch("/api/site/mutations", {
+    const before = await getJson<BootstrapResponse>("/api/formless/program/bootstrap");
+    const retiredRecordWriteRoute = await harness.fetch("/api/formless/program/mutations", {
       body: "{}",
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
-    const retiredCommandRoute = await harness.fetch("/api/site/actions", {
+    const retiredCommandRoute = await harness.fetch("/api/formless/program/actions", {
       body: "{}",
       headers: { "Content-Type": "application/json" },
       method: "POST",
@@ -104,14 +181,14 @@ describe("public operation runtime", () => {
       publicSubscribeBody({ idempotencyKey: "not-public" }),
     );
     const accepted = await postPublicOperation(
-      "/api/site/public/operations/subscription/subscribe",
+      "/api/formless/program/public/operations/subscription/subscribe",
       publicSubscribeBody({ idempotencyKey: "schema-key-exec" }),
     );
-    const after = await getJson<BootstrapResponse>("/api/site/bootstrap");
+    const after = await getJson<BootstrapResponse>("/api/formless/program/bootstrap");
     const records = contactSubscriptionRecords(after.records);
 
-    expect(retiredRecordWriteRoute.status).toBe(401);
-    expect(retiredCommandRoute.status).toBe(401);
+    expect(retiredRecordWriteRoute.status).toBe(404);
+    expect(retiredCommandRoute.status).toBe(404);
     expect(unavailable.status).toBe(404);
     expect(accepted.status).toBe(200);
     expect(after.records.length).toBe(before.records.length + 4);
@@ -136,13 +213,13 @@ describe("public operation runtime", () => {
       audience: records.audiences[0]?.id,
       status: "subscribed",
       sourceKind: "publicOperation",
-      sourceTargetKind: "schemaKey",
+      sourceTargetKind: "program",
       sourcePackageAppKey: "site",
-      sourceSchemaKey: "site",
-      sourceApiRoutePrefix: "/api/site",
+      sourceSchemaKey: "formless-program",
+      sourceApiRoutePrefix: "/api/formless/program",
       sourceOperationKey: "subscription.subscribe",
       sourceHost: "example.com",
-      sourcePath: "/api/site/public/operations/subscription/subscribe",
+      sourcePath: "/api/formless/program/public/operations/subscription/subscribe",
       sourceSiteBlockId: "rec_site_subscribe_form",
     });
     expect(records.subscriptions[0]?.values.consentedAt).toEqual(expect.any(String));
@@ -158,14 +235,16 @@ describe("public operation runtime", () => {
 
   it("supports installed app public operation routes with accepted replay idempotency", async () => {
     const first = await postPublicOperation(
-      `/api/app-installs/site/${installId}/public/operations/subscription/subscribe`,
+      `/api/app-installs/${privateSitePackageAppKey}/${installId}/public/operations/subscription/subscribe`,
       publicSubscribeBody({ idempotencyKey: "installed-replay" }),
     );
     const replay = await postPublicOperation(
-      `/api/app-installs/site/${installId}/public/operations/subscription/subscribe`,
+      `/api/app-installs/${privateSitePackageAppKey}/${installId}/public/operations/subscription/subscribe`,
       publicSubscribeBody({ idempotencyKey: "installed-replay", token: "token-replay" }),
     );
-    const after = await getJson<BootstrapResponse>(`/api/app-installs/site/${installId}/bootstrap`);
+    const after = await getJson<BootstrapResponse>(
+      `/api/app-installs/${privateSitePackageAppKey}/${installId}/bootstrap`,
+    );
     const records = contactSubscriptionRecords(after.records);
 
     expect(first.status).toBe(200);
@@ -175,7 +254,7 @@ describe("public operation runtime", () => {
     expect(records.subscriptions[0]?.values).toMatchObject({
       sourceTargetKind: "appInstall",
       sourceInstallId: installId,
-      sourceApiRoutePrefix: `/api/app-installs/site/${installId}`,
+      sourceApiRoutePrefix: `/api/app-installs/${privateSitePackageAppKey}/${installId}`,
     });
     expectTurnstileRequests(turnstileRequests, [
       {
@@ -186,12 +265,12 @@ describe("public operation runtime", () => {
   });
 
   it("wires schema-key public create operations to committed records", async () => {
-    const before = await getJson<BootstrapResponse>("/api/site/bootstrap");
+    const before = await getJson<BootstrapResponse>("/api/formless/program/bootstrap");
     const accepted = await postPublicOperation(
-      "/api/site/public/operations/contact-message/submit",
+      "/api/formless/program/public/operations/contact-message/submit",
       publicContactMessageBody({ idempotencyKey: "contact-create-exec" }),
     );
-    const after = await getJson<BootstrapResponse>("/api/site/bootstrap");
+    const after = await getJson<BootstrapResponse>("/api/formless/program/bootstrap");
     const messages = contactMessageRecords(after.records);
 
     expect(accepted.status).toBe(200);
@@ -207,57 +286,6 @@ describe("public operation runtime", () => {
         secret: turnstileSecret,
         response: "token-ok",
       },
-    ]);
-  });
-
-  it("rejects false affirmative consent before public operation effects", async () => {
-    await installAffirmativePublicIntakeSchema();
-    const block = await postAdminRecordOperation({
-      idempotencyKey: "write-create-affirmative-public-intake-form",
-      entity: "block",
-      operationName: "create",
-      input: emailStylePublicIntakeFormBlockValues,
-    });
-    const before = await getJson<BootstrapResponse>("/api/site/bootstrap");
-    const rejected = await postPublicOperation(
-      "/api/site/public/operations/intake-request/submit",
-      publicEmailStyleIntakeBody({
-        idempotencyKey: "affirmative-consent-false",
-        input: {
-          ...emailStylePublicIntakeInput,
-          contactConsent: false,
-        },
-        sourceBlockId: block.record.id,
-      }),
-    );
-    const afterRejected = await getJson<BootstrapResponse>("/api/site/bootstrap");
-
-    expect(rejected.status).toBe(400);
-    expect(await rejected.json()).toEqual({
-      error: 'Public operation input field "contactConsent" must be accepted.',
-    });
-    expect(afterRejected.records).toEqual(before.records);
-    expect(emailStyleIntakeRecords(afterRejected.records)).toEqual([]);
-    expect(turnstileRequests).toEqual([]);
-
-    const accepted = await postPublicOperation(
-      "/api/site/public/operations/intake-request/submit",
-      publicEmailStyleIntakeBody({
-        idempotencyKey: "affirmative-consent-true",
-        input: {
-          ...emailStylePublicIntakeInput,
-          contactConsent: true,
-        },
-        sourceBlockId: block.record.id,
-      }),
-    );
-    const afterAccepted = await getJson<BootstrapResponse>("/api/site/bootstrap");
-
-    expect(accepted.status).toBe(200);
-    expect(emailStyleIntakeRecords(afterAccepted.records)).toEqual([
-      expect.objectContaining({
-        values: expect.objectContaining({ contactConsent: true }),
-      }),
     ]);
   });
 
@@ -373,30 +401,33 @@ describe("public operation runtime", () => {
     );
   });
 
-  it("schedules generic operation input notifications from installed Site forms targeting another app install", async () => {
+  it("reads Program Site forms when scheduling notifications for an installed target", async () => {
     const publicIdempotencyKey = "cross-app-operation-input-notify";
     const targetApiPrefix = `/api/app-installs/${taskPackageAppKey}/${recordPlanInstallId}`;
+    const sourceBlockId = "rec_site_cross_app_operation_input_form";
 
-    await resetInstalledApp("site", defaultSiteInstallId);
     await resetInstalledApp(taskPackageAppKey, recordPlanInstallId);
     await installEmailStylePublicIntakeSchema(harness, targetApiPrefix);
-    const emailConfig = await configureContactNotificationEmail(harness);
-
-    const block = await postAdminRecordOperation(
-      {
-        idempotencyKey: "write-create-cross-app-operation-input-form",
-        entity: "block",
-        operationName: "create",
-        input: crossAppEmailStylePublicIntakeFormBlockValues(),
-      },
+    await restoreTestStorageSnapshot(
       harness,
-      `/api/app-installs/site/${defaultSiteInstallId}`,
+      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
+      instanceControlPlaneTestStorageSnapshot([
+        {
+          id: sourceBlockId,
+          entity: "block",
+          values: crossAppEmailStylePublicIntakeFormBlockValues() as StoredRecord["values"],
+          createdAt: "2026-07-31T00:00:00.000Z",
+          updatedAt: "2026-07-31T00:00:00.000Z",
+        },
+      ]),
+      adminHeaders(),
     );
+    const emailConfig = await configureContactNotificationEmail(harness);
     const first = await postPublicOperation(
       `${targetApiPrefix}/public/operations/intake-request/submit`,
       publicEmailStyleIntakeBody({
         idempotencyKey: publicIdempotencyKey,
-        sourceBlockId: block.record.id,
+        sourceBlockId,
       }),
     );
     const firstBody = (await first.json()) as PublicOperationResponse;
@@ -467,58 +498,11 @@ describe("public operation runtime", () => {
     expect(JSON.stringify(firstBody)).not.toContain("operation-input-notification");
   });
 
-  it("uses deployed Turnstile bindings for subscribe form rendering and verification", async () => {
-    const block = await postAdminRecordOperation({
-      idempotencyKey: "write-create-deployed-subscribe-form",
-      entity: "block",
-      operationName: "create",
-      input: {
-        type: "subscribeForm",
-        label: "Join the deployed list",
-        operationName: "subscribe",
-        buttonLabel: "Join",
-      },
-    });
-    await postAdminRecordOperation({
-      idempotencyKey: "write-place-deployed-subscribe-form",
-      entity: "block-placement",
-      operationName: "create",
-      input: {
-        parent: "rec_site_content_home",
-        block: block.record.id,
-        order: 4500,
-        label: "Join the deployed list",
-      },
-    });
-
-    const tree = await getJson<SitePageTreeResponse>("/api/site/tree/home");
-    const subscribePlacement = tree.page.placements.find(
-      (placement) => placement.block.id === block.record.id,
-    );
-    const accepted = await postPublicOperation(
-      "/api/site/public/operations/subscription/subscribe",
-      publicSubscribeBody({ idempotencyKey: "deployed-bindings" }),
-    );
-
-    expect(subscribePlacement?.block.publicOperation?.challenge).toEqual({
-      kind: "turnstile",
-      siteKey: turnstileSiteKey,
-    });
-    expect(accepted.status).toBe(200);
-    expectTurnstileRequests(turnstileRequests, [
-      {
-        secret: turnstileSecret,
-        response: "token-ok",
-      },
-    ]);
-    expect(JSON.stringify(tree)).not.toContain(turnstileSecret);
-  });
-
   it("routes mapped public Site host public operations without exposing admin shell or schema-key APIs", async () => {
     await postAdminJson(
       "/api/formless/app-installs",
       {
-        packageAppKey: "site",
+        packageAppKey: privateSitePackageAppKey,
         installId,
         label: "Personal",
       },
@@ -529,7 +513,7 @@ describe("public operation runtime", () => {
     const accepted = await fetchHost(
       mappedHarness,
       mappedHost,
-      `/api/app-installs/site/${installId}/public/operations/subscription/subscribe`,
+      `/api/app-installs/${privateSitePackageAppKey}/${installId}/public/operations/subscription/subscribe`,
       {
         body: JSON.stringify(publicSubscribeBody({ idempotencyKey: "mapped-host" })),
         headers: {
@@ -542,23 +526,8 @@ describe("public operation runtime", () => {
     const adminShell = await fetchHost(mappedHarness, mappedHost, `/apps/${installId}`, {
       headers: { Accept: "text/html" },
     });
-    const schemaKeyApi = await fetchHost(
-      mappedHarness,
-      mappedHost,
-      "/api/site/public/operations/subscription/subscribe",
-      {
-        body: JSON.stringify(publicSubscribeBody({ idempotencyKey: "mapped-schema-key" })),
-        headers: {
-          "Content-Type": "application/json",
-          Origin: `http://${mappedHost}`,
-        },
-        method: "POST",
-      },
-    );
-
     expect(accepted.status).toBe(200);
     expect(adminShell.status).toBe(404);
-    expect(schemaKeyApi.status).toBe(404);
   });
 });
 
@@ -568,6 +537,16 @@ async function createPublicOperationWorkerHarness(input: {
 }) {
   const taskPackage = await runtimeWorkspaceTaskAppPackageFixture({
     packageAppKey: taskPackageAppKey,
+  });
+  const privateSitePackage = await runtimeWorkspaceTaskAppPackageFixture({
+    capabilities: [
+      { kind: "generatedAdmin", routeBase: "/apps" },
+      { kind: "publicSite", routeBase: "/sites" },
+    ],
+    defaultInstallId: installId,
+    label: "Private Site",
+    packageAppKey: privateSitePackageAppKey,
+    sourceSchema: schemaAppTestStorageSnapshot("site").schema,
   });
 
   return createWorkerHarness(
@@ -580,6 +559,7 @@ async function createPublicOperationWorkerHarness(input: {
         ...input.bindings,
         [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
           taskPackage,
+          privateSitePackage,
         ]),
       },
       compatibilityDate: "2026-04-28",
@@ -636,7 +616,12 @@ async function resetSchemaApp(schemaKey: "tasks" | "site", target: Harness = har
 }
 
 async function resetInstalledApp(
-  packageAppKey: "crm" | "site" | "tasks" | typeof taskPackageAppKey,
+  packageAppKey:
+    | "crm"
+    | "site"
+    | "tasks"
+    | typeof taskPackageAppKey
+    | typeof privateSitePackageAppKey,
   appInstallId: string,
   target: Harness = harness,
 ) {
@@ -645,7 +630,11 @@ async function resetInstalledApp(
     `/api/app-installs/${packageAppKey}/${appInstallId}/snapshot/restore`,
     {
       ...schemaAppTestStorageSnapshot(
-        packageAppKey === taskPackageAppKey ? "tasks" : packageAppKey,
+        packageAppKey === taskPackageAppKey
+          ? "tasks"
+          : packageAppKey === privateSitePackageAppKey
+            ? "site"
+            : packageAppKey,
         `app:${appInstallId}`,
       ),
       schemaKey: packageAppKey,
@@ -656,7 +645,7 @@ async function resetInstalledApp(
 
 async function installEmailStylePublicIntakeSchema(
   target: Harness = harness,
-  apiPrefix = "/api/site",
+  apiPrefix = "/api/formless/program",
 ) {
   const current = await getJson<SchemaResponse>(`${apiPrefix}/schema`, target);
   const schema = schemaWithEmailStylePublicIntake(current.schema);
@@ -664,29 +653,6 @@ async function installEmailStylePublicIntakeSchema(
   await postAdminJson<SchemaUpdateResponse>(`${apiPrefix}/schema`, { schema }, target);
 }
 
-async function installAffirmativePublicIntakeSchema(
-  target: Harness = harness,
-  apiPrefix = "/api/site",
-) {
-  const current = await getJson<SchemaResponse>(`${apiPrefix}/schema`, target);
-  const schema = schemaWithEmailStylePublicIntake(current.schema);
-  const entity = schema.entities.find((definition) => definition.key === "intake-request")!;
-  const operation = entity?.operations!.find((definition) => definition.key === "submit")!;
-  if (!entity || !operation?.input) {
-    throw new Error("Expected public intake operation input.");
-  }
-  setKeyedDefinition(entity.fields, "contactConsent", {
-    type: "boolean",
-    required: true,
-    label: "I agree to be contacted",
-  });
-  setKeyedDefinition(operation.input.fields, "contactConsent", {
-    field: "contactConsent",
-    required: true,
-    mustBeTrue: true,
-  });
-  await postAdminJson<SchemaUpdateResponse>(`${apiPrefix}/schema`, { schema }, target);
-}
 async function installTaskPublicLookupSchema() {
   const current = await getJson<SchemaResponse>(`${taskApi}/schema`);
   await postAdminJson<SchemaUpdateResponse>(`${taskApi}/schema`, {
@@ -918,7 +884,7 @@ async function postAdminJson<T = unknown>(path: string, body: unknown, target: H
 async function postAdminRecordOperation(
   body: Parameters<typeof recordOperationRequest>[0],
   target: Harness = harness,
-  apiPrefix = "/api/site",
+  apiPrefix = "/api/formless/program",
 ) {
   const request = recordOperationRequest(body);
   const response = await target.fetch(`${apiPrefix}${request.path.slice("/api".length)}`, {

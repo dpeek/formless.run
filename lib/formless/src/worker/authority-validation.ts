@@ -1331,6 +1331,21 @@ function validateInstanceControlPlaneMountRoute(
     throw new BadRequestError('Field "targetProfile" is invalid for mount routes.');
   }
 
+  if (targetProfile === "app" && appInstall === undefined) {
+    throw new BadRequestError(`Field "appInstall" is required for ${targetProfile} mount routes.`);
+  }
+
+  if (targetProfile === "public-site" && surface !== "public-site") {
+    throw new BadRequestError(
+      'Field "surface" must be "public-site" for public-site mount routes.',
+    );
+  }
+
+  if (targetProfile === "public-site" && appInstall === undefined) {
+    validateHostMountedPublicSiteRoute(matchHost, matchPath, matchPrefix);
+    return;
+  }
+
   if (appInstall === undefined) {
     throw new BadRequestError(`Field "appInstall" is required for ${targetProfile} mount routes.`);
   }
@@ -1357,12 +1372,6 @@ function validateInstanceControlPlaneMountRoute(
     return;
   }
 
-  if (surface !== "public-site") {
-    throw new BadRequestError(
-      'Field "surface" must be "public-site" for public-site mount routes.',
-    );
-  }
-
   const packageAppKey = optionalStringRecordValue(install.values, "packageAppKey");
   const packageApp =
     packageAppKey === undefined
@@ -1379,6 +1388,14 @@ function validateInstanceControlPlaneMountRoute(
     );
   }
 
+  validateHostMountedPublicSiteRoute(matchHost, matchPath, matchPrefix);
+}
+
+function validateHostMountedPublicSiteRoute(
+  matchHost: string | undefined,
+  matchPath: string,
+  matchPrefix: string | undefined,
+) {
   if (matchHost !== undefined && (matchPath !== "/" || matchPrefix !== "/")) {
     throw new BadRequestError(
       'Host-mounted public Site routes must set field "matchPath" to "/" and field "matchPrefix" to "/".',

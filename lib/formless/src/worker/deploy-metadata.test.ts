@@ -35,11 +35,6 @@ describe("Worker deploy metadata", () => {
     await expect(response?.json()).resolves.toEqual({
       packageApps: [
         {
-          packageAppKey: "site",
-          packageRevision: 1,
-          sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
-        },
-        {
           packageAppKey: "crm",
           packageRevision: 1,
           sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,

@@ -1,6 +1,12 @@
 import { computeSourceSchemaHash, parseAppPackageManifest } from "@dpeek/formless-installed-apps";
 import { parseAppSchema } from "@dpeek/formless-schema";
+import type { StoredRecord } from "@dpeek/formless-storage";
 import { describe, expect, it } from "vite-plus/test";
+import {
+  reviewableSiteRecords,
+  siteEntityIds,
+  validateSiteRecords,
+} from "@dpeek/formless-site-app";
 import rawAppPackageManifest from "@dpeek/formless-site-app/formless.app.json";
 import {
   sitePresentationSchemaModule,
@@ -143,4 +149,30 @@ describe("Site schema authoring", () => {
     });
     expect(await computeSourceSchemaHash(siteSchemaSource)).toBe(manifest.sourceSchemaHash);
   });
+
+  it("owns all Site stable identities and preserves active and tombstoned records", () => {
+    const records = siteRecordSchemaModule.entities.map(({ key }, index) => ({
+      ...storedRecord(`site-record:${index}`, key, { z: "discarded" }),
+      ...(index % 2 === 0 ? {} : { deletedAt: "2026-07-31T01:00:00.000Z" }),
+    }));
+
+    expect(siteEntityIds).toEqual(siteRecordSchemaModule.entities.map(({ id }) => id));
+    expect(() => validateSiteRecords("Site records", records)).not.toThrow();
+    expect(reviewableSiteRecords([...records].reverse())).toEqual(records);
+    expect(() =>
+      validateSiteRecords("Site records", [storedRecord("site-record:foreign", "app-install", {})]),
+    ).toThrow(
+      'Site records does not support entity "app-install" for record "site-record:foreign".',
+    );
+  });
 });
+
+function storedRecord(id: string, entity: string, values: StoredRecord["values"]): StoredRecord {
+  return {
+    id,
+    entity,
+    values,
+    createdAt: "2026-07-31T00:00:00.000Z",
+    updatedAt: "2026-07-31T00:00:00.000Z",
+  };
+}
