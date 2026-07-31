@@ -31,7 +31,6 @@ import {
 import { formatGeneratedWorkspaceCount } from "./workspace-projection.ts";
 import {
   installedAppWorldMountFromInstall,
-  isInstalledSitePublicRoutePath,
   isRuntimePublicSiteRoute,
   normalizeRuntimeBrowserPath,
   runtimeBrowserRoutePatterns,
@@ -103,8 +102,7 @@ export function selectGeneratedShellScope({
     path === COLLABORATOR_INVITATION_ACCEPT_PATH ||
     path === routes.localSessionRoute ||
     runtimeProfile.shell === "publishedSite" ||
-    isRuntimePublicSiteRoute(runtimeProfile, path, routeContext) ||
-    isInstalledSitePublicRoutePath(runtimeProfile, path)
+    isRuntimePublicSiteRoute(runtimeProfile, path, routeContext)
   ) {
     return undefined;
   }

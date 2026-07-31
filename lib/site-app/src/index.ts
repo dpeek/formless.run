@@ -94,12 +94,7 @@ export type {
   PublicSiteRouteEntry,
 } from "./public-indexing.ts";
 export { projectSitePublicOperationBlock } from "./public-operation-block-projection.ts";
-export type {
-  SitePublicOperationBlockProjectionInput,
-  SitePublicOperationTargetResolver,
-  SitePublicOperationTargetRequest,
-  SitePublicOperationTargetResolution,
-} from "./public-operation-block-projection.ts";
+export type { SitePublicOperationBlockProjectionInput } from "./public-operation-block-projection.ts";
 export {
   normalizeSiteRoutePath,
   resolveSiteRoute,

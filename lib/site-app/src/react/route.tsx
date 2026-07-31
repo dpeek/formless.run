@@ -179,7 +179,7 @@ export function startSitePageRouteSession({
 }
 
 function usesPreviewSync(linkMode: SitePageLinkMode): boolean {
-  return linkMode === "preview" || linkMode === "authoring" || linkMode === "installed";
+  return linkMode === "preview" || linkMode === "authoring";
 }
 
 function sitePageRouteInitialState({

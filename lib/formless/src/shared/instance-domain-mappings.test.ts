@@ -50,7 +50,7 @@ describe("instance domain mapping evidence contracts", () => {
 
   it("sorts route-derived mappings deterministically", () => {
     const mappings: InstanceDomainMapping[] = [
-      mapping({ host: "www.example.com", profile: "publicSite", targetInstallId: "site" }),
+      mapping({ host: "www.example.com", profile: "publicSite" }),
       mapping({ host: "admin.example.com", profile: "instance" }),
       mapping({ host: "www.example.com", profile: "app", targetInstallId: "tasks" }),
     ];
@@ -58,18 +58,15 @@ describe("instance domain mapping evidence contracts", () => {
     expect(listInstanceDomainMappings(mappings)).toEqual([
       mapping({ host: "admin.example.com", profile: "instance" }),
       mapping({ host: "www.example.com", profile: "app", targetInstallId: "tasks" }),
-      mapping({ host: "www.example.com", profile: "publicSite", targetInstallId: "site" }),
+      mapping({ host: "www.example.com", profile: "publicSite" }),
     ]);
   });
 
   it("builds Cloudflare applied state only for an existing route-derived mapping", () => {
     const result = buildInstanceDomainMappingAppliedState({
-      existingMappings: [
-        mapping({ host: "www.example.com", profile: "publicSite", targetInstallId: "personal" }),
-      ],
+      existingMappings: [mapping({ host: "www.example.com", profile: "publicSite" })],
       host: "WWW.Example.COM.",
       profile: "publicSite",
-      targetInstallId: "personal",
       provider: "cloudflare-worker-custom-domain",
       accountId: "account-123",
       zoneId: "zone-1",
@@ -86,8 +83,6 @@ describe("instance domain mapping evidence contracts", () => {
         host: "www.example.com",
         profile: "publicSite",
         surface: "site",
-        targetInstallId: "personal",
-        installId: "personal",
         provider: "cloudflare-worker-custom-domain",
         accountId: "account-123",
         zoneId: "zone-1",
@@ -105,7 +100,6 @@ describe("instance domain mapping evidence contracts", () => {
         existingMappings: [],
         host: "missing.example.com",
         surface: "site",
-        installId: "personal",
         provider: "cloudflare-worker-custom-domain",
         accountId: "account-123",
         zoneId: "zone-1",

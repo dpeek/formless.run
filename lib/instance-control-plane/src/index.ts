@@ -139,9 +139,7 @@ export type InstanceControlPlaneAppInstallValues = {
   storageIdentity: `app:${AppInstallId}`;
 };
 
-export type InstanceControlPlaneAppRouteKind = "admin" | "publicSite";
-export type InstanceControlPlaneAppRouteCapability = "generatedApp" | "publicSite";
-export type InstanceControlPlaneAppRouteSurface = "admin" | "publicSite";
+export type InstanceControlPlaneAppRouteKind = "admin";
 export type InstanceControlPlaneRouteKind = "mount" | "redirect";
 export type InstanceControlPlaneRouteSurface = "admin" | "public-site";
 export type InstanceControlPlaneRouteTargetProfile = "app" | "instance" | "public-site";
@@ -1662,11 +1660,10 @@ function appInstallFromControlPlaneRecord(
     registrationPolicy,
     record.id,
   );
-  const routes = appInstallRoutesFromControlPlaneRoutes(routeRecords, packageApp);
+  const routes = appInstallRoutesFromControlPlaneRoutes(routeRecords);
   const hasRouteRecords = routeRecords.length > 0;
   const adminRoute =
     enabledRoutePath(routes, "admin") ?? `${packageApp.adminRouteBase}/${installId}`;
-  const publicRoute = enabledAppInstallRoute(routes, "publicSite");
   const launchLinks = appInstallLaunchLinks({
     installId,
     label,
@@ -1692,18 +1689,6 @@ function appInstallFromControlPlaneRecord(
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     adminRoute,
-    ...(publicRoute
-      ? {
-          publicRoute: publicRoute.path,
-          publicRoutePrefix:
-            publicRoute.prefix ?? (`${publicRoute.path.replace(/\/+$/, "")}/` as `/${string}/`),
-        }
-      : packageApp.publicRouteBase === undefined || hasRouteRecords
-        ? {}
-        : {
-            publicRoute: `${packageApp.publicRouteBase}/${installId}`,
-            publicRoutePrefix: `${packageApp.publicRouteBase}/${installId}/`,
-          }),
     ...(hasRouteRecords ? { routes } : {}),
     ...(launchLinks.length > 0 ? { launchLinks } : {}),
   };
@@ -1759,13 +1744,10 @@ function appInstallRoutesFromControlPlaneRoutes(
     id: string;
     values: InstanceControlPlaneRouteValues;
   }[],
-  packageApp: {
-    publicRouteBase?: "/sites";
-  },
 ): AppInstallRoute[] {
   return routeRecords
     .flatMap((record) => {
-      const route = appInstallRouteFromControlPlaneRoute(record.id, record.values, packageApp);
+      const route = appInstallRouteFromControlPlaneRoute(record.id, record.values);
 
       return route ? [route] : [];
     })
@@ -1775,15 +1757,12 @@ function appInstallRoutesFromControlPlaneRoutes(
 function appInstallRouteFromControlPlaneRoute(
   id: string,
   values: InstanceControlPlaneRouteValues,
-  packageApp: {
-    publicRouteBase?: "/sites";
-  },
 ): AppInstallRoute | undefined {
   if (values.kind !== "mount") {
     return undefined;
   }
 
-  const routeKind = appInstallRouteKindFromRouteValues(values, packageApp);
+  const routeKind = appInstallRouteKindFromRouteValues(values);
 
   if (routeKind === undefined) {
     return undefined;
@@ -1811,26 +1790,13 @@ function appInstallRouteKindOrder(kind: AppInstallRouteKind) {
   switch (kind) {
     case "admin":
       return 0;
-    case "publicSite":
-      return 1;
   }
 }
 function appInstallRouteKindFromRouteValues(
   values: Pick<InstanceControlPlaneRouteValues, "surface" | "targetProfile">,
-  packageApp: {
-    publicRouteBase?: "/sites";
-  },
 ): AppInstallRouteKind | undefined {
   if (values.surface === "admin" && values.targetProfile === "app") {
     return "admin";
-  }
-
-  if (
-    values.surface === "public-site" &&
-    values.targetProfile === "public-site" &&
-    packageApp.publicRouteBase !== undefined
-  ) {
-    return "publicSite";
   }
 
   return undefined;
@@ -1842,7 +1808,6 @@ function appInstallLaunchLinks(input: {
   packageApp: {
     adminRouteBase: "/apps";
     packageAppKey: PackageAppKey;
-    publicRouteBase?: "/sites";
   };
   routeRecords: {
     id: string;
@@ -1870,7 +1835,6 @@ function appInstallLaunchLinkFromControlPlaneRoute(
     label: string;
     packageApp: {
       packageAppKey: PackageAppKey;
-      publicRouteBase?: "/sites";
     };
   },
 ): AppInstallLaunchLink | undefined {
@@ -1878,7 +1842,7 @@ function appInstallLaunchLinkFromControlPlaneRoute(
     return undefined;
   }
 
-  const routeKind = appInstallRouteKindFromRouteValues(values, input.packageApp);
+  const routeKind = appInstallRouteKindFromRouteValues(values);
 
   if (routeKind === undefined) {
     return undefined;
@@ -1902,7 +1866,6 @@ function defaultAppInstallLaunchLinks(input: {
   packageApp: {
     adminRouteBase: "/apps";
     packageAppKey: PackageAppKey;
-    publicRouteBase?: "/sites";
   };
 }): AppInstallLaunchLink[] {
   return [
@@ -1914,18 +1877,6 @@ function defaultAppInstallLaunchLinks(input: {
       packageAppKey: input.packageApp.packageAppKey,
       routeKind: "admin",
     },
-    ...(input.packageApp.publicRouteBase === undefined
-      ? []
-      : [
-          {
-            access: "anonymous" as const,
-            href: `${input.packageApp.publicRouteBase}/${input.installId}` as `/${string}`,
-            installId: input.installId,
-            label: input.label,
-            packageAppKey: input.packageApp.packageAppKey,
-            routeKind: "publicSite" as const,
-          },
-        ]),
   ];
 }
 
@@ -2017,7 +1968,7 @@ export function instanceControlPlaneAppRouteId(
   installId: AppInstallId,
   routeKind: InstanceControlPlaneAppRouteKind,
 ): string {
-  return `route:${installId}:${routeKind === "publicSite" ? "public-site" : routeKind}`;
+  return `route:${installId}:${routeKind}`;
 }
 
 export function instanceControlPlaneDefaultRoutesForInstall(input: {
@@ -2031,7 +1982,6 @@ export function instanceControlPlaneDefaultRoutesForInstall(input: {
     : undefined;
   const adminRouteBase = packageApp?.adminRouteBase ?? "/apps";
   const adminRoute = `${adminRouteBase}/${input.installId}` as `/${string}`;
-  const publicRouteBase = packageApp?.publicRouteBase;
   const routeInput = { install: { installId: input.installId }, now: input.now };
   const adminRouteRecord = mountRouteRecord(routeInput, {
     access: "authenticated",
@@ -2042,29 +1992,14 @@ export function instanceControlPlaneDefaultRoutesForInstall(input: {
     targetProfile: "app",
   });
 
-  if (publicRouteBase === undefined) {
-    return [adminRouteRecord];
-  }
-
-  return [
-    adminRouteRecord,
-    mountRouteRecord(routeInput, {
-      matchPath: `${publicRouteBase}/${input.installId}`,
-      matchPrefix: `${publicRouteBase}/${input.installId}/`,
-      surface: "public-site",
-      targetProfile: "public-site",
-    }),
-  ];
+  return [adminRouteRecord];
 }
 
 export function instanceControlPlaneRouteRecordsForAppInstall(input: {
-  install: Pick<
-    AppInstall,
-    "adminRoute" | "installId" | "packageAppKey" | "publicRoute" | "publicRoutePrefix"
-  >;
+  install: Pick<AppInstall, "adminRoute" | "installId" | "packageAppKey">;
   now: string;
 }): InstanceControlPlaneRecord<"route", InstanceControlPlaneRouteValues>[] {
-  const records = [
+  return [
     mountRouteRecord(input, {
       access: "authenticated",
       matchPath: input.install.adminRoute,
@@ -2074,21 +2009,6 @@ export function instanceControlPlaneRouteRecordsForAppInstall(input: {
       targetProfile: "app",
     }),
   ];
-
-  if (input.install.publicRoute !== undefined) {
-    records.push(
-      mountRouteRecord(input, {
-        matchPath: input.install.publicRoute,
-        matchPrefix:
-          input.install.publicRoutePrefix ??
-          (`${input.install.publicRoute.replace(/\/+$/, "")}/` as `/${string}/`),
-        surface: "public-site",
-        targetProfile: "public-site",
-      }),
-    );
-  }
-
-  return records;
 }
 
 export function isInstanceControlPlaneRouteSafePath(path: string): path is `/${string}` {
@@ -2117,10 +2037,7 @@ function mountRouteRecord(
   return {
     createdAt: input.now,
     entity: "route",
-    id: instanceControlPlaneAppRouteId(
-      input.install.installId,
-      route.surface === "public-site" ? "publicSite" : route.surface,
-    ),
+    id: instanceControlPlaneAppRouteId(input.install.installId, "admin"),
     updatedAt: input.now,
     values: {
       enabled: true,
@@ -2427,7 +2344,7 @@ export function validateInstanceControlPlaneRecords(
 
   validateInstanceControlPlaneUniqueConstraints(context, records);
   validateInstanceSettingsSingleton(context, records);
-  assertInstanceControlPlaneRoutesAreValid(context, records, options);
+  assertInstanceControlPlaneRoutesAreValid(context, records);
 }
 
 export function reviewableInstanceControlPlaneRecordValues(
@@ -2994,7 +2911,6 @@ function validateEmailSenderRecord(
 function assertInstanceControlPlaneRoutesAreValid(
   context: string,
   records: readonly StoredRecord[],
-  options: InstanceControlPlaneRecordValidationOptions,
 ) {
   const activeRecords = new Map(
     records.filter((record) => !record.deletedAt).map((record) => [record.id, record]),
@@ -3005,7 +2921,7 @@ function assertInstanceControlPlaneRoutesAreValid(
   );
 
   for (const route of routes) {
-    validateSourceRoute(context, route, activeRecords, routes, options);
+    validateSourceRoute(context, route, activeRecords, routes);
   }
 }
 
@@ -3014,7 +2930,6 @@ function validateSourceRoute(
   route: StoredRecord,
   activeRecords: ReadonlyMap<string, StoredRecord>,
   routes: readonly StoredRecord[],
-  options: InstanceControlPlaneRecordValidationOptions,
 ) {
   const matchHost = optionalStringValue(context, route, "matchHost");
   const matchPath = requiredStringValue(context, route, "matchPath");
@@ -3039,15 +2954,7 @@ function validateSourceRoute(
   }
 
   if (kind === "mount") {
-    validateSourceMountRoute(
-      context,
-      route,
-      activeRecords,
-      matchHost,
-      matchPath,
-      matchPrefix,
-      options,
-    );
+    validateSourceMountRoute(context, route, activeRecords, matchHost, matchPath, matchPrefix);
   } else if (kind === "redirect") {
     validateSourceRedirectRoute(context, route, matchHost);
   } else {
@@ -3106,7 +3013,6 @@ function validateSourceMountRoute(
   matchHost: string | undefined,
   matchPath: string,
   matchPrefix: string | undefined,
-  options: InstanceControlPlaneRecordValidationOptions,
 ) {
   const targetProfile = optionalStringValue(context, route, "targetProfile");
   const appInstall = optionalStringValue(context, route, "appInstall");
@@ -3160,7 +3066,13 @@ function validateSourceMountRoute(
     );
   }
 
-  if (targetProfile === "public-site" && appInstall === undefined) {
+  if (targetProfile === "public-site") {
+    if (appInstall !== undefined) {
+      throw new Error(
+        `${context} route "${route.id}" field "${controlPlaneFieldLabel(route, "appInstall")}" is incompatible with public-site mount routes.`,
+      );
+    }
+
     assertHostMountedPublicSiteRoute(context, route, matchHost, matchPath, matchPrefix);
     return;
   }
@@ -3194,9 +3106,6 @@ function validateSourceMountRoute(
 
     return;
   }
-
-  assertInstallSupportsPublicSiteRoute(context, route, install, appInstall, options);
-  assertHostMountedPublicSiteRoute(context, route, matchHost, matchPath, matchPrefix);
 }
 
 function assertHostMountedPublicSiteRoute(
@@ -3264,37 +3173,6 @@ function validateSourceRedirectRoute(
         `${context} route "${route.id}" field "${controlPlaneFieldLabel(route, fieldName)}" is required for redirect routes.`,
       );
     }
-  }
-}
-
-function assertInstallSupportsPublicSiteRoute(
-  context: string,
-  route: StoredRecord,
-  install: StoredRecord,
-  appInstall: string,
-  options: InstanceControlPlaneRecordValidationOptions,
-) {
-  const packageAppKey =
-    typeof install.values.packageAppKey === "string" ? install.values.packageAppKey : "";
-
-  if (options.packageResolver === undefined) {
-    throw new Error(
-      `${context} route "${route.id}" requires an active package resolver to validate public Site capability for app-install record "${appInstall}".`,
-    );
-  }
-
-  const packageApp = findResolvedAppPackage(packageAppKey, options.packageResolver);
-
-  if (packageApp === undefined) {
-    throw new Error(
-      `${context} route "${route.id}" field "${controlPlaneFieldLabel(route, "appInstall")}" references app-install record "${appInstall}" with unresolved package app "${packageAppKey}".`,
-    );
-  }
-
-  if (packageApp.publicRouteBase === undefined) {
-    throw new Error(
-      `${context} route "${route.id}" field "${controlPlaneFieldLabel(route, "appInstall")}" references app-install record "${appInstall}" without public Site capability.`,
-    );
   }
 }
 

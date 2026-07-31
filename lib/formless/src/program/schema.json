@@ -3787,30 +3787,6 @@
           "type": "text"
         },
         {
-          "key": "operationTargetKind",
-          "label": "Target route",
-          "required": false,
-          "type": "enum",
-          "values": [
-            {
-              "key": "appInstall",
-              "label": "Installed app"
-            }
-          ]
-        },
-        {
-          "key": "operationTargetPackageAppKey",
-          "label": "Target package app key",
-          "required": false,
-          "type": "text"
-        },
-        {
-          "key": "operationTargetInstallId",
-          "label": "Target install id",
-          "required": false,
-          "type": "text"
-        },
-        {
           "key": "buttonLabel",
           "label": "Button label",
           "required": false,
@@ -3992,18 +3968,6 @@
                 "key": "operationKey"
               },
               {
-                "field": "operationTargetKind",
-                "key": "operationTargetKind"
-              },
-              {
-                "field": "operationTargetPackageAppKey",
-                "key": "operationTargetPackageAppKey"
-              },
-              {
-                "field": "operationTargetInstallId",
-                "key": "operationTargetInstallId"
-              },
-              {
                 "field": "buttonLabel",
                 "key": "buttonLabel"
               },
@@ -4115,18 +4079,6 @@
               {
                 "field": "operationKey",
                 "key": "operationKey"
-              },
-              {
-                "field": "operationTargetKind",
-                "key": "operationTargetKind"
-              },
-              {
-                "field": "operationTargetPackageAppKey",
-                "key": "operationTargetPackageAppKey"
-              },
-              {
-                "field": "operationTargetInstallId",
-                "key": "operationTargetInstallId"
               },
               {
                 "field": "buttonLabel",
@@ -7037,29 +6989,6 @@
               "field": "body"
             },
             {
-              "commit": "immediate",
-              "editor": "enum",
-              "field": "operationTargetKind"
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetPackageAppKey",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetInstallId",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
               "commit": "field-commit",
               "editor": "text",
               "field": "operationKey"
@@ -7378,29 +7307,6 @@
               "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
-            },
-            {
-              "commit": "immediate",
-              "editor": "enum",
-              "field": "operationTargetKind"
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetPackageAppKey",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetInstallId",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
             },
             {
               "commit": "field-commit",
@@ -11662,9 +11568,6 @@
           "fields": [
             "label",
             "body",
-            "operationTargetKind",
-            "operationTargetPackageAppKey",
-            "operationTargetInstallId",
             "operationKey",
             "buttonLabel",
             "successLabel",
@@ -14210,26 +14113,6 @@
               "field": "body"
             },
             {
-              "editor": "enum",
-              "field": "operationTargetKind"
-            },
-            {
-              "editor": "text",
-              "field": "operationTargetPackageAppKey",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
-              "editor": "text",
-              "field": "operationTargetInstallId",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
               "editor": "text",
               "field": "operationKey"
             },
@@ -14643,29 +14526,6 @@
               "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
-            },
-            {
-              "commit": "immediate",
-              "editor": "enum",
-              "field": "operationTargetKind"
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetPackageAppKey",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetInstallId",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
             },
             {
               "commit": "field-commit",

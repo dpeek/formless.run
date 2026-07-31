@@ -128,8 +128,8 @@ describe("Cloudflare domain API client", () => {
       accountId: "account-123",
       client: fakeCloudflareDomainClient(),
       intents: [
-        { host: "dpeek.com", profile: "publicSite", targetInstallId: "david" },
-        { host: "www.dpeek.com", profile: "publicSite", targetInstallId: "david" },
+        { host: "dpeek.com", profile: "publicSite" },
+        { host: "www.dpeek.com", profile: "publicSite" },
       ],
       policy: "create-only",
       workerName: "personal",
@@ -186,7 +186,7 @@ describe("Cloudflare domain API client", () => {
             : [],
         listWorkerRoutes: async () => [],
       },
-      intents: [{ host: "dpeek.com", profile: "publicSite", targetInstallId: "david" }],
+      intents: [{ host: "dpeek.com", profile: "publicSite" }],
       policy: "create-only",
       workerName: "personal",
     });
@@ -222,7 +222,7 @@ describe("Cloudflare domain API client", () => {
         ],
         listWorkerRoutes: async () => [],
       },
-      intents: [{ host: "old.dpeek.com", profile: "publicSite", targetInstallId: "david" }],
+      intents: [{ host: "old.dpeek.com", profile: "publicSite" }],
       policy: "override",
       workerName: "personal",
     });

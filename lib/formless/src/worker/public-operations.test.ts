@@ -1,41 +1,22 @@
-import { setKeyedDefinition } from "../test/schema-definition-test-helpers.ts";
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 import type { StoredRecord } from "@dpeek/formless-storage";
-import type { AppSchema } from "@dpeek/formless-schema";
 import { INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID } from "@dpeek/formless-instance-control-plane";
 import type {
   BootstrapResponse,
   PublicOperationResponse,
-  SchemaResponse,
-  SchemaUpdateResponse,
   SyncResponse,
 } from "../shared/protocol.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import {
   instanceControlPlaneTestStorageSnapshot,
-  recordOperationRequest,
   operationWriteRequest,
   restoreTestStorageSnapshot,
-  schemaAppTestStorageSnapshot,
 } from "../test/authority-write.ts";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
-import {
-  emailStylePublicIntakeFormBlockId,
-  emailStylePublicIntakeFormBlockValues,
-  emailStylePublicIntakeInput,
-  emailStylePublicIntakeOperationKey,
-  schemaWithEmailStylePublicIntake,
-} from "../test/public-intake-schema.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
-import {
-  FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
-  formatRuntimeWorkspaceAppPackages,
-} from "../shared/workspace-runtime-packages.ts";
-import { runtimeWorkspaceTaskAppPackageFixture } from "../test/workspace-app-package.ts";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
-type DispatchFetchInit = Parameters<Harness["mf"]["dispatchFetch"]>[1];
 type TurnstileVerifyRequest = {
   idempotency_key?: unknown;
   response?: unknown;
@@ -45,15 +26,8 @@ type TurnstileVerifyRequest = {
 const adminToken = "test-admin-token";
 const turnstileSiteKey = "test-turnstile-site-key";
 const turnstileSecret = "test-turnstile-secret";
-const mappedHost = "subscribe.example.com";
-const installId = "personal";
-const recordPlanInstallId = "public-intake";
-const taskPackageAppKey = "test-tasks";
-const privateSitePackageAppKey = "private-site";
-const taskApi = `/api/app-installs/${taskPackageAppKey}/test-tasks`;
 
 let harness: Harness;
-let mappedHarness: Harness;
 let turnstileRequests: TurnstileVerifyRequest[];
 
 beforeAll(async () => {
@@ -65,21 +39,11 @@ beforeAll(async () => {
     },
     turnstileVerify: turnstileVerifyResponse,
   });
-  mappedHarness = await createPublicOperationWorkerHarness({
-    bindings: {
-      FORMLESS_ADMIN_TOKEN: adminToken,
-      FORMLESS_RUNTIME_PROFILE: "instance",
-      FORMLESS_TURNSTILE_SECRET_KEY: turnstileSecret,
-    },
-    turnstileVerify: turnstileVerifyResponse,
-  });
 });
 
 beforeEach(async () => {
   turnstileRequests = [];
 
-  await resetSchemaApp("tasks");
-  await resetInstalledApp(privateSitePackageAppKey, installId);
   await restoreTestStorageSnapshot(
     harness,
     `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
@@ -90,7 +54,6 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await harness.dispose();
-  await mappedHarness.dispose();
 });
 
 describe("public operation runtime", () => {
@@ -236,17 +199,17 @@ describe("public operation runtime", () => {
     ]);
   });
 
-  it("supports installed app public operation routes with accepted replay idempotency", async () => {
+  it("replays Program public operations without repeating challenge or effects", async () => {
     const first = await postPublicOperation(
-      `/api/app-installs/${privateSitePackageAppKey}/${installId}/public/operations/subscription/subscribe`,
-      publicSubscribeBody({ idempotencyKey: "installed-replay" }),
+      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/public/operations/subscription/subscribe`,
+      publicSubscribeBody({ idempotencyKey: "program-replay" }),
     );
     const replay = await postPublicOperation(
-      `/api/app-installs/${privateSitePackageAppKey}/${installId}/public/operations/subscription/subscribe`,
-      publicSubscribeBody({ idempotencyKey: "installed-replay", token: "token-replay" }),
+      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/public/operations/subscription/subscribe`,
+      publicSubscribeBody({ idempotencyKey: "program-replay", token: "token-replay" }),
     );
     const after = await getJson<BootstrapResponse>(
-      `/api/app-installs/${privateSitePackageAppKey}/${installId}/bootstrap`,
+      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/bootstrap`,
     );
     const records = contactSubscriptionRecords(after.records);
 
@@ -255,10 +218,13 @@ describe("public operation runtime", () => {
     expect(records.emailAddresses).toHaveLength(1);
     expect(records.subscriptions).toHaveLength(1);
     expect(records.subscriptions[0]?.values).toMatchObject({
-      sourceTargetKind: "appInstall",
-      sourceInstallId: installId,
-      sourceApiRoutePrefix: `/api/app-installs/${privateSitePackageAppKey}/${installId}`,
+      sourceTargetKind: "program",
+      sourceSchemaKey: "formless-program",
+      sourceApiRoutePrefix: FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+      sourceOperationKey: "subscription.subscribe",
+      sourceSiteBlockId: "rec_site_subscribe_form",
     });
+    expect(records.subscriptions[0]?.values).not.toHaveProperty("sourceInstallId");
     expectTurnstileRequests(turnstileRequests, [
       {
         secret: turnstileSecret,
@@ -292,125 +258,10 @@ describe("public operation runtime", () => {
     ]);
   });
 
-  it("executes bounded challenge-free public reads with filtered rows and rate limits", async () => {
-    await installTaskPublicLookupSchema();
-    await postAdminRecordOperation(
-      {
-        idempotencyKey: "create-public-lookup-task-alpha",
-        entity: "task",
-        operationName: "create",
-        input: {
-          title: "Alpha certificate",
-          done: false,
-          verificationCode: "CODE-ALPHA",
-          reportNumber: "REPORT-1",
-          publicDeliveryReference: "delivery-alpha",
-          customerName: "Private customer",
-          providerStorageKey: "private/alpha.pdf",
-        },
-      },
-      harness,
-      taskApi,
-    );
-    await postAdminRecordOperation(
-      {
-        idempotencyKey: "create-public-lookup-task-second",
-        entity: "task",
-        operationName: "create",
-        input: {
-          title: "Second certificate",
-          done: false,
-          verificationCode: "CODE-ALPHA",
-          reportNumber: "REPORT-2",
-          publicDeliveryReference: "delivery-second",
-          customerName: "Second private customer",
-          providerStorageKey: "private/second.pdf",
-        },
-      },
-      harness,
-      taskApi,
-    );
-    const before = await getJson<BootstrapResponse>(`${taskApi}/bootstrap`);
-    const matched = await postPublicOperation(
-      `${taskApi}/public/operations/task/lookup`,
-      {
-        input: { lookup: "CODE-ALPHA" },
-      },
-      harness,
-      { "CF-Connecting-IP": "203.0.113.77" },
-    );
-    const empty = await postPublicOperation(
-      `${taskApi}/public/operations/task/lookup`,
-      {
-        input: { lookup: "NO-MATCH" },
-      },
-      harness,
-      { "CF-Connecting-IP": "203.0.113.77" },
-    );
-    const limited = await postPublicOperation(
-      `${taskApi}/public/operations/task/lookup`,
-      {
-        input: { lookup: "CODE-ALPHA" },
-      },
-      harness,
-      { "CF-Connecting-IP": "203.0.113.77" },
-    );
-    const after = await getJson<BootstrapResponse>(`${taskApi}/bootstrap`);
-    const matchedBody = (await matched.json()) as Record<string, unknown>;
-    const emptyBody = (await empty.json()) as Record<string, unknown>;
+  it("uses Program Site form source context when scheduling operation notifications", async () => {
+    const publicIdempotencyKey = "program-operation-input-notify";
+    const sourceBlockId = "rec_site_program_operation_input_form";
 
-    expect(matched.status).toBe(200);
-    expect(matchedBody).toMatchObject({
-      operation: {
-        entityName: "task",
-        operationName: "lookup",
-        canonicalKey: "task.lookup",
-        kind: "list",
-      },
-      output: {
-        type: "list",
-        records: [
-          {
-            verificationCode: "CODE-ALPHA",
-            reportNumber: "REPORT-1",
-            publicDeliveryReference: "delivery-alpha",
-          },
-        ],
-      },
-      status: "accepted",
-    });
-    expect(empty.status).toBe(200);
-    expect(emptyBody).toMatchObject({
-      output: {
-        type: "list",
-        records: [],
-      },
-      status: "accepted",
-    });
-    expect(limited.status).toBe(429);
-    expect(Number(limited.headers.get("Retry-After"))).toBeGreaterThan(0);
-    expect(await limited.json()).toEqual({
-      error: "Public operation rate limit exceeded.",
-    });
-    expect(after.records).toEqual(before.records);
-    expect(turnstileRequests).toEqual([]);
-
-    const serialized = JSON.stringify(matchedBody);
-    expect(serialized).not.toContain("Private customer");
-    expect(serialized).not.toContain("private/alpha.pdf");
-    expect(serialized).not.toContain(
-      before.records.find((record) => record.values.verificationCode === "CODE-ALPHA")?.id ??
-        "missing-private-record-id",
-    );
-  });
-
-  it("reads Program Site forms when scheduling notifications for an installed target", async () => {
-    const publicIdempotencyKey = "cross-app-operation-input-notify";
-    const targetApiPrefix = `/api/app-installs/${taskPackageAppKey}/${recordPlanInstallId}`;
-    const sourceBlockId = "rec_site_cross_app_operation_input_form";
-
-    await resetInstalledApp(taskPackageAppKey, recordPlanInstallId);
-    await installEmailStylePublicIntakeSchema(harness, targetApiPrefix);
     await restoreTestStorageSnapshot(
       harness,
       `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
@@ -418,7 +269,13 @@ describe("public operation runtime", () => {
         {
           id: sourceBlockId,
           entity: "block",
-          values: crossAppEmailStylePublicIntakeFormBlockValues() as StoredRecord["values"],
+          values: {
+            type: "publicOperationForm",
+            label: "Contact us",
+            operationKey: "contact-message.submit",
+            operationNotificationMode: "email",
+            operationNotificationReplyToField: "email",
+          },
           createdAt: "2026-07-31T00:00:00.000Z",
           updatedAt: "2026-07-31T00:00:00.000Z",
         },
@@ -427,28 +284,30 @@ describe("public operation runtime", () => {
     );
     const emailConfig = await configureContactNotificationEmail(harness);
     const first = await postPublicOperation(
-      `${targetApiPrefix}/public/operations/intake-request/submit`,
-      publicEmailStyleIntakeBody({
+      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/public/operations/contact-message/submit`,
+      publicContactMessageBody({
         idempotencyKey: publicIdempotencyKey,
         sourceBlockId,
       }),
     );
     const firstBody = (await first.json()) as PublicOperationResponse;
-    const after = await getJson<BootstrapResponse>(`${targetApiPrefix}/bootstrap`);
-    const requests = emailStyleIntakeRecords(after.records);
+    const after = await getJson<BootstrapResponse>(
+      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/bootstrap`,
+    );
+    const messages = contactMessageRecords(after.records);
 
     expect(first.status).toBe(200);
     expect(firstBody).toMatchObject({
-      invocationId: `operation:${emailStylePublicIntakeOperationKey}:${publicIdempotencyKey}`,
+      invocationId: `operation:contact-message.submit:${publicIdempotencyKey}`,
       operation: {
-        entityName: "intake-request",
+        entityName: "contact-message",
         operationName: "submit",
-        canonicalKey: emailStylePublicIntakeOperationKey,
+        canonicalKey: "contact-message.submit",
         kind: "create",
       },
       status: "committed",
     });
-    expect(requests).toHaveLength(1);
+    expect(messages).toHaveLength(1);
 
     if (firstBody.output.type !== "create") {
       throw new Error("Expected create output.");
@@ -467,7 +326,7 @@ describe("public operation runtime", () => {
     }>("/api/formless/email/deliveries/schedule", {
       canonicalOrigin: "https://www.example.com",
       idempotencyKey: operationInputNotificationIdempotencyKey(
-        emailStylePublicIntakeOperationKey,
+        "contact-message.submit",
         publicIdempotencyKey,
       ),
       message: {
@@ -481,7 +340,7 @@ describe("public operation runtime", () => {
       source: {
         operationId: firstBody.invocationId,
         recordId: firstBody.output.record.id,
-        storageIdentity: `app:${recordPlanInstallId}`,
+        storageIdentity: "instance:control-plane",
       },
     });
 
@@ -491,7 +350,7 @@ describe("public operation runtime", () => {
         messageKind: "site-operation-input-notification",
         sourceOperationId: firstBody.invocationId,
         sourceRecordId: firstBody.output.record.id,
-        sourceStorageIdentity: `app:${recordPlanInstallId}`,
+        sourceStorageIdentity: "instance:control-plane",
         status: "pending",
       },
     });
@@ -500,58 +359,12 @@ describe("public operation runtime", () => {
     expect(JSON.stringify(firstBody)).not.toContain("contact@mail.example.com");
     expect(JSON.stringify(firstBody)).not.toContain("operation-input-notification");
   });
-
-  it("routes mapped public Site host public operations without exposing admin shell or schema-key APIs", async () => {
-    await postAdminJson(
-      "/api/formless/app-installs",
-      {
-        packageAppKey: privateSitePackageAppKey,
-        installId,
-        label: "Personal",
-      },
-      mappedHarness,
-    );
-    await createMappedPublicSiteRoute(mappedHarness, mappedHost, installId);
-
-    const accepted = await fetchHost(
-      mappedHarness,
-      mappedHost,
-      `/api/app-installs/${privateSitePackageAppKey}/${installId}/public/operations/subscription/subscribe`,
-      {
-        body: JSON.stringify(publicSubscribeBody({ idempotencyKey: "mapped-host" })),
-        headers: {
-          "Content-Type": "application/json",
-          Origin: `http://${mappedHost}`,
-        },
-        method: "POST",
-      },
-    );
-    const adminShell = await fetchHost(mappedHarness, mappedHost, `/apps/${installId}`, {
-      headers: { Accept: "text/html" },
-    });
-    expect(accepted.status).toBe(200);
-    expect(adminShell.status).toBe(404);
-  });
 });
 
 async function createPublicOperationWorkerHarness(input: {
   bindings: Record<string, string>;
   turnstileVerify: (request: Request) => Promise<Response> | Response;
 }) {
-  const taskPackage = await runtimeWorkspaceTaskAppPackageFixture({
-    packageAppKey: taskPackageAppKey,
-  });
-  const privateSitePackage = await runtimeWorkspaceTaskAppPackageFixture({
-    capabilities: [
-      { kind: "generatedAdmin", routeBase: "/apps" },
-      { kind: "publicSite", routeBase: "/sites" },
-    ],
-    defaultInstallId: installId,
-    label: "Private Site",
-    packageAppKey: privateSitePackageAppKey,
-    sourceSchema: schemaAppTestStorageSnapshot("site").schema,
-  });
-
   return createWorkerHarness(
     "src/worker/index.ts",
     {
@@ -560,10 +373,6 @@ async function createPublicOperationWorkerHarness(input: {
     {
       bindings: {
         ...input.bindings,
-        [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
-          taskPackage,
-          privateSitePackage,
-        ]),
       },
       compatibilityDate: "2026-04-28",
       queueProducers: {
@@ -605,199 +414,6 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-async function resetSchemaApp(schemaKey: "tasks" | "site", target: Harness = harness) {
-  const taskSchema = schemaKey === "tasks";
-  await restoreTestStorageSnapshot(
-    target,
-    `${taskSchema ? taskApi : `/api/${schemaKey}`}/snapshot/restore`,
-    {
-      ...schemaAppTestStorageSnapshot(schemaKey, taskSchema ? "app:test-tasks" : schemaKey),
-      schemaKey: taskSchema ? taskPackageAppKey : schemaKey,
-    },
-    adminHeaders(),
-  );
-}
-
-async function resetInstalledApp(
-  packageAppKey:
-    | "crm"
-    | "site"
-    | "tasks"
-    | typeof taskPackageAppKey
-    | typeof privateSitePackageAppKey,
-  appInstallId: string,
-  target: Harness = harness,
-) {
-  await restoreTestStorageSnapshot(
-    target,
-    `/api/app-installs/${packageAppKey}/${appInstallId}/snapshot/restore`,
-    {
-      ...schemaAppTestStorageSnapshot(
-        packageAppKey === taskPackageAppKey
-          ? "tasks"
-          : packageAppKey === privateSitePackageAppKey
-            ? "site"
-            : packageAppKey,
-        `app:${appInstallId}`,
-      ),
-      schemaKey: packageAppKey,
-    },
-    adminHeaders(),
-  );
-}
-
-async function installEmailStylePublicIntakeSchema(
-  target: Harness = harness,
-  apiPrefix = "/api/formless/program",
-) {
-  const current = await getJson<SchemaResponse>(`${apiPrefix}/schema`, target);
-  const schema = schemaWithEmailStylePublicIntake(current.schema);
-
-  await postAdminJson<SchemaUpdateResponse>(`${apiPrefix}/schema`, { schema }, target);
-}
-
-async function installTaskPublicLookupSchema() {
-  const current = await getJson<SchemaResponse>(`${taskApi}/schema`);
-  await postAdminJson<SchemaUpdateResponse>(`${taskApi}/schema`, {
-    schema: schemaWithPublicTaskLookup(current.schema),
-  });
-}
-function schemaWithPublicTaskLookup(sourceSchema: AppSchema): AppSchema {
-  const schema = structuredClone(sourceSchema);
-  const task = schema.entities.find((definition) => definition.key === "task")!;
-  const create = task?.operations!.find((definition) => definition.key === "create")!;
-  if (!task || !create?.input) {
-    throw new Error("Expected Task create operation.");
-  }
-  const fields = [
-    ...task.fields,
-    {
-      key: "verificationCode",
-      type: "text" as const,
-      required: false,
-      label: "Verification code",
-    },
-    {
-      key: "reportNumber",
-      type: "text" as const,
-      required: false,
-      label: "Report number",
-    },
-    {
-      key: "publicDeliveryReference",
-      type: "text" as const,
-      required: false,
-      label: "Public delivery reference",
-    },
-    {
-      key: "customerName",
-      type: "text" as const,
-      required: false,
-      label: "Customer name",
-    },
-    {
-      key: "providerStorageKey",
-      type: "text" as const,
-      required: false,
-      label: "Provider storage key",
-    },
-  ];
-  setKeyedDefinition(schema.queries, "publicTaskLookup", {
-    label: "Public task lookup",
-    entity: "task",
-    expression: {
-      kind: "and",
-      expressions: [
-        {
-          kind: "where",
-          ref: { kind: "value", name: "done" },
-          op: "eq",
-          value: false,
-        },
-        {
-          kind: "or",
-          expressions: [
-            {
-              kind: "where",
-              ref: { kind: "value", name: "verificationCode" },
-              op: "eq",
-              value: { kind: "context", name: "lookup" },
-            },
-            {
-              kind: "where",
-              ref: { kind: "value", name: "reportNumber" },
-              op: "eq",
-              value: { kind: "context", name: "lookup" },
-            },
-          ],
-        },
-      ],
-    },
-  });
-  setKeyedDefinition(schema.entities, "task", {
-    ...task,
-    fields,
-    operations: [
-      ...(task.operations ?? []).map((operation) =>
-        operation.key === "create"
-          ? {
-              ...create,
-              input: {
-                fields: [
-                  ...create.input!.fields,
-                  { key: "verificationCode", field: "verificationCode" },
-                  { key: "reportNumber", field: "reportNumber" },
-                  {
-                    key: "publicDeliveryReference",
-                    field: "publicDeliveryReference",
-                  },
-                  { key: "customerName", field: "customerName" },
-                  { key: "providerStorageKey", field: "providerStorageKey" },
-                ],
-              },
-              key: "create",
-            }
-          : operation,
-      ),
-      {
-        key: "lookup",
-        label: "Lookup certificate",
-        kind: "list",
-        scope: "collection",
-        target: { query: "publicTaskLookup" },
-        input: {
-          fields: [
-            {
-              key: "lookup",
-              type: "text",
-              required: true,
-              label: "Verification code or report number",
-            },
-          ],
-        },
-        output: {
-          type: "list",
-          query: "publicTaskLookup",
-          maxResults: 1,
-        },
-        idempotency: { required: false },
-        audit: { input: "summary" },
-        policy: {
-          actors: ["anonymous"],
-          access: {
-            actor: "anonymous",
-            origin: { kind: "same-origin" },
-            rateLimit: { maxRequests: 2, windowSeconds: 60 },
-          },
-          responseFields: {
-            anonymous: ["verificationCode", "reportNumber", "publicDeliveryReference"],
-          },
-        },
-      },
-    ],
-  });
-  return schema;
-}
 function publicSubscribeBody(input: {
   idempotencyKey: string;
   input?: Record<string, unknown>;
@@ -815,6 +431,7 @@ function publicSubscribeBody(input: {
 function publicContactMessageBody(input: {
   idempotencyKey: string;
   input?: Record<string, unknown>;
+  sourceBlockId?: string;
   token?: string;
 }) {
   return {
@@ -824,21 +441,7 @@ function publicContactMessageBody(input: {
       message: "Please send details.",
     },
     proof: { turnstileToken: input.token ?? "token-ok" },
-    source: { siteBlockId: "rec_site_contact_form" },
-    idempotencyKey: input.idempotencyKey,
-  };
-}
-
-function publicEmailStyleIntakeBody(input: {
-  idempotencyKey: string;
-  input?: Record<string, unknown>;
-  sourceBlockId?: string;
-  token?: string;
-}) {
-  return {
-    input: input.input ?? emailStylePublicIntakeInput,
-    proof: { turnstileToken: input.token ?? "token-ok" },
-    source: { siteBlockId: input.sourceBlockId ?? emailStylePublicIntakeFormBlockId },
+    source: { siteBlockId: input.sourceBlockId ?? "rec_site_contact_form" },
     idempotencyKey: input.idempotencyKey,
   };
 }
@@ -854,10 +457,6 @@ function contactSubscriptionRecords(records: StoredRecord[]) {
 
 function contactMessageRecords(records: StoredRecord[]) {
   return records.filter((record) => record.entity === "contact-message");
-}
-
-function emailStyleIntakeRecords(records: StoredRecord[]) {
-  return records.filter((record) => record.entity === "intake-request");
 }
 
 async function getJson<T>(path: string, target: Harness = harness) {
@@ -882,37 +481,6 @@ async function postAdminJson<T = unknown>(path: string, body: unknown, target: H
   expect([200, 201], text).toContain(response.status);
 
   return request.response(JSON.parse(text)) as T;
-}
-
-async function postAdminRecordOperation(
-  body: Parameters<typeof recordOperationRequest>[0],
-  target: Harness = harness,
-  apiPrefix = "/api/formless/program",
-) {
-  const request = recordOperationRequest(body);
-  const response = await target.fetch(`${apiPrefix}${request.path.slice("/api".length)}`, {
-    body: JSON.stringify(request.body),
-    headers: adminHeaders({ "Content-Type": "application/json" }),
-    method: "POST",
-  });
-  const text = await response.text();
-
-  expect([200, 201], text).toContain(response.status);
-
-  return request.response(JSON.parse(text));
-}
-
-function crossAppEmailStylePublicIntakeFormBlockValues(): Record<string, unknown> {
-  const values = {
-    ...emailStylePublicIntakeFormBlockValues,
-    operationTargetKind: "appInstall",
-    operationTargetPackageAppKey: taskPackageAppKey,
-    operationTargetInstallId: recordPlanInstallId,
-  };
-
-  delete (values as Record<string, unknown>).operationTargetSchemaKey;
-
-  return values;
 }
 
 function operationInputNotificationIdempotencyKey(operationKey: string, key: string): string {
@@ -1004,26 +572,6 @@ async function createControlPlaneRecord(
   return response.output.record;
 }
 
-async function createMappedPublicSiteRoute(target: Harness, host: string, appInstallId: string) {
-  await postAdminJson(
-    "/api/formless/program/operations/route/create",
-    {
-      idempotencyKey: `route-host-publicSite-${host}`,
-      input: {
-        enabled: true,
-        matchHost: host,
-        matchPath: "/",
-        matchPrefix: "/",
-        kind: "mount",
-        targetProfile: "public-site",
-        appInstall: appInstallId,
-        surface: "public-site",
-      },
-    },
-    target,
-  );
-}
-
 function postPublicOperation(
   path: string,
   body: unknown,
@@ -1039,10 +587,6 @@ function postPublicOperation(
     },
     method: "POST",
   });
-}
-
-function fetchHost(target: Harness, host: string, path: string, init?: DispatchFetchInit) {
-  return target.mf.dispatchFetch(`http://${host}${path}`, init);
 }
 
 function adminHeaders(headers: Record<string, string> = {}) {

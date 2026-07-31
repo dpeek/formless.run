@@ -2,9 +2,9 @@
 
 ## Purpose
 
-Public operation bindings execute schema-declared entity operations for public
-callers through narrow target-scoped routes while preserving protected operation
-and generic app APIs.
+Public operation bindings execute schema-declared Program entity operations for
+public callers through narrow Program routes while preserving protected
+operation and generic Program APIs.
 
 ## Requirements
 
@@ -17,11 +17,11 @@ through an explicit actor policy and public binding.
 
 - GIVEN a schema-declared operation can be invoked by an anonymous actor
 - WHEN public execution models are selected
-- THEN the public form, target-scoped route, challenge requirement, origin rule,
+- THEN the public form, Program route, challenge requirement, origin rule,
   rate-limit rule, and response filtering are public bindings or operation
   policy facts
 - AND those facts do not redefine the operation input, output, effect,
-  idempotency, audit, or app storage identity
+  idempotency, audit, or Program storage identity
 - AND public access remains part of the operation interaction model
 
 #### Scenario: Reject operation without public policy
@@ -32,14 +32,14 @@ through an explicit actor policy and public binding.
 - THEN the request is rejected
 - AND no operation effects are committed
 - AND the rejection is recorded as an operation invocation only after the
-  target-scoped public operation route and declared operation are resolved
+  Program public operation route and declared operation are resolved
 
 #### Scenario: Resolve declared public operation
 
 - GIVEN a public form targets an entity operation key
 - WHEN the schema or public Site tree is selected for public execution
-- THEN the operation key resolves to one source-declared public operation on the
-  target Authority storage identity
+- THEN the operation key resolves to one source-declared public operation in the
+  active Program schema
 - AND anonymous callers invoke that operation through the public operation
   executor
 
@@ -76,8 +76,8 @@ through an explicit actor policy and public binding.
 
 - GIVEN the Site schema declares `contact-message.submit` as an anonymous
   Turnstile-protected create operation
-- WHEN a visitor posts declared contact message input to the target-scoped
-  public operation route
+- WHEN a visitor posts declared contact message input to the Program public
+  operation route
 - THEN the executor validates `operation.input.fields` before Turnstile
   verification
 - AND successful execution commits one flat `contact-message` record
@@ -101,7 +101,7 @@ through an explicit actor policy and public binding.
 - GIVEN an app declares an anonymous list operation whose input-constrained
   query, `maxResults`, same-origin rule, rate limit, and anonymous response
   fields satisfy public read policy
-- WHEN a visitor posts declared scalar lookup input to the target-scoped public
+- WHEN a visitor posts declared scalar lookup input to the Program public
   operation route
 - THEN the executor validates the declared input and binds it into the
   operation query context by input name
@@ -121,7 +121,7 @@ through an explicit actor policy and public binding.
 - WHEN instance email defaults and a contact notification recipient are
   configured
 - THEN post-commit email notification scheduling may create or update platform
-  email delivery records outside the target app storage identity
+  email delivery records outside Program storage identity
 - AND the public operation response remains the operation-native create output
 - AND provider delivery status, sender verification facts, and notification
   recipient configuration are not returned in the public response
@@ -134,14 +134,14 @@ through an explicit actor policy and public binding.
 - WHEN the form binding or target configuration enables an operation input
   notification and instance email defaults and a recipient are configured
 - THEN post-commit email notification scheduling may create or update platform
-  email delivery records outside the target app storage identity
+  email delivery records outside Program storage identity
 - AND the notification message is rendered from the submitted operation input,
   public-safe field labels, canonical operation key, target storage identity,
   request host and path, Site block id when supplied, and command output fields
   already exposed by the operation policy for the anonymous actor
 - AND submitted input extraction and display-row projection are concentrated in
   a display module that consumes the operation invocation response,
-  schema-owned public-safe input field projection, and target app schema
+  schema-owned public-safe input field projection, and active Program schema
 - AND the display module supports create, record-plan command, and operation
   handler command public operation input shapes
 - AND scalar display formatting maps booleans to `Yes` or `No`, enum values to
@@ -161,14 +161,14 @@ through an explicit actor policy and public binding.
 
 #### Scenario: Execute public record-plan command operation
 
-- GIVEN a non-Site app declares an anonymous public command operation with a
+- GIVEN a Program module declares an anonymous public command operation with a
   `recordPlan` effect
-- WHEN a visitor posts declared input and proof data to the target-scoped public
+- WHEN a visitor posts declared input and proof data to the Program public
   operation route
 - THEN the executor validates the operation input contract before challenge
   verification or record materialization
 - AND successful execution commits only the flat records declared by the
-  operation record plan for that target app storage identity
+  operation record plan for Program storage identity
 - AND the public response and after-commit side effects expose only the command
   output payload field names, record ids, or metadata allowed by the operation
   policy
@@ -177,14 +177,14 @@ through an explicit actor policy and public binding.
 
 #### Scenario: Execute public operation handler command
 
-- GIVEN an app declares an anonymous public command operation with an
+- GIVEN the Program declares an anonymous public command operation with an
   `operationHandler` effect whose handler is public-eligible
-- WHEN a visitor posts declared input and proof data to the target-scoped public
+- WHEN a visitor posts declared input and proof data to the Program public
   operation route
 - THEN the executor validates the operation input contract before challenge
   verification or handler materialization
 - AND successful execution commits only records planned or written by that
-  operation handler for the target app storage identity
+  operation handler for Program storage identity
 - AND handler execution receives operation source facts such as host, path,
   canonical operation key, and Site block id through the operation envelope
 - AND public execution tests, fixtures, and response helpers use operation names
@@ -205,17 +205,10 @@ through an explicit actor policy and public binding.
   operation response without duplicating CRM contact, email-address, audience,
   or subscription records
 
-### Requirement: Target-Scoped Public Operation API
+### Requirement: Program Public Operation API
 
-The system SHALL expose public operation execution through target-scoped public
-operation endpoints.
-
-#### Scenario: Installed app public operation route
-
-- GIVEN a visitor posts to `/api/app-installs/:packageAppKey/:installId/public/operations/:entityKey/:operationKey`
-- WHEN the route resolves
-- THEN the runtime resolves the matching installed app storage identity
-- AND public operation effects are committed only to that app storage identity
+The system SHALL expose public operation execution only through the narrow
+Program public-operation endpoint.
 
 #### Scenario: Program-native Site and CRM public operation route
 
@@ -246,7 +239,7 @@ operation endpoints.
 #### Scenario: Generic write routes stay protected
 
 - GIVEN a visitor lacks owner session or admin bearer authorization
-- WHEN the visitor posts outside a target-scoped public operation route
+- WHEN the visitor posts outside the Program public operation route
 - THEN protected operation, schema reset, snapshot restore, and
   package migration write routes return the configured unauthorized response
   before evaluating public operation policy, parsing JSON, or initializing app
@@ -256,7 +249,7 @@ operation endpoints.
 
 #### Scenario: Public operation route stays narrow
 
-- GIVEN a visitor posts to a target-scoped public operation route
+- GIVEN a visitor posts to the Program public operation route
 - WHEN the route does not resolve a declared public operation on the target
   Authority storage identity
 - THEN the runtime returns a public-safe unavailable response
@@ -266,7 +259,7 @@ operation endpoints.
 
 #### Scenario: Public list route does not become a query API
 
-- GIVEN a visitor posts to a declared public list operation route
+- GIVEN a visitor posts to a declared Program public list operation route
 - WHEN the request includes an entity, query, expression, field selection,
   ordering, projection, or result limit not declared by the source operation
 - THEN the request is rejected as invalid public input
@@ -313,8 +306,7 @@ invocation envelope before validating input or committing effects.
 - THEN its source target kind is `program`, schema key is `formless-program`,
   and API prefix is `/api/formless/program`
 - AND no source install id or legacy Site or CRM install provenance is recorded
-- AND installed private public-operation targets retain their installed-app
-  source identity
+- AND no package app key or installed-app source identity is recorded
 
 #### Scenario: Public operation contracts are operation-named
 
@@ -353,18 +345,18 @@ invocation envelope before validating input or committing effects.
 
 #### Scenario: Rejected public attempt is auditable
 
-- GIVEN a target-scoped public operation route resolves a declared operation
+- GIVEN the Program public operation route resolves a declared operation
 - WHEN anonymous policy, rate-limit evaluation, input validation, origin
   validation, or challenge validation rejects the request
 - THEN the operation invocation audit records anonymous actor, rejected or
-  failed status, target app storage identity, canonical operation key, source
+  failed status, Program storage identity, canonical operation key, source
   host and path, idempotency facts when available, and safe input metadata
 - AND challenge proofs and Turnstile secret material are excluded from audit
   snapshots and summaries
 
 #### Scenario: Public execution uses invocation lifecycle
 
-- GIVEN a target-scoped public operation route resolves a declared operation
+- GIVEN the Program public operation route resolves a declared operation
 - WHEN the public runtime evaluates origin, rate limit, input, optional
   challenge, optional replay, and operation execution
 - THEN accepted, rejected, failed, replayed, and committed invocation statuses
@@ -376,7 +368,7 @@ invocation envelope before validating input or committing effects.
 
 #### Scenario: Stage public operation execution
 
-- GIVEN a target-scoped public operation route resolves a declared operation
+- GIVEN the Program public operation route resolves a declared operation
 - WHEN the public operation executor evaluates the request
 - THEN the executor stages operation selection, public request envelope parsing,
   auditable public source-kind envelope construction, origin evaluation,
@@ -435,7 +427,7 @@ a small real-workerd contract portfolio.
 - GIVEN public operation behavior is covered through its owning Module
 - WHEN real-workerd contract coverage is selected
 - THEN each retained contract verifies Worker routing, Wrangler binding wiring,
-  app storage identity selection, Durable Object persistence, replay and audit
+  Program storage identity selection, Durable Object persistence, replay and audit
   rows, transaction behavior, mapped-host routing, one real Turnstile
   service-binding path, one real queue or post-commit notification path, or
   Worker-specific request and response semantics
@@ -465,7 +457,7 @@ input contract before challenge verification commits records.
   or effect-specific operation input validation branch logic
 - AND public request envelope parsing, source facts, proof parsing,
   storage-backed reference checks, challenge proof validation, idempotency
-  reservation, audit rows, target app storage identity, and public response
+  reservation, audit rows, Program storage identity, and public response
   filtering remain public runtime or Authority-owned outside the operation
   input validation boundary
 - AND invalid public input is rejected before challenge verification or
@@ -525,7 +517,7 @@ challenge.
 - WHEN a same-origin request resolves that operation
 - THEN the runtime consumes an attempt before input validation or query
   evaluation
-- AND the counter is scoped by target app storage identity, canonical operation
+- AND the counter is scoped by Program storage identity, canonical operation
   key, and a privacy-safe key derived from trusted client network facts
 - AND the counter does not store submitted lookup values, response fields, or
   challenge secrets

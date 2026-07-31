@@ -477,10 +477,6 @@ function resolveAppPackageManifest(manifest: unknown, context: string): Resolved
     (capability): capability is Extract<AppPackageCapability, { kind: "generatedAdmin" }> =>
       capability.kind === "generatedAdmin",
   );
-  const publicSite = parsed.capabilities.find(
-    (capability): capability is Extract<AppPackageCapability, { kind: "publicSite" }> =>
-      capability.kind === "publicSite",
-  );
 
   if (!generatedAdmin) {
     throw new Error(`${context} capabilities must include generatedAdmin.`);
@@ -498,7 +494,6 @@ function resolveAppPackageManifest(manifest: unknown, context: string): Resolved
     sourceSchemaKey: parsed.sourceSchema.key,
     sourceSchemaLocation: cloneSourceLocation(parsed.sourceSchema),
     adminRouteBase: generatedAdmin.routeBase,
-    ...(publicSite === undefined ? {} : { publicRouteBase: publicSite.routeBase }),
   };
 }
 
@@ -524,12 +519,6 @@ function appInstallFromPackage(input: {
     createdAt: input.now,
     updatedAt: input.now,
     adminRoute: `${input.packageApp.adminRouteBase}/${input.installId}`,
-    ...(input.packageApp.publicRouteBase === undefined
-      ? {}
-      : {
-          publicRoute: `${input.packageApp.publicRouteBase}/${input.installId}`,
-          publicRoutePrefix: `${input.packageApp.publicRouteBase}/${input.installId}/`,
-        }),
   };
 }
 
@@ -687,17 +676,6 @@ function parseCapability(value: unknown, context: string): AppPackageCapability 
     return {
       kind: "generatedAdmin",
       routeBase: "/apps",
-    };
-  }
-
-  if (object.kind === "publicSite") {
-    if (object.routeBase !== "/sites") {
-      throw new Error(`${context} routeBase must be "/sites".`);
-    }
-
-    return {
-      kind: "publicSite",
-      routeBase: "/sites",
     };
   }
 

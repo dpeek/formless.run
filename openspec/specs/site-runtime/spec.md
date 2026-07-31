@@ -3,8 +3,8 @@
 ## Purpose
 
 Site runtime turns flat Site records into authorable Program surfaces, nested
-public trees, and public documents for preview, mapped, installed-private, and
-published Site targets.
+public trees, and public documents for preview, mapped, and published Program
+Site targets.
 
 ## Requirements
 
@@ -26,7 +26,7 @@ content records.
 - GIVEN page, post, project, block, and placement records exist
 - WHEN those records are stored
 - THEN they do not store a Site reference
-- AND the selected Program or installed-app Authority supplies the Site scope
+- AND the Program Authority supplies the Site scope
 
 ### Requirement: Reusable Site Schema Modules
 
@@ -58,9 +58,10 @@ declarations through a documented schema authoring subpath.
   source
 - AND authored and materialized source parse to the same App schema
 - AND the manifest `sourceSchemaHash` matches the materialized source
-- AND Worker, workspace, install, archive, upgrade, deploy, and public Site
-  runtime paths continue loading `schema.json` without evaluating the
-  TypeScript authoring entrypoint
+- AND standalone install, archive, and upgrade paths may continue loading
+  `schema.json` without evaluating the TypeScript authoring entrypoint
+- AND public Site runtime consumes the complete data-only Program artifact
+  rather than the standalone Site schema or workspace TypeScript
 
 #### Scenario: Site schema publication remains runtime neutral
 
@@ -147,62 +148,45 @@ The system SHALL project live Site block and block placement records into a nest
 - THEN live dated post or project items are attached under query output
 - AND items are ordered by descending date
 
-### Requirement: Site App Runtime Adapter
+### Requirement: Program Site Runtime Adapter
 
-The system SHALL select Site-specific public runtime behavior through a
-package-owned adapter and an explicit target that separates package behavior
-from Authority storage identity.
+The system SHALL select Site-specific public runtime behavior through the
+package-owned Site adapter and the one Program storage target.
 
 #### Scenario: Adapter owns public tree behavior
 
-- GIVEN a public Site runtime target supplies a package app key and Program or
-  installed-app storage identity
+- GIVEN a public Site runtime target selects the active Program
 - WHEN the runtime receives a public tree read for that target
-- THEN the runtime dispatches to that package's registered public Site adapter
+- THEN the runtime dispatches to the built-in Site public runtime adapter
 - AND the adapter builds the public tree from flat app records and placement
-  edges in the selected Authority storage identity
-- AND the core Authority route does not branch on a hard-coded package app key
-  to call Site tree projection behavior
-- AND a package app key other than `site` can use public Site tree behavior when
-  its resolved package declares public Site support and a matching adapter is
-  registered
+  edges in Program storage identity `instance:control-plane`
+- AND package app key, app install id, and installed-app storage identity are
+  not public Site target inputs
 
 #### Scenario: Adapter owns public document behavior
 
-- GIVEN a Program preview route, installed-private public route, mapped host, or
-  published Site profile selects a public Site runtime target
+- GIVEN a Program preview route, mapped host, or published Site profile selects
+  the Program public Site runtime target
 - WHEN the runtime handles a public document, metadata, indexing, or root icon
   request for that target
-- THEN Worker dispatch selects the public Site adapter for the target package
-  app key
+- THEN Worker dispatch selects the built-in Site public runtime adapter
 - AND the adapter supplies document rendering, metadata, sitemap, robots, SVG
   icon, PNG icon, and ICO icon behavior
-- AND request routing, route access, app storage identity, and core media
+- AND request routing, route access, Program storage identity, and core media
   delivery remain owned by Formless core runtime boundaries
-- AND the built-in target uses package app key `site` with Program storage
-- AND mapped private Site hosts select the adapter from the resolved installed
-  package rather than assuming package app key `site`
-
-#### Scenario: Adapter absence is unsupported
-
-- GIVEN a package manifest declares public Site runtime support but the current
-  runtime environment has no registered public Site adapter for that package
-  app key
-- WHEN a route, public tree read, document render, indexing resource, root icon,
-  or generated public surface requires that adapter
-- THEN the runtime rejects the request as an unsupported package capability
-- AND it does not fall back to the built-in Site implementation by package name
+- AND every preview, mapped, and published target uses Program storage identity
+  `instance:control-plane`
 
 #### Scenario: Built-in Site has no source fallback
 
 - GIVEN preview, mapped-host, or published rendering selects the built-in Site
 - WHEN its public runtime target is resolved
-- THEN it uses package app key `site` with Program storage identity
+- THEN it uses the built-in Site adapter with Program storage identity
   `instance:control-plane`
 - AND preview uses `/pages` with API prefix `/api/formless/program`
 - AND `/site` and `/api/site` do not expose a schema-key Site source app
-- AND a missing Program target or adapter does not fall back to dormant
-  install-scoped or schema-key Site storage
+- AND a missing Program target does not fall back to dormant install-scoped or
+  schema-key Site storage
 
 ### Requirement: Workspace Site Renderer Extension
 
@@ -214,7 +198,7 @@ storage contracts.
 #### Scenario: Renderer input stays projection based
 
 - GIVEN a workspace declares a `site.publicRenderer` extension
-- WHEN preview, installed, mapped-host, or published Site rendering needs a
+- WHEN preview, mapped-host, or published Site rendering needs a
   public page body
 - THEN the extension renderer receives the canonical `SitePublicRendererProps`
   contract owned by the Site package
@@ -258,7 +242,7 @@ storage contracts.
 #### Scenario: Built-in renderer selection is explicit
 
 - GIVEN root browser or Worker assembly configures a Site runtime adapter
-- WHEN source preview, installed, mapped-host, or published Site rendering runs
+- WHEN source preview, mapped-host, or published Site rendering runs
 - THEN the assembly supplies one required built-in page renderer
 - AND an optional workspace `site.publicRenderer` takes precedence over that
   built-in renderer for successful public pages
@@ -356,51 +340,34 @@ canonical Site page and system-state renderer contracts through
 
 ### Requirement: Subscribe Form Public Tree Projection
 
-The system SHALL project subscribe form blocks into public Site trees for the
-current Site target or an explicitly configured CRM app target without exposing
-private challenge or runtime secrets.
+The system SHALL project subscribe form blocks into public Site trees against
+the complete active Program without exposing private challenge or runtime
+secrets.
 
 #### Scenario: Project subscribe form operation facts
 
 - GIVEN the public Site tree includes a `subscribeForm` block
-- WHEN the block references a publicly executable operation on the current Site
-  target or a configured installed CRM app target
+- WHEN the block references a publicly executable operation in the active
+  Program
 - THEN the projected block includes the operation key and target public operation route
 - AND the referenced operation is a public-eligible create, record-plan, or
   subscribe operation handler
 - AND the target public operation route is built through the shared public
-  operation route contract from the runtime-owned target API route prefix,
-  entity key, and operation key
-- AND an installed CRM target route is resolved from the block's stored target
-  route identity rather than inferred from public request path
-- AND the Program-native Site source target records target kind `program`,
-  package app key `site`, schema key `formless-program`, and API prefix
-  `/api/formless/program` without a source install id
+  operation route contract from the Program API route prefix, entity key, and
+  operation key
+- AND the Program-native source target records target kind `program`, schema key
+  `formless-program`, and API prefix `/api/formless/program` without package or
+  install provenance
 - AND subscribe-specific operation eligibility, operation binding warnings, and
   projected route facts are owned by the Site subscribe public operation adapter
 - AND generic public operation input field projection is not used to render the
   subscribe-specific email input
 - AND the projected block does not include Turnstile secrets or subscriber data
 
-#### Scenario: Project installed CRM subscribe target
-
-- GIVEN the public Site tree includes a `subscribeForm` block with
-  `operationTargetKind` `appInstall`, `operationTargetPackageAppKey` `crm`,
-  `operationTargetInstallId` `crm`, and operation name `subscribe`
-- WHEN runtime target resolution finds the installed CRM app and its public
-  `subscription.subscribe` operation
-- THEN the projected block includes canonical operation key
-  `subscription.subscribe`
-- AND the target public operation route is
-  `/api/app-installs/crm/crm/public/operations/subscription/subscribe`
-- AND the projection does not include generic public operation input field
-  metadata, Turnstile secrets, raw app storage records, app install records, or
-  subscriber records
-
 #### Scenario: Warn for missing public operation
 
 - GIVEN a `subscribeForm` block references an operation that is missing, not
-  publicly executable, or targets an unavailable app storage identity
+  publicly executable, or unavailable in the active Program
 - WHEN the public tree is projected
 - THEN the public tree includes a warning
 - AND public rendering does not expose a working form for that block
@@ -419,8 +386,8 @@ exposing private challenge, email provider, or runtime secrets.
 - AND the referenced operation is a public-eligible create, record-plan, or
   operation handler command that stores flat contact message data
 - AND the target public operation route is built through the shared public
-  operation route contract from the runtime-owned target API route prefix,
-  entity key, and operation key
+  operation route contract from the Program API route prefix, entity key, and
+  operation key
 - AND contact-specific operation eligibility, operation binding warnings, and
   projected route facts are owned by the Site contact public operation adapter
 - AND generic public operation input field projection is not used to render the
@@ -445,22 +412,21 @@ runtime secrets.
 #### Scenario: Project public operation form facts
 
 - GIVEN the public Site tree includes a `publicOperationForm` block
-- WHEN the block references one publicly executable anonymous operation on a
-  target app storage identity
+- WHEN the block references one publicly executable anonymous operation in the
+  active Program
 - THEN the projected block includes the canonical operation key, target public
   operation route, challenge facts required for browser rendering, and
   public-safe operation input field metadata
-- AND the target may be the Program-native Site or an installed app route
+- AND the target is the Program public-operation route
 - AND projected field metadata uses the schema-owned public-safe operation input
   projection and includes only field names, labels, required flags, affirmative
   boolean acceptance flags, supported scalar control types, text formats, text
   suggestions, and enum option labels
 - AND the target public operation route is built through the shared public
-  operation route contract from the runtime-owned target API route prefix,
-  entity key, and operation key
-- AND target route facts and public challenge site-key facts are supplied by
-  runtime target resolution and challenge configuration, not by the target
-  operation input projection
+  operation route contract from the Program API route prefix, entity key, and
+  operation key
+- AND public challenge site-key facts are supplied by runtime configuration,
+  not by the operation input projection or Site record
 - AND the projected block does not include Turnstile secrets, raw Authority
   storage records, app install records, private app records, email provider
   credentials, sender verification facts, or private notification recipients
@@ -468,7 +434,7 @@ runtime secrets.
 #### Scenario: Warn for unavailable public operation form
 
 - GIVEN a `publicOperationForm` block references an operation that is missing,
-  not publicly executable, targets an unavailable app storage identity, lacks
+  not publicly executable, is unavailable in the active Program, lacks
   challenge configuration, or has required input outside the schema-owned public
   form field projection subset
 - WHEN the public tree is projected
@@ -485,11 +451,10 @@ public tree traversal.
 - GIVEN tree projection encounters a `subscribeForm`, `contactForm`, or
   `publicOperationForm` block
 - WHEN operation facts are projected for the block
-- THEN stored operation keys, stored target route identity parsing, target
-  resolution warnings, public operation selection, target public operation route
-  construction, Turnstile challenge fact projection, and public-safe operation
-  input field metadata projection are handled by the Site public operation block
-  projection boundary
+- THEN stored operation keys, active Program public operation selection, Program
+  public operation route construction, Turnstile challenge fact projection,
+  and public-safe operation input field metadata projection are handled by the
+  Site public operation block projection boundary
 - AND generic public tree traversal only attaches returned `publicOperation`
   facts or records projection warnings on the tree metadata
 - AND media projection, link resolution, dynamic list item projection,
@@ -595,9 +560,8 @@ The system SHALL support a Site `subscribeForm` block that binds public page con
 - GIVEN a Site author creates a `subscribeForm` block
 - WHEN the block is stored
 - THEN the block stores normal flat block fields for label, body, operation
-  name, optional target app route identity, and button label
-- AND absent target route identity keeps the existing Site-local subscribe
-  operation binding as the default
+  name, and button label
+- AND the operation always resolves from the active Program
 - AND the block can be placed under public page and group composition branches
 
 #### Scenario: Subscribe form variant is parsed
@@ -606,9 +570,9 @@ The system SHALL support a Site `subscribeForm` block that binds public page con
 - WHEN the schema is parsed
 - THEN `subscribeForm` is a valid block type and union variant
 - AND its stored operation reference resolves through source-declared operation
-  keys, optional target app route facts, and operation handler capability facts
+  keys and operation handler capability facts
 - AND generated Site authoring exposes the fields needed to configure the fixed
-  subscribe form and its optional installed CRM target
+  subscribe form without package or install target fields
 
 ### Requirement: Contact Form Block
 
@@ -643,8 +607,8 @@ special-casing the submitted input fields in Site records.
 - GIVEN a Site author creates a `publicOperationForm` block
 - WHEN the block is stored
 - THEN the block stores normal flat block fields for label, body, canonical
-  operation key, target app route identity, button label, success label, and
-  optional operation input notification configuration
+  operation key, button label, success label, and optional operation input
+  notification configuration
 - AND the block does not store per-customer form field definitions that
   duplicate the target operation input contract
 - AND the block can be placed under public page and group composition branches
@@ -655,7 +619,7 @@ special-casing the submitted input fields in Site records.
 - WHEN the schema is parsed
 - THEN `publicOperationForm` is a valid block type and union variant
 - AND its stored operation reference resolves through source-declared operation
-  keys, target app route facts, operation policy, and operation input contracts
+  keys, Program operation policy, and operation input contracts
 - AND generated Site authoring exposes the fields needed to configure the form
 
 ### Requirement: Generic Site Content Blocks
@@ -716,7 +680,8 @@ The system SHALL resolve public Site routes from live routable block hrefs and r
 
 ### Requirement: Subscribe Form Rendering
 
-The system SHALL render subscribe form blocks as public forms on preview, installed, and mapped public Site routes.
+The system SHALL render subscribe form blocks as public forms on preview,
+mapped, and published public Site routes.
 
 #### Scenario: Render Turnstile-protected subscribe form
 
@@ -740,8 +705,8 @@ The system SHALL render subscribe form blocks as public forms on preview, instal
 
 ### Requirement: Contact Form Rendering
 
-The system SHALL render contact form blocks as public forms on preview,
-installed, and mapped public Site routes.
+The system SHALL render contact form blocks as public forms on preview, mapped,
+and published public Site routes.
 
 #### Scenario: Render Turnstile-protected contact form
 
@@ -771,7 +736,7 @@ installed, and mapped public Site routes.
 ### Requirement: Public Operation Form Rendering
 
 The system SHALL render public operation form blocks as schema-driven public
-forms on preview, installed, and mapped public Site routes.
+forms on preview, mapped, and published public Site routes.
 
 #### Scenario: Render Turnstile-protected public operation form
 
@@ -889,8 +854,8 @@ operation execution behavior.
 
 ### Requirement: Public Site Client Runtime
 
-The system SHALL keep preview, published, mapped, and installed-private public
-Site browser assets scoped to public Site interactivity rather than the
+The system SHALL keep preview, published, and mapped public Site browser assets
+scoped to public Site interactivity rather than the
 generated admin app shell or authenticated Program replica.
 
 #### Scenario: Published documents inject public Site assets
@@ -930,7 +895,7 @@ generated admin app shell or authenticated Program replica.
 ### Requirement: Schema-backed Public Site Theme
 
 The system SHALL derive public Site document theming from the primary Site
-settings record on preview, installed, published, and mapped-host surfaces.
+settings record on preview, published, and mapped-host surfaces.
 
 The Site settings fields are:
 
@@ -984,8 +949,7 @@ renderer theme owns public color tokens.
 
 #### Scenario: Public Site assets exclude admin-only code
 
-- GIVEN a visitor opens a published Site page, mapped public Site host, or
-  installed public Site route
+- GIVEN a visitor opens a published Site page or mapped public Site host
 - WHEN the public Site browser assets load
 - THEN generated admin screens, instance management shell, owner setup and login
   routes, workspace gateway controls, app replica sync for generated admin, and
@@ -1091,22 +1055,21 @@ The system SHALL generate public document metadata, robots output, and sitemap o
 - THEN sitemap entries come from those routable blocks
 - AND settings records, preview routes, generated app routes, tombstones, and non-routable blocks are excluded
 
-### Requirement: Published And Installed Sites
+### Requirement: Program Public Sites
 
-The system SHALL support one Program-native Site, installed private
-public-Site-capable packages, mapped public Site hosts, and published Site
-profile redirects with consistent public rendering.
+The system SHALL support one Program-native Site across preview, mapped public
+Site hosts, and published Site profile redirects with consistent public
+rendering.
 
-#### Scenario: Public Site capability remains the route contract
+#### Scenario: Program Site remains the route contract
 
-- GIVEN a package app declares public Site route support in its package manifest
-- WHEN the core runtime creates or resolves public routes for that package
-- THEN the route contract remains the public Site contract
-- AND the package adapter supplies Site-compatible tree, document, metadata,
-  indexing, and icon behavior
-- AND core runtime does not introduce a separate generic public-renderer
-  contract until another shipped capability requires different public rendering
-  semantics
+- GIVEN core runtime creates or resolves a public Site route
+- WHEN the route is selected
+- THEN it targets the Program-native Site
+- AND the Site adapter supplies tree, document, metadata, indexing, and icon
+  behavior from Program storage
+- AND no package capability, app install, or installed storage target is
+  selected
 
 #### Scenario: Program-native preview route
 
@@ -1116,34 +1079,22 @@ profile redirects with consistent public rendering.
 - AND public links keep the `/pages` preview route base
 - AND preview change synchronization uses the authenticated Program WebSocket
 
-#### Scenario: Installed private Site fallback route
-
-- GIVEN a runtime-installable private package declares public Site capability
-  and has an install id
-- WHEN a visitor opens `/sites/<installId>/*` on the instance host
-- THEN public rendering reads that install-scoped tree
-- AND public links keep the `/sites/<installId>` route base
-- AND package key `site` is not required for the installed target
-
 #### Scenario: Mapped public Site host
 
 - GIVEN an enabled exact-host mapping uses profile `publicSite`
 - WHEN a visitor opens the mapped host
-- THEN a mapping without an app install renders top-level routes from the
-  Program-native Site
-- AND a mapping with an app install renders from the selected installed private
-  public-Site-capable package
+- THEN the mapping renders top-level routes from the Program-native Site
+- AND the mapping does not select an app install or package-derived runtime
+  target
 - AND generated admin and app shell routes are blocked on that host
 
 #### Scenario: Published Site target selection
 
 - GIVEN a published Site runtime starts
-- WHEN package app key and install id environment metadata are both absent
+- WHEN it selects its public Site target
 - THEN it renders the Program-native Site from Program storage
-- WHEN both values identify an installed private public-Site-capable package
-- THEN it renders that installed target
-- AND partial installed-target metadata is rejected rather than falling back to
-  Program or schema-key Site storage
+- AND package app key and install id environment metadata are not public Site
+  target inputs
 
 #### Scenario: Published SSR response policy
 

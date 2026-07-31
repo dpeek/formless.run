@@ -412,24 +412,20 @@ records.
 - **GIVEN** an owner or admin creates a mount route
 - **WHEN** the route is accepted
 - **THEN** `kind` is `mount`
-- **AND** app and public Site mounts set `appInstall` to reference an
-  `app-install` record
+- **AND** app mounts set `appInstall` to reference an `app-install` record
+- **AND** public Site mounts omit `appInstall` and target the Program-native
+  Site
 - **AND** the route records the selected target profile and surface without
   duplicating installed app data or storage state
 
-#### Scenario: Public Site mount package capability
+#### Scenario: Program public Site mount
 
-- **GIVEN** an owner or admin creates a public Site mount route for an app
-  install
+- **GIVEN** an owner or admin creates a public Site mount route
 - **WHEN** the route is validated
-- **THEN** the referenced app install package app key is resolved through the
-  active package resolver for the current runtime or workspace
-- **AND** the route is accepted only when the resolved package declares public
-  Site route capability
-- **AND** the validator does not fall back to bundled-only package lookups or
-  package key special cases
-- **AND** validation reports missing package resolver context before accepting a
-  public Site mount whose package capability cannot be proven
+- **THEN** target profile is `public-site`, surface is `public-site`, and
+  `appInstall` is omitted
+- **AND** the route targets Program storage without consulting an app package
+  resolver or package capability
 
 #### Scenario: Mount route access
 
@@ -485,8 +481,8 @@ records.
   requested path
 - **AND** owner-only Program paths still recheck active `instance.owner`
   authority before privileged reads or writes
-- **AND** host-local sessions minted for installed app storage, public Site
-  storage, another route, another profile, another host, or another instance do
+- **AND** host-local sessions minted for installed app storage, another route,
+  another profile, another host, or another instance do
   not authorize Program operations
 
 #### Scenario: Program administrator writes operational control-plane intent
@@ -643,6 +639,19 @@ The system SHALL represent deploy target and provider selection as one
 The system SHALL save instance control-plane and reviewable identity records
 through the one Program workspace state boundary.
 
+#### Scenario: Select current Program public Site source
+
+- **GIVEN** Program route records may include public Site-shaped records with
+  package or app install target facts
+- **WHEN** workspace materialization, exact replacement, or runtime route
+  selection derives current public Site intent
+- **THEN** it selects only `public-site` routes that omit `appInstall` and
+  package-derived target facts
+- **AND** unselected records do not create public routes, installed storage
+  reads, package resolution, or deploy targets
+- **AND** current source selection does not import, merge, migrate, rewrite, or
+  clean up unselected records
+
 #### Scenario: Save Program records to workspace state
 
 - **WHEN** local Program Authority state is saved to workspace source
@@ -671,9 +680,8 @@ through the one Program workspace state boundary.
   `deploy-drift-report` records are not written as workspace source
 - **AND** runtime-observed deployment cache fields on `deployment-config`
   records are omitted from reviewable workspace storage state
-- **AND** reviewable route records that target public Site mounts are validated
-  with the workspace active package resolver before they are written or checked
-  as source
+- **AND** reviewable public Site route records omit app install and package
+  target facts before they are written or checked as source
 
 #### Scenario: Restore Program records from workspace state
 
@@ -687,9 +695,8 @@ through the one Program workspace state boundary.
   entities before behavior changes
 - **AND** workspace state containing runtime-observed deployment cache fields is
   rejected or stripped before restore
-- **AND** restore rejects public Site route records when the referenced package
-  app key is missing from the active package resolver or lacks public Site route
-  capability
+- **AND** restore admits public Site route records only when they select the
+  Program-native Site without app install or package target facts
 
 ### Requirement: Browser-Owned Instance Intent
 

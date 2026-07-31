@@ -7,10 +7,7 @@ import {
 } from "../app/runtime-profile.ts";
 import { INITIAL_SITE_PAGE_TREE_SCRIPT_ID } from "@dpeek/formless-site-app/react";
 import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
-import {
-  installedPublicSiteRuntimeTarget,
-  programPublicSiteRuntimeTarget,
-} from "../shared/public-site-runtime-target.ts";
+import { programPublicSiteRuntimeTarget } from "../shared/public-site-runtime-target.ts";
 import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
 import {
   instanceControlPlaneTestStorageSnapshot,
@@ -48,10 +45,7 @@ let privateSitePackageResolver: AppPackageResolver;
 
 beforeAll(async () => {
   const privateSitePackage = await runtimeWorkspaceTaskAppPackageFixture({
-    capabilities: [
-      { kind: "generatedAdmin", routeBase: "/apps" },
-      { kind: "publicSite", routeBase: "/sites" },
-    ],
+    capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],
     defaultInstallId: "personal",
     label: "Private Site",
     packageAppKey: privateSitePackageAppKey,
@@ -89,7 +83,7 @@ afterAll(async () => {
 });
 
 describe("published Site Worker SSR", () => {
-  it("maps install-free and installed public-site host routes to distinct storage targets", () => {
+  it("maps only install-free public-site host routes to Program storage", () => {
     const installedStorage = installedAppStorageIdentity(
       {
         installId: "personal",
@@ -122,10 +116,7 @@ describe("published Site Worker SSR", () => {
         ...route,
         target: installedStorage,
       }),
-    ).toEqual({
-      host: "example.com",
-      target: installedPublicSiteRuntimeTarget(installedStorage),
-    });
+    ).toBeUndefined();
   });
 
   it("does not render published Site documents outside the published runtime profile", async () => {
@@ -208,12 +199,15 @@ describe("published Site Worker SSR", () => {
     expect(authorityRequests).toEqual([`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/tree/home`]);
   });
 
-  it("fails closed when published target metadata is partial", async () => {
-    const [installOnly, packageOnly] = await Promise.all([
+  it("ignores published install target environment metadata", async () => {
+    const authorityRequests: string[] = [];
+    const [installedTarget, partialTarget] = await Promise.all([
       handlePublicSiteDocumentRequest(
         new Request("https://example.com/", { headers: { Accept: "text/html" } }),
         envWithTreeResponse(Response.json(testSitePageTree("home")), undefined, "publishedSite", {
+          authorityRequests,
           installId: "personal",
+          packageAppKey: privateSitePackageAppKey,
         }),
       ),
       handlePublicSiteDocumentRequest(
@@ -224,7 +218,8 @@ describe("published Site Worker SSR", () => {
       ),
     ]);
 
-    expect([installOnly?.status, packageOnly?.status]).toEqual([400, 400]);
+    expect([installedTarget?.status, partialTarget?.status]).toEqual([200, 200]);
+    expect(authorityRequests).toEqual([`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/tree/home`]);
   });
 
   it("returns HEAD headers for public documents without a response body", async () => {

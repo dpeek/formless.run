@@ -520,7 +520,7 @@ module configuration outside portable app and instance archive envelopes.
 
 - **GIVEN** Site app records are restored or imported into a workspace or
   runtime that does not configure `site.publicRenderer`
-- **WHEN** public Site preview, installed, mapped-host, or published rendering
+- **WHEN** public Site preview, mapped-host, or published rendering
   runs for those restored records
 - **THEN** the bundled Site renderer is used
 - **AND** restore does not fail only because the source workspace used a custom

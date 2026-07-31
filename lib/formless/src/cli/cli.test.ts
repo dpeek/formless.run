@@ -4068,12 +4068,6 @@ function installedApp(installId: string, label: string, packageAppKey: "site" | 
     label,
     packageAppKey,
     packageRevision: facts.packageRevision,
-    ...(packageAppKey === "site"
-      ? {
-          publicRoute: `/sites/${installId}` as `/sites/${string}`,
-          publicRoutePrefix: `/sites/${installId}/` as `/sites/${string}/`,
-        }
-      : {}),
     registrationPolicy: "closed" as const,
     sourceSchemaHash: facts.sourceSchemaHash,
     status: "installed" as const,
@@ -4787,11 +4781,10 @@ function controlPlaneRecords(
       entity: "route",
       values: {
         enabled: true,
-        matchPath: `/sites/${installId}`,
-        matchPrefix: `/sites/${installId}/`,
+        matchPath: "/pages",
+        matchPrefix: "/pages/",
         kind: "mount",
         targetProfile: "public-site",
-        appInstall: installId,
         surface: "public-site",
       },
       createdAt: now,
@@ -4807,7 +4800,6 @@ function controlPlaneRecords(
         matchPrefix: "/",
         kind: "mount",
         targetProfile: "public-site",
-        appInstall: installId,
         surface: "public-site",
       },
       createdAt: now,

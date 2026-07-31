@@ -56,7 +56,6 @@ const controlPlanePackageManifests = [
   packageManifest({
     label: "Site",
     packageAppKey: "site",
-    publicSite: true,
     sourceSchemaHash: siteSourceSchemaHash,
   }),
   packageManifest({
@@ -510,7 +509,6 @@ describe("instance control-plane schema contracts", () => {
         matchPrefix: "/",
         kind: "mount",
         targetProfile: "public-site",
-        appInstall: "site",
         surface: "public-site",
       },
     });
@@ -1122,8 +1120,6 @@ describe("instance control-plane schema contracts", () => {
         label: "Personal Site",
         packageAppKey: "site",
         packageRevision: 1,
-        publicRoute: "/sites/personal",
-        publicRoutePrefix: "/sites/personal/",
         registrationPolicy: "closed",
         sourceSchemaHash: siteSourceSchemaHash,
         status: "installed",
@@ -1154,8 +1150,6 @@ describe("instance control-plane schema contracts", () => {
           label: "Members",
           packageAppKey: "site",
           packageRevision: 1,
-          publicRoute: "/sites/members",
-          publicRoutePrefix: "/sites/members/",
           registrationPolicy: "email-verified",
           sourceSchemaHash: siteSourceSchemaHash,
           status: "installed",
@@ -1180,8 +1174,6 @@ describe("instance control-plane schema contracts", () => {
         label: "Custom",
         packageAppKey: "site",
         packageRevision: 1,
-        publicRoute: "/sites/custom",
-        publicRoutePrefix: "/sites/custom/",
         registrationOperation: "profile.register",
         registrationPolicy: "custom-operation",
         sourceSchemaHash: siteSourceSchemaHash,
@@ -1208,16 +1200,6 @@ describe("instance control-plane schema contracts", () => {
         surface: "admin",
         access: "authenticated",
         requiredRole: "app.admin",
-      },
-      {
-        enabled: true,
-        matchPath: "/sites/personal",
-        matchPrefix: "/sites/personal/",
-        kind: "mount",
-        targetProfile: "public-site",
-        appInstall: "personal",
-        surface: "public-site",
-        access: "anonymous",
       },
     ]);
 
@@ -1389,12 +1371,8 @@ describe("instance control-plane schema contracts", () => {
       now,
     });
 
-    expect(records.map((record) => record.id)).toEqual([
-      "labs",
-      "route:labs:admin",
-      "route:labs:public-site",
-    ]);
-    expect(records.map((record) => record.entity)).toEqual(["app-install", "route", "route"]);
+    expect(records.map((record) => record.id)).toEqual(["labs", "route:labs:admin"]);
+    expect(records.map((record) => record.entity)).toEqual(["app-install", "route"]);
     expect(records.map((record) => record.values).slice(1)).toEqual(
       instanceControlPlaneDefaultRoutesForInstall({
         installId: "labs",
@@ -1410,14 +1388,9 @@ describe("instance control-plane schema contracts", () => {
         packageResolver: resolver,
       }).records[0]?.values.packageAppKey,
     ).toBe("private-labs");
-    expect(() =>
-      reviewableInstanceControlPlaneStorageSnapshot(controlPlaneSnapshot({ records })),
-    ).toThrow(
-      'Instance control-plane record source records route "route:labs:public-site" requires an active package resolver',
-    );
   });
 
-  it("projects launch link hrefs, route ids, and access from enabled route records", () => {
+  it("projects admin launch link hrefs, route ids, and access from enabled route records", () => {
     const records: StoredRecord[] = [
       storedAppInstallRecord({
         installId: "personal",
@@ -1437,19 +1410,6 @@ describe("instance control-plane schema contracts", () => {
           requiredRole: "app.admin",
         },
       }),
-      storedRouteRecord({
-        id: "route:personal:public-site",
-        values: {
-          enabled: true,
-          matchPath: "/launch/personal",
-          matchPrefix: "/launch/personal/",
-          kind: "mount",
-          targetProfile: "public-site",
-          appInstall: "personal",
-          surface: "public-site",
-          access: "owner",
-        },
-      }),
     ];
 
     expect(
@@ -1464,15 +1424,6 @@ describe("instance control-plane schema contracts", () => {
         requiredRole: "app.admin",
         routeId: "route:personal:admin",
         routeKind: "admin",
-      },
-      {
-        access: "owner",
-        href: "/launch/personal",
-        installId: "personal",
-        label: "Personal Site",
-        packageAppKey: "site",
-        routeId: "route:personal:public-site",
-        routeKind: "publicSite",
       },
     ]);
   });
@@ -1525,45 +1476,6 @@ describe("instance control-plane schema contracts", () => {
         },
       }),
       storedRouteRecord({
-        id: "route:personal:public-custom",
-        values: {
-          enabled: true,
-          matchPath: "/public/personal",
-          matchPrefix: "/public/personal/",
-          kind: "mount",
-          targetProfile: "public-site",
-          appInstall: "personal",
-          surface: "public-site",
-          access: "authenticated",
-        },
-      }),
-      storedRouteRecord({
-        id: "route:personal:host-public",
-        values: {
-          enabled: true,
-          matchHost: "personal.example.com",
-          matchPath: "/",
-          matchPrefix: "/",
-          kind: "mount",
-          targetProfile: "public-site",
-          appInstall: "personal",
-          surface: "public-site",
-          access: "anonymous",
-        },
-      }),
-      storedRouteRecord({
-        id: "route:personal:wrong-profile",
-        values: {
-          enabled: true,
-          matchPath: "/instance/personal",
-          kind: "mount",
-          targetProfile: "instance",
-          appInstall: "personal",
-          surface: "admin",
-          access: "owner",
-        },
-      }),
-      storedRouteRecord({
         id: "route:verifi:admin",
         values: {
           enabled: true,
@@ -1573,19 +1485,6 @@ describe("instance control-plane schema contracts", () => {
           appInstall: "verifi",
           surface: "admin",
           access: "owner",
-        },
-      }),
-      storedRouteRecord({
-        id: "route:verifi:public-invalid",
-        values: {
-          enabled: true,
-          matchPath: "/sites/verifi",
-          matchPrefix: "/sites/verifi/",
-          kind: "mount",
-          targetProfile: "public-site",
-          appInstall: "verifi",
-          surface: "public-site",
-          access: "anonymous",
         },
       }),
       storedRouteRecord({
@@ -1621,15 +1520,6 @@ describe("instance control-plane schema contracts", () => {
         routeKind: "admin",
       },
       {
-        access: "authenticated",
-        href: "/public/personal",
-        installId: "personal",
-        label: "Personal Site",
-        packageAppKey: "site",
-        routeId: "route:personal:public-custom",
-        routeKind: "publicSite",
-      },
-      {
         access: "owner",
         href: "/apps/verifi-labs",
         installId: "verifi",
@@ -1642,18 +1532,15 @@ describe("instance control-plane schema contracts", () => {
     expect(installs.map((install) => install.installId)).toEqual(["personal", "verifi"]);
     expect(installs[0]).toMatchObject({
       adminRoute: "/apps/personal-admin",
-      publicRoute: "/public/personal",
-      publicRoutePrefix: "/public/personal/",
       registrationPolicy: "closed",
-      launchLinks: links.slice(0, 2),
+      launchLinks: [links[0]],
     });
     expect(installs[1]).toMatchObject({
       adminRoute: "/apps/verifi-labs",
       registrationOperation: "profile.register",
       registrationPolicy: "custom-operation",
-      launchLinks: [links[2]],
+      launchLinks: [links[1]],
     });
-    expect(installs[1]).not.toHaveProperty("publicRoute");
   });
 
   it("projects fallback launch links only when no route records exist for an install", () => {
@@ -1692,14 +1579,6 @@ describe("instance control-plane schema contracts", () => {
         routeKind: "admin",
       },
       {
-        access: "anonymous",
-        href: "/sites/personal",
-        installId: "personal",
-        label: "Personal Site",
-        packageAppKey: "site",
-        routeKind: "publicSite",
-      },
-      {
         access: "owner",
         href: "/apps/verifi",
         installId: "verifi",
@@ -1711,16 +1590,14 @@ describe("instance control-plane schema contracts", () => {
     expect(links.every((link) => link.routeId === undefined)).toBe(true);
     expect(installs[0]).toMatchObject({
       adminRoute: "/apps/personal",
-      publicRoute: "/sites/personal",
-      publicRoutePrefix: "/sites/personal/",
-      launchLinks: links.slice(0, 2),
+      launchLinks: [links[0]],
     });
     expect(installs[0]).not.toHaveProperty("routes");
     expect(installs[1]).toMatchObject({
       adminRoute: "/apps/verifi",
       registrationOperation: "profile.register",
       registrationPolicy: "custom-operation",
-      launchLinks: [links[2]],
+      launchLinks: [links[1]],
     });
   });
 
@@ -1977,7 +1854,6 @@ function privatePackageManifest(): Record<string, unknown> {
     label: "Private Labs",
     packageAppKey: "private-labs",
     packageRevision: 7,
-    publicSite: true,
     sourceSchemaHash: privateSourceSchemaHash,
     sourceSchemaKind: "workspace",
     sourceSchemaPath: "packages/private-labs/schema.json",
@@ -1988,7 +1864,6 @@ function packageManifest(input: {
   label: string;
   packageAppKey: string;
   packageRevision?: number;
-  publicSite?: boolean;
   sourceSchemaHash: string;
   sourceSchemaKind?: "bundled" | "workspace";
   sourceSchemaPath?: string;
@@ -2013,14 +1888,6 @@ function packageManifest(input: {
         kind: "generatedAdmin",
         routeBase: "/apps",
       },
-      ...(input.publicSite
-        ? [
-            {
-              kind: "publicSite",
-              routeBase: "/sites",
-            },
-          ]
-        : []),
     ],
   };
 }
@@ -2148,15 +2015,14 @@ function controlPlaneRecords(
       updatedAt: now,
     },
     {
-      id: "route:site:public-site",
+      id: "route:program:public-site",
       entity: "route",
       values: {
         enabled: true,
-        matchPath: "/sites/site",
-        matchPrefix: "/sites/site/",
+        matchPath: "/pages",
+        matchPrefix: "/pages/",
         kind: "mount",
         targetProfile: "public-site",
-        appInstall: "site",
         surface: "public-site",
       },
       createdAt: now,
@@ -2174,7 +2040,6 @@ function controlPlaneRecords(
               matchPrefix: "/",
               kind: "mount",
               targetProfile: "public-site",
-              appInstall: "site",
               surface: "public-site",
               access: "anonymous",
               deploymentConfig: "instance.primary",

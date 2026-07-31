@@ -66,7 +66,7 @@ describe("Formless instance target client", () => {
     });
   });
 
-  it("parses app registry package facts and fills legacy install facts from packages", async () => {
+  it("does not select app registry package facts as target status", async () => {
     const result = await readFormlessInstanceAppRegistry(
       { targetUrl: "https://instance.example" },
       {
@@ -80,7 +80,6 @@ describe("Formless instance target client", () => {
                 label: "Site",
                 packageAppKey: "site",
                 packageRevision: 1,
-                publicRouteBase: "/sites",
                 sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
                 sourceSchemaKey: "site",
                 supportsMultipleInstalls: true,
@@ -93,8 +92,6 @@ describe("Formless instance target client", () => {
                 installId: "site",
                 label: "Site",
                 packageAppKey: "site",
-                publicRoute: "/sites/site",
-                publicRoutePrefix: "/sites/site/",
                 registrationOperation: "profile.register",
                 registrationPolicy: "custom-operation",
                 status: "installed",
@@ -172,8 +169,6 @@ describe("Formless instance target client", () => {
                   label: "Site",
                   packageAppKey: "site",
                   packageRevision: 1,
-                  publicRoute: "/sites/site",
-                  publicRoutePrefix: "/sites/site/",
                   registrationPolicy: "closed",
                   sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
                   status: "installed",
@@ -333,8 +328,6 @@ describe("Formless instance target client", () => {
                   installId: "site",
                   label: "Site",
                   packageAppKey: "site",
-                  publicRoute: "/sites/site",
-                  publicRoutePrefix: "/sites/site/",
                   registrationPolicy: "closed",
                   status: "installed",
                   updatedAt: "2026-05-28T00:00:00.000Z",
@@ -384,10 +377,6 @@ function privatePackageManifest(): Record<string, unknown> {
         kind: "generatedAdmin",
         routeBase: "/apps",
       },
-      {
-        kind: "publicSite",
-        routeBase: "/sites",
-      },
     ],
   };
 }
@@ -416,7 +405,7 @@ describe("Formless instance target control-plane client", () => {
       },
     ]);
     expect(records.appInstalls.map((record) => record.id)).toEqual(["site"]);
-    expect(records.appRoutes.map((record) => record.id)).toEqual(["route:site:public-site"]);
+    expect(records.appRoutes).toEqual([]);
     expect(records.domainMappings.map((record) => record.id)).toEqual([
       "route:host:publicSite:www.example.com",
     ]);
@@ -609,9 +598,9 @@ function controlPlaneBootstrapResponse(): Response {
         entity: "route",
         id: "route:site:public-site",
         values: {
-          appInstall: "site",
           kind: "mount",
-          matchPath: "/sites/site",
+          matchPath: "/pages",
+          matchPrefix: "/pages/",
           surface: "public-site",
           targetProfile: "public-site",
         },
@@ -620,7 +609,6 @@ function controlPlaneBootstrapResponse(): Response {
         entity: "route",
         id: "route:host:publicSite:www.example.com",
         values: {
-          appInstall: "site",
           kind: "mount",
           matchHost: "www.example.com",
           matchPath: "/",

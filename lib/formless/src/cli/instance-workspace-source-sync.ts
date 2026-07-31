@@ -2422,9 +2422,44 @@ function comparableProgramWorkspaceRecords(records: readonly StoredRecord[]): St
     }
 
     return (
-      entity !== "route" || !dormantInstallIds.has(stringRecordValue(record, "appInstall") ?? "")
+      entity !== "route" ||
+      (isCurrentProgramPublicSiteRouteRecord(record) &&
+        !dormantInstallIds.has(stringRecordValue(record, "appInstall") ?? ""))
     );
   });
+}
+
+function currentProgramPublicSiteControlPlane(
+  controlPlane: WorkspaceControlPlaneRecords,
+): WorkspaceControlPlaneRecords {
+  return {
+    ...controlPlane,
+    records: controlPlane.records.filter(isCurrentProgramPublicSiteRouteRecord),
+  };
+}
+
+function isCurrentProgramPublicSiteRouteRecord(record: {
+  entity: string;
+  values: Record<string, unknown>;
+}): boolean {
+  const entity = record.entity.startsWith("instance:")
+    ? record.entity.slice("instance:".length)
+    : record.entity;
+
+  if (entity !== "route") {
+    return true;
+  }
+
+  const targetProfile = stringRecordValue(record, "targetProfile");
+  const surface = stringRecordValue(record, "surface");
+  const publicSiteShaped = targetProfile === "public-site" || surface === "public-site";
+
+  return (
+    !publicSiteShaped ||
+    (targetProfile === "public-site" &&
+      surface === "public-site" &&
+      stringRecordValue(record, "appInstall") === undefined)
+  );
 }
 
 function comparableControlPlaneIntentRecordsJson(
@@ -2952,7 +2987,12 @@ async function writeComposedWorkspacePushArchive(input: {
     restorePolicy: { dryRun: true, installCollisions: "reject" },
     ...(input.controlPlane === undefined
       ? {}
-      : { controlPlane: controlPlaneSnapshotForArchive(input.controlPlane, input.exportedAt) }),
+      : {
+          controlPlane: controlPlaneSnapshotForArchive(
+            currentProgramPublicSiteControlPlane(input.controlPlane),
+            input.exportedAt,
+          ),
+        }),
     media: { objects: input.programMedia.objects },
     apps: appArchives,
   };
@@ -3005,7 +3045,8 @@ export function workspaceDomainIntentsFromSource(
         !record.deletedAt &&
         record.entity === "route" &&
         stringRecordValue(record, "kind") === "mount" &&
-        stringRecordValue(record, "matchHost") !== undefined,
+        stringRecordValue(record, "matchHost") !== undefined &&
+        isCurrentProgramPublicSiteRouteRecord(record),
     )
     .map(workspaceDomainIntentFromRouteRecord)
     .sort(compareWorkspaceDomainIntents);
@@ -3032,7 +3073,7 @@ function workspaceDomainIntentFromRouteRecord(record: {
     throw new Error(`Workspace route "${record.id}" is missing matchHost.`);
   }
 
-  if (profile !== "instance" && targetInstallId === undefined) {
+  if (profile === "app" && targetInstallId === undefined) {
     throw new Error(`Workspace route "${record.id}" profile "${profile}" is missing appInstall.`);
   }
 
@@ -3040,7 +3081,7 @@ function workspaceDomainIntentFromRouteRecord(record: {
     enabled: booleanRecordValue(record, "enabled") ?? true,
     host,
     profile,
-    ...(targetInstallId === undefined ? {} : { targetInstallId }),
+    ...(profile !== "app" || targetInstallId === undefined ? {} : { targetInstallId }),
   };
 }
 

@@ -102,10 +102,6 @@ function privatePackageManifest(): Record<string, unknown> {
         kind: "generatedAdmin",
         routeBase: "/apps",
       },
-      {
-        kind: "publicSite",
-        routeBase: "/sites",
-      },
     ],
   };
 }

@@ -83,7 +83,11 @@ function enabledProfileMappings(
   mappings: readonly DomainProviderProfileMappingIntent[],
 ): DomainProviderProfileMappingIntent[] {
   return mappings
-    .filter((mapping) => mapping.enabled)
+    .filter(
+      (mapping) =>
+        mapping.enabled &&
+        !(mapping.profile === "publicSite" && mapping.targetInstallId !== undefined),
+    )
     .map((mapping) => ({
       enabled: true,
       host: normalizeHostOrThrow(mapping.host),

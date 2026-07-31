@@ -23,7 +23,6 @@ describe("instance shell route view", () => {
     expect(state.packages).toEqual([privateSite]);
     expect(state.packages[0]).toMatchObject({
       packageAppKey: "private-site",
-      publicRouteBase: "/sites",
       sourceOrigin: "workspace",
     });
   });
@@ -150,11 +149,10 @@ function privateSitePackage(): InstallableAppPackage {
   return {
     adminRouteBase: "/apps",
     defaultInstallId: "private-site",
-    description: "Workspace-linked public Site package.",
+    description: "Workspace-linked package.",
     label: "Private Site",
     packageAppKey: "private-site",
     packageRevision: 7,
-    publicRouteBase: "/sites",
     sourceOrigin: "workspace",
     sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
     sourceSchemaKey: "private-site",

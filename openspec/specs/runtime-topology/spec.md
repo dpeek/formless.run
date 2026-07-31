@@ -44,15 +44,15 @@ and installed-app API routes are the only app-data route families.
 - THEN that route is not a current runtime surface
 - AND the Program browser and `/api/formless/program` route family, installed
   app API routes, installed app browser routes, Program-native Site preview and
-  public routes, installed private public-Site-capable routes, account auth
-  routes, principal-backed browser session routes, instance browser routes, and
-  the workspace gateway API route family remain route-policy eligible
+  public routes, account auth routes, principal-backed browser session routes,
+  instance browser routes, and the workspace gateway API route family remain
+  route-policy eligible
 
 #### Scenario: Dev route policy
 
 - GIVEN the runtime profile is `dev`
-- WHEN a request targets the Program, an installed app, installed private public
-  Site, instance, account auth, or workspace gateway API routes
+- WHEN a request targets the Program, an installed app, Program public Site,
+  instance, account auth, or workspace gateway API routes
 - THEN those route families remain available
 - AND the dev workbench composes Program and product instance surfaces together
 - AND Tasks, Site, and CRM are available through Program-owned paths rather than
@@ -69,8 +69,7 @@ The system SHALL mount browser surfaces according to the active runtime profile.
   `/site/contacts`, `/site/subscribers`, `/pages`, `/pages/*`, `/apps`,
   `/routes`, `/deployments`,
   `/organizations`, `/access`, `/invitations`, `/policies`, `/settings`,
-  `/apps/<installId>`, `/apps/<installId>/*`, `/sites/<installId>`, or
-  `/sites/<installId>/*`
+  `/apps/<installId>`, or `/apps/<installId>/*`
 - THEN the request is eligible for the client shell
 - AND a default installed-app admin route matches its exact base and generated
   nested screen paths through `/apps/<installId>/`
@@ -336,10 +335,10 @@ surfaces or protected management API data.
 - GIVEN a runtime browser route has effective access `anonymous`
 - WHEN the request is otherwise eligible for the active runtime profile
 - THEN the route can be served without a principal-backed browser session
-- AND account orchestrator routes, account gate routes, Program-native and
-  installed-private public Site routes, published Site documents, public Site
-  resources, static assets, and public actions remain available according to
-  their existing route policies
+- AND account orchestrator routes, account gate routes, Program-native public
+  Site routes, published Site documents, public Site resources, static assets,
+  and public actions remain available according to their existing route
+  policies
 
 #### Scenario: Authenticated app API route
 
@@ -406,25 +405,19 @@ The system MUST route public Site documents through published Site behavior only
 
 #### Scenario: Published document adapter selection
 
-- GIVEN the runtime profile or a route record selects a Program-native or
-  installed-private public Site target
+- GIVEN the runtime profile or a route record selects the Program-native public
+  Site target
 - WHEN a public Site document request is eligible for SSR
-- THEN route topology selects its package app key and Program or installed-app
-  storage identity before document rendering
-- AND Worker document rendering is dispatched through the registered public Site
-  adapter for that package app key
-- AND absent published install metadata selects package app key `site` and
-  Program storage identity
-- AND complete installed-target metadata may select a private
-  public-Site-capable package
-- AND partial installed-target metadata is rejected
-- AND no published document path is rendered by hard-coding the bundled `site`
-  package implementation when the selected package has no adapter
+- THEN route topology selects Program storage identity before document rendering
+- AND Worker document rendering is dispatched through the built-in Site public
+  runtime adapter
+- AND package app key and app install metadata are not published Site target
+  inputs
 
 #### Scenario: Non-document paths stay out of SSR
 
 - GIVEN the runtime profile is `publishedSite`
-- WHEN a request targets `/api/*`, `/formless/*`, `/tasks`, `/crm/audiences`, `/site/schema`, `/schema`, `/apps/<installId>`, `/sites/<installId>`, static asset-like paths, dynamic root icon paths, or a non-HTML request
+- WHEN a request targets `/api/*`, `/formless/*`, `/tasks`, `/crm/audiences`, `/site/schema`, `/schema`, `/apps/<installId>`, static asset-like paths, dynamic root icon paths, or a non-HTML request
 - THEN the request is not handled as a published Site document
 
 ### Requirement: Static Assets And Dynamic Public Resources
@@ -444,8 +437,8 @@ The system SHALL distinguish static asset fallback from dynamic public Site reso
 - WHEN a `GET` or `HEAD` request targets `/robots.txt`, `/sitemap.xml`, `/favicon.svg`, `/favicon.ico`, or `/apple-touch-icon.png`
 - THEN the request is handled as a dynamic public Site resource
 - AND dynamic root icon requests are not served from static asset fallback
-- AND the resource body is produced by the public Site adapter selected for the
-  target package app key
+- AND the resource body is produced by the built-in Site public runtime adapter
+  from Program storage
 
 ### Requirement: Published Site Clean Redirects
 
@@ -478,14 +471,11 @@ profile behavior.
 
 #### Scenario: Mapped public Site host
 
-- **GIVEN** an enabled exact-host `route` mounts a Program-native or installed
-  private public Site
+- **GIVEN** an enabled exact-host `route` mounts the Program-native public Site
 - **WHEN** the mapped host receives a public document request for `/` or a
   nested page path
-- **THEN** the response is rendered from Program storage when the route has no
-  app install target
-- **AND** it is rendered from installed-app storage when the route targets a
-  private public-Site-capable install
+- **THEN** the response is rendered from Program storage
+- **AND** the route has no app install or package-derived target
 - **AND** public links, indexing resources, root icons, and core media use
   top-level mapped-host paths
 - **AND** generated app routes, schema-key routes, instance shell routes,
@@ -494,7 +484,7 @@ profile behavior.
 - **AND** account setup and sign-in gate browser requests redirect to the
   configured auth origin when the mapped public Site host is not that origin
 - **AND** public Site document, indexing, and icon behavior is selected from the
-  package runtime adapter registered for the route target's package app key
+  built-in Site public runtime adapter
 
 #### Scenario: Mapped host auth callback
 
@@ -552,11 +542,10 @@ profile behavior.
   gate browser requests redirect to the configured auth origin and passkey
   ceremony API requests do not run locally
 
-### Requirement: Schema-Owned App Route Resolution
+### Requirement: Schema-Owned Runtime Route Resolution
 
-The system SHALL resolve installed app browser routes, installed-private public
-Site routes, and the Program-native public Site from enabled schema-owned
-`route` records.
+The system SHALL resolve installed app browser routes and the Program-native
+public Site from enabled schema-owned `route` records.
 
 #### Scenario: Installed app browser route
 
@@ -566,26 +555,13 @@ Site routes, and the Program-native public Site from enabled schema-owned
   `app-install` record
 - **AND** the selected installed app mounts with that app install identity
 
-#### Scenario: Installed private Site public route
-
-- **GIVEN** a browser requests an enabled public Site route for a
-  runtime-installable private package
-- **WHEN** runtime topology resolves the route
-- **THEN** the route record resolves through `appInstall` to its referenced
-  private `app-install` record
-- **AND** public Site reads use the matching install-scoped app storage
-  identity
-- **AND** public Site runtime behavior is dispatched through the package
-  adapter registered for that app install's package app key
-
 #### Scenario: Program-native Site public route
 
 - **GIVEN** a browser requests the built-in Site preview or an enabled
-  public-Site mapping without an app install target
+  public-Site mapping
 - **WHEN** runtime topology resolves the route
 - **THEN** public reads use Program storage identity `instance:control-plane`
-- **AND** behavior uses the package adapter registered for package app key
-  `site`
+- **AND** behavior uses the built-in Site public runtime adapter
 - **AND** no `app-install` record is synthesized or selected
 
 #### Scenario: Disabled or conflicting route
@@ -623,8 +599,8 @@ source for hostless mounts, exact-host mounts, and redirects.
 - **AND** installed mount candidates whose target package is not
   runtime-installable are not eligible and do not stop selection of the next
   valid candidate
-- **AND** a Program-native public Site route without an app install is not
-  subjected to installed-package availability
+- **AND** a Program-native public Site route never selects an app install or
+  checks installed-package availability
 
 #### Scenario: Hostless mount preserves configured profile policy
 
@@ -734,8 +710,8 @@ runtime profiles that have local gateway sidecar proxy configuration.
 
 #### Scenario: Gateway does not affect app routing
 
-- **WHEN** installed app browser routes, installed-private public Site routes,
-  schema-key routes, or static assets are resolved
+- **WHEN** installed app browser routes, Program public Site routes, schema-key
+  routes, or static assets are resolved
 - **THEN** workspace gateway route policy is evaluated separately
 - **AND** app route resolution continues to use runtime profile and
   schema-owned `route` records

@@ -55,10 +55,7 @@ beforeAll(async () => {
   });
   const crmPackage = await runtimeWorkspaceCrmAppPackageFixture();
   const privateSitePackage = await runtimeWorkspaceTaskAppPackageFixture({
-    capabilities: [
-      { kind: "generatedAdmin", routeBase: "/apps" },
-      { kind: "publicSite", routeBase: "/sites" },
-    ],
+    capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],
     defaultInstallId: "personal",
     label: "Private Site",
     packageAppKey: privateSitePackageAppKey,
@@ -167,7 +164,6 @@ describe("instance archive restore API", () => {
         packageAppKey: taskPackageAppKey,
       }),
     ]);
-    expect(installs.body.installs[0]).not.toHaveProperty("publicRoute");
     expect(bootstrap.body.schema).toEqual(taskSourceSchema);
     expect(bootstrap.body.records).toEqual([taskRecord()]);
   });
@@ -286,7 +282,6 @@ describe("instance archive restore API", () => {
         packageAppKey: "test-crm",
       }),
     ]);
-    expect(installs.body.installs[0]).not.toHaveProperty("publicRoute");
     expect(bootstrap.body.schema).toEqual(crmSourceSchema);
     expect(bootstrap.body.records).toEqual(crmTestRecords);
   });
@@ -332,12 +327,6 @@ describe("instance archive restore API", () => {
       "test-crm",
       taskPackageAppKey,
     ]);
-    expect(
-      installs.body.installs.find((install) => install.installId === "work"),
-    ).not.toHaveProperty("publicRoute");
-    expect(
-      installs.body.installs.find((install) => install.installId === "rates"),
-    ).not.toHaveProperty("publicRoute");
     expect(site.body.schema).toEqual(siteSourceSchema);
     expect(site.body.records).toEqual([siteRecord()]);
     expect(tasks.body.schema).toEqual(taskSourceSchema);
@@ -375,15 +364,11 @@ describe("instance archive restore API", () => {
         installId: "personal",
         label: "Archived Personal",
         packageAppKey: privateSitePackageAppKey,
-        publicRoute: "/sites/personal",
       }),
     ]);
     expect(
       installs.body.installs[0]?.routes?.map((route) => [route.routeKind, route.path]),
-    ).toEqual([
-      ["admin", "/apps/personal-dashboard"],
-      ["publicSite", "/sites/personal"],
-    ]);
+    ).toEqual([["admin", "/apps/personal-dashboard"]]);
     expect(installedApp.body.records).toContainEqual(siteRecord());
     expect(controlPlane.body.records.map((record) => `${record.entity}:${record.id}`)).toEqual(
       expect.arrayContaining([
@@ -759,8 +744,6 @@ function controlPlaneArchiveRecords(): StoredRecord[] {
     createdAt: now,
     updatedAt: now,
     adminRoute: "/apps/personal",
-    publicRoute: "/sites/personal",
-    publicRoutePrefix: "/sites/personal/",
   };
   const records = instanceControlPlaneRecordsForAppInstall({ install, now }).map(
     storedControlPlaneRecord,
@@ -851,7 +834,6 @@ function controlPlaneArchiveRecords(): StoredRecord[] {
         matchPrefix: "/",
         kind: "mount",
         targetProfile: "public-site",
-        appInstall: "personal",
         surface: "public-site",
         deploymentConfig: "instance.primary",
       },

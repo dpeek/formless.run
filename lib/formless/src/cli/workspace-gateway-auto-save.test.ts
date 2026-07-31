@@ -47,7 +47,7 @@ const tempDirs: string[] = [];
 const privateSitePackageAppKey = "private-site";
 const rootKnownSitePackage = rootKnownPackageFactsResolver().findPackage("site")!;
 const privateSiteSourceSchemaHash =
-  "sha256:81e1483d2f56dc771bc0394e60cc5392a384d2bb3fa88d1bd42ce88395a29fdf" as typeof rootKnownSitePackage.sourceSchemaHash;
+  "sha256:06789270061b43a2a0e4709f96e8aac35514e0f61bf15a29f234ca253d021c25" as typeof rootKnownSitePackage.sourceSchemaHash;
 const privateSitePackage = {
   ...rootKnownSitePackage,
   defaultInstallId: "personal",
@@ -775,10 +775,7 @@ async function writePrivateSitePackage(workspaceRoot: string) {
         path: "schema.json",
       },
       sourceSchemaHash: privateSiteSourceSchemaHash,
-      capabilities: [
-        { kind: "generatedAdmin", routeBase: "/apps" },
-        { kind: "publicSite", routeBase: "/sites" },
-      ],
+      capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],
     }),
   );
 }
@@ -1056,8 +1053,6 @@ function installedSite(installId: string, label: string) {
     label,
     packageAppKey: privateSitePackageAppKey,
     packageRevision: facts.packageRevision,
-    publicRoute: `/sites/${installId}` as `/sites/${string}`,
-    publicRoutePrefix: `/sites/${installId}/` as `/sites/${string}/`,
     registrationPolicy: "closed" as const,
     sourceSchemaHash: facts.sourceSchemaHash,
     status: "installed" as const,

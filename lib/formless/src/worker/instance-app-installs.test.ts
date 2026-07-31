@@ -184,10 +184,7 @@ describe("instance app install API routes", () => {
           [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
             {
               manifest: workspaceAppPackageManifestFixture({
-                capabilities: [
-                  { kind: "generatedAdmin", routeBase: "/apps" },
-                  { kind: "publicSite", routeBase: "/sites" },
-                ],
+                capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],
                 sourceSchemaHash,
               }),
               sourceSchema: taskSourceSchema,
@@ -233,7 +230,6 @@ describe("instance app install API routes", () => {
       ).toMatchObject({
         defaultInstallId: "labs",
         packageRevision: 7,
-        publicRouteBase: "/sites",
         sourceOrigin: "workspace",
         sourceSchemaHash,
         sourceSchemaKey: "private-labs",
@@ -251,8 +247,6 @@ describe("instance app install API routes", () => {
           label: "Private Labs",
           packageAppKey: "private-labs",
           packageRevision: 7,
-          publicRoute: "/sites/labs",
-          publicRoutePrefix: "/sites/labs/",
           sourceSchemaHash,
           status: "installed",
         }),
@@ -270,7 +264,7 @@ describe("instance app install API routes", () => {
         routes
           .map((record) => record.values.matchPath)
           .sort((left, right) => String(left).localeCompare(String(right))),
-      ).toEqual(["/apps/labs", "/sites/labs"]);
+      ).toEqual(["/apps/labs"]);
       expect(
         routes
           .map((record) => [
@@ -281,10 +275,7 @@ describe("instance app install API routes", () => {
             record.values.requiredRole,
           ])
           .sort(([left], [right]) => String(left).localeCompare(String(right))),
-      ).toEqual([
-        ["route:labs:admin", "app", "admin", "authenticated", "app.admin"],
-        ["route:labs:public-site", "public-site", "public-site", "anonymous", undefined],
-      ]);
+      ).toEqual([["route:labs:admin", "app", "admin", "authenticated", "app.admin"]]);
       expect(controlPlaneJson).not.toContain("formless.app.json");
       expect(controlPlaneJson).not.toContain("../app");
     } finally {
@@ -826,8 +817,6 @@ describe("instance app install API routes", () => {
         status: "installed",
       }),
     );
-    expect(created.body.install).not.toHaveProperty("publicRoute");
-    expect(created.body.install).not.toHaveProperty("publicRoutePrefix");
     expect(bootstrap.body.schema).toEqual(crmSourceSchema);
     expect(bootstrap.body.records).toEqual([]);
     expect(bootstrap.body.cursor).toBe(0);
@@ -899,8 +888,6 @@ describe("instance app install API routes", () => {
           status: "installed",
         }),
       );
-      expect(created.body.install).not.toHaveProperty("publicRoute");
-      expect(created.body.install).not.toHaveProperty("publicRoutePrefix");
       expect(
         controlPlane.body.records
           .filter((record) => record.entity === "route")

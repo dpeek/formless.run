@@ -588,7 +588,6 @@ describe("generated workspace tree selection runtime", () => {
       label: "Private Site",
       packageAppKey: "private-site",
       packageRevision: 1,
-      publicRouteBase: "/sites" as const,
       sourceOrigin: "workspace" as const,
       sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
       sourceSchemaKey: "private-site",

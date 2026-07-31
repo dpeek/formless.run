@@ -1144,12 +1144,6 @@ function appInstallForArchive(
     createdAt: app.createdAt,
     updatedAt: app.updatedAt,
     adminRoute: `${appPackage.adminRouteBase}/${app.installId}`,
-    ...(appPackage.publicRouteBase === undefined
-      ? {}
-      : {
-          publicRoute: `${appPackage.publicRouteBase}/${app.installId}`,
-          publicRoutePrefix: `${appPackage.publicRouteBase}/${app.installId}/`,
-        }),
   };
 }
 

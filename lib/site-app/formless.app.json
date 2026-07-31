@@ -12,15 +12,11 @@
     "key": "site",
     "path": "schema.json"
   },
-  "sourceSchemaHash": "sha256:177abfb66aa44dca0927a708fdec6872bf6562479526a3dff0918acddacc00e7",
+  "sourceSchemaHash": "sha256:e75f60a6707337fb5589f5bc0efab60d543b5ee93565e3bedba791145a4871fd",
   "capabilities": [
     {
       "kind": "generatedAdmin",
       "routeBase": "/apps"
-    },
-    {
-      "kind": "publicSite",
-      "routeBase": "/sites"
     }
   ]
 }

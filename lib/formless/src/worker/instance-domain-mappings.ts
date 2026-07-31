@@ -272,11 +272,17 @@ function domainMappingFromControlPlaneRecord(
   const targetInstallId =
     typeof record.values.appInstall === "string" ? record.values.appInstall : undefined;
 
+  if (profile === "publicSite" && targetInstallId !== undefined) {
+    return undefined;
+  }
+
   return {
     host: String(record.values.matchHost),
     profile,
     ...(profile === "publicSite" ? { surface: "site" as const } : {}),
-    ...(targetInstallId === undefined ? {} : { installId: targetInstallId, targetInstallId }),
+    ...(profile !== "app" || targetInstallId === undefined
+      ? {}
+      : { installId: targetInstallId, targetInstallId }),
     enabled: true,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,

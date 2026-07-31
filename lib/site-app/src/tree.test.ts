@@ -9,7 +9,6 @@ import {
   type SitePageTree,
   type SitePageTreeProjection,
 } from "./tree.ts";
-import type { SitePublicOperationTargetResolver } from "./public-operation-block-projection.ts";
 
 const generatedAt = "2026-05-06T00:00:00.000Z";
 const siteSourceSchema = parseAppSchema(rawSiteSourceSchema);
@@ -1040,9 +1039,6 @@ describe("site page tree projection", () => {
       blockRecord("rec_site_block_public_intake", {
         type: "publicOperationForm",
         label: "Request a test",
-        operationTargetKind: "appInstall",
-        operationTargetPackageAppKey: "tasks",
-        operationTargetInstallId: "requests",
         operationKey: "request.submit",
         operationNotificationMode: "email",
         operationNotificationReplyToField: "email",
@@ -1110,12 +1106,8 @@ describe("site page tree projection", () => {
       },
     ];
     const tree = requireTree(
-      buildSitePageTree(siteSourceSchema, records, "home", {
+      buildSitePageTree(programSchemaWith(publicIntakeSchema), records, "home", {
         generatedAt,
-        target: { apiRoutePrefix: "/api/app-installs/site/site" },
-        publicOperationTargetResolver: publicOperationTargetResolver({
-          tasks: publicIntakeSchema,
-        }),
         turnstileSiteKey: "public-site-key",
       }),
     );
@@ -1130,9 +1122,11 @@ describe("site page tree projection", () => {
       expect.objectContaining({ canonicalKey: "contact-message.submit" }),
     );
     expect(publicOperationForm.publicOperation).toEqual(
-      expect.objectContaining({ canonicalKey: "request.submit" }),
+      expect.objectContaining({
+        canonicalKey: "request.submit",
+        route: "/api/formless/program/public/operations/request/submit",
+      }),
     );
-    expect(publicOperationForm).not.toHaveProperty("operationTargetSchemaKey");
     expect(publicOperationForm).not.toHaveProperty("operationNotificationMode");
     expect(JSON.stringify(tree)).not.toContain("reader@example.com");
     expect(JSON.stringify(tree)).not.toContain("Private message.");
@@ -1246,23 +1240,11 @@ function baseTreeRecords(): StoredRecord[] {
   return testSiteRecords;
 }
 
-function publicOperationTargetResolver(
-  schemas: Partial<Record<string, AppSchema>>,
-): SitePublicOperationTargetResolver {
-  return (request) => {
-    const schema = schemas[request.packageAppKey];
-
-    return schema
-      ? {
-          schema,
-          route: {
-            kind: "appInstall",
-            packageAppKey: request.packageAppKey,
-            installId: request.installId,
-            apiRoutePrefix: `/api/app-installs/${request.packageAppKey}/${request.installId}`,
-          },
-        }
-      : undefined;
+function programSchemaWith(extension: AppSchema): AppSchema {
+  return {
+    ...structuredClone(siteSourceSchema),
+    entities: [...siteSourceSchema.entities, ...extension.entities],
+    queries: [...siteSourceSchema.queries, ...extension.queries],
   };
 }
 

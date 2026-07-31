@@ -3,23 +3,13 @@ import type { AppSchema, EntityOperationSchema } from "@dpeek/formless-schema";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import { describe, expect, it } from "vite-plus/test";
 
-import {
-  installedAppStorageIdentity,
-  programStorageIdentity,
-  type AppStorageIdentity,
-} from "../shared/app-storage-identity.ts";
+import { programStorageIdentity, type AppStorageIdentity } from "../shared/app-storage-identity.ts";
 import type { EmailDeliveryScheduleRequest } from "../shared/email-runtime.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import {
   scheduleSiteOperationInputNotificationAfterPublicOperation,
   type SiteOperationInputNotificationAdapters,
 } from "./site-operation-input-notifications.ts";
-
-type OperationFormTarget = {
-  installId: string;
-  kind: "appInstall";
-  packageAppKey: string;
-};
 
 describe("Site operation input notification scheduling", () => {
   it("schedules structured operation input email from a committed public operation form", async () => {
@@ -270,54 +260,6 @@ describe("Site operation input notification scheduling", () => {
     expect(JSON.stringify(response)).not.toContain("email_delivery_");
   });
 
-  it("requires declared public operation form targets to match the committed operation target", async () => {
-    const scheduled: EmailDeliveryScheduleRequest[] = [];
-    const identity = installedAppStorageIdentity({ installId: "requests", packageAppKey: "crm" });
-
-    if (!identity) {
-      throw new Error("Expected installed app identity.");
-    }
-
-    const matchingRecords = operationFormSourceRecords({
-      target: {
-        installId: "requests",
-        kind: "appInstall",
-        packageAppKey: "crm",
-      },
-    });
-    const mismatchedRecords = operationFormSourceRecords({
-      target: {
-        installId: "other",
-        kind: "appInstall",
-        packageAppKey: "crm",
-      },
-    });
-
-    expect(matchingRecords[0]?.values.operationTargetInstallId).toBe("requests");
-    expect(mismatchedRecords[0]?.values.operationTargetInstallId).toBe("other");
-
-    await scheduleSiteOperationInputNotificationAfterPublicOperation({
-      adapters: notificationAdapters(notificationControlPlaneRecords(), scheduled),
-      identity,
-      records: matchingRecords,
-      requestUrl:
-        "https://www.example.com/api/app-installs/crm/requests/public/operations/request/submit",
-      response: operationInputResponse({ identity }),
-      schema: operationInputSchema(),
-    });
-    await scheduleSiteOperationInputNotificationAfterPublicOperation({
-      adapters: notificationAdapters(notificationControlPlaneRecords(), scheduled),
-      identity,
-      records: mismatchedRecords,
-      requestUrl:
-        "https://www.example.com/api/app-installs/tasks/requests/public/operations/request/submit",
-      response: operationInputResponse({ identity }),
-      schema: operationInputSchema(),
-    });
-
-    expect(scheduled).toHaveLength(1);
-  });
-
   it("uses stable operation input notification idempotency for the same operation retry", async () => {
     const scheduled: EmailDeliveryScheduleRequest[] = [];
     const adapters = notificationAdapters(notificationControlPlaneRecords(), scheduled);
@@ -402,7 +344,6 @@ function operationFormSourceRecords(
   input: {
     mode?: "email" | "none";
     replyToField?: string;
-    target?: OperationFormTarget;
   } = {},
 ): StoredRecord[] {
   return [
@@ -414,21 +355,8 @@ function operationFormSourceRecords(
       ...(input.replyToField === undefined
         ? {}
         : { operationNotificationReplyToField: input.replyToField }),
-      ...operationFormTargetValues(input.target),
     }),
   ];
-}
-
-function operationFormTargetValues(target: OperationFormTarget | undefined): RecordValues {
-  if (!target) {
-    return {};
-  }
-
-  return {
-    operationTargetKind: "appInstall",
-    operationTargetPackageAppKey: target.packageAppKey,
-    operationTargetInstallId: target.installId,
-  };
 }
 
 function operationInputSchema(

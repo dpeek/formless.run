@@ -70,10 +70,6 @@ describe("app package manifests", () => {
           kind: "generatedAdmin",
           routeBase: "/apps",
         },
-        {
-          kind: "publicSite",
-          routeBase: "/sites",
-        },
       ],
     });
   });
@@ -135,7 +131,6 @@ describe("app package manifests", () => {
         label: "Site",
         packageAppKey: "site",
         packageRevision: 1,
-        publicRouteBase: "/sites",
         sourceOrigin: "bundled",
         sourceSchemaKey: "site",
         sourceSchemaHash: siteSourceSchemaHash,
@@ -182,7 +177,6 @@ describe("app package manifests", () => {
         label: "Private Labs",
         packageAppKey: "private-labs",
         packageRevision: 7,
-        publicRouteBase: "/sites",
         sourceOrigin: "workspace",
         sourceSchemaHash: privateSourceSchemaHash,
         sourceSchemaKey: "private-labs",
@@ -328,8 +322,6 @@ describe("app install registry", () => {
       label: "Personal Site",
       packageAppKey: "site",
       packageRevision: 1,
-      publicRoute: "/sites/personal",
-      publicRoutePrefix: "/sites/personal/",
       registrationPolicy: "closed",
       sourceSchemaHash: siteSourceSchemaHash,
       status: "installed",
@@ -431,8 +423,6 @@ describe("app install registry", () => {
       label: "Private Labs",
       packageAppKey: "private-labs",
       packageRevision: 7,
-      publicRoute: "/sites/labs",
-      publicRoutePrefix: "/sites/labs/",
       registrationPolicy: "closed",
       sourceSchemaHash: privateSourceSchemaHash,
       status: "installed",
@@ -733,7 +723,6 @@ function bundledPackageManifests() {
       label: "Site",
       defaultInstallId: "site",
       sourceSchemaHash: siteSourceSchemaHash,
-      publicSite: true,
     }),
     packageManifest({
       packageAppKey: "tasks",
@@ -764,8 +753,6 @@ function siteInstallFixture(input: {
     label: input.label,
     packageAppKey: "site",
     packageRevision: 1,
-    publicRoute: `/sites/${input.installId}`,
-    publicRoutePrefix: `/sites/${input.installId}/`,
     registrationPolicy: "closed",
     sourceSchemaHash: siteSourceSchemaHash,
     status: "installed",
@@ -780,7 +767,6 @@ function privatePackageManifest(overrides: Record<string, unknown> = {}): Record
       label: "Private Labs",
       defaultInstallId: "labs",
       sourceSchemaHash: privateSourceSchemaHash,
-      publicSite: true,
       sourceOrigin: "workspace",
       sourcePathPrefix: "packages/private-labs",
     }),
@@ -795,7 +781,6 @@ function packageManifest(input: {
   defaultInstallId: string;
   label: string;
   packageAppKey: string;
-  publicSite?: boolean;
   sourceOrigin?: "bundled" | "workspace";
   sourcePathPrefix?: string;
   sourceSchemaHash: SourceSchemaHash;
@@ -824,14 +809,6 @@ function packageManifest(input: {
         kind: "generatedAdmin",
         routeBase: "/apps",
       },
-      ...(input.publicSite
-        ? [
-            {
-              kind: "publicSite",
-              routeBase: "/sites",
-            },
-          ]
-        : []),
     ],
   };
 }

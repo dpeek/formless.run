@@ -21,7 +21,6 @@ import {
 
 export type PublicSiteLinkIconLayoutFixtureId =
   | "authoring"
-  | "installed"
   | "preview"
   | "published"
   | "published-mounted";
@@ -56,7 +55,6 @@ export const publicSiteLinkIconLayoutFixtures = [
   linkIconLayout("authoring", "Authoring links", "authoring"),
   linkIconLayout("published", "Published links", "published"),
   linkIconLayout("published-mounted", "Mounted published links", "published", "/campaign"),
-  linkIconLayout("installed", "Installed links", "installed", "/sites/field-notes"),
 ] satisfies readonly PublicSiteLinkIconLayoutFixture[];
 
 export const publicSiteMediaLayoutFixtures = [

@@ -10,35 +10,17 @@ import {
   type SchemaUpdateResponse,
   type SyncResponse,
 } from "../shared/protocol.ts";
-import type {
-  SitePageTreeResponse,
-  SitePublicOperationTargetResolver,
-} from "@dpeek/formless-site-app";
+import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
 import type {
   OperationInvocationActor,
   OperationInvocationEnvelope,
   OperationInvocationResponse,
 } from "../shared/operation-invocation.ts";
-import {
-  installedAppStorageIdentity,
-  type AuthorityStorageIdentity,
-} from "../shared/app-storage-identity.ts";
-import {
-  programPublicSiteRuntimeTarget,
-  type PublicSiteRuntimeTarget,
-} from "../shared/public-site-runtime-target.ts";
+import type { AuthorityStorageIdentity } from "../shared/app-storage-identity.ts";
 import type { PackageAppKey } from "@dpeek/formless-installed-apps";
-import {
-  findResolvedAppPackage,
-  rootKnownPackageFactsResolver,
-  type AppPackageResolver,
-} from "../shared/app-packages.ts";
+import { findResolvedAppPackage, type AppPackageResolver } from "../shared/app-packages.ts";
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
-import type {
-  AppSchema,
-  EntityOperationSchema,
-  SchemaOperationActorKind,
-} from "@dpeek/formless-schema";
+import type { EntityOperationSchema, SchemaOperationActorKind } from "@dpeek/formless-schema";
 import type { IdentityReferenceTargetResolver } from "./identity-reference-targets.ts";
 import {
   isSourceSchemaHash,
@@ -87,7 +69,7 @@ import {
   packageAppMigrationRegistry,
   selectPackageAppMigrationChain,
 } from "./package-app-migrations.ts";
-import { publicSiteWorkerAdapterForPackageAppKey } from "./public-site-worker-runtime.ts";
+import { programPublicSiteWorkerAdapter } from "./public-site-worker-runtime.ts";
 
 export type AuthorityOperationMode = "read" | "write";
 
@@ -205,41 +187,11 @@ type AuthorityOperationExecutionInput = {
   programOperationAuthorized?: boolean;
   requestHeaders?: Headers;
   source: StorageSource;
-  sourceSchemas?: Partial<Record<string, AppSchema>>;
   storage: DurableObjectStorage;
   turnstileSiteKey?: string;
   validateConstraints?: RecordConstraintValidator;
   writes: AuthorityWriteNotifier;
 };
-
-function publicOperationTargetResolver(input: {
-  packageResolver?: AppPackageResolver;
-  sourceSchemas?: Partial<Record<string, AppSchema>>;
-}): SitePublicOperationTargetResolver {
-  return (request) => {
-    const sourceSchemas = input.sourceSchemas ?? {};
-    const identity = installedAppStorageIdentity(
-      {
-        packageAppKey: request.packageAppKey,
-        installId: request.installId,
-      },
-      input.packageResolver,
-    );
-    const schema = identity ? sourceSchemas[identity.sourceSchemaKey] : undefined;
-
-    return identity && schema
-      ? {
-          schema,
-          route: {
-            kind: "appInstall",
-            packageAppKey: identity.packageAppKey,
-            installId: identity.installId,
-            apiRoutePrefix: identity.apiRoutePrefix,
-          },
-        }
-      : undefined;
-  };
-}
 
 export function selectAuthorityOperation(
   input: AuthorityOperationSelectionInput,
@@ -347,23 +299,11 @@ export async function executeAuthorityOperation(
     case "siteTree": {
       const slug = parseSiteTreeSlug(operation.metadata.path);
       const { schema } = initializeStorageFromSource(input.storage, input.source);
-      const target = publicSiteRuntimeTargetForAuthority(input.identity);
-      const adapter = publicSiteWorkerAdapterForPackageAppKey(
-        target?.packageAppKey ??
-          (input.identity.kind === "program" ? "site" : input.identity.packageAppKey),
-        input.identity.kind === "program"
-          ? rootKnownPackageFactsResolver(input.packageResolver)
-          : input.packageResolver,
-      );
+      const adapter = programPublicSiteWorkerAdapter();
       const projection = adapter.buildPublicTree({
         records: getBootstrapRecords(input.storage),
         schema,
         slug,
-        publicOperationTargetResolver: publicOperationTargetResolver({
-          packageResolver: input.packageResolver,
-          sourceSchemas: input.sourceSchemas,
-        }),
-        target: target?.storageIdentity ?? input.identity,
         turnstileSiteKey: input.turnstileSiteKey,
       });
 
@@ -537,18 +477,6 @@ export async function executeAuthorityOperation(
       );
     }
   }
-}
-
-function publicSiteRuntimeTargetForAuthority(
-  identity: AuthorityStorageIdentity,
-): PublicSiteRuntimeTarget | undefined {
-  if (identity.kind === "program") {
-    return programPublicSiteRuntimeTarget();
-  }
-
-  return identity.kind === "appInstall"
-    ? { packageAppKey: identity.packageAppKey, storageIdentity: identity }
-    : undefined;
 }
 
 function operationInvocationActorFromCandidates(

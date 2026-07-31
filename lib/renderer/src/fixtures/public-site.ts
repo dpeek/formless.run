@@ -156,13 +156,6 @@ const publicChallenge = {
   siteKey: "1x00000000000000000000AA",
 } as const;
 
-const crmTarget = {
-  kind: "appInstall",
-  packageAppKey: "crm",
-  installId: "crm",
-  apiRoutePrefix: "/api/app-installs/crm/crm",
-} as const;
-
 const header = createSiteBlockFixture("block-header", "header", "Header", {
   placements: [
     createSitePlacementFixture(
@@ -330,8 +323,7 @@ const reviewOperation = createSitePublicOperationFixture({
   operationName: "request",
   canonicalKey: "studioReview.request",
   kind: "create",
-  target: crmTarget,
-  route: "/api/app-installs/crm/crm/public/operations/studioReview/request",
+  route: "/api/formless/program/public/operations/studioReview/request",
   challenge: publicChallenge,
   fields: [
     { name: "name", label: "Name", required: true, control: "text" },
@@ -557,6 +549,5 @@ export const publicSitePageTreeFixture = createSitePageTreeFixture({
 
 export const publicSiteRendererPropsFixture = createSitePublicRendererPropsFixture({
   tree: publicSitePageTreeFixture,
-  linkMode: "installed",
-  routeBase: "/sites/astryx",
+  linkMode: "published",
 });

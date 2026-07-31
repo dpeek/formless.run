@@ -204,8 +204,8 @@ function routeCandidateHasAvailableRuntimeTarget(
     return true;
   }
 
-  if (targetProfile === "public-site" && candidate.values.appInstall === undefined) {
-    return true;
+  if (targetProfile === "public-site") {
+    return candidate.values.surface === "public-site" && candidate.values.appInstall === undefined;
   }
 
   return installTarget(candidate.values, appInstalls, packageResolver) !== undefined;
@@ -362,13 +362,10 @@ function runtimeRouteResolutionFromCandidate(
     return undefined;
   }
 
-  const target = installTarget(values, appInstalls, packageResolver);
+  const target =
+    targetProfile === "app" ? installTarget(values, appInstalls, packageResolver) : undefined;
 
-  if (
-    (targetProfile === "app" ||
-      (targetProfile === "public-site" && values.appInstall !== undefined)) &&
-    !target
-  ) {
+  if (targetProfile === "app" && !target) {
     return undefined;
   }
 

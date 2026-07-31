@@ -53,28 +53,20 @@ describe("application route selection", () => {
     );
   });
 
-  it("passes installed admin targets and fails closed without a package renderer adapter", () => {
+  it("passes installed admin targets without a public launch action", () => {
     const appPackage = privateSitePackage();
     const install = privateSiteInstall(appPackage);
     const admin = renderRoute("/apps/private-site/settings", {
       installs: [install],
       packages: [appPackage],
     });
-    const publicSite = renderRoute("/sites/private-site/blog/shipping", {
-      installs: [install],
-      packages: [appPackage],
-    });
-
     expect(admin).toContain('data-surface="application-shell"');
     expect(admin).toContain('data-route="home"');
     expect(admin).toContain('data-schema-key="private-site"');
     expect(admin).toContain('data-screen-path="/settings"');
     expect(admin).toContain('data-target-kind="appInstall"');
     expect(admin).toContain('data-install-id="private-site"');
-    expect(admin).toContain('data-workspace-href="/sites/private-site"');
-    expect(publicSite).toContain("Unsupported public Site package");
-    expect(publicSite).toContain("private-site");
-    expect(publicSite).not.toContain('data-surface="application-shell"');
+    expect(admin).not.toContain("data-workspace-href");
   });
 });
 
@@ -155,8 +147,6 @@ function privateSiteInstall(appPackage: InstallableAppPackage): AppInstall {
     label: "Private Site",
     packageAppKey: appPackage.packageAppKey,
     packageRevision: appPackage.packageRevision,
-    publicRoute: "/sites/private-site",
-    publicRoutePrefix: "/sites/private-site/",
     registrationPolicy: "closed",
     sourceSchemaHash: appPackage.sourceSchemaHash,
     status: "installed",
@@ -168,11 +158,10 @@ function privateSitePackage(): InstallableAppPackage {
   return {
     adminRouteBase: "/apps",
     defaultInstallId: "private-site",
-    description: "Workspace-linked public Site package.",
+    description: "Workspace-linked package.",
     label: "Private Site",
     packageAppKey: "private-site",
     packageRevision: 7,
-    publicRouteBase: "/sites",
     sourceOrigin: "workspace",
     sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
     sourceSchemaKey: "private-site",

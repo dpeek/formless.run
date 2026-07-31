@@ -419,8 +419,8 @@ function structuralLayout(
     label,
     rendererProps: createSitePublicRendererPropsFixture({
       tree,
-      linkMode: "installed",
-      routeBase: "/sites/common-ground",
+      linkMode: "published",
+      routeBase: "/campaign",
     }),
   };
 }

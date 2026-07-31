@@ -45,7 +45,6 @@ describe("generated application shell projection", () => {
     expect(shellScope(dev, "/formless/auth/sign-in", undefined)).toBeUndefined();
     expect(shellScope(dev, "/formless/auth/invitations/accept", undefined)).toBeUndefined();
     expect(shellScope(dev, "/local-session", undefined)).toBeUndefined();
-    expect(shellScope(dev, "/sites/personal", undefined)).toBeUndefined();
     expect(
       shellScope(createPublishedSiteRuntimeProfile(), "/blog/launch", undefined),
     ).toBeUndefined();
@@ -525,24 +524,7 @@ function installedSiteFixture(): AppInstall {
     label: "Personal Site",
     packageAppKey: "site",
     packageRevision: 1,
-    publicRoute: "/sites/personal",
     registrationPolicy: "closed",
-    routes: [
-      {
-        access: "anonymous",
-        enabled: true,
-        id: "public",
-        path: "/sites/personal",
-        routeKind: "publicSite",
-      },
-      {
-        access: "anonymous",
-        enabled: false,
-        id: "disabled",
-        path: "/sites/disabled",
-        routeKind: "publicSite",
-      },
-    ],
     sourceSchemaHash: `sha256:${"a".repeat(64)}`,
     status: "installed",
     updatedAt: "2026-07-16T00:00:00.000Z",

@@ -35,7 +35,7 @@ export type PublicSiteContentLayoutFixture = {
   rendererProps: SitePublicRendererProps;
 };
 
-const installedRouteBase = "/sites/field-notes" as const;
+const mappedRouteBase = "/campaign" as const;
 
 export const publicSiteContentLayoutFixtures = [
   contentLayout(
@@ -86,8 +86,8 @@ export const publicSiteContentLayoutFixtures = [
       ],
     }),
     { kind: "page", slug: "practice" },
-    "installed",
-    installedRouteBase,
+    "published",
+    mappedRouteBase,
   ),
   contentLayout(
     "post-index-populated",
@@ -120,8 +120,8 @@ export const publicSiteContentLayoutFixtures = [
       ),
     ]),
     { kind: "post-index", slug: "blog", postCount: 2 },
-    "installed",
-    installedRouteBase,
+    "published",
+    mappedRouteBase,
   ),
   contentLayout(
     "post-index-empty",
@@ -178,8 +178,8 @@ export const publicSiteContentLayoutFixtures = [
       ],
     }),
     { kind: "post", slug: "blog/smallest-useful-test" },
-    "installed",
-    installedRouteBase,
+    "published",
+    mappedRouteBase,
   ),
   contentLayout(
     "project-index-populated",
@@ -212,8 +212,8 @@ export const publicSiteContentLayoutFixtures = [
       ),
     ]),
     { kind: "page", slug: "projects" },
-    "installed",
-    installedRouteBase,
+    "published",
+    mappedRouteBase,
   ),
   contentLayout(
     "project-index-empty",

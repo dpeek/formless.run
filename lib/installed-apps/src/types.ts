@@ -8,7 +8,7 @@ export type AppInstallRegistrationPolicy = "closed" | "email-verified" | "custom
 export type AppInstallRegistrationOperation = `${string}.${string}`;
 export type AppInstallStatus = "installed";
 export type AppInstallRouteAccess = "anonymous" | "authenticated" | "management" | "owner";
-export type AppInstallRouteKind = "admin" | "publicSite";
+export type AppInstallRouteKind = "admin";
 export type AppInstallRouteRequiredRole = "app.admin";
 
 export type AppInstallRoute = {
@@ -44,8 +44,6 @@ export type AppInstall = {
   createdAt: string;
   updatedAt: string;
   adminRoute: `/${string}`;
-  publicRoute?: `/${string}`;
-  publicRoutePrefix?: `/${string}/`;
   routes?: AppInstallRoute[];
   launchLinks?: AppInstallLaunchLink[];
 };
@@ -62,15 +60,10 @@ export type AppPackageSourceLocation = {
   path: string;
 };
 
-export type AppPackageCapability =
-  | {
-      kind: "generatedAdmin";
-      routeBase: "/apps";
-    }
-  | {
-      kind: "publicSite";
-      routeBase: "/sites";
-    };
+export type AppPackageCapability = {
+  kind: "generatedAdmin";
+  routeBase: "/apps";
+};
 
 export type AppPackageManifest = {
   kind: typeof appPackageManifestKind;
@@ -98,7 +91,6 @@ export type ResolvedAppPackage = {
   sourceSchemaKey: string;
   sourceSchemaLocation: AppPackageSourceLocation;
   adminRouteBase: "/apps";
-  publicRouteBase?: "/sites";
 };
 
 export type AppPackageResolver = {

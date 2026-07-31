@@ -78,7 +78,6 @@ describe("Deploy control-plane projection helpers", () => {
       ],
       routes: [
         {
-          appInstall: "site",
           enabled: true,
           id: "route:site:public",
           kind: "mount",
@@ -145,15 +144,6 @@ describe("Deploy control-plane projection helpers", () => {
         routeKind: "admin",
         surface: "admin",
       },
-      {
-        appInstallId: "site",
-        packageAppKey: "site",
-        path: "/sites/site",
-        prefix: "/sites/site/",
-        routeId: "route:site:public-site",
-        routeKind: "publicSite",
-        surface: "publicSite",
-      },
     ]);
   });
 
@@ -201,18 +191,17 @@ describe("Deploy control-plane projection helpers", () => {
           name: "www.example.com",
           overrideExistingOrigin: false,
           profile: "publicSite",
-          targetInstallId: "site",
           workerName: "demo-worker",
         },
         kind: "cloudflare-worker-custom-domain",
-        logicalId: "demo-instance-custom-domain-www-example-com-publicsite-site",
+        logicalId: "demo-instance-custom-domain-www-example-com-publicsite",
         providerFamily: "cloudflare",
         targetId: "instance.primary",
       },
     ]);
     expect(deployProjectionCanonicalJson(projection)).not.toContain("secret");
     expect(await computeDeployProjectionHash(projection)).toBe(
-      "sha256:d10fb30437c1d03a5b1b71b2fdaf9fe372690d71e18c14e1c63174516aa96668",
+      "sha256:dec59218d115206812d265d3af03b3ab63c596a8daad0e83aca158a4717c244e",
     );
   });
 
@@ -267,10 +256,9 @@ describe("Deploy control-plane projection helpers", () => {
         inputs: expect.objectContaining({
           host: "www.example.com",
           profile: "publicSite",
-          targetInstallId: "site",
           workerName: "primary-worker",
         }),
-        logicalId: "demo-instance-custom-domain-www-example-com-publicsite-site",
+        logicalId: "demo-instance-custom-domain-www-example-com-publicsite",
       }),
     ]);
     expect(changedProjection).toEqual(projection);
@@ -480,9 +468,9 @@ describe("Deploy control-plane projection helpers", () => {
     });
 
     expect(projection.resourceGraph.resources).toEqual([]);
-    expect(projection.routeTargets).toHaveLength(2);
+    expect(projection.routeTargets).toHaveLength(1);
     expect(await computeDeployProjectionHash(projection)).toBe(
-      "sha256:9058f85d6d930141bb05d43e9dfce724d1db89a785e77a7664876de2a654e5e5",
+      "sha256:e9f1933685a90a4c3a2fd334e2b9dc780b3bc0e028ecc9f372d5423b6bf8184e",
     );
   });
 });
@@ -893,7 +881,6 @@ const appRoutes = [
 
 const domainRoutes = [
   {
-    appInstall: "site",
     enabled: true,
     id: "route:host:publicSite:www.example.com",
     kind: "mount",
@@ -905,7 +892,6 @@ const domainRoutes = [
     targetProfile: "public-site",
   },
   {
-    appInstall: "site",
     enabled: false,
     id: "route:host:publicSite:disabled.example.com",
     kind: "mount",
@@ -1039,7 +1025,6 @@ const sourceRecords = [
     entity: "route",
     createdAt: "2026-06-14T00:00:00.000Z",
     values: {
-      appInstall: "site",
       deploymentConfig: "cloudflare-primary",
       enabled: true,
       kind: "mount",
@@ -1054,11 +1039,25 @@ const sourceRecords = [
     entity: "route",
     createdAt: "2026-06-14T00:00:00.000Z",
     values: {
-      appInstall: "site",
       deploymentConfig: "cloudflare-secondary",
       enabled: true,
       kind: "mount",
       matchHost: "secondary.example.com",
+      matchPath: "/",
+      surface: "public-site",
+      targetProfile: "public-site",
+    },
+  },
+  {
+    id: "route:legacy-installed-public-site",
+    entity: "route",
+    createdAt: "2026-06-14T00:00:00.000Z",
+    values: {
+      appInstall: "site",
+      deploymentConfig: "cloudflare-primary",
+      enabled: true,
+      kind: "mount",
+      matchHost: "legacy.example.com",
       matchPath: "/",
       surface: "public-site",
       targetProfile: "public-site",

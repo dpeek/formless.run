@@ -911,43 +911,9 @@ describe("Authority record validation readers", () => {
     ).toThrow(new BadRequestError('Field "title" is required.'));
   });
 
-  it("uses reader records and package facts for public Site routes", () => {
-    const routeRequest = (appInstall: string) => ({
-      writeId: `create-route-${appInstall}`,
-      entity: "route",
-      kind: "create",
-      values: {
-        enabled: true,
-        matchPath: `/sites/${appInstall}`,
-        matchPrefix: `/sites/${appInstall}/`,
-        kind: "mount",
-        targetProfile: "public-site",
-        appInstall,
-        surface: "public-site",
-        access: "anonymous",
-      },
-    });
-    const appInstall = (id: string, packageAppKey: string) =>
-      storedRecord(id, "app-install", {
-        installId: id,
-        packageAppKey,
-        label: id,
-        registrationPolicy: "closed",
-        status: "installed",
-        storageIdentity: `app:${id}`,
-      });
+  it("accepts Program-native public Site routes", () => {
     const reader = recordValidationReader();
 
-    expect(() =>
-      validateRecordWriteRequest(routeRequest("tasks"), instanceControlPlaneSchema, reader, {
-        additionalRecords: [appInstall("tasks", "tasks")],
-      }),
-    ).toThrow(new BadRequestError('Route app install "tasks" uses unsupported package.'));
-    expect(() =>
-      validateRecordWriteRequest(routeRequest("site"), instanceControlPlaneSchema, reader, {
-        additionalRecords: [appInstall("site", "site")],
-      }),
-    ).toThrow(new BadRequestError('Route app install "site" uses unsupported package.'));
     expect(
       validateRecordWriteRequest(
         {
@@ -970,11 +936,6 @@ describe("Authority record validation readers", () => {
         },
       ),
     ).toMatchObject({ recordWrite: { entity: "route", kind: "create" } });
-    expect(() =>
-      validateRecordWriteRequest(routeRequest("crm"), instanceControlPlaneSchema, reader, {
-        additionalRecords: [appInstall("crm", "crm")],
-      }),
-    ).toThrow(new BadRequestError('Route app install "crm" uses unsupported package.'));
   });
 
   it("maps every identity-reference resolver outcome for record writes", async () => {

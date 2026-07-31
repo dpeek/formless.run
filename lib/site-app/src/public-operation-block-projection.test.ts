@@ -6,11 +6,7 @@ import {
   isPublicOperationListResponse,
   submitPublicOperationJson,
 } from "@dpeek/formless-public-operations";
-import {
-  projectSitePublicOperationBlock,
-  type SitePublicOperationTargetRequest,
-  type SitePublicOperationTargetResolver,
-} from "./public-operation-block-projection.ts";
+import { projectSitePublicOperationBlock } from "./public-operation-block-projection.ts";
 import type { SiteTreeWarning, StoredRecord } from "./types.ts";
 
 const siteSourceSchema = parseAppSchema(rawSiteSourceSchema);
@@ -24,7 +20,6 @@ describe("site public operation block projection", () => {
         operationName: "subscribe",
       }),
       {
-        publicOperationApiRoutePrefix: "/api/app-installs/site/site",
         turnstileSiteKey: "public-site-key",
       },
     );
@@ -35,7 +30,6 @@ describe("site public operation block projection", () => {
         operationName: "submit",
       }),
       {
-        publicOperationApiRoutePrefix: "/api/app-installs/site/site",
         turnstileSiteKey: "public-site-key",
       },
     );
@@ -45,7 +39,7 @@ describe("site public operation block projection", () => {
       operationName: "subscribe",
       canonicalKey: "subscription.subscribe",
       kind: "command",
-      route: "/api/app-installs/site/site/public/operations/subscription/subscribe",
+      route: "/api/formless/program/public/operations/subscription/subscribe",
       challenge: {
         kind: "turnstile",
         siteKey: "public-site-key",
@@ -56,7 +50,7 @@ describe("site public operation block projection", () => {
       operationName: "submit",
       canonicalKey: "contact-message.submit",
       kind: "create",
-      route: "/api/app-installs/site/site/public/operations/contact-message/submit",
+      route: "/api/formless/program/public/operations/contact-message/submit",
       challenge: {
         kind: "turnstile",
         siteKey: "public-site-key",
@@ -68,77 +62,25 @@ describe("site public operation block projection", () => {
     expect(contact.warnings).toEqual([]);
   });
 
-  it("keeps subscribe forms on the local operation", () => {
-    const requests: SitePublicOperationTargetRequest[] = [];
-    const result = projectRecord(
-      blockRecord("rec_site_block_crm_subscribe", {
-        type: "subscribeForm",
-        label: "Join the CRM list",
-        operationName: "subscribe",
-        operationTargetKind: "appInstall",
-        operationTargetPackageAppKey: "crm",
-        operationTargetInstallId: "crm",
-      }),
-      {
-        publicOperationTargetResolver: publicOperationTargetResolver(
-          { crm: crmPublicSubscribeSchema },
-          requests,
-        ),
-        turnstileSiteKey: "public-site-key",
-      },
-    );
-
-    expect(requests).toEqual([]);
-    expect(result.publicOperation).toEqual({
-      entityName: "subscription",
-      operationName: "subscribe",
-      canonicalKey: "subscription.subscribe",
-      kind: "command",
-      route: "/api/formless/program/public/operations/subscription/subscribe",
-      challenge: {
-        kind: "turnstile",
-        siteKey: "public-site-key",
-      },
-    });
-    expect(result.publicOperation).not.toHaveProperty("fields");
-    expect(result.warnings).toEqual([]);
-  });
-
-  it("projects generic installed-app public operation targets with public-safe field facts", () => {
-    const requests: SitePublicOperationTargetRequest[] = [];
+  it("projects generic Program public operation targets with public-safe field facts", () => {
     const result = projectRecord(
       blockRecord("rec_site_block_public_intake", {
         type: "publicOperationForm",
         label: "Request a test",
-        operationTargetKind: "appInstall",
-        operationTargetPackageAppKey: "tasks",
-        operationTargetInstallId: "requests",
         operationKey: "request.submit",
       }),
       {
-        publicOperationTargetResolver: publicOperationTargetResolver(
-          { tasks: publicIntakeSchema },
-          requests,
-        ),
+        schema: programSchemaWith(publicIntakeSchema),
         turnstileSiteKey: "public-site-key",
       },
     );
 
-    expect(requests).toEqual([
-      { kind: "appInstall", packageAppKey: "tasks", installId: "requests" },
-    ]);
     expect(result.publicOperation).toEqual({
       entityName: "request",
       operationName: "submit",
       canonicalKey: "request.submit",
       kind: "create",
-      target: {
-        kind: "appInstall",
-        packageAppKey: "tasks",
-        installId: "requests",
-        apiRoutePrefix: "/api/app-installs/tasks/requests",
-      },
-      route: "/api/app-installs/tasks/requests/public/operations/request/submit",
+      route: "/api/formless/program/public/operations/request/submit",
       challenge: {
         kind: "turnstile",
         siteKey: "public-site-key",
@@ -218,15 +160,10 @@ describe("site public operation block projection", () => {
       blockRecord("rec_site_block_certificate_lookup", {
         type: "publicOperationForm",
         label: "Verify certificate",
-        operationTargetKind: "appInstall",
-        operationTargetPackageAppKey: "verifi",
-        operationTargetInstallId: "certificates",
         operationKey: "certificate.lookup",
       }),
       {
-        publicOperationTargetResolver: publicOperationTargetResolver({
-          verifi: publicCertificateLookupSchema,
-        }),
+        schema: programSchemaWith(publicCertificateLookupSchema),
       },
     );
 
@@ -235,13 +172,7 @@ describe("site public operation block projection", () => {
       operationName: "lookup",
       canonicalKey: "certificate.lookup",
       kind: "list",
-      target: {
-        kind: "appInstall",
-        packageAppKey: "verifi",
-        installId: "certificates",
-        apiRoutePrefix: "/api/app-installs/verifi/certificates",
-      },
-      route: "/api/app-installs/verifi/certificates/public/operations/certificate/lookup",
+      route: "/api/formless/program/public/operations/certificate/lookup",
       fields: [
         {
           name: "lookup",
@@ -305,46 +236,6 @@ describe("site public operation block projection", () => {
     expect(JSON.stringify(response)).not.toContain("providerStorageKey");
   });
 
-  it("projects generic installed app public operation targets", () => {
-    const requests: SitePublicOperationTargetRequest[] = [];
-    const result = projectRecord(
-      blockRecord("rec_site_block_installed_intake", {
-        type: "publicOperationForm",
-        label: "Installed request",
-        operationTargetKind: "appInstall",
-        operationTargetPackageAppKey: "tasks",
-        operationTargetInstallId: "intake",
-        operationKey: "request.submit",
-      }),
-      {
-        publicOperationTargetResolver: publicOperationTargetResolver(
-          { tasks: publicIntakeSchema },
-          requests,
-        ),
-        turnstileSiteKey: "public-site-key",
-      },
-    );
-
-    expect(requests).toEqual([
-      {
-        kind: "appInstall",
-        packageAppKey: "tasks",
-        installId: "intake",
-      },
-    ]);
-    expect(result.publicOperation).toMatchObject({
-      canonicalKey: "request.submit",
-      target: {
-        kind: "appInstall",
-        packageAppKey: "tasks",
-        installId: "intake",
-        apiRoutePrefix: "/api/app-installs/tasks/intake",
-      },
-      route: "/api/app-installs/tasks/intake/public/operations/request/submit",
-    });
-    expect(result.warnings).toEqual([]);
-  });
-
   it("warns when public operation challenge config is missing", () => {
     const subscribe = projectRecord(
       blockRecord("rec_site_block_subscribe", {
@@ -364,15 +255,10 @@ describe("site public operation block projection", () => {
       blockRecord("rec_site_block_public_intake", {
         type: "publicOperationForm",
         label: "Request a test",
-        operationTargetKind: "appInstall",
-        operationTargetPackageAppKey: "tasks",
-        operationTargetInstallId: "requests",
         operationKey: "request.submit",
       }),
       {
-        publicOperationTargetResolver: publicOperationTargetResolver({
-          tasks: publicIntakeSchema,
-        }),
+        schema: programSchemaWith(publicIntakeSchema),
       },
     );
 
@@ -392,50 +278,6 @@ describe("site public operation block projection", () => {
         expect.objectContaining({
           code: "missing-public-operation-challenge-config",
           recordId: "rec_site_block_public_intake",
-        }),
-      ]),
-    );
-  });
-
-  it("warns when fixed and generic targets are missing or unavailable", () => {
-    const missingGenericTarget = projectRecord(
-      blockRecord("rec_site_block_missing_target_intake", {
-        type: "publicOperationForm",
-        label: "Missing target",
-        operationTargetKind: "appInstall",
-        operationKey: "request.submit",
-      }),
-      {
-        publicOperationTargetResolver: publicOperationTargetResolver({}),
-        turnstileSiteKey: "public-site-key",
-      },
-    );
-    const unavailableGenericTarget = projectRecord(
-      blockRecord("rec_site_block_unavailable_target_intake", {
-        type: "publicOperationForm",
-        label: "Unavailable target",
-        operationTargetKind: "appInstall",
-        operationTargetPackageAppKey: "missing",
-        operationTargetInstallId: "missing",
-        operationKey: "request.submit",
-      }),
-      {
-        publicOperationTargetResolver: publicOperationTargetResolver({}),
-        turnstileSiteKey: "public-site-key",
-      },
-    );
-
-    expect(missingGenericTarget.publicOperation).toBeUndefined();
-    expect(unavailableGenericTarget.publicOperation).toBeUndefined();
-    expect([...missingGenericTarget.warnings, ...unavailableGenericTarget.warnings]).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: "missing-public-operation-target",
-          recordId: "rec_site_block_missing_target_intake",
-        }),
-        expect.objectContaining({
-          code: "invalid-public-operation-target",
-          recordId: "rec_site_block_unavailable_target_intake",
         }),
       ]),
     );
@@ -478,15 +320,10 @@ describe("site public operation block projection", () => {
       blockRecord("rec_site_block_missing_public_intake", {
         type: "publicOperationForm",
         label: "Missing public intake",
-        operationTargetKind: "appInstall",
-        operationTargetPackageAppKey: "tasks",
-        operationTargetInstallId: "requests",
         operationKey: "request.missing",
       }),
       {
-        publicOperationTargetResolver: publicOperationTargetResolver({
-          tasks: publicIntakeSchema,
-        }),
+        schema: programSchemaWith(publicIntakeSchema),
         turnstileSiteKey: "public-site-key",
       },
     );
@@ -494,15 +331,10 @@ describe("site public operation block projection", () => {
       blockRecord("rec_site_block_private_public_intake", {
         type: "publicOperationForm",
         label: "Private public intake",
-        operationTargetKind: "appInstall",
-        operationTargetPackageAppKey: "tasks",
-        operationTargetInstallId: "requests",
         operationKey: "request.privateSubmit",
       }),
       {
-        publicOperationTargetResolver: publicOperationTargetResolver({
-          tasks: privateIntakeSchema,
-        }),
+        schema: programSchemaWith(privateIntakeSchema),
         turnstileSiteKey: "public-site-key",
       },
     );
@@ -555,15 +387,10 @@ describe("site public operation block projection", () => {
       blockRecord("rec_site_block_required_reference_intake", {
         type: "publicOperationForm",
         label: "Required reference",
-        operationTargetKind: "appInstall",
-        operationTargetPackageAppKey: "crm",
-        operationTargetInstallId: "requests",
         operationKey: "request.submit",
       }),
       {
-        publicOperationTargetResolver: publicOperationTargetResolver({
-          crm: requiredReferenceIntakeSchema,
-        }),
+        schema: programSchemaWith(requiredReferenceIntakeSchema),
         turnstileSiteKey: "public-site-key",
       },
     );
@@ -583,8 +410,6 @@ function projectRecord(
   record: StoredRecord,
   options: {
     schema?: AppSchema;
-    publicOperationTargetResolver?: SitePublicOperationTargetResolver;
-    publicOperationApiRoutePrefix?: `/${string}`;
     turnstileSiteKey?: string;
   } = {},
 ): {
@@ -598,11 +423,6 @@ function projectRecord(
       record,
       type: typeof record.values.type === "string" ? record.values.type : "",
       schema: options.schema ?? siteSourceSchema,
-      ...(options.publicOperationTargetResolver === undefined
-        ? {}
-        : { publicOperationTargetResolver: options.publicOperationTargetResolver }),
-      publicOperationApiRoutePrefix:
-        options.publicOperationApiRoutePrefix ?? "/api/formless/program",
       ...(options.turnstileSiteKey === undefined
         ? {}
         : { turnstileSiteKey: options.turnstileSiteKey }),
@@ -612,35 +432,20 @@ function projectRecord(
   };
 }
 
-function publicOperationTargetResolver(
-  schemas: Partial<Record<string, AppSchema>>,
-  requests: SitePublicOperationTargetRequest[] = [],
-): SitePublicOperationTargetResolver {
-  return (request) => {
-    requests.push(request);
-
-    const schema = schemas[request.packageAppKey];
-
-    return schema
-      ? {
-          schema,
-          route: {
-            kind: "appInstall",
-            packageAppKey: request.packageAppKey,
-            installId: request.installId,
-            apiRoutePrefix: `/api/app-installs/${request.packageAppKey}/${request.installId}`,
-          },
-        }
-      : undefined;
-  };
-}
-
 function blockRecord(id: string, values: StoredRecord["values"]): StoredRecord {
   return {
     id,
     entity: "block",
     values,
     createdAt: "2026-05-06T00:00:00.000Z",
+  };
+}
+
+function programSchemaWith(extension: AppSchema): AppSchema {
+  return {
+    ...structuredClone(siteSourceSchema),
+    entities: [...siteSourceSchema.entities, ...extension.entities],
+    queries: [...siteSourceSchema.queries, ...extension.queries],
   };
 }
 
@@ -660,62 +465,6 @@ const anonymousTurnstilePolicy = {
 const ownerPolicy = {
   actors: ["owner"],
 } satisfies NonNullable<EntityOperationSchema["policy"]>;
-const crmPublicSubscribeSchema = {
-  version: 1,
-  entities: [
-    {
-      id: "entity_94d526cd-1d4f-4238-b2a7-703877446e49",
-      key: "subscription",
-      label: "Subscription",
-      fields: [
-        {
-          key: "email",
-          type: "text",
-          required: true,
-          label: "Email",
-        },
-      ],
-      operations: [
-        {
-          key: "subscribe",
-          label: "Subscribe",
-          kind: "command",
-          scope: "collection",
-          input: {
-            fields: [
-              {
-                key: "email",
-                type: "text",
-                required: true,
-                label: "Email",
-              },
-            ],
-          },
-          effect: {
-            type: "operationHandler",
-            handler: "subscribe",
-            config: {},
-          },
-          output: {
-            type: "command",
-          },
-          idempotency: {
-            required: true,
-          },
-          audit: {
-            input: "summary",
-          },
-          policy: anonymousTurnstilePolicy,
-        },
-      ],
-    },
-  ],
-  queries: [],
-  itemViews: [],
-  tableViews: [],
-  views: [],
-  screens: fixtureScreens(),
-} satisfies AppSchema;
 const publicIntakeSchema = {
   version: 1,
   entities: [

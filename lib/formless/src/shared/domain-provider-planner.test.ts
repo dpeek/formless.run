@@ -29,6 +29,11 @@ describe("domain provider planner", () => {
         enabled: true,
         host: "www.example.com",
         profile: "publicSite",
+      },
+      {
+        enabled: true,
+        host: "legacy.example.com",
+        profile: "publicSite",
         targetInstallId: "site",
       },
     ];
@@ -58,7 +63,7 @@ describe("domain provider planner", () => {
       },
       {
         kind: "cloudflare-worker-custom-domain",
-        logicalId: "primary-instance-custom-domain-www-example-com-publicsite-site",
+        logicalId: "primary-instance-custom-domain-www-example-com-publicsite",
       },
     ]);
     expect(plan.resources[0]).toMatchObject({
@@ -88,7 +93,6 @@ describe("domain provider planner", () => {
           enabled: true,
           host: "example.com",
           profile: "publicSite",
-          targetInstallId: "site",
         },
       ],
       redirectIntents: redirects,
@@ -100,7 +104,7 @@ describe("domain provider planner", () => {
     expect(plan.resources).toEqual([
       expect.objectContaining({
         kind: "cloudflare-worker-custom-domain",
-        logicalId: "primary-custom-domain-example-com-publicsite-site",
+        logicalId: "primary-custom-domain-example-com-publicsite",
       }),
       expect.objectContaining({
         host: "www.example.com",

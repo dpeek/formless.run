@@ -87,11 +87,7 @@ export async function scheduleSiteOperationInputNotificationAfterPublicOperation
 
   try {
     const sourceRecords = input.records ?? sourceRecordsFromStorage(input.storage);
-    const sourceBlock = operationInputNotificationSourceBlock(
-      sourceRecords,
-      input.response,
-      input.identity,
-    );
+    const sourceBlock = operationInputNotificationSourceBlock(sourceRecords, input.response);
 
     if (!sourceBlock) {
       return;
@@ -174,7 +170,6 @@ function isCommittedPublicOperation(response: OperationInvocationResponse): bool
 function operationInputNotificationSourceBlock(
   records: readonly StoredRecord[],
   response: OperationInvocationResponse,
-  identity: AuthorityStorageIdentity,
 ): StoredRecord | undefined {
   const siteBlockId = response.invocation.source.siteBlockId;
 
@@ -189,34 +184,12 @@ function operationInputNotificationSourceBlock(
   if (
     block?.values.type !== "publicOperationForm" ||
     block.values.operationNotificationMode !== "email" ||
-    block.values.operationKey !== response.invocation.operation.canonicalKey ||
-    !sourceBlockTargetsIdentity(block, identity)
+    block.values.operationKey !== response.invocation.operation.canonicalKey
   ) {
     return undefined;
   }
 
   return block;
-}
-
-function sourceBlockTargetsIdentity(
-  block: StoredRecord,
-  identity: AuthorityStorageIdentity,
-): boolean {
-  const targetKind = stringRecordValue(block.values.operationTargetKind);
-
-  if (!targetKind) {
-    return true;
-  }
-
-  if (targetKind === "appInstall") {
-    return (
-      identity.kind === "appInstall" &&
-      stringRecordValue(block.values.operationTargetPackageAppKey) === identity.packageAppKey &&
-      stringRecordValue(block.values.operationTargetInstallId) === identity.installId
-    );
-  }
-
-  return false;
 }
 
 function operationInputNotificationSettings(

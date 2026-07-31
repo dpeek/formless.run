@@ -4,7 +4,6 @@ export type {
   SitePublicWorkerAdapterOptions,
   SitePublicWorkerDocumentRenderInput,
 } from "./worker/adapter.ts";
-export type { SitePublicOperationTargetResolver } from "./public-operation-block-projection.ts";
 export {
   PUBLISHED_SITE_ERROR_CACHE_CONTROL,
   PUBLISHED_SITE_HTML_CACHE_CONTROL,

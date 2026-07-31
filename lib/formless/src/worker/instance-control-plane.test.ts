@@ -31,18 +31,8 @@ import type {
   OperationCommandOutput,
   OperationInvocationResponse,
 } from "../shared/operation-invocation.ts";
-import { computeSourceSchemaHash, type SourceSchemaHash } from "../shared/upgrade-migrations.ts";
-import { crmSourceSchema, siteSourceSchema } from "../test/schema-apps.ts";
+import { crmSourceSchema } from "../test/schema-apps.ts";
 import { ensureTestIdentityOwner } from "../test/identity-owner.ts";
-import {
-  appPackageManifestKind,
-  appPackageManifestVersion,
-  type AppPackageManifest,
-} from "../shared/app-packages.ts";
-import {
-  FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
-  formatRuntimeWorkspaceAppPackages,
-} from "../shared/workspace-runtime-packages.ts";
 import {
   instanceControlPlaneTestStorageSnapshot,
   recordOperationRequest,
@@ -689,7 +679,7 @@ describe("instance control-plane API routes", () => {
     });
   });
 
-  it("validates app install package keys and route capabilities against resolved packages", async () => {
+  it("validates app install package keys against resolved packages", async () => {
     const missingPackage = await postAdminJson<FailureResponse>(
       `${controlPlaneApi}/operations/app-install/create`,
       {
@@ -705,38 +695,8 @@ describe("instance control-plane API routes", () => {
       },
     );
 
-    await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
-      idempotencyKey: "create-crm-workspace",
-      input: {
-        packageAppKey: "test-crm",
-        installId: "tasks",
-        label: "CRM Workspace",
-      },
-    });
-
-    const unsupportedPublicRoute = await postAdminJson<FailureResponse>(
-      `${controlPlaneApi}/operations/route/create`,
-      {
-        idempotencyKey: "tasks-public-route",
-        input: {
-          enabled: true,
-          matchPath: "/sites/tasks",
-          matchPrefix: "/sites/tasks/",
-          kind: "mount",
-          targetProfile: "public-site",
-          appInstall: "tasks",
-          surface: "public-site",
-          access: "anonymous",
-        },
-      },
-    );
-
     expect(missingPackage.response.status).toBe(400);
     expect(missingPackage.body.error).toContain('references unsupported package "missing-package"');
-    expect(unsupportedPublicRoute.response.status).toBe(400);
-    expect(unsupportedPublicRoute.body.error).toContain(
-      'Package app "test-crm" does not support public Site routes.',
-    );
   });
 
   it("validates management and app-role route authorization on writes", async () => {
@@ -833,67 +793,29 @@ describe("instance control-plane API routes", () => {
     );
   });
 
-  it("validates public Site route capability through the active package resolver", async () => {
-    const sourceSchemaHash = await computeSourceSchemaHash(siteSourceSchema);
-    const privateHarness = await createWorkerHarness(
-      "src/worker/index.ts",
+  it("writes Program-native public Site routes without package resolution", async () => {
+    const route = await postAdminJson<OperationInvocationResponse>(
+      `${controlPlaneApi}/operations/route/create`,
       {
-        FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true },
-      },
-      {
-        bindings: {
-          FORMLESS_ADMIN_TOKEN: adminToken,
-          [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
-            {
-              manifest: privatePublicSitePackageManifest(sourceSchemaHash),
-              sourceSchema: siteSourceSchema,
-            },
-          ]),
+        idempotencyKey: "program-public-site-route",
+        input: {
+          enabled: true,
+          matchPath: "/pages",
+          matchPrefix: "/pages/",
+          kind: "mount",
+          targetProfile: "public-site",
+          surface: "public-site",
+          access: "anonymous",
         },
       },
     );
 
-    try {
-      const install = await postHarnessAdminJson<OperationInvocationResponse>(
-        privateHarness,
-        createAppInstallOperation,
-        {
-          idempotencyKey: "private-site-install",
-          input: {
-            packageAppKey: "private-site",
-            label: "Private Site",
-            installId: "private-site",
-          },
-        },
-      );
-      const route = await postHarnessAdminJson<OperationInvocationResponse>(
-        privateHarness,
-        `${controlPlaneApi}/operations/route/create`,
-        {
-          idempotencyKey: "private-site-public-route",
-          input: {
-            enabled: true,
-            matchPath: "/sites/private-site-alt",
-            matchPrefix: "/sites/private-site-alt/",
-            kind: "mount",
-            targetProfile: "public-site",
-            appInstall: "private-site",
-            surface: "public-site",
-            access: "anonymous",
-          },
-        },
-      );
-
-      expect(install.response.status).toBe(200);
-      expect(install.body.status).toBe("committed");
-      expect(route.response.status).toBe(200);
-      expect(operationRecord(route).values).toMatchObject({
-        appInstall: "private-site",
-        surface: "public-site",
-      });
-    } finally {
-      await privateHarness.dispose();
-    }
+    expect(route.response.status).toBe(200);
+    expect(operationRecord(route).values).toMatchObject({
+      matchPath: "/pages",
+      surface: "public-site",
+      targetProfile: "public-site",
+    });
   });
 
   it("commits generated route and deployment config management writes through operation routes", async () => {
@@ -1367,24 +1289,6 @@ async function postInstalledAppRecordOperation(
   };
 }
 
-async function postHarnessAdminJson<T>(targetHarness: Harness, path: string, body: unknown) {
-  const request = operationWriteRequest(path, body);
-  const response = await targetHarness.fetch(request.path, {
-    body: JSON.stringify(request.body),
-    headers: {
-      ...adminHeaders(),
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
-  const bodyJson = await response.json();
-
-  return {
-    body: (response.ok ? request.response(bodyJson) : bodyJson) as T,
-    response,
-  };
-}
-
 async function resetWorkerState() {
   try {
     await resetKnownState();
@@ -1670,29 +1574,6 @@ function secretSnapshot(now: string): StorageSnapshot {
           storageIdentity: "app:secret",
         },
       },
-    ],
-  };
-}
-
-function privatePublicSitePackageManifest(sourceSchemaHash: SourceSchemaHash): AppPackageManifest {
-  return {
-    kind: appPackageManifestKind,
-    version: appPackageManifestVersion,
-    packageAppKey: "private-site",
-    label: "Private Site",
-    description: "Private workspace Site package.",
-    defaultInstallId: "private-site",
-    supportsMultipleInstalls: true,
-    packageRevision: 7,
-    sourceSchema: {
-      kind: "workspace",
-      key: "private-site",
-      path: "packages/private-site/schema.json",
-    },
-    sourceSchemaHash,
-    capabilities: [
-      { kind: "generatedAdmin", routeBase: "/apps" },
-      { kind: "publicSite", routeBase: "/sites" },
     ],
   };
 }

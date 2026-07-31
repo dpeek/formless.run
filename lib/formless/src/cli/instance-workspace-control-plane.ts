@@ -245,14 +245,6 @@ export function appArchiveControlPlaneRecords(archive: AppArchive): StoredRecord
     label: archive.app.label,
     packageAppKey: archive.app.packageAppKey,
     packageRevision: archive.app.packageRevision,
-    publicRoute:
-      archive.app.packageAppKey === "site"
-        ? (`/sites/${archive.app.installId}` as `/sites/${string}`)
-        : undefined,
-    publicRoutePrefix:
-      archive.app.packageAppKey === "site"
-        ? (`/sites/${archive.app.installId}/` as `/sites/${string}/`)
-        : undefined,
     registrationPolicy: archive.app.registrationPolicy,
     ...(archive.app.registrationOperation === undefined
       ? {}
@@ -283,7 +275,8 @@ export function appInstallControlPlaneRecords(install: AppInstall): StoredRecord
     createdAt: install.createdAt,
     updatedAt: install.updatedAt,
   };
-  const routes: StoredRecord[] = [
+  return [
+    appInstallRecord,
     {
       id: `route:${install.installId}:admin`,
       entity: "route",
@@ -300,28 +293,6 @@ export function appInstallControlPlaneRecords(install: AppInstall): StoredRecord
       updatedAt: install.updatedAt,
     },
   ];
-
-  if (install.publicRoute !== undefined) {
-    routes.push({
-      id: `route:${install.installId}:public-site`,
-      entity: "route",
-      values: {
-        appInstall: install.installId,
-        enabled: true,
-        kind: "mount",
-        matchPath: install.publicRoute,
-        ...(install.publicRoutePrefix === undefined
-          ? {}
-          : { matchPrefix: install.publicRoutePrefix }),
-        surface: "public-site",
-        targetProfile: "public-site",
-      },
-      createdAt: install.createdAt,
-      updatedAt: install.updatedAt,
-    });
-  }
-
-  return [appInstallRecord, ...routes];
 }
 
 export async function readArchiveMediaFiles(

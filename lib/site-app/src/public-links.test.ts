@@ -32,10 +32,10 @@ describe("site renderer links", () => {
         routeBase: undefined,
       },
       {
-        expectedHome: "/sites/personal",
-        expectedPost: "/sites/personal/blog/post?draft=1#top",
-        linkMode: "installed",
-        routeBase: "/sites/personal",
+        expectedHome: "/campaign",
+        expectedPost: "/campaign/blog/post?draft=1#top",
+        linkMode: "published",
+        routeBase: "/campaign",
       },
     ] as const satisfies readonly {
       expectedHome: string;
@@ -59,23 +59,12 @@ describe("site renderer links", () => {
     expect(profileAwareSiteHref("/pages/blog", "authoring")).toBe("/blog");
   });
 
-  it("renders installed Site links under the selected install route", () => {
-    expect(sitePagePathForSlug("home", "installed", "/sites/personal")).toBe("/sites/personal");
-    expect(sitePagePathForSlug("blog/post", "installed", "/sites/personal")).toBe(
-      "/sites/personal/blog/post",
-    );
-    expect(profileAwareSiteHref("/pages/blog", "installed", "/sites/personal")).toBe(
-      "/sites/personal/blog",
-    );
-  });
-
   it("leaves external links unchanged and projects browser target facts", () => {
     const href = "https://example.com/page";
 
     expect(profileAwareSiteHref(href, "preview")).toBe(href);
     expect(profileAwareSiteHref(href, "authoring")).toBe(href);
     expect(profileAwareSiteHref(href, "published")).toBe(href);
-    expect(profileAwareSiteHref(href, "installed", "/sites/personal")).toBe(href);
     expect(isExternalSiteHref(href)).toBe(true);
     expect(siteLinkRel(href)).toBe("noreferrer");
     expect(siteLinkTarget(href)).toBe("_blank");
@@ -88,8 +77,8 @@ describe("site renderer links", () => {
     expect(siteHrefMatchesRoute("/", "blog")).toBe(false);
     expect(siteHrefMatchesRoute("/pages/blog", "blog/shipping-schema-backed-authoring")).toBe(true);
     expect(siteHrefMatchesRoute("/projects", "projects/future-detail")).toBe(true);
-    expect(siteHrefMatchesRoute("/sites/personal/blog", "blog/post", "/sites/personal")).toBe(true);
-    expect(siteHrefMatchesRoute("/sites/docs/blog", "blog/post", "/sites/personal")).toBe(false);
+    expect(siteHrefMatchesRoute("/campaign/blog", "blog/post", "/campaign")).toBe(true);
+    expect(siteHrefMatchesRoute("/docs/blog", "blog/post", "/campaign")).toBe(false);
     expect(siteHrefMatchesRoute("https://example.com/page", "home")).toBe(false);
   });
 });

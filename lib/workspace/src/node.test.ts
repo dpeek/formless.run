@@ -138,7 +138,6 @@ const workspaceTestBundledManifests = [
   workspaceTestPackageManifest({
     label: "Site",
     packageAppKey: "site",
-    publicSite: true,
     sourceSchemaHash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
   }),
   workspaceTestPackageManifest({
@@ -683,18 +682,9 @@ describe("workspace record state node files", () => {
     );
   });
 
-  it("validates private public Site route record state through the active package resolver", async () => {
+  it("validates Program-native public Site route record state without package resolution", async () => {
     const workspaceRoot = await makeTempDir();
     const manifest = resolveFormlessConfig({ name: "personal-sites" });
-    const packageResolver = createAppPackageResolver([
-      ...workspaceTestBundledManifests,
-      workspaceTestPackageManifest({
-        label: "Private Labs",
-        packageAppKey: "private-labs",
-        publicSite: true,
-        sourceSchemaHash: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
-      }),
-    ]);
     const records: StoredRecord[] = [
       {
         id: "labs",
@@ -715,11 +705,10 @@ describe("workspace record state node files", () => {
         entity: "route",
         values: {
           enabled: true,
-          matchPath: "/sites/labs",
-          matchPrefix: "/sites/labs/",
+          matchPath: "/pages",
+          matchPrefix: "/pages/",
           kind: "mount",
           targetProfile: "public-site",
-          appInstall: "labs",
           surface: "public-site",
         },
         createdAt: "2026-06-18T00:00:00.000Z",
@@ -740,7 +729,6 @@ describe("workspace record state node files", () => {
 
     await writeInstanceWorkspaceControlPlaneStorageSnapshot({
       manifest,
-      packageResolver,
       snapshot,
       workspaceRoot,
     });
@@ -748,7 +736,6 @@ describe("workspace record state node files", () => {
     await expect(
       readInstanceWorkspaceControlPlaneStorageSnapshot({
         manifest,
-        packageResolver,
         workspaceRoot,
       }),
     ).resolves.toMatchObject({
@@ -759,15 +746,10 @@ describe("workspace record state node files", () => {
         },
         {
           id: "route:labs:public-site",
-          values: { matchPath: "/sites/labs", matchPrefix: "/sites/labs/" },
+          values: { matchPath: "/pages", matchPrefix: "/pages/" },
         },
       ],
     });
-    await expect(
-      readInstanceWorkspaceControlPlaneStorageSnapshot({ manifest, workspaceRoot }),
-    ).rejects.toThrow(
-      'Workspace control-plane storage snapshot records route "route:labs:public-site" requires an active package resolver',
-    );
   });
 
   it("writes and reads app record state with package schema provenance", async () => {
@@ -1150,7 +1132,6 @@ function timestampSequence(...timestamps: string[]): () => string {
 function workspaceTestPackageManifest(input: {
   label: string;
   packageAppKey: string;
-  publicSite?: boolean;
   sourceSchemaHash: string;
 }): Record<string, unknown> {
   return {
@@ -1168,20 +1149,7 @@ function workspaceTestPackageManifest(input: {
       path: "schema.json",
     },
     sourceSchemaHash: input.sourceSchemaHash,
-    capabilities: [
-      {
-        kind: "generatedAdmin",
-        routeBase: "/apps",
-      },
-      ...(input.publicSite
-        ? [
-            {
-              kind: "publicSite",
-              routeBase: "/sites",
-            },
-          ]
-        : []),
-    ],
+    capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],
   };
 }
 

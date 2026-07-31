@@ -1163,9 +1163,10 @@ deployment intent records.
 - **THEN** the CLI reads `app-install` and `route` records
 - **AND** route changes are reported by comparing route records rather than
   hand-derived install route strings or manifest route summaries
-- **AND** a Program-native public Site route may omit `appInstall`
-- **AND** dormant routes targeting built-in package key `site` are not selected
-  as operational installed-app routes
+- **AND** a Program-native public Site route omits `appInstall` and does not
+  resolve through installed package metadata
+- **AND** routes that target app installs are not selected as operational public
+  Site routes
 
 #### Scenario: CLI reads domain routes
 

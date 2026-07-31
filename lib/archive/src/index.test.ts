@@ -36,7 +36,6 @@ const archivePackageResolver = createAppPackageResolver([
   packageManifest({
     label: "Site",
     packageAppKey: "site",
-    publicSite: true,
     sourceSchemaHash: siteSourceSchemaHash,
   }),
 ]);
@@ -152,7 +151,6 @@ function writeOperations(label: string, fields: string[]) {
 function packageManifest(input: {
   label: string;
   packageAppKey: string;
-  publicSite?: boolean;
   sourceSchemaHash: string;
 }): Record<string, unknown> {
   return {
@@ -170,20 +168,7 @@ function packageManifest(input: {
       path: "schema.json",
     },
     sourceSchemaHash: input.sourceSchemaHash,
-    capabilities: [
-      {
-        kind: "generatedAdmin",
-        routeBase: "/apps",
-      },
-      ...(input.publicSite
-        ? [
-            {
-              kind: "publicSite",
-              routeBase: "/sites",
-            },
-          ]
-        : []),
-    ],
+    capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],
   };
 }
 
@@ -286,9 +271,7 @@ describe("portable archive protocol", () => {
       ],
       controlPlane: controlPlaneSnapshot(),
     });
-    expect(() => parseInstanceArchive(archive)).toThrow(
-      'Instance archive controlPlane records route "route:site:public-site" requires an active package resolver',
-    );
+    expect(parseInstanceArchive(archive).controlPlane?.records).toBeDefined();
     const parsed = parseInstanceArchive(archive, { packageResolver: archivePackageResolver });
     const formatted = formatInstanceArchive(parsed, { packageResolver: archivePackageResolver });
     const formattedArchive = JSON.parse(formatted) as InstanceArchive;
@@ -693,11 +676,10 @@ function controlPlaneRecords(
       entity: "route",
       values: {
         enabled: true,
-        matchPath: "/sites/site",
-        matchPrefix: "/sites/site/",
+        matchPath: "/pages",
+        matchPrefix: "/pages/",
         kind: "mount",
         targetProfile: "public-site",
-        appInstall: "site",
         surface: "public-site",
       },
       createdAt: now,
@@ -713,7 +695,6 @@ function controlPlaneRecords(
         matchPrefix: "/",
         kind: "mount",
         targetProfile: "public-site",
-        appInstall: "site",
         surface: "public-site",
       },
       createdAt: now,

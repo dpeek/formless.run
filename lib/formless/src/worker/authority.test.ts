@@ -20,13 +20,8 @@ import {
 } from "../shared/protocol.ts";
 import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
-import {
-  appPackageManifestKind,
-  appPackageManifestVersion,
-  type AppPackageManifest,
-} from "../shared/app-packages.ts";
+import type { AppPackageManifest } from "../shared/app-packages.ts";
 import type { SchemaKey } from "../shared/schema-apps.ts";
-import { computeSourceSchemaHash, type SourceSchemaHash } from "../shared/upgrade-migrations.ts";
 import {
   FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
   formatRuntimeWorkspaceAppPackages,
@@ -39,7 +34,6 @@ import {
 } from "@dpeek/formless-schema";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import {
-  siteSourceSchema,
   taskTestRecords,
   taskStorageSnapshotRecords,
   taskSourceSchema as appSchema,
@@ -383,69 +377,6 @@ describe("authority", () => {
       error: "Site page not found.",
     });
   });
-  it("rejects page tree requests for non-site schema keys", async () => {
-    const response = await authority.fetch("/api/tree/home");
-    expect(response.status).toBe(400);
-    expect(
-      (await response.json()) as {
-        error: string;
-      },
-    ).toEqual({
-      error: 'Package app "test-tasks" does not declare public Site runtime support.',
-    });
-  });
-
-  it("rejects public tree reads for public Site packages without a Worker adapter", async () => {
-    const sourceSchemaHash = await computeSourceSchemaHash(siteSourceSchema);
-    const privateHarness = await createWorkerHarness(
-      "src/worker/index.ts",
-      {
-        FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true },
-      },
-      {
-        bindings: {
-          FORMLESS_ADMIN_TOKEN: "test-admin-token",
-          [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
-            {
-              manifest: privatePublicSitePackageManifest(sourceSchemaHash),
-              sourceSchema: siteSourceSchema,
-            },
-          ]),
-        },
-      },
-    );
-
-    try {
-      const created = await privateHarness.fetch("/api/formless/app-installs", {
-        body: JSON.stringify({
-          packageAppKey: "private-site",
-          installId: "private-site",
-          label: "Private Site",
-        }),
-        headers: {
-          Authorization: "Bearer test-admin-token",
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-      });
-      const response = await privateHarness.fetch(
-        "/api/app-installs/private-site/private-site/tree/home",
-      );
-      expect(created.status).toBe(201);
-      expect(response.status).toBe(400);
-      expect(
-        (await response.json()) as {
-          error: string;
-        },
-      ).toEqual({
-        error:
-          'Package app "private-site" declares public Site runtime support, but no public Site Worker adapter is registered.',
-      });
-    } finally {
-      await privateHarness.dispose();
-    }
-  });
-
   it("returns restored snapshot changes through sync", async () => {
     const body = await getJson<SyncResponse>("/api/sync?after=0");
 
@@ -2612,27 +2543,4 @@ async function expectError(path: string, body: unknown, message: string) {
 
 async function expectNotFound(path: string) {
   await authority.expectNotFound(path);
-}
-
-function privatePublicSitePackageManifest(sourceSchemaHash: SourceSchemaHash): AppPackageManifest {
-  return {
-    kind: appPackageManifestKind,
-    version: appPackageManifestVersion,
-    packageAppKey: "private-site",
-    label: "Private Site",
-    description: "Private workspace Site package.",
-    defaultInstallId: "private-site",
-    supportsMultipleInstalls: true,
-    packageRevision: 7,
-    sourceSchema: {
-      kind: "workspace",
-      key: "private-site",
-      path: "packages/private-site/schema.json",
-    },
-    sourceSchemaHash,
-    capabilities: [
-      { kind: "generatedAdmin", routeBase: "/apps" },
-      { kind: "publicSite", routeBase: "/sites" },
-    ],
-  };
 }

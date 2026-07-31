@@ -56,11 +56,7 @@ export function runtimeInstalledAppRouteRegistryRefreshKey(
   const path = normalizeRuntimeBrowserPath(location);
   const routes = runtimeBrowserRoutePatterns(runtimeProfile);
 
-  return (
-    installedRouteRootPath(path, routes.installedAppHomeRoutePattern) ??
-    installedRouteRootPath(path, routes.installedSitePublicHomeRoutePattern) ??
-    path
-  );
+  return installedRouteRootPath(path, routes.installedAppHomeRoutePattern) ?? path;
 }
 
 function installedRouteRootPath(

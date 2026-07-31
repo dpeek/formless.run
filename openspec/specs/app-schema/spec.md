@@ -524,8 +524,7 @@ archive, or deploy workflows.
 - WHEN the package source is resolved
 - THEN the manifest declares a route-safe package app key, label, optional
   description, default install id, multiple-install policy, package revision,
-  source schema location, and runtime capabilities such as generated admin and
-  optional public Site routes
+  source schema location, and generated-admin runtime capability
 - AND the manifest does not contain app install records, route records,
   deployment config, app records, media payloads, provider credentials, or
   workspace-local secrets
@@ -535,15 +534,13 @@ archive, or deploy workflows.
 
 - GIVEN an app package manifest declares runtime capabilities
 - WHEN the package source is resolved
-- THEN the resolved package metadata exposes stable capability facts such as
-  generated admin and public Site runtime support
+- THEN the resolved package metadata exposes generated-admin capability facts
 - AND capability facts are data declarations used by install, route, archive,
   deploy, and runtime dispatch validation
 - AND the manifest does not embed executable handler paths, JavaScript module
   references, React component names, Worker functions, filesystem adapter
   functions, or other runtime implementation details
-- AND executable behavior for a capability is selected from the runtime's
-  package adapter registry for the resolved package app key
+- AND installed package capabilities do not select public Site runtime behavior
 
 #### Scenario: Verify resolved package source hash
 

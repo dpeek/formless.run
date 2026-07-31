@@ -941,38 +941,6 @@ function validateControlPlanePackageBoundary(
 
   if (entityName === "email-sender") {
     validateEmailSenderBoundary(storage, values, options.additionalRecords);
-    return;
-  }
-
-  if (entityName !== "route" || values.kind !== "mount" || values.surface !== "public-site") {
-    return;
-  }
-
-  const installId = stringRecordValue(values.appInstall);
-
-  if (installId === undefined) {
-    return;
-  }
-
-  const appInstallRecord = findControlPlaneRecord(
-    storage,
-    "app-install",
-    installId,
-    options.additionalRecords,
-  );
-  const packageAppKey = stringRecordValue(appInstallRecord?.values.packageAppKey);
-  const packageApp = packageAppKey
-    ? findResolvedAppPackage(packageAppKey, options.packageResolver)
-    : undefined;
-
-  if (!packageApp) {
-    throw new BadRequestError(`Route app install "${installId}" uses unsupported package.`);
-  }
-
-  if (packageApp.publicRouteBase === undefined) {
-    throw new BadRequestError(
-      `Package app "${packageApp.packageAppKey}" does not support public Site routes.`,
-    );
   }
 }
 
@@ -1444,6 +1412,12 @@ function syncDomainIntentRecords(
   if (input.mappings !== undefined) {
     const nextDomainRouteIds = new Set(domainRouteCandidates.map((candidate) => candidate.id));
 
+    for (const record of activeControlPlaneRecords(storage)) {
+      if (unselectedPublicSiteDomainRoute(record)) {
+        nextDomainRouteIds.add(record.id);
+      }
+    }
+
     removeMissingControlPlaneIntentRecords(storage, nextDomainRouteIds, {
       action: "removeDomainMappingIntent",
       idPrefix: "route:host:",
@@ -1561,7 +1535,9 @@ function domainMappingRouteRecordValues(
 ): RecordValues {
   const targetInstallId = mapping.targetInstallId ?? mapping.installId;
   const appInstall =
-    targetInstallId && activeControlPlaneRecordExists(storage, "app-install", targetInstallId)
+    mapping.profile === "app" &&
+    targetInstallId &&
+    activeControlPlaneRecordExists(storage, "app-install", targetInstallId)
       ? targetInstallId
       : undefined;
   const surface = domainMappingSurfaceForProfile(mapping.profile);
@@ -1581,6 +1557,27 @@ function domainMappingRouteRecordValues(
       targetProfile: domainMappingTargetProfile(mapping.profile),
     }),
   };
+}
+
+function unselectedPublicSiteDomainRoute(record: StoredRecord): boolean {
+  if (
+    record.entity !== "route" ||
+    !record.id.startsWith("route:host:") ||
+    stringRecordValue(record.values.matchHost) === undefined
+  ) {
+    return false;
+  }
+
+  const targetProfile = stringRecordValue(record.values.targetProfile);
+  const surface = stringRecordValue(record.values.surface);
+  const publicSiteShaped = targetProfile === "public-site" || surface === "public-site";
+
+  return (
+    publicSiteShaped &&
+    (targetProfile !== "public-site" ||
+      surface !== "public-site" ||
+      stringRecordValue(record.values.appInstall) !== undefined)
+  );
 }
 
 function redirectRouteCandidate(
@@ -1747,7 +1744,12 @@ function parseInternalDomainMappings(value: unknown): InstanceDomainMapping[] {
     throw new BadRequestError("Domain intent sync mappings must be an array.");
   }
 
-  return value.map(parseInternalDomainMapping);
+  return value.flatMap((item) => {
+    const mapping = parseInternalDomainMapping(item);
+    const targetInstallId = mapping.targetInstallId ?? mapping.installId;
+
+    return mapping.profile === "publicSite" && targetInstallId !== undefined ? [] : [mapping];
+  });
 }
 
 function parseInternalDomainMapping(value: unknown): InstanceDomainMapping {

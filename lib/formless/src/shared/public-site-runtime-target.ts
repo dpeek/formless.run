@@ -1,30 +1,12 @@
-import type { PackageAppKey } from "@dpeek/formless-installed-apps";
-import {
-  programStorageIdentity,
-  type InstalledAppStorageIdentity,
-  type ProgramStorageIdentity,
-} from "./app-storage-identity.ts";
-import { runtimeTopologyRoutes } from "./runtime-topology.ts";
-
-export type PublicSiteRuntimeStorageIdentity = ProgramStorageIdentity | InstalledAppStorageIdentity;
-
-export type PublicSiteRuntimeTarget = {
-  packageAppKey: PackageAppKey;
-  storageIdentity: PublicSiteRuntimeStorageIdentity;
+import { programStorageIdentity, type ProgramStorageIdentity } from "./app-storage-identity.ts";
+export type ProgramPublicSiteRuntimeTarget = {
+  storageIdentity: ProgramStorageIdentity;
 };
 
-export function programPublicSiteRuntimeTarget(): PublicSiteRuntimeTarget {
-  return {
-    packageAppKey: runtimeTopologyRoutes.publicSitePackageAppKey,
-    storageIdentity: programStorageIdentity(),
-  };
-}
+export type PublicSiteRuntimeTarget = ProgramPublicSiteRuntimeTarget;
 
-export function installedPublicSiteRuntimeTarget(
-  storageIdentity: InstalledAppStorageIdentity,
-): PublicSiteRuntimeTarget {
+export function programPublicSiteRuntimeTarget(): ProgramPublicSiteRuntimeTarget {
   return {
-    packageAppKey: storageIdentity.packageAppKey,
-    storageIdentity,
+    storageIdentity: programStorageIdentity(),
   };
 }

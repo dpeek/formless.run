@@ -431,12 +431,6 @@ describe("Worker document routing", () => {
     ).toBe(true);
     expect(
       shouldDeferToStaticAssets(
-        documentRequest("http://example.com/sites/personal/blog"),
-        instanceProfile,
-      ),
-    ).toBe(true);
-    expect(
-      shouldDeferToStaticAssets(
         documentRequest("http://example.com/assets/index.js"),
         instanceProfile,
       ),
@@ -700,7 +694,6 @@ describe("Worker document routing", () => {
       documentRequest(`http://example.com${runtimeTopologyRoutes.authAccountSignInRoute}`),
       documentRequest("http://example.com/local-session"),
       documentRequest("http://example.com/apps/personal"),
-      documentRequest("http://example.com/sites/personal"),
       documentRequest("http://example.com/assets/index.js"),
       new Request("http://example.com/@vite/client", { headers: { Accept: "*/*" } }),
       new Request("http://example.com/@react-refresh", { headers: { Accept: "*/*" } }),
@@ -906,16 +899,6 @@ describe("Worker document routing", () => {
         profile: "publishedSite",
       }),
     ).toBe(true);
-    expect(
-      shouldDeferToStaticAssets(documentRequest("http://example.com/sites/personal"), {
-        profile: "publishedSite",
-      }),
-    ).toBe(true);
-    expect(
-      shouldDeferToStaticAssets(documentRequest("http://example.com/sites/personal/blog"), {
-        profile: "publishedSite",
-      }),
-    ).toBe(true);
   });
 
   it("keeps dynamic root icon requests out of static fallback for read methods", () => {
@@ -1020,7 +1003,6 @@ describe("Worker document routing", () => {
     expect(isClientShellRoute("/crm/audiences")).toBe(false);
     expect(isClientShellRoute("/site/schema")).toBe(false);
     expect(isClientShellRoute("/apps/personal")).toBe(true);
-    expect(isClientShellRoute("/sites/personal/blog")).toBe(true);
     expect(isClientShellRoute("/formless/auth")).toBe(true);
     expect(isClientShellRoute("/formless/auth/profile-completion")).toBe(true);
     expect(isClientShellRoute(runtimeTopologyRoutes.authAccountSetupRoute)).toBe(true);

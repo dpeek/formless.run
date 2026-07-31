@@ -160,7 +160,7 @@ export function deployDesiredStateProjectionInputFromControlPlaneRecords(
 export function projectDeployControlPlaneDesiredState(
   input: DeployDesiredStateProjectionInput,
 ): DeployDesiredStateProjection {
-  const routes = input.routes ?? [];
+  const routes = (input.routes ?? []).filter(isCurrentProgramPublicSiteRoute);
   const providerConfigs = input.providerConfigs ?? [];
   const emailDomains = input.emailDomains ?? [];
   const emailSenders = input.emailSenders ?? [];
@@ -215,6 +215,7 @@ export function projectDeployRouteTargets(
   return routes
     .filter(
       (route) =>
+        isCurrentProgramPublicSiteRoute(route) &&
         route.enabled &&
         route.kind === "mount" &&
         route.matchHost === undefined &&
@@ -673,6 +674,7 @@ function routeProjectionRecordsFromControlPlaneRecords(
     )
     .map(routeProjectionRecordFromControlPlaneRecord)
     .filter((record): record is ControlPlaneRouteProjectionRecord => record !== undefined)
+    .filter(isCurrentProgramPublicSiteRoute)
     .sort((left, right) => left.id.localeCompare(right.id));
 }
 
@@ -1178,6 +1180,17 @@ function routeTargetSurface(
   }
 
   return undefined;
+}
+
+function isCurrentProgramPublicSiteRoute(route: ControlPlaneRouteProjectionRecord): boolean {
+  const publicSiteShaped = route.targetProfile === "public-site" || route.surface === "public-site";
+
+  return (
+    !publicSiteShaped ||
+    (route.targetProfile === "public-site" &&
+      route.surface === "public-site" &&
+      route.appInstall === undefined)
+  );
 }
 
 function domainMappingProfileFromRouteTarget(

@@ -37,7 +37,7 @@ describe("runtime installed app route registry", () => {
     expect(registry.activePackageResolver?.findPackage("site")).toBeUndefined();
   });
 
-  it("keeps refresh keys stable within installed admin and public route roots", () => {
+  it("keeps refresh keys stable within installed admin route roots", () => {
     const runtimeProfile = createDevRuntimeProfile();
 
     expect(runtimeInstalledAppRouteRegistryRefreshKey(runtimeProfile, "/apps/crm")).toBe(
@@ -47,7 +47,7 @@ describe("runtime installed app route registry", () => {
       "/apps/crm",
     );
     expect(runtimeInstalledAppRouteRegistryRefreshKey(runtimeProfile, "/sites/site/blog")).toBe(
-      "/sites/site",
+      "/sites/site/blog",
     );
     expect(runtimeInstalledAppRouteRegistryRefreshKey(runtimeProfile, "/crm/audiences")).toBe(
       "/crm/audiences",
@@ -59,11 +59,10 @@ function privateSitePackage(): InstallableAppPackage {
   return {
     adminRouteBase: "/apps",
     defaultInstallId: "private-site",
-    description: "Workspace-linked public Site package.",
+    description: "Workspace-linked package.",
     label: "Private Site",
     packageAppKey: "private-site",
     packageRevision: 7,
-    publicRouteBase: "/sites",
     sourceOrigin: "workspace",
     sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
     sourceSchemaKey: "private-site",

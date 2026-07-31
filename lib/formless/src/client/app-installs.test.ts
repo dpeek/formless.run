@@ -214,7 +214,6 @@ function privateSitePackage(): InstallableAppPackage {
     label: "Private Site",
     packageAppKey: "private-site",
     packageRevision: 7,
-    publicRouteBase: "/sites",
     sourceOrigin: "workspace",
     sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
     sourceSchemaKey: "private-site",

@@ -7,7 +7,7 @@ import {
   shouldValidateExistingFieldValue,
   validateAuthorityFieldValue,
 } from "@dpeek/formless-schema";
-import { findResolvedAppPackage, type AppPackageResolver } from "../shared/app-packages.ts";
+import type { AppPackageResolver } from "../shared/app-packages.ts";
 import { instanceControlPlaneReservedRoutePaths } from "@dpeek/formless-instance-control-plane";
 import { normalizeInstanceDomainHost } from "../shared/instance-domain-mappings.ts";
 import type {
@@ -785,7 +785,6 @@ function validateRuntimeRecordValues(
       reader,
       runtimeOptions.existingRecordId,
       runtimeOptions.additionalRecords,
-      runtimeOptions.packageResolver,
     );
   }
 }
@@ -1059,7 +1058,6 @@ function validateRuntimeControlPlaneValues(
   reader: AuthorityRecordValidationReader,
   existingRecordId: string | undefined,
   additionalRecords: StoredRecord[] | undefined,
-  packageResolver: AppPackageResolver | undefined,
 ) {
   const metadata = runtimeControlPlaneEntityMetadata(schema, entityName);
   const routeValidation = metadata?.routeValidation;
@@ -1076,13 +1074,7 @@ function validateRuntimeControlPlaneValues(
   }
 
   if (isInstanceControlPlaneRouteValidationEntity(schema, entityName)) {
-    validateInstanceControlPlaneRouteValues(
-      values,
-      reader,
-      existingRecordId,
-      additionalRecords,
-      packageResolver,
-    );
+    validateInstanceControlPlaneRouteValues(values, reader, existingRecordId, additionalRecords);
   }
 }
 
@@ -1202,7 +1194,6 @@ function validateInstanceControlPlaneRouteValues(
   reader: AuthorityRecordValidationReader,
   existingRecordId: string | undefined,
   additionalRecords: StoredRecord[] | undefined,
-  packageResolver: AppPackageResolver | undefined,
 ) {
   const matchHost = optionalStringRecordValue(values, "matchHost");
   const matchPath = stringRecordValue(values, "matchPath");
@@ -1234,7 +1225,6 @@ function validateInstanceControlPlaneRouteValues(
       matchPath,
       matchPrefix,
       additionalRecords,
-      packageResolver,
     );
   } else if (kind === "redirect") {
     validateInstanceControlPlaneRedirectRoute(values, matchHost);
@@ -1293,7 +1283,6 @@ function validateInstanceControlPlaneMountRoute(
   matchPath: string,
   matchPrefix: string | undefined,
   additionalRecords: StoredRecord[] | undefined,
-  packageResolver: AppPackageResolver | undefined,
 ) {
   const targetProfile = optionalStringRecordValue(values, "targetProfile");
   const appInstall = optionalStringRecordValue(values, "appInstall");
@@ -1341,7 +1330,13 @@ function validateInstanceControlPlaneMountRoute(
     );
   }
 
-  if (targetProfile === "public-site" && appInstall === undefined) {
+  if (targetProfile === "public-site") {
+    if (appInstall !== undefined) {
+      throw new BadRequestError(
+        'Field "appInstall" is incompatible with public-site mount routes.',
+      );
+    }
+
     validateHostMountedPublicSiteRoute(matchHost, matchPath, matchPrefix);
     return;
   }
@@ -1371,24 +1366,6 @@ function validateInstanceControlPlaneMountRoute(
 
     return;
   }
-
-  const packageAppKey = optionalStringRecordValue(install.values, "packageAppKey");
-  const packageApp =
-    packageAppKey === undefined
-      ? undefined
-      : findResolvedAppPackage(packageAppKey, packageResolver);
-
-  if (!packageApp) {
-    throw new BadRequestError(`Route app install "${appInstall}" uses unsupported package.`);
-  }
-
-  if (packageApp.publicRouteBase === undefined) {
-    throw new BadRequestError(
-      `Package app "${packageApp.packageAppKey}" does not support public Site routes.`,
-    );
-  }
-
-  validateHostMountedPublicSiteRoute(matchHost, matchPath, matchPrefix);
 }
 
 function validateHostMountedPublicSiteRoute(

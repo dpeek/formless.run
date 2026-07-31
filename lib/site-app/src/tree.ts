@@ -17,10 +17,7 @@ import {
   type SiteRouteResolution,
 } from "./route-resolver.ts";
 import { resolveSiteLinkHref } from "./link-targets.ts";
-import {
-  projectSitePublicOperationBlock,
-  type SitePublicOperationTargetResolver,
-} from "./public-operation-block-projection.ts";
+import { projectSitePublicOperationBlock } from "./public-operation-block-projection.ts";
 
 export type {
   SiteBlockNode,
@@ -35,8 +32,6 @@ export type {
 export type BuildSitePageTreeOptions = {
   generatedAt?: string;
   maxDepth?: number;
-  publicOperationTargetResolver?: SitePublicOperationTargetResolver;
-  target?: { apiRoutePrefix: `/${string}` };
   turnstileSiteKey?: string;
 };
 
@@ -49,15 +44,12 @@ type SiteTreeIndexes = {
 type SiteTreeBuildContext = {
   schema: AppSchema;
   indexes: SiteTreeIndexes;
-  publicOperationTargetResolver?: SitePublicOperationTargetResolver;
-  publicOperationApiRoutePrefix: `/${string}`;
   turnstileSiteKey?: string;
   warnings: SiteTreeWarning[];
   maxDepth: number;
 };
 
 const DEFAULT_MAX_DEPTH = 16;
-const DEFAULT_SITE_PUBLIC_API_ROUTE_PREFIX = "/api/formless/program";
 const PRIMARY_IMAGE_SLOT = "primaryImage";
 const LIST_BLOCK_ITEM_TYPES = {
   postList: "post",
@@ -93,11 +85,6 @@ export function buildSitePageTree(
   const context = {
     schema,
     indexes,
-    ...(options.publicOperationTargetResolver === undefined
-      ? {}
-      : { publicOperationTargetResolver: options.publicOperationTargetResolver }),
-    publicOperationApiRoutePrefix:
-      options.target?.apiRoutePrefix ?? DEFAULT_SITE_PUBLIC_API_ROUTE_PREFIX,
     ...(options.turnstileSiteKey === undefined
       ? {}
       : { turnstileSiteKey: options.turnstileSiteKey }),
@@ -426,10 +413,6 @@ function projectedPublicOperationFields(
     record,
     type,
     schema: context.schema,
-    ...(context.publicOperationTargetResolver === undefined
-      ? {}
-      : { publicOperationTargetResolver: context.publicOperationTargetResolver }),
-    publicOperationApiRoutePrefix: context.publicOperationApiRoutePrefix,
     ...(context.turnstileSiteKey === undefined
       ? {}
       : { turnstileSiteKey: context.turnstileSiteKey }),

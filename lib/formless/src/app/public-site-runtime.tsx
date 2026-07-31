@@ -1,5 +1,3 @@
-import type { ElementType } from "react";
-
 import {
   SitePageRoute as PackageSitePageRoute,
   type SitePublicRendererComponent,
@@ -13,7 +11,6 @@ import {
 } from "../client/app-target.ts";
 import { listenForClientEvents } from "../client/broadcast.ts";
 import { startPushSync } from "../client/sync.ts";
-import { runtimeTopologyRoutes } from "../shared/runtime-topology.ts";
 
 export type PublicSiteRouteInputProps = {
   linkMode?: SitePageLinkMode;
@@ -28,42 +25,7 @@ export type PublicSiteRouteProps = PublicSiteRouteInputProps & {
   builtInSystemStateRenderer: SitePublicSystemStateRendererComponent;
 };
 
-export type PublicSiteReactAdapter = {
-  builtInRenderer: SitePublicRendererComponent;
-  builtInSystemStateRenderer: SitePublicSystemStateRendererComponent;
-  Route: ElementType<PublicSiteRouteProps>;
-  workspaceRenderer?: SitePublicRendererComponent;
-};
-
-export type PublicSiteReactAdapterRegistry = ReadonlyMap<string, PublicSiteReactAdapter>;
-
-export function createPublicSiteReactAdapterRegistry(options: {
-  builtInRenderer: SitePublicRendererComponent;
-  builtInSystemStateRenderer: SitePublicSystemStateRendererComponent;
-  siteRoute?: ElementType<PublicSiteRouteProps>;
-  workspaceRenderer?: SitePublicRendererComponent;
-}): PublicSiteReactAdapterRegistry {
-  return new Map([
-    [
-      runtimeTopologyRoutes.publicSitePackageAppKey,
-      {
-        builtInRenderer: options.builtInRenderer,
-        builtInSystemStateRenderer: options.builtInSystemStateRenderer,
-        Route: options.siteRoute ?? CoreSitePageRoute,
-        workspaceRenderer: options.workspaceRenderer,
-      },
-    ],
-  ]);
-}
-
-export function publicSiteReactAdapterForPackageAppKey(
-  packageAppKey: string,
-  registry: PublicSiteReactAdapterRegistry,
-): PublicSiteReactAdapter | undefined {
-  return registry.get(packageAppKey);
-}
-
-function CoreSitePageRoute({
+export function CoreSitePageRoute({
   builtInRenderer,
   builtInSystemStateRenderer,
   linkMode = "preview",

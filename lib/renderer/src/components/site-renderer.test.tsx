@@ -56,19 +56,15 @@ describe("Astryx public Site page shell", () => {
     const renderer = await renderPage(shellRendererProps());
 
     expect(componentLabels(renderer, "TopNavItem")).toEqual(["Home", "Work", "Journal", "Contact"]);
-    expect(componentByLabel(renderer, "TopNavItem", "Home").getAttribute("href")).toBe(
-      "/sites/astryx",
-    );
+    expect(componentByLabel(renderer, "TopNavItem", "Home").getAttribute("href")).toBe("/");
     expect(componentByLabel(renderer, "TopNavItem", "Home").getAttribute("aria-current")).toBe(
       "page",
     );
-    expect(componentByLabel(renderer, "TopNavItem", "Work").getAttribute("href")).toBe(
-      "/sites/astryx/work",
-    );
+    expect(componentByLabel(renderer, "TopNavItem", "Work").getAttribute("href")).toBe("/work");
     expect(componentByLabel(renderer, "TopNavItem", "Contact").getAttribute("href")).toBe(
       "#contact",
     );
-    expect(renderer.container.querySelector('a[href="/sites/astryx"]')).not.toBeNull();
+    expect(renderer.container.querySelector('a[href="/"]')).not.toBeNull();
 
     await unmount(renderer);
   });
@@ -350,7 +346,7 @@ describe("Astryx public Site structural blocks", () => {
     );
 
     expect(renderer.container.querySelector('[src="/media/feature.webp"]')).not.toBeNull();
-    expect(renderer.container.querySelector('a[href="/sites/astryx/work"]')).not.toBeNull();
+    expect(renderer.container.querySelector('a[href="/work"]')).not.toBeNull();
     expect(rendererText(renderer)).toContain("Follow-up");
     expect(rendererText(renderer)).not.toContain("Wrong media type");
     expect(rendererText(renderer)).not.toContain("Internal projection warning");
@@ -407,12 +403,8 @@ describe("Astryx public Site links, source icons, and media", () => {
       },
     });
 
-    expect(componentByLabel(renderer, "TopNavItem", "Work").getAttribute("href")).toBe(
-      "/sites/astryx/work",
-    );
-    const inlineInternal = required(
-      renderer.container.querySelector('a[href="/sites/astryx/work#details"]'),
-    );
+    expect(componentByLabel(renderer, "TopNavItem", "Work").getAttribute("href")).toBe("/work");
+    const inlineInternal = required(renderer.container.querySelector('a[href="/work#details"]'));
     expect(rendererText(renderer)).toContain("Placed link label");
     expect(inlineInternal.getAttribute("target")).toBeNull();
     expect(inlineInternal.getAttribute("rel")).toBeNull();
@@ -425,7 +417,7 @@ describe("Astryx public Site links, source icons, and media", () => {
     );
 
     const action = componentByLabel(renderer, "Button", "Start now");
-    expect(action.getAttribute("href")).toBe("/sites/astryx/contact");
+    expect(action.getAttribute("href")).toBe("/contact");
     expect(action.querySelector('path[d="M4 12h16"]')).not.toBeNull();
 
     const social = required(
@@ -549,7 +541,7 @@ describe("Astryx public Site links, source icons, and media", () => {
 });
 
 describe("Astryx public Site lists, summaries, and post detail", () => {
-  it("renders ordered query summaries, empty states, dates, media, and installed links", async () => {
+  it("renders ordered query summaries, empty states, dates, media, and published links", async () => {
     viewport.isMobile = false;
     const firstPost = block("first-post", "post", "First projected post", {
       body: "First post summary.",
@@ -608,11 +600,9 @@ describe("Astryx public Site lists, summaries, and post detail", () => {
       "Second projected post",
       "Projected project",
     ]);
+    expect(renderer.container.querySelector('a[href="/blog/first-post"]')).not.toBeNull();
     expect(
-      renderer.container.querySelector('a[href="/sites/astryx/blog/first-post"]'),
-    ).not.toBeNull();
-    expect(
-      renderer.container.querySelector('a[href="/sites/astryx/projects/projected-project"]'),
+      renderer.container.querySelector('a[href="/projects/projected-project"]'),
     ).not.toBeNull();
     expect(
       Array.from(renderer.container.querySelectorAll("time"), (node) =>
@@ -850,7 +840,7 @@ describe("Astryx public Site system states", () => {
     ["loading", { kind: "loading", slug: "home" }, "Loading site page...", "Loading home."],
     [
       "not-found",
-      { kind: "not-found", slug: "missing", homeHref: "/sites/astryx" },
+      { kind: "not-found", slug: "missing", homeHref: "/campaign" },
       "Page not found",
       "No site page exists for missing.",
     ],
@@ -866,7 +856,7 @@ describe("Astryx public Site system states", () => {
     expect(rendererText(mounted)).toContain(title);
     expect(rendererText(mounted)).toContain(detail);
     if (kind === "not-found") {
-      expect(mounted.container.querySelector('[href="/sites/astryx"]')).not.toBeNull();
+      expect(mounted.container.querySelector('[href="/campaign"]')).not.toBeNull();
     }
     if (kind === "failure") {
       expect(mounted.container.querySelector('[role="alert"]')).not.toBeNull();

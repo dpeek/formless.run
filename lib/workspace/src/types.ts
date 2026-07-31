@@ -900,7 +900,6 @@ export type InstanceWorkspaceApp = {
 
 export type InstanceWorkspaceAppRoutes = {
   admin?: `/apps/${string}`;
-  public?: `/sites/${string}`;
 };
 
 export type InstanceWorkspaceDomainIntent = {

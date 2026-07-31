@@ -1,6 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
 import type {
-  BootstrapResponse,
   SchemaResponse,
   SyncResponse,
   SyncSocketAttachment,
@@ -10,10 +9,8 @@ import { isSyncSocketAttachment, isSyncSocketClientMessage } from "../shared/pro
 import {
   installedAppStorageIdentity,
   parseAuthorityApiRoute,
-  programStorageIdentity,
   type AuthorityStorageIdentity,
 } from "../shared/app-storage-identity.ts";
-import type { StoredRecord } from "@dpeek/formless-storage";
 import { handleInstanceArchiveDurableObjectRequest } from "./archive-api.ts";
 import {
   ensureStorageTables,
@@ -105,7 +102,6 @@ import {
 } from "./upgrade-status-api.ts";
 import {
   activeAppPackageResolver,
-  activeWorkerSourceSchemas,
   findActiveWorkerSchemaAppDefinition,
   listActiveAppPackages,
   type WorkerAppDefinition,
@@ -451,7 +447,6 @@ export class FormlessAuthority extends DurableObject<Env> {
         operation,
         packageResolver: activeAppPackageResolver(this.bindings),
         source,
-        sourceSchemas: activeWorkerSourceSchemas(this.bindings),
         storage: this.ctx.storage,
         writes: new AuthorityWriteModule(() => this.scheduleCommittedWriteBroadcast(source)),
       });
@@ -528,17 +523,21 @@ export class FormlessAuthority extends DurableObject<Env> {
         }
       }
 
-      const operation = selectAuthorityOperation({
+      const selectedOperation = selectAuthorityOperation({
         method: request.method,
         path: route.path,
         searchParams: url.searchParams,
       });
+      const operation =
+        selectedOperation?.kind === "siteTree" && route.identity.kind !== "program"
+          ? undefined
+          : selectedOperation;
       const publicOperationRoute = selectPublicOperationRoute({
         method: request.method,
         path: route.path,
       });
 
-      if (publicOperationRoute) {
+      if (route.identity.kind === "program" && publicOperationRoute) {
         const publicIdentity = route.identity;
         const packageResolver = activeAppPackageResolver(this.bindings);
         const body = await readJson(request);
@@ -546,14 +545,6 @@ export class FormlessAuthority extends DurableObject<Env> {
         const { schema } = initializeStorageFromSource(this.ctx.storage, source);
         const result = await executePublicOperationRequest({
           afterCommit: async (response) => {
-            const operationInputNotificationRecords =
-              await publicOperationInputNotificationSourceRecords({
-                env: this.bindings,
-                identity: publicIdentity,
-                requestUrl: request.url,
-                response,
-              });
-
             await Promise.allSettled([
               scheduleSiteContactNotificationAfterPublicOperation({
                 adapters: createSiteContactNotificationAdapters(this.bindings),
@@ -566,9 +557,6 @@ export class FormlessAuthority extends DurableObject<Env> {
                 identity: publicIdentity,
                 requestUrl: request.url,
                 response,
-                ...(operationInputNotificationRecords === undefined
-                  ? {}
-                  : { records: operationInputNotificationRecords }),
                 schema,
                 storage: this.ctx.storage,
               }),
@@ -659,7 +647,6 @@ export class FormlessAuthority extends DurableObject<Env> {
           packageResolver: activeAppPackageResolver(this.bindings),
           requestHeaders: request.headers,
           source,
-          sourceSchemas: activeWorkerSourceSchemas(this.bindings),
           storage: this.ctx.storage,
           turnstileSiteKey: turnstileSiteKeyFromEnv(this.bindings),
           writes,
@@ -1255,52 +1242,6 @@ function packageSchemaProvenanceForIdentity(
   };
 }
 
-async function publicOperationInputNotificationSourceRecords(input: {
-  env: Env;
-  identity: AuthorityStorageIdentity;
-  requestUrl: string;
-  response: { invocation: { source: { siteBlockId?: string } } };
-}): Promise<readonly StoredRecord[] | undefined> {
-  if (input.response.invocation.source.siteBlockId === undefined) {
-    return undefined;
-  }
-
-  if (publicOperationTargetOwnsSiteBlock(input.identity, input.env)) {
-    return undefined;
-  }
-
-  const programIdentity = programStorageIdentity();
-
-  try {
-    const id = input.env.FORMLESS_AUTHORITY.idFromName(programIdentity.authorityName);
-    const url = new URL(INTERNAL_PUBLIC_SITE_BOOTSTRAP_PATH, input.requestUrl);
-
-    url.searchParams.set("apiRoutePrefix", programIdentity.apiRoutePrefix);
-
-    const response = await input.env.FORMLESS_AUTHORITY.get(id).fetch(
-      new Request(url, {
-        headers: { Accept: "application/json" },
-        method: "GET",
-      }),
-    );
-    const body = (await response.json()) as Partial<BootstrapResponse> & { error?: string };
-
-    return response.ok && Array.isArray(body.records) ? body.records : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function publicOperationTargetOwnsSiteBlock(identity: AuthorityStorageIdentity, env: Env): boolean {
-  if (identity.kind === "program") {
-    return true;
-  }
-
-  return Boolean(
-    activeAppPackageResolver(env).findPackage(identity.packageAppKey)?.publicRouteBase,
-  );
-}
-
 function storageSourceFromSyncSocket(
   ctx: DurableObjectState,
   socket: WebSocket,
@@ -1604,7 +1545,6 @@ async function handleInternalAuthProfileCompletionRequest(input: {
     operation,
     packageResolver: activeAppPackageResolver(input.env),
     source,
-    sourceSchemas: activeWorkerSourceSchemas(input.env),
     storage: input.storage,
     turnstileSiteKey: turnstileSiteKeyFromEnv(input.env),
     writes: input.writes,

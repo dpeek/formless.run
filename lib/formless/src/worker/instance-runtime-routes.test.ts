@@ -401,6 +401,16 @@ describe("instance runtime route resolution", () => {
         createdAt: "2026-06-02T00:00:00.000Z",
         updatedAt: "2026-06-02T00:00:00.000Z",
       }),
+      routeRecord("route:host:00-installed-publicSite:www.example.com", {
+        appInstall: "crm",
+        enabled: true,
+        matchHost: "www.example.com",
+        matchPath: "/",
+        matchPrefix: "/",
+        kind: "mount",
+        targetProfile: "public-site",
+        surface: "public-site",
+      }),
       routeRecord("route:host:instance:admin.example.com", {
         access: "management",
         enabled: true,
@@ -536,6 +546,14 @@ describe("instance runtime route resolution", () => {
         appInstall: "missing",
         surface: "admin",
       }),
+      routeRecord("installed-public-site", {
+        appInstall: "crm",
+        enabled: true,
+        matchPath: "/installed-public-site",
+        kind: "mount",
+        targetProfile: "public-site",
+        surface: "public-site",
+      }),
     ];
 
     expect(
@@ -579,6 +597,13 @@ describe("instance runtime route resolution", () => {
         appInstalls,
         records,
         request: { host: "formless.local", pathname: "/apps/missing" },
+      }),
+    ).toBeUndefined();
+    expect(
+      resolveInstanceRuntimeRouteFromRecords({
+        appInstalls,
+        records,
+        request: { host: "formless.local", pathname: "/installed-public-site" },
       }),
     ).toBeUndefined();
   });
@@ -654,12 +679,6 @@ function appInstall(installId: string, packageAppKey: SchemaKey | "test-crm"): A
     label: installId,
     packageAppKey,
     packageRevision: 1,
-    ...(packageAppKey === "site"
-      ? {
-          publicRoute: `/sites/${installId}` as `/${string}`,
-          publicRoutePrefix: `/sites/${installId}/` as `/${string}/`,
-        }
-      : {}),
     registrationPolicy: "closed",
     sourceSchemaHash:
       packageAppKey === "test-crm"

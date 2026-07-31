@@ -1517,10 +1517,6 @@ function parseInstallablePackageApp(
     throw new Error(`${context} failed: package app "${packageAppKey}" is unsupported.`);
   }
 
-  const publicRouteBase = parseOptionalRouteBase(
-    value.publicRouteBase,
-    localPackage.publicRouteBase,
-  );
   const sourceSchemaKey = parseRequiredString(
     value.sourceSchemaKey,
     localPackage.sourceSchemaKey,
@@ -1561,7 +1557,6 @@ function parseInstallablePackageApp(
       key: sourceSchemaKey,
     },
     adminRouteBase: parseRouteBase(value.adminRouteBase, localPackage.adminRouteBase),
-    ...(publicRouteBase === undefined ? {} : { publicRouteBase }),
   };
 }
 
@@ -1622,20 +1617,6 @@ function parseAppInstall(
       `${packageApp.adminRouteBase}/${installId}`,
       `${context} adminRoute`,
     ) as `/apps/${string}`,
-    ...(packageApp.publicRouteBase === undefined
-      ? {}
-      : {
-          publicRoute: parseRequiredString(
-            value.publicRoute,
-            `${packageApp.publicRouteBase}/${installId}`,
-            `${context} publicRoute`,
-          ) as `/sites/${string}`,
-          publicRoutePrefix: parseRequiredString(
-            value.publicRoutePrefix,
-            `${packageApp.publicRouteBase}/${installId}/`,
-            `${context} publicRoutePrefix`,
-          ) as `/sites/${string}/`,
-        }),
   };
 }
 
@@ -1781,21 +1762,6 @@ function parseRouteBase(value: unknown, fallback: "/apps"): "/apps" {
   return routeBase;
 }
 
-function parseOptionalRouteBase(
-  value: unknown,
-  fallback: "/sites" | undefined,
-): "/sites" | undefined {
-  if (value === undefined) {
-    return fallback;
-  }
-
-  if (value !== "/sites") {
-    throw new Error('app registry publicRouteBase failed: value must be "/sites".');
-  }
-
-  return value;
-}
-
 function parseDomainProviderPlan(
   value: unknown,
   context: string,
@@ -1890,7 +1856,22 @@ function controlPlaneDomainRouteRecords(
   records: DeployControlPlaneRecord[],
 ): DeployControlPlaneRecord[] {
   return deployControlPlaneRecordsByEntity(records, "route").filter(
-    (record) => record.values.kind === "mount" && typeof record.values.matchHost === "string",
+    (record) =>
+      record.values.kind === "mount" &&
+      typeof record.values.matchHost === "string" &&
+      isCurrentProgramPublicSiteDomainRoute(record),
+  );
+}
+
+function isCurrentProgramPublicSiteDomainRoute(record: DeployControlPlaneRecord): boolean {
+  const publicSiteShaped =
+    record.values.targetProfile === "public-site" || record.values.surface === "public-site";
+
+  return (
+    !publicSiteShaped ||
+    (record.values.targetProfile === "public-site" &&
+      record.values.surface === "public-site" &&
+      record.values.appInstall === undefined)
   );
 }
 

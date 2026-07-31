@@ -24,10 +24,7 @@ let privateSitePackage: Awaited<ReturnType<typeof runtimeWorkspaceTaskAppPackage
 beforeAll(async () => {
   const taskPackage = await runtimeWorkspaceTaskAppPackageFixture();
   privateSitePackage = await runtimeWorkspaceTaskAppPackageFixture({
-    capabilities: [
-      { kind: "generatedAdmin", routeBase: "/apps" },
-      { kind: "publicSite", routeBase: "/sites" },
-    ],
+    capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],
     defaultInstallId: "personal",
     label: "Private Site",
     packageAppKey: "private-site",
@@ -163,7 +160,6 @@ describe("control-plane schema runtime validation", () => {
     await authority.postJson("/api/schema", { schema: instanceRouteRuntimeSchema() });
 
     const siteInstall = await createControlPlaneAppInstall("private-site", "Personal Site");
-    const tasksInstall = await createControlPlaneAppInstall("test-tasks", "Team Tasks");
     const deploymentConfig = await authority.postRecordOperationRequest({
       idempotencyKey: "write-control-plane-deployment-config",
       entity: "deployment-config",
@@ -279,6 +275,7 @@ describe("control-plane schema runtime validation", () => {
         entity: "route",
         operationName: "create",
         input: mountRouteValues(siteInstall.record.id, {
+          appInstall: undefined,
           matchPath: "/sites/personal",
           matchPrefix: "/sites/personal",
           targetProfile: "public-site",
@@ -294,6 +291,7 @@ describe("control-plane schema runtime validation", () => {
         entity: "route",
         operationName: "create",
         input: mountRouteValues(siteInstall.record.id, {
+          appInstall: undefined,
           matchPath: "/sites/personal",
           matchPrefix: "/sites/",
           targetProfile: "public-site",
@@ -338,21 +336,6 @@ describe("control-plane schema runtime validation", () => {
         }),
       },
       'Field "access" must be a known enum value.',
-    );
-
-    await authority.expectRecordOperationError(
-      {
-        idempotencyKey: "write-route-public-site-capability",
-        entity: "route",
-        operationName: "create",
-        input: mountRouteValues(tasksInstall.record.id, {
-          matchPath: "/sites/tasks",
-          matchPrefix: "/sites/tasks/",
-          targetProfile: "public-site",
-          surface: "public-site",
-        }),
-      },
-      'Package app "test-tasks" does not support public Site routes.',
     );
 
     await authority.expectRecordOperationError(
@@ -446,6 +429,7 @@ describe("control-plane schema runtime validation", () => {
         entity: "route",
         operationName: "create",
         input: mountRouteValues(siteInstall.record.id, {
+          appInstall: undefined,
           matchHost: "www.example.com",
           matchPath: "/sites/personal",
           matchPrefix: "/sites/personal/",
@@ -461,6 +445,7 @@ describe("control-plane schema runtime validation", () => {
       entity: "route",
       operationName: "create",
       input: mountRouteValues(siteInstall.record.id, {
+        appInstall: undefined,
         matchHost: "www.example.com",
         matchPath: "/",
         matchPrefix: "/",
@@ -508,6 +493,7 @@ describe("control-plane schema runtime validation", () => {
       entity: "route",
       operationName: "create",
       input: mountRouteValues(siteInstall.record.id, {
+        appInstall: undefined,
         matchPath: "/sites/personal",
         matchPrefix: "/sites/personal/",
         targetProfile: "public-site",
@@ -521,6 +507,7 @@ describe("control-plane schema runtime validation", () => {
         entity: "route",
         operationName: "create",
         input: mountRouteValues(siteInstall.record.id, {
+          appInstall: undefined,
           matchPath: "/sites/personal/blog",
           targetProfile: "public-site",
           surface: "public-site",

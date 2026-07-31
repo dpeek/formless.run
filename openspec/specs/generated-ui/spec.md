@@ -17,7 +17,7 @@ The system SHALL select generated surfaces from the active runtime profile and r
 
 - **GIVEN** the dev workbench profile
 - **WHEN** the user visits Program `/tasks`, `/site`, `/crm`, installed app
-  admin routes, or installed Site public routes
+  admin routes, or Program public Site routes
 - **THEN** the matching Program, generated app, admin, or public Site surface
   mounts
 - **AND** `/tasks` does not mount a schema-key or installed-app Tasks surface
@@ -46,24 +46,10 @@ The system SHALL select generated surfaces from the active runtime profile and r
   schema declares it
 - **AND** the instance shell is not exposed
 
-#### Scenario: Package-owned public surface
-
-- **GIVEN** a browser route targets an installed app whose resolved package
-  declares public Site runtime support
-- **WHEN** React routing selects the public surface for that route
-- **THEN** generated UI discovers the public route component from the package
-  runtime React registry using the target package app key
-- **AND** the public component receives route base, app storage identity,
-  runtime profile, and package metadata from Formless core
-- **AND** generated admin screens, sync, field editors, and operation behavior
-  remain schema-driven core generated UI behavior
-- **AND** React routing does not hard-code the bundled Site route component
-  when the selected package has no registered public adapter
-
 #### Scenario: Published public Site avoids generated admin entrypoint
 
-- **GIVEN** the runtime renders a published Site page, mapped public Site host,
-  or installed public Site route for anonymous visitors
+- **GIVEN** the runtime renders a published Site page or mapped public Site host
+  for anonymous visitors
 - **WHEN** browser assets are selected for that public route
 - **THEN** the selected assets do not require the generated admin `HomeRoute`,
   instance shell, app settings shell, owner setup or login routes, workspace
@@ -94,7 +80,7 @@ shell.
   the same shell in app-only scope
 - **AND** unknown product instance routes, owner setup and login routes,
   invitation routes, local session routes, mapped public Site hosts, published
-  Site profiles, and installed public Site routes do not render the shell
+  Site profiles, and Program public Site routes do not render the shell
 - **AND** shell selection does not change route matching, access policy, or the
   selected route workspace
 

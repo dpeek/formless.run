@@ -250,16 +250,16 @@ describe("public Site page route rendering", () => {
       <SitePageRouteView
         builtInRenderer={PageRendererProbe}
         builtInSystemStateRenderer={SystemStateRendererProbe}
-        linkMode="installed"
-        routeBase="/sites/personal"
+        linkMode="preview"
+        routeBase="/pages"
         state={{ status: "ready", tree: sitePageTree("home") }}
         workspaceRenderer={CustomRenderer}
       />,
     );
 
     expect(html).toContain('data-custom-public-site-renderer="home"');
-    expect(html).toContain('data-link-mode="installed"');
-    expect(html).toContain('data-route-base="/sites/personal"');
+    expect(html).toContain('data-link-mode="preview"');
+    expect(html).toContain('data-route-base="/pages"');
     expect(html).toContain("Custom page home");
     expect(html).not.toContain("data-built-in-public-site-renderer");
   });
@@ -302,8 +302,8 @@ describe("public Site page route rendering", () => {
       <SitePageRouteView
         builtInRenderer={PageRendererProbe}
         builtInSystemStateRenderer={SystemStateProbe}
-        linkMode="installed"
-        routeBase="/sites/personal"
+        linkMode="published"
+        routeBase="/campaign"
         state={{ status: "not-found", slug: "missing" }}
         workspaceRenderer={WorkspaceRenderer}
       />,
@@ -320,7 +320,7 @@ describe("public Site page route rendering", () => {
     expect(loading).toContain('data-kind="loading"');
     expect(loading).toContain('data-slug="home"');
     expect(notFound).toContain('data-kind="not-found"');
-    expect(notFound).toContain('data-home-href="/sites/personal"');
+    expect(notFound).toContain('data-home-href="/campaign"');
     expect(failure).toContain('data-kind="failure"');
     expect(failure).toContain('data-message="Display-safe failure."');
     expect(`${loading}${notFound}${failure}`).not.toContain("data-workspace-renderer");

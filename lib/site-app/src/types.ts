@@ -51,13 +51,6 @@ export type SitePublicOperationChallengeNode = {
   siteKey?: string;
 };
 
-export type SitePublicOperationTargetNode = {
-  kind: "appInstall";
-  packageAppKey: string;
-  installId: string;
-  apiRoutePrefix: `/${string}`;
-};
-
 export type SitePublicOperationInputFieldOptionNode = {
   value: string;
   label: string;
@@ -81,7 +74,6 @@ export type SitePublicOperationNode = {
   operationName: string;
   canonicalKey: string;
   kind: "command" | "create" | "list";
-  target?: SitePublicOperationTargetNode;
   route: string;
   challenge?: SitePublicOperationChallengeNode;
   fields?: SitePublicOperationInputFieldNode[];

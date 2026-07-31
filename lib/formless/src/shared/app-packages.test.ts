@@ -44,10 +44,6 @@ describe("app package manifests", () => {
           kind: "generatedAdmin",
           routeBase: "/apps",
         },
-        {
-          kind: "publicSite",
-          routeBase: "/sites",
-        },
       ],
     });
   });
@@ -122,10 +118,6 @@ describe("app package manifests", () => {
         {
           kind: "generatedAdmin",
           routeBase: "/apps",
-        },
-        {
-          kind: "publicSite",
-          routeBase: "/sites",
         },
       ],
     });
@@ -205,7 +197,6 @@ describe("app package manifests", () => {
         sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
       }),
     );
-    expect(rootKnownPackageFactsResolver().findPackage("tasks")?.publicRouteBase).toBeUndefined();
     expect(rootKnownPackageFactsResolver().findPackage("tasks")?.sourceSchemaLocation).toEqual({
       kind: "bundled",
       key: "tasks",
@@ -232,7 +223,6 @@ describe("app package manifests", () => {
         label: "Private Labs",
         packageAppKey: "private-labs",
         packageRevision: 7,
-        publicRouteBase: "/sites",
         sourceOrigin: "workspace",
         sourceSchemaHash: privateSourceSchemaHash,
         sourceSchemaKey: "private-labs",
@@ -320,10 +310,6 @@ function privatePackageManifest(overrides: Record<string, unknown> = {}): Record
       {
         kind: "generatedAdmin",
         routeBase: "/apps",
-      },
-      {
-        kind: "publicSite",
-        routeBase: "/sites",
       },
     ],
     ...overrides,

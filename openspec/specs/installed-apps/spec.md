@@ -6,7 +6,8 @@ Installed apps define the product instance app shape: stable app install
 identity, package-backed initialization, install-scoped routes, and
 install-scoped storage/API behavior. They let one Formless instance host
 multiple resolved package app installs without mixing app data, browser
-replicas, or public Site routes.
+replicas, or admin routes. Installed apps do not supply public Site runtime
+targets.
 
 ## Requirements
 
@@ -40,8 +41,7 @@ app install can be created.
 - **WHEN** resolved packages are listed
 - **THEN** packages are returned with package app key, label, description,
   default install id, multiple-install policy, source origin, source schema key,
-  package revision, source schema hash, admin route base, and optional public
-  route capability
+  package revision, source schema hash, and admin route base
 - **AND** no bundled package is runtime-installable
 - **AND** Program-native package keys `tasks`, `site`, and `crm` are absent from the
   runtime-installable resolver
@@ -56,27 +56,18 @@ app install can be created.
   workspace, request, or deployment target
 - **AND** globally bundled package metadata is used only as input to the default
   resolver when no workspace-linked packages are present
-- **AND** public Site route validation fails when no active resolver is
-  available rather than treating package app key `site` as an implicit
-  capability fallback
 
-#### Scenario: Runtime adapter availability
+#### Scenario: Installed runtime availability
 
-- **GIVEN** an installed route, public route, mapped host, archive import,
-  generated public surface, or runtime read requires package-specific behavior
+- **GIVEN** an installed admin route, mapped app host, archive import, or runtime
+  read requires package-specific schema facts
 - **WHEN** runtime dispatch selects the installed app's package app key
 - **THEN** the runtime first verifies the package is present in the active
-  resolver and declares the required capability
-- **AND** executable behavior is selected from the environment-specific package
-  runtime adapter registry for that resolved package app key
-- **AND** a route or operation whose package declares the capability but has no
-  registered adapter is rejected with an unsupported package capability result
-  before calling Site-specific fallback code
+  resolver
 - **AND** install records, route records, and app records do not store adapter
   module paths or executable handler identities
-- **AND** the bundled Site package may be the default registered public Site
-  adapter, but adapter selection is still keyed by resolved package app metadata
-  rather than by source schema key or install id
+- **AND** installed package metadata does not select public Site runtime
+  behavior
 
 #### Scenario: Private package availability
 
@@ -151,29 +142,15 @@ The system SHALL store app installs as flat instance metadata that binds install
 id, package app key, label, and status while route behavior is stored in
 instance `route` records.
 
-#### Scenario: Private public Site install routes
+#### Scenario: Private package install routes
 
-- **GIVEN** a private package app declares public Site route capability in the
-  active package resolver
+- **GIVEN** a private package app is present in the active package resolver
 - **WHEN** an install is created from that package
 - **THEN** route records target the install for an admin route under
   `/apps/<installId>`
 - **AND** the admin route prefix `/apps/<installId>/` covers generated nested
   app screen paths
-- **AND** public Site route records use `/sites/<installId>` and
-  `/sites/<installId>/`
-- **AND** the install metadata keeps the private package app key rather than
-  rewriting it to `site`
-
-#### Scenario: Non-Site install routes
-
-- **GIVEN** a package app install without public Site route capability is created
-- **WHEN** install metadata is returned
-- **THEN** the app install metadata stores package app key, label, and status
-- **AND** route records target the install for an admin route under
-  `/apps/<installId>`
-- **AND** the admin route prefix `/apps/<installId>/` covers generated nested
-  app screen paths
+- **AND** the install metadata stores package app key, label, and status
 - **AND** no public Site route record is created for that install
 
 #### Scenario: App install registration policy metadata
@@ -208,21 +185,18 @@ instance `route` records.
 
 #### Scenario: Route-derived launch navigation
 
-- **GIVEN** instance shell navigation needs launch links for installed apps and
-  public Site surfaces
+- **GIVEN** instance shell navigation needs launch links for installed apps
 - **WHEN** app install registry metadata is projected from schema-owned
   `app-install` and `route` records
 - **THEN** admin launch links are derived from enabled `route` records whose
   surface is `admin` and target profile is `app`
-- **AND** public Site launch links are derived from enabled `route` records
-  whose surface is `public-site` and target profile is `public-site`
-- **AND** disabled route records, deleted installs, unsupported package keys,
-  and missing public Site capability are omitted from launch navigation
+- **AND** disabled route records, deleted installs, and unsupported package keys
+  are omitted from launch navigation
 - **AND** the link label, install id, package app key, route id, route kind,
   access policy, required role, and href are available to the browser without
   exposing installed app records, provider secrets, deployment evidence, or raw
   route provider state
-- **AND** default `/apps/<installId>` and `/sites/<installId>` paths are used
+- **AND** default `/apps/<installId>` paths are used
   only when no schema-owned route records exist for an older install snapshot
 - **AND** custom enabled route paths are preserved rather than recomputed from
   install id
@@ -315,12 +289,13 @@ package's source schema without creating package-owned records.
 
 ### Requirement: Install-Scoped Storage And API
 
-The system MUST keep installed app storage, APIs, browser replicas, broadcast channels, and public Site reads scoped by app install identity.
+The system MUST keep installed app storage, APIs, browser replicas, and
+broadcast channels scoped by app install identity.
 
 #### Scenario: Installed app storage identity
 
-- GIVEN an installed private public-Site-capable package with package key
-  `docs` and install id `personal`
+- GIVEN an installed private package with package key `docs` and install id
+  `personal`
 - WHEN the app storage identity is selected
 - THEN the API prefix is `/api/app-installs/docs/personal`, the Authority name
   is `app:personal`, and browser database and broadcast channel names use
@@ -335,8 +310,6 @@ The system MUST keep installed app storage, APIs, browser replicas, broadcast ch
 - GIVEN an installed app API prefix `/api/app-installs/:packageAppKey/:installId`
 - WHEN app data is read, synced, reset, snapshotted, restored, mutated, or acted on
 - THEN operations use that install-scoped prefix
-- AND public Site tree reads use the same target prefix for installed private
-  public-Site-capable packages
 
 #### Scenario: Installed app document media route
 
@@ -376,22 +349,12 @@ control-plane records.
 
 ### Requirement: Schema-Owned App Routes
 
-The system SHALL represent app admin and public Site routes as schema-owned
-`route` records that target app install records.
+The system SHALL represent app admin routes as schema-owned `route` records that
+target app install records.
 
-#### Scenario: Private public Site install route records
+#### Scenario: Private install route records
 
-- **GIVEN** an install of a private package with public Site capability and
-  install id `personal` is created
-- **WHEN** default route records are created
-- **THEN** route records target the `personal` app install for admin route
-  `/apps/personal`, admin route prefix `/apps/personal/`, public route
-  `/sites/personal`, and public route prefix `/sites/personal/`
-- **AND** public Site route metadata is scoped to that app install record
-
-#### Scenario: Non-Site install route records
-
-- **GIVEN** a package app install without public Site route capability is created
+- **GIVEN** a package app install is created
 - **WHEN** default route records are created
 - **THEN** route records target the app install for an admin route under
   `/apps/<installId>`
@@ -400,18 +363,6 @@ The system SHALL represent app admin and public Site routes as schema-owned
 - **AND** the admin route uses authenticated access with required role
   `app.admin` scoped through that app install target
 - **AND** no public Site route record is created for that install
-
-#### Scenario: Private public Site admin route role
-
-- **GIVEN** a private public-Site-capable install creates its default admin and
-  public route records
-- **WHEN** route access is projected
-- **THEN** the admin route uses authenticated access with required role
-  `app.admin` scoped through that app install target
-- **AND** its exact base and nested screen paths use the same install-scoped
-  authorization
-- **AND** the public Site routes retain anonymous access without a required app
-  role
 
 #### Scenario: Route record target
 
@@ -499,8 +450,7 @@ The system SHALL derive workspace app install intent from schema-owned
   resources, or remote instances
 - **AND** package source paths, repository URLs, local links, and resolver
   configuration are not copied into the `app-install` record
-- **AND** workspace source that contains public Site route records is validated
-  against that same active resolver before those routes are accepted
+- **AND** Program public Site routes are not package-resolver input
 
 #### Scenario: Dormant Program-native install records do not become workspace app intent
 

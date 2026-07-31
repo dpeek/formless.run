@@ -66,20 +66,19 @@ package owns source schema and package-specific runtime adapters.
 
 #### Scenario: App package adapter ownership
 
-- GIVEN an in-repo app package declares a runtime capability in
-  `formless.app.json`
+- GIVEN an in-repo domain package exposes a documented runtime adapter
 - WHEN core runtime, Worker, React, CLI, archive, or tests need executable
-  behavior for that capability
+  behavior for that domain
 - THEN they import the package root or documented adapter subpaths
 - AND the package-owned adapter supplies capability-specific behavior such as
   public tree projection, public document rendering, metadata, icons, or
   indexing
+- AND public Site adapter selection is bound to the Program-native Site at
+  build time rather than selected from installed package metadata
 - AND core runtime owns app install identity, route records, Authority storage,
   browser replicas, sync, media storage, and generic archive execution
 - AND code outside the package does not deep-import package internals
-- AND core runtime may register the package adapter for the current environment,
-  but missing adapter registrations are unsupported capability errors rather
-  than package-name fallbacks
+- AND installed package manifests do not select a public Site adapter
 
 #### Scenario: App package source replaces root app files
 

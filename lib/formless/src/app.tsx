@@ -16,9 +16,7 @@ import {
 } from "@dpeek/formless-renderer/site/renderer";
 import "@dpeek/formless-renderer/site/global.css";
 import {
-  createPublicSiteReactAdapterRegistry,
-  publicSiteReactAdapterForPackageAppKey,
-  type PublicSiteReactAdapterRegistry,
+  CoreSitePageRoute,
   type PublicSiteRouteInputProps,
   type PublicSiteRouteProps,
 } from "./app/public-site-runtime.tsx";
@@ -34,12 +32,9 @@ import {
   findRuntimeWorldMountByRoute,
   hasGeneratedRoutes,
   installedAppWorldMountFromInstallId,
-  installedSitePublicSurfaceFromRoute,
   normalizeRuntimeBrowserPath,
   resolveRuntimeProfile,
   runtimeBrowserRoutePatterns,
-  runtimeInstalledSitePublicHomeSlug,
-  runtimeInstalledSitePublicPath,
   runtimeProfileNeedsInstalledAppRouteInstalls,
   runtimeProfileWithActivePackageResolver,
   type RuntimeProfile,
@@ -108,14 +103,7 @@ export type AppRouteComponents = {
   LocalSessionRoute: ElementType;
   AccountSignInRoute: ElementType;
   SitePageRoute: ElementType<PublicSiteRouteProps>;
-  publicSiteReactAdapters?: PublicSiteReactAdapterRegistry;
 };
-
-const defaultPublicSiteReactAdapters = createPublicSiteReactAdapterRegistry({
-  builtInRenderer: FormlessSitePageRenderer,
-  builtInSystemStateRenderer: FormlessSiteSystemStateRenderer,
-  workspaceRenderer: workspaceSitePublicRenderer,
-});
 
 const defaultRouteComponents: AppRouteComponents = {
   AccessRoute: lazy(() =>
@@ -154,8 +142,7 @@ const defaultRouteComponents: AppRouteComponents = {
       default: module.AccountSignInRoute,
     })),
   ),
-  SitePageRoute: defaultPublicSiteReactAdapters.get("site")!.Route,
-  publicSiteReactAdapters: defaultPublicSiteReactAdapters,
+  SitePageRoute: CoreSitePageRoute,
 };
 
 export type AppProps = {
@@ -318,19 +305,9 @@ function AppRuntime({
 function resolveAppRouteComponents(
   overrides: Partial<AppRouteComponents> | undefined,
 ): AppRouteComponents {
-  const merged = {
+  return {
     ...defaultRouteComponents,
     ...overrides,
-  };
-
-  return {
-    ...merged,
-    publicSiteReactAdapters:
-      overrides && "publicSiteReactAdapters" in overrides
-        ? overrides.publicSiteReactAdapters
-        : overrides?.SitePageRoute
-          ? undefined
-          : defaultRouteComponents.publicSiteReactAdapters,
   };
 }
 
@@ -459,15 +436,8 @@ function AppRoutes({
     InstanceShellRoute,
     LocalSessionRoute,
     AccountSignInRoute,
+    SitePageRoute,
   } = routeComponents;
-  const publicSiteReactAdapters =
-    routeComponents.publicSiteReactAdapters ??
-    createPublicSiteReactAdapterRegistry({
-      builtInRenderer: FormlessSitePageRenderer,
-      builtInSystemStateRenderer: FormlessSiteSystemStateRenderer,
-      siteRoute: routeComponents.SitePageRoute,
-      workspaceRenderer: workspaceSitePublicRenderer,
-    });
   const generatedWorlds = runtimeProfile.worlds.filter(hasGeneratedRoutes);
   const browserRoutes = runtimeBrowserRoutePatterns(runtimeProfile);
   const publishedSite = runtimeProfile.publishedSite;
@@ -518,8 +488,7 @@ function AppRoutes({
       {publishedSite ? (
         <Route path={publishedSite.rootRoute}>
           <PublicSiteRoute
-            adapters={publicSiteReactAdapters}
-            packageAppKey={publishedSite.target.packageAppKey}
+            RouteComponent={SitePageRoute}
             routeProps={{
               linkMode: "published",
               slug: publishedSite.homeSlug,
@@ -532,8 +501,7 @@ function AppRoutes({
         <Route path={publishedSite.routePattern}>
           {(params) => (
             <PublicSiteRoute
-              adapters={publicSiteReactAdapters}
-              packageAppKey={publishedSite.target.packageAppKey}
+              RouteComponent={SitePageRoute}
               routeProps={{
                 linkMode: "published",
                 slug: runtimeWildcardSiteSlug(params),
@@ -554,11 +522,7 @@ function AppRoutes({
               schemaKey={world.app.key}
               screenPath="/"
               target={world.target}
-              workspaceActions={siteWorkspaceLinkActionsForWorld(
-                world,
-                publicSitePreview,
-                installedAppRouteContext.appInstalls,
-              )}
+              workspaceActions={siteWorkspaceLinkActionsForWorld(world, publicSitePreview)}
             />
           </ProtectedRouteGuard>
         </Route>
@@ -575,11 +539,7 @@ function AppRoutes({
                 schemaKey={world.app.key}
                 screenPath={runtimeWildcardScreenPath(params)}
                 target={world.target}
-                workspaceActions={siteWorkspaceLinkActionsForWorld(
-                  world,
-                  publicSitePreview,
-                  installedAppRouteContext.appInstalls,
-                )}
+                workspaceActions={siteWorkspaceLinkActionsForWorld(world, publicSitePreview)}
               />
             </ProtectedRouteGuard>
           )}
@@ -615,43 +575,13 @@ function AppRoutes({
           )}
         </Route>
       ) : null}
-      {browserRoutes.installedSitePublicHomeRoutePattern ? (
-        <Route path={browserRoutes.installedSitePublicHomeRoutePattern}>
-          {(params) => (
-            <InstalledSitePublicRoute
-              installedAppRouteContext={installedAppRouteContext}
-              installId={runtimeRouteParam(params, "installId")}
-              publicSiteReactAdapters={publicSiteReactAdapters}
-              runtimeProfile={runtimeProfile}
-              slug={runtimeInstalledSitePublicHomeSlug(runtimeProfile) ?? "home"}
-            />
-          )}
-        </Route>
-      ) : null}
-      {browserRoutes.installedSitePublicSlugRoutePattern ? (
-        <Route path={browserRoutes.installedSitePublicSlugRoutePattern}>
-          {(params) => (
-            <InstalledSitePublicRoute
-              installedAppRouteContext={installedAppRouteContext}
-              installId={runtimeRouteParam(params, "installId")}
-              publicSiteReactAdapters={publicSiteReactAdapters}
-              runtimeProfile={runtimeProfile}
-              slug={runtimeWildcardSiteSlug(params)}
-            />
-          )}
-        </Route>
-      ) : null}
       {publicSitePreview ? (
         <Route path={publicSitePreview.rootRoute}>
           {publicSitePreview.homeRoute ? (
             <Redirect replace to={publicSitePreview.homeRoute} />
           ) : (
             <PublicSiteRoute
-              adapters={publicSiteReactAdapters}
-              packageAppKey={
-                publicSitePreview.target?.packageAppKey ??
-                runtimeTopologyRoutes.publicSitePackageAppKey
-              }
+              RouteComponent={SitePageRoute}
               routeProps={{
                 linkMode: publicSitePreview.linkMode,
                 slug: publicSitePreview.homeSlug,
@@ -665,11 +595,7 @@ function AppRoutes({
         <Route path={publicSitePreview.routePattern}>
           {(params) => (
             <PublicSiteRoute
-              adapters={publicSiteReactAdapters}
-              packageAppKey={
-                publicSitePreview.target?.packageAppKey ??
-                runtimeTopologyRoutes.publicSitePackageAppKey
-              }
+              RouteComponent={SitePageRoute}
               routeProps={{
                 linkMode: publicSitePreview.linkMode,
                 slug: runtimeWildcardSiteSlug(params),
@@ -721,17 +647,12 @@ function InstalledAppHomeRoute({
     return <NotFoundRoute />;
   }
 
-  const install = installedAppRouteContext.appInstalls.find(
-    (candidate) => candidate.installId === installId,
-  );
-
   return (
     <HomeRoute
       activePackageResolver={installedAppRouteContext.activePackageResolver}
       schemaKey={world.app.key}
       screenPath={screenPath}
       target={world.target}
-      workspaceActions={siteWorkspaceLinkActionsForInstall(install)}
     />
   );
 }
@@ -739,41 +660,12 @@ function InstalledAppHomeRoute({
 function siteWorkspaceLinkActionsForWorld(
   world: RuntimeWorldMount,
   publicSitePreview: RuntimeProfile["publicSitePreview"],
-  installs: readonly AppInstall[] | undefined,
 ): readonly WorkspaceLinkActionContract[] {
-  const installId = world.target?.kind === "appInstall" ? world.target.installId : undefined;
-  const install = installId
-    ? installs?.find((candidate) => candidate.installId === installId)
-    : undefined;
-
-  if (install) {
-    return siteWorkspaceLinkActionsForInstall(install);
-  }
-
-  if (
-    !publicSitePreview ||
-    world.app.key !==
-      (publicSitePreview.target?.packageAppKey ?? runtimeTopologyRoutes.publicSitePackageAppKey)
-  ) {
+  if (!publicSitePreview || world.app.key !== "site") {
     return [];
   }
 
   return siteWorkspaceLinkActions(publicSitePreview.homeRoute ?? publicSitePreview.rootRoute);
-}
-
-function siteWorkspaceLinkActionsForInstall(
-  install: AppInstall | undefined,
-): readonly WorkspaceLinkActionContract[] {
-  if (!install) {
-    return [];
-  }
-
-  const href =
-    install.launchLinks?.find((link) => link.routeKind === "publicSite")?.href ??
-    install.routes?.find((route) => route.enabled && route.routeKind === "publicSite")?.path ??
-    install.publicRoute;
-
-  return href ? siteWorkspaceLinkActions(href) : [];
 }
 
 function siteWorkspaceLinkActions(href: string): readonly WorkspaceLinkActionContract[] {
@@ -790,91 +682,19 @@ function siteWorkspaceLinkActions(href: string): readonly WorkspaceLinkActionCon
   ];
 }
 
-function InstalledSitePublicRoute({
-  installedAppRouteContext,
-  installId,
-  publicSiteReactAdapters,
-  runtimeProfile,
-  slug,
-}: {
-  installedAppRouteContext: RuntimeInstalledAppRouteContext;
-  installId: string | undefined;
-  publicSiteReactAdapters: PublicSiteReactAdapterRegistry;
-  runtimeProfile: RuntimeProfile;
-  slug: string;
-}) {
-  if (!installId) {
-    return <NotFoundRoute />;
-  }
-
-  if (installedAppRouteContext.appInstalls === undefined) {
-    return <RouteLoading />;
-  }
-
-  const sitePath = runtimeInstalledSitePublicPath(runtimeProfile, installId, slug);
-
-  if (!sitePath) {
-    return <NotFoundRoute />;
-  }
-
-  const surface = installedSitePublicSurfaceFromRoute(
-    runtimeProfile,
-    sitePath,
-    installedAppRouteContext,
-  );
-
-  if (!surface) {
-    return <NotFoundRoute />;
-  }
-
-  return (
-    <PublicSiteRoute
-      adapters={publicSiteReactAdapters}
-      packageAppKey={surface.target.packageAppKey}
-      routeProps={{
-        linkMode: "installed",
-        routeBase: surface.routeBase,
-        slug: surface.slug,
-        target: surface.target.storageIdentity,
-      }}
-    />
-  );
-}
-
 function PublicSiteRoute({
-  adapters,
-  packageAppKey,
+  RouteComponent,
   routeProps,
 }: {
-  adapters: PublicSiteReactAdapterRegistry;
-  packageAppKey: string;
+  RouteComponent: ElementType<PublicSiteRouteProps>;
   routeProps: PublicSiteRouteInputProps;
 }) {
-  const adapter = publicSiteReactAdapterForPackageAppKey(packageAppKey, adapters);
-
-  if (!adapter) {
-    return (
-      <ApplicationSystemStateRuntime
-        snapshot={projectApplicationSystemState({
-          facts: [{ id: "package-app-key", label: "Package app", value: packageAppKey }],
-          heading: "Unsupported public Site package",
-          id: "application-system-state:unsupported-public-site-package",
-          message: `Package app ${packageAppKey} has no registered public Site React adapter.`,
-          state: "unavailable",
-        })}
-      />
-    );
-  }
-
-  const RouteComponent = adapter.Route;
-  const workspaceRenderer = routeProps.workspaceRenderer ?? adapter.workspaceRenderer;
-
   return (
     <RouteComponent
       {...routeProps}
-      builtInRenderer={adapter.builtInRenderer}
-      builtInSystemStateRenderer={adapter.builtInSystemStateRenderer}
-      workspaceRenderer={workspaceRenderer}
+      builtInRenderer={FormlessSitePageRenderer}
+      builtInSystemStateRenderer={FormlessSiteSystemStateRenderer}
+      workspaceRenderer={routeProps.workspaceRenderer ?? workspaceSitePublicRenderer}
     />
   );
 }

@@ -4,7 +4,6 @@ import {
   type AuthorityStorageIdentity,
 } from "../shared/app-storage-identity.ts";
 import {
-  installedPublicSiteRuntimeTarget,
   programPublicSiteRuntimeTarget,
   type PublicSiteRuntimeTarget,
 } from "../shared/public-site-runtime-target.ts";
@@ -51,17 +50,6 @@ export type RuntimeInstalledAppRoutes = {
   appRouteBase: "/apps";
 };
 
-export type RuntimeInstalledSitePublicRoutes = {
-  homeSlug: "home";
-  siteRouteBase: "/sites";
-};
-
-export type RuntimeInstalledSitePublicSurface = {
-  routeBase: `/${string}`;
-  slug: string;
-  target: PublicSiteRuntimeTarget;
-};
-
 export type RuntimeAppProfileTarget = {
   installId: string;
   packageAppKey: string;
@@ -98,7 +86,6 @@ export type RuntimeProfile = {
   defaultRedirect?: `/${string}`;
   instanceShell?: boolean;
   installedAppRoutes?: RuntimeInstalledAppRoutes;
-  installedSitePublicRoutes?: RuntimeInstalledSitePublicRoutes;
   publicSitePreview?: RuntimePublicSitePreview;
   publishedSite?: RuntimePublishedSiteRoutes;
 };
@@ -106,7 +93,6 @@ export type RuntimeProfile = {
 export type RuntimeRoutePolicy = {
   instanceBrowserRoutes: boolean;
   installedAppBrowserRoutes: boolean;
-  installedSitePublicRoutes: boolean;
   accountSessionBrowserRoutes: boolean;
 };
 
@@ -118,8 +104,6 @@ export type RuntimeBrowserRoutePatterns = {
   instanceShellRoute?: typeof runtimeTopologyRoutes.instanceRootRoute;
   installedAppHomeRoutePattern?: `/${string}`;
   installedAppScreenRoutePattern?: `/${string}`;
-  installedSitePublicHomeRoutePattern?: `/${string}`;
-  installedSitePublicSlugRoutePattern?: `/${string}`;
   localSessionRoute?: typeof runtimeTopologyRoutes.localSessionRoute;
 };
 
@@ -128,12 +112,6 @@ export type RuntimeProfileResolverInput = {
   packageAppKey?: string | undefined;
   profile?: string | undefined;
   hostname?: string | undefined;
-};
-
-export type PublishedSiteRuntimeProfileOptions = {
-  installId?: string | undefined;
-  packageAppKey?: string | undefined;
-  target?: PublicSiteRuntimeTarget;
 };
 
 export {
@@ -168,10 +146,7 @@ export function resolveRuntimeProfile(
         }) ?? { kind: "app", shell: "app", worlds: [] }
       );
     case "publishedSite":
-      return createPublishedSiteRuntimeProfile({
-        installId: input.appInstallId,
-        packageAppKey: input.packageAppKey,
-      });
+      return createPublishedSiteRuntimeProfile();
     case "dev":
       return createDevRuntimeProfile();
   }
@@ -185,10 +160,6 @@ export function createInstanceRuntimeProfile(): RuntimeProfile {
     instanceShell: true,
     installedAppRoutes: {
       appRouteBase: runtimeTopologyRoutes.appRouteBase,
-    },
-    installedSitePublicRoutes: {
-      homeSlug: runtimeTopologyRoutes.publicSiteHomeSlug,
-      siteRouteBase: runtimeTopologyRoutes.siteRouteBase,
     },
   };
 }
@@ -205,10 +176,6 @@ export function createDevWorkbenchRuntimeProfile(): RuntimeProfile {
     instanceShell: true,
     installedAppRoutes: {
       appRouteBase: runtimeTopologyRoutes.appRouteBase,
-    },
-    installedSitePublicRoutes: {
-      homeSlug: runtimeTopologyRoutes.publicSiteHomeSlug,
-      siteRouteBase: runtimeTopologyRoutes.siteRouteBase,
     },
     publicSitePreview: {
       rootRoute: runtimeTopologyRoutes.publicSitePreviewRouteBase,
@@ -227,7 +194,6 @@ export function runtimeRoutePolicy(profile: RuntimeProfile): RuntimeRoutePolicy 
   return {
     instanceBrowserRoutes: policy.instanceBrowserRoutes,
     installedAppBrowserRoutes: policy.installedAppBrowserRoutes,
-    installedSitePublicRoutes: policy.installedSitePublicRoutes,
     accountSessionBrowserRoutes: policy.accountSessionBrowserRoutes,
   };
 }
@@ -235,7 +201,6 @@ export function runtimeRoutePolicy(profile: RuntimeProfile): RuntimeRoutePolicy 
 export function runtimeBrowserRoutePatterns(profile: RuntimeProfile): RuntimeBrowserRoutePatterns {
   const policy = runtimeRoutePolicy(profile);
   const installedAppRoutes = runtimeInstalledAppRoutesForProfile(profile);
-  const installedSitePublicRoutes = runtimeInstalledSitePublicRoutesForProfile(profile);
   const hasInstanceBrowserShell = profile.instanceShell && policy.instanceBrowserRoutes;
 
   return {
@@ -261,14 +226,6 @@ export function runtimeBrowserRoutePatterns(profile: RuntimeProfile): RuntimeBro
             `${installedAppRoutes.appRouteBase}/:installId/*` as `/${string}`,
         }
       : {}),
-    ...(installedSitePublicRoutes
-      ? {
-          installedSitePublicHomeRoutePattern:
-            `${installedSitePublicRoutes.siteRouteBase}/:installId` as `/${string}`,
-          installedSitePublicSlugRoutePattern:
-            `${installedSitePublicRoutes.siteRouteBase}/:installId/*` as `/${string}`,
-        }
-      : {}),
   };
 }
 
@@ -276,9 +233,7 @@ export function runtimeProfileNeedsInstalledAppRouteInstalls(profile: RuntimePro
   const routes = runtimeBrowserRoutePatterns(profile);
 
   return Boolean(
-    runtimeProfileNeedsAppProfilePackageResolver(profile) ||
-    routes.installedAppHomeRoutePattern ||
-    routes.installedSitePublicHomeRoutePattern,
+    runtimeProfileNeedsAppProfilePackageResolver(profile) || routes.installedAppHomeRoutePattern,
   );
 }
 
@@ -295,26 +250,6 @@ export function runtimeProfileWithActivePackageResolver(
   });
 
   return resolved?.worlds.length ? resolved : profile;
-}
-
-export function runtimeInstalledSitePublicHomeSlug(profile: RuntimeProfile): string | undefined {
-  return runtimeInstalledSitePublicRoutesForProfile(profile)?.homeSlug;
-}
-
-export function runtimeInstalledSitePublicPath(
-  profile: RuntimeProfile,
-  installId: string,
-  slug: string,
-): `/${string}` | undefined {
-  const routes = runtimeInstalledSitePublicRoutesForProfile(profile);
-
-  if (!routes) {
-    return undefined;
-  }
-
-  const pathSuffix = slug === routes.homeSlug ? "" : (`/${slug}` as const);
-
-  return runtimeRouteFromBase(routes.siteRouteBase, installId, pathSuffix);
 }
 
 export function normalizeRuntimeBrowserPath(path: string): string {
@@ -395,10 +330,8 @@ function runtimeProfileNeedsAppProfilePackageResolver(profile: RuntimeProfile): 
   return Boolean(profile.appProfileTarget && profile.worlds.length === 0);
 }
 
-export function createPublishedSiteRuntimeProfile(
-  options: PublishedSiteRuntimeProfileOptions = {},
-): RuntimeProfile {
-  const target = publishedSiteRuntimeTarget(options);
+export function createPublishedSiteRuntimeProfile(): RuntimeProfile {
+  const target = programPublicSiteRuntimeTarget();
   const app = getSchemaAppDefinition("site");
 
   return {
@@ -419,35 +352,6 @@ export function createPublishedSiteRuntimeProfile(
       target,
     },
   };
-}
-
-function publishedSiteRuntimeTarget(
-  options: PublishedSiteRuntimeProfileOptions,
-): PublicSiteRuntimeTarget {
-  if (options.target) {
-    return options.target;
-  }
-
-  if (options.installId === undefined && options.packageAppKey === undefined) {
-    return programPublicSiteRuntimeTarget();
-  }
-
-  if (!options.installId || !options.packageAppKey) {
-    throw new Error("Published Site runtime target requires both install id and package app key.");
-  }
-
-  const storageIdentity = installedAppStorageIdentity({
-    installId: options.installId,
-    packageAppKey: options.packageAppKey,
-  });
-
-  if (!storageIdentity) {
-    throw new Error(
-      `Published Site runtime target "${options.packageAppKey}/${options.installId}" is not resolved.`,
-    );
-  }
-
-  return installedPublicSiteRuntimeTarget(storageIdentity);
 }
 
 export function findRuntimeWorldMountByRoute(
@@ -472,10 +376,6 @@ export function isRuntimePublicSiteRoute(
   pathname: string,
   context: RuntimeInstalledAppRouteContext = {},
 ): boolean {
-  if (installedSitePublicSurfaceFromRoute(profile, pathname, context)) {
-    return true;
-  }
-
   const preview = profile.publicSitePreview;
 
   if (!preview || findRuntimeWorldMountByRoute(profile, pathname, context)) {
@@ -488,50 +388,6 @@ export function isRuntimePublicSiteRoute(
       ? pathname.startsWith("/")
       : pathname.startsWith(`${preview.rootRoute}/`)),
   );
-}
-
-export function installedSitePublicSurfaceFromRoute(
-  profile: RuntimeProfile,
-  pathname: string,
-  context: RuntimeInstalledAppRouteContext = {},
-): RuntimeInstalledSitePublicSurface | undefined {
-  const routes = runtimeInstalledSitePublicRoutesForProfile(profile);
-
-  if (!routes) {
-    return undefined;
-  }
-
-  const install = (context.appInstalls ?? []).find((candidate) =>
-    installedSitePublicRouteMatch(candidate, pathname),
-  );
-
-  if (!install) {
-    return undefined;
-  }
-
-  const target = installedAppStorageIdentity(
-    {
-      installId: install.installId,
-      packageAppKey: install.packageAppKey,
-    },
-    context.activePackageResolver,
-  );
-
-  if (!target) {
-    return undefined;
-  }
-
-  const routeMatch = installedSitePublicRouteMatch(install, pathname);
-
-  if (!routeMatch) {
-    return undefined;
-  }
-
-  return {
-    routeBase: routeMatch.routeBase,
-    slug: routeMatch.slug || routes.homeSlug,
-    target: installedPublicSiteRuntimeTarget(target),
-  };
 }
 
 export function runtimeScreenRoute(world: RuntimeWorldMount, screenPath: string): `/${string}` {
@@ -652,12 +508,6 @@ export function isInstalledAppRoutePath(profile: RuntimeProfile, pathname: strin
   return Boolean(routes && matchRuntimeRouteBase(pathname, routes.appRouteBase));
 }
 
-export function isInstalledSitePublicRoutePath(profile: RuntimeProfile, pathname: string): boolean {
-  const routes = runtimeInstalledSitePublicRoutesForProfile(profile);
-
-  return Boolean(routes && matchRuntimeRouteBase(pathname, routes.siteRouteBase));
-}
-
 function runtimeAppDefinitionFromPackage(
   appPackage: ResolvedAppPackage,
   routes: { route: `/${string}` },
@@ -682,14 +532,6 @@ function runtimeInstalledAppRoutesForProfile(
 ): RuntimeInstalledAppRoutes | undefined {
   return runtimeRoutePolicy(profile).installedAppBrowserRoutes
     ? profile.installedAppRoutes
-    : undefined;
-}
-
-function runtimeInstalledSitePublicRoutesForProfile(
-  profile: RuntimeProfile,
-): RuntimeInstalledSitePublicRoutes | undefined {
-  return runtimeRoutePolicy(profile).installedSitePublicRoutes
-    ? profile.installedSitePublicRoutes
     : undefined;
 }
 
@@ -719,39 +561,6 @@ function matchInstalledRoutePath(
 
   return pathname.startsWith(routePrefix)
     ? { pathSuffix: pathname.slice(route.length) }
-    : undefined;
-}
-
-function installedSitePublicRouteMatch(
-  install: AppInstall,
-  pathname: string,
-): { routeBase: `/${string}`; slug: string } | undefined {
-  const route = enabledInstallRoute(install, "publicSite");
-
-  if (route) {
-    return publicSiteRouteMatch(pathname, route.path, route.prefix);
-  }
-
-  if (install.routes || !install.publicRoute) {
-    return undefined;
-  }
-
-  return publicSiteRouteMatch(pathname, install.publicRoute, install.publicRoutePrefix);
-}
-
-function publicSiteRouteMatch(
-  pathname: string,
-  routeBase: `/${string}`,
-  prefix?: `/${string}/`,
-): { routeBase: `/${string}`; slug: string } | undefined {
-  if (pathname === routeBase) {
-    return { routeBase, slug: "" };
-  }
-
-  const routePrefix = prefix ?? (`${routeBase.replace(/\/+$/, "")}/` as `/${string}/`);
-
-  return pathname.startsWith(routePrefix)
-    ? { routeBase, slug: pathname.slice(routePrefix.length) }
     : undefined;
 }
 

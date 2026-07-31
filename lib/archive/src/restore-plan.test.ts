@@ -206,7 +206,6 @@ const archiveTestPackageResolver = createAppPackageResolver([
     defaultInstallId: "site",
     label: "Site",
     packageAppKey: "site",
-    publicSite: true,
     sourceSchemaHash: siteSourceSchemaHash,
   }),
   packageManifest({
@@ -1160,8 +1159,6 @@ function siteInstall(installId: string): AppInstall {
     label: "Personal",
     packageAppKey: "site",
     packageRevision: 1,
-    publicRoute: `/sites/${installId}`,
-    publicRoutePrefix: `/sites/${installId}/`,
     registrationPolicy: "closed",
     sourceSchemaHash: siteSourceSchemaHash,
     status: "installed",
@@ -1173,7 +1170,6 @@ function packageManifest(input: {
   defaultInstallId: string;
   label: string;
   packageAppKey: string;
-  publicSite?: boolean;
   sourceSchemaHash: SourceSchemaHash;
 }) {
   return parseAppPackageManifest({
@@ -1191,10 +1187,7 @@ function packageManifest(input: {
       path: `${input.packageAppKey}/schema.json`,
     },
     sourceSchemaHash: input.sourceSchemaHash,
-    capabilities: [
-      { kind: "generatedAdmin", routeBase: "/apps" },
-      ...(input.publicSite ? [{ kind: "publicSite", routeBase: "/sites" } as const] : []),
-    ],
+    capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],
   });
 }
 

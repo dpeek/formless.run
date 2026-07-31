@@ -1,6 +1,5 @@
 import type { AppSchema } from "@dpeek/formless-schema";
 
-import type { SitePublicOperationTargetResolver } from "../public-operation-block-projection.ts";
 import type {
   SitePublicRendererComponent,
   SitePublicRendererDocumentTheme,
@@ -23,8 +22,6 @@ type PublicSiteWorkerTreeInput = {
   records: StoredRecord[];
   schema: AppSchema;
   slug: string;
-  publicOperationTargetResolver?: SitePublicOperationTargetResolver;
-  target?: { apiRoutePrefix: `/${string}` };
   turnstileSiteKey?: string;
 };
 
@@ -55,8 +52,6 @@ export function createSitePublicWorkerAdapter(
   return {
     buildPublicTree(input) {
       return buildSitePageTree(input.schema, input.records, input.slug, {
-        publicOperationTargetResolver: input.publicOperationTargetResolver,
-        target: input.target,
         turnstileSiteKey: input.turnstileSiteKey,
       });
     },

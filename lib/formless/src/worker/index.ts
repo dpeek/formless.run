@@ -298,7 +298,6 @@ export default {
 
     const siteIconResponse = await handlePublicSiteIconRequest(request, env, {
       mappedSiteHost,
-      packageResolver,
       runtimeTopology: requestTopology,
     });
 
@@ -316,7 +315,6 @@ export default {
 
     const publishedSiteIndexingResponse = await handlePublicSiteIndexingRequest(request, env, {
       mappedSiteHost,
-      packageResolver,
       runtimeTopology: requestTopology,
     });
 
@@ -614,7 +612,6 @@ export default {
 
     const siteDocumentResponse = await handlePublicSiteDocumentRequest(request, env, {
       mappedSiteHost,
-      packageResolver,
       runtimeTopology: requestTopology,
     });
 

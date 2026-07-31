@@ -10,41 +10,19 @@ import { projectSubscribeContactPublicOperation } from "./subscribe-contact-publ
 import type {
   SitePublicOperationInputFieldNode,
   SitePublicOperationNode,
-  SitePublicOperationTargetNode,
   SiteTreeWarning,
   StoredRecord,
 } from "./types.ts";
-
-export type SitePublicOperationTargetRequest = {
-  kind: "appInstall";
-  packageAppKey: string;
-  installId: string;
-};
-
-export type SitePublicOperationTargetResolution = {
-  route: SitePublicOperationTargetNode;
-  schema: AppSchema;
-};
-
-export type SitePublicOperationTargetResolver = (
-  request: SitePublicOperationTargetRequest,
-) => SitePublicOperationTargetResolution | undefined;
 
 export type SitePublicOperationBlockProjectionInput = {
   record: StoredRecord;
   type: string;
   schema: AppSchema;
-  publicOperationTargetResolver?: SitePublicOperationTargetResolver;
-  publicOperationApiRoutePrefix: `/${string}`;
   turnstileSiteKey?: string;
   warnings: SiteTreeWarning[];
 };
 
-type FixedPublicOperationTarget = {
-  schema: AppSchema;
-  publicOperationApiRoutePrefix: `/${string}`;
-  route?: SitePublicOperationTargetNode;
-};
+const PROGRAM_PUBLIC_OPERATION_API_ROUTE_PREFIX = "/api/formless/program";
 
 export function projectSitePublicOperationBlock(
   input: SitePublicOperationBlockProjectionInput,
@@ -57,31 +35,15 @@ export function projectSitePublicOperationBlock(
     return undefined;
   }
 
-  const target = siteLocalPublicOperationTarget(input);
-
-  if (!target) {
-    return undefined;
-  }
-
   return projectSubscribeContactPublicOperation({
     blockType: input.type,
     recordId: input.record.id,
     operationName: stringValue(input.record.values.operationName),
-    publicOperationApiRoutePrefix: target.publicOperationApiRoutePrefix,
-    schema: target.schema,
-    ...(target.route ? { target: target.route } : {}),
+    publicOperationApiRoutePrefix: PROGRAM_PUBLIC_OPERATION_API_ROUTE_PREFIX,
+    schema: input.schema,
     turnstileSiteKey: input.turnstileSiteKey,
     warnings: input.warnings,
   });
-}
-
-function siteLocalPublicOperationTarget(
-  input: SitePublicOperationBlockProjectionInput,
-): FixedPublicOperationTarget {
-  return {
-    schema: input.schema,
-    publicOperationApiRoutePrefix: input.publicOperationApiRoutePrefix,
-  };
 }
 
 function projectedGenericPublicOperationFields(
@@ -100,13 +62,7 @@ function projectedGenericPublicOperationFields(
     return undefined;
   }
 
-  const target = selectPublicOperationFormTarget(record, input, formLabel);
-
-  if (!target) {
-    return undefined;
-  }
-
-  const operation = selectGenericPublicOperation(target.schema, operationKey);
+  const operation = selectGenericPublicOperation(input.schema, operationKey);
 
   if (operation.kind !== "available") {
     input.warnings.push({
@@ -132,7 +88,7 @@ function projectedGenericPublicOperationFields(
     entityName: operation.entityName,
     operation: operation.operation,
     recordId: record.id,
-    schema: target.schema,
+    schema: input.schema,
     warnings: input.warnings,
   });
 
@@ -145,9 +101,8 @@ function projectedGenericPublicOperationFields(
     operationName: operation.operationName,
     canonicalKey: operation.canonicalKey,
     kind: publicOperationKind(operation.operation),
-    target: target.route,
     route: buildPublicOperationTargetRoute({
-      targetApiRoutePrefix: target.route.apiRoutePrefix,
+      targetApiRoutePrefix: PROGRAM_PUBLIC_OPERATION_API_ROUTE_PREFIX,
       entityKey: operation.entityName,
       operationKey: operation.operationName,
     }),
@@ -161,61 +116,6 @@ function projectedGenericPublicOperationFields(
       : {}),
     fields,
   };
-}
-
-function selectPublicOperationFormTarget(
-  record: StoredRecord,
-  input: SitePublicOperationBlockProjectionInput,
-  formLabel: string,
-): SitePublicOperationTargetResolution | undefined {
-  const targetKind = stringValue(record.values.operationTargetKind);
-
-  if (targetKind === "appInstall") {
-    const packageAppKey = stringValue(record.values.operationTargetPackageAppKey);
-    const installId = stringValue(record.values.operationTargetInstallId);
-
-    if (!packageAppKey || !installId) {
-      input.warnings.push({
-        code: "missing-public-operation-target",
-        recordId: record.id,
-        message: `${formLabel} block "${record.id}" does not declare an installed app target.`,
-      });
-      return undefined;
-    }
-
-    return resolvePublicOperationFormTarget(record, input, formLabel, {
-      kind: "appInstall",
-      packageAppKey,
-      installId,
-    });
-  }
-
-  input.warnings.push({
-    code: "missing-public-operation-target",
-    recordId: record.id,
-    message: `${formLabel} block "${record.id}" does not declare a supported target route kind.`,
-  });
-  return undefined;
-}
-
-function resolvePublicOperationFormTarget(
-  record: StoredRecord,
-  input: SitePublicOperationBlockProjectionInput,
-  formLabel: string,
-  request: SitePublicOperationTargetRequest,
-): SitePublicOperationTargetResolution | undefined {
-  const target = input.publicOperationTargetResolver?.(request);
-
-  if (!target) {
-    input.warnings.push({
-      code: "invalid-public-operation-target",
-      recordId: record.id,
-      message: `${formLabel} target install "${request.packageAppKey}/${request.installId}" is unavailable.`,
-    });
-    return undefined;
-  }
-
-  return target;
 }
 
 function selectGenericPublicOperation(

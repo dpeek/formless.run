@@ -21,7 +21,6 @@ export type RuntimeTopologyRoutePolicy = {
   instanceBrowserRoutes: boolean;
   installedAppApiRoutes: boolean;
   installedAppBrowserRoutes: boolean;
-  installedSitePublicRoutes: boolean;
   accountSessionBrowserRoutes: boolean;
   workspaceGatewayApiRoutes: boolean;
 };
@@ -65,9 +64,7 @@ export const runtimeTopologyRoutes = {
   publicSiteClientModulePath: "/src/public-site-main.tsx",
   publicSiteIndexingResourcePaths: ["/robots.txt", "/sitemap.xml"],
   publicSiteHomeSlug: "home",
-  publicSitePackageAppKey: "site",
   publicSitePreviewRouteBase: "/pages",
-  siteRouteBase: "/sites",
   staticAssetPathPrefixes: ["/@fs/", "/@id/", "/@vite/", "/@react-refresh"],
 } as const;
 
@@ -91,12 +88,10 @@ const clientRoutePrefixes = [
   runtimeTopologyRoutes.formlessRouteBase,
   runtimeTopologyRoutes.publicSitePreviewRouteBase,
   "/schema",
-  runtimeTopologyRoutes.siteRouteBase,
 ] as const;
 const publishedProfileClientRoutePrefixes = [
   runtimeTopologyRoutes.appRouteBase,
   runtimeTopologyRoutes.formlessRouteBase,
-  runtimeTopologyRoutes.siteRouteBase,
 ] as const;
 const instanceProfileClientRoutePaths = [
   ...FORMLESS_PROGRAM_SCREEN_PATHS,
@@ -216,7 +211,6 @@ export function runtimeRoutePolicyForProfileKind(
     instanceBrowserRoutes,
     installedAppApiRoutes: true,
     installedAppBrowserRoutes: instanceBrowserRoutes,
-    installedSitePublicRoutes: instanceBrowserRoutes,
     accountSessionBrowserRoutes: instanceBrowserRoutes || profileKind === "publishedSite",
     workspaceGatewayApiRoutes,
   };

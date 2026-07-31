@@ -22,9 +22,8 @@ The system SHALL store desired exact-host profile mappings as instance
 - **AND** an enabled mount `route` record stores the exact match host and
   target profile `instance`, `app`, or `public-site`
 - **AND** `app` mappings require a target app install id
-- **AND** a `public-site` mapping without an app install selects the
-  Program-native Site while one with an app install selects a
-  runtime-installable private public-Site-capable package
+- **AND** `public-site` mappings select the Program-native Site and do not carry
+  a target app install id
 
 #### Scenario: Mapping uniqueness
 
@@ -51,10 +50,9 @@ exact-host `route` records before ordinary host profile behavior.
 
 - **GIVEN** an enabled mapping route targets profile `public-site`
 - **WHEN** the mapped host receives public document requests
-- **THEN** the Program-native Site serves top-level public routes when the route
-  has no app install target
-- **AND** the selected private public-Site-capable install serves those routes
-  when an app install target is present
+- **THEN** the Program-native Site serves top-level public routes from Program
+  storage
+- **AND** no app install or package-derived public Site target is selected
 - **AND** generated app and admin shell routes are blocked for that host
 
 ### Requirement: Provider Evidence
@@ -284,7 +282,8 @@ schema-owned `route` control-plane records.
 - **THEN** the mapping is stored as a `route` record with host, target profile,
   optional target install id, enabled state, and timestamps
 - **AND** route behavior matches existing custom-domain mapping semantics
-- **AND** app and public Site mappings reference the target app install record
+- **AND** app mappings reference the target app install record while public Site
+  mappings target the Program
 
 #### Scenario: Redirect record
 

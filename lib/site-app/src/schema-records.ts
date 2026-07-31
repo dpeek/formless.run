@@ -258,30 +258,6 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
           label: "Operation key",
         },
         {
-          key: "operationTargetKind",
-          type: "enum",
-          required: false,
-          label: "Target route",
-          values: [
-            {
-              key: "appInstall",
-              label: "Installed app",
-            },
-          ],
-        },
-        {
-          key: "operationTargetPackageAppKey",
-          type: "text",
-          required: false,
-          label: "Target package app key",
-        },
-        {
-          key: "operationTargetInstallId",
-          type: "text",
-          required: false,
-          label: "Target install id",
-        },
-        {
           key: "buttonLabel",
           type: "text",
           required: false,
@@ -452,18 +428,6 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
                 field: "operationKey",
               },
               {
-                key: "operationTargetKind",
-                field: "operationTargetKind",
-              },
-              {
-                key: "operationTargetPackageAppKey",
-                field: "operationTargetPackageAppKey",
-              },
-              {
-                key: "operationTargetInstallId",
-                field: "operationTargetInstallId",
-              },
-              {
                 key: "buttonLabel",
                 field: "buttonLabel",
               },
@@ -572,18 +536,6 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
               {
                 key: "operationKey",
                 field: "operationKey",
-              },
-              {
-                key: "operationTargetKind",
-                field: "operationTargetKind",
-              },
-              {
-                key: "operationTargetPackageAppKey",
-                field: "operationTargetPackageAppKey",
-              },
-              {
-                key: "operationTargetInstallId",
-                field: "operationTargetInstallId",
               },
               {
                 key: "buttonLabel",
@@ -1553,9 +1505,6 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
           fields: [
             "label",
             "body",
-            "operationTargetKind",
-            "operationTargetPackageAppKey",
-            "operationTargetInstallId",
             "operationKey",
             "buttonLabel",
             "successLabel",

@@ -16,8 +16,6 @@ export const emailStylePublicIntakeFormBlockValues = {
   type: "publicOperationForm",
   label: "Request manual intake",
   body: "Send the request details for manual follow-up.",
-  operationTargetKind: "schemaKey",
-  operationTargetSchemaKey: "site",
   operationKey: emailStylePublicIntakeOperationKey,
   buttonLabel: "Send request",
   successLabel: "Request received.",

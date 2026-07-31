@@ -65,29 +65,27 @@ describe("canonical Site public renderer contract", () => {
     expect(systemStateContractIsExact).toBe(true);
   });
 
-  it("covers preview, authoring, installed, mapped-host, published, and workspace paths", () => {
+  it("covers preview, authoring, mapped-host, published, and workspace paths", () => {
     const routeFacts = [
       { linkMode: "preview" },
       { linkMode: "authoring" },
-      { linkMode: "installed", routeBase: "/sites/personal" },
       { linkMode: "published" },
       { linkMode: "published", routeBase: "/campaign" },
     ] as const satisfies readonly SitePublicRendererRouteFacts[];
     const workspaceProps = {
-      ...routeFacts[2],
+      ...routeFacts[3],
       tree,
     } satisfies SitePublicRendererProps;
 
     expect(routeFacts.map(({ linkMode }) => linkMode)).toEqual([
       "preview",
       "authoring",
-      "installed",
       "published",
       "published",
     ]);
     expect(workspaceProps).toEqual({
-      linkMode: "installed",
-      routeBase: "/sites/personal",
+      linkMode: "published",
+      routeBase: "/campaign",
       tree,
     });
   });
