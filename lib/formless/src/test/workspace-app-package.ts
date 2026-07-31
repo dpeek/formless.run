@@ -3,6 +3,7 @@ import path from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 
 import rawTaskSourceSchema from "@dpeek/formless-tasks-app/schema.json";
+import rawCrmSourceSchema from "@dpeek/formless-crm-app/schema.json";
 import {
   appPackageManifestKind,
   appPackageManifestVersion,
@@ -42,6 +43,17 @@ export async function runtimeWorkspaceTaskAppPackageFixture(
   };
 }
 
+export function runtimeWorkspaceCrmAppPackageFixture() {
+  return runtimeWorkspaceTaskAppPackageFixture({
+    defaultInstallId: "crm",
+    label: "CRM",
+    packageAppKey: "test-crm",
+    packageRevision: 1,
+    sourceSchema: rawCrmSourceSchema,
+    supportsMultipleInstalls: true,
+  });
+}
+
 type WorkspaceAppPackageFixtureOptions = {
   capabilities?: AppPackageCapability[];
   defaultInstallId?: string;
@@ -51,6 +63,7 @@ type WorkspaceAppPackageFixtureOptions = {
   packageRevision?: number;
   sourceSchema?: unknown;
   sourceSchemaHash?: SourceSchemaHash;
+  sourceSchemaKey?: string;
   sourceSchemaPath?: string;
   supportsMultipleInstalls?: boolean;
 };
@@ -103,7 +116,7 @@ export function workspaceAppPackageManifestFixture(
     packageRevision: options.packageRevision ?? 7,
     sourceSchema: {
       kind: "workspace",
-      key: packageAppKey,
+      key: options.sourceSchemaKey ?? packageAppKey,
       path: sourceSchemaPath,
     },
     sourceSchemaHash: options.sourceSchemaHash,

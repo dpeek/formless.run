@@ -264,20 +264,10 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
           label: "Target route",
           values: [
             {
-              key: "schemaKey",
-              label: "Schema key",
-            },
-            {
               key: "appInstall",
               label: "Installed app",
             },
           ],
-        },
-        {
-          key: "operationTargetSchemaKey",
-          type: "text",
-          required: false,
-          label: "Target schema key",
         },
         {
           key: "operationTargetPackageAppKey",
@@ -466,10 +456,6 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
                 field: "operationTargetKind",
               },
               {
-                key: "operationTargetSchemaKey",
-                field: "operationTargetSchemaKey",
-              },
-              {
                 key: "operationTargetPackageAppKey",
                 field: "operationTargetPackageAppKey",
               },
@@ -590,10 +576,6 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
               {
                 key: "operationTargetKind",
                 field: "operationTargetKind",
-              },
-              {
-                key: "operationTargetSchemaKey",
-                field: "operationTargetSchemaKey",
               },
               {
                 key: "operationTargetPackageAppKey",
@@ -1195,10 +1177,6 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
               label: "Program",
             },
             {
-              key: "schemaKey",
-              label: "Schema key",
-            },
-            {
               key: "appInstall",
               label: "App install",
             },
@@ -1553,16 +1531,7 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
         {
           key: "subscribeForm",
           label: "Subscribe form",
-          fields: [
-            "label",
-            "body",
-            "operationName",
-            "operationTargetKind",
-            "operationTargetSchemaKey",
-            "operationTargetPackageAppKey",
-            "operationTargetInstallId",
-            "buttonLabel",
-          ],
+          fields: ["label", "body", "operationName", "buttonLabel"],
         },
         {
           key: "contactForm",
@@ -1585,7 +1554,6 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
             "label",
             "body",
             "operationTargetKind",
-            "operationTargetSchemaKey",
             "operationTargetPackageAppKey",
             "operationTargetInstallId",
             "operationKey",

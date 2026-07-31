@@ -121,7 +121,7 @@ describe("local session bootstrap API routes", () => {
       install: {
         installId: "crm",
         label: "CRM",
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
       },
     });
     expect(installsAfter.body.installs.map((install) => install.installId)).toEqual(["crm"]);
@@ -352,7 +352,7 @@ async function configureProductionIdentity(target: Harness, productionOrigin: st
 async function createSiteInstall(input: { cookie: string | null }) {
   return harness.fetch("/api/formless/app-installs", {
     body: JSON.stringify({
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "crm",
       label: "CRM",
     }),

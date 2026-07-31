@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Contact subscriptions model public subscribe intent as flat app-owned records
-for contacts, email addresses, audiences, and consent state.
+Contact subscriptions model public subscribe intent as one flat Program-owned
+domain for Site and CRM workflows.
 
 ## Requirements
 
@@ -23,13 +23,13 @@ as flat records suitable for generated admin surfaces and CRM workflows.
 
 - GIVEN an email address record is created or updated
 - WHEN storage validates the record
-- THEN the normalized email address is unique within the app storage identity
+- THEN the normalized email address is unique within Program storage identity
 
 #### Scenario: Unique subscription membership
 
 - GIVEN a subscription record is created or updated
 - WHEN storage validates the record
-- THEN the email address and audience pair is unique within the app storage identity
+- THEN the email address and audience pair is unique within Program storage identity
 
 ### Requirement: Default Audience
 
@@ -40,7 +40,7 @@ before explicit audience targeting, topics, or segments exist.
 
 - GIVEN a subscribe operation is submitted without an explicit audience
 - WHEN the operation commits subscription records
-- THEN the operation writes or reuses the default audience for the target storage identity
+- THEN the operation writes or reuses the default audience in Program storage
 - AND the subscription references that audience
 
 ### Requirement: Subscribe Operation
@@ -69,24 +69,15 @@ The system SHALL provide a public subscribe operation that upserts reusable cont
 - THEN the runtime updates the subscription status to `subscribed`
 - AND records the new consent timestamp
 
-#### Scenario: CRM owns CRM subscribe records
+#### Scenario: Site and CRM share subscriber records
 
-- GIVEN a visitor submits a valid email address to a CRM public subscribe
-  operation
-- WHEN the operation commits records
-- THEN contact, email-address, audience, and subscription records are written to
-  the CRM app storage identity
-- AND Site-owned subscription records are not written by that CRM operation
-
-#### Scenario: Site subscribe can target CRM storage
-
-- GIVEN a public Site `subscribeForm` block targets an installed CRM app and
-  passes its Site block id as source context
-- WHEN a visitor submits a valid email address through that projected form
-- THEN the subscribe operation writes or reuses contact, email-address,
-  default audience, and subscription records in the CRM app storage identity
-- AND no Site-owned contact subscription records are written for that
-  CRM-targeted submission
+- GIVEN a visitor submits through a Site subscribe block or CRM public flow
+- WHEN the Program `subscription.subscribe` operation commits
+- THEN contact, email-address, audience, and subscription records are written
+  once in Program storage
+- AND Site subscriber and CRM audience generated screens project the same
+  records for their respective workflows
+- AND no Site block targets a CRM install or a second Authority
 
 ### Requirement: Subscription Consent Source
 
@@ -96,7 +87,8 @@ The system SHALL preserve source context for public subscription consent.
 
 - GIVEN a public subscribe operation commits a subscription
 - WHEN the subscription is stored
-- THEN the subscription records the source kind, target app storage identity, canonical operation key, request host, request path, and Site block id when available
+- THEN the subscription records Program target identity, canonical operation
+  key, request host, request path, and Site block id when available
 
 #### Scenario: Raw visitor network data is not required
 
@@ -110,7 +102,9 @@ The system SHALL expose collected email addresses and subscription state through
 
 #### Scenario: Owner reviews subscribers
 
-- GIVEN the owning app admin surface renders contact subscription data
+- GIVEN a Program member opens a Site or CRM generated screen that presents
+  contact subscription data
 - WHEN the owner opens the generated admin screens
-- THEN the owner can inspect email addresses, audiences, subscription status, consent time, and source context
+- THEN the member can inspect email addresses, audiences, subscription status,
+  consent time, and source context according to the screen presentation
 - AND public renderers do not expose subscriber lists

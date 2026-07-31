@@ -1040,8 +1040,9 @@ describe("site page tree projection", () => {
       blockRecord("rec_site_block_public_intake", {
         type: "publicOperationForm",
         label: "Request a test",
-        operationTargetKind: "schemaKey",
-        operationTargetSchemaKey: "tasks",
+        operationTargetKind: "appInstall",
+        operationTargetPackageAppKey: "tasks",
+        operationTargetInstallId: "requests",
         operationKey: "request.submit",
         operationNotificationMode: "email",
         operationNotificationReplyToField: "email",
@@ -1249,21 +1250,6 @@ function publicOperationTargetResolver(
   schemas: Partial<Record<string, AppSchema>>,
 ): SitePublicOperationTargetResolver {
   return (request) => {
-    if (request.kind === "schemaKey") {
-      const schema = schemas[request.schemaKey];
-
-      return schema
-        ? {
-            schema,
-            route: {
-              kind: "schemaKey",
-              schemaKey: request.schemaKey,
-              apiRoutePrefix: `/api/${request.schemaKey}`,
-            },
-          }
-        : undefined;
-    }
-
     const schema = schemas[request.packageAppKey];
 
     return schema

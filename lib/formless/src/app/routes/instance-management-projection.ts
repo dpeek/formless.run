@@ -159,39 +159,14 @@ export function projectInstanceManagement(
     };
   }
 
+  const workspaces = options.workspaces;
   const selectedPackage = selectInstanceManagementPackage(
     options.state.packages,
     options.selectedPackageAppKey,
     options.state.installErrorPackageAppKey,
   );
-
-  if (!selectedPackage) {
-    return {
-      manifest: {
-        ...base,
-        feedback: managementFeedback(
-          "packages-unavailable",
-          "Instance management unavailable",
-          "No installable app packages are available.",
-          "danger",
-        ),
-        state: "failed",
-      },
-    };
-  }
-
-  const selectedDraft = options.installDrafts[selectedPackage.packageAppKey] ?? {
-    installId: selectedPackage.defaultInstallId,
-    label: selectedPackage.label,
-  };
-  const dialog = projectInstallDialog({
-    draft: selectedDraft,
-    installDialogOpen: options.installDialogOpen,
-    selectedPackage,
-    state: options.state,
-  });
   const workspace = projectWorkspaceOperation(options.workspaceGatewayState);
-  const manifest: ManagementReadyContract = {
+  const readyManifest = (): ManagementReadyContract => ({
     ...base,
     installDialog: instanceManagementInstallDialogReference,
     state: "ready",
@@ -206,18 +181,38 @@ export function projectInstanceManagement(
     ...(workspace.feedback === undefined ? {} : { workspaceFeedback: workspace.feedback }),
     workspaces: [
       {
-        reference: options.workspaces[options.activeWorkspace],
+        reference: workspaces[options.activeWorkspace],
         role: options.activeWorkspace,
       },
     ],
+  });
+
+  if (!selectedPackage) {
+    return {
+      ...(workspace.authorizationRuntime === undefined
+        ? {}
+        : { authorization: workspace.authorizationRuntime }),
+      manifest: readyManifest(),
+    };
+  }
+
+  const selectedDraft = options.installDrafts[selectedPackage.packageAppKey] ?? {
+    installId: selectedPackage.defaultInstallId,
+    label: selectedPackage.label,
   };
+  const dialog = projectInstallDialog({
+    draft: selectedDraft,
+    installDialogOpen: options.installDialogOpen,
+    selectedPackage,
+    state: options.state,
+  });
 
   return {
     ...(workspace.authorizationRuntime === undefined
       ? {}
       : { authorization: workspace.authorizationRuntime }),
     dialog,
-    manifest,
+    manifest: readyManifest(),
     selectedDraft,
     selectedPackageAppKey: selectedPackage.packageAppKey,
   };

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
-  createAppRuntimeProfile,
   createDevWorkbenchRuntimeProfile,
   createDevRuntimeProfile,
   createInstalledAppRuntimeProfile,
@@ -22,7 +21,6 @@ import {
   resolveRuntimeProfile,
   runtimeRoutePolicy,
   runtimeScreenPathFromRoute,
-  runtimeScreenRoute,
   selectBrowserRuntimeProfileHint,
 } from "./runtime-profile.ts";
 import type {
@@ -150,8 +148,6 @@ describe("runtime profile resolver", () => {
       installedAppBrowserRoutes: true,
       installedSitePublicRoutes: true,
       accountSessionBrowserRoutes: true,
-      schemaKeyApiRoutes: false,
-      schemaKeyBrowserRoutes: false,
     });
     expect(runtimeBrowserRoutePatterns(profile)).toEqual({
       authAccountGateRoutePattern: "/formless/auth/*",
@@ -167,7 +163,7 @@ describe("runtime profile resolver", () => {
     });
   });
 
-  it("resolves the dev workbench profile with schema-keyed app mounts", () => {
+  it("resolves the dev workbench without source-app mounts", () => {
     const profile = createDevWorkbenchRuntimeProfile();
 
     expect(profile.kind).toBe("dev");
@@ -181,9 +177,7 @@ describe("runtime profile resolver", () => {
       homeSlug: "home",
       siteRouteBase: "/sites",
     });
-    expect(profile.worlds.map((world) => world.app.key)).toEqual(["crm"]);
-    expect(profile.worlds.map((world) => world.generatedRoutes)).toEqual([true]);
-    expect(profile.worlds.map((world) => world.route)).toEqual(["/crm"]);
+    expect(profile.worlds).toEqual([]);
     expect(profile.publicSitePreview?.homeRoute).toBe("/pages/home");
     expect(profile.publicSitePreview?.target).toEqual({
       packageAppKey: "site",
@@ -198,14 +192,11 @@ describe("runtime profile resolver", () => {
     });
     expect(findRuntimeWorldMountByRoute(profile, "/rates")).toBeUndefined();
     expect(findRuntimeWorldMountByRoute(profile, "/rates/schema")).toBeUndefined();
-    expect(runtimeScreenPathFromRoute(profile.worlds[0]!, "/crm/schema")).toBe("/schema");
     expect(runtimeRoutePolicy(profile)).toEqual({
       instanceBrowserRoutes: true,
       installedAppBrowserRoutes: true,
       installedSitePublicRoutes: true,
       accountSessionBrowserRoutes: true,
-      schemaKeyApiRoutes: true,
-      schemaKeyBrowserRoutes: true,
     });
     expect(runtimeBrowserRoutePatterns(profile)).toEqual({
       authAccountGateRoutePattern: "/formless/auth/*",
@@ -241,20 +232,9 @@ describe("runtime profile resolver", () => {
     const tasksWorld = installedAppWorldMountFromInstallId(profile, "task-workspace", {
       appInstalls,
     });
-    const crmWorld = installedAppWorldMountFromInstallId(profile, "crm", { appInstalls });
-
-    if (!crmWorld?.target || crmWorld.target.kind !== "appInstall") {
-      throw new Error("Missing installed CRM world.");
-    }
-
     expect(world).toBeUndefined();
     expect(tasksWorld).toBeUndefined();
-    expect(crmWorld.app.key).toBe("crm");
-    expect(crmWorld.route).toBe("/apps/crm");
-    expect(crmWorld.target.installId).toBe("crm");
-    expect(crmWorld.target.apiRoutePrefix).toBe("/api/app-installs/crm/crm");
-    expect(runtimeScreenRoute(crmWorld, "/audiences")).toBe("/apps/crm/audiences");
-    expect(runtimeScreenPathFromRoute(crmWorld, "/apps/crm/audiences")).toBe("/audiences");
+    expect(installedAppWorldMountFromInstallId(profile, "crm", { appInstalls })).toBeUndefined();
     expect(findRuntimeWorldMountByRoute(profile, "/apps/personal/settings", { appInstalls })).toBe(
       undefined,
     );
@@ -262,8 +242,8 @@ describe("runtime profile resolver", () => {
       findRuntimeWorldMountByRoute(profile, "/apps/task-workspace", { appInstalls }),
     ).toBeUndefined();
     expect(
-      findRuntimeWorldMountByRoute(profile, "/apps/crm/audiences", { appInstalls })?.target,
-    ).toEqual(crmWorld.target);
+      findRuntimeWorldMountByRoute(profile, "/apps/crm/audiences", { appInstalls }),
+    ).toBeUndefined();
     expect(
       installedAppWorldMountFromInstallId(profile, "missing", { appInstalls }),
     ).toBeUndefined();
@@ -473,29 +453,6 @@ describe("runtime profile resolver", () => {
     ).toBeUndefined();
   });
 
-  it("resolves an app profile with one app mounted at root paths", () => {
-    const profile = createAppRuntimeProfile("crm");
-    const world = profile.worlds[0];
-
-    if (!world) {
-      throw new Error("Missing app profile world mount.");
-    }
-
-    expect(profile.kind).toBe("app");
-    expect(profile.shell).toBe("app");
-    expect(profile.defaultRedirect).toBeUndefined();
-    expect(world.app.key).toBe("crm");
-    expect(world.generatedRoutes).toBe(true);
-    expect(world.route).toBe("/");
-    expect(runtimeScreenRoute(world, "/")).toBe("/");
-    expect(runtimeScreenRoute(world, "/setup")).toBe("/setup");
-    expect(runtimeScreenPathFromRoute(world, "/")).toBe("/");
-    expect(runtimeScreenPathFromRoute(world, "/setup")).toBe("/setup");
-    expect(runtimeScreenPathFromRoute(world, "/schema")).toBe("/schema");
-    expect(runtimeBrowserRoutePatterns(profile)).toEqual({});
-    expect(runtimeProfileNeedsInstalledAppRouteInstalls(profile)).toBe(false);
-  });
-
   it("keeps a dormant Tasks app profile pending without an installed world", () => {
     const profile = createInstalledAppRuntimeProfile({
       installId: "task-workspace",
@@ -599,7 +556,7 @@ describe("runtime profile resolver", () => {
 
   it("uses explicit config first and host config only as a deterministic fallback", () => {
     expect(resolveRuntimeProfile({ profile: "instance" }).kind).toBe("instance");
-    expect(resolveRuntimeProfile({ profile: "app", schemaKey: "crm" }).kind).toBe("app");
+    expect(resolveRuntimeProfile({ profile: "app" }).kind).toBe("app");
     expect(resolveRuntimeProfile({ profile: "siteAuthoring" }).kind).toBe("dev");
     expect(resolveRuntimeProfile({ profile: "publishedSite" }).kind).toBe("publishedSite");
     expect(
@@ -608,9 +565,7 @@ describe("runtime profile resolver", () => {
         profile: "dev",
       }).kind,
     ).toBe("dev");
-    expect(resolveRuntimeProfile({ hostname: "app.formless.local", schemaKey: "site" }).kind).toBe(
-      "app",
-    );
+    expect(resolveRuntimeProfile({ hostname: "app.formless.local" }).kind).toBe("app");
     expect(resolveRuntimeProfile({ hostname: "site-authoring.formless.local" }).kind).toBe("dev");
     expect(resolveRuntimeProfile({ hostname: "published-site.formless.local" }).kind).toBe(
       "publishedSite",
@@ -619,7 +574,7 @@ describe("runtime profile resolver", () => {
     expect(resolveRuntimeProfile({ hostname: "formless.twitchy.workers.dev" }).kind).toBe(
       "publishedSite",
     );
-    expect(resolveRuntimeProfile({ profile: "missing", schemaKey: "missing" }).kind).toBe("dev");
+    expect(resolveRuntimeProfile({ profile: "missing" }).kind).toBe("dev");
   });
 
   it("uses an SSR document profile hint before falling back to the host", () => {

@@ -5,6 +5,11 @@ import {
 } from "@dpeek/formless-identity-control-plane";
 import type { AppPackageResolver } from "@dpeek/formless-installed-apps";
 import {
+  crmOwnedProgramEntityIds,
+  reviewableCrmRecords,
+  validateCrmRecords,
+} from "@dpeek/formless-crm-app";
+import {
   instanceControlPlaneEntityIds,
   parseInstanceControlPlaneEntityName,
   reviewableInstanceControlPlaneRecordValues,
@@ -193,6 +198,12 @@ const formlessProgramConstraintAdapters: readonly FormlessProgramConstraintAdapt
     entityIds: new Set(siteEntityIds),
     reviewable: (records) => reviewableSiteRecords(records),
     validate: (context, records) => validateSiteRecords(context, records),
+  },
+  {
+    label: "crm",
+    entityIds: new Set(crmOwnedProgramEntityIds),
+    reviewable: (records) => reviewableCrmRecords(records),
+    validate: (context, records) => validateCrmRecords(context, records),
   },
 ];
 

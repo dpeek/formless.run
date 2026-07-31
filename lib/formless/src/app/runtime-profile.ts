@@ -1,14 +1,6 @@
-import {
-  defaultSchemaKey,
-  findSchemaAppDefinition,
-  getSchemaAppDefinition,
-  schemaApps,
-  type SchemaAppDefinition,
-  type SourceSchemaKey,
-} from "../shared/schema-apps.ts";
+import { getSchemaAppDefinition, type SchemaAppDefinition } from "../shared/schema-apps.ts";
 import {
   installedAppStorageIdentity,
-  type AppStorageIdentity,
   type AuthorityStorageIdentity,
 } from "../shared/app-storage-identity.ts";
 import {
@@ -52,7 +44,7 @@ export type RuntimeWorldMount = {
   generatedRoutes: boolean;
   requiredRole?: RuntimeRouteRequiredRole;
   route: `/${string}`;
-  target?: AuthorityStorageIdentity;
+  target: AuthorityStorageIdentity;
 };
 
 export type RuntimeInstalledAppRoutes = {
@@ -116,8 +108,6 @@ export type RuntimeRoutePolicy = {
   installedAppBrowserRoutes: boolean;
   installedSitePublicRoutes: boolean;
   accountSessionBrowserRoutes: boolean;
-  schemaKeyApiRoutes: boolean;
-  schemaKeyBrowserRoutes: boolean;
 };
 
 export type RuntimeBrowserRoutePatterns = {
@@ -137,12 +127,7 @@ export type RuntimeProfileResolverInput = {
   appInstallId?: string | undefined;
   packageAppKey?: string | undefined;
   profile?: string | undefined;
-  schemaKey?: string | undefined;
   hostname?: string | undefined;
-};
-
-export type AppRuntimeProfileOptions = {
-  target?: AppStorageIdentity;
 };
 
 export type PublishedSiteRuntimeProfileOptions = {
@@ -171,7 +156,6 @@ export function resolveRuntimeProfile(
   input: RuntimeProfileResolverInput = browserRuntimeProfileConfig(),
 ): RuntimeProfile {
   const profileKind = resolveRuntimeProfileKind(input);
-  const schemaKey = parseSchemaKey(input.schemaKey) ?? defaultSchemaKey;
 
   switch (profileKind) {
     case "instance":
@@ -181,7 +165,7 @@ export function resolveRuntimeProfile(
         createInstalledAppRuntimeProfile({
           installId: input.appInstallId,
           packageAppKey: input.packageAppKey,
-        }) ?? createAppRuntimeProfile(schemaKey)
+        }) ?? { kind: "app", shell: "app", worlds: [] }
       );
     case "publishedSite":
       return createPublishedSiteRuntimeProfile({
@@ -217,7 +201,7 @@ export function createDevWorkbenchRuntimeProfile(): RuntimeProfile {
   return {
     kind: "dev",
     shell: "dev",
-    worlds: sourceAppWorldMountsForProfileKind("dev"),
+    worlds: [],
     instanceShell: true,
     installedAppRoutes: {
       appRouteBase: runtimeTopologyRoutes.appRouteBase,
@@ -245,8 +229,6 @@ export function runtimeRoutePolicy(profile: RuntimeProfile): RuntimeRoutePolicy 
     installedAppBrowserRoutes: policy.installedAppBrowserRoutes,
     installedSitePublicRoutes: policy.installedSitePublicRoutes,
     accountSessionBrowserRoutes: policy.accountSessionBrowserRoutes,
-    schemaKeyApiRoutes: policy.schemaKeyApiRoutes,
-    schemaKeyBrowserRoutes: policy.schemaKeyBrowserRoutes,
   };
 }
 
@@ -339,26 +321,6 @@ export function normalizeRuntimeBrowserPath(path: string): string {
   return path.split("?")[0] ?? path;
 }
 
-export function createAppRuntimeProfile(
-  schemaKey: SourceSchemaKey = defaultSchemaKey,
-  options: AppRuntimeProfileOptions = {},
-): RuntimeProfile {
-  const app = getSchemaAppDefinition(schemaKey);
-
-  return {
-    kind: "app",
-    shell: "app",
-    worlds: [
-      {
-        app: runtimeAppDefinitionFromSchemaApp(app),
-        generatedRoutes: true,
-        route: "/",
-        ...(options.target ? { target: options.target } : {}),
-      },
-    ],
-  };
-}
-
 export function createInstalledAppRuntimeProfile(
   input: {
     installId?: string | undefined;
@@ -437,7 +399,7 @@ export function createPublishedSiteRuntimeProfile(
   options: PublishedSiteRuntimeProfileOptions = {},
 ): RuntimeProfile {
   const target = publishedSiteRuntimeTarget(options);
-  const app = findSchemaAppDefinition(target.packageAppKey) ?? getSchemaAppDefinition("site");
+  const app = getSchemaAppDefinition("site");
 
   return {
     kind: "publishedSite",
@@ -696,33 +658,15 @@ export function isInstalledSitePublicRoutePath(profile: RuntimeProfile, pathname
   return Boolean(routes && matchRuntimeRouteBase(pathname, routes.siteRouteBase));
 }
 
-function sourceAppWorldMountsForProfileKind(profileKind: RuntimeProfileKind): RuntimeWorldMount[] {
-  const policy = runtimeRoutePolicyForProfileKind(profileKind);
-
-  if (!policy.schemaKeyBrowserRoutes) {
-    return [];
-  }
-
-  return schemaApps.map((app) => ({
-    app: runtimeAppDefinitionFromSchemaApp(app),
-    generatedRoutes: true,
-    route: app.route,
-  }));
-}
-
 function runtimeAppDefinitionFromPackage(
   appPackage: ResolvedAppPackage,
   routes: { route: `/${string}` },
 ): RuntimeAppDefinition {
-  const bundledApp = findSchemaAppDefinition(appPackage.sourceSchemaKey);
-
-  return (
-    (bundledApp ? runtimeAppDefinitionFromSchemaApp(bundledApp) : undefined) ?? {
-      key: appPackage.sourceSchemaKey,
-      label: appPackage.label,
-      route: routes.route,
-    }
-  );
+  return {
+    key: appPackage.sourceSchemaKey,
+    label: appPackage.label,
+    route: routes.route,
+  };
 }
 
 function runtimeAppDefinitionFromSchemaApp(app: SchemaAppDefinition): RuntimeAppDefinition {
@@ -821,7 +765,6 @@ function browserRuntimeProfileConfig(): RuntimeProfileResolverInput {
     }),
     appInstallId: documentHints.appInstallId,
     packageAppKey: documentHints.packageAppKey,
-    schemaKey: stringRuntimeConfigValue(import.meta.env.VITE_FORMLESS_SCHEMA_KEY),
     hostname: typeof window === "undefined" ? undefined : window.location.hostname,
   };
 }
@@ -849,10 +792,6 @@ export function selectBrowserRuntimeProfileHint(input: {
   return (
     stringRuntimeConfigValue(input.documentProfile) ?? stringRuntimeConfigValue(input.envProfile)
   );
-}
-
-function parseSchemaKey(value: string | undefined): SourceSchemaKey | undefined {
-  return value ? findSchemaAppDefinition(value)?.key : undefined;
 }
 
 function browserDocument(): RuntimeProfileHintDocument | undefined {

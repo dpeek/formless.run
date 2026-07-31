@@ -14,13 +14,6 @@ source of truth; the browser replica remains a cache.
 
 The system SHALL key each browser replica by storage identity.
 
-#### Scenario: Schema-key browser replica
-
-- GIVEN a remaining schema-key app such as `crm`
-- WHEN the browser opens the app
-- THEN the local IndexedDB replica uses a schema-key-specific database name
-- AND the matching broadcast channel is scoped to the same schema key
-
 #### Scenario: Installed app browser replica
 
 - GIVEN an installed app with an app install id
@@ -34,7 +27,7 @@ The system SHALL key each browser replica by storage identity.
 - WHEN the client target is selected
 - THEN the local IndexedDB replica uses `formless:instance:control-plane`
 - AND the matching broadcast channel uses the same Program scope
-- AND the replica contains instance, reviewable identity, Task, and Site records
+- AND the replica contains instance, reviewable identity, Task, Site, and CRM records
   from one active `formless-program` schema and cursor
 - AND there is no separate identity-control-plane, Tasks, or built-in Site
   browser database or broadcast channel
@@ -129,7 +122,7 @@ truth migrations.
 - WHEN a local dev authenticated session bootstrap URL requests a fresh browser
   replica state
 - THEN the browser deletes same-origin Formless replica IndexedDB databases for
-  schema-key apps, installed apps, and the Program before
+  installed apps and the Program before
   rendering owner-only local runtime surfaces
 - AND non-Formless IndexedDB databases on the same origin are not deleted
 - AND after reset, each opened Formless surface re-bootstraps or syncs from
@@ -180,21 +173,19 @@ the matching storage identity.
 
 ### Requirement: Push Sync Connection
 
-The system SHALL support push sync over hibernatable WebSockets for the Program,
-schema-key apps, and installed app identities.
+The system SHALL support push sync over hibernatable WebSockets for the Program
+and installed app identities.
 
 #### Scenario: Program push sync route
 
 - GIVEN a management browser uses the Program storage identity
 - WHEN it connects to `/api/formless/program/sync/ws`
 - THEN the surviving Program Authority catches up from its one write-log cursor
-- AND the socket receives instance, identity, Task, and Site record changes
+- AND the socket receives instance, identity, Task, Site, and CRM record changes
   through the same connection
 - AND no standalone instance or identity control-plane sync socket exposes a
   second cursor
-- AND no schema-key or installed-app Tasks socket exposes another Task cursor
-- AND no schema-key or installed-app built-in Site socket exposes another Site
-  cursor
+- AND no installed-app CRM socket exposes another CRM cursor
 
 #### Scenario: Program push authorization remains current
 
@@ -221,13 +212,6 @@ schema-key apps, and installed app identities.
 - AND it does not open `/api/formless/program/sync/ws`
 - AND authenticated `/pages` preview may use the existing Program socket
   because it is a Program member surface
-
-#### Scenario: Schema-key push sync route
-
-- GIVEN a schema-key app storage identity
-- WHEN the browser connects to `/api/:schemaKey/sync/ws`
-- THEN the Authority accepts push sync messages for that schema key
-- AND the socket can catch up from the client's cursor
 
 #### Scenario: Installed app push sync route
 

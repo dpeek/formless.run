@@ -19,10 +19,15 @@ import {
   readAppliedPackageAppMigrations,
   readPackageAppMigrationState,
 } from "./storage.ts";
+import {
+  activeAppPackageResolver,
+  type ActiveRuntimeAppPackageEnv,
+} from "./runtime-app-packages.ts";
 
-type InstanceUpgradeStatusApiEnv = AuthorityAdminGuardEnv & {
-  FORMLESS_AUTHORITY: DurableObjectNamespace;
-};
+type InstanceUpgradeStatusApiEnv = AuthorityAdminGuardEnv &
+  ActiveRuntimeAppPackageEnv & {
+    FORMLESS_AUTHORITY: DurableObjectNamespace;
+  };
 
 export async function handleInstanceUpgradeStatusApiRequest(
   request: Request,
@@ -136,10 +141,13 @@ async function readInstalledAppStorageUpgradeStatus(
   env: InstanceUpgradeStatusApiEnv,
   install: AppInstall,
 ): Promise<UpgradeStorageIdentityStatus> {
-  const identity = installedAppStorageIdentity({
-    installId: install.installId,
-    packageAppKey: install.packageAppKey,
-  });
+  const identity = installedAppStorageIdentity(
+    {
+      installId: install.installId,
+      packageAppKey: install.packageAppKey,
+    },
+    activeAppPackageResolver(env),
+  );
 
   if (!identity) {
     throw new Error(`Installed app "${install.installId}" has invalid storage identity.`);

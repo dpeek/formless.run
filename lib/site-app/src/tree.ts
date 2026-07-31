@@ -57,7 +57,7 @@ type SiteTreeBuildContext = {
 };
 
 const DEFAULT_MAX_DEPTH = 16;
-const DEFAULT_SITE_PUBLIC_API_ROUTE_PREFIX = "/api/site";
+const DEFAULT_SITE_PUBLIC_API_ROUTE_PREFIX = "/api/formless/program";
 const PRIMARY_IMAGE_SLOT = "primaryImage";
 const LIST_BLOCK_ITEM_TYPES = {
   postList: "post",

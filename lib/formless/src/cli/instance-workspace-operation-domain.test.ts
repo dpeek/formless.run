@@ -64,7 +64,7 @@ const tempDirs: string[] = [];
 const privateSitePackageAppKey = "private-site";
 const rootKnownSitePackage = rootKnownPackageFactsResolver().findPackage("site")!;
 const privateSiteSourceSchemaHash =
-  "sha256:3801668b6420076d9d63fe15f2a294501ccf44f5c4c509efcc9a13444d6fb930" as typeof rootKnownSitePackage.sourceSchemaHash;
+  "sha256:81e1483d2f56dc771bc0394e60cc5392a384d2bb3fa88d1bd42ce88395a29fdf" as typeof rootKnownSitePackage.sourceSchemaHash;
 const privateSitePackage = {
   ...rootKnownSitePackage,
   defaultInstallId: "personal",
@@ -91,7 +91,7 @@ afterEach(async () => {
 });
 
 describe("workspace source sync operation domain", () => {
-  it("round-trips Program Task and Site records with Program media", async () => {
+  it("round-trips Program Task, Site, and CRM records with Program media", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const pullRequests: CapturedRequest[] = [];
@@ -108,6 +108,7 @@ describe("workspace source sync operation domain", () => {
         installedSite("david", "David Peek"),
         installedDormantPackage("legacy-tasks", "tasks"),
         installedDormantPackage("legacy-site", "site"),
+        installedDormantPackage("legacy-crm", "crm"),
       ],
       programMediaBytes: Buffer.from([7, 8, 9]),
     });
@@ -144,12 +145,15 @@ describe("workspace source sync operation domain", () => {
       expect.arrayContaining([
         expect.objectContaining({ entity: "task", id: "task:program-native" }),
         expect.objectContaining({ entity: "block", id: "block:program-cover" }),
+        expect.objectContaining({ entity: "company", id: "company:program-native" }),
+        expect.objectContaining({ entity: "company", id: "company:program-native-deleted" }),
         expect.objectContaining({ entity: "app-install", id: "legacy-tasks" }),
         expect.objectContaining({ entity: "app-install", id: "legacy-site" }),
+        expect.objectContaining({ entity: "app-install", id: "legacy-crm" }),
       ]),
     );
     expect(instanceState).not.toHaveProperty("media");
-    for (const installId of ["legacy-tasks", "legacy-site"]) {
+    for (const installId of ["legacy-tasks", "legacy-site", "legacy-crm"]) {
       await expect(
         stat(path.join(workspaceRoot, `state/apps/${installId}.json`)),
       ).rejects.toMatchObject({ code: "ENOENT" });
@@ -158,6 +162,7 @@ describe("workspace source sync operation domain", () => {
       expect.arrayContaining([
         "/api/app-installs/tasks/legacy-tasks/snapshot",
         "/api/app-installs/site/legacy-site/snapshot",
+        "/api/app-installs/crm/legacy-crm/snapshot",
       ]),
     );
     await expect(
@@ -221,8 +226,11 @@ describe("workspace source sync operation domain", () => {
       expect.arrayContaining([
         expect.objectContaining({ entity: "task", id: "task:program-native" }),
         expect.objectContaining({ entity: "block", id: "block:program-cover" }),
+        expect.objectContaining({ entity: "company", id: "company:program-native" }),
+        expect.objectContaining({ entity: "company", id: "company:program-native-deleted" }),
         expect.objectContaining({ entity: "app-install", id: "legacy-tasks" }),
         expect.objectContaining({ entity: "app-install", id: "legacy-site" }),
+        expect.objectContaining({ entity: "app-install", id: "legacy-crm" }),
       ]),
     );
     expect(restoreBody.archive.media.objects).toEqual([
@@ -240,7 +248,88 @@ describe("workspace source sync operation domain", () => {
       expect.arrayContaining([
         "/api/app-installs/tasks/legacy-tasks/snapshot",
         "/api/app-installs/site/legacy-site/snapshot",
+        "/api/app-installs/crm/legacy-crm/snapshot",
       ]),
+    );
+  });
+
+  it("plans CRM-only Program record drift through the Program snapshot", async () => {
+    const tempDir = await makeTempDir();
+    const workspaceRoot = path.join(tempDir, "personal-sites");
+    const requests: CapturedRequest[] = [];
+    const localProgramRecords = [...deployControlPlaneRecords(), ...programCrmRecords()];
+    const fetcher = sourceSyncFetch(requests, {
+      appData: { david: { records: [] } },
+      controlPlaneRecords: deployControlPlaneRecords(),
+      installs: [installedSite("david", "David Peek")],
+      restoreResponses: [restorePlan({ replacedInstalls: ["david"] })],
+    });
+
+    await writeWorkspaceConfig(workspaceRoot);
+    await writeDeployStorageSnapshot(workspaceRoot, { records: localProgramRecords });
+    await writeWorkspaceAppStorageSnapshot(workspaceRoot);
+    await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, ".formless/instance.env"),
+      "FORMLESS_ADMIN_TOKEN=local-token\n",
+    );
+
+    const result = await runPushWorkspaceSourceOperation(
+      {
+        dryRun: true,
+        kind: "push",
+        workspacePath: workspaceRoot,
+      },
+      operationDepsWithAccessGuards(
+        operationDeps(tempDir, {
+          accountDiscovery: {
+            listAccounts: async () => [{ id: "account-123", workersDevSubdomain: "dpeek" }],
+          },
+          fetch: fetcher,
+          packageVersion: packageJson.version,
+        }),
+        [
+          "credentialSetup",
+          "deploymentAdapter",
+          "healthCheck",
+          "localSecretEnv",
+          "packageRoot",
+          "randomToken",
+          "setupCapability",
+        ],
+      ),
+    );
+    const restoreBody = capturedRequestJson<{
+      archive: {
+        apps: Array<{ app: { packageAppKey: string } }>;
+        controlPlane: { records: StoredRecord[] };
+      };
+    }>(requestByPath(requests, "/api/formless/archive/restore"));
+
+    expect(result).toMatchObject({
+      details: {
+        syncPlan: {
+          status: "changes",
+        },
+      },
+      summary: {
+        fields: {
+          noop: false,
+          sync: "changes",
+        },
+      },
+    });
+    expect(restoreBody.archive.controlPlane.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ entity: "company", id: "company:program-native" }),
+        expect.objectContaining({ entity: "company", id: "company:program-native-deleted" }),
+      ]),
+    );
+    expect(restoreBody.archive.apps.map(({ app }) => app.packageAppKey)).toEqual([
+      privateSitePackageAppKey,
+    ]);
+    expect(requests.map(({ url }) => new URL(url).pathname)).not.toContain(
+      "/api/app-installs/crm/legacy-crm/snapshot",
     );
   });
 
@@ -2174,7 +2263,7 @@ function installedSite(installId: string, label: string) {
   };
 }
 
-function installedDormantPackage(installId: string, packageAppKey: "site" | "tasks") {
+function installedDormantPackage(installId: string, packageAppKey: "crm" | "site" | "tasks") {
   const facts = packageAppFactsForKey(packageAppKey, rootKnownPackageFactsResolver());
 
   if (!facts) {
@@ -2185,7 +2274,7 @@ function installedDormantPackage(installId: string, packageAppKey: "site" | "tas
     adminRoute: `/apps/${installId}` as `/apps/${string}`,
     createdAt: "2026-05-01T00:00:00.000Z",
     installId,
-    label: `Legacy ${packageAppKey === "site" ? "Site" : "Tasks"}`,
+    label: `Legacy ${packageAppKey === "site" ? "Site" : packageAppKey === "crm" ? "CRM" : "Tasks"}`,
     packageAppKey,
     packageRevision: facts.packageRevision,
     registrationPolicy: "closed" as const,
@@ -2330,6 +2419,7 @@ function dormantBuiltInProgramRecords(): StoredRecord[] {
   const installs = [
     installedDormantPackage("legacy-tasks", "tasks"),
     installedDormantPackage("legacy-site", "site"),
+    installedDormantPackage("legacy-crm", "crm"),
   ];
   const records: StoredRecord[] = [];
 
@@ -2378,6 +2468,35 @@ function dormantBuiltInProgramRecords(): StoredRecord[] {
         done: false,
         priority: "normal",
         title: "Program-native task",
+      },
+    },
+    ...programCrmRecords(),
+  ];
+}
+
+function programCrmRecords(): StoredRecord[] {
+  const createdAt = "2026-05-26T00:00:00.000Z";
+
+  return [
+    {
+      createdAt,
+      entity: "company",
+      id: "company:program-native",
+      updatedAt: createdAt,
+      values: {
+        name: "Program Native",
+        status: "prospect",
+      },
+    },
+    {
+      createdAt,
+      deletedAt: "2026-05-27T00:00:00.000Z",
+      entity: "company",
+      id: "company:program-native-deleted",
+      updatedAt: "2026-05-27T00:00:00.000Z",
+      values: {
+        name: "Program Native Deleted",
+        status: "archived",
       },
     },
   ];

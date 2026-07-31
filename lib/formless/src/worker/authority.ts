@@ -36,7 +36,6 @@ import {
   authorizeProgramAccess,
   type AuthorityAdminGuardResult,
 } from "./authority-admin-guard.ts";
-import type { WorkerSchemaAppDefinition } from "./schema-apps.ts";
 import {
   executeAuthorityOperation,
   selectAuthorityOperation,
@@ -109,6 +108,7 @@ import {
   activeWorkerSourceSchemas,
   findActiveWorkerSchemaAppDefinition,
   listActiveAppPackages,
+  type WorkerAppDefinition,
 } from "./runtime-app-packages.ts";
 import { INTERNAL_PUBLIC_SITE_BOOTSTRAP_PATH } from "./public-site-worker-runtime.ts";
 import { IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY } from "@dpeek/formless-identity-control-plane";
@@ -519,6 +519,15 @@ export class FormlessAuthority extends DurableObject<Env> {
         return appStorageUpgradeStatusResponse;
       }
 
+      if (request.method === "GET" && route.path === "/sync") {
+        const cursor = url.searchParams.get("after");
+        const parsedCursor = cursor === null ? 0 : Number(cursor);
+
+        if (!Number.isInteger(parsedCursor) || parsedCursor < 0) {
+          return jsonResponse({ error: "Sync cursor must be a non-negative integer." }, 400);
+        }
+      }
+
       const operation = selectAuthorityOperation({
         method: request.method,
         path: route.path,
@@ -710,7 +719,7 @@ export class FormlessAuthority extends DurableObject<Env> {
   private async handleSyncWebSocketRequest(
     request: Request,
     identity: AuthorityStorageIdentity,
-    app: WorkerSchemaAppDefinition,
+    app: WorkerAppDefinition,
   ) {
     if (request.method !== "GET") {
       return jsonResponse({ error: "WebSocket sync requires GET." }, 405, { Allow: "GET" });
@@ -1196,7 +1205,7 @@ class AuthorityWriteModule {
 }
 
 function storageSourceFromRoute(
-  route: { app: WorkerSchemaAppDefinition; identity: AuthorityStorageIdentity },
+  route: { app: WorkerAppDefinition; identity: AuthorityStorageIdentity },
   env: Env,
 ): StorageSource {
   if (route.identity.kind === "program") {
@@ -1211,7 +1220,7 @@ function storageSourceFromRoute(
 }
 
 function storageSourceFromApp(
-  app: WorkerSchemaAppDefinition,
+  app: WorkerAppDefinition,
   options: {
     schemaKey?: string;
     schemaProvenance?: PackageAppSchemaProvenance;
@@ -1285,10 +1294,6 @@ async function publicOperationInputNotificationSourceRecords(input: {
 function publicOperationTargetOwnsSiteBlock(identity: AuthorityStorageIdentity, env: Env): boolean {
   if (identity.kind === "program") {
     return true;
-  }
-
-  if (identity.kind === "schemaKey") {
-    return identity.sourceSchemaKey === "site";
   }
 
   return Boolean(
@@ -1535,7 +1540,7 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
 async function handleInternalAuthProfileCompletionRequest(input: {
   env: Env;
   request: Request;
-  route: { app: WorkerSchemaAppDefinition; identity: AuthorityStorageIdentity; path: string };
+  route: { app: WorkerAppDefinition; identity: AuthorityStorageIdentity; path: string };
   source: StorageSource;
   storage: DurableObjectStorage;
   url: URL;
@@ -1628,9 +1633,7 @@ function currentActiveSchemaSource(
 function parseAuthorityRoute(
   pathname: string,
   env: Env,
-):
-  | { app: WorkerSchemaAppDefinition; identity: AuthorityStorageIdentity; path: string }
-  | undefined {
+): { app: WorkerAppDefinition; identity: AuthorityStorageIdentity; path: string } | undefined {
   const route = parseAuthorityApiRoute(pathname, activeAppPackageResolver(env));
 
   if (!route) {

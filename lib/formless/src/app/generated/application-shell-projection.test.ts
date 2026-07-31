@@ -6,12 +6,12 @@ import { selectPrimaryScreenModels } from "../../client/views.ts";
 import { testSiteRecords } from "../../test/site-records.ts";
 import { siteSourceSchema } from "../../test/schema-apps.ts";
 import {
-  createAppRuntimeProfile,
   createDevRuntimeProfile,
   createInstanceRuntimeProfile,
   createPublishedSiteRuntimeProfile,
   findRuntimeWorldMountByRoute,
 } from "../runtime-profile.ts";
+import type { RuntimeProfile, RuntimeWorldMount } from "../runtime-profile.ts";
 import { projectInitialGeneratedCreateRuntimeSurface } from "./generated-create-runtime.ts";
 import {
   projectGeneratedApplicationShell,
@@ -30,16 +30,15 @@ import { getSchemaAppDefinition } from "../../shared/schema-apps.ts";
 describe("generated application shell projection", () => {
   it("selects multi-app, app-only, and no-shell presentation from profile and route state", () => {
     const dev = createDevRuntimeProfile();
-    const devWorld = required(findRuntimeWorldMountByRoute(dev, "/crm"));
     const instance = createInstanceRuntimeProfile();
-    const app = createAppRuntimeProfile("crm");
-    const appWorld = required(findRuntimeWorldMountByRoute(app, "/audiences"));
+    const appWorld = installedWorld();
+    const app: RuntimeProfile = { kind: "app", shell: "app", worlds: [appWorld] };
 
-    expect(shellScope(dev, "/crm", devWorld)).toBe("multiApp");
+    expect(shellScope(dev, "/apps/personal", appWorld)).toBe("multiApp");
     expect(shellScope(dev, "/unknown", undefined)).toBe("multiApp");
     expect(shellScope(instance, "/", undefined)).toBe("multiApp");
     expect(shellScope(instance, "/access", undefined)).toBe("multiApp");
-    expect(shellScope(instance, "/apps/personal", devWorld)).toBe("multiApp");
+    expect(shellScope(instance, "/apps/personal", appWorld)).toBe("multiApp");
     expect(shellScope(app, "/audiences", appWorld)).toBe("appOnly");
 
     expect(shellScope(instance, "/unknown", undefined)).toBeUndefined();
@@ -220,6 +219,7 @@ describe("generated application shell projection", () => {
     ).toEqual([
       { href: "/tasks", label: "Tasks", selected: false },
       { href: "/site", label: "Blocks", selected: false },
+      { href: "/crm", label: "Contacts", selected: false },
       { href: "/apps", label: "Apps", selected: false },
       { href: "/routes", label: "Routes", selected: false },
       { href: "/deployments", label: "Deployments", selected: false },
@@ -302,6 +302,24 @@ describe("generated application shell projection", () => {
     );
   });
 });
+
+function installedWorld(): RuntimeWorldMount {
+  return {
+    app: { key: "private-app", label: "Private app", route: "/" },
+    generatedRoutes: true,
+    route: "/",
+    target: {
+      apiRoutePrefix: "/api/app-installs/private-app/personal",
+      authorityName: "app:personal",
+      broadcastChannelName: "formless:app:personal",
+      browserDatabaseName: "formless:app:personal",
+      installId: "personal",
+      kind: "appInstall",
+      packageAppKey: "private-app",
+      sourceSchemaKey: "private-app",
+    },
+  };
+}
 
 describe("generated application shell host and intents", () => {
   it("publishes one complete node graph and resolves only current scoped intents", () => {

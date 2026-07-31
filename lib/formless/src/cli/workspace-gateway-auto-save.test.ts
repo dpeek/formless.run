@@ -47,7 +47,7 @@ const tempDirs: string[] = [];
 const privateSitePackageAppKey = "private-site";
 const rootKnownSitePackage = rootKnownPackageFactsResolver().findPackage("site")!;
 const privateSiteSourceSchemaHash =
-  "sha256:3801668b6420076d9d63fe15f2a294501ccf44f5c4c509efcc9a13444d6fb930" as typeof rootKnownSitePackage.sourceSchemaHash;
+  "sha256:81e1483d2f56dc771bc0394e60cc5392a384d2bb3fa88d1bd42ce88395a29fdf" as typeof rootKnownSitePackage.sourceSchemaHash;
 const privateSitePackage = {
   ...rootKnownSitePackage,
   defaultInstallId: "personal",

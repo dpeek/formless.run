@@ -58,7 +58,7 @@ import {
   validateStorageSnapshotRestore,
 } from "./authority-validation.ts";
 import { BadRequestError, ReloadRequiredError } from "./errors.ts";
-import type { WorkerSchemaAppDefinition } from "./schema-apps.ts";
+import type { WorkerAppDefinition } from "./runtime-app-packages.ts";
 import { PUBLIC_SITE_TREE_CACHE_CONTROL } from "@dpeek/formless-site-app/worker";
 import {
   exportStorageSnapshot,
@@ -195,7 +195,7 @@ type AuthorityOperationExecutionInput = {
   actor?: OperationInvocationActor;
   actorCandidates?: OperationInvocationActorCandidates;
   actorKind?: SchemaOperationActorKind;
-  app: WorkerSchemaAppDefinition;
+  app: WorkerAppDefinition;
   body?: unknown;
   createRecordId?: (entity: string, values: RecordValues) => string | undefined;
   identity: AuthorityStorageIdentity;
@@ -218,22 +218,6 @@ function publicOperationTargetResolver(input: {
 }): SitePublicOperationTargetResolver {
   return (request) => {
     const sourceSchemas = input.sourceSchemas ?? {};
-
-    if (request.kind === "schemaKey") {
-      const schema = sourceSchemas[request.schemaKey];
-
-      return schema
-        ? {
-            schema,
-            route: {
-              kind: "schemaKey",
-              schemaKey: request.schemaKey,
-              apiRoutePrefix: `/api/${request.schemaKey}`,
-            },
-          }
-        : undefined;
-    }
-
     const identity = installedAppStorageIdentity(
       {
         packageAppKey: request.packageAppKey,

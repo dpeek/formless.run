@@ -36,7 +36,6 @@ import {
 } from "@dpeek/formless-media/worker";
 import { type BootstrapResponse } from "../shared/protocol.ts";
 import type { AppSchema } from "@dpeek/formless-schema";
-import { workerSchemaApps } from "./schema-apps.ts";
 import {
   ensureStorageTables,
   restoreStorageSnapshotOutcome,
@@ -923,7 +922,7 @@ function stepReports(steps: readonly ArchiveRestorePlanStep[]): ArchiveRestoreSt
 }
 
 function workerSourceSchemas(): Partial<Record<string, AppSchema>> {
-  return Object.fromEntries(workerSchemaApps.map((app) => [app.key, app.sourceSchema]));
+  return {};
 }
 
 function restoreFailure(

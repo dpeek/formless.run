@@ -2533,6 +2533,9 @@ describe("installed Site custom-domain Worker routing", () => {
     const adminRead = await fetchHost(mappedInstanceHost, `${controlPlaneApi}/bootstrap`, {
       headers: { Cookie: adminCookie },
     });
+    const adminReadBody = (await adminRead.json()) as {
+      records?: unknown[];
+    };
     const adminWrite = await fetchHost(
       mappedInstanceHost,
       `${controlPlaneApi}/operations/email-domain/create`,
@@ -2552,6 +2555,7 @@ describe("installed Site custom-domain Worker routing", () => {
         method: "POST",
       },
     );
+    const adminWriteBody = (await adminWrite.json()) as OperationInvocationResponse;
     const ownerWrite = await fetchHost(
       mappedInstanceHost,
       `${controlPlaneApi}/operations/route/create`,
@@ -2574,10 +2578,6 @@ describe("installed Site custom-domain Worker routing", () => {
         method: "POST",
       },
     );
-    const adminReadBody = (await adminRead.json()) as {
-      records?: unknown[];
-    };
-    const adminWriteBody = (await adminWrite.json()) as OperationInvocationResponse;
     const ownerWriteBody = (await ownerWrite.json()) as OperationInvocationResponse;
     expect(adminRead.status).toBe(200);
     expect(Array.isArray(adminReadBody.records)).toBe(true);
@@ -4279,7 +4279,9 @@ async function resetWorkerState(target: Harness, resources: readonly WorkerState
       ),
   };
 
-  await Promise.all(resources.map((resource) => resetters[resource]()));
+  for (const resource of resources) {
+    await resetters[resource]();
+  }
 }
 
 async function postInternalInstanceReset(target: Harness, path: string) {

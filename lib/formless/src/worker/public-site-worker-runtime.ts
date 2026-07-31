@@ -40,7 +40,7 @@ import type { InstanceRuntimeRouteResolution } from "./instance-runtime-routes.t
 import { getEquivalentRequestForHead, responseWithoutBodyForHead } from "./head-response.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { BootstrapResponse } from "../shared/protocol.ts";
-import { schemaApps } from "../shared/schema-apps.ts";
+import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
 import {
   shouldBlockMappedSiteHostBrowserRoute,
   shouldHandleMappedSiteHostDocument,
@@ -241,8 +241,8 @@ export async function handlePublicSiteIndexingRequest(
           clientRoutePrefixes: [
             runtimeTopologyRoutes.publicSitePreviewRouteBase,
             "/schema",
-            ...schemaApps.map((app) => app.route),
-          ],
+            ...FORMLESS_PROGRAM_SCREEN_PATHS.filter((path) => path !== "/"),
+          ] as `/${string}`[],
           origin: url.origin,
           records: await fetchSiteBootstrapRecords(getRequest, env, requestTarget.storageIdentity),
           resource,

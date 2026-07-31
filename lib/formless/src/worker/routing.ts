@@ -39,8 +39,6 @@ export type PublishedSiteRedirect = {
 export type WorkerRuntimeRoutePolicy = {
   instanceBrowserRoutes: boolean;
   installedAppApiRoutes: boolean;
-  schemaKeyApiRoutes: boolean;
-  schemaKeyBrowserRoutes: boolean;
   workspaceGatewayApiRoutes: boolean;
 };
 
@@ -65,7 +63,6 @@ export type WorkerRuntimeRouteInput = WorkerRuntimeProfileInput | WorkerRuntimeR
 
 export type MappedRuntimeRoutePolicy = {
   blocksAuthOriginRoutes: boolean;
-  blocksSchemaKeyApiRoutes: boolean;
   mappedTargetProfile?: "app" | "instance" | "public-site";
   runtimeProfile?: string;
 };
@@ -160,7 +157,6 @@ export function mappedRuntimeRoutePolicyFromFacts(input: {
 
   return {
     blocksAuthOriginRoutes,
-    blocksSchemaKeyApiRoutes: blocksAuthOriginRoutes,
     ...(mappedTargetProfile === undefined ? {} : { mappedTargetProfile }),
     ...(mappedTargetProfile === "instance"
       ? { runtimeProfile: "instance" }
@@ -302,13 +298,6 @@ export function workerRuntimeRoutePolicy(
   input: WorkerRuntimeProfileInput = {},
 ): WorkerRuntimeRoutePolicy {
   return workerRuntimeRoutePolicyFromKind(resolveRuntimeProfileKind(input));
-}
-
-export function areSchemaKeyApiRoutesEnabledForRequest(
-  request: Request,
-  input: WorkerRuntimeRouteInput = {},
-): boolean {
-  return resolveWorkerRuntimeRequestTopology(request, input).routePolicy.schemaKeyApiRoutes;
 }
 
 export function shouldHandlePublishedSiteDocument(
@@ -602,8 +591,6 @@ function workerRuntimeRoutePolicyFromKind(
   return {
     instanceBrowserRoutes: policy.instanceBrowserRoutes,
     installedAppApiRoutes: policy.installedAppApiRoutes,
-    schemaKeyApiRoutes: policy.schemaKeyApiRoutes,
-    schemaKeyBrowserRoutes: policy.schemaKeyBrowserRoutes,
     workspaceGatewayApiRoutes: policy.workspaceGatewayApiRoutes,
   };
 }

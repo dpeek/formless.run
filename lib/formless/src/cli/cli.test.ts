@@ -40,6 +40,8 @@ import {
   appPackageManifestVersion,
   bundledAppPackageManifests,
   bundledAppPackageResolver,
+  createAppPackageResolver,
+  parseAppPackageManifest,
   rootKnownPackageFactsResolver,
 } from "../shared/app-packages.ts";
 import {
@@ -3609,29 +3611,38 @@ describe("Formless CLI", () => {
     expect(destroyInputs).toEqual([]);
   });
 
-  it("exports installed CRM app archives without media requests", async () => {
+  it("exports private installed app archives without media requests", async () => {
     const tempDir = await makeTempDir();
     const outDir = path.join(tempDir, "tasks-backup");
     const requests: CapturedFetchRequest[] = [];
     const responses = responseQueue();
+    const sourceSchemaHash = await computeSourceSchemaHash(crmSourceSchema);
+    const privateResolver = createAppPackageResolver([
+      parseAppPackageManifest(privatePackageManifest(sourceSchemaHash), "private package"),
+    ]);
+    const packageFacts = packageAppFactsForKey("private-labs", privateResolver)!;
+    const snapshot = {
+      ...crmSnapshot(crmTestRecords, "app:work"),
+      schemaKey: "private-labs",
+    };
 
     responses.queueJson({
-      packages: listInstallableAppPackages(bundledAppPackageResolver),
+      packages: listInstallableAppPackages(privateResolver),
       installs: [
         {
           adminRoute: "/apps/work",
           createdAt: "2026-05-01T00:00:00.000Z",
           installId: "work",
           label: "Work CRM",
-          packageAppKey: "crm",
-          ...packageAppFactsForKey("crm", bundledAppPackageResolver)!,
+          packageAppKey: "private-labs",
+          ...packageFacts,
           registrationPolicy: "closed",
           status: "installed",
           updatedAt: "2026-05-01T00:00:00.000Z",
         },
       ],
     });
-    responses.queueJson(crmSnapshot(crmTestRecords, "app:work"));
+    responses.queueJson(snapshot);
 
     await exportAppArchive(
       {
@@ -3656,16 +3667,16 @@ describe("Formless CLI", () => {
 
     expect(archive.app).toMatchObject({
       installId: "work",
-      packageAppKey: "crm",
-      packageRevision: packageAppFactsForKey("crm", bundledAppPackageResolver)!.packageRevision,
-      sourceSchemaKey: "crm",
-      sourceSchemaHash: packageAppFactsForKey("crm", bundledAppPackageResolver)!.sourceSchemaHash,
+      packageAppKey: "private-labs",
+      packageRevision: packageFacts.packageRevision,
+      sourceSchemaKey: "private-labs",
+      sourceSchemaHash: packageFacts.sourceSchemaHash,
     });
-    expect(archive.data).toEqual(crmSnapshot(crmTestRecords, "app:work"));
+    expect(archive.data).toEqual(snapshot);
     expect(archive.media.objects).toEqual([]);
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
       "GET https://instance.example/api/formless/app-installs",
-      "GET https://instance.example/api/app-installs/crm/work/snapshot",
+      "GET https://instance.example/api/app-installs/private-labs/work/snapshot",
     ]);
   });
 

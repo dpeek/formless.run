@@ -3,28 +3,22 @@ import {
   type AppInstallId,
   type PackageAppKey,
 } from "@dpeek/formless-installed-apps";
-import { findResolvedAppPackage, type AppPackageResolver } from "./app-packages.ts";
-import { findSchemaAppDefinition, getSchemaAppDefinition, type SchemaKey } from "./schema-apps.ts";
+import {
+  findResolvedAppPackage,
+  bundledAppPackageResolver,
+  rootKnownPackageFactsResolver,
+  type AppPackageResolver,
+} from "./app-packages.ts";
 import {
   FORMLESS_PROGRAM_API_ROUTE_PREFIX,
   formlessProgramTarget,
   type FormlessProgramTarget,
 } from "../program/target.ts";
 
-export type AppStorageIdentity = SchemaKeyStorageIdentity | InstalledAppStorageIdentity;
+export type AppStorageIdentity = InstalledAppStorageIdentity;
 export type AuthorityStorageIdentity = AppStorageIdentity | ProgramStorageIdentity;
 
 export type ProgramStorageIdentity = FormlessProgramTarget;
-
-export type SchemaKeyStorageIdentity = {
-  kind: "schemaKey";
-  packageAppKey: PackageAppKey;
-  sourceSchemaKey: SchemaKey;
-  authorityName: SchemaKey;
-  apiRoutePrefix: `/api/${SchemaKey}`;
-  browserDatabaseName: string;
-  broadcastChannelName: string;
-};
 
 export type InstalledAppStorageIdentity = {
   kind: "appInstall";
@@ -46,27 +40,12 @@ const browserStoragePrefix = "formless";
 const installedAppAuthorityPrefix = "app";
 const installedAppApiPrefix = "/api/app-installs";
 
-export function schemaKeyStorageIdentity(schemaKey: SchemaKey): SchemaKeyStorageIdentity {
-  const app = getSchemaAppDefinition(schemaKey);
-  const storageName = browserStorageName(schemaKey);
-
-  return {
-    kind: "schemaKey",
-    packageAppKey: app.key,
-    sourceSchemaKey: app.key,
-    authorityName: app.key,
-    apiRoutePrefix: `/api/${app.key}`,
-    browserDatabaseName: storageName,
-    broadcastChannelName: storageName,
-  };
-}
-
 export function installedAppStorageIdentity(
   input: {
     installId: string;
     packageAppKey: string;
   },
-  resolver?: AppPackageResolver,
+  resolver: AppPackageResolver = rootKnownPackageFactsResolver(),
 ): InstalledAppStorageIdentity | undefined {
   const packageApp = findResolvedAppPackage(input.packageAppKey, resolver);
   const installId = validateAppInstallId(input.installId);
@@ -99,11 +78,7 @@ export function parseAuthorityApiRoute(
   pathname: string,
   resolver?: AppPackageResolver,
 ): AuthorityApiRoute | undefined {
-  return (
-    parseProgramApiRoute(pathname) ??
-    parseInstalledAppApiRoute(pathname, resolver) ??
-    parseSchemaKeyApiRoute(pathname)
-  );
+  return parseProgramApiRoute(pathname) ?? parseInstalledAppApiRoute(pathname, resolver);
 }
 
 export function parseProgramApiRoute(pathname: string):
@@ -149,26 +124,12 @@ function parseInstalledAppApiRoute(
     return undefined;
   }
 
-  const identity = installedAppStorageIdentity({ installId, packageAppKey }, resolver);
+  const identity = installedAppStorageIdentity(
+    { installId, packageAppKey },
+    resolver ?? bundledAppPackageResolver,
+  );
 
   return identity ? { identity, path: `/${routeSegments.join("/")}` } : undefined;
-}
-
-function parseSchemaKeyApiRoute(pathname: string): AuthorityApiRoute | undefined {
-  const [apiSegment, schemaKey, ...routeSegments] = pathname.split("/").filter(Boolean);
-
-  if (apiSegment !== "api" || !schemaKey || routeSegments.length === 0) {
-    return undefined;
-  }
-
-  const app = findSchemaAppDefinition(schemaKey);
-
-  return app
-    ? {
-        identity: schemaKeyStorageIdentity(app.key),
-        path: `/${routeSegments.join("/")}`,
-      }
-    : undefined;
 }
 
 function browserStorageName(identitySegment: string) {

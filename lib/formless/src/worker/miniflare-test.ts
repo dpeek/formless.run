@@ -5,6 +5,14 @@ import { join, resolve } from "node:path";
 import { build, type Plugin } from "esbuild";
 import { Miniflare, type WorkerOptions } from "miniflare";
 import { astryxStylexWorkerBundlePlugin } from "../runtime/stylex-esbuild.ts";
+import {
+  runtimeWorkspaceCrmAppPackageFixture,
+  runtimeWorkspaceTaskAppPackageFixture,
+} from "../test/workspace-app-package.ts";
+import {
+  FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
+  formatRuntimeWorkspaceAppPackages,
+} from "../shared/workspace-runtime-packages.ts";
 import { SITE_PUBLIC_RENDERER_WORKER_VIRTUAL_MODULE_ID } from "../shared/workspace-runtime-extensions.ts";
 
 type DispatchFetchInit = Parameters<Miniflare["dispatchFetch"]>[1];
@@ -43,6 +51,7 @@ type WorkerBundle = {
 
 const workerBundleCache = new Map<string, Promise<WorkerBundle>>();
 let workerBundleCacheRoot: Promise<string> | null = null;
+let defaultRuntimePackages: Promise<string> | null = null;
 export const FORMLESS_WORKER_COMPATIBILITY_DATE = "2026-04-28";
 
 export async function createWorkerHarness(
@@ -53,7 +62,10 @@ export async function createWorkerHarness(
   const bundle = await workerBundle(entryPoint);
 
   const mf = new Miniflare({
-    bindings: options.bindings,
+    bindings: {
+      [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: await defaultRuntimeWorkspacePackages(),
+      ...options.bindings,
+    },
     compatibilityDate: options.compatibilityDate,
     durableObjects,
     durableObjectsPersist: false,
@@ -86,6 +98,15 @@ export async function createWorkerHarness(
       await mf.dispose();
     },
   };
+}
+
+async function defaultRuntimeWorkspacePackages() {
+  defaultRuntimePackages ??= Promise.all([
+    runtimeWorkspaceTaskAppPackageFixture(),
+    runtimeWorkspaceCrmAppPackageFixture(),
+  ]).then((appPackages) => formatRuntimeWorkspaceAppPackages(appPackages));
+
+  return defaultRuntimePackages;
 }
 
 async function workerBundle(entryPoint: string): Promise<WorkerBundle> {

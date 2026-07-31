@@ -961,7 +961,7 @@ function genericPublicOperation(
     operationName: "submit",
     canonicalKey: "request.submit",
     kind: "command",
-    route: "/api/site/public/operations/request/submit",
+    route: "/api/formless/program/public/operations/request/submit",
     challenge: {
       kind: "turnstile",
       siteKey: "public-site-key",
@@ -981,7 +981,7 @@ function fixedPublicOperation(
     operationName,
     canonicalKey: `${entityName}.${operationName}`,
     kind: kind === "subscribe" ? "command" : "create",
-    route: `/api/site/public/operations/${entityName}/${operationName}`,
+    route: `/api/formless/program/public/operations/${entityName}/${operationName}`,
     challenge: {
       kind: "turnstile",
       siteKey: "public-site-key",

@@ -34,15 +34,14 @@ The system SHALL resolve each runtime request to one runtime profile kind:
 ### Requirement: Profile Route Policy
 
 The system MUST apply profile route policy before selecting browser shell, API,
-static asset, SSR handling, or local workspace gateway proxy behavior. Installed
-app API routes are always enabled; schema-key API routes are unavailable only in
-the product instance profile.
+static asset, SSR handling, or local workspace gateway proxy behavior. Program
+and installed-app API routes are the only app-data route families.
 
 #### Scenario: Product instance route policy
 
 - GIVEN the runtime profile is `instance`
-- WHEN a request targets schema-key browser or schema-key API routes
-- THEN those schema-key routes are not available
+- WHEN a request targets a former schema-key browser or API route
+- THEN that route is not a current runtime surface
 - AND the Program browser and `/api/formless/program` route family, installed
   app API routes, installed app browser routes, Program-native Site preview and
   public routes, installed private public-Site-capable routes, account auth
@@ -52,16 +51,12 @@ the product instance profile.
 #### Scenario: Dev route policy
 
 - GIVEN the runtime profile is `dev`
-- WHEN a request targets the Program, a remaining bundled source app, installed
-  app, installed private public Site, instance, account auth, schema-key API, or
-  workspace gateway API routes
+- WHEN a request targets the Program, an installed app, installed private public
+  Site, instance, account auth, or workspace gateway API routes
 - THEN those route families remain available
-- AND the dev workbench can compose remaining source app and product instance
-  surfaces together
-- AND Tasks is available through the Program rather than a `/tasks`
-  schema-key source-app mount
-- AND Site is available through the Program rather than a `/site` schema-key
-  source-app mount
+- AND the dev workbench composes Program and product instance surfaces together
+- AND Tasks, Site, and CRM are available through Program-owned paths rather than
+  schema-key source-app mounts
 
 ### Requirement: Browser Route Mounts
 
@@ -81,8 +76,7 @@ The system SHALL mount browser surfaces according to the active runtime profile.
   nested screen paths through `/apps/<installId>/`
 - AND a more-specific exact path or longer nested route outranks that base
   admin prefix
-- AND source app routes such as `/crm/audiences` are not eligible instance
-  browser routes
+- AND former source-app routes are not separately eligible browser routes
 
 #### Scenario: Product instance Program routes
 
@@ -95,6 +89,9 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 - AND `/site`, `/site/settings`, `/site/contacts`, and `/site/subscribers`
   select package-owned Site screens through Program-owned paths and `member`
   access requirements
+- AND `/crm`, `/crm/audiences`, `/crm/campaigns`, and `/crm/broadcasts` select
+  package-owned CRM screens through Program-owned paths and `member` access
+  requirements
 - AND `/pages` and nested `/pages/*` paths select the authenticated
   Program-native Site preview
 - AND `/apps` selects the root-owned screen that composes app installs and app
@@ -602,7 +599,7 @@ Site routes, and the Program-native public Site from enabled schema-owned
 #### Scenario: Program-native package install route is unavailable
 
 - **GIVEN** dormant `app-install` or `route` records refer to package key
-  `tasks` or `site`
+  `tasks`, `site`, or `crm`
 - **WHEN** runtime topology selects installed app routes, mapped hosts, or
   launch navigation
 - **THEN** those records are ineligible because the package is absent from the

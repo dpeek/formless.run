@@ -12,7 +12,6 @@ import type { ShellIntent } from "@dpeek/formless-presentation/contract";
 import type { AppInstall, AppPackageResolver } from "@dpeek/formless-installed-apps";
 import {
   appStorageIdentityForClientTarget,
-  clientTargetForSchemaKey,
   clientTargetSourceSchemaKey,
   programClientTarget,
   type ClientAppTarget,
@@ -584,7 +583,7 @@ function RegisteredRootCreateRuntime({
 }
 
 function runtimeWorldClientTarget(world: RuntimeWorldMount): ClientAppTarget {
-  return world.target ?? clientTargetForSchemaKey(world.app.key);
+  return world.target;
 }
 
 function navigateTo(path: `/${string}`, navigate: ((path: `/${string}`) => void) | undefined) {

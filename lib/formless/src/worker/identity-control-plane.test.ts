@@ -1916,7 +1916,7 @@ async function createInstalledApp(installId: string, label: string) {
     body: JSON.stringify({
       installId,
       label,
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
     }),
     headers: adminHeaders({ "Content-Type": "application/json" }),
     method: "POST",

@@ -4,59 +4,35 @@ import {
   parseAuthorityApiRoute,
   parseProgramApiRoute,
   programStorageIdentity,
-  schemaKeyStorageIdentity,
 } from "./app-storage-identity.ts";
 
 describe("app storage identity", () => {
-  it("maps source schema keys to package-level storage names and API paths", () => {
-    expect(schemaKeyStorageIdentity("site")).toMatchObject({
-      apiRoutePrefix: "/api/site",
-      authorityName: "site",
-      broadcastChannelName: "formless:site",
-      browserDatabaseName: "formless:site",
-      kind: "schemaKey",
-      packageAppKey: "site",
-      sourceSchemaKey: "site",
-    });
-  });
-
-  it("does not map the Program-native Site to installed storage", () => {
+  it("canonicalizes dormant Program-native package identities without activating routes", () => {
     expect(
       installedAppStorageIdentity({
         installId: "personal",
         packageAppKey: "site",
       }),
-    ).toBeUndefined();
-  });
-
-  it("maps installed non-Site apps without Site media facts", () => {
+    ).toMatchObject({
+      authorityName: "app:personal",
+      installId: "personal",
+      packageAppKey: "site",
+    });
     expect(
       installedAppStorageIdentity({
         installId: "tasks",
         packageAppKey: "tasks",
       }),
-    ).toBeUndefined();
+    ).toMatchObject({ authorityName: "app:tasks", packageAppKey: "tasks" });
     expect(
       installedAppStorageIdentity({
         installId: "crm",
         packageAppKey: "crm",
       }),
-    ).toEqual({
-      apiRoutePrefix: "/api/app-installs/crm/crm",
-      authorityName: "app:crm",
-      broadcastChannelName: "formless:app:crm",
-      browserDatabaseName: "formless:app:crm",
-      installId: "crm",
-      kind: "appInstall",
-      packageAppKey: "crm",
-      sourceSchemaKey: "crm",
-    });
+    ).toMatchObject({ authorityName: "app:crm", packageAppKey: "crm" });
   });
 
-  it("rejects built-in and invalid installed identities", () => {
-    expect(
-      installedAppStorageIdentity({ installId: "site", packageAppKey: "site" }),
-    ).toBeUndefined();
+  it("rejects invalid installed identities", () => {
     expect(installedAppStorageIdentity({ installId: "Docs", packageAppKey: "site" })).toBe(
       undefined,
     );
@@ -76,7 +52,7 @@ describe("app storage identity", () => {
     });
   });
 
-  it("parses source schema-key and installed app API route identities", () => {
+  it("leaves built-in package API paths unclaimed", () => {
     expect(parseAuthorityApiRoute("/api/site/bootstrap")).toBeUndefined();
     expect(
       parseAuthorityApiRoute("/api/app-installs/site/personal/tree/blog%2Fpost"),

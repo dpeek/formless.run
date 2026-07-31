@@ -6,7 +6,11 @@ import {
   type SitePublicSystemStateRendererComponent,
   type SitePageLinkMode,
 } from "@dpeek/formless-site-app/public/react";
-import { appStorageIdentityForClientTarget, type ClientAppTarget } from "../client/app-target.ts";
+import {
+  appStorageIdentityForClientTarget,
+  programClientTarget,
+  type ClientAppTarget,
+} from "../client/app-target.ts";
 import { listenForClientEvents } from "../client/broadcast.ts";
 import { startPushSync } from "../client/sync.ts";
 import { runtimeTopologyRoutes } from "../shared/runtime-topology.ts";
@@ -65,7 +69,7 @@ function CoreSitePageRoute({
   linkMode = "preview",
   routeBase,
   slug,
-  target = "site",
+  target = programClientTarget(),
   workspaceRenderer,
 }: PublicSiteRouteProps) {
   const identity = appStorageIdentityForClientTarget(target);

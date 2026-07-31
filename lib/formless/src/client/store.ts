@@ -24,7 +24,6 @@ import type { FieldValue, StoredRecord } from "@dpeek/formless-storage";
 import type { BootstrapResponse, ChangeRow } from "../shared/protocol.ts";
 import type { QueryEvaluationContext, QueryExpression } from "@dpeek/formless-schema";
 import { resolveRecordFieldValue, type FieldRef } from "@dpeek/formless-schema";
-import type { SchemaKey } from "../shared/schema-apps.ts";
 import type { AggregateSchema, AppSchema, ComputedValueSchema } from "@dpeek/formless-schema";
 
 export type NormalizedClientState = {
@@ -90,10 +89,6 @@ export function selectClientStoreTarget(target: ClientAppTarget) {
   }
 
   setState(emptyClientState(clientTargetSourceSchemaKey(identity), identity.browserDatabaseName));
-}
-
-export function selectClientStoreSchemaKey(schemaKey: SchemaKey) {
-  selectClientStoreTarget(schemaKey);
 }
 
 export async function hydrateClientStore(target: ClientAppTarget) {

@@ -47,7 +47,7 @@ describe("public Site page route data loading", () => {
     expect(calls).toEqual([
       {
         body: undefined,
-        input: "/api/site/tree/blog%2Fshipping-schema-backed-authoring",
+        input: "/api/formless/program/tree/blog%2Fshipping-schema-backed-authoring",
         method: undefined,
         accept: "application/json",
         signal: undefined,
@@ -200,9 +200,9 @@ describe("public Site page route data loading", () => {
       }
 
       expect(fetchPaths).toEqual([
-        "/api/site/tree/home",
-        "/api/site/tree/home",
-        "/api/site/tree/home",
+        "/api/formless/program/tree/home",
+        "/api/formless/program/tree/home",
+        "/api/formless/program/tree/home",
       ]);
     },
   );

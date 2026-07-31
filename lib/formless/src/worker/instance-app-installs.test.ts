@@ -99,10 +99,10 @@ afterAll(async () => {
 });
 
 describe("instance app install API routes", () => {
-  it("lists only runtime-installable bundled packages and persists CRM installs", async () => {
+  it("lists a private runtime package and persists its install", async () => {
     const before = await getJson<AppInstallsResponse>("/api/formless/app-installs");
     const created = await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "crm",
       label: "CRM",
     });
@@ -111,19 +111,25 @@ describe("instance app install API routes", () => {
     const output = invocations[0]?.output;
     const affectedChangeIds = invocations[0]?.affectedChangeIds ?? [];
 
-    expect(before.body.packages).toEqual([
-      expect.objectContaining({
-        defaultInstallId: "crm",
-        label: "CRM",
-        packageAppKey: "crm",
-        packageRevision: 1,
-        sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
-        sourceSchemaLocation: {
-          kind: "bundled",
-          key: "crm",
-          path: "schema.json",
-        },
-      }),
+    expect(before.body.packages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          defaultInstallId: "crm",
+          label: "CRM",
+          packageAppKey: "test-crm",
+          packageRevision: 1,
+          sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
+          sourceSchemaLocation: {
+            kind: "workspace",
+            key: "test-crm",
+            path: "source/schema.json",
+          },
+        }),
+      ]),
+    );
+    expect(before.body.packages.map(({ packageAppKey }) => packageAppKey)).toEqual([
+      "test-tasks",
+      "test-crm",
     ]);
     expect(before.body.installs).toEqual([]);
     expect(before.response.headers.get("Cache-Control")).toBe("no-store");
@@ -131,14 +137,14 @@ describe("instance app install API routes", () => {
     expect(created.response.headers.get("Cache-Control")).toBe("no-store");
     expect(created.body.initialization).toEqual({
       installId: "crm",
-      packageAppKey: "crm",
-      sourceSchemaKey: "crm",
+      packageAppKey: "test-crm",
+      sourceSchemaKey: "test-crm",
     });
     expect(created.body.install).toMatchObject({
       adminRoute: "/apps/crm",
       installId: "crm",
       label: "CRM",
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       packageRevision: 1,
       registrationPolicy: "closed",
       sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
@@ -286,9 +292,10 @@ describe("instance app install API routes", () => {
     }
   });
 
-  it("does not let workspace package links reintroduce Tasks installation", async () => {
-    const sourceSchemaHash = await computeSourceSchemaHash(taskSourceSchema);
-    const linkedTasksHarness = await createWorkerHarness(
+  it("does not let workspace links reintroduce Program-native package installation", async () => {
+    const taskSourceSchemaHash = await computeSourceSchemaHash(taskSourceSchema);
+    const crmSourceSchemaHash = await computeSourceSchemaHash(crmSourceSchema);
+    const linkedProgramPackagesHarness = await createWorkerHarness(
       "src/worker/index.ts",
       {
         FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true },
@@ -302,9 +309,28 @@ describe("instance app install API routes", () => {
                 defaultInstallId: "tasks",
                 label: "Linked Tasks",
                 packageAppKey: "tasks",
-                sourceSchemaHash,
+                sourceSchemaHash: taskSourceSchemaHash,
               }),
               sourceSchema: taskSourceSchema,
+            },
+            {
+              manifest: workspaceAppPackageManifestFixture({
+                defaultInstallId: "crm",
+                label: "Linked CRM",
+                packageAppKey: "crm",
+                sourceSchemaHash: crmSourceSchemaHash,
+              }),
+              sourceSchema: crmSourceSchema,
+            },
+            {
+              manifest: workspaceAppPackageManifestFixture({
+                defaultInstallId: "private-crm",
+                label: "Aliased CRM",
+                packageAppKey: "private-crm",
+                sourceSchemaHash: crmSourceSchemaHash,
+                sourceSchemaKey: "crm",
+              }),
+              sourceSchema: crmSourceSchema,
             },
           ]),
         },
@@ -313,38 +339,46 @@ describe("instance app install API routes", () => {
 
     try {
       const registry = await getHarnessJson<AppInstallsResponse>(
-        linkedTasksHarness,
+        linkedProgramPackagesHarness,
         "/api/formless/app-installs",
       );
-      const created = await postHarnessAdminJson<AppInstallFailureResponse>(
-        linkedTasksHarness,
-        "/api/formless/app-installs",
-        {
-          packageAppKey: "tasks",
-          installId: "linked-tasks",
-          label: "Linked Tasks",
-        },
+      const created = await Promise.all(
+        ["tasks", "crm", "private-crm"].map((packageAppKey) =>
+          postHarnessAdminJson<AppInstallFailureResponse>(
+            linkedProgramPackagesHarness,
+            "/api/formless/app-installs",
+            {
+              packageAppKey,
+              installId: `linked-${packageAppKey}`,
+              label: `Linked ${packageAppKey}`,
+            },
+          ),
+        ),
       );
-      const direct = await linkedTasksHarness.fetch(
-        "/api/app-installs/tasks/linked-tasks/bootstrap",
+      const direct = await linkedProgramPackagesHarness.fetch(
+        "/api/app-installs/crm/linked-crm/bootstrap",
         { headers: adminHeaders() },
       );
 
-      expect(registry.body.packages.map((appPackage) => appPackage.packageAppKey)).toEqual(["crm"]);
-      expect(created.response.status).toBe(400);
-      expect(created.body).toMatchObject({
-        code: "unsupported-package",
-        field: "packageAppKey",
-      });
+      expect(registry.body.packages).toEqual([]);
+      expect(created.map(({ response }) => response.status)).toEqual([400, 400, 400]);
+      expect(created.map(({ body }) => body)).toEqual(
+        created.map(() =>
+          expect.objectContaining({
+            code: "unsupported-package",
+            field: "packageAppKey",
+          }),
+        ),
+      );
       expect(direct.status).toBe(404);
     } finally {
-      await linkedTasksHarness.dispose();
+      await linkedProgramPackagesHarness.dispose();
     }
   });
 
   it("accepts email-verified app install policy as flat install metadata", async () => {
     const created = await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "members",
       label: "Members",
       registrationPolicy: "email-verified",
@@ -400,7 +434,7 @@ describe("instance app install API routes", () => {
 
   it("accepts custom-operation app install metadata as a flat operation reference", async () => {
     const created = await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "members",
       label: "Members",
       registrationOperation: "profile.register",
@@ -443,13 +477,13 @@ describe("instance app install API routes", () => {
 
   it("rejects missing or extra custom registration operation metadata", async () => {
     const missing = await postAdminJson<AppInstallFailureResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "members",
       label: "Members",
       registrationPolicy: "custom-operation",
     });
     const extra = await postAdminJson<AppInstallFailureResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "tasks",
       label: "Tasks",
       registrationOperation: "profile.register",
@@ -476,7 +510,7 @@ describe("instance app install API routes", () => {
 
   it("derives app install API responses from control-plane install and route records", async () => {
     await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "personal",
       label: "Personal CRM",
     });
@@ -520,7 +554,7 @@ describe("instance app install API routes", () => {
         href: "/apps/personal-admin",
         installId: "personal",
         label: "Personal CRM",
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
         requiredRole: "app.admin",
         routeId: "route:personal:admin",
         routeKind: "admin",
@@ -544,7 +578,7 @@ describe("instance app install API routes", () => {
       },
     );
     const rejected = await postAdminJson<AppInstallFailureResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "personal",
       label: "Personal CRM",
     });
@@ -560,7 +594,7 @@ describe("instance app install API routes", () => {
 
   it("keeps installed app storage identity based on install id after route path edits", async () => {
     await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "personal",
       label: "Personal CRM",
     });
@@ -577,7 +611,9 @@ describe("instance app install API routes", () => {
     );
     const controlPlane = await getJson<BootstrapResponse>("/api/formless/program/bootstrap");
     const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const bootstrap = await getJson<BootstrapResponse>("/api/app-installs/crm/personal/bootstrap");
+    const bootstrap = await getJson<BootstrapResponse>(
+      "/api/app-installs/test-crm/personal/bootstrap",
+    );
 
     expect(routeEdit.response.status).toBe(200);
     expect(
@@ -592,8 +628,8 @@ describe("instance app install API routes", () => {
     expect(bootstrap.body.schema).toEqual(crmSourceSchema);
   });
 
-  it("rejects built-in Site and Tasks installs through create and generic writes", async () => {
-    for (const packageAppKey of ["site", "tasks"] as const) {
+  it("rejects Program-native installs through create and generic writes", async () => {
+    for (const packageAppKey of ["site", "tasks", "crm"] as const) {
       const created = await postAdminJson<AppInstallFailureResponse>("/api/formless/app-installs", {
         packageAppKey,
         installId: `empty-${packageAppKey}`,
@@ -635,60 +671,82 @@ describe("instance app install API routes", () => {
     }
   });
 
-  it("retains dormant Tasks metadata without projecting an installed runtime", async () => {
+  it("retains dormant Program-native metadata without projecting installed runtimes", async () => {
     const snapshot = instanceControlPlaneTestStorageSnapshot();
     const timestamp = "2026-07-31T00:00:00.000Z";
+    const dormantRecords = (["tasks", "site", "crm"] as const).flatMap(
+      (packageAppKey): StoredRecord[] => {
+        const installId = `legacy-${packageAppKey}`;
+
+        return [
+          {
+            createdAt: timestamp,
+            entity: "app-install",
+            id: installId,
+            updatedAt: timestamp,
+            values: {
+              installId,
+              label: `Legacy ${packageAppKey}`,
+              packageAppKey,
+              packageRevision: 1,
+              registrationPolicy: "closed",
+              sourceSchemaHash: bundledSourceSchemaHashFixtures[packageAppKey],
+              status: "installed",
+              storageIdentity: `app:${installId}`,
+            },
+          },
+          {
+            createdAt: timestamp,
+            entity: "route",
+            id: `route:${installId}:admin`,
+            updatedAt: timestamp,
+            values: {
+              access: "authenticated",
+              appInstall: installId,
+              enabled: true,
+              kind: "mount",
+              matchPath: `/apps/${installId}`,
+              matchPrefix: `/apps/${installId}/`,
+              requiredRole: "app.admin",
+              surface: "admin",
+              targetProfile: "app",
+            },
+          },
+        ];
+      },
+    );
 
     await restoreTestStorageSnapshot(
       harness,
       "/api/formless/program/snapshot/restore",
       {
         ...snapshot,
-        sourceCursor: 2,
-        records: [
-          {
-            createdAt: timestamp,
-            entity: "app-install",
-            id: "legacy-tasks",
-            updatedAt: timestamp,
-            values: {
-              installId: "legacy-tasks",
-              label: "Legacy Tasks",
-              packageAppKey: "tasks",
-              packageRevision: 1,
-              registrationPolicy: "closed",
-              sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
-              status: "installed",
-              storageIdentity: "app:legacy-tasks",
-            },
-          },
-          {
-            createdAt: timestamp,
-            entity: "route",
-            id: "route:legacy-tasks:admin",
-            updatedAt: timestamp,
-            values: {
-              access: "authenticated",
-              appInstall: "legacy-tasks",
-              enabled: true,
-              kind: "mount",
-              matchPath: "/apps/legacy-tasks",
-              matchPrefix: "/apps/legacy-tasks/",
-              requiredRole: "app.admin",
-              surface: "admin",
-              targetProfile: "app",
-            },
-          },
-        ],
+        sourceCursor: dormantRecords.length,
+        records: dormantRecords,
       },
       adminHeaders(),
     );
 
     const registry = await getJson<AppInstallsResponse>("/api/formless/app-installs");
     const program = await getJson<BootstrapResponse>("/api/formless/program/bootstrap");
-    const direct = await harness.fetch("/api/app-installs/tasks/legacy-tasks/bootstrap", {
+    const directResponses = await Promise.all(
+      (["tasks", "site", "crm"] as const).map((packageAppKey) =>
+        harness.fetch(`/api/app-installs/${packageAppKey}/legacy-${packageAppKey}/bootstrap`, {
+          headers: adminHeaders(),
+        }),
+      ),
+    );
+    const crmReset = await harness.fetch("/api/app-installs/crm/legacy-crm/reset/schema", {
       headers: adminHeaders(),
+      method: "POST",
     });
+    const crmMigration = await harness.fetch(
+      "/api/formless/app-installs/crm/legacy-crm/package-migrations/apply",
+      {
+        headers: adminHeaders(),
+        method: "POST",
+      },
+    );
 
     expect(registry.body.installs).toEqual([]);
     expect(registry.body.launchLinks).toEqual([]);
@@ -696,20 +754,26 @@ describe("instance app install API routes", () => {
       expect.arrayContaining([
         expect.objectContaining({ entity: "app-install", id: "legacy-tasks" }),
         expect.objectContaining({ entity: "route", id: "route:legacy-tasks:admin" }),
+        expect.objectContaining({ entity: "app-install", id: "legacy-site" }),
+        expect.objectContaining({ entity: "route", id: "route:legacy-site:admin" }),
+        expect.objectContaining({ entity: "app-install", id: "legacy-crm" }),
+        expect.objectContaining({ entity: "route", id: "route:legacy-crm:admin" }),
       ]),
     );
-    expect(direct.status).toBe(404);
+    expect(directResponses.map(({ status }) => status)).toEqual([404, 404, 404]);
+    expect(crmReset.status).toBe(404);
+    expect(crmMigration.status).toBe(404);
   });
 
   it("applies installed app package migrations through Authority and updates install facts", async () => {
     await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "migration-crm",
       label: "CRM",
     });
 
     const applied = await postAdminJson<PackageMigrationApplyResponse>(
-      "/api/formless/app-installs/crm/migration-crm/package-migrations/apply",
+      "/api/formless/app-installs/test-crm/migration-crm/package-migrations/apply",
       {},
     );
     const after = await getJson<AppInstallsResponse>("/api/formless/app-installs");
@@ -718,7 +782,7 @@ describe("instance app install API routes", () => {
     expect(applied.body).toMatchObject({
       applied: [],
       changes: [],
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       packageRevision: 1,
       skipped: [],
       sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
@@ -727,7 +791,7 @@ describe("instance app install API routes", () => {
     expect(applied.body.install).toEqual(
       expect.objectContaining({
         installId: "migration-crm",
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
         packageRevision: 1,
         sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
       }),
@@ -737,24 +801,26 @@ describe("instance app install API routes", () => {
 
   it("persists CRM installs and bootstraps empty storage from the bundled schema", async () => {
     const created = await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "empty-crm",
       label: "CRM",
     });
-    const bootstrap = await getJson<BootstrapResponse>("/api/app-installs/crm/empty-crm/bootstrap");
+    const bootstrap = await getJson<BootstrapResponse>(
+      "/api/app-installs/test-crm/empty-crm/bootstrap",
+    );
 
     expect(created.response.status).toBe(201);
     expect(created.body.initialization).toEqual({
       installId: "empty-crm",
-      packageAppKey: "crm",
-      sourceSchemaKey: "crm",
+      packageAppKey: "test-crm",
+      sourceSchemaKey: "test-crm",
     });
     expect(created.body.install).toEqual(
       expect.objectContaining({
         adminRoute: "/apps/empty-crm",
         installId: "empty-crm",
         label: "CRM",
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
         packageRevision: 1,
         sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
         status: "installed",
@@ -855,18 +921,18 @@ describe("instance app install API routes", () => {
 
   it("rejects duplicate and invalid installs without mutating existing installs", async () => {
     await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "personal",
       label: "Personal CRM",
     });
 
     const duplicate = await postAdminJson<AppInstallFailureResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "personal",
       label: "Personal Tasks",
     });
     const invalid = await postAdminJson<AppInstallFailureResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "Site",
       label: "Bad CRM",
     });
@@ -901,7 +967,7 @@ describe("instance app install API routes", () => {
   it("requires operational management authorization for install creation when configured", async () => {
     const rejected = await harness.fetch("/api/formless/app-installs", {
       body: JSON.stringify({
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
         installId: "personal",
         label: "Personal Site",
       }),
@@ -909,7 +975,7 @@ describe("instance app install API routes", () => {
       method: "POST",
     });
     const accepted = await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "personal",
       label: "Personal CRM",
     });
@@ -925,12 +991,12 @@ describe("instance app install API routes", () => {
 
   it("projects app install registry metadata through current management and app authority", async () => {
     await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "personal",
       label: "Personal CRM",
     });
     await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "work",
       label: "Work Tasks",
     });
@@ -960,7 +1026,7 @@ describe("instance app install API routes", () => {
     expect(programAdministratorRead).toEqual(admin.body);
     expect(personalAdminRead.installs.map((install) => install.installId)).toEqual(["personal"]);
     expect(personalAdminRead.packages.map((appPackage) => appPackage.packageAppKey)).toEqual([
-      "crm",
+      "test-crm",
     ]);
     expect(personalAdminRead.installs[0]?.routes).toEqual(
       expect.arrayContaining([
@@ -974,23 +1040,25 @@ describe("instance app install API routes", () => {
       true,
     );
     expect(workAdminRead.installs.map((install) => install.installId)).toEqual(["work"]);
-    expect(workAdminRead.packages.map((appPackage) => appPackage.packageAppKey)).toEqual(["crm"]);
+    expect(workAdminRead.packages.map((appPackage) => appPackage.packageAppKey)).toEqual([
+      "test-crm",
+    ]);
     expect(ordinaryRead).toEqual({ installs: [], launchLinks: [], packages: [] });
   });
 
   it("guards installed app management reads", async () => {
     await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       installId: "personal",
       label: "Personal CRM",
     });
 
-    const anonymousBootstrap = await harness.fetch("/api/app-installs/crm/personal/bootstrap");
+    const anonymousBootstrap = await harness.fetch("/api/app-installs/test-crm/personal/bootstrap");
     const adminBootstrap = await getJson<BootstrapResponse>(
-      "/api/app-installs/crm/personal/bootstrap",
+      "/api/app-installs/test-crm/personal/bootstrap",
     );
     const ownerBootstrap = await getOwnerJson<BootstrapResponse>(
-      "/api/app-installs/crm/personal/bootstrap",
+      "/api/app-installs/test-crm/personal/bootstrap",
     );
 
     expect(anonymousBootstrap.status).toBe(401);
@@ -1083,8 +1151,11 @@ async function resetWorkerState() {
     ),
     restoreTestStorageSnapshot(
       harness,
-      "/api/app-installs/crm/crm/snapshot/restore",
-      schemaAppTestStorageSnapshot("crm", "app:crm"),
+      "/api/app-installs/test-crm/crm/snapshot/restore",
+      {
+        ...schemaAppTestStorageSnapshot("crm", "app:crm"),
+        schemaKey: "test-crm",
+      },
       adminHeaders(),
     ),
   ]);

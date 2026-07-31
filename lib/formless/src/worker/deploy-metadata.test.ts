@@ -11,7 +11,6 @@ import {
   bundledAppPackageManifests,
   createAppPackageResolver,
 } from "../shared/app-packages.ts";
-import { bundledSourceSchemaHashFixtures } from "../shared/upgrade-migrations.ts";
 import { handleDeployMetadataRequest } from "./deploy-metadata.ts";
 
 const privateSourceSchemaHash =
@@ -33,13 +32,7 @@ describe("Worker deploy metadata", () => {
     expect(response?.headers.get("Cache-Control")).toBe("no-store");
     expect(response?.headers.get("Content-Type")).toBe("application/json; charset=utf-8");
     await expect(response?.json()).resolves.toEqual({
-      packageApps: [
-        {
-          packageAppKey: "crm",
-          packageRevision: 1,
-          sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
-        },
-      ],
+      packageApps: [],
       packageVersion: "0.1.7",
       runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
       storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,

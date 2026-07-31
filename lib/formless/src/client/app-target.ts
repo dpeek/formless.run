@@ -1,20 +1,19 @@
 import {
   programStorageIdentity,
-  schemaKeyStorageIdentity,
   type AppStorageIdentity,
   type ProgramStorageIdentity,
 } from "../shared/app-storage-identity.ts";
-import { findSchemaAppDefinition, type SchemaKey } from "../shared/schema-apps.ts";
+import { findSchemaAppDefinition } from "../shared/schema-apps.ts";
 import { FORMLESS_PROGRAM_SCHEMA_KEY } from "../program/target.ts";
 
 export type ClientAppSchemaKey = string;
 export type ClientAppStorageIdentity = AppStorageIdentity | ProgramStorageIdentity;
-export type ClientAppTarget = SchemaKey | ClientAppStorageIdentity;
+export type ClientAppTarget = ClientAppStorageIdentity;
 
 export function appStorageIdentityForClientTarget(
   target: ClientAppTarget,
 ): ClientAppStorageIdentity {
-  return typeof target === "string" ? schemaKeyStorageIdentity(target) : target;
+  return target;
 }
 
 export function clientTargetStorageName(target: ClientAppTarget): string {
@@ -41,16 +40,4 @@ export function clientSchemaKeyLabel(schemaKey: ClientAppSchemaKey): string {
 
 export function programClientTarget(): ProgramStorageIdentity {
   return programStorageIdentity();
-}
-
-export function clientTargetForSchemaKey(schemaKey: ClientAppSchemaKey): ClientAppTarget {
-  if (schemaKey === FORMLESS_PROGRAM_SCHEMA_KEY) {
-    return programClientTarget();
-  }
-
-  if (findSchemaAppDefinition(schemaKey)) {
-    return schemaKey as SchemaKey;
-  }
-
-  throw new Error(`No bundled client target for schema key "${schemaKey}".`);
 }

@@ -6,7 +6,6 @@ import {
   runtimeRoutePolicyForProfileKind,
 } from "../shared/runtime-topology.ts";
 import {
-  areSchemaKeyApiRoutesEnabledForRequest,
   isClientShellRoute,
   isDynamicSiteIconPath,
   mappedAuthOriginRouteDecisionFromFacts,
@@ -53,8 +52,6 @@ describe("Worker document routing", () => {
     expect(preview.routePolicy).toEqual({
       instanceBrowserRoutes: false,
       installedAppApiRoutes: true,
-      schemaKeyApiRoutes: true,
-      schemaKeyBrowserRoutes: false,
       workspaceGatewayApiRoutes: false,
     });
     expect(preview.clientShellRoute).toBe(true);
@@ -66,7 +63,6 @@ describe("Worker document routing", () => {
     expect(icon.dynamicSiteIconPath).toBe(true);
     expect(icon.staticAssetPath).toBe(true);
     expect(media.apiPath).toBe(true);
-    expect(media.routePolicy.schemaKeyApiRoutes).toBe(false);
   });
 
   it("lets Worker adapter helpers reuse precomputed request topology", () => {
@@ -122,7 +118,6 @@ describe("Worker document routing", () => {
       }),
     ).toEqual({
       blocksAuthOriginRoutes: true,
-      blocksSchemaKeyApiRoutes: true,
       mappedTargetProfile: "app",
       runtimeProfile: "app",
     });
@@ -133,7 +128,6 @@ describe("Worker document routing", () => {
       }),
     ).toEqual({
       blocksAuthOriginRoutes: true,
-      blocksSchemaKeyApiRoutes: true,
       mappedTargetProfile: "public-site",
       runtimeProfile: "instance",
     });
@@ -144,7 +138,6 @@ describe("Worker document routing", () => {
       }),
     ).toEqual({
       blocksAuthOriginRoutes: false,
-      blocksSchemaKeyApiRoutes: false,
       mappedTargetProfile: "instance",
       runtimeProfile: "instance",
     });
@@ -155,7 +148,6 @@ describe("Worker document routing", () => {
       }),
     ).toEqual({
       blocksAuthOriginRoutes: false,
-      blocksSchemaKeyApiRoutes: false,
       runtimeProfile: "dev",
     });
 
@@ -457,7 +449,7 @@ describe("Worker document routing", () => {
         documentRequest("http://example.com/crm/audiences"),
         instanceProfile,
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       shouldDeferToStaticAssets(documentRequest("http://example.com/site/schema"), instanceProfile),
     ).toBe(false);
@@ -658,8 +650,6 @@ describe("Worker document routing", () => {
       expect(workerRuntimeRoutePolicy({ profile: profileKind })).toEqual({
         instanceBrowserRoutes: sharedPolicy.instanceBrowserRoutes,
         installedAppApiRoutes: sharedPolicy.installedAppApiRoutes,
-        schemaKeyApiRoutes: sharedPolicy.schemaKeyApiRoutes,
-        schemaKeyBrowserRoutes: sharedPolicy.schemaKeyBrowserRoutes,
         workspaceGatewayApiRoutes: sharedPolicy.workspaceGatewayApiRoutes,
       });
     }
@@ -676,16 +666,6 @@ describe("Worker document routing", () => {
       instance: true,
       publishedSite: false,
     });
-    expect(
-      areSchemaKeyApiRoutesEnabledForRequest(
-        new Request("http://instance.example.com/api/site/bootstrap"),
-      ),
-    ).toBe(false);
-    expect(
-      areSchemaKeyApiRoutesEnabledForRequest(new Request("http://example.com/api/site/bootstrap"), {
-        profile: "dev",
-      }),
-    ).toBe(true);
   });
 
   it("lets explicit profile config override host-derived profile config", () => {
@@ -715,7 +695,6 @@ describe("Worker document routing", () => {
       documentRequest("http://example.com/formless/auth/callback"),
       documentRequest("http://example.com/pages/home"),
       documentRequest("http://example.com/tasks"),
-      documentRequest("http://example.com/crm/audiences"),
       documentRequest("http://example.com/schema"),
       documentRequest(`http://example.com${runtimeTopologyRoutes.authAccountSetupRoute}`),
       documentRequest(`http://example.com${runtimeTopologyRoutes.authAccountSignInRoute}`),
@@ -777,7 +756,6 @@ describe("Worker document routing", () => {
   it("blocks generated app paths from published document and static shell handling", () => {
     const generatedAppRequests = [
       documentRequest("http://example.com/tasks"),
-      documentRequest("http://example.com/crm/audiences"),
       documentRequest("http://example.com/schema"),
     ];
 
@@ -1039,7 +1017,7 @@ describe("Worker document routing", () => {
   it("recognizes generated app and preview route prefixes as client shell routes", () => {
     expect(isClientShellRoute("/pages/home")).toBe(true);
     expect(isClientShellRoute("/tasks")).toBe(true);
-    expect(isClientShellRoute("/crm/audiences")).toBe(true);
+    expect(isClientShellRoute("/crm/audiences")).toBe(false);
     expect(isClientShellRoute("/site/schema")).toBe(false);
     expect(isClientShellRoute("/apps/personal")).toBe(true);
     expect(isClientShellRoute("/sites/personal/blog")).toBe(true);

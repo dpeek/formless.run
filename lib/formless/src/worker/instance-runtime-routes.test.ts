@@ -4,15 +4,32 @@ import type { AppInstall } from "@dpeek/formless-installed-apps";
 import { instanceControlPlaneDefaultRoutesForInstall } from "@dpeek/formless-instance-control-plane";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { SchemaKey } from "../shared/schema-apps.ts";
+import { createAppPackageResolver } from "../shared/app-packages.ts";
 import { bundledSourceSchemaHashFixtures } from "../shared/upgrade-migrations.ts";
-import { resolveInstanceRuntimeRouteFromRecords } from "./instance-runtime-routes.ts";
+import { workspaceAppPackageManifestFixture } from "../test/workspace-app-package.ts";
+import { resolveInstanceRuntimeRouteFromRecords as resolveRuntimeRouteFromRecords } from "./instance-runtime-routes.ts";
+
+const packageResolver = createAppPackageResolver([
+  workspaceAppPackageManifestFixture({
+    defaultInstallId: "crm",
+    label: "CRM",
+    packageAppKey: "test-crm",
+    sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
+  }),
+]);
+
+function resolveInstanceRuntimeRouteFromRecords(
+  input: Omit<Parameters<typeof resolveRuntimeRouteFromRecords>[0], "packageResolver">,
+) {
+  return resolveRuntimeRouteFromRecords({ ...input, packageResolver });
+}
 
 describe("instance runtime route resolution", () => {
   it("resolves a generated installed-app admin route for its nested screens", () => {
-    const appInstalls = [appInstall("crm", "crm")];
+    const appInstalls = [appInstall("crm", "test-crm")];
     const records = instanceControlPlaneDefaultRoutesForInstall({
       installId: "crm",
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       now: "2026-06-02T00:00:00.000Z",
     });
 
@@ -31,7 +48,7 @@ describe("instance runtime route resolution", () => {
       target: {
         installId: "crm",
         kind: "appInstall",
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
       },
     });
   });
@@ -403,7 +420,7 @@ describe("instance runtime route resolution", () => {
         updatedAt: "2026-06-02T00:00:00.000Z",
       }),
     ];
-    const appInstalls = [appInstall("crm", "crm")];
+    const appInstalls = [appInstall("crm", "test-crm")];
 
     expect(
       resolveInstanceRuntimeRouteFromRecords({
@@ -416,7 +433,7 @@ describe("instance runtime route resolution", () => {
       id: "route:crm:admin",
       kind: "mount",
       surface: "admin",
-      target: { installId: "crm", kind: "appInstall", packageAppKey: "crm" },
+      target: { installId: "crm", kind: "appInstall", packageAppKey: "test-crm" },
       targetProfile: "app",
     });
     expect(
@@ -431,7 +448,7 @@ describe("instance runtime route resolution", () => {
       kind: "mount",
       requiredRole: "app.admin",
       surface: "admin",
-      target: { installId: "crm", kind: "appInstall", packageAppKey: "crm" },
+      target: { installId: "crm", kind: "appInstall", packageAppKey: "test-crm" },
       targetProfile: "app",
     });
     expect(
@@ -487,7 +504,7 @@ describe("instance runtime route resolution", () => {
   });
 
   it("derives default access and rejects app routes without an installed storage target", () => {
-    const appInstalls = [appInstall("crm", "crm")];
+    const appInstalls = [appInstall("crm", "test-crm")];
     const records = [
       routeRecord("crm-default-owner", {
         enabled: true,
@@ -544,7 +561,7 @@ describe("instance runtime route resolution", () => {
         authorityName: "app:crm",
         installId: "crm",
         kind: "appInstall",
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
       },
     });
     expect(
@@ -569,7 +586,7 @@ describe("instance runtime route resolution", () => {
   it("filters dormant Program-native package mounts before route ranking", () => {
     const dormantTasks = appInstall("tasks", "tasks");
     const dormantSite = appInstall("site", "site");
-    const crm = appInstall("crm", "crm");
+    const crm = appInstall("crm", "test-crm");
     const records = [
       routeRecord("dormant-tasks", {
         enabled: true,
@@ -613,7 +630,7 @@ describe("instance runtime route resolution", () => {
       id: "active-crm",
       target: {
         installId: "crm",
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
       },
     });
   });
@@ -629,7 +646,7 @@ function routeRecord(id: string, values: StoredRecord["values"]): StoredRecord {
   };
 }
 
-function appInstall(installId: string, packageAppKey: SchemaKey): AppInstall {
+function appInstall(installId: string, packageAppKey: SchemaKey | "test-crm"): AppInstall {
   return {
     adminRoute: `/apps/${installId}`,
     createdAt: "2026-06-02T00:00:00.000Z",
@@ -644,7 +661,10 @@ function appInstall(installId: string, packageAppKey: SchemaKey): AppInstall {
         }
       : {}),
     registrationPolicy: "closed",
-    sourceSchemaHash: bundledSourceSchemaHashFixtures[packageAppKey],
+    sourceSchemaHash:
+      packageAppKey === "test-crm"
+        ? bundledSourceSchemaHashFixtures.crm
+        : bundledSourceSchemaHashFixtures[packageAppKey],
     status: "installed",
     updatedAt: "2026-06-02T00:00:00.000Z",
   };

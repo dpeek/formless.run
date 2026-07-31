@@ -190,14 +190,14 @@ through an explicit actor policy and public binding.
 - AND public execution tests, fixtures, and response helpers use operation names
   consistently
 
-#### Scenario: Execute CRM public subscribe operation
+#### Scenario: Execute Program CRM public subscribe operation
 
-- GIVEN an installed CRM app declares `subscription.subscribe` as an anonymous
-  public command operation with the `subscribe` operation handler
+- GIVEN the Program declares `subscription.subscribe` as an anonymous public
+  command operation with the `subscribe` operation handler
 - WHEN a visitor posts valid subscribe input to
-  `/api/app-installs/crm/crm/public/operations/subscription/subscribe`
-- THEN the public operation executor commits the handler-planned CRM records to
-  the CRM install storage identity
+  `/api/formless/program/public/operations/subscription/subscribe`
+- THEN the public operation executor commits the handler-planned shared contact
+  subscription records to Program storage identity
 - AND the executor returns command-shaped public output without exposing the
   submitted email address, Turnstile proof, provider details, or protected
   internal storage state
@@ -217,19 +217,12 @@ operation endpoints.
 - THEN the runtime resolves the matching installed app storage identity
 - AND public operation effects are committed only to that app storage identity
 
-#### Scenario: Schema-key public operation route
-
-- GIVEN a visitor posts to `/api/:schemaKey/public/operations/:entityKey/:operationKey`
-- WHEN the route resolves
-- THEN the runtime resolves the matching schema-key storage identity
-- AND public operation effects are committed only to that schema-key storage identity
-
-#### Scenario: Program-native Site public operation route
+#### Scenario: Program-native Site and CRM public operation route
 
 - GIVEN a visitor posts to
   `/api/formless/program/public/operations/:entityKey/:operationKey`
-- WHEN the route resolves a package-owned Site operation with anonymous public
-  policy
+- WHEN the route resolves a package-owned Site or CRM operation with anonymous
+  public policy
 - THEN the dedicated public executor uses Program storage identity
   `instance:control-plane`
 - AND effects are committed through Program record validation and the Program
@@ -313,15 +306,15 @@ invocation envelope before validating input or committing effects.
 - AND source records are produced by operation-native create, record-plan, or
   operation handler execution
 
-#### Scenario: Program-native Site source context
+#### Scenario: Program-native Site and CRM source context
 
-- GIVEN a Program-native Site public operation commits records
+- GIVEN a Program-native Site or CRM public operation commits records
 - WHEN source context is recorded
-- THEN its source target kind is `program`, package app key is `site`, schema
-  key is `formless-program`, and API prefix is `/api/formless/program`
-- AND no source install id or legacy Site install provenance is recorded
-- AND installed CRM and other installed public-operation targets retain their
-  installed-app source identity
+- THEN its source target kind is `program`, schema key is `formless-program`,
+  and API prefix is `/api/formless/program`
+- AND no source install id or legacy Site or CRM install provenance is recorded
+- AND installed private public-operation targets retain their installed-app
+  source identity
 
 #### Scenario: Public operation contracts are operation-named
 

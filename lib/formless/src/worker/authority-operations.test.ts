@@ -3918,7 +3918,7 @@ async function writeAuthorityOperationHarness() {
     harnessPath,
     `
       import { DurableObject } from "cloudflare:workers";
-      import { schemaKeyStorageIdentity } from "${process.cwd()}/src/shared/app-storage-identity.ts";
+      import { installedAppStorageIdentity } from "${process.cwd()}/src/shared/app-storage-identity.ts";
       import {
         executeAuthorityOperation,
         selectAuthorityOperation,
@@ -3936,9 +3936,11 @@ async function writeAuthorityOperationHarness() {
         buildVerifiedPublicOperationInvocationEnvelope,
       } from "${process.cwd()}/src/worker/operation-invocation-envelopes.ts";
       import { executePublicOperationInvocationLifecycle } from "${process.cwd()}/src/worker/operation-invocation-lifecycle.ts";
-      import { workerSchemaAppDefinitions } from "${process.cwd()}/src/worker/schema-apps.ts";
       import { schemaAppTestRecords } from "${process.cwd()}/src/test/schema-app-records.ts";
-      import { taskSourceSchema } from "${process.cwd()}/src/test/schema-apps.ts";
+      import {
+        crmSourceSchema,
+        taskSourceSchema,
+      } from "${process.cwd()}/src/test/schema-apps.ts";
       import {
         ensureStorageTables,
         initializeStorageFromSource,
@@ -3964,7 +3966,9 @@ async function writeAuthorityOperationHarness() {
           const appKey = input.appKey ?? "tasks";
           const app = appKey === "tasks"
             ? { key: "tasks", sourceSchema: taskSourceSchema }
-            : workerSchemaAppDefinitions[appKey];
+            : appKey === "crm"
+              ? { key: "crm", sourceSchema: crmSourceSchema }
+              : undefined;
           const operation = selectAuthorityOperation({
             method: input.method,
             path: input.path,
@@ -3975,7 +3979,10 @@ async function writeAuthorityOperationHarness() {
             return Response.json({ error: "Unsupported operation.", writes: [] }, { status: 404 });
           }
 
-          const identity = input.identity ?? schemaKeyStorageIdentity(appKey);
+          const identity = input.identity ?? installedAppStorageIdentity({
+            installId: appKey,
+            packageAppKey: appKey,
+          });
           const records = schemaAppTestRecords(appKey);
           const source = {
             schema: app.sourceSchema,

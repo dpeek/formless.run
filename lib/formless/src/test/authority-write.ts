@@ -9,9 +9,8 @@ import type { ChangeRow } from "../shared/protocol.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import type { SchemaKey } from "../shared/schema-apps.ts";
 import type { createWorkerHarness } from "../worker/miniflare-test.ts";
-import { getWorkerSchemaAppDefinition } from "../worker/schema-apps.ts";
 import { schemaAppTestRecords } from "./schema-app-records.ts";
-import { siteSourceSchema, taskSourceSchema } from "./schema-apps.ts";
+import { crmSourceSchema, siteSourceSchema, taskSourceSchema } from "./schema-apps.ts";
 import { formlessProgramSchema } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
@@ -70,9 +69,7 @@ export function createAuthorityWriteHelpers(
 
     return schemaKey === "tasks"
       ? `/api/app-installs/${taskTestPackageAppKey}/${taskTestInstallId}${path.slice("/api".length)}`
-      : schemaKey === "site"
-        ? `/api/formless/program${path.slice("/api".length)}`
-        : `/api/${schemaKey}${path.slice("/api".length)}`;
+      : `/api/formless/program${path.slice("/api".length)}`;
   }
 
   function fetchAuthority(
@@ -94,28 +91,13 @@ export function createAuthorityWriteHelpers(
   }
 
   async function resetSchemaApp(schemaKey: SchemaKey) {
-    const schema =
-      schemaKey === "tasks"
-        ? taskSourceSchema
-        : schemaKey === "site"
-          ? formlessProgramSchema
-          : getWorkerSchemaAppDefinition(schemaKey).sourceSchema;
-
+    const schema = schemaKey === "tasks" ? taskSourceSchema : formlessProgramSchema;
     const snapshot = testStorageSnapshot({
       records: schemaAppTestRecords(schemaKey),
       schema,
-      schemaKey:
-        schemaKey === "tasks"
-          ? taskTestPackageAppKey
-          : schemaKey === "site"
-            ? FORMLESS_PROGRAM_SCHEMA_KEY
-            : schemaKey,
+      schemaKey: schemaKey === "tasks" ? taskTestPackageAppKey : FORMLESS_PROGRAM_SCHEMA_KEY,
       storageIdentity:
-        schemaKey === "tasks"
-          ? `app:${taskTestInstallId}`
-          : schemaKey === "site"
-            ? FORMLESS_PROGRAM_STORAGE_IDENTITY
-            : schemaKey,
+        schemaKey === "tasks" ? `app:${taskTestInstallId}` : FORMLESS_PROGRAM_STORAGE_IDENTITY,
     });
 
     await restoreTestStorageSnapshot(
@@ -309,7 +291,7 @@ export function schemaAppTestStorageSnapshot(
       ? taskSourceSchema
       : schemaKey === "site"
         ? siteSourceSchema
-        : getWorkerSchemaAppDefinition(schemaKey).sourceSchema;
+        : crmSourceSchema;
 
   return testStorageSnapshot({
     records: schemaAppTestRecords(schemaKey),

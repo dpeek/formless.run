@@ -14,33 +14,26 @@ apps read from or write through.
 
 The system SHALL isolate Authority storage by storage identity.
 
-#### Scenario: Schema-key app identity
-
-- GIVEN a remaining schema-key app such as `crm`
-- WHEN the app uses its schema-key API prefix
-- THEN committed records, changes, schema, and operation invocations belong to
-  the Authority for that schema key
-- AND writes for another schema key are not visible in this app storage identity
-
 #### Scenario: Installed app identity
 
 - GIVEN an installed app with an app install id
 - WHEN the app uses the installed app API prefix for its package app key and install id
 - THEN committed records, changes, schema, and operation invocations belong to
   `app:<installId>` storage
-- AND the installed app storage is separate from package-level schema-key storage
+- AND the installed app storage is separate from Program storage and other
+  installed app storage
 
 #### Scenario: Program identity
 
 - GIVEN the default Program storage is initialized
-- WHEN instance, identity, Task, or Site records are stored, snapshotted,
+- WHEN instance, identity, Task, Site, or CRM records are stored, snapshotted,
   restored, or synced
 - THEN committed records, changes, schema, and operation invocations belong to
   `instance:control-plane` storage
 - AND one active `formless-program` schema and one `program` provenance hash
   govern those records
-- AND CRM and runtime-installed private app records remain scoped to their app
-  storage identities
+- AND runtime-installed private app records remain scoped to their app storage
+  identities
 
 ### Requirement: Authority-Wide Record Identity
 
@@ -68,7 +61,8 @@ identity without deriving record identity from an entity key or entity id.
 
 ### Requirement: App Storage API
 
-The system SHALL expose app storage operations through schema-key and installed-app API prefixes.
+The system SHALL expose storage operations through Program and installed-app API
+prefixes.
 
 #### Scenario: Shared app API paths
 
@@ -77,13 +71,6 @@ The system SHALL expose app storage operations through schema-key and installed-
   sync, operations, or reset schema
 - THEN the system resolves the operation for that app storage identity
 - AND read and write responses use the same durable Authority state for that identity
-
-#### Scenario: Product instance route policy
-
-- GIVEN the product instance runtime profile blocks schema-key API routes
-- WHEN a client calls an installed app API route
-- THEN the installed app API route remains available
-- AND schema-key API routes remain blocked by the profile policy
 
 ### Requirement: Installed App Admin Data Authorization
 
@@ -973,8 +960,8 @@ The system MUST guard writes when owner or admin protection is configured and SH
 
 ### Requirement: Program Control-Plane Storage
 
-The system SHALL store runtime-owned instance, identity, singleton Tasks, and
-singleton Site records in one Program Authority storage identity separate from
+The system SHALL store runtime-owned instance, identity, singleton Tasks,
+singleton Site, and singleton CRM records in one Program Authority storage identity separate from
 remaining installed app data and private authentication state.
 
 #### Scenario: Program identity
@@ -986,10 +973,10 @@ remaining installed app data and private authentication state.
 - AND the active schema key is `formless-program`
 - AND schema provenance has kind `program` with the complete materialized
   Program source hash
-- AND instance, identity, Task, and Site records share one record-id namespace,
+- AND instance, identity, Task, Site, and CRM records share one record-id namespace,
   write log, cursor, snapshot boundary, and operation-invocation store
-- AND CRM and runtime-installed private app records remain scoped to their app
-  storage identities
+- AND runtime-installed private app records remain scoped to their app storage
+  identities
 - AND app install and route records remain metadata about installed apps, not
   the installed apps' own record storage
 - AND credentials, sessions, challenge secrets, token hashes, provider state,
@@ -1019,6 +1006,17 @@ remaining installed app data and private authentication state.
   browser replicas, or provenance from any legacy `app:<installId>` Site
   Authority
 
+#### Scenario: CRM starts in Program Authority
+
+- GIVEN the default Program schema contains the composed CRM domain
+- WHEN the first CRM record or CRM operation is committed
+- THEN it is written directly to storage identity `instance:control-plane`
+- AND the shared contact subscription entities use the existing Site stable
+  entity ids while CRM non-overlapping entities keep their package-owned ids
+- AND the runtime does not inspect, import, merge, or mutate records, cursors,
+  changes, operation invocations, archives, workspaces, browser replicas, or
+  provenance from any legacy `app:<installId>` CRM Authority
+
 #### Scenario: Program API
 
 - GIVEN a current Program member, editor, administrator, owner, CLI deployer,
@@ -1043,7 +1041,7 @@ remaining installed app data and private authentication state.
   the member requirement
 - AND valid admin bearer authorization remains an explicit trusted actor
   alternative where supported
-- AND the complete reviewable Program record set, including Task and Site
+- AND the complete reviewable Program record set, including Task, Site, and CRM
   records, is readable by every caller satisfying the member requirement
 - AND an unassigned authenticated principal or anonymous session cannot read
   the mixed Program record set
@@ -1069,8 +1067,7 @@ remaining installed app data and private authentication state.
   writes may require `administrator`, and security-sensitive writes may
   require the exact `owner` actor
 - AND Task create, update, and clear-completed operations require `editor`
-- AND ordinary Site update, block, block-placement, contact, email-address,
-  audience, and subscription authoring operations require `editor`
+- AND ordinary Site and CRM authoring operations require `editor`
 - AND Site anonymous public operations are evaluated only by the dedicated
   public executor and do not derive authority from Program replica admission
 - AND trusted runner, deployer, or admin-bearer channels satisfy an operation
@@ -1082,7 +1079,7 @@ remaining installed app data and private authentication state.
 
 #### Scenario: Remaining installed-app operations retain their boundary
 
-- GIVEN a CRM or another runtime-installable private app stores data in
+- GIVEN a runtime-installable private app stores data in
   `app:<installId>`
 - WHEN its entity operation is invoked
 - THEN the exact installed-app data admission and legacy operation actor policy
@@ -1110,7 +1107,7 @@ explicit package-owned constraint adapters.
 
 #### Scenario: Validate a mixed Program record set
 
-- GIVEN one Program record set contains instance, identity, Task, and Site
+- GIVEN one Program record set contains instance, identity, Task, Site, and CRM
   entities
 - WHEN bootstrap, source refresh, convergence, operation execution, snapshot
   restore, archive restore, or workspace validation runs
@@ -1222,17 +1219,18 @@ canonical provider state out of control-plane records and change rows.
 
 #### Scenario: Remaining installed app data is excluded
 
-- GIVEN CRM, private runtime-installable app, or dormant built-in Site install
-  metadata records are stored, synced, snapshotted, or exported as Program
-  records
-- WHEN installed app data exists for those installs
+- GIVEN private runtime-installable app metadata or dormant Tasks, Site, or CRM
+  install metadata records are stored, synced, snapshotted, or exported as
+  Program records
+- WHEN installed app data exists for a private runtime-installed app
 - THEN the installed app's records, changes, active schema, and operation
   handler execution state are not nested into control-plane records
 - AND app data continues to move through storage snapshots scoped to
   `app:<installId>` identities
-- AND singleton Task and Site records are Program records rather than installed
-  app data
-- AND dormant built-in Site storage is not read or nested into Program output
+- AND singleton Task, Site, and CRM records are Program records rather than
+  installed app data
+- AND dormant Tasks, Site, and CRM storage is not read or nested into Program
+  output
 
 #### Scenario: Provider truth remains external
 

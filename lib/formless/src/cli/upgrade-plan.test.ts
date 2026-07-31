@@ -282,7 +282,7 @@ describe("CLI upgrade planning package drift", () => {
     expect(report.plan.steps).toEqual([]);
   });
 
-  it("ignores dormant Site and Tasks package metadata", () => {
+  it("ignores dormant Program-native package metadata", () => {
     const report = buildCliUpgradePlanningReport({
       localPackageVersion: "0.1.9",
       status: upgradeStatus({
@@ -298,6 +298,12 @@ describe("CLI upgrade planning package drift", () => {
             packageAppKey: "tasks",
             packageRevision: 1,
             sourceSchemaHash: privateSourceSchemaHash,
+          },
+          {
+            installId: "crm",
+            packageAppKey: "crm",
+            packageRevision: 1,
+            sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
           },
         ],
       }),

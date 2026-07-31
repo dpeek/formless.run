@@ -18,6 +18,7 @@ import {
 import { selectTreeResultModel } from "../../client/tree-result-model.ts";
 import type { SubmitOperationOptions } from "../../client/sync.ts";
 import type { SyncStatus } from "../../client/sync-status.ts";
+import { programClientTarget } from "../../client/app-target.ts";
 import type {
   OperationInvocationRequest,
   OperationInvocationResponse,
@@ -50,7 +51,7 @@ describe("generated operation controls", () => {
     const controller = createGeneratedOperationController({
       bindings: [binding],
       submitAuthorityOperation: submit.submit,
-      target: "tasks",
+      target: programClientTarget(),
     });
     const statuses: SyncStatus[] = [];
 
@@ -68,7 +69,7 @@ describe("generated operation controls", () => {
         request: {
           source: { protocol: "generated-ui", surface: "button" },
         },
-        target: "tasks",
+        target: "formless:instance:control-plane",
       },
     ]);
     expect(result).toMatchObject({ type: "committed", affectedCount: 2 });
@@ -106,7 +107,7 @@ describe("generated operation controls", () => {
       submitAuthorityOperation: captureAuthoritySubmitter(
         operationResponse(commandOutput(["write-1"]), "replayed"),
       ).submit,
-      target: "tasks",
+      target: programClientTarget(),
     });
 
     await expect(
@@ -128,7 +129,7 @@ describe("generated operation controls", () => {
       submitAuthorityOperation: async () => {
         throw new Error("Operation endpoint unavailable.");
       },
-      target: "tasks",
+      target: programClientTarget(),
     });
 
     await expect(
@@ -174,7 +175,7 @@ describe("generated operation controls", () => {
     const controller = createGeneratedOperationController({
       bindings: [binding],
       submitAuthorityOperation: async () => submission,
-      target: "tasks",
+      target: programClientTarget(),
     });
     const pendingExecution = controller.execute({ bindingId: binding.id, source: "button" });
     let invokeCount = 0;
@@ -249,7 +250,7 @@ describe("generated operation controls", () => {
     const controller = createGeneratedOperationController({
       bindings: [binding],
       submitAuthorityOperation: submit.submit,
-      target: "site",
+      target: programClientTarget(),
     });
     const statuses: SyncStatus[] = [];
 
@@ -271,7 +272,7 @@ describe("generated operation controls", () => {
           recordId: "block-1",
           source: { protocol: "generated-ui", surface: "confirmationDialog" },
         },
-        target: "site",
+        target: "formless:instance:control-plane",
       },
     ]);
     expect(statuses).toEqual([
@@ -443,7 +444,7 @@ describe("generated operation controls", () => {
     const controller = createGeneratedOperationController({
       bindings: [binding],
       submitAuthorityOperation: submit.submit,
-      target: "tasks",
+      target: programClientTarget(),
     });
     const statuses: SyncStatus[] = [];
 
@@ -505,7 +506,7 @@ describe("generated operation controls", () => {
     const tableController = createGeneratedOperationController({
       bindings: [tableBinding],
       submitAuthorityOperation: tableSubmit.submit,
-      target: "tasks",
+      target: programClientTarget(),
     });
 
     await expect(
@@ -544,7 +545,7 @@ describe("generated operation controls", () => {
     const treeController = createGeneratedOperationController({
       bindings: [treeBinding],
       submitAuthorityOperation: treeSubmit.submit,
-      target: "site",
+      target: programClientTarget(),
     });
 
     await expect(
@@ -594,7 +595,7 @@ describe("generated operation controls", () => {
     const controller = createGeneratedOperationController({
       bindings: [binding],
       submitAuthorityOperation: submit.submit,
-      target: "site",
+      target: programClientTarget(),
     });
     const statuses: SyncStatus[] = [];
 
@@ -630,7 +631,7 @@ describe("generated operation controls", () => {
           recordId: "placement-1",
           source: { protocol: "generated-ui", surface: "button" },
         },
-        target: "site",
+        target: "formless:instance:control-plane",
       },
     ]);
     expect(statuses).toEqual([

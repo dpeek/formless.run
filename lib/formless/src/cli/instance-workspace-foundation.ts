@@ -16,12 +16,10 @@ import {
 } from "@dpeek/formless-workspace/node";
 import {
   bundledAppPackageManifests,
-  findResolvedAppPackage,
   runtimeInstallableAppPackageResolver,
   type AppPackageResolver,
 } from "../shared/app-packages.ts";
 import { formatRuntimeWorkspaceAppPackages } from "../shared/workspace-runtime-packages.ts";
-import { findWorkerSchemaAppDefinition } from "../worker/schema-apps.ts";
 
 export type ActiveWorkspaceAppPackages = WorkspaceAppPackageResolverResult;
 
@@ -188,12 +186,7 @@ export function workspaceSourceSchemaForPackageApp(input: {
     return linked.sourceSchema;
   }
 
-  const packageApp = findResolvedAppPackage(input.packageAppKey, input.activePackages.resolver);
-  const bundled = packageApp
-    ? findWorkerSchemaAppDefinition(packageApp.sourceSchemaKey)
-    : undefined;
-
-  return bundled?.sourceSchema;
+  return undefined;
 }
 
 export function workspaceSchemaProvenanceForPackageApp(

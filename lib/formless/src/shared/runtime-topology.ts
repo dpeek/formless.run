@@ -1,4 +1,3 @@
-import { schemaApps } from "./schema-apps.ts";
 import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
 
 export const runtimeProfileKinds = ["instance", "dev", "app", "publishedSite"] as const;
@@ -24,8 +23,6 @@ export type RuntimeTopologyRoutePolicy = {
   installedAppBrowserRoutes: boolean;
   installedSitePublicRoutes: boolean;
   accountSessionBrowserRoutes: boolean;
-  schemaKeyApiRoutes: boolean;
-  schemaKeyBrowserRoutes: boolean;
   workspaceGatewayApiRoutes: boolean;
 };
 
@@ -95,7 +92,6 @@ const clientRoutePrefixes = [
   runtimeTopologyRoutes.publicSitePreviewRouteBase,
   "/schema",
   runtimeTopologyRoutes.siteRouteBase,
-  ...schemaApps.map((app) => app.route),
 ] as const;
 const publishedProfileClientRoutePrefixes = [
   runtimeTopologyRoutes.appRouteBase,
@@ -222,8 +218,6 @@ export function runtimeRoutePolicyForProfileKind(
     installedAppBrowserRoutes: instanceBrowserRoutes,
     installedSitePublicRoutes: instanceBrowserRoutes,
     accountSessionBrowserRoutes: instanceBrowserRoutes || profileKind === "publishedSite",
-    schemaKeyApiRoutes: profileKind !== "instance",
-    schemaKeyBrowserRoutes: profileKind === "dev",
     workspaceGatewayApiRoutes,
   };
 }

@@ -974,7 +974,7 @@ describe("Authority record validation readers", () => {
       validateRecordWriteRequest(routeRequest("crm"), instanceControlPlaneSchema, reader, {
         additionalRecords: [appInstall("crm", "crm")],
       }),
-    ).toThrow(new BadRequestError('Package app "crm" does not support public Site routes.'));
+    ).toThrow(new BadRequestError('Route app install "crm" uses unsupported package.'));
   });
 
   it("maps every identity-reference resolver outcome for record writes", async () => {

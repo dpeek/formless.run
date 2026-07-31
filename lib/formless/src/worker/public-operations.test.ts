@@ -146,7 +146,6 @@ describe("public operation runtime", () => {
     expect(records.subscriptions).toHaveLength(1);
     expect(records.subscriptions[0]?.values).toMatchObject({
       sourceTargetKind: "program",
-      sourcePackageAppKey: "site",
       sourceSchemaKey: "formless-program",
       sourceApiRoutePrefix: FORMLESS_PROGRAM_API_ROUTE_PREFIX,
       sourceOperationKey: "subscription.subscribe",
@@ -164,7 +163,7 @@ describe("public operation runtime", () => {
     ]);
   });
 
-  it("executes schema-key public subscribe operations without opening generic writes", async () => {
+  it("executes Program public subscribe operations without opening generic writes", async () => {
     const before = await getJson<BootstrapResponse>("/api/formless/program/bootstrap");
     const retiredRecordWriteRoute = await harness.fetch("/api/formless/program/mutations", {
       body: "{}",
@@ -198,15 +197,20 @@ describe("public operation runtime", () => {
     expect(records.subscriptions).toHaveLength(1);
     expect(records.contacts[0]?.values).toEqual({
       label: "ada@example.com",
+      lifecycle: "lead",
+      source: "owner",
     });
     expect(records.emailAddresses[0]?.values).toEqual({
       contact: records.contacts[0]?.id,
       address: "ada@example.com",
       normalizedAddress: "ada@example.com",
+      status: "active",
+      primary: true,
     });
     expect(records.audiences[0]?.values).toEqual({
       key: "default",
       label: "Default audience",
+      status: "active",
     });
     expect(records.subscriptions[0]?.values).toMatchObject({
       emailAddress: records.emailAddresses[0]?.id,
@@ -214,7 +218,6 @@ describe("public operation runtime", () => {
       status: "subscribed",
       sourceKind: "publicOperation",
       sourceTargetKind: "program",
-      sourcePackageAppKey: "site",
       sourceSchemaKey: "formless-program",
       sourceApiRoutePrefix: "/api/formless/program",
       sourceOperationKey: "subscription.subscribe",
@@ -264,7 +267,7 @@ describe("public operation runtime", () => {
     ]);
   });
 
-  it("wires schema-key public create operations to committed records", async () => {
+  it("wires Program public create operations to committed records", async () => {
     const before = await getJson<BootstrapResponse>("/api/formless/program/bootstrap");
     const accepted = await postPublicOperation(
       "/api/formless/program/public/operations/contact-message/submit",

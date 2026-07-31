@@ -7,7 +7,6 @@ import {
   authorizeOwnerManagementRead,
   authorizeProgramAccess,
 } from "./authority-admin-guard.ts";
-import { selectAuthorityOperation } from "./authority-operations.ts";
 import { handleClientAssetRequest, handleClientShellDocumentRequest } from "./client-shell.ts";
 import { handleDeployMetadataRequest } from "./deploy-metadata.ts";
 import {
@@ -71,7 +70,6 @@ import {
   runtimeTopologyRoutes,
 } from "../shared/runtime-topology.ts";
 import {
-  areSchemaKeyApiRoutesEnabledForRequest,
   mappedAuthOriginRouteDecisionFromFacts,
   mappedRuntimeRoutePolicyFromFacts,
   mappedSiteHostRedirectForRequest,
@@ -536,14 +534,6 @@ export default {
       });
       const hostSessionTarget = installedAppRouteAccess.target;
 
-      if (
-        authorityRoute.identity.kind === "schemaKey" &&
-        (mappedRoutePolicy.blocksSchemaKeyApiRoutes ||
-          !areSchemaKeyApiRoutesEnabledForRequest(request, requestTopology))
-      ) {
-        return Response.json({ error: "Not found." }, { status: 404 });
-      }
-
       const routeAccessAuthorization = await authorizeInstalledAppRouteAccess(
         request,
         env,
@@ -971,17 +961,7 @@ function authOriginLocationForRequest(authOrigin: string, request: Request): str
 }
 
 function isInstalledAppManagementApiRead(request: Request, path: `/${string}`): boolean {
-  const operation = selectAuthorityOperation({
-    method: request.method,
-    path,
-    searchParams: new URL(request.url).searchParams,
-  });
-
-  if (operation?.metadata.mode === "read") {
-    return operation.kind === "exportSnapshot";
-  }
-
-  return false;
+  return request.method === "GET" && path === "/snapshot";
 }
 
 async function authorizeInstalledAppRouteAccess(

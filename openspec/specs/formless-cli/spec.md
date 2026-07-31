@@ -591,9 +591,9 @@ optional first app install, credential setup, and push operations.
   linked packages declared in `formless.ts` `packages.links` when present
 - **AND** installable package lists shown before the workspace has installed
   apps come from that active resolver
-- **AND** Program-native package keys `tasks` and `site` are excluded from the
-  installable resolver even when their standalone package manifests are bundled
-  or linked
+- **AND** Program-native package keys `tasks`, `site`, and `crm` are excluded
+  from the installable resolver even when their standalone package manifests
+  are bundled or linked
 - **AND** first-run local runtime state starts from workspace storage snapshots
   and media payloads when present
 - **AND** the browser can complete onboarding before any Cloudflare deploy
@@ -733,9 +733,9 @@ snapshots and media payloads.
 - **THEN** active runtime-installable app records, media payloads, and
   schema-owned Program state are written to deterministic workspace storage
   snapshots
-- **AND** Task and Site records are written through the Program snapshot in
-  `state/instance.json`
-- **AND** dormant Tasks or built-in Site install metadata does not produce
+- **AND** Task, Site, and CRM records are written through the Program snapshot
+  in `state/instance.json`
+- **AND** dormant Tasks, Site, or CRM install metadata does not produce
   `state/apps/<installId>.json`
 - **AND** browser IndexedDB state is not used as the source of truth
 - **AND** secrets are not written to `formless.ts`, storage snapshots, or
@@ -745,13 +745,13 @@ snapshots and media payloads.
 
 - **WHEN** CLI archive, workspace, package upgrade, reset, deploy, or source
   synchronization selects runtime-installed apps
-- **THEN** it does not select package key `tasks` or `site` as an installed app
+- **THEN** it does not select package key `tasks`, `site`, or `crm` as an installed app
   target
 - **AND** it does not read, write, reset, migrate, import, or export a legacy
-  Tasks or built-in Site Authority
-- **AND** Task and Site data participates only through the complete Program
+  Tasks, Site, or CRM Authority
+- **AND** Task, Site, and CRM data participates only through the complete Program
   snapshot and Program source hash
-- **AND** CRM and workspace-linked private package workflows remain unchanged
+- **AND** workspace-linked private package workflows remain unchanged
 
 #### Scenario: Auto-save local workspace state
 

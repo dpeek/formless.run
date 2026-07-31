@@ -413,7 +413,7 @@ function formatUpgradeStorageIdentity(identity: UpgradeStorageIdentity): string 
     return `${identity.packageAppKey}/${identity.installId}`;
   }
 
-  return identity.sourceSchemaKey;
+  throw new Error("Unsupported upgrade storage identity.");
 }
 
 function compactEvidenceLine(parts: readonly (string | null)[]): string {

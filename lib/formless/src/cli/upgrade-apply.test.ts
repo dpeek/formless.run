@@ -19,7 +19,7 @@ import { bundledAppPackageResolver } from "../shared/app-packages.ts";
 const checksum = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
 
 describe("CLI upgrade apply evidence gates", () => {
-  it("does not apply package migrations to dormant Tasks installs", async () => {
+  it("does not apply package migrations to dormant Program-native installs", async () => {
     const requests: string[] = [];
     const result = await applyCliAutoSafeUpgradeMigrations(
       {
@@ -73,6 +73,30 @@ describe("CLI upgrade apply evidence gates", () => {
                   status: "installed",
                   updatedAt: "2026-05-28T00:00:00.000Z",
                 },
+                {
+                  adminRoute: "/apps/legacy-site",
+                  createdAt: "2026-05-28T00:00:00.000Z",
+                  installId: "legacy-site",
+                  label: "Legacy Site",
+                  packageAppKey: "site",
+                  packageRevision: 1,
+                  registrationPolicy: "closed",
+                  sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
+                  status: "installed",
+                  updatedAt: "2026-05-28T00:00:00.000Z",
+                },
+                {
+                  adminRoute: "/apps/legacy-crm",
+                  createdAt: "2026-05-28T00:00:00.000Z",
+                  installId: "legacy-crm",
+                  label: "Legacy CRM",
+                  packageAppKey: "crm",
+                  packageRevision: 1,
+                  registrationPolicy: "closed",
+                  sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
+                  status: "installed",
+                  updatedAt: "2026-05-28T00:00:00.000Z",
+                },
               ],
               packages: [],
             });
@@ -95,6 +119,12 @@ describe("CLI upgrade apply evidence gates", () => {
     expect(result.planning.status.installedApps).toEqual([]);
     expect(requests).not.toContain(
       "POST /api/formless/app-installs/tasks/legacy-tasks/package-migrations/apply",
+    );
+    expect(requests).not.toContain(
+      "POST /api/formless/app-installs/site/legacy-site/package-migrations/apply",
+    );
+    expect(requests).not.toContain(
+      "POST /api/formless/app-installs/crm/legacy-crm/package-migrations/apply",
     );
   });
 

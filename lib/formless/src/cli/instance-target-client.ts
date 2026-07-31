@@ -332,12 +332,15 @@ function targetUpgradeStatus(input: {
   packageResolver?: AppPackageResolver;
 }): FormlessInstanceTargetUpgradeStatus {
   const localPackages = listResolvedAppPackages(input.packageResolver).map(packageUpgradeFacts);
-  const installedApps = input.appRegistry.installs.map(installedAppUpgradeFacts);
+  const installedApps = input.appRegistry.installs
+    .filter(({ packageAppKey }) => input.packageResolver?.findPackage(packageAppKey) !== undefined)
+    .map(installedAppUpgradeFacts);
   const verificationFailures = upgradeVerificationFailures({
     appRegistryFactPresence: input.appRegistryFactPresence,
     deployMetadata: input.deployMetadata,
     deployMetadataFactPresence: input.deployMetadataFactPresence,
     deploymentStatusRequested: input.deploymentStatusRequested,
+    installedApps,
     localPackages,
     ...(input.deployment === undefined ? {} : { deployment: input.deployment }),
   });
@@ -379,11 +382,12 @@ function upgradeVerificationFailures(input: {
   deployMetadataFactPresence: FormlessInstanceDeployMetadataFactPresence;
   deployment?: InstanceDeploymentStatusResponse;
   deploymentStatusRequested: boolean;
+  installedApps: FormlessInstanceTargetInstalledAppUpgradeFacts[];
   localPackages: FormlessInstanceTargetLocalPackageUpgradeFacts[];
 }): FormlessInstanceTargetUpgradeVerificationFailure[] {
   const failures: FormlessInstanceTargetUpgradeVerificationFailure[] = [];
 
-  if (input.localPackages.length === 0) {
+  if (input.localPackages.length === 0 && input.installedApps.length > 0) {
     failures.push({
       code: "local-package-facts-missing",
       message: "Local package metadata is missing package facts.",

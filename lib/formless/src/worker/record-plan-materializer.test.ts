@@ -10,7 +10,7 @@ import {
   type RecordPlanEntityOperationEffectSchema,
 } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
-import { schemaKeyStorageIdentity } from "../shared/app-storage-identity.ts";
+import { programStorageIdentity } from "../shared/app-storage-identity.ts";
 import type {
   OperationCommandOutput,
   OperationInvocationEnvelope,
@@ -765,7 +765,7 @@ function operationEnvelope(
 ): OperationInvocationEnvelope {
   return {
     invocationId: input.operationId,
-    appStorageIdentity: schemaKeyStorageIdentity("tasks"),
+    appStorageIdentity: programStorageIdentity(),
     actor: input.actor ?? { kind: "owner" },
     source: {
       protocol: "generated-ui",

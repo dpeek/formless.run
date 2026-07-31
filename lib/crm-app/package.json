@@ -13,21 +13,35 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./schema": "./src/schema.ts",
     "./formless.app.json": "./formless.app.json",
     "./schema.json": "./schema.json"
   },
   "publishConfig": {
-    "access": "public",
     "exports": {
       ".": {
         "types": "./dist/index.d.mts",
         "import": "./dist/index.mjs"
       },
+      "./schema": {
+        "types": "./dist/schema.d.mts",
+        "import": "./dist/schema.mjs"
+      },
       "./formless.app.json": "./formless.app.json",
       "./schema.json": "./schema.json"
-    }
+    },
+    "access": "public"
   },
   "scripts": {
-    "pack": "vp pack src/index.ts"
+    "check": "vp check --fix && vp test --configLoader runner",
+    "schema:materialize": "bun run scripts/materialize-schema.ts",
+    "pack": "vp pack src/index.ts src/schema.ts"
+  },
+  "dependencies": {
+    "@dpeek/formless-schema": "workspace:*",
+    "@dpeek/formless-storage": "workspace:*"
+  },
+  "devDependencies": {
+    "@dpeek/formless-installed-apps": "workspace:*"
   }
 }

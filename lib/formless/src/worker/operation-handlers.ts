@@ -1346,7 +1346,6 @@ function subscribeSourceValues(envelope: OperationInvocationEnvelope): RecordVal
   const values: RecordValues = {
     sourceKind: "publicOperation",
     sourceTargetKind: identity.kind,
-    sourcePackageAppKey: identity.kind === "program" ? "site" : identity.packageAppKey,
     sourceSchemaKey: identity.kind === "program" ? identity.schemaKey : identity.sourceSchemaKey,
     sourceApiRoutePrefix: identity.apiRoutePrefix,
     sourceOperationKey: envelope.operation.canonicalKey,
@@ -1355,6 +1354,7 @@ function subscribeSourceValues(envelope: OperationInvocationEnvelope): RecordVal
   };
 
   if (identity.kind === "appInstall") {
+    values.sourcePackageAppKey = identity.packageAppKey;
     values.sourceInstallId = identity.installId;
   }
 

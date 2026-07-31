@@ -7,7 +7,6 @@ import type {
 } from "../shared/protocol.ts";
 import { nowIsoString } from "../shared/clock.ts";
 import { appStorageIdentityForClientTarget, type ClientAppTarget } from "./app-target.ts";
-import { schemaApps } from "../shared/schema-apps.ts";
 
 const DB_VERSION = 2;
 
@@ -24,9 +23,6 @@ const FORMLESS_REPLICA_DB_PREFIX = "formless:";
 const FORMLESS_INSTALLED_APP_REPLICA_DB_PREFIX = `${FORMLESS_REPLICA_DB_PREFIX}app:`;
 const FORMLESS_INSTANCE_CONTROL_PLANE_REPLICA_DB = `${FORMLESS_REPLICA_DB_PREFIX}instance:control-plane`;
 const LEGACY_IDENTITY_CONTROL_PLANE_REPLICA_DB = `${FORMLESS_REPLICA_DB_PREFIX}instance:identity`;
-const SCHEMA_KEY_REPLICA_DB_NAMES = new Set(
-  schemaApps.map((app) => `${FORMLESS_REPLICA_DB_PREFIX}${app.key}`),
-);
 
 export type LocalSnapshot = {
   schema: AppSchema | null;
@@ -283,7 +279,6 @@ export function isFormlessReplicaDatabaseName(name: string): boolean {
   return (
     name === LEGACY_IDENTITY_CONTROL_PLANE_REPLICA_DB ||
     name === FORMLESS_INSTANCE_CONTROL_PLANE_REPLICA_DB ||
-    SCHEMA_KEY_REPLICA_DB_NAMES.has(name) ||
     (name.startsWith(FORMLESS_INSTALLED_APP_REPLICA_DB_PREFIX) &&
       name.length > FORMLESS_INSTALLED_APP_REPLICA_DB_PREFIX.length)
   );

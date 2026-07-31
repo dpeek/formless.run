@@ -88,7 +88,7 @@ type HomeRouteProps = {
   sectionExternalActions?: Readonly<
     Record<string, readonly GeneratedWorkspaceSectionExternalAction[] | undefined>
   >;
-  target?: ClientAppTarget;
+  target: ClientAppTarget;
   schemaKey: ClientAppSchemaKey;
   screenPath: string;
   workspaceActions?: readonly WorkspaceLinkActionContract[];

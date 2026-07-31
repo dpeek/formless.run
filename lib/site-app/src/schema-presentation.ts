@@ -284,38 +284,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
               commit: "field-commit",
             },
             {
-              field: "operationTargetKind",
-              editor: "enum",
-              commit: "immediate",
-            },
-            {
-              field: "operationTargetSchemaKey",
-              editor: "text",
-              commit: "field-commit",
-              visibleWhen: {
-                field: "operationTargetKind",
-                values: ["schemaKey"],
-              },
-            },
-            {
-              field: "operationTargetPackageAppKey",
-              editor: "text",
-              commit: "field-commit",
-              visibleWhen: {
-                field: "operationTargetKind",
-                values: ["appInstall"],
-              },
-            },
-            {
-              field: "operationTargetInstallId",
-              editor: "text",
-              commit: "field-commit",
-              visibleWhen: {
-                field: "operationTargetKind",
-                values: ["appInstall"],
-              },
-            },
-            {
               field: "buttonLabel",
               editor: "text",
               commit: "field-commit",
@@ -376,15 +344,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
               field: "operationTargetKind",
               editor: "enum",
               commit: "immediate",
-            },
-            {
-              field: "operationTargetSchemaKey",
-              editor: "text",
-              commit: "field-commit",
-              visibleWhen: {
-                field: "operationTargetKind",
-                values: ["schemaKey"],
-              },
             },
             {
               field: "operationTargetPackageAppKey",
@@ -668,38 +627,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
               commit: "field-commit",
             },
             {
-              field: "operationTargetKind",
-              editor: "enum",
-              commit: "immediate",
-            },
-            {
-              field: "operationTargetSchemaKey",
-              editor: "text",
-              commit: "field-commit",
-              visibleWhen: {
-                field: "operationTargetKind",
-                values: ["schemaKey"],
-              },
-            },
-            {
-              field: "operationTargetPackageAppKey",
-              editor: "text",
-              commit: "field-commit",
-              visibleWhen: {
-                field: "operationTargetKind",
-                values: ["appInstall"],
-              },
-            },
-            {
-              field: "operationTargetInstallId",
-              editor: "text",
-              commit: "field-commit",
-              visibleWhen: {
-                field: "operationTargetKind",
-                values: ["appInstall"],
-              },
-            },
-            {
               field: "buttonLabel",
               editor: "text",
               commit: "field-commit",
@@ -760,15 +687,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
               field: "operationTargetKind",
               editor: "enum",
               commit: "immediate",
-            },
-            {
-              field: "operationTargetSchemaKey",
-              editor: "text",
-              commit: "field-commit",
-              visibleWhen: {
-                field: "operationTargetKind",
-                values: ["schemaKey"],
-              },
             },
             {
               field: "operationTargetPackageAppKey",
@@ -1773,34 +1691,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
               editor: "text",
             },
             {
-              field: "operationTargetKind",
-              editor: "enum",
-            },
-            {
-              field: "operationTargetSchemaKey",
-              editor: "text",
-              visibleWhen: {
-                field: "operationTargetKind",
-                values: ["schemaKey"],
-              },
-            },
-            {
-              field: "operationTargetPackageAppKey",
-              editor: "text",
-              visibleWhen: {
-                field: "operationTargetKind",
-                values: ["appInstall"],
-              },
-            },
-            {
-              field: "operationTargetInstallId",
-              editor: "text",
-              visibleWhen: {
-                field: "operationTargetKind",
-                values: ["appInstall"],
-              },
-            },
-            {
               field: "buttonLabel",
               editor: "text",
             },
@@ -1851,14 +1741,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "operationTargetKind",
               editor: "enum",
-            },
-            {
-              field: "operationTargetSchemaKey",
-              editor: "text",
-              visibleWhen: {
-                field: "operationTargetKind",
-                values: ["schemaKey"],
-              },
             },
             {
               field: "operationTargetPackageAppKey",
@@ -2234,38 +2116,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
               commit: "field-commit",
             },
             {
-              field: "operationTargetKind",
-              editor: "enum",
-              commit: "immediate",
-            },
-            {
-              field: "operationTargetSchemaKey",
-              editor: "text",
-              commit: "field-commit",
-              visibleWhen: {
-                field: "operationTargetKind",
-                values: ["schemaKey"],
-              },
-            },
-            {
-              field: "operationTargetPackageAppKey",
-              editor: "text",
-              commit: "field-commit",
-              visibleWhen: {
-                field: "operationTargetKind",
-                values: ["appInstall"],
-              },
-            },
-            {
-              field: "operationTargetInstallId",
-              editor: "text",
-              commit: "field-commit",
-              visibleWhen: {
-                field: "operationTargetKind",
-                values: ["appInstall"],
-              },
-            },
-            {
               field: "buttonLabel",
               editor: "text",
               commit: "field-commit",
@@ -2326,15 +2176,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
               field: "operationTargetKind",
               editor: "enum",
               commit: "immediate",
-            },
-            {
-              field: "operationTargetSchemaKey",
-              editor: "text",
-              commit: "field-commit",
-              visibleWhen: {
-                field: "operationTargetKind",
-                values: ["schemaKey"],
-              },
             },
             {
               field: "operationTargetPackageAppKey",

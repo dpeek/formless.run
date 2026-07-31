@@ -2,169 +2,131 @@
 
 ## Purpose
 
-The CRM app defines the bundled customer relationship source app used for
-contacts, audiences, campaigns, broadcasts, and generated CRM admin workflows.
-It is an in-repo app package, not root runtime source data.
+CRM is a package-owned customer relationship domain composed into the default
+Program. It supplies portable standalone schema artifacts and CRM presentation
+declarations, but it is not a runtime-installable app or schema-key source app.
 
 ## Requirements
 
-### Requirement: CRM App Package Source
+### Requirement: CRM Package Schema Source
 
-The system SHALL provide CRM as a bundled in-repo app package that owns its
-manifest and source schema.
+The system SHALL provide CRM as an in-repo package with TypeScript-authoritative
+record, presentation, and complete standalone schema modules.
 
-#### Scenario: CRM package scaffold
+#### Scenario: CRM package artifacts
 
-- **GIVEN** the bundled CRM app package is present
-- **WHEN** package source files are inspected
-- **THEN** CRM source data lives under `lib/crm-app/`
-- **AND** the package contains `formless.app.json`, `schema.json`, package-local
-  `AGENTS.md`, `package.json`, `tsconfig.json`, and root `src/` exports
-- **AND** root runtime does not keep a duplicate CRM source schema under
-  `schema/apps/crm`
+- **GIVEN** the CRM package is present
+- **WHEN** package source and published exports are inspected
+- **THEN** it exposes a documented `./schema` subpath with CRM record,
+  presentation, and complete standalone source modules
+- **AND** `schema.json` is deterministically materialized portable schema data
+  with a matching manifest source hash
+- **AND** runtime code can consume the data artifact without evaluating the
+  TypeScript authoring module
+- **AND** the package does not own Program storage, routes, replicas, or app
+  install identity
 
-#### Scenario: CRM package manifest
+### Requirement: Program-Native CRM Domain
 
-- **GIVEN** bundled app package manifests are composed
-- **WHEN** the CRM package manifest is parsed
-- **THEN** it declares package app key `crm`, label `CRM`, default install id
-  `crm`, bundled source schema key `crm`, and generated admin capability
-- **AND** it does not declare public Site capability
-- **AND** package metadata comes from the CRM package manifest rather than
-  synthetic root runtime metadata
+The default Program SHALL compose one CRM domain into Program Authority from
+first use.
 
-### Requirement: CRM Source App
+#### Scenario: CRM storage and identity
 
-The system SHALL provide a bundled `crm` source app schema for audience and CRM
-workflows.
+- **GIVEN** a CRM record or operation is selected in the default product
+- **WHEN** it is read or written
+- **THEN** it uses Program storage identity `instance:control-plane`, schema
+  key `formless-program`, and the complete Program schema hash
+- **AND** CRM shares the Program record-id namespace, write log, cursor,
+  snapshot, archive, workspace, replica, broadcast channel, and WebSocket
+- **AND** no CRM install-scoped Authority, API, browser database, broadcast
+  channel, archive, workspace snapshot, or source-schema route exists
+- **AND** legacy CRM install metadata may remain dormant but is never selected
+  for routing, storage, archive, reset, migration, or synchronization
 
-#### Scenario: Load CRM source schema
+#### Scenario: CRM Program screens and ordinary access
 
-- **GIVEN** the runtime resolves bundled source app key `crm`
-- **WHEN** the source schema is loaded
-- **THEN** the app schema is available for schema key `crm`
-- **AND** the schema parses through the normal app schema parser
-- **AND** the app label is `CRM`
+- **GIVEN** a principal has the Program `member` role
+- **WHEN** it navigates CRM generated screens at `/crm`, `/crm/audiences`,
+  `/crm/campaigns`, or `/crm/broadcasts`
+- **THEN** the Program owns navigation and screen paths
+- **AND** ordinary CRM create and update operations require Program `editor`
+- **AND** every authenticated Program member receives the complete Program
+  replica; screen access does not create CRM-scoped replica admission
 
-### Requirement: Flat CRM Data Model
+### Requirement: Shared Contact Subscription Domain
 
-The CRM source schema SHALL model CRM state as flat entity records with reference fields, relationships, and join records.
+The Program SHALL use one flat contact, email-address, audience, and
+subscription declaration set for Site and CRM workflows.
 
-#### Scenario: Contact and audience records stay flat
+#### Scenario: Stable entity identity
 
-- **WHEN** CRM contact, email address, company, audience, and subscription records are stored
-- **THEN** each record stores only scalar and reference field values
-- **AND** contact-company, email-address-contact, and subscription membership links are represented by reference fields
-- **AND** no nested contact, company, audience, or subscription objects are persisted
+- **GIVEN** the complete Program schema is composed
+- **WHEN** it contains contact subscription entities
+- **THEN** `contact`, `email-address`, `audience`, and `subscription` retain
+  their existing Program-native Site stable entity ids
+- **AND** CRM enriches them with its company, lifecycle, source, status,
+  description, notes, and consent fields without creating same-key entities
+- **AND** CRM company, campaign, campaign-message, broadcast,
+  broadcast-recipient, and delivery-event declarations remain package-owned
+- **AND** stored records stay flat and references model relationships
+- **AND** no composite record identity or qualified stored record id is used
 
-#### Scenario: Campaign and broadcast records stay flat
+#### Scenario: One subscription operation
 
-- **WHEN** CRM campaign, campaign-message, broadcast, broadcast-recipient, and delivery-event records are stored
-- **THEN** each record stores only scalar and reference field values
-- **AND** campaign-message, broadcast target, broadcast-recipient, and delivery-event links are represented by reference fields
-- **AND** no nested recipient or delivery event arrays are persisted on campaign or broadcast records
+- **GIVEN** a Site subscribe block or CRM public subscriber flow is projected
+- **WHEN** it invokes `subscription.subscribe`
+- **THEN** one anonymous Turnstile- and same-origin-protected Program operation
+  upserts the shared contact, normalized email-address, default audience, and
+  subscription records
+- **AND** Site subscriber and CRM audience screens are separate presentations
+  of those records
+- **AND** a Site subscribe block does not select a CRM install id or another
+  Authority after both domains share Program storage
 
-#### Scenario: CRM membership identity
+### Requirement: CRM Public Subscribe Boundary
 
-- **WHEN** CRM email address and subscription records are created or updated
-- **THEN** normalized email address is unique within the app storage identity
-- **AND** the email-address and audience pair is unique within the app storage identity
+CRM public subscribe SHALL execute only through the narrow Program public
+operation route.
 
-#### Scenario: CRM subscription consent source
+#### Scenario: Program CRM subscribe
 
-- **WHEN** CRM subscription records are created by a public subscribe operation
-- **THEN** the subscription records the source kind, target app storage identity,
-  canonical operation key, request host, request path, and Site block id when
-  supplied
-- **AND** raw visitor IP address and user-agent values are not required CRM
-  subscription fields
+- **WHEN** a visitor posts valid input to
+  `/api/formless/program/public/operations/subscription/subscribe`
+- **THEN** the Program public executor commits the shared records through
+  Program validation and the Program write log
+- **AND** the response remains command-shaped and does not expose subscriber
+  values, challenge proof, protected storage, or provider details
+- **AND** provenance records Program target kind, schema key, API prefix,
+  canonical operation, host, path, and Site block id when supplied, with no
+  source install id
+- **AND** anonymous callers receive no Program bootstrap, schema, snapshot,
+  generic operation, sync, WebSocket, or replica access
 
-### Requirement: Generated CRM Admin Workflows
+### Requirement: CRM Runtime Availability
 
-The CRM source schema SHALL define generated screens and views for owner review and maintenance of CRM records.
+CRM SHALL not be bundled runtime-installable or source-routable.
 
-#### Scenario: Review contacts and companies
+#### Scenario: Removed CRM install and source surfaces
 
-- **WHEN** the CRM generated admin surface renders
-- **THEN** the owner can inspect and create contacts, email addresses, and companies
-- **AND** contact views expose company and email-address relationships through generated reference fields or related collections
+- **WHEN** runtime availability, routing, package resolution, archive, reset,
+  workspace, deploy, drift, upgrade, or CLI target selection runs
+- **THEN** CRM is absent from bundled runtime-installable packages and from
+  schema-key/source-app registries
+- **AND** `/crm`, `/api/crm`, `/apps/crm`, and installed CRM API routes are not
+  current runtime surfaces
+- **AND** the runtime does not discover, merge, import, reset, or clean up
+  legacy CRM records, cursors, changes, operation histories, archives,
+  workspaces, browser replicas, or provenance
 
-#### Scenario: Review audiences and subscriptions
+### Requirement: CRM Delivery Scope
 
-- **WHEN** the CRM generated admin surface renders
-- **THEN** the owner can inspect audiences, email addresses, subscriptions, subscription status, and consent/source fields
-- **AND** the owner can create audiences and owner-managed subscription records through generated create views
-
-#### Scenario: Review campaigns and broadcasts
-
-- **WHEN** the CRM generated admin surface renders
-- **THEN** the owner can inspect campaigns, campaign messages, broadcasts, broadcast recipients, and delivery events
-- **AND** broadcast review surfaces show recipient and delivery status without requiring queued email sending
-
-### Requirement: CRM Public Subscribe Operation
-
-CRM SHALL expose a public subscribe operation that writes CRM contact,
-email-address, audience, and subscription records in the target CRM app storage
-identity.
-
-#### Scenario: CRM subscribe operation declaration
-
-- **GIVEN** the bundled CRM source schema is parsed
-- **WHEN** public operations are selected
-- **THEN** `subscription.subscribe` is an anonymous Turnstile-protected command
-  operation
-- **AND** the operation uses the `subscribe` operation handler
-- **AND** the operation input accepts a required public `email` field
-
-#### Scenario: CRM public subscribe route
-
-- **GIVEN** a CRM app install exists with install id `crm`
-- **WHEN** a visitor posts valid public subscribe input to
-  `/api/app-installs/crm/crm/public/operations/subscription/subscribe`
-- **THEN** the runtime creates or reuses a CRM contact record
-- **AND** creates or reuses a CRM email-address record with a normalized address
-- **AND** creates or reuses a default CRM audience record
-- **AND** creates or updates one CRM subscription record with status
-  `subscribed`
-- **AND** the public response is command-shaped and does not expose protected
-  storage, challenge, or provider details
-
-#### Scenario: CRM duplicate and resubscribe behavior
-
-- **GIVEN** a CRM email address is already subscribed to the target audience
-- **WHEN** the same visitor subscribes again
-- **THEN** CRM keeps one email-address record and one subscription record for
-  that email-address audience pair
-- **AND** the operation returns a successful subscribed outcome
-
-- **GIVEN** a CRM subscription is `unsubscribed`
-- **WHEN** the visitor subscribes again with that email address
-- **THEN** the existing CRM subscription is updated to `subscribed`
-- **AND** the consent timestamp and source context are refreshed
-
-### Requirement: CRM Subscribe Boundaries
-
-CRM SHALL own public subscribe writes for CRM records when CRM public routes are
-targeted without retiring Site-owned subscriber behavior or adding email
-delivery in this slice.
-
-#### Scenario: Site subscribe targets CRM explicitly
-
-- **GIVEN** Site subscribe forms, Site-owned subscriber records, and an installed
-  CRM app exist
-- **WHEN** a Site `subscribeForm` block explicitly targets the installed CRM app
-  and the visitor submits the projected form
-- **THEN** the submission posts to the CRM public subscribe route and writes CRM
-  contact, email-address, audience, and subscription records in the CRM app
-  storage identity
-- **AND** Site subscribe forms without an explicit CRM target continue to target
-  the existing Site subscribe behavior
-- **AND** a CRM-targeted Site subscribe form does not write Site-owned
-  subscriber records
+CRM record storage SHALL not itself schedule email delivery.
 
 #### Scenario: No email queue execution
 
-- **WHEN** CRM public subscribe, campaign, broadcast, recipient, or
-  delivery-event records are stored
-- **THEN** no queued email sending job is scheduled by this change
-- **AND** delivery-event records are review data, not provider execution evidence from a new sending runtime
+- **WHEN** CRM subscription, campaign, broadcast, recipient, or delivery-event
+  records are stored
+- **THEN** no queued email sending job is introduced
+- **AND** delivery-event records remain review data rather than provider
+  execution evidence

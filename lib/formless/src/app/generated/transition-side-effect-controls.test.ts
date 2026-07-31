@@ -11,6 +11,7 @@ import type {
   OperationInvocationResponse,
 } from "../../shared/operation-invocation.ts";
 import type { ChangeRow } from "../../shared/protocol.ts";
+import { programClientTarget } from "../../client/app-target.ts";
 import {
   executeGeneratedTableRuntimeOperation,
   selectGeneratedWorkspaceTableFoundation,
@@ -171,7 +172,7 @@ describe("generated transition side-effect controls", () => {
     const rowController = createGeneratedOperationController({
       bindings: [rowTransition.binding],
       submitAuthorityOperation: rowSubmit.submit,
-      target: "tasks",
+      target: programClientTarget(),
     });
 
     await expect(
@@ -190,7 +191,7 @@ describe("generated transition side-effect controls", () => {
           recordId: "intake-pending",
           source: { protocol: "generated-ui", surface: "menuItem" },
         },
-        target: "tasks",
+        target: "formless:instance:control-plane",
       },
     ]);
 
@@ -198,7 +199,7 @@ describe("generated transition side-effect controls", () => {
     const detailController = createGeneratedOperationController({
       bindings: [detailTransition.binding],
       submitAuthorityOperation: detailSubmit.submit,
-      target: "tasks",
+      target: programClientTarget(),
     });
 
     await expect(
@@ -224,7 +225,7 @@ describe("generated transition side-effect controls", () => {
           recordId: "intake-pending",
           source: { protocol: "generated-ui", surface: "button" },
         },
-        target: "tasks",
+        target: "formless:instance:control-plane",
       },
     ]);
   });

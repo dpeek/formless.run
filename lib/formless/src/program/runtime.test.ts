@@ -7,6 +7,7 @@ import {
   INSTANCE_ARCHIVE_KIND,
   parseInstanceArchive,
 } from "@dpeek/formless-archive";
+import { crmOwnedProgramEntityIds } from "@dpeek/formless-crm-app";
 import { computeSourceSchemaHash } from "@dpeek/formless-installed-apps";
 import { identityControlPlaneEntityIds } from "@dpeek/formless-identity-control-plane";
 import { instanceControlPlaneEntityIds } from "@dpeek/formless-instance-control-plane";
@@ -50,7 +51,7 @@ describe("Formless Program runtime contracts", () => {
     expect(await computeSourceSchemaHash(rawFormlessProgramSchema)).toBe(
       FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
     );
-    expect(formlessProgramSchema.entities).toHaveLength(27);
+    expect(formlessProgramSchema.entities).toHaveLength(33);
     expect(formlessProgramSchemaProvenance).toEqual({
       kind: "program",
       sourceSchemaHash: FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
@@ -68,6 +69,7 @@ describe("Formless Program runtime contracts", () => {
   it("materializes explicit access for every current Program operation", () => {
     const identityEntityIds = new Set(identityControlPlaneEntityIds);
     const instanceEntityIds = new Set(instanceControlPlaneEntityIds);
+    const crmEntityIds = new Set<string>(crmOwnedProgramEntityIds);
     const siteStableEntityIds = new Set<string>(siteEntityIds);
     const taskEntityIds = new Set<string>(tasksEntityIds);
 
@@ -76,7 +78,8 @@ describe("Formless Program runtime contracts", () => {
         identityEntityIds.has(entity.id) ||
           instanceEntityIds.has(entity.id) ||
           taskEntityIds.has(entity.id) ||
-          siteStableEntityIds.has(entity.id),
+          siteStableEntityIds.has(entity.id) ||
+          crmEntityIds.has(entity.id),
         entity.key,
       ).toBe(true);
 
@@ -98,7 +101,11 @@ describe("Formless Program runtime contracts", () => {
 
         expect(operation.access, operationName).toBeDefined();
 
-        if (taskEntityIds.has(entity.id) || siteStableEntityIds.has(entity.id)) {
+        if (
+          taskEntityIds.has(entity.id) ||
+          siteStableEntityIds.has(entity.id) ||
+          crmEntityIds.has(entity.id)
+        ) {
           expect(operation.access).toEqual({ role: "editor" });
         } else if (identityEntityIds.has(entity.id)) {
           expect(operation.access).toEqual({ actor: "owner" });
@@ -140,6 +147,18 @@ describe("Formless Program runtime contracts", () => {
       label: "Settings",
       path: "/site/settings",
     });
+    expect(resolveFormlessProgramScreenRouteTarget("/crm")).toEqual({
+      access: { role: "member" },
+      key: "contacts",
+      label: "Contacts",
+      path: "/crm",
+    });
+    expect(resolveFormlessProgramScreenRouteTarget("/crm/broadcasts")).toEqual({
+      access: { role: "member" },
+      key: "broadcasts",
+      label: "Broadcasts",
+      path: "/crm/broadcasts",
+    });
     expect(resolveFormlessProgramScreenRouteTarget("/pages")).toBeUndefined();
     expect(resolveFormlessProgramScreenRouteTarget("/unknown")).toBeUndefined();
 
@@ -158,6 +177,10 @@ describe("Formless Program runtime contracts", () => {
       ...programRecords(),
       taskRecord("task:active", { title: "Active", done: false, priority: "high" }),
       testSiteRecord("site"),
+      storedRecord("company:formless", "company", {
+        name: "Formless",
+        status: "customer",
+      }),
     ];
 
     expect(() => validateFormlessProgramRecords("Program records", records)).not.toThrow();
@@ -247,6 +270,32 @@ describe("Formless Program runtime contracts", () => {
     expect(canonicalizeFormlessProgramStorageSnapshot(canonical)).toEqual(canonical);
   });
 
+  it("retains active and tombstoned CRM records in the Program snapshot", () => {
+    const active = testCrmCompanyRecord("company:program-native", "Program Native");
+    const tombstone = {
+      ...testCrmCompanyRecord("company:program-native-deleted", "Program Native Deleted"),
+      deletedAt: "2026-07-31T01:00:00.000Z",
+    };
+    const canonical = canonicalizeFormlessProgramStorageSnapshot(
+      programSnapshot([tombstone, ...programRecords(), active]),
+    );
+    const canonicalCrmRecords = canonical.records.filter(({ entity }) => entity === "company");
+
+    expect(canonical.storageIdentity).toBe(FORMLESS_PROGRAM_STORAGE_IDENTITY);
+    expect(canonical.schemaKey).toBe(FORMLESS_PROGRAM_SCHEMA_KEY);
+    expect(
+      canonicalCrmRecords.map(({ id, entity, deletedAt }) => ({
+        deletedAt,
+        entity,
+        id,
+      })),
+    ).toEqual([
+      { deletedAt: undefined, entity: "company", id: active.id },
+      { deletedAt: tombstone.deletedAt, entity: "company", id: tombstone.id },
+    ]);
+    expect(canonicalizeFormlessProgramStorageSnapshot(canonical)).toEqual(canonical);
+  });
+
   it("excludes private state and formats one mixed snapshot deterministically", () => {
     const records = programRecords();
     const snapshot = programSnapshot([...records].reverse());
@@ -294,18 +343,20 @@ describe("Formless Program runtime contracts", () => {
     expect(parseInstanceArchive(archive, options).controlPlane?.schemaKey).toBe(
       FORMLESS_PROGRAM_SCHEMA_KEY,
     );
-    expect(() =>
-      parseInstanceArchive(
-        {
-          ...archive,
-          controlPlane: {
-            ...archive.controlPlane,
-            schemaKey: "instance-control-plane",
+    for (const schemaKey of ["instance-control-plane", "crm"]) {
+      expect(() =>
+        parseInstanceArchive(
+          {
+            ...archive,
+            controlPlane: {
+              ...archive.controlPlane,
+              schemaKey,
+            },
           },
-        },
-        options,
-      ),
-    ).toThrow(`schemaKey must be "${FORMLESS_PROGRAM_SCHEMA_KEY}"`);
+          options,
+        ),
+      ).toThrow(`schemaKey must be "${FORMLESS_PROGRAM_SCHEMA_KEY}"`);
+    }
   });
 
   it("writes and reads only the current Program workspace state shape", async () => {
@@ -428,4 +479,17 @@ function testSiteRecord(entity: "block" | "site"): StoredRecord {
   }
 
   return structuredClone(record);
+}
+
+function testCrmCompanyRecord(id: string, name: string): StoredRecord {
+  return {
+    createdAt: now,
+    entity: "company",
+    id,
+    updatedAt: now,
+    values: {
+      name,
+      status: "prospect",
+    },
+  };
 }

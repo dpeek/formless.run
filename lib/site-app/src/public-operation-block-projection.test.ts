@@ -68,7 +68,7 @@ describe("site public operation block projection", () => {
     expect(contact.warnings).toEqual([]);
   });
 
-  it("projects installed CRM subscribe targets without generic field facts", () => {
+  it("keeps subscribe forms on the local operation", () => {
     const requests: SitePublicOperationTargetRequest[] = [];
     const result = projectRecord(
       blockRecord("rec_site_block_crm_subscribe", {
@@ -88,25 +88,13 @@ describe("site public operation block projection", () => {
       },
     );
 
-    expect(requests).toEqual([
-      {
-        kind: "appInstall",
-        packageAppKey: "crm",
-        installId: "crm",
-      },
-    ]);
+    expect(requests).toEqual([]);
     expect(result.publicOperation).toEqual({
       entityName: "subscription",
       operationName: "subscribe",
       canonicalKey: "subscription.subscribe",
       kind: "command",
-      target: {
-        kind: "appInstall",
-        packageAppKey: "crm",
-        installId: "crm",
-        apiRoutePrefix: "/api/app-installs/crm/crm",
-      },
-      route: "/api/app-installs/crm/crm/public/operations/subscription/subscribe",
+      route: "/api/formless/program/public/operations/subscription/subscribe",
       challenge: {
         kind: "turnstile",
         siteKey: "public-site-key",
@@ -116,14 +104,15 @@ describe("site public operation block projection", () => {
     expect(result.warnings).toEqual([]);
   });
 
-  it("projects generic schema-key public operation targets with public-safe field facts", () => {
+  it("projects generic installed-app public operation targets with public-safe field facts", () => {
     const requests: SitePublicOperationTargetRequest[] = [];
     const result = projectRecord(
       blockRecord("rec_site_block_public_intake", {
         type: "publicOperationForm",
         label: "Request a test",
-        operationTargetKind: "schemaKey",
-        operationTargetSchemaKey: "tasks",
+        operationTargetKind: "appInstall",
+        operationTargetPackageAppKey: "tasks",
+        operationTargetInstallId: "requests",
         operationKey: "request.submit",
       }),
       {
@@ -135,18 +124,21 @@ describe("site public operation block projection", () => {
       },
     );
 
-    expect(requests).toEqual([{ kind: "schemaKey", schemaKey: "tasks" }]);
+    expect(requests).toEqual([
+      { kind: "appInstall", packageAppKey: "tasks", installId: "requests" },
+    ]);
     expect(result.publicOperation).toEqual({
       entityName: "request",
       operationName: "submit",
       canonicalKey: "request.submit",
       kind: "create",
       target: {
-        kind: "schemaKey",
-        schemaKey: "tasks",
-        apiRoutePrefix: "/api/tasks",
+        kind: "appInstall",
+        packageAppKey: "tasks",
+        installId: "requests",
+        apiRoutePrefix: "/api/app-installs/tasks/requests",
       },
-      route: "/api/tasks/public/operations/request/submit",
+      route: "/api/app-installs/tasks/requests/public/operations/request/submit",
       challenge: {
         kind: "turnstile",
         siteKey: "public-site-key",
@@ -226,8 +218,9 @@ describe("site public operation block projection", () => {
       blockRecord("rec_site_block_certificate_lookup", {
         type: "publicOperationForm",
         label: "Verify certificate",
-        operationTargetKind: "schemaKey",
-        operationTargetSchemaKey: "verifi",
+        operationTargetKind: "appInstall",
+        operationTargetPackageAppKey: "verifi",
+        operationTargetInstallId: "certificates",
         operationKey: "certificate.lookup",
       }),
       {
@@ -243,11 +236,12 @@ describe("site public operation block projection", () => {
       canonicalKey: "certificate.lookup",
       kind: "list",
       target: {
-        kind: "schemaKey",
-        schemaKey: "verifi",
-        apiRoutePrefix: "/api/verifi",
+        kind: "appInstall",
+        packageAppKey: "verifi",
+        installId: "certificates",
+        apiRoutePrefix: "/api/app-installs/verifi/certificates",
       },
-      route: "/api/verifi/public/operations/certificate/lookup",
+      route: "/api/app-installs/verifi/certificates/public/operations/certificate/lookup",
       fields: [
         {
           name: "lookup",
@@ -370,8 +364,9 @@ describe("site public operation block projection", () => {
       blockRecord("rec_site_block_public_intake", {
         type: "publicOperationForm",
         label: "Request a test",
-        operationTargetKind: "schemaKey",
-        operationTargetSchemaKey: "tasks",
+        operationTargetKind: "appInstall",
+        operationTargetPackageAppKey: "tasks",
+        operationTargetInstallId: "requests",
         operationKey: "request.submit",
       }),
       {
@@ -403,38 +398,11 @@ describe("site public operation block projection", () => {
   });
 
   it("warns when fixed and generic targets are missing or unavailable", () => {
-    const missingCrmTarget = projectRecord(
-      blockRecord("rec_site_block_missing_crm_target", {
-        type: "subscribeForm",
-        label: "Missing CRM target",
-        operationName: "subscribe",
-        operationTargetKind: "appInstall",
-        operationTargetPackageAppKey: "crm",
-      }),
-      {
-        publicOperationTargetResolver: publicOperationTargetResolver({}),
-        turnstileSiteKey: "public-site-key",
-      },
-    );
-    const unavailableCrmTarget = projectRecord(
-      blockRecord("rec_site_block_unavailable_crm_target", {
-        type: "subscribeForm",
-        label: "Unavailable CRM target",
-        operationName: "subscribe",
-        operationTargetKind: "appInstall",
-        operationTargetPackageAppKey: "crm",
-        operationTargetInstallId: "missing",
-      }),
-      {
-        publicOperationTargetResolver: publicOperationTargetResolver({}),
-        turnstileSiteKey: "public-site-key",
-      },
-    );
     const missingGenericTarget = projectRecord(
       blockRecord("rec_site_block_missing_target_intake", {
         type: "publicOperationForm",
         label: "Missing target",
-        operationTargetKind: "schemaKey",
+        operationTargetKind: "appInstall",
         operationKey: "request.submit",
       }),
       {
@@ -446,8 +414,9 @@ describe("site public operation block projection", () => {
       blockRecord("rec_site_block_unavailable_target_intake", {
         type: "publicOperationForm",
         label: "Unavailable target",
-        operationTargetKind: "schemaKey",
-        operationTargetSchemaKey: "missing",
+        operationTargetKind: "appInstall",
+        operationTargetPackageAppKey: "missing",
+        operationTargetInstallId: "missing",
         operationKey: "request.submit",
       }),
       {
@@ -456,25 +425,10 @@ describe("site public operation block projection", () => {
       },
     );
 
-    expect(missingCrmTarget.publicOperation).toBeUndefined();
-    expect(unavailableCrmTarget.publicOperation).toBeUndefined();
     expect(missingGenericTarget.publicOperation).toBeUndefined();
     expect(unavailableGenericTarget.publicOperation).toBeUndefined();
-    expect([
-      ...missingCrmTarget.warnings,
-      ...unavailableCrmTarget.warnings,
-      ...missingGenericTarget.warnings,
-      ...unavailableGenericTarget.warnings,
-    ]).toEqual(
+    expect([...missingGenericTarget.warnings, ...unavailableGenericTarget.warnings]).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          code: "missing-public-operation-target",
-          recordId: "rec_site_block_missing_crm_target",
-        }),
-        expect.objectContaining({
-          code: "invalid-public-operation-target",
-          recordId: "rec_site_block_unavailable_crm_target",
-        }),
         expect.objectContaining({
           code: "missing-public-operation-target",
           recordId: "rec_site_block_missing_target_intake",
@@ -524,8 +478,9 @@ describe("site public operation block projection", () => {
       blockRecord("rec_site_block_missing_public_intake", {
         type: "publicOperationForm",
         label: "Missing public intake",
-        operationTargetKind: "schemaKey",
-        operationTargetSchemaKey: "tasks",
+        operationTargetKind: "appInstall",
+        operationTargetPackageAppKey: "tasks",
+        operationTargetInstallId: "requests",
         operationKey: "request.missing",
       }),
       {
@@ -539,8 +494,9 @@ describe("site public operation block projection", () => {
       blockRecord("rec_site_block_private_public_intake", {
         type: "publicOperationForm",
         label: "Private public intake",
-        operationTargetKind: "schemaKey",
-        operationTargetSchemaKey: "tasks",
+        operationTargetKind: "appInstall",
+        operationTargetPackageAppKey: "tasks",
+        operationTargetInstallId: "requests",
         operationKey: "request.privateSubmit",
       }),
       {
@@ -599,8 +555,9 @@ describe("site public operation block projection", () => {
       blockRecord("rec_site_block_required_reference_intake", {
         type: "publicOperationForm",
         label: "Required reference",
-        operationTargetKind: "schemaKey",
-        operationTargetSchemaKey: "crm",
+        operationTargetKind: "appInstall",
+        operationTargetPackageAppKey: "crm",
+        operationTargetInstallId: "requests",
         operationKey: "request.submit",
       }),
       {
@@ -644,7 +601,8 @@ function projectRecord(
       ...(options.publicOperationTargetResolver === undefined
         ? {}
         : { publicOperationTargetResolver: options.publicOperationTargetResolver }),
-      publicOperationApiRoutePrefix: options.publicOperationApiRoutePrefix ?? "/api/site",
+      publicOperationApiRoutePrefix:
+        options.publicOperationApiRoutePrefix ?? "/api/formless/program",
       ...(options.turnstileSiteKey === undefined
         ? {}
         : { turnstileSiteKey: options.turnstileSiteKey }),
@@ -660,21 +618,6 @@ function publicOperationTargetResolver(
 ): SitePublicOperationTargetResolver {
   return (request) => {
     requests.push(request);
-
-    if (request.kind === "schemaKey") {
-      const schema = schemas[request.schemaKey];
-
-      return schema
-        ? {
-            schema,
-            route: {
-              kind: "schemaKey",
-              schemaKey: request.schemaKey,
-              apiRoutePrefix: `/api/${request.schemaKey}`,
-            },
-          }
-        : undefined;
-    }
 
     const schema = schemas[request.packageAppKey];
 

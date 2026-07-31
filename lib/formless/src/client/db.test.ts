@@ -20,26 +20,28 @@ import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
 import { taskSourceSchema as appSchema } from "../test/schema-apps.ts";
 import { testSiteRecords } from "../test/site-records.ts";
 
+const program = programClientTarget();
+
 beforeEach(async () => {
-  await deleteClientDb("tasks");
-  await deleteClientDb("site");
-  await deleteClientDb(programClientTarget());
+  await deleteClientDb(program);
   await deleteClientDb(installedCRMIdentity("personal"));
   await deleteClientDb(installedCRMIdentity("docs"));
+  await deleteRawDatabase("formless:site");
+  await deleteRawDatabase("formless:tasks");
   await deleteRawDatabase("formless:instance:identity");
   await deleteRawDatabase("notes");
 });
 
 describe("client db", () => {
   it("stores bootstrap schema, records, cursor, and last-sync metadata", async () => {
-    await saveBootstrapResponse("tasks", {
+    await saveBootstrapResponse(program, {
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "First")],
       cursor: 7,
     } satisfies BootstrapResponse);
 
-    const snapshot = await readLocalSnapshot("tasks");
+    const snapshot = await readLocalSnapshot(program);
 
     expect(snapshot.schema).toEqual(appSchema);
     expect(snapshot.schemaProvenance).toBeNull();
@@ -53,7 +55,7 @@ describe("client db", () => {
     const sourceSchemaHash =
       "sha256:7777777777777777777777777777777777777777777777777777777777777777" as const;
 
-    await saveBootstrapResponse("tasks", {
+    await saveBootstrapResponse(program, {
       schema: appSchema,
       schemaProvenance: {
         kind: "package-app",
@@ -66,40 +68,16 @@ describe("client db", () => {
       cursor: 0,
     } satisfies BootstrapResponse);
 
-    expect((await readLocalSnapshot("tasks")).schemaProvenance).toEqual({
+    expect((await readLocalSnapshot(program)).schemaProvenance).toEqual({
       kind: "package-app",
       packageAppKey: "tasks",
       packageRevision: 4,
       sourceSchemaHash,
     });
 
-    await saveSchema("tasks", appSchema, "2026-04-28T00:01:00.000Z");
+    await saveSchema(program, appSchema, "2026-04-28T00:01:00.000Z");
 
-    expect((await readLocalSnapshot("tasks")).schemaProvenance).toBeNull();
-  });
-
-  it("stores each schema key in its own IndexedDB database", async () => {
-    await saveBootstrapResponse("tasks", {
-      schema: appSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [record("record-1", "Task")],
-      cursor: 1,
-    });
-    await saveBootstrapResponse("site", {
-      schema: appSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [record("record-2", "Site")],
-      cursor: 2,
-    });
-
-    await deleteRawDatabase("formless:site");
-
-    expect((await readLocalSnapshot("tasks")).records).toEqual([record("record-1", "Task")]);
-    expect(await readLocalSnapshot("site")).toMatchObject({
-      schema: null,
-      records: [],
-      cursor: 0,
-    });
+    expect((await readLocalSnapshot(program)).schemaProvenance).toBeNull();
   });
 
   it("stores installed app replicas by install id", async () => {
@@ -131,47 +109,37 @@ describe("client db", () => {
   });
 
   it("stores instance, identity, and Site records in one Program replica", async () => {
-    const controlPlaneTarget = programClientTarget();
     const site = testSiteRecords.find((record) => record.entity === "site");
 
     if (!site) {
       throw new Error("Expected a Site record fixture.");
     }
 
-    await saveBootstrapResponse(controlPlaneTarget, {
+    await saveBootstrapResponse(program, {
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("install-1", "Personal Site"), record("role-1", "Instance owner"), site],
       cursor: 3,
     });
 
-    expect(clientDbName(controlPlaneTarget)).toBe("formless:instance:control-plane");
-    expect((await readLocalSnapshot(controlPlaneTarget)).records).toEqual([
+    expect(clientDbName(program)).toBe("formless:instance:control-plane");
+    expect((await readLocalSnapshot(program)).records).toEqual([
       record("install-1", "Personal Site"),
       record("role-1", "Instance owner"),
       site,
     ]);
-    expect((await readLocalSnapshot("tasks")).records).toEqual([]);
-    expect((await readLocalSnapshot("site")).records).toEqual([]);
   });
 
   it("deletes active Formless replicas without adopting the legacy Tasks replica", async () => {
     const personal = installedCRMIdentity("personal");
-    const controlPlaneTarget = programClientTarget();
-
-    await saveBootstrapResponse("tasks", {
-      schema: appSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [record("record-1", "Task")],
-      cursor: 1,
-    });
+    await createRawDatabase("formless:tasks");
     await saveBootstrapResponse(personal, {
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-2", "Personal")],
       cursor: 2,
     });
-    await saveBootstrapResponse(controlPlaneTarget, {
+    await saveBootstrapResponse(program, {
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-3", "Control plane")],
@@ -210,58 +178,18 @@ describe("client db", () => {
     }
   });
 
-  it("migrates older local replica metadata without replacing records", async () => {
-    await createLegacyReplica("formless:site", { recordsKeyPath: "id" });
-
-    const snapshot = await readLocalSnapshot("site");
-    const replicaVersion = await readRawMetaValue<number>("formless:site", "replicaVersion");
-
-    expect(snapshot.records).toEqual([record("record-1", "Legacy")]);
-    expect(snapshot.cursor).toBe(3);
-    expect(replicaVersion).toBe(2);
-  });
-  it("deletes a schema cache missing required entity ids without touching other databases", async () => {
-    await createLegacyReplica("formless:tasks", {
-      recordsKeyPath: "id",
-      storedSchema: {
-        ...appSchema,
-        entities: appSchema.entities.map(({ id: _id, ...entity }) => entity),
-      },
-    });
-    await createRawDatabase("notes");
-    expect(await readLocalSnapshot("tasks")).toEqual({
-      schema: null,
-      schemaProvenance: null,
-      schemaUpdatedAt: null,
-      records: [],
-      cursor: 0,
-      lastSyncedAt: null,
-    });
-    expect(await rawDatabaseNames()).not.toContain("formless:tasks");
-    expect(await rawDatabaseNames()).toContain("notes");
-  });
-  it("deletes unsafe local replica cache when IndexedDB migration fails", async () => {
-    await createLegacyReplica("formless:tasks", { recordsKeyPath: null });
-    const snapshot = await readLocalSnapshot("tasks");
-    expect(snapshot).toMatchObject({
-      schema: null,
-      records: [],
-      cursor: 0,
-    });
-  });
-
   it("merges records and advances the cursor", async () => {
-    await mergeRecords("tasks", [record("record-1", "First")], 1);
-    await mergeChanges("tasks", [change(2, "record-2", "Second", true)], 2);
+    await mergeRecords(program, [record("record-1", "First")], 1);
+    await mergeChanges(program, [change(2, "record-2", "Second", true)], 2);
 
-    const snapshot = await readLocalSnapshot("tasks");
+    const snapshot = await readLocalSnapshot(program);
 
     expect(snapshot.records.map((storedRecord) => storedRecord.id)).toEqual([
       "record-1",
       "record-2",
     ]);
     expect(snapshot.cursor).toBe(2);
-    expect(await readCursor("tasks")).toBe(2);
+    expect(await readCursor(program)).toBe(2);
   });
   it("updates the cached schema without replacing records", async () => {
     const fields = [
@@ -286,15 +214,15 @@ describe("client db", () => {
       screens: appSchema.screens,
     });
 
-    await saveBootstrapResponse("tasks", {
+    await saveBootstrapResponse(program, {
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "First")],
       cursor: 1,
     });
-    await saveSchema("tasks", nextSchema, "2026-04-28T00:01:00.000Z");
+    await saveSchema(program, nextSchema, "2026-04-28T00:01:00.000Z");
 
-    const snapshot = await readLocalSnapshot("tasks");
+    const snapshot = await readLocalSnapshot(program);
 
     expect(snapshot.schema).toEqual(nextSchema);
     expect(snapshot.schemaUpdatedAt).toBe("2026-04-28T00:01:00.000Z");
@@ -303,30 +231,30 @@ describe("client db", () => {
   });
 
   it("stores and merges boolean record values", async () => {
-    await saveBootstrapResponse("tasks", {
+    await saveBootstrapResponse(program, {
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "First", false)],
       cursor: 1,
     });
-    await mergeChanges("tasks", [change(2, "record-1", "First", true)], 2);
+    await mergeChanges(program, [change(2, "record-1", "First", true)], 2);
 
-    const snapshot = await readLocalSnapshot("tasks");
+    const snapshot = await readLocalSnapshot(program);
 
     expect(snapshot.records).toEqual([record("record-1", "First", true)]);
     expect(typeof snapshot.records[0]?.values.done).toBe("boolean");
   });
 
   it("stores and merges number record values", async () => {
-    await saveBootstrapResponse("tasks", {
+    await saveBootstrapResponse(program, {
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [recordWithEstimate("record-1", "First", 2)],
       cursor: 1,
     });
-    await mergeChanges("tasks", [changeWithEstimate(2, "record-1", "First", 3)], 2);
+    await mergeChanges(program, [changeWithEstimate(2, "record-1", "First", 3)], 2);
 
-    const snapshot = await readLocalSnapshot("tasks");
+    const snapshot = await readLocalSnapshot(program);
 
     expect(snapshot.records).toEqual([recordWithEstimate("record-1", "First", 3)]);
     expect(typeof snapshot.records[0]?.values.estimate).toBe("number");
@@ -376,73 +304,6 @@ async function rawDatabaseNames() {
     .filter((name): name is string => typeof name === "string")
     .toSorted();
 }
-function createLegacyReplica(
-  name: string,
-  options: {
-    recordsKeyPath: "id" | null;
-    storedSchema?: unknown;
-  },
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(name, 1);
-
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      db.createObjectStore("meta");
-      if (options.recordsKeyPath === "id") {
-        db.createObjectStore("records", { keyPath: "id" });
-      } else {
-        db.createObjectStore("records");
-      }
-    };
-
-    request.onerror = () => reject(request.error ?? new Error(`Could not create ${name}.`));
-    request.onsuccess = () => {
-      const db = request.result;
-      const transaction = db.transaction(["meta", "records"], "readwrite");
-      const meta = transaction.objectStore("meta");
-      const records = transaction.objectStore("records");
-      const legacyRecord = record("record-1", "Legacy");
-      meta.put(options.storedSchema ?? appSchema, "schema");
-      meta.put("2026-04-28T00:00:00.000Z", "schemaUpdatedAt");
-      meta.put(3, "cursor");
-      if (options.recordsKeyPath === "id") {
-        records.put(legacyRecord);
-      } else {
-        records.put(legacyRecord, legacyRecord.id);
-      }
-      transaction.oncomplete = () => {
-        db.close();
-        resolve();
-      };
-      transaction.onabort = () =>
-        reject(transaction.error ?? new Error(`Could not write ${name}.`));
-      transaction.onerror = () =>
-        reject(transaction.error ?? new Error(`Could not write ${name}.`));
-    };
-  });
-}
-
-function readRawMetaValue<T>(name: string, key: string): Promise<T | undefined> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(name);
-
-    request.onerror = () => reject(request.error ?? new Error(`Could not open ${name}.`));
-    request.onsuccess = () => {
-      const db = request.result;
-      const transaction = db.transaction("meta", "readonly");
-      const valueRequest = transaction.objectStore("meta").get(key);
-
-      valueRequest.onsuccess = () => {
-        db.close();
-        resolve(valueRequest.result as T | undefined);
-      };
-      valueRequest.onerror = () =>
-        reject(valueRequest.error ?? new Error(`Could not read ${name}.`));
-    };
-  });
-}
-
 function installedCRMIdentity(installId: string) {
   const identity = installedAppStorageIdentity({ installId, packageAppKey: "crm" });
 

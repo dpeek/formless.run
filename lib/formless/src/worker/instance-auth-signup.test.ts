@@ -546,7 +546,7 @@ async function writeSignupHarness() {
           if (this.ctx.id.name === "app:crm") {
             if (
               request.method === "GET" &&
-              url.pathname === \`/api/app-installs/crm/crm\${INTERNAL_AUTH_PROFILE_COMPLETION_SCHEMA_PATH}\`
+              url.pathname === \`/api/app-installs/test-crm/crm\${INTERNAL_AUTH_PROFILE_COMPLETION_SCHEMA_PATH}\`
             ) {
               return Response.json({
                 schema: profileCompletionSourceSchema(),
@@ -659,7 +659,7 @@ async function writeSignupHarness() {
           }),
           record("crm", "app-install", {
             installId: "crm",
-            packageAppKey: "crm",
+            packageAppKey: "test-crm",
             label: "CRM",
             registrationPolicy: env.REGISTRATION_POLICY,
             ...(env.REGISTRATION_OPERATION === undefined

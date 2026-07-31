@@ -53,15 +53,13 @@ export const rootKnownAppPackageManifests = [
   bundledCrmAppPackageManifest,
 ] as const satisfies readonly AppPackageManifest[];
 
-export const bundledAppPackageManifests = [
-  bundledCrmAppPackageManifest,
-] as const satisfies readonly AppPackageManifest[];
+export const bundledAppPackageManifests = [] as const satisfies readonly AppPackageManifest[];
 
 export const bundledAppPackageResolver = createAppPackageResolver(bundledAppPackageManifests);
 const rootKnownAppPackageResolver = createAppPackageResolver(rootKnownAppPackageManifests);
 
 export function isRuntimeInstallableAppPackageKey(packageAppKey: string): boolean {
-  return packageAppKey !== "tasks" && packageAppKey !== "site";
+  return packageAppKey !== "tasks" && packageAppKey !== "site" && packageAppKey !== "crm";
 }
 
 export function runtimeInstallableAppPackageResolver(
@@ -69,14 +67,12 @@ export function runtimeInstallableAppPackageResolver(
 ): AppPackageResolver {
   return {
     findPackage(packageAppKey) {
-      return isRuntimeInstallableAppPackageKey(packageAppKey)
-        ? resolver.findPackage(packageAppKey)
-        : undefined;
+      const appPackage = resolver.findPackage(packageAppKey);
+
+      return appPackage && isRuntimeInstallableAppPackage(appPackage) ? appPackage : undefined;
     },
     listPackages() {
-      return resolver
-        .listPackages()
-        .filter((appPackage) => isRuntimeInstallableAppPackageKey(appPackage.packageAppKey));
+      return resolver.listPackages().filter(isRuntimeInstallableAppPackage);
     },
   };
 }
@@ -97,9 +93,17 @@ export function rootKnownPackageFactsResolver(
           .filter((appPackage) => isRuntimeInstallableAppPackageKey(appPackage.packageAppKey)),
         rootKnownAppPackageResolver.findPackage("site")!,
         rootKnownAppPackageResolver.findPackage("tasks")!,
+        rootKnownAppPackageResolver.findPackage("crm")!,
       ];
     },
   };
+}
+
+function isRuntimeInstallableAppPackage(appPackage: ResolvedAppPackage): boolean {
+  return (
+    isRuntimeInstallableAppPackageKey(appPackage.packageAppKey) &&
+    isRuntimeInstallableAppPackageKey(appPackage.sourceSchemaKey)
+  );
 }
 
 export function listResolvedAppPackages(

@@ -184,20 +184,8 @@ describe("app package manifests", () => {
       "tasks",
       "crm",
     ]);
-    expect(bundledAppPackageManifests.map((manifest) => manifest.packageAppKey)).toEqual(["crm"]);
-
-    expect(listResolvedAppPackages()).toEqual([
-      expect.objectContaining({
-        adminRouteBase: "/apps",
-        defaultInstallId: "crm",
-        label: "CRM",
-        packageAppKey: "crm",
-        packageRevision: 1,
-        sourceOrigin: "bundled",
-        sourceSchemaKey: "crm",
-        sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
-      }),
-    ]);
+    expect(bundledAppPackageManifests).toEqual([]);
+    expect(listResolvedAppPackages()).toEqual([]);
     expect(findResolvedAppPackage("site")).toBeUndefined();
     expect(rootKnownPackageFactsResolver().findPackage("site")?.sourceSchemaLocation).toEqual({
       kind: "bundled",
@@ -223,7 +211,8 @@ describe("app package manifests", () => {
       key: "tasks",
       path: "schema.json",
     });
-    expect(findResolvedAppPackage("crm")?.sourceSchemaLocation).toEqual({
+    expect(findResolvedAppPackage("crm")).toBeUndefined();
+    expect(rootKnownPackageFactsResolver().findPackage("crm")?.sourceSchemaLocation).toEqual({
       kind: "bundled",
       key: "crm",
       path: "schema.json",
@@ -250,7 +239,6 @@ describe("app package manifests", () => {
       }),
     );
     expect(resolver.listPackages().map((appPackage) => appPackage.packageAppKey)).toEqual([
-      "crm",
       "private-labs",
     ]);
   });
@@ -275,12 +263,21 @@ describe("app package manifests", () => {
             path: "packages/tasks/schema.json",
           },
         },
+        {
+          ...rawCrmAppPackageManifest,
+          sourceSchema: {
+            kind: "workspace",
+            key: "crm",
+            path: "packages/crm/schema.json",
+          },
+        },
       ]),
     );
 
     expect(resolver.findPackage("tasks")).toBeUndefined();
     expect(resolver.findPackage("site")).toBeUndefined();
-    expect(resolver.listPackages().map((appPackage) => appPackage.packageAppKey)).toEqual(["crm"]);
+    expect(resolver.findPackage("crm")).toBeUndefined();
+    expect(resolver.listPackages()).toEqual([]);
   });
 
   it("checks bundled package hashes against complete source schemas", async () => {

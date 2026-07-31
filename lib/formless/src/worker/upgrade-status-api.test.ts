@@ -35,7 +35,7 @@ describe("runtime upgrade status API", () => {
   it("requires instance write authorization for status reads", async () => {
     const instanceStatus = await harness.fetch(INSTANCE_UPGRADE_STATUS_API_PATH);
     const appStatus = await harness.fetch(
-      `/api/app-installs/crm/work${APP_STORAGE_UPGRADE_STATUS_API_PATH_SUFFIX}`,
+      `/api/app-installs/test-crm/work${APP_STORAGE_UPGRADE_STATUS_API_PATH_SUFFIX}`,
     );
 
     expect(instanceStatus.status).toBe(401);
@@ -51,9 +51,9 @@ describe("runtime upgrade status API", () => {
     await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
       installId: "work",
       label: "Work",
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
     });
-    await postAdminJson("/api/formless/app-installs/crm/work/package-migrations/apply", {});
+    await postAdminJson("/api/formless/app-installs/test-crm/work/package-migrations/apply", {});
 
     const status = await getAdminJson<InstanceUpgradeStatusResponse>(
       INSTANCE_UPGRADE_STATUS_API_PATH,
@@ -87,12 +87,12 @@ describe("runtime upgrade status API", () => {
           authorityName: "app:work",
           installId: "work",
           kind: "appInstall",
-          packageAppKey: "crm",
+          packageAppKey: "test-crm",
         }),
         packageAppMigrations: {
           applied: [],
           state: expect.objectContaining({
-            packageAppKey: "crm",
+            packageAppKey: "test-crm",
             packageRevision: 1,
             sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
           }),
@@ -111,7 +111,7 @@ describe("runtime upgrade status API", () => {
     await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
       installId: "work",
       label: "Work",
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
     });
 
     const apply = await postAdminJson<InstanceUpgradeStatusResponse>(
@@ -135,18 +135,18 @@ describe("runtime upgrade status API", () => {
     await postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", {
       installId: "crm",
       label: "CRM",
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
     });
 
     const appStatusWrite = await harness.fetch(
-      `/api/app-installs/crm/crm${APP_STORAGE_UPGRADE_STATUS_API_PATH_SUFFIX}`,
+      `/api/app-installs/test-crm/crm${APP_STORAGE_UPGRADE_STATUS_API_PATH_SUFFIX}`,
       {
         headers: adminHeaders(),
         method: "POST",
       },
     );
     const publicRoute = await harness.fetch(
-      `/api/app-installs/crm/crm/public${APP_STORAGE_UPGRADE_STATUS_API_PATH_SUFFIX}`,
+      `/api/app-installs/test-crm/crm/public${APP_STORAGE_UPGRADE_STATUS_API_PATH_SUFFIX}`,
       {
         headers: adminHeaders(),
       },
@@ -163,7 +163,7 @@ async function getAdminJson<T>(path: string) {
     headers: adminHeaders(),
   });
 
-  expect(response.status).toBe(200);
+  expect(response.status, await response.clone().text()).toBe(200);
 
   return {
     body: (await response.json()) as T,
@@ -178,7 +178,7 @@ async function postAdminJson<T = unknown>(path: string, body: unknown) {
     method: "POST",
   });
 
-  expect([200, 201]).toContain(response.status);
+  expect([200, 201], await response.clone().text()).toContain(response.status);
 
   return {
     body: (await response.json()) as T,

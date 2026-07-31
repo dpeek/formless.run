@@ -6,9 +6,8 @@ import type {
   WorkspaceIntent,
 } from "@dpeek/formless-presentation/contract";
 import { workspaceManifestReference } from "@dpeek/formless-presentation/host";
-import { listInstallableAppPackages } from "@dpeek/formless-installed-apps";
+import type { InstallableAppPackage } from "@dpeek/formless-installed-apps";
 import type { WorkspaceGatewayOperation } from "@dpeek/formless-gateway/client";
-import { bundledAppPackageResolver } from "../../shared/app-packages.ts";
 import { createApplicationRuntimePublicationCoordinator } from "../generated/application-runtime-contract-host.tsx";
 import { prepareGeneratedWorkspaceRuntimePublication } from "../generated/generated-workspace-contract-host.ts";
 import type { GeneratedWorkspaceRuntimeController } from "../generated/generated-workspace-runtime.tsx";
@@ -26,6 +25,23 @@ import { initialInstanceManagementRuntimeContribution } from "./instance-managem
 
 const appsReference = workspaceManifestReference("instance-apps");
 const routesReference = workspaceManifestReference("instance-routes");
+const privateCrmPackage: InstallableAppPackage = {
+  adminRouteBase: "/apps",
+  defaultInstallId: "private-crm",
+  description: "Private CRM package.",
+  label: "CRM",
+  packageAppKey: "private-crm",
+  packageRevision: 1,
+  sourceOrigin: "workspace",
+  sourceSchemaHash: "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+  sourceSchemaKey: "private-crm",
+  sourceSchemaLocation: {
+    key: "private-crm",
+    kind: "workspace",
+    path: "source/schema.json",
+  },
+  supportsMultipleInstalls: false,
+};
 
 describe("instance management projection", () => {
   it("projects loading and display-safe failure independently from gateway availability", () => {
@@ -52,7 +68,10 @@ describe("instance management projection", () => {
     expect(JSON.stringify(failed)).toContain("[redacted]");
     expect(JSON.stringify(failed)).not.toContain("secret-provider-token");
 
-    const unavailable = readyProjection({ workspaceGatewayState: { status: "unavailable" } });
+    const unavailable = readyProjection({
+      state: readyState({ packages: [] }),
+      workspaceGatewayState: { status: "unavailable" },
+    });
     const gatewayFailed = readyProjection({
       workspaceGatewayState: {
         message: "Gateway failed at /Users/ada/formless with owner-setup-token owner-secret",
@@ -61,6 +80,7 @@ describe("instance management projection", () => {
     });
 
     expect(unavailable.manifest.state).toBe("ready");
+    expect(unavailable.dialog).toBeUndefined();
     expect(readyManifest(unavailable).workspaceOperation).toBeUndefined();
     expect(readyManifest(unavailable).workspaces).toEqual([
       { reference: appsReference, role: "apps" },
@@ -96,15 +116,17 @@ describe("instance management projection", () => {
     const invalid = readyProjection({
       installDialogOpen: true,
       installDrafts: {
-        crm: { installId: "Bad Id", label: "" },
+        "private-crm": { installId: "Bad Id", label: "" },
         tasks: { installId: "tasks", label: "Tasks" },
       },
-      selectedPackageAppKey: "crm",
+      selectedPackageAppKey: "private-crm",
     });
     const invalidDialog = required(invalid.dialog);
 
     expect(invalidDialog.open).toBe(true);
-    expect(invalidDialog.packageOptions.map(({ packageAppKey }) => packageAppKey)).toEqual(["crm"]);
+    expect(invalidDialog.packageOptions.map(({ packageAppKey }) => packageAppKey)).toEqual([
+      "private-crm",
+    ]);
     expect(invalidDialog.errors).toEqual([
       "Install label is required.",
       "Install id must start with a lowercase letter and use lowercase letters, numbers, and single hyphens.",
@@ -115,8 +137,8 @@ describe("instance management projection", () => {
     expect(invalidDialog.submit.disabled).toBe(true);
 
     const pending = readyProjection({
-      state: readyState({ installing: true, installingPackageAppKey: "crm" }),
-      selectedPackageAppKey: "crm",
+      state: readyState({ installing: true, installingPackageAppKey: "private-crm" }),
+      selectedPackageAppKey: "private-crm",
     });
     const pendingDialog = required(pending.dialog);
     expect(pendingDialog.pending).toEqual({ isPending: true, label: "Installing app" });
@@ -131,11 +153,11 @@ describe("instance management projection", () => {
       state: readyState({
         installError:
           'Install failed at /Users/ada/formless with ALCHEMY_API_KEY="secret-alchemy-key".',
-        installErrorPackageAppKey: "crm",
+        installErrorPackageAppKey: "private-crm",
       }),
-      selectedPackageAppKey: "crm",
+      selectedPackageAppKey: "private-crm",
     });
-    expect(failed.selectedPackageAppKey).toBe("crm");
+    expect(failed.selectedPackageAppKey).toBe("private-crm");
     expect(required(failed.dialog).feedback?.detail).toContain("<path>");
     expect(JSON.stringify(failed.dialog)).not.toContain("secret-alchemy-key");
   });
@@ -283,9 +305,9 @@ describe("instance management runtime publication", () => {
     await application.host.dispatch(managementPushIntent({ manifest: ready }));
     expect(calls).toEqual([
       { kind: "dialog", value: true },
-      { kind: "package", value: "crm" },
-      { kind: "draft", value: ["crm", { installId: "crm", label: "Task Space" }] },
-      { kind: "submit", value: "crm" },
+      { kind: "package", value: "private-crm" },
+      { kind: "draft", value: ["private-crm", { installId: "private-crm", label: "Task Space" }] },
+      { kind: "submit", value: "private-crm" },
       { kind: "push" },
     ]);
 
@@ -380,7 +402,7 @@ describe("instance management runtime publication", () => {
     runtime.updateWorkspace("apps", workspaceController("instance-apps", "Apps"));
     runtime.updateWorkspace("routes", workspaceController("instance-routes", "Routes"));
     runtime.updateRuntime(
-      input({ installDrafts: { crm: { installId: "Bad Id", label: "" } } }),
+      input({ installDrafts: { "private-crm": { installId: "Bad Id", label: "" } } }),
       actions,
     );
 
@@ -392,7 +414,7 @@ describe("instance management runtime publication", () => {
       input({
         state: readyState({
           installError: "Install failed with API_TOKEN=private-install-token",
-          installErrorPackageAppKey: "crm",
+          installErrorPackageAppKey: "private-crm",
         }),
       }),
       actions,
@@ -413,7 +435,7 @@ function input(overrides: Partial<ProjectInstanceManagementOptions> = {}): Omit<
     activeWorkspace: "apps",
     installDialogOpen: false,
     installDrafts: {
-      crm: { installId: "crm", label: "CRM" },
+      "private-crm": { installId: "private-crm", label: "CRM" },
       site: { installId: "site", label: "Site" },
       tasks: { installId: "tasks", label: "Tasks" },
     },
@@ -455,7 +477,7 @@ function readyState(
   return {
     installing: false,
     installs: [],
-    packages: listInstallableAppPackages(bundledAppPackageResolver),
+    packages: [privateCrmPackage],
     status: "ready",
     ...overrides,
   };

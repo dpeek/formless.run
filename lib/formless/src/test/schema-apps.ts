@@ -1,4 +1,4 @@
-import { getWorkerSchemaAppDefinition } from "../worker/schema-apps.ts";
+import rawCrmSourceSchema from "@dpeek/formless-crm-app/schema.json";
 import rawTaskSourceSchema from "@dpeek/formless-tasks-app/schema.json";
 import { siteSchemaSource } from "@dpeek/formless-site-app/schema";
 import rawRateCardRecords from "./fixtures/rate-card-records.json";
@@ -16,12 +16,10 @@ export {
   taskTestRecords,
 } from "./schema-app-records.ts";
 
-export const crmSourceApp = getWorkerSchemaAppDefinition("crm");
-
 export const taskSourceSchema = parseAppSchema(rawTaskSourceSchema);
 export const rateSourceSchema = parseAppSchema(rawRateCardSourceSchema);
 export const siteSourceSchema = parseAppSchema(siteSchemaSource);
-export const crmSourceSchema = crmSourceApp.sourceSchema;
+export const crmSourceSchema = parseAppSchema(rawCrmSourceSchema);
 
 export const rateCardTestRecords: StoredRecord[] = formatStoredRecordsForArtifact(
   rateSourceSchema,

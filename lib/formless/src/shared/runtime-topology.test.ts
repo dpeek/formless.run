@@ -108,8 +108,6 @@ describe("runtime topology", () => {
       installedAppBrowserRoutes: true,
       installedSitePublicRoutes: true,
       accountSessionBrowserRoutes: true,
-      schemaKeyApiRoutes: false,
-      schemaKeyBrowserRoutes: false,
       workspaceGatewayApiRoutes: true,
     });
     expect(runtimeRoutePolicyForProfileKind("dev")).toEqual({
@@ -118,8 +116,6 @@ describe("runtime topology", () => {
       installedAppBrowserRoutes: true,
       installedSitePublicRoutes: true,
       accountSessionBrowserRoutes: true,
-      schemaKeyApiRoutes: true,
-      schemaKeyBrowserRoutes: true,
       workspaceGatewayApiRoutes: true,
     });
     expect(runtimeRoutePolicyForProfileKind("app")).toMatchObject({
@@ -128,14 +124,10 @@ describe("runtime topology", () => {
       installedAppBrowserRoutes: false,
       installedSitePublicRoutes: false,
       accountSessionBrowserRoutes: false,
-      schemaKeyApiRoutes: true,
-      schemaKeyBrowserRoutes: false,
       workspaceGatewayApiRoutes: false,
     });
     expect(runtimeRoutePolicyForProfileKind("publishedSite")).toMatchObject({
       accountSessionBrowserRoutes: true,
-      schemaKeyApiRoutes: true,
-      schemaKeyBrowserRoutes: false,
       workspaceGatewayApiRoutes: false,
     });
   });
@@ -193,7 +185,7 @@ describe("runtime topology", () => {
   it("classifies client-shell routes for general, published, and instance profiles", () => {
     expect(isRuntimeClientShellRoute("/pages/home")).toBe(true);
     expect(isRuntimeClientShellRoute("/tasks")).toBe(true);
-    expect(isRuntimeClientShellRoute("/crm/audiences")).toBe(true);
+    expect(isRuntimeClientShellRoute("/crm/audiences")).toBe(false);
     expect(isRuntimeClientShellRoute("/site/schema")).toBe(false);
     expect(isRuntimeClientShellRoute("/schema")).toBe(true);
     expect(isRuntimeClientShellRoute("/formless/auth")).toBe(true);

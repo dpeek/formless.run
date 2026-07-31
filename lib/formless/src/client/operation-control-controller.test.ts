@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { ClientAppTarget } from "./app-target.ts";
+import { programClientTarget, type ClientAppTarget } from "./app-target.ts";
 import {
   buildGeneratedOperationInvocationRequest,
   createGeneratedOperationController,
@@ -42,7 +42,7 @@ describe("generated operation control controller", () => {
         }),
       ],
       submitAuthorityOperation: submit.submit,
-      target: "tasks",
+      target: programClientTarget(),
       writeOptions: { autoSave },
     });
 
@@ -55,7 +55,7 @@ describe("generated operation control controller", () => {
 
     expect(submit.calls).toEqual([
       {
-        target: "tasks",
+        target: programClientTarget(),
         entityName: "task",
         operationName: "create",
         request: {
@@ -101,7 +101,7 @@ describe("generated operation control controller", () => {
       ],
       submitAuthorityOperation: captureAuthoritySubmitter(operationResponse(output, "replayed"))
         .submit,
-      target: "tasks",
+      target: programClientTarget(),
     });
 
     const result = await controller.execute({
@@ -155,7 +155,7 @@ describe("generated operation control controller", () => {
         }),
       ],
       submitAuthorityOperation: captureAuthoritySubmitter(operationResponse(output)).submit,
-      target: "tasks",
+      target: programClientTarget(),
     });
 
     await expect(
@@ -179,7 +179,7 @@ describe("generated operation control controller", () => {
       submitAuthorityOperation: async () => {
         throw { internal: "do not render" };
       },
-      target: "tasks",
+      target: programClientTarget(),
     });
 
     const result = await controller.execute({
@@ -326,7 +326,7 @@ describe("generated operation control controller", () => {
         }),
       ],
       submitAuthorityOperation: submit.submit,
-      target: "tasks",
+      target: programClientTarget(),
     });
 
     const first = controller.execute({

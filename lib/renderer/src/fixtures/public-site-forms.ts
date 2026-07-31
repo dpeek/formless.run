@@ -424,7 +424,7 @@ function formBlock(
             operationName,
             canonicalKey: `${entityName}.${operationName}`,
             kind: kind === "subscribe" ? "command" : kind === "contact" ? "create" : "command",
-            route: `/api/site/public/operations/${entityName}/${operationName}`,
+            route: `/api/formless/program/public/operations/${entityName}/${operationName}`,
             challenge: {
               kind: "turnstile",
               ...(options.includeSiteKey === false ? {} : { siteKey: publicSiteKey }),

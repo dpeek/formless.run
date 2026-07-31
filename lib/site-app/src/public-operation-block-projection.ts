@@ -15,16 +15,11 @@ import type {
   StoredRecord,
 } from "./types.ts";
 
-export type SitePublicOperationTargetRequest =
-  | {
-      kind: "schemaKey";
-      schemaKey: string;
-    }
-  | {
-      kind: "appInstall";
-      packageAppKey: string;
-      installId: string;
-    };
+export type SitePublicOperationTargetRequest = {
+  kind: "appInstall";
+  packageAppKey: string;
+  installId: string;
+};
 
 export type SitePublicOperationTargetResolution = {
   route: SitePublicOperationTargetNode;
@@ -62,10 +57,7 @@ export function projectSitePublicOperationBlock(
     return undefined;
   }
 
-  const target: FixedPublicOperationTarget | undefined =
-    input.type === "subscribeForm"
-      ? selectSubscribeFormPublicOperationTarget(input.record, input)
-      : siteLocalPublicOperationTarget(input);
+  const target = siteLocalPublicOperationTarget(input);
 
   if (!target) {
     return undefined;
@@ -81,36 +73,6 @@ export function projectSitePublicOperationBlock(
     turnstileSiteKey: input.turnstileSiteKey,
     warnings: input.warnings,
   });
-}
-
-function selectSubscribeFormPublicOperationTarget(
-  record: StoredRecord,
-  input: SitePublicOperationBlockProjectionInput,
-): FixedPublicOperationTarget | undefined {
-  if (!hasPublicOperationTargetIdentity(record)) {
-    return siteLocalPublicOperationTarget(input);
-  }
-
-  const target = selectPublicOperationFormTarget(record, input, "Subscribe form");
-
-  if (!target) {
-    return undefined;
-  }
-
-  if (target.route.kind !== "appInstall" || target.route.packageAppKey !== "crm") {
-    input.warnings.push({
-      code: "invalid-public-operation-target",
-      recordId: record.id,
-      message: `Subscribe form target must resolve to an installed CRM app.`,
-    });
-    return undefined;
-  }
-
-  return {
-    schema: target.schema,
-    publicOperationApiRoutePrefix: target.route.apiRoutePrefix,
-    route: target.route,
-  };
 }
 
 function siteLocalPublicOperationTarget(
@@ -208,24 +170,6 @@ function selectPublicOperationFormTarget(
 ): SitePublicOperationTargetResolution | undefined {
   const targetKind = stringValue(record.values.operationTargetKind);
 
-  if (targetKind === "schemaKey") {
-    const schemaKey = stringValue(record.values.operationTargetSchemaKey);
-
-    if (!schemaKey) {
-      input.warnings.push({
-        code: "missing-public-operation-target",
-        recordId: record.id,
-        message: `${formLabel} block "${record.id}" does not declare a target schema key.`,
-      });
-      return undefined;
-    }
-
-    return resolvePublicOperationFormTarget(record, input, formLabel, {
-      kind: "schemaKey",
-      schemaKey,
-    });
-  }
-
   if (targetKind === "appInstall") {
     const packageAppKey = stringValue(record.values.operationTargetPackageAppKey);
     const installId = stringValue(record.values.operationTargetInstallId);
@@ -266,24 +210,12 @@ function resolvePublicOperationFormTarget(
     input.warnings.push({
       code: "invalid-public-operation-target",
       recordId: record.id,
-      message:
-        request.kind === "schemaKey"
-          ? `${formLabel} target schema key "${request.schemaKey}" is unavailable.`
-          : `${formLabel} target install "${request.packageAppKey}/${request.installId}" is unavailable.`,
+      message: `${formLabel} target install "${request.packageAppKey}/${request.installId}" is unavailable.`,
     });
     return undefined;
   }
 
   return target;
-}
-
-function hasPublicOperationTargetIdentity(record: StoredRecord): boolean {
-  return (
-    stringValue(record.values.operationTargetKind) !== undefined ||
-    stringValue(record.values.operationTargetSchemaKey) !== undefined ||
-    stringValue(record.values.operationTargetPackageAppKey) !== undefined ||
-    stringValue(record.values.operationTargetInstallId) !== undefined
-  );
 }
 
 function selectGenericPublicOperation(

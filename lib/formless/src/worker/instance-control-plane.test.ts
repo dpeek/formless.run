@@ -325,7 +325,7 @@ describe("instance control-plane API routes", () => {
     const appInstall = await postJson<CreateAppInstallResponse>(
       "/api/formless/app-installs",
       {
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
         installId: "admin-crm",
         label: "Admin CRM",
       },
@@ -516,7 +516,7 @@ describe("instance control-plane API routes", () => {
     const created = await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
       idempotencyKey: "create-snapshot-export",
       input: {
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
         installId: "snapshot-export",
         label: "Snapshot Export CRM",
       },
@@ -543,7 +543,7 @@ describe("instance control-plane API routes", () => {
     const created = await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
       idempotencyKey: "create-personal",
       input: {
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
         installId: "personal",
         label: "Personal CRM",
       },
@@ -551,14 +551,14 @@ describe("instance control-plane API routes", () => {
     const replay = await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
       idempotencyKey: "create-personal",
       input: {
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
         installId: "personal",
         label: "Personal CRM",
       },
     });
     const controlPlane = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
     const installedCrm = await getJson<BootstrapResponse>(
-      "/api/app-installs/crm/personal/bootstrap",
+      "/api/app-installs/test-crm/personal/bootstrap",
     );
     const sync = await getJson<SyncResponse>(`${controlPlaneApi}/sync?after=0`);
     const createdOutput = operationCommandResponse(created);
@@ -609,7 +609,7 @@ describe("instance control-plane API routes", () => {
     ).toHaveLength(2);
     expect(appInstallValues(controlPlane.body, "personal")).toMatchObject({
       installId: "personal",
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       label: "Personal CRM",
       storageIdentity: "app:personal",
     });
@@ -623,12 +623,12 @@ describe("instance control-plane API routes", () => {
     await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
       idempotencyKey: "create-work",
       input: {
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
         installId: "work",
         label: "Work CRM",
       },
     });
-    const appRecordWrite = await postInstalledAppRecordOperation("crm", "work", {
+    const appRecordWrite = await postInstalledAppRecordOperation("test-crm", "work", {
       idempotencyKey: "write-installed-crm-contact",
       entity: "contact",
       operationName: "create",
@@ -637,7 +637,9 @@ describe("instance control-plane API routes", () => {
       },
     });
     const controlPlane = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
-    const installedCrm = await getJson<BootstrapResponse>("/api/app-installs/crm/work/bootstrap");
+    const installedCrm = await getJson<BootstrapResponse>(
+      "/api/app-installs/test-crm/work/bootstrap",
+    );
     const sync = await getJson<SyncResponse>(`${controlPlaneApi}/sync?after=0`);
 
     expect(appRecordWrite.body.record.entity).toBe("contact");
@@ -657,7 +659,7 @@ describe("instance control-plane API routes", () => {
     await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
       idempotencyKey: "create-route-validation",
       input: {
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
         installId: "personal",
         label: "Personal CRM",
       },
@@ -707,7 +709,7 @@ describe("instance control-plane API routes", () => {
     await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
       idempotencyKey: "create-crm-workspace",
       input: {
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
         installId: "tasks",
         label: "CRM Workspace",
       },
@@ -734,7 +736,7 @@ describe("instance control-plane API routes", () => {
     expect(missingPackage.body.error).toContain('references unsupported package "missing-package"');
     expect(unsupportedPublicRoute.response.status).toBe(400);
     expect(unsupportedPublicRoute.body.error).toContain(
-      'Package app "crm" does not support public Site routes.',
+      'Package app "test-crm" does not support public Site routes.',
     );
   });
 
@@ -742,7 +744,7 @@ describe("instance control-plane API routes", () => {
     await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
       idempotencyKey: "create-route-authorization",
       input: {
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
         installId: "personal",
         label: "Personal CRM",
       },
@@ -1187,7 +1189,7 @@ describe("instance control-plane API routes", () => {
     const unauthenticated = await postJson<FailureResponse>(createAppInstallOperation, {
       idempotencyKey: "create-private",
       input: {
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
         installId: "private",
         label: "Private",
       },
@@ -1197,7 +1199,7 @@ describe("instance control-plane API routes", () => {
       {
         idempotencyKey: "create-runner",
         input: {
-          packageAppKey: "crm",
+          packageAppKey: "test-crm",
           installId: "runner",
           label: "Runner",
         },
@@ -1210,7 +1212,7 @@ describe("instance control-plane API routes", () => {
         idempotencyKey: "runner-install",
         input: {
           installId: "runner",
-          packageAppKey: "crm",
+          packageAppKey: "test-crm",
           label: "Runner",
           registrationPolicy: "closed",
           status: "installed",
@@ -1662,7 +1664,7 @@ function secretSnapshot(now: string): StorageSnapshot {
         updatedAt: now,
         values: {
           installId: "secret",
-          packageAppKey: "crm",
+          packageAppKey: "test-crm",
           label: "CF_API_TOKEN=hidden",
           registrationPolicy: "closed",
           status: "installed",

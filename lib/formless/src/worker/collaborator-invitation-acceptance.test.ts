@@ -111,7 +111,7 @@ beforeEach(async () => {
   await writeAuthConfig();
   await createDefaultAppInstall("site", {
     label: "Site",
-    packageAppKey: "crm",
+    packageAppKey: "custom-onboarding",
   });
 });
 
@@ -2016,7 +2016,7 @@ async function createDefaultAppInstall(
         input: {
           installId,
           label: "Invitation target",
-          packageAppKey: "crm",
+          packageAppKey: "custom-onboarding",
           ...values,
         },
       }),

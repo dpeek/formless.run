@@ -117,7 +117,7 @@ describe("instance deployment runtime API routes", () => {
   });
 
   it("projects enabled custom-domain mappings into desired-state resources", async () => {
-    await createAppInstall({ packageAppKey: "crm", installId: "work", label: "Work" });
+    await createAppInstall({ packageAppKey: "test-crm", installId: "work", label: "Work" });
     await createControlPlaneRecord("route", {
       enabled: false,
       kind: "mount",
@@ -305,7 +305,7 @@ describe("instance deployment runtime API routes", () => {
   });
 
   it("does not materialize projected desired resources as control-plane records", async () => {
-    await createAppInstall({ packageAppKey: "crm", installId: "work", label: "Work" });
+    await createAppInstall({ packageAppKey: "test-crm", installId: "work", label: "Work" });
     await createControlPlaneRecord("route", {
       appInstall: "work",
       enabled: true,

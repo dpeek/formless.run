@@ -51,18 +51,12 @@ export type SitePublicOperationChallengeNode = {
   siteKey?: string;
 };
 
-export type SitePublicOperationTargetNode =
-  | {
-      kind: "schemaKey";
-      schemaKey: string;
-      apiRoutePrefix: `/${string}`;
-    }
-  | {
-      kind: "appInstall";
-      packageAppKey: string;
-      installId: string;
-      apiRoutePrefix: `/${string}`;
-    };
+export type SitePublicOperationTargetNode = {
+  kind: "appInstall";
+  packageAppKey: string;
+  installId: string;
+  apiRoutePrefix: `/${string}`;
+};
 
 export type SitePublicOperationInputFieldOptionNode = {
   value: string;

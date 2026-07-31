@@ -148,6 +148,19 @@ domain declarations into the Schema package.
 - AND publishing the schema boundary alone does not select Program ownership,
   Authority storage, routing, or runtime availability
 
+#### Scenario: CRM package publishes TypeScript-authored modules
+
+- GIVEN the CRM package owns its portable standalone schema artifact
+- WHEN trusted Program composition needs CRM declarations
+- THEN it imports documented CRM record, presentation, and complete standalone
+  modules through `@dpeek/formless-crm-app/schema`
+- AND the package materializes deterministic `schema.json` and the matching
+  source hash from its TypeScript source
+- AND CRM keeps ownership of its non-overlapping entity, relationship, query,
+  view, screen, and constraint declarations
+- AND publication alone does not select CRM install identity, Authority storage,
+  routing, or runtime availability
+
 ### Requirement: Downstream Program Composition Root
 
 The system SHALL keep complete Program composition in a downstream-owned root
@@ -157,12 +170,12 @@ domain declarations.
 #### Scenario: Default Formless Program root
 
 - GIVEN the Formless runtime package composes the default product Program
-- WHEN it selects reusable instance, identity, Tasks, and Site schema modules
+- WHEN it selects reusable instance, identity, Tasks, Site, and CRM schema modules
 - THEN it imports them through their documented package `./schema` subpaths
 - AND the root owns the explicit module list, runtime owner, navigation,
   project-local modules, and deliberate replacements for conflicting
   presentation declarations
-- AND the Instance Control Plane, Identity Control Plane, Tasks, and Site
+- AND the Instance Control Plane, Identity Control Plane, Tasks, Site, and CRM
   packages continue owning their record declarations, reusable presentation
   declarations, stable entity ids, and domain adapters
 - AND the Schema package continues owning only the generic App schema
@@ -197,6 +210,18 @@ domain declarations.
 - AND the Program root owns the complete Program roles, screen paths,
   navigation, storage, replica, archive, workspace, and runtime availability
 
+#### Scenario: Program root composes CRM without duplicate contact entities
+
+- GIVEN CRM shares four contact-subscription entity keys with Program-native Site
+- WHEN the Program root composes CRM
+- THEN it deliberately preserves the Site stable entity ids and produces one
+  complete enriched declaration for each shared key
+- AND CRM keeps its non-overlapping declarations and generated presentations
+- AND the Program root owns the final same-key replacements, access, paths,
+  navigation, storage, replica, archive, workspace, and runtime availability
+- AND no generic entity-extension mechanism, package discovery, or qualified
+  stored identity is introduced
+
 #### Scenario: Program root supports omission and ejection
 
 - GIVEN a downstream project owns its ordered Program module list
@@ -227,7 +252,7 @@ domain declarations.
 - WHEN storage identity, schema provenance, API routing, browser replication,
   archive, workspace, or authorization behavior is selected
 - THEN the downstream Formless Program root owns those complete-runtime choices
-- AND the Instance Control Plane, Identity Control Plane, Tasks, and Site
+- AND the Instance Control Plane, Identity Control Plane, Tasks, Site, and CRM
   packages continue owning their schema modules, stable entity ids, validation
   helpers, and domain adapters
 - AND package authoring module keys do not become runtime storage,

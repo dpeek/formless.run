@@ -12,7 +12,6 @@ import { bootstrapClient, startPushSync } from "../../client/sync.ts";
 import {
   appStorageIdentityForClientTarget,
   clientTargetLabel,
-  clientTargetForSchemaKey,
   clientTargetSourceSchemaKey,
   type ClientAppSchemaKey,
   type ClientAppTarget,
@@ -73,7 +72,7 @@ export function HomeRoute({
   onGeneratedWorkspaceController?: (
     controller: GeneratedWorkspaceRuntimeController | undefined,
   ) => void;
-  target?: ClientAppTarget;
+  target: ClientAppTarget;
   schemaKey: ClientAppSchemaKey;
   sectionExternalActions?: Readonly<
     Record<string, readonly GeneratedWorkspaceSectionExternalAction[] | undefined>
@@ -81,10 +80,9 @@ export function HomeRoute({
   screenPath: string;
   workspaceActions?: readonly WorkspaceLinkActionContract[];
 }) {
-  const appTarget = target ?? clientTargetForSchemaKey(schemaKey);
-  const appTargetIdentity = appStorageIdentityForClientTarget(appTarget);
-  const appLabel = clientTargetLabel(appTarget);
-  const appSchemaKey = clientTargetSourceSchemaKey(appTarget);
+  const appTargetIdentity = appStorageIdentityForClientTarget(target);
+  const appLabel = clientTargetLabel(target);
+  const appSchemaKey = clientTargetSourceSchemaKey(target);
   const activeClientStorageName = useActiveClientStorageName();
   const activeSchemaKey = useActiveSchemaKey();
   const activeSchema = useSchema();
@@ -113,8 +111,8 @@ export function HomeRoute({
       return;
     }
 
-    selectClientStoreTarget(appTarget);
-    const stopBroadcast = connectBroadcastToClientStore(appTarget);
+    selectClientStoreTarget(target);
+    const stopBroadcast = connectBroadcastToClientStore(target);
     let stopPushSync = () => {};
     let cancelled = false;
 
@@ -123,8 +121,8 @@ export function HomeRoute({
       setSyncStatus({ state: "syncing", message: `Syncing ${appLabel}...` });
 
       try {
-        await hydrateClientStore(appTarget);
-        await bootstrapClient(appTarget);
+        await hydrateClientStore(target);
+        await bootstrapClient(target);
 
         if (cancelled) {
           return;
@@ -132,7 +130,7 @@ export function HomeRoute({
 
         setSyncStatus({ state: "idle", message: "Synced." });
         onClientLoadStateChange?.({ state: "ready" });
-        stopPushSync = startPushSync(appTarget);
+        stopPushSync = startPushSync(target);
       } catch (error) {
         if (cancelled) {
           return;
@@ -192,7 +190,7 @@ export function HomeRoute({
     <SchemaAppProvider
       activePackageResolver={activePackageResolver}
       schemaKey={schemaKey}
-      target={appTarget}
+      target={target}
     >
       <HomeRouteGeneratedWorkspace
         getSectionSelection={(section) => ({

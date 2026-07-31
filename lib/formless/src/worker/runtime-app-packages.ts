@@ -17,13 +17,15 @@ import {
   FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
   parseRuntimeWorkspaceAppPackagesJson,
 } from "../shared/workspace-runtime-packages.ts";
-import {
-  findWorkerSchemaAppDefinition,
-  workerSchemaAppDefinitions,
-  type WorkerSchemaAppDefinition,
-} from "./schema-apps.ts";
 
 declare const __FORMLESS_WORKSPACE_APP_PACKAGES_JSON__: string | undefined;
+
+export type WorkerAppDefinition = {
+  key: string;
+  label: string;
+  route: `/${string}`;
+  sourceSchema: AppSchema;
+};
 
 export type ActiveRuntimeAppPackageEnv = {
   [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]?: string;
@@ -31,7 +33,7 @@ export type ActiveRuntimeAppPackageEnv = {
 
 type ActiveRuntimeAppPackages = {
   resolver: AppPackageResolver;
-  schemaDefinitions: ReadonlyMap<string, WorkerSchemaAppDefinition>;
+  schemaDefinitions: ReadonlyMap<string, WorkerAppDefinition>;
   sourceSchemas: ReadonlyMap<string, AppSchema>;
 };
 
@@ -55,10 +57,8 @@ export function findActiveAppPackage(
 export function findActiveWorkerSchemaAppDefinition(
   key: string,
   env?: ActiveRuntimeAppPackageEnv,
-): WorkerSchemaAppDefinition | undefined {
-  return (
-    activeRuntimeAppPackages(env).schemaDefinitions.get(key) ?? findWorkerSchemaAppDefinition(key)
-  );
+): WorkerAppDefinition | undefined {
+  return activeRuntimeAppPackages(env).schemaDefinitions.get(key);
 }
 
 export function activeWorkerSourceSchemas(
@@ -90,15 +90,8 @@ function activeRuntimeAppPackages(env?: ActiveRuntimeAppPackageEnv): ActiveRunti
       ...linked.map((source) => source.manifest),
     ]),
   );
-  const schemaDefinitions = new Map<string, WorkerSchemaAppDefinition>(
-    Object.entries(workerSchemaAppDefinitions),
-  );
-  const sourceSchemas = new Map<string, AppSchema>(
-    Object.entries(workerSchemaAppDefinitions).map(([key, definition]) => [
-      key,
-      definition.sourceSchema,
-    ]),
-  );
+  const schemaDefinitions = new Map<string, WorkerAppDefinition>();
+  const sourceSchemas = new Map<string, AppSchema>();
 
   for (const source of linked) {
     const appPackage = resolver.findPackage(source.manifest.packageAppKey);
@@ -142,16 +135,10 @@ function activeRuntimeAppPackagesContents(env?: ActiveRuntimeAppPackageEnv): str
 }
 
 function bundledRuntimeAppPackages(): ActiveRuntimeAppPackages {
-  const schemaDefinitions = new Map<string, WorkerSchemaAppDefinition>(
-    Object.entries(workerSchemaAppDefinitions),
-  );
-
   return {
     resolver: bundledAppPackageResolver,
-    schemaDefinitions,
-    sourceSchemas: new Map(
-      [...schemaDefinitions.entries()].map(([key, definition]) => [key, definition.sourceSchema]),
-    ),
+    schemaDefinitions: new Map(),
+    sourceSchemas: new Map(),
   };
 }
 
@@ -179,7 +166,7 @@ function workerSchemaAppDefinitionFromPackageSource(
   source: {
     sourceSchema: AppSchema;
   },
-): WorkerSchemaAppDefinition {
+): WorkerAppDefinition {
   const route = `/${appPackage.defaultInstallId}` as `/${string}`;
 
   return {

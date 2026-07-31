@@ -33,7 +33,6 @@ import {
   isDocumentMediaAsset,
   validatePdfDocumentMediaFile,
 } from "@dpeek/formless-media";
-import { siteEntityIds } from "@dpeek/formless-site-app";
 import { packageAppFactsForKey } from "@dpeek/formless-installed-apps";
 import {
   findResolvedAppPackage,
@@ -46,10 +45,7 @@ import {
   instanceControlPlaneDeploymentConfigObservedFields,
   isInstanceControlPlaneEntityName,
 } from "@dpeek/formless-instance-control-plane";
-import {
-  canonicalizeFormlessProgramStorageSnapshot,
-  formlessProgramSchema,
-} from "../program/runtime.ts";
+import { canonicalizeFormlessProgramStorageSnapshot } from "../program/runtime.ts";
 import { STORAGE_SNAPSHOT_KIND } from "@dpeek/formless-storage";
 import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
@@ -120,12 +116,6 @@ import {
 
 const deploymentConfigObservedFieldSet = new Set<string>(
   instanceControlPlaneDeploymentConfigObservedFields,
-);
-const siteEntityIdSet = new Set<string>(siteEntityIds);
-const programSiteEntityKeys = new Set(
-  formlessProgramSchema.entities
-    .filter((entity) => siteEntityIdSet.has(entity.id))
-    .map((entity) => entity.key),
 );
 
 type WorkspaceLocalDevState = {
@@ -2415,13 +2405,13 @@ function comparableProgramWorkspaceRecords(records: readonly StoredRecord[]): St
   );
 
   return records.filter((record) => {
-    if (programSiteEntityKeys.has(record.entity)) {
+    const entity = controlPlaneRecordEntity(record);
+
+    if (entity === undefined) {
       return true;
     }
 
-    const entity = controlPlaneRecordEntity(record);
-
-    if (record.deletedAt !== undefined || entity === undefined) {
+    if (record.deletedAt !== undefined) {
       return false;
     }
 

@@ -208,13 +208,6 @@ function sourceBlockTargetsIdentity(
     return true;
   }
 
-  if (targetKind === "schemaKey") {
-    return (
-      identity.kind === "schemaKey" &&
-      stringRecordValue(block.values.operationTargetSchemaKey) === identity.sourceSchemaKey
-    );
-  }
-
   if (targetKind === "appInstall") {
     return (
       identity.kind === "appInstall" &&

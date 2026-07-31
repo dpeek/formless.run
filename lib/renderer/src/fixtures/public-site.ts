@@ -156,12 +156,6 @@ const publicChallenge = {
   siteKey: "1x00000000000000000000AA",
 } as const;
 
-const siteTarget = {
-  kind: "schemaKey",
-  schemaKey: "site",
-  apiRoutePrefix: "/api/site",
-} as const;
-
 const crmTarget = {
   kind: "appInstall",
   packageAppKey: "crm",
@@ -318,8 +312,7 @@ const subscribeOperation = createSitePublicOperationFixture({
   operationName: "subscribe",
   canonicalKey: "subscription.subscribe",
   kind: "command",
-  target: crmTarget,
-  route: "/api/app-installs/crm/crm/public/operations/subscription/subscribe",
+  route: "/api/formless/program/public/operations/subscription/subscribe",
   challenge: publicChallenge,
 });
 
@@ -328,8 +321,7 @@ const contactOperation = createSitePublicOperationFixture({
   operationName: "send",
   canonicalKey: "contactMessage.send",
   kind: "create",
-  target: siteTarget,
-  route: "/api/site/public/operations/contactMessage/send",
+  route: "/api/formless/program/public/operations/contactMessage/send",
   challenge: publicChallenge,
 });
 

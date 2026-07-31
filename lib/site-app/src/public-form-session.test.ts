@@ -369,7 +369,7 @@ describe("public Site form sessions", () => {
     });
     expect(requests).toHaveLength(1);
     expect(requests[0]).toEqual({
-      input: "/api/site/public/operations/example/submit",
+      input: "/api/formless/program/public/operations/example/submit",
       init: {
         body: JSON.stringify({
           input: {
@@ -413,7 +413,7 @@ describe("public Site form sessions", () => {
 
     expect(serialized).not.toContain("private-turnstile-token");
     expect(serialized).not.toContain("private-key");
-    expect(serialized).not.toContain("/api/site/public/operations");
+    expect(serialized).not.toContain("/api/formless/program/public/operations");
     expect(serialized).not.toContain("private-created-record");
     expect(serialized).not.toContain("private-provider-value");
     expect(serialized).not.toContain("idempotencyKey");
@@ -788,7 +788,7 @@ function publicOperation(
     operationName,
     canonicalKey: `${entityName}.${operationName}`,
     kind: options.kind ?? "create",
-    route: `/api/site/public/operations/${entityName}/${operationName}`,
+    route: `/api/formless/program/public/operations/${entityName}/${operationName}`,
     ...(options.challenge === false
       ? {}
       : {

@@ -39,8 +39,6 @@ import {
 } from "@dpeek/formless-schema";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import {
-  crmTestRecords,
-  crmSourceSchema,
   siteSourceSchema,
   taskTestRecords,
   taskStorageSnapshotRecords,
@@ -466,27 +464,6 @@ describe("authority", () => {
     await expectNotFound("/api/dev/reset");
   });
 
-  it("isolates records and write replay by schema key", async () => {
-    const task = await postCreateOperation("write-shared", { title: "First", done: false });
-
-    await resetSchemaApp("crm");
-    useSchemaApp("crm");
-    const contact = await postCreateOperationForEntity("write-shared", "contact", {
-      label: "Designer",
-    });
-    const crmBootstrap = await getJson<BootstrapResponse>("/api/bootstrap");
-
-    useSchemaApp("tasks");
-    const tasksBootstrap = await getJson<BootstrapResponse>("/api/bootstrap");
-
-    expect(task.writeIdentity).toBe(operationWriteId("task", "create", "write-shared"));
-    expect(contact.writeIdentity).toBe(operationWriteId("contact", "create", "write-shared"));
-    expect(tasksBootstrap.schema).toEqual(appSchema);
-    expect(tasksBootstrap.records).toEqual([...taskTestRecords, task.record]);
-    expect(crmBootstrap.schema).toEqual(crmSourceSchema);
-    expect(crmBootstrap.records).toContainEqual(contact.record);
-    expect(crmBootstrap.records.every((record) => record.entity !== "task")).toBe(true);
-  });
   it("returns query, item view, and collection definitions from bootstrap", async () => {
     const body = await getJson<BootstrapResponse>("/api/bootstrap");
     expect(body.schema.queries.map(({ key }) => key).sort()).toEqual([
@@ -611,7 +588,7 @@ describe("authority", () => {
     });
   });
 
-  it("exports authority storage snapshots by storage identity and schema key", async () => {
+  it("exports installed app storage snapshots by storage identity and package key", async () => {
     const schemaResponse = await getJson<SchemaResponse>("/api/schema");
     const created = await postCreateOperation("write-snapshot-export-task", {
       title: "Snapshot export",
@@ -633,36 +610,16 @@ describe("authority", () => {
     expect(snapshot.records).toEqual(
       formatStoredRecordsForArtifact(appSchema, [...taskTestRecords, created.record]),
     );
-
-    await resetSchemaApp("crm");
-    useSchemaApp("crm");
-    const crmSnapshot = await getJson<StorageSnapshot>("/api/snapshot");
-
-    expect(crmSnapshot.storageIdentity).toBe("crm");
-    expect(crmSnapshot.schemaKey).toBe("crm");
-    expect(crmSnapshot.schema).toEqual(crmSourceSchema);
-    expect(crmSnapshot.records).toEqual(crmTestRecords);
-    expect(crmSnapshot.records.some((record) => record.id === created.record.id)).toBe(false);
   });
 
   it("restores snapshots and broadcasts committed restore writes", async () => {
     const before = await getJson<BootstrapResponse>("/api/bootstrap");
     const schemaResponse = await getJson<SchemaResponse>("/api/schema");
     const restoredRecord = taskSnapshotRecord("snapshot-task-restored", "Restored task");
-    await resetSchemaApp("crm");
     const taskSocket = await openSyncSocket("/api/sync/ws", "tasks");
-    const crmSocket = await openSyncSocket("/api/sync/ws", "crm");
-    let crmCapture: ReturnType<typeof captureSyncSocketMessages> | undefined;
 
     try {
       await primeSyncSocket(taskSocket, before.cursor, schemaResponse.updatedAt);
-
-      useSchemaApp("crm");
-      const crmSchema = await getJson<SchemaResponse>("/api/schema");
-      await primeSyncSocket(crmSocket, crmTestRecords.length, crmSchema.updatedAt);
-      crmCapture = captureSyncSocketMessages(crmSocket);
-
-      useSchemaApp("tasks");
       const message = readSyncSocketMessage(taskSocket);
       const restored = await postJson<BootstrapResponse>(
         "/api/snapshot/restore",
@@ -695,11 +652,8 @@ describe("authority", () => {
           schemaUpdatedAt: restored.schemaUpdatedAt,
         },
       });
-      await expectNoCapturedMessages(crmCapture);
     } finally {
-      crmCapture?.stop();
       taskSocket.close();
-      crmSocket.close();
     }
   });
 
@@ -1159,24 +1113,15 @@ describe("authority", () => {
     }
   });
 
-  it("broadcasts committed task creates to same-schema sync WebSockets only", async () => {
-    await resetSchemaApp("crm");
+  it("broadcasts committed task creates to connected sync WebSockets", async () => {
     const taskSocketA = await openSyncSocket("/api/sync/ws", "tasks");
     const taskSocketB = await openSyncSocket("/api/sync/ws", "tasks");
-    const crmSocket = await openSyncSocket("/api/sync/ws", "crm");
-    let crmCapture: ReturnType<typeof captureSyncSocketMessages> | undefined;
 
     try {
       const taskSchema = await getJson<SchemaResponse>("/api/schema");
       await primeSyncSocket(taskSocketA, taskTestRecords.length, taskSchema.updatedAt);
       await primeSyncSocket(taskSocketB, taskTestRecords.length, taskSchema.updatedAt);
 
-      useSchemaApp("crm");
-      const crmSchema = await getJson<SchemaResponse>("/api/schema");
-      await primeSyncSocket(crmSocket, crmTestRecords.length, crmSchema.updatedAt);
-      crmCapture = captureSyncSocketMessages(crmSocket);
-
-      useSchemaApp("tasks");
       const messageA = readSyncSocketMessage(taskSocketA);
       const messageB = readSyncSocketMessage(taskSocketB);
       const created = await postCreateOperation("write-broadcast-create", {
@@ -1198,12 +1143,9 @@ describe("authority", () => {
           cursor: created.cursor,
         },
       });
-      await expectNoCapturedMessages(crmCapture);
     } finally {
-      crmCapture?.stop();
       taskSocketA.close();
       taskSocketB.close();
-      crmSocket.close();
     }
   });
 
@@ -1519,9 +1461,13 @@ describe("authority", () => {
   });
 
   it("rejects invalid sync cursors", async () => {
-    await resetSchemaApp("crm");
-    useSchemaApp("crm");
-    await expectError("/api/sync?after=bad", undefined, "Sync cursor must be");
+    const response = await authority.fetch("/api/sync?after=bad");
+    const body = (await response.json()) as { error: string };
+
+    expect({ status: response.status, body }).toEqual({
+      status: 400,
+      body: { error: expect.stringContaining("Sync cursor must be") },
+    });
   });
 
   it("restores app identity references through the control-plane resolver", async () => {
@@ -2290,6 +2236,20 @@ async function resetSchemaApp(schemaKey: SchemaKey) {
 
   if (schemaKey === "site") {
     Object.assign(ownerSessionHeaders, await testIdentityOwnerSessionHeaders(harness, adminToken));
+    const response = await harness.fetch("/api/formless/app-installs", {
+      body: JSON.stringify({
+        packageAppKey: "test-tasks",
+        installId: "test-tasks",
+        label: "Tasks",
+      }),
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
+
+    expect(response.status).toBe(201);
   }
 }
 

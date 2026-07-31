@@ -5,7 +5,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   installedAppStorageIdentity,
-  schemaKeyStorageIdentity,
+  programStorageIdentity,
   type AppStorageIdentity,
 } from "../shared/app-storage-identity.ts";
 import type { EmailDeliveryScheduleRequest } from "../shared/email-runtime.ts";
@@ -15,16 +15,11 @@ import {
   type SiteOperationInputNotificationAdapters,
 } from "./site-operation-input-notifications.ts";
 
-type OperationFormTarget =
-  | {
-      kind: "schemaKey";
-      schemaKey: string;
-    }
-  | {
-      installId: string;
-      kind: "appInstall";
-      packageAppKey: string;
-    };
+type OperationFormTarget = {
+  installId: string;
+  kind: "appInstall";
+  packageAppKey: string;
+};
 
 describe("Site operation input notification scheduling", () => {
   it("schedules structured operation input email from a committed public operation form", async () => {
@@ -32,7 +27,7 @@ describe("Site operation input notification scheduling", () => {
 
     await scheduleSiteOperationInputNotificationAfterPublicOperation({
       adapters: notificationAdapters(notificationControlPlaneRecords(), scheduled),
-      identity: schemaKeyStorageIdentity("site"),
+      identity: programStorageIdentity(),
       records: operationFormSourceRecords({ replyToField: "email" }),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response: operationInputResponse({
@@ -54,7 +49,7 @@ describe("Site operation input notification scheduling", () => {
         idempotencyKey: expect.stringMatching(/^operation-input-notification:[a-f0-9]{64}$/),
         message: {
           subject: "New public operation input for request.submit",
-          text: expect.stringContaining("Target storage: site"),
+          text: expect.stringContaining("Target storage: instance:control-plane"),
           html: expect.stringContaining("Need &lt;testing&gt; &amp; review.<br>Second line."),
         },
         messageKind: "site-operation-input-notification",
@@ -73,7 +68,7 @@ describe("Site operation input notification scheduling", () => {
         source: {
           operationId: "operation:request.submit:operation-input-notify",
           recordId: "request-1",
-          storageIdentity: "site",
+          storageIdentity: "instance:control-plane",
         },
       },
     ]);
@@ -92,7 +87,7 @@ describe("Site operation input notification scheduling", () => {
     expect(message.html).toContain("<table");
     expect(message.html).not.toContain("<dl>");
     expect(message.html).toMatch(
-      /<tr><th scope="row"[^>]*>Target storage<\/th><td[^>]*>site<\/td><\/tr>/,
+      /<tr><th scope="row"[^>]*>Target storage<\/th><td[^>]*>instance:control-plane<\/td><\/tr>/,
     );
     expect(message.html).toMatch(
       /<tr><th scope="row"[^>]*>Request details &lt;safe label&gt;<\/th><td[^>]*>Need &lt;testing&gt; &amp; review\.<br>Second line\.<\/td><\/tr>/,
@@ -106,7 +101,7 @@ describe("Site operation input notification scheduling", () => {
 
     await scheduleSiteOperationInputNotificationAfterPublicOperation({
       adapters: notificationAdapters(notificationControlPlaneRecords(), scheduled),
-      identity: schemaKeyStorageIdentity("site"),
+      identity: programStorageIdentity(),
       records: operationFormSourceRecords({ replyToField: "email" }),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response: operationInputResponse({
@@ -130,7 +125,7 @@ describe("Site operation input notification scheduling", () => {
 
     await scheduleSiteOperationInputNotificationAfterPublicOperation({
       adapters: notificationAdapters(notificationControlPlaneRecords(), scheduled),
-      identity: schemaKeyStorageIdentity("site"),
+      identity: programStorageIdentity(),
       records: operationFormSourceRecords({ replyToField: "email" }),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response: operationInputCommandResponse({
@@ -174,7 +169,7 @@ describe("Site operation input notification scheduling", () => {
 
     await scheduleSiteOperationInputNotificationAfterPublicOperation({
       adapters: notificationAdapters(notificationControlPlaneRecords(), scheduled),
-      identity: schemaKeyStorageIdentity("site"),
+      identity: programStorageIdentity(),
       records: operationFormSourceRecords(),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response: operationInputCommandResponse({
@@ -210,7 +205,7 @@ describe("Site operation input notification scheduling", () => {
 
     await scheduleSiteOperationInputNotificationAfterPublicOperation({
       adapters: notificationAdapters(notificationControlPlaneRecords(), scheduled),
-      identity: schemaKeyStorageIdentity("site"),
+      identity: programStorageIdentity(),
       records: operationFormSourceRecords({ mode: "none" }),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response,
@@ -218,7 +213,7 @@ describe("Site operation input notification scheduling", () => {
     });
     await scheduleSiteOperationInputNotificationAfterPublicOperation({
       adapters: notificationAdapters([], scheduled),
-      identity: schemaKeyStorageIdentity("site"),
+      identity: programStorageIdentity(),
       records: operationFormSourceRecords(),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response,
@@ -239,7 +234,7 @@ describe("Site operation input notification scheduling", () => {
     for (const response of [replayed, nonPublic]) {
       await scheduleSiteOperationInputNotificationAfterPublicOperation({
         adapters: notificationAdapters(notificationControlPlaneRecords(), scheduled),
-        identity: schemaKeyStorageIdentity("site"),
+        identity: programStorageIdentity(),
         records: operationFormSourceRecords(),
         requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
         response,
@@ -261,7 +256,7 @@ describe("Site operation input notification scheduling", () => {
         scheduled,
         new Error("Email delivery queue or provider failed for owner@example.com."),
       ),
-      identity: schemaKeyStorageIdentity("site"),
+      identity: programStorageIdentity(),
       records: operationFormSourceRecords({ replyToField: "email" }),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response,
@@ -330,7 +325,7 @@ describe("Site operation input notification scheduling", () => {
 
     await scheduleSiteOperationInputNotificationAfterPublicOperation({
       adapters,
-      identity: schemaKeyStorageIdentity("site"),
+      identity: programStorageIdentity(),
       records: operationFormSourceRecords(),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response,
@@ -338,7 +333,7 @@ describe("Site operation input notification scheduling", () => {
     });
     await scheduleSiteOperationInputNotificationAfterPublicOperation({
       adapters,
-      identity: schemaKeyStorageIdentity("site"),
+      identity: programStorageIdentity(),
       records: operationFormSourceRecords(),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response,
@@ -427,13 +422,6 @@ function operationFormSourceRecords(
 function operationFormTargetValues(target: OperationFormTarget | undefined): RecordValues {
   if (!target) {
     return {};
-  }
-
-  if (target.kind === "schemaKey") {
-    return {
-      operationTargetKind: "schemaKey",
-      operationTargetSchemaKey: target.schemaKey,
-    };
   }
 
   return {
@@ -560,7 +548,7 @@ function operationInputResponse(
     input?: RecordValues;
   } = {},
 ): OperationInvocationResponse {
-  const identity = input.identity ?? schemaKeyStorageIdentity("site");
+  const identity = input.identity ?? programStorageIdentity();
   const values = input.input ?? {
     fullName: "Ada Lovelace",
     email: "ada@example.com",
@@ -624,7 +612,7 @@ function operationInputCommandResponse(input: {
   operation: EntityOperationSchema;
   outputValues?: RecordValues;
 }): OperationInvocationResponse {
-  const identity = input.identity ?? schemaKeyStorageIdentity("site");
+  const identity = input.identity ?? programStorageIdentity();
 
   return {
     invocation: {

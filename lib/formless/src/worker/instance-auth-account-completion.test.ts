@@ -10,6 +10,7 @@ import {
 } from "../shared/workspace-runtime-packages.ts";
 import { computeSourceSchemaHash } from "../shared/upgrade-migrations.ts";
 import {
+  runtimeWorkspaceCrmAppPackageFixture,
   runtimeWorkspaceTaskAppPackageFixture,
   workspaceAppPackageManifestFixture,
 } from "../test/workspace-app-package.ts";
@@ -51,6 +52,7 @@ beforeEach(async () => {
   writeCounter = 0;
   const profilePackage = await profileCompletionWorkspacePackage();
   const taskPackage = await runtimeWorkspaceTaskAppPackageFixture();
+  const crmPackage = await runtimeWorkspaceCrmAppPackageFixture();
   harness = await createWorkerHarness(
     harnessPath,
     {
@@ -64,12 +66,13 @@ beforeEach(async () => {
         [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
           profilePackage,
           taskPackage,
+          crmPackage,
         ]),
       },
     },
   );
-  await createAppInstall({ installId: "crm", label: "CRM", packageAppKey: "crm" });
-  await createAppInstall({ installId: "billing", label: "Billing", packageAppKey: "crm" });
+  await createAppInstall({ installId: "crm", label: "CRM", packageAppKey: "test-crm" });
+  await createAppInstall({ installId: "billing", label: "Billing", packageAppKey: "test-crm" });
 });
 
 afterEach(async () => {
@@ -373,7 +376,7 @@ describe("instance auth account completion resolver", () => {
     await createAppInstall({
       installId: "portal",
       label: "Portal",
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       registrationPolicy: "email-verified",
     });
     const principal = await createPrincipal("Email Verified Registration");
@@ -551,7 +554,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "portal",
       label: "Portal",
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       registrationPolicy: "email-verified",
     });
     const principal = await createPrincipal("Complete Registration");
@@ -605,7 +608,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "portal",
       label: "Portal",
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       registrationPolicy: "email-verified",
     });
     const principal = await createPrincipal("Blocked After Registration");
@@ -785,7 +788,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "closed-portal",
       label: "Closed Portal",
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
     });
     const principal = await createPrincipal("Reject Closed Registration");
     const target = appTargetForInstall(install);
@@ -825,7 +828,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "credential-portal",
       label: "Credential Portal",
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       registrationPolicy: "email-verified",
     });
     const principal = await createPrincipal("Reject Missing Credential");
@@ -1060,7 +1063,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "terms-portal",
       label: "Terms Portal",
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
     });
     const principal = await createPrincipal("Terms Acceptance");
     const target = appTargetForInstall(install);
@@ -1144,7 +1147,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "reject-terms",
       label: "Reject Terms",
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
     });
     const principal = await createPrincipal("Reject Terms");
     const target = appTargetForInstall(install);
@@ -1205,7 +1208,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "partial-terms",
       label: "Partial Terms",
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
     });
     const principal = await createPrincipal("Partial Terms");
     const target = appTargetForInstall(install);
@@ -1266,7 +1269,7 @@ describe("instance auth account completion resolver", () => {
     const install = await createAppInstall({
       installId: "stale-acceptances",
       label: "Stale Acceptances",
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
     });
     const principal = await createPrincipal("Stale Acceptances");
     const target = appTargetForInstall(install);

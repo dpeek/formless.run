@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   installedAppStorageIdentity,
-  schemaKeyStorageIdentity,
+  programStorageIdentity,
 } from "../shared/app-storage-identity.ts";
 import {
   consumePublicOperationReadRateLimit,
@@ -13,7 +13,7 @@ import {
 describe("public operation read rate limit", () => {
   it("isolates attempts by target, operation, and trusted client network", async () => {
     const store = memoryRateLimitStore();
-    const schemaIdentity = schemaKeyStorageIdentity("tasks");
+    const schemaIdentity = programStorageIdentity();
     const installedIdentity = installedAppStorageIdentity({
       packageAppKey: "crm",
       installId: "verification",
@@ -61,7 +61,7 @@ describe("public operation read rate limit", () => {
   it("uses only the trusted client-network header and stores hashed scope keys", async () => {
     const store = memoryRateLimitStore();
     const input = {
-      identity: schemaKeyStorageIdentity("tasks"),
+      identity: programStorageIdentity(),
       nowMs: Date.parse("2026-07-27T03:01:00.000Z"),
       operationKey: "certificate.lookup",
       policy: { maxRequests: 1, windowSeconds: 60 },
@@ -96,7 +96,7 @@ describe("public operation read rate limit", () => {
     const store = memoryRateLimitStore();
     const startedAt = Date.parse("2026-07-27T03:02:00.000Z");
     const input = {
-      identity: schemaKeyStorageIdentity("tasks"),
+      identity: programStorageIdentity(),
       nowMs: startedAt,
       operationKey: "certificate.lookup",
       policy: { maxRequests: 2, windowSeconds: 30 },

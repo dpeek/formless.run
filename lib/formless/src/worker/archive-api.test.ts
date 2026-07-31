@@ -35,7 +35,10 @@ import {
   FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
   formatRuntimeWorkspaceAppPackages,
 } from "../shared/workspace-runtime-packages.ts";
-import { runtimeWorkspaceTaskAppPackageFixture } from "../test/workspace-app-package.ts";
+import {
+  runtimeWorkspaceCrmAppPackageFixture,
+  runtimeWorkspaceTaskAppPackageFixture,
+} from "../test/workspace-app-package.ts";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
@@ -50,6 +53,7 @@ beforeAll(async () => {
   const taskPackage = await runtimeWorkspaceTaskAppPackageFixture({
     packageAppKey: taskPackageAppKey,
   });
+  const crmPackage = await runtimeWorkspaceCrmAppPackageFixture();
   const privateSitePackage = await runtimeWorkspaceTaskAppPackageFixture({
     capabilities: [
       { kind: "generatedAdmin", routeBase: "/apps" },
@@ -71,6 +75,7 @@ beforeAll(async () => {
         [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
           taskPackage,
           privateSitePackage,
+          crmPackage,
         ]),
       },
       r2Buckets: ["FORMLESS_MEDIA"],
@@ -246,7 +251,9 @@ describe("instance archive restore API", () => {
     const dryRun = await postArchiveRestore(crmAppArchive({ dryRun: true }));
     const applied = await postArchiveRestore(crmAppArchive({ dryRun: false }));
     const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const bootstrap = await getJson<BootstrapResponse>("/api/app-installs/crm/rates/bootstrap");
+    const bootstrap = await getJson<BootstrapResponse>(
+      "/api/app-installs/test-crm/rates/bootstrap",
+    );
 
     expect(dryRun.response.status).toBe(200);
     expect(dryRun.body).toMatchObject({
@@ -276,7 +283,7 @@ describe("instance archive restore API", () => {
       expect.objectContaining({
         adminRoute: "/apps/rates",
         installId: "rates",
-        packageAppKey: "crm",
+        packageAppKey: "test-crm",
       }),
     ]);
     expect(installs.body.installs[0]).not.toHaveProperty("publicRoute");
@@ -294,7 +301,7 @@ describe("instance archive restore API", () => {
     const tasks = await getJson<BootstrapResponse>(
       `/api/app-installs/${taskPackageAppKey}/work/bootstrap`,
     );
-    const crm = await getJson<BootstrapResponse>("/api/app-installs/crm/rates/bootstrap");
+    const crm = await getJson<BootstrapResponse>("/api/app-installs/test-crm/rates/bootstrap");
 
     expect(dryRun.response.status).toBe(200);
     expect(dryRun.body).toMatchObject({
@@ -322,7 +329,7 @@ describe("instance archive restore API", () => {
     });
     expect(installs.body.installs.map((install) => install.packageAppKey)).toEqual([
       privateSitePackageAppKey,
-      "crm",
+      "test-crm",
       taskPackageAppKey,
     ]);
     expect(
@@ -339,7 +346,7 @@ describe("instance archive restore API", () => {
     expect(crm.body.records).toEqual(crmTestRecords);
   });
 
-  it("restores Program Task records while dormant Tasks metadata stays non-authoritative", async () => {
+  it("restores Program Task and CRM records while dormant metadata stays non-authoritative", async () => {
     const restored = await postArchiveRestore(controlPlaneInstanceArchive({ dryRun: false }));
     const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
     const installedApp = await getJson<BootstrapResponse>(
@@ -381,7 +388,9 @@ describe("instance archive restore API", () => {
     expect(controlPlane.body.records.map((record) => `${record.entity}:${record.id}`)).toEqual(
       expect.arrayContaining([
         "app-install:legacy-tasks",
+        "app-install:legacy-crm",
         "app-install:personal",
+        "company:company-program-restored",
         "task:task-program-restored",
         "route:route:host:publicSite:archive.example.com",
         "route:route:redirect:old.archive.example.com",
@@ -389,6 +398,9 @@ describe("instance archive restore API", () => {
       ]),
     );
     expect(installs.body.installs.some((install) => install.installId === "legacy-tasks")).toBe(
+      false,
+    );
+    expect(installs.body.installs.some((install) => install.installId === "legacy-crm")).toBe(
       false,
     );
     expect(serializedControlPlane).not.toContain("site-main");
@@ -425,6 +437,18 @@ describe("instance archive restore API", () => {
     expect(installs.body.installs).toEqual([]);
     expect(program.body.records.some((record) => record.entity === "site")).toBe(false);
     expect(media).not.toBeNull();
+  });
+
+  it("rejects legacy CRM app archives without adopting their records", async () => {
+    const restored = await postArchiveRestore(legacyCrmAppArchive({ dryRun: false }));
+    const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
+    const program = await getJson<BootstrapResponse>(
+      "/api/formless/program/bootstrap?actorKind=owner",
+    );
+
+    expect(restored.response.status).toBe(400);
+    expect(installs.body.installs).toEqual([]);
+    expect(program.body.records.some((record) => record.entity === "company")).toBe(false);
   });
 
   it("exact instance replacement replaces matching installs and prunes absent installs and media", async () => {
@@ -770,10 +794,35 @@ function controlPlaneArchiveRecords(): StoredRecord[] {
       },
       now,
     }).map(storedControlPlaneRecord),
+    ...instanceControlPlaneRecordsForAppInstall({
+      install: {
+        adminRoute: "/apps/legacy-crm",
+        createdAt: now,
+        installId: "legacy-crm",
+        label: "Legacy CRM",
+        packageAppKey: "crm",
+        packageRevision: 1,
+        registrationPolicy: "closed",
+        sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
+        status: "installed",
+        updatedAt: now,
+      },
+      now,
+    }).map(storedControlPlaneRecord),
     taskRecord({
       id: "task-program-restored",
       title: "Program archive task",
     }),
+    {
+      id: "company-program-restored",
+      entity: "company",
+      createdAt: now,
+      updatedAt: now,
+      values: {
+        name: "Program archive company",
+        status: "prospect",
+      },
+    },
     {
       id: "instance.primary",
       entity: "deployment-config",
@@ -957,6 +1006,25 @@ function legacySiteAppArchive(input: { dryRun: boolean }): AppArchive {
   };
 }
 
+function legacyCrmAppArchive(input: { dryRun: boolean }): AppArchive {
+  const archive = crmAppArchive(input);
+
+  return {
+    ...archive,
+    app: {
+      ...archive.app,
+      installId: "legacy-crm",
+      packageAppKey: "crm",
+      sourceSchemaKey: "crm",
+    },
+    data: {
+      ...archive.data,
+      storageIdentity: "app:legacy-crm",
+      schemaKey: "crm",
+    },
+  };
+}
+
 function crmAppArchive(input: { dryRun: boolean }): AppArchive {
   return {
     kind: APP_ARCHIVE_KIND,
@@ -966,9 +1034,9 @@ function crmAppArchive(input: { dryRun: boolean }): AppArchive {
     restorePolicy: { dryRun: input.dryRun, installCollisions: "reject" },
     app: {
       installId: "rates",
-      packageAppKey: "crm",
+      packageAppKey: "test-crm",
       packageRevision: 1,
-      sourceSchemaKey: "crm",
+      sourceSchemaKey: "test-crm",
       sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
       label: "Rates",
       registrationPolicy: "closed",
@@ -980,7 +1048,7 @@ function crmAppArchive(input: { dryRun: boolean }): AppArchive {
       kind: STORAGE_SNAPSHOT_KIND,
       version: STORAGE_SNAPSHOT_VERSION,
       storageIdentity: "app:rates",
-      schemaKey: "crm",
+      schemaKey: "test-crm",
       exportedAt: "2026-05-12T00:00:00.000Z",
       schemaUpdatedAt: "2026-05-12T00:00:00.000Z",
       sourceCursor: crmTestRecords.length,

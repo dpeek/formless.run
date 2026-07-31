@@ -9,7 +9,7 @@ import { PublicSiteThemeProvider } from "./theme.ts";
 
 export { normalizeSitePageSlug } from "./slug.ts";
 
-const DEFAULT_SITE_API_ROUTE_PREFIX = "/api/site";
+const DEFAULT_SITE_API_ROUTE_PREFIX = "/api/formless/program";
 
 export type SitePageRouteState =
   | {

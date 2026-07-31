@@ -21,7 +21,7 @@ import {
   type RecordConstraintValidator,
   type StorageSource,
 } from "./storage.ts";
-import type { WorkerSchemaAppDefinition } from "./schema-apps.ts";
+import type { WorkerAppDefinition } from "./runtime-app-packages.ts";
 
 export const INTERNAL_PROGRAM_CONVERGENCE_SOURCE_PATH = "/_internal/program-convergence/source";
 
@@ -35,7 +35,7 @@ export const formlessProgramApp = {
   label: "Formless Program",
   route: "/",
   sourceSchema: formlessProgramSchema,
-} satisfies WorkerSchemaAppDefinition;
+} satisfies WorkerAppDefinition;
 
 export function formlessProgramSource(): StorageSource {
   return {

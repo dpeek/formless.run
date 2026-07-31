@@ -3,6 +3,7 @@ import {
   identityControlPlanePresentationSchemaModule,
   identityControlPlaneRecordSchemaModule,
 } from "@dpeek/formless-identity-control-plane/schema";
+import { crmPresentationSchemaModule, crmRecordSchemaModule } from "@dpeek/formless-crm-app/schema";
 import {
   instanceControlPlanePresentationSchemaModule,
   instanceControlPlaneRecordSchemaModule,
@@ -18,6 +19,8 @@ import {
 import { composeAppSchema, parseAppSchema, type AppSchemaSource } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 import {
+  formlessCrmPresentationSchemaModule,
+  formlessCrmRecordSchemaModule,
   formlessIdentityControlPlanePresentationSchemaModule,
   formlessInstanceControlPlanePresentationSchemaModule,
   formlessProgramSchemaModules,
@@ -45,11 +48,12 @@ describe("Formless Program schema", () => {
       'Schema declaration "screens.apps" is contributed by both modules "instance-control-plane-presentation" and "identity-control-plane-presentation".',
     );
 
-    expect(formlessProgramSchemaModules.slice(0, 4)).toEqual([
+    expect(formlessProgramSchemaModules.slice(0, 5)).toEqual([
       instanceControlPlaneRecordSchemaModule,
       identityControlPlaneRecordSchemaModule,
       formlessTasksRecordSchemaModule,
       formlessSiteRecordSchemaModule,
+      formlessCrmRecordSchemaModule,
     ]);
     expect(formlessInstanceControlPlanePresentationSchemaModule.key).toBe(
       instanceControlPlanePresentationSchemaModule.key,
@@ -88,21 +92,7 @@ describe("Formless Program schema", () => {
     expect(formlessTasksPresentationSchemaModule.key).toBe(tasksPresentationSchemaModule.key);
   });
 
-  it("specializes Site through same-key Program replacements", () => {
-    expect(formlessSiteRecordSchemaModule).toEqual({
-      ...siteRecordSchemaModule,
-      entities: siteRecordSchemaModule.entities.map((entity) => ({
-        ...entity,
-        operations: entity.operations?.map((operation) =>
-          "policy" in operation && operation.policy.actors.includes("anonymous")
-            ? operation
-            : {
-                ...operation,
-                access: { role: "editor" },
-              },
-        ),
-      })),
-    });
+  it("specializes Site and CRM through same-key Program replacements", () => {
     expect(formlessSitePresentationSchemaModule).toEqual({
       ...sitePresentationSchemaModule,
       screens: sitePresentationSchemaModule.screens.map((screen) => ({
@@ -118,75 +108,113 @@ describe("Formless Program schema", () => {
     });
     expect(formlessSiteRecordSchemaModule.key).toBe(siteRecordSchemaModule.key);
     expect(formlessSitePresentationSchemaModule.key).toBe(sitePresentationSchemaModule.key);
+    expect(formlessCrmRecordSchemaModule.key).toBe(crmRecordSchemaModule.key);
+    expect(formlessCrmPresentationSchemaModule.key).toBe(crmPresentationSchemaModule.key);
+
+    const sharedKeys = ["contact", "email-address", "audience", "subscription"] as const;
+    const siteEntityIds = new Map(siteRecordSchemaModule.entities.map(({ id, key }) => [key, id]));
+    const programSharedEntities = formlessSiteRecordSchemaModule.entities.filter(({ key }) =>
+      sharedKeys.includes(key as (typeof sharedKeys)[number]),
+    );
+
+    expect(programSharedEntities.map(({ id, key }) => ({ id, key }))).toEqual(
+      sharedKeys.map((key) => ({ id: siteEntityIds.get(key), key })),
+    );
     expect(
-      formlessSiteRecordSchemaModule.entities.flatMap((entity) =>
-        (entity.operations ?? []).map((operation) => ({
-          access: "access" in operation ? operation.access : undefined,
-          operation: `${entity.key}.${operation.key}`,
-          policy: "policy" in operation ? operation.policy : undefined,
-        })),
+      Object.fromEntries(
+        programSharedEntities.map((entity) => [entity.key, entity.fields.map(({ key }) => key)]),
       ),
+    ).toEqual({
+      contact: ["label", "company", "role", "lifecycle", "source", "notes"],
+      "email-address": ["contact", "address", "normalizedAddress", "status", "primary"],
+      audience: ["key", "label", "description", "status"],
+      subscription: [
+        "emailAddress",
+        "audience",
+        "status",
+        "consentedAt",
+        "sourceKind",
+        "sourceLabel",
+        "sourceTargetKind",
+        "sourcePackageAppKey",
+        "sourceSchemaKey",
+        "sourceInstallId",
+        "sourceApiRoutePrefix",
+        "sourceOperationKey",
+        "sourceHost",
+        "sourcePath",
+        "sourceSiteBlockId",
+      ],
+    });
+    expect(
+      programSharedEntities
+        .find(({ key }) => key === "subscription")
+        ?.fields.find(({ key }) => key === "sourceTargetKind"),
+    ).toMatchObject({
+      type: "enum",
+      values: [{ key: "program", label: "Program" }],
+    });
+
+    expect(formlessCrmRecordSchemaModule.entities.map(({ id, key }) => ({ id, key }))).toEqual(
+      crmRecordSchemaModule.entities
+        .filter(({ key }) => !sharedKeys.includes(key as (typeof sharedKeys)[number]))
+        .map(({ id, key }) => ({ id, key })),
+    );
+    expect(
+      formlessCrmRecordSchemaModule.relationships.some(({ key }) =>
+        formlessSiteRecordSchemaModule.relationships.some(
+          (relationship) => relationship.key === key,
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      formlessCrmRecordSchemaModule.queries.some(({ key }) =>
+        formlessSiteRecordSchemaModule.queries.some((query) => query.key === key),
+      ),
+    ).toBe(false);
+
+    const publicOperations: string[] = [];
+    for (const entity of [
+      ...formlessSiteRecordSchemaModule.entities,
+      ...formlessCrmRecordSchemaModule.entities,
+    ]) {
+      for (const operation of entity.operations ?? []) {
+        const canonicalKey = `${entity.key}.${operation.key}`;
+        if ("policy" in operation && operation.policy.actors.includes("anonymous")) {
+          publicOperations.push(canonicalKey);
+          expect("access" in operation ? operation.access : undefined).toBeUndefined();
+        } else {
+          expect("access" in operation ? operation.access : undefined, canonicalKey).toEqual({
+            role: "editor",
+          });
+        }
+      }
+    }
+    expect(publicOperations).toEqual(["contact-message.submit", "subscription.subscribe"]);
+
+    expect(formlessCrmPresentationSchemaModule.tableViews.map(({ key }) => key)).toEqual([
+      "companyTable",
+      "contactTable",
+      "crmEmailAddressTable",
+      "crmAudienceTable",
+      "crmSubscriptionTable",
+      "campaignTable",
+      "campaignMessageTable",
+      "broadcastTable",
+      "broadcastRecipientTable",
+      "deliveryEventTable",
+    ]);
+    expect(
+      formlessCrmPresentationSchemaModule.screens.map(({ access, key, path }) => ({
+        access,
+        key,
+        path,
+      })),
     ).toEqual([
-      { access: { role: "editor" }, operation: "site.update", policy: undefined },
-      { access: { role: "editor" }, operation: "block.create", policy: undefined },
-      { access: { role: "editor" }, operation: "block.update", policy: undefined },
-      { access: { role: "editor" }, operation: "block.delete", policy: undefined },
-      {
-        access: { role: "editor" },
-        operation: "block-placement.create",
-        policy: undefined,
-      },
-      {
-        access: { role: "editor" },
-        operation: "block-placement.update",
-        policy: undefined,
-      },
-      {
-        access: { role: "editor" },
-        operation: "block-placement.addTreeChild",
-        policy: undefined,
-      },
-      {
-        access: { role: "editor" },
-        operation: "block-placement.removeTreePlacement",
-        policy: undefined,
-      },
-      { access: { role: "editor" }, operation: "contact.update", policy: undefined },
-      {
-        access: undefined,
-        operation: "contact-message.submit",
-        policy: {
-          actors: ["anonymous"],
-          access: {
-            actor: "anonymous",
-            challenge: { kind: "turnstile" },
-            origin: { kind: "same-origin" },
-          },
-        },
-      },
-      {
-        access: { role: "editor" },
-        operation: "email-address.update",
-        policy: undefined,
-      },
-      { access: { role: "editor" }, operation: "audience.update", policy: undefined },
-      {
-        access: { role: "editor" },
-        operation: "subscription.update",
-        policy: undefined,
-      },
-      {
-        access: undefined,
-        operation: "subscription.subscribe",
-        policy: {
-          actors: ["anonymous"],
-          access: {
-            actor: "anonymous",
-            challenge: { kind: "turnstile" },
-            origin: { kind: "same-origin" },
-          },
-        },
-      },
+      { access: { role: "member" }, key: "contacts", path: "/crm" },
+      { access: { role: "member" }, key: "audiences", path: "/crm/audiences" },
+      { access: { role: "member" }, key: "campaigns", path: "/crm/campaigns" },
+      { access: { role: "member" }, key: "broadcasts", path: "/crm/broadcasts" },
     ]);
   });
 
@@ -227,6 +255,10 @@ describe("Formless Program schema", () => {
       { access: { role: "member" }, key: "siteEditor" },
       { access: { role: "member" }, key: "siteSubscribers" },
       { access: { role: "member" }, key: "siteContacts" },
+      { access: { role: "member" }, key: "contacts" },
+      { access: { role: "member" }, key: "audiences" },
+      { access: { role: "member" }, key: "campaigns" },
+      { access: { role: "member" }, key: "broadcasts" },
       { access: { role: "administrator" }, key: "apps" },
     ]);
     expect(screens.principals?.path).toBe("/");
@@ -244,9 +276,14 @@ describe("Formless Program schema", () => {
     expect(screens.siteSettings?.path).toBe("/site/settings");
     expect(screens.siteContacts?.path).toBe("/site/contacts");
     expect(screens.siteSubscribers?.path).toBe("/site/subscribers");
+    expect(screens.contacts?.path).toBe("/crm");
+    expect(screens.audiences?.path).toBe("/crm/audiences");
+    expect(screens.campaigns?.path).toBe("/crm/campaigns");
+    expect(screens.broadcasts?.path).toBe("/crm/broadcasts");
     expect(parsed.navigation?.primaryScreens).toEqual([
       "taskHome",
       "siteEditor",
+      "contacts",
       "apps",
       "routes",
       "deployments",
@@ -264,11 +301,15 @@ describe("Formless Program schema", () => {
         ...identityControlPlaneRecordSchemaModule.entities,
         ...tasksRecordSchemaModule.entities,
         ...siteRecordSchemaModule.entities,
+        ...crmRecordSchemaModule.entities.filter(
+          ({ key }) => !["contact", "email-address", "audience", "subscription"].includes(key),
+        ),
       ].map(({ id, key }) => [key, id]),
     );
     expect(Object.fromEntries(parsed.entities.map(({ id, key }) => [key, id]))).toEqual(
       packageEntityIds,
     );
+    expect(new Set(parsed.entities.map(({ id }) => id)).size).toBe(parsed.entities.length);
   });
 
   it("keeps the canonical artifact aligned and free of authoring metadata", async () => {
@@ -284,6 +325,8 @@ describe("Formless Program schema", () => {
     expect(artifactText).not.toContain("tasks-presentation");
     expect(artifactText).not.toContain("site-records");
     expect(artifactText).not.toContain("site-presentation");
+    expect(artifactText).not.toContain("crm-records");
+    expect(artifactText).not.toContain("crm-presentation");
     expect(artifactText).not.toContain("formless-program-presentation");
     expect(artifactText).not.toContain("@dpeek/");
   });

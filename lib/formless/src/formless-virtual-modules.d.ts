@@ -12,7 +12,6 @@ declare module "virtual:formless/site-public-renderer/worker" {
 
 interface ImportMetaEnv extends Record<string, string | boolean | undefined> {
   readonly VITE_FORMLESS_RUNTIME_PROFILE?: string;
-  readonly VITE_FORMLESS_SCHEMA_KEY?: string;
 }
 
 interface ImportMeta {

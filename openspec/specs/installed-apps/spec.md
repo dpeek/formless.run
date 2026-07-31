@@ -6,7 +6,7 @@ Installed apps define the product instance app shape: stable app install
 identity, package-backed initialization, install-scoped routes, and
 install-scoped storage/API behavior. They let one Formless instance host
 multiple resolved package app installs without mixing app data, browser
-replicas, public Site routes, or source schema-key storage.
+replicas, or public Site routes.
 
 ## Requirements
 
@@ -42,11 +42,8 @@ app install can be created.
   default install id, multiple-install policy, source origin, source schema key,
   package revision, source schema hash, admin route base, and optional public
   route capability
-- **AND** the default runtime-installable resolver includes bundled CRM
-- **AND** CRM package metadata comes from app package manifest facts, not from
-  app install records, instance control-plane route records, or root schema
-  path conventions
-- **AND** the Program-native package keys `tasks` and `site` are absent from the
+- **AND** no bundled package is runtime-installable
+- **AND** Program-native package keys `tasks`, `site`, and `crm` are absent from the
   runtime-installable resolver
 
 #### Scenario: Active resolver is authoritative
@@ -99,15 +96,15 @@ app install can be created.
 
 #### Scenario: Program-native package is not installable
 
-- **GIVEN** package key `tasks` or `site` identifies a domain composed into the
-  default Program
+- **GIVEN** package key `tasks`, `site`, or `crm` identifies a domain composed
+  into the default Program
 - **WHEN** package lists, create-install APIs, generic Program app-install
   writes, source-app registries, installed-app route admission, browser
   registries, handoff, reset, migration, archive app selection, workspace app
   selection, deploy targeting, or upgrade planning run
 - **THEN** the package is unavailable as a runtime-installed package
-- **AND** a workspace-linked manifest cannot reintroduce `tasks` or `site` as
-  an installable package key
+- **AND** a workspace-linked manifest cannot reintroduce `tasks`, `site`, or
+  `crm` as an installable package key
 - **AND** package facts retained for standalone artifact or dormant metadata
   validation do not confer runtime availability
 
@@ -127,16 +124,15 @@ contracts through the Installed Apps package slice.
 - THEN they come from `@dpeek/formless-installed-apps`
 - AND code does not import those contracts from root runtime modules
 
-#### Scenario: Runtime supplies installable bundled package manifests
+#### Scenario: Runtime has no bundled installable packages
 
-- GIVEN the default runtime resolver needs bundled CRM package metadata
-- WHEN the resolver is composed
-- THEN root runtime code supplies bundled package manifests as resolver input
-- AND the bundled CRM manifest can be imported from its app package through
-  documented public exports
-- AND the root may import the Site and Tasks manifests separately for known
-  package artifacts or dormant metadata validation without supplying them to
-  the runtime-installable resolver
+- GIVEN the default runtime resolver is composed
+- WHEN bundled package facts are selected
+- THEN Tasks, Site, and CRM manifests may be imported for portable artifacts or
+  dormant metadata validation but none is supplied to the runtime-installable
+  resolver
+- AND workspace-linked private manifests remain explicit runtime-installable
+  resolver input
 - AND the Installed Apps package does not import bundled app schema JSON,
   root-only bundled package lists, or package-specific runtime adapters
 
@@ -297,13 +293,13 @@ package's source schema without creating package-owned records.
 - **AND** no Tasks install-scoped Authority, API prefix, replica, broadcast
   channel, or package initialization plan is created
 
-#### Scenario: CRM initialization
+#### Scenario: Program-native CRM bypasses install initialization
 
-- **GIVEN** a CRM app install is created with install id `crm`
-- **WHEN** `/api/app-installs/crm/crm/bootstrap` is read
-- **THEN** the bootstrap response contains the bundled CRM app package source
-  schema and no records
-- **AND** the install metadata keeps label and route identity scoped to `crm`
+- **GIVEN** the default Program contains the CRM domain
+- **WHEN** CRM storage is initialized
+- **THEN** it uses Program Authority and the complete Program schema
+- **AND** no CRM install-scoped Authority, API prefix, replica, broadcast
+  channel, or package initialization plan is created
 
 #### Scenario: Private package initialization
 
@@ -438,7 +434,7 @@ records and the active package resolver.
 - **THEN** the response derives installed apps from schema-owned app install and
   route records
 - **AND** package lists come from the active package resolver
-- **AND** Program-native Tasks and built-in Site install metadata and routes are
+- **AND** Program-native Tasks, Site, and CRM install metadata and routes are
   omitted from the operational registry even when dormant records remain in
   Program storage
 
@@ -508,15 +504,15 @@ The system SHALL derive workspace app install intent from schema-owned
 
 #### Scenario: Dormant Program-native install records do not become workspace app intent
 
-- **GIVEN** `state/instance.json` contains legacy Tasks or built-in Site
+- **GIVEN** `state/instance.json` contains legacy Tasks, Site, or CRM
   `app-install` or `route` records
 - **WHEN** local dev, check, push, deploy, archive restore, or workspace app
   state selection runs
 - **THEN** those records do not require or create a matching
   `state/apps/<installId>.json` snapshot
 - **AND** they do not resolve an install-scoped route or Authority
-- **AND** CRM and other runtime-installable private records retain their
-  existing package and storage behavior
+- **AND** other runtime-installable private records retain their existing package
+  and storage behavior
 
 #### Scenario: Missing app storage snapshot
 

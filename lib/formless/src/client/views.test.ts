@@ -2420,15 +2420,7 @@ describe("home view model collections", () => {
     expect(createVariantFields).toMatchObject({
       post: ["date", "body", "href"],
       project: ["date", "body", "href"],
-      subscribeForm: [
-        "body",
-        "operationName",
-        "operationTargetKind",
-        "operationTargetSchemaKey",
-        "operationTargetPackageAppKey",
-        "operationTargetInstallId",
-        "buttonLabel",
-      ],
+      subscribeForm: ["body", "operationName", "buttonLabel"],
       link: ["linkTargetMode", "linkTargetBlock", "href", "icon"],
       markdown: ["body"],
       feature: ["body", "alignment"],

@@ -3793,20 +3793,10 @@
           "type": "enum",
           "values": [
             {
-              "key": "schemaKey",
-              "label": "Schema key"
-            },
-            {
               "key": "appInstall",
               "label": "Installed app"
             }
           ]
-        },
-        {
-          "key": "operationTargetSchemaKey",
-          "label": "Target schema key",
-          "required": false,
-          "type": "text"
         },
         {
           "key": "operationTargetPackageAppKey",
@@ -4006,10 +3996,6 @@
                 "key": "operationTargetKind"
               },
               {
-                "field": "operationTargetSchemaKey",
-                "key": "operationTargetSchemaKey"
-              },
-              {
                 "field": "operationTargetPackageAppKey",
                 "key": "operationTargetPackageAppKey"
               },
@@ -4133,10 +4119,6 @@
               {
                 "field": "operationTargetKind",
                 "key": "operationTargetKind"
-              },
-              {
-                "field": "operationTargetSchemaKey",
-                "key": "operationTargetSchemaKey"
               },
               {
                 "field": "operationTargetPackageAppKey",
@@ -4438,8 +4420,83 @@
       "fields": [
         {
           "key": "label",
-          "label": "Label",
+          "label": "Name",
           "required": true,
+          "type": "text"
+        },
+        {
+          "displayField": "name",
+          "key": "company",
+          "label": "Company",
+          "required": false,
+          "to": "company",
+          "type": "reference"
+        },
+        {
+          "key": "role",
+          "label": "Role",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "default": "lead",
+          "key": "lifecycle",
+          "label": "Lifecycle",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "lead",
+              "label": "Lead"
+            },
+            {
+              "key": "customer",
+              "label": "Customer"
+            },
+            {
+              "key": "advocate",
+              "label": "Advocate"
+            },
+            {
+              "key": "archived",
+              "label": "Archived"
+            }
+          ]
+        },
+        {
+          "default": "owner",
+          "key": "source",
+          "label": "Source",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "owner",
+              "label": "Owner"
+            },
+            {
+              "key": "import",
+              "label": "Import"
+            },
+            {
+              "key": "site",
+              "label": "Site"
+            },
+            {
+              "key": "event",
+              "label": "Event"
+            },
+            {
+              "key": "publicOperation",
+              "label": "Public operation"
+            }
+          ]
+        },
+        {
+          "format": "longText",
+          "key": "notes",
+          "label": "Notes",
+          "required": false,
           "type": "text"
         }
       ],
@@ -4447,6 +4504,55 @@
       "key": "contact",
       "label": "Contact",
       "operations": [
+        {
+          "access": {
+            "role": "editor"
+          },
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "label",
+                "key": "label"
+              },
+              {
+                "field": "company",
+                "key": "company"
+              },
+              {
+                "field": "role",
+                "key": "role"
+              },
+              {
+                "field": "lifecycle",
+                "key": "lifecycle"
+              },
+              {
+                "field": "source",
+                "key": "source"
+              },
+              {
+                "field": "notes",
+                "key": "notes"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Contact",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
         {
           "access": {
             "role": "editor"
@@ -4465,6 +4571,26 @@
               {
                 "field": "label",
                 "key": "label"
+              },
+              {
+                "field": "company",
+                "key": "company"
+              },
+              {
+                "field": "role",
+                "key": "role"
+              },
+              {
+                "field": "lifecycle",
+                "key": "lifecycle"
+              },
+              {
+                "field": "source",
+                "key": "source"
+              },
+              {
+                "field": "notes",
+                "key": "notes"
               }
             ]
           },
@@ -4583,12 +4709,85 @@
           "label": "Normalized address",
           "required": true,
           "type": "text"
+        },
+        {
+          "default": "active",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "active",
+              "label": "Active"
+            },
+            {
+              "key": "bounced",
+              "label": "Bounced"
+            },
+            {
+              "key": "suppressed",
+              "label": "Suppressed"
+            }
+          ]
+        },
+        {
+          "default": true,
+          "key": "primary",
+          "label": "Primary",
+          "required": true,
+          "type": "boolean"
         }
       ],
       "id": "entity_9863574c-952d-41a9-b90e-b40f6eda5eba",
       "key": "email-address",
       "label": "Email address",
       "operations": [
+        {
+          "access": {
+            "role": "editor"
+          },
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "contact",
+                "key": "contact"
+              },
+              {
+                "field": "address",
+                "key": "address"
+              },
+              {
+                "field": "normalizedAddress",
+                "key": "normalizedAddress"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "primary",
+                "key": "primary"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Email address",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
         {
           "access": {
             "role": "editor"
@@ -4615,6 +4814,14 @@
               {
                 "field": "normalizedAddress",
                 "key": "normalizedAddress"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "primary",
+                "key": "primary"
               }
             ]
           },
@@ -4648,12 +4855,77 @@
           "label": "Label",
           "required": true,
           "type": "text"
+        },
+        {
+          "format": "longText",
+          "key": "description",
+          "label": "Description",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "default": "active",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "active",
+              "label": "Active"
+            },
+            {
+              "key": "archived",
+              "label": "Archived"
+            }
+          ]
         }
       ],
       "id": "entity_8999782d-0e12-4e4b-8830-0e60cb3f1179",
       "key": "audience",
       "label": "Audience",
       "operations": [
+        {
+          "access": {
+            "role": "editor"
+          },
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "key",
+                "key": "key"
+              },
+              {
+                "field": "label",
+                "key": "label"
+              },
+              {
+                "field": "description",
+                "key": "description"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Audience",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
         {
           "access": {
             "role": "editor"
@@ -4676,6 +4948,14 @@
               {
                 "field": "label",
                 "key": "label"
+              },
+              {
+                "field": "description",
+                "key": "description"
+              },
+              {
+                "field": "status",
+                "key": "status"
               }
             ]
           },
@@ -4728,6 +5008,10 @@
             {
               "key": "unsubscribed",
               "label": "Unsubscribed"
+            },
+            {
+              "key": "pending",
+              "label": "Pending"
             }
           ]
         },
@@ -4738,12 +5022,28 @@
           "type": "text"
         },
         {
-          "default": "publicOperation",
+          "default": "owner",
           "key": "sourceKind",
           "label": "Source kind",
           "required": true,
           "type": "enum",
           "values": [
+            {
+              "key": "owner",
+              "label": "Owner"
+            },
+            {
+              "key": "import",
+              "label": "Import"
+            },
+            {
+              "key": "site",
+              "label": "Site"
+            },
+            {
+              "key": "event",
+              "label": "Event"
+            },
             {
               "key": "publicOperation",
               "label": "Public operation"
@@ -4751,35 +5051,33 @@
           ]
         },
         {
+          "key": "sourceLabel",
+          "label": "Source",
+          "required": false,
+          "type": "text"
+        },
+        {
           "key": "sourceTargetKind",
           "label": "Target kind",
-          "required": true,
+          "required": false,
           "type": "enum",
           "values": [
             {
               "key": "program",
               "label": "Program"
-            },
-            {
-              "key": "schemaKey",
-              "label": "Schema key"
-            },
-            {
-              "key": "appInstall",
-              "label": "App install"
             }
           ]
         },
         {
           "key": "sourcePackageAppKey",
           "label": "Package app key",
-          "required": true,
+          "required": false,
           "type": "text"
         },
         {
           "key": "sourceSchemaKey",
           "label": "Source schema key",
-          "required": true,
+          "required": false,
           "type": "text"
         },
         {
@@ -4791,25 +5089,25 @@
         {
           "key": "sourceApiRoutePrefix",
           "label": "API route prefix",
-          "required": true,
+          "required": false,
           "type": "text"
         },
         {
           "key": "sourceOperationKey",
           "label": "Operation key",
-          "required": true,
+          "required": false,
           "type": "text"
         },
         {
           "key": "sourceHost",
           "label": "Host",
-          "required": true,
+          "required": false,
           "type": "text"
         },
         {
           "key": "sourcePath",
           "label": "Path",
-          "required": true,
+          "required": false,
           "type": "text"
         },
         {
@@ -4823,6 +5121,91 @@
       "key": "subscription",
       "label": "Subscription",
       "operations": [
+        {
+          "access": {
+            "role": "editor"
+          },
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "emailAddress",
+                "key": "emailAddress"
+              },
+              {
+                "field": "audience",
+                "key": "audience"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "consentedAt",
+                "key": "consentedAt"
+              },
+              {
+                "field": "sourceKind",
+                "key": "sourceKind"
+              },
+              {
+                "field": "sourceLabel",
+                "key": "sourceLabel"
+              },
+              {
+                "field": "sourceTargetKind",
+                "key": "sourceTargetKind"
+              },
+              {
+                "field": "sourcePackageAppKey",
+                "key": "sourcePackageAppKey"
+              },
+              {
+                "field": "sourceSchemaKey",
+                "key": "sourceSchemaKey"
+              },
+              {
+                "field": "sourceInstallId",
+                "key": "sourceInstallId"
+              },
+              {
+                "field": "sourceApiRoutePrefix",
+                "key": "sourceApiRoutePrefix"
+              },
+              {
+                "field": "sourceOperationKey",
+                "key": "sourceOperationKey"
+              },
+              {
+                "field": "sourceHost",
+                "key": "sourceHost"
+              },
+              {
+                "field": "sourcePath",
+                "key": "sourcePath"
+              },
+              {
+                "field": "sourceSiteBlockId",
+                "key": "sourceSiteBlockId"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Subscription",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
         {
           "access": {
             "role": "editor"
@@ -4857,6 +5240,10 @@
               {
                 "field": "sourceKind",
                 "key": "sourceKind"
+              },
+              {
+                "field": "sourceLabel",
+                "key": "sourceLabel"
               },
               {
                 "field": "sourceTargetKind",
@@ -4947,6 +5334,856 @@
           "scope": "collection"
         }
       ]
+    },
+    {
+      "constraints": [
+        {
+          "fields": ["name"],
+          "key": "uniqueCompanyName",
+          "kind": "unique"
+        }
+      ],
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "format": "href",
+          "key": "website",
+          "label": "Website",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "default": "prospect",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "prospect",
+              "label": "Prospect"
+            },
+            {
+              "key": "customer",
+              "label": "Customer"
+            },
+            {
+              "key": "partner",
+              "label": "Partner"
+            },
+            {
+              "key": "archived",
+              "label": "Archived"
+            }
+          ]
+        },
+        {
+          "format": "longText",
+          "key": "notes",
+          "label": "Notes",
+          "required": false,
+          "type": "text"
+        }
+      ],
+      "id": "entity_e40c8914-c095-4483-b372-90f1c28f6cf4",
+      "key": "company",
+      "label": "Company",
+      "operations": [
+        {
+          "access": {
+            "role": "editor"
+          },
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "name",
+                "key": "name"
+              },
+              {
+                "field": "website",
+                "key": "website"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "notes",
+                "key": "notes"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Company",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "access": {
+            "role": "editor"
+          },
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "name",
+                "key": "name"
+              },
+              {
+                "field": "website",
+                "key": "website"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "notes",
+                "key": "notes"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Company",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "default": "draft",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "draft",
+              "label": "Draft"
+            },
+            {
+              "key": "active",
+              "label": "Active"
+            },
+            {
+              "key": "archived",
+              "label": "Archived"
+            }
+          ]
+        },
+        {
+          "format": "longText",
+          "key": "objective",
+          "label": "Objective",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "key": "startsOn",
+          "label": "Starts on",
+          "required": false,
+          "type": "date"
+        }
+      ],
+      "id": "entity_83c65a85-3c84-4248-8836-edb9dffe19ab",
+      "key": "campaign",
+      "label": "Campaign",
+      "operations": [
+        {
+          "access": {
+            "role": "editor"
+          },
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "name",
+                "key": "name"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "objective",
+                "key": "objective"
+              },
+              {
+                "field": "startsOn",
+                "key": "startsOn"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Campaign",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "access": {
+            "role": "editor"
+          },
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "name",
+                "key": "name"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "objective",
+                "key": "objective"
+              },
+              {
+                "field": "startsOn",
+                "key": "startsOn"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Campaign",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "displayField": "name",
+          "key": "campaign",
+          "label": "Campaign",
+          "required": true,
+          "to": "campaign",
+          "type": "reference"
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "preview",
+          "label": "Preview",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "format": "markdown",
+          "key": "body",
+          "label": "Body",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "default": "draft",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "draft",
+              "label": "Draft"
+            },
+            {
+              "key": "ready",
+              "label": "Ready"
+            },
+            {
+              "key": "archived",
+              "label": "Archived"
+            }
+          ]
+        }
+      ],
+      "id": "entity_618efec7-409f-4d43-9785-f1d60d9101ff",
+      "key": "campaign-message",
+      "label": "Campaign message",
+      "operations": [
+        {
+          "access": {
+            "role": "editor"
+          },
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "campaign",
+                "key": "campaign"
+              },
+              {
+                "field": "subject",
+                "key": "subject"
+              },
+              {
+                "field": "preview",
+                "key": "preview"
+              },
+              {
+                "field": "body",
+                "key": "body"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Campaign message",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "access": {
+            "role": "editor"
+          },
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "campaign",
+                "key": "campaign"
+              },
+              {
+                "field": "subject",
+                "key": "subject"
+              },
+              {
+                "field": "preview",
+                "key": "preview"
+              },
+              {
+                "field": "body",
+                "key": "body"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Campaign message",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "key": "label",
+          "label": "Label",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "displayField": "name",
+          "key": "campaign",
+          "label": "Campaign",
+          "required": true,
+          "to": "campaign",
+          "type": "reference"
+        },
+        {
+          "displayField": "subject",
+          "key": "message",
+          "label": "Message",
+          "required": true,
+          "to": "campaign-message",
+          "type": "reference"
+        },
+        {
+          "displayField": "label",
+          "key": "audience",
+          "label": "Audience",
+          "required": true,
+          "to": "audience",
+          "type": "reference"
+        },
+        {
+          "default": "draft",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "draft",
+              "label": "Draft"
+            },
+            {
+              "key": "scheduled",
+              "label": "Scheduled"
+            },
+            {
+              "key": "sent",
+              "label": "Sent"
+            },
+            {
+              "key": "paused",
+              "label": "Paused"
+            },
+            {
+              "key": "canceled",
+              "label": "Canceled"
+            }
+          ]
+        },
+        {
+          "key": "scheduledDate",
+          "label": "Scheduled date",
+          "required": false,
+          "type": "date"
+        },
+        {
+          "key": "sentAt",
+          "label": "Sent at",
+          "required": false,
+          "type": "text"
+        }
+      ],
+      "id": "entity_b80330bf-5f64-4460-8b4e-8f43fa150001",
+      "key": "broadcast",
+      "label": "Broadcast",
+      "operations": [
+        {
+          "access": {
+            "role": "editor"
+          },
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "label",
+                "key": "label"
+              },
+              {
+                "field": "campaign",
+                "key": "campaign"
+              },
+              {
+                "field": "message",
+                "key": "message"
+              },
+              {
+                "field": "audience",
+                "key": "audience"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "scheduledDate",
+                "key": "scheduledDate"
+              },
+              {
+                "field": "sentAt",
+                "key": "sentAt"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Broadcast",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "access": {
+            "role": "editor"
+          },
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "label",
+                "key": "label"
+              },
+              {
+                "field": "campaign",
+                "key": "campaign"
+              },
+              {
+                "field": "message",
+                "key": "message"
+              },
+              {
+                "field": "audience",
+                "key": "audience"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "scheduledDate",
+                "key": "scheduledDate"
+              },
+              {
+                "field": "sentAt",
+                "key": "sentAt"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Broadcast",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "constraints": [
+        {
+          "fields": ["broadcast", "emailAddress"],
+          "key": "uniqueBroadcastEmail",
+          "kind": "unique"
+        }
+      ],
+      "fields": [
+        {
+          "key": "label",
+          "label": "Label",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "displayField": "label",
+          "key": "broadcast",
+          "label": "Broadcast",
+          "required": true,
+          "to": "broadcast",
+          "type": "reference"
+        },
+        {
+          "displayField": "address",
+          "key": "emailAddress",
+          "label": "Email address",
+          "required": true,
+          "to": "email-address",
+          "type": "reference"
+        },
+        {
+          "key": "subscription",
+          "label": "Subscription",
+          "required": true,
+          "to": "subscription",
+          "type": "reference"
+        },
+        {
+          "default": "queued",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "queued",
+              "label": "Queued"
+            },
+            {
+              "key": "sent",
+              "label": "Sent"
+            },
+            {
+              "key": "skipped",
+              "label": "Skipped"
+            },
+            {
+              "key": "bounced",
+              "label": "Bounced"
+            },
+            {
+              "key": "failed",
+              "label": "Failed"
+            }
+          ]
+        },
+        {
+          "key": "lastEventAt",
+          "label": "Last event at",
+          "required": false,
+          "type": "text"
+        }
+      ],
+      "id": "entity_441f44bb-63e0-4f45-a775-4ddfdd5fed4f",
+      "key": "broadcast-recipient",
+      "label": "Broadcast recipient",
+      "operations": [
+        {
+          "access": {
+            "role": "editor"
+          },
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "label",
+                "key": "label"
+              },
+              {
+                "field": "broadcast",
+                "key": "broadcast"
+              },
+              {
+                "field": "emailAddress",
+                "key": "emailAddress"
+              },
+              {
+                "field": "subscription",
+                "key": "subscription"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "lastEventAt",
+                "key": "lastEventAt"
+              }
+            ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Broadcast recipient",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "access": {
+            "role": "editor"
+          },
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "label",
+                "key": "label"
+              },
+              {
+                "field": "broadcast",
+                "key": "broadcast"
+              },
+              {
+                "field": "emailAddress",
+                "key": "emailAddress"
+              },
+              {
+                "field": "subscription",
+                "key": "subscription"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "lastEventAt",
+                "key": "lastEventAt"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Broadcast recipient",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "displayField": "label",
+          "key": "broadcastRecipient",
+          "label": "Recipient",
+          "required": true,
+          "to": "broadcast-recipient",
+          "type": "reference"
+        },
+        {
+          "default": "queued",
+          "key": "eventType",
+          "label": "Event",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "queued",
+              "label": "Queued"
+            },
+            {
+              "key": "sent",
+              "label": "Sent"
+            },
+            {
+              "key": "delivered",
+              "label": "Delivered"
+            },
+            {
+              "key": "opened",
+              "label": "Opened"
+            },
+            {
+              "key": "clicked",
+              "label": "Clicked"
+            },
+            {
+              "key": "bounced",
+              "label": "Bounced"
+            },
+            {
+              "key": "failed",
+              "label": "Failed"
+            }
+          ]
+        },
+        {
+          "key": "occurredAt",
+          "label": "Occurred at",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "format": "longText",
+          "key": "detail",
+          "label": "Detail",
+          "required": false,
+          "type": "text"
+        }
+      ],
+      "id": "entity_ba93df3a-ac4e-4466-96d0-64dc50eedb10",
+      "key": "delivery-event",
+      "label": "Delivery event"
     }
   ],
   "itemViews": [
@@ -5743,38 +6980,6 @@
               "field": "operationName"
             },
             {
-              "commit": "immediate",
-              "editor": "enum",
-              "field": "operationTargetKind"
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetSchemaKey",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["schemaKey"]
-              }
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetPackageAppKey",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetInstallId",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
               "commit": "field-commit",
               "editor": "text",
               "field": "buttonLabel"
@@ -5835,15 +7040,6 @@
               "commit": "immediate",
               "editor": "enum",
               "field": "operationTargetKind"
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetSchemaKey",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["schemaKey"]
-              }
             },
             {
               "commit": "field-commit",
@@ -6127,38 +7323,6 @@
               "field": "operationName"
             },
             {
-              "commit": "immediate",
-              "editor": "enum",
-              "field": "operationTargetKind"
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetSchemaKey",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["schemaKey"]
-              }
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetPackageAppKey",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetInstallId",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
               "commit": "field-commit",
               "editor": "text",
               "field": "buttonLabel"
@@ -6219,15 +7383,6 @@
               "commit": "immediate",
               "editor": "enum",
               "field": "operationTargetKind"
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetSchemaKey",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["schemaKey"]
-              }
             },
             {
               "commit": "field-commit",
@@ -6303,12 +7458,108 @@
         }
       ],
       "key": "blockPlacementTreeItem"
+    },
+    {
+      "entity": "company",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "name"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "companyListItem"
+    },
+    {
+      "entity": "contact",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "company"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "lifecycle"
+        }
+      ],
+      "key": "contactListItem"
+    },
+    {
+      "entity": "audience",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "audienceListItem"
+    },
+    {
+      "entity": "campaign",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "name"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "date",
+          "field": "startsOn"
+        }
+      ],
+      "key": "campaignListItem"
+    },
+    {
+      "entity": "broadcast",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "audience"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "broadcastListItem"
     }
   ],
   "navigation": {
     "primaryScreens": [
       "taskHome",
       "siteEditor",
+      "contacts",
       "apps",
       "routes",
       "deployments",
@@ -6939,6 +8190,314 @@
       },
       "key": "placementsForSelectedBlock",
       "label": "Selected block"
+    },
+    {
+      "entity": "company",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "companyAll",
+      "label": "All"
+    },
+    {
+      "entity": "company",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "status"
+        },
+        "value": "customer"
+      },
+      "key": "companyCustomers",
+      "label": "Customers"
+    },
+    {
+      "entity": "contact",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "contactAll",
+      "label": "All"
+    },
+    {
+      "entity": "contact",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "lifecycle"
+        },
+        "value": "lead"
+      },
+      "key": "contactLeads",
+      "label": "Leads"
+    },
+    {
+      "entity": "contact",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "lifecycle"
+        },
+        "value": "customer"
+      },
+      "key": "contactCustomers",
+      "label": "Customers"
+    },
+    {
+      "entity": "email-address",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "status"
+        },
+        "value": "active"
+      },
+      "key": "emailAddressActive",
+      "label": "Active"
+    },
+    {
+      "entity": "audience",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "status"
+        },
+        "value": "active"
+      },
+      "key": "audienceActive",
+      "label": "Active"
+    },
+    {
+      "entity": "subscription",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "status"
+        },
+        "value": "subscribed"
+      },
+      "key": "subscriptionSubscribed",
+      "label": "Subscribed"
+    },
+    {
+      "entity": "subscription",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "status"
+        },
+        "value": "unsubscribed"
+      },
+      "key": "subscriptionUnsubscribed",
+      "label": "Unsubscribed"
+    },
+    {
+      "entity": "campaign",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "campaignAll",
+      "label": "All"
+    },
+    {
+      "entity": "campaign",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "status"
+        },
+        "value": "draft"
+      },
+      "key": "campaignDraft",
+      "label": "Draft"
+    },
+    {
+      "entity": "campaign",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "status"
+        },
+        "value": "active"
+      },
+      "key": "campaignActive",
+      "label": "Active"
+    },
+    {
+      "entity": "campaign-message",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "campaignMessageAll",
+      "label": "All"
+    },
+    {
+      "entity": "campaign-message",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "status"
+        },
+        "value": "ready"
+      },
+      "key": "campaignMessageReady",
+      "label": "Ready"
+    },
+    {
+      "entity": "broadcast",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "broadcastAll",
+      "label": "All"
+    },
+    {
+      "entity": "broadcast",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "status"
+        },
+        "value": "draft"
+      },
+      "key": "broadcastDraft",
+      "label": "Draft"
+    },
+    {
+      "entity": "broadcast",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "status"
+        },
+        "value": "scheduled"
+      },
+      "key": "broadcastScheduled",
+      "label": "Scheduled"
+    },
+    {
+      "entity": "broadcast",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "status"
+        },
+        "value": "sent"
+      },
+      "key": "broadcastSent",
+      "label": "Sent"
+    },
+    {
+      "entity": "broadcast-recipient",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "broadcastRecipientAll",
+      "label": "All"
+    },
+    {
+      "entity": "broadcast-recipient",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "status"
+        },
+        "value": "queued"
+      },
+      "key": "broadcastRecipientQueued",
+      "label": "Queued"
+    },
+    {
+      "entity": "broadcast-recipient",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "status"
+        },
+        "value": "sent"
+      },
+      "key": "broadcastRecipientSent",
+      "label": "Sent"
+    },
+    {
+      "entity": "broadcast-recipient",
+      "expression": {
+        "expressions": [
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "status"
+            },
+            "value": "bounced"
+          },
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "status"
+            },
+            "value": "failed"
+          }
+        ],
+        "kind": "or"
+      },
+      "key": "broadcastRecipientNeedsReview",
+      "label": "Needs review"
+    },
+    {
+      "entity": "delivery-event",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "deliveryEventAll",
+      "label": "All"
+    },
+    {
+      "entity": "delivery-event",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "eventType"
+        },
+        "value": "bounced"
+      },
+      "key": "deliveryEventBounces",
+      "label": "Bounces"
     }
   ],
   "relationships": [
@@ -7585,6 +9144,276 @@
         "entity": "subscription",
         "field": "audience"
       }
+    },
+    {
+      "from": {
+        "entity": "contact",
+        "field": "company"
+      },
+      "inverse": "companyContacts",
+      "key": "contactCompany",
+      "kind": "toOne",
+      "label": "Company",
+      "to": {
+        "entity": "company"
+      }
+    },
+    {
+      "from": {
+        "entity": "company"
+      },
+      "inverse": "contactCompany",
+      "key": "companyContacts",
+      "kind": "toMany",
+      "label": "Contacts",
+      "to": {
+        "entity": "contact",
+        "field": "company"
+      }
+    },
+    {
+      "from": {
+        "entity": "email-address"
+      },
+      "inverse": "audienceEmailAddresses",
+      "key": "emailAddressAudiences",
+      "kind": "manyToMany",
+      "label": "Audiences",
+      "through": {
+        "entity": "subscription",
+        "fromField": "emailAddress",
+        "toField": "audience",
+        "uniqueConstraint": "uniqueEmailAudience"
+      },
+      "to": {
+        "entity": "audience"
+      }
+    },
+    {
+      "from": {
+        "entity": "audience"
+      },
+      "inverse": "emailAddressAudiences",
+      "key": "audienceEmailAddresses",
+      "kind": "manyToMany",
+      "label": "Email addresses",
+      "through": {
+        "entity": "subscription",
+        "fromField": "audience",
+        "toField": "emailAddress",
+        "uniqueConstraint": "uniqueEmailAudience"
+      },
+      "to": {
+        "entity": "email-address"
+      }
+    },
+    {
+      "from": {
+        "entity": "campaign-message",
+        "field": "campaign"
+      },
+      "inverse": "campaignMessages",
+      "key": "campaignMessageCampaign",
+      "kind": "toOne",
+      "label": "Campaign",
+      "to": {
+        "entity": "campaign"
+      }
+    },
+    {
+      "from": {
+        "entity": "campaign"
+      },
+      "inverse": "campaignMessageCampaign",
+      "key": "campaignMessages",
+      "kind": "toMany",
+      "label": "Messages",
+      "to": {
+        "entity": "campaign-message",
+        "field": "campaign"
+      }
+    },
+    {
+      "from": {
+        "entity": "broadcast",
+        "field": "campaign"
+      },
+      "inverse": "campaignBroadcasts",
+      "key": "broadcastCampaign",
+      "kind": "toOne",
+      "label": "Campaign",
+      "to": {
+        "entity": "campaign"
+      }
+    },
+    {
+      "from": {
+        "entity": "campaign"
+      },
+      "inverse": "broadcastCampaign",
+      "key": "campaignBroadcasts",
+      "kind": "toMany",
+      "label": "Broadcasts",
+      "to": {
+        "entity": "broadcast",
+        "field": "campaign"
+      }
+    },
+    {
+      "from": {
+        "entity": "broadcast",
+        "field": "message"
+      },
+      "inverse": "messageBroadcasts",
+      "key": "broadcastMessage",
+      "kind": "toOne",
+      "label": "Message",
+      "to": {
+        "entity": "campaign-message"
+      }
+    },
+    {
+      "from": {
+        "entity": "campaign-message"
+      },
+      "inverse": "broadcastMessage",
+      "key": "messageBroadcasts",
+      "kind": "toMany",
+      "label": "Broadcasts",
+      "to": {
+        "entity": "broadcast",
+        "field": "message"
+      }
+    },
+    {
+      "from": {
+        "entity": "broadcast",
+        "field": "audience"
+      },
+      "inverse": "audienceBroadcasts",
+      "key": "broadcastAudience",
+      "kind": "toOne",
+      "label": "Audience",
+      "to": {
+        "entity": "audience"
+      }
+    },
+    {
+      "from": {
+        "entity": "audience"
+      },
+      "inverse": "broadcastAudience",
+      "key": "audienceBroadcasts",
+      "kind": "toMany",
+      "label": "Broadcasts",
+      "to": {
+        "entity": "broadcast",
+        "field": "audience"
+      }
+    },
+    {
+      "from": {
+        "entity": "broadcast-recipient",
+        "field": "broadcast"
+      },
+      "inverse": "broadcastRecipients",
+      "key": "recipientBroadcast",
+      "kind": "toOne",
+      "label": "Broadcast",
+      "to": {
+        "entity": "broadcast"
+      }
+    },
+    {
+      "from": {
+        "entity": "broadcast"
+      },
+      "inverse": "recipientBroadcast",
+      "key": "broadcastRecipients",
+      "kind": "toMany",
+      "label": "Recipients",
+      "to": {
+        "entity": "broadcast-recipient",
+        "field": "broadcast"
+      }
+    },
+    {
+      "from": {
+        "entity": "broadcast-recipient",
+        "field": "emailAddress"
+      },
+      "inverse": "emailAddressBroadcastRecipients",
+      "key": "recipientEmailAddress",
+      "kind": "toOne",
+      "label": "Email address",
+      "to": {
+        "entity": "email-address"
+      }
+    },
+    {
+      "from": {
+        "entity": "email-address"
+      },
+      "inverse": "recipientEmailAddress",
+      "key": "emailAddressBroadcastRecipients",
+      "kind": "toMany",
+      "label": "Broadcast recipients",
+      "to": {
+        "entity": "broadcast-recipient",
+        "field": "emailAddress"
+      }
+    },
+    {
+      "from": {
+        "entity": "broadcast-recipient",
+        "field": "subscription"
+      },
+      "inverse": "subscriptionBroadcastRecipients",
+      "key": "recipientSubscription",
+      "kind": "toOne",
+      "label": "Subscription",
+      "to": {
+        "entity": "subscription"
+      }
+    },
+    {
+      "from": {
+        "entity": "subscription"
+      },
+      "inverse": "recipientSubscription",
+      "key": "subscriptionBroadcastRecipients",
+      "kind": "toMany",
+      "label": "Broadcast recipients",
+      "to": {
+        "entity": "broadcast-recipient",
+        "field": "subscription"
+      }
+    },
+    {
+      "from": {
+        "entity": "delivery-event",
+        "field": "broadcastRecipient"
+      },
+      "inverse": "broadcastRecipientDeliveryEvents",
+      "key": "deliveryEventRecipient",
+      "kind": "toOne",
+      "label": "Recipient",
+      "to": {
+        "entity": "broadcast-recipient"
+      }
+    },
+    {
+      "from": {
+        "entity": "broadcast-recipient"
+      },
+      "inverse": "deliveryEventRecipient",
+      "key": "broadcastRecipientDeliveryEvents",
+      "kind": "toMany",
+      "label": "Delivery events",
+      "to": {
+        "entity": "delivery-event",
+        "field": "broadcastRecipient"
+      }
     }
   ],
   "runtime": {
@@ -7984,6 +9813,116 @@
         "width": "wide"
       },
       "path": "/site/contacts",
+      "type": "workspace"
+    },
+    {
+      "access": {
+        "role": "member"
+      },
+      "key": "contacts",
+      "label": "Contacts",
+      "layout": {
+        "sections": [
+          {
+            "id": "contacts",
+            "type": "collection",
+            "view": "contactHome"
+          },
+          {
+            "id": "email-addresses",
+            "type": "collection",
+            "view": "crmEmailAddressHome"
+          },
+          {
+            "id": "companies",
+            "type": "collection",
+            "view": "companyHome"
+          }
+        ],
+        "type": "stack",
+        "width": "wide"
+      },
+      "path": "/crm",
+      "type": "workspace"
+    },
+    {
+      "access": {
+        "role": "member"
+      },
+      "key": "audiences",
+      "label": "Audiences",
+      "layout": {
+        "sections": [
+          {
+            "id": "audiences",
+            "type": "collection",
+            "view": "crmAudienceHome"
+          },
+          {
+            "id": "subscriptions",
+            "type": "collection",
+            "view": "crmSubscriptionHome"
+          }
+        ],
+        "type": "stack",
+        "width": "wide"
+      },
+      "path": "/crm/audiences",
+      "type": "workspace"
+    },
+    {
+      "access": {
+        "role": "member"
+      },
+      "key": "campaigns",
+      "label": "Campaigns",
+      "layout": {
+        "sections": [
+          {
+            "id": "campaigns",
+            "type": "collection",
+            "view": "campaignHome"
+          },
+          {
+            "id": "messages",
+            "type": "collection",
+            "view": "campaignMessageHome"
+          }
+        ],
+        "type": "stack",
+        "width": "wide"
+      },
+      "path": "/crm/campaigns",
+      "type": "workspace"
+    },
+    {
+      "access": {
+        "role": "member"
+      },
+      "key": "broadcasts",
+      "label": "Broadcasts",
+      "layout": {
+        "sections": [
+          {
+            "id": "broadcasts",
+            "type": "collection",
+            "view": "broadcastHome"
+          },
+          {
+            "id": "recipients",
+            "type": "collection",
+            "view": "broadcastRecipientHome"
+          },
+          {
+            "id": "delivery-events",
+            "type": "collection",
+            "view": "deliveryEventHome"
+          }
+        ],
+        "type": "stack",
+        "width": "wide"
+      },
+      "path": "/crm/broadcasts",
       "type": "workspace"
     },
     {
@@ -9298,6 +11237,368 @@
       ],
       "entity": "contact-message",
       "key": "contactMessageTable"
+    },
+    {
+      "columns": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "name",
+          "type": "field",
+          "width": "lg"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "href",
+          "field": "website",
+          "type": "field",
+          "width": "md"
+        }
+      ],
+      "entity": "company",
+      "key": "companyTable"
+    },
+    {
+      "columns": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label",
+          "type": "field",
+          "width": "lg"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "name",
+          "label": "Company",
+          "referenceField": "company",
+          "type": "referenceField",
+          "width": "md"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "role",
+          "type": "field",
+          "width": "md"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "lifecycle",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "source",
+          "type": "field",
+          "width": "sm"
+        }
+      ],
+      "entity": "contact",
+      "key": "contactTable"
+    },
+    {
+      "columns": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "address",
+          "type": "field",
+          "width": "lg"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label",
+          "label": "Contact",
+          "referenceField": "contact",
+          "type": "referenceField",
+          "width": "md"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "commit": "immediate",
+          "editor": "boolean",
+          "field": "primary",
+          "type": "field",
+          "width": "xs"
+        }
+      ],
+      "entity": "email-address",
+      "key": "crmEmailAddressTable"
+    },
+    {
+      "columns": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label",
+          "type": "field",
+          "width": "lg"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "slug",
+          "field": "key",
+          "type": "field",
+          "width": "md"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status",
+          "type": "field",
+          "width": "sm"
+        }
+      ],
+      "entity": "audience",
+      "key": "crmAudienceTable"
+    },
+    {
+      "columns": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "address",
+          "label": "Email",
+          "referenceField": "emailAddress",
+          "type": "referenceField",
+          "width": "lg"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label",
+          "label": "Audience",
+          "referenceField": "audience",
+          "type": "referenceField",
+          "width": "md"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "sourceKind",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "consentedAt",
+          "type": "field",
+          "width": "md"
+        }
+      ],
+      "entity": "subscription",
+      "key": "crmSubscriptionTable"
+    },
+    {
+      "columns": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "name",
+          "type": "field",
+          "width": "lg"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "date",
+          "field": "startsOn",
+          "type": "field",
+          "width": "sm"
+        }
+      ],
+      "entity": "campaign",
+      "key": "campaignTable"
+    },
+    {
+      "columns": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "name",
+          "label": "Campaign",
+          "referenceField": "campaign",
+          "type": "referenceField",
+          "width": "md"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "subject",
+          "type": "field",
+          "width": "lg"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "preview",
+          "type": "field",
+          "width": "md"
+        }
+      ],
+      "entity": "campaign-message",
+      "key": "campaignMessageTable"
+    },
+    {
+      "columns": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label",
+          "type": "field",
+          "width": "lg"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label",
+          "label": "Audience",
+          "referenceField": "audience",
+          "type": "referenceField",
+          "width": "md"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "subject",
+          "label": "Message",
+          "referenceField": "message",
+          "type": "referenceField",
+          "width": "md"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "date",
+          "field": "scheduledDate",
+          "type": "field",
+          "width": "sm"
+        }
+      ],
+      "entity": "broadcast",
+      "key": "broadcastTable"
+    },
+    {
+      "columns": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label",
+          "type": "field",
+          "width": "lg"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label",
+          "label": "Broadcast",
+          "referenceField": "broadcast",
+          "type": "referenceField",
+          "width": "md"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "address",
+          "label": "Email",
+          "referenceField": "emailAddress",
+          "type": "referenceField",
+          "width": "lg"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "status",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "lastEventAt",
+          "type": "field",
+          "width": "md"
+        }
+      ],
+      "entity": "broadcast-recipient",
+      "key": "broadcastRecipientTable"
+    },
+    {
+      "columns": [
+        {
+          "field": "label",
+          "label": "Recipient",
+          "referenceField": "broadcastRecipient",
+          "type": "referenceField",
+          "width": "lg"
+        },
+        {
+          "display": "readOnly",
+          "field": "eventType",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "display": "readOnly",
+          "field": "occurredAt",
+          "type": "field",
+          "width": "md"
+        },
+        {
+          "display": "readOnly",
+          "field": "detail",
+          "type": "field",
+          "width": "lg"
+        }
+      ],
+      "entity": "delivery-event",
+      "key": "deliveryEventTable"
     }
   ],
   "unions": [
@@ -9339,16 +11640,7 @@
           "label": "Project list"
         },
         {
-          "fields": [
-            "label",
-            "body",
-            "operationName",
-            "operationTargetKind",
-            "operationTargetSchemaKey",
-            "operationTargetPackageAppKey",
-            "operationTargetInstallId",
-            "buttonLabel"
-          ],
+          "fields": ["label", "body", "operationName", "buttonLabel"],
           "key": "subscribeForm",
           "label": "Subscribe form"
         },
@@ -9371,7 +11663,6 @@
             "label",
             "body",
             "operationTargetKind",
-            "operationTargetSchemaKey",
             "operationTargetPackageAppKey",
             "operationTargetInstallId",
             "operationKey",
@@ -11871,34 +14162,6 @@
               "field": "operationName"
             },
             {
-              "editor": "enum",
-              "field": "operationTargetKind"
-            },
-            {
-              "editor": "text",
-              "field": "operationTargetSchemaKey",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["schemaKey"]
-              }
-            },
-            {
-              "editor": "text",
-              "field": "operationTargetPackageAppKey",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
-              "editor": "text",
-              "field": "operationTargetInstallId",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
               "editor": "text",
               "field": "buttonLabel"
             }
@@ -11949,14 +14212,6 @@
             {
               "editor": "enum",
               "field": "operationTargetKind"
-            },
-            {
-              "editor": "text",
-              "field": "operationTargetSchemaKey",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["schemaKey"]
-              }
             },
             {
               "editor": "text",
@@ -12333,38 +14588,6 @@
               "field": "operationName"
             },
             {
-              "commit": "immediate",
-              "editor": "enum",
-              "field": "operationTargetKind"
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetSchemaKey",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["schemaKey"]
-              }
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetPackageAppKey",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetInstallId",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
               "commit": "field-commit",
               "editor": "text",
               "field": "buttonLabel"
@@ -12425,15 +14648,6 @@
               "commit": "immediate",
               "editor": "enum",
               "field": "operationTargetKind"
-            },
-            {
-              "commit": "field-commit",
-              "editor": "text",
-              "field": "operationTargetSchemaKey",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["schemaKey"]
-              }
             },
             {
               "commit": "field-commit",
@@ -12555,6 +14769,603 @@
         }
       ],
       "key": "blockPlacementCreate",
+      "type": "create"
+    },
+    {
+      "defaultQuery": "companyAll",
+      "entity": "company",
+      "key": "companyHome",
+      "label": "Companies",
+      "operations": [
+        {
+          "createView": "companyCreate",
+          "operation": "company.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "companyAll"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "companyCustomers"
+        }
+      ],
+      "result": {
+        "tableView": "companyTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "defaultQuery": "contactAll",
+      "entity": "contact",
+      "key": "contactHome",
+      "label": "Contacts",
+      "operations": [
+        {
+          "createView": "contactCreate",
+          "operation": "contact.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "contactAll"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "contactLeads"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "contactCustomers"
+        }
+      ],
+      "result": {
+        "tableView": "contactTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "defaultQuery": "emailAddressAll",
+      "entity": "email-address",
+      "key": "crmEmailAddressHome",
+      "label": "Email addresses",
+      "operations": [
+        {
+          "createView": "emailAddressCreate",
+          "operation": "email-address.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "emailAddressAll"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "emailAddressActive"
+        }
+      ],
+      "result": {
+        "tableView": "crmEmailAddressTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "defaultQuery": "audienceAll",
+      "entity": "audience",
+      "key": "crmAudienceHome",
+      "label": "Audiences",
+      "operations": [
+        {
+          "createView": "audienceCreate",
+          "operation": "audience.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "audienceAll"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "audienceActive"
+        }
+      ],
+      "result": {
+        "tableView": "crmAudienceTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "defaultQuery": "subscriptionAll",
+      "entity": "subscription",
+      "key": "crmSubscriptionHome",
+      "label": "Subscriptions",
+      "operations": [
+        {
+          "createView": "subscriptionCreate",
+          "operation": "subscription.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "subscriptionAll"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "subscriptionSubscribed"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "subscriptionUnsubscribed"
+        }
+      ],
+      "result": {
+        "tableView": "crmSubscriptionTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "defaultQuery": "campaignAll",
+      "entity": "campaign",
+      "key": "campaignHome",
+      "label": "Campaigns",
+      "operations": [
+        {
+          "createView": "campaignCreate",
+          "operation": "campaign.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "campaignAll"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "campaignDraft"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "campaignActive"
+        }
+      ],
+      "result": {
+        "tableView": "campaignTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "defaultQuery": "campaignMessageAll",
+      "entity": "campaign-message",
+      "key": "campaignMessageHome",
+      "label": "Messages",
+      "operations": [
+        {
+          "createView": "campaignMessageCreate",
+          "operation": "campaign-message.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "campaignMessageAll"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "campaignMessageReady"
+        }
+      ],
+      "result": {
+        "tableView": "campaignMessageTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "defaultQuery": "broadcastAll",
+      "entity": "broadcast",
+      "key": "broadcastHome",
+      "label": "Broadcasts",
+      "operations": [
+        {
+          "createView": "broadcastCreate",
+          "operation": "broadcast.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "broadcastAll"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "broadcastDraft"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "broadcastScheduled"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "broadcastSent"
+        }
+      ],
+      "result": {
+        "tableView": "broadcastTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "defaultQuery": "broadcastRecipientAll",
+      "entity": "broadcast-recipient",
+      "key": "broadcastRecipientHome",
+      "label": "Recipients",
+      "operations": [
+        {
+          "createView": "broadcastRecipientCreate",
+          "operation": "broadcast-recipient.create"
+        }
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "broadcastRecipientAll"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "broadcastRecipientQueued"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "broadcastRecipientSent"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "broadcastRecipientNeedsReview"
+        }
+      ],
+      "result": {
+        "tableView": "broadcastRecipientTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "defaultQuery": "deliveryEventAll",
+      "entity": "delivery-event",
+      "key": "deliveryEventHome",
+      "label": "Delivery events",
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "deliveryEventAll"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "deliveryEventBounces"
+        }
+      ],
+      "result": {
+        "tableView": "deliveryEventTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "entity": "company",
+      "fields": [
+        {
+          "editor": "text",
+          "field": "name"
+        },
+        {
+          "editor": "href",
+          "field": "website"
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "editor": "textarea",
+          "field": "notes"
+        }
+      ],
+      "key": "companyCreate",
+      "type": "create"
+    },
+    {
+      "entity": "contact",
+      "fields": [
+        {
+          "editor": "text",
+          "field": "label"
+        },
+        {
+          "editor": "reference",
+          "field": "company"
+        },
+        {
+          "editor": "text",
+          "field": "role"
+        },
+        {
+          "editor": "enum",
+          "field": "lifecycle"
+        },
+        {
+          "editor": "enum",
+          "field": "source"
+        },
+        {
+          "editor": "textarea",
+          "field": "notes"
+        }
+      ],
+      "key": "contactCreate",
+      "type": "create"
+    },
+    {
+      "entity": "email-address",
+      "fields": [
+        {
+          "editor": "reference",
+          "field": "contact"
+        },
+        {
+          "editor": "text",
+          "field": "address"
+        },
+        {
+          "editor": "text",
+          "field": "normalizedAddress"
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "editor": "boolean",
+          "field": "primary"
+        }
+      ],
+      "key": "emailAddressCreate",
+      "type": "create"
+    },
+    {
+      "entity": "audience",
+      "fields": [
+        {
+          "editor": "slug",
+          "field": "key"
+        },
+        {
+          "editor": "text",
+          "field": "label"
+        },
+        {
+          "editor": "textarea",
+          "field": "description"
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "audienceCreate",
+      "type": "create"
+    },
+    {
+      "entity": "subscription",
+      "fields": [
+        {
+          "editor": "reference",
+          "field": "emailAddress"
+        },
+        {
+          "editor": "reference",
+          "field": "audience"
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "editor": "text",
+          "field": "consentedAt"
+        },
+        {
+          "editor": "enum",
+          "field": "sourceKind"
+        },
+        {
+          "editor": "text",
+          "field": "sourceLabel"
+        }
+      ],
+      "key": "subscriptionCreate",
+      "type": "create"
+    },
+    {
+      "entity": "campaign",
+      "fields": [
+        {
+          "editor": "text",
+          "field": "name"
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "editor": "textarea",
+          "field": "objective"
+        },
+        {
+          "editor": "date",
+          "field": "startsOn"
+        }
+      ],
+      "key": "campaignCreate",
+      "type": "create"
+    },
+    {
+      "entity": "campaign-message",
+      "fields": [
+        {
+          "editor": "reference",
+          "field": "campaign"
+        },
+        {
+          "editor": "text",
+          "field": "subject"
+        },
+        {
+          "editor": "text",
+          "field": "preview"
+        },
+        {
+          "editor": "markdown",
+          "field": "body"
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        }
+      ],
+      "key": "campaignMessageCreate",
+      "type": "create"
+    },
+    {
+      "entity": "broadcast",
+      "fields": [
+        {
+          "editor": "text",
+          "field": "label"
+        },
+        {
+          "editor": "reference",
+          "field": "campaign"
+        },
+        {
+          "editor": "reference",
+          "field": "message"
+        },
+        {
+          "editor": "reference",
+          "field": "audience"
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "editor": "date",
+          "field": "scheduledDate"
+        },
+        {
+          "editor": "text",
+          "field": "sentAt"
+        }
+      ],
+      "key": "broadcastCreate",
+      "type": "create"
+    },
+    {
+      "entity": "broadcast-recipient",
+      "fields": [
+        {
+          "editor": "text",
+          "field": "label"
+        },
+        {
+          "editor": "reference",
+          "field": "broadcast"
+        },
+        {
+          "editor": "reference",
+          "field": "emailAddress"
+        },
+        {
+          "editor": "reference",
+          "field": "subscription"
+        },
+        {
+          "editor": "enum",
+          "field": "status"
+        },
+        {
+          "editor": "text",
+          "field": "lastEventAt"
+        }
+      ],
+      "key": "broadcastRecipientCreate",
       "type": "create"
     }
   ]
