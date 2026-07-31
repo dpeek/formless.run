@@ -1,43 +1,46 @@
 {
-  "version": 1,
   "entities": [
     {
-      "id": "entity_610ac202-b123-46ed-8bd3-5b65383e2233",
-      "key": "site",
-      "label": "Site",
+      "constraints": [
+        {
+          "fields": ["key"],
+          "key": "uniqueSiteKey",
+          "kind": "unique"
+        }
+      ],
       "fields": [
         {
           "key": "key",
-          "type": "text",
+          "label": "Key",
           "required": true,
-          "label": "Key"
+          "type": "text"
         },
         {
           "key": "label",
-          "type": "text",
+          "label": "Label",
           "required": true,
-          "label": "Label"
+          "type": "text"
         },
         {
+          "format": "longText",
           "key": "description",
-          "type": "text",
-          "required": false,
           "label": "Description",
-          "format": "longText"
+          "required": false,
+          "type": "text"
         },
         {
+          "format": "icon",
           "key": "icon",
-          "type": "text",
-          "required": false,
           "label": "Icon",
-          "format": "icon"
+          "required": false,
+          "type": "text"
         },
         {
-          "key": "initialThemeMode",
-          "type": "enum",
-          "required": false,
-          "label": "Initial theme",
           "default": "system",
+          "key": "initialThemeMode",
+          "label": "Initial theme",
+          "required": false,
+          "type": "enum",
           "values": [
             {
               "key": "system",
@@ -54,79 +57,72 @@
           ]
         },
         {
+          "default": true,
           "key": "themeSwitchable",
-          "type": "boolean",
-          "required": false,
           "label": "Allow visitors to switch theme",
-          "default": true
+          "required": false,
+          "type": "boolean"
         }
       ],
-      "constraints": [
-        {
-          "key": "uniqueSiteKey",
-          "kind": "unique",
-          "fields": ["key"]
-        }
-      ],
+      "id": "entity_610ac202-b123-46ed-8bd3-5b65383e2233",
+      "key": "site",
+      "label": "Site",
       "operations": [
         {
-          "key": "update",
-          "label": "Update Site",
-          "kind": "update",
-          "scope": "record",
-          "input": {
-            "fields": [
-              {
-                "key": "key",
-                "field": "key"
-              },
-              {
-                "key": "label",
-                "field": "label"
-              },
-              {
-                "key": "description",
-                "field": "description"
-              },
-              {
-                "key": "icon",
-                "field": "icon"
-              },
-              {
-                "key": "initialThemeMode",
-                "field": "initialThemeMode"
-              },
-              {
-                "key": "themeSwitchable",
-                "field": "themeSwitchable"
-              }
-            ]
+          "audit": {
+            "input": "summary"
           },
           "effect": {
             "type": "patchRecord"
           },
-          "output": {
-            "type": "update"
-          },
           "idempotency": {
             "required": true
           },
-          "audit": {
-            "input": "summary"
-          }
+          "input": {
+            "fields": [
+              {
+                "field": "key",
+                "key": "key"
+              },
+              {
+                "field": "label",
+                "key": "label"
+              },
+              {
+                "field": "description",
+                "key": "description"
+              },
+              {
+                "field": "icon",
+                "key": "icon"
+              },
+              {
+                "field": "initialThemeMode",
+                "key": "initialThemeMode"
+              },
+              {
+                "field": "themeSwitchable",
+                "key": "themeSwitchable"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Site",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
         }
       ]
     },
     {
-      "id": "entity_8aa7cc1a-c9a7-482e-b078-6ef5478794e2",
-      "key": "block",
-      "label": "Block",
       "fields": [
         {
           "key": "type",
-          "type": "enum",
-          "required": true,
           "label": "Type",
+          "required": true,
+          "type": "enum",
           "values": [
             {
               "key": "page",
@@ -232,34 +228,34 @@
         },
         {
           "key": "label",
-          "type": "text",
+          "label": "Label",
           "required": true,
-          "label": "Label"
+          "type": "text"
         },
         {
+          "format": "markdown",
           "key": "body",
-          "type": "text",
-          "required": false,
           "label": "Body",
-          "format": "markdown"
+          "required": false,
+          "type": "text"
         },
         {
           "key": "operationName",
-          "type": "text",
+          "label": "Operation",
           "required": false,
-          "label": "Operation"
+          "type": "text"
         },
         {
           "key": "operationKey",
-          "type": "text",
+          "label": "Operation key",
           "required": false,
-          "label": "Operation key"
+          "type": "text"
         },
         {
           "key": "operationTargetKind",
-          "type": "enum",
-          "required": false,
           "label": "Target route",
+          "required": false,
+          "type": "enum",
           "values": [
             {
               "key": "schemaKey",
@@ -273,57 +269,57 @@
         },
         {
           "key": "operationTargetSchemaKey",
-          "type": "text",
+          "label": "Target schema key",
           "required": false,
-          "label": "Target schema key"
+          "type": "text"
         },
         {
           "key": "operationTargetPackageAppKey",
-          "type": "text",
+          "label": "Target package app key",
           "required": false,
-          "label": "Target package app key"
+          "type": "text"
         },
         {
           "key": "operationTargetInstallId",
-          "type": "text",
+          "label": "Target install id",
           "required": false,
-          "label": "Target install id"
+          "type": "text"
         },
         {
           "key": "buttonLabel",
-          "type": "text",
+          "label": "Button label",
           "required": false,
-          "label": "Button label"
+          "type": "text"
         },
         {
           "key": "successLabel",
-          "type": "text",
+          "label": "Success label",
           "required": false,
-          "label": "Success label"
+          "type": "text"
         },
         {
           "key": "nameLabel",
-          "type": "text",
+          "label": "Name label",
           "required": false,
-          "label": "Name label"
+          "type": "text"
         },
         {
           "key": "emailLabel",
-          "type": "text",
+          "label": "Email label",
           "required": false,
-          "label": "Email label"
+          "type": "text"
         },
         {
           "key": "messageLabel",
-          "type": "text",
+          "label": "Message label",
           "required": false,
-          "label": "Message label"
+          "type": "text"
         },
         {
           "key": "operationNotificationMode",
-          "type": "enum",
-          "required": false,
           "label": "Input notification",
+          "required": false,
+          "type": "enum",
           "values": [
             {
               "key": "none",
@@ -337,34 +333,34 @@
         },
         {
           "key": "operationNotificationReplyToField",
-          "type": "text",
+          "label": "Reply-to input field",
           "required": false,
-          "label": "Reply-to input field"
+          "type": "text"
         },
         {
+          "format": "href",
           "key": "href",
-          "type": "text",
-          "required": false,
           "label": "Link",
-          "format": "href"
+          "required": false,
+          "type": "text"
         },
         {
           "key": "mediaAssetId",
-          "type": "text",
+          "label": "Media asset",
           "required": false,
-          "label": "Media asset"
+          "type": "text"
         },
         {
           "key": "date",
-          "type": "date",
+          "label": "Date",
           "required": false,
-          "label": "Date"
+          "type": "date"
         },
         {
           "key": "linkTargetMode",
-          "type": "enum",
-          "required": false,
           "label": "Link target",
+          "required": false,
+          "type": "enum",
           "values": [
             {
               "key": "internal",
@@ -377,32 +373,32 @@
           ]
         },
         {
+          "displayField": "label",
           "key": "linkTargetBlock",
-          "type": "reference",
-          "required": false,
           "label": "Target block",
+          "required": false,
           "to": "block",
-          "displayField": "label"
+          "type": "reference"
         },
         {
+          "format": "icon",
           "key": "icon",
-          "type": "text",
-          "required": false,
           "label": "Icon",
-          "format": "icon"
+          "required": false,
+          "type": "text"
         },
         {
+          "format": "color",
           "key": "color",
-          "type": "text",
-          "required": false,
           "label": "Color",
-          "format": "color"
+          "required": false,
+          "type": "text"
         },
         {
           "key": "alignment",
-          "type": "enum",
-          "required": false,
           "label": "Media side",
+          "required": false,
+          "type": "enum",
           "values": [
             {
               "key": "left",
@@ -415,575 +411,576 @@
           ]
         },
         {
-          "key": "width",
-          "type": "number",
-          "required": false,
-          "label": "Width",
           "integer": true,
-          "min": 0
+          "key": "width",
+          "label": "Width",
+          "min": 0,
+          "required": false,
+          "type": "number"
         },
         {
-          "key": "height",
-          "type": "number",
-          "required": false,
-          "label": "Height",
           "integer": true,
-          "min": 0
+          "key": "height",
+          "label": "Height",
+          "min": 0,
+          "required": false,
+          "type": "number"
         }
       ],
+      "id": "entity_8aa7cc1a-c9a7-482e-b078-6ef5478794e2",
+      "key": "block",
+      "label": "Block",
       "operations": [
         {
-          "key": "create",
-          "label": "Create Block",
-          "kind": "create",
-          "scope": "collection",
-          "input": {
-            "fields": [
-              {
-                "key": "type",
-                "field": "type"
-              },
-              {
-                "key": "label",
-                "field": "label"
-              },
-              {
-                "key": "body",
-                "field": "body"
-              },
-              {
-                "key": "operationName",
-                "field": "operationName"
-              },
-              {
-                "key": "operationKey",
-                "field": "operationKey"
-              },
-              {
-                "key": "operationTargetKind",
-                "field": "operationTargetKind"
-              },
-              {
-                "key": "operationTargetSchemaKey",
-                "field": "operationTargetSchemaKey"
-              },
-              {
-                "key": "operationTargetPackageAppKey",
-                "field": "operationTargetPackageAppKey"
-              },
-              {
-                "key": "operationTargetInstallId",
-                "field": "operationTargetInstallId"
-              },
-              {
-                "key": "buttonLabel",
-                "field": "buttonLabel"
-              },
-              {
-                "key": "successLabel",
-                "field": "successLabel"
-              },
-              {
-                "key": "nameLabel",
-                "field": "nameLabel"
-              },
-              {
-                "key": "emailLabel",
-                "field": "emailLabel"
-              },
-              {
-                "key": "messageLabel",
-                "field": "messageLabel"
-              },
-              {
-                "key": "operationNotificationMode",
-                "field": "operationNotificationMode"
-              },
-              {
-                "key": "operationNotificationReplyToField",
-                "field": "operationNotificationReplyToField"
-              },
-              {
-                "key": "href",
-                "field": "href"
-              },
-              {
-                "key": "mediaAssetId",
-                "field": "mediaAssetId"
-              },
-              {
-                "key": "date",
-                "field": "date"
-              },
-              {
-                "key": "linkTargetMode",
-                "field": "linkTargetMode"
-              },
-              {
-                "key": "linkTargetBlock",
-                "field": "linkTargetBlock"
-              },
-              {
-                "key": "icon",
-                "field": "icon"
-              },
-              {
-                "key": "color",
-                "field": "color"
-              },
-              {
-                "key": "alignment",
-                "field": "alignment"
-              },
-              {
-                "key": "width",
-                "field": "width"
-              },
-              {
-                "key": "height",
-                "field": "height"
-              }
-            ]
+          "audit": {
+            "input": "summary"
           },
           "effect": {
             "type": "createRecord"
           },
-          "output": {
-            "type": "create"
-          },
           "idempotency": {
             "required": true
           },
-          "audit": {
-            "input": "summary"
-          }
-        },
-        {
-          "key": "update",
-          "label": "Update Block",
-          "kind": "update",
-          "scope": "record",
           "input": {
             "fields": [
               {
-                "key": "type",
-                "field": "type"
+                "field": "type",
+                "key": "type"
               },
               {
-                "key": "label",
-                "field": "label"
+                "field": "label",
+                "key": "label"
               },
               {
-                "key": "body",
-                "field": "body"
+                "field": "body",
+                "key": "body"
               },
               {
-                "key": "operationName",
-                "field": "operationName"
+                "field": "operationName",
+                "key": "operationName"
               },
               {
-                "key": "operationKey",
-                "field": "operationKey"
+                "field": "operationKey",
+                "key": "operationKey"
               },
               {
-                "key": "operationTargetKind",
-                "field": "operationTargetKind"
+                "field": "operationTargetKind",
+                "key": "operationTargetKind"
               },
               {
-                "key": "operationTargetSchemaKey",
-                "field": "operationTargetSchemaKey"
+                "field": "operationTargetSchemaKey",
+                "key": "operationTargetSchemaKey"
               },
               {
-                "key": "operationTargetPackageAppKey",
-                "field": "operationTargetPackageAppKey"
+                "field": "operationTargetPackageAppKey",
+                "key": "operationTargetPackageAppKey"
               },
               {
-                "key": "operationTargetInstallId",
-                "field": "operationTargetInstallId"
+                "field": "operationTargetInstallId",
+                "key": "operationTargetInstallId"
               },
               {
-                "key": "buttonLabel",
-                "field": "buttonLabel"
+                "field": "buttonLabel",
+                "key": "buttonLabel"
               },
               {
-                "key": "successLabel",
-                "field": "successLabel"
+                "field": "successLabel",
+                "key": "successLabel"
               },
               {
-                "key": "nameLabel",
-                "field": "nameLabel"
+                "field": "nameLabel",
+                "key": "nameLabel"
               },
               {
-                "key": "emailLabel",
-                "field": "emailLabel"
+                "field": "emailLabel",
+                "key": "emailLabel"
               },
               {
-                "key": "messageLabel",
-                "field": "messageLabel"
+                "field": "messageLabel",
+                "key": "messageLabel"
               },
               {
-                "key": "operationNotificationMode",
-                "field": "operationNotificationMode"
+                "field": "operationNotificationMode",
+                "key": "operationNotificationMode"
               },
               {
-                "key": "operationNotificationReplyToField",
-                "field": "operationNotificationReplyToField"
+                "field": "operationNotificationReplyToField",
+                "key": "operationNotificationReplyToField"
               },
               {
-                "key": "href",
-                "field": "href"
+                "field": "href",
+                "key": "href"
               },
               {
-                "key": "mediaAssetId",
-                "field": "mediaAssetId"
+                "field": "mediaAssetId",
+                "key": "mediaAssetId"
               },
               {
-                "key": "date",
-                "field": "date"
+                "field": "date",
+                "key": "date"
               },
               {
-                "key": "linkTargetMode",
-                "field": "linkTargetMode"
+                "field": "linkTargetMode",
+                "key": "linkTargetMode"
               },
               {
-                "key": "linkTargetBlock",
-                "field": "linkTargetBlock"
+                "field": "linkTargetBlock",
+                "key": "linkTargetBlock"
               },
               {
-                "key": "icon",
-                "field": "icon"
+                "field": "icon",
+                "key": "icon"
               },
               {
-                "key": "color",
-                "field": "color"
+                "field": "color",
+                "key": "color"
               },
               {
-                "key": "alignment",
-                "field": "alignment"
+                "field": "alignment",
+                "key": "alignment"
               },
               {
-                "key": "width",
-                "field": "width"
+                "field": "width",
+                "key": "width"
               },
               {
-                "key": "height",
-                "field": "height"
+                "field": "height",
+                "key": "height"
               }
             ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Block",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
           },
           "effect": {
             "type": "patchRecord"
           },
-          "output": {
-            "type": "update"
-          },
           "idempotency": {
             "required": true
           },
-          "audit": {
-            "input": "summary"
-          }
+          "input": {
+            "fields": [
+              {
+                "field": "type",
+                "key": "type"
+              },
+              {
+                "field": "label",
+                "key": "label"
+              },
+              {
+                "field": "body",
+                "key": "body"
+              },
+              {
+                "field": "operationName",
+                "key": "operationName"
+              },
+              {
+                "field": "operationKey",
+                "key": "operationKey"
+              },
+              {
+                "field": "operationTargetKind",
+                "key": "operationTargetKind"
+              },
+              {
+                "field": "operationTargetSchemaKey",
+                "key": "operationTargetSchemaKey"
+              },
+              {
+                "field": "operationTargetPackageAppKey",
+                "key": "operationTargetPackageAppKey"
+              },
+              {
+                "field": "operationTargetInstallId",
+                "key": "operationTargetInstallId"
+              },
+              {
+                "field": "buttonLabel",
+                "key": "buttonLabel"
+              },
+              {
+                "field": "successLabel",
+                "key": "successLabel"
+              },
+              {
+                "field": "nameLabel",
+                "key": "nameLabel"
+              },
+              {
+                "field": "emailLabel",
+                "key": "emailLabel"
+              },
+              {
+                "field": "messageLabel",
+                "key": "messageLabel"
+              },
+              {
+                "field": "operationNotificationMode",
+                "key": "operationNotificationMode"
+              },
+              {
+                "field": "operationNotificationReplyToField",
+                "key": "operationNotificationReplyToField"
+              },
+              {
+                "field": "href",
+                "key": "href"
+              },
+              {
+                "field": "mediaAssetId",
+                "key": "mediaAssetId"
+              },
+              {
+                "field": "date",
+                "key": "date"
+              },
+              {
+                "field": "linkTargetMode",
+                "key": "linkTargetMode"
+              },
+              {
+                "field": "linkTargetBlock",
+                "key": "linkTargetBlock"
+              },
+              {
+                "field": "icon",
+                "key": "icon"
+              },
+              {
+                "field": "color",
+                "key": "color"
+              },
+              {
+                "field": "alignment",
+                "key": "alignment"
+              },
+              {
+                "field": "width",
+                "key": "width"
+              },
+              {
+                "field": "height",
+                "key": "height"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Block",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
         },
         {
-          "key": "delete",
-          "label": "Delete Block",
-          "kind": "delete",
-          "scope": "record",
+          "audit": {
+            "input": "summary"
+          },
           "effect": {
             "type": "deleteRecord"
           },
+          "idempotency": {
+            "required": true
+          },
+          "key": "delete",
+          "kind": "delete",
+          "label": "Delete Block",
           "output": {
             "type": "delete"
           },
-          "idempotency": {
-            "required": true
-          },
-          "audit": {
-            "input": "summary"
-          }
+          "scope": "record"
         }
       ]
     },
     {
-      "id": "entity_3d195c79-db03-4da4-95c8-433266271b21",
-      "key": "block-placement",
-      "label": "Placement",
       "fields": [
         {
+          "displayField": "label",
           "key": "parent",
-          "type": "reference",
-          "required": true,
           "label": "Parent block",
+          "required": true,
           "to": "block",
-          "displayField": "label"
+          "type": "reference"
         },
         {
+          "displayField": "label",
           "key": "block",
-          "type": "reference",
-          "required": true,
           "label": "Child block",
+          "required": true,
           "to": "block",
-          "displayField": "label"
+          "type": "reference"
         },
         {
-          "key": "order",
-          "type": "number",
-          "required": true,
-          "label": "Order",
           "default": 1000,
-          "min": 0
+          "key": "order",
+          "label": "Order",
+          "min": 0,
+          "required": true,
+          "type": "number"
         },
         {
           "key": "label",
-          "type": "text",
+          "label": "Label",
           "required": false,
-          "label": "Label"
+          "type": "text"
         },
         {
           "key": "slot",
-          "type": "text",
+          "label": "Slot",
           "required": false,
-          "label": "Slot"
+          "type": "text"
         }
       ],
+      "id": "entity_3d195c79-db03-4da4-95c8-433266271b21",
+      "key": "block-placement",
+      "label": "Placement",
       "operations": [
         {
-          "key": "create",
-          "label": "Create Placement",
-          "kind": "create",
-          "scope": "collection",
-          "input": {
-            "fields": [
-              {
-                "key": "parent",
-                "field": "parent"
-              },
-              {
-                "key": "block",
-                "field": "block"
-              },
-              {
-                "key": "order",
-                "field": "order"
-              },
-              {
-                "key": "label",
-                "field": "label"
-              },
-              {
-                "key": "slot",
-                "field": "slot"
-              }
-            ]
+          "audit": {
+            "input": "summary"
           },
           "effect": {
             "type": "createRecord"
           },
-          "output": {
-            "type": "create"
-          },
           "idempotency": {
             "required": true
           },
-          "audit": {
-            "input": "summary"
-          }
-        },
-        {
-          "key": "update",
-          "label": "Update Placement",
-          "kind": "update",
-          "scope": "record",
           "input": {
             "fields": [
               {
-                "key": "parent",
-                "field": "parent"
+                "field": "parent",
+                "key": "parent"
               },
               {
-                "key": "block",
-                "field": "block"
+                "field": "block",
+                "key": "block"
               },
               {
-                "key": "order",
-                "field": "order"
+                "field": "order",
+                "key": "order"
               },
               {
-                "key": "label",
-                "field": "label"
+                "field": "label",
+                "key": "label"
               },
               {
-                "key": "slot",
-                "field": "slot"
+                "field": "slot",
+                "key": "slot"
               }
             ]
+          },
+          "key": "create",
+          "kind": "create",
+          "label": "Create Placement",
+          "output": {
+            "type": "create"
+          },
+          "scope": "collection"
+        },
+        {
+          "audit": {
+            "input": "summary"
           },
           "effect": {
             "type": "patchRecord"
           },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "parent",
+                "key": "parent"
+              },
+              {
+                "field": "block",
+                "key": "block"
+              },
+              {
+                "field": "order",
+                "key": "order"
+              },
+              {
+                "field": "label",
+                "key": "label"
+              },
+              {
+                "field": "slot",
+                "key": "slot"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Placement",
           "output": {
             "type": "update"
           },
+          "scope": "record"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "config": {
+              "childField": "block",
+              "orderField": "order",
+              "relationship": "blockPlacements"
+            },
+            "handler": "create-tree-child",
+            "type": "operationHandler"
+          },
           "idempotency": {
             "required": true
           },
-          "audit": {
-            "input": "summary"
-          }
-        },
-        {
           "key": "addTreeChild",
-          "label": "Add child",
           "kind": "command",
-          "scope": "record",
-          "effect": {
-            "type": "operationHandler",
-            "handler": "create-tree-child",
-            "config": {
-              "relationship": "blockPlacements",
-              "childField": "block",
-              "orderField": "order"
-            }
-          },
+          "label": "Add child",
           "output": {
             "type": "command"
           },
-          "idempotency": {
-            "required": true
-          },
-          "audit": {
-            "input": "summary"
-          }
+          "scope": "record"
         },
         {
-          "key": "removeTreePlacement",
-          "label": "Remove child",
-          "kind": "command",
-          "scope": "record",
+          "audit": {
+            "input": "summary"
+          },
           "effect": {
-            "type": "operationHandler",
-            "handler": "remove-tree-placement",
             "config": {
               "relationship": "blockPlacements"
-            }
-          },
-          "output": {
-            "type": "command"
+            },
+            "handler": "remove-tree-placement",
+            "type": "operationHandler"
           },
           "idempotency": {
             "required": true
           },
-          "audit": {
-            "input": "summary"
-          }
+          "key": "removeTreePlacement",
+          "kind": "command",
+          "label": "Remove child",
+          "output": {
+            "type": "command"
+          },
+          "scope": "record"
         }
       ]
     },
     {
-      "id": "entity_dd5c1285-721a-4294-8114-efd784b6a578",
-      "key": "contact",
-      "label": "Contact",
       "fields": [
         {
           "key": "label",
-          "type": "text",
+          "label": "Label",
           "required": true,
-          "label": "Label"
+          "type": "text"
         }
       ],
+      "id": "entity_dd5c1285-721a-4294-8114-efd784b6a578",
+      "key": "contact",
+      "label": "Contact",
       "operations": [
         {
-          "key": "update",
-          "label": "Update Contact",
-          "kind": "update",
-          "scope": "record",
-          "input": {
-            "fields": [
-              {
-                "key": "label",
-                "field": "label"
-              }
-            ]
+          "audit": {
+            "input": "summary"
           },
           "effect": {
             "type": "patchRecord"
           },
-          "output": {
-            "type": "update"
-          },
           "idempotency": {
             "required": true
           },
-          "audit": {
-            "input": "summary"
-          }
+          "input": {
+            "fields": [
+              {
+                "field": "label",
+                "key": "label"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Contact",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
         }
       ]
     },
     {
-      "id": "entity_5a3667a2-a5a7-46ed-b3a4-b6364bae31a0",
-      "key": "contact-message",
-      "label": "Contact message",
       "fields": [
         {
           "key": "name",
-          "type": "text",
+          "label": "Name",
           "required": true,
-          "label": "Name"
+          "type": "text"
         },
         {
           "key": "email",
-          "type": "text",
+          "label": "Email",
           "required": true,
-          "label": "Email"
+          "type": "text"
         },
         {
+          "format": "longText",
           "key": "message",
-          "type": "text",
-          "required": true,
           "label": "Message",
-          "format": "longText"
+          "required": true,
+          "type": "text"
         }
       ],
+      "id": "entity_5a3667a2-a5a7-46ed-b3a4-b6364bae31a0",
+      "key": "contact-message",
+      "label": "Contact message",
       "operations": [
         {
-          "key": "submit",
-          "label": "Submit message",
-          "kind": "create",
-          "scope": "collection",
-          "input": {
-            "fields": [
-              {
-                "key": "name",
-                "field": "name",
-                "required": true
-              },
-              {
-                "key": "email",
-                "field": "email",
-                "required": true
-              },
-              {
-                "key": "message",
-                "field": "message",
-                "required": true
-              }
-            ]
+          "audit": {
+            "input": "summary"
           },
           "effect": {
             "type": "createRecord"
           },
-          "output": {
-            "type": "create"
-          },
           "idempotency": {
             "required": true
           },
-          "audit": {
-            "input": "summary"
+          "input": {
+            "fields": [
+              {
+                "field": "name",
+                "key": "name",
+                "required": true
+              },
+              {
+                "field": "email",
+                "key": "email",
+                "required": true
+              },
+              {
+                "field": "message",
+                "key": "message",
+                "required": true
+              }
+            ]
+          },
+          "key": "submit",
+          "kind": "create",
+          "label": "Submit message",
+          "output": {
+            "type": "create"
           },
           "policy": {
-            "actors": ["anonymous"],
             "access": {
               "actor": "anonymous",
               "challenge": {
@@ -992,166 +989,172 @@
               "origin": {
                 "kind": "same-origin"
               }
-            }
-          }
+            },
+            "actors": ["anonymous"]
+          },
+          "scope": "collection"
         }
       ]
     },
     {
-      "id": "entity_9863574c-952d-41a9-b90e-b40f6eda5eba",
-      "key": "email-address",
-      "label": "Email address",
+      "constraints": [
+        {
+          "fields": ["normalizedAddress"],
+          "key": "uniqueNormalizedAddress",
+          "kind": "unique"
+        }
+      ],
       "fields": [
         {
+          "displayField": "label",
           "key": "contact",
-          "type": "reference",
-          "required": true,
           "label": "Contact",
+          "required": true,
           "to": "contact",
-          "displayField": "label"
+          "type": "reference"
         },
         {
           "key": "address",
-          "type": "text",
+          "label": "Address",
           "required": true,
-          "label": "Address"
+          "type": "text"
         },
         {
           "key": "normalizedAddress",
-          "type": "text",
+          "label": "Normalized address",
           "required": true,
-          "label": "Normalized address"
+          "type": "text"
         }
       ],
-      "constraints": [
-        {
-          "key": "uniqueNormalizedAddress",
-          "kind": "unique",
-          "fields": ["normalizedAddress"]
-        }
-      ],
+      "id": "entity_9863574c-952d-41a9-b90e-b40f6eda5eba",
+      "key": "email-address",
+      "label": "Email address",
       "operations": [
         {
-          "key": "update",
-          "label": "Update Email address",
-          "kind": "update",
-          "scope": "record",
-          "input": {
-            "fields": [
-              {
-                "key": "contact",
-                "field": "contact"
-              },
-              {
-                "key": "address",
-                "field": "address"
-              },
-              {
-                "key": "normalizedAddress",
-                "field": "normalizedAddress"
-              }
-            ]
+          "audit": {
+            "input": "summary"
           },
           "effect": {
             "type": "patchRecord"
           },
-          "output": {
-            "type": "update"
-          },
           "idempotency": {
             "required": true
           },
-          "audit": {
-            "input": "summary"
-          }
+          "input": {
+            "fields": [
+              {
+                "field": "contact",
+                "key": "contact"
+              },
+              {
+                "field": "address",
+                "key": "address"
+              },
+              {
+                "field": "normalizedAddress",
+                "key": "normalizedAddress"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Email address",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
         }
       ]
     },
     {
-      "id": "entity_8999782d-0e12-4e4b-8830-0e60cb3f1179",
-      "key": "audience",
-      "label": "Audience",
+      "constraints": [
+        {
+          "fields": ["key"],
+          "key": "uniqueAudienceKey",
+          "kind": "unique"
+        }
+      ],
       "fields": [
         {
           "key": "key",
-          "type": "text",
+          "label": "Key",
           "required": true,
-          "label": "Key"
+          "type": "text"
         },
         {
           "key": "label",
-          "type": "text",
+          "label": "Label",
           "required": true,
-          "label": "Label"
+          "type": "text"
         }
       ],
-      "constraints": [
-        {
-          "key": "uniqueAudienceKey",
-          "kind": "unique",
-          "fields": ["key"]
-        }
-      ],
+      "id": "entity_8999782d-0e12-4e4b-8830-0e60cb3f1179",
+      "key": "audience",
+      "label": "Audience",
       "operations": [
         {
-          "key": "update",
-          "label": "Update Audience",
-          "kind": "update",
-          "scope": "record",
-          "input": {
-            "fields": [
-              {
-                "key": "key",
-                "field": "key"
-              },
-              {
-                "key": "label",
-                "field": "label"
-              }
-            ]
+          "audit": {
+            "input": "summary"
           },
           "effect": {
             "type": "patchRecord"
           },
-          "output": {
-            "type": "update"
-          },
           "idempotency": {
             "required": true
           },
-          "audit": {
-            "input": "summary"
-          }
+          "input": {
+            "fields": [
+              {
+                "field": "key",
+                "key": "key"
+              },
+              {
+                "field": "label",
+                "key": "label"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Audience",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
         }
       ]
     },
     {
-      "id": "entity_da574ad0-f310-4542-927e-c76dd89402f0",
-      "key": "subscription",
-      "label": "Subscription",
+      "constraints": [
+        {
+          "fields": ["emailAddress", "audience"],
+          "key": "uniqueEmailAudience",
+          "kind": "unique"
+        }
+      ],
       "fields": [
         {
+          "displayField": "address",
           "key": "emailAddress",
-          "type": "reference",
-          "required": true,
           "label": "Email address",
+          "required": true,
           "to": "email-address",
-          "displayField": "address"
+          "type": "reference"
         },
         {
+          "displayField": "label",
           "key": "audience",
-          "type": "reference",
-          "required": true,
           "label": "Audience",
+          "required": true,
           "to": "audience",
-          "displayField": "label"
+          "type": "reference"
         },
         {
-          "key": "status",
-          "type": "enum",
-          "required": true,
-          "label": "Status",
           "default": "subscribed",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
           "values": [
             {
               "key": "subscribed",
@@ -1165,16 +1168,16 @@
         },
         {
           "key": "consentedAt",
-          "type": "text",
+          "label": "Consented at",
           "required": true,
-          "label": "Consented at"
+          "type": "text"
         },
         {
-          "key": "sourceKind",
-          "type": "enum",
-          "required": true,
-          "label": "Source kind",
           "default": "publicOperation",
+          "key": "sourceKind",
+          "label": "Source kind",
+          "required": true,
+          "type": "enum",
           "values": [
             {
               "key": "publicOperation",
@@ -1184,9 +1187,9 @@
         },
         {
           "key": "sourceTargetKind",
-          "type": "enum",
-          "required": true,
           "label": "Target kind",
+          "required": true,
+          "type": "enum",
           "values": [
             {
               "key": "schemaKey",
@@ -1200,170 +1203,164 @@
         },
         {
           "key": "sourcePackageAppKey",
-          "type": "text",
+          "label": "Package app key",
           "required": true,
-          "label": "Package app key"
+          "type": "text"
         },
         {
           "key": "sourceSchemaKey",
-          "type": "text",
+          "label": "Source schema key",
           "required": true,
-          "label": "Source schema key"
+          "type": "text"
         },
         {
           "key": "sourceInstallId",
-          "type": "text",
+          "label": "Install id",
           "required": false,
-          "label": "Install id"
+          "type": "text"
         },
         {
           "key": "sourceApiRoutePrefix",
-          "type": "text",
+          "label": "API route prefix",
           "required": true,
-          "label": "API route prefix"
+          "type": "text"
         },
         {
           "key": "sourceOperationKey",
-          "type": "text",
+          "label": "Operation key",
           "required": true,
-          "label": "Operation key"
+          "type": "text"
         },
         {
           "key": "sourceHost",
-          "type": "text",
+          "label": "Host",
           "required": true,
-          "label": "Host"
+          "type": "text"
         },
         {
           "key": "sourcePath",
-          "type": "text",
+          "label": "Path",
           "required": true,
-          "label": "Path"
+          "type": "text"
         },
         {
           "key": "sourceSiteBlockId",
-          "type": "text",
+          "label": "Site block",
           "required": false,
-          "label": "Site block"
+          "type": "text"
         }
       ],
-      "constraints": [
-        {
-          "key": "uniqueEmailAudience",
-          "kind": "unique",
-          "fields": ["emailAddress", "audience"]
-        }
-      ],
+      "id": "entity_da574ad0-f310-4542-927e-c76dd89402f0",
+      "key": "subscription",
+      "label": "Subscription",
       "operations": [
         {
-          "key": "update",
-          "label": "Update Subscription",
-          "kind": "update",
-          "scope": "record",
-          "input": {
-            "fields": [
-              {
-                "key": "emailAddress",
-                "field": "emailAddress"
-              },
-              {
-                "key": "audience",
-                "field": "audience"
-              },
-              {
-                "key": "status",
-                "field": "status"
-              },
-              {
-                "key": "consentedAt",
-                "field": "consentedAt"
-              },
-              {
-                "key": "sourceKind",
-                "field": "sourceKind"
-              },
-              {
-                "key": "sourceTargetKind",
-                "field": "sourceTargetKind"
-              },
-              {
-                "key": "sourcePackageAppKey",
-                "field": "sourcePackageAppKey"
-              },
-              {
-                "key": "sourceSchemaKey",
-                "field": "sourceSchemaKey"
-              },
-              {
-                "key": "sourceInstallId",
-                "field": "sourceInstallId"
-              },
-              {
-                "key": "sourceApiRoutePrefix",
-                "field": "sourceApiRoutePrefix"
-              },
-              {
-                "key": "sourceOperationKey",
-                "field": "sourceOperationKey"
-              },
-              {
-                "key": "sourceHost",
-                "field": "sourceHost"
-              },
-              {
-                "key": "sourcePath",
-                "field": "sourcePath"
-              },
-              {
-                "key": "sourceSiteBlockId",
-                "field": "sourceSiteBlockId"
-              }
-            ]
+          "audit": {
+            "input": "summary"
           },
           "effect": {
             "type": "patchRecord"
           },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "emailAddress",
+                "key": "emailAddress"
+              },
+              {
+                "field": "audience",
+                "key": "audience"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "consentedAt",
+                "key": "consentedAt"
+              },
+              {
+                "field": "sourceKind",
+                "key": "sourceKind"
+              },
+              {
+                "field": "sourceTargetKind",
+                "key": "sourceTargetKind"
+              },
+              {
+                "field": "sourcePackageAppKey",
+                "key": "sourcePackageAppKey"
+              },
+              {
+                "field": "sourceSchemaKey",
+                "key": "sourceSchemaKey"
+              },
+              {
+                "field": "sourceInstallId",
+                "key": "sourceInstallId"
+              },
+              {
+                "field": "sourceApiRoutePrefix",
+                "key": "sourceApiRoutePrefix"
+              },
+              {
+                "field": "sourceOperationKey",
+                "key": "sourceOperationKey"
+              },
+              {
+                "field": "sourceHost",
+                "key": "sourceHost"
+              },
+              {
+                "field": "sourcePath",
+                "key": "sourcePath"
+              },
+              {
+                "field": "sourceSiteBlockId",
+                "key": "sourceSiteBlockId"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Subscription",
           "output": {
             "type": "update"
+          },
+          "scope": "record"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "config": {},
+            "handler": "subscribe",
+            "type": "operationHandler"
           },
           "idempotency": {
             "required": true
           },
-          "audit": {
-            "input": "summary"
-          }
-        },
-        {
-          "key": "subscribe",
-          "label": "Subscribe",
-          "kind": "command",
-          "scope": "collection",
           "input": {
             "fields": [
               {
                 "key": "email",
-                "type": "text",
+                "label": "Email",
                 "required": true,
-                "label": "Email"
+                "type": "text"
               }
             ]
           },
-          "effect": {
-            "type": "operationHandler",
-            "handler": "subscribe",
-            "config": {}
-          },
+          "key": "subscribe",
+          "kind": "command",
+          "label": "Subscribe",
           "output": {
             "type": "command"
           },
-          "idempotency": {
-            "required": true
-          },
-          "audit": {
-            "input": "summary"
-          },
           "policy": {
-            "actors": ["anonymous"],
             "access": {
               "actor": "anonymous",
               "challenge": {
@@ -1372,181 +1369,1611 @@
               "origin": {
                 "kind": "same-origin"
               }
-            }
-          }
+            },
+            "actors": ["anonymous"]
+          },
+          "scope": "collection"
         }
       ]
     }
   ],
+  "itemViews": [
+    {
+      "entity": "site",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "textarea",
+          "field": "description"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "icon",
+          "field": "icon"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "initialThemeMode"
+        },
+        {
+          "commit": "immediate",
+          "editor": "boolean",
+          "field": "themeSwitchable"
+        }
+      ],
+      "key": "siteSettingsForm"
+    },
+    {
+      "entity": "block",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label"
+        }
+      ],
+      "key": "blockListItem"
+    },
+    {
+      "entity": "block",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label"
+        }
+      ],
+      "key": "blockContextItem"
+    },
+    {
+      "entity": "block",
+      "fallback": {
+        "fields": [
+          {
+            "commit": "field-commit",
+            "editor": "text",
+            "field": "label"
+          }
+        ],
+        "presentation": "fields"
+      },
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label"
+        }
+      ],
+      "key": "blockRootDetail",
+      "union": "blockByType",
+      "variants": [
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "href",
+              "field": "href"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "icon",
+              "field": "icon"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "page"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "date",
+              "field": "date"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "href",
+              "field": "href"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "post"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "date",
+              "field": "date"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "href",
+              "field": "href"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "project"
+        },
+        {
+          "fields": [
+            {
+              "commit": "immediate",
+              "editor": "enum",
+              "field": "linkTargetMode"
+            },
+            {
+              "commit": "immediate",
+              "editor": "reference",
+              "field": "linkTargetBlock",
+              "visibleWhen": {
+                "field": "linkTargetMode",
+                "values": ["internal"]
+              }
+            },
+            {
+              "commit": "field-commit",
+              "editor": "href",
+              "field": "href",
+              "visibleWhen": {
+                "field": "linkTargetMode",
+                "values": ["", "external"]
+              }
+            },
+            {
+              "commit": "field-commit",
+              "editor": "icon",
+              "field": "icon"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "link"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "markdown"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "hero"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "immediate",
+              "editor": "enum",
+              "field": "alignment"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "feature"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "section"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "cardGrid"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "icon",
+              "field": "icon"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "color",
+              "field": "color"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "card"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "metricGrid"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "color",
+              "field": "color"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "metric"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationName"
+            },
+            {
+              "commit": "immediate",
+              "editor": "enum",
+              "field": "operationTargetKind"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationTargetSchemaKey",
+              "visibleWhen": {
+                "field": "operationTargetKind",
+                "values": ["schemaKey"]
+              }
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationTargetPackageAppKey",
+              "visibleWhen": {
+                "field": "operationTargetKind",
+                "values": ["appInstall"]
+              }
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationTargetInstallId",
+              "visibleWhen": {
+                "field": "operationTargetKind",
+                "values": ["appInstall"]
+              }
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "buttonLabel"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "subscribeForm"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationName"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "buttonLabel"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "successLabel"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "nameLabel"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "emailLabel"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "messageLabel"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "contactForm"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "immediate",
+              "editor": "enum",
+              "field": "operationTargetKind"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationTargetSchemaKey",
+              "visibleWhen": {
+                "field": "operationTargetKind",
+                "values": ["schemaKey"]
+              }
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationTargetPackageAppKey",
+              "visibleWhen": {
+                "field": "operationTargetKind",
+                "values": ["appInstall"]
+              }
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationTargetInstallId",
+              "visibleWhen": {
+                "field": "operationTargetKind",
+                "values": ["appInstall"]
+              }
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationKey"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "buttonLabel"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "successLabel"
+            },
+            {
+              "commit": "immediate",
+              "editor": "enum",
+              "field": "operationNotificationMode"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationNotificationReplyToField",
+              "visibleWhen": {
+                "field": "operationNotificationMode",
+                "values": ["email"]
+              }
+            }
+          ],
+          "presentation": "fields",
+          "variant": "publicOperationForm"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "media",
+              "field": "mediaAssetId"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "image"
+        }
+      ]
+    },
+    {
+      "entity": "block",
+      "fallback": {
+        "fields": [
+          {
+            "commit": "field-commit",
+            "editor": "text",
+            "field": "label"
+          }
+        ],
+        "presentation": "fields"
+      },
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label"
+        }
+      ],
+      "key": "blockTreeNode",
+      "union": "blockByType",
+      "variants": [
+        {
+          "labelField": "label",
+          "presentation": "contextLink",
+          "target": {
+            "context": "block",
+            "kind": "selectContext",
+            "record": "self"
+          },
+          "variant": "header"
+        },
+        {
+          "labelField": "label",
+          "presentation": "contextLink",
+          "target": {
+            "context": "block",
+            "kind": "selectContext",
+            "record": "self"
+          },
+          "variant": "footer"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "date",
+              "field": "date"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "href",
+              "field": "href"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "project"
+        },
+        {
+          "fields": [
+            {
+              "commit": "immediate",
+              "editor": "enum",
+              "field": "linkTargetMode"
+            },
+            {
+              "commit": "immediate",
+              "editor": "reference",
+              "field": "linkTargetBlock",
+              "visibleWhen": {
+                "field": "linkTargetMode",
+                "values": ["internal"]
+              }
+            },
+            {
+              "commit": "field-commit",
+              "editor": "href",
+              "field": "href",
+              "visibleWhen": {
+                "field": "linkTargetMode",
+                "values": ["", "external"]
+              }
+            },
+            {
+              "commit": "field-commit",
+              "editor": "icon",
+              "field": "icon"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "link"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "markdown"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "hero"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "immediate",
+              "editor": "enum",
+              "field": "alignment"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "feature"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "section"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "cardGrid"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "icon",
+              "field": "icon"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "color",
+              "field": "color"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "card"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "metricGrid"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "color",
+              "field": "color"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "metric"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationName"
+            },
+            {
+              "commit": "immediate",
+              "editor": "enum",
+              "field": "operationTargetKind"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationTargetSchemaKey",
+              "visibleWhen": {
+                "field": "operationTargetKind",
+                "values": ["schemaKey"]
+              }
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationTargetPackageAppKey",
+              "visibleWhen": {
+                "field": "operationTargetKind",
+                "values": ["appInstall"]
+              }
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationTargetInstallId",
+              "visibleWhen": {
+                "field": "operationTargetKind",
+                "values": ["appInstall"]
+              }
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "buttonLabel"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "subscribeForm"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationName"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "buttonLabel"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "successLabel"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "nameLabel"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "emailLabel"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "messageLabel"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "contactForm"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "immediate",
+              "editor": "enum",
+              "field": "operationTargetKind"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationTargetSchemaKey",
+              "visibleWhen": {
+                "field": "operationTargetKind",
+                "values": ["schemaKey"]
+              }
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationTargetPackageAppKey",
+              "visibleWhen": {
+                "field": "operationTargetKind",
+                "values": ["appInstall"]
+              }
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationTargetInstallId",
+              "visibleWhen": {
+                "field": "operationTargetKind",
+                "values": ["appInstall"]
+              }
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationKey"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "buttonLabel"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "successLabel"
+            },
+            {
+              "commit": "immediate",
+              "editor": "enum",
+              "field": "operationNotificationMode"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationNotificationReplyToField",
+              "visibleWhen": {
+                "field": "operationNotificationMode",
+                "values": ["email"]
+              }
+            }
+          ],
+          "presentation": "fields",
+          "variant": "publicOperationForm"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "media",
+              "field": "mediaAssetId"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "image"
+        }
+      ]
+    },
+    {
+      "entity": "block-placement",
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label"
+        }
+      ],
+      "key": "blockPlacementTreeItem"
+    }
+  ],
+  "queries": [
+    {
+      "entity": "site",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "key"
+        },
+        "value": "primary"
+      },
+      "key": "sitePrimary",
+      "label": "Primary"
+    },
+    {
+      "entity": "block",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "blockAll",
+      "label": "All"
+    },
+    {
+      "entity": "block",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "type"
+        },
+        "value": "page"
+      },
+      "key": "blockPages",
+      "label": "Pages"
+    },
+    {
+      "entity": "block",
+      "expression": {
+        "expressions": [
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "type"
+            },
+            "value": "header"
+          },
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "type"
+            },
+            "value": "footer"
+          }
+        ],
+        "kind": "or"
+      },
+      "key": "blockNavigationRoots",
+      "label": "Navigation"
+    },
+    {
+      "entity": "block",
+      "expression": {
+        "expressions": [
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "type"
+            },
+            "value": "page"
+          },
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "type"
+            },
+            "value": "post"
+          },
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "type"
+            },
+            "value": "project"
+          },
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "type"
+            },
+            "value": "header"
+          },
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "type"
+            },
+            "value": "footer"
+          }
+        ],
+        "kind": "or"
+      },
+      "key": "blockSiteRoots",
+      "label": "Site roots"
+    },
+    {
+      "entity": "block",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "type"
+        },
+        "value": "post"
+      },
+      "key": "blockPosts",
+      "label": "Posts"
+    },
+    {
+      "entity": "block",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "type"
+        },
+        "value": "project"
+      },
+      "key": "blockProjects",
+      "label": "Projects"
+    },
+    {
+      "entity": "block",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "type"
+        },
+        "value": "link"
+      },
+      "key": "blockLinks",
+      "label": "Links"
+    },
+    {
+      "entity": "block",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "type"
+        },
+        "value": "group"
+      },
+      "key": "blockGroups",
+      "label": "Groups"
+    },
+    {
+      "entity": "block",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "type"
+        },
+        "value": "image"
+      },
+      "key": "blockImages",
+      "label": "Images"
+    },
+    {
+      "entity": "email-address",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "emailAddressAll",
+      "label": "All"
+    },
+    {
+      "entity": "audience",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "audienceAll",
+      "label": "All"
+    },
+    {
+      "entity": "subscription",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "subscriptionAll",
+      "label": "All"
+    },
+    {
+      "entity": "contact-message",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "contactMessageAll",
+      "label": "All"
+    },
+    {
+      "entity": "block-placement",
+      "expression": {
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "parent"
+        },
+        "value": {
+          "kind": "context",
+          "name": "block"
+        }
+      },
+      "key": "placementsForSelectedBlock",
+      "label": "Selected block"
+    }
+  ],
   "relationships": [
     {
+      "from": {
+        "entity": "block-placement",
+        "field": "parent"
+      },
+      "inverse": "blockPlacements",
       "key": "placementParent",
       "kind": "toOne",
       "label": "Parent block",
-      "from": {
-        "entity": "block-placement",
-        "field": "parent"
-      },
       "to": {
         "entity": "block"
-      },
-      "inverse": "blockPlacements"
+      }
     },
     {
+      "from": {
+        "entity": "block"
+      },
+      "inverse": "placementParent",
       "key": "blockPlacements",
       "kind": "toMany",
       "label": "Placements",
-      "from": {
-        "entity": "block"
-      },
       "to": {
         "entity": "block-placement",
         "field": "parent"
-      },
-      "inverse": "placementParent"
+      }
     },
     {
+      "from": {
+        "entity": "block-placement",
+        "field": "block"
+      },
+      "inverse": "blockUsedInPlacements",
       "key": "placementBlock",
       "kind": "toOne",
       "label": "Child block",
-      "from": {
-        "entity": "block-placement",
-        "field": "block"
-      },
       "to": {
         "entity": "block"
-      },
-      "inverse": "blockUsedInPlacements"
+      }
     },
     {
+      "from": {
+        "entity": "block"
+      },
+      "inverse": "placementBlock",
       "key": "blockUsedInPlacements",
       "kind": "toMany",
       "label": "Used in placements",
-      "from": {
-        "entity": "block"
-      },
       "to": {
         "entity": "block-placement",
         "field": "block"
-      },
-      "inverse": "placementBlock"
+      }
     },
     {
+      "from": {
+        "entity": "email-address",
+        "field": "contact"
+      },
+      "inverse": "contactEmailAddresses",
       "key": "emailAddressContact",
       "kind": "toOne",
       "label": "Contact",
-      "from": {
-        "entity": "email-address",
-        "field": "contact"
-      },
       "to": {
         "entity": "contact"
-      },
-      "inverse": "contactEmailAddresses"
+      }
     },
     {
+      "from": {
+        "entity": "contact"
+      },
+      "inverse": "emailAddressContact",
       "key": "contactEmailAddresses",
       "kind": "toMany",
       "label": "Email addresses",
-      "from": {
-        "entity": "contact"
-      },
       "to": {
         "entity": "email-address",
         "field": "contact"
-      },
-      "inverse": "emailAddressContact"
+      }
     },
     {
+      "from": {
+        "entity": "subscription",
+        "field": "emailAddress"
+      },
+      "inverse": "emailAddressSubscriptions",
       "key": "subscriptionEmailAddress",
       "kind": "toOne",
       "label": "Email address",
-      "from": {
-        "entity": "subscription",
-        "field": "emailAddress"
-      },
       "to": {
         "entity": "email-address"
-      },
-      "inverse": "emailAddressSubscriptions"
+      }
     },
     {
+      "from": {
+        "entity": "email-address"
+      },
+      "inverse": "subscriptionEmailAddress",
       "key": "emailAddressSubscriptions",
       "kind": "toMany",
       "label": "Subscriptions",
-      "from": {
-        "entity": "email-address"
-      },
       "to": {
         "entity": "subscription",
         "field": "emailAddress"
-      },
-      "inverse": "subscriptionEmailAddress"
+      }
     },
     {
+      "from": {
+        "entity": "subscription",
+        "field": "audience"
+      },
+      "inverse": "audienceSubscriptions",
       "key": "subscriptionAudience",
       "kind": "toOne",
       "label": "Audience",
-      "from": {
-        "entity": "subscription",
-        "field": "audience"
-      },
       "to": {
         "entity": "audience"
-      },
-      "inverse": "audienceSubscriptions"
+      }
     },
     {
+      "from": {
+        "entity": "audience"
+      },
+      "inverse": "subscriptionAudience",
       "key": "audienceSubscriptions",
       "kind": "toMany",
       "label": "Subscriptions",
-      "from": {
-        "entity": "audience"
-      },
       "to": {
         "entity": "subscription",
         "field": "audience"
+      }
+    }
+  ],
+  "screens": [
+    {
+      "key": "siteSettings",
+      "label": "Settings",
+      "layout": {
+        "sections": [
+          {
+            "id": "settings",
+            "type": "collection",
+            "view": "siteSettingsHome"
+          }
+        ],
+        "type": "stack",
+        "width": "narrow"
       },
-      "inverse": "subscriptionAudience"
+      "path": "/settings",
+      "type": "workspace"
+    },
+    {
+      "key": "siteEditor",
+      "label": "Blocks",
+      "layout": {
+        "sections": [
+          {
+            "id": "site",
+            "type": "collection",
+            "view": "siteCompositionHome"
+          }
+        ],
+        "type": "stack",
+        "width": "wide"
+      },
+      "path": "/",
+      "type": "workspace"
+    },
+    {
+      "key": "siteSubscribers",
+      "label": "Subscribers",
+      "layout": {
+        "sections": [
+          {
+            "id": "subscriptions",
+            "type": "collection",
+            "view": "subscriptionHome"
+          },
+          {
+            "id": "emailAddresses",
+            "type": "collection",
+            "view": "emailAddressHome"
+          },
+          {
+            "id": "audiences",
+            "type": "collection",
+            "view": "audienceHome"
+          }
+        ],
+        "type": "stack",
+        "width": "wide"
+      },
+      "path": "/subscribers",
+      "type": "workspace"
+    },
+    {
+      "key": "siteContacts",
+      "label": "Contacts",
+      "layout": {
+        "sections": [
+          {
+            "id": "messages",
+            "type": "collection",
+            "view": "contactMessageHome"
+          }
+        ],
+        "type": "stack",
+        "width": "wide"
+      },
+      "path": "/contacts",
+      "type": "workspace"
+    }
+  ],
+  "tableViews": [
+    {
+      "columns": [
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "type",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label",
+          "type": "field",
+          "width": "lg"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "markdown",
+          "field": "body",
+          "type": "field",
+          "width": "lg"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "href",
+          "field": "href",
+          "type": "field",
+          "width": "md"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "media",
+          "field": "mediaAssetId",
+          "type": "field",
+          "width": "md"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "date",
+          "field": "date",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "icon",
+          "field": "icon",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "color",
+          "field": "color",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "commit": "immediate",
+          "editor": "enum",
+          "field": "alignment",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "align": "end",
+          "commit": "field-commit",
+          "editor": "number",
+          "field": "width",
+          "format": "number",
+          "type": "field",
+          "width": "xs"
+        },
+        {
+          "align": "end",
+          "commit": "field-commit",
+          "editor": "number",
+          "field": "height",
+          "format": "number",
+          "type": "field",
+          "width": "xs"
+        }
+      ],
+      "entity": "block",
+      "key": "blockTable"
+    },
+    {
+      "columns": [
+        {
+          "type": "orderingHandle",
+          "width": "xs"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "block",
+          "type": "field",
+          "width": "lg"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label",
+          "type": "field",
+          "width": "md"
+        },
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "slot",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "align": "end",
+          "includeOrdering": true,
+          "operation": "block.update",
+          "type": "operationControl",
+          "width": "xs"
+        }
+      ],
+      "entity": "block-placement",
+      "key": "blockPlacementTable",
+      "operations": [
+        {
+          "editView": "blockEdit",
+          "label": "Edit block",
+          "operation": "block.update",
+          "target": {
+            "field": "block",
+            "kind": "reference"
+          }
+        }
+      ],
+      "ordering": {
+        "field": "order",
+        "presentations": ["dragHandle", "moveMenu"],
+        "scope": [
+          {
+            "field": "parent",
+            "kind": "field"
+          },
+          {
+            "field": "slot",
+            "kind": "field"
+          }
+        ]
+      }
+    },
+    {
+      "columns": [
+        {
+          "field": "address",
+          "type": "field",
+          "width": "lg"
+        },
+        {
+          "field": "normalizedAddress",
+          "type": "field",
+          "width": "lg"
+        },
+        {
+          "field": "contact",
+          "type": "field",
+          "width": "md"
+        }
+      ],
+      "entity": "email-address",
+      "key": "emailAddressTable"
+    },
+    {
+      "columns": [
+        {
+          "field": "label",
+          "type": "field",
+          "width": "lg"
+        },
+        {
+          "field": "key",
+          "type": "field",
+          "width": "md"
+        }
+      ],
+      "entity": "audience",
+      "key": "audienceTable"
+    },
+    {
+      "columns": [
+        {
+          "field": "address",
+          "label": "Email",
+          "referenceField": "emailAddress",
+          "type": "referenceField",
+          "width": "lg"
+        },
+        {
+          "field": "label",
+          "label": "Audience",
+          "referenceField": "audience",
+          "type": "referenceField",
+          "width": "md"
+        },
+        {
+          "field": "status",
+          "type": "field",
+          "width": "sm"
+        },
+        {
+          "field": "consentedAt",
+          "type": "field",
+          "width": "md"
+        },
+        {
+          "field": "sourceHost",
+          "type": "field",
+          "width": "md"
+        },
+        {
+          "field": "sourcePath",
+          "type": "field",
+          "width": "md"
+        },
+        {
+          "field": "sourceSiteBlockId",
+          "type": "field",
+          "width": "md"
+        }
+      ],
+      "entity": "subscription",
+      "key": "subscriptionTable"
+    },
+    {
+      "columns": [
+        {
+          "field": "name",
+          "type": "field",
+          "width": "md"
+        },
+        {
+          "field": "email",
+          "type": "field",
+          "width": "lg"
+        },
+        {
+          "field": "message",
+          "type": "field",
+          "width": "lg"
+        }
+      ],
+      "entity": "contact-message",
+      "key": "contactMessageTable"
     }
   ],
   "unions": [
     {
-      "key": "blockByType",
-      "entity": "block",
       "discriminator": "type",
+      "entity": "block",
+      "fallback": {
+        "fields": ["label", "type"],
+        "label": "Block"
+      },
+      "key": "blockByType",
       "variants": [
         {
+          "fields": ["label", "href", "icon"],
           "key": "page",
           "label": "Page",
-          "fields": ["label", "href", "icon"],
           "requiredFields": ["label", "href"]
         },
         {
+          "fields": ["label", "date", "body", "href"],
           "key": "post",
           "label": "Post",
-          "fields": ["label", "date", "body", "href"],
           "requiredFields": ["label", "href"]
         },
         {
+          "fields": ["label", "date", "body", "href"],
           "key": "project",
           "label": "Project",
-          "fields": ["label", "date", "body", "href"],
           "requiredFields": ["label", "href"]
         },
         {
+          "fields": ["label"],
           "key": "postList",
-          "label": "Post list",
-          "fields": ["label"]
+          "label": "Post list"
         },
         {
+          "fields": ["label"],
           "key": "projectList",
-          "label": "Project list",
-          "fields": ["label"]
+          "label": "Project list"
         },
         {
-          "key": "subscribeForm",
-          "label": "Subscribe form",
           "fields": [
             "label",
             "body",
@@ -1556,11 +2983,11 @@
             "operationTargetPackageAppKey",
             "operationTargetInstallId",
             "buttonLabel"
-          ]
+          ],
+          "key": "subscribeForm",
+          "label": "Subscribe form"
         },
         {
-          "key": "contactForm",
-          "label": "Contact form",
           "fields": [
             "label",
             "body",
@@ -1570,11 +2997,11 @@
             "nameLabel",
             "emailLabel",
             "messageLabel"
-          ]
+          ],
+          "key": "contactForm",
+          "label": "Contact form"
         },
         {
-          "key": "publicOperationForm",
-          "label": "Public operation form",
           "fields": [
             "label",
             "body",
@@ -1587,1454 +3014,107 @@
             "successLabel",
             "operationNotificationMode",
             "operationNotificationReplyToField"
-          ]
+          ],
+          "key": "publicOperationForm",
+          "label": "Public operation form"
         },
         {
+          "fields": ["label"],
           "key": "group",
-          "label": "Group",
-          "fields": ["label"]
+          "label": "Group"
         },
         {
+          "fields": ["label", "body"],
           "key": "section",
-          "label": "Section",
-          "fields": ["label", "body"]
+          "label": "Section"
         },
         {
+          "fields": ["label", "body"],
           "key": "cardGrid",
-          "label": "Card grid",
-          "fields": ["label", "body"]
+          "label": "Card grid"
         },
         {
+          "fields": ["label", "body", "icon", "color"],
           "key": "card",
-          "label": "Card",
-          "fields": ["label", "body", "icon", "color"]
+          "label": "Card"
         },
         {
+          "fields": ["label", "body"],
           "key": "metricGrid",
-          "label": "Metric grid",
-          "fields": ["label", "body"]
+          "label": "Metric grid"
         },
         {
+          "fields": ["label", "body", "color"],
           "key": "metric",
-          "label": "Metric",
-          "fields": ["label", "body", "color"]
+          "label": "Metric"
         },
         {
+          "fields": ["label"],
           "key": "header",
-          "label": "Header",
-          "fields": ["label"]
+          "label": "Header"
         },
         {
+          "fields": ["label"],
           "key": "headerPrimary",
-          "label": "Header primary",
-          "fields": ["label"]
+          "label": "Header primary"
         },
         {
+          "fields": ["label"],
           "key": "headerSecondary",
-          "label": "Header secondary",
-          "fields": ["label"]
+          "label": "Header secondary"
         },
         {
+          "fields": ["label"],
           "key": "footer",
-          "label": "Footer",
-          "fields": ["label"]
+          "label": "Footer"
         },
         {
+          "fields": ["label"],
           "key": "footerSection",
-          "label": "Footer section",
-          "fields": ["label"]
+          "label": "Footer section"
         },
         {
+          "fields": ["label"],
           "key": "footerSocial",
-          "label": "Footer social",
-          "fields": ["label"]
+          "label": "Footer social"
         },
         {
+          "fields": ["label", "linkTargetMode", "linkTargetBlock", "href", "icon"],
           "key": "link",
           "label": "Link",
-          "fields": ["label", "linkTargetMode", "linkTargetBlock", "href", "icon"],
           "requiredFields": ["label", "linkTargetMode"]
         },
         {
+          "fields": ["label", "body"],
           "key": "markdown",
-          "label": "Markdown",
-          "fields": ["label", "body"]
+          "label": "Markdown"
         },
         {
+          "fields": ["label", "body"],
           "key": "hero",
-          "label": "Hero",
-          "fields": ["label", "body"]
+          "label": "Hero"
         },
         {
+          "fields": ["label", "body", "alignment"],
           "key": "feature",
-          "label": "Feature",
-          "fields": ["label", "body", "alignment"]
+          "label": "Feature"
         },
         {
+          "fields": ["label", "mediaAssetId"],
           "key": "image",
           "label": "Image",
-          "fields": ["label", "mediaAssetId"],
           "requiredFields": ["label"]
         }
-      ],
-      "fallback": {
-        "label": "Block",
-        "fields": ["label", "type"]
-      }
-    }
-  ],
-  "queries": [
-    {
-      "key": "sitePrimary",
-      "label": "Primary",
-      "entity": "site",
-      "expression": {
-        "kind": "where",
-        "ref": {
-          "kind": "value",
-          "name": "key"
-        },
-        "op": "eq",
-        "value": "primary"
-      }
-    },
-    {
-      "key": "blockAll",
-      "label": "All",
-      "entity": "block",
-      "expression": {
-        "kind": "all"
-      }
-    },
-    {
-      "key": "blockPages",
-      "label": "Pages",
-      "entity": "block",
-      "expression": {
-        "kind": "where",
-        "ref": {
-          "kind": "value",
-          "name": "type"
-        },
-        "op": "eq",
-        "value": "page"
-      }
-    },
-    {
-      "key": "blockNavigationRoots",
-      "label": "Navigation",
-      "entity": "block",
-      "expression": {
-        "kind": "or",
-        "expressions": [
-          {
-            "kind": "where",
-            "ref": {
-              "kind": "value",
-              "name": "type"
-            },
-            "op": "eq",
-            "value": "header"
-          },
-          {
-            "kind": "where",
-            "ref": {
-              "kind": "value",
-              "name": "type"
-            },
-            "op": "eq",
-            "value": "footer"
-          }
-        ]
-      }
-    },
-    {
-      "key": "blockSiteRoots",
-      "label": "Site roots",
-      "entity": "block",
-      "expression": {
-        "kind": "or",
-        "expressions": [
-          {
-            "kind": "where",
-            "ref": {
-              "kind": "value",
-              "name": "type"
-            },
-            "op": "eq",
-            "value": "page"
-          },
-          {
-            "kind": "where",
-            "ref": {
-              "kind": "value",
-              "name": "type"
-            },
-            "op": "eq",
-            "value": "post"
-          },
-          {
-            "kind": "where",
-            "ref": {
-              "kind": "value",
-              "name": "type"
-            },
-            "op": "eq",
-            "value": "project"
-          },
-          {
-            "kind": "where",
-            "ref": {
-              "kind": "value",
-              "name": "type"
-            },
-            "op": "eq",
-            "value": "header"
-          },
-          {
-            "kind": "where",
-            "ref": {
-              "kind": "value",
-              "name": "type"
-            },
-            "op": "eq",
-            "value": "footer"
-          }
-        ]
-      }
-    },
-    {
-      "key": "blockPosts",
-      "label": "Posts",
-      "entity": "block",
-      "expression": {
-        "kind": "where",
-        "ref": {
-          "kind": "value",
-          "name": "type"
-        },
-        "op": "eq",
-        "value": "post"
-      }
-    },
-    {
-      "key": "blockProjects",
-      "label": "Projects",
-      "entity": "block",
-      "expression": {
-        "kind": "where",
-        "ref": {
-          "kind": "value",
-          "name": "type"
-        },
-        "op": "eq",
-        "value": "project"
-      }
-    },
-    {
-      "key": "blockLinks",
-      "label": "Links",
-      "entity": "block",
-      "expression": {
-        "kind": "where",
-        "ref": {
-          "kind": "value",
-          "name": "type"
-        },
-        "op": "eq",
-        "value": "link"
-      }
-    },
-    {
-      "key": "blockGroups",
-      "label": "Groups",
-      "entity": "block",
-      "expression": {
-        "kind": "where",
-        "ref": {
-          "kind": "value",
-          "name": "type"
-        },
-        "op": "eq",
-        "value": "group"
-      }
-    },
-    {
-      "key": "blockImages",
-      "label": "Images",
-      "entity": "block",
-      "expression": {
-        "kind": "where",
-        "ref": {
-          "kind": "value",
-          "name": "type"
-        },
-        "op": "eq",
-        "value": "image"
-      }
-    },
-    {
-      "key": "emailAddressAll",
-      "label": "All",
-      "entity": "email-address",
-      "expression": {
-        "kind": "all"
-      }
-    },
-    {
-      "key": "audienceAll",
-      "label": "All",
-      "entity": "audience",
-      "expression": {
-        "kind": "all"
-      }
-    },
-    {
-      "key": "subscriptionAll",
-      "label": "All",
-      "entity": "subscription",
-      "expression": {
-        "kind": "all"
-      }
-    },
-    {
-      "key": "contactMessageAll",
-      "label": "All",
-      "entity": "contact-message",
-      "expression": {
-        "kind": "all"
-      }
-    },
-    {
-      "key": "placementsForSelectedBlock",
-      "label": "Selected block",
-      "entity": "block-placement",
-      "expression": {
-        "kind": "where",
-        "ref": {
-          "kind": "value",
-          "name": "parent"
-        },
-        "op": "eq",
-        "value": {
-          "kind": "context",
-          "name": "block"
-        }
-      }
-    }
-  ],
-  "itemViews": [
-    {
-      "key": "siteSettingsForm",
-      "entity": "site",
-      "fields": [
-        {
-          "field": "label",
-          "editor": "text",
-          "commit": "field-commit"
-        },
-        {
-          "field": "description",
-          "editor": "textarea",
-          "commit": "field-commit"
-        },
-        {
-          "field": "icon",
-          "editor": "icon",
-          "commit": "field-commit"
-        },
-        {
-          "field": "initialThemeMode",
-          "editor": "enum",
-          "commit": "immediate"
-        },
-        {
-          "field": "themeSwitchable",
-          "editor": "boolean",
-          "commit": "immediate"
-        }
-      ]
-    },
-    {
-      "key": "blockListItem",
-      "entity": "block",
-      "fields": [
-        {
-          "field": "label",
-          "editor": "text",
-          "commit": "field-commit"
-        }
-      ]
-    },
-    {
-      "key": "blockContextItem",
-      "entity": "block",
-      "fields": [
-        {
-          "field": "label",
-          "editor": "text",
-          "commit": "field-commit"
-        }
-      ]
-    },
-    {
-      "key": "blockRootDetail",
-      "entity": "block",
-      "fields": [
-        {
-          "field": "label",
-          "editor": "text",
-          "commit": "field-commit"
-        }
-      ],
-      "union": "blockByType",
-      "variants": [
-        {
-          "variant": "page",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "href",
-              "editor": "href",
-              "commit": "field-commit"
-            },
-            {
-              "field": "icon",
-              "editor": "icon",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "post",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "date",
-              "editor": "date",
-              "commit": "field-commit"
-            },
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "href",
-              "editor": "href",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "project",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "date",
-              "editor": "date",
-              "commit": "field-commit"
-            },
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "href",
-              "editor": "href",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "link",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "linkTargetMode",
-              "editor": "enum",
-              "commit": "immediate"
-            },
-            {
-              "field": "linkTargetBlock",
-              "editor": "reference",
-              "commit": "immediate",
-              "visibleWhen": {
-                "field": "linkTargetMode",
-                "values": ["internal"]
-              }
-            },
-            {
-              "field": "href",
-              "editor": "href",
-              "commit": "field-commit",
-              "visibleWhen": {
-                "field": "linkTargetMode",
-                "values": ["", "external"]
-              }
-            },
-            {
-              "field": "icon",
-              "editor": "icon",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "markdown",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "hero",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "feature",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "alignment",
-              "editor": "enum",
-              "commit": "immediate"
-            }
-          ]
-        },
-        {
-          "variant": "section",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "cardGrid",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "card",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "icon",
-              "editor": "icon",
-              "commit": "field-commit"
-            },
-            {
-              "field": "color",
-              "editor": "color",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "metricGrid",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "metric",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "color",
-              "editor": "color",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "subscribeForm",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "operationName",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "operationTargetKind",
-              "editor": "enum",
-              "commit": "immediate"
-            },
-            {
-              "field": "operationTargetSchemaKey",
-              "editor": "text",
-              "commit": "field-commit",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["schemaKey"]
-              }
-            },
-            {
-              "field": "operationTargetPackageAppKey",
-              "editor": "text",
-              "commit": "field-commit",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
-              "field": "operationTargetInstallId",
-              "editor": "text",
-              "commit": "field-commit",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
-              "field": "buttonLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "contactForm",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "operationName",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "buttonLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "successLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "nameLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "emailLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "messageLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "publicOperationForm",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "operationTargetKind",
-              "editor": "enum",
-              "commit": "immediate"
-            },
-            {
-              "field": "operationTargetSchemaKey",
-              "editor": "text",
-              "commit": "field-commit",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["schemaKey"]
-              }
-            },
-            {
-              "field": "operationTargetPackageAppKey",
-              "editor": "text",
-              "commit": "field-commit",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
-              "field": "operationTargetInstallId",
-              "editor": "text",
-              "commit": "field-commit",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
-              "field": "operationKey",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "buttonLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "successLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "operationNotificationMode",
-              "editor": "enum",
-              "commit": "immediate"
-            },
-            {
-              "field": "operationNotificationReplyToField",
-              "editor": "text",
-              "commit": "field-commit",
-              "visibleWhen": {
-                "field": "operationNotificationMode",
-                "values": ["email"]
-              }
-            }
-          ]
-        },
-        {
-          "variant": "image",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "mediaAssetId",
-              "editor": "media",
-              "commit": "field-commit"
-            }
-          ]
-        }
-      ],
-      "fallback": {
-        "presentation": "fields",
-        "fields": [
-          {
-            "field": "label",
-            "editor": "text",
-            "commit": "field-commit"
-          }
-        ]
-      }
-    },
-    {
-      "key": "blockTreeNode",
-      "entity": "block",
-      "fields": [
-        {
-          "field": "label",
-          "editor": "text",
-          "commit": "field-commit"
-        }
-      ],
-      "union": "blockByType",
-      "variants": [
-        {
-          "variant": "header",
-          "presentation": "contextLink",
-          "labelField": "label",
-          "target": {
-            "kind": "selectContext",
-            "context": "block",
-            "record": "self"
-          }
-        },
-        {
-          "variant": "footer",
-          "presentation": "contextLink",
-          "labelField": "label",
-          "target": {
-            "kind": "selectContext",
-            "context": "block",
-            "record": "self"
-          }
-        },
-        {
-          "variant": "project",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "date",
-              "editor": "date",
-              "commit": "field-commit"
-            },
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "href",
-              "editor": "href",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "link",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "linkTargetMode",
-              "editor": "enum",
-              "commit": "immediate"
-            },
-            {
-              "field": "linkTargetBlock",
-              "editor": "reference",
-              "commit": "immediate",
-              "visibleWhen": {
-                "field": "linkTargetMode",
-                "values": ["internal"]
-              }
-            },
-            {
-              "field": "href",
-              "editor": "href",
-              "commit": "field-commit",
-              "visibleWhen": {
-                "field": "linkTargetMode",
-                "values": ["", "external"]
-              }
-            },
-            {
-              "field": "icon",
-              "editor": "icon",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "markdown",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "hero",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "feature",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "alignment",
-              "editor": "enum",
-              "commit": "immediate"
-            }
-          ]
-        },
-        {
-          "variant": "section",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "cardGrid",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "card",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "icon",
-              "editor": "icon",
-              "commit": "field-commit"
-            },
-            {
-              "field": "color",
-              "editor": "color",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "metricGrid",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "metric",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "color",
-              "editor": "color",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "subscribeForm",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "operationName",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "operationTargetKind",
-              "editor": "enum",
-              "commit": "immediate"
-            },
-            {
-              "field": "operationTargetSchemaKey",
-              "editor": "text",
-              "commit": "field-commit",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["schemaKey"]
-              }
-            },
-            {
-              "field": "operationTargetPackageAppKey",
-              "editor": "text",
-              "commit": "field-commit",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
-              "field": "operationTargetInstallId",
-              "editor": "text",
-              "commit": "field-commit",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
-              "field": "buttonLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "contactForm",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "operationName",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "buttonLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "successLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "nameLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "emailLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "messageLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "publicOperationForm",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "operationTargetKind",
-              "editor": "enum",
-              "commit": "immediate"
-            },
-            {
-              "field": "operationTargetSchemaKey",
-              "editor": "text",
-              "commit": "field-commit",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["schemaKey"]
-              }
-            },
-            {
-              "field": "operationTargetPackageAppKey",
-              "editor": "text",
-              "commit": "field-commit",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
-              "field": "operationTargetInstallId",
-              "editor": "text",
-              "commit": "field-commit",
-              "visibleWhen": {
-                "field": "operationTargetKind",
-                "values": ["appInstall"]
-              }
-            },
-            {
-              "field": "operationKey",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "buttonLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "successLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "operationNotificationMode",
-              "editor": "enum",
-              "commit": "immediate"
-            },
-            {
-              "field": "operationNotificationReplyToField",
-              "editor": "text",
-              "commit": "field-commit",
-              "visibleWhen": {
-                "field": "operationNotificationMode",
-                "values": ["email"]
-              }
-            }
-          ]
-        },
-        {
-          "variant": "image",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "mediaAssetId",
-              "editor": "media",
-              "commit": "field-commit"
-            }
-          ]
-        }
-      ],
-      "fallback": {
-        "presentation": "fields",
-        "fields": [
-          {
-            "field": "label",
-            "editor": "text",
-            "commit": "field-commit"
-          }
-        ]
-      }
-    },
-    {
-      "key": "blockPlacementTreeItem",
-      "entity": "block-placement",
-      "fields": [
-        {
-          "field": "label",
-          "editor": "text",
-          "commit": "field-commit"
-        }
       ]
     }
   ],
-  "tableViews": [
-    {
-      "key": "blockTable",
-      "entity": "block",
-      "columns": [
-        {
-          "type": "field",
-          "field": "type",
-          "editor": "enum",
-          "commit": "immediate",
-          "width": "sm"
-        },
-        {
-          "type": "field",
-          "field": "label",
-          "editor": "text",
-          "commit": "field-commit",
-          "width": "lg"
-        },
-        {
-          "type": "field",
-          "field": "body",
-          "editor": "markdown",
-          "commit": "field-commit",
-          "width": "lg"
-        },
-        {
-          "type": "field",
-          "field": "href",
-          "editor": "href",
-          "commit": "field-commit",
-          "width": "md"
-        },
-        {
-          "type": "field",
-          "field": "mediaAssetId",
-          "editor": "media",
-          "commit": "field-commit",
-          "width": "md"
-        },
-        {
-          "type": "field",
-          "field": "date",
-          "editor": "date",
-          "commit": "field-commit",
-          "width": "sm"
-        },
-        {
-          "type": "field",
-          "field": "icon",
-          "editor": "icon",
-          "commit": "field-commit",
-          "width": "sm"
-        },
-        {
-          "type": "field",
-          "field": "color",
-          "editor": "color",
-          "commit": "field-commit",
-          "width": "sm"
-        },
-        {
-          "type": "field",
-          "field": "alignment",
-          "editor": "enum",
-          "commit": "immediate",
-          "width": "sm"
-        },
-        {
-          "type": "field",
-          "field": "width",
-          "editor": "number",
-          "commit": "field-commit",
-          "align": "end",
-          "width": "xs",
-          "format": "number"
-        },
-        {
-          "type": "field",
-          "field": "height",
-          "editor": "number",
-          "commit": "field-commit",
-          "align": "end",
-          "width": "xs",
-          "format": "number"
-        }
-      ]
-    },
-    {
-      "key": "blockPlacementTable",
-      "entity": "block-placement",
-      "operations": [
-        {
-          "operation": "block.update",
-          "label": "Edit block",
-          "target": {
-            "kind": "reference",
-            "field": "block"
-          },
-          "editView": "blockEdit"
-        }
-      ],
-      "ordering": {
-        "field": "order",
-        "scope": [
-          {
-            "kind": "field",
-            "field": "parent"
-          },
-          {
-            "kind": "field",
-            "field": "slot"
-          }
-        ],
-        "presentations": ["dragHandle", "moveMenu"]
-      },
-      "columns": [
-        {
-          "type": "orderingHandle",
-          "width": "xs"
-        },
-        {
-          "type": "field",
-          "field": "block",
-          "editor": "reference",
-          "commit": "immediate",
-          "width": "lg"
-        },
-        {
-          "type": "field",
-          "field": "label",
-          "editor": "text",
-          "commit": "field-commit",
-          "width": "md"
-        },
-        {
-          "type": "field",
-          "field": "slot",
-          "editor": "text",
-          "commit": "field-commit",
-          "width": "sm"
-        },
-        {
-          "type": "operationControl",
-          "operation": "block.update",
-          "includeOrdering": true,
-          "width": "xs",
-          "align": "end"
-        }
-      ]
-    },
-    {
-      "key": "emailAddressTable",
-      "entity": "email-address",
-      "columns": [
-        {
-          "type": "field",
-          "field": "address",
-          "width": "lg"
-        },
-        {
-          "type": "field",
-          "field": "normalizedAddress",
-          "width": "lg"
-        },
-        {
-          "type": "field",
-          "field": "contact",
-          "width": "md"
-        }
-      ]
-    },
-    {
-      "key": "audienceTable",
-      "entity": "audience",
-      "columns": [
-        {
-          "type": "field",
-          "field": "label",
-          "width": "lg"
-        },
-        {
-          "type": "field",
-          "field": "key",
-          "width": "md"
-        }
-      ]
-    },
-    {
-      "key": "subscriptionTable",
-      "entity": "subscription",
-      "columns": [
-        {
-          "type": "referenceField",
-          "referenceField": "emailAddress",
-          "field": "address",
-          "label": "Email",
-          "width": "lg"
-        },
-        {
-          "type": "referenceField",
-          "referenceField": "audience",
-          "field": "label",
-          "label": "Audience",
-          "width": "md"
-        },
-        {
-          "type": "field",
-          "field": "status",
-          "width": "sm"
-        },
-        {
-          "type": "field",
-          "field": "consentedAt",
-          "width": "md"
-        },
-        {
-          "type": "field",
-          "field": "sourceHost",
-          "width": "md"
-        },
-        {
-          "type": "field",
-          "field": "sourcePath",
-          "width": "md"
-        },
-        {
-          "type": "field",
-          "field": "sourceSiteBlockId",
-          "width": "md"
-        }
-      ]
-    },
-    {
-      "key": "contactMessageTable",
-      "entity": "contact-message",
-      "columns": [
-        {
-          "type": "field",
-          "field": "name",
-          "width": "md"
-        },
-        {
-          "type": "field",
-          "field": "email",
-          "width": "lg"
-        },
-        {
-          "type": "field",
-          "field": "message",
-          "width": "lg"
-        }
-      ]
-    }
-  ],
+  "version": 1,
   "views": [
     {
-      "key": "siteSettingsHome",
-      "type": "collection",
-      "label": "Settings",
+      "defaultQuery": "sitePrimary",
       "entity": "site",
+      "key": "siteSettingsHome",
+      "label": "Settings",
       "navigation": {
         "primary": false
       },
@@ -3043,239 +3123,248 @@
           "query": "sitePrimary"
         }
       ],
-      "defaultQuery": "sitePrimary",
       "result": {
-        "type": "record",
-        "itemView": "siteSettingsForm"
-      }
+        "itemView": "siteSettingsForm",
+        "type": "record"
+      },
+      "type": "collection"
     },
     {
-      "key": "blockHome",
-      "type": "collection",
-      "label": "Blocks",
+      "defaultQuery": "blockAll",
       "entity": "block",
+      "key": "blockHome",
+      "label": "Blocks",
       "navigation": {
         "primary": false
-      },
-      "queries": [
-        {
-          "query": "blockAll",
-          "count": {
-            "type": "count"
-          }
-        },
-        {
-          "query": "blockPages",
-          "count": {
-            "type": "count"
-          }
-        },
-        {
-          "query": "blockPosts",
-          "count": {
-            "type": "count"
-          }
-        },
-        {
-          "query": "blockProjects",
-          "count": {
-            "type": "count"
-          }
-        },
-        {
-          "query": "blockLinks",
-          "count": {
-            "type": "count"
-          }
-        },
-        {
-          "query": "blockGroups",
-          "count": {
-            "type": "count"
-          }
-        },
-        {
-          "query": "blockImages",
-          "count": {
-            "type": "count"
-          }
-        }
-      ],
-      "defaultQuery": "blockAll",
-      "result": {
-        "type": "table",
-        "tableView": "blockTable"
       },
       "operations": [
         {
-          "operation": "block.create",
-          "createView": "blockCreate"
-        }
-      ]
-    },
-    {
-      "key": "emailAddressHome",
-      "type": "collection",
-      "label": "Email addresses",
-      "entity": "email-address",
-      "navigation": {
-        "primary": false
-      },
-      "queries": [
-        {
-          "query": "emailAddressAll",
-          "count": {
-            "type": "count"
-          }
+          "createView": "blockCreate",
+          "operation": "block.create"
         }
       ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "blockAll"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "blockPages"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "blockPosts"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "blockProjects"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "blockLinks"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "blockGroups"
+        },
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "blockImages"
+        }
+      ],
+      "result": {
+        "tableView": "blockTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
       "defaultQuery": "emailAddressAll",
-      "result": {
-        "type": "table",
-        "tableView": "emailAddressTable"
-      }
-    },
-    {
-      "key": "audienceHome",
-      "type": "collection",
-      "label": "Audiences",
-      "entity": "audience",
+      "entity": "email-address",
+      "key": "emailAddressHome",
+      "label": "Email addresses",
       "navigation": {
         "primary": false
       },
       "queries": [
         {
-          "query": "audienceAll",
           "count": {
             "type": "count"
-          }
+          },
+          "query": "emailAddressAll"
         }
       ],
+      "result": {
+        "tableView": "emailAddressTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
       "defaultQuery": "audienceAll",
-      "result": {
-        "type": "table",
-        "tableView": "audienceTable"
-      }
-    },
-    {
-      "key": "subscriptionHome",
-      "type": "collection",
-      "label": "Subscriptions",
-      "entity": "subscription",
+      "entity": "audience",
+      "key": "audienceHome",
+      "label": "Audiences",
       "navigation": {
         "primary": false
       },
       "queries": [
         {
-          "query": "subscriptionAll",
           "count": {
             "type": "count"
-          }
+          },
+          "query": "audienceAll"
         }
       ],
+      "result": {
+        "tableView": "audienceTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
       "defaultQuery": "subscriptionAll",
-      "result": {
-        "type": "table",
-        "tableView": "subscriptionTable"
-      }
-    },
-    {
-      "key": "contactMessageHome",
-      "type": "collection",
-      "label": "Contact messages",
-      "entity": "contact-message",
+      "entity": "subscription",
+      "key": "subscriptionHome",
+      "label": "Subscriptions",
       "navigation": {
         "primary": false
       },
       "queries": [
         {
-          "query": "contactMessageAll",
           "count": {
             "type": "count"
-          }
+          },
+          "query": "subscriptionAll"
         }
       ],
-      "defaultQuery": "contactMessageAll",
       "result": {
-        "type": "table",
-        "tableView": "contactMessageTable"
-      }
+        "tableView": "subscriptionTable",
+        "type": "table"
+      },
+      "type": "collection"
     },
     {
-      "key": "siteCompositionHome",
-      "type": "collection",
-      "label": "Site",
-      "entity": "block-placement",
+      "defaultQuery": "contactMessageAll",
+      "entity": "contact-message",
+      "key": "contactMessageHome",
+      "label": "Contact messages",
       "navigation": {
-        "primary": true
+        "primary": false
       },
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "contactMessageAll"
+        }
+      ],
+      "result": {
+        "tableView": "contactMessageTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
       "context": {
-        "name": "block",
         "entity": "block",
-        "query": "blockSiteRoots",
-        "labelField": "label",
-        "relationship": "blockPlacements",
         "itemView": "blockRootDetail",
-        "presentation": "listDetail",
+        "labelField": "label",
+        "name": "block",
         "navigation": {
-          "placement": "sidebar",
           "groups": [
             {
+              "createView": "blockPageCreate",
               "label": "Pages",
-              "query": "blockPages",
-              "createView": "blockPageCreate"
+              "query": "blockPages"
             },
             {
+              "createView": "blockPostCreate",
               "label": "Posts",
-              "query": "blockPosts",
-              "createView": "blockPostCreate"
+              "query": "blockPosts"
             },
             {
+              "createView": "blockProjectCreate",
               "label": "Projects",
-              "query": "blockProjects",
-              "createView": "blockProjectCreate"
+              "query": "blockProjects"
             },
             {
               "label": "Navigation",
               "query": "blockNavigationRoots"
             }
-          ]
-        }
+          ],
+          "placement": "sidebar"
+        },
+        "presentation": "listDetail",
+        "query": "blockSiteRoots",
+        "relationship": "blockPlacements"
+      },
+      "defaultQuery": "placementsForSelectedBlock",
+      "entity": "block-placement",
+      "key": "siteCompositionHome",
+      "label": "Site",
+      "navigation": {
+        "primary": true
       },
       "queries": [
         {
-          "query": "placementsForSelectedBlock",
           "count": {
             "type": "count"
-          }
+          },
+          "query": "placementsForSelectedBlock"
         }
       ],
-      "defaultQuery": "placementsForSelectedBlock",
       "result": {
-        "type": "tree",
-        "relationship": "blockPlacements",
-        "childField": "block",
-        "childItemView": "blockTreeNode",
         "branches": {
           "variants": {
-            "page": {
+            "card": "leaf",
+            "cardGrid": {
+              "children": ["card"]
+            },
+            "contactForm": "leaf",
+            "feature": {
               "children": [
-                "group",
-                "section",
-                "hero",
-                "feature",
-                "cardGrid",
-                "metricGrid",
-                "markdown",
-                "image",
-                "link",
-                "project",
-                "postList",
-                "projectList",
-                "subscribeForm",
-                "contactForm",
-                "publicOperationForm"
+                {
+                  "label": "Feature image",
+                  "placementValues": {
+                    "slot": "media"
+                  },
+                  "variant": "image"
+                },
+                {
+                  "label": "Action link",
+                  "placementValues": {
+                    "slot": "actions"
+                  },
+                  "variant": "link"
+                }
               ]
+            },
+            "footer": {
+              "action": "leaf",
+              "children": ["footerSection", "footerSocial", "link"]
+            },
+            "footerSection": {
+              "children": ["link"]
+            },
+            "footerSocial": {
+              "children": ["link"]
             },
             "group": {
               "children": [
@@ -3296,6 +3385,65 @@
                 "publicOperationForm"
               ]
             },
+            "header": {
+              "action": "leaf",
+              "children": ["headerPrimary", "headerSecondary"]
+            },
+            "headerPrimary": {
+              "children": ["link"]
+            },
+            "headerSecondary": {
+              "children": ["link"]
+            },
+            "metric": "leaf",
+            "metricGrid": {
+              "children": ["metric"]
+            },
+            "page": {
+              "children": [
+                "group",
+                "section",
+                "hero",
+                "feature",
+                "cardGrid",
+                "metricGrid",
+                "markdown",
+                "image",
+                "link",
+                "project",
+                "postList",
+                "projectList",
+                "subscribeForm",
+                "contactForm",
+                "publicOperationForm"
+              ]
+            },
+            "post": {
+              "children": [
+                "markdown",
+                {
+                  "label": "Primary image",
+                  "placementValues": {
+                    "slot": "primaryImage"
+                  },
+                  "variant": "image"
+                }
+              ]
+            },
+            "postList": "leaf",
+            "project": {
+              "children": [
+                {
+                  "label": "Primary image",
+                  "placementValues": {
+                    "slot": "primaryImage"
+                  },
+                  "variant": "image"
+                }
+              ]
+            },
+            "projectList": "leaf",
+            "publicOperationForm": "leaf",
             "section": {
               "children": [
                 "group",
@@ -3315,1156 +3463,1008 @@
                 "publicOperationForm"
               ]
             },
-            "cardGrid": {
-              "children": ["card"]
-            },
-            "card": "leaf",
-            "metricGrid": {
-              "children": ["metric"]
-            },
-            "metric": "leaf",
-            "post": {
-              "children": [
-                "markdown",
-                {
-                  "variant": "image",
-                  "label": "Primary image",
-                  "placementValues": {
-                    "slot": "primaryImage"
-                  }
-                }
-              ]
-            },
-            "project": {
-              "children": [
-                {
-                  "variant": "image",
-                  "label": "Primary image",
-                  "placementValues": {
-                    "slot": "primaryImage"
-                  }
-                }
-              ]
-            },
-            "feature": {
-              "children": [
-                {
-                  "variant": "image",
-                  "label": "Feature image",
-                  "placementValues": {
-                    "slot": "media"
-                  }
-                },
-                {
-                  "variant": "link",
-                  "label": "Action link",
-                  "placementValues": {
-                    "slot": "actions"
-                  }
-                }
-              ]
-            },
-            "postList": "leaf",
-            "projectList": "leaf",
-            "subscribeForm": "leaf",
-            "contactForm": "leaf",
-            "publicOperationForm": "leaf",
-            "header": {
-              "action": "leaf",
-              "children": ["headerPrimary", "headerSecondary"]
-            },
-            "headerPrimary": {
-              "children": ["link"]
-            },
-            "headerSecondary": {
-              "children": ["link"]
-            },
-            "footer": {
-              "action": "leaf",
-              "children": ["footerSection", "footerSocial", "link"]
-            },
-            "footerSection": {
-              "children": ["link"]
-            },
-            "footerSocial": {
-              "children": ["link"]
-            }
+            "subscribeForm": "leaf"
           }
         },
+        "childField": "block",
+        "childItemView": "blockTreeNode",
         "composition": {
           "createOperation": "block-placement.addTreeChild",
           "removeOperation": "block-placement.removeTreePlacement"
         },
+        "maxDepth": 8,
         "ordering": {
           "field": "order",
+          "presentations": ["dragHandle"],
           "scope": [
             {
-              "kind": "field",
-              "field": "parent"
+              "field": "parent",
+              "kind": "field"
             },
             {
-              "kind": "field",
-              "field": "slot"
+              "field": "slot",
+              "kind": "field"
             }
-          ],
-          "presentations": ["dragHandle"]
+          ]
         },
-        "maxDepth": 8
-      }
+        "relationship": "blockPlacements",
+        "type": "tree"
+      },
+      "type": "collection"
     },
     {
-      "key": "pageCompositionHome",
-      "type": "collection",
-      "label": "Pages",
-      "entity": "block-placement",
-      "navigation": {
-        "primary": false
-      },
       "context": {
-        "name": "block",
         "entity": "block",
+        "itemView": "blockRootDetail",
+        "labelField": "label",
+        "name": "block",
+        "presentation": "listDetail",
         "query": "blockPages",
-        "labelField": "label",
-        "relationship": "blockPlacements",
-        "itemView": "blockRootDetail",
-        "presentation": "listDetail"
+        "relationship": "blockPlacements"
       },
-      "queries": [
-        {
-          "query": "placementsForSelectedBlock",
-          "count": {
-            "type": "count"
-          }
-        }
-      ],
       "defaultQuery": "placementsForSelectedBlock",
-      "result": {
-        "type": "table",
-        "tableView": "blockPlacementTable"
-      },
-      "operations": [
-        {
-          "operation": "block-placement.create",
-          "createView": "blockPlacementCreate",
-          "label": "Add placement"
-        }
-      ]
-    },
-    {
-      "key": "navigationCompositionHome",
-      "type": "collection",
-      "label": "Navigation",
       "entity": "block-placement",
+      "key": "pageCompositionHome",
+      "label": "Pages",
       "navigation": {
         "primary": false
       },
-      "context": {
-        "name": "block",
-        "entity": "block",
-        "query": "blockNavigationRoots",
-        "labelField": "label",
-        "relationship": "blockPlacements",
-        "itemView": "blockRootDetail",
-        "presentation": "listDetail"
-      },
-      "queries": [
+      "operations": [
         {
-          "query": "placementsForSelectedBlock",
-          "count": {
-            "type": "count"
-          }
+          "createView": "blockPlacementCreate",
+          "label": "Add placement",
+          "operation": "block-placement.create"
         }
       ],
-      "defaultQuery": "placementsForSelectedBlock",
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "placementsForSelectedBlock"
+        }
+      ],
       "result": {
-        "type": "table",
-        "tableView": "blockPlacementTable"
+        "tableView": "blockPlacementTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "context": {
+        "entity": "block",
+        "itemView": "blockRootDetail",
+        "labelField": "label",
+        "name": "block",
+        "presentation": "listDetail",
+        "query": "blockNavigationRoots",
+        "relationship": "blockPlacements"
+      },
+      "defaultQuery": "placementsForSelectedBlock",
+      "entity": "block-placement",
+      "key": "navigationCompositionHome",
+      "label": "Navigation",
+      "navigation": {
+        "primary": false
       },
       "operations": [
         {
-          "operation": "block-placement.create",
           "createView": "blockPlacementCreate",
-          "label": "Add placement"
+          "label": "Add placement",
+          "operation": "block-placement.create"
         }
-      ]
+      ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "placementsForSelectedBlock"
+        }
+      ],
+      "result": {
+        "tableView": "blockPlacementTable",
+        "type": "table"
+      },
+      "type": "collection"
     },
     {
-      "key": "blockCreate",
-      "type": "create",
       "entity": "block",
+      "fallback": {
+        "fields": [
+          {
+            "editor": "text",
+            "field": "label"
+          }
+        ],
+        "presentation": "fields"
+      },
       "fields": [
         {
-          "field": "type",
-          "editor": "enum"
+          "editor": "enum",
+          "field": "type"
         },
         {
-          "field": "label",
-          "editor": "text"
+          "editor": "text",
+          "field": "label"
         }
       ],
+      "key": "blockCreate",
+      "type": "create",
       "union": "blockByType",
       "variants": [
         {
-          "variant": "page",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "href",
-              "editor": "href"
+              "editor": "href",
+              "field": "href"
             },
             {
-              "field": "icon",
-              "editor": "icon"
+              "editor": "icon",
+              "field": "icon"
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "page"
         },
         {
-          "variant": "post",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "date",
-              "editor": "date"
+              "editor": "date",
+              "field": "date"
             },
             {
-              "field": "body",
-              "editor": "markdown"
+              "editor": "markdown",
+              "field": "body"
             },
             {
-              "field": "href",
-              "editor": "href"
+              "editor": "href",
+              "field": "href"
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "post"
         },
         {
-          "variant": "project",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "date",
-              "editor": "date"
+              "editor": "date",
+              "field": "date"
             },
             {
-              "field": "body",
-              "editor": "markdown"
+              "editor": "markdown",
+              "field": "body"
             },
             {
-              "field": "href",
-              "editor": "href"
+              "editor": "href",
+              "field": "href"
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "project"
         },
         {
-          "variant": "link",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "linkTargetMode",
-              "editor": "enum"
+              "editor": "enum",
+              "field": "linkTargetMode"
             },
             {
-              "field": "linkTargetBlock",
               "editor": "reference",
+              "field": "linkTargetBlock",
               "visibleWhen": {
                 "field": "linkTargetMode",
                 "values": ["internal"]
               }
             },
             {
-              "field": "href",
               "editor": "href",
+              "field": "href",
               "visibleWhen": {
                 "field": "linkTargetMode",
                 "values": ["", "external"]
               }
             },
             {
-              "field": "icon",
-              "editor": "icon"
+              "editor": "icon",
+              "field": "icon"
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "link"
         },
         {
-          "variant": "markdown",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "body",
-              "editor": "markdown"
+              "editor": "markdown",
+              "field": "body"
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "markdown"
         },
         {
-          "variant": "hero",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "body",
-              "editor": "markdown"
+              "editor": "markdown",
+              "field": "body"
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "hero"
         },
         {
-          "variant": "feature",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "body",
-              "editor": "markdown"
+              "editor": "markdown",
+              "field": "body"
             },
             {
-              "field": "alignment",
-              "editor": "enum"
+              "editor": "enum",
+              "field": "alignment"
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "feature"
         },
         {
-          "variant": "section",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "body",
-              "editor": "markdown"
+              "editor": "markdown",
+              "field": "body"
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "section"
         },
         {
-          "variant": "cardGrid",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "body",
-              "editor": "markdown"
+              "editor": "markdown",
+              "field": "body"
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "cardGrid"
         },
         {
-          "variant": "card",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "body",
-              "editor": "markdown"
+              "editor": "markdown",
+              "field": "body"
             },
             {
-              "field": "icon",
-              "editor": "icon"
+              "editor": "icon",
+              "field": "icon"
             },
             {
-              "field": "color",
-              "editor": "color"
+              "editor": "color",
+              "field": "color"
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "card"
         },
         {
-          "variant": "metricGrid",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "body",
-              "editor": "markdown"
+              "editor": "markdown",
+              "field": "body"
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "metricGrid"
         },
         {
-          "variant": "metric",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "body",
-              "editor": "markdown"
+              "editor": "markdown",
+              "field": "body"
             },
             {
-              "field": "color",
-              "editor": "color"
+              "editor": "color",
+              "field": "color"
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "metric"
         },
         {
-          "variant": "subscribeForm",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "body",
-              "editor": "markdown"
+              "editor": "markdown",
+              "field": "body"
             },
             {
-              "field": "operationName",
-              "editor": "text"
-            },
-            {
-              "field": "operationTargetKind",
-              "editor": "enum"
-            },
-            {
-              "field": "operationTargetSchemaKey",
               "editor": "text",
+              "field": "operationName"
+            },
+            {
+              "editor": "enum",
+              "field": "operationTargetKind"
+            },
+            {
+              "editor": "text",
+              "field": "operationTargetSchemaKey",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["schemaKey"]
               }
             },
             {
+              "editor": "text",
               "field": "operationTargetPackageAppKey",
-              "editor": "text",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["appInstall"]
               }
             },
             {
+              "editor": "text",
               "field": "operationTargetInstallId",
-              "editor": "text",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["appInstall"]
               }
             },
             {
-              "field": "buttonLabel",
-              "editor": "text"
-            }
-          ]
-        },
-        {
-          "variant": "contactForm",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown"
-            },
-            {
-              "field": "operationName",
-              "editor": "text"
-            },
-            {
-              "field": "buttonLabel",
-              "editor": "text"
-            },
-            {
-              "field": "successLabel",
-              "editor": "text"
-            },
-            {
-              "field": "nameLabel",
-              "editor": "text"
-            },
-            {
-              "field": "emailLabel",
-              "editor": "text"
-            },
-            {
-              "field": "messageLabel",
-              "editor": "text"
-            }
-          ]
-        },
-        {
-          "variant": "publicOperationForm",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown"
-            },
-            {
-              "field": "operationTargetKind",
-              "editor": "enum"
-            },
-            {
-              "field": "operationTargetSchemaKey",
               "editor": "text",
+              "field": "buttonLabel"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "subscribeForm"
+        },
+        {
+          "fields": [
+            {
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "editor": "text",
+              "field": "operationName"
+            },
+            {
+              "editor": "text",
+              "field": "buttonLabel"
+            },
+            {
+              "editor": "text",
+              "field": "successLabel"
+            },
+            {
+              "editor": "text",
+              "field": "nameLabel"
+            },
+            {
+              "editor": "text",
+              "field": "emailLabel"
+            },
+            {
+              "editor": "text",
+              "field": "messageLabel"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "contactForm"
+        },
+        {
+          "fields": [
+            {
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "editor": "enum",
+              "field": "operationTargetKind"
+            },
+            {
+              "editor": "text",
+              "field": "operationTargetSchemaKey",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["schemaKey"]
               }
             },
             {
+              "editor": "text",
               "field": "operationTargetPackageAppKey",
-              "editor": "text",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["appInstall"]
               }
             },
             {
+              "editor": "text",
               "field": "operationTargetInstallId",
-              "editor": "text",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["appInstall"]
               }
             },
             {
-              "field": "operationKey",
-              "editor": "text"
+              "editor": "text",
+              "field": "operationKey"
             },
             {
-              "field": "buttonLabel",
-              "editor": "text"
+              "editor": "text",
+              "field": "buttonLabel"
             },
             {
-              "field": "successLabel",
-              "editor": "text"
+              "editor": "text",
+              "field": "successLabel"
             },
             {
-              "field": "operationNotificationMode",
-              "editor": "enum"
+              "editor": "enum",
+              "field": "operationNotificationMode"
             },
             {
+              "editor": "text",
               "field": "operationNotificationReplyToField",
-              "editor": "text",
               "visibleWhen": {
                 "field": "operationNotificationMode",
                 "values": ["email"]
               }
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "publicOperationForm"
         },
         {
-          "variant": "image",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "mediaAssetId",
-              "editor": "media"
+              "editor": "media",
+              "field": "mediaAssetId"
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "image"
         }
-      ],
-      "fallback": {
-        "presentation": "fields",
-        "fields": [
-          {
-            "field": "label",
-            "editor": "text"
-          }
-        ]
-      }
+      ]
     },
     {
-      "key": "blockPageCreate",
-      "type": "create",
-      "entity": "block",
-      "fields": [
-        {
-          "field": "label",
-          "editor": "text"
-        },
-        {
-          "field": "href",
-          "editor": "href"
-        },
-        {
-          "field": "icon",
-          "editor": "icon"
-        }
-      ],
       "defaults": {
         "type": {
           "kind": "literal",
           "value": "page"
         }
-      }
-    },
-    {
-      "key": "blockPostCreate",
-      "type": "create",
+      },
       "entity": "block",
       "fields": [
         {
-          "field": "label",
-          "editor": "text"
+          "editor": "text",
+          "field": "label"
         },
         {
-          "field": "href",
-          "editor": "href"
+          "editor": "href",
+          "field": "href"
         },
         {
-          "field": "date",
-          "editor": "date"
-        },
-        {
-          "field": "body",
-          "editor": "markdown"
+          "editor": "icon",
+          "field": "icon"
         }
       ],
+      "key": "blockPageCreate",
+      "type": "create"
+    },
+    {
       "defaults": {
         "type": {
           "kind": "literal",
           "value": "post"
         }
-      }
-    },
-    {
-      "key": "blockProjectCreate",
-      "type": "create",
+      },
       "entity": "block",
       "fields": [
         {
-          "field": "label",
-          "editor": "text"
+          "editor": "text",
+          "field": "label"
         },
         {
-          "field": "href",
-          "editor": "href"
+          "editor": "href",
+          "field": "href"
         },
         {
-          "field": "date",
-          "editor": "date"
+          "editor": "date",
+          "field": "date"
         },
         {
-          "field": "body",
-          "editor": "markdown"
+          "editor": "markdown",
+          "field": "body"
         }
       ],
+      "key": "blockPostCreate",
+      "type": "create"
+    },
+    {
       "defaults": {
         "type": {
           "kind": "literal",
           "value": "project"
         }
-      }
-    },
-    {
-      "key": "blockEdit",
-      "type": "edit",
+      },
       "entity": "block",
       "fields": [
         {
-          "field": "label",
           "editor": "text",
-          "commit": "field-commit"
+          "field": "label"
+        },
+        {
+          "editor": "href",
+          "field": "href"
+        },
+        {
+          "editor": "date",
+          "field": "date"
+        },
+        {
+          "editor": "markdown",
+          "field": "body"
         }
       ],
+      "key": "blockProjectCreate",
+      "type": "create"
+    },
+    {
+      "entity": "block",
+      "fallback": {
+        "fields": [
+          {
+            "commit": "field-commit",
+            "editor": "text",
+            "field": "label"
+          }
+        ],
+        "presentation": "fields"
+      },
+      "fields": [
+        {
+          "commit": "field-commit",
+          "editor": "text",
+          "field": "label"
+        }
+      ],
+      "key": "blockEdit",
+      "type": "edit",
       "union": "blockByType",
       "variants": [
         {
-          "variant": "page",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "href",
+              "commit": "field-commit",
               "editor": "href",
-              "commit": "field-commit"
+              "field": "href"
             },
             {
-              "field": "icon",
+              "commit": "field-commit",
               "editor": "icon",
-              "commit": "field-commit"
+              "field": "icon"
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "page"
         },
         {
-          "variant": "post",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "date",
+              "commit": "field-commit",
               "editor": "date",
-              "commit": "field-commit"
+              "field": "date"
             },
             {
-              "field": "body",
+              "commit": "field-commit",
               "editor": "markdown",
-              "commit": "field-commit"
+              "field": "body"
             },
             {
-              "field": "href",
+              "commit": "field-commit",
               "editor": "href",
-              "commit": "field-commit"
+              "field": "href"
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "post"
         },
         {
-          "variant": "project",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "date",
+              "commit": "field-commit",
               "editor": "date",
-              "commit": "field-commit"
+              "field": "date"
             },
             {
-              "field": "body",
+              "commit": "field-commit",
               "editor": "markdown",
-              "commit": "field-commit"
+              "field": "body"
             },
             {
-              "field": "href",
+              "commit": "field-commit",
               "editor": "href",
-              "commit": "field-commit"
+              "field": "href"
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "project"
         },
         {
-          "variant": "link",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "linkTargetMode",
-              "editor": "enum",
-              "commit": "immediate"
-            },
-            {
-              "field": "linkTargetBlock",
-              "editor": "reference",
               "commit": "immediate",
+              "editor": "enum",
+              "field": "linkTargetMode"
+            },
+            {
+              "commit": "immediate",
+              "editor": "reference",
+              "field": "linkTargetBlock",
               "visibleWhen": {
                 "field": "linkTargetMode",
                 "values": ["internal"]
               }
             },
             {
-              "field": "href",
-              "editor": "href",
               "commit": "field-commit",
+              "editor": "href",
+              "field": "href",
               "visibleWhen": {
                 "field": "linkTargetMode",
                 "values": ["", "external"]
               }
             },
             {
-              "field": "icon",
-              "editor": "icon",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "markdown",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "hero",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "feature",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "alignment",
-              "editor": "enum",
-              "commit": "immediate"
-            }
-          ]
-        },
-        {
-          "variant": "section",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "cardGrid",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "card",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "icon",
-              "editor": "icon",
-              "commit": "field-commit"
-            },
-            {
-              "field": "color",
-              "editor": "color",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "metricGrid",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "metric",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "color",
-              "editor": "color",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "subscribeForm",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "operationName",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "operationTargetKind",
-              "editor": "enum",
-              "commit": "immediate"
-            },
-            {
-              "field": "operationTargetSchemaKey",
-              "editor": "text",
               "commit": "field-commit",
+              "editor": "icon",
+              "field": "icon"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "link"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "markdown"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "hero"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "immediate",
+              "editor": "enum",
+              "field": "alignment"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "feature"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "section"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "cardGrid"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "icon",
+              "field": "icon"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "color",
+              "field": "color"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "card"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "metricGrid"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "color",
+              "field": "color"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "metric"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationName"
+            },
+            {
+              "commit": "immediate",
+              "editor": "enum",
+              "field": "operationTargetKind"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationTargetSchemaKey",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["schemaKey"]
               }
             },
             {
+              "commit": "field-commit",
+              "editor": "text",
               "field": "operationTargetPackageAppKey",
-              "editor": "text",
-              "commit": "field-commit",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["appInstall"]
               }
             },
             {
+              "commit": "field-commit",
+              "editor": "text",
               "field": "operationTargetInstallId",
-              "editor": "text",
-              "commit": "field-commit",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["appInstall"]
               }
             },
             {
-              "field": "buttonLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "contactForm",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "operationName",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "buttonLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "successLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "nameLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "emailLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            },
-            {
-              "field": "messageLabel",
-              "editor": "text",
-              "commit": "field-commit"
-            }
-          ]
-        },
-        {
-          "variant": "publicOperationForm",
-          "presentation": "fields",
-          "fields": [
-            {
-              "field": "body",
-              "editor": "markdown",
-              "commit": "field-commit"
-            },
-            {
-              "field": "operationTargetKind",
-              "editor": "enum",
-              "commit": "immediate"
-            },
-            {
-              "field": "operationTargetSchemaKey",
-              "editor": "text",
               "commit": "field-commit",
+              "editor": "text",
+              "field": "buttonLabel"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "subscribeForm"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationName"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "buttonLabel"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "successLabel"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "nameLabel"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "emailLabel"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "messageLabel"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "contactForm"
+        },
+        {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "markdown",
+              "field": "body"
+            },
+            {
+              "commit": "immediate",
+              "editor": "enum",
+              "field": "operationTargetKind"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "text",
+              "field": "operationTargetSchemaKey",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["schemaKey"]
               }
             },
             {
+              "commit": "field-commit",
+              "editor": "text",
               "field": "operationTargetPackageAppKey",
-              "editor": "text",
-              "commit": "field-commit",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["appInstall"]
               }
             },
             {
+              "commit": "field-commit",
+              "editor": "text",
               "field": "operationTargetInstallId",
-              "editor": "text",
-              "commit": "field-commit",
               "visibleWhen": {
                 "field": "operationTargetKind",
                 "values": ["appInstall"]
               }
             },
             {
-              "field": "operationKey",
+              "commit": "field-commit",
               "editor": "text",
-              "commit": "field-commit"
+              "field": "operationKey"
             },
             {
-              "field": "buttonLabel",
+              "commit": "field-commit",
               "editor": "text",
-              "commit": "field-commit"
+              "field": "buttonLabel"
             },
             {
-              "field": "successLabel",
+              "commit": "field-commit",
               "editor": "text",
-              "commit": "field-commit"
+              "field": "successLabel"
             },
             {
-              "field": "operationNotificationMode",
+              "commit": "immediate",
               "editor": "enum",
-              "commit": "immediate"
+              "field": "operationNotificationMode"
             },
             {
+              "commit": "field-commit",
+              "editor": "text",
               "field": "operationNotificationReplyToField",
-              "editor": "text",
-              "commit": "field-commit",
               "visibleWhen": {
                 "field": "operationNotificationMode",
                 "values": ["email"]
               }
             }
-          ]
+          ],
+          "presentation": "fields",
+          "variant": "publicOperationForm"
         },
         {
-          "variant": "image",
-          "presentation": "fields",
           "fields": [
             {
-              "field": "mediaAssetId",
+              "commit": "field-commit",
               "editor": "media",
-              "commit": "field-commit"
+              "field": "mediaAssetId"
             }
-          ]
-        }
-      ],
-      "fallback": {
-        "presentation": "fields",
-        "fields": [
-          {
-            "field": "label",
-            "editor": "text",
-            "commit": "field-commit"
-          }
-        ]
-      }
-    },
-    {
-      "key": "blockCompositionHome",
-      "type": "collection",
-      "label": "Placements",
-      "entity": "block-placement",
-      "navigation": {
-        "primary": false
-      },
-      "context": {
-        "name": "block",
-        "entity": "block",
-        "query": "blockAll",
-        "labelField": "label",
-        "relationship": "blockPlacements",
-        "itemView": "blockContextItem"
-      },
-      "queries": [
-        {
-          "query": "placementsForSelectedBlock",
-          "count": {
-            "type": "count"
-          }
-        }
-      ],
-      "defaultQuery": "placementsForSelectedBlock",
-      "result": {
-        "type": "table",
-        "tableView": "blockPlacementTable"
-      },
-      "operations": [
-        {
-          "operation": "block-placement.create",
-          "createView": "blockPlacementCreate",
-          "label": "Add placement"
+          ],
+          "presentation": "fields",
+          "variant": "image"
         }
       ]
     },
     {
-      "key": "blockPlacementCreate",
-      "type": "create",
+      "context": {
+        "entity": "block",
+        "itemView": "blockContextItem",
+        "labelField": "label",
+        "name": "block",
+        "query": "blockAll",
+        "relationship": "blockPlacements"
+      },
+      "defaultQuery": "placementsForSelectedBlock",
       "entity": "block-placement",
-      "fields": [
+      "key": "blockCompositionHome",
+      "label": "Placements",
+      "navigation": {
+        "primary": false
+      },
+      "operations": [
         {
-          "field": "block",
-          "editor": "reference"
-        },
-        {
-          "field": "label",
-          "editor": "text"
+          "createView": "blockPlacementCreate",
+          "label": "Add placement",
+          "operation": "block-placement.create"
         }
       ],
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "placementsForSelectedBlock"
+        }
+      ],
+      "result": {
+        "tableView": "blockPlacementTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
       "defaults": {
         "parent": {
           "kind": "context",
           "name": "block"
         }
-      }
-    }
-  ],
-  "screens": [
-    {
-      "key": "siteSettings",
-      "type": "workspace",
-      "label": "Settings",
-      "path": "/settings",
-      "layout": {
-        "type": "stack",
-        "width": "narrow",
-        "sections": [
-          {
-            "id": "settings",
-            "type": "collection",
-            "view": "siteSettingsHome"
-          }
-        ]
-      }
-    },
-    {
-      "key": "siteEditor",
-      "type": "workspace",
-      "label": "Blocks",
-      "path": "/",
-      "layout": {
-        "type": "stack",
-        "width": "wide",
-        "sections": [
-          {
-            "id": "site",
-            "type": "collection",
-            "view": "siteCompositionHome"
-          }
-        ]
-      }
-    },
-    {
-      "key": "siteSubscribers",
-      "type": "workspace",
-      "label": "Subscribers",
-      "path": "/subscribers",
-      "layout": {
-        "type": "stack",
-        "width": "wide",
-        "sections": [
-          {
-            "id": "subscriptions",
-            "type": "collection",
-            "view": "subscriptionHome"
-          },
-          {
-            "id": "emailAddresses",
-            "type": "collection",
-            "view": "emailAddressHome"
-          },
-          {
-            "id": "audiences",
-            "type": "collection",
-            "view": "audienceHome"
-          }
-        ]
-      }
-    },
-    {
-      "key": "siteContacts",
-      "type": "workspace",
-      "label": "Contacts",
-      "path": "/contacts",
-      "layout": {
-        "type": "stack",
-        "width": "wide",
-        "sections": [
-          {
-            "id": "messages",
-            "type": "collection",
-            "view": "contactMessageHome"
-          }
-        ]
-      }
+      },
+      "entity": "block-placement",
+      "fields": [
+        {
+          "editor": "reference",
+          "field": "block"
+        },
+        {
+          "editor": "text",
+          "field": "label"
+        }
+      ],
+      "key": "blockPlacementCreate",
+      "type": "create"
     }
   ]
 }

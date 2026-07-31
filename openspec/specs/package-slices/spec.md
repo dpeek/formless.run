@@ -127,6 +127,28 @@ domain declarations into the Schema package.
   an Authority, change installed-app routing, or create another authoritative
   copy of Tasks records
 
+#### Scenario: Site package publishes TypeScript-authored modules
+
+- GIVEN the Site package owns one complete portable schema artifact and
+  package-specific public runtime adapters
+- WHEN its existing schema declarations are authored in package-local
+  TypeScript
+- THEN trusted composition imports `siteRecordSchemaModule`,
+  `sitePresentationSchemaModule`, and `siteSchemaSource` through
+  `@dpeek/formless-site-app/schema`
+- AND the record module owns Site entities, operations, relationships, unions,
+  and queries while the dependent presentation module owns item views, table
+  views, views, and screens
+- AND the package publishes the schema subpath with executable ESM,
+  declarations, and source maps
+- AND the complete standalone source continues to materialize the existing
+  data-only Site `schema.json` artifact and manifest source-schema hash
+- AND runtime package resolution continues to consume `schema.json` without
+  evaluating the TypeScript authoring entrypoint
+- AND the public schema boundary does not compose Site into a Program, select
+  an Authority, change installed-app or public Site routing, or change Site
+  runtime adapter ownership
+
 ### Requirement: Downstream Program Composition Root
 
 The system SHALL keep complete Program composition in a downstream-owned root

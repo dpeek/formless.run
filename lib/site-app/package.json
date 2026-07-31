@@ -13,6 +13,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./schema": "./src/schema.ts",
     "./react": "./src/react.tsx",
     "./public/react": "./src/public-react.tsx",
     "./worker": "./src/worker.ts",
@@ -25,6 +26,10 @@
       ".": {
         "types": "./dist/index.d.mts",
         "import": "./dist/index.mjs"
+      },
+      "./schema": {
+        "types": "./dist/schema.d.mts",
+        "import": "./dist/schema.mjs"
       },
       "./react": {
         "types": "./dist/react.d.mts",
@@ -49,7 +54,8 @@
   },
   "scripts": {
     "check": "vp check --fix && vp test --configLoader runner",
-    "pack": "vp pack src/index.ts src/react.tsx src/public-react.tsx src/worker.ts src/node.ts"
+    "schema:materialize": "bun run scripts/materialize-schema.ts",
+    "pack": "vp pack src/index.ts src/schema.ts src/react.tsx src/public-react.tsx src/worker.ts src/node.ts"
   },
   "dependencies": {
     "@cf-wasm/resvg": "0.3.4",
@@ -61,6 +67,7 @@
     "react-dom": "19.2.6"
   },
   "devDependencies": {
+    "@dpeek/formless-installed-apps": "workspace:*",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "jsdom": "^29.1.1"

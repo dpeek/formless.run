@@ -24,6 +24,51 @@ The system SHALL model Site content as flat records and use Site scope from the 
 - THEN they do not store a Site reference
 - AND the current schema key or app install id supplies the Site scope
 
+### Requirement: Reusable Site Schema Modules
+
+The Site package SHALL declare its complete standalone App schema in
+package-local TypeScript and expose its runtime-neutral record and presentation
+declarations through a documented schema authoring subpath.
+
+#### Scenario: Import Site schema authoring
+
+- GIVEN trusted TypeScript composition needs Site declarations
+- WHEN it imports `@dpeek/formless-site-app/schema`
+- THEN the package exports `siteRecordSchemaModule`,
+  `sitePresentationSchemaModule`, and the complete `siteSchemaSource`
+- AND the record module owns the eight existing Site entities with their stable
+  entity ids, fields, constraints, operations, relationships, union, and queries
+- AND existing anonymous public operation policy and operation-handler
+  declarations remain package-owned record schema data
+- AND the presentation module depends on the record module and owns the existing
+  item views, table views, views, and screens
+- AND consumers do not deep-import Site package source files
+
+#### Scenario: Materialize the standalone Site schema
+
+- GIVEN package-local TypeScript is authoritative for the standalone Site schema
+- WHEN the Site schema artifact is materialized
+- THEN the complete source composes the record module before the dependent
+  presentation module
+- AND materialization produces the existing deterministic data-only
+  `schema.json` source
+- AND authored and materialized source parse to the same App schema
+- AND the materialized source retains the manifest `sourceSchemaHash`
+- AND Worker, workspace, install, archive, upgrade, deploy, and public Site
+  runtime paths continue loading `schema.json` without evaluating the
+  TypeScript authoring entrypoint
+
+#### Scenario: Site schema publication does not select runtime ownership
+
+- GIVEN the Site package publishes its standalone schema modules and source
+- WHEN the authoring boundary is consumed or packaged
+- THEN it does not compose Site into the Formless Program
+- AND it does not change Site package metadata, install availability, source or
+  installed routes, Authority storage, browser replicas, sync, public runtime
+  adapters, media, archives, workspaces, provenance, or CLI behavior
+- AND existing Site schema-key and installed-app runtime behavior remains
+  unchanged until a later Site domain-data cutover
+
 ### Requirement: Public Tree Projection
 
 The system SHALL project live Site block and block placement records into a nested public tree ordered by placement order and grouped by placement slot.
