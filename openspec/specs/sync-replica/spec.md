@@ -32,6 +32,15 @@ The system SHALL key each browser replica by storage identity.
 - AND there is no separate identity-control-plane, Tasks, or built-in Site
   browser database or broadcast channel
 
+#### Scenario: Workspace Program extension replica
+
+- GIVEN an authenticated principal has a role in a workspace-composed Program
+- WHEN the browser bootstraps or synchronizes that Program
+- THEN its one Program replica, cursor, broadcast channel, HTTP sync route, and
+  WebSocket carry the complete active Program schema and records
+- AND workspace-owned module membership does not create a package replica,
+  package cursor, selective sync admission, or separate socket
+
 ### Requirement: Local Replica Stores
 
 The system SHALL persist browser replica metadata and records locally.

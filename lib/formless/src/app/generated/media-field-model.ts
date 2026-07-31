@@ -35,7 +35,7 @@ export function generatedDocumentMediaTarget(
   entityName: string,
   fieldName: string,
 ): AppDocumentMediaTarget | undefined {
-  if (typeof appTarget === "string" || appTarget.kind !== "appInstall") {
+  if (typeof appTarget === "string") {
     return undefined;
   }
 

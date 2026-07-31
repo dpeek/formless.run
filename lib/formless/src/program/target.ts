@@ -7,11 +7,6 @@ export const FORMLESS_PROGRAM_BROWSER_STORAGE_NAME = "formless:instance:control-
 export const FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH =
   "sha256:7600ea159455f7d006fc16e82ecde1e5e64ec25948bf736887ab036fd401a600" satisfies SourceSchemaHash;
 
-export const formlessProgramSchemaProvenance = {
-  kind: "program",
-  sourceSchemaHash: FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
-} as const;
-
 export const formlessProgramTarget = {
   kind: "program",
   schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,

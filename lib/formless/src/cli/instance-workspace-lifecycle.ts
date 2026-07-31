@@ -44,6 +44,7 @@ import {
   createWorkspaceTempRoot,
   formatFormlessConfigModule,
   formlessInstanceWorkspaceLocalStateRoot,
+  materializeActiveWorkspaceProgramArtifact,
   readWorkspaceConfig,
   runtimeWorkspaceAppPackagesEnvValue,
   workspaceConfigPath,
@@ -344,6 +345,7 @@ export async function runFormlessInstanceWorkspaceDev(
   const { config, localDevSecrets, workspaceRoot } = devBootstrap;
 
   const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
+  const activeProgram = await materializeActiveWorkspaceProgramArtifact(workspaceRoot, config);
   const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
     manifest: config,
     packageResolver: activePackages.resolver,
@@ -371,6 +373,7 @@ export async function runFormlessInstanceWorkspaceDev(
         localDevSecrets,
         workspaceRoot,
         workspaceAppPackages: runtimeWorkspaceAppPackagesEnvValue(activePackages),
+        workspaceProgramArtifactPath: activeProgram.path,
         workspaceRuntimeExtensions: runtimeWorkspaceExtensionsEnvValue(config),
       }),
       stdio: "pipe",

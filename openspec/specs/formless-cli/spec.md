@@ -520,6 +520,18 @@ single Formless configuration entrypoint for a workspace.
   configuration entrypoint can be split without automatic discovery or a
   registry
 
+#### Scenario: Author one explicit workspace Program
+
+- **GIVEN** a downstream workspace needs domain modules in its Program
+- **WHEN** trusted `formless.ts` composes configuration
+- **THEN** it explicitly imports and orders built-in and workspace-owned Program
+  schema modules through documented package boundaries
+- **AND** it declares one complete Program composition with root-owned roles,
+  navigation, paths, and deliberate replacements
+- **AND** it does not paste independent schema JSON into configuration, link the
+  domain as a runtime-installed package, discover modules automatically, or
+  fetch modules remotely
+
 #### Scenario: Discover and load workspace configuration
 
 - **WHEN** a CLI command selects a workspace without an explicit workspace path
@@ -531,6 +543,8 @@ single Formless configuration entrypoint for a workspace.
 - **AND** the CLI resolves omitted configuration values to their defaults
   before workspace consumers use them
 - **AND** discovery does not select alternate configuration filenames
+- **AND** TypeScript evaluation is limited to trusted local configuration and
+  build/materialization time rather than Worker request handling
 
 #### Scenario: Keep operational configuration invariants
 
@@ -719,6 +733,11 @@ bundled Worker and browser runtime build setup used by local dev and push.
 - **AND** browser runtime extensions share singleton React and React DOM modules
   with the browser runtime even when their workspace source resolves through a
   different physical package installation
+- **AND** build setup materializes and injects one data-only complete workspace
+  Program artifact and canonical provenance for local dev and deployed Worker
+  startup
+- **AND** Worker request handling loads that artifact without importing or
+  evaluating workspace TypeScript
 
 ### Requirement: Workspace Save From Local Authority
 

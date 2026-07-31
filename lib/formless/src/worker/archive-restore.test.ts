@@ -9,7 +9,10 @@ import {
   type InstanceArchive,
 } from "../program/archive.ts";
 import type { AppInstall, InstallableAppPackage } from "@dpeek/formless-installed-apps";
-import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
+import {
+  installedAppStorageIdentity,
+  programStorageIdentity,
+} from "../shared/app-storage-identity.ts";
 import { bundledSourceSchemaHashFixtures } from "../shared/upgrade-migrations.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
@@ -515,6 +518,44 @@ describe("archive restore execution", () => {
     );
   });
 
+  it("restores immutable global Program documents without owner metadata", async () => {
+    const object = programDocumentMediaObject("program-report", "private");
+    const writes: Array<{
+      customMetadata?: Record<string, string>;
+      key: string;
+    }> = [];
+
+    const response = await restoreArchiveMediaObjectToStore(
+      {
+        getObject: async () => undefined,
+        putObject: async (write) => {
+          writes.push(write);
+        },
+      },
+      programStorageIdentity(),
+      object,
+      documentBytes,
+    );
+
+    expect(response).toMatchObject({
+      asset: expect.not.objectContaining({
+        ownerAppInstallId: expect.anything(),
+      }),
+      assetId: "program-report.pdf",
+      href: "/api/formless/program/media/documents/program-report.pdf",
+      key: "media/program/documents/program-report.pdf",
+    });
+    expect(writes).toEqual([
+      expect.objectContaining({
+        contentType: "application/pdf",
+        key: "media/program/documents/program-report.pdf",
+        customMetadata: expect.not.objectContaining({
+          "formless-media-owner-app-install-id": expect.anything(),
+        }),
+      }),
+    ]);
+  });
+
   it("preflights immutable document collisions before install or record mutation", async () => {
     const schema = documentSourceSchema();
     const object = documentMediaObject("report", "private");
@@ -828,6 +869,37 @@ function documentMediaObject(
     storageKey,
   };
 }
+
+function programDocumentMediaObject(
+  name: string,
+  access: "public" | "private",
+): AppArchiveMediaObject {
+  const id = `${name}.pdf`;
+  const storageKey = `media/program/documents/${id}`;
+  const deliveryHref = `/api/formless/program/media/documents/${id}`;
+
+  return {
+    archivePath: `media/program/${storageKey}`,
+    asset: {
+      access,
+      byteSize: documentBytes.byteLength,
+      contentType: "application/pdf",
+      deliveryHref,
+      filename: id,
+      id,
+      kind: "document",
+      label: id,
+      provider: "r2",
+      status: "ready",
+      storageKey,
+    },
+    byteSize: documentBytes.byteLength,
+    contentType: "application/pdf",
+    deliveryHref,
+    storageKey,
+  };
+}
+
 function documentSourceSchema() {
   const schema = structuredClone(siteSourceSchema);
   const block = schema.entities.find((definition) => definition.key === "block")!;

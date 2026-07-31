@@ -6,6 +6,7 @@ import {
   MEDIA_OBJECT_CACHE_CONTROL,
   MEDIA_PDF_CONTENT_TYPE,
   MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL,
+  PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX,
 } from "./types.ts";
 import type {
   DocumentMediaAccess,
@@ -34,6 +35,7 @@ export {
   MEDIA_PDF_CONTENT_TYPE,
   MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL,
   MEDIA_PUBLIC_CONTRACT_VERSION,
+  PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX,
 } from "./types.ts";
 export type {
   DocumentMediaAccess,
@@ -158,11 +160,21 @@ export function appDocumentMediaKeyPrefixForOwner(ownerAppInstallId: string): st
   return `${APP_DOCUMENT_MEDIA_KEY_PREFIX}/${ownerAppInstallId}/documents/`;
 }
 
+export function documentMediaKeyPrefix(
+  options: {
+    ownerAppInstallId?: string;
+  } = {},
+): string | undefined {
+  return options.ownerAppInstallId === undefined
+    ? `${PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX}/`
+    : appDocumentMediaKeyPrefixForOwner(options.ownerAppInstallId);
+}
+
 export function documentMediaStorageKeyForAssetId(
   assetId: string,
-  options: { ownerAppInstallId: string },
+  options: { ownerAppInstallId?: string } = {},
 ): string | undefined {
-  const keyPrefix = appDocumentMediaKeyPrefixForOwner(options.ownerAppInstallId);
+  const keyPrefix = documentMediaKeyPrefix(options);
 
   if (!keyPrefix || !isValidDocumentMediaAssetId(assetId)) {
     return undefined;
@@ -173,9 +185,9 @@ export function documentMediaStorageKeyForAssetId(
 
 export function isRestorableDocumentMediaKey(
   key: string,
-  options: { ownerAppInstallId: string },
+  options: { ownerAppInstallId?: string } = {},
 ): boolean {
-  const keyPrefix = appDocumentMediaKeyPrefixForOwner(options.ownerAppInstallId);
+  const keyPrefix = documentMediaKeyPrefix(options);
 
   return (
     keyPrefix !== undefined &&
@@ -215,27 +227,37 @@ export function isDocumentMediaAsset(value: unknown): value is DocumentMediaAsse
     typeof value.filename !== "string" ||
     value.filename.trim() === "" ||
     !isDocumentMediaAccess(value.access) ||
-    typeof value.ownerAppInstallId !== "string" ||
     value.byteSize === 0
   ) {
     return false;
   }
 
+  if ("ownerAppInstallId" in value && typeof value.ownerAppInstallId !== "string") {
+    return false;
+  }
+
+  const ownerAppInstallId =
+    typeof value.ownerAppInstallId === "string" ? value.ownerAppInstallId : undefined;
+
   return (
     isValidDocumentMediaAssetId(value.id) &&
-    documentMediaStorageKeyForAssetId(value.id, {
-      ownerAppInstallId: value.ownerAppInstallId,
-    }) === value.storageKey
+    documentMediaStorageKeyForAssetId(
+      value.id,
+      ownerAppInstallId === undefined ? {} : { ownerAppInstallId },
+    ) === value.storageKey
   );
 }
 
 export function documentMediaAssetMatchesOwner(
   asset: DocumentMediaAsset,
-  ownerAppInstallId: string,
+  ownerAppInstallId?: string,
 ): boolean {
   return (
     asset.ownerAppInstallId === ownerAppInstallId &&
-    documentMediaStorageKeyForAssetId(asset.id, { ownerAppInstallId }) === asset.storageKey
+    documentMediaStorageKeyForAssetId(
+      asset.id,
+      ownerAppInstallId === undefined ? {} : { ownerAppInstallId },
+    ) === asset.storageKey
   );
 }
 
@@ -326,8 +348,7 @@ export function mediaAssetFromObjectMetadata(
     kind !== "document" ||
     !filename ||
     byteSize === 0 ||
-    !isDocumentMediaAccess(documentAccess) ||
-    !ownerAppInstallId
+    !isDocumentMediaAccess(documentAccess)
   ) {
     return undefined;
   }
@@ -341,7 +362,7 @@ export function mediaAssetFromObjectMetadata(
     id,
     kind,
     label,
-    ownerAppInstallId,
+    ...(ownerAppInstallId ? { ownerAppInstallId } : {}),
     provider,
     status,
     storageKey,
@@ -361,7 +382,9 @@ export function mediaObjectMetadataForAsset(asset: MediaAsset): MediaAssetMetada
       [MEDIA_ASSET_METADATA_KEYS.filename]: asset.filename,
       [MEDIA_ASSET_METADATA_KEYS.kind]: asset.kind,
       [MEDIA_ASSET_METADATA_KEYS.label]: asset.label,
-      [MEDIA_ASSET_METADATA_KEYS.ownerAppInstallId]: asset.ownerAppInstallId,
+      ...(asset.ownerAppInstallId === undefined
+        ? {}
+        : { [MEDIA_ASSET_METADATA_KEYS.ownerAppInstallId]: asset.ownerAppInstallId }),
       [MEDIA_ASSET_METADATA_KEYS.provider]: asset.provider,
       [MEDIA_ASSET_METADATA_KEYS.status]: asset.status,
       [MEDIA_ASSET_METADATA_KEYS.storageKey]: asset.storageKey,
@@ -423,12 +446,13 @@ export function documentMediaDeliveryFactsForAssetId(
   assetId: string,
   options: {
     hrefForAssetId: (assetId: string) => string;
-    ownerAppInstallId: string;
+    ownerAppInstallId?: string;
   },
 ): DocumentMediaAssetDeliveryFacts | undefined {
-  const storageKey = documentMediaStorageKeyForAssetId(assetId, {
-    ownerAppInstallId: options.ownerAppInstallId,
-  });
+  const storageKey = documentMediaStorageKeyForAssetId(
+    assetId,
+    options.ownerAppInstallId === undefined ? {} : { ownerAppInstallId: options.ownerAppInstallId },
+  );
 
   if (!storageKey) {
     return undefined;
@@ -438,7 +462,9 @@ export function documentMediaDeliveryFactsForAssetId(
     assetId,
     href: options.hrefForAssetId(assetId),
     kind: "document",
-    ownerAppInstallId: options.ownerAppInstallId,
+    ...(options.ownerAppInstallId === undefined
+      ? {}
+      : { ownerAppInstallId: options.ownerAppInstallId }),
     storageKey,
   };
 }

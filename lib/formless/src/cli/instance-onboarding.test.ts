@@ -1034,6 +1034,8 @@ describe("Alchemy Formless instance deployment", () => {
         },
         stateRoot: "/state",
         workspaceAppPackages: "runtime-package-payload",
+        workspaceProgramArtifact: "program-artifact-payload",
+        workspaceProgramArtifactPath: "/workspace/.formless/local/formless-program.json",
         workspaceRoot: "/workspace",
         workspaceRuntimeExtensions,
       },
@@ -1145,6 +1147,8 @@ describe("Alchemy Formless instance deployment", () => {
               FORMLESS_DOMAIN_PROVIDER_INSTANCE_ID: "brother-instance",
               FORMLESS_DOMAIN_PROVIDER_WORKER_NAME: "brother-instance",
               FORMLESS_RUNTIME_PROFILE: "instance",
+              FORMLESS_WORKSPACE_PROGRAM_ARTIFACT_PATH:
+                "/workspace/.formless/local/formless-program.json",
               [FORMLESS_SITE_PROJECT_ROOT_ENV_NAME]: "/workspace",
               [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: "runtime-package-payload",
               [FORMLESS_WORKSPACE_RUNTIME_EXTENSIONS_ENV_NAME]: workspaceRuntimeExtensions,
@@ -1153,6 +1157,7 @@ describe("Alchemy Formless instance deployment", () => {
           },
           bundle: {
             define: {
+              __FORMLESS_PROGRAM_ARTIFACT_JSON__: JSON.stringify("program-artifact-payload"),
               __FORMLESS_WORKSPACE_APP_PACKAGES_JSON__: JSON.stringify("runtime-package-payload"),
             },
             plugins: [

@@ -409,7 +409,12 @@ function parseMediaAsset(context: string, value: unknown): MediaAsset {
   }
 
   if (object.kind === "document") {
-    assertExactKeys(context, object, [...baseKeys, "access", "filename", "ownerAppInstallId"]);
+    assertExactKeys(context, object, [
+      ...baseKeys,
+      "access",
+      "filename",
+      ...("ownerAppInstallId" in object ? ["ownerAppInstallId"] : []),
+    ]);
 
     const asset = {
       access: parseDocumentAccess(`${context} access`, object.access),
@@ -420,10 +425,14 @@ function parseMediaAsset(context: string, value: unknown): MediaAsset {
       id: parseTrimmedNonEmptyString(`${context} id`, object.id),
       kind: "document" as const,
       label: parseTrimmedNonEmptyString(`${context} label`, object.label),
-      ownerAppInstallId: parseTrimmedNonEmptyString(
-        `${context} ownerAppInstallId`,
-        object.ownerAppInstallId,
-      ),
+      ...("ownerAppInstallId" in object
+        ? {
+            ownerAppInstallId: parseTrimmedNonEmptyString(
+              `${context} ownerAppInstallId`,
+              object.ownerAppInstallId,
+            ),
+          }
+        : {}),
       provider: parseTrimmedNonEmptyString(`${context} provider`, object.provider),
       status: "ready" as const,
       storageKey: parseRelativeKey(`${context} storageKey`, object.storageKey),
@@ -762,7 +771,9 @@ function canonicalMediaAsset(asset: MediaAsset): MediaAsset {
       id: asset.id,
       kind: asset.kind,
       label: asset.label,
-      ownerAppInstallId: asset.ownerAppInstallId,
+      ...(asset.ownerAppInstallId === undefined
+        ? {}
+        : { ownerAppInstallId: asset.ownerAppInstallId }),
       provider: asset.provider,
       status: asset.status,
       storageKey: asset.storageKey,

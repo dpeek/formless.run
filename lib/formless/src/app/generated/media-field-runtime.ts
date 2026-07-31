@@ -57,7 +57,7 @@ export async function uploadGeneratedMediaFile({
   if (field.asset?.kind === "document") {
     const target = generatedDocumentMediaTarget(appTarget, entityName, fieldName);
     if (!target) {
-      throw new Error("Document media is available only for an installed app.");
+      throw new Error("Document media is unavailable for this app target.");
     }
     const upload = await uploadAppDocumentMediaFile(file, target);
     if (!upload.asset) {

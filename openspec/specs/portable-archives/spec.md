@@ -117,6 +117,8 @@ browser replica state.
   snapshots
 - AND core images referenced by Program-native Site records are carried by a
   Program media manifest using archive paths under `media/program/`
+- AND Program document media is carried by that same Program media manifest
+  without app-install owner metadata or package media namespaces
 - AND archive media files are written at manifest archive paths
 - AND protected target reads use owner session or admin bearer authorization
   supplied by the caller

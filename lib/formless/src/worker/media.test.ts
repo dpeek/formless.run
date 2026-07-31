@@ -5,6 +5,11 @@ import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import { formlessProgramSchema } from "../program/runtime.ts";
+import {
+  FORMLESS_PROGRAM_ARTIFACT_DEFINE_NAME,
+  formatFormlessProgramArtifact,
+  materializeFormlessProgramSourceArtifact,
+} from "../program/artifact.ts";
 import type { DocumentMediaAsset } from "@dpeek/formless-media";
 
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
@@ -40,6 +45,7 @@ const pdfBytes = new TextEncoder().encode("%PDF-1.7\nFormless document media tes
 const privateDocumentField = "privateReport";
 const publicDocumentField = "publicReport";
 const taskPackageAppKey = "test-tasks";
+const programMediaSchema = programDocumentSchema(formlessProgramSchema);
 const owner: OwnerIdentity = {
   id: "owner-1",
   name: "Ada Owner",
@@ -61,6 +67,7 @@ beforeAll(async () => {
   const taskPackages = formatRuntimeWorkspaceAppPackages([
     await runtimeWorkspaceTaskAppPackageFixture({ packageAppKey: taskPackageAppKey }),
   ]);
+  const programArtifact = await materializeFormlessProgramSourceArtifact(programMediaSchema);
   harness = await createWorkerHarness(
     "src/worker/index.ts",
     {
@@ -88,6 +95,11 @@ beforeAll(async () => {
         [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: taskPackages,
       },
       compatibilityDate: FORMLESS_WORKER_COMPATIBILITY_DATE,
+      define: {
+        [FORMLESS_PROGRAM_ARTIFACT_DEFINE_NAME]: JSON.stringify(
+          formatFormlessProgramArtifact(programArtifact),
+        ),
+      },
       r2Buckets: mediaBuckets,
     },
   );
@@ -96,7 +108,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await clearMediaBucket(harness);
   await clearMediaBucket(guardedHarness);
-  await resetTestIdentityStorage(guardedHarness, adminToken);
+  await resetTestIdentityStorage(guardedHarness, adminToken, programMediaSchema);
 });
 
 afterAll(async () => {
@@ -639,6 +651,88 @@ describe("media worker routes", () => {
     expect((await headResponse.arrayBuffer()).byteLength).toBe(0);
     expect(wrongOwnerRoute.status).toBe(404);
   });
+
+  it("uses Program field policy and role authorization for global public and private documents", async () => {
+    await configureProgramDocumentSchema();
+
+    const editor = await createPrincipalSession({
+      displayName: "Program Document Editor",
+      role: "editor",
+    });
+    const member = await createPrincipalSession({
+      displayName: "Program Document Member",
+      role: "member",
+    });
+    const privateUpload = await uploadProgramDocument(
+      privateDocumentField,
+      documentFile("program-private.pdf"),
+      editor.headers,
+    );
+    const publicUpload = await uploadProgramDocument(
+      publicDocumentField,
+      documentFile("program-public.pdf"),
+      editor.headers,
+    );
+
+    await expectResponseStatus(privateUpload, 200);
+    await expectResponseStatus(publicUpload, 200);
+
+    const privateAsset = (
+      (await privateUpload.json()) as {
+        asset: DocumentMediaAsset;
+      }
+    ).asset;
+    const publicAsset = (
+      (await publicUpload.json()) as {
+        asset: DocumentMediaAsset;
+      }
+    ).asset;
+    const anonymousList = await listProgramDocuments(privateDocumentField);
+    const memberList = await listProgramDocuments(privateDocumentField, member.headers);
+    const editorPrivateList = await listProgramDocuments(privateDocumentField, editor.headers);
+    const editorPublicList = await listProgramDocuments(publicDocumentField, editor.headers);
+    const anonymousPrivateRead = await guardedHarness.fetch(privateAsset.deliveryHref);
+    const memberPrivateRead = await guardedHarness.fetch(privateAsset.deliveryHref, {
+      headers: member.headers,
+    });
+    const anonymousPublicRead = await guardedHarness.fetch(publicAsset.deliveryHref);
+
+    expect(privateAsset).toMatchObject({
+      access: "private",
+      contentType: "application/pdf",
+      deliveryHref: expect.stringMatching(/^\/api\/formless\/program\/media\/documents\/.+\.pdf$/),
+      kind: "document",
+      storageKey: expect.stringMatching(/^media\/program\/documents\/.+\.pdf$/),
+    });
+    expect(privateAsset).not.toHaveProperty("ownerAppInstallId");
+    expect(publicAsset).toMatchObject({
+      access: "public",
+      kind: "document",
+      storageKey: expect.stringMatching(/^media\/program\/documents\/.+\.pdf$/),
+    });
+    expect(publicAsset).not.toHaveProperty("ownerAppInstallId");
+    expect(anonymousList.status).toBe(401);
+    expect(memberList.status).toBe(401);
+    expect((await editorPrivateList.json()) as unknown).toEqual({
+      assets: [privateAsset],
+    });
+    expect((await editorPublicList.json()) as unknown).toEqual({
+      assets: [publicAsset],
+    });
+    expect(anonymousPrivateRead.status).toBe(401);
+    expect(memberPrivateRead.status).toBe(200);
+    expect(memberPrivateRead.headers.get("Cache-Control")).toBe(
+      MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL,
+    );
+    expect(new Uint8Array(await memberPrivateRead.arrayBuffer())).toEqual(pdfBytes);
+    expect(anonymousPublicRead.status).toBe(200);
+    expect(anonymousPublicRead.headers.get("Cache-Control")).toBe(MEDIA_OBJECT_CACHE_CONTROL);
+    expect(new Uint8Array(await anonymousPublicRead.arrayBuffer())).toEqual(pdfBytes);
+    await expectMediaBucketKeysUnordered(guardedHarness, [
+      privateAsset.storageKey,
+      publicAsset.storageKey,
+    ]);
+  });
 });
 
 async function configureDocumentSchema(installId: string) {
@@ -690,10 +784,60 @@ async function configureDocumentSchema(installId: string) {
   });
 }
 
+async function configureProgramDocumentSchema() {
+  const schemaPath = `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/schema`;
+  const current = await guardedHarness.fetch(schemaPath, {
+    headers: adminHeaders(),
+  });
+  expect(current.status).toBe(200);
+  const body = (await current.json()) as SchemaResponse;
+  const schema = programDocumentSchema(body.schema);
+  const update = await guardedHarness.fetch(schemaPath, {
+    body: JSON.stringify({ schema }),
+    headers: adminHeaders({ "Content-Type": "application/json" }),
+    method: "POST",
+  });
+
+  expect(update.status).toBe(200);
+}
+
+function programDocumentSchema(source: SchemaResponse["schema"]) {
+  const schema = structuredClone(source);
+  const task = schema.entities.find((definition) => definition.key === "task");
+
+  if (!task) {
+    throw new Error("Expected Program Task schema.");
+  }
+
+  setKeyedDefinition(task.fields, privateDocumentField, {
+    asset: {
+      acceptedMimeTypes: ["application/pdf"],
+      access: "private",
+      kind: "document",
+      maxBytes: 1024,
+    },
+    label: "Private Program report",
+    required: false,
+    type: "text",
+  });
+  setKeyedDefinition(task.fields, publicDocumentField, {
+    asset: {
+      acceptedMimeTypes: ["application/pdf"],
+      access: "public",
+      kind: "document",
+      maxBytes: 1024,
+    },
+    label: "Public Program report",
+    required: false,
+    type: "text",
+  });
+  return schema;
+}
+
 async function createPrincipalSession(input: {
   appInstallId?: string;
   displayName: string;
-  role: "app.admin" | "administrator" | "editor";
+  role: "app.admin" | "administrator" | "editor" | "member";
 }) {
   const key = input.displayName.replace(/\W+/g, "-").toLowerCase();
   const principal = await postIdentityRecordOperation({
@@ -733,7 +877,7 @@ async function createPrincipalSession(input: {
   };
 }
 
-function programRoleId(roleKey: "administrator" | "editor"): string {
+function programRoleId(roleKey: "administrator" | "editor" | "member"): string {
   const role = formlessProgramSchema.authorization?.roles.find(
     (candidate) => candidate.key === roleKey,
   );
@@ -822,6 +966,32 @@ function listAppDocuments(
   headers: Record<string, string> = {},
 ) {
   return guardedHarness.fetch(documentCollectionPath(installId, fieldName), { headers });
+}
+
+function uploadProgramDocument(
+  fieldName: string,
+  file: TestFile,
+  headers: Record<string, string> = {},
+) {
+  return uploadForm(
+    guardedHarness,
+    multipartFormData([file]),
+    headers,
+    programDocumentCollectionPath(fieldName),
+  );
+}
+
+function listProgramDocuments(fieldName: string, headers: Record<string, string> = {}) {
+  return guardedHarness.fetch(programDocumentCollectionPath(fieldName), { headers });
+}
+
+function programDocumentCollectionPath(fieldName: string) {
+  const query = new URLSearchParams({
+    entity: "task",
+    field: fieldName,
+  });
+
+  return `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/media/documents?${query.toString()}`;
 }
 
 function documentCollectionPath(installId: string, fieldName: string) {

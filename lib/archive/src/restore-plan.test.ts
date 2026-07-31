@@ -311,6 +311,54 @@ describe("archive restore planner", () => {
     ]);
   });
 
+  it("plans schema-referenced global Program document restores before Program records", () => {
+    const schema = documentSourceSchema();
+    const bytes = pdfBytes("Program private report");
+    const object = programDocumentMediaObject("program-report", "private", bytes.byteLength);
+    const controlPlane = storageSnapshot({
+      storageIdentity: "instance:control-plane",
+      schemaKey: "formless-program",
+      schema,
+      records: [
+        siteRecord("rec_site_settings_program", "program"),
+        blockRecord("rec_block_program_report", "Program report", {
+          documentAssetId: "program-report.pdf",
+        }),
+      ],
+    });
+    const plan = expectPlan(
+      planInstanceArchiveRestore(
+        instanceArchive({
+          apps: [],
+          controlPlane,
+          media: { objects: [object] },
+        }),
+        {
+          controlPlaneSnapshotContract: {
+            canonicalize: (snapshot) => snapshot,
+            parse: (_context, value) => value as StorageSnapshot,
+          },
+          mediaFiles: [programDocumentMediaFile("program-report", bytes)],
+        },
+      ),
+    );
+
+    expect(plan.summary.programMediaCount).toBe(1);
+    expect(plan.steps.map((step) => step.kind)).toEqual(["restoreMedia"]);
+    expect(plan.steps[0]).toMatchObject({
+      asset: {
+        access: "private",
+        filename: "program-report.pdf",
+        kind: "document",
+      },
+      archivePath: "media/program/media/program/documents/program-report.pdf",
+      kind: "restoreMedia",
+      program: true,
+      storageKey: "media/program/documents/program-report.pdf",
+    });
+    expect(plan.steps[0]).not.toHaveProperty("asset.ownerAppInstallId");
+  });
+
   it("rejects Program media outside the Program archive path", () => {
     const controlPlane = storageSnapshot({
       storageIdentity: "instance:control-plane",
@@ -1054,6 +1102,46 @@ function documentMediaObject(
 function documentMediaFile(name: string, bytes: Uint8Array): ArchiveRestoreMediaFile {
   return {
     archivePath: `media/personal/media/app-installs/personal/documents/${name}.pdf`,
+    byteSize: bytes.byteLength,
+    bytes,
+    contentType: "application/pdf",
+  };
+}
+
+function programDocumentMediaObject(
+  name: string,
+  access: "public" | "private",
+  byteSize: number,
+): AppArchiveMediaObject {
+  const id = `${name}.pdf`;
+  const storageKey = `media/program/documents/${id}`;
+  const deliveryHref = `/api/formless/program/media/documents/${id}`;
+
+  return {
+    archivePath: `media/program/${storageKey}`,
+    asset: {
+      access,
+      byteSize,
+      contentType: "application/pdf",
+      deliveryHref,
+      filename: id,
+      id,
+      kind: "document",
+      label: id,
+      provider: "r2",
+      status: "ready",
+      storageKey,
+    },
+    byteSize,
+    contentType: "application/pdf",
+    deliveryHref,
+    storageKey,
+  };
+}
+
+function programDocumentMediaFile(name: string, bytes: Uint8Array): ArchiveRestoreMediaFile {
+  return {
+    archivePath: `media/program/media/program/documents/${name}.pdf`,
     byteSize: bytes.byteLength,
     bytes,
     contentType: "application/pdf",

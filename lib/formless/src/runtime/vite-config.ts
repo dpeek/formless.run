@@ -1,10 +1,17 @@
 import path from "node:path";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { astryxStylex } from "@astryxdesign/build/vite";
 import { cloudflare, type PluginConfig, type WorkerConfig } from "@cloudflare/vite-plugin";
 import react from "@vitejs/plugin-react";
 import { type Plugin, type PluginOption } from "vite-plus";
+import {
+  FORMLESS_PROGRAM_ARTIFACT_DEFINE_NAME,
+  FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME,
+  formatFormlessProgramArtifact,
+  parseFormlessProgramArtifactData,
+} from "../program/artifact.ts";
 import {
   FORMLESS_INSTANCE_AUTH_ORIGIN_ENV_NAME,
   FORMLESS_INSTANCE_AUTH_RELYING_PARTY_ID_ENV_NAME,
@@ -64,6 +71,7 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
   const installedNodeModulesRoot = packageInstallNodeModulesRoot(packageRoot);
   const siteProjectRoot = env[FORMLESS_SITE_PROJECT_ROOT_ENV_NAME];
   const workspaceAppPackages = env[FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]?.trim();
+  const workspaceProgramArtifact = runtimeFormlessProgramArtifactFromEnv(env);
   const serverFsAllow = [
     packageRoot,
     ...(workspaceRoot === packageRoot ? [] : [workspaceRoot]),
@@ -97,6 +105,7 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
       },
     },
     define: {
+      [FORMLESS_PROGRAM_ARTIFACT_DEFINE_NAME]: JSON.stringify(workspaceProgramArtifact ?? ""),
       __FORMLESS_WORKSPACE_APP_PACKAGES_JSON__: JSON.stringify(workspaceAppPackages ?? ""),
     },
     plugins: [
@@ -126,6 +135,20 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
       },
     },
   };
+}
+
+export function runtimeFormlessProgramArtifactFromEnv(env: NodeJS.ProcessEnv): string | undefined {
+  const artifactPath = env[FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME]?.trim();
+
+  if (!artifactPath) {
+    return undefined;
+  }
+
+  const value = parseFormlessProgramArtifactData(
+    JSON.parse(readFileSync(artifactPath, "utf8")) as unknown,
+  );
+
+  return formatFormlessProgramArtifact(value);
 }
 
 function isSharedClientCssAsset(fileName: string): boolean {

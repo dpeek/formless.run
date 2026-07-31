@@ -94,6 +94,7 @@ import {
 import {
   createActiveWorkspaceAppPackages,
   createWorkspaceTempRoot,
+  materializeActiveWorkspaceProgramArtifact,
   readWorkspaceConfig,
   resolveFormlessInstanceWorkspaceRoot,
   runtimeWorkspaceAppPackagesEnvValue,
@@ -155,7 +156,7 @@ export type PushFormlessInstanceWorkspaceSource = {
 };
 
 export type PushFormlessInstanceWorkspaceRuntimeRebuild = {
-  reason: "force" | "runtime-extensions-configured";
+  reason: "force" | "program-artifact-configured" | "runtime-extensions-configured";
   status: "applied" | "available";
 };
 
@@ -280,6 +281,8 @@ export type PlanDeployLocalFormlessWorkspaceResult = LocalWorkspaceDeploymentPla
   configPath: string;
   preflight?: CheckFormlessInstanceWorkspaceResult;
   workspaceAppPackages?: string;
+  workspaceProgramArtifact: string;
+  workspaceProgramArtifactPath: string;
   workspaceRuntimeExtensions?: string;
   workspaceRoot: string;
 };
@@ -296,6 +299,8 @@ export type PlanDeployFormlessInstanceWorkspaceResult = {
   providerBearer?: FormlessCliProviderBearerMaterial;
   selectedTarget: FormlessInstanceWorkspaceTarget;
   workspaceAppPackages?: string;
+  workspaceProgramArtifact: string;
+  workspaceProgramArtifactPath: string;
   workspaceRuntimeExtensions?: string;
   workspaceRoot: string;
 };
@@ -480,13 +485,17 @@ export async function pushFormlessInstanceWorkspace(
     const { forcedRecovery, hasDataChanges, source, syncPlan } = sourceSync;
     const packageResolver = sourceSync.packageResolver;
     const runtimeRebuild =
-      planned.workspaceRuntimeExtensions === undefined && input.force !== true
+      planned.config.programSource === undefined &&
+      planned.workspaceRuntimeExtensions === undefined &&
+      input.force !== true
         ? undefined
         : {
             reason:
-              planned.workspaceRuntimeExtensions === undefined
-                ? ("force" as const)
-                : ("runtime-extensions-configured" as const),
+              planned.config.programSource !== undefined
+                ? ("program-artifact-configured" as const)
+                : planned.workspaceRuntimeExtensions === undefined
+                  ? ("force" as const)
+                  : ("runtime-extensions-configured" as const),
             status: (input.apply ? "applied" : "available") as "applied" | "available",
           };
     const forcedRecoveryActive = forcedRecovery !== undefined;
@@ -771,6 +780,8 @@ async function applyWorkspacePushProviderReconciliation(
       },
       stateRoot: deploymentStateRoot,
       workspaceRoot,
+      workspaceProgramArtifact: planned.workspaceProgramArtifact,
+      workspaceProgramArtifactPath: planned.workspaceProgramArtifactPath,
       ...(planned.workspaceAppPackages === undefined
         ? {}
         : { workspaceAppPackages: planned.workspaceAppPackages }),
@@ -964,6 +975,8 @@ export async function deployLocalFormlessWorkspace(
       },
       stateRoot: deploymentStateRoot,
       workspaceRoot,
+      workspaceProgramArtifact: planned.workspaceProgramArtifact,
+      workspaceProgramArtifactPath: planned.workspaceProgramArtifactPath,
       ...(planned.workspaceAppPackages === undefined
         ? {}
         : { workspaceAppPackages: planned.workspaceAppPackages }),
@@ -1329,6 +1342,7 @@ export async function planDeployLocalFormlessWorkspace(
     targetId: planned.selectedTarget.alias,
   });
   const workspaceAppPackages = runtimeWorkspaceAppPackagesEnvValue(activePackages);
+  const activeProgram = await materializeActiveWorkspaceProgramArtifact(workspaceRoot, config);
   const workspaceRuntimeExtensions = runtimeWorkspaceExtensionsEnvValue(config);
 
   return {
@@ -1338,6 +1352,8 @@ export async function planDeployLocalFormlessWorkspace(
     configPath,
     ...(preflight === undefined ? {} : { preflight }),
     ...(workspaceAppPackages === undefined ? {} : { workspaceAppPackages }),
+    workspaceProgramArtifact: activeProgram.contents,
+    workspaceProgramArtifactPath: activeProgram.path,
     ...(workspaceRuntimeExtensions === undefined ? {} : { workspaceRuntimeExtensions }),
     workspaceRoot,
   };
@@ -1468,6 +1484,8 @@ export async function deployFormlessInstanceWorkspace(
     },
     stateRoot: deploymentStateRoot,
     workspaceRoot,
+    workspaceProgramArtifact: planned.workspaceProgramArtifact,
+    workspaceProgramArtifactPath: planned.workspaceProgramArtifactPath,
     ...(planned.workspaceAppPackages === undefined
       ? {}
       : { workspaceAppPackages: planned.workspaceAppPackages }),
@@ -1541,6 +1559,7 @@ export async function planDeployFormlessInstanceWorkspace(
     selectedTarget,
   });
   const workspaceAppPackages = runtimeWorkspaceAppPackagesEnvValue(activePackages);
+  const activeProgram = await materializeActiveWorkspaceProgramArtifact(workspaceRoot, config);
   const workspaceRuntimeExtensions = runtimeWorkspaceExtensionsEnvValue(config);
   const credentialContext = await resolveLocalWorkspaceDeploymentCredentialContext({
     credential: deploymentSource.credential,
@@ -1559,6 +1578,8 @@ export async function planDeployFormlessInstanceWorkspace(
       : { providerBearer: credentialContext.providerBearer }),
     selectedTarget,
     ...(workspaceAppPackages === undefined ? {} : { workspaceAppPackages }),
+    workspaceProgramArtifact: activeProgram.contents,
+    workspaceProgramArtifactPath: activeProgram.path,
     ...(workspaceRuntimeExtensions === undefined ? {} : { workspaceRuntimeExtensions }),
     workspaceRoot,
   };

@@ -7,6 +7,10 @@ import type { Queue as CloudflareQueue } from "alchemy/cloudflare";
 import type { DeployEvidenceSummary, DeployResourceGraph } from "@dpeek/formless-deploy";
 
 import {
+  FORMLESS_PROGRAM_ARTIFACT_DEFINE_NAME,
+  FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME,
+} from "../program/artifact.ts";
+import {
   FORMLESS_DEPLOY_METADATA_PATH,
   FORMLESS_RUNTIME_PROTOCOL_VERSION,
   FORMLESS_STORAGE_MIGRATION_SET_ID,
@@ -193,6 +197,8 @@ export type DeployFormlessInstanceInput = {
   secrets: FormlessInstanceDeploymentSecrets;
   stateRoot: string;
   workspaceAppPackages?: string;
+  workspaceProgramArtifact?: string;
+  workspaceProgramArtifactPath?: string;
   workspaceRoot?: string;
   workspaceRuntimeExtensions?: string;
 };
@@ -330,10 +336,12 @@ export type AlchemyFormlessInstanceDeploymentWorkerProps = {
       [FORMLESS_SITE_PROJECT_ROOT_ENV_NAME]?: string;
       [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]?: string;
       [FORMLESS_WORKSPACE_RUNTIME_EXTENSIONS_ENV_NAME]?: string;
+      [FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME]?: string;
     };
   };
   bundle: {
     define: {
+      [FORMLESS_PROGRAM_ARTIFACT_DEFINE_NAME]: string;
       __FORMLESS_WORKSPACE_APP_PACKAGES_JSON__: string;
     };
     plugins: EsbuildPlugin[];
@@ -423,6 +431,8 @@ type DeclareFormlessInstanceAlchemyResourceTreeInput = {
   plan: FormlessInstanceDeploymentPlan;
   resourceGraph?: DeployResourceGraph;
   workspaceAppPackages?: string;
+  workspaceProgramArtifact?: string;
+  workspaceProgramArtifactPath?: string;
   workspaceRoot?: string;
   workspaceRuntimeExtensions?: string;
 };
@@ -960,6 +970,11 @@ async function declareFormlessInstanceAlchemyResourceTree(
         ...(input.workspaceAppPackages === undefined
           ? {}
           : { [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: input.workspaceAppPackages }),
+        ...(input.workspaceProgramArtifactPath === undefined
+          ? {}
+          : {
+              [FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME]: input.workspaceProgramArtifactPath,
+            }),
         ...(input.workspaceRuntimeExtensions === undefined
           ? {}
           : {
@@ -969,6 +984,9 @@ async function declareFormlessInstanceAlchemyResourceTree(
     },
     bundle: {
       define: {
+        [FORMLESS_PROGRAM_ARTIFACT_DEFINE_NAME]: JSON.stringify(
+          input.workspaceProgramArtifact ?? "",
+        ),
         __FORMLESS_WORKSPACE_APP_PACKAGES_JSON__: JSON.stringify(input.workspaceAppPackages ?? ""),
       },
       plugins: [
@@ -1068,6 +1086,12 @@ export async function deployFormlessInstanceWithAlchemy(
     ...(input.workspaceAppPackages === undefined
       ? {}
       : { workspaceAppPackages: input.workspaceAppPackages }),
+    ...(input.workspaceProgramArtifact === undefined
+      ? {}
+      : { workspaceProgramArtifact: input.workspaceProgramArtifact }),
+    ...(input.workspaceProgramArtifactPath === undefined
+      ? {}
+      : { workspaceProgramArtifactPath: input.workspaceProgramArtifactPath }),
     ...(workspaceRoot === undefined ? {} : { workspaceRoot }),
     ...(input.workspaceRuntimeExtensions === undefined
       ? {}

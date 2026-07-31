@@ -18,6 +18,7 @@ import { crmPresentationSchemaModule, crmRecordSchemaModule } from "@dpeek/forml
 import {
   composeAppSchema,
   defineAppSchemaModule,
+  type AppSchemaCompositionSource,
   type AppSchemaSource,
 } from "@dpeek/formless-schema";
 
@@ -232,59 +233,87 @@ export const formlessProgramPresentationSchemaModule = defineAppSchemaModule({
   ],
 });
 
+export const formlessProgramBuiltInModules = {
+  instanceControlPlaneRecords: instanceControlPlaneRecordSchemaModule,
+  identityControlPlaneRecords: identityControlPlaneRecordSchemaModule,
+  tasksRecords: formlessTasksRecordSchemaModule,
+  siteRecords: formlessSiteRecordSchemaModule,
+  crmRecords: formlessCrmRecordSchemaModule,
+  instanceControlPlanePresentation: formlessInstanceControlPlanePresentationSchemaModule,
+  identityControlPlanePresentation: formlessIdentityControlPlanePresentationSchemaModule,
+  tasksPresentation: formlessTasksPresentationSchemaModule,
+  sitePresentation: formlessSitePresentationSchemaModule,
+  crmPresentation: formlessCrmPresentationSchemaModule,
+  programPresentation: formlessProgramPresentationSchemaModule,
+} as const;
+
 export const formlessProgramSchemaModules = [
-  instanceControlPlaneRecordSchemaModule,
-  identityControlPlaneRecordSchemaModule,
-  formlessTasksRecordSchemaModule,
-  formlessSiteRecordSchemaModule,
-  formlessCrmRecordSchemaModule,
-  formlessInstanceControlPlanePresentationSchemaModule,
-  formlessIdentityControlPlanePresentationSchemaModule,
-  formlessTasksPresentationSchemaModule,
-  formlessSitePresentationSchemaModule,
-  formlessCrmPresentationSchemaModule,
-  formlessProgramPresentationSchemaModule,
+  formlessProgramBuiltInModules.instanceControlPlaneRecords,
+  formlessProgramBuiltInModules.identityControlPlaneRecords,
+  formlessProgramBuiltInModules.tasksRecords,
+  formlessProgramBuiltInModules.siteRecords,
+  formlessProgramBuiltInModules.crmRecords,
+  formlessProgramBuiltInModules.instanceControlPlanePresentation,
+  formlessProgramBuiltInModules.identityControlPlanePresentation,
+  formlessProgramBuiltInModules.tasksPresentation,
+  formlessProgramBuiltInModules.sitePresentation,
+  formlessProgramBuiltInModules.crmPresentation,
+  formlessProgramBuiltInModules.programPresentation,
 ] as const;
 
-export const formlessProgramSourceSchema: AppSchemaSource = composeAppSchema({
+export const formlessProgramDefaultAuthorization: NonNullable<
+  AppSchemaCompositionSource["authorization"]
+> = {
+  roles: [
+    {
+      id: "role_de3ae092-31a9-49df-b7f6-9f51f9403ff9",
+      key: "member",
+      label: "Member",
+    },
+    {
+      id: "role_3e6f3057-22bf-4fb0-8bd5-7b61bb0f45c4",
+      key: "editor",
+      label: "Editor",
+    },
+    {
+      id: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+      key: "administrator",
+      label: "Administrator",
+    },
+  ],
+};
+
+export const formlessProgramDefaultNavigation: NonNullable<
+  AppSchemaCompositionSource["navigation"]
+> = {
+  primaryScreens: [
+    "taskHome",
+    "siteEditor",
+    "contacts",
+    "apps",
+    "routes",
+    "deployments",
+    "principals",
+    "organizations",
+    "access",
+    "invitations",
+    "policies",
+    "settings",
+  ],
+};
+
+export const formlessProgramDefaultRuntime: NonNullable<AppSchemaCompositionSource["runtime"]> = {
+  owner: "runtime",
+};
+
+export const formlessProgramDefaultComposition: AppSchemaCompositionSource = {
   version: 1,
-  authorization: {
-    roles: [
-      {
-        id: "role_de3ae092-31a9-49df-b7f6-9f51f9403ff9",
-        key: "member",
-        label: "Member",
-      },
-      {
-        id: "role_3e6f3057-22bf-4fb0-8bd5-7b61bb0f45c4",
-        key: "editor",
-        label: "Editor",
-      },
-      {
-        id: "role_04144de6-7927-49f2-826a-cdcc70c47357",
-        key: "administrator",
-        label: "Administrator",
-      },
-    ],
-  },
+  authorization: formlessProgramDefaultAuthorization,
   modules: formlessProgramSchemaModules,
-  navigation: {
-    primaryScreens: [
-      "taskHome",
-      "siteEditor",
-      "contacts",
-      "apps",
-      "routes",
-      "deployments",
-      "principals",
-      "organizations",
-      "access",
-      "invitations",
-      "policies",
-      "settings",
-    ],
-  },
-  runtime: {
-    owner: "runtime",
-  },
-});
+  navigation: formlessProgramDefaultNavigation,
+  runtime: formlessProgramDefaultRuntime,
+};
+
+export const formlessProgramSourceSchema: AppSchemaSource = composeAppSchema(
+  formlessProgramDefaultComposition,
+);

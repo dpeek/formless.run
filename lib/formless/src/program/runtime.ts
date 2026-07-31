@@ -18,7 +18,6 @@ import {
 } from "@dpeek/formless-instance-control-plane";
 import {
   isValidStoredFieldValue,
-  parseAppSchema,
   stringifySchema,
   type AccessRequirement,
   type AppSchema,
@@ -44,13 +43,22 @@ import {
 import rawFormlessProgramSchema from "./schema.json";
 import type { WorkspaceControlPlaneSnapshotContract } from "@dpeek/formless-workspace/node";
 import {
+  FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
-  formlessProgramSchemaProvenance,
 } from "./target.ts";
 import { rootKnownPackageFactsResolver } from "../shared/app-packages.ts";
+import {
+  FORMLESS_PROGRAM_ARTIFACT_KIND,
+  FORMLESS_PROGRAM_ARTIFACT_VERSION,
+  parseFormlessProgramArtifactData,
+  parseFormlessProgramSourceSchema,
+  type FormlessProgramArtifact,
+} from "./artifact.ts";
 
 export * from "./target.ts";
+
+declare const __FORMLESS_PROGRAM_ARTIFACT_JSON__: string | undefined;
 
 export type FormlessProgramScreenRouteTarget = {
   access: ScreenAccessRequirement;
@@ -59,10 +67,19 @@ export type FormlessProgramScreenRouteTarget = {
   path: `/${string}`;
 };
 
-export const formlessProgramSchema = parseFormlessProgramSchemaArtifact(rawFormlessProgramSchema);
+export const formlessProgramArtifact = activeFormlessProgramArtifact();
+export const formlessProgramSchema = parseFormlessProgramSchemaArtifact(
+  formlessProgramArtifact.sourceSchema,
+);
+export const formlessProgramSchemaProvenance = formlessProgramArtifact.schemaProvenance;
 export const FORMLESS_PROGRAM_REPLICA_ACCESS_REQUIREMENT = {
-  anyOf: [{ role: "member" }, { actor: "adminBearer" }],
-} as const satisfies AccessRequirement;
+  anyOf: [
+    formlessProgramSchema.authorization?.roles[0] === undefined
+      ? { actor: "owner" as const }
+      : { role: formlessProgramSchema.authorization.roles[0].key },
+    { actor: "adminBearer" as const },
+  ],
+} satisfies AccessRequirement;
 export const FORMLESS_PROGRAM_EDITOR_ACCESS_REQUIREMENT = {
   anyOf: [{ role: "editor" }, { actor: "adminBearer" }],
 } as const satisfies AccessRequirement;
@@ -74,11 +91,32 @@ export const FORMLESS_PROGRAM_SCREEN_PATHS: readonly string[] = formlessProgramS
   .filter((path): path is `/${string}` => path !== undefined);
 
 export function parseFormlessProgramSchemaArtifact(value: unknown): AppSchema {
-  const schema = parseAppSchema(value);
+  return parseFormlessProgramSourceSchema(value);
+}
 
-  assertExplicitFormlessProgramScreenAccess("Formless Program schema", schema);
+export function parseRuntimeFormlessProgramArtifactJson(contents: string): FormlessProgramArtifact {
+  return parseFormlessProgramArtifactData(JSON.parse(contents) as unknown);
+}
 
-  return schema;
+function activeFormlessProgramArtifact(): FormlessProgramArtifact {
+  const contents =
+    typeof __FORMLESS_PROGRAM_ARTIFACT_JSON__ === "string"
+      ? __FORMLESS_PROGRAM_ARTIFACT_JSON__.trim()
+      : "";
+
+  if (contents) {
+    return parseRuntimeFormlessProgramArtifactJson(contents);
+  }
+
+  return parseFormlessProgramArtifactData({
+    kind: FORMLESS_PROGRAM_ARTIFACT_KIND,
+    version: FORMLESS_PROGRAM_ARTIFACT_VERSION,
+    sourceSchema: rawFormlessProgramSchema,
+    schemaProvenance: {
+      kind: "program",
+      sourceSchemaHash: FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
+    },
+  });
 }
 
 export function resolveFormlessProgramScreenRouteTarget(
@@ -90,8 +128,6 @@ export function resolveFormlessProgramScreenRouteTarget(
   if (screen === undefined) {
     return undefined;
   }
-
-  assertExplicitFormlessProgramScreenAccess("Formless Program schema", schema);
 
   if (screen.access === undefined || screen.path === undefined) {
     throw new Error(`Formless Program schema screen "${screen.key}" is unavailable.`);
@@ -107,7 +143,9 @@ export function resolveFormlessProgramScreenRouteTarget(
 
 export type FormlessProgramValidationOptions = {
   allowDormantPackageFacts?: boolean;
+  artifact?: FormlessProgramArtifact;
   packageResolver?: AppPackageResolver;
+  schema?: AppSchema;
 };
 
 export function formlessProgramArchiveSnapshotContract(
@@ -124,12 +162,15 @@ export function formlessProgramArchiveSnapshotContract(
 export function formlessProgramWorkspaceSnapshotContract(
   options: FormlessProgramValidationOptions = {},
 ): WorkspaceControlPlaneSnapshotContract {
+  const artifact = options.artifact ?? formlessProgramArtifact;
+  const schema = parseFormlessProgramSchemaArtifact(artifact.sourceSchema);
+
   return {
     canonicalize: (snapshot) => canonicalizeFormlessProgramStorageSnapshot(snapshot, options),
     parse: (context, value) => parseFormlessProgramStorageSnapshot(context, value, options),
-    schema: formlessProgramSchema,
+    schema,
     schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
-    schemaProvenance: formlessProgramSchemaProvenance,
+    schemaProvenance: artifact.schemaProvenance,
     storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
   };
 }
@@ -140,12 +181,14 @@ type FormlessProgramConstraintAdapter = {
   reviewable: (
     records: readonly StoredRecord[],
     candidateRecords: readonly StoredRecord[],
+    schema: AppSchema,
     options: FormlessProgramValidationOptions,
   ) => StoredRecord[];
   validate: (
     context: string,
     records: readonly StoredRecord[],
     candidateRecords: readonly StoredRecord[],
+    schema: AppSchema,
     options: FormlessProgramValidationOptions,
   ) => void;
 };
@@ -154,35 +197,41 @@ const formlessProgramConstraintAdapters: readonly FormlessProgramConstraintAdapt
   {
     label: "instance control plane",
     entityIds: new Set(instanceControlPlaneEntityIds),
-    reviewable: (records, candidateRecords, options) =>
+    reviewable: (records, candidateRecords, _schema, options) =>
       reviewableInstanceControlPlaneRecords(records, {
         candidateRecords,
         packageResolver: options.allowDormantPackageFacts
           ? rootKnownPackageFactsResolver(options.packageResolver)
           : options.packageResolver,
       }),
-    validate: (context, records, candidateRecords, options) =>
-      validateInstanceControlPlaneRecords(context, reviewableActiveInstanceRecords(records), {
-        candidateRecords: candidateRecords.map(reviewableInstanceCandidateRecord),
-        packageResolver: options.allowDormantPackageFacts
-          ? rootKnownPackageFactsResolver(options.packageResolver)
-          : options.packageResolver,
-      }),
+    validate: (context, records, candidateRecords, schema, options) =>
+      validateInstanceControlPlaneRecords(
+        context,
+        reviewableActiveInstanceRecords(records, schema),
+        {
+          candidateRecords: candidateRecords.map((record) =>
+            reviewableInstanceCandidateRecord(record, schema),
+          ),
+          packageResolver: options.allowDormantPackageFacts
+            ? rootKnownPackageFactsResolver(options.packageResolver)
+            : options.packageResolver,
+        },
+      ),
   },
   {
     label: "identity control plane",
     entityIds: new Set(identityControlPlaneEntityIds),
-    reviewable: (records, candidateRecords) =>
+    reviewable: (records, candidateRecords, schema) =>
       reviewableIdentityControlPlaneRecords(records, {
-        authorizationRoles: formlessProgramSchema.authorization?.roles,
+        authorizationRoles: schema.authorization?.roles,
         candidateRecords,
       }),
-    validate: (context, records, candidateRecords) =>
+    validate: (context, records, candidateRecords, schema) =>
       validateIdentityControlPlaneRecords(
         context,
         records.filter((record) => record.deletedAt === undefined),
         {
-          authorizationRoles: formlessProgramSchema.authorization?.roles,
+          authorizationRoles: schema.authorization?.roles,
           candidateRecords,
         },
       ),
@@ -207,16 +256,20 @@ const formlessProgramConstraintAdapters: readonly FormlessProgramConstraintAdapt
   },
 ];
 
-function reviewableActiveInstanceRecords(records: readonly StoredRecord[]): StoredRecord[] {
+function reviewableActiveInstanceRecords(
+  records: readonly StoredRecord[],
+  schema: AppSchema,
+): StoredRecord[] {
   return records
     .filter((record) => record.deletedAt === undefined)
-    .map(reviewableInstanceCandidateRecord);
+    .map((record) => reviewableInstanceCandidateRecord(record, schema));
 }
 
-function reviewableInstanceCandidateRecord(record: StoredRecord): StoredRecord {
-  const entity = formlessProgramSchema.entities.find(
-    (candidate) => candidate.key === record.entity,
-  );
+function reviewableInstanceCandidateRecord(
+  record: StoredRecord,
+  schema: AppSchema = formlessProgramSchema,
+): StoredRecord {
+  const entity = schema.entities.find((candidate) => candidate.key === record.entity);
 
   if (!entity || !instanceControlPlaneEntityIds.includes(entity.id)) {
     return record;
@@ -238,15 +291,15 @@ export function validateFormlessProgramRecords(
   records: readonly StoredRecord[],
   options: FormlessProgramValidationOptions = {},
 ): void {
-  assertFormlessProgramConstraintOwnership(context);
-  validateRecordsAgainstSchema(context, formlessProgramSchema, records);
+  const schema = formlessProgramSchemaForOptions(options);
+
+  assertFormlessProgramConstraintOwnership(context, schema);
+  validateRecordsAgainstSchema(context, schema, records);
 
   const recordsByAdapter = new Map(
     formlessProgramConstraintAdapters.map((adapter) => [adapter, [] as StoredRecord[]]),
   );
-  const entityIdsByKey = new Map(
-    formlessProgramSchema.entities.map((entity) => [entity.key, entity.id]),
-  );
+  const entityIdsByKey = new Map(schema.entities.map((entity) => [entity.key, entity.id]));
 
   for (const record of records) {
     const entityId = entityIdsByKey.get(record.entity)!;
@@ -254,13 +307,15 @@ export function validateFormlessProgramRecords(
       adapter.entityIds.has(entityId),
     );
 
-    if (owners.length !== 1) {
+    if (owners.length > 1) {
       throw new Error(
-        `${context} entity "${record.entity}" must have exactly one stable-entity-id constraint owner.`,
+        `${context} entity "${record.entity}" must have at most one stable-entity-id constraint owner.`,
       );
     }
 
-    recordsByAdapter.get(owners[0])!.push(record);
+    if (owners[0] !== undefined) {
+      recordsByAdapter.get(owners[0])!.push(record);
+    }
   }
 
   for (const adapter of formlessProgramConstraintAdapters) {
@@ -268,6 +323,7 @@ export function validateFormlessProgramRecords(
       `${context} ${adapter.label} constraints`,
       recordsByAdapter.get(adapter)!,
       records,
+      schema,
       options,
     );
   }
@@ -278,12 +334,13 @@ export function parseFormlessProgramStorageSnapshot(
   value: unknown,
   options: FormlessProgramValidationOptions = {},
 ): StorageSnapshot {
+  const schema = formlessProgramSchemaForOptions(options);
   const snapshot = parseStorageSnapshot(value, {
     schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
     storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
   });
 
-  assertFormlessProgramSchema(context, snapshot.schema);
+  assertFormlessProgramSchema(context, snapshot.schema, schema);
   validateFormlessProgramRecords(`${context} records`, snapshot.records, {
     ...options,
     allowDormantPackageFacts: true,
@@ -305,26 +362,36 @@ export function canonicalizeFormlessProgramStorageSnapshot(
     snapshot,
     validationOptions,
   );
-  const recordsByAdapter = recordsByFormlessProgramConstraintAdapter(parsed.records);
-  const records = formlessProgramConstraintAdapters.flatMap((adapter) =>
-    adapter.reviewable(recordsByAdapter.get(adapter)!, parsed.records, validationOptions),
+  const schema = formlessProgramSchemaForOptions(validationOptions);
+  const recordsByAdapter = recordsByFormlessProgramConstraintAdapter(parsed.records, schema);
+  const ownedEntityIds = new Set(
+    formlessProgramConstraintAdapters.flatMap((adapter) => [...adapter.entityIds]),
   );
+  const entityIdsByKey = new Map(schema.entities.map((entity) => [entity.key, entity.id]));
+  const extensionRecords = parsed.records.filter(
+    (record) => !ownedEntityIds.has(entityIdsByKey.get(record.entity) ?? ""),
+  );
+  const records = [
+    ...formlessProgramConstraintAdapters.flatMap((adapter) =>
+      adapter.reviewable(recordsByAdapter.get(adapter)!, parsed.records, schema, validationOptions),
+    ),
+    ...extensionRecords,
+  ];
 
   validateFormlessProgramRecords("Formless Program reviewable records", records, validationOptions);
 
   return {
     ...parsed,
-    schema: formlessProgramSchema,
-    records: formatStoredRecordsForArtifact(formlessProgramSchema, records),
+    schema,
+    records: formatStoredRecordsForArtifact(schema, records),
   };
 }
 
 function recordsByFormlessProgramConstraintAdapter(
   records: readonly StoredRecord[],
+  schema: AppSchema,
 ): Map<FormlessProgramConstraintAdapter, StoredRecord[]> {
-  const entityIdsByKey = new Map(
-    formlessProgramSchema.entities.map((entity) => [entity.key, entity.id]),
-  );
+  const entityIdsByKey = new Map(schema.entities.map((entity) => [entity.key, entity.id]));
   const recordsByAdapter = new Map(
     formlessProgramConstraintAdapters.map((adapter) => [adapter, [] as StoredRecord[]]),
   );
@@ -458,30 +525,26 @@ function validateUniqueConstraints(
   }
 }
 
-function assertFormlessProgramSchema(context: string, schema: AppSchema): void {
-  if (stringifySchema(schema) !== stringifySchema(formlessProgramSchema)) {
+function assertFormlessProgramSchema(
+  context: string,
+  schema: AppSchema,
+  activeSchema: AppSchema,
+): void {
+  if (stringifySchema(schema) !== stringifySchema(activeSchema)) {
     throw new Error(`${context} schema must match the current Formless Program artifact.`);
   }
 }
 
-function assertExplicitFormlessProgramScreenAccess(context: string, schema: AppSchema): void {
-  for (const screen of schema.screens) {
-    if (screen.access === undefined) {
-      throw new Error(`${context} screen "${screen.key}" must declare explicit access.`);
-    }
-  }
-}
+function assertFormlessProgramConstraintOwnership(context: string, schema: AppSchema): void {
+  const declaredEntityIds = new Set<string>(schema.entities.map(({ id }) => id));
 
-function assertFormlessProgramConstraintOwnership(context: string): void {
-  const declaredEntityIds = new Set<string>(formlessProgramSchema.entities.map(({ id }) => id));
-
-  for (const entity of formlessProgramSchema.entities) {
+  for (const entity of schema.entities) {
     const ownerCount = formlessProgramConstraintAdapters.filter((adapter) =>
       adapter.entityIds.has(entity.id),
     ).length;
-    if (ownerCount !== 1) {
+    if (ownerCount > 1) {
       throw new Error(
-        `${context} entity "${entity.key}" must have exactly one stable-entity-id constraint owner.`,
+        `${context} entity "${entity.key}" must have at most one stable-entity-id constraint owner.`,
       );
     }
   }
@@ -495,6 +558,14 @@ function assertFormlessProgramConstraintOwnership(context: string): void {
       }
     }
   }
+}
+
+function formlessProgramSchemaForOptions(options: FormlessProgramValidationOptions): AppSchema {
+  if (options.artifact !== undefined) {
+    return parseFormlessProgramSchemaArtifact(options.artifact.sourceSchema);
+  }
+
+  return options.schema ?? formlessProgramSchema;
 }
 
 function assertIsoTimestamp(context: string, value: string): void {

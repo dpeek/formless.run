@@ -8,13 +8,12 @@ import {
   IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH,
   IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX,
 } from "@dpeek/formless-identity-control-plane";
-import { formlessProgramSchema } from "../program/runtime.ts";
+import { formlessProgramSchema, formlessProgramSchemaProvenance } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_API_ROUTE_PREFIX,
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
-  formlessProgramSchemaProvenance,
 } from "../program/target.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";

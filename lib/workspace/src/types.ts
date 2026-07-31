@@ -845,7 +845,7 @@ export type InstanceWorkspaceSitePublicRendererExtension = {
   worker: string;
 };
 
-export type FormlessConfig = {
+export type FormlessConfigBase = {
   name: string;
   state?: FormlessConfigState;
   media?: FormlessConfigMedia;
@@ -875,7 +875,7 @@ export type FormlessConfigRuntime = {
   extensions?: InstanceWorkspaceRuntimeExtensions;
 };
 
-export type ResolvedFormlessConfig = {
+export type ResolvedFormlessConfigBase = {
   version: typeof FORMLESS_CONFIG_VERSION;
   kind: typeof FORMLESS_CONFIG_KIND;
   name: string;

@@ -17,7 +17,8 @@
   ],
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./program": "./src/program/index.ts"
   },
   "publishConfig": {
     "access": "public"

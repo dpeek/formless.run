@@ -13,12 +13,11 @@ import {
   type IdentityAccessPersonRemovalResponse,
   type IdentityAccessPersonRoleReplacementResponse,
 } from "@dpeek/formless-identity-control-plane";
-import { formlessProgramSchema } from "../program/runtime.ts";
+import { formlessProgramSchema, formlessProgramSchemaProvenance } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_API_ROUTE_PREFIX,
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
-  formlessProgramSchemaProvenance,
 } from "../program/target.ts";
 import {
   STORAGE_SNAPSHOT_KIND,

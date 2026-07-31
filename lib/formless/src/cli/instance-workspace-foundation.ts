@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -20,8 +20,21 @@ import {
   type AppPackageResolver,
 } from "../shared/app-packages.ts";
 import { formatRuntimeWorkspaceAppPackages } from "../shared/workspace-runtime-packages.ts";
+import {
+  FORMLESS_PROGRAM_ARTIFACT_FILE,
+  formatFormlessProgramArtifact,
+  materializeFormlessProgramSourceArtifact,
+  type FormlessProgramArtifact,
+} from "../program/artifact.ts";
+import { formlessProgramSourceSchema } from "../program/schema.ts";
 
 export type ActiveWorkspaceAppPackages = WorkspaceAppPackageResolverResult;
+
+export type ActiveWorkspaceProgramArtifact = {
+  artifact: FormlessProgramArtifact;
+  contents: string;
+  path: string;
+};
 
 export type FormlessInstanceWorkspaceDiscoveryResult = {
   configPath: string;
@@ -60,8 +73,8 @@ export async function readWorkspaceConfig(workspaceRoot: string): Promise<{
   };
 }
 
-export function formatFormlessConfigModule(config: FormlessConfig): string {
-  const authorConfig: FormlessConfig = {
+export function formatFormlessConfigModule(config: Omit<FormlessConfig, "program">): string {
+  const authorConfig: Omit<FormlessConfig, "program"> = {
     name: config.name,
     ...(config.state === undefined ? {} : { state: config.state }),
     ...(config.media === undefined ? {} : { media: config.media }),
@@ -152,6 +165,33 @@ export function formlessInstanceWorkspaceWranglerPersistPath(
   return path.join(formlessInstanceWorkspaceLocalStateRoot(workspaceRoot, config), "wrangler");
 }
 
+export async function materializeActiveWorkspaceProgramArtifact(
+  workspaceRoot: string,
+  config: ResolvedFormlessConfig,
+): Promise<ActiveWorkspaceProgramArtifact> {
+  const artifact = await activeWorkspaceProgramArtifact(config);
+  const contents = formatFormlessProgramArtifact(artifact);
+  const artifactPath = path.join(
+    formlessInstanceWorkspaceLocalStateRoot(workspaceRoot, config),
+    FORMLESS_PROGRAM_ARTIFACT_FILE,
+  );
+
+  await mkdir(path.dirname(artifactPath), { recursive: true });
+  await writeFileIfChanged(artifactPath, contents);
+
+  return {
+    artifact,
+    contents,
+    path: artifactPath,
+  };
+}
+
+export function activeWorkspaceProgramArtifact(config: ResolvedFormlessConfig) {
+  return materializeFormlessProgramSourceArtifact(
+    config.programSource ?? formlessProgramSourceSchema,
+  );
+}
+
 export async function createActiveWorkspaceAppPackages(
   workspaceRoot: string,
   config?: ResolvedFormlessConfig,
@@ -229,6 +269,20 @@ async function pathExists(filePath: string): Promise<boolean> {
 
     throw error;
   }
+}
+
+async function writeFileIfChanged(filePath: string, contents: string): Promise<void> {
+  try {
+    if ((await readFile(filePath, "utf8")) === contents) {
+      return;
+    }
+  } catch (error) {
+    if (!isNodeError(error) || error.code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  await writeFile(filePath, contents);
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {

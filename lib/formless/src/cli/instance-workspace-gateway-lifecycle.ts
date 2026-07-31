@@ -19,6 +19,7 @@ import {
   INSTANCE_WORKSPACE_OWNER_SESSION_SECRET_ENV_NAME as FORMLESS_INSTANCE_WORKSPACE_OWNER_SESSION_SECRET_ENV_NAME,
   type InstanceWorkspaceLocalDevSecretState as FormlessInstanceWorkspaceLocalDevSecretState,
 } from "@dpeek/formless-workspace/node";
+import { FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME } from "../program/artifact.ts";
 import {
   FORMLESS_TURNSTILE_ALWAYS_PASS_SECRET_KEY,
   FORMLESS_TURNSTILE_ALWAYS_PASS_SITE_KEY,
@@ -75,6 +76,7 @@ export type FormlessInstanceWorkspaceGatewayLifecycleChildRuntimeEnvInput = {
   env?: NodeJS.ProcessEnv;
   localDevSecrets: FormlessInstanceWorkspaceLocalDevSecretState;
   workspaceAppPackages?: string;
+  workspaceProgramArtifactPath: string;
   workspaceRoot: string;
   workspaceRuntimeExtensions?: string;
 };
@@ -89,6 +91,7 @@ export type FormlessInstanceWorkspaceDevEnvOptions = {
   localDevSecrets?: FormlessInstanceWorkspaceLocalDevSecretState;
   localSessionBootstrapToken?: string;
   workspaceAppPackages?: string;
+  workspaceProgramArtifactPath?: string;
   workspaceRuntimeExtensions?: string;
 };
 
@@ -116,6 +119,7 @@ export async function startFormlessInstanceWorkspaceGatewayLifecycle(
           localDevSecrets: envInput.localDevSecrets,
           localSessionBootstrapToken,
           workspaceAppPackages: envInput.workspaceAppPackages,
+          workspaceProgramArtifactPath: envInput.workspaceProgramArtifactPath,
           workspaceRuntimeExtensions: envInput.workspaceRuntimeExtensions,
         },
       ),
@@ -189,6 +193,12 @@ export function formlessInstanceWorkspaceDevEnv(
     nextEnv[FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME] = options.workspaceAppPackages;
   } else {
     delete nextEnv[FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME];
+  }
+
+  if (options.workspaceProgramArtifactPath) {
+    nextEnv[FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME] = options.workspaceProgramArtifactPath;
+  } else {
+    delete nextEnv[FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME];
   }
 
   if (options.workspaceRuntimeExtensions) {

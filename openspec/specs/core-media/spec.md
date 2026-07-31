@@ -46,6 +46,41 @@ explicit app-install ownership and access policy.
   app-scoped document prefix
 - AND app records store only the flat document asset id
 
+### Requirement: Program Document Media Assets
+
+The system SHALL model documents referenced by Program records as global
+Program media without app-install ownership or package namespaces.
+
+#### Scenario: Program document metadata
+
+- GIVEN a Program document upload is accepted through one declared Program
+  field
+- WHEN the asset metadata is stored
+- THEN it has an id, kind `document`, label, filename, normalized MIME type,
+  byte size, access policy, status, provider, and immutable Program storage key
+- AND it has no owner app install id or package-owned namespace
+- AND Program records store only the flat document asset id
+
+#### Scenario: Program document compatibility and access
+
+- GIVEN a Program document field declares MIME, size, and public or private
+  access policy
+- WHEN an editor lists or uploads documents for that field
+- THEN Program schema field policy supplies compatibility rather than request
+  input, package identity, or media metadata
+- AND Program route and role authorization controls non-public access
+- AND public delivery is controlled only by the immutable stored public policy
+
+#### Scenario: Program document API
+
+- GIVEN generated Program authoring or a public Program operation needs a
+  document
+- WHEN it addresses a Program document asset
+- THEN it uses `/api/formless/program/media/documents`
+- AND it does not address an installed-app document route or reveal generic
+  Program bootstrap, schema, snapshot, operation, sync, WebSocket, or replica
+  access
+
 #### Scenario: Public and private document policy
 
 - GIVEN a document field declares access `public` or `private`

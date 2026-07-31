@@ -1,7 +1,7 @@
 /**
  * Public Media contract version.
  *
- * Version 1 covers first-party image and app-scoped document media assets,
+ * Version 1 covers first-party image, Program document, and app-scoped document media assets,
  * transfer shapes, delivery facts, storage keys, object metadata, and the
  * provider store seam. App-specific usage metadata remains owned by app schemas
  * and runtimes.
@@ -32,6 +32,9 @@ export const CORE_IMAGE_KEY_PREFIX = "media/images";
 
 /** Provider object-key prefix for app-install-owned document media. */
 export const APP_DOCUMENT_MEDIA_KEY_PREFIX = "media/app-installs";
+
+/** Provider object-key prefix for global Program document media. */
+export const PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX = "media/program/documents";
 
 /** Core image upload endpoint owned by the Media API. */
 export const CORE_IMAGE_UPLOAD_PATH = "/api/formless/media/images";
@@ -86,7 +89,7 @@ export type ImageMediaAssetMetadata = MediaObjectMetadata & {
   "formless-media-width"?: string;
 };
 
-/** Metadata required to reconstruct one ready app-scoped document asset. */
+/** Metadata required to reconstruct one ready document asset. */
 export type DocumentMediaAssetMetadata = MediaObjectMetadata & {
   "formless-media-asset-id": string;
   "formless-media-byte-size": string;
@@ -96,7 +99,7 @@ export type DocumentMediaAssetMetadata = MediaObjectMetadata & {
   "formless-media-filename": string;
   "formless-media-kind": "document";
   "formless-media-label": string;
-  "formless-media-owner-app-install-id": string;
+  "formless-media-owner-app-install-id"?: string;
   "formless-media-provider": string;
   "formless-media-status": "ready";
   "formless-media-storage-key": MediaStorageKey;
@@ -215,7 +218,7 @@ export type ImageMediaAsset = {
   width?: number;
 };
 
-/** Immutable app-install-owned document media asset. */
+/** Immutable Program-global or app-install-owned document media asset. */
 export type DocumentMediaAsset = {
   access: DocumentMediaAccess;
   byteSize: number;
@@ -225,7 +228,7 @@ export type DocumentMediaAsset = {
   id: string;
   kind: "document";
   label: string;
-  ownerAppInstallId: string;
+  ownerAppInstallId?: string;
   provider: string;
   status: "ready";
   storageKey: MediaStorageKey;
@@ -299,12 +302,12 @@ export type ImageMediaAssetDeliveryFacts = {
   storageKey: MediaStorageKey;
 };
 
-/** Routeable delivery facts derived from an app-scoped document asset id. */
+/** Routeable delivery facts derived from a Program or app-scoped document asset id. */
 export type DocumentMediaAssetDeliveryFacts = {
   assetId: string;
   href: string;
   kind: "document";
-  ownerAppInstallId: string;
+  ownerAppInstallId?: string;
   storageKey: MediaStorageKey;
 };
 
@@ -320,10 +323,10 @@ export type DocumentMediaResponseFacts = {
   xContentTypeOptions: "nosniff";
 };
 
-/** Compatibility facts supplied by a trusted app runtime. */
+/** Compatibility facts supplied by a trusted Program or installed-app runtime. */
 export type DocumentMediaCompatibility = {
   acceptedMimeTypes: readonly string[];
   access: DocumentMediaAccess;
   maxBytes: number;
-  ownerAppInstallId: string;
+  ownerAppInstallId?: string;
 };

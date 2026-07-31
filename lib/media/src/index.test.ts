@@ -6,6 +6,7 @@ import {
   MEDIA_OBJECT_CACHE_CONTROL,
   MEDIA_PDF_CONTENT_TYPE,
   MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL,
+  PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX,
   appDocumentMediaKeyPrefixForOwner,
   coreImageMediaDeliveryFactsForAssetId,
   coreMediaHrefForKey,
@@ -93,6 +94,18 @@ describe("Media runtime-neutral contract helpers", () => {
       isRestorableDocumentMediaKey("media/app-installs/another-app/documents/coa-fixed.pdf", {
         ownerAppInstallId: "verifi-prod",
       }),
+    ).toBe(false);
+  });
+
+  it("derives global Program document keys without app-install ownership", () => {
+    expect(documentMediaStorageKeyForAssetId("program-report.pdf")).toBe(
+      `${PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX}/program-report.pdf`,
+    );
+    expect(
+      isRestorableDocumentMediaKey(`${PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX}/program-report.pdf`),
+    ).toBe(true);
+    expect(
+      isRestorableDocumentMediaKey("media/app-installs/program/documents/program-report.pdf"),
     ).toBe(false);
   });
 
@@ -191,6 +204,31 @@ describe("Media runtime-neutral contract helpers", () => {
         "formless-media-content-type": "text/plain",
       }),
     ).toBeUndefined();
+  });
+
+  it("round-trips global Program document metadata without owner metadata", () => {
+    const asset = programDocumentMediaAsset();
+    const metadata = mediaObjectMetadataForAsset(asset);
+
+    expect(metadata).not.toHaveProperty("formless-media-owner-app-install-id");
+    expect(mediaAssetFromObjectMetadata(metadata)).toEqual(asset);
+    expect(isDocumentMediaAsset(asset)).toBe(true);
+    expect(documentMediaAssetMatchesOwner(asset)).toBe(true);
+    expect(
+      documentMediaAssetIsCompatible(asset, {
+        acceptedMimeTypes: ["application/pdf"],
+        access: "public",
+        maxBytes: 12,
+      }),
+    ).toBe(true);
+    expect(
+      documentMediaAssetIsCompatible(asset, {
+        acceptedMimeTypes: ["application/pdf"],
+        access: "public",
+        maxBytes: 12,
+        ownerAppInstallId: "program",
+      }),
+    ).toBe(false);
   });
 
   it("discriminates image and document assets and checks document compatibility", () => {
@@ -298,6 +336,16 @@ describe("Media runtime-neutral contract helpers", () => {
       ownerAppInstallId: "verifi-prod",
       storageKey: "media/app-installs/verifi-prod/documents/coa-fixed.pdf",
     });
+    expect(
+      documentMediaDeliveryFactsForAssetId("program-report.pdf", {
+        hrefForAssetId: (assetId) => `/api/formless/program/media/documents/${assetId}`,
+      }),
+    ).toEqual({
+      assetId: "program-report.pdf",
+      href: "/api/formless/program/media/documents/program-report.pdf",
+      kind: "document",
+      storageKey: "media/program/documents/program-report.pdf",
+    });
   });
 
   it("derives core media delivery hrefs and storage keys from asset ids", () => {
@@ -361,5 +409,21 @@ function documentMediaAsset(): DocumentMediaAsset {
     provider: "r2",
     status: "ready",
     storageKey: "media/app-installs/verifi-prod/documents/coa-fixed.pdf",
+  };
+}
+
+function programDocumentMediaAsset(): DocumentMediaAsset {
+  return {
+    access: "public",
+    byteSize: 12,
+    contentType: MEDIA_PDF_CONTENT_TYPE,
+    deliveryHref: "/api/formless/program/media/documents/program-report.pdf",
+    filename: "program-report.pdf",
+    id: "program-report.pdf",
+    kind: "document",
+    label: "Program report",
+    provider: "r2",
+    status: "ready",
+    storageKey: "media/program/documents/program-report.pdf",
   };
 }

@@ -34,6 +34,7 @@ type WorkerHarnessOptions = Pick<
   WorkerOptions,
   "bindings" | "compatibilityDate" | "queueProducers" | "r2Buckets"
 > & {
+  define?: Record<string, string>;
   serviceBindings?: Record<string, ServiceBindingHandler>;
 };
 
@@ -59,7 +60,7 @@ export async function createWorkerHarness(
   durableObjects: DurableObjectBindings,
   options: WorkerHarnessOptions = {},
 ) {
-  const bundle = await workerBundle(entryPoint);
+  const bundle = await workerBundle(entryPoint, options.define);
 
   const mf = new Miniflare({
     bindings: {
@@ -109,9 +110,15 @@ async function defaultRuntimeWorkspacePackages() {
   return defaultRuntimePackages;
 }
 
-async function workerBundle(entryPoint: string): Promise<WorkerBundle> {
+async function workerBundle(
+  entryPoint: string,
+  define: Record<string, string> = {},
+): Promise<WorkerBundle> {
   const entryPath = resolve(entryPoint);
-  const cached = workerBundleCache.get(entryPath);
+  const cacheKey = `${entryPath}\u0000${JSON.stringify(
+    Object.entries(define).sort(([left], [right]) => left.localeCompare(right)),
+  )}`;
+  const cached = workerBundleCache.get(cacheKey);
 
   if (cached) {
     const bundle = await cached;
@@ -120,24 +127,27 @@ async function workerBundle(entryPoint: string): Promise<WorkerBundle> {
       return bundle;
     }
 
-    workerBundleCache.delete(entryPath);
+    workerBundleCache.delete(cacheKey);
   }
 
-  const next = buildWorkerBundle(entryPath);
-  workerBundleCache.set(entryPath, next);
+  const next = buildWorkerBundle(entryPath, define);
+  workerBundleCache.set(cacheKey, next);
 
   try {
     return await next;
   } catch (error) {
-    if (workerBundleCache.get(entryPath) === next) {
-      workerBundleCache.delete(entryPath);
+    if (workerBundleCache.get(cacheKey) === next) {
+      workerBundleCache.delete(cacheKey);
     }
 
     throw error;
   }
 }
 
-async function buildWorkerBundle(entryPoint: string): Promise<WorkerBundle> {
+async function buildWorkerBundle(
+  entryPoint: string,
+  define: Record<string, string>,
+): Promise<WorkerBundle> {
   const root = await currentWorkerBundleCacheRoot();
   const modulesRoot = await mkdtemp(join(root, "bundle-"));
   const scriptPath = join(modulesRoot, "worker.mjs");
@@ -145,6 +155,7 @@ async function buildWorkerBundle(entryPoint: string): Promise<WorkerBundle> {
   try {
     const result = await build({
       bundle: true,
+      define,
       entryPoints: [entryPoint],
       external: ["cloudflare:workers"],
       format: "esm",

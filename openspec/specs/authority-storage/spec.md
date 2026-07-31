@@ -35,6 +35,18 @@ The system SHALL isolate Authority storage by storage identity.
 - AND runtime-installed private app records remain scoped to their app storage
   identities
 
+#### Scenario: Workspace-composed Program identity
+
+- GIVEN a downstream workspace materializes an explicit complete Program
+- WHEN its Worker bootstraps, validates, writes, snapshots, or restores Program
+  records
+- THEN the one active artifact and its canonical Program provenance govern
+  `instance:control-plane`
+- AND workspace module, package, entity, route, field, and media keys do not
+  select an Authority, storage identity, or authorization principal
+- AND runtime-installed private apps retain their existing isolated Authority
+  behavior until they are separately converted or removed
+
 ### Requirement: Authority-Wide Record Identity
 
 The system SHALL keep each record id unique across one Authority storage

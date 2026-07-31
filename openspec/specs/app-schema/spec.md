@@ -221,6 +221,23 @@ from reusable package modules.
 - AND Task records use Program storage while Site, CRM, and other installed app
   data remain outside the Program schema until their own domain-data cutovers
 
+#### Scenario: Materialize an explicit workspace Program extension
+
+- GIVEN a trusted downstream `formless.ts` explicitly composes the built-in
+  Program modules with ordered workspace-owned schema modules
+- WHEN local development or a deploy build materializes that configuration
+- THEN it produces one complete `formless-program` source artifact and its
+  canonical source-schema hash
+- AND the workspace root owns its final authorization catalog, navigation,
+  screen paths, and deliberate module replacements
+- AND module and declaration collision rules remain the normal schema-composer
+  rules without automatic prefixes, discovery, registries, or deep merges
+- AND Worker, archive, workspace, replica, cursor, broadcast, WebSocket, and
+  deploy runtime selection consume the data-only complete Program artifact
+- AND they do not evaluate workspace TypeScript at request time
+- AND the extension does not create a second Program, package-scoped schema,
+  qualified record identity, or package-derived authorization identity
+
 ### Requirement: Program Authorization Definitions
 
 The system SHALL let a Program composition root declare one ordered catalog of

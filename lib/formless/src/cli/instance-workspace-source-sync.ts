@@ -88,6 +88,7 @@ import {
   type RestorePortableArchiveResult,
 } from "./archive-workflows.ts";
 import {
+  activeWorkspaceProgramArtifact,
   createActiveWorkspaceAppPackages,
   createWorkspaceTempRoot,
   formlessInstanceWorkspaceLocalStateRoot,
@@ -936,6 +937,7 @@ export async function workspaceLocalRestoreArchiveSource(input: {
   }
 
   const reviewableControlPlane = canonicalizeFormlessProgramStorageSnapshot(controlPlane, {
+    artifact: await activeWorkspaceProgramArtifact(input.config),
     packageResolver: input.activePackages.resolver,
   });
 
@@ -1685,7 +1687,7 @@ function workspaceAppArchiveMediaFiles(
 
 type WorkspaceMediaReference = {
   archivePath: string;
-  ownerAppInstallId: string;
+  ownerAppInstallId?: string;
   reference: AppArchiveMediaReference;
   storageKey: string;
 };
@@ -1696,23 +1698,21 @@ function programMediaReferences(
   const references: WorkspaceMediaReference[] = [];
 
   for (const reference of appArchiveMediaReferences(controlPlane.schema, controlPlane.records)) {
-    if (reference.kind !== "image") {
-      throw new Error(
-        `Workspace Program state references installed-app document asset "${reference.assetId}".`,
-      );
-    }
-
-    const facts = coreImageMediaDeliveryFactsForAssetId(reference.assetId);
+    const facts =
+      reference.kind === "image"
+        ? coreImageMediaDeliveryFactsForAssetId(reference.assetId)
+        : documentMediaDeliveryFactsForAssetId(reference.assetId, {
+            hrefForAssetId: (assetId) => `/api/formless/program/media/documents/${assetId}`,
+          });
 
     if (!facts) {
       throw new Error(
-        `Workspace Program state references invalid image asset "${reference.assetId}".`,
+        `Workspace Program state references invalid ${reference.kind} asset "${reference.assetId}".`,
       );
     }
 
     references.push({
       archivePath: `media/program/${facts.storageKey}`,
-      ownerAppInstallId: "program",
       reference,
       storageKey: facts.storageKey,
     });
@@ -1802,7 +1802,9 @@ function validateWorkspaceMediaObjects(input: {
         acceptedMimeTypes: reference.reference.policy.acceptedMimeTypes,
         access: reference.reference.policy.access,
         maxBytes: reference.reference.policy.maxBytes,
-        ownerAppInstallId: reference.ownerAppInstallId,
+        ...(reference.ownerAppInstallId === undefined
+          ? {}
+          : { ownerAppInstallId: reference.ownerAppInstallId }),
       }) ||
       asset.ownerAppInstallId !== reference.ownerAppInstallId
     ) {

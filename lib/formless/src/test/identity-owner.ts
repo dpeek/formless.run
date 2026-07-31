@@ -1,5 +1,6 @@
 import { expect } from "vite-plus/test";
 import { identityControlPlaneRoleKeys } from "@dpeek/formless-identity-control-plane";
+import type { AppSchema } from "@dpeek/formless-schema";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import { formlessProgramSchema } from "../program/runtime.ts";
 import {
@@ -20,13 +21,14 @@ type IdentityOwnerHarness = Pick<
 export async function resetTestIdentityStorage(
   harness: IdentityOwnerHarness,
   adminToken: string,
+  schema: AppSchema = formlessProgramSchema,
 ): Promise<void> {
   await restoreTestStorageSnapshot(
     harness,
     `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
     testStorageSnapshot({
       records: builtInRoleRecords(),
-      schema: formlessProgramSchema,
+      schema,
       schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
       storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     }),
@@ -119,7 +121,7 @@ export async function ensureTestIdentityOwner(
     `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
     testStorageSnapshot({
       records: [...snapshot.records, ...ownerRecords],
-      schema: formlessProgramSchema,
+      schema: snapshot.schema,
       schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
       storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     }),

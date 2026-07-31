@@ -260,6 +260,20 @@ domain declarations.
 - AND the Schema package does not gain instance, identity, archive, runtime, or
   provider declarations
 
+#### Scenario: Workspace root extends the built-in Program explicitly
+
+- GIVEN a downstream workspace imports documented schema modules from its own
+  packages and from built-in Program packages
+- WHEN its trusted `formless.ts` composes a Program
+- THEN the workspace root explicitly supplies the ordered extension modules and
+  complete Program-owned authorization, navigation, and path choices
+- AND package modules retain ownership of domain declarations, stable entity
+  ids, field policy, projections, public-operation declarations, and adapters
+- AND the resolved complete Program artifact is build input rather than a
+  runtime-installed package, plugin, registry entry, or remote dependency
+- AND authoring module keys do not become storage, replica, route, archive,
+  provenance, or authorization identities
+
 ### Requirement: App Package Schema Materialization
 
 An app package that uses TypeScript schema authoring SHALL materialize a

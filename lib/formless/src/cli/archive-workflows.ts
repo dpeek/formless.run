@@ -36,6 +36,7 @@ import {
   canonicalizeFormlessProgramStorageSnapshot,
   parseFormlessProgramStorageSnapshot,
 } from "../program/runtime.ts";
+import { materializeFormlessProgramSourceArtifact } from "../program/artifact.ts";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import {
   CORE_IMAGE_KEY_PREFIX,
@@ -177,26 +178,41 @@ async function exportRemoteProgramMedia(input: {
   target: string;
 }): Promise<{ files: ArchiveDiskMediaFile[]; objects: AppArchiveMediaObject[] }> {
   const referencesByKey = new Map<string, AppArchiveMediaObject>();
+  const references = appArchiveMediaReferences(input.snapshot.schema, input.snapshot.records);
+  const documentAssetsByField = await fetchReferencedProgramDocumentAssets(input, references);
 
-  for (const reference of appArchiveMediaReferences(
-    input.snapshot.schema,
-    input.snapshot.records,
-  )) {
-    if (reference.kind !== "image") {
+  for (const reference of references) {
+    if (reference.kind === "image") {
+      const facts = coreImageMediaDeliveryFactsForAssetId(reference.assetId);
+
+      if (!facts) {
+        throw new Error(
+          `Program media field "${reference.entity}.${reference.field}" references invalid image asset "${reference.assetId}".`,
+        );
+      }
+
+      referencesByKey.set(facts.storageKey, coreMediaReference(facts.storageKey, facts.href));
+      continue;
+    }
+
+    const asset = documentAssetsByField
+      .get(documentReferenceFieldKey(reference))
+      ?.get(reference.assetId);
+
+    if (
+      !asset ||
+      asset.ownerAppInstallId !== undefined ||
+      asset.access !== reference.policy.access ||
+      !reference.policy.acceptedMimeTypes.includes(asset.contentType) ||
+      asset.byteSize > reference.policy.maxBytes ||
+      asset.deliveryHref !== `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/media/documents/${asset.id}`
+    ) {
       throw new Error(
-        `Program media field "${reference.entity}.${reference.field}" cannot reference an installed-app document asset.`,
+        `Program document field "${reference.entity}.${reference.field}" references unavailable or incompatible asset "${reference.assetId}".`,
       );
     }
 
-    const facts = coreImageMediaDeliveryFactsForAssetId(reference.assetId);
-
-    if (!facts) {
-      throw new Error(
-        `Program media field "${reference.entity}.${reference.field}" references invalid image asset "${reference.assetId}".`,
-      );
-    }
-
-    referencesByKey.set(facts.storageKey, coreMediaReference(facts.storageKey, facts.href));
+    referencesByKey.set(asset.storageKey, documentMediaReference(asset));
   }
 
   const files: ArchiveDiskMediaFile[] = [];
@@ -242,6 +258,56 @@ async function exportRemoteProgramMedia(input: {
   return { files, objects };
 }
 
+async function fetchReferencedProgramDocumentAssets(
+  input: {
+    auth?: ArchiveExportAuth;
+    fetcher: typeof fetch;
+    target: string;
+  },
+  references: readonly AppArchiveMediaReference[],
+): Promise<Map<string, Map<string, DocumentMediaAsset>>> {
+  const documentReferences = references.filter(
+    (reference): reference is Extract<AppArchiveMediaReference, { kind: "document" }> =>
+      reference.kind === "document",
+  );
+  const referencesByField = new Map<
+    string,
+    Extract<AppArchiveMediaReference, { kind: "document" }>
+  >();
+
+  for (const reference of documentReferences) {
+    referencesByField.set(documentReferenceFieldKey(reference), reference);
+  }
+
+  const assetsByField = new Map<string, Map<string, DocumentMediaAsset>>();
+
+  for (const [fieldKey, reference] of [...referencesByField.entries()].sort(([left], [right]) =>
+    left.localeCompare(right),
+  )) {
+    const search = new URLSearchParams({
+      entity: reference.entity,
+      field: reference.field,
+    });
+    const response = await fetchJson<unknown>(
+      input.fetcher,
+      apiUrl(
+        input.target,
+        `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/media/documents?${search.toString()}`,
+      ),
+      {
+        headers: archiveExportRequestHeaders(input.auth, "application/json", {
+          mediaRead: true,
+        }),
+      },
+    );
+    const assets = parseDocumentMediaList("Program document list", response);
+
+    assetsByField.set(fieldKey, new Map(assets.map((asset) => [asset.id, asset])));
+  }
+
+  return assetsByField;
+}
+
 async function fetchRemoteControlPlaneArchive(input: {
   auth?: ArchiveExportAuth;
   fetcher: typeof fetch;
@@ -253,13 +319,15 @@ async function fetchRemoteControlPlaneArchive(input: {
     apiUrl(input.target, `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot?actorKind=cliDeployer`),
     { headers: archiveExportRequestHeaders(input.auth, "application/json") },
   );
+  const artifact = await materializeFormlessProgramSourceArtifact(snapshot.schema);
 
   return parseFormlessProgramStorageSnapshot(
     "Instance archive controlPlane",
     canonicalizeFormlessProgramStorageSnapshot(snapshot, {
+      artifact,
       packageResolver: input.packageResolver,
     }),
-    { packageResolver: input.packageResolver },
+    { artifact, packageResolver: input.packageResolver },
   );
 }
 

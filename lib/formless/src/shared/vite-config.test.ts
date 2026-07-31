@@ -1,8 +1,17 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 
+import {
+  FORMLESS_PROGRAM_ARTIFACT_DEFINE_NAME,
+  FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME,
+  formatFormlessProgramArtifact,
+  materializeFormlessProgramArtifact,
+} from "../program/artifact.ts";
+import { formlessProgramDefaultComposition } from "../program/schema.ts";
 import {
   astryxCloudflareWorkerSourceCompilationPlugin,
   runtimeCloudflarePluginConfig,
@@ -21,6 +30,7 @@ type ViteConfigBuild = {
 
 type ViteConfigWithEnvironments = {
   build?: unknown;
+  define?: Record<string, string>;
   environments?: {
     client?: {
       build?: ViteConfigBuild;
@@ -31,6 +41,12 @@ type ViteConfigWithEnvironments = {
     alias?: Record<string, string>;
   };
 };
+const tempDirs: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(tempDirs.splice(0).map((root) => rm(root, { force: true, recursive: true })));
+});
+
 type WorkerConfigCustomizer = (config: { vars?: Record<string, string> }) => {
   vars?: Record<string, string>;
 } | void;
@@ -171,6 +187,28 @@ describe("Runtime Vite config", () => {
         FORMLESS_RUNTIME_PROFILE: "instance",
       },
     });
+  });
+
+  it("injects the same materialized Program into browser and Worker compilation", async () => {
+    const tempRoot = await mkdtemp(resolve(tmpdir(), "formless-program-vite-"));
+    const artifactPath = resolve(tempRoot, "formless-program.json");
+    const contents = formatFormlessProgramArtifact(
+      await materializeFormlessProgramArtifact(formlessProgramDefaultComposition),
+    );
+
+    tempDirs.push(tempRoot);
+    await writeFile(artifactPath, contents);
+
+    const config = runtimeViteConfig({
+      env: {
+        NODE_ENV: "test",
+        VITEST: "true",
+        [FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME]: artifactPath,
+      },
+      packageRoot: repoRoot,
+    }) as ViteConfigWithEnvironments;
+
+    expect(config.define?.[FORMLESS_PROGRAM_ARTIFACT_DEFINE_NAME]).toBe(JSON.stringify(contents));
   });
 });
 

@@ -344,15 +344,6 @@ function validateProgramMedia(
         }),
       );
     }
-
-    if (object.asset?.kind === "document") {
-      errors.push(
-        planError("invalid-media", {
-          message: `Instance archive Program media "${object.storageKey}" cannot contain installed-app document metadata.`,
-          storageKey: object.storageKey,
-        }),
-      );
-    }
   }
 
   validateMedia(
@@ -373,6 +364,7 @@ function validateProgramMedia(
     program.controlPlane.records,
     context,
     errors,
+    { program: true },
   );
 }
 
@@ -732,6 +724,7 @@ function validateMedia(
   records: StoredRecord[],
   context: PlannerContext,
   errors: ArchiveRestorePlanError[],
+  options: { program?: boolean } = {},
 ) {
   const seenStorageKeys = new Set<string>();
   const seenArchivePaths = new Set<string>();
@@ -743,9 +736,10 @@ function validateMedia(
     });
     const isDocument =
       object.asset?.kind === "document" &&
-      isRestorableDocumentMediaKey(object.storageKey, {
-        ownerAppInstallId: app.installId,
-      });
+      isRestorableDocumentMediaKey(
+        object.storageKey,
+        options.program ? {} : { ownerAppInstallId: app.installId },
+      );
 
     if (seenStorageKeys.has(object.storageKey)) {
       errors.push(
@@ -819,7 +813,7 @@ function validateMedia(
     const expectedDeliveryHref = isImage
       ? coreMediaHrefForKey(object.storageKey)
       : object.asset?.kind === "document"
-        ? documentDeliveryHref(app, object.asset.id)
+        ? documentDeliveryHref(app, object.asset.id, options)
         : undefined;
 
     if (expectedDeliveryHref && object.deliveryHref !== expectedDeliveryHref) {
@@ -832,11 +826,11 @@ function validateMedia(
       );
     }
 
-    validateMediaAsset(app, object, isDocument, errors);
+    validateMediaAsset(app, object, isDocument, errors, options);
     validateMediaFile(app.installId, object, isDocument, context.mediaFilesByPath, errors);
   }
 
-  validateMediaReferences(app, schema, records, mediaObjects, errors);
+  validateMediaReferences(app, schema, records, mediaObjects, errors, options);
 }
 
 function validateMediaAsset(
@@ -844,6 +838,7 @@ function validateMediaAsset(
   object: AppArchiveMediaObject,
   isDocument: boolean,
   errors: ArchiveRestorePlanError[],
+  options: { program?: boolean },
 ) {
   if (!object.asset) {
     if (isDocument) {
@@ -879,13 +874,17 @@ function validateMediaAsset(
   if (
     asset.kind === "document" &&
     (!isDocumentMediaAsset(asset) ||
-      asset.ownerAppInstallId !== app.installId ||
-      asset.deliveryHref !== documentDeliveryHref(app, asset.id))
+      (options.program
+        ? asset.ownerAppInstallId !== undefined
+        : asset.ownerAppInstallId !== app.installId) ||
+      asset.deliveryHref !== documentDeliveryHref(app, asset.id, options))
   ) {
     errors.push(
       planError("invalid-media", {
         appInstallId: app.installId,
-        message: `Archive app "${app.installId}" document metadata for "${object.storageKey}" is not scoped to its owning app.`,
+        message: options.program
+          ? `Instance archive Program document metadata for "${object.storageKey}" is not global Program media.`
+          : `Archive app "${app.installId}" document metadata for "${object.storageKey}" is not scoped to its owning app.`,
         storageKey: object.storageKey,
       }),
     );
@@ -988,6 +987,7 @@ function validateMediaReferences(
   records: StoredRecord[],
   mediaObjects: AppArchiveMediaObject[],
   errors: ArchiveRestorePlanError[],
+  options: { program?: boolean },
 ) {
   const objectsByStorageKey = new Map(mediaObjects.map((object) => [object.storageKey, object]));
 
@@ -995,8 +995,8 @@ function validateMediaReferences(
     const facts =
       reference.kind === "document"
         ? documentMediaDeliveryFactsForAssetId(reference.assetId, {
-            hrefForAssetId: (assetId) => documentDeliveryHref(app, assetId),
-            ownerAppInstallId: app.installId,
+            hrefForAssetId: (assetId) => documentDeliveryHref(app, assetId, options),
+            ...(options.program ? {} : { ownerAppInstallId: app.installId }),
           })
         : coreImageMediaDeliveryFactsForAssetId(reference.assetId);
     const object = facts ? objectsByStorageKey.get(facts.storageKey) : undefined;
@@ -1037,8 +1037,14 @@ function validateMediaReferences(
   }
 }
 
-function documentDeliveryHref(app: ArchivedAppInstall, assetId: string): string {
-  return `/api/app-installs/${app.packageAppKey}/${app.installId}/media/documents/${assetId}`;
+function documentDeliveryHref(
+  app: ArchivedAppInstall,
+  assetId: string,
+  options: { program?: boolean } = {},
+): string {
+  return options.program
+    ? `/api/formless/program/media/documents/${assetId}`
+    : `/api/app-installs/${app.packageAppKey}/${app.installId}/media/documents/${assetId}`;
 }
 
 function planSteps(

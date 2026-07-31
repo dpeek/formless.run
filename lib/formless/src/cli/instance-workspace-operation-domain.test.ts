@@ -5,7 +5,17 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { listInstallableAppPackages, packageAppFactsForKey } from "@dpeek/formless-installed-apps";
-import { formlessProgramSchema } from "../program/runtime.ts";
+import type { DocumentMediaAsset } from "@dpeek/formless-media";
+import { defineAppSchemaModule, type AppSchema } from "@dpeek/formless-schema";
+import { formlessProgramSchema, parseFormlessProgramSchemaArtifact } from "../program/runtime.ts";
+import {
+  formlessProgramDefaultComposition,
+  formlessProgramSchemaModules,
+} from "../program/schema.ts";
+import {
+  materializeFormlessProgramSourceArtifact,
+  parseFormlessProgramArtifact,
+} from "../program/artifact.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
@@ -62,6 +72,31 @@ import {
 
 const tempDirs: string[] = [];
 const privateSitePackageAppKey = "private-site";
+const programDocumentBytes = new TextEncoder().encode("%PDF-1.7\nProgram private document");
+const programDocumentSchemaModule = defineAppSchemaModule({
+  key: "program-document-records",
+  entities: [
+    {
+      id: "entity_fba44b11-4ea4-4e34-b71e-217a20e8d940",
+      key: "program-report",
+      label: "Program report",
+      fields: [
+        {
+          asset: {
+            acceptedMimeTypes: ["application/pdf"],
+            access: "private",
+            kind: "document",
+            maxBytes: 1024,
+          },
+          key: "documentAssetId",
+          label: "Document",
+          required: false,
+          type: "text",
+        },
+      ],
+    },
+  ],
+});
 const rootKnownSitePackage = rootKnownPackageFactsResolver().findPackage("site")!;
 const privateSiteSourceSchemaHash =
   "sha256:81e1483d2f56dc771bc0394e60cc5392a384d2bb3fa88d1bd42ce88395a29fdf" as typeof rootKnownSitePackage.sourceSchemaHash;
@@ -96,25 +131,41 @@ describe("workspace source sync operation domain", () => {
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const pullRequests: CapturedRequest[] = [];
     const targetUrl = "https://personal.dpeek.workers.dev";
+    const program = programDocumentComposition();
+    const resolvedProgram = resolveFormlessConfig({ name: "personal-sites", program });
+    if (!resolvedProgram.programSource) {
+      throw new Error("Expected resolved Program source.");
+    }
+    const programSchema = parseFormlessProgramSchemaArtifact(resolvedProgram.programSource);
+    const programArtifact = await materializeFormlessProgramSourceArtifact(
+      resolvedProgram.programSource,
+    );
+    const programDocument = programDocumentAsset();
     const programRecords = [
       ...deployControlPlaneRecords({ targetUrl }),
       ...dormantBuiltInProgramRecords(),
       ...programSiteMediaRecords(),
+      programDocumentRecord(programDocument.id),
     ];
     const pullFetch = sourceSyncFetch(pullRequests, {
       appData: { david: { records: [] } },
       controlPlaneRecords: programRecords,
+      controlPlaneSchema: programSchema,
       installs: [
         installedSite("david", "David Peek"),
         installedDormantPackage("legacy-tasks", "tasks"),
         installedDormantPackage("legacy-site", "site"),
         installedDormantPackage("legacy-crm", "crm"),
       ],
+      programDocument: {
+        asset: programDocument,
+        bytes: programDocumentBytes,
+      },
       programMediaBytes: Buffer.from([7, 8, 9]),
     });
 
-    await writeWorkspaceConfig(workspaceRoot);
-    await writeDeployStorageSnapshot(workspaceRoot, { targetUrl });
+    await writeWorkspaceConfig(workspaceRoot, { program });
+    await writeDeployStorageSnapshot(workspaceRoot, { program, targetUrl });
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
     await writeFile(
       path.join(workspaceRoot, ".formless/instance.env"),
@@ -139,7 +190,7 @@ describe("workspace source sync operation domain", () => {
 
     expect(instanceState.schemaProvenance).toEqual({
       kind: "program",
-      sourceSchemaHash: FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
+      sourceSchemaHash: programArtifact.schemaProvenance.sourceSchemaHash,
     });
     expect(instanceState.records).toEqual(
       expect.arrayContaining([
@@ -147,6 +198,10 @@ describe("workspace source sync operation domain", () => {
         expect.objectContaining({ entity: "block", id: "block:program-cover" }),
         expect.objectContaining({ entity: "company", id: "company:program-native" }),
         expect.objectContaining({ entity: "company", id: "company:program-native-deleted" }),
+        expect.objectContaining({
+          entity: "program-report",
+          id: "program-report:private",
+        }),
         expect.objectContaining({ entity: "app-install", id: "legacy-tasks" }),
         expect.objectContaining({ entity: "app-install", id: "legacy-site" }),
         expect.objectContaining({ entity: "app-install", id: "legacy-crm" }),
@@ -170,6 +225,14 @@ describe("workspace source sync operation domain", () => {
         path.join(workspaceRoot, "state/media/media/program/media/images/program-cover.png"),
       ),
     ).resolves.toEqual(Buffer.from([7, 8, 9]));
+    await expect(
+      readFile(
+        path.join(
+          workspaceRoot,
+          "state/media/media/program/media/program/documents/program-private.pdf",
+        ),
+      ),
+    ).resolves.toEqual(Buffer.from(programDocumentBytes));
 
     const pushRequests: CapturedRequest[] = [];
     const pushFetch = sourceSyncFetch(pushRequests, {
@@ -228,6 +291,10 @@ describe("workspace source sync operation domain", () => {
         expect.objectContaining({ entity: "block", id: "block:program-cover" }),
         expect.objectContaining({ entity: "company", id: "company:program-native" }),
         expect.objectContaining({ entity: "company", id: "company:program-native-deleted" }),
+        expect.objectContaining({
+          entity: "program-report",
+          id: "program-report:private",
+        }),
         expect.objectContaining({ entity: "app-install", id: "legacy-tasks" }),
         expect.objectContaining({ entity: "app-install", id: "legacy-site" }),
         expect.objectContaining({ entity: "app-install", id: "legacy-crm" }),
@@ -238,10 +305,20 @@ describe("workspace source sync operation domain", () => {
         archivePath: "media/program/media/images/program-cover.png",
         storageKey: "media/images/program-cover.png",
       }),
+      expect.objectContaining({
+        archivePath: "media/program/media/program/documents/program-private.pdf",
+        asset: expect.not.objectContaining({
+          ownerAppInstallId: expect.anything(),
+        }),
+        storageKey: "media/program/documents/program-private.pdf",
+      }),
     ]);
     expect(restoreBody.mediaFiles).toEqual([
       expect.objectContaining({
         archivePath: "media/program/media/images/program-cover.png",
+      }),
+      expect.objectContaining({
+        archivePath: "media/program/media/program/documents/program-private.pdf",
       }),
     ]);
     expect(pushRequests.map((request) => new URL(request.url).pathname)).not.toEqual(
@@ -1150,6 +1227,62 @@ describe("deployment runtime domain", () => {
     expect(JSON.stringify(result)).not.toContain("manual-provider-token");
   });
 
+  it("selects an explicit Program artifact for repeat push runtime builds", async () => {
+    const tempDir = await makeTempDir();
+    const workspaceRoot = path.join(tempDir, "personal-sites");
+    const requests: CapturedRequest[] = [];
+    const deployInputs: DeployFormlessInstanceInput[] = [];
+
+    await writeWorkspaceConfig(workspaceRoot, {
+      program: formlessProgramDefaultComposition,
+    });
+    await writeDeployStorageSnapshot(workspaceRoot);
+    await writeWorkspaceAppStorageSnapshot(workspaceRoot);
+    await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, ".formless/instance.env"),
+      "FORMLESS_ADMIN_TOKEN=local-token\n",
+    );
+
+    const result = await runPushWorkspaceSourceOperation(
+      {
+        dryRun: false,
+        force: false,
+        kind: "push",
+        workspacePath: workspaceRoot,
+      },
+      deploymentApplyOperationDeps(tempDir, {
+        deployInputs,
+        env: { CLOUDFLARE_API_TOKEN: "manual-provider-token" },
+        fetch: deployFetch(requests),
+      }),
+    );
+    const deployInput = deployInputs[0];
+
+    expect(deployInput).toBeDefined();
+    await expect(
+      parseFormlessProgramArtifact(
+        JSON.parse(deployInput?.workspaceProgramArtifact ?? "") as unknown,
+      ),
+    ).resolves.toMatchObject({
+      schemaProvenance: {
+        kind: "program",
+        sourceSchemaHash: FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
+      },
+    });
+    expect(deployInput?.workspaceProgramArtifactPath).toBe(
+      path.join(workspaceRoot, ".formless/local/formless-program.json"),
+    );
+    expect(result).toMatchObject({
+      details: {
+        runtimeRebuild: {
+          reason: "program-artifact-configured",
+          status: "applied",
+        },
+      },
+    });
+  });
+
   it("forces unreadable target replacement and omits invalid remote control-plane records", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
@@ -1757,6 +1890,7 @@ function timestampSequence(...timestamps: string[]): () => string {
 async function writeWorkspaceConfig(
   workspaceRoot: string,
   options: {
+    program?: Parameters<typeof resolveFormlessConfig>[0]["program"];
     runtime?: FormlessResolvedConfig["runtime"];
   } = {},
 ) {
@@ -1768,6 +1902,7 @@ async function writeWorkspaceConfig(
     packages: {
       links: [{ manifest: "packages/private-site/formless.app.json" }],
     },
+    ...(options.program === undefined ? {} : { program: options.program }),
     ...(options.runtime === undefined ? {} : { runtime: options.runtime }),
   };
 
@@ -1812,15 +1947,24 @@ async function writeDeployStorageSnapshot(
   workspaceRoot: string,
   options: {
     credentialRef?: string;
+    program?: Parameters<typeof resolveFormlessConfig>[0]["program"];
     records?: StoredRecord[];
     targetUrl?: string;
     workerName?: string | null;
   } = {},
 ) {
+  const manifest = resolveFormlessConfig({
+    name: "personal-sites",
+    ...(options.program === undefined ? {} : { program: options.program }),
+  });
+
   await writeInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest: resolveFormlessConfig({ name: "personal-sites" }),
+    manifest,
     packageResolver: privateSitePackageResolver,
-    snapshot: controlPlaneSnapshot(options.records ?? deployControlPlaneRecords(options)),
+    snapshot: controlPlaneSnapshot(
+      options.records ?? deployControlPlaneRecords(options),
+      parseFormlessProgramSchemaArtifact(manifest.programSource ?? formlessProgramSchema),
+    ),
     workspaceRoot,
   });
 }
@@ -1912,7 +2056,12 @@ function sourceSyncFetch(
       }
     >;
     controlPlaneRecords?: StoredRecord[];
+    controlPlaneSchema?: AppSchema;
     installs?: Array<ReturnType<typeof installedSite> | ReturnType<typeof installedDormantPackage>>;
+    programDocument?: {
+      asset: DocumentMediaAsset;
+      bytes: Uint8Array;
+    };
     programMediaBytes?: Uint8Array;
     restoreResponses?: unknown[];
   } = {},
@@ -1963,8 +2112,26 @@ function sourceSyncFetch(
 
     if (parsedUrl.pathname === "/api/formless/program/snapshot") {
       return Response.json(
-        controlPlaneSnapshot(options.controlPlaneRecords ?? deployControlPlaneRecords()),
+        controlPlaneSnapshot(
+          options.controlPlaneRecords ?? deployControlPlaneRecords(),
+          options.controlPlaneSchema,
+        ),
       );
+    }
+
+    if (parsedUrl.pathname === "/api/formless/program/media/documents") {
+      return Response.json({
+        assets: options.programDocument ? [options.programDocument.asset] : [],
+      });
+    }
+
+    if (
+      options.programDocument &&
+      parsedUrl.pathname === options.programDocument.asset.deliveryHref
+    ) {
+      return new Response(Buffer.from(options.programDocument.bytes), {
+        headers: { "content-type": options.programDocument.asset.contentType },
+      });
     }
 
     const snapshotMatch = parsedUrl.pathname.match(
@@ -2301,12 +2468,15 @@ function snapshot(
   };
 }
 
-function controlPlaneSnapshot(records: StoredRecord[]): StorageSnapshot {
+function controlPlaneSnapshot(
+  records: StoredRecord[],
+  schema: AppSchema = formlessProgramSchema,
+): StorageSnapshot {
   return {
     exportedAt: "2026-05-12T02:00:00.000Z",
     kind: STORAGE_SNAPSHOT_KIND,
     records,
-    schema: formlessProgramSchema,
+    schema,
     schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
     schemaUpdatedAt: "2026-05-01T00:00:00.000Z",
     sourceCursor: records.length,
@@ -2586,6 +2756,46 @@ function programSiteMediaRecords(): StoredRecord[] {
       mediaAssetId: "program-cover.png",
     }),
   ];
+}
+
+function programDocumentComposition() {
+  return {
+    ...formlessProgramDefaultComposition,
+    modules: [...formlessProgramSchemaModules, programDocumentSchemaModule],
+  };
+}
+
+function programDocumentAsset(): DocumentMediaAsset {
+  const id = "program-private.pdf";
+  const storageKey = `media/program/documents/${id}`;
+
+  return {
+    access: "private",
+    byteSize: programDocumentBytes.byteLength,
+    contentType: "application/pdf",
+    deliveryHref: `/api/formless/program/media/documents/${id}`,
+    filename: id,
+    id,
+    kind: "document",
+    label: "Program private document",
+    provider: "r2",
+    status: "ready",
+    storageKey,
+  };
+}
+
+function programDocumentRecord(assetId: string): StoredRecord {
+  const createdAt = "2026-05-05T00:00:03.000Z";
+
+  return {
+    createdAt,
+    updatedAt: createdAt,
+    entity: "program-report",
+    id: "program-report:private",
+    values: {
+      documentAssetId: assetId,
+    },
+  };
 }
 
 function block(id: string, createdAt: string, values: StoredRecord["values"]): StoredRecord {

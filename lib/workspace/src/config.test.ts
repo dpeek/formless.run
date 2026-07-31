@@ -1,3 +1,4 @@
+import { defineAppSchemaModule } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -98,6 +99,94 @@ describe("Formless configuration", () => {
         },
       },
     });
+  });
+
+  it("flattens one explicit Program composition through normal module validation", () => {
+    const records = defineAppSchemaModule({
+      key: "workspace-notes-records",
+      entities: [
+        {
+          id: "entity_e5d2753d-185a-4c33-91f4-92f19d49c925",
+          key: "workspace-note",
+          label: "Workspace note",
+          fields: [{ key: "body", type: "text", required: true }],
+        },
+      ],
+      queries: [
+        {
+          key: "workspaceNoteAll",
+          label: "All workspace notes",
+          entity: "workspace-note",
+          expression: { kind: "all" },
+        },
+      ],
+      itemViews: [
+        {
+          key: "workspaceNoteItem",
+          entity: "workspace-note",
+          fields: [{ field: "body", editor: "text", commit: "field-commit" }],
+        },
+      ],
+      views: [
+        {
+          key: "workspaceNoteHome",
+          type: "collection",
+          label: "Workspace notes",
+          entity: "workspace-note",
+          queries: [{ query: "workspaceNoteAll" }],
+          defaultQuery: "workspaceNoteAll",
+          result: {
+            type: "list",
+            itemView: "workspaceNoteItem",
+          },
+        },
+      ],
+      screens: [
+        {
+          key: "workspaceNotes",
+          type: "workspace",
+          label: "Workspace notes",
+          path: "/notes",
+          access: { actor: "owner" },
+          layout: {
+            type: "stack",
+            sections: [
+              {
+                id: "workspace-notes",
+                type: "collection",
+                view: "workspaceNoteHome",
+              },
+            ],
+          },
+        },
+      ],
+    });
+    const config = defineConfig({
+      name: "private-notes",
+      program: {
+        version: 1,
+        modules: [records],
+        runtime: { owner: "runtime" },
+      },
+    });
+    const resolved = resolveFormlessConfig(config);
+
+    expect(resolved.programSource).toMatchObject({
+      version: 1,
+      entities: records.entities,
+      runtime: { owner: "runtime" },
+    });
+    expect(resolved.programSource).not.toHaveProperty("modules");
+
+    expect(() =>
+      resolveFormlessConfig({
+        name: "private-notes",
+        program: {
+          version: 1,
+          modules: [records, { ...records }],
+        },
+      }),
+    ).toThrow('Schema module key "workspace-notes-records" is listed more than once.');
   });
 
   it("rejects unsafe operational paths and duplicate package links during resolution", () => {

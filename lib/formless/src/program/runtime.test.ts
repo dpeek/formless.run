@@ -9,6 +9,7 @@ import {
 } from "@dpeek/formless-archive";
 import { crmOwnedProgramEntityIds } from "@dpeek/formless-crm-app";
 import { computeSourceSchemaHash } from "@dpeek/formless-installed-apps";
+import { defineAppSchemaModule } from "@dpeek/formless-schema";
 import { identityControlPlaneEntityIds } from "@dpeek/formless-identity-control-plane";
 import { instanceControlPlaneEntityIds } from "@dpeek/formless-instance-control-plane";
 import { siteEntityIds } from "@dpeek/formless-site-app";
@@ -28,6 +29,8 @@ import { describe, expect, it } from "vite-plus/test";
 import { programClientTarget } from "../client/app-target.ts";
 import { testSiteRecords } from "../test/site-records.ts";
 import rawFormlessProgramSchema from "./schema.json";
+import { materializeFormlessProgramArtifact } from "./artifact.ts";
+import { formlessProgramDefaultComposition, formlessProgramSchemaModules } from "./schema.ts";
 import {
   FORMLESS_PROGRAM_API_ROUTE_PREFIX,
   FORMLESS_PROGRAM_BROWSER_STORAGE_NAME,
@@ -294,6 +297,44 @@ describe("Formless Program runtime contracts", () => {
       { deletedAt: tombstone.deletedAt, entity: "company", id: tombstone.id },
     ]);
     expect(canonicalizeFormlessProgramStorageSnapshot(canonical)).toEqual(canonical);
+  });
+
+  it("keeps workspace module records in the one Program workspace and archive contracts", async () => {
+    const workspaceRecords = defineAppSchemaModule({
+      key: "workspace-verification-records",
+      entities: [
+        {
+          id: "entity_d0501a6e-4992-46dc-9f76-c67b362dd3bd",
+          key: "verification",
+          label: "Verification",
+          fields: [{ key: "reference", type: "text", required: true }],
+        },
+      ],
+    });
+    const artifact = await materializeFormlessProgramArtifact({
+      ...formlessProgramDefaultComposition,
+      modules: [...formlessProgramSchemaModules, workspaceRecords],
+    });
+    const schema = parseFormlessProgramSchemaArtifact(artifact.sourceSchema);
+    const verification = storedRecord("verification:one", "verification", {
+      reference: "VER-001",
+    });
+    const snapshot = {
+      ...programSnapshot([...programRecords(), verification]),
+      schema,
+    };
+    const canonical = canonicalizeFormlessProgramStorageSnapshot(snapshot, { artifact });
+    const workspaceContract = formlessProgramWorkspaceSnapshotContract({ artifact });
+    const archiveContract = formlessProgramArchiveSnapshotContract({ artifact });
+
+    expect(canonical.records).toContainEqual(verification);
+    expect(workspaceContract).toMatchObject({
+      schema,
+      schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
+      schemaProvenance: artifact.schemaProvenance,
+      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+    });
+    expect(archiveContract.parse("workspace Program archive", canonical)).toEqual(canonical);
   });
 
   it("excludes private state and formats one mixed snapshot deterministically", () => {

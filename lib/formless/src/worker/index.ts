@@ -14,6 +14,7 @@ import {
   mediaObjectStoreFromR2Bucket,
 } from "@dpeek/formless-media/worker";
 import { handleAppDocumentMediaRequest } from "./app-document-media.ts";
+import { handleProgramDocumentMediaRequest } from "./program-document-media.ts";
 import { handleInstanceDomainProviderApiRequest } from "./domain-provider-api.ts";
 import { handleInstanceDeploymentRuntimeApiRequest } from "./deployment-runtime-api.ts";
 import {
@@ -104,6 +105,7 @@ import { activeAppPackageResolver } from "./runtime-app-packages.ts";
 import { WORKSPACE_OPERATION_CAPABILITIES } from "@dpeek/formless-workspace";
 import {
   FORMLESS_PROGRAM_EDITOR_ACCESS_REQUIREMENT,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
   formlessProgramSchema,
 } from "../program/runtime.ts";
 
@@ -276,6 +278,22 @@ export default {
 
     if (appDocumentMediaResponse) {
       return appDocumentMediaResponse;
+    }
+
+    const programHostSessionTarget = requestHasCookie(request, HOST_AUTH_SESSION_COOKIE_NAME)
+      ? hostAuthSessionTargetForRuntimeRoute(request, runtimeRoute)
+      : undefined;
+    const programDocumentMediaResponse = await handleProgramDocumentMediaRequest(request, env, {
+      pathname: requestTopology.pathname,
+      target:
+        programHostSessionTarget?.appInstallId === undefined &&
+        programHostSessionTarget?.storageIdentity === FORMLESS_PROGRAM_STORAGE_IDENTITY
+          ? programHostSessionTarget
+          : undefined,
+    });
+
+    if (programDocumentMediaResponse) {
+      return programDocumentMediaResponse;
     }
 
     const siteIconResponse = await handlePublicSiteIconRequest(request, env, {

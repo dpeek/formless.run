@@ -1,16 +1,27 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
   DEFAULT_INSTANCE_WORKSPACE_MEDIA_ROOT,
   DEFAULT_INSTANCE_WORKSPACE_SECRET_STATE_ROOT,
+  resolveFormlessConfig,
 } from "@dpeek/formless-workspace";
+import { defineAppSchemaModule } from "@dpeek/formless-schema";
 import { afterEach, describe, expect, it } from "vite-plus/test";
+import {
+  FORMLESS_PROGRAM_ARTIFACT_FILE,
+  parseFormlessProgramArtifact,
+} from "../program/artifact.ts";
+import {
+  formlessProgramDefaultComposition,
+  formlessProgramSchemaModules,
+} from "../program/schema.ts";
 
 import {
   discoverFormlessInstanceWorkspaceRoot,
   formatFormlessConfigModule,
+  materializeActiveWorkspaceProgramArtifact,
   readWorkspaceConfig,
 } from "./instance-workspace-foundation.ts";
 
@@ -90,6 +101,42 @@ describe("TypeScript workspace configuration", () => {
         "",
       ].join("\n"),
     );
+  });
+
+  it("materializes one data-only active Program artifact under local workspace state", async () => {
+    const workspaceRoot = await makeTempDir();
+    const extension = defineAppSchemaModule({
+      key: "workspace-verification-records",
+      entities: [
+        {
+          id: "entity_d0501a6e-4992-46dc-9f76-c67b362dd3bd",
+          key: "verification",
+          label: "Verification",
+          fields: [{ key: "reference", type: "text", required: true }],
+        },
+      ],
+    });
+    const config = resolveFormlessConfig({
+      name: "workspace-program",
+      program: {
+        ...formlessProgramDefaultComposition,
+        modules: [...formlessProgramSchemaModules, extension],
+      },
+    });
+    const active = await materializeActiveWorkspaceProgramArtifact(workspaceRoot, config);
+    const parsed = await parseFormlessProgramArtifact(
+      JSON.parse(await readFile(active.path, "utf8")) as unknown,
+    );
+
+    expect(active.path).toBe(
+      path.join(workspaceRoot, ".formless/local", FORMLESS_PROGRAM_ARTIFACT_FILE),
+    );
+    expect(parsed).toEqual(active.artifact);
+    expect(parsed.sourceSchema.entities.at(-1)).toMatchObject({
+      id: "entity_d0501a6e-4992-46dc-9f76-c67b362dd3bd",
+      key: "verification",
+    });
+    expect(active.contents).not.toContain("workspace-verification-records");
   });
 });
 

@@ -1,3 +1,6 @@
+import { composeAppSchema } from "@dpeek/formless-schema";
+import type { AppSchemaCompositionSource, AppSchemaSource } from "@dpeek/formless-schema";
+
 import {
   DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT,
   DEFAULT_INSTANCE_WORKSPACE_MEDIA_ROOT,
@@ -9,15 +12,25 @@ import {
   INSTANCE_WORKSPACE_SITE_PUBLIC_RENDERER_EXTENSION,
 } from "./types.ts";
 import type {
-  FormlessConfig,
+  FormlessConfigBase,
   InstanceWorkspaceRuntimeExtensions,
-  ResolvedFormlessConfig,
+  ResolvedFormlessConfigBase,
   WorkspacePackageLink,
 } from "./types.ts";
 
 const resourceSlugPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const targetAliasPattern = /^[a-z][a-z0-9]*(?:(?:[.-])[a-z0-9]+)*$/;
 const urlLikePathPattern = /^[a-z][a-z0-9+.-]*:/i;
+
+export type FormlessProgramComposition = AppSchemaCompositionSource;
+
+export type FormlessConfig = FormlessConfigBase & {
+  program?: FormlessProgramComposition;
+};
+
+export type ResolvedFormlessConfig = ResolvedFormlessConfigBase & {
+  programSource?: AppSchemaSource;
+};
 
 export function defineConfig<const Config extends FormlessConfig>(config: Config): Config {
   return config;
@@ -28,6 +41,7 @@ export function resolveFormlessConfig(config: FormlessConfig): ResolvedFormlessC
     version: FORMLESS_CONFIG_VERSION,
     kind: FORMLESS_CONFIG_KIND,
     name: parseConfigName(config.name),
+    ...(config.program === undefined ? {} : { programSource: composeAppSchema(config.program) }),
     state: {
       root: parseWorkspaceRelativePath(
         `${FORMLESS_CONFIG_FILE} state.root`,

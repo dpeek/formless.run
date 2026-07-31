@@ -497,12 +497,19 @@ export async function restoreArchiveMediaObjectToStore(
   }
 
   if (object.asset?.kind === "document") {
-    if (identity.kind !== "appInstall") {
-      throw new Error("Program media cannot restore installed-app documents.");
-    }
-
     const asset = object.asset;
     const expectedHref = documentArchiveDeliveryHref(identity, asset.id);
+    const expectedOwnerAppInstallId =
+      identity.kind === "appInstall" ? identity.installId : undefined;
+
+    if (asset.ownerAppInstallId !== expectedOwnerAppInstallId) {
+      throw new Error(
+        identity.kind === "program"
+          ? "Program document media cannot contain app-install owner metadata."
+          : "Installed-app document media must match its target install.",
+      );
+    }
+
     const existing = await compatibleExistingArchiveDocument(store, object, bytes);
 
     if (existing) {
@@ -523,7 +530,7 @@ export async function restoreArchiveMediaObjectToStore(
         acceptedMimeTypes: [MEDIA_PDF_CONTENT_TYPE],
         access: asset.access,
         maxBytes: MEDIA_DOCUMENT_UPLOAD_MAX_BYTES,
-        ownerAppInstallId: identity.installId,
+        ...(identity.kind === "appInstall" ? { ownerAppInstallId: identity.installId } : {}),
       },
       contentType: object.contentType,
       hrefForAssetId: (assetId) => documentArchiveDeliveryHref(identity, assetId),
@@ -598,10 +605,7 @@ async function compatibleExistingArchiveDocument(
   return true;
 }
 
-function documentArchiveDeliveryHref(
-  identity: InstalledAppStorageIdentity,
-  assetId: string,
-): string {
+function documentArchiveDeliveryHref(identity: AuthorityStorageIdentity, assetId: string): string {
   return `${identity.apiRoutePrefix}/media/documents/${assetId}`;
 }
 

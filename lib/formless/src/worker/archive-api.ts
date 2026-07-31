@@ -43,7 +43,11 @@ import {
   type ActiveRuntimeAppPackageEnv,
 } from "./runtime-app-packages.ts";
 import { mediaObjectStoreFromR2Bucket } from "@dpeek/formless-media/worker";
-import { APP_DOCUMENT_MEDIA_KEY_PREFIX, CORE_IMAGE_KEY_PREFIX } from "@dpeek/formless-media";
+import {
+  APP_DOCUMENT_MEDIA_KEY_PREFIX,
+  CORE_IMAGE_KEY_PREFIX,
+  PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX,
+} from "@dpeek/formless-media";
 
 export const INSTANCE_ARCHIVE_RESTORE_API_PATH = "/api/formless/archive/restore";
 
@@ -258,7 +262,10 @@ async function pruneCoreMediaObjects(
   bucket: R2Bucket,
   desiredStorageKeys: ReadonlySet<string>,
 ): Promise<void> {
-  const prefixes = [mediaKeyPrefix(APP_DOCUMENT_MEDIA_KEY_PREFIX)];
+  const prefixes = [
+    mediaKeyPrefix(APP_DOCUMENT_MEDIA_KEY_PREFIX),
+    mediaKeyPrefix(PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX),
+  ];
   const keysToDelete: string[] = [];
   for (const prefix of prefixes) {
     let cursor: string | undefined;
@@ -293,6 +300,7 @@ function archiveCoreMediaKeys(archive: PortableArchive): ReadonlySet<string> {
   const prefixes = [
     mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX),
     mediaKeyPrefix(APP_DOCUMENT_MEDIA_KEY_PREFIX),
+    mediaKeyPrefix(PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX),
   ];
 
   for (const object of archiveMediaObjects(archive)) {
