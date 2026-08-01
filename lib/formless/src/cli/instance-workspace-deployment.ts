@@ -46,6 +46,10 @@ import {
 } from "@dpeek/formless-deploy/client";
 import { parseOwnerSetupToken } from "../shared/protocol.ts";
 import { runtimeWorkspaceExtensionsEnvValue } from "../shared/workspace-runtime-extensions.ts";
+import {
+  isDefaultWorkspaceProgramRuntimeComposition,
+  runtimeWorkspaceProgramRuntimeEnvValue,
+} from "./program-runtime-bundler.ts";
 import type { DomainProviderPlan } from "../shared/domain-provider-protocol.ts";
 import { exportInstanceArchive, type RestoreInstanceArchiveResult } from "./archive-workflows.ts";
 import {
@@ -151,7 +155,11 @@ export type PushFormlessInstanceWorkspaceSource = {
 };
 
 export type PushFormlessInstanceWorkspaceRuntimeRebuild = {
-  reason: "force" | "program-artifact-configured" | "runtime-extensions-configured";
+  reason:
+    | "force"
+    | "program-artifact-configured"
+    | "runtime-composition-configured"
+    | "runtime-extensions-configured";
   status: "applied" | "available";
 };
 
@@ -277,6 +285,7 @@ export type PlanDeployLocalFormlessWorkspaceResult = LocalWorkspaceDeploymentPla
   preflight?: CheckFormlessInstanceWorkspaceResult;
   workspaceProgramArtifact: string;
   workspaceProgramArtifactPath: string;
+  workspaceProgramRuntime: string;
   workspaceRuntimeExtensions?: string;
   workspaceRoot: string;
 };
@@ -294,6 +303,7 @@ export type PlanDeployFormlessInstanceWorkspaceResult = {
   selectedTarget: FormlessInstanceWorkspaceTarget;
   workspaceProgramArtifact: string;
   workspaceProgramArtifactPath: string;
+  workspaceProgramRuntime: string;
   workspaceRuntimeExtensions?: string;
   workspaceRoot: string;
 };
@@ -475,8 +485,12 @@ export async function pushFormlessInstanceWorkspace(
       dependencies,
     );
     const { forcedRecovery, hasDataChanges, programArtifact, source, syncPlan } = sourceSync;
+    const runtimeCompositionConfigured = !isDefaultWorkspaceProgramRuntimeComposition(
+      planned.config,
+    );
     const runtimeRebuild =
       planned.config.programSource === undefined &&
+      !runtimeCompositionConfigured &&
       planned.workspaceRuntimeExtensions === undefined &&
       input.force !== true
         ? undefined
@@ -484,9 +498,11 @@ export async function pushFormlessInstanceWorkspace(
             reason:
               planned.config.programSource !== undefined
                 ? ("program-artifact-configured" as const)
-                : planned.workspaceRuntimeExtensions === undefined
-                  ? ("force" as const)
-                  : ("runtime-extensions-configured" as const),
+                : runtimeCompositionConfigured
+                  ? ("runtime-composition-configured" as const)
+                  : planned.workspaceRuntimeExtensions === undefined
+                    ? ("force" as const)
+                    : ("runtime-extensions-configured" as const),
             status: (input.apply ? "applied" : "available") as "applied" | "available",
           };
     const forcedRecoveryActive = forcedRecovery !== undefined;
@@ -773,6 +789,7 @@ async function applyWorkspacePushProviderReconciliation(
       workspaceRoot,
       workspaceProgramArtifact: planned.workspaceProgramArtifact,
       workspaceProgramArtifactPath: planned.workspaceProgramArtifactPath,
+      workspaceProgramRuntime: planned.workspaceProgramRuntime,
       ...(planned.workspaceRuntimeExtensions === undefined
         ? {}
         : { workspaceRuntimeExtensions: planned.workspaceRuntimeExtensions }),
@@ -963,6 +980,7 @@ export async function deployLocalFormlessWorkspace(
       workspaceRoot,
       workspaceProgramArtifact: planned.workspaceProgramArtifact,
       workspaceProgramArtifactPath: planned.workspaceProgramArtifactPath,
+      workspaceProgramRuntime: planned.workspaceProgramRuntime,
       ...(planned.workspaceRuntimeExtensions === undefined
         ? {}
         : { workspaceRuntimeExtensions: planned.workspaceRuntimeExtensions }),
@@ -1318,6 +1336,10 @@ export async function planDeployLocalFormlessWorkspace(
     targetId: planned.selectedTarget.alias,
   });
   const activeProgram = await materializeActiveWorkspaceProgramArtifact(workspaceRoot, config);
+  const workspaceProgramRuntime = runtimeWorkspaceProgramRuntimeEnvValue(
+    config,
+    activeProgram.runtimeComposition,
+  );
   const workspaceRuntimeExtensions = runtimeWorkspaceExtensionsEnvValue(config);
 
   return {
@@ -1328,6 +1350,7 @@ export async function planDeployLocalFormlessWorkspace(
     ...(preflight === undefined ? {} : { preflight }),
     workspaceProgramArtifact: activeProgram.contents,
     workspaceProgramArtifactPath: activeProgram.path,
+    workspaceProgramRuntime,
     ...(workspaceRuntimeExtensions === undefined ? {} : { workspaceRuntimeExtensions }),
     workspaceRoot,
   };
@@ -1458,6 +1481,7 @@ export async function deployFormlessInstanceWorkspace(
     workspaceRoot,
     workspaceProgramArtifact: planned.workspaceProgramArtifact,
     workspaceProgramArtifactPath: planned.workspaceProgramArtifactPath,
+    workspaceProgramRuntime: planned.workspaceProgramRuntime,
     ...(planned.workspaceRuntimeExtensions === undefined
       ? {}
       : { workspaceRuntimeExtensions: planned.workspaceRuntimeExtensions }),
@@ -1521,6 +1545,10 @@ export async function planDeployFormlessInstanceWorkspace(
     selectedTarget,
   });
   const activeProgram = await materializeActiveWorkspaceProgramArtifact(workspaceRoot, config);
+  const workspaceProgramRuntime = runtimeWorkspaceProgramRuntimeEnvValue(
+    config,
+    activeProgram.runtimeComposition,
+  );
   const workspaceRuntimeExtensions = runtimeWorkspaceExtensionsEnvValue(config);
   const credentialContext = await resolveLocalWorkspaceDeploymentCredentialContext({
     credential: deploymentSource.credential,
@@ -1540,6 +1568,7 @@ export async function planDeployFormlessInstanceWorkspace(
     selectedTarget,
     workspaceProgramArtifact: activeProgram.contents,
     workspaceProgramArtifactPath: activeProgram.path,
+    workspaceProgramRuntime,
     ...(workspaceRuntimeExtensions === undefined ? {} : { workspaceRuntimeExtensions }),
     workspaceRoot,
   };

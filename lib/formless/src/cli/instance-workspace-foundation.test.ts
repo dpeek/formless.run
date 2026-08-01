@@ -165,10 +165,32 @@ describe("TypeScript workspace configuration", () => {
         "    modules: [extension],",
         '    runtime: { owner: "runtime" },',
         "  },",
+        "  runtime: {",
+        "    composition: {",
+        '      shared: "runtime/shared.ts",',
+        '      browser: "runtime/browser.ts",',
+        '      worker: "runtime/worker.ts",',
+        "    },",
+        "  },",
         "};",
         "",
       ].join("\n"),
     );
+    await mkdir(path.join(workspaceRoot, "runtime"), { recursive: true });
+    await Promise.all([
+      writeFile(
+        path.join(workspaceRoot, "runtime/shared.ts"),
+        'export default { target: "shared", recordAdapters: [], operationAdapters: [], bootstrapContributions: [], createIdContributions: [] };\n',
+      ),
+      writeFile(
+        path.join(workspaceRoot, "runtime/browser.ts"),
+        'export default { target: "browser", projections: [], surfaces: [] };\n',
+      ),
+      writeFile(
+        path.join(workspaceRoot, "runtime/worker.ts"),
+        'export default { target: "worker", publicReads: [], surfaces: [], afterCommit: [] };\n',
+      ),
+    ]);
 
     const { config } = await readWorkspaceConfig(workspaceRoot);
     const active = await materializeActiveWorkspaceProgramArtifact(workspaceRoot, config);

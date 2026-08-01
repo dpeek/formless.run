@@ -4,11 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import {
-  FORMLESS_CONFIG_FILE,
-  resolveFormlessConfig,
-  type ResolvedFormlessConfig,
-} from "@dpeek/formless-workspace";
+import { FORMLESS_CONFIG_FILE, resolveFormlessConfig } from "@dpeek/formless-workspace";
 import { formatTestFormlessConfigModule } from "./instance-workspace-config-test.ts";
 import { SITE_PUBLIC_RENDERER_RUNTIME_EXTENSION_KEY } from "../shared/workspace-runtime-extensions.ts";
 
@@ -1200,7 +1196,7 @@ function assertTextExcludesSecrets(
 async function writeWorkspaceConfig(
   workspaceRoot: string,
   options: {
-    runtime?: ResolvedFormlessConfig["runtime"];
+    runtime?: Parameters<typeof resolveFormlessConfig>[0]["runtime"];
   } = {},
 ) {
   await mkdir(workspaceRoot, { recursive: true });

@@ -1183,6 +1183,10 @@ describe("Alchemy Formless instance deployment", () => {
                 setup: expect.any(Function),
               }),
               expect.objectContaining({
+                name: "formless-program-runtime-virtual-modules",
+                setup: expect.any(Function),
+              }),
+              expect.objectContaining({
                 name: "formless-site-public-renderer-worker-virtual-modules",
                 setup: expect.any(Function),
               }),

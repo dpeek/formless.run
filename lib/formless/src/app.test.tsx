@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Router } from "wouter";
 import { describe, expect, it } from "vite-plus/test";
 import { App, type AppRouteComponents } from "./app.tsx";
+import type { ProgramBrowserRuntimeDefinition } from "./program/composition.ts";
 import {
   createDevRuntimeProfile,
   createPublishedSiteRuntimeProfile,
@@ -47,11 +48,29 @@ describe("application route selection", () => {
       'data-surface="application-shell"',
     );
   });
+
+  it("does not mount Site routes when the Program has no Site browser surface", () => {
+    const runtimeWithoutSite: ProgramBrowserRuntimeDefinition = {
+      target: "browser",
+      projections: [],
+      surfaces: [],
+    };
+
+    const preview = renderRoute("/pages/home", { browserRuntime: runtimeWithoutSite });
+    const published = renderRoute("/", {
+      browserRuntime: runtimeWithoutSite,
+      runtimeProfile: createPublishedSiteRuntimeProfile(),
+    });
+
+    expect(preview).not.toContain('data-route="public-site"');
+    expect(published).not.toContain('data-route="public-site"');
+  });
 });
 
 function renderRoute(
   path: string,
   options: {
+    browserRuntime?: ProgramBrowserRuntimeDefinition;
     localWorkspaceGatewayAvailable?: boolean;
     runtimeProfile?: RuntimeProfile;
   } = {},
@@ -59,6 +78,7 @@ function renderRoute(
   return renderToStaticMarkup(
     <Router ssrPath={path}>
       <App
+        browserRuntime={options.browserRuntime}
         localWorkspaceGatewayAvailable={options.localWorkspaceGatewayAvailable}
         routeComponents={routeComponents()}
         runtimeProfile={options.runtimeProfile ?? createDevRuntimeProfile()}

@@ -12,6 +12,10 @@ import {
   type AppSchemaSource,
 } from "@dpeek/formless-schema";
 import type { FormlessProgramComposition } from "@dpeek/formless-workspace";
+import {
+  validateProgramRuntimeComposition,
+  type ProgramRuntimeComposition,
+} from "./composition.ts";
 
 export const FORMLESS_PROGRAM_ARTIFACT_KIND = "formless-program";
 export const FORMLESS_PROGRAM_ARTIFACT_VERSION = 1;
@@ -31,8 +35,15 @@ export type FormlessProgramArtifact = {
 
 export async function materializeFormlessProgramArtifact(
   composition: FormlessProgramComposition,
+  options: { runtime?: ProgramRuntimeComposition } = {},
 ): Promise<FormlessProgramArtifact> {
-  return materializeFormlessProgramSourceArtifact(composeAppSchema(composition));
+  const sourceSchema = composeAppSchema(composition);
+  validateProgramRuntimeComposition({
+    composition,
+    runtime: options.runtime,
+    sourceSchema,
+  });
+  return materializeFormlessProgramSourceArtifact(sourceSchema);
 }
 
 export async function materializeFormlessProgramSourceArtifact(

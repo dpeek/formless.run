@@ -16,6 +16,12 @@ export const DEFAULT_INSTANCE_WORKSPACE_MEDIA_ROOT = "state/media";
 export const DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT = ".formless/local";
 export const DEFAULT_INSTANCE_WORKSPACE_SECRET_STATE_ROOT = ".formless";
 export const INSTANCE_WORKSPACE_SITE_PUBLIC_RENDERER_EXTENSION = "site.publicRenderer";
+export const DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE =
+  "@dpeek/formless/program/default/shared";
+export const DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE =
+  "@dpeek/formless/program/default/browser";
+export const DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE =
+  "@dpeek/formless/program/default/worker";
 
 export const WORKSPACE_RECORD_STATE_FILE_KIND = "formless.workspaceRecordState";
 export const WORKSPACE_RECORD_STATE_FILE_VERSION = 1;
@@ -744,7 +750,14 @@ export type InstanceWorkspaceLocalState = {
 };
 
 export type InstanceWorkspaceRuntime = {
+  composition: InstanceWorkspaceRuntimeComposition;
   extensions?: InstanceWorkspaceRuntimeExtensions;
+};
+
+export type InstanceWorkspaceRuntimeComposition = {
+  shared: string;
+  browser: string;
+  worker: string;
 };
 
 export type InstanceWorkspaceRuntimeExtensions = {
@@ -778,6 +791,7 @@ export type FormlessConfigLocalState = {
 };
 
 export type FormlessConfigRuntime = {
+  composition?: InstanceWorkspaceRuntimeComposition;
   extensions?: InstanceWorkspaceRuntimeExtensions;
 };
 
@@ -792,6 +806,7 @@ export type ResolvedFormlessConfigBase = {
 };
 
 export type ResolvedFormlessConfigRuntime = {
+  composition: InstanceWorkspaceRuntimeComposition;
   extensions: InstanceWorkspaceRuntimeExtensions;
 };
 

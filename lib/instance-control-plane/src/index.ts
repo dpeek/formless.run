@@ -289,6 +289,12 @@ export const instanceControlPlaneReservedRoutePaths = [
 ] as const;
 export const instanceControlPlaneRecordSchemaModule = defineAppSchemaModule({
   key: "instance-control-plane-records",
+  runtimeRequirements: {
+    shared: {
+      recordAdapters: ["instance-control-plane.records"],
+      createIdContributions: ["instance-control-plane.create-id"],
+    },
+  },
   entities: [
     {
       id: "entity_6f9905f7-05cd-41b1-a233-148b1718c6f0",

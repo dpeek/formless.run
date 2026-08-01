@@ -9,6 +9,7 @@ import {
   type InstanceArchive,
 } from "../program/archive.ts";
 import type { FormlessProgramArtifact } from "../program/artifact.ts";
+import type { ProgramSharedRuntimeDefinition } from "../program/composition.ts";
 import { formlessProgramArchiveSnapshotContract } from "../program/runtime.ts";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import {
@@ -51,6 +52,7 @@ export type ArchiveRestoreApplyTarget = {
   media?: ArchiveRestoreMediaAdapter;
   programArtifact?: FormlessProgramArtifact;
   programSchema?: AppSchema;
+  programSharedRuntime?: ProgramSharedRuntimeDefinition;
   replaceMedia?: (desiredStorageKeys: ReadonlySet<string>) => Promise<void>;
   restoreProgram: (snapshot: StorageSnapshot) => void | Promise<void>;
 };
@@ -362,6 +364,7 @@ async function prepareArchiveRestore(
     archive = parseInstanceArchive(value, {
       programArtifact: target.programArtifact,
       programSchema: target.programSchema,
+      programSharedRuntime: target.programSharedRuntime,
     });
   } catch (error) {
     return {
@@ -376,6 +379,7 @@ async function prepareArchiveRestore(
     programSnapshotContract: formlessProgramArchiveSnapshotContract({
       artifact: target.programArtifact,
       schema: target.programSchema,
+      sharedRuntime: target.programSharedRuntime,
     }),
   });
 

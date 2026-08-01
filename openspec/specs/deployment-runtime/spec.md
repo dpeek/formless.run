@@ -137,6 +137,9 @@ diagnostics without making push an upgrade-planning workflow.
 - THEN the response includes package version, runtime protocol version, storage
   migration set identity, and current storage migration facts
 - AND Program provenance is read from the complete Program artifact contract
+- AND an optional browser or Worker bundle digest is deployment build evidence
+  only and does not become Program schema provenance, storage identity,
+  authorization identity, workspace state, or archive data
 - AND the response does not expose provider credentials, admin tokens, Alchemy
   state, raw lease tokens, or runtime secrets
 - AND the response is not cached

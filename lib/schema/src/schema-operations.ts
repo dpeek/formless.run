@@ -469,7 +469,10 @@ function validateOperationPublicPolicy(
 
   if (
     kind === "command" &&
-    !(effect?.type === "recordPlan" || isOperationHandlerEffectForKind(effect, "subscribe"))
+    !(
+      effect?.type === "recordPlan" ||
+      isOperationHandlerEffectForKind(effect, "contact-subscription.subscribe")
+    )
   ) {
     throw new Error(`${context} command effect is not eligible for public execution.`);
   }

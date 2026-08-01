@@ -4,18 +4,24 @@ import {
   FORMLESS_PROGRAM_ARTIFACT_KIND,
   FORMLESS_PROGRAM_ARTIFACT_VERSION,
   formatFormlessProgramArtifact,
-  formlessProgramBuiltInModules,
-  formlessProgramDefaultComposition,
-  formlessProgramSchemaModules,
   materializeFormlessProgramArtifact,
   parseFormlessProgramArtifact,
 } from "@dpeek/formless/program";
+import {
+  formlessProgramBuiltInModules,
+  formlessProgramDefaultComposition,
+  formlessProgramDefaultRuntimeComposition,
+  formlessProgramSchemaModules,
+} from "@dpeek/formless/program/default";
 import { formlessProgramSourceSchema } from "./schema.ts";
 import { FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH } from "./target.ts";
+import type { ProgramRuntimeComposition } from "./composition.ts";
 
 describe("workspace Program artifact", () => {
   it("materializes the default composition with canonical source provenance", async () => {
-    const artifact = await materializeFormlessProgramArtifact(formlessProgramDefaultComposition);
+    const artifact = await materializeFormlessProgramArtifact(formlessProgramDefaultComposition, {
+      runtime: formlessProgramDefaultRuntimeComposition,
+    });
 
     expect(artifact).toEqual({
       kind: FORMLESS_PROGRAM_ARTIFACT_KIND,
@@ -47,8 +53,12 @@ describe("workspace Program artifact", () => {
       ...formlessProgramDefaultComposition,
       modules: [...formlessProgramSchemaModules, workspaceRecords],
     };
-    const first = await materializeFormlessProgramArtifact(composition);
-    const second = await materializeFormlessProgramArtifact(composition);
+    const first = await materializeFormlessProgramArtifact(composition, {
+      runtime: formlessProgramDefaultRuntimeComposition,
+    });
+    const second = await materializeFormlessProgramArtifact(composition, {
+      runtime: formlessProgramDefaultRuntimeComposition,
+    });
     const artifactText = formatFormlessProgramArtifact(first);
 
     expect(first).toEqual(second);
@@ -71,28 +81,36 @@ describe("workspace Program artifact", () => {
     const replacedModules = formlessProgramSchemaModules.map((module) =>
       module.key === replacement.key ? replacement : module,
     );
-    const artifact = await materializeFormlessProgramArtifact({
-      ...formlessProgramDefaultComposition,
-      modules: replacedModules,
-      navigation: {
-        ...formlessProgramDefaultComposition.navigation,
-        primaryScreens: [...(formlessProgramDefaultComposition.navigation?.primaryScreens ?? [])],
+    const artifact = await materializeFormlessProgramArtifact(
+      {
+        ...formlessProgramDefaultComposition,
+        modules: replacedModules,
+        navigation: {
+          ...formlessProgramDefaultComposition.navigation,
+          primaryScreens: [...(formlessProgramDefaultComposition.navigation?.primaryScreens ?? [])],
+        },
       },
-    });
+      { runtime: formlessProgramDefaultRuntimeComposition },
+    );
 
     expect(artifact.sourceSchema.screens.find((screen) => screen.key === "taskHome")?.path).toBe(
       "/work",
     );
     await expect(
-      materializeFormlessProgramArtifact({
-        ...formlessProgramDefaultComposition,
-        modules: [...formlessProgramSchemaModules, replacement],
-      }),
+      materializeFormlessProgramArtifact(
+        {
+          ...formlessProgramDefaultComposition,
+          modules: [...formlessProgramSchemaModules, replacement],
+        },
+        { runtime: formlessProgramDefaultRuntimeComposition },
+      ),
     ).rejects.toThrow('Schema module key "tasks-presentation" is listed more than once.');
   });
 
   it("rejects artifacts whose schema no longer matches provenance", async () => {
-    const artifact = await materializeFormlessProgramArtifact(formlessProgramDefaultComposition);
+    const artifact = await materializeFormlessProgramArtifact(formlessProgramDefaultComposition, {
+      runtime: formlessProgramDefaultRuntimeComposition,
+    });
     const changed = {
       ...artifact,
       sourceSchema: {
@@ -104,5 +122,37 @@ describe("workspace Program artifact", () => {
     };
 
     await expect(parseFormlessProgramArtifact(changed)).rejects.toThrow("does not match");
+  });
+
+  it("keeps executable composition outside canonical Program provenance", async () => {
+    const selected = formlessProgramDefaultRuntimeComposition.shared.recordAdapters[0]!;
+    const alternateRuntime = {
+      ...formlessProgramDefaultRuntimeComposition,
+      shared: {
+        ...formlessProgramDefaultRuntimeComposition.shared,
+        recordAdapters: [
+          {
+            ...selected,
+            adapter: {
+              canonicalize: selected.adapter.canonicalize.bind(selected.adapter),
+              validate: selected.adapter.validate.bind(selected.adapter),
+              validateCandidate: selected.adapter.validateCandidate.bind(selected.adapter),
+            },
+          },
+          ...formlessProgramDefaultRuntimeComposition.shared.recordAdapters.slice(1),
+        ],
+      },
+    } satisfies ProgramRuntimeComposition;
+    const baseline = await materializeFormlessProgramArtifact(formlessProgramDefaultComposition, {
+      runtime: formlessProgramDefaultRuntimeComposition,
+    });
+    const alternate = await materializeFormlessProgramArtifact(formlessProgramDefaultComposition, {
+      runtime: alternateRuntime,
+    });
+    const contents = formatFormlessProgramArtifact(alternate);
+
+    expect(alternate).toEqual(baseline);
+    expect(alternate.schemaProvenance.sourceSchemaHash).toBe(FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH);
+    expect(contents).not.toContain(selected.key);
   });
 });

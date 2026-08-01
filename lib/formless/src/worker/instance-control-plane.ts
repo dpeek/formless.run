@@ -64,12 +64,22 @@ import {
   formlessProgramSource,
   validateFormlessProgramRecordConstraint,
 } from "./program-authority.ts";
+import { programWorkerRuntime } from "../program/compiled/worker.ts";
+import {
+  INTERNAL_READ_OPERATION_INVOCATIONS_PATH,
+  INTERNAL_READ_RECORDS_PATH,
+  INTERNAL_SYNC_DEPLOYMENT_PROJECTION_PATH,
+  INTERNAL_SYNC_DOMAIN_INTENT_PATH,
+} from "./instance-control-plane-routes.ts";
+
+export {
+  INTERNAL_READ_OPERATION_INVOCATIONS_PATH,
+  INTERNAL_READ_RECORDS_PATH,
+  INTERNAL_SYNC_DEPLOYMENT_PROJECTION_PATH,
+  INTERNAL_SYNC_DOMAIN_INTENT_PATH,
+} from "./instance-control-plane-routes.ts";
 
 const actorKinds = ["admin", "cliDeployer", "owner", "runner"] as const;
-export const INTERNAL_READ_RECORDS_PATH = "/_internal/read-records";
-export const INTERNAL_READ_OPERATION_INVOCATIONS_PATH = "/_internal/read-operation-invocations";
-export const INTERNAL_SYNC_DOMAIN_INTENT_PATH = "/_internal/sync-domain-intent";
-export const INTERNAL_SYNC_DEPLOYMENT_PROJECTION_PATH = "/_internal/sync-deployment-projection";
 const instanceControlPlaneSourceSchema = instanceControlPlaneSchema;
 
 function initializeControlPlaneStorage(storage: DurableObjectStorage) {
@@ -262,6 +272,7 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
       createRecordId: formlessProgramCreatedRecordId,
       identity: route.identity,
       operation,
+      publicReads: programWorkerRuntime.publicReads,
       source,
       storage,
       validateConstraints:
@@ -458,7 +469,6 @@ function validateControlPlaneRecordWrite(
         additionalRecords: options.additionalRecords,
         entityName,
         schema,
-        existingRecordId: recordOptions?.ignoreRecordId,
       },
     );
 

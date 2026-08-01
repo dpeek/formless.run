@@ -73,7 +73,7 @@ describe("instance archive restore API", () => {
     );
   });
 
-  it("requires write authorization", async () => {
+  it("does not let selected runtime adapters bypass write authorization", async () => {
     const response = await harness.fetch("/api/formless/archive/restore", {
       body: JSON.stringify({ archive: programInstanceArchive(), mediaFiles: [] }),
       headers: { "Content-Type": "application/json" },

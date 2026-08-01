@@ -6,6 +6,9 @@ import {
   DEFAULT_INSTANCE_WORKSPACE_MEDIA_ROOT,
   DEFAULT_INSTANCE_WORKSPACE_SECRET_STATE_ROOT,
   DEFAULT_INSTANCE_WORKSPACE_STATE_ROOT,
+  DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE,
+  DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
+  DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
   FORMLESS_CONFIG_FILE,
   FORMLESS_CONFIG_KIND,
   FORMLESS_CONFIG_VERSION,
@@ -14,6 +17,12 @@ import {
 } from "./index.ts";
 
 describe("Formless configuration", () => {
+  const workspaceRuntimeComposition = {
+    shared: "runtime/shared.ts",
+    browser: "runtime/browser.ts",
+    worker: "runtime/worker.ts",
+  } as const;
+
   it("resolves every omitted authoring value from deterministic defaults", () => {
     const config = defineConfig({ name: "personal-sites" });
 
@@ -34,6 +43,11 @@ describe("Formless configuration", () => {
         secretStateRoot: DEFAULT_INSTANCE_WORKSPACE_SECRET_STATE_ROOT,
       },
       runtime: {
+        composition: {
+          shared: DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
+          browser: DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE,
+          worker: DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
+        },
         extensions: {},
       },
     });
@@ -52,6 +66,11 @@ describe("Formless configuration", () => {
         stateRoot: ".cache/formless",
       },
       runtime: {
+        composition: {
+          shared: "runtime/shared.ts",
+          browser: "runtime/browser.tsx",
+          worker: "runtime/worker.ts",
+        },
         extensions: {
           "site.publicRenderer": {
             browser: "renderers/site.browser.tsx",
@@ -76,6 +95,11 @@ describe("Formless configuration", () => {
         secretStateRoot: DEFAULT_INSTANCE_WORKSPACE_SECRET_STATE_ROOT,
       },
       runtime: {
+        composition: {
+          shared: "runtime/shared.ts",
+          browser: "runtime/browser.tsx",
+          worker: "runtime/worker.ts",
+        },
         extensions: {
           "site.publicRenderer": {
             browser: "renderers/site.browser.tsx",
@@ -84,6 +108,42 @@ describe("Formless configuration", () => {
         },
       },
     });
+  });
+
+  it("requires explicit safe runtime composition paths for a workspace Program", () => {
+    const records = defineAppSchemaModule({
+      key: "workspace-notes-records",
+      entities: [
+        {
+          id: "entity_8ba9f1c9-b159-4590-ad58-b2d314d72d82",
+          key: "workspace-note",
+          label: "Workspace note",
+          fields: [{ key: "body", label: "Body", required: true, type: "text" }],
+        },
+      ],
+    });
+    const program = {
+      version: 1,
+      modules: [records],
+      runtime: { owner: "runtime" },
+    } as const;
+
+    expect(() => resolveFormlessConfig({ name: "notes", program })).toThrow(
+      "formless.ts runtime.composition is required when a workspace Program is configured.",
+    );
+    expect(() =>
+      resolveFormlessConfig({
+        name: "notes",
+        program,
+        runtime: {
+          composition: {
+            shared: "../runtime/shared.ts",
+            browser: "runtime/browser.ts",
+            worker: "runtime/worker.ts",
+          },
+        },
+      }),
+    ).toThrow("formless.ts runtime.composition.shared must be a local workspace-relative path.");
   });
 
   it("flattens one explicit Program composition through normal module validation", () => {
@@ -153,6 +213,7 @@ describe("Formless configuration", () => {
         modules: [records],
         runtime: { owner: "runtime" },
       },
+      runtime: { composition: workspaceRuntimeComposition },
     });
     const resolved = resolveFormlessConfig(config);
 
@@ -170,6 +231,7 @@ describe("Formless configuration", () => {
           version: 1,
           modules: [records, { ...records }],
         },
+        runtime: { composition: workspaceRuntimeComposition },
       }),
     ).toThrow('Schema module key "workspace-notes-records" is listed more than once.');
   });

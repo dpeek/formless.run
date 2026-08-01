@@ -77,7 +77,7 @@ describe("schema entity operations", () => {
           target: { query: "taskCompleted" },
           effect: {
             type: "operationHandler",
-            handler: "clear-completed",
+            handler: "tombstone-query-results",
             config: { query: "taskCompleted" },
           },
         },
@@ -101,7 +101,7 @@ describe("schema entity operations", () => {
           },
           effect: {
             type: "operationHandler",
-            handler: "clear-completed",
+            handler: "tombstone-query-results",
             config: { query: "taskCompleted" },
           },
           policy: {
@@ -147,7 +147,7 @@ describe("schema entity operations", () => {
       target: { query: "taskCompleted" },
       effect: {
         type: "operationHandler",
-        handler: "clear-completed",
+        handler: "tombstone-query-results",
         config: { query: "taskCompleted" },
       },
       output: { type: "command" },
@@ -184,7 +184,7 @@ describe("schema entity operations", () => {
           target: { query: "taskCompleted" },
           effect: {
             type: "operationHandler",
-            handler: "clear-completed",
+            handler: "tombstone-query-results",
             config: { query: "taskCompleted" },
           },
         },
@@ -225,8 +225,37 @@ describe("schema entity operations", () => {
     expect(isEntityOperationCommandEffect(submitIntakeEffect)).toBe(true);
   });
 
+  it("accepts any declared same-entity query for generic tombstoning", () => {
+    const schema = parseAppSchema(
+      schemaWithTaskOperations({
+        clearActiveTasks: {
+          label: "Clear active",
+          kind: "command",
+          scope: "collection",
+          target: { query: "taskActive" },
+          effect: {
+            type: "operationHandler",
+            handler: "tombstone-query-results",
+            config: { query: "taskActive" },
+          },
+        },
+      }),
+    );
+
+    expect(
+      operation(
+        schema.entities.find((definition) => definition.key === "task")?.operations,
+        "clearActiveTasks",
+      ).effect,
+    ).toEqual({
+      type: "operationHandler",
+      handler: "tombstone-query-results",
+      config: { query: "taskActive" },
+    });
+  });
+
   it("exposes handler input expectations without changing capability eligibility", () => {
-    expect(getOperationHandlerInputExpectation("clear-completed")).toBeUndefined();
+    expect(getOperationHandlerInputExpectation("tombstone-query-results")).toBeUndefined();
     expect(getOperationHandlerInputExpectation("create-missing-join-records")).toBeUndefined();
     expect(getOperationHandlerInputExpectation("create-selected-join-record")).toEqual(
       requiredOperationHandlerObjectInput({
@@ -251,7 +280,7 @@ describe("schema entity operations", () => {
         placementId: requiredOperationHandlerStringRecordIdInput(),
       }),
     );
-    expect(getOperationHandlerInputExpectation("subscribe")).toEqual(
+    expect(getOperationHandlerInputExpectation("contact-subscription.subscribe")).toEqual(
       requiredOperationHandlerObjectInput({
         email: requiredOperationHandlerTextInput(),
       }),
@@ -262,8 +291,10 @@ describe("schema entity operations", () => {
       }),
     );
 
-    expect(getOperationHandlerCapabilities("subscribe").publicExecution).toBe(true);
-    expect(isOperationHandlerPubliclyExecutable("subscribe")).toBe(true);
+    expect(getOperationHandlerCapabilities("contact-subscription.subscribe").publicExecution).toBe(
+      true,
+    );
+    expect(isOperationHandlerPubliclyExecutable("contact-subscription.subscribe")).toBe(true);
     expect(isOperationHandlerPubliclyExecutable("create-selected-join-record")).toBe(false);
     expect(
       getOperationHandlerCapabilities("create-missing-join-records").createAfterCreateHook,
@@ -303,7 +334,7 @@ describe("schema entity operations", () => {
           },
           effect: {
             type: "operationHandler",
-            handler: "clear-completed",
+            handler: "tombstone-query-results",
             config: { query: "taskCompleted" },
           },
         },
@@ -412,7 +443,7 @@ describe("schema entity operations", () => {
                     input: { fields: [{ key: "consent", ...invalidCase.field }] },
                     effect: {
                       type: "operationHandler",
-                      handler: "clear-completed",
+                      handler: "tombstone-query-results",
                       config: { query: "taskCompleted" },
                     },
                   },
@@ -469,7 +500,7 @@ describe("schema entity operations", () => {
             target: { query: "taskCompleted" },
             effect: {
               type: "unsupportedCommandEffect",
-              handler: "clear-completed",
+              handler: "tombstone-query-results",
               query: "taskCompleted",
             },
             policy: {
@@ -549,7 +580,7 @@ describe("schema entity operations", () => {
           target: { query: "taskCompleted" },
           effect: {
             type: "operationHandler",
-            handler: "clear-completed",
+            handler: "tombstone-query-results",
             config: { query: "taskCompleted" },
           },
         },
@@ -562,7 +593,7 @@ describe("schema entity operations", () => {
       ).effect,
     ).toEqual({
       type: "operationHandler",
-      handler: "clear-completed",
+      handler: "tombstone-query-results",
       config: { query: "taskCompleted" },
     });
   });
@@ -577,7 +608,7 @@ describe("schema entity operations", () => {
           target: { query: "taskCompleted" },
           effect: {
             type: "operationHandler",
-            handler: "clear-completed",
+            handler: "tombstone-query-results",
             config: { query: "taskCompleted" },
           },
           policy: {
@@ -617,7 +648,7 @@ describe("schema entity operations", () => {
                 scope: "collection",
                 effect: {
                   type: "operationHandler",
-                  handler: "clear-completed",
+                  handler: "tombstone-query-results",
                   config: { query: "taskCompleted" },
                 },
                 policy: { actors: ["owner"], visible: false },
@@ -629,7 +660,7 @@ describe("schema entity operations", () => {
                 scope: "collection",
                 effect: {
                   type: "operationHandler",
-                  handler: "clear-completed",
+                  handler: "tombstone-query-results",
                   config: { query: "taskCompleted" },
                 },
                 policy: { actors: ["runner"] },

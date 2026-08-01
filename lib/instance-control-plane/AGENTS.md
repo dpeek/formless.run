@@ -21,10 +21,12 @@ Read this when editing `lib/instance-control-plane/*`.
 
 ## Map
 
-- `package.json`: package metadata plus root and runtime-neutral `./schema` public exports.
+- `package.json`: package metadata plus root, `./records`, and runtime-neutral
+  `./schema` public exports.
 - `tsconfig.json`: package-local TypeScript project extending the repo config.
 - `src/types.ts`: public contract version declaration.
 - `src/index.ts`: runtime-neutral package root entrypoint and pure helpers.
+- `src/records.ts`: shared record adapter and create-id contribution.
 - `src/schema.ts`: reusable instance control-plane record and presentation schema modules.
 - `src/*.test.ts`: package-local contract and helper coverage.
 

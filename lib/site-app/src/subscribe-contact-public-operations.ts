@@ -196,7 +196,7 @@ function isSubscribeFormPublicOperation(
 ): boolean {
   if (
     operation.operation.kind === "command" &&
-    isOperationHandlerEffectForKind(operation.operation.effect, "subscribe")
+    isOperationHandlerEffectForKind(operation.operation.effect, "contact-subscription.subscribe")
   ) {
     return true;
   }

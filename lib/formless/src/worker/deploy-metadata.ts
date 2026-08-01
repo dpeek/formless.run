@@ -2,11 +2,13 @@ import {
   FORMLESS_DEPLOY_METADATA_PATH,
   FORMLESS_RUNTIME_PROTOCOL_VERSION,
   FORMLESS_STORAGE_MIGRATION_SET_ID,
+  parseFormlessBundleDigest,
   type FormlessDeployMetadata,
 } from "../shared/deploy-metadata.ts";
 import { formlessProgramSchemaProvenance } from "../program/runtime.ts";
 
 export type DeployMetadataEnv = {
+  FORMLESS_DEPLOY_BUNDLE_DIGEST?: string;
   FORMLESS_DEPLOY_VERSION?: string;
 };
 
@@ -30,6 +32,14 @@ export function handleDeployMetadataRequest(
   }
 
   const metadata: FormlessDeployMetadata = {
+    ...(env.FORMLESS_DEPLOY_BUNDLE_DIGEST === undefined
+      ? {}
+      : {
+          bundleDigest: parseFormlessBundleDigest(
+            "FORMLESS_DEPLOY_BUNDLE_DIGEST",
+            env.FORMLESS_DEPLOY_BUNDLE_DIGEST,
+          ),
+        }),
     packageVersion: stringConfigValue(env.FORMLESS_DEPLOY_VERSION) ?? null,
     runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
     schemaProvenance: formlessProgramSchemaProvenance,

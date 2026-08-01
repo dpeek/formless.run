@@ -79,6 +79,29 @@ The system SHALL provide a public subscribe operation that upserts reusable cont
   records for their respective workflows
 - AND the Site block invokes the narrow Program public operation route
 
+### Requirement: Subscription Operation Adapter
+
+The system SHALL execute subscription upsert behavior through one explicitly
+selected contact-subscription operation adapter.
+
+#### Scenario: Select subscription execution at build time
+
+- GIVEN a Program schema declares `subscription.subscribe`
+- WHEN trusted Program composition is materialized and built
+- THEN the composition explicitly supplies one
+  `contact-subscription.subscribe` operation adapter
+- AND missing or duplicate selection fails before request handling
+- AND the operation or contact entity ids do not discover, activate, or
+  authorize that adapter
+
+#### Scenario: Omit subscription execution
+
+- GIVEN a Program omits the contact-subscription declarations and operation
+- WHEN its browser and Worker runtimes are built
+- THEN the contact-subscription adapter is not required or bundled
+- AND generic Program storage, replica, archive, media, and authorization
+  behavior remains available for the selected schema
+
 ### Requirement: Subscription Consent Source
 
 The system SHALL preserve source context for public subscription consent.

@@ -13,10 +13,7 @@ import type {
 import { fieldCreateDefaultValue, matchesQuery } from "@dpeek/formless-schema";
 import { nowIsoString } from "../shared/clock.ts";
 import { createRecordId } from "../shared/ids.ts";
-import {
-  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
-  FORMLESS_PROGRAM_SCHEMA_KEY,
-} from "../program/target.ts";
+import type { ProgramSharedOperationAdapterDefinition } from "../program/composition.ts";
 import type {
   OperationCommandOutput,
   OperationInvocationEnvelope,
@@ -77,10 +74,10 @@ type OperationHandlerModule = {
   executeCreateTrigger: (context: OperationHandlerCreateTriggerContext) => void;
 };
 
-const operationHandlerModules = {
-  "clear-completed": {
-    kind: "clear-completed",
-    execute: executeClearCompletedHandler,
+const operationHandlerModules: Partial<Record<OperationHandlerKind, OperationHandlerModule>> = {
+  "tombstone-query-results": {
+    kind: "tombstone-query-results",
+    execute: executeTombstoneQueryResultsHandler,
     executeCreateTrigger: rejectCreateTrigger,
   },
   "create-missing-join-records": {
@@ -108,22 +105,38 @@ const operationHandlerModules = {
     execute: executeRemoveTreePlacementHandler,
     executeCreateTrigger: rejectCreateTrigger,
   },
-  subscribe: {
-    kind: "subscribe",
-    execute: executeSubscribeHandler,
-    executeCreateTrigger: rejectCreateTrigger,
-  },
   "transition-state": {
     kind: "transition-state",
     execute: executeTransitionStateHandler,
     executeCreateTrigger: rejectCreateTrigger,
   },
-} satisfies Record<OperationHandlerKind, OperationHandlerModule>;
+};
 
 export function executeOperationHandlerOutcome(
   context: OperationHandlerExecutionContext,
+  operationAdapters: readonly ProgramSharedOperationAdapterDefinition[] = [],
 ): WriteOutcome<OperationCommandOutput> {
-  return operationHandlerModules[context.effect.handler].execute(context);
+  const handler = operationHandlerModules[context.effect.handler];
+
+  if (handler !== undefined) {
+    return handler.execute(context);
+  }
+
+  const adapter = operationAdapters.find(({ key }) => key === context.effect.handler);
+
+  if (adapter === undefined) {
+    throw new Error(
+      `Operation "${context.envelope.operation.canonicalKey}" requires selected operation adapter "${context.effect.handler}".`,
+    );
+  }
+
+  if (context.envelope.actor.kind === "anonymous" && !adapter.publicEligible) {
+    throw new BadRequestError(
+      `Operation "${context.envelope.operation.canonicalKey}" is not available for public execution.`,
+    );
+  }
+
+  return adapter.execute(context as never) as WriteOutcome<OperationCommandOutput>;
 }
 
 export async function prepareTransitionStateSideEffectHandlerOutcome(
@@ -194,7 +207,15 @@ export function executeOperationHandlerCreateTriggers(
   createRecords: CreateRecordWriteSideEffectRecordCreator,
 ) {
   for (const trigger of createTriggersForEntity(schema, recordWrite.entity)) {
-    operationHandlerModules[trigger.effect.handler].executeCreateTrigger({
+    const handler = operationHandlerModules[trigger.effect.handler];
+
+    if (handler === undefined) {
+      throw new Error(
+        `Create trigger "${recordWrite.entity}.${recordWrite.writeId}" requires runtime-owned handler "${trigger.effect.handler}".`,
+      );
+    }
+
+    handler.executeCreateTrigger({
       storage,
       recordWrite,
       schema,
@@ -206,9 +227,9 @@ export function executeOperationHandlerCreateTriggers(
   }
 }
 
-function executeClearCompletedHandler(context: OperationHandlerExecutionContext) {
-  const effect = requireHandlerEffect(context, "clear-completed");
-  const records = selectClearCompletedTargetRecords(context.storage, context, effect);
+function executeTombstoneQueryResultsHandler(context: OperationHandlerExecutionContext) {
+  const effect = requireHandlerEffect(context, "tombstone-query-results");
+  const records = selectTombstoneQueryResultRecords(context.storage, context, effect);
 
   return writePlansForOperationHandler(context, tombstonePlans(records));
 }
@@ -267,129 +288,6 @@ function executeRemoveTreePlacementHandler(context: OperationHandlerExecutionCon
   return writePlansForOperationHandler(context, tombstonePlans([record]));
 }
 
-function executeSubscribeHandler(context: OperationHandlerExecutionContext) {
-  requireHandlerEffect(context, "subscribe");
-
-  if (context.envelope.actor.kind !== "anonymous") {
-    throw new BadRequestError(
-      `Operation "${context.envelope.operation.canonicalKey}" is not available for private execution.`,
-    );
-  }
-
-  const input = requireHandlerInput(context, "subscribe");
-  const contactEntity = requireSubscribeEntity(context.schema, "contact");
-  const emailAddressEntity = requireSubscribeEntity(context.schema, "email-address");
-  const audienceEntity = requireSubscribeEntity(context.schema, "audience");
-  const subscriptionEntity = requireSubscribeEntity(context.schema, "subscription");
-  const validationReader = authorityStorageRecordValidationReader(context.storage);
-  const email = parseSubscribeEmail(input.email);
-  const existingEmailAddress = findActiveRecordByField(
-    context.storage,
-    "email-address",
-    "normalizedAddress",
-    email.normalizedAddress,
-  );
-  const existingContact = findExistingEmailContact(context.storage, existingEmailAddress);
-  const existingAudience = findActiveRecordByField(
-    context.storage,
-    "audience",
-    "key",
-    defaultAudienceKey,
-  );
-  const existingSubscription =
-    existingEmailAddress && existingAudience
-      ? findActiveSubscription(context.storage, existingEmailAddress.id, existingAudience.id)
-      : undefined;
-  const sourceValues = subscribeSourceValues(context.envelope);
-  const plans: OperationRecordWritePlan[] = [];
-  const contactRecordIndex = existingContact
-    ? undefined
-    : pushPlan(plans, {
-        kind: "create",
-        entity: "contact",
-        values: () =>
-          validateRecordValues({ label: email.normalizedAddress }, contactEntity, validationReader),
-      });
-  const emailAddressRecordIndex = existingEmailAddress
-    ? undefined
-    : pushPlan(plans, {
-        kind: "create",
-        entity: "email-address",
-        values: (writtenRecords) =>
-          validateRecordValues(
-            {
-              contact:
-                existingContact?.id ?? requireWrittenRecord(writtenRecords, contactRecordIndex).id,
-              address: email.address,
-              normalizedAddress: email.normalizedAddress,
-            },
-            emailAddressEntity,
-            validationReader,
-          ),
-      });
-
-  if (existingEmailAddress && !existingContact) {
-    plans.push({
-      kind: "patch",
-      record: existingEmailAddress,
-      values: (writtenRecords) =>
-        validateRecordValues(
-          {
-            ...existingEmailAddress.values,
-            contact: requireWrittenRecord(writtenRecords, contactRecordIndex).id,
-          },
-          emailAddressEntity,
-          validationReader,
-        ),
-    });
-  }
-
-  const audienceRecordIndex = existingAudience
-    ? undefined
-    : pushPlan(plans, {
-        kind: "create",
-        entity: "audience",
-        values: () =>
-          validateRecordValues(
-            { key: defaultAudienceKey, label: "Default audience" },
-            audienceEntity,
-            validationReader,
-          ),
-      });
-  const subscriptionValues = (writtenRecords: StoredRecord[]) =>
-    validateRecordValues(
-      {
-        ...existingSubscription?.values,
-        emailAddress:
-          existingEmailAddress?.id ??
-          requireWrittenRecord(writtenRecords, emailAddressRecordIndex).id,
-        audience:
-          existingAudience?.id ?? requireWrittenRecord(writtenRecords, audienceRecordIndex).id,
-        status: "subscribed",
-        consentedAt: context.envelope.receivedAt,
-        ...sourceValues,
-      },
-      subscriptionEntity,
-      validationReader,
-    );
-
-  if (existingSubscription) {
-    plans.push({
-      kind: "patch",
-      record: existingSubscription,
-      values: subscriptionValues,
-    });
-  } else {
-    plans.push({
-      kind: "create",
-      entity: "subscription",
-      values: subscriptionValues,
-    });
-  }
-
-  return writePlansForOperationHandler(context, plans);
-}
-
 function executeTransitionStateHandler(context: OperationHandlerExecutionContext) {
   const effect = requireHandlerEffect(context, "transition-state");
   const planning = selectTransitionStateWritePlans(context.storage, context, effect, {
@@ -414,7 +312,7 @@ function executeCreateMissingJoinRecordsCreateTrigger(
   context.createRecords(context.entityName, values);
 }
 
-function writePlansForOperationHandler(
+export function writePlansForOperationHandler(
   context: OperationHandlerExecutionContext,
   plans: OperationRecordWritePlan[],
 ): WriteOutcome<OperationCommandOutput> {
@@ -487,10 +385,10 @@ function rejectCreateTrigger(context: OperationHandlerCreateTriggerContext): nev
   );
 }
 
-function selectClearCompletedTargetRecords(
+function selectTombstoneQueryResultRecords(
   storage: DurableObjectStorage,
   context: OperationHandlerExecutionContext,
-  effect: OperationHandlerEffectSchemaForKind<"clear-completed">,
+  effect: OperationHandlerEffectSchemaForKind<"tombstone-query-results">,
 ): StoredRecord[] {
   const targetQuery = context.schema.queries.find(
     (definition) => definition.key === effect.config.query,
@@ -964,7 +862,6 @@ function selectTransitionStateWritePlans(
     validationReader,
     {
       entityName,
-      existingRecordId: record.id,
       schema: context.schema,
     },
   );
@@ -1280,110 +1177,6 @@ function requiredOperationWriteIdentity(envelope: OperationInvocationEnvelope) {
   }
   return envelope.idempotency.writeIdentity;
 }
-const defaultAudienceKey = "default";
-function requireSubscribeEntity(schema: AppSchema, entityName: string): EntitySchema {
-  const entity = schema.entities.find((definition) => definition.key === entityName)!;
-  if (!entity) {
-    throw new Error(`Subscribe operation requires entity "${entityName}".`);
-  }
-
-  return entity;
-}
-
-function parseSubscribeEmail(value: unknown) {
-  if (typeof value !== "string") {
-    throw new BadRequestError('Subscribe operation public input "email" must be text.');
-  }
-
-  const address = value.trim();
-  const normalizedAddress = address.toLowerCase();
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedAddress)) {
-    throw new BadRequestError('Subscribe operation public input "email" must be an email address.');
-  }
-
-  return { address, normalizedAddress };
-}
-
-function findExistingEmailContact(
-  storage: DurableObjectStorage,
-  emailAddress: StoredRecord | undefined,
-) {
-  const contactId = emailAddress?.values.contact;
-
-  if (typeof contactId !== "string") {
-    return undefined;
-  }
-
-  const contact = getStoredRecord(storage, contactId);
-
-  return contact?.entity === "contact" && !contact.deletedAt ? contact : undefined;
-}
-
-function findActiveSubscription(
-  storage: DurableObjectStorage,
-  emailAddressId: string,
-  audienceId: string,
-) {
-  return getActiveRecordsByEntity(storage, "subscription").find(
-    (record) =>
-      record.values.emailAddress === emailAddressId && record.values.audience === audienceId,
-  );
-}
-
-function findActiveRecordByField(
-  storage: DurableObjectStorage,
-  entity: string,
-  field: string,
-  value: RecordValues[string],
-) {
-  return getActiveRecordsByEntity(storage, entity).find((record) => record.values[field] === value);
-}
-
-function subscribeSourceValues(envelope: OperationInvocationEnvelope): RecordValues {
-  const host = parseNonEmptyString("Public operation source host", envelope.source.host);
-  const path = parseNonEmptyString("Public operation source path", envelope.source.path);
-  const values: RecordValues = {
-    sourceKind: "publicOperation",
-    sourceTargetKind: "program",
-    sourceSchemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
-    sourceApiRoutePrefix: FORMLESS_PROGRAM_API_ROUTE_PREFIX,
-    sourceOperationKey: envelope.operation.canonicalKey,
-    sourceHost: host,
-    sourcePath: path,
-  };
-
-  if (envelope.source.siteBlockId !== undefined) {
-    values.sourceSiteBlockId = envelope.source.siteBlockId;
-  }
-
-  return values;
-}
-
-function pushPlan(plans: OperationRecordWritePlan[], plan: OperationRecordWritePlan) {
-  plans.push(plan);
-
-  return plans.length - 1;
-}
-
-function requireWrittenRecord(records: StoredRecord[], index: number | undefined) {
-  const record = index === undefined ? undefined : records[index];
-
-  if (!record) {
-    throw new Error("Subscribe operation could not resolve a planned record.");
-  }
-
-  return record;
-}
-
-function parseNonEmptyString(context: string, value: unknown): string {
-  if (typeof value !== "string" || value.trim() === "") {
-    throw new BadRequestError(`${context} must be non-empty.`);
-  }
-
-  return value;
-}
-
 function operationKey(entityName: string, operationName: string) {
   return `${entityName}.${operationName}`;
 }

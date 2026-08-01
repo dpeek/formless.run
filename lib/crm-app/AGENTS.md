@@ -25,7 +25,6 @@ Read this when editing `lib/crm-app/*`.
 - `src/schema-records.ts`: CRM record and query declarations.
 - `src/schema-presentation.ts`: CRM item view, table view, view, and screen declarations.
 - `src/schema.ts`: public schema authoring subpath and authoritative CRM schema composition.
-- `src/records.ts`: CRM reviewable-record validation and canonicalization.
 - `src/index.ts`: runtime-neutral CRM package exports.
 
 ## Rules

@@ -142,6 +142,21 @@ parsed runtime contracts.
 - AND equivalent composed and monolithic sources produce the same canonical
   schema data and source-schema hash
 
+#### Scenario: Declare build-time runtime requirements
+
+- GIVEN a schema module depends on executable record, operation, browser, or
+  Worker behavior
+- WHEN the module declares that dependency as authoring-only runtime
+  requirements
+- THEN the requirements identify required adapter or surface keys without
+  importing, locating, or activating executable code
+- AND the trusted Program composition root explicitly supplies the matching
+  runtime implementations
+- AND missing, duplicate, or target-incompatible implementations fail during
+  Program materialization or runtime build
+- AND runtime requirement keys, executable functions, module paths, and build
+  digests are absent from the portable schema artifact and source-schema hash
+
 ### Requirement: Downstream Program Schema Composition
 
 The system SHALL let a downstream-owned TypeScript composition root use the
@@ -150,9 +165,9 @@ from reusable package modules.
 
 #### Scenario: Compose the default Program schema
 
-- GIVEN the Instance Control Plane, Identity Control Plane, and Tasks packages
-  expose record and presentation modules through their public `./schema`
-  subpaths
+- GIVEN the Instance Control Plane, Identity Control Plane, Tasks, Site, and CRM
+  packages expose record and presentation modules through their public
+  `./schema` subpaths
 - WHEN the Formless product composition root builds its default Program schema
 - THEN it explicitly lists the package record modules before their dependent
   presentation modules
@@ -219,6 +234,11 @@ from reusable package modules.
   screen paths, and deliberate module replacements
 - AND module and declaration collision rules remain the normal schema-composer
   rules without automatic prefixes, discovery, registries, or deep merges
+- AND the trusted workspace configuration explicitly selects shared, browser,
+  and Worker runtime composition entrypoints independently of its ordered
+  schema module list
+- AND those entrypoints use ordinary static imports rather than package,
+  manifest, filesystem, or entity-id discovery
 - AND Worker, archive, workspace, replica, cursor, broadcast, WebSocket, and
   deploy runtime selection consume the data-only complete Program artifact
 - AND they do not evaluate workspace TypeScript at request time
@@ -565,7 +585,9 @@ projections, operations, bindings, and adapters.
   automation triggers, and workflow triggers are bindings that reference
   operation keys
 - AND package-specific React, Worker, Node, provider, media, Site, or deployment
-  behavior is selected through adapters declared by runtime capability facts
+  behavior is selected explicitly by the trusted runtime composition root
+- AND schema capability or entity facts may validate and scope an already
+  selected adapter but do not discover, activate, or authorize executable code
 
 #### Scenario: Keep operation meaning out of bindings
 
@@ -1074,8 +1096,14 @@ operation-native handler effects.
 
 - GIVEN a command operation references an operation handler kind
 - WHEN runtime and generated UI select behavior for that operation
-- THEN operation handler capability facts drive runtime eligibility, UI input
-  facts, public eligibility, and response filtering
+- THEN generic operation handler capability facts drive runtime eligibility, UI
+  input facts, public eligibility, and response filtering for runtime-owned
+  handler kinds
+- AND an adapter-backed handler declares an authoring-only runtime requirement
+  that trusted Program composition satisfies with one explicitly selected
+  operation adapter
+- AND the handler key does not discover, import, activate, or authorize that
+  adapter
 - AND the operation remains the invocation, authorization, idempotency, and
   audit root for the command write
 - AND handler dispatch uses the operation invocation envelope and typed handler
@@ -1289,6 +1317,9 @@ public forms, automation, audit, and authorization.
 - AND command effect parsing selects one of those operation-native shapes
 - AND operation handler effects declare a handler kind plus typed handler
   configuration
+- AND runtime-owned generic handler kinds are validated by the Schema package
+- AND adapter-backed handler requirements and configuration are validated by
+  trusted runtime composition without serializing executable code
 - AND operation visibility, policy, audit, and idempotency come from the
   operation declaration
 
@@ -1500,19 +1531,24 @@ through operation policy and public operation bindings.
 
 #### Scenario: Reject ineligible command handler
 
-- GIVEN a command handler kind has no public execution module
+- GIVEN a command handler kind has neither generic public eligibility nor an
+  explicitly selected public-eligible operation adapter
 - WHEN the schema declares anonymous public access for an operation using that
   handler
-- THEN parsing rejects the public access policy
-- AND the command operation can still exist for non-public actors when its
-  schema is valid
+- THEN trusted composition validation rejects the public access policy before
+  browser or Worker startup
+- AND a non-public adapter-backed command still requires one explicitly
+  selected adapter but does not require that adapter to declare public
+  eligibility
 
-#### Scenario: Subscribe command handler is eligible
+#### Scenario: Adapter-backed public command handler is eligible
 
-- GIVEN an app schema declares a subscribe command operation with anonymous
-  public access and valid public input
-- WHEN the schema is parsed
-- THEN parsing accepts the operation
+- GIVEN an app schema declares an adapter-backed command operation with
+  anonymous public access and valid public input
+- AND trusted Program composition explicitly selects one matching operation
+  adapter that declares public eligibility
+- WHEN the schema and runtime composition are validated
+- THEN composition accepts the operation
 - AND the runtime can dispatch it through the public operation executor
 
 ### Requirement: Runtime-Owned Control-Plane Schemas

@@ -1,9 +1,10 @@
-import {
-  identityControlPlaneRoleKeys,
-  identityControlPlaneSchema,
-  type IdentityControlPlaneRoleKey,
-} from "@dpeek/formless-identity-control-plane";
+import { identityControlPlaneSchema } from "@dpeek/formless-identity-control-plane";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
+import {
+  validateProgramSharedRuntimeDefinition,
+  type ProgramSharedRuntimeDefinition,
+} from "../program/composition.ts";
+import { programSharedRuntime } from "../program/compiled/shared.ts";
 import {
   formlessProgramSchema,
   formlessProgramSchemaProvenance,
@@ -19,7 +20,7 @@ import {
   type StorageSource,
 } from "./storage.ts";
 
-const builtInRoleCreatedAt = "2026-06-26T00:00:00.000Z";
+const candidateRecordUpdatedAt = "2026-06-26T00:00:00.000Z";
 const identityEntityNames = new Set(
   identityControlPlaneSchema.entities.map((entity) => entity.key),
 );
@@ -38,11 +39,12 @@ export function ensureFormlessProgramStorage(storage: DurableObjectStorage) {
   initializeStorageFromSource(storage, source, {
     selectRecordsForSchemaRefresh: selectCurrentFormlessProgramRecords,
   });
-  reconcileRuntimeInvariantRecords(storage, builtInRoleRecords(), {
+  reconcileRuntimeInvariantRecords(storage, defaultBootstrapRecords(), {
     validate: (records) =>
       validateFormlessProgramRecords(
         "Formless Program records",
         selectCurrentFormlessProgramRecords(records),
+        { sharedRuntime: programSharedRuntime },
       ),
     writeIdPrefix: "identity-role-reconcile",
   });
@@ -73,6 +75,10 @@ export function validateFormlessProgramRecordConstraint(
     validateFormlessProgramRecords(
       "Formless Program records",
       selectCurrentFormlessProgramRecords(candidateRecords),
+      {
+        candidateRecord: candidate,
+        sharedRuntime: programSharedRuntime,
+      },
     );
   };
 }
@@ -100,10 +106,20 @@ export function selectCurrentFormlessProgramChanges<Change extends { payload: St
 export function formlessProgramCreatedRecordId(
   entity: string,
   values: RecordValues,
+  sharedRuntime: ProgramSharedRuntimeDefinition = programSharedRuntime,
 ): string | undefined {
-  const id = values.targetId;
+  validateProgramSharedRuntimeDefinition(formlessProgramSchema, sharedRuntime);
+  const entityId = formlessProgramSchema.entities.find((candidate) => candidate.key === entity)?.id;
 
-  return entity === "deployment-config" && typeof id === "string" ? id : undefined;
+  if (entityId === undefined) {
+    return undefined;
+  }
+
+  const contribution = sharedRuntime.createIdContributions.find(({ entityIds }) =>
+    entityIds.includes(entityId),
+  );
+
+  return contribution?.createId(entity, values);
 }
 
 function candidateProgramRecord(
@@ -121,7 +137,7 @@ function candidateProgramRecord(
     return {
       ...existing,
       values,
-      updatedAt: builtInRoleCreatedAt,
+      updatedAt: candidateRecordUpdatedAt,
     };
   }
 
@@ -129,8 +145,8 @@ function candidateProgramRecord(
     id: candidateRecordId ?? pendingRecordId(records, entity),
     entity,
     values,
-    createdAt: builtInRoleCreatedAt,
-    updatedAt: builtInRoleCreatedAt,
+    createdAt: candidateRecordUpdatedAt,
+    updatedAt: candidateRecordUpdatedAt,
   };
 }
 
@@ -145,20 +161,10 @@ function pendingRecordId(records: readonly StoredRecord[], entity: string) {
   return id;
 }
 
-function builtInRoleRecords(): StoredRecord[] {
-  return identityControlPlaneRoleKeys.map(builtInRoleRecord);
-}
+function defaultBootstrapRecords(): StoredRecord[] {
+  validateProgramSharedRuntimeDefinition(formlessProgramSchema, programSharedRuntime);
 
-function builtInRoleRecord(roleKey: IdentityControlPlaneRoleKey): StoredRecord {
-  return {
-    id: `role:${roleKey}`,
-    entity: "role",
-    values: {
-      key: roleKey,
-      displayLabel: roleKey,
-      status: "active",
-    },
-    createdAt: builtInRoleCreatedAt,
-    updatedAt: builtInRoleCreatedAt,
-  };
+  return programSharedRuntime.bootstrapContributions.flatMap((contribution) =>
+    contribution.contribute(),
+  );
 }

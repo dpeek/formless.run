@@ -12,6 +12,8 @@ import {
   materializeFormlessProgramArtifact,
 } from "../program/artifact.ts";
 import { formlessProgramDefaultComposition } from "../program/schema.ts";
+import { formlessProgramDefaultRuntimeComposition } from "../program/default.ts";
+import { FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME } from "../cli/program-runtime-bundler.ts";
 import {
   astryxCloudflareWorkerSourceCompilationPlugin,
   runtimeCloudflarePluginConfig,
@@ -78,6 +80,7 @@ describe("Runtime Vite config", () => {
     expect(developmentPlugins).toEqual(productionPlugins);
     expect(developmentPlugins).toEqual(
       expect.arrayContaining([
+        "formless-workspace-program-runtime",
         "formless-workspace-runtime-extensions",
         "astryx-config",
         "astryx-css-layer-order",
@@ -98,6 +101,29 @@ describe("Runtime Vite config", () => {
     expect(developmentPlugins.indexOf("vite-plugin-cloudflare")).toBeLessThan(
       developmentPlugins.indexOf("formless-astryx-cloudflare-worker-source-compilation"),
     );
+  });
+
+  it("emits the public Site browser input only for a selected Site browser surface", () => {
+    const config = runtimeViteConfig({
+      env: {
+        NODE_ENV: "test",
+        VITEST: "true",
+        [FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME]: JSON.stringify({
+          browserPublicSite: false,
+          composition: {
+            shared: "runtime/shared.ts",
+            browser: "runtime/browser.ts",
+            worker: "runtime/worker.ts",
+          },
+        }),
+      },
+      packageRoot: repoRoot,
+      workspaceRoot: repoRoot,
+    }) as ViteConfigWithEnvironments;
+
+    expect(config.environments?.client?.build?.rollupOptions?.input).toEqual({
+      app: resolve(repoRoot, "index.html"),
+    });
   });
 
   it("shims StyleX without starting its Vite server integration in unit tests", () => {
@@ -193,7 +219,9 @@ describe("Runtime Vite config", () => {
     const tempRoot = await mkdtemp(resolve(tmpdir(), "formless-program-vite-"));
     const artifactPath = resolve(tempRoot, "formless-program.json");
     const contents = formatFormlessProgramArtifact(
-      await materializeFormlessProgramArtifact(formlessProgramDefaultComposition),
+      await materializeFormlessProgramArtifact(formlessProgramDefaultComposition, {
+        runtime: formlessProgramDefaultRuntimeComposition,
+      }),
     );
 
     tempDirs.push(tempRoot);

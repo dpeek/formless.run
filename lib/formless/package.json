@@ -18,7 +18,11 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./program": "./src/program/index.ts"
+    "./program": "./src/program/index.ts",
+    "./program/default": "./src/program/default.ts",
+    "./program/default/shared": "./src/program/default/shared.ts",
+    "./program/default/browser": "./src/program/default/browser.ts",
+    "./program/default/worker": "./src/program/default/worker.ts"
   },
   "publishConfig": {
     "access": "public"

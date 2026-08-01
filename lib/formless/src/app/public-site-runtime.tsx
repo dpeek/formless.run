@@ -1,14 +1,20 @@
 import {
-  SitePageRoute as PackageSitePageRoute,
   type SitePublicRendererComponent,
   type SitePublicSystemStateRendererComponent,
   type SitePageLinkMode,
 } from "@dpeek/formless-site-app/public/react";
+import {
+  SITE_PUBLIC_BROWSER_SURFACE_KEY,
+  type SitePublicBrowserRuntimeSurface,
+} from "@dpeek/formless-site-app/runtime/browser";
 import { listenForClientEvents } from "../client/broadcast.ts";
 import { startPushSync } from "../client/sync.ts";
+import type { ProgramBrowserRuntimeDefinition } from "../program/composition.ts";
+import { programBrowserRuntime } from "../program/compiled/browser.ts";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 
 export type PublicSiteRouteInputProps = {
+  browserRuntime?: ProgramBrowserRuntimeDefinition;
   linkMode?: SitePageLinkMode;
   routeBase?: `/${string}`;
   slug: string;
@@ -23,11 +29,20 @@ export type PublicSiteRouteProps = PublicSiteRouteInputProps & {
 export function CoreSitePageRoute({
   builtInRenderer,
   builtInSystemStateRenderer,
+  browserRuntime = programBrowserRuntime,
   linkMode = "preview",
   routeBase,
   slug,
   workspaceRenderer,
 }: PublicSiteRouteProps) {
+  const surface = resolveSitePublicBrowserRuntimeSurface(browserRuntime);
+
+  if (!surface) {
+    return null;
+  }
+
+  const PackageSitePageRoute = surface.Route;
+
   return (
     <PackageSitePageRoute
       apiRoutePrefix={FORMLESS_PROGRAM_API_ROUTE_PREFIX}
@@ -41,6 +56,14 @@ export function CoreSitePageRoute({
       workspaceRenderer={workspaceRenderer}
     />
   );
+}
+
+export function resolveSitePublicBrowserRuntimeSurface(
+  runtime: ProgramBrowserRuntimeDefinition,
+): SitePublicBrowserRuntimeSurface | undefined {
+  return runtime.surfaces.find(({ key }) => key === SITE_PUBLIC_BROWSER_SURFACE_KEY)?.surface as
+    | SitePublicBrowserRuntimeSurface
+    | undefined;
 }
 
 function startSitePreviewSync(onSynced: () => void) {

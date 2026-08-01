@@ -2,6 +2,9 @@ import { composeAppSchema } from "@dpeek/formless-schema";
 import type { AppSchemaCompositionSource, AppSchemaSource } from "@dpeek/formless-schema";
 
 import {
+  DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE,
+  DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
+  DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
   DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT,
   DEFAULT_INSTANCE_WORKSPACE_MEDIA_ROOT,
   DEFAULT_INSTANCE_WORKSPACE_SECRET_STATE_ROOT,
@@ -13,6 +16,7 @@ import {
 } from "./types.ts";
 import type {
   FormlessConfigBase,
+  InstanceWorkspaceRuntimeComposition,
   InstanceWorkspaceRuntimeExtensions,
   ResolvedFormlessConfigBase,
 } from "./types.ts";
@@ -28,6 +32,7 @@ export type FormlessConfig = FormlessConfigBase & {
 };
 
 export type ResolvedFormlessConfig = ResolvedFormlessConfigBase & {
+  programComposition?: FormlessProgramComposition;
   programSource?: AppSchemaSource;
 };
 
@@ -36,11 +41,27 @@ export function defineConfig<const Config extends FormlessConfig>(config: Config
 }
 
 export function resolveFormlessConfig(config: FormlessConfig): ResolvedFormlessConfig {
+  if (config.program !== undefined && config.runtime?.composition === undefined) {
+    throw new Error(
+      `${FORMLESS_CONFIG_FILE} runtime.composition is required when a workspace Program is configured.`,
+    );
+  }
+
+  const runtime = {
+    composition: resolveRuntimeComposition(config.runtime?.composition),
+    extensions: resolveRuntimeExtensions(config.runtime?.extensions),
+  };
+
   return {
     version: FORMLESS_CONFIG_VERSION,
     kind: FORMLESS_CONFIG_KIND,
     name: parseConfigName(config.name),
-    ...(config.program === undefined ? {} : { programSource: composeAppSchema(config.program) }),
+    ...(config.program === undefined
+      ? {}
+      : {
+          programComposition: config.program,
+          programSource: composeAppSchema(config.program),
+        }),
     state: {
       root: parseWorkspaceRelativePath(
         `${FORMLESS_CONFIG_FILE} state.root`,
@@ -63,9 +84,39 @@ export function resolveFormlessConfig(config: FormlessConfig): ResolvedFormlessC
         config.local?.secretStateRoot ?? DEFAULT_INSTANCE_WORKSPACE_SECRET_STATE_ROOT,
       ),
     },
-    runtime: {
-      extensions: resolveRuntimeExtensions(config.runtime?.extensions),
-    },
+    runtime,
+  };
+}
+
+function resolveRuntimeComposition(
+  composition: InstanceWorkspaceRuntimeComposition | undefined,
+): InstanceWorkspaceRuntimeComposition {
+  if (
+    composition === undefined ||
+    (composition.shared === DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE &&
+      composition.browser === DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE &&
+      composition.worker === DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE)
+  ) {
+    return {
+      shared: DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
+      browser: DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE,
+      worker: DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
+    };
+  }
+
+  return {
+    shared: parseRuntimeCompositionEntrypointPath(
+      `${FORMLESS_CONFIG_FILE} runtime.composition.shared`,
+      composition.shared,
+    ),
+    browser: parseRuntimeCompositionEntrypointPath(
+      `${FORMLESS_CONFIG_FILE} runtime.composition.browser`,
+      composition.browser,
+    ),
+    worker: parseRuntimeCompositionEntrypointPath(
+      `${FORMLESS_CONFIG_FILE} runtime.composition.worker`,
+      composition.worker,
+    ),
   };
 }
 
@@ -153,12 +204,21 @@ function resolveRuntimeExtensions(
 }
 
 function parseRuntimeExtensionEntrypointPath(context: string, value: string): string {
+  return parseLocalWorkspaceModulePath(context, value);
+}
+
+function parseRuntimeCompositionEntrypointPath(context: string, value: string): string {
+  return parseLocalWorkspaceModulePath(context, value);
+}
+
+function parseLocalWorkspaceModulePath(context: string, value: string): string {
   const filePath = parseRequiredString(context, value);
   const parts = filePath.split("/");
 
   if (
     filePath.startsWith("/") ||
     filePath.startsWith("~") ||
+    filePath.startsWith("@") ||
     filePath.includes("\\") ||
     urlLikePathPattern.test(filePath) ||
     parts.some((part) => part === "" || part === "." || part === "..")

@@ -69,14 +69,6 @@ import {
   PublicOperationError,
   selectPublicOperationRoute,
 } from "./public-operations.ts";
-import {
-  createSiteContactNotificationAdapters,
-  scheduleSiteContactNotificationAfterPublicOperation,
-} from "./site-contact-notifications.ts";
-import {
-  createSiteOperationInputNotificationAdapters,
-  scheduleSiteOperationInputNotificationAfterPublicOperation,
-} from "./site-operation-input-notifications.ts";
 import { turnstileSiteKeyFromEnv } from "../shared/turnstile-config.ts";
 import { handleInstanceUpgradeStatusDurableObjectRequest } from "./upgrade-status-api.ts";
 import { INTERNAL_PUBLIC_SITE_BOOTSTRAP_PATH } from "./public-site-worker-runtime.ts";
@@ -94,6 +86,9 @@ import {
   selectCurrentFormlessProgramChanges,
   validateFormlessProgramRecordConstraint,
 } from "./program-authority.ts";
+import { type FormlessProgramDefaultWorkerAfterCommitInput } from "../program/default/worker.ts";
+import { programSharedRuntime } from "../program/compiled/shared.ts";
+import { programWorkerRuntime } from "../program/compiled/worker.ts";
 
 type ProgramSyncSocketAuthorization =
   | {
@@ -405,25 +400,27 @@ export class FormlessAuthority extends DurableObject<Env> {
         const { schema } = initializeStorageFromSource(this.ctx.storage, source);
         const result = await executePublicOperationRequest({
           afterCommit: async (response) => {
-            await Promise.allSettled([
-              scheduleSiteContactNotificationAfterPublicOperation({
-                adapters: createSiteContactNotificationAdapters(this.bindings),
-                requestUrl: request.url,
-                response,
-              }),
-              scheduleSiteOperationInputNotificationAfterPublicOperation({
-                adapters: createSiteOperationInputNotificationAdapters(this.bindings),
-                requestUrl: request.url,
-                response,
-                schema,
-                storage: this.ctx.storage,
-              }),
-            ]);
+            const context = {
+              bindings: this.bindings,
+              requestUrl: request.url,
+              response,
+              schema,
+              storage: this.ctx.storage,
+            } satisfies FormlessProgramDefaultWorkerAfterCommitInput;
+
+            await Promise.allSettled(
+              programWorkerRuntime.afterCommit.map((adapter) =>
+                (adapter.run as (input: FormlessProgramDefaultWorkerAfterCommitInput) => unknown)(
+                  context,
+                ),
+              ),
+            );
           },
           body,
           env: this.bindings,
           identityReferenceResolver: (lookup) =>
             resolveIdentityAppReferenceTarget(this.bindings, lookup),
+          operationAdapters: programSharedRuntime.operationAdapters,
           request,
           route: publicOperationRoute,
           schema,
@@ -467,8 +464,11 @@ export class FormlessAuthority extends DurableObject<Env> {
           identityReferenceResolver: (lookup) =>
             resolveIdentityAppReferenceTarget(this.bindings, lookup),
           operation,
+          operationAdapters: programSharedRuntime.operationAdapters,
+          publicReads: programWorkerRuntime.publicReads,
           actorCandidates,
           requestHeaders: request.headers,
+          sharedRuntime: programSharedRuntime,
           source,
           storage: this.ctx.storage,
           turnstileSiteKey: turnstileSiteKeyFromEnv(this.bindings),

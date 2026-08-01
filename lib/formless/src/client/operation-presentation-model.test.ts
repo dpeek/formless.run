@@ -12,7 +12,7 @@ describe("operation presentation model", () => {
     const clearCompleted = selectCommandOperationByHandlerCapability(
       "task",
       taskSourceSchema.entities.find((definition) => definition.key === "task")!,
-      "clearCompletedTargetCount",
+      "tombstoneQueryResultsTargetCount",
       "collection",
     );
     const regenerateMissingRates = selectCommandOperationByHandlerCapability(
@@ -29,7 +29,7 @@ describe("operation presentation model", () => {
         kind: "command",
         effect: {
           type: "operationHandler",
-          handler: "clear-completed",
+          handler: "tombstone-query-results",
           config: { query: "taskCompleted" },
         },
       },
@@ -55,7 +55,7 @@ describe("operation presentation model", () => {
       selectCommandOperationsByHandlerCapability(
         "task",
         entityWithoutOperations,
-        "clearCompletedTargetCount",
+        "tombstoneQueryResultsTargetCount",
         "collection",
       ),
     ).toEqual([]);
@@ -71,7 +71,7 @@ describe("operation presentation model", () => {
           scope: "collection",
           effect: {
             type: "operationHandler",
-            handler: "clear-completed",
+            handler: "tombstone-query-results",
             config: { query: "taskCompleted" },
           },
           output: { type: "command" },
@@ -86,7 +86,7 @@ describe("operation presentation model", () => {
           scope: "collection",
           effect: {
             type: "operationHandler",
-            handler: "clear-completed",
+            handler: "tombstone-query-results",
             config: { query: "taskCompleted" },
           },
           output: { type: "command" },

@@ -1,4 +1,5 @@
 import { parseInstanceArchive } from "../program/archive.ts";
+import { programSharedRuntime } from "../program/compiled/shared.ts";
 import {
   FORMLESS_PROGRAM_API_ROUTE_PREFIX,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
@@ -79,7 +80,7 @@ export async function handleInstanceArchiveDurableObjectRequest(
     }
 
     const body = parseArchiveRestoreRequest(await readJson(request));
-    const archive = parseInstanceArchive(body.archive);
+    const archive = parseInstanceArchive(body.archive, { programSharedRuntime });
     const mediaFilesByPath = new Map(body.mediaFiles.map((file) => [file.archivePath, file]));
     const target = archiveRestoreApiTarget(request, env, mediaFilesByPath);
     const result = archive.restorePolicy.dryRun
@@ -130,6 +131,7 @@ function archiveRestoreApiTarget(
     replaceMedia: async (desiredStorageKeys) => {
       await pruneProgramMediaObjects(env.FORMLESS_MEDIA, desiredStorageKeys);
     },
+    programSharedRuntime,
     restoreProgram: async (program) => {
       await restoreProgramViaAuthority(request, env, program);
     },

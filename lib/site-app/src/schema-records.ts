@@ -2,6 +2,19 @@ import { defineAppSchemaModule } from "@dpeek/formless-schema";
 
 export const siteRecordSchemaModule = defineAppSchemaModule({
   key: "site-records",
+  runtimeRequirements: {
+    shared: {
+      operationAdapters: ["contact-subscription.subscribe"],
+    },
+    browser: {
+      surfaces: ["site.public"],
+    },
+    worker: {
+      publicReads: ["site.public-tree"],
+      surfaces: ["site.public"],
+      afterCommit: ["site.contact-notification", "site.operation-input-notification"],
+    },
+  },
   entities: [
     {
       id: "entity_610ac202-b123-46ed-8bd3-5b65383e2233",
@@ -1262,7 +1275,7 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
           },
           effect: {
             type: "operationHandler",
-            handler: "subscribe",
+            handler: "contact-subscription.subscribe",
             config: {},
           },
           output: {

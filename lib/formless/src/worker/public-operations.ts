@@ -4,6 +4,7 @@ import {
 } from "@dpeek/formless-public-operations";
 import type { AppSchema } from "@dpeek/formless-schema";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
+import type { ProgramSharedOperationAdapterDefinition } from "../program/composition.ts";
 import {
   executeReadOperationInvocation,
   executeWriteOperationInvocation,
@@ -54,6 +55,7 @@ type PublicOperationExecutionInput = {
   body: unknown;
   env: PublicOperationEnv;
   identityReferenceResolver?: IdentityReferenceTargetResolver;
+  operationAdapters?: readonly ProgramSharedOperationAdapterDefinition[];
   request: Request;
   route: PublicOperationRoute;
   schema: AppSchema;
@@ -134,6 +136,7 @@ function publicOperationExecutorAdapters(
           : executeWriteOperationInvocation({
               envelope,
               identityReferenceResolver: input.identityReferenceResolver,
+              operationAdapters: input.operationAdapters,
               schema: input.schema,
               storage: input.storage,
               validateConstraints: input.validateConstraints,

@@ -11,16 +11,26 @@ import {
 import {
   FORMLESS_PROGRAM_ARTIFACT_FILE,
   formatFormlessProgramArtifact,
+  materializeFormlessProgramArtifact,
   materializeFormlessProgramSourceArtifact,
   type FormlessProgramArtifact,
 } from "../program/artifact.ts";
 import { formlessProgramSourceSchema } from "../program/schema.ts";
+import { formlessProgramDefaultComposition } from "../program/schema.ts";
+import type { ProgramRuntimeComposition } from "../program/composition.ts";
+import { loadWorkspaceProgramRuntimeComposition } from "./program-runtime-bundler.ts";
 
 export type ActiveWorkspaceProgramArtifact = {
   artifact: FormlessProgramArtifact;
   contents: string;
   path: string;
+  runtimeComposition: ProgramRuntimeComposition;
 };
+
+export type ResolvedActiveWorkspaceProgram = Pick<
+  ActiveWorkspaceProgramArtifact,
+  "artifact" | "runtimeComposition"
+>;
 
 export type FormlessInstanceWorkspaceDiscoveryResult = {
   configPath: string;
@@ -154,7 +164,9 @@ export async function materializeActiveWorkspaceProgramArtifact(
   workspaceRoot: string,
   config: ResolvedFormlessConfig,
 ): Promise<ActiveWorkspaceProgramArtifact> {
-  const artifact = await activeWorkspaceProgramArtifact(config);
+  const resolved = await resolveActiveWorkspaceProgram(workspaceRoot, config);
+  const artifact = resolved.artifact;
+  const runtimeComposition = resolved.runtimeComposition;
   const contents = formatFormlessProgramArtifact(artifact);
   const artifactPath = path.join(
     formlessInstanceWorkspaceLocalStateRoot(workspaceRoot, config),
@@ -168,6 +180,29 @@ export async function materializeActiveWorkspaceProgramArtifact(
     artifact,
     contents,
     path: artifactPath,
+    runtimeComposition,
+  };
+}
+
+export async function resolveActiveWorkspaceProgram(
+  workspaceRoot: string,
+  config: ResolvedFormlessConfig,
+): Promise<ResolvedActiveWorkspaceProgram> {
+  const composition = config.programComposition ?? formlessProgramDefaultComposition;
+  const sourceSchema = config.programSource ?? formlessProgramSourceSchema;
+  const runtimeComposition = await loadWorkspaceProgramRuntimeComposition({
+    composition,
+    config,
+    sourceSchema,
+    workspaceRoot,
+  });
+  const artifact = await materializeFormlessProgramArtifact(composition, {
+    runtime: runtimeComposition,
+  });
+
+  return {
+    artifact,
+    runtimeComposition,
   };
 }
 

@@ -2,6 +2,11 @@ import { defineAppSchemaModule } from "@dpeek/formless-schema";
 
 export const crmRecordSchemaModule = defineAppSchemaModule({
   key: "crm-records",
+  runtimeRequirements: {
+    shared: {
+      operationAdapters: ["contact-subscription.subscribe"],
+    },
+  },
   entities: [
     {
       id: "entity_e40c8914-c095-4483-b372-90f1c28f6cf4",
@@ -903,7 +908,7 @@ export const crmRecordSchemaModule = defineAppSchemaModule({
           },
           effect: {
             type: "operationHandler",
-            handler: "subscribe",
+            handler: "contact-subscription.subscribe",
             config: {},
           },
           output: {

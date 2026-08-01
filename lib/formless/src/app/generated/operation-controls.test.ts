@@ -794,7 +794,7 @@ function recordCommandOperation(
       input: { fields: [] },
       effect: {
         type: "operationHandler",
-        handler: "clear-completed",
+        handler: "tombstone-query-results",
         config: { query: "completed" },
       },
       output: { type: "command" },

@@ -3,6 +3,7 @@ import { createRoot, hydrateRoot } from "react-dom/client";
 import { useLocation } from "wouter";
 import { App } from "./app.tsx";
 import { ApplicationRendererRoot } from "./app/application-renderer-root.tsx";
+import "./program/compiled/shared.ts";
 
 const app = document.getElementById("app");
 

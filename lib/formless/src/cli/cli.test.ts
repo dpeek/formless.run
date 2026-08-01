@@ -48,7 +48,6 @@ import {
   FORMLESS_CONFIG_FILE,
   WORKSPACE_OPERATION_KINDS,
   resolveFormlessConfig,
-  type ResolvedFormlessConfig,
   workspaceOperationDefinitionForKind,
 } from "@dpeek/formless-workspace";
 import {
@@ -3372,7 +3371,7 @@ function readDevSessionBootstrapUrl(logs: readonly string[]): URL {
 async function writeWorkspaceConfig(
   workspaceRoot: string,
   options: {
-    runtime?: ResolvedFormlessConfig["runtime"];
+    runtime?: Parameters<typeof resolveFormlessConfig>[0]["runtime"];
   } = {},
 ) {
   await mkdir(workspaceRoot, { recursive: true });

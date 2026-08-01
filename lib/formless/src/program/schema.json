@@ -2996,7 +2996,7 @@
             "config": {
               "query": "taskCompleted"
             },
-            "handler": "clear-completed",
+            "handler": "tombstone-query-results",
             "type": "operationHandler"
           },
           "idempotency": {
@@ -4704,7 +4704,7 @@
           },
           "effect": {
             "config": {},
-            "handler": "subscribe",
+            "handler": "contact-subscription.subscribe",
             "type": "operationHandler"
           },
           "idempotency": {

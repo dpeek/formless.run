@@ -28,11 +28,21 @@ import {
   instanceControlPlanePresentationSchemaModule,
   instanceControlPlaneRecordSchemaModule,
 } from "@dpeek/formless-instance-control-plane/schema";
+import {
+  instanceControlPlaneCreateIdContribution,
+  instanceControlPlaneRecordAdapter,
+} from "@dpeek/formless-instance-control-plane/records";
 
 describe("instance control-plane schema contracts", () => {
   it("publishes record declarations before dependent presentation declarations", () => {
     expect(instanceControlPlaneRecordSchemaModule).toMatchObject({
       key: "instance-control-plane-records",
+      runtimeRequirements: {
+        shared: {
+          recordAdapters: ["instance-control-plane.records"],
+          createIdContributions: ["instance-control-plane.create-id"],
+        },
+      },
       entities: instanceControlPlaneEntityNames.map((key) => expect.objectContaining({ key })),
       relationships: expect.arrayContaining([
         expect.objectContaining({ key: "emailDomainSenders" }),
@@ -58,6 +68,19 @@ describe("instance control-plane schema contracts", () => {
     expect(instanceControlPlaneRecordSchemaModule.runtime.controlPlane.entities).toEqual(
       instanceControlPlaneSourceSchema.runtime?.controlPlane?.entities,
     );
+    expect(instanceControlPlaneRecordAdapter.entityIds).toEqual(
+      instanceControlPlaneSchema.entities.map(({ id }) => id),
+    );
+    expect(
+      instanceControlPlaneCreateIdContribution.createId("deployment-config", {
+        targetId: "deployment:one",
+      }),
+    ).toBe("deployment:one");
+    expect(
+      instanceControlPlaneCreateIdContribution.createId("route", {
+        targetId: "deployment:one",
+      }),
+    ).toBeUndefined();
   });
 
   it("owns its administrator role and materializes exact operation access", () => {

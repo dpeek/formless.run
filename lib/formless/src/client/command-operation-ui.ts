@@ -32,7 +32,7 @@ export function selectCommandOperationUi(
     operation.kind !== "command" ||
     !isOperationHandlerEffectForSelectionCapability(
       operation.effect,
-      "clearCompletedTargetCount",
+      "tombstoneQueryResultsTargetCount",
     ) ||
     count?.type !== "count"
   ) {

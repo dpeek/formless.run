@@ -326,6 +326,12 @@ const entityViewConfig = {
 >;
 export const identityControlPlaneRecordSchemaModule = defineAppSchemaModule({
   key: "identity-control-plane-records",
+  runtimeRequirements: {
+    shared: {
+      recordAdapters: ["identity-control-plane.records"],
+      bootstrapContributions: ["identity-control-plane.bootstrap"],
+    },
+  },
   entities: [
     {
       id: "entity_9a973724-79ed-4e91-b5a3-6364bb03aa18",

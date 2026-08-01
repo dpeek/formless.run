@@ -83,6 +83,34 @@ describe("App schema module authoring", () => {
     expect(source.runtime).toEqual({ owner: "runtime" });
   });
 
+  it("keeps runtime requirements as authoring-only module metadata", () => {
+    const records = defineAppSchemaModule({
+      ...taskRecordsModule(),
+      runtimeRequirements: {
+        shared: { recordAdapters: ["tasks.records"] },
+        browser: { projections: ["tasks.readiness"] },
+        worker: { surfaces: ["tasks.public"] },
+      },
+    });
+    const source = composeAppSchema({ version: 1, modules: [records, taskPresentationModule()] });
+
+    expect(records.runtimeRequirements).toEqual({
+      shared: { recordAdapters: ["tasks.records"] },
+      browser: { projections: ["tasks.readiness"] },
+      worker: { surfaces: ["tasks.public"] },
+    });
+    expect(source).not.toHaveProperty("runtimeRequirements");
+    expect(JSON.stringify(source)).not.toContain("tasks.records");
+    expect(parseAppSchema(source)).toEqual(
+      parseAppSchema(
+        composeAppSchema({
+          version: 1,
+          modules: [taskRecordsModule(), taskPresentationModule()],
+        }),
+      ),
+    );
+  });
+
   it("resolves module operation access against the root-owned role catalog", () => {
     const records = taskRecordsModule({ role: "member" });
     const source = composeAppSchema({
@@ -366,7 +394,10 @@ describe("App schema module authoring", () => {
   });
 });
 
-type ModuleDeclarations = Omit<AppSchemaModuleSource, "key" | "requires" | "runtime">;
+type ModuleDeclarations = Omit<
+  AppSchemaModuleSource,
+  "key" | "requires" | "runtime" | "runtimeRequirements"
+>;
 
 const declarationCollisionCases: Array<{
   path: string;

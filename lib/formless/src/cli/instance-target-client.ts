@@ -19,6 +19,7 @@ import {
 } from "@dpeek/formless-deploy/client";
 import {
   FORMLESS_DEPLOY_METADATA_PATH,
+  parseFormlessBundleDigest,
   type FormlessDeployMetadata,
 } from "../shared/deploy-metadata.ts";
 import { parseSourceSchemaHash } from "@dpeek/formless-schema";
@@ -818,6 +819,14 @@ function parseDeployMetadata(value: unknown, context: string): FormlessDeployMet
   }
 
   return {
+    ...(value.bundleDigest === undefined
+      ? {}
+      : {
+          bundleDigest: parseFormlessBundleDigest(
+            `${context} deploy metadata bundleDigest`,
+            value.bundleDigest,
+          ),
+        }),
     packageVersion: value.packageVersion as string | null,
     runtimeProtocolVersion: value.runtimeProtocolVersion as number,
     schemaProvenance: {

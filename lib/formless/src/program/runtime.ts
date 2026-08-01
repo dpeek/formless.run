@@ -1,21 +1,4 @@
 import {
-  identityControlPlaneEntityIds,
-  reviewableIdentityControlPlaneRecords,
-  validateIdentityControlPlaneRecords,
-} from "@dpeek/formless-identity-control-plane";
-import {
-  crmOwnedProgramEntityIds,
-  reviewableCrmRecords,
-  validateCrmRecords,
-} from "@dpeek/formless-crm-app";
-import {
-  instanceControlPlaneEntityIds,
-  parseInstanceControlPlaneEntityName,
-  reviewableInstanceControlPlaneRecordValues,
-  reviewableInstanceControlPlaneRecords,
-  validateInstanceControlPlaneRecords,
-} from "@dpeek/formless-instance-control-plane";
-import {
   isValidStoredFieldValue,
   stringifySchema,
   type AccessRequirement,
@@ -23,16 +6,6 @@ import {
   type EntitySchema,
   type ScreenAccessRequirement,
 } from "@dpeek/formless-schema";
-import {
-  reviewableTaskRecords,
-  tasksEntityIds,
-  validateTaskRecords,
-} from "@dpeek/formless-tasks-app";
-import {
-  reviewableSiteRecords,
-  siteEntityIds,
-  validateSiteRecords,
-} from "@dpeek/formless-site-app";
 import {
   formatStoredRecordsForArtifact,
   parseStorageSnapshot,
@@ -53,6 +26,12 @@ import {
   parseFormlessProgramSourceSchema,
   type FormlessProgramArtifact,
 } from "./artifact.ts";
+import {
+  validateProgramSharedRuntimeDefinition,
+  type ProgramSharedRecordAdapterDefinition,
+  type ProgramSharedRuntimeDefinition,
+} from "./composition.ts";
+import { formlessProgramDefaultSharedRuntime } from "./default/shared.ts";
 
 export * from "./target.ts";
 
@@ -141,7 +120,9 @@ export function resolveFormlessProgramScreenRouteTarget(
 
 export type FormlessProgramValidationOptions = {
   artifact?: FormlessProgramArtifact;
+  candidateRecord?: StoredRecord;
   schema?: AppSchema;
+  sharedRuntime?: ProgramSharedRuntimeDefinition;
 };
 
 export function formlessProgramArchiveSnapshotContract(
@@ -174,131 +155,22 @@ export function formlessProgramWorkspaceSnapshotContract(
   };
 }
 
-type FormlessProgramConstraintAdapter = {
-  entityIds: ReadonlySet<string>;
-  label: string;
-  reviewable: (
-    records: readonly StoredRecord[],
-    candidateRecords: readonly StoredRecord[],
-    schema: AppSchema,
-    options: FormlessProgramValidationOptions,
-  ) => StoredRecord[];
-  validate: (
-    context: string,
-    records: readonly StoredRecord[],
-    candidateRecords: readonly StoredRecord[],
-    schema: AppSchema,
-    options: FormlessProgramValidationOptions,
-  ) => void;
-};
-
-const formlessProgramConstraintAdapters: readonly FormlessProgramConstraintAdapter[] = [
-  {
-    label: "instance control plane",
-    entityIds: new Set(instanceControlPlaneEntityIds),
-    reviewable: (records, candidateRecords) =>
-      reviewableInstanceControlPlaneRecords(records, {
-        candidateRecords,
-      }),
-    validate: (context, records, candidateRecords, schema) =>
-      validateInstanceControlPlaneRecords(
-        context,
-        reviewableActiveInstanceRecords(records, schema),
-        {
-          candidateRecords: candidateRecords.map((record) =>
-            reviewableInstanceCandidateRecord(record, schema),
-          ),
-        },
-      ),
-  },
-  {
-    label: "identity control plane",
-    entityIds: new Set(identityControlPlaneEntityIds),
-    reviewable: (records, candidateRecords, schema) =>
-      reviewableIdentityControlPlaneRecords(records, {
-        authorizationRoles: schema.authorization?.roles,
-        candidateRecords,
-      }),
-    validate: (context, records, candidateRecords, schema) =>
-      validateIdentityControlPlaneRecords(
-        context,
-        records.filter((record) => record.deletedAt === undefined),
-        {
-          authorizationRoles: schema.authorization?.roles,
-          candidateRecords,
-        },
-      ),
-  },
-  {
-    label: "tasks",
-    entityIds: new Set(tasksEntityIds),
-    reviewable: (records) => reviewableTaskRecords(records),
-    validate: (context, records) => validateTaskRecords(context, records),
-  },
-  {
-    label: "site",
-    entityIds: new Set(siteEntityIds),
-    reviewable: (records) => reviewableSiteRecords(records),
-    validate: (context, records) => validateSiteRecords(context, records),
-  },
-  {
-    label: "crm",
-    entityIds: new Set(crmOwnedProgramEntityIds),
-    reviewable: (records) => reviewableCrmRecords(records),
-    validate: (context, records) => validateCrmRecords(context, records),
-  },
-];
-
-function reviewableActiveInstanceRecords(
-  records: readonly StoredRecord[],
-  schema: AppSchema,
-): StoredRecord[] {
-  return records
-    .filter((record) => record.deletedAt === undefined)
-    .map((record) => reviewableInstanceCandidateRecord(record, schema));
-}
-
-function reviewableInstanceCandidateRecord(
-  record: StoredRecord,
-  schema: AppSchema = formlessProgramSchema,
-): StoredRecord {
-  const entity = schema.entities.find((candidate) => candidate.key === record.entity);
-
-  if (!entity || !instanceControlPlaneEntityIds.includes(entity.id)) {
-    return record;
-  }
-
-  const entityName = parseInstanceControlPlaneEntityName(
-    `Formless Program record "${record.id}" entity`,
-    record.entity,
-  );
-
-  return {
-    ...record,
-    values: reviewableInstanceControlPlaneRecordValues(entityName, record.values),
-  };
-}
-
 export function validateFormlessProgramRecords(
   context: string,
   records: readonly StoredRecord[],
   options: FormlessProgramValidationOptions = {},
 ): void {
   const schema = formlessProgramSchemaForOptions(options);
+  const adapters = formlessProgramRecordAdapters(schema, options);
 
-  assertFormlessProgramConstraintOwnership(context, schema);
   validateRecordsAgainstSchema(context, schema, records);
 
-  const recordsByAdapter = new Map(
-    formlessProgramConstraintAdapters.map((adapter) => [adapter, [] as StoredRecord[]]),
-  );
+  const recordsByAdapter = new Map(adapters.map((adapter) => [adapter, [] as StoredRecord[]]));
   const entityIdsByKey = new Map(schema.entities.map((entity) => [entity.key, entity.id]));
 
   for (const record of records) {
     const entityId = entityIdsByKey.get(record.entity)!;
-    const owners = formlessProgramConstraintAdapters.filter((adapter) =>
-      adapter.entityIds.has(entityId),
-    );
+    const owners = adapters.filter((adapter) => adapter.entityIds.includes(entityId));
 
     if (owners.length > 1) {
       throw new Error(
@@ -311,14 +183,23 @@ export function validateFormlessProgramRecords(
     }
   }
 
-  for (const adapter of formlessProgramConstraintAdapters) {
-    adapter.validate(
-      `${context} ${adapter.label} constraints`,
-      recordsByAdapter.get(adapter)!,
-      records,
+  for (const definition of adapters) {
+    const input = {
+      allRecords: records,
+      records: recordsByAdapter.get(definition)!,
       schema,
-      options,
-    );
+    };
+    definition.adapter.validate(`${context} ${definition.key} constraints`, input);
+
+    if (
+      options.candidateRecord !== undefined &&
+      definition.entityIds.includes(entityIdsByKey.get(options.candidateRecord.entity) ?? "")
+    ) {
+      definition.adapter.validateCandidate(`${context} ${definition.key} candidate`, {
+        ...input,
+        candidate: options.candidateRecord,
+      });
+    }
   }
 }
 
@@ -360,17 +241,20 @@ export function canonicalizeFormlessProgramStorageSnapshot(
     validationOptions,
   );
   const schema = formlessProgramSchemaForOptions(validationOptions);
-  const recordsByAdapter = recordsByFormlessProgramConstraintAdapter(parsed.records, schema);
-  const ownedEntityIds = new Set(
-    formlessProgramConstraintAdapters.flatMap((adapter) => [...adapter.entityIds]),
-  );
+  const adapters = formlessProgramRecordAdapters(schema, validationOptions);
+  const recordsByAdapter = recordsByFormlessProgramRecordAdapter(parsed.records, schema, adapters);
+  const ownedEntityIds = new Set(adapters.flatMap((adapter) => adapter.entityIds));
   const entityIdsByKey = new Map(schema.entities.map((entity) => [entity.key, entity.id]));
   const extensionRecords = parsed.records.filter(
     (record) => !ownedEntityIds.has(entityIdsByKey.get(record.entity) ?? ""),
   );
   const records = [
-    ...formlessProgramConstraintAdapters.flatMap((adapter) =>
-      adapter.reviewable(recordsByAdapter.get(adapter)!, parsed.records, schema, validationOptions),
+    ...adapters.flatMap((definition) =>
+      definition.adapter.canonicalize({
+        allRecords: parsed.records,
+        records: recordsByAdapter.get(definition)!,
+        schema,
+      }),
     ),
     ...extensionRecords,
   ];
@@ -384,20 +268,17 @@ export function canonicalizeFormlessProgramStorageSnapshot(
   };
 }
 
-function recordsByFormlessProgramConstraintAdapter(
+function recordsByFormlessProgramRecordAdapter(
   records: readonly StoredRecord[],
   schema: AppSchema,
-): Map<FormlessProgramConstraintAdapter, StoredRecord[]> {
+  adapters: readonly ProgramSharedRecordAdapterDefinition[],
+): Map<ProgramSharedRecordAdapterDefinition, StoredRecord[]> {
   const entityIdsByKey = new Map(schema.entities.map((entity) => [entity.key, entity.id]));
-  const recordsByAdapter = new Map(
-    formlessProgramConstraintAdapters.map((adapter) => [adapter, [] as StoredRecord[]]),
-  );
+  const recordsByAdapter = new Map(adapters.map((adapter) => [adapter, [] as StoredRecord[]]));
 
   for (const record of records) {
     const entityId = entityIdsByKey.get(record.entity);
-    const adapter = formlessProgramConstraintAdapters.find((candidate) =>
-      candidate.entityIds.has(entityId ?? ""),
-    );
+    const adapter = adapters.find((candidate) => candidate.entityIds.includes(entityId ?? ""));
 
     if (adapter !== undefined) {
       recordsByAdapter.get(adapter)!.push(record);
@@ -532,37 +413,22 @@ function assertFormlessProgramSchema(
   }
 }
 
-function assertFormlessProgramConstraintOwnership(context: string, schema: AppSchema): void {
-  const declaredEntityIds = new Set<string>(schema.entities.map(({ id }) => id));
-
-  for (const entity of schema.entities) {
-    const ownerCount = formlessProgramConstraintAdapters.filter((adapter) =>
-      adapter.entityIds.has(entity.id),
-    ).length;
-    if (ownerCount > 1) {
-      throw new Error(
-        `${context} entity "${entity.key}" must have at most one stable-entity-id constraint owner.`,
-      );
-    }
-  }
-
-  for (const adapter of formlessProgramConstraintAdapters) {
-    for (const entityId of adapter.entityIds) {
-      if (!declaredEntityIds.has(entityId)) {
-        throw new Error(
-          `${context} ${adapter.label} constraint owner declares unknown stable entity id "${entityId}".`,
-        );
-      }
-    }
-  }
-}
-
 function formlessProgramSchemaForOptions(options: FormlessProgramValidationOptions): AppSchema {
   if (options.artifact !== undefined) {
     return parseFormlessProgramSchemaArtifact(options.artifact.sourceSchema);
   }
 
   return options.schema ?? formlessProgramSchema;
+}
+
+function formlessProgramRecordAdapters(
+  schema: AppSchema,
+  options: FormlessProgramValidationOptions,
+): readonly ProgramSharedRecordAdapterDefinition[] {
+  const sharedRuntime = options.sharedRuntime ?? formlessProgramDefaultSharedRuntime;
+
+  validateProgramSharedRuntimeDefinition(schema, sharedRuntime);
+  return sharedRuntime.recordAdapters;
 }
 
 function assertIsoTimestamp(context: string, value: string): void {

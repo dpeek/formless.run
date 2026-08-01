@@ -1,19 +1,18 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   ARCHIVE_VERSION,
   INSTANCE_ARCHIVE_KIND,
   parseInstanceArchive,
 } from "@dpeek/formless-archive";
-import { crmOwnedProgramEntityIds } from "@dpeek/formless-crm-app";
-import { computeSourceSchemaHash } from "@dpeek/formless-schema";
-import { defineAppSchemaModule } from "@dpeek/formless-schema";
-import { identityControlPlaneEntityIds } from "@dpeek/formless-identity-control-plane";
-import { instanceControlPlaneEntityIds } from "@dpeek/formless-instance-control-plane";
-import { siteEntityIds } from "@dpeek/formless-site-app";
-import { tasksEntityIds } from "@dpeek/formless-tasks-app";
+import {
+  computeSourceSchemaHash,
+  defineAppSchemaModule,
+  parseAppSchema,
+} from "@dpeek/formless-schema";
 import {
   STORAGE_SNAPSHOT_KIND,
   STORAGE_SNAPSHOT_VERSION,
@@ -28,8 +27,18 @@ import { resolveFormlessConfig } from "@dpeek/formless-workspace";
 import { describe, expect, it } from "vite-plus/test";
 import { testSiteRecords } from "../test/site-records.ts";
 import rawFormlessProgramSchema from "./schema.json";
-import { formatFormlessProgramArtifact, materializeFormlessProgramArtifact } from "./artifact.ts";
-import { formlessProgramDefaultComposition, formlessProgramSchemaModules } from "./schema.ts";
+import {
+  formatFormlessProgramArtifact,
+  materializeFormlessProgramArtifact,
+  materializeFormlessProgramSourceArtifact,
+} from "./artifact.ts";
+import { defineProgramSharedRuntime } from "./composition.ts";
+import { formlessProgramDefaultRuntimeComposition } from "./default.ts";
+import {
+  formlessProgramBuiltInModules,
+  formlessProgramDefaultComposition,
+  formlessProgramSchemaModules,
+} from "./schema.ts";
 import {
   FORMLESS_PROGRAM_API_ROUTE_PREFIX,
   FORMLESS_PROGRAM_BROWSER_STORAGE_NAME,
@@ -47,6 +56,11 @@ import {
   validateFormlessProgramRecords,
 } from "./runtime.ts";
 import { formlessProgramTarget } from "./target.ts";
+import {
+  readInstanceWorkspaceProgramStorageSnapshot as readValidatedWorkspaceSnapshot,
+  writeInstanceWorkspaceProgramStorageSnapshot as writeValidatedWorkspaceSnapshot,
+} from "./workspace.ts";
+import { workspaceProgramComposition } from "../test/workspace-runtime-composition/program.ts";
 
 const now = "2026-07-30T00:00:00.000Z";
 
@@ -71,11 +85,19 @@ describe("Formless Program runtime contracts", () => {
   });
 
   it("materializes explicit access for every current Program operation", () => {
-    const identityEntityIds = new Set(identityControlPlaneEntityIds);
-    const instanceEntityIds = new Set(instanceControlPlaneEntityIds);
-    const crmEntityIds = new Set<string>(crmOwnedProgramEntityIds);
-    const siteStableEntityIds = new Set<string>(siteEntityIds);
-    const taskEntityIds = new Set<string>(tasksEntityIds);
+    const identityEntityIds = moduleEntityIds(
+      formlessProgramBuiltInModules.identityControlPlaneRecords,
+    );
+    const instanceEntityIds = moduleEntityIds(
+      formlessProgramBuiltInModules.instanceControlPlaneRecords,
+    );
+    const siteStableEntityIds = moduleEntityIds(formlessProgramBuiltInModules.siteRecords);
+    const taskEntityIds = moduleEntityIds(formlessProgramBuiltInModules.tasksRecords);
+    const crmEntityIds = new Set(
+      [...moduleEntityIds(formlessProgramBuiltInModules.crmRecords)].filter(
+        (entityId) => !siteStableEntityIds.has(entityId),
+      ),
+    );
 
     for (const entity of formlessProgramSchema.entities) {
       expect(
@@ -207,6 +229,100 @@ describe("Formless Program runtime contracts", () => {
     ).toThrow('includes duplicate record id "principal:ada"');
   });
 
+  it("runs explicitly selected candidate validation for Program writes", () => {
+    const route = storedRecord("route:reserved", "route", {
+      enabled: true,
+      kind: "mount",
+      matchPath: "/api",
+      targetProfile: "instance",
+    });
+
+    expect(() =>
+      validateFormlessProgramRecords("Program records", [...programRecords(), route], {
+        candidateRecord: route,
+      }),
+    ).toThrow('field "instance:route.matchPath" must be a normalized absolute path');
+  });
+
+  it("keeps generic-only domains valid when their shared composition is empty", () => {
+    const schema = genericOnlySchema();
+    const sharedRuntime = emptySharedRuntime();
+    const note = storedRecord("note:one", "note", { title: "One" });
+
+    expect(() =>
+      validateFormlessProgramRecords("Generic Program records", [note], {
+        schema,
+        sharedRuntime,
+      }),
+    ).not.toThrow();
+    expect(
+      canonicalizeFormlessProgramStorageSnapshot(
+        { ...programSnapshot([note]), schema },
+        { schema, sharedRuntime },
+      ).records,
+    ).toEqual([note]);
+  });
+
+  it("canonicalizes only records owned by the injected adapter", () => {
+    const schema = genericOnlySchema();
+    const note = storedRecord("note:one", "note", { title: "One" });
+    const sharedRuntime = defineProgramSharedRuntime({
+      ...emptySharedRuntime(),
+      recordAdapters: [
+        {
+          target: "shared",
+          kind: "record-adapter",
+          key: "notes.records",
+          entityIds: [schema.entities[0]!.id],
+          adapter: {
+            canonicalize: ({ records }) =>
+              records.map((record) => ({
+                ...record,
+                values: { ...record.values, title: "Canonical" },
+              })),
+            validate: () => undefined,
+            validateCandidate: () => undefined,
+          },
+        },
+      ],
+    });
+
+    expect(
+      canonicalizeFormlessProgramStorageSnapshot(
+        { ...programSnapshot([note]), schema },
+        { schema, sharedRuntime },
+      ).records,
+    ).toEqual([{ ...note, values: { title: "Canonical" } }]);
+  });
+
+  it("rejects ambiguous entity ownership in injected shared composition", () => {
+    const schema = genericOnlySchema();
+    const adapter = {
+      target: "shared",
+      kind: "record-adapter",
+      key: "notes.records",
+      entityIds: [schema.entities[0]!.id],
+      adapter: {
+        canonicalize: ({ records }: { records: readonly StoredRecord[] }) => records,
+        validate: () => undefined,
+        validateCandidate: () => undefined,
+      },
+    } as const;
+    const sharedRuntime = defineProgramSharedRuntime({
+      ...emptySharedRuntime(),
+      recordAdapters: [adapter, { ...adapter, key: "notes.records.alternate" }],
+    });
+
+    expect(() =>
+      validateFormlessProgramRecords("Generic Program records", [], {
+        schema,
+        sharedRuntime,
+      }),
+    ).toThrow(
+      `Program runtime selections "notes.records" and "notes.records.alternate" in shared.recordAdapters both claim entity id "${schema.entities[0]!.id}".`,
+    );
+  });
+
   it("retains active and tombstoned Task records in canonical Program snapshots", () => {
     const active = taskRecord("task:active", {
       priority: "high",
@@ -314,10 +430,13 @@ describe("Formless Program runtime contracts", () => {
     });
     const artifact = parseRuntimeFormlessProgramArtifactJson(
       formatFormlessProgramArtifact(
-        await materializeFormlessProgramArtifact({
-          ...formlessProgramDefaultComposition,
-          modules: [...formlessProgramSchemaModules, workspaceRecords],
-        }),
+        await materializeFormlessProgramArtifact(
+          {
+            ...formlessProgramDefaultComposition,
+            modules: [...formlessProgramSchemaModules, workspaceRecords],
+          },
+          { runtime: formlessProgramDefaultRuntimeComposition },
+        ),
       ),
     );
     const schema = parseFormlessProgramSchemaArtifact(artifact.sourceSchema);
@@ -467,6 +586,66 @@ describe("Formless Program runtime contracts", () => {
       await rm(workspaceRoot, { force: true, recursive: true });
     }
   });
+
+  it("validates workspace snapshots with the selected shared record adapter", async () => {
+    const fixtureRoot = fileURLToPath(
+      new URL("../test/workspace-runtime-composition/", import.meta.url),
+    );
+    const testStateParent = path.join(fixtureRoot, ".formless");
+
+    await mkdir(testStateParent, { recursive: true });
+    const stateRoot = await mkdtemp(path.join(testStateParent, "snapshot-adapter-"));
+    const manifest = resolveFormlessConfig({
+      name: "workspace-snapshot-adapter",
+      program: workspaceProgramComposition,
+      state: { root: path.relative(fixtureRoot, stateRoot) },
+      runtime: {
+        composition: {
+          shared: "shared.ts",
+          browser: "browser.ts",
+          worker: "worker.ts",
+        },
+      },
+    });
+    const artifact = await materializeFormlessProgramSourceArtifact(manifest.programSource!);
+    const snapshot = workspaceRuntimeSnapshot(
+      parseFormlessProgramSchemaArtifact(artifact.sourceSchema),
+      [
+        storedRecord("workspace-record", "workspace-record", {
+          label: "rejected-by-workspace-adapter",
+        }),
+      ],
+    );
+
+    try {
+      await writeInstanceWorkspaceProgramStorageSnapshot({
+        manifest,
+        programSnapshotContract: formlessProgramWorkspaceSnapshotContract({
+          artifact,
+          sharedRuntime: emptySharedRuntime(),
+        }),
+        snapshot,
+        workspaceRoot: fixtureRoot,
+      });
+      const stateContents = await readFile(path.join(stateRoot, "instance.json"), "utf8");
+
+      expect(stateContents).not.toContain("shared.ts");
+      expect(stateContents).not.toContain("workspace.record");
+
+      await expect(
+        readValidatedWorkspaceSnapshot({ manifest, workspaceRoot: fixtureRoot }),
+      ).rejects.toThrow("Workspace record adapter rejected snapshot records.");
+      await expect(
+        writeValidatedWorkspaceSnapshot({
+          manifest,
+          snapshot,
+          workspaceRoot: fixtureRoot,
+        }),
+      ).rejects.toThrow("Workspace record adapter rejected snapshot records.");
+    } finally {
+      await rm(stateRoot, { force: true, recursive: true });
+    }
+  });
 });
 
 function programSnapshot(records: StoredRecord[]): StorageSnapshot {
@@ -479,6 +658,23 @@ function programSnapshot(records: StoredRecord[]): StorageSnapshot {
     schemaUpdatedAt: now,
     sourceCursor: 47,
     schema: formlessProgramSchema,
+    records,
+  };
+}
+
+function workspaceRuntimeSnapshot(
+  schema: StorageSnapshot["schema"],
+  records: StoredRecord[],
+): StorageSnapshot {
+  return {
+    kind: STORAGE_SNAPSHOT_KIND,
+    version: STORAGE_SNAPSHOT_VERSION,
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+    schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
+    exportedAt: now,
+    schemaUpdatedAt: now,
+    sourceCursor: records.length,
+    schema,
     records,
   };
 }
@@ -517,6 +713,67 @@ function storedRecord(id: string, entity: string, values: StoredRecord["values"]
 
 function taskRecord(id: string, values: StoredRecord["values"]): StoredRecord {
   return storedRecord(id, "task", values);
+}
+
+function moduleEntityIds(module: { entities?: readonly { id: string }[] }): Set<string> {
+  return new Set(module.entities?.map(({ id }) => id) ?? []);
+}
+
+function genericOnlySchema() {
+  return parseAppSchema({
+    version: 1,
+    entities: [
+      {
+        id: "entity_66dd9be0-8af5-45c6-a391-ed19a73b271b",
+        key: "note",
+        label: "Note",
+        fields: [{ key: "title", type: "text", required: true }],
+      },
+    ],
+    queries: [{ key: "noteAll", label: "Notes", entity: "note", expression: { kind: "all" } }],
+    itemViews: [
+      {
+        key: "noteItem",
+        entity: "note",
+        fields: [{ field: "title", editor: "text", commit: "field-commit" }],
+      },
+    ],
+    tableViews: [],
+    views: [
+      {
+        key: "noteHome",
+        type: "collection",
+        label: "Notes",
+        entity: "note",
+        queries: [{ query: "noteAll" }],
+        defaultQuery: "noteAll",
+        result: { type: "list", itemView: "noteItem" },
+        operations: [],
+      },
+    ],
+    screens: [
+      {
+        key: "noteHome",
+        type: "workspace",
+        label: "Notes",
+        path: "/notes",
+        layout: {
+          type: "stack",
+          sections: [{ id: "notes", type: "collection", view: "noteHome" }],
+        },
+      },
+    ],
+  });
+}
+
+function emptySharedRuntime() {
+  return defineProgramSharedRuntime({
+    target: "shared",
+    recordAdapters: [],
+    operationAdapters: [],
+    bootstrapContributions: [],
+    createIdContributions: [],
+  });
 }
 
 function testSiteRecord(entity: "block" | "site"): StoredRecord {

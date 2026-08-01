@@ -59,6 +59,20 @@ schema declarations composed into the downstream Program.
   cursor, replica, archive, and workspace selection remain downstream runtime
   concerns
 
+#### Scenario: Select identity record behavior explicitly
+
+- GIVEN a Program composes the identity control-plane record module
+- WHEN trusted runtime composition supplies identity record behavior
+- THEN it imports the package's narrow record validation and reviewable
+  canonicalization adapter from
+  `@dpeek/formless-identity-control-plane/records` and selects it explicitly
+- AND the adapter enforces identity references, normalized email, role,
+  membership, assignment, invitation, and policy-acceptance invariants
+- AND stable identity entity ids only scope records passed to the selected
+  adapter
+- AND those ids do not activate the adapter or grant Program, storage, replica,
+  route, operation, or authorization access
+
 #### Scenario: Package exposes composable schema modules
 
 - GIVEN trusted TypeScript authoring needs reusable identity control-plane
@@ -104,6 +118,10 @@ without forcing private auth state into reviewable storage.
 - AND built-in `role` records remain only for protected owner authority
 - AND each remaining built-in role record has a deterministic id derived from
   its role key, such as `role:instance.owner` for `instance.owner`
+- AND trusted default Program composition explicitly selects the identity
+  bootstrap contribution that supplies those records
+- AND generic Program bootstrap does not identify identity behavior from entity
+  ids or import the identity package implicitly
 
 #### Scenario: Program identity management authorization
 

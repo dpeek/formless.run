@@ -358,10 +358,11 @@ payloads, not portable archive directories or duplicated schema source bodies.
 - **AND** workspace result fields, sync summaries, logs, and package-local
   instructions do not call `state/instance.json` an instance archive
 
-### Requirement: Workspace Runtime Extension Archive Boundary
+### Requirement: Workspace Runtime Code Archive Boundary
 
-The system SHALL keep trusted workspace runtime extension code and renderer
-module configuration outside portable instance archive envelopes.
+The system SHALL keep trusted workspace runtime composition code, runtime
+extension code, and module configuration outside portable instance archive
+envelopes.
 
 #### Scenario: Runtime extension config is not archive data
 
@@ -369,11 +370,12 @@ module configuration outside portable instance archive envelopes.
   from workspace source
 - **THEN** the archive includes one Program snapshot and referenced media
   payloads selected by the archive capabilities
-- **AND** the archive does not include workspace renderer source files,
-  renderer module paths, `formless.ts` `runtime.extensions` entries, build
-  aliases, local dependency paths, or runtime extension digests
+- **AND** the archive does not include workspace adapter or renderer source
+  files, runtime composition or renderer module paths, `formless.ts`
+  `runtime.composition` or `runtime.extensions` entries, build aliases, local
+  dependency paths, executable functions, or runtime build digests
 - **AND** Program provenance does not imply that a restored target has the same
-  workspace renderer code available
+  workspace adapter or renderer code available
 
 #### Scenario: Restore without renderer code
 
@@ -392,6 +394,18 @@ module configuration outside portable instance archive envelopes.
   workspace configuration outside the portable archive envelope
 - **AND** archive restore planning, import validation, and archive metadata do
   not read renderer modules or execute workspace renderer code
+
+#### Scenario: Restore through target runtime composition
+
+- **GIVEN** an archive is restored into a target with an explicitly composed
+  Program artifact and shared record adapters
+- **WHEN** restore planning validates the archive before mutation
+- **THEN** it validates the snapshot against the target Program provenance,
+  complete schema, and selected record adapters
+- **AND** incompatible current-state records fail restore before storage or
+  media mutation
+- **AND** restore does not load adapter code from the archive or infer adapters
+  from archived entity ids
 
 ### Requirement: Workspace Package Boundary
 

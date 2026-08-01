@@ -164,7 +164,8 @@ domain declarations.
 
 #### Scenario: Default Formless Program root
 
-- GIVEN the Formless runtime package composes the default product Program
+- GIVEN the explicit default Formless Program assembly composes the default
+  product Program
 - WHEN it selects reusable instance, identity, Tasks, Site, and CRM schema modules
 - THEN it imports them through their documented package `./schema` subpaths
 - AND the root owns the explicit module list, runtime owner, navigation,
@@ -175,6 +176,15 @@ domain declarations.
   declarations, stable entity ids, and domain adapters
 - AND the Schema package continues owning only the generic App schema
   authoring and composition contracts
+- AND generic Program runtime exports do not import or register the selected
+  domain packages
+- AND `@dpeek/formless/program/default`,
+  `@dpeek/formless/program/default/shared`,
+  `@dpeek/formless/program/default/browser`, and
+  `@dpeek/formless/program/default/worker` expose the explicit default schema
+  and target composition roots
+- AND `@dpeek/formless/program` remains the domain-neutral Program contract and
+  artifact boundary
 - AND no generic Program package or registry automatically discovers, fetches,
   versions, includes, or reorders domain modules
 
@@ -248,8 +258,11 @@ domain declarations.
   archive, workspace, or authorization behavior is selected
 - THEN the downstream Formless Program root owns those complete-runtime choices
 - AND the Instance Control Plane, Identity Control Plane, Tasks, Site, and CRM
-  packages continue owning their schema modules, stable entity ids, validation
-  helpers, and domain adapters
+  packages continue owning their schema modules, stable entity ids, field
+  policy, projections, public-operation declarations, and genuinely
+  domain-specific adapters
+- AND the root explicitly selects shared, browser, and Worker runtime entries
+  independently of selecting schema modules
 - AND package authoring module keys do not become runtime storage,
   authorization, qualified-entity, route, archive, or provenance identity
 - AND the Schema package does not gain instance, identity, archive, runtime, or
@@ -262,12 +275,55 @@ domain declarations.
 - WHEN its trusted `formless.ts` composes a Program
 - THEN the workspace root explicitly supplies the ordered extension modules and
   complete Program-owned authorization, navigation, and path choices
+- AND it explicitly supplies workspace-owned shared, browser, or Worker runtime
+  entries for executable behavior required by those modules
 - AND package modules retain ownership of domain declarations, stable entity
   ids, field policy, projections, public-operation declarations, and adapters
 - AND the resolved complete Program artifact is build input rather than a
   runtime-installed package, plugin, registry entry, or remote dependency
 - AND authoring module keys do not become storage, replica, route, archive,
   provenance, or authorization identities
+
+### Requirement: Explicit Program Runtime Composition
+
+The system SHALL compose executable Program behavior from trusted static module
+entries without treating runtime adapters as schema data or discoverable
+plugins.
+
+#### Scenario: Compose narrow runtime capabilities
+
+- GIVEN a default or downstream Program requires executable domain behavior
+- WHEN its trusted composition root selects that behavior
+- THEN it selects narrow shared record or operation adapters and target-specific
+  browser or Worker surfaces through ordinary static imports
+- AND public reads, after-commit side effects, browser projections, public Site
+  rendering, bootstrap contributions, and record-id contributions remain
+  separate capability categories where their lifecycles differ
+- AND the composition is not a package registry, manifest lookup, package
+  resolver, runtime installation, remote loader, or generic plugin system
+
+#### Scenario: Match selected adapters to schema
+
+- GIVEN a selected record adapter declares the stable entity ids it handles
+- WHEN build-time composition validation runs
+- THEN those ids scope records passed to the already selected adapter
+- AND duplicate adapter keys, duplicate transformation ownership, claimed
+  missing entities, or missing schema-required executable behavior fail
+  deterministically
+- AND generic-only modules require no executable adapter
+- AND entity, package, module, field, media, or adapter identity grants no
+  storage, replica, route, operation, media, or authorization scope
+
+#### Scenario: Keep executable composition outside Program data
+
+- GIVEN trusted composition produces browser and Worker bundles
+- WHEN the Program artifact, workspace snapshot, or portable archive is written
+- THEN executable functions, source paths, runtime requirement metadata, and
+  build digests are absent
+- AND browser and Worker bundles consume the same complete Program artifact and
+  canonical Program provenance
+- AND any deployment bundle digest remains build evidence rather than another
+  Program schema, storage, archive, or authorization identity
 
 ### Requirement: Domain Package Schema Materialization
 

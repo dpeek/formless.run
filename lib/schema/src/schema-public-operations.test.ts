@@ -29,7 +29,7 @@ describe("schema public operation facts", () => {
       },
       effect: {
         type: "operationHandler",
-        handler: "subscribe",
+        handler: "contact-subscription.subscribe",
       },
       policy: anonymousTurnstileSameOriginPolicy(),
     });
@@ -95,7 +95,7 @@ describe("schema public operation facts", () => {
           target: { query: "requestCompleted" },
           effect: {
             type: "operationHandler",
-            handler: "clear-completed",
+            handler: "tombstone-query-results",
             config: { query: "requestCompleted" },
           },
         }),
@@ -135,7 +135,7 @@ describe("schema public operation facts", () => {
         ...publicRecordPlanOperation(),
         effect: {
           type: "operationHandler",
-          handler: "clear-completed",
+          handler: "tombstone-query-results",
           config: { query: "requests" },
         },
       },
@@ -690,7 +690,7 @@ function publicHandlerOperation(overrides: Record<string, unknown> = {}): Entity
     },
     effect: {
       type: "operationHandler",
-      handler: "subscribe",
+      handler: "contact-subscription.subscribe",
       config: {},
     },
     output: { type: "command" },

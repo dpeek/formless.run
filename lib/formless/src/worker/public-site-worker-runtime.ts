@@ -1,30 +1,38 @@
-import type { AppSchema } from "@dpeek/formless-schema";
-
 import {
   FORMLESS_RUNTIME_PROFILE_META_NAME,
   runtimeTopologyRoutes,
 } from "../shared/runtime-topology.ts";
 import {
-  createSitePublicWorkerAdapter,
-  siteIconRouteForPathname,
   type PublicSiteDocumentClientAssets,
   type PublicSiteDocumentRuntimeHint,
   type PublicSiteDocumentTreeResult,
   type PublicSiteIndexingResource,
-  type SiteIconRoute,
+  type SitePublicRendererComponent,
 } from "@dpeek/formless-site-app/worker";
+import {
+  SITE_PUBLIC_WORKER_READ_KEY,
+  SITE_PUBLIC_WORKER_SURFACE_KEY,
+  type SitePublicWorkerAdapter,
+  type SitePublicWorkerReadDefinition,
+  type SitePublicWorkerRuntimeSurface,
+  type SitePublicWorkerTreeInput,
+} from "@dpeek/formless-site-app/runtime/worker";
 import {
   FormlessSitePageRenderer,
   FormlessSiteSystemStateRenderer,
 } from "@dpeek/formless-renderer/site/renderer";
 import { FORMLESS_SITE_RENDERER_DOCUMENT_THEME } from "@dpeek/formless-renderer/site/provider";
-import { sitePublicRenderer as workspaceSitePublicRenderer } from "virtual:formless/site-public-renderer/worker";
-import { normalizeSiteRoutePath, type SitePageTree } from "@dpeek/formless-site-app";
+import type { SitePageTree, SitePageTreeProjection } from "@dpeek/formless-site-app";
 import type { Env } from "./index.ts";
 import type { InstanceRuntimeRouteResolution } from "./instance-runtime-routes.ts";
 import { getEquivalentRequestForHead, responseWithoutBodyForHead } from "./head-response.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { BootstrapResponse } from "../shared/protocol.ts";
+import type {
+  ProgramWorkerPublicReadDefinition,
+  ProgramWorkerRuntimeDefinition,
+} from "../program/composition.ts";
+import { programWorkerRuntime } from "../program/compiled/worker.ts";
 import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_API_ROUTE_PREFIX,
@@ -43,46 +51,16 @@ import {
 
 export const INTERNAL_PUBLIC_SITE_BOOTSTRAP_PATH = "/_internal/public-site/bootstrap";
 
-export type PublicSiteWorkerTreeInput = {
-  records: StoredRecord[];
-  schema: AppSchema;
-  slug: string;
-  turnstileSiteKey?: string;
-};
-
 export type PublicSiteWorkerRequestOptions = {
   mappedSiteHost?: MappedSiteHost;
   runtimeProfile?: WorkerRuntimeProfileInput;
   runtimeTopology?: WorkerRuntimeRequestTopology;
+  workerRuntime?: ProgramWorkerRuntimeDefinition;
+  workspaceRenderer?: SitePublicRendererComponent;
 };
 
 export type MappedSiteHost = {
   host: string;
-};
-
-export type PublicSiteWorkerAdapter = {
-  buildPublicTree(input: PublicSiteWorkerTreeInput): { tree: SitePageTree | null };
-  renderDocument(input: {
-    clientAssets: PublicSiteDocumentClientAssets;
-    requestUrl: URL;
-    runtimeHints?: readonly PublicSiteDocumentRuntimeHint[];
-    slug: string;
-    treeResult: PublicSiteDocumentTreeResult;
-  }): Promise<Response>;
-  renderIcon(input: { request: Request; route: SiteIconRoute; svg?: string }): Promise<Response>;
-  renderIndexing(
-    input:
-      | {
-          origin: string;
-          resource: "robots";
-        }
-      | {
-          clientRoutePrefixes: readonly `/${string}`[];
-          origin: string;
-          records?: StoredRecord[];
-          resource: "sitemap";
-        },
-  ): Response;
 };
 
 const viteReactRefreshPreamble = `<script type="module">
@@ -107,15 +85,35 @@ const developmentStyleAssets: PublicSiteDocumentClientAssets = {
 };
 const emptyClientAssets: PublicSiteDocumentClientAssets = { body: "", head: "" };
 
-const sitePublicWorkerAdapter = createSitePublicWorkerAdapter({
-  builtInRenderer: FormlessSitePageRenderer,
-  builtInSystemStateRenderer: FormlessSiteSystemStateRenderer,
-  rendererDocumentTheme: FORMLESS_SITE_RENDERER_DOCUMENT_THEME,
-  workspaceRenderer: workspaceSitePublicRenderer,
-});
+export function programPublicSiteWorkerAdapter(
+  runtime: ProgramWorkerRuntimeDefinition = programWorkerRuntime,
+  workspaceRenderer?: SitePublicRendererComponent,
+): SitePublicWorkerAdapter | undefined {
+  return resolveSitePublicWorkerRuntimeSurface(runtime)?.createAdapter({
+    builtInRenderer: FormlessSitePageRenderer,
+    builtInSystemStateRenderer: FormlessSiteSystemStateRenderer,
+    rendererDocumentTheme: FORMLESS_SITE_RENDERER_DOCUMENT_THEME,
+    workspaceRenderer,
+  });
+}
 
-export function programPublicSiteWorkerAdapter(): PublicSiteWorkerAdapter {
-  return sitePublicWorkerAdapter;
+export function readProgramPublicSiteTree(
+  input: SitePublicWorkerTreeInput,
+  publicReads: readonly ProgramWorkerPublicReadDefinition[],
+): SitePageTreeProjection | undefined {
+  const definition = publicReads.find(({ key }) => key === SITE_PUBLIC_WORKER_READ_KEY) as
+    | SitePublicWorkerReadDefinition
+    | undefined;
+
+  return definition?.read(input);
+}
+
+export function resolveSitePublicWorkerRuntimeSurface(
+  runtime: ProgramWorkerRuntimeDefinition,
+): SitePublicWorkerRuntimeSurface | undefined {
+  return runtime.surfaces.find(({ key }) => key === SITE_PUBLIC_WORKER_SURFACE_KEY)?.surface as
+    | SitePublicWorkerRuntimeSurface
+    | undefined;
 }
 
 export async function handlePublicSiteIconRequest(
@@ -127,10 +125,16 @@ export async function handlePublicSiteIconRequest(
     return undefined;
   }
 
-  const adapter = programPublicSiteWorkerAdapter();
+  const runtime = options.workerRuntime ?? programWorkerRuntime;
+  const surface = resolveSitePublicWorkerRuntimeSurface(runtime);
+  const adapter = programPublicSiteWorkerAdapter(runtime, options.workspaceRenderer);
+
+  if (!surface || !adapter) {
+    return undefined;
+  }
 
   const getRequest = getEquivalentRequestForHead(request);
-  const route = siteIconRouteForPathname(
+  const route = surface.siteIconRouteForPathname(
     options.runtimeTopology?.pathname ?? new URL(request.url).pathname,
   );
 
@@ -156,7 +160,14 @@ export async function handlePublicSiteIndexingRequest(
     return undefined;
   }
 
-  const adapter = programPublicSiteWorkerAdapter();
+  const adapter = programPublicSiteWorkerAdapter(
+    options.workerRuntime ?? programWorkerRuntime,
+    options.workspaceRenderer,
+  );
+
+  if (!adapter) {
+    return undefined;
+  }
 
   const getRequest = getEquivalentRequestForHead(request);
   const url = new URL(getRequest.url);
@@ -213,16 +224,22 @@ export async function handlePublicSiteDocumentRequest(
     return undefined;
   }
 
-  const adapter = programPublicSiteWorkerAdapter();
+  const runtime = options.workerRuntime ?? programWorkerRuntime;
+  const surface = resolveSitePublicWorkerRuntimeSurface(runtime);
+  const adapter = programPublicSiteWorkerAdapter(runtime, options.workspaceRenderer);
+
+  if (!surface || !adapter) {
+    return undefined;
+  }
 
   const getRequest = getEquivalentRequestForHead(request);
   const requestUrl = new URL(getRequest.url);
-  const slug = normalizeSiteRoutePath(requestUrl.pathname);
+  const slug = surface.normalizeRoutePath(requestUrl.pathname);
   const treeResult = await fetchSitePageTreeResult(getRequest, env, slug);
   const response = await adapter.renderDocument({
     clientAssets: await loadClientDocumentAssets(getRequest, env, {
       includeScripts: publicSiteDocumentNeedsClientScripts(treeResult, {
-        rendererConfigured: workspaceSitePublicRenderer !== undefined,
+        rendererConfigured: options.workspaceRenderer !== undefined,
       }),
     }),
     requestUrl,

@@ -13,6 +13,7 @@ import {
 } from "../program/artifact.ts";
 import {
   FORMLESS_DEPLOY_METADATA_PATH,
+  parseFormlessBundleDigest,
   type FormlessDeployMetadata,
 } from "../shared/deploy-metadata.ts";
 import type { DomainProviderPlan } from "../shared/domain-provider-protocol.ts";
@@ -28,6 +29,10 @@ import {
 } from "../shared/workspace-runtime-extensions.ts";
 import { astryxStylexWorkerBundlePlugin } from "../runtime/stylex-esbuild.ts";
 import { sitePublicRendererWorkerVirtualModulesPlugin } from "./runtime-extension-bundler.ts";
+import {
+  FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME,
+  programRuntimeVirtualModulesPlugin,
+} from "./program-runtime-bundler.ts";
 import {
   applyAlchemyDeployResourceGraph,
   type AlchemyDeployResourceZoneResolver,
@@ -196,6 +201,7 @@ export type DeployFormlessInstanceInput = {
   stateRoot: string;
   workspaceProgramArtifact?: string;
   workspaceProgramArtifactPath?: string;
+  workspaceProgramRuntime?: string;
   workspaceRoot?: string;
   workspaceRuntimeExtensions?: string;
 };
@@ -246,6 +252,7 @@ export type CheckFormlessInstanceDeployMetadataInput = {
 };
 
 export type CheckFormlessInstanceDeployMetadataResult = {
+  bundleDigest?: FormlessDeployMetadata["bundleDigest"];
   cacheControl: string;
   metadataUrl: string;
   packageVersion: string | null;
@@ -333,6 +340,7 @@ export type AlchemyFormlessInstanceDeploymentWorkerProps = {
     env: FormlessInstanceDeploymentPlan["runtimeVars"] & {
       [FORMLESS_SITE_PROJECT_ROOT_ENV_NAME]?: string;
       [FORMLESS_WORKSPACE_RUNTIME_EXTENSIONS_ENV_NAME]?: string;
+      [FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME]?: string;
       [FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME]?: string;
     };
   };
@@ -428,6 +436,7 @@ type DeclareFormlessInstanceAlchemyResourceTreeInput = {
   resourceGraph?: DeployResourceGraph;
   workspaceProgramArtifact?: string;
   workspaceProgramArtifactPath?: string;
+  workspaceProgramRuntime?: string;
   workspaceRoot?: string;
   workspaceRuntimeExtensions?: string;
 };
@@ -871,6 +880,7 @@ export async function checkFormlessInstanceDeployMetadata(
   }
 
   return {
+    ...(metadata.bundleDigest === undefined ? {} : { bundleDigest: metadata.bundleDigest }),
     cacheControl,
     metadataUrl,
     packageVersion: metadata.packageVersion,
@@ -968,6 +978,11 @@ async function declareFormlessInstanceAlchemyResourceTree(
           : {
               [FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME]: input.workspaceProgramArtifactPath,
             }),
+        ...(input.workspaceProgramRuntime === undefined
+          ? {}
+          : {
+              [FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME]: input.workspaceProgramRuntime,
+            }),
         ...(input.workspaceRuntimeExtensions === undefined
           ? {}
           : {
@@ -983,6 +998,11 @@ async function declareFormlessInstanceAlchemyResourceTree(
       },
       plugins: [
         astryxStylexWorkerBundlePlugin(path.resolve(input.packageRoot, "../renderer")),
+        programRuntimeVirtualModulesPlugin({
+          env: workerRuntimeExtensionBundlerEnv(input),
+          resolveDir: input.packageRoot,
+          workspaceRoot: input.workspaceRoot,
+        }),
         sitePublicRendererWorkerVirtualModulesPlugin({
           env: workerRuntimeExtensionBundlerEnv(input),
         }),
@@ -1054,6 +1074,9 @@ export async function deployFormlessInstanceWithAlchemy(
   if (input.workspaceRuntimeExtensions !== undefined && workspaceRoot === undefined) {
     throw new Error("Formless runtime extension deploy requires a workspace root.");
   }
+  if (input.workspaceProgramRuntime !== undefined && workspaceRoot === undefined) {
+    throw new Error("Formless Program runtime composition deploy requires a workspace root.");
+  }
 
   const app = await resolvedDependencies.createApp(FORMLESS_ALCHEMY_APP_NAME, {
     adopt: adoptExistingDeployment,
@@ -1081,6 +1104,9 @@ export async function deployFormlessInstanceWithAlchemy(
     ...(input.workspaceProgramArtifactPath === undefined
       ? {}
       : { workspaceProgramArtifactPath: input.workspaceProgramArtifactPath }),
+    ...(input.workspaceProgramRuntime === undefined
+      ? {}
+      : { workspaceProgramRuntime: input.workspaceProgramRuntime }),
     ...(workspaceRoot === undefined ? {} : { workspaceRoot }),
     ...(input.workspaceRuntimeExtensions === undefined
       ? {}
@@ -1356,6 +1382,7 @@ function formlessInstanceAlchemyAssets(): AlchemyFormlessInstanceDeploymentWorke
 
 function workerRuntimeExtensionBundlerEnv(input: {
   workspaceRoot?: string;
+  workspaceProgramRuntime?: string;
   workspaceRuntimeExtensions?: string;
 }): NodeJS.ProcessEnv {
   return {
@@ -1365,6 +1392,9 @@ function workerRuntimeExtensionBundlerEnv(input: {
     ...(input.workspaceRuntimeExtensions === undefined
       ? {}
       : { [FORMLESS_WORKSPACE_RUNTIME_EXTENSIONS_ENV_NAME]: input.workspaceRuntimeExtensions }),
+    ...(input.workspaceProgramRuntime === undefined
+      ? {}
+      : { [FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME]: input.workspaceProgramRuntime }),
   };
 }
 
@@ -2324,6 +2354,14 @@ function parseFormlessDeployMetadata(text: string, url: string): FormlessDeployM
   }
 
   return {
+    ...(parsed.bundleDigest === undefined
+      ? {}
+      : {
+          bundleDigest: parseFormlessBundleDigest(
+            `Formless instance health check failed for ${url}: deploy metadata bundleDigest`,
+            parsed.bundleDigest,
+          ),
+        }),
     packageVersion: parsed.packageVersion as string | null,
     runtimeProtocolVersion: parsed.runtimeProtocolVersion as number,
     schemaProvenance: {

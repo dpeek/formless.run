@@ -149,7 +149,7 @@ export const tasksRecordSchemaModule = defineAppSchemaModule({
           },
           effect: {
             type: "operationHandler",
-            handler: "clear-completed",
+            handler: "tombstone-query-results",
             config: {
               query: "taskCompleted",
             },

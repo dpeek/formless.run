@@ -23,8 +23,8 @@ record, presentation, and complete standalone schema modules.
 - **AND** trusted Program composition imports the schema modules at
   build/materialization time while Worker request handling consumes only the
   complete Program artifact
-- **AND** the package root exports CRM record helpers without install or
-  source-schema selection keys
+- **AND** CRM record validation and canonicalization use generic complete-schema
+  behavior without a CRM record adapter
 - **AND** the standalone data artifact is retained for package checks and
   publication rather than runtime package resolution
 - **AND** the package does not own Program storage, routes, replicas, archive,
@@ -87,6 +87,10 @@ subscription declaration set for Site and CRM workflows.
   of those records
 - **AND** a Site subscribe block does not select a CRM install id or another
   Authority after both domains share Program storage
+- **AND** the default Program runtime composition explicitly selects one
+  contact-subscription operation adapter for that declared operation
+- **AND** the operation declaration does not discover or activate the adapter
+  from CRM, Site, package, module, or entity identity
 
 ### Requirement: CRM Public Subscribe Boundary
 

@@ -9,8 +9,10 @@ import { handleDeployMetadataRequest } from "./deploy-metadata.ts";
 import { formlessProgramSchemaProvenance } from "../program/runtime.ts";
 
 describe("Worker deploy metadata", () => {
-  it("exposes the configured deploy version as no-store JSON", async () => {
+  it("exposes bundle evidence separately from Program provenance as no-store JSON", async () => {
+    const bundleDigest = `sha256:${"b".repeat(64)}`;
     const env = {
+      FORMLESS_DEPLOY_BUNDLE_DIGEST: bundleDigest,
       FORMLESS_DEPLOY_VERSION: "0.1.7",
       FORMLESS_ADMIN_TOKEN: "secret-admin-token",
       ALCHEMY_PASSWORD: "secret-alchemy-password",
@@ -24,6 +26,7 @@ describe("Worker deploy metadata", () => {
     expect(response?.headers.get("Cache-Control")).toBe("no-store");
     expect(response?.headers.get("Content-Type")).toBe("application/json; charset=utf-8");
     await expect(response?.json()).resolves.toEqual({
+      bundleDigest,
       packageVersion: "0.1.7",
       runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
       schemaProvenance: formlessProgramSchemaProvenance,

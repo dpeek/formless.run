@@ -43,6 +43,7 @@ type ExecuteOperationInput = {
   path: string;
   preserveMissingOperationAccess?: boolean;
   programOperationAuthorized?: boolean;
+  rejectSnapshotRecords?: boolean;
   publicOperation?: {
     beforeReplayError?: string;
     idempotencyKey: string;
@@ -104,6 +105,25 @@ afterAll(async () => {
 });
 
 describe("authority operation execution", () => {
+  it("runs the selected shared record adapter before snapshot mutation", async () => {
+    const exported = await executeOperation<StorageSnapshot>({
+      method: "GET",
+      path: "/snapshot",
+    });
+    const rejected = await executeOperationFailure({
+      body: exported.body.result.body,
+      method: "POST",
+      path: "/snapshot/restore",
+      rejectSnapshotRecords: true,
+    });
+
+    expect(rejected.response.status).toBe(400);
+    expect(rejected.body).toEqual({
+      error: "Selected task snapshot adapter rejected records.",
+      writes: [],
+    });
+  });
+
   it("fails closed on a Program operation without access before parsing input or writing", async () => {
     const rejected = await executeOperationFailure({
       body: "invalid-operation-input",
@@ -3405,7 +3425,11 @@ function schemaWithPrivateSubscribeCommandOperation(sourceSchema: AppSchema): Ap
         label: "Private subscribe",
         kind: "command",
         scope: "collection",
-        effect: { type: "operationHandler", handler: "subscribe", config: {} },
+        effect: {
+          type: "operationHandler",
+          handler: "contact-subscription.subscribe",
+          config: {},
+        },
         output: { type: "command" },
         idempotency: { required: true },
         audit: { input: "summary" },
@@ -3903,6 +3927,8 @@ async function writeAuthorityOperationHarness() {
       import { schemaAppTestRecords } from "${process.cwd()}/src/test/schema-app-records.ts";
       import { taskSourceSchema } from "${process.cwd()}/src/test/schema-apps.ts";
       import { formlessProgramSchema } from "${process.cwd()}/src/program/runtime.ts";
+      import { formlessProgramDefaultSharedRuntime } from "${process.cwd()}/src/program/default/shared.ts";
+      import { defineProgramSharedRuntime } from "${process.cwd()}/src/program/composition.ts";
       import {
         FORMLESS_PROGRAM_SCHEMA_KEY,
         FORMLESS_PROGRAM_STORAGE_IDENTITY,
@@ -4023,6 +4049,7 @@ async function writeAuthorityOperationHarness() {
                 execute: (envelope) =>
                   executeWriteOperationInvocation({
                     envelope,
+                    operationAdapters: formlessProgramDefaultSharedRuntime.operationAdapters,
                     schema: stored.schema,
                     storage: this.ctx.storage,
                     writes: writeNotifier,
@@ -4053,10 +4080,34 @@ async function writeAuthorityOperationHarness() {
               body: input.body,
               identity,
               operation,
+              operationAdapters: formlessProgramDefaultSharedRuntime.operationAdapters,
               programOperationAuthorized: input.preserveMissingOperationAccess
                 ? undefined
                 : input.programOperationAuthorized ?? true,
               requestHeaders: new Headers(input.headers ?? {}),
+              sharedRuntime: input.rejectSnapshotRecords
+                ? defineProgramSharedRuntime({
+                    target: "shared",
+                    recordAdapters: [{
+                      target: "shared",
+                      kind: "record-adapter",
+                      key: "test.reject-snapshot",
+                      entityIds: [taskSourceSchema.entities[0].id],
+                      adapter: {
+                        canonicalize: ({ records }) => records,
+                        validate: () => {
+                          throw new Error("Selected task snapshot adapter rejected records.");
+                        },
+                        validateCandidate: () => undefined,
+                      },
+                    }],
+                    operationAdapters: [],
+                    bootstrapContributions: [],
+                    createIdContributions: [],
+                  })
+                : schemaFixture === "program"
+                  ? formlessProgramDefaultSharedRuntime
+                  : undefined,
               source,
               storage: this.ctx.storage,
               writes: writeNotifier,

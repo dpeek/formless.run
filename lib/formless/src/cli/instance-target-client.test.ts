@@ -20,12 +20,14 @@ type CapturedTargetRequest = {
 
 describe("Formless instance target client", () => {
   it("parses display-safe runtime metadata with complete Program provenance", async () => {
+    const bundleDigest = `sha256:${"b".repeat(64)}`;
     const result = await readFormlessInstanceDeployMetadata(
       { targetUrl: "https://instance.example" },
       {
         fetch: async () =>
           Response.json(
             {
+              bundleDigest,
               packageVersion: "0.1.8",
               runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
               schemaProvenance: formlessProgramSchemaProvenance,
@@ -38,6 +40,7 @@ describe("Formless instance target client", () => {
     );
 
     expect(result).toEqual({
+      bundleDigest,
       cacheControl: "no-store",
       metadataUrl: "https://instance.example/api/formless/deploy",
       packageVersion: "0.1.8",

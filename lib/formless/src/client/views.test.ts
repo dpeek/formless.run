@@ -426,7 +426,7 @@ describe("home view model collections", () => {
           kind: "command",
           effect: {
             type: "operationHandler",
-            handler: "clear-completed",
+            handler: "tombstone-query-results",
             config: { query: "taskCompleted" },
           },
           target: { query: "taskCompleted" },
@@ -528,7 +528,7 @@ describe("home view model collections", () => {
           kind: "command",
           effect: {
             type: "operationHandler",
-            handler: "clear-completed",
+            handler: "tombstone-query-results",
             config: { query: "taskCompleted" },
           },
         },
@@ -562,7 +562,7 @@ describe("home view model collections", () => {
                   scope: "collection",
                   effect: {
                     type: "operationHandler",
-                    handler: "clear-completed",
+                    handler: "tombstone-query-results",
                     config: { query: "taskCompleted" },
                   },
                   output: { type: "command" },
@@ -577,7 +577,7 @@ describe("home view model collections", () => {
                   scope: "collection",
                   effect: {
                     type: "operationHandler",
-                    handler: "clear-completed",
+                    handler: "tombstone-query-results",
                     config: { query: "taskCompleted" },
                   },
                   output: { type: "command" },
@@ -592,7 +592,7 @@ describe("home view model collections", () => {
                   scope: "collection",
                   effect: {
                     type: "operationHandler",
-                    handler: "clear-completed",
+                    handler: "tombstone-query-results",
                     config: { query: "taskCompleted" },
                   },
                   output: { type: "command" },
@@ -607,7 +607,7 @@ describe("home view model collections", () => {
                   scope: "collection",
                   effect: {
                     type: "operationHandler",
-                    handler: "clear-completed",
+                    handler: "tombstone-query-results",
                     config: { query: "taskCompleted" },
                   },
                   output: { type: "command" },
@@ -622,7 +622,7 @@ describe("home view model collections", () => {
                   scope: "collection",
                   effect: {
                     type: "operationHandler",
-                    handler: "clear-completed",
+                    handler: "tombstone-query-results",
                     config: { query: "taskCompleted" },
                   },
                   output: { type: "command" },
@@ -706,7 +706,7 @@ describe("home view model collections", () => {
           entityName: "task",
           operationName: "clearCompletedTasks",
           operationKey: "task.clearCompletedTasks",
-          commandHandlerCapability: "clearCompletedTargetCount",
+          commandHandlerCapability: "tombstoneQueryResultsTargetCount",
           showAffectedCountOnSuccess: true,
           targetCountQueryKind: "where",
           targetCountDisplay: "count",
@@ -3848,8 +3848,8 @@ function summarizeHomeOperation(operation: HomeOperationConfig) {
 }
 
 function summarizeCommandHandlerCapability(effect: EntityOperationEffectSchema | undefined) {
-  if (isOperationHandlerEffectForSelectionCapability(effect, "clearCompletedTargetCount")) {
-    return "clearCompletedTargetCount";
+  if (isOperationHandlerEffectForSelectionCapability(effect, "tombstoneQueryResultsTargetCount")) {
+    return "tombstoneQueryResultsTargetCount";
   }
   return effect?.type ?? null;
 }

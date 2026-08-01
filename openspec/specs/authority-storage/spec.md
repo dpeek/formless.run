@@ -1013,40 +1013,48 @@ separate from private authentication state.
 ### Requirement: Program Record Validation
 
 The system SHALL validate mixed Program records through the complete schema and
-explicit package-owned constraint adapters.
+the record adapters explicitly selected by the trusted Program runtime
+composition.
 
 #### Scenario: Validate a mixed Program record set
 
-- GIVEN one Program record set contains instance, identity, Task, Site, and CRM
-  entities
+- GIVEN one Program record set contains records from the schema modules selected
+  by its Program composition root
 - WHEN bootstrap, source refresh, operation execution, snapshot
   restore, archive restore, or workspace validation runs
 - THEN generic field, reference, unique, delete-blocker, stable entity identity,
   and record-id validation sees the complete Program schema and record set
-- AND each package-owned constraint adapter receives only records owned by its
-  declared stable entity ids
-- AND the Program root explicitly dispatches those adapters without using
-  authoring module keys as runtime ownership
+- AND each explicitly selected record adapter receives only records owned by
+  its declared stable entity ids
+- AND stable entity ids filter records only after explicit adapter selection
+  rather than discovering or activating adapters
+- AND duplicate adapter keys, duplicate entity ownership, an adapter that
+  claims an absent entity, or a missing module-required adapter fails before
+  runtime startup or storage mutation
 - AND an unknown entity, foreign record passed to a package validator, invalid
-  cross-entity reference, or package constraint failure rejects the whole write
+  cross-entity reference, or selected adapter constraint failure rejects the whole write
   before commit
 
-#### Scenario: Canonicalize Task records through their package adapter
+#### Scenario: Canonicalize records through selected ownership
 
-- GIVEN a Program snapshot contains active or tombstoned Task records
+- GIVEN a Program snapshot contains records owned by an explicitly selected
+  record adapter
 - WHEN archive or workspace canonicalization runs
-- THEN the Program root dispatches the records to the Tasks adapter by stable
-  entity id
-- AND reviewable flat Task records remain in the canonical Program snapshot
+- THEN the Program root dispatches those records through the same unique entity
+  ownership used for selected record validation
+- AND adapter-owned canonicalization runs before generic complete-schema record
+  formatting
+- AND active and tombstoned generic-only records remain in the canonical
+  Program snapshot without a package record adapter
 
-#### Scenario: Canonicalize Site records through their package adapter
+#### Scenario: Omit unselected domain behavior
 
-- GIVEN a Program snapshot contains active or tombstoned records for any of the
-  eight stable Site entity ids
-- WHEN archive or workspace canonicalization runs
-- THEN the Program root dispatches the records to the Site adapter by stable
-  entity id
-- AND reviewable flat Site records remain in the canonical Program snapshot
+- GIVEN a Program omits a domain schema module and its runtime adapters
+- WHEN the Program is materialized, started, snapshotted, archived, or restored
+- THEN generic Program behavior does not import, register, require, or execute
+  that domain's adapter code
+- AND adapter declarations do not grant storage, replica, media, route,
+  operation, or authorization scope
 
 ### Requirement: Active Schema Source Refresh
 

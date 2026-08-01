@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
+import { defineProgramSharedRuntime } from "../program/composition.ts";
 import {
+  formlessProgramCreatedRecordId,
   selectCurrentFormlessProgramChanges,
   selectCurrentFormlessProgramRecords,
 } from "./program-authority.ts";
@@ -19,10 +21,16 @@ describe("current Formless Program selection", () => {
       matchPath: "/",
       targetProfile: "instance",
     });
+    const task = record("task-1", "task", { title: "Complete replica" });
+    const siteBlock = record("block-1", "block", { type: "page" });
+    const campaign = record("campaign-1", "campaign", { name: "Complete replica" });
     const records = [
       owner,
       programAssignment,
       programRoute,
+      task,
+      siteBlock,
+      campaign,
       record("unknown", "unknown-entity", {}),
     ];
 
@@ -30,6 +38,9 @@ describe("current Formless Program selection", () => {
       owner,
       programAssignment,
       programRoute,
+      task,
+      siteBlock,
+      campaign,
     ]);
   });
 
@@ -41,6 +52,27 @@ describe("current Formless Program selection", () => {
 
     expect(selectCurrentFormlessProgramChanges(changes)).toEqual([changes[0]]);
     expect(changes.at(-1)?.id).toBe(21);
+  });
+
+  it("uses only the selected create-id contribution", () => {
+    expect(
+      formlessProgramCreatedRecordId("deployment-config", {
+        targetId: "deployment:primary",
+      }),
+    ).toBe("deployment:primary");
+    expect(
+      formlessProgramCreatedRecordId(
+        "deployment-config",
+        { targetId: "deployment:primary" },
+        defineProgramSharedRuntime({
+          target: "shared",
+          recordAdapters: [],
+          operationAdapters: [],
+          bootstrapContributions: [],
+          createIdContributions: [],
+        }),
+      ),
+    ).toBeUndefined();
   });
 });
 

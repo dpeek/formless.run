@@ -79,6 +79,7 @@ import {
   handlePublicSiteIndexingRequest,
   mappedPublicSiteHostFromRuntimeRoute,
 } from "./public-site-worker-runtime.ts";
+import { sitePublicRenderer as workspaceSitePublicRenderer } from "virtual:formless/site-public-renderer/worker";
 import { handleInstanceUpgradeStatusApiRequest } from "./upgrade-status-api.ts";
 import {
   handleLocalSessionBootstrapApiRequest,
@@ -108,6 +109,7 @@ export type Env = TurnstileRuntimeEnv & {
   CLOUDFLARE_API_TOKEN?: string;
   FORMLESS_ADMIN_TOKEN?: string;
   FORMLESS_AUTHORITY: DurableObjectNamespace<FormlessAuthority>;
+  FORMLESS_DEPLOY_BUNDLE_DIGEST?: string;
   FORMLESS_DEPLOY_VERSION?: string;
   FORMLESS_DOMAIN_PROVIDER_CLOUDFLARE_ACCOUNT_ID?: string;
   FORMLESS_DOMAIN_PROVIDER_INSTANCE_ID?: string;
@@ -257,6 +259,7 @@ export default {
     const siteIconResponse = await handlePublicSiteIconRequest(request, env, {
       mappedSiteHost,
       runtimeTopology: requestTopology,
+      workspaceRenderer: workspaceSitePublicRenderer,
     });
 
     if (siteIconResponse) {
@@ -274,6 +277,7 @@ export default {
     const publishedSiteIndexingResponse = await handlePublicSiteIndexingRequest(request, env, {
       mappedSiteHost,
       runtimeTopology: requestTopology,
+      workspaceRenderer: workspaceSitePublicRenderer,
     });
 
     if (publishedSiteIndexingResponse) {
@@ -502,6 +506,7 @@ export default {
     const siteDocumentResponse = await handlePublicSiteDocumentRequest(request, env, {
       mappedSiteHost,
       runtimeTopology: requestTopology,
+      workspaceRenderer: workspaceSitePublicRenderer,
     });
 
     if (siteDocumentResponse) {

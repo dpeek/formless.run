@@ -36,13 +36,13 @@ export type TransitionStateHandlerInput = {
 };
 
 export type OperationHandlerInputValuesByKind = {
-  "clear-completed": undefined;
+  "tombstone-query-results": undefined;
   "create-missing-join-records": undefined;
   "create-selected-join-record": CreateSelectedJoinRecordHandlerInput;
   "remove-selected-join-records": RemoveSelectedJoinRecordsHandlerInput;
   "create-tree-child": CreateTreeChildHandlerInput;
   "remove-tree-placement": RemoveTreePlacementHandlerInput;
-  subscribe: SubscribeHandlerInput;
+  "contact-subscription.subscribe": SubscribeHandlerInput;
   "transition-state": TransitionStateHandlerInput;
 };
 

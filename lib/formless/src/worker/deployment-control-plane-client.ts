@@ -10,7 +10,7 @@ import {
   INTERNAL_READ_RECORDS_PATH,
   INTERNAL_SYNC_DOMAIN_INTENT_PATH,
   INTERNAL_SYNC_DEPLOYMENT_PROJECTION_PATH,
-} from "./instance-control-plane.ts";
+} from "./instance-control-plane-routes.ts";
 
 export type DeploymentControlPlaneClientEnv = {
   FORMLESS_AUTHORITY?: DurableObjectNamespace;

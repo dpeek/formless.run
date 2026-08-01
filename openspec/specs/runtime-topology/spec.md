@@ -235,8 +235,8 @@ The system MUST route public Site documents through published Site behavior only
   Site target
 - WHEN a public Site document request is eligible for SSR
 - THEN route topology selects Program Site behavior before document rendering
-- AND Worker document rendering is dispatched through the built-in Site public
-  runtime adapter
+- AND Worker document rendering is dispatched through the Site Worker surface
+  selected explicitly by build-time runtime composition
 
 #### Scenario: Non-document paths stay out of SSR
 
@@ -263,8 +263,8 @@ The system SHALL distinguish static asset fallback from dynamic public Site reso
 - WHEN a `GET` or `HEAD` request targets `/robots.txt`, `/sitemap.xml`, `/favicon.svg`, `/favicon.ico`, or `/apple-touch-icon.png`
 - THEN the request is handled as a dynamic public Site resource
 - AND dynamic root icon requests are not served from static asset fallback
-- AND the resource body is produced by the built-in Site public runtime adapter
-  from Program storage
+- AND the resource body is produced by the explicitly composed Site Worker
+  surface from Program storage
 
 ### Requirement: Published Site Clean Redirects
 
@@ -308,7 +308,7 @@ profile behavior.
 - **AND** account setup and sign-in gate browser requests redirect to the
   configured auth origin when the mapped public Site host is not that origin
 - **AND** public Site document, indexing, and icon behavior is selected from the
-  built-in Site public runtime adapter
+  explicitly composed Site Worker surface
 
 #### Scenario: Mapped host auth callback
 
@@ -349,11 +349,12 @@ Site from enabled schema-owned `route` records.
 
 #### Scenario: Program-native Site public route
 
-- **GIVEN** a browser requests the built-in Site preview or an enabled
+- **GIVEN** a browser requests the default Program Site preview or an enabled
   public-Site mapping
 - **WHEN** runtime topology resolves the route
 - **THEN** public reads use Program storage identity `instance:control-plane`
-- **AND** behavior uses the built-in Site public runtime adapter
+- **AND** behavior uses the Site public runtime surface selected explicitly by
+  build-time composition
 
 #### Scenario: Disabled or conflicting route
 

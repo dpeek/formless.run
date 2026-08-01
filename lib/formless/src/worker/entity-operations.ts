@@ -8,6 +8,7 @@ import {
 } from "@dpeek/formless-schema";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import type { PublicOperationProof } from "../shared/protocol.ts";
+import type { ProgramSharedOperationAdapterDefinition } from "../program/composition.ts";
 import type {
   OperationCommandOutput,
   OperationInvocationEnvelope,
@@ -275,6 +276,7 @@ export async function executeWriteOperationInvocation(input: {
   createRecordId?: (entity: string, values: RecordValues) => string | undefined;
   envelope: OperationInvocationEnvelope;
   identityReferenceResolver?: IdentityReferenceTargetResolver;
+  operationAdapters?: readonly ProgramSharedOperationAdapterDefinition[];
   schema: AppSchema;
   storage: DurableObjectStorage;
   validateConstraints?: RecordConstraintValidator;
@@ -289,6 +291,7 @@ export async function executeWriteOperationInvocation(input: {
         input.schema,
         input.createRecordId,
         input.identityReferenceResolver,
+        input.operationAdapters,
         input.validateConstraints,
       ),
     storage: input.storage,
@@ -302,6 +305,7 @@ async function prepareWriteOperationInvocationOutcome(
   schema: AppSchema,
   createRecordId?: (entity: string, values: RecordValues) => string | undefined,
   identityReferenceResolver?: IdentityReferenceTargetResolver,
+  operationAdapters?: readonly ProgramSharedOperationAdapterDefinition[],
   validateConstraints?: RecordConstraintValidator,
 ): Promise<() => WriteOutcome<OperationInvocationOutput>> {
   if (!isEntityOperationWriteKind(envelope.operation.kind)) {
@@ -316,6 +320,7 @@ async function prepareWriteOperationInvocationOutcome(
       envelope,
       schema,
       identityReferenceResolver,
+      operationAdapters,
       validateConstraints,
     );
   }
@@ -504,6 +509,7 @@ async function prepareCommandOperationInvocationOutcome(
   envelope: OperationInvocationEnvelope,
   schema: AppSchema,
   identityReferenceResolver?: IdentityReferenceTargetResolver,
+  operationAdapters?: readonly ProgramSharedOperationAdapterDefinition[],
   validateConstraints?: RecordConstraintValidator,
 ): Promise<() => WriteOutcome<OperationInvocationOutput>> {
   if (envelope.operation.effect?.type === "recordPlan") {
@@ -554,14 +560,17 @@ async function prepareCommandOperationInvocationOutcome(
 
   return () =>
     mapWriteOutcome(
-      executeOperationHandlerOutcome({
-        storage,
-        envelope,
-        schema,
-        effect: commandEffect,
-        ...(commandInput === undefined ? {} : { input: commandInput }),
-        ...(validateConstraints === undefined ? {} : { validateConstraints }),
-      }),
+      executeOperationHandlerOutcome(
+        {
+          storage,
+          envelope,
+          schema,
+          effect: commandEffect,
+          ...(commandInput === undefined ? {} : { input: commandInput }),
+          ...(validateConstraints === undefined ? {} : { validateConstraints }),
+        },
+        operationAdapters,
+      ),
       (response) => filterCommandOperationOutputForActor(response, envelope),
     );
 }

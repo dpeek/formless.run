@@ -367,7 +367,7 @@ describe("crm source schema", () => {
         },
         effect: {
           type: "operationHandler",
-          handler: "subscribe",
+          handler: "contact-subscription.subscribe",
           config: {},
         },
         output: { type: "command" },

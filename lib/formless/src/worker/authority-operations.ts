@@ -16,6 +16,11 @@ import type {
   OperationInvocationResponse,
 } from "../shared/operation-invocation.ts";
 import type { ProgramStorageIdentity } from "../shared/program-storage-identity.ts";
+import type {
+  ProgramSharedOperationAdapterDefinition,
+  ProgramSharedRuntimeDefinition,
+  ProgramWorkerPublicReadDefinition,
+} from "../program/composition.ts";
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
 import type { EntityOperationSchema, SchemaOperationActorKind } from "@dpeek/formless-schema";
 import type { IdentityReferenceTargetResolver } from "./identity-reference-targets.ts";
@@ -51,11 +56,12 @@ import {
   type WriteOutcome,
   writeActiveSchemaOutcome,
 } from "./storage.ts";
-import { programPublicSiteWorkerAdapter } from "./public-site-worker-runtime.ts";
+import { readProgramPublicSiteTree } from "./public-site-worker-runtime.ts";
 import {
   selectCurrentFormlessProgramChanges,
   selectCurrentFormlessProgramRecords,
 } from "./program-authority.ts";
+import { validateFormlessProgramRecords } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
@@ -169,8 +175,11 @@ type AuthorityOperationExecutionInput = {
   identity: ProgramStorageIdentity;
   identityReferenceResolver?: IdentityReferenceTargetResolver;
   operation: AuthorityOperation;
+  operationAdapters?: readonly ProgramSharedOperationAdapterDefinition[];
+  publicReads?: readonly ProgramWorkerPublicReadDefinition[];
   programOperationAuthorized?: boolean;
   requestHeaders?: Headers;
+  sharedRuntime?: ProgramSharedRuntimeDefinition;
   source: StorageSource;
   storage: DurableObjectStorage;
   turnstileSiteKey?: string;
@@ -286,15 +295,17 @@ export async function executeAuthorityOperation(
     case "siteTree": {
       const slug = parseSiteTreeSlug(operation.metadata.path);
       const { schema } = initializeStorageFromSource(input.storage, input.source);
-      const adapter = programPublicSiteWorkerAdapter();
-      const projection = adapter.buildPublicTree({
-        records: getBootstrapRecords(input.storage),
-        schema,
-        slug,
-        turnstileSiteKey: input.turnstileSiteKey,
-      });
+      const projection = readProgramPublicSiteTree(
+        {
+          records: getBootstrapRecords(input.storage),
+          schema,
+          slug,
+          turnstileSiteKey: input.turnstileSiteKey,
+        },
+        input.publicReads ?? [],
+      );
 
-      if (!projection.tree) {
+      if (!projection?.tree) {
         return {
           body: { error: "Site page not found." },
           headers: { "Cache-Control": PUBLIC_SITE_TREE_CACHE_CONTROL },
@@ -350,6 +361,19 @@ export async function executeAuthorityOperation(
         },
         { identityReferenceResolver: input.identityReferenceResolver },
       );
+
+      if (input.sharedRuntime !== undefined) {
+        try {
+          validateFormlessProgramRecords("Storage snapshot records", snapshot.records, {
+            schema: snapshot.schema,
+            sharedRuntime: input.sharedRuntime,
+          });
+        } catch (error) {
+          throw new BadRequestError(
+            error instanceof Error ? error.message : "Storage snapshot records are invalid.",
+          );
+        }
+      }
 
       return writeOperationResult(
         input.writes.apply(() =>
@@ -407,6 +431,7 @@ export async function executeAuthorityOperation(
           createRecordId: input.createRecordId,
           envelope,
           identityReferenceResolver: input.identityReferenceResolver,
+          operationAdapters: input.operationAdapters,
           schema,
           storage: input.storage,
           validateConstraints: input.validateConstraints,

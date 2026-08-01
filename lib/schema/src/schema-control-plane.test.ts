@@ -137,7 +137,7 @@ function controlPlaneTaskSchema() {
             target: { query: "taskCompleted" },
             effect: {
               type: "operationHandler",
-              handler: "clear-completed",
+              handler: "tombstone-query-results",
               config: { query: "taskCompleted" },
             },
             policy: {

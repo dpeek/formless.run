@@ -27,6 +27,8 @@ Read this when editing `lib/site-app/*`.
 - `src/types.ts`: versioned public Site tree and stored-record contracts.
 - `src/index.ts`: runtime-neutral Site helpers and contracts.
 - `src/react.tsx`: public Site React route and renderer adapter.
+- `src/runtime/browser.tsx`: browser surface selection for readiness, preview, hydration, and theme behavior.
+- `src/runtime/worker.ts`: Worker public-read and surface selections for trees, documents, metadata, indexing, and icons.
 - `src/worker.ts`: public Site Worker adapter and document, indexing, and icon handlers.
 - `src/node.ts`: Site Node/archive helpers.
 

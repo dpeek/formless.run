@@ -33,7 +33,6 @@
       "version": "0.1.0",
       "dependencies": {
         "@dpeek/formless-schema": "workspace:*",
-        "@dpeek/formless-storage": "workspace:*",
       },
     },
     "lib/deploy": {
@@ -186,7 +185,6 @@
         "@dpeek/formless-public-operations": "workspace:*",
         "@dpeek/formless-schema": "workspace:*",
         "@dpeek/formless-source-svg": "workspace:*",
-        "@dpeek/formless-storage": "workspace:*",
         "react": "19.2.6",
         "react-dom": "19.2.6",
       },
@@ -212,7 +210,6 @@
       "version": "0.1.0",
       "dependencies": {
         "@dpeek/formless-schema": "workspace:*",
-        "@dpeek/formless-storage": "workspace:*",
       },
     },
     "lib/workspace": {

@@ -1248,7 +1248,7 @@
           },
           "effect": {
             "config": {},
-            "handler": "subscribe",
+            "handler": "contact-subscription.subscribe",
             "type": "operationHandler"
           },
           "idempotency": {

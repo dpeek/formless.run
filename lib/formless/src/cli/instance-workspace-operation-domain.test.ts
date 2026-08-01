@@ -26,9 +26,11 @@ import {
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
+  DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE,
+  DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
+  DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
   FORMLESS_CONFIG_FILE,
   resolveFormlessConfig,
-  type ResolvedFormlessConfig as FormlessResolvedConfig,
 } from "@dpeek/formless-workspace";
 import { formatTestFormlessConfigModule } from "./instance-workspace-config-test.ts";
 import {
@@ -108,7 +110,17 @@ describe("workspace source sync operation domain", () => {
     const pullRequests: CapturedRequest[] = [];
     const targetUrl = "https://personal.dpeek.workers.dev";
     const program = programDocumentComposition();
-    const resolvedProgram = resolveFormlessConfig({ name: "personal-sites", program });
+    const resolvedProgram = resolveFormlessConfig({
+      name: "personal-sites",
+      program,
+      runtime: {
+        composition: {
+          shared: DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
+          browser: DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE,
+          worker: DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
+        },
+      },
+    });
     if (!resolvedProgram.programSource) {
       throw new Error("Expected resolved Program source.");
     }
@@ -133,7 +145,16 @@ describe("workspace source sync operation domain", () => {
       programMediaBytes: Buffer.from([7, 8, 9]),
     });
 
-    await writeWorkspaceConfig(workspaceRoot, { program });
+    await writeWorkspaceConfig(workspaceRoot, {
+      program,
+      runtime: {
+        composition: {
+          shared: DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
+          browser: DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE,
+          worker: DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
+        },
+      },
+    });
     await writeDeployStorageSnapshot(workspaceRoot, { program, targetUrl });
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
     await writeFile(
@@ -909,8 +930,24 @@ describe("deployment runtime domain", () => {
     const requests: CapturedRequest[] = [];
     const deployInputs: DeployFormlessInstanceInput[] = [];
 
+    await mkdir(path.join(workspaceRoot, "runtime"), { recursive: true });
+    await Promise.all(
+      (["shared", "browser", "worker"] as const).map((target) =>
+        writeFile(
+          path.join(workspaceRoot, `runtime/${target}.ts`),
+          `export { default } from ${JSON.stringify(new URL(`../program/default/${target}.ts`, import.meta.url).href)};\n`,
+        ),
+      ),
+    );
     await writeWorkspaceConfig(workspaceRoot, {
       program: formlessProgramDefaultComposition,
+      runtime: {
+        composition: {
+          shared: "runtime/shared.ts",
+          browser: "runtime/browser.ts",
+          worker: "runtime/worker.ts",
+        },
+      },
     });
     await writeDeployStorageSnapshot(workspaceRoot);
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
@@ -948,6 +985,14 @@ describe("deployment runtime domain", () => {
     expect(deployInput?.workspaceProgramArtifactPath).toBe(
       path.join(workspaceRoot, ".formless/local/formless-program.json"),
     );
+    expect(JSON.parse(deployInput?.workspaceProgramRuntime ?? "{}")).toEqual({
+      browserPublicSite: true,
+      composition: {
+        shared: "runtime/shared.ts",
+        browser: "runtime/browser.ts",
+        worker: "runtime/worker.ts",
+      },
+    });
     expect(result).toMatchObject({
       details: {
         runtimeRebuild: {
@@ -1511,7 +1556,7 @@ async function writeWorkspaceConfig(
   workspaceRoot: string,
   options: {
     program?: Parameters<typeof resolveFormlessConfig>[0]["program"];
-    runtime?: FormlessResolvedConfig["runtime"];
+    runtime?: Parameters<typeof resolveFormlessConfig>[0]["runtime"];
   } = {},
 ) {
   const manifest = {
@@ -1543,6 +1588,17 @@ async function writeDeployStorageSnapshot(
   const manifest = resolveFormlessConfig({
     name: "personal-sites",
     ...(options.program === undefined ? {} : { program: options.program }),
+    ...(options.program === undefined
+      ? {}
+      : {
+          runtime: {
+            composition: {
+              shared: DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
+              browser: DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE,
+              worker: DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
+            },
+          },
+        }),
   });
 
   await writeInstanceWorkspaceProgramStorageSnapshot({

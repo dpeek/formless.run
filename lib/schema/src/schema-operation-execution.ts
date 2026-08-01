@@ -1,4 +1,4 @@
-import { fieldRefsEqual, isSystemFieldName } from "./fields.ts";
+import { isSystemFieldName } from "./fields.ts";
 import { fieldHasCreateDefault } from "./field-types.ts";
 import { collectQueryContextNames } from "./query.ts";
 import {
@@ -38,13 +38,13 @@ export type TransitionSideEffectParser = (
 ) => TransitionSideEffectRecordPlanSchema;
 
 export const operationHandlerKinds = [
-  "clear-completed",
+  "tombstone-query-results",
   "create-missing-join-records",
   "create-selected-join-record",
   "remove-selected-join-records",
   "create-tree-child",
   "remove-tree-placement",
-  "subscribe",
+  "contact-subscription.subscribe",
   "transition-state",
 ] as const satisfies readonly OperationHandlerKind[];
 
@@ -54,7 +54,7 @@ export const entityOperationCommandEffectTypes = [
 ] as const satisfies readonly EntityOperationCommandEffectType[];
 
 const operationHandlerCapabilities = {
-  "clear-completed": { createAfterCreateHook: false, publicExecution: false },
+  "tombstone-query-results": { createAfterCreateHook: false, publicExecution: false },
   "create-missing-join-records": { createAfterCreateHook: true, publicExecution: false },
   "create-selected-join-record": {
     createAfterCreateHook: false,
@@ -87,7 +87,7 @@ const operationHandlerCapabilities = {
       placementId: requiredOperationHandlerStringRecordIdInput(),
     }),
   },
-  subscribe: {
+  "contact-subscription.subscribe": {
     createAfterCreateHook: false,
     publicExecution: true,
     input: requiredOperationHandlerObjectInput({
@@ -104,13 +104,13 @@ const operationHandlerCapabilities = {
 } satisfies Record<OperationHandlerKind, OperationHandlerCapabilities>;
 
 const operationHandlerKindBySelectionCapability = {
-  clearCompletedTargetCount: "clear-completed",
+  tombstoneQueryResultsTargetCount: "tombstone-query-results",
   createMissingJoinRecords: "create-missing-join-records",
   createSelectedJoinRecord: "create-selected-join-record",
   removeSelectedJoinRecords: "remove-selected-join-records",
   createTreeChild: "create-tree-child",
   removeTreePlacement: "remove-tree-placement",
-  publicSubscribe: "subscribe",
+  publicContactSubscription: "contact-subscription.subscribe",
   transitionState: "transition-state",
 } satisfies {
   [Capability in OperationHandlerSelectionCapability]: OperationHandlerKindBySelectionCapability[Capability];
@@ -291,13 +291,12 @@ function parseOperationHandlerConfig<Kind extends OperationHandlerKind>(
     throw new Error(`${context} must be an object.`);
   }
 
-  if (handler === "clear-completed") {
-    return parseClearCompletedHandlerConfig(
+  if (handler === "tombstone-query-results") {
+    return parseTombstoneQueryResultsHandlerConfig(
       context,
       value,
       target,
       entityName,
-      entity,
       queries,
     ) as OperationHandlerConfigSchemaByKind[Kind];
   }
@@ -349,7 +348,7 @@ function parseOperationHandlerConfig<Kind extends OperationHandlerKind>(
     return { relationship: relationshipName } as OperationHandlerConfigSchemaByKind[Kind];
   }
 
-  if (handler === "subscribe") {
+  if (handler === "contact-subscription.subscribe") {
     assertExactKeys(context, value, []);
     return {} as OperationHandlerConfigSchemaByKind[Kind];
   }
@@ -364,18 +363,14 @@ function parseOperationHandlerConfig<Kind extends OperationHandlerKind>(
   ) as OperationHandlerConfigSchemaByKind[Kind];
 }
 
-function parseClearCompletedHandlerConfig(
+function parseTombstoneQueryResultsHandlerConfig(
   context: string,
   value: Record<string, unknown>,
   target: EntityOperationTargetSchema | undefined,
   entityName: string,
-  entity: EntitySchema,
   queries: Record<string, CollectionQuerySchema>,
-): OperationHandlerConfigSchemaByKind["clear-completed"] {
+): OperationHandlerConfigSchemaByKind["tombstone-query-results"] {
   assertExactKeys(context, value, [], ["query"]);
-  if (definitionsToRecord(entity.fields).done?.type !== "boolean") {
-    throw new Error(`${context} handler "clear-completed" requires a boolean "done" field.`);
-  }
   const queryName = parseOptionalHandlerQueryReference(
     `${context} query`,
     value.query,
@@ -383,12 +378,6 @@ function parseClearCompletedHandlerConfig(
     entityName,
     queries,
   );
-  const targetQuery = queries[queryName];
-
-  if (!targetQuery || !isClearCompletedTargetQuery(targetQuery.expression)) {
-    throw new Error(`${context} handler "clear-completed" target must be value.done eq true.`);
-  }
-
   return { query: queryName };
 }
 
@@ -730,15 +719,6 @@ function requireToManyHandlerRelationship(
   }
 
   return relationship;
-}
-
-function isClearCompletedTargetQuery(query: CollectionQuerySchema["expression"]) {
-  return (
-    query.kind === "where" &&
-    query.op === "eq" &&
-    query.value === true &&
-    fieldRefsEqual(query.ref, { kind: "value", name: "done" })
-  );
 }
 
 function parseOperationQueryReference(

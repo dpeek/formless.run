@@ -90,18 +90,17 @@ records are written directly to Program Authority from first use.
   cursors, changes, operation histories, media provenance, archives,
   workspaces, replicas, or provenance from legacy `app:<installId>` storage
 
-#### Scenario: Validate Site records through the package adapter
+#### Scenario: Validate Site records generically
 
 - GIVEN active or tombstoned Program records use any of the eight stable Site
   entity ids
 - WHEN Program validation or reviewable canonicalization runs
-- THEN the Program root dispatches those records to the package-owned Site
-  constraint and reviewable-record adapter
-- AND the adapter does not require app install identity
-- AND generic Program schema validation remains responsible for field,
+- THEN generic Program schema validation remains responsible for field,
   reference, unique, delete-blocker, stable-entity, and record-id constraints
-- AND no additional Site constraint is introduced without current Site
-  behavior that consumes it
+- AND generic reviewable-record formatting retains active and tombstoned Site
+  records without a Site record adapter
+- AND Site-specific public projections, rendering, and side effects remain
+  separate explicitly selected runtime capabilities
 
 #### Scenario: Program specializes Site presentation and access
 
@@ -149,14 +148,15 @@ The system SHALL project live Site block and block placement records into a nest
 
 ### Requirement: Program Site Runtime Adapter
 
-The system SHALL select Site-specific public runtime behavior through the
-package-owned Site adapter and the one Program storage target.
+The system SHALL select Site-specific public runtime behavior through explicit
+browser and Worker runtime composition and the one Program storage target.
 
 #### Scenario: Adapter owns public tree behavior
 
 - GIVEN a public Site runtime target selects the active Program
 - WHEN the runtime receives a public tree read for that target
-- THEN the runtime dispatches to the built-in Site public runtime adapter
+- THEN the runtime dispatches to the explicitly selected Site public-read
+  adapter
 - AND the adapter builds the public tree from flat app records and placement
   edges in Program storage identity `instance:control-plane`
 - AND schema key `formless-program` and the complete Program source hash are the
@@ -168,7 +168,7 @@ package-owned Site adapter and the one Program storage target.
   the Program public Site runtime target
 - WHEN the runtime handles a public document, metadata, indexing, or root icon
   request for that target
-- THEN Worker dispatch selects the built-in Site public runtime adapter
+- THEN Worker dispatch selects the explicitly composed Site Worker surface
 - AND the adapter supplies document rendering, metadata, sitemap, robots, SVG
   icon, PNG icon, and ICO icon behavior
 - AND request routing, route access, Program storage identity, and core media
@@ -176,14 +176,32 @@ package-owned Site adapter and the one Program storage target.
 - AND every preview, mapped, and published target uses Program storage identity
   `instance:control-plane`
 
-#### Scenario: Resolve the built-in Site target
+#### Scenario: Resolve the explicitly composed Site target
 
-- GIVEN preview, mapped-host, or published rendering selects the built-in Site
+- GIVEN preview, mapped-host, or published rendering selects the Site surface
 - WHEN its public runtime target is resolved
-- THEN it uses the built-in Site adapter with Program storage identity
+- THEN it uses the Site adapter explicitly selected by the default or downstream
+  Worker composition with Program storage identity
   `instance:control-plane`
 - AND preview uses `/pages` with API prefix `/api/formless/program`
-- AND Program route policy and the built-in Site adapter supply the complete target
+- AND Program route policy and the selected Site adapter supply the complete target
+
+#### Scenario: Compose Site behavior by runtime target
+
+- GIVEN a trusted Program composition includes Site executable behavior
+- WHEN local development or deploy builds browser and Worker outputs
+- THEN shared Site requirements, browser readiness and hydration, Worker public
+  reads, document rendering, metadata, indexing, icons, and after-commit
+  notification behavior are selected through explicit target entries
+- AND Site-owned target adapters are imported through documented
+  `@dpeek/formless-site-app/runtime/browser` and
+  `@dpeek/formless-site-app/runtime/worker` subpaths where those adapters live
+- AND the browser and Worker entries receive the same complete data-only Program
+  artifact and canonical provenance
+- AND omitting Site schema and runtime entries omits Site executable code and
+  public Site build inputs
+- AND Worker request handling does not evaluate workspace TypeScript or discover
+  a Site adapter dynamically
 
 ### Requirement: Workspace Site Renderer Extension
 

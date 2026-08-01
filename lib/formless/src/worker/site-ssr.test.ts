@@ -10,6 +10,7 @@ import {
 import { testSiteRecords } from "../test/site-records.ts";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
+import type { ProgramWorkerRuntimeDefinition } from "../program/composition.ts";
 import type { Env } from "./index.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import {
@@ -80,6 +81,24 @@ describe("published Site Worker SSR", () => {
         headers: { Accept: "text/html" },
       }),
       envWithTreeResponse(Response.json(testSitePageTree("home")), undefined, "dev"),
+    );
+
+    expect(response).toBeUndefined();
+  });
+
+  it("does not render a public Site document without a selected Worker surface", async () => {
+    const runtimeWithoutSite: ProgramWorkerRuntimeDefinition = {
+      target: "worker",
+      publicReads: [],
+      surfaces: [],
+      afterCommit: [],
+    };
+    const response = await handlePublicSiteDocumentRequest(
+      new Request("https://example.com/", {
+        headers: { Accept: "text/html" },
+      }),
+      envWithTreeResponse(Response.json(testSitePageTree("home")), undefined, "publishedSite"),
+      { workerRuntime: runtimeWithoutSite },
     );
 
     expect(response).toBeUndefined();

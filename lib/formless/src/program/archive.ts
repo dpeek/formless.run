@@ -8,6 +8,7 @@ import {
 } from "@dpeek/formless-archive";
 import type { AppSchema } from "@dpeek/formless-schema";
 import type { FormlessProgramArtifact } from "./artifact.ts";
+import type { ProgramSharedRuntimeDefinition } from "./composition.ts";
 import { formlessProgramArchiveSnapshotContract } from "./runtime.ts";
 
 export * from "@dpeek/formless-archive";
@@ -15,7 +16,10 @@ export * from "@dpeek/formless-archive";
 type ProgramArchiveOptions = {
   programArtifact?: FormlessProgramArtifact;
   programSchema?: AppSchema;
+  programSharedRuntime?: ProgramSharedRuntimeDefinition;
 };
+
+type ProgramArchiveRestoreTargetState = ArchiveRestoreTargetState & ProgramArchiveOptions;
 
 export function parseInstanceArchive(
   value: unknown,
@@ -31,7 +35,10 @@ export function formatInstanceArchive(
   return formatInstanceArchiveWithContract(archive, archiveOptions(options));
 }
 
-export function planInstanceArchiveRestore(value: unknown, target: ArchiveRestoreTargetState = {}) {
+export function planInstanceArchiveRestore(
+  value: unknown,
+  target: ProgramArchiveRestoreTargetState = {},
+) {
   return planInstanceArchiveRestoreWithContract(value, restoreTarget(target));
 }
 
@@ -40,14 +47,22 @@ function archiveOptions(options: ProgramArchiveOptions): ArchiveProgramValidatio
     programSnapshotContract: formlessProgramArchiveSnapshotContract({
       artifact: options.programArtifact,
       schema: options.programSchema,
+      sharedRuntime: options.programSharedRuntime,
     }),
   };
 }
 
-function restoreTarget(target: ArchiveRestoreTargetState): ArchiveRestoreTargetState {
+function restoreTarget(target: ProgramArchiveRestoreTargetState): ArchiveRestoreTargetState {
+  const { programArtifact, programSchema, programSharedRuntime, ...archiveTarget } = target;
+
   return {
-    ...target,
+    ...archiveTarget,
     programSnapshotContract:
-      target.programSnapshotContract ?? formlessProgramArchiveSnapshotContract(),
+      target.programSnapshotContract ??
+      formlessProgramArchiveSnapshotContract({
+        artifact: programArtifact,
+        schema: programSchema,
+        sharedRuntime: programSharedRuntime,
+      }),
   };
 }

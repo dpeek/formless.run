@@ -185,6 +185,10 @@ through an explicit actor policy and public binding.
   verification or handler materialization
 - AND successful execution commits only records planned or written by that
   operation handler for Program storage identity
+- AND the handler key resolves to exactly one operation adapter explicitly
+  selected by trusted Program runtime composition
+- AND a missing or duplicate selected handler fails materialization or build
+  rather than request-time package, module, or entity discovery
 - AND handler execution receives operation source facts such as host, path,
   canonical operation key, and Site block id through the operation envelope
 - AND public execution tests, fixtures, and response helpers use operation names
@@ -193,7 +197,8 @@ through an explicit actor policy and public binding.
 #### Scenario: Execute Program CRM public subscribe operation
 
 - GIVEN the Program declares `subscription.subscribe` as an anonymous public
-  command operation with the `subscribe` operation handler
+  command operation requiring the `contact-subscription.subscribe` operation
+  adapter
 - WHEN a visitor posts valid subscribe input to
   `/api/formless/program/public/operations/subscription/subscribe`
 - THEN the public operation executor commits the handler-planned shared contact
@@ -423,6 +428,10 @@ a small real-workerd contract portfolio.
   service-binding, or other Cloudflare runtime interfaces
 - AND the public operation executor remains responsible only for invoking those
   concrete Adapters in the declared execution order
+- AND contact and operation-input notifications run only through explicitly
+  selected after-commit adapters
+- AND an after-commit adapter declaration does not grant public eligibility,
+  Program access, storage scope, or authorization
 
 #### Scenario: Real-workerd contract portfolio stays narrow
 

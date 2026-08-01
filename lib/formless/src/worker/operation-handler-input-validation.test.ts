@@ -106,7 +106,7 @@ describe("operation handler input validation", () => {
     expect(
       validateOperationHandlerInputValues({
         canonicalOperationKey: "subscription.subscribe",
-        handler: "subscribe",
+        handler: "contact-subscription.subscribe",
         input: {
           email: "not an email address",
         },
@@ -118,7 +118,7 @@ describe("operation handler input validation", () => {
     expect(() =>
       validateOperationHandlerInputValues({
         canonicalOperationKey: "subscription.subscribe",
-        handler: "subscribe",
+        handler: "contact-subscription.subscribe",
         input: {
           email: 42,
         },

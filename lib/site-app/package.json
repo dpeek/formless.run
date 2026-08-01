@@ -15,6 +15,9 @@
     "./schema": "./src/schema.ts",
     "./react": "./src/react.tsx",
     "./public/react": "./src/public-react.tsx",
+    "./runtime": "./src/runtime/index.ts",
+    "./runtime/browser": "./src/runtime/browser.tsx",
+    "./runtime/worker": "./src/runtime/worker.ts",
     "./worker": "./src/worker.ts",
     "./node": "./src/node.ts",
     "./schema.json": "./schema.json"
@@ -37,6 +40,18 @@
         "types": "./dist/public-react.d.mts",
         "import": "./dist/public-react.mjs"
       },
+      "./runtime": {
+        "types": "./dist/runtime/index.d.mts",
+        "import": "./dist/runtime/index.mjs"
+      },
+      "./runtime/browser": {
+        "types": "./dist/runtime/browser.d.mts",
+        "import": "./dist/runtime/browser.mjs"
+      },
+      "./runtime/worker": {
+        "types": "./dist/runtime/worker.d.mts",
+        "import": "./dist/runtime/worker.mjs"
+      },
       "./worker": {
         "types": "./dist/worker.d.mts",
         "import": "./dist/worker.mjs"
@@ -52,7 +67,7 @@
   "scripts": {
     "check": "vp check --fix && vp test --configLoader runner",
     "schema:materialize": "bun run scripts/materialize-schema.ts",
-    "pack": "vp pack src/index.ts src/schema.ts src/react.tsx src/public-react.tsx src/worker.ts src/node.ts"
+    "pack": "vp pack src/index.ts src/schema.ts src/react.tsx src/public-react.tsx src/runtime/index.ts src/runtime/browser.tsx src/runtime/worker.ts src/worker.ts src/node.ts"
   },
   "dependencies": {
     "@cf-wasm/resvg": "0.3.4",
@@ -60,7 +75,6 @@
     "@dpeek/formless-public-operations": "workspace:*",
     "@dpeek/formless-schema": "workspace:*",
     "@dpeek/formless-source-svg": "workspace:*",
-    "@dpeek/formless-storage": "workspace:*",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },

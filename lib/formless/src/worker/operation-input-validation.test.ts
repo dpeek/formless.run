@@ -735,7 +735,7 @@ function operationHandlerTaskOperation(input: NonNullable<EntityOperationSchema[
     kind: "command",
     scope: "collection",
     input,
-    effect: { type: "operationHandler", handler: "subscribe", config: {} },
+    effect: { type: "operationHandler", handler: "contact-subscription.subscribe", config: {} },
     output: { type: "command" },
     idempotency: { required: true },
     audit: { input: "summary" },

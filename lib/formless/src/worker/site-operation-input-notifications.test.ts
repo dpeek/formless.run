@@ -437,7 +437,7 @@ function requestSubmitCommandHandlerOperation(): EntityOperationSchema {
         { key: "wantsNewsletter", type: "boolean", required: false, label: "Wants newsletter" },
       ],
     },
-    effect: { type: "operationHandler", handler: "subscribe", config: {} },
+    effect: { type: "operationHandler", handler: "contact-subscription.subscribe", config: {} },
     output: { type: "command" },
     idempotency: { required: true },
     audit: { input: "summary" },

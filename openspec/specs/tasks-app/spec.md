@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The Tasks package owns reusable task tracking schema declarations and adapters.
+The Tasks package owns reusable task tracking schema declarations.
 The default Formless Program composes those declarations as one built-in
 singleton domain whose records live in Program Authority.
 
@@ -11,7 +11,7 @@ singleton domain whose records live in Program Authority.
 ### Requirement: Tasks Domain Package Source
 
 The system SHALL provide Tasks as a bundled in-repo domain package that owns its
-standalone artifact, reusable schema modules, and domain adapters.
+standalone artifact and reusable schema modules.
 
 #### Scenario: Tasks domain package scaffold
 
@@ -29,8 +29,8 @@ standalone artifact, reusable schema modules, and domain adapters.
 - **WHEN** the default Program is materialized and served
 - **THEN** trusted build-time composition imports the schema modules
 - **AND** Worker request handling consumes only the complete Program artifact
-- **AND** the package root exports domain record helpers and the stable Task
-  entity id without install or source-schema selection keys
+- **AND** the package root exports the stable Task entity id without install,
+  source-schema selection, or record-adapter keys
 - **AND** the standalone artifact is not an install, route, Authority, replica,
   archive, workspace, upgrade, deploy, or authorization identity
 
@@ -114,21 +114,26 @@ fields, generated queries, and generated operations.
   schema-defined Program `editor` role
 - **AND** replica membership alone does not authorize a Task operation
 
-### Requirement: Tasks Program Adapter
+### Requirement: Generic Tasks Runtime Behavior
 
-The Tasks package SHALL own the stable-entity constraint and reviewable-record
-behavior needed when downstream Programs compose Task records.
+The Tasks package SHALL require no package-specific executable record adapter.
 
-#### Scenario: Validate composed Task records
+#### Scenario: Validate and canonicalize composed Task records
 
 - **GIVEN** a Program contains the package-owned Task entity
 - **WHEN** Program bootstrap, write validation, snapshot parsing,
   canonicalization, archive, or workspace validation runs
-- **THEN** the Program root registers a Tasks adapter by the Task stable entity
-  id
-- **AND** the adapter receives only Task records while generic Program
-  validation sees the complete mixed record set
-- **AND** reviewable Task records remain flat and retain lifecycle and tombstone
-  state
-- **AND** authoring module keys, package keys, schema keys, screen keys, and
-  route keys are not used as runtime constraint or authorization identity
+- **THEN** generic complete-schema validation checks Task fields, references,
+  uniqueness, lifecycle state, tombstones, stable entity identity, and record ids
+- **AND** generic reviewable-record formatting retains flat Task records
+- **AND** omitting Tasks from a Program does not require or bundle Tasks runtime
+  behavior
+
+#### Scenario: Execute clear completed declaratively
+
+- **GIVEN** the Tasks schema declares its completed query and clear-completed
+  operation
+- **WHEN** the operation executes
+- **THEN** the operation uses the generic `tombstone-query-results` handler to
+  tombstone records selected by the declared query
+- **AND** no Tasks-specific operation handler or entity-id activation is used

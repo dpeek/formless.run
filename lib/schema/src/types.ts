@@ -1052,37 +1052,37 @@ export type OperationHandlerCapabilities = {
 };
 
 export type OperationHandlerKind =
-  | "clear-completed"
+  | "tombstone-query-results"
   | "create-missing-join-records"
   | "create-selected-join-record"
   | "remove-selected-join-records"
   | "create-tree-child"
   | "remove-tree-placement"
-  | "subscribe"
+  | "contact-subscription.subscribe"
   | "transition-state";
 
 export type OperationHandlerSelectionCapability =
-  | "clearCompletedTargetCount"
+  | "tombstoneQueryResultsTargetCount"
   | "createMissingJoinRecords"
   | "createSelectedJoinRecord"
   | "removeSelectedJoinRecords"
   | "createTreeChild"
   | "removeTreePlacement"
-  | "publicSubscribe"
+  | "publicContactSubscription"
   | "transitionState";
 
 export type OperationHandlerKindBySelectionCapability = {
-  clearCompletedTargetCount: "clear-completed";
+  tombstoneQueryResultsTargetCount: "tombstone-query-results";
   createMissingJoinRecords: "create-missing-join-records";
   createSelectedJoinRecord: "create-selected-join-record";
   removeSelectedJoinRecords: "remove-selected-join-records";
   createTreeChild: "create-tree-child";
   removeTreePlacement: "remove-tree-placement";
-  publicSubscribe: "subscribe";
+  publicContactSubscription: "contact-subscription.subscribe";
   transitionState: "transition-state";
 };
 
-export type ClearCompletedOperationHandlerConfigSchema = {
+export type TombstoneQueryResultsOperationHandlerConfigSchema = {
   query: string;
 };
 
@@ -1118,13 +1118,13 @@ export type TransitionStateOperationHandlerConfigSchema = {
 };
 
 export type OperationHandlerConfigSchemaByKind = {
-  "clear-completed": ClearCompletedOperationHandlerConfigSchema;
+  "tombstone-query-results": TombstoneQueryResultsOperationHandlerConfigSchema;
   "create-missing-join-records": CreateMissingJoinRecordsOperationHandlerConfigSchema;
   "create-selected-join-record": CreateSelectedJoinRecordOperationHandlerConfigSchema;
   "remove-selected-join-records": RemoveSelectedJoinRecordsOperationHandlerConfigSchema;
   "create-tree-child": CreateTreeChildOperationHandlerConfigSchema;
   "remove-tree-placement": RemoveTreePlacementOperationHandlerConfigSchema;
-  subscribe: SubscribeOperationHandlerConfigSchema;
+  "contact-subscription.subscribe": SubscribeOperationHandlerConfigSchema;
   "transition-state": TransitionStateOperationHandlerConfigSchema;
 };
 
@@ -1505,6 +1505,25 @@ export type AppSchemaModuleRuntimeSource = {
   };
 };
 
+/** Authoring-only executable behavior required by one schema module. */
+export type AppSchemaModuleRuntimeRequirements = {
+  shared?: {
+    recordAdapters?: readonly string[];
+    operationAdapters?: readonly string[];
+    bootstrapContributions?: readonly string[];
+    createIdContributions?: readonly string[];
+  };
+  browser?: {
+    projections?: readonly string[];
+    surfaces?: readonly string[];
+  };
+  worker?: {
+    publicReads?: readonly string[];
+    surfaces?: readonly string[];
+    afterCommit?: readonly string[];
+  };
+};
+
 /**
  * Package-local contribution to a complete App schema source.
  *
@@ -1514,6 +1533,7 @@ export type AppSchemaModuleRuntimeSource = {
 export type AppSchemaModuleSource = {
   key: string;
   requires?: readonly string[];
+  runtimeRequirements?: AppSchemaModuleRuntimeRequirements;
   entities?: AppSchemaSource["entities"];
   relationships?: NonNullable<AppSchemaSource["relationships"]>;
   queries?: AppSchemaSource["queries"];

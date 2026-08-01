@@ -52,6 +52,20 @@ through the Instance Control Plane package slice.
   cursor, replica, archive, and workspace selection remain downstream runtime
   concerns
 
+#### Scenario: Select instance record behavior explicitly
+
+- GIVEN a Program composes the instance control-plane record module
+- WHEN trusted runtime composition supplies instance record behavior
+- THEN it imports the package's narrow record validation and reviewable
+  canonicalization adapter from
+  `@dpeek/formless-instance-control-plane/records` and selects it explicitly
+- AND the adapter owns instance singleton, reference, route, host, URL,
+  reserved-path, and route-conflict invariants for snapshot and candidate writes
+- AND stable instance entity ids only scope records passed to the selected
+  adapter
+- AND those ids do not activate the adapter or grant Program, storage, replica,
+  route, operation, media, or authorization access
+
 #### Scenario: Package exposes composable schema modules
 
 - GIVEN trusted TypeScript authoring needs reusable instance control-plane
@@ -465,6 +479,15 @@ records.
 
 The system SHALL represent deploy target and provider selection as one
 `deployment-config` control-plane record.
+
+#### Scenario: Select deployment config record identity
+
+- GIVEN the default Program composes the instance control-plane module
+- WHEN a deployment-config create operation needs its stable target record id
+- THEN the trusted shared runtime composition explicitly supplies the instance
+  create-id contribution
+- AND generic Program Authority does not recognize the deployment-config entity
+  or derive record identity from package or entity discovery
 
 #### Scenario: Deployment config shape
 

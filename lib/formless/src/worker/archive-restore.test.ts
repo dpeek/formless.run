@@ -7,12 +7,17 @@ import {
   type InstanceArchive,
 } from "../program/archive.ts";
 import { formlessProgramSchema, formlessProgramSchemaProvenance } from "../program/runtime.ts";
+import { defineProgramSharedRuntime } from "../program/composition.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
 } from "../program/target.ts";
 import { coreMediaHrefForKey } from "@dpeek/formless-media";
-import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
+import {
+  STORAGE_SNAPSHOT_KIND,
+  STORAGE_SNAPSHOT_VERSION,
+  type StoredRecord,
+} from "@dpeek/formless-storage";
 import {
   applyInstanceArchiveRestore,
   dryRunInstanceArchiveRestore,
@@ -64,6 +69,70 @@ describe("portable Program archive restore", () => {
       errors: [{ code: "media-read-failed" }],
     });
     expect(events).toEqual([]);
+  });
+
+  it("validates the complete snapshot through selected ownership before global mutation", async () => {
+    const events: string[] = [];
+    const adapterInputs: Array<{ all: string[]; owned: string[] }> = [];
+    const target = restoreTarget(events);
+    const taskEntityId = formlessProgramSchema.entities.find(({ key }) => key === "task")!.id;
+    const records = [
+      storedRecord("task-1", "task", { title: "Archived task", done: false, priority: "normal" }),
+      storedRecord("route-1", "route", {
+        enabled: true,
+        kind: "mount",
+        matchHost: "archive.example.com",
+        matchPath: "/",
+        matchPrefix: "/",
+        targetProfile: "public-site",
+      }),
+    ];
+
+    target.programSharedRuntime = defineProgramSharedRuntime({
+      target: "shared",
+      recordAdapters: [
+        {
+          target: "shared",
+          kind: "record-adapter",
+          key: "test.archive-task",
+          entityIds: [taskEntityId],
+          adapter: {
+            canonicalize: ({ records }) => records,
+            validate: (_context, { allRecords, records: owned }) => {
+              adapterInputs.push({
+                all: allRecords.map(({ entity }) => entity),
+                owned: owned.map(({ entity }) => entity),
+              });
+            },
+            validateCandidate: () => undefined,
+          },
+        },
+      ],
+      operationAdapters: [],
+      bootstrapContributions: [],
+      createIdContributions: [],
+    });
+    target.restoreProgram = async (snapshot) => {
+      events.push(`program:${snapshot.records.map(({ entity }) => entity).join(",")}`);
+    };
+
+    const result = await applyInstanceArchiveRestore(
+      instanceArchive({ dryRun: false }, records),
+      target,
+    );
+
+    expect(result).toMatchObject({ ok: true, report: { applied: true } });
+    expect(adapterInputs.length).toBeGreaterThan(0);
+    expect(adapterInputs).toEqual(
+      expect.arrayContaining([{ all: ["task", "route"], owned: ["task"] }]),
+    );
+    expect(events).toEqual([
+      "validate:media/images/hero.png",
+      "begin",
+      "media:media/images/hero.png",
+      "program:task,route",
+      "replace-media:media/images/hero.png",
+    ]);
   });
 
   it("rolls back media and Program mutations when Program restore fails", async () => {
@@ -139,7 +208,10 @@ function restoreTarget(events: string[]): ArchiveRestoreApplyTarget {
   };
 }
 
-function instanceArchive(restorePolicy: InstanceArchive["restorePolicy"]): InstanceArchive {
+function instanceArchive(
+  restorePolicy: InstanceArchive["restorePolicy"],
+  records: StoredRecord[] = [],
+): InstanceArchive {
   return {
     kind: INSTANCE_ARCHIVE_KIND,
     version: ARCHIVE_VERSION,
@@ -157,10 +229,20 @@ function instanceArchive(restorePolicy: InstanceArchive["restorePolicy"]): Insta
         schemaUpdatedAt: now,
         sourceCursor: 0,
         schema: formlessProgramSchema,
-        records: [],
+        records,
       },
     },
     media: { objects: [imageObject()] },
+  };
+}
+
+function storedRecord(id: string, entity: string, values: StoredRecord["values"]): StoredRecord {
+  return {
+    id,
+    entity,
+    values,
+    createdAt: now,
+    updatedAt: now,
   };
 }
 

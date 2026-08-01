@@ -127,7 +127,7 @@ describe("task source schema", () => {
       target: { query: "taskCompleted" },
       effect: {
         type: "operationHandler",
-        handler: "clear-completed",
+        handler: "tombstone-query-results",
         config: { query: "taskCompleted" },
       },
       output: { type: "command" },
@@ -141,7 +141,7 @@ describe("task source schema", () => {
     )!.effect;
     expect(
       clearCompletedEffect?.type === "operationHandler" &&
-        clearCompletedEffect.handler === "clear-completed"
+        clearCompletedEffect.handler === "tombstone-query-results"
         ? clearCompletedEffect.config.query
         : undefined,
     ).toBe("taskCompleted");

@@ -40,6 +40,10 @@ import {
   sitePublicRendererVirtualModuleCode,
   type SitePublicRendererResolvedEntrypoints,
 } from "../cli/runtime-extension-bundler.ts";
+import {
+  formlessWorkspaceProgramRuntimePlugin,
+  resolveWorkspaceProgramRuntimeFromEnv,
+} from "../cli/program-runtime-bundler.ts";
 
 export {
   SITE_PUBLIC_RENDERER_BROWSER_ENTRYPOINT_MODULE_ID,
@@ -70,6 +74,7 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
   const installedNodeModulesRoot = packageInstallNodeModulesRoot(packageRoot);
   const siteProjectRoot = env[FORMLESS_SITE_PROJECT_ROOT_ENV_NAME];
   const workspaceProgramArtifact = runtimeFormlessProgramArtifactFromEnv(env);
+  const workspaceProgramRuntime = resolveWorkspaceProgramRuntimeFromEnv(env);
   const serverFsAllow = [
     packageRoot,
     ...(workspaceRoot === packageRoot ? [] : [workspaceRoot]),
@@ -96,7 +101,9 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
           rollupOptions: {
             input: {
               app: path.resolve(packageRoot, "index.html"),
-              "public-site": path.resolve(packageRoot, "src/public-site-main.tsx"),
+              ...(workspaceProgramRuntime.browserPublicSite
+                ? { "public-site": path.resolve(packageRoot, "src/public-site-main.tsx") }
+                : {}),
             },
           },
         },
@@ -106,6 +113,10 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
       [FORMLESS_PROGRAM_ARTIFACT_DEFINE_NAME]: JSON.stringify(workspaceProgramArtifact ?? ""),
     },
     plugins: [
+      formlessWorkspaceProgramRuntimePlugin({
+        runtime: workspaceProgramRuntime,
+        workspaceRoot,
+      }),
       formlessWorkspaceRuntimeExtensionsPlugin({ env }),
       ...publicVitePlugins(activeAstryxPlugins),
       ...publicVitePlugins(react()),

@@ -31,6 +31,7 @@ import {
   FORMLESS_WORKSPACE_RUNTIME_EXTENSIONS_ENV_NAME,
 } from "../shared/workspace-runtime-extensions.ts";
 import { formlessInstanceWorkspaceWranglerPersistPath } from "./instance-workspace-foundation.ts";
+import { FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME } from "./program-runtime-bundler.ts";
 import {
   createWorkspaceGatewayOperationHandlers,
   type StartWorkspaceGatewaySidecarDependencies,
@@ -75,6 +76,7 @@ export type FormlessInstanceWorkspaceGatewayLifecycleChildRuntimeEnvInput = {
   env?: NodeJS.ProcessEnv;
   localDevSecrets: FormlessInstanceWorkspaceLocalDevSecretState;
   workspaceProgramArtifactPath: string;
+  workspaceProgramRuntime: string;
   workspaceRoot: string;
   workspaceRuntimeExtensions?: string;
 };
@@ -89,6 +91,7 @@ export type FormlessInstanceWorkspaceDevEnvOptions = {
   localDevSecrets?: FormlessInstanceWorkspaceLocalDevSecretState;
   localSessionBootstrapToken?: string;
   workspaceProgramArtifactPath?: string;
+  workspaceProgramRuntime?: string;
   workspaceRuntimeExtensions?: string;
 };
 
@@ -116,6 +119,7 @@ export async function startFormlessInstanceWorkspaceGatewayLifecycle(
           localDevSecrets: envInput.localDevSecrets,
           localSessionBootstrapToken,
           workspaceProgramArtifactPath: envInput.workspaceProgramArtifactPath,
+          workspaceProgramRuntime: envInput.workspaceProgramRuntime,
           workspaceRuntimeExtensions: envInput.workspaceRuntimeExtensions,
         },
       ),
@@ -189,6 +193,12 @@ export function formlessInstanceWorkspaceDevEnv(
     nextEnv[FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME] = options.workspaceProgramArtifactPath;
   } else {
     delete nextEnv[FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME];
+  }
+
+  if (options.workspaceProgramRuntime) {
+    nextEnv[FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME] = options.workspaceProgramRuntime;
+  } else {
+    delete nextEnv[FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME];
   }
 
   if (options.workspaceRuntimeExtensions) {

@@ -7,6 +7,10 @@ import {
   identityControlPlaneRecordSchemaModule,
 } from "@dpeek/formless-identity-control-plane/schema";
 import {
+  identityControlPlaneBootstrapContribution,
+  identityControlPlaneRecordAdapter,
+} from "@dpeek/formless-identity-control-plane/records";
+import {
   formatIdentityControlPlaneBoundaryEntityName,
   identityControlPlaneEntityNames,
   identityControlPlaneImmutableFields,
@@ -45,6 +49,12 @@ describe("identity control-plane schema contracts", () => {
     expect(identityControlPlaneRoleKeys).toEqual(["instance.owner"]);
     expect(identityControlPlaneRecordSchemaModule).toMatchObject({
       key: "identity-control-plane-records",
+      runtimeRequirements: {
+        shared: {
+          recordAdapters: ["identity-control-plane.records"],
+          bootstrapContributions: ["identity-control-plane.bootstrap"],
+        },
+      },
       entities: identityControlPlaneEntityNames.map((key) => expect.objectContaining({ key })),
       runtime: {
         controlPlane: {
@@ -57,6 +67,22 @@ describe("identity control-plane schema contracts", () => {
         },
       },
     });
+    expect(identityControlPlaneRecordAdapter.entityIds).toEqual(
+      identityControlPlaneSchema.entities.map(({ id }) => id),
+    );
+    expect(identityControlPlaneBootstrapContribution.contribute()).toEqual([
+      {
+        id: "role:instance.owner",
+        entity: "role",
+        values: {
+          key: "instance.owner",
+          displayLabel: "instance.owner",
+          status: "active",
+        },
+        createdAt: "2026-06-26T00:00:00.000Z",
+        updatedAt: "2026-06-26T00:00:00.000Z",
+      },
+    ]);
     expect(identityControlPlanePresentationSchemaModule).toMatchObject({
       key: "identity-control-plane-presentation",
       requires: ["identity-control-plane-records"],

@@ -532,6 +532,32 @@ single Formless configuration entrypoint for a workspace.
   domain as a runtime-installed package, discover modules automatically, or
   fetch modules remotely
 
+#### Scenario: Author explicit Program runtime composition
+
+- **GIVEN** a downstream Program needs executable domain behavior
+- **WHEN** trusted `formless.ts` declares runtime composition
+- **THEN** `runtime.composition` supplies explicit workspace-relative `shared`,
+  `browser`, and `worker` module entry paths
+- **AND** those modules use ordinary trusted imports and concrete adapter values
+  for the selected Program
+- **AND** runtime composition paths are resolved only during local development,
+  build, deploy, or materialization
+- **AND** `runtime.extensions["site.publicRenderer"]` remains a separate
+  environment renderer override rather than a Program record adapter
+- **AND** no package, manifest, filesystem, schema-entity, or remote adapter
+  discovery is introduced
+
+#### Scenario: Resolve the explicit default Program runtime
+
+- **GIVEN** a workspace selects the default Formless Program configuration
+- **WHEN** runtime composition defaults are resolved
+- **THEN** shared, browser, and Worker entries resolve to the documented
+  `@dpeek/formless/program/default/*` composition roots
+- **AND** a workspace that supplies a downstream Program composition explicitly
+  supplies matching runtime entries or imports and extends those default roots
+- **AND** adapter/schema incompatibility fails materialization rather than
+  falling back to entity-id activation or request-time discovery
+
 #### Scenario: Discover and load workspace configuration
 
 - **WHEN** a CLI command selects a workspace without an explicit workspace path
@@ -698,12 +724,18 @@ bundled Worker and browser runtime build setup used by local dev and push.
 - **AND** workspace-relative runtime extension paths are resolved during build
   setup rather than stored as Program data, deployment intent, domain schema
   source, or Worker runtime bindings
+- **AND** workspace-relative Program runtime composition paths are resolved into
+  target-specific static or virtual-module imports during build setup
 - **AND** browser runtime extensions share singleton React and React DOM modules
   with the browser runtime even when their workspace source resolves through a
   different physical package installation
 - **AND** build setup materializes and injects one data-only complete workspace
   Program artifact and canonical provenance for local dev and deployed Worker
   startup
+- **AND** shared runtime composition is validated against the selected schema
+  before browser or Worker startup
+- **AND** a public Site browser input is emitted only when the selected browser
+  composition includes the Site public surface
 - **AND** Worker request handling loads that artifact without importing or
   evaluating workspace TypeScript
 

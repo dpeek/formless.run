@@ -1,17 +1,16 @@
 import { computeSourceSchemaHash, parseAppSchema } from "@dpeek/formless-schema";
-import type { StoredRecord } from "@dpeek/formless-storage";
 import { describe, expect, it } from "vite-plus/test";
-import {
-  reviewableSiteRecords,
-  siteEntityIds,
-  validateSiteRecords,
-} from "@dpeek/formless-site-app";
 import {
   sitePresentationSchemaModule,
   siteRecordSchemaModule,
   siteSchemaSource,
 } from "@dpeek/formless-site-app/schema";
 import rawSourceSchema from "@dpeek/formless-site-app/schema.json";
+import { sitePublicBrowserSurfaceDefinition } from "@dpeek/formless-site-app/runtime/browser";
+import {
+  sitePublicWorkerReadDefinition,
+  sitePublicWorkerSurfaceDefinition,
+} from "@dpeek/formless-site-app/runtime/worker";
 
 describe("Site schema authoring", () => {
   it("composes record declarations before dependent presentation declarations", () => {
@@ -87,6 +86,15 @@ describe("Site schema authoring", () => {
     expect(siteRecordSchemaModule).not.toHaveProperty("tableViews");
     expect(siteRecordSchemaModule).not.toHaveProperty("views");
     expect(siteRecordSchemaModule).not.toHaveProperty("screens");
+    expect(siteRecordSchemaModule.runtimeRequirements).toEqual({
+      shared: { operationAdapters: ["contact-subscription.subscribe"] },
+      browser: { surfaces: ["site.public"] },
+      worker: {
+        publicReads: ["site.public-tree"],
+        surfaces: ["site.public"],
+        afterCommit: ["site.contact-notification", "site.operation-input-notification"],
+      },
+    });
 
     expect(sitePresentationSchemaModule.requires).toEqual([siteRecordSchemaModule.key]);
     expect(sitePresentationSchemaModule.itemViews?.map(({ key }) => key)).toEqual([
@@ -143,27 +151,28 @@ describe("Site schema authoring", () => {
     );
   });
 
-  it("owns all Site stable identities and preserves active and tombstoned records", () => {
-    const records = siteRecordSchemaModule.entities.map(({ key }, index) => ({
-      ...storedRecord(`site-record:${index}`, key, { z: "discarded" }),
-      ...(index % 2 === 0 ? {} : { deletedAt: "2026-07-31T01:00:00.000Z" }),
-    }));
-
-    expect(siteEntityIds).toEqual(siteRecordSchemaModule.entities.map(({ id }) => id));
-    expect(() => validateSiteRecords("Site records", records)).not.toThrow();
-    expect(reviewableSiteRecords([...records].reverse())).toEqual(records);
-    expect(() =>
-      validateSiteRecords("Site records", [storedRecord("site-record:foreign", "unknown", {})]),
-    ).toThrow('Site records does not support entity "unknown" for record "site-record:foreign".');
+  it("publishes explicit browser and Worker runtime selections", () => {
+    expect(sitePublicBrowserSurfaceDefinition).toMatchObject({
+      key: "site.public",
+      kind: "surface",
+      target: "browser",
+    });
+    expect(sitePublicBrowserSurfaceDefinition.surface.Route).toBeTypeOf("function");
+    expect(sitePublicWorkerReadDefinition).toMatchObject({
+      key: "site.public-tree",
+      kind: "public-read",
+      target: "worker",
+    });
+    expect(sitePublicWorkerReadDefinition.read).toBeTypeOf("function");
+    expect(sitePublicWorkerSurfaceDefinition).toMatchObject({
+      key: "site.public",
+      kind: "surface",
+      target: "worker",
+    });
+    expect(sitePublicWorkerSurfaceDefinition.surface).toMatchObject({
+      createAdapter: expect.any(Function),
+      normalizeRoutePath: expect.any(Function),
+      siteIconRouteForPathname: expect.any(Function),
+    });
   });
 });
-
-function storedRecord(id: string, entity: string, values: StoredRecord["values"]): StoredRecord {
-  return {
-    id,
-    entity,
-    values,
-    createdAt: "2026-07-31T00:00:00.000Z",
-    updatedAt: "2026-07-31T00:00:00.000Z",
-  };
-}

@@ -12,11 +12,4 @@ export {
   parseFormlessProgramSourceSchema,
   type FormlessProgramArtifact,
 } from "./artifact.ts";
-export {
-  formlessProgramBuiltInModules,
-  formlessProgramDefaultAuthorization,
-  formlessProgramDefaultComposition,
-  formlessProgramDefaultNavigation,
-  formlessProgramDefaultRuntime,
-  formlessProgramSchemaModules,
-} from "./schema.ts";
+export * from "./composition.ts";

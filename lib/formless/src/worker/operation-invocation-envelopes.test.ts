@@ -484,7 +484,7 @@ function publicEnvelopeSchema(): AppSchema {
       },
       effect: {
         type: "operationHandler",
-        handler: "subscribe",
+        handler: "contact-subscription.subscribe",
         config: {},
       },
       output: {

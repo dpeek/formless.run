@@ -9,6 +9,7 @@ import {
   type InstanceArchive,
 } from "../program/archive.ts";
 import { runtimeWorkspaceExtensionsEnvValue } from "../shared/workspace-runtime-extensions.ts";
+import { runtimeWorkspaceProgramRuntimeEnvValue } from "./program-runtime-bundler.ts";
 import {
   DEFAULT_INSTANCE_WORKSPACE_ARCHIVE_ROOT as DEFAULT_FORMLESS_INSTANCE_WORKSPACE_ARCHIVE_ROOT,
   normalizeInstanceWorkspaceTargetUrl as normalizeFormlessInstanceWorkspaceTargetUrl,
@@ -345,6 +346,10 @@ export async function runFormlessInstanceWorkspaceDev(
         localDevSecrets,
         workspaceRoot,
         workspaceProgramArtifactPath: activeProgram.path,
+        workspaceProgramRuntime: runtimeWorkspaceProgramRuntimeEnvValue(
+          config,
+          activeProgram.runtimeComposition,
+        ),
         workspaceRuntimeExtensions: runtimeWorkspaceExtensionsEnvValue(config),
       }),
       stdio: "pipe",

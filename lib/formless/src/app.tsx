@@ -17,6 +17,7 @@ import {
 import "@dpeek/formless-renderer/site/global.css";
 import {
   CoreSitePageRoute,
+  resolveSitePublicBrowserRuntimeSurface,
   type PublicSiteRouteInputProps,
   type PublicSiteRouteProps,
 } from "./app/public-site-runtime.tsx";
@@ -37,6 +38,8 @@ import {
 import { runtimeTopologyRoutes, type RuntimeRouteAccess } from "./shared/runtime-topology.ts";
 import { initialInstanceManagementRuntimeContribution } from "./app/routes/instance-management-contract.ts";
 import { FORMLESS_PROGRAM_SCREEN_PATHS } from "./program/runtime.ts";
+import type { ProgramBrowserRuntimeDefinition } from "./program/composition.ts";
+import { programBrowserRuntime } from "./program/compiled/browser.ts";
 import { projectApplicationSystemState } from "./app/routes/application-system-state-projection.ts";
 import { ApplicationSystemStateRuntime } from "./app/routes/application-system-state-runtime.tsx";
 import { useApplicationRootThemeRuntime } from "./app/application-root-context.tsx";
@@ -95,12 +98,14 @@ const defaultRouteComponents: AppRouteComponents = {
 };
 
 export type AppProps = {
+  browserRuntime?: ProgramBrowserRuntimeDefinition;
   localWorkspaceGatewayAvailable?: boolean;
   routeComponents?: Partial<AppRouteComponents>;
   runtimeProfile?: RuntimeProfile;
 };
 
 export function App({
+  browserRuntime = programBrowserRuntime,
   localWorkspaceGatewayAvailable: localWorkspaceGatewayAvailableProp,
   routeComponents: routeComponentOverrides,
   runtimeProfile: runtimeProfileProp,
@@ -114,6 +119,7 @@ export function App({
   const browserRoutes = runtimeBrowserRoutePatterns(runtimeProfile);
   const runtime = (
     <AppRuntime
+      browserRuntime={browserRuntime}
       localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailableProp}
       location={location}
       routeComponents={routeComponentOverrides}
@@ -130,6 +136,7 @@ export function App({
 }
 
 function AppRuntime({
+  browserRuntime = programBrowserRuntime,
   localWorkspaceGatewayAvailable: localWorkspaceGatewayAvailableProp,
   location,
   routeComponents: routeComponentOverrides,
@@ -160,6 +167,7 @@ function AppRuntime({
   if (!renderShell) {
     return (
       <AppRoutes
+        browserRuntime={browserRuntime}
         localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
         routeComponents={routeComponents}
         runtimeProfile={runtimeProfile}
@@ -178,6 +186,7 @@ function AppRuntime({
         runtimeProfile={runtimeProfile}
       >
         <AppRoutes
+          browserRuntime={browserRuntime}
           localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
           routeComponents={routeComponents}
           runtimeProfile={runtimeProfile}
@@ -248,10 +257,12 @@ function routeMayNeedLocalWorkspaceGateway(
 }
 
 function AppRoutes({
+  browserRuntime,
   localWorkspaceGatewayAvailable,
   routeComponents,
   runtimeProfile,
 }: {
+  browserRuntime: ProgramBrowserRuntimeDefinition;
   localWorkspaceGatewayAvailable: boolean;
   routeComponents: AppRouteComponents;
   runtimeProfile: RuntimeProfile;
@@ -265,8 +276,9 @@ function AppRoutes({
     SitePageRoute,
   } = routeComponents;
   const browserRoutes = runtimeBrowserRoutePatterns(runtimeProfile);
-  const publishedSite = runtimeProfile.publishedSite;
-  const publicSitePreview = runtimeProfile.publicSitePreview;
+  const siteSurfaceSelected = resolveSitePublicBrowserRuntimeSurface(browserRuntime) !== undefined;
+  const publishedSite = siteSurfaceSelected ? runtimeProfile.publishedSite : undefined;
+  const publicSitePreview = siteSurfaceSelected ? runtimeProfile.publicSitePreview : undefined;
   const routes = (
     <Switch>
       {runtimeProfile.defaultRedirect ? (
@@ -315,6 +327,7 @@ function AppRoutes({
           <PublicSiteRoute
             RouteComponent={SitePageRoute}
             routeProps={{
+              browserRuntime,
               linkMode: "published",
               slug: publishedSite.homeSlug,
             }}
@@ -327,6 +340,7 @@ function AppRoutes({
             <PublicSiteRoute
               RouteComponent={SitePageRoute}
               routeProps={{
+                browserRuntime,
                 linkMode: "published",
                 slug: runtimeWildcardSiteSlug(params),
               }}
@@ -342,6 +356,7 @@ function AppRoutes({
             <PublicSiteRoute
               RouteComponent={SitePageRoute}
               routeProps={{
+                browserRuntime,
                 linkMode: publicSitePreview.linkMode,
                 slug: publicSitePreview.homeSlug,
               }}
@@ -355,6 +370,7 @@ function AppRoutes({
             <PublicSiteRoute
               RouteComponent={SitePageRoute}
               routeProps={{
+                browserRuntime,
                 linkMode: publicSitePreview.linkMode,
                 slug: runtimeWildcardSiteSlug(params),
               }}
