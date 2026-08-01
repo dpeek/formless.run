@@ -19,7 +19,6 @@
       "name": "@dpeek/formless-archive",
       "version": "0.1.0",
       "dependencies": {
-        "@dpeek/formless-installed-apps": "workspace:*",
         "@dpeek/formless-media": "workspace:*",
         "@dpeek/formless-schema": "workspace:*",
         "@dpeek/formless-storage": "workspace:*",

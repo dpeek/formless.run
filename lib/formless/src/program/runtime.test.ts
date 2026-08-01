@@ -21,8 +21,8 @@ import {
   type StoredRecord,
 } from "@dpeek/formless-storage";
 import {
-  readInstanceWorkspaceControlPlaneStorageSnapshot,
-  writeInstanceWorkspaceControlPlaneStorageSnapshot,
+  readInstanceWorkspaceProgramStorageSnapshot,
+  writeInstanceWorkspaceProgramStorageSnapshot,
 } from "@dpeek/formless-workspace/node";
 import { resolveFormlessConfig } from "@dpeek/formless-workspace";
 import { describe, expect, it } from "vite-plus/test";
@@ -366,22 +366,24 @@ describe("Formless Program runtime contracts", () => {
     );
   });
 
-  it("parses only Program control-plane archives through the injected contract", () => {
+  it("parses only Program archives through the injected contract", () => {
     const archive = {
       kind: INSTANCE_ARCHIVE_KIND,
       version: ARCHIVE_VERSION,
       exportedAt: now,
-      capabilities: [],
-      restorePolicy: { dryRun: false, installCollisions: "reject" },
-      controlPlane: programSnapshot(programRecords()),
+      capabilities: ["core-media-assets"],
+      restorePolicy: { dryRun: false },
+      program: {
+        schemaProvenance: formlessProgramSchemaProvenance,
+        snapshot: programSnapshot(programRecords()),
+      },
       media: { objects: [] },
-      apps: [],
     } as const;
     const options = {
-      controlPlaneSnapshotContract: formlessProgramArchiveSnapshotContract(),
+      programSnapshotContract: formlessProgramArchiveSnapshotContract(),
     };
 
-    expect(parseInstanceArchive(archive, options).controlPlane?.schemaKey).toBe(
+    expect(parseInstanceArchive(archive, options).program.snapshot.schemaKey).toBe(
       FORMLESS_PROGRAM_SCHEMA_KEY,
     );
     for (const schemaKey of ["instance-control-plane", "crm"]) {
@@ -389,9 +391,9 @@ describe("Formless Program runtime contracts", () => {
         parseInstanceArchive(
           {
             ...archive,
-            controlPlane: {
-              ...archive.controlPlane,
-              schemaKey,
+            program: {
+              ...archive.program,
+              snapshot: { ...archive.program.snapshot, schemaKey },
             },
           },
           options,
@@ -406,8 +408,8 @@ describe("Formless Program runtime contracts", () => {
     const contract = formlessProgramWorkspaceSnapshotContract();
 
     try {
-      await writeInstanceWorkspaceControlPlaneStorageSnapshot({
-        controlPlaneSnapshotContract: contract,
+      await writeInstanceWorkspaceProgramStorageSnapshot({
+        programSnapshotContract: contract,
         manifest,
         snapshot: programSnapshot(programRecords()),
         workspaceRoot,
@@ -428,8 +430,8 @@ describe("Formless Program runtime contracts", () => {
       ]);
 
       await expect(
-        readInstanceWorkspaceControlPlaneStorageSnapshot({
-          controlPlaneSnapshotContract: contract,
+        readInstanceWorkspaceProgramStorageSnapshot({
+          programSnapshotContract: contract,
           manifest,
           workspaceRoot,
         }),
@@ -450,8 +452,8 @@ describe("Formless Program runtime contracts", () => {
         }),
       );
       await expect(
-        readInstanceWorkspaceControlPlaneStorageSnapshot({
-          controlPlaneSnapshotContract: contract,
+        readInstanceWorkspaceProgramStorageSnapshot({
+          programSnapshotContract: contract,
           manifest,
           workspaceRoot,
         }),

@@ -51,7 +51,7 @@ data-only contracts.
 - THEN the output is a deterministic plain JSON `schema.json` package artifact
 - AND the materialized artifact parses through the same App schema parser as a
   hand-authored JSON schema
-- AND Worker, workspace, install, archive, upgrade, and deploy runtime paths
+- AND Worker, workspace, package, upgrade, and deploy runtime paths
   consume the data artifact without evaluating the TypeScript authoring module
 - AND the artifact contains no executable callback, import reference,
   credential, provider object, or runtime implementation
@@ -517,8 +517,8 @@ archive, or deploy workflows.
 - GIVEN an app package manifest declares runtime capabilities
 - WHEN the package source is resolved
 - THEN the resolved package metadata exposes generated-admin capability facts
-- AND capability facts are data declarations used by install, route, archive,
-  deploy, and runtime dispatch validation
+- AND capability facts are data declarations used by package, upgrade, deploy,
+  and runtime validation
 - AND the manifest does not embed executable handler paths, JavaScript module
   references, React component names, Worker functions, filesystem adapter
   functions, or other runtime implementation details
@@ -532,8 +532,8 @@ archive, or deploy workflows.
   referenced source schema
 - AND resolution fails when the computed hash differs from the manifest
   `sourceSchemaHash`
-- AND the package is not exposed to install, upgrade, archive, or deploy
-  workflows until the manifest and source schema agree
+- AND the package is not exposed to upgrade, deploy, or runtime workflows until
+  the manifest and source schema agree
 
 #### Scenario: Hash complete schema source
 

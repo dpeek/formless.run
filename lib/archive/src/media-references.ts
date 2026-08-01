@@ -5,7 +5,7 @@ import {
 } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 
-export type AppArchiveImageMediaReference = {
+export type ArchiveImageMediaReference = {
   assetId: string;
   entity: string;
   field: string;
@@ -13,7 +13,7 @@ export type AppArchiveImageMediaReference = {
   recordId: string;
 };
 
-export type AppArchiveDocumentMediaReference = {
+export type ArchiveDocumentMediaReference = {
   assetId: string;
   entity: string;
   field: string;
@@ -22,25 +22,18 @@ export type AppArchiveDocumentMediaReference = {
   recordId: string;
 };
 
-export type AppArchiveMediaReference =
-  | AppArchiveImageMediaReference
-  | AppArchiveDocumentMediaReference;
+export type ArchiveMediaReference = ArchiveImageMediaReference | ArchiveDocumentMediaReference;
 
 type MediaField =
-  | {
-      kind: "image";
-    }
-  | {
-      kind: "document";
-      policy: TextFieldDocumentAssetPolicySchema;
-    };
+  | { kind: "image" }
+  | { kind: "document"; policy: TextFieldDocumentAssetPolicySchema };
 
-export function appArchiveMediaReferences(
+export function archiveMediaReferences(
   schema: AppSchema,
   records: readonly StoredRecord[],
-): AppArchiveMediaReference[] {
+): ArchiveMediaReference[] {
   const fields = schemaMediaFields(schema);
-  const references: AppArchiveMediaReference[] = [];
+  const references: ArchiveMediaReference[] = [];
 
   for (const record of records) {
     if (record.deletedAt !== undefined) {
@@ -180,14 +173,15 @@ function mediaFieldKey(entity: string, field: string): string {
   return `${entity}\u0000${field}`;
 }
 
-function compareMediaReferences(
-  left: AppArchiveMediaReference,
-  right: AppArchiveMediaReference,
-): number {
+function compareMediaReferences(left: ArchiveMediaReference, right: ArchiveMediaReference): number {
   return (
-    left.entity.localeCompare(right.entity) ||
-    left.field.localeCompare(right.field) ||
-    left.recordId.localeCompare(right.recordId) ||
-    left.assetId.localeCompare(right.assetId)
+    compareOrdinal(left.entity, right.entity) ||
+    compareOrdinal(left.field, right.field) ||
+    compareOrdinal(left.recordId, right.recordId) ||
+    compareOrdinal(left.assetId, right.assetId)
   );
+}
+
+function compareOrdinal(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }

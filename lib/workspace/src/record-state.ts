@@ -1,7 +1,6 @@
 import type { AppSchema } from "@dpeek/formless-schema";
 import { formatStoredRecordsForArtifact } from "@dpeek/formless-storage";
 import {
-  INSTANCE_WORKSPACE_CONTROL_PLANE_SCHEMA_KEY,
   INSTANCE_WORKSPACE_PROGRAM_SCHEMA_KEY,
   WORKSPACE_RECORD_STATE_FILE_KIND,
   WORKSPACE_RECORD_STATE_FILE_VERSION,
@@ -9,8 +8,6 @@ import {
 import type {
   InstanceWorkspaceRecordValues,
   InstanceWorkspaceStoredRecord,
-  WorkspaceControlPlaneRecordStateFile,
-  WorkspacePackageAppRecordStateFile,
   WorkspaceProgramRecordStateFile,
   WorkspaceRecordStateFile,
   WorkspaceSchemaProvenance,
@@ -44,18 +41,8 @@ const recordStateKeys = [
   "schemaProvenance",
   "records",
 ] as const;
-const packageAppSchemaProvenanceKeys = [
-  "kind",
-  "packageAppKey",
-  "packageRevision",
-  "sourceSchemaHash",
-] as const;
-const controlPlaneSchemaProvenanceKeys = ["kind", "sourceSchemaHash"] as const;
-const routeSafeIdPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+const programSchemaProvenanceKeys = ["kind", "sourceSchemaHash"] as const;
 const sha256DigestPattern = /^sha256:[a-f0-9]{64}$/;
-const appStorageIdentityPattern = /^app:([a-z][a-z0-9]*(?:-[a-z0-9]+)*)$/;
-const appInstallIdMaxLength = 48;
-const routeSafeIdMaxLength = 64;
 
 export function parseWorkspaceRecordStateFileJson(
   contents: string,
@@ -130,25 +117,15 @@ export function parseWorkspaceRecordStateFile(
     records: parseWorkspaceStoredRecords(`${context} records`, value.records),
   };
 
-  if (schemaProvenance.kind === "instance-control-plane" || schemaProvenance.kind === "program") {
-    if (parsed.storageIdentity !== "instance:control-plane") {
-      throw new Error(`${context} storageIdentity must be "instance:control-plane".`);
-    }
-
-    const expectedSchemaKey =
-      schemaProvenance.kind === "program"
-        ? INSTANCE_WORKSPACE_PROGRAM_SCHEMA_KEY
-        : INSTANCE_WORKSPACE_CONTROL_PLANE_SCHEMA_KEY;
-    if (parsed.schemaKey !== expectedSchemaKey) {
-      throw new Error(`${context} schemaKey must be "${expectedSchemaKey}".`);
-    }
-
-    return parsed as WorkspaceControlPlaneRecordStateFile | WorkspaceProgramRecordStateFile;
+  if (parsed.storageIdentity !== "instance:control-plane") {
+    throw new Error(`${context} storageIdentity must be "instance:control-plane".`);
   }
 
-  parseAppStorageIdentity(`${context} storageIdentity`, parsed.storageIdentity);
+  if (parsed.schemaKey !== INSTANCE_WORKSPACE_PROGRAM_SCHEMA_KEY) {
+    throw new Error(`${context} schemaKey must be "${INSTANCE_WORKSPACE_PROGRAM_SCHEMA_KEY}".`);
+  }
 
-  return parsed as WorkspacePackageAppRecordStateFile;
+  return parsed as WorkspaceProgramRecordStateFile;
 }
 
 export function formatWorkspaceRecordStateFile(
@@ -180,34 +157,8 @@ function parseWorkspaceSchemaProvenance(
     throw new Error(`${context} must be an object.`);
   }
 
-  if (value.kind === "package-app") {
-    assertExactKeys(context, value, packageAppSchemaProvenanceKeys);
-
-    return {
-      kind: "package-app",
-      packageAppKey: parseRouteSafeId(`${context} packageAppKey`, value.packageAppKey),
-      packageRevision: parsePositiveInteger(`${context} packageRevision`, value.packageRevision),
-      sourceSchemaHash: parseSourceSchemaHash(
-        `${context} sourceSchemaHash`,
-        value.sourceSchemaHash,
-      ),
-    };
-  }
-
-  if (value.kind === "instance-control-plane") {
-    assertExactKeys(context, value, controlPlaneSchemaProvenanceKeys);
-
-    return {
-      kind: "instance-control-plane",
-      sourceSchemaHash: parseSourceSchemaHash(
-        `${context} sourceSchemaHash`,
-        value.sourceSchemaHash,
-      ),
-    };
-  }
-
   if (value.kind === "program") {
-    assertExactKeys(context, value, controlPlaneSchemaProvenanceKeys);
+    assertExactKeys(context, value, programSchemaProvenanceKeys);
 
     return {
       kind: "program",
@@ -218,7 +169,7 @@ function parseWorkspaceSchemaProvenance(
     };
   }
 
-  throw new Error(`${context} kind must be "package-app", "instance-control-plane", or "program".`);
+  throw new Error(`${context} kind must be "program".`);
 }
 
 function parseWorkspaceStoredRecords(
@@ -304,44 +255,12 @@ function recordStateContext(options: ParseWorkspaceRecordStateFileOptions): stri
   return options.context ?? "Workspace record state file";
 }
 
-function parseAppStorageIdentity(context: string, value: string): string {
-  const match = appStorageIdentityPattern.exec(value);
-
-  if (!match || match[1].length > appInstallIdMaxLength) {
-    throw new Error(
-      `${context} must be an app storage identity with an app install id, such as "app:site".`,
-    );
-  }
-
-  return value;
-}
-
-function parseRouteSafeId(context: string, value: unknown): string {
-  const id = parseNonEmptyString(context, value);
-
-  if (id.length > routeSafeIdMaxLength || !routeSafeIdPattern.test(id)) {
-    throw new Error(
-      `${context} must start with a lowercase letter and use lowercase letters, numbers, and single hyphens.`,
-    );
-  }
-
-  return id;
-}
-
 function parseSourceSchemaHash(context: string, value: unknown): WorkspaceSourceSchemaHash {
   if (typeof value !== "string" || !sha256DigestPattern.test(value)) {
     throw new Error(`${context} must be a sha256 source schema hash.`);
   }
 
   return value as WorkspaceSourceSchemaHash;
-}
-
-function parsePositiveInteger(context: string, value: unknown): number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
-    throw new Error(`${context} must be a positive integer.`);
-  }
-
-  return value;
 }
 
 function parseCursor(context: string, value: unknown): number {

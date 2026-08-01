@@ -1,104 +1,57 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
-  APP_ARCHIVE_KIND,
   ARCHIVE_VERSION,
   INSTANCE_ARCHIVE_KIND,
-  formatAppArchive,
-  formatInstanceArchive as formatInstanceArchiveWithContract,
-  parseAppArchive,
-  parseInstanceArchive as parseInstanceArchiveWithContract,
-  parsePortableArchive as parsePortableArchiveWithContract,
-  type ArchiveControlPlaneValidationOptions,
-  type AppArchive,
-  type AppArchiveMediaObject,
+  archiveMediaObjects,
+  archiveRecordCount,
+  formatInstanceArchive,
+  parsePortableArchive,
+  type ArchiveProgramSnapshotContract,
   type InstanceArchive,
 } from "./index.ts";
-import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
-import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
-  appPackageManifestKind,
-  appPackageManifestVersion,
-  createAppPackageResolver,
-} from "@dpeek/formless-installed-apps";
-import {
-  INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  canonicalizeInstanceControlPlaneStorageSnapshot,
-  instanceControlPlaneSchema,
-  parseInstanceControlPlaneStorageSnapshot,
-} from "@dpeek/formless-instance-control-plane";
-import { parseAppSchema } from "@dpeek/formless-schema";
+  STORAGE_SNAPSHOT_KIND,
+  STORAGE_SNAPSHOT_VERSION,
+  formatStoredRecordsForArtifact,
+  parseStorageSnapshot,
+  type StorageSnapshot,
+} from "@dpeek/formless-storage";
+import type { AppSchema } from "@dpeek/formless-schema";
 
 const now = "2026-05-23T00:00:00.000Z";
-const siteSourceSchemaHash =
-  "sha256:1111111111111111111111111111111111111111111111111111111111111111";
-const archivePackageResolver = createAppPackageResolver([
-  packageManifest({
-    label: "Site",
-    packageAppKey: "site",
-    sourceSchemaHash: siteSourceSchemaHash,
-  }),
-]);
-
-function archiveOptions(
-  options: ArchiveControlPlaneValidationOptions = {},
-): ArchiveControlPlaneValidationOptions {
-  return {
-    ...options,
-    controlPlaneSnapshotContract: {
-      canonicalize: (snapshot) => canonicalizeInstanceControlPlaneStorageSnapshot(snapshot),
-      parse: (context, value) => parseInstanceControlPlaneStorageSnapshot(context, value),
-    },
-  };
-}
-
-function parsePortableArchive(value: unknown, options: ArchiveControlPlaneValidationOptions = {}) {
-  return parsePortableArchiveWithContract(value, archiveOptions(options));
-}
-
-function parseInstanceArchive(value: unknown, options: ArchiveControlPlaneValidationOptions = {}) {
-  return parseInstanceArchiveWithContract(value, archiveOptions(options));
-}
-
-function formatInstanceArchive(
-  archive: InstanceArchive,
-  options: ArchiveControlPlaneValidationOptions = {},
-) {
-  return formatInstanceArchiveWithContract(archive, archiveOptions(options));
-}
-const siteSourceSchema = parseAppSchema({
+const sourceSchemaHash =
+  "sha256:1111111111111111111111111111111111111111111111111111111111111111" as const;
+const schema: AppSchema = {
   version: 1,
   entities: [
     {
-      id: "entity_b7492df1-ecf6-40dd-95b2-5d8bb7ee5a8e",
-      key: "site",
-      label: "Site",
+      id: "entity_11111111-1111-4111-8111-111111111111",
+      key: "note",
+      label: "Note",
       fields: [
-        { key: "key", type: "text", required: true, label: "Key" },
-        { key: "label", type: "text", required: true, label: "Label" },
+        { key: "title", label: "Title", type: "text", required: true },
+        { key: "done", label: "Done", type: "boolean", required: false },
       ],
-      constraints: [{ key: "uniqueKey", kind: "unique", fields: ["key"] }],
-      operations: writeOperations("Site", ["key", "label"]),
     },
   ],
-  queries: [{ key: "siteAll", label: "Sites", entity: "site", expression: { kind: "all" } }],
+  queries: [{ key: "all", label: "All notes", entity: "note", expression: { kind: "all" } }],
   itemViews: [
     {
-      key: "siteItem",
-      entity: "site",
-      fields: [{ field: "label", editor: "text", commit: "field-commit" }],
+      key: "noteItem",
+      entity: "note",
+      fields: [{ field: "title", editor: "text", commit: "field-commit" }],
     },
   ],
   tableViews: [],
   views: [
     {
-      key: "siteList",
+      key: "notes",
       type: "collection",
-      label: "Sites",
-      entity: "site",
-      queries: [{ query: "siteAll" }],
-      defaultQuery: "siteAll",
-      result: { type: "list", itemView: "siteItem" },
+      label: "Notes",
+      entity: "note",
+      queries: [{ query: "all" }],
+      defaultQuery: "all",
+      result: { type: "list", itemView: "noteItem" },
     },
   ],
   screens: [
@@ -108,413 +61,101 @@ const siteSourceSchema = parseAppSchema({
       label: "Home",
       layout: {
         type: "stack",
-        sections: [{ id: "sites", type: "collection", view: "siteList" }],
+        sections: [{ id: "notes", type: "collection", view: "notes" }],
       },
     },
   ],
-});
-function writeOperations(label: string, fields: string[]) {
-  const input = {
-    fields: fields.map((field) => ({ key: field, field })),
-  };
-  return [
-    {
-      key: "create",
-      label: `Create ${label}`,
-      kind: "create",
-      scope: "collection",
-      input,
-      effect: { type: "createRecord" },
-      output: { type: "create" },
-      idempotency: { required: true },
-      audit: { input: "summary" },
-    },
-    {
-      key: "update",
-      label: `Update ${label}`,
-      kind: "update",
-      scope: "record",
-      input,
-      effect: { type: "patchRecord" },
-      output: { type: "update" },
-      idempotency: { required: true },
-      audit: { input: "summary" },
-    },
-  ];
-}
-function packageManifest(input: {
-  label: string;
-  packageAppKey: string;
-  sourceSchemaHash: string;
-}): Record<string, unknown> {
-  return {
-    kind: appPackageManifestKind,
-    version: appPackageManifestVersion,
-    packageAppKey: input.packageAppKey,
-    label: input.label,
-    description: `${input.label} package fixture.`,
-    defaultInstallId: input.packageAppKey,
-    supportsMultipleInstalls: true,
-    packageRevision: 1,
-    sourceSchema: {
-      kind: "bundled",
-      key: input.packageAppKey,
-      path: "schema.json",
-    },
-    sourceSchemaHash: input.sourceSchemaHash,
-    capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],
-  };
-}
+};
 
-describe("portable archive protocol", () => {
-  it("parses the supported version 2 app archive envelope", () => {
-    const archive = appArchive({
-      data: {
-        ...storageSnapshot(),
-        records: [
-          activeSiteRecord("rec_site_settings_primary"),
-          {
-            ...activeSiteRecord("rec_site_settings_old"),
-            deletedAt: "2026-05-23T00:03:00.000Z",
-          },
-        ],
-      },
-    });
+const contract: ArchiveProgramSnapshotContract = {
+  canonicalize: (snapshot) => ({
+    ...parseStorageSnapshot(snapshot, {
+      schemaKey: "formless-program",
+      storageIdentity: "instance:control-plane",
+    }),
+    records: formatStoredRecordsForArtifact(snapshot.schema, snapshot.records),
+  }),
+  parse: (_context, value) =>
+    parseStorageSnapshot(value, {
+      schemaKey: "formless-program",
+      storageIdentity: "instance:control-plane",
+    }),
+  schemaProvenance: { kind: "program", sourceSchemaHash },
+};
 
-    expect(parseAppArchive(archive)).toEqual(archive);
-    expect(parsePortableArchive(archive)).toEqual(archive);
+describe("portable Program archive protocol", () => {
+  it("parses only the current instance archive with one required Program", () => {
+    const archive = instanceArchive();
+    const parsed = parsePortableArchive(archive, { programSnapshotContract: contract });
+
+    expect(parsed.program.snapshot.schema.screens[0]?.layout).toMatchObject({ width: "standard" });
+    expect(archiveRecordCount(archive)).toBe(2);
+    expect(archiveMediaObjects(archive)).toEqual([]);
+    expect(() =>
+      parsePortableArchive(
+        { ...archive, kind: "unknown.archive" },
+        { programSnapshotContract: contract },
+      ),
+    ).toThrow(`Instance archive kind must be "${INSTANCE_ARCHIVE_KIND}".`);
+    expect(() =>
+      parsePortableArchive({ ...archive, unexpected: true }, { programSnapshotContract: contract }),
+    ).toThrow('Instance archive has unsupported key "unexpected".');
   });
 
-  it("parses instance archives as app archive collections", () => {
+  it("rejects unsupported capabilities, policies, and Program provenance", () => {
+    const archive = instanceArchive();
+
+    expect(() =>
+      parsePortableArchive(
+        { ...archive, capabilities: ["unknown-capability"] },
+        { programSnapshotContract: contract },
+      ),
+    ).toThrow('Instance archive capabilities[0] "unknown-capability" is unsupported.');
+    expect(() =>
+      parsePortableArchive(
+        { ...archive, restorePolicy: { dryRun: true, unexpected: "value" } },
+        { programSnapshotContract: contract },
+      ),
+    ).toThrow('Instance archive restorePolicy has unsupported key "unexpected".');
+    expect(() =>
+      parsePortableArchive(
+        {
+          ...archive,
+          program: {
+            ...archive.program,
+            schemaProvenance: {
+              kind: "program",
+              sourceSchemaHash:
+                "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+            },
+          },
+        },
+        { programSnapshotContract: contract },
+      ),
+    ).toThrow(`sourceSchemaHash must be "${sourceSchemaHash}".`);
+  });
+
+  it("formats Program records and media deterministically", () => {
     const archive = instanceArchive({
-      apps: [
-        appArchive({ app: archivedInstall("docs", "Docs") }),
-        appArchive({ app: archivedInstall("personal", "Personal") }),
-      ],
-    });
-
-    expect(parseInstanceArchive(archive)).toEqual(archive);
-    expect(parsePortableArchive(archive)).toEqual(archive);
-  });
-
-  it("parses reviewable instance control-plane records and rejects secrets", () => {
-    const archive = instanceArchive({
-      capabilities: [
-        "installed-app-registry",
-        "schema-owned-control-plane",
-        "app-store-snapshots",
-        "core-media-assets",
-      ],
-      controlPlane: controlPlaneSnapshot(),
-    });
-    expect(parseInstanceArchive(archive).controlPlane?.records).toBeDefined();
-    const parsed = parseInstanceArchive(archive, { packageResolver: archivePackageResolver });
-    const formatted = formatInstanceArchive(parsed, { packageResolver: archivePackageResolver });
-    const formattedArchive = JSON.parse(formatted) as InstanceArchive;
-
-    expect(parsed.controlPlane?.records.map((record) => record.entity)).toContain(
-      "deployment-config",
-    );
-    expect(formattedArchive.controlPlane?.records.map((record) => record.entity)).toContain(
-      "deployment-config",
-    );
-    expect(JSON.stringify(parsed.controlPlane)).not.toContain("rec_site");
-    expect(
-      parseInstanceArchive(formattedArchive, {
-        packageResolver: archivePackageResolver,
-      }).controlPlane?.records.map((record) => record.entity),
-    ).toContain("deployment-config");
-    expect(
-      formatInstanceArchive(
-        parseInstanceArchive(JSON.parse(formatted), {
-          packageResolver: archivePackageResolver,
-        }),
-        {
-          packageResolver: archivePackageResolver,
-        },
-      ),
-    ).toBe(formatted);
-    const controlPlane = archive.controlPlane;
-
-    if (!controlPlane) {
-      throw new Error("Expected control-plane archive records.");
-    }
-
-    const formattedObservedArchive = JSON.parse(
-      formatInstanceArchive(
-        {
-          ...archive,
-          controlPlane: {
-            ...controlPlane,
-            records: controlPlaneRecords({ observedCache: true }),
-          },
-        },
-        {
-          packageResolver: archivePackageResolver,
-        },
-      ),
-    ) as InstanceArchive;
-
-    expect(JSON.stringify(formattedObservedArchive.controlPlane?.records)).not.toContain(
-      "observedStatus",
-    );
-
-    expect(() =>
-      parseInstanceArchive(
-        {
-          ...archive,
-          controlPlane: {
-            ...controlPlane,
-            records: controlPlaneRecords({
-              accountId: "CF_API_TOKEN",
-            }),
-          },
-        },
-        { packageResolver: archivePackageResolver },
-      ),
-    ).toThrow("cannot store control-plane secret");
-    expect(() =>
-      parseInstanceArchive(
-        {
-          ...archive,
-          controlPlane: {
-            ...controlPlane,
-            records: controlPlaneRecords().map((record) =>
-              record.entity === "route" && record.id === "route:host:publicSite:www.example.com"
-                ? {
-                    ...record,
-                    values: {
-                      ...record.values,
-                      toUrl: "https://example.com/CF_API_TOKEN",
-                    },
-                  }
-                : record,
-            ),
-          },
-        },
-        { packageResolver: archivePackageResolver },
-      ),
-    ).toThrow(
-      'Instance archive controlPlane records record "route:host:publicSite:www.example.com" field "instance:route.toUrl" cannot store control-plane secret values.',
-    );
-    expect(
-      parseInstanceArchive({
-        ...archive,
-        controlPlane: {
-          ...controlPlane,
-          records: [
-            ...controlPlaneRecords(),
-            {
-              id: "legacy-install",
-              entity: "app-install",
-              values: { installId: "legacy-install" },
-              createdAt: now,
-              updatedAt: now,
-            },
-          ],
-        },
-      }).controlPlane?.records.some((record) => record.entity === "app-install"),
-    ).toBe(false);
-    expect(
-      parseInstanceArchive(
-        {
-          ...archive,
-          controlPlane: {
-            ...controlPlane,
-            records: controlPlaneRecords({ observedCache: true }),
-          },
-        },
-        { packageResolver: archivePackageResolver },
-      ).controlPlane?.records.find((record) => record.entity === "deployment-config")?.values,
-    ).not.toHaveProperty("observedStatus");
-  });
-
-  it("omits deployment execution history from instance control-plane source", () => {
-    const archive = instanceArchive({
-      capabilities: [
-        "installed-app-registry",
-        "schema-owned-control-plane",
-        "app-store-snapshots",
-        "core-media-assets",
-      ],
-      controlPlane: controlPlaneSnapshot({
-        records: [
-          ...controlPlaneRecords(),
-          {
-            id: "deploy-drift:instance.primary",
-            entity: "deploy-drift-report",
-            values: {
-              deployTarget: "instance.primary",
-              versionId: "version-1",
-              desiredStateHash: "hash-1",
-              revision: 1,
-              status: "in-sync",
-              actorKind: "runner",
-              actorId: "runner",
-              affectedLogicalIdsJson: "[]",
-              createCount: 0,
-              updateCount: 0,
-              deleteCount: 0,
-              reportedAt: now,
-            },
-            createdAt: now,
-            updatedAt: now,
-          },
-        ],
-      }),
-    });
-
-    expect(
-      parseInstanceArchive(archive).controlPlane?.records.some(
-        (record) => record.entity === "deploy-drift-report",
-      ),
-    ).toBe(false);
-  });
-
-  it("rejects unknown kinds, unsupported versions, and missing sections", () => {
-    expect(() => parsePortableArchive({ kind: "formless.futureArchive", version: 1 })).toThrow(
-      'Archive kind "formless.futureArchive" is unsupported.',
-    );
-
-    expect(() => parseAppArchive({ ...appArchive(), version: 3 })).toThrow(
-      "App archive version must be 2.",
-    );
-
-    expect(() => parseInstanceArchive({ ...instanceArchive(), kind: APP_ARCHIVE_KIND })).toThrow(
-      'Instance archive kind must be "formless.instanceArchive".',
-    );
-
-    const missingData = { ...appArchive() } as Record<string, unknown>;
-    delete missingData.data;
-
-    expect(() => parseAppArchive(missingData)).toThrow('App archive must include "data".');
-  });
-
-  it("rejects precise invalid archive fields", () => {
-    expect(() =>
-      parseAppArchive({
-        ...appArchive(),
-        capabilities: ["unknown-capability"],
-      }),
-    ).toThrow('App archive capabilities[0] "unknown-capability" is unsupported.');
-
-    expect(() =>
-      parseAppArchive({
-        ...appArchive(),
-        restorePolicy: { dryRun: true, installCollisions: "overwrite" },
-      }),
-    ).toThrow('App archive restorePolicy installCollisions must be "reject" or "replace".');
-
-    expect(() =>
-      parseAppArchive({
-        ...appArchive(),
-        media: {
-          objects: [{ ...mediaObject("hero"), byteSize: 1.5 }],
-        },
-      }),
-    ).toThrow("App archive media objects[0] byteSize must be a non-negative integer.");
-
-    expect(() =>
-      parseAppArchive({
-        ...appArchive(),
-        app: { ...archivedInstall("api", "API") },
-      }),
-    ).toThrow('App archive app installId is invalid: Install id "api" is reserved.');
-  });
-
-  it("formats app archives deterministically", () => {
-    const archive = appArchive({
-      capabilities: ["core-media-assets", "app-store-snapshots"],
-      data: {
-        ...storageSnapshot(),
-        records: [
-          {
-            ...activeSiteRecord("rec_site_settings_zeta"),
-            values: {
-              zeta: "forward",
-              label: "Zeta",
-              key: "zeta",
-              alpha: "forward",
-            },
-            createdAt: "2026-05-23T00:00:01.000Z",
-          },
-          {
-            ...activeSiteRecord("rec_site_settings_alpha"),
-            values: {
-              label: "Alpha",
-              key: "alpha",
-            },
-            createdAt: "2026-05-23T00:00:02.000Z",
-            deletedAt: "2026-05-23T00:00:03.000Z",
-          },
-        ],
-      },
       media: {
-        objects: [mediaObject("zeta"), mediaObject("alpha")],
+        objects: [imageObject("zeta"), imageObject("alpha")],
       },
     });
-    const formatted = formatAppArchive(archive);
-    const reparsed = parseAppArchive(JSON.parse(formatted));
+    const formatted = formatInstanceArchive(archive, { programSnapshotContract: contract });
+    const reparsed = parsePortableArchive(JSON.parse(formatted), {
+      programSnapshotContract: contract,
+    });
 
-    expect(formatAppArchive(reparsed)).toBe(formatted);
-    expect(formatted.endsWith("\n")).toBe(true);
-    expect(reparsed.capabilities).toEqual(["app-store-snapshots", "core-media-assets"]);
+    expect(formatInstanceArchive(reparsed, { programSnapshotContract: contract })).toBe(formatted);
+    expect(reparsed.program.snapshot.records.map((record) => record.id)).toEqual([
+      "note-a",
+      "note-z",
+    ]);
+    expect(Object.keys(reparsed.program.snapshot.records[0]!.values)).toEqual(["title", "done"]);
     expect(reparsed.media.objects.map((object) => object.storageKey)).toEqual([
       "media/images/alpha.png",
       "media/images/zeta.png",
     ]);
-    expect(
-      reparsed.data.kind === STORAGE_SNAPSHOT_KIND
-        ? reparsed.data.records.map((record) => record.id)
-        : [],
-    ).toEqual(["rec_site_settings_alpha", "rec_site_settings_zeta"]);
-    expect(Object.keys(reparsed.data.records[0]!.values)).toEqual(["key", "label"]);
-    expect(Object.keys(reparsed.data.records[1]!.values)).toEqual([
-      "key",
-      "label",
-      "alpha",
-      "zeta",
-    ]);
-  });
-
-  it("parses and formats public and private document asset metadata", () => {
-    const archive = appArchive({
-      media: {
-        objects: [documentMediaObject("issued", "public"), documentMediaObject("draft", "private")],
-      },
-    });
-    const reparsed = parseAppArchive(JSON.parse(formatAppArchive(archive)));
-
-    expect(reparsed.media.objects.map((object) => object.asset)).toEqual([
-      expect.objectContaining({
-        access: "private",
-        filename: "draft.pdf",
-        id: "draft.pdf",
-        kind: "document",
-      }),
-      expect.objectContaining({
-        access: "public",
-        filename: "issued.pdf",
-        id: "issued.pdf",
-        kind: "document",
-      }),
-    ]);
-  });
-
-  it("formats instance archives deterministically by install id", () => {
-    const archive = instanceArchive({
-      capabilities: ["core-media-assets", "installed-app-registry"],
-      apps: [
-        appArchive({ app: archivedInstall("zeta", "Zeta") }),
-        appArchive({ app: archivedInstall("alpha", "Alpha") }),
-      ],
-    });
-    const formatted = formatInstanceArchive(archive);
-    const reparsed = parseInstanceArchive(JSON.parse(formatted));
-
-    expect(formatInstanceArchive(reparsed)).toBe(formatted);
-    expect(reparsed.capabilities).toEqual(["installed-app-registry", "core-media-assets"]);
-    expect(reparsed.apps.map((app) => app.app.installId)).toEqual(["alpha", "zeta"]);
   });
 });
 
@@ -523,203 +164,66 @@ function instanceArchive(overrides: Partial<InstanceArchive> = {}): InstanceArch
     kind: INSTANCE_ARCHIVE_KIND,
     version: ARCHIVE_VERSION,
     exportedAt: now,
-    capabilities: ["installed-app-registry", "app-store-snapshots", "core-media-assets"],
-    restorePolicy: { dryRun: true, installCollisions: "reject" },
+    capabilities: ["core-media-assets"],
+    restorePolicy: { dryRun: true },
+    program: {
+      schemaProvenance: { kind: "program", sourceSchemaHash },
+      snapshot: storageSnapshot(),
+    },
     media: { objects: [] },
-    apps: [appArchive()],
     ...overrides,
   };
 }
 
-function appArchive(overrides: Partial<AppArchive> = {}): AppArchive {
-  const app = overrides.app ?? archivedInstall("personal", "Personal");
-
-  return {
-    kind: APP_ARCHIVE_KIND,
-    version: ARCHIVE_VERSION,
-    exportedAt: now,
-    capabilities: ["app-store-snapshots", "core-media-assets"],
-    restorePolicy: { dryRun: true, installCollisions: "reject" },
-    app,
-    data:
-      overrides.data ??
-      storageSnapshot({ schemaKey: app.sourceSchemaKey, storageIdentity: `app:${app.installId}` }),
-    media: { objects: [mediaObject("hero")] },
-    ...overrides,
-  };
-}
-
-function archivedInstall(installId: string, label: string): AppArchive["app"] {
-  return {
-    installId,
-    packageAppKey: "site",
-    packageRevision: 1,
-    sourceSchemaKey: "site",
-    sourceSchemaHash: siteSourceSchemaHash,
-    label,
-    status: "installed",
-    createdAt: "2026-05-23T00:00:00.000Z",
-    updatedAt: "2026-05-23T00:01:00.000Z",
-  };
-}
-function controlPlaneRecords(
-  options: {
-    accountId?: string;
-    observedCache?: boolean;
-  } = {},
-): StoredRecord[] {
-  return [
-    {
-      id: "route:site:public-site",
-      entity: "route",
-      values: {
-        enabled: true,
-        matchPath: "/pages",
-        matchPrefix: "/pages/",
-        kind: "mount",
-        targetProfile: "public-site",
-        surface: "public-site",
-      },
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
-      id: "route:host:publicSite:www.example.com",
-      entity: "route",
-      values: {
-        enabled: true,
-        matchHost: "www.example.com",
-        matchPath: "/",
-        matchPrefix: "/",
-        kind: "mount",
-        targetProfile: "public-site",
-        surface: "public-site",
-      },
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
-      id: "instance.primary",
-      entity: "deployment-config",
-      values: {
-        targetId: "instance.primary",
-        targetKind: "instance",
-        label: "instance.primary",
-        enabled: true,
-        targetUrl: "https://personal.dpeek.workers.dev",
-        providerFamily: "cloudflare",
-        ...(options.accountId === undefined ? {} : { accountId: options.accountId }),
-        ...(options.observedCache
-          ? {
-              observedAt: now,
-              observedDesiredStateHash:
-                "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-              observedError: "none",
-              observedRunnerId: "local-gateway",
-              observedStatus: "deployed",
-              observedSummary: "Deployed revision 2",
-            }
-          : {}),
-      },
-      createdAt: now,
-      updatedAt: now,
-    },
-  ];
-}
-
-function storageSnapshot(overrides: Partial<StorageSnapshot> = {}): StorageSnapshot {
+function storageSnapshot(): StorageSnapshot {
   return {
     kind: STORAGE_SNAPSHOT_KIND,
     version: STORAGE_SNAPSHOT_VERSION,
-    storageIdentity: "app:personal",
-    schemaKey: "site",
+    storageIdentity: "instance:control-plane",
+    schemaKey: "formless-program",
     exportedAt: now,
     schemaUpdatedAt: now,
-    sourceCursor: 7,
-    schema: siteSourceSchema,
-    records: [activeSiteRecord("rec_site_settings_primary")],
-    ...overrides,
+    sourceCursor: 2,
+    schema,
+    records: [
+      {
+        id: "note-z",
+        entity: "note",
+        values: { done: false, title: "Zeta" },
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: "note-a",
+        entity: "note",
+        values: { done: true, title: "Alpha" },
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
   };
 }
 
-function controlPlaneSnapshot(overrides: Partial<StorageSnapshot> = {}): StorageSnapshot {
-  return {
-    kind: STORAGE_SNAPSHOT_KIND,
-    version: STORAGE_SNAPSHOT_VERSION,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-    schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-    exportedAt: now,
-    schemaUpdatedAt: now,
-    sourceCursor: controlPlaneRecords().length,
-    schema: instanceControlPlaneSchema,
-    records: controlPlaneRecords(),
-    ...overrides,
-  };
-}
-
-function activeSiteRecord(id: string, values: StoredRecord["values"] = {}): StoredRecord {
-  const createdAt = id.endsWith("alpha") ? "2026-05-23T00:00:01.000Z" : "2026-05-23T00:00:02.000Z";
-
-  return {
-    id,
-    entity: "site",
-    values: {
-      key: "primary",
-      label: "Primary Site",
-      ...values,
-    },
-    createdAt,
-    updatedAt: createdAt,
-  };
-}
-
-function mediaObject(name: string): AppArchiveMediaObject {
+function imageObject(name: string) {
   const storageKey = `media/images/${name}.png`;
   const deliveryHref = `/api/formless/media/${storageKey}`;
 
   return {
-    storageKey,
-    archivePath: `media/personal/media/images/${name}.png`,
+    archivePath: `media/program/${storageKey}`,
     asset: {
-      byteSize: name.length,
+      byteSize: 4,
       contentType: "image/png",
       deliveryHref,
       id: `${name}.png`,
-      kind: "image",
-      label: `${name}.png`,
+      kind: "image" as const,
+      label: name,
       provider: "r2",
-      status: "ready",
+      status: "ready" as const,
       storageKey,
     },
+    byteSize: 4,
     contentType: "image/png",
-    byteSize: name.length,
     deliveryHref,
-  };
-}
-
-function documentMediaObject(name: string, access: "public" | "private"): AppArchiveMediaObject {
-  const id = `${name}.pdf`;
-  const storageKey = `media/program/documents/${id}`;
-  const deliveryHref = `/api/formless/program/media/documents/${id}`;
-
-  return {
     storageKey,
-    archivePath: `media/personal/${storageKey}`,
-    asset: {
-      access,
-      byteSize: name.length,
-      contentType: "application/pdf",
-      deliveryHref,
-      filename: id,
-      id,
-      kind: "document",
-      label: id,
-      provider: "r2",
-      status: "ready",
-      storageKey,
-    },
-    contentType: "application/pdf",
-    byteSize: name.length,
-    deliveryHref,
   };
 }

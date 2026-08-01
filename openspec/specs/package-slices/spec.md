@@ -300,7 +300,7 @@ runtime package resolution.
 
 #### Scenario: Keep authoring code outside runtime resolution
 
-- GIVEN Worker, workspace, install, archive, upgrade, or deploy code resolves an
+- GIVEN Worker, workspace, package, upgrade, or deploy code resolves an
   app package schema
 - WHEN it loads the package source
 - THEN it consumes the exported `schema.json` artifact
@@ -889,8 +889,8 @@ execution, or provider state.
 ### Requirement: Archive Package Slice
 
 The system SHALL provide an Archive package slice under `lib/archive/` for
-portable archive contracts, parsers, restore planning, and local
-archive filesystem adapters.
+Program instance archive contracts, parsers, restore planning, and local archive
+filesystem adapters.
 
 #### Scenario: Archive package scaffold
 
@@ -905,8 +905,8 @@ archive filesystem adapters.
 
 #### Scenario: Archive package exports
 
-- GIVEN CLI runtime, Worker restore APIs, Workspace operations, upgrade
-  planning, or tests need portable archive behavior
+- GIVEN CLI runtime, Worker restore APIs, Workspace operations, or tests need
+  Program instance archive behavior
 - WHEN they import archive contracts, parsers, restore planning,
   or local archive file adapters
 - THEN they import from `@dpeek/formless-archive` or
@@ -917,7 +917,7 @@ archive filesystem adapters.
 ### Requirement: Archive Package Non-Ownership
 
 The Archive package SHALL own reusable portable archive contracts and pure
-helpers without owning runtime storage, app records, media storage, provider
+helpers without owning runtime storage, Program records, media storage, provider
 execution, workspace operation execution, or CLI command policy.
 
 #### Scenario: Package owns archive contracts
@@ -931,10 +931,12 @@ execution, workspace operation execution, or CLI command policy.
 - AND app schema language behavior comes from the Schema package
 - AND core media contracts come from the Media package
 - AND local workspace source/state behavior comes from the Workspace package
+- AND no installed-app metadata or package resolver contract is required to
+  parse or plan the current Program archive
 
 #### Scenario: Package does not own archive execution
 
-- GIVEN archive export, archive restore apply, app install mutation, Authority
+- GIVEN archive export, archive restore apply, Authority
   reads or writes, Durable Object storage, browser replica state, media object
   mutation, provider mutation, workspace save/check/pull/push/deploy, or CLI
   command policy is needed
@@ -1206,7 +1208,7 @@ workspace operation contracts, and local Node filesystem adapters.
 
 The Workspace package SHALL own reusable Formless workspace source, state, and
 operation contracts without owning CLI command policy, gateway transport,
-runtime storage, provider execution, or app records.
+runtime storage, provider execution, or Program records.
 
 #### Scenario: Package owns workspace contracts and local adapters
 
@@ -1227,6 +1229,8 @@ runtime storage, provider execution, or app records.
 - AND package consumers import Workspace behavior only from
   `@dpeek/formless-workspace` or `@dpeek/formless-workspace/node`, never from
   source-tree modules or package internals
+- AND the local state adapter owns one Program state path and referenced media
+  payload paths without per-install state roots or package-app provenance
 
 #### Scenario: Package does not own runtime execution
 

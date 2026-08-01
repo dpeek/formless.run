@@ -7,20 +7,14 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import rawCrmAppPackageManifest from "@dpeek/formless-crm-app/formless.app.json";
 import {
   INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID,
-  INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
   INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  canonicalizeInstanceControlPlaneStorageSnapshot,
-  formatInstanceControlPlaneBoundaryEntityName,
-  instanceControlPlaneRecordSourceEntityName,
   instanceControlPlaneSchema,
-  instanceControlPlaneSchemaProvenance,
-  parseInstanceControlPlaneStorageSnapshot,
 } from "@dpeek/formless-instance-control-plane";
-import { parseAppSchema } from "@dpeek/formless-schema";
 
 import {
   STORAGE_SNAPSHOT_KIND,
   STORAGE_SNAPSHOT_VERSION,
+  parseStorageSnapshot,
   type StorageSnapshot,
   type StoredRecord,
 } from "@dpeek/formless-storage";
@@ -62,8 +56,7 @@ import {
   parseInstanceWorkspaceLocalDevSecretState,
   parseInstanceWorkspaceSecretState,
   readInstanceWorkspaceAutoSaveState,
-  readInstanceWorkspaceAppStorageSnapshot,
-  readInstanceWorkspaceControlPlaneStorageSnapshot as readWorkspaceControlPlaneSnapshot,
+  readInstanceWorkspaceProgramStorageSnapshot as readWorkspaceProgramSnapshot,
   readWorkspaceOperationState,
   readInstanceWorkspaceLocalDevSecretState,
   readInstanceWorkspaceMediaFiles,
@@ -74,60 +67,44 @@ import {
   updateWorkspaceOperationState,
   workspaceOperationStatePath,
   workspaceOperationStateRoot,
-  writeInstanceWorkspaceAppStorageSnapshot,
   writeInstanceWorkspaceAutoSaveState,
-  writeInstanceWorkspaceControlPlaneStorageSnapshot as writeWorkspaceControlPlaneSnapshot,
+  writeInstanceWorkspaceProgramStorageSnapshot as writeWorkspaceProgramSnapshot,
   writeInstanceWorkspaceLocalDevSecretState,
   writeInstanceWorkspaceSecretState,
 } from "./node.ts";
 
-function controlPlaneSnapshotContract() {
+function programSnapshotContract() {
   return {
-    canonicalize: (
-      snapshot: StorageSnapshot,
-      input: { context?: string; sourceLabel?: string } = {},
-    ) =>
-      canonicalizeInstanceControlPlaneStorageSnapshot(snapshot, {
-        ...input,
+    canonicalize: (snapshot: StorageSnapshot) =>
+      parseStorageSnapshot(snapshot, {
+        schemaKey: "formless-program",
+        storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
       }),
-    formatRecordEntity: (entity: string) => {
-      const sourceEntity = instanceControlPlaneRecordSourceEntityName(entity);
-      return sourceEntity === undefined
-        ? entity
-        : formatInstanceControlPlaneBoundaryEntityName(sourceEntity);
-    },
-    normalizeRecordEntity: (entity: string) =>
-      instanceControlPlaneRecordSourceEntityName(entity) ?? entity,
-    parse: (context: string, value: unknown) =>
-      parseInstanceControlPlaneStorageSnapshot(context, value),
     schema: instanceControlPlaneSchema,
-    schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-    schemaProvenance: instanceControlPlaneSchemaProvenance,
+    schemaKey: "formless-program",
+    schemaProvenance: {
+      kind: "program" as const,
+      sourceSchemaHash: `sha256:${"a".repeat(64)}` as const,
+    },
     storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
   };
 }
 
-function readInstanceWorkspaceControlPlaneStorageSnapshot(
-  input: Omit<
-    Parameters<typeof readWorkspaceControlPlaneSnapshot>[0],
-    "controlPlaneSnapshotContract"
-  >,
+function readInstanceWorkspaceProgramStorageSnapshot(
+  input: Omit<Parameters<typeof readWorkspaceProgramSnapshot>[0], "programSnapshotContract">,
 ) {
-  return readWorkspaceControlPlaneSnapshot({
+  return readWorkspaceProgramSnapshot({
     ...input,
-    controlPlaneSnapshotContract: controlPlaneSnapshotContract(),
+    programSnapshotContract: programSnapshotContract(),
   });
 }
 
-function writeInstanceWorkspaceControlPlaneStorageSnapshot(
-  input: Omit<
-    Parameters<typeof writeWorkspaceControlPlaneSnapshot>[0],
-    "controlPlaneSnapshotContract"
-  >,
+function writeInstanceWorkspaceProgramStorageSnapshot(
+  input: Omit<Parameters<typeof writeWorkspaceProgramSnapshot>[0], "programSnapshotContract">,
 ) {
-  return writeWorkspaceControlPlaneSnapshot({
+  return writeWorkspaceProgramSnapshot({
     ...input,
-    controlPlaneSnapshotContract: controlPlaneSnapshotContract(),
+    programSnapshotContract: programSnapshotContract(),
   });
 }
 
@@ -557,7 +534,7 @@ describe("workspace app package source resolver", () => {
 });
 
 describe("workspace record state node files", () => {
-  it("writes and reads control-plane record state without embedding schema source", async () => {
+  it("writes and reads Program record state without embedding schema source", async () => {
     const workspaceRoot = await makeTempDir();
     const manifest = resolveFormlessConfig({ name: "personal-sites" });
     const records: StoredRecord[] = [
@@ -604,7 +581,7 @@ describe("workspace record state node files", () => {
       kind: STORAGE_SNAPSHOT_KIND,
       version: STORAGE_SNAPSHOT_VERSION,
       storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-      schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
+      schemaKey: "formless-program",
       exportedAt: "2026-06-18T00:00:00.000Z",
       schemaUpdatedAt: "2026-06-18T00:00:01.000Z",
       sourceCursor: records.length,
@@ -612,7 +589,7 @@ describe("workspace record state node files", () => {
       records,
     };
 
-    await writeInstanceWorkspaceControlPlaneStorageSnapshot({
+    await writeInstanceWorkspaceProgramStorageSnapshot({
       manifest,
       snapshot,
       workspaceRoot,
@@ -624,14 +601,14 @@ describe("workspace record state node files", () => {
     expect(file.kind).toBe(WORKSPACE_RECORD_STATE_FILE_KIND);
     expect(file.storageIdentity).toBe(INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY);
     expect(file.schema).toBeUndefined();
-    expect(file.schemaProvenance).toEqual(instanceControlPlaneSchemaProvenance);
+    expect(file.schemaProvenance).toEqual(programSnapshotContract().schemaProvenance);
     expect((file.records as StoredRecord[]).map((record) => record.entity)).toEqual([
-      "instance:instance-settings",
-      "instance:email-domain",
-      "instance:email-sender",
+      "instance-settings",
+      "email-domain",
+      "email-sender",
     ]);
     await expect(
-      readInstanceWorkspaceControlPlaneStorageSnapshot({ manifest, workspaceRoot }),
+      readInstanceWorkspaceProgramStorageSnapshot({ manifest, workspaceRoot }),
     ).resolves.toMatchObject({
       records: [
         { entity: "instance-settings", id: "settings:instance" },
@@ -643,14 +620,14 @@ describe("workspace record state node files", () => {
     });
   });
 
-  it("rejects control-plane record state when provenance does not match the resolved schema", async () => {
+  it("rejects Program record state when provenance does not match the resolved schema", async () => {
     const workspaceRoot = await makeTempDir();
     const manifest = resolveFormlessConfig({ name: "personal-sites" });
     const snapshot: StorageSnapshot = {
       kind: STORAGE_SNAPSHOT_KIND,
       version: STORAGE_SNAPSHOT_VERSION,
       storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-      schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
+      schemaKey: "formless-program",
       exportedAt: "2026-06-18T00:00:00.000Z",
       schemaUpdatedAt: "2026-06-18T00:00:01.000Z",
       sourceCursor: 0,
@@ -658,7 +635,7 @@ describe("workspace record state node files", () => {
       records: [],
     };
 
-    await writeInstanceWorkspaceControlPlaneStorageSnapshot({
+    await writeInstanceWorkspaceProgramStorageSnapshot({
       manifest,
       snapshot,
       workspaceRoot,
@@ -668,35 +645,22 @@ describe("workspace record state node files", () => {
     const file = JSON.parse(await readFile(filePath, "utf8")) as Record<string, unknown>;
 
     file.schemaProvenance = {
-      kind: "instance-control-plane",
+      kind: "program",
       sourceSchemaHash: `sha256:${"0".repeat(64)}`,
     };
     await writeFile(filePath, `${JSON.stringify(file, null, 2)}\n`);
 
     await expect(
-      readInstanceWorkspaceControlPlaneStorageSnapshot({ manifest, workspaceRoot }),
+      readInstanceWorkspaceProgramStorageSnapshot({ manifest, workspaceRoot }),
     ).rejects.toThrow(
       "Workspace instance state state/instance.json schemaProvenance does not match resolved runtime source.",
     );
   });
 
-  it("validates Program-native public Site route record state without package resolution", async () => {
+  it("validates Program-native public Site route record state", async () => {
     const workspaceRoot = await makeTempDir();
     const manifest = resolveFormlessConfig({ name: "personal-sites" });
     const records: StoredRecord[] = [
-      {
-        id: "labs",
-        entity: "app-install",
-        values: {
-          installId: "labs",
-          packageAppKey: "private-labs",
-          label: "Private Labs",
-          status: "installed",
-          storageIdentity: "app:labs",
-        },
-        createdAt: "2026-06-18T00:00:00.000Z",
-        updatedAt: "2026-06-18T00:00:00.000Z",
-      },
       {
         id: "route:labs:public-site",
         entity: "route",
@@ -716,7 +680,7 @@ describe("workspace record state node files", () => {
       kind: STORAGE_SNAPSHOT_KIND,
       version: STORAGE_SNAPSHOT_VERSION,
       storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-      schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
+      schemaKey: "formless-program",
       exportedAt: "2026-06-18T00:00:00.000Z",
       schemaUpdatedAt: "2026-06-18T00:00:01.000Z",
       sourceCursor: records.length,
@@ -724,14 +688,14 @@ describe("workspace record state node files", () => {
       records,
     };
 
-    await writeInstanceWorkspaceControlPlaneStorageSnapshot({
+    await writeInstanceWorkspaceProgramStorageSnapshot({
       manifest,
       snapshot,
       workspaceRoot,
     });
 
     await expect(
-      readInstanceWorkspaceControlPlaneStorageSnapshot({
+      readInstanceWorkspaceProgramStorageSnapshot({
         manifest,
         workspaceRoot,
       }),
@@ -743,66 +707,6 @@ describe("workspace record state node files", () => {
         },
       ],
     });
-  });
-
-  it("writes and reads app record state with package schema provenance", async () => {
-    const workspaceRoot = await makeTempDir();
-    const manifest = resolveFormlessConfig({ name: "personal-sites" });
-    const schemaProvenance = {
-      kind: "package-app",
-      packageAppKey: "tasks",
-      packageRevision: 7,
-      sourceSchemaHash: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-    } as const;
-    const records: StoredRecord[] = [
-      {
-        ...workspaceFixtureTaskRecord("rec_task_saved", "Persist record state", false),
-        values: {
-          done: false,
-          title: "Persist record state",
-        },
-        updatedAt: "2026-06-01T00:00:00.000Z",
-      },
-    ];
-    const sourceSchema = parseAppSchema(workspaceFixtureTaskSourceSchema);
-    const snapshot: StorageSnapshot = {
-      kind: STORAGE_SNAPSHOT_KIND,
-      version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: "app:tasks",
-      schemaKey: "tasks",
-      exportedAt: "2026-06-18T00:00:00.000Z",
-      schemaUpdatedAt: "2026-06-18T00:00:01.000Z",
-      sourceCursor: 1,
-      schema: sourceSchema,
-      records,
-    };
-
-    await writeInstanceWorkspaceAppStorageSnapshot({
-      installId: "tasks",
-      manifest,
-      schemaProvenance,
-      snapshot,
-      workspaceRoot,
-    });
-
-    const fileText = await readFile(path.join(workspaceRoot, "state/apps/tasks.json"), "utf8");
-    const file = JSON.parse(fileText) as Record<string, unknown>;
-
-    expect(file.kind).toBe(WORKSPACE_RECORD_STATE_FILE_KIND);
-    expect(file.storageIdentity).toBe("app:tasks");
-    expect(file.schema).toBeUndefined();
-    expect(file.schemaProvenance).toEqual(schemaProvenance);
-    expect(Object.keys((file.records as StoredRecord[])[0]!.values)).toEqual(["title", "done"]);
-    await expect(
-      readInstanceWorkspaceAppStorageSnapshot({
-        installId: "tasks",
-        manifest,
-        schemaKey: "tasks",
-        schemaProvenance,
-        sourceSchema,
-        workspaceRoot,
-      }),
-    ).resolves.toEqual(snapshot);
   });
 });
 
@@ -1104,15 +1008,6 @@ function workspaceAppPackageManifestFixture(
 async function writeJsonFile(filePath: string, value: unknown): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-function workspaceFixtureTaskRecord(id: string, title: string, done: boolean) {
-  return {
-    id,
-    entity: "task",
-    values: { done, title },
-    createdAt: "2026-06-01T00:00:00.000Z",
-  };
 }
 
 function timestampSequence(...timestamps: string[]): () => string {

@@ -250,7 +250,6 @@ function summarizeInitResult(
   return {
     details: {
       state: {
-        apps: `${result.config.state.root}/apps`,
         instance: `${result.config.state.root}/instance.json`,
         media: result.config.media.root,
       },
@@ -300,16 +299,11 @@ function summarizeStatusResult(
 function summarizeSaveResult(result: SaveLocalFormlessWorkspaceResult): WorkspaceOperationResult {
   return {
     details: {
-      appState: result.appState.map((state) => ({
-        installId: state.installId,
-        mediaCount: state.mediaCount,
-        recordCount: state.recordCount,
-      })),
       source: result.source,
+      statePath: result.instanceState.statePath,
     },
     summary: {
       fields: {
-        appCount: result.instanceState.appCount,
         mediaCount: result.instanceState.mediaCount,
         mode: result.mode,
         recordCount: result.instanceState.recordCount,

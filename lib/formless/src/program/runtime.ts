@@ -3,7 +3,6 @@ import {
   reviewableIdentityControlPlaneRecords,
   validateIdentityControlPlaneRecords,
 } from "@dpeek/formless-identity-control-plane";
-import type { AppPackageResolver } from "@dpeek/formless-installed-apps";
 import {
   crmOwnedProgramEntityIds,
   reviewableCrmRecords,
@@ -42,7 +41,7 @@ import {
   type StoredRecord,
 } from "@dpeek/formless-storage";
 import rawFormlessProgramSchema from "./schema.json";
-import type { WorkspaceControlPlaneSnapshotContract } from "@dpeek/formless-workspace/node";
+import type { WorkspaceProgramSnapshotContract } from "@dpeek/formless-workspace/node";
 import {
   FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
   FORMLESS_PROGRAM_SCHEMA_KEY,
@@ -143,30 +142,32 @@ export function resolveFormlessProgramScreenRouteTarget(
 
 export type FormlessProgramValidationOptions = {
   artifact?: FormlessProgramArtifact;
-  packageResolver?: AppPackageResolver;
   schema?: AppSchema;
 };
 
 export function formlessProgramArchiveSnapshotContract(
   options: FormlessProgramValidationOptions = {},
 ) {
+  const artifact =
+    options.artifact ?? (options.schema === undefined ? formlessProgramArtifact : undefined);
+
   return {
     canonicalize: (snapshot: StorageSnapshot) =>
       canonicalizeFormlessProgramStorageSnapshot(snapshot, options),
     parse: (context: string, value: unknown) =>
       parseFormlessProgramStorageSnapshot(context, value, options),
+    ...(artifact === undefined ? {} : { schemaProvenance: artifact.schemaProvenance }),
   };
 }
 
 export function formlessProgramWorkspaceSnapshotContract(
   options: FormlessProgramValidationOptions = {},
-): WorkspaceControlPlaneSnapshotContract {
+): WorkspaceProgramSnapshotContract {
   const artifact = options.artifact ?? formlessProgramArtifact;
   const schema = parseFormlessProgramSchemaArtifact(artifact.sourceSchema);
 
   return {
     canonicalize: (snapshot) => canonicalizeFormlessProgramStorageSnapshot(snapshot, options),
-    parse: (context, value) => parseFormlessProgramStorageSnapshot(context, value, options),
     schema,
     schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
     schemaProvenance: artifact.schemaProvenance,

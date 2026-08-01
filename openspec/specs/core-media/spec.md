@@ -188,7 +188,7 @@ capabilities.
 - THEN the archive declares the `core-media-assets` capability
 - AND referenced media files are included at manifest archive paths
 - AND Program-native Site image media is represented in the instance archive's
-  Program media manifest rather than an installed Site app archive
+  Program media manifest
 - AND document metadata preserves filename, MIME type, byte size, and access
   policy without app-install ownership
 

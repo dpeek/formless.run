@@ -9,7 +9,6 @@ import {
   resolveFormlessConfig,
   type ResolvedFormlessConfig,
 } from "@dpeek/formless-workspace";
-import { readWorkspaceConfig } from "./instance-workspace-foundation.ts";
 import { formatTestFormlessConfigModule } from "./instance-workspace-config-test.ts";
 import { SITE_PUBLIC_RENDERER_RUNTIME_EXTENSION_KEY } from "../shared/workspace-runtime-extensions.ts";
 
@@ -20,7 +19,6 @@ import {
 } from "../shared/deploy-metadata.ts";
 import { listInstallableAppPackages, packageAppFactsForKey } from "@dpeek/formless-installed-apps";
 import { rootKnownPackageFactsResolver } from "../shared/app-packages.ts";
-import { testSiteRecords } from "../test/site-records.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import { formlessProgramSchema } from "../program/runtime.ts";
@@ -33,9 +31,8 @@ import {
   listWorkspaceOperationStates,
   readWorkspaceOperationState,
   updateWorkspaceOperationState,
-  writeInstanceWorkspaceAppStorageSnapshot,
   workspaceOperationStatePath,
-  writeInstanceWorkspaceControlPlaneStorageSnapshot,
+  writeInstanceWorkspaceProgramStorageSnapshot,
 } from "../program/workspace.ts";
 import { siteSourceSchema } from "../test/schema-apps.ts";
 import {
@@ -327,7 +324,6 @@ describe("Formless workspace operations", () => {
       status: "succeeded",
       summary: {
         fields: {
-          appCount: 0,
           mediaCount: 0,
           mode: "check",
           recordCount: 0,
@@ -598,7 +594,6 @@ describe("Formless workspace operations", () => {
 
     await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot);
-    await writeWorkspaceAppStorageSnapshot(workspaceRoot);
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
     await writeFile(
       path.join(workspaceRoot, ".formless/instance.env"),
@@ -668,7 +663,6 @@ describe("Formless workspace operations", () => {
 
     await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot, { credentialRef });
-    await writeWorkspaceAppStorageSnapshot(workspaceRoot, "david", testSiteRecords.slice(0, 1));
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
     await writeFile(
       path.join(workspaceRoot, ".formless/instance.env"),
@@ -842,7 +836,6 @@ describe("Formless workspace operations", () => {
 
     await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot, { credentialRef: "alchemy-profile:team" });
-    await writeWorkspaceAppStorageSnapshot(workspaceRoot);
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
     await writeFile(
       path.join(workspaceRoot, ".formless/instance.env"),
@@ -1290,39 +1283,13 @@ async function writeDeployStorageSnapshot(
 ) {
   const manifest = resolveFormlessConfig({ name: "personal-sites" });
 
-  await writeInstanceWorkspaceControlPlaneStorageSnapshot({
+  await writeInstanceWorkspaceProgramStorageSnapshot({
     manifest,
-    packageResolver: privateSitePackageResolver,
     snapshot: controlPlaneSnapshot(deployControlPlaneRecords(options)),
     workspaceRoot,
   });
 }
 
-async function writeWorkspaceAppStorageSnapshot(
-  workspaceRoot: string,
-  installId: string = "david",
-  records: StoredRecord[] = [],
-) {
-  const manifest = (await readWorkspaceConfig(workspaceRoot)).config;
-  const facts = packageAppFactsForKey(privateSitePackageAppKey, privateSitePackageResolver);
-
-  if (!facts) {
-    throw new Error("Missing bundled package facts for site.");
-  }
-
-  await writeInstanceWorkspaceAppStorageSnapshot({
-    installId,
-    manifest,
-    schemaProvenance: {
-      kind: "package-app",
-      packageAppKey: privateSitePackageAppKey,
-      packageRevision: facts.packageRevision,
-      sourceSchemaHash: facts.sourceSchemaHash,
-    },
-    snapshot: snapshot(records, `app:${installId}`),
-    workspaceRoot,
-  });
-}
 function authorityExportFetch(
   installs: ReturnType<typeof installedSite>[],
   dataByInstall: Record<
@@ -1639,11 +1606,8 @@ function deploymentDesiredStateRef() {
 
 function restoreSummary() {
   return {
-    appCount: 1,
-    createdInstalls: [],
-    mediaCountsByApp: { david: 0 },
-    recordCountsByApp: { david: { total: 0 } },
-    replacedInstalls: ["david"],
+    mediaCount: 0,
+    recordCounts: { active: 0, byEntity: {}, tombstoned: 0, total: 0 },
   };
 }
 

@@ -1,13 +1,12 @@
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { InstanceWorkspaceTarget as FormlessInstanceWorkspaceTarget } from "@dpeek/formless-workspace";
-import { readInstanceWorkspaceControlPlaneStorageSnapshot } from "../program/workspace.ts";
+import { readInstanceWorkspaceProgramStorageSnapshot } from "../program/workspace.ts";
 import {
   planCloudflareWorkerDomainPreflight,
   type CloudflareDomainClient,
   type CloudflareDomainPreflightPlan,
   type CloudflareDomainPreflightPolicy,
 } from "./cloudflare-domain-client.ts";
-import { createActiveWorkspaceAppPackages } from "./instance-workspace-foundation.ts";
 import { selectLocalWorkspaceDeploymentSource } from "./instance-provider-credentials.ts";
 import {
   formlessCliSelectWorkspaceWorkerName,
@@ -64,10 +63,8 @@ export async function planFormlessInstanceWorkspaceDomains(
     { env: dependencies.env },
   );
   const { adminToken, config, selectedTarget, workspaceRoot } = context;
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
-  const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
+  const controlPlane = await readInstanceWorkspaceProgramStorageSnapshot({
     manifest: config,
-    packageResolver: activePackages.resolver,
     workspaceRoot,
   });
   const deploymentSource = selectLocalWorkspaceDeploymentSource(controlPlane, input.targetAlias, {

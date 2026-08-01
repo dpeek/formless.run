@@ -20,7 +20,7 @@ import {
   ensureInstanceWorkspaceLocalDevSecretState as ensureFormlessInstanceWorkspaceLocalDevSecretState,
   ensureInstanceWorkspaceSecretStateIgnored as ensureFormlessInstanceWorkspaceSecretStateIgnored,
   replaceInstanceWorkspaceMediaFiles,
-  writeInstanceWorkspaceControlPlaneStorageSnapshot,
+  writeInstanceWorkspaceProgramStorageSnapshot,
   type InstanceWorkspaceLocalDevSecretState as FormlessInstanceWorkspaceLocalDevSecretState,
 } from "../program/workspace.ts";
 import {
@@ -45,7 +45,6 @@ import {
   runtimeWorkspaceAppPackagesEnvValue,
   workspaceConfigPath,
   workspaceRootForInput,
-  type ActiveWorkspaceAppPackages,
 } from "./instance-workspace-foundation.ts";
 import {
   workspaceLocalRestoreArchiveSource,
@@ -371,7 +370,6 @@ export async function runFormlessInstanceWorkspaceDev(
     await bootstrapWorkspaceLocalInstance(
       {
         adminToken: localDevSecrets.adminToken,
-        activePackages,
         config,
         source,
         workspaceRoot,
@@ -495,7 +493,6 @@ function randomWorkspaceGatewayToken(): string {
 
 type WorkspaceLocalBootstrapResult =
   | {
-      appCount: number;
       mediaCount: number;
       recordCount: number;
       sourceKind: "storage state";
@@ -508,7 +505,6 @@ type WorkspaceLocalBootstrapResult =
 async function bootstrapWorkspaceLocalInstance(
   input: {
     adminToken: string;
-    activePackages: ActiveWorkspaceAppPackages;
     config: FormlessResolvedConfig;
     source: string;
     workspaceRoot: string;
@@ -519,7 +515,6 @@ async function bootstrapWorkspaceLocalInstance(
 
   try {
     const sourceArchive = await workspaceLocalRestoreArchiveSource({
-      activePackages: input.activePackages,
       exportedAt: dependencies.now(),
       config: input.config,
       tempRoot,
@@ -535,8 +530,6 @@ async function bootstrapWorkspaceLocalInstance(
         adminToken: input.adminToken,
         apply: true,
         archiveDir: sourceArchive.archiveRoot,
-        packageResolver: input.activePackages.resolver,
-        replace: false,
         target: input.source,
       },
       {
@@ -554,7 +547,6 @@ async function bootstrapWorkspaceLocalInstance(
     }
 
     return {
-      appCount: sourceArchive.appCount,
       mediaCount: sourceArchive.mediaCount,
       recordCount: sourceArchive.recordCount,
       sourceKind: sourceArchive.sourceKind,
@@ -583,21 +575,14 @@ async function writeInitialInstanceWorkspaceState(input: {
             targetUrl: input.targetUrl,
           }),
         ];
-  const archiveControlPlane =
-    input.archive?.kind === INSTANCE_ARCHIVE_KIND ? input.archive.controlPlane : undefined;
+  const archiveControlPlane = input.archive?.program.snapshot;
   const archiveRecords = archiveControlPlane?.records ?? [];
   const controlPlaneRecords =
     archiveRecords.length === 0 ? records : [...records, ...archiveRecords];
 
   if (controlPlaneRecords.length > 0) {
-    const activePackages = await createActiveWorkspaceAppPackages(
-      input.workspaceRoot,
-      input.config,
-    );
-
-    await writeInstanceWorkspaceControlPlaneStorageSnapshot({
+    await writeInstanceWorkspaceProgramStorageSnapshot({
       manifest: input.config,
-      packageResolver: activePackages.resolver,
       snapshot: workspaceControlPlaneSnapshotFromRecords({
         current: archiveControlPlane,
         exportedAt: archiveControlPlane?.exportedAt ?? "1970-01-01T00:00:00.000Z",
@@ -607,8 +592,8 @@ async function writeInitialInstanceWorkspaceState(input: {
       ...(archiveRecords.length === 0
         ? {}
         : {
-            sourceLabel: "Instance archive controlPlane",
-            validationContext: "Instance archive controlPlane records",
+            sourceLabel: "Instance archive Program",
+            validationContext: "Instance archive Program records",
           }),
       workspaceRoot: input.workspaceRoot,
     });

@@ -1,5 +1,5 @@
 import type { PackageAppKey } from "@dpeek/formless-installed-apps";
-import { APP_ARCHIVE_KIND, ARCHIVE_VERSION, INSTANCE_ARCHIVE_KIND } from "../program/archive.ts";
+import { ARCHIVE_VERSION, INSTANCE_ARCHIVE_KIND } from "../program/archive.ts";
 import {
   FORMLESS_RUNTIME_PROTOCOL_VERSION,
   FORMLESS_STORAGE_MIGRATION_SET_ID,
@@ -462,7 +462,7 @@ function archiveInputSteps(
     ];
   }
 
-  if (archiveInput.kind !== INSTANCE_ARCHIVE_KIND && archiveInput.kind !== APP_ARCHIVE_KIND) {
+  if (archiveInput.kind !== INSTANCE_ARCHIVE_KIND) {
     return [
       {
         archiveKind: archiveInput.kind,

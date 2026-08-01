@@ -94,17 +94,6 @@ without a schema-key or installed-app Tasks surface.
   workspace state, replica, or provenance is imported from a legacy
   `app:<installId>` Tasks Authority
 
-#### Scenario: Keep legacy Tasks installs dormant
-
-- **GIVEN** Program records still contain legacy Tasks `app-install` or `route`
-  metadata
-- **WHEN** install registry, navigation, route admission, archive app selection,
-  workspace app selection, or package upgrade selection runs
-- **THEN** those records do not resolve a Tasks runtime surface
-- **AND** legacy Tasks Authority storage remains untouched and unreachable
-- **AND** cleanup, deletion, discovery, collision checking, or migration is not
-  required
-
 ### Requirement: Flat Tasks Data Model
 
 The Tasks source schema SHALL model task state as flat task records with scalar

@@ -5,21 +5,19 @@ import {
   archiveMediaObjects,
   parsePortableArchive,
   PORTABLE_ARCHIVE_MANIFEST_FILE,
-  type AppArchive,
-  type AppArchiveMediaObject,
+  type ArchiveMediaObject,
   type InstanceArchive,
-  type InstanceArchiveControlPlane as ArchiveControlPlaneSnapshot,
   type PortableArchive,
 } from "../program/archive.ts";
 import type { ArchiveDiskMediaFile } from "../program/archive-node.ts";
-import { formlessProgramSchema } from "../program/runtime.ts";
+import type { FormlessProgramArtifact } from "../program/artifact.ts";
+import { formlessProgramArtifact, formlessProgramSchema } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
 } from "../program/target.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
-import { bundledAppPackageResolver, type AppPackageResolver } from "../shared/app-packages.ts";
 export type WorkspaceControlPlaneRecords = StorageSnapshot;
 export type WorkspaceRecordValueSource = {
   values: Record<string, unknown>;
@@ -35,27 +33,9 @@ export type WorkspaceInstanceArchiveDirectory = WorkspaceArchiveDirectory & {
   archive: InstanceArchive;
 };
 
-export type WorkspaceAppStateArchive = {
-  appArchive: AppArchive;
-  mediaFiles: ArchiveDiskMediaFile[];
-  missingMediaFiles: string[];
-  statePath: string;
-};
-
 export type WorkspaceArchiveMediaComparisonSource = {
   mediaFiles: ArchiveDiskMediaFile[];
   missingMediaFiles: string[];
-};
-
-export type WorkspaceControlPlaneAppInstallRecord = {
-  createdAt: string;
-  installId: string;
-  label: string;
-  packageAppKey: string;
-  packageRevision?: number;
-  sourceSchemaHash?: AppArchive["app"]["sourceSchemaHash"];
-  status: "installed";
-  updatedAt: string;
 };
 
 export function stringRecordValue(
@@ -85,16 +65,6 @@ export function numberRecordValue(
   return typeof value === "number" ? value : undefined;
 }
 
-export function sourceSchemaHashRecordValue(
-  record: StoredRecord | undefined,
-): AppArchive["app"]["sourceSchemaHash"] | undefined {
-  const value = stringRecordValue(record, "sourceSchemaHash");
-
-  return value?.startsWith("sha256:")
-    ? (value as AppArchive["app"]["sourceSchemaHash"])
-    : undefined;
-}
-
 export function withoutControlPlaneLifecycleValues(values: RecordValues): RecordValues {
   return Object.fromEntries(
     Object.entries(values).filter(
@@ -105,9 +75,7 @@ export function withoutControlPlaneLifecycleValues(values: RecordValues): Record
 
 export async function readArchiveDirectoryForCheck(
   archiveRoot: string,
-  options: {
-    packageResolver?: AppPackageResolver;
-  } = {},
+  options: { programArtifact?: FormlessProgramArtifact } = {},
 ): Promise<WorkspaceArchiveDirectory | undefined> {
   const archivePath = path.join(archiveRoot, PORTABLE_ARCHIVE_MANIFEST_FILE);
   let contents: string;
@@ -122,8 +90,9 @@ export async function readArchiveDirectoryForCheck(
     throw error;
   }
 
-  const archive = parsePortableArchive(JSON.parse(contents) as unknown, {
-    packageResolver: options.packageResolver,
+  const value = JSON.parse(contents) as unknown;
+  const archive = parsePortableArchive(value, {
+    programArtifact: options.programArtifact ?? formlessProgramArtifact,
   });
   const mediaFiles: ArchiveDiskMediaFile[] = [];
   const missingMediaFiles: string[] = [];
@@ -162,13 +131,13 @@ export async function readArchiveMediaFiles(
 ): Promise<
   Array<
     ArchiveDiskMediaFile & {
-      object: AppArchiveMediaObject;
+      object: ArchiveMediaObject;
     }
   >
 > {
   const files: Array<
     ArchiveDiskMediaFile & {
-      object: AppArchiveMediaObject;
+      object: ArchiveMediaObject;
     }
   > = [];
   for (const object of archiveMediaObjects(archive)) {
@@ -194,19 +163,23 @@ export async function readArchiveMediaFiles(
   return files;
 }
 
-export async function readWorkspaceArchive(archiveDir: string): Promise<PortableArchive> {
-  return parsePortableArchive(
-    JSON.parse(
-      await readFile(path.join(archiveDir, PORTABLE_ARCHIVE_MANIFEST_FILE), "utf8"),
-    ) as unknown,
-    { packageResolver: bundledAppPackageResolver },
-  );
+export async function readWorkspaceArchive(
+  archiveDir: string,
+  options: { programArtifact?: FormlessProgramArtifact } = {},
+): Promise<PortableArchive> {
+  const value = JSON.parse(
+    await readFile(path.join(archiveDir, PORTABLE_ARCHIVE_MANIFEST_FILE), "utf8"),
+  ) as unknown;
+
+  return parsePortableArchive(value, {
+    programArtifact: options.programArtifact ?? formlessProgramArtifact,
+  });
 }
 
 export function controlPlaneSnapshotForArchive(
   controlPlane: WorkspaceControlPlaneRecords,
   exportedAt: string,
-): ArchiveControlPlaneSnapshot {
+): StorageSnapshot {
   return workspaceControlPlaneSnapshotFromRecords({
     current: controlPlane,
     exportedAt,

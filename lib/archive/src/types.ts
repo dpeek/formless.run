@@ -1,20 +1,7 @@
 /**
- * Versioned public archive contract declarations, parsers, and formatters.
+ * Versioned public Program archive contract declarations, parsers, and formatters.
  */
-import {
-  isSourceSchemaHash,
-  validateAppInstallId,
-  type AppPackageResolver,
-  type PackageAppRevision,
-  type SourceSchemaHash,
-} from "@dpeek/formless-installed-apps";
-import {
-  STORAGE_SNAPSHOT_KIND,
-  formatStoredRecordsForArtifact,
-  parseStorageSnapshot,
-} from "@dpeek/formless-storage";
 import type { StorageSnapshot } from "@dpeek/formless-storage";
-import type { AppSchema } from "@dpeek/formless-schema";
 import {
   MEDIA_PDF_CONTENT_TYPE,
   isDocumentMediaAsset,
@@ -24,42 +11,24 @@ import {
 } from "@dpeek/formless-media";
 
 export const INSTANCE_ARCHIVE_KIND = "formless.instanceArchive";
-export const APP_ARCHIVE_KIND = "formless.appArchive";
 export const ARCHIVE_VERSION = 2;
 
-export const archiveCapabilities = [
-  "installed-app-registry",
-  "schema-owned-control-plane",
-  "app-store-snapshots",
-  "core-media-assets",
-] as const;
+export const archiveCapabilities = ["core-media-assets"] as const;
 
 export type ArchiveCapability = (typeof archiveCapabilities)[number];
 
-export type RestorePolicyInstallCollisions = "reject" | "replace";
-
 export type ArchiveRestorePolicy = {
   dryRun: boolean;
-  installCollisions: RestorePolicyInstallCollisions;
 };
 
-export type ArchivedAppInstall = {
-  installId: string;
-  packageAppKey: string;
-  packageRevision: PackageAppRevision;
-  sourceSchemaKey: string;
-  sourceSchemaHash: SourceSchemaHash;
-  label: string;
-  status: "installed";
-  createdAt: string;
-  updatedAt: string;
+export type ArchiveSourceSchemaHash = `sha256:${string}`;
+
+export type ArchiveProgramSchemaProvenance = {
+  kind: "program";
+  sourceSchemaHash: ArchiveSourceSchemaHash;
 };
 
-export type AppArchiveStorageSnapshotData = StorageSnapshot;
-
-export type AppArchiveData = AppArchiveStorageSnapshotData;
-
-export type AppArchiveMediaObject = {
+export type ArchiveMediaObject = {
   asset?: MediaAsset;
   storageKey: string;
   archivePath: string;
@@ -68,22 +37,14 @@ export type AppArchiveMediaObject = {
   deliveryHref: string;
 };
 
-export type AppArchiveMediaManifest = {
-  objects: AppArchiveMediaObject[];
+export type ArchiveMediaManifest = {
+  objects: ArchiveMediaObject[];
 };
 
-export type AppArchive = {
-  kind: typeof APP_ARCHIVE_KIND;
-  version: typeof ARCHIVE_VERSION;
-  exportedAt: string;
-  capabilities: ArchiveCapability[];
-  restorePolicy: ArchiveRestorePolicy;
-  app: ArchivedAppInstall;
-  data: AppArchiveData;
-  media: AppArchiveMediaManifest;
+export type ArchiveProgram = {
+  schemaProvenance: ArchiveProgramSchemaProvenance;
+  snapshot: StorageSnapshot;
 };
-
-export type InstanceArchiveControlPlane = StorageSnapshot;
 
 export type InstanceArchive = {
   kind: typeof INSTANCE_ARCHIVE_KIND;
@@ -91,49 +52,35 @@ export type InstanceArchive = {
   exportedAt: string;
   capabilities: ArchiveCapability[];
   restorePolicy: ArchiveRestorePolicy;
-  controlPlane?: InstanceArchiveControlPlane;
-  media: AppArchiveMediaManifest;
-  apps: AppArchive[];
+  program: ArchiveProgram;
+  media: ArchiveMediaManifest;
 };
 
-export type PortableArchive = InstanceArchive | AppArchive;
+export type PortableArchive = InstanceArchive;
 
-export type ArchiveControlPlaneValidationOptions = {
-  controlPlaneSnapshotContract?: ArchiveControlPlaneSnapshotContract;
-  packageResolver?: AppPackageResolver;
+export type ArchiveProgramValidationOptions = {
+  programSnapshotContract?: ArchiveProgramSnapshotContract;
 };
 
-export type ArchiveControlPlaneSnapshotContract = {
+export type ArchiveProgramSnapshotContract = {
   canonicalize: (snapshot: StorageSnapshot) => StorageSnapshot;
   parse: (context: string, value: unknown) => StorageSnapshot;
+  schemaProvenance?: ArchiveProgramSchemaProvenance;
 };
 
 const archiveCapabilitySet = new Set<string>(archiveCapabilities);
+const sourceSchemaHashPattern = /^sha256:[a-f0-9]{64}$/;
 
 export function parsePortableArchive(
   value: unknown,
-  options: ArchiveControlPlaneValidationOptions = {},
+  options: ArchiveProgramValidationOptions = {},
 ): PortableArchive {
-  const object = parseObject("Archive", value);
-
-  if (typeof object.kind !== "string" || object.kind.trim() === "") {
-    throw new Error('Archive must include "kind".');
-  }
-
-  if (object.kind === INSTANCE_ARCHIVE_KIND) {
-    return parseInstanceArchive(object, options);
-  }
-
-  if (object.kind === APP_ARCHIVE_KIND) {
-    return parseAppArchive(object);
-  }
-
-  throw new Error(`Archive kind "${object.kind}" is unsupported.`);
+  return parseInstanceArchive(value, options);
 }
 
 export function parseInstanceArchive(
   value: unknown,
-  options: ArchiveControlPlaneValidationOptions = {},
+  options: ArchiveProgramValidationOptions = {},
 ): InstanceArchive {
   const object = parseObject("Instance archive", value);
 
@@ -143,9 +90,8 @@ export function parseInstanceArchive(
     "exportedAt",
     "capabilities",
     "restorePolicy",
-    ...("controlPlane" in object ? ["controlPlane"] : []),
+    "program",
     "media",
-    "apps",
   ]);
 
   if (object.kind !== INSTANCE_ARCHIVE_KIND) {
@@ -156,149 +102,91 @@ export function parseInstanceArchive(
     throw new Error(`Instance archive version must be ${ARCHIVE_VERSION}.`);
   }
 
-  if (!Array.isArray(object.apps)) {
-    throw new Error("Instance archive apps must be an array.");
-  }
-
   return {
     kind: INSTANCE_ARCHIVE_KIND,
     version: ARCHIVE_VERSION,
     exportedAt: parseIsoTimestamp("Instance archive exportedAt", object.exportedAt),
     capabilities: parseCapabilities("Instance archive capabilities", object.capabilities),
     restorePolicy: parseRestorePolicy("Instance archive restorePolicy", object.restorePolicy),
-    ...(object.controlPlane === undefined
-      ? {}
-      : {
-          controlPlane: parseInstanceArchiveControlPlane(
-            "Instance archive controlPlane",
-            object.controlPlane,
-            options,
-          ),
-        }),
+    program: parseArchiveProgram("Instance archive program", object.program, options),
     media: parseMediaManifest("Instance archive media", object.media),
-    apps: object.apps.map((app, index) =>
-      parseAppArchiveAt(`Instance archive apps[${index}]`, app),
-    ),
   };
-}
-
-export function parseAppArchive(value: unknown): AppArchive {
-  return parseAppArchiveAt("App archive", value);
 }
 
 export function formatInstanceArchive(
   archive: InstanceArchive,
-  options: ArchiveControlPlaneValidationOptions = {},
+  options: ArchiveProgramValidationOptions = {},
 ): string {
-  const strippedArchive = canonicalInstanceArchive(archive, options);
+  const canonical = canonicalInstanceArchive(archive, options);
 
   return `${JSON.stringify(
-    canonicalInstanceArchive(parseInstanceArchive(strippedArchive, options), options),
+    canonicalInstanceArchive(parseInstanceArchive(canonical, options), options),
     null,
     2,
   )}\n`;
 }
 
-export function formatAppArchive(archive: AppArchive): string {
-  return `${JSON.stringify(canonicalAppArchive(parseAppArchive(archive)), null, 2)}\n`;
-}
-
-function parseAppArchiveAt(context: string, value: unknown): AppArchive {
-  const object = parseObject(context, value);
-
-  assertExactKeys(context, object, [
-    "kind",
-    "version",
-    "exportedAt",
-    "capabilities",
-    "restorePolicy",
-    "app",
-    "data",
-    "media",
-  ]);
-
-  if (object.kind !== APP_ARCHIVE_KIND) {
-    throw new Error(`${context} kind must be "${APP_ARCHIVE_KIND}".`);
-  }
-
-  if (object.version !== ARCHIVE_VERSION) {
-    throw new Error(`${context} version must be ${ARCHIVE_VERSION}.`);
-  }
-
-  const app = parseArchivedAppInstall(`${context} app`, object.app);
-
-  return {
-    kind: APP_ARCHIVE_KIND,
-    version: ARCHIVE_VERSION,
-    exportedAt: parseIsoTimestamp(`${context} exportedAt`, object.exportedAt),
-    capabilities: parseCapabilities(`${context} capabilities`, object.capabilities),
-    restorePolicy: parseRestorePolicy(`${context} restorePolicy`, object.restorePolicy),
-    app,
-    data: parseAppArchiveData(`${context} data`, object.data, {
-      schemaKey: app.sourceSchemaKey,
-      storageIdentity: `app:${app.installId}`,
-    }),
-    media: parseMediaManifest(`${context} media`, object.media),
-  };
-}
-
-function parseArchivedAppInstall(context: string, value: unknown): ArchivedAppInstall {
-  const object = parseObject(context, value);
-
-  assertExactKeys(context, object, [
-    "installId",
-    "packageAppKey",
-    "packageRevision",
-    "sourceSchemaKey",
-    "sourceSchemaHash",
-    "label",
-    "status",
-    "createdAt",
-    "updatedAt",
-  ]);
-
-  const installId = parseTrimmedNonEmptyString(`${context} installId`, object.installId);
-  const installIdResult = validateAppInstallId(installId);
-
-  if (!installIdResult.ok) {
-    throw new Error(`${context} installId is invalid: ${installIdResult.error.message}`);
-  }
-
-  if (object.status !== "installed") {
-    throw new Error(`${context} status must be "installed".`);
-  }
-
-  return {
-    installId: installIdResult.installId,
-    packageAppKey: parseTrimmedNonEmptyString(`${context} packageAppKey`, object.packageAppKey),
-    packageRevision: parsePositiveInteger(`${context} packageRevision`, object.packageRevision),
-    sourceSchemaKey: parseTrimmedNonEmptyString(
-      `${context} sourceSchemaKey`,
-      object.sourceSchemaKey,
-    ),
-    sourceSchemaHash: parseSourceSchemaHash(`${context} sourceSchemaHash`, object.sourceSchemaHash),
-    label: parseTrimmedNonEmptyString(`${context} label`, object.label),
-    status: "installed",
-    createdAt: parseIsoTimestamp(`${context} createdAt`, object.createdAt),
-    updatedAt: parseIsoTimestamp(`${context} updatedAt`, object.updatedAt),
-  };
-}
-
-export function parseAppArchiveData(
+function parseArchiveProgram(
   context: string,
   value: unknown,
-  expected: { schemaKey: string; storageIdentity?: string },
-): AppArchiveData {
+  options: ArchiveProgramValidationOptions,
+): ArchiveProgram {
   const object = parseObject(context, value);
 
-  if (object.kind === STORAGE_SNAPSHOT_KIND) {
-    return parseStorageSnapshot(object, expected);
+  assertExactKeys(context, object, ["schemaProvenance", "snapshot"]);
+
+  const schemaProvenance = parseProgramSchemaProvenance(
+    `${context} schemaProvenance`,
+    object.schemaProvenance,
+  );
+  const expectedProvenance = options.programSnapshotContract?.schemaProvenance;
+
+  if (
+    expectedProvenance !== undefined &&
+    (schemaProvenance.kind !== expectedProvenance.kind ||
+      schemaProvenance.sourceSchemaHash !== expectedProvenance.sourceSchemaHash)
+  ) {
+    throw new Error(
+      `${context} schemaProvenance sourceSchemaHash must be "${expectedProvenance.sourceSchemaHash}".`,
+    );
   }
 
-  throw new Error(`${context} kind must be "${STORAGE_SNAPSHOT_KIND}".`);
+  if (options.programSnapshotContract === undefined) {
+    throw new Error(`${context} snapshot requires an injected Program snapshot contract.`);
+  }
+
+  return {
+    schemaProvenance,
+    snapshot: options.programSnapshotContract.parse(`${context} snapshot`, object.snapshot),
+  };
 }
 
-function parseMediaManifest(context: string, value: unknown): AppArchiveMediaManifest {
+function parseProgramSchemaProvenance(
+  context: string,
+  value: unknown,
+): ArchiveProgramSchemaProvenance {
+  const object = parseObject(context, value);
+
+  assertExactKeys(context, object, ["kind", "sourceSchemaHash"]);
+
+  if (object.kind !== "program") {
+    throw new Error(`${context} kind must be "program".`);
+  }
+
+  if (
+    typeof object.sourceSchemaHash !== "string" ||
+    !sourceSchemaHashPattern.test(object.sourceSchemaHash)
+  ) {
+    throw new Error(`${context} sourceSchemaHash must be a sha256 source schema hash.`);
+  }
+
+  return {
+    kind: "program",
+    sourceSchemaHash: object.sourceSchemaHash as ArchiveSourceSchemaHash,
+  };
+}
+
+function parseMediaManifest(context: string, value: unknown): ArchiveMediaManifest {
   const object = parseObject(context, value);
 
   assertExactKeys(context, object, ["objects"]);
@@ -314,7 +202,7 @@ function parseMediaManifest(context: string, value: unknown): AppArchiveMediaMan
   };
 }
 
-function parseMediaObject(context: string, value: unknown): AppArchiveMediaObject {
+function parseMediaObject(context: string, value: unknown): ArchiveMediaObject {
   const object = parseObject(context, value);
   const requiredKeys = ["storageKey", "archivePath", "contentType", "byteSize", "deliveryHref"];
 
@@ -328,18 +216,6 @@ function parseMediaObject(context: string, value: unknown): AppArchiveMediaObjec
     deliveryHref: parseDeliveryHref(`${context} deliveryHref`, object.deliveryHref),
     ...("asset" in object ? { asset: parseMediaAsset(`${context} asset`, object.asset) } : {}),
   };
-}
-
-function parseInstanceArchiveControlPlane(
-  context: string,
-  value: unknown,
-  options: ArchiveControlPlaneValidationOptions,
-): InstanceArchiveControlPlane {
-  if (options.controlPlaneSnapshotContract === undefined) {
-    throw new Error(`${context} requires an injected control-plane snapshot contract.`);
-  }
-
-  return options.controlPlaneSnapshotContract.parse(context, value);
 }
 
 function parseMediaAsset(context: string, value: unknown): MediaAsset {
@@ -435,20 +311,13 @@ function parseDocumentAccess(context: string, value: unknown): "public" | "priva
 function parseRestorePolicy(context: string, value: unknown): ArchiveRestorePolicy {
   const object = parseObject(context, value);
 
-  assertExactKeys(context, object, ["dryRun", "installCollisions"]);
+  assertExactKeys(context, object, ["dryRun"]);
 
   if (typeof object.dryRun !== "boolean") {
     throw new Error(`${context} dryRun must be a boolean.`);
   }
 
-  if (object.installCollisions !== "reject" && object.installCollisions !== "replace") {
-    throw new Error(`${context} installCollisions must be "reject" or "replace".`);
-  }
-
-  return {
-    dryRun: object.dryRun,
-    installCollisions: object.installCollisions,
-  };
+  return { dryRun: object.dryRun };
 }
 
 function parseCapabilities(context: string, value: unknown): ArchiveCapability[] {
@@ -459,12 +328,8 @@ function parseCapabilities(context: string, value: unknown): ArchiveCapability[]
   const seen = new Set<string>();
 
   return value.map((capability, index) => {
-    if (typeof capability !== "string") {
-      throw new Error(`${context}[${index}] must be a supported capability.`);
-    }
-
-    if (!archiveCapabilitySet.has(capability)) {
-      throw new Error(`${context}[${index}] "${capability}" is unsupported.`);
+    if (typeof capability !== "string" || !archiveCapabilitySet.has(capability)) {
+      throw new Error(`${context}[${index}] "${String(capability)}" is unsupported.`);
     }
 
     if (seen.has(capability)) {
@@ -472,7 +337,6 @@ function parseCapabilities(context: string, value: unknown): ArchiveCapability[]
     }
 
     seen.add(capability);
-
     return capability as ArchiveCapability;
   });
 }
@@ -532,22 +396,6 @@ function parseNonNegativeInteger(context: string, value: unknown): number {
   return value;
 }
 
-function parsePositiveInteger(context: string, value: unknown): PackageAppRevision {
-  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
-    throw new Error(`${context} must be a positive integer.`);
-  }
-
-  return value;
-}
-
-function parseSourceSchemaHash(context: string, value: unknown): SourceSchemaHash {
-  if (!isSourceSchemaHash(value)) {
-    throw new Error(`${context} must be a sha256 source schema hash.`);
-  }
-
-  return value;
-}
-
 function parseContentType(context: string, value: unknown): string {
   const contentType = parseTrimmedNonEmptyString(context, value);
 
@@ -585,45 +433,35 @@ function parseRelativeKey(context: string, value: unknown): string {
 
 function canonicalInstanceArchive(
   archive: InstanceArchive,
-  options: ArchiveControlPlaneValidationOptions = {},
+  options: ArchiveProgramValidationOptions = {},
 ): InstanceArchive {
   return {
     kind: INSTANCE_ARCHIVE_KIND,
     version: ARCHIVE_VERSION,
     exportedAt: archive.exportedAt,
     capabilities: canonicalCapabilities(archive.capabilities),
-    restorePolicy: canonicalRestorePolicy(archive.restorePolicy),
-    ...(archive.controlPlane === undefined
-      ? {}
-      : { controlPlane: canonicalInstanceArchiveControlPlane(archive.controlPlane, options) }),
+    restorePolicy: { dryRun: archive.restorePolicy.dryRun },
+    program: canonicalArchiveProgram(archive.program, options),
     media: canonicalMediaManifest(archive.media),
-    apps: archive.apps
-      .map(canonicalAppArchive)
-      .sort((left, right) => left.app.installId.localeCompare(right.app.installId)),
   };
 }
 
-function canonicalInstanceArchiveControlPlane(
-  controlPlane: InstanceArchiveControlPlane,
-  options: ArchiveControlPlaneValidationOptions,
-): InstanceArchiveControlPlane {
-  if (options.controlPlaneSnapshotContract === undefined) {
-    throw new Error("Instance archive controlPlane requires an injected snapshot contract.");
+function canonicalArchiveProgram(
+  program: ArchiveProgram,
+  options: ArchiveProgramValidationOptions,
+): ArchiveProgram {
+  if (options.programSnapshotContract === undefined) {
+    throw new Error(
+      "Instance archive program snapshot requires an injected Program snapshot contract.",
+    );
   }
 
-  return options.controlPlaneSnapshotContract.canonicalize(controlPlane);
-}
-
-function canonicalAppArchive(archive: AppArchive): AppArchive {
   return {
-    kind: APP_ARCHIVE_KIND,
-    version: ARCHIVE_VERSION,
-    exportedAt: archive.exportedAt,
-    capabilities: canonicalCapabilities(archive.capabilities),
-    restorePolicy: canonicalRestorePolicy(archive.restorePolicy),
-    app: canonicalArchivedAppInstall(archive.app),
-    data: canonicalAppArchiveData(archive.data),
-    media: canonicalMediaManifest(archive.media),
+    schemaProvenance: {
+      kind: "program",
+      sourceSchemaHash: program.schemaProvenance.sourceSchemaHash,
+    },
+    snapshot: options.programSnapshotContract.canonicalize(program.snapshot),
   };
 }
 
@@ -633,58 +471,19 @@ function canonicalCapabilities(capabilities: ArchiveCapability[]): ArchiveCapabi
   );
 }
 
-function canonicalRestorePolicy(policy: ArchiveRestorePolicy): ArchiveRestorePolicy {
-  return {
-    dryRun: policy.dryRun,
-    installCollisions: policy.installCollisions,
-  };
-}
-
-function canonicalArchivedAppInstall(app: ArchivedAppInstall): ArchivedAppInstall {
-  return {
-    installId: app.installId,
-    packageAppKey: app.packageAppKey,
-    packageRevision: app.packageRevision,
-    sourceSchemaKey: app.sourceSchemaKey,
-    sourceSchemaHash: app.sourceSchemaHash,
-    label: app.label,
-    status: "installed",
-    createdAt: app.createdAt,
-    updatedAt: app.updatedAt,
-  };
-}
-
-function canonicalAppArchiveData(data: AppArchiveData): AppArchiveData {
-  return canonicalStorageSnapshot(data);
-}
-
-function canonicalStorageSnapshot(snapshot: StorageSnapshot): StorageSnapshot {
-  return {
-    kind: snapshot.kind,
-    version: snapshot.version,
-    storageIdentity: snapshot.storageIdentity,
-    schemaKey: snapshot.schemaKey,
-    exportedAt: snapshot.exportedAt,
-    schemaUpdatedAt: snapshot.schemaUpdatedAt,
-    sourceCursor: snapshot.sourceCursor,
-    schema: stableValue(snapshot.schema) as AppSchema,
-    records: formatStoredRecordsForArtifact(snapshot.schema, snapshot.records),
-  };
-}
-
-function canonicalMediaManifest(manifest: AppArchiveMediaManifest): AppArchiveMediaManifest {
+function canonicalMediaManifest(manifest: ArchiveMediaManifest): ArchiveMediaManifest {
   return {
     objects: [...manifest.objects].map(canonicalMediaObject).sort((left, right) => {
-      const storageKeyOrder = left.storageKey.localeCompare(right.storageKey);
+      const storageKeyOrder = compareOrdinal(left.storageKey, right.storageKey);
 
       return storageKeyOrder === 0
-        ? left.archivePath.localeCompare(right.archivePath)
+        ? compareOrdinal(left.archivePath, right.archivePath)
         : storageKeyOrder;
     }),
   };
 }
 
-function canonicalMediaObject(media: AppArchiveMediaObject): AppArchiveMediaObject {
+function canonicalMediaObject(media: ArchiveMediaObject): ArchiveMediaObject {
   return {
     storageKey: media.storageKey,
     archivePath: media.archivePath,
@@ -728,18 +527,6 @@ function canonicalMediaAsset(asset: MediaAsset): MediaAsset {
   };
 }
 
-function stableValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(stableValue);
-  }
-
-  if (typeof value !== "object" || value === null) {
-    return value;
-  }
-
-  return Object.fromEntries(
-    Object.entries(value)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, child]) => [key, stableValue(child)]),
-  );
+function compareOrdinal(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }

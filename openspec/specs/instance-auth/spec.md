@@ -1291,7 +1291,7 @@ login.
 - AND the runtime does not silently fall back to the workers.dev deployment host
   when the auth-origin capability request is unreachable or misconfigured
 
-#### Scenario: Owner setup bootstrap does not require owner-protected app state
+#### Scenario: Owner setup bootstrap does not require owner-protected Program state
 
 - GIVEN owner setup is incomplete and an admin bearer token is available to a
   trusted CLI

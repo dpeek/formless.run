@@ -1,11 +1,4 @@
-import {
-  INSTANCE_ARCHIVE_KIND,
-  archiveMediaObjects,
-  parsePortableArchive,
-  type InstanceArchiveControlPlane,
-  type PortableArchive,
-} from "../program/archive.ts";
-import { type BootstrapResponse } from "../shared/protocol.ts";
+import { parsePortableArchive } from "../program/archive.ts";
 import {
   FORMLESS_PROGRAM_API_ROUTE_PREFIX,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
@@ -22,6 +15,7 @@ import { authorizeInstanceWrite, type AuthorityAdminGuardEnv } from "./authority
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { mediaObjectStoreFromR2Bucket } from "@dpeek/formless-media/worker";
 import { CORE_IMAGE_KEY_PREFIX, PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX } from "@dpeek/formless-media";
+import type { StorageSnapshot } from "@dpeek/formless-storage";
 
 export const INSTANCE_ARCHIVE_RESTORE_API_PATH = "/api/formless/archive/restore";
 
@@ -32,8 +26,14 @@ type InstanceArchiveApiEnv = AuthorityAdminGuardEnv & {
 
 type ArchiveRestoreRequest = {
   archive: unknown;
-  exactInstanceReplacement: boolean;
   mediaFiles: ArchiveRestoreMediaRead[];
+};
+
+type ArchiveMediaBackupObject = {
+  bytes: Uint8Array;
+  customMetadata?: Record<string, string>;
+  httpMetadata?: R2HTTPMetadata;
+  key: string;
 };
 
 export async function handleInstanceArchiveApiRequest(
@@ -45,7 +45,6 @@ export async function handleInstanceArchiveApiRequest(
   }
 
   const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_INSTANCE_AUTHORITY_NAME);
-
   return env.FORMLESS_AUTHORITY.get(id).fetch(request);
 }
 
@@ -83,28 +82,9 @@ export async function handleInstanceArchiveDurableObjectRequest(
     const archive = parsePortableArchive(body.archive);
     const mediaFilesByPath = new Map(body.mediaFiles.map((file) => [file.archivePath, file]));
     const target = archiveRestoreApiTarget(request, env, mediaFilesByPath);
-
-    if (body.exactInstanceReplacement && archive.kind !== INSTANCE_ARCHIVE_KIND) {
-      throw new Error("Exact instance replacement requires an instance archive.");
-    }
-
-    if (
-      body.exactInstanceReplacement &&
-      archive.kind === INSTANCE_ARCHIVE_KIND &&
-      !archive.controlPlane
-    ) {
-      throw new Error("Exact instance replacement requires schema-owned control-plane data.");
-    }
-
     const result = archive.restorePolicy.dryRun
       ? await dryRunPortableArchiveRestore(archive, target)
       : await applyPortableArchiveRestore(archive, target);
-
-    if (result.ok && body.exactInstanceReplacement && !archive.restorePolicy.dryRun) {
-      await applyExactInstanceReplacement(env, {
-        archive,
-      });
-    }
 
     return jsonResponse(result, result.ok ? 200 : 400);
   } catch (error) {
@@ -118,7 +98,19 @@ function archiveRestoreApiTarget(
   mediaFilesByPath: Map<string, ArchiveRestoreMediaRead>,
 ): ArchiveRestoreApplyTarget {
   return {
-    listInstalledApps: () => [],
+    beginRestore: async () => {
+      const [program, media] = await Promise.all([
+        readProgramSnapshotViaAuthority(request, env),
+        readProgramMediaBackup(env.FORMLESS_MEDIA),
+      ]);
+
+      return {
+        rollback: async () => {
+          await restoreProgramMediaBackup(env.FORMLESS_MEDIA, media);
+          await restoreProgramViaAuthority(request, env, program);
+        },
+      };
+    },
     media: {
       listFiles: async () => [...mediaFilesByPath.values()],
       readFile: async (archivePath) => mediaFilesByPath.get(archivePath),
@@ -136,38 +128,128 @@ function archiveRestoreApiTarget(
           bytes,
         ),
     },
-    restoreAppData: async () => {
-      throw new Error("Installed app archive data is not a Program restore target.");
+    replaceMedia: async (desiredStorageKeys) => {
+      await pruneProgramMediaObjects(env.FORMLESS_MEDIA, desiredStorageKeys);
     },
-    restoreControlPlane: async (controlPlane) => {
-      await restoreControlPlaneViaAuthority(request, env, controlPlane);
+    restoreProgram: async (program) => {
+      await restoreProgramViaAuthority(request, env, program);
     },
-    restoreInstall: () => undefined,
-    packages: [],
-    sourceSchemas: {},
   };
 }
 
-async function applyExactInstanceReplacement(
+async function readProgramSnapshotViaAuthority(
+  request: Request,
   env: InstanceArchiveApiEnv,
-  input: {
-    archive: PortableArchive;
-  },
-): Promise<void> {
-  if (input.archive.kind !== INSTANCE_ARCHIVE_KIND) {
-    return;
+): Promise<StorageSnapshot> {
+  const response = await programAuthorityFetch(
+    request,
+    env,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot?actorKind=cliDeployer`,
+    { method: "GET" },
+  );
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`Failed Program snapshot read: HTTP ${response.status} ${text}`);
   }
 
-  await pruneCoreMediaObjects(env.FORMLESS_MEDIA, archiveCoreMediaKeys(input.archive));
+  try {
+    return JSON.parse(text) as StorageSnapshot;
+  } catch {
+    throw new Error("Failed Program snapshot read: response was not JSON.");
+  }
 }
 
-async function pruneCoreMediaObjects(
+async function restoreProgramViaAuthority(
+  request: Request,
+  env: InstanceArchiveApiEnv,
+  program: StorageSnapshot,
+): Promise<void> {
+  const response = await programAuthorityFetch(
+    request,
+    env,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
+    { body: JSON.stringify(program), method: "POST" },
+  );
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`Failed Program restore: HTTP ${response.status} ${text}`);
+  }
+
+  try {
+    JSON.parse(text);
+  } catch {
+    throw new Error("Failed Program restore: response was not JSON.");
+  }
+}
+
+function programAuthorityFetch(
+  request: Request,
+  env: InstanceArchiveApiEnv,
+  path: string,
+  init: RequestInit,
+) {
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
+
+  return env.FORMLESS_AUTHORITY.get(id).fetch(
+    new Request(new URL(path, request.url), {
+      ...init,
+      headers: archiveRestoreForwardHeaders(request.headers),
+    }),
+  );
+}
+
+async function readProgramMediaBackup(bucket: R2Bucket): Promise<ArchiveMediaBackupObject[]> {
+  const keys = await listProgramMediaKeys(bucket);
+
+  return Promise.all(
+    keys.map(async (key) => {
+      const object = await bucket.get(key);
+
+      if (!object) {
+        throw new Error(`Program media object "${key}" disappeared during restore backup.`);
+      }
+
+      return {
+        bytes: new Uint8Array(await object.arrayBuffer()),
+        ...(object.customMetadata === undefined ? {} : { customMetadata: object.customMetadata }),
+        ...(object.httpMetadata === undefined ? {} : { httpMetadata: object.httpMetadata }),
+        key,
+      };
+    }),
+  );
+}
+
+async function restoreProgramMediaBackup(
+  bucket: R2Bucket,
+  backup: readonly ArchiveMediaBackupObject[],
+): Promise<void> {
+  await deleteR2Keys(bucket, await listProgramMediaKeys(bucket));
+
+  for (const object of backup) {
+    await bucket.put(object.key, object.bytes, {
+      ...(object.customMetadata === undefined ? {} : { customMetadata: object.customMetadata }),
+      ...(object.httpMetadata === undefined ? {} : { httpMetadata: object.httpMetadata }),
+    });
+  }
+}
+
+async function pruneProgramMediaObjects(
   bucket: R2Bucket,
   desiredStorageKeys: ReadonlySet<string>,
 ): Promise<void> {
-  const prefixes = [mediaKeyPrefix(PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX)];
-  const keysToDelete: string[] = [];
-  for (const prefix of prefixes) {
+  const keysToDelete = (await listProgramMediaKeys(bucket)).filter(
+    (key) => !desiredStorageKeys.has(key),
+  );
+
+  await deleteR2Keys(bucket, keysToDelete);
+}
+
+async function listProgramMediaKeys(bucket: R2Bucket): Promise<string[]> {
+  const keys = new Set<string>();
+
+  for (const prefix of programMediaPrefixes()) {
     let cursor: string | undefined;
 
     do {
@@ -177,17 +259,19 @@ async function pruneCoreMediaObjects(
       });
 
       for (const object of listing.objects) {
-        if (!desiredStorageKeys.has(object.key)) {
-          keysToDelete.push(object.key);
-        }
+        keys.add(object.key);
       }
 
       cursor = listing.truncated ? listing.cursor : undefined;
     } while (cursor !== undefined);
   }
 
-  for (let index = 0; index < keysToDelete.length; index += 1000) {
-    const chunk = keysToDelete.slice(index, index + 1000);
+  return [...keys].sort(compareOrdinal);
+}
+
+async function deleteR2Keys(bucket: R2Bucket, keys: readonly string[]): Promise<void> {
+  for (let index = 0; index < keys.length; index += 1000) {
+    const chunk = keys.slice(index, index + 1000);
 
     if (chunk.length > 0) {
       await bucket.delete(chunk);
@@ -195,50 +279,12 @@ async function pruneCoreMediaObjects(
   }
 }
 
-function archiveCoreMediaKeys(archive: PortableArchive): ReadonlySet<string> {
-  const keys = new Set<string>();
-  const prefixes = [
-    mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX),
-    mediaKeyPrefix(PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX),
-  ];
-
-  for (const object of archiveMediaObjects(archive)) {
-    if (prefixes.some((prefix) => object.storageKey.startsWith(prefix))) {
-      keys.add(object.storageKey);
-    }
-  }
-
-  return keys;
+function programMediaPrefixes(): string[] {
+  return [mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX), mediaKeyPrefix(PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX)];
 }
 
 function mediaKeyPrefix(prefix: string): string {
   return prefix.endsWith("/") ? prefix : `${prefix}/`;
-}
-
-async function restoreControlPlaneViaAuthority(
-  request: Request,
-  env: InstanceArchiveApiEnv,
-  controlPlane: InstanceArchiveControlPlane,
-): Promise<BootstrapResponse> {
-  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
-  const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
-    new Request(new URL(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`, request.url), {
-      body: JSON.stringify(controlPlane),
-      headers: archiveRestoreForwardHeaders(request.headers),
-      method: "POST",
-    }),
-  );
-  const text = await response.text();
-
-  if (!response.ok) {
-    throw new Error(`Failed control-plane restore: HTTP ${response.status} ${text}`);
-  }
-
-  try {
-    return JSON.parse(text) as BootstrapResponse;
-  } catch {
-    throw new Error("Failed control-plane restore: response was not JSON.");
-  }
 }
 
 function archiveRestoreForwardHeaders(headers: Headers): Headers {
@@ -262,25 +308,15 @@ function archiveRestoreForwardHeaders(headers: Headers): Headers {
 function parseArchiveRestoreRequest(value: unknown): ArchiveRestoreRequest {
   const object = parseObject("Archive restore request", value);
 
-  if (!("archive" in object)) {
-    throw new Error('Archive restore request must include "archive".');
-  }
+  assertExactKeys("Archive restore request", object, ["archive", "mediaFiles"]);
 
   return {
     archive: object.archive,
-    exactInstanceReplacement: parseOptionalBoolean(
-      "Archive restore request exactInstanceReplacement",
-      object.exactInstanceReplacement,
-    ),
     mediaFiles: parseArchiveRestoreMediaFiles(object.mediaFiles),
   };
 }
 
 function parseArchiveRestoreMediaFiles(value: unknown): ArchiveRestoreMediaRead[] {
-  if (value === undefined) {
-    return [];
-  }
-
   if (!Array.isArray(value)) {
     throw new Error("Archive restore request mediaFiles must be an array.");
   }
@@ -306,6 +342,9 @@ function parseArchiveRestoreMediaFiles(value: unknown): ArchiveRestoreMediaRead[
 
 function parseArchiveRestoreMediaFile(context: string, value: unknown): ArchiveRestoreMediaRead {
   const object = parseObject(context, value);
+
+  assertExactKeys(context, object, ["archivePath", "byteSize", "bytesBase64", "contentType"]);
+
   const archivePath = parseRelativePath(`${context} archivePath`, object.archivePath);
   const contentType = parseNonEmptyString(`${context} contentType`, object.contentType);
   const byteSize = parseNonNegativeInteger(`${context} byteSize`, object.byteSize);
@@ -315,12 +354,7 @@ function parseArchiveRestoreMediaFile(context: string, value: unknown): ArchiveR
     throw new Error(`${context} bytesBase64 does not match byteSize.`);
   }
 
-  return {
-    archivePath,
-    byteSize,
-    bytes,
-    contentType,
-  };
+  return { archivePath, byteSize, bytes, contentType };
 }
 
 function bytesFromBase64(context: string, value: unknown): Uint8Array {
@@ -368,10 +402,7 @@ function jsonResponse(body: unknown, status = 200, headers: HeadersInit = {}): R
     responseHeaders.set("Cache-Control", "no-store");
   }
 
-  return Response.json(body, {
-    status,
-    headers: responseHeaders,
-  });
+  return Response.json(body, { status, headers: responseHeaders });
 }
 
 function parseObject(context: string, value: unknown): Record<string, unknown> {
@@ -380,6 +411,22 @@ function parseObject(context: string, value: unknown): Record<string, unknown> {
   }
 
   return value as Record<string, unknown>;
+}
+
+function assertExactKeys(context: string, value: Record<string, unknown>, requiredKeys: string[]) {
+  const expected = new Set(requiredKeys);
+
+  for (const key of Object.keys(value)) {
+    if (!expected.has(key)) {
+      throw new Error(`${context} has unsupported key "${key}".`);
+    }
+  }
+
+  for (const key of requiredKeys) {
+    if (!(key in value)) {
+      throw new Error(`${context} must include "${key}".`);
+    }
+  }
 }
 
 function parseRelativePath(context: string, value: unknown): string {
@@ -413,16 +460,8 @@ function parseNonNegativeInteger(context: string, value: unknown): number {
   return value;
 }
 
-function parseOptionalBoolean(context: string, value: unknown): boolean {
-  if (value === undefined) {
-    return false;
-  }
-
-  if (typeof value !== "boolean") {
-    throw new Error(`${context} must be a boolean.`);
-  }
-
-  return value;
+function compareOrdinal(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function errorMessage(error: unknown): string {

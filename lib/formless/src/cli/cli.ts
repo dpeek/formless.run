@@ -214,9 +214,7 @@ export {
   type CheckFormlessInstanceWorkspaceResult,
   type CheckLocalFormlessWorkspaceInput,
   type CheckLocalFormlessWorkspaceResult,
-  type FormlessInstanceWorkspacePackageMismatch,
   type FormlessInstanceWorkspaceSyncPlan,
-  type PullFormlessInstanceWorkspaceAppStateResult,
   type PullFormlessInstanceWorkspaceDependencies,
   type PullFormlessInstanceWorkspaceInput,
   type PullFormlessInstanceWorkspaceResult,
@@ -544,7 +542,6 @@ export async function restorePortableArchive(
     adminToken?: string | null;
     apply: boolean;
     archiveDir: string;
-    replace: boolean;
     target: string;
   },
   dependencies: Pick<

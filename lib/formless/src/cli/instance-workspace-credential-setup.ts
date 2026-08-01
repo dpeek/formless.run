@@ -6,8 +6,8 @@ import path from "node:path";
 
 import type { StoredRecord } from "@dpeek/formless-storage";
 import {
-  readInstanceWorkspaceControlPlaneStorageSnapshot,
-  writeInstanceWorkspaceControlPlaneStorageSnapshot,
+  readInstanceWorkspaceProgramStorageSnapshot,
+  writeInstanceWorkspaceProgramStorageSnapshot,
 } from "../program/workspace.ts";
 import {
   FORMLESS_CLOUDFLARE_OAUTH_CLIENT_ID,
@@ -36,10 +36,7 @@ import type {
   WorkspaceOperationResult,
   WorkspaceOperationStatus,
 } from "@dpeek/formless-workspace";
-import {
-  createActiveWorkspaceAppPackages,
-  readWorkspaceConfig,
-} from "./instance-workspace-foundation.ts";
+import { readWorkspaceConfig } from "./instance-workspace-foundation.ts";
 import {
   stringRecordValue,
   withoutControlPlaneLifecycleValues,
@@ -343,10 +340,8 @@ async function writeFormlessOAuthDeploymentConfigSource(input: {
   workerName: string;
 }> {
   const { config } = await readWorkspaceConfig(input.workspaceRoot);
-  const activePackages = await createActiveWorkspaceAppPackages(input.workspaceRoot, config);
-  const current = await readInstanceWorkspaceControlPlaneStorageSnapshot({
+  const current = await readInstanceWorkspaceProgramStorageSnapshot({
     manifest: config,
-    packageResolver: activePackages.resolver,
     workspaceRoot: input.workspaceRoot,
   });
   const existing = selectFormlessCliCredentialSetupDeploymentConfig(current?.records ?? [], {
@@ -394,9 +389,8 @@ async function writeFormlessOAuthDeploymentConfigSource(input: {
     deploymentConfigRecord,
   ];
 
-  await writeInstanceWorkspaceControlPlaneStorageSnapshot({
+  await writeInstanceWorkspaceProgramStorageSnapshot({
     manifest: config,
-    packageResolver: activePackages.resolver,
     snapshot: workspaceControlPlaneSnapshotFromRecords({
       current,
       exportedAt: input.now,

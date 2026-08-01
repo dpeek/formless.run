@@ -1,54 +1,56 @@
-import { mkdtemp, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
-
-import { describe, expect, it } from "vite-plus/test";
-
+import { afterEach, describe, expect, it } from "vite-plus/test";
 import {
   ARCHIVE_VERSION,
-  APP_ARCHIVE_KIND,
+  INSTANCE_ARCHIVE_KIND,
   PORTABLE_ARCHIVE_MANIFEST_FILE,
+  parsePortableArchive,
   readPortableArchiveDirectory,
   writePortableArchiveDirectory,
-  type AppArchive,
+  type ArchiveProgramSnapshotContract,
+  type InstanceArchive,
 } from "./node.ts";
-import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
-import { parseAppSchema } from "@dpeek/formless-schema";
+import {
+  STORAGE_SNAPSHOT_KIND,
+  STORAGE_SNAPSHOT_VERSION,
+  parseStorageSnapshot,
+} from "@dpeek/formless-storage";
+import type { AppSchema } from "@dpeek/formless-schema";
 
-const siteSourceSchemaHash =
-  "sha256:1111111111111111111111111111111111111111111111111111111111111111";
-const siteSourceSchema = parseAppSchema({
+const roots: string[] = [];
+const now = "2026-05-23T00:00:00.000Z";
+const sourceSchemaHash =
+  "sha256:1111111111111111111111111111111111111111111111111111111111111111" as const;
+const schema: AppSchema = {
   version: 1,
   entities: [
     {
-      id: "entity_7762a513-1efb-40ce-ac4c-16c89604acdc",
-      key: "site",
-      label: "Site",
-      fields: [
-        { key: "key", type: "text", required: true, label: "Key" },
-        { key: "label", type: "text", required: true, label: "Label" },
-      ],
-      operations: writeOperations("Site", ["key", "label"], { delete: true }),
+      id: "entity_11111111-1111-4111-8111-111111111111",
+      key: "note",
+      label: "Note",
+      fields: [{ key: "title", label: "Title", type: "text", required: true }],
     },
   ],
-  queries: [{ key: "siteAll", label: "Sites", entity: "site", expression: { kind: "all" } }],
+  queries: [{ key: "all", label: "All notes", entity: "note", expression: { kind: "all" } }],
   itemViews: [
     {
-      key: "siteItem",
-      entity: "site",
-      fields: [{ field: "label", editor: "text", commit: "field-commit" }],
+      key: "noteItem",
+      entity: "note",
+      fields: [{ field: "title", editor: "text", commit: "field-commit" }],
     },
   ],
   tableViews: [],
   views: [
     {
-      key: "siteList",
+      key: "notes",
       type: "collection",
-      label: "Sites",
-      entity: "site",
-      queries: [{ query: "siteAll" }],
-      defaultQuery: "siteAll",
-      result: { type: "list", itemView: "siteItem" },
+      label: "Notes",
+      entity: "note",
+      queries: [{ query: "all" }],
+      defaultQuery: "all",
+      result: { type: "list", itemView: "noteItem" },
     },
   ],
   screens: [
@@ -58,144 +60,123 @@ const siteSourceSchema = parseAppSchema({
       label: "Home",
       layout: {
         type: "stack",
-        sections: [{ id: "sites", type: "collection", view: "siteList" }],
+        sections: [{ id: "notes", type: "collection", view: "notes" }],
       },
     },
   ],
-});
-function writeOperations(
-  label: string,
-  fields: string[],
-  options: {
-    delete?: boolean;
-  } = {},
-) {
-  const input = {
-    fields: fields.map((field) => ({ key: field, field })),
-  };
-  return [
-    {
-      key: "create",
-      label: `Create ${label}`,
-      kind: "create",
-      scope: "collection",
-      input,
-      effect: { type: "createRecord" },
-      output: { type: "create" },
-      idempotency: { required: true },
-      audit: { input: "summary" },
-    },
-    {
-      key: "update",
-      label: `Update ${label}`,
-      kind: "update",
-      scope: "record",
-      input,
-      effect: { type: "patchRecord" },
-      output: { type: "update" },
-      idempotency: { required: true },
-      audit: { input: "summary" },
-    },
-    ...(options.delete
-      ? [
-          {
-            key: "delete",
-            label: `Delete ${label}`,
-            kind: "delete",
-            scope: "record",
-            effect: { type: "tombstoneRecord" },
-            output: { type: "delete" },
-            idempotency: { required: true },
-            audit: { input: "summary" },
-          },
-        ]
-      : []),
-  ];
-}
-describe("archive node adapter", () => {
-  it("writes and reads portable archive directories with media files", async () => {
-    const cwd = await mkdtemp(path.join(tmpdir(), "formless-archive-node-test-"));
-    const bytes = new Uint8Array([1, 2, 3, 4]);
-    const archive = appArchive(bytes.byteLength);
+};
+const contract: ArchiveProgramSnapshotContract = {
+  canonicalize: (snapshot) => snapshot,
+  parse: (_context, value) =>
+    parseStorageSnapshot(value, {
+      schemaKey: "formless-program",
+      storageIdentity: "instance:control-plane",
+    }),
+  schemaProvenance: { kind: "program", sourceSchemaHash },
+};
 
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map((root) => rm(root, { force: true, recursive: true })));
+});
+
+describe("portable archive directory adapter", () => {
+  it("writes and reads one Program archive and its global media", async () => {
+    const root = await tempRoot();
+    const bytes = new Uint8Array([1, 2, 3, 4]);
+    const archive = instanceArchive(bytes.byteLength);
     const write = await writePortableArchiveDirectory(
       {
         archive,
         mediaFiles: [
           {
-            archivePath: "media/site/media/images/hero.png",
+            archivePath: archive.media.objects[0]!.archivePath,
             byteSize: bytes.byteLength,
             bytes,
             contentType: "image/png",
           },
         ],
-        outDir: "archives/site",
+        outDir: "backup",
+        programSnapshotContract: contract,
       },
-      { cwd },
+      { cwd: root },
     );
 
-    expect(write).toEqual({
-      appCount: 1,
-      archivePath: path.join(cwd, "archives/site", PORTABLE_ARCHIVE_MANIFEST_FILE),
-      mediaCount: 1,
-      recordCount: 0,
+    expect(write).toMatchObject({ mediaCount: 1, recordCount: 0 });
+    expect(write).not.toHaveProperty("appCount");
+    expect(JSON.parse(await readFile(write.archivePath, "utf8"))).toMatchObject({
+      kind: INSTANCE_ARCHIVE_KIND,
+      program: { schemaProvenance: { kind: "program", sourceSchemaHash } },
     });
-    expect(
-      await readFile(path.join(cwd, "archives/site/media/site/media/images/hero.png")),
-    ).toEqual(Buffer.from(bytes));
 
-    const read = await readPortableArchiveDirectory("archives/site", { cwd });
+    const read = await readPortableArchiveDirectory("backup", {
+      cwd: root,
+      programSnapshotContract: contract,
+    });
 
-    expect(read.archive).toEqual(archive);
-    expect(read.archivePath).toBe(write.archivePath);
-    expect(read.mediaFiles).toEqual([
-      {
-        archivePath: "media/site/media/images/hero.png",
-        byteSize: bytes.byteLength,
-        bytes,
-        contentType: "image/png",
-      },
-    ]);
+    expect(read.archive).toEqual(
+      parsePortableArchive(archive, { programSnapshotContract: contract }),
+    );
+    expect(read.mediaFiles[0]?.bytes).toEqual(bytes);
+    expect(read.archivePath).toBe(path.join(root, "backup", PORTABLE_ARCHIVE_MANIFEST_FILE));
+  });
+
+  it("rejects unsafe media paths before filesystem access", async () => {
+    const root = await tempRoot();
+    const archive = instanceArchive(4);
+    archive.media.objects[0]!.archivePath = "../escape.png";
+
+    await expect(
+      writePortableArchiveDirectory(
+        {
+          archive,
+          mediaFiles: [],
+          outDir: "backup",
+          programSnapshotContract: contract,
+        },
+        { cwd: root },
+      ),
+    ).rejects.toThrow("must be a relative path without dot segments");
   });
 });
 
-function appArchive(byteSize: number): AppArchive {
+async function tempRoot() {
+  const root = await mkdtemp(path.join(os.tmpdir(), "formless-archive-"));
+  roots.push(root);
+  return root;
+}
+
+function instanceArchive(byteSize: number): InstanceArchive {
+  const storageKey = "media/images/hero.png";
+  const deliveryHref = `/api/formless/media/${storageKey}`;
+
   return {
-    kind: APP_ARCHIVE_KIND,
+    kind: INSTANCE_ARCHIVE_KIND,
     version: ARCHIVE_VERSION,
-    exportedAt: "2026-05-23T00:00:00.000Z",
-    capabilities: ["app-store-snapshots", "core-media-assets"],
-    restorePolicy: { dryRun: true, installCollisions: "reject" },
-    app: {
-      installId: "site",
-      packageAppKey: "site",
-      packageRevision: 1,
-      sourceSchemaKey: "site",
-      sourceSchemaHash: siteSourceSchemaHash,
-      label: "Site",
-      status: "installed",
-      createdAt: "2026-05-23T00:00:00.000Z",
-      updatedAt: "2026-05-23T00:00:00.000Z",
-    },
-    data: {
-      kind: STORAGE_SNAPSHOT_KIND,
-      version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: "app:site",
-      schemaKey: "site",
-      exportedAt: "2026-05-23T00:00:00.000Z",
-      schemaUpdatedAt: "2026-05-23T00:00:00.000Z",
-      sourceCursor: 0,
-      schema: siteSourceSchema,
-      records: [],
+    exportedAt: now,
+    capabilities: ["core-media-assets"],
+    restorePolicy: { dryRun: true },
+    program: {
+      schemaProvenance: { kind: "program", sourceSchemaHash },
+      snapshot: {
+        kind: STORAGE_SNAPSHOT_KIND,
+        version: STORAGE_SNAPSHOT_VERSION,
+        storageIdentity: "instance:control-plane",
+        schemaKey: "formless-program",
+        exportedAt: now,
+        schemaUpdatedAt: now,
+        sourceCursor: 0,
+        schema,
+        records: [],
+      },
     },
     media: {
       objects: [
         {
-          archivePath: "media/site/media/images/hero.png",
+          archivePath: `media/program/${storageKey}`,
           byteSize,
           contentType: "image/png",
-          deliveryHref: "/api/formless/media/media/images/hero.png",
-          storageKey: "media/images/hero.png",
+          deliveryHref,
+          storageKey,
         },
       ],
     },

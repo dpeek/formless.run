@@ -12,7 +12,6 @@ export const DEFAULT_INSTANCE_WORKSPACE_TARGET_ALIAS = "remote";
 export const DEFAULT_INSTANCE_WORKSPACE_ARCHIVE_ROOT = "archives";
 export const DEFAULT_INSTANCE_WORKSPACE_STATE_ROOT = "state";
 export const DEFAULT_INSTANCE_WORKSPACE_INSTANCE_STATE_PATH = "state/instance.json";
-export const DEFAULT_INSTANCE_WORKSPACE_APP_STATE_ROOT = "state/apps";
 export const DEFAULT_INSTANCE_WORKSPACE_MEDIA_ROOT = "state/media";
 export const DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT = ".formless/local";
 export const DEFAULT_INSTANCE_WORKSPACE_SECRET_STATE_ROOT = ".formless";
@@ -447,27 +446,12 @@ export type InstanceWorkspaceStoredRecord = {
 
 export type WorkspaceSourceSchemaHash = `sha256:${string}`;
 
-export type WorkspacePackageAppSchemaProvenance = {
-  kind: "package-app";
-  packageAppKey: string;
-  packageRevision: number;
-  sourceSchemaHash: WorkspaceSourceSchemaHash;
-};
-
-export type WorkspaceControlPlaneSchemaProvenance = {
-  kind: "instance-control-plane";
-  sourceSchemaHash: WorkspaceSourceSchemaHash;
-};
-
 export type WorkspaceProgramSchemaProvenance = {
   kind: "program";
   sourceSchemaHash: WorkspaceSourceSchemaHash;
 };
 
-export type WorkspaceSchemaProvenance =
-  | WorkspacePackageAppSchemaProvenance
-  | WorkspaceControlPlaneSchemaProvenance
-  | WorkspaceProgramSchemaProvenance;
+export type WorkspaceSchemaProvenance = WorkspaceProgramSchemaProvenance;
 
 export type WorkspaceRecordStateFileBase<
   Provenance extends WorkspaceSchemaProvenance = WorkspaceSchemaProvenance,
@@ -483,27 +467,13 @@ export type WorkspaceRecordStateFileBase<
   records: InstanceWorkspaceStoredRecord[];
 };
 
-export type WorkspacePackageAppRecordStateFile =
-  WorkspaceRecordStateFileBase<WorkspacePackageAppSchemaProvenance> & {
-    storageIdentity: `app:${string}`;
-  };
-
-export type WorkspaceControlPlaneRecordStateFile =
-  WorkspaceRecordStateFileBase<WorkspaceControlPlaneSchemaProvenance> & {
-    storageIdentity: "instance:control-plane";
-    schemaKey: typeof INSTANCE_WORKSPACE_CONTROL_PLANE_SCHEMA_KEY;
-  };
-
 export type WorkspaceProgramRecordStateFile =
   WorkspaceRecordStateFileBase<WorkspaceProgramSchemaProvenance> & {
     storageIdentity: "instance:control-plane";
     schemaKey: typeof INSTANCE_WORKSPACE_PROGRAM_SCHEMA_KEY;
   };
 
-export type WorkspaceRecordStateFile =
-  | WorkspacePackageAppRecordStateFile
-  | WorkspaceControlPlaneRecordStateFile
-  | WorkspaceProgramRecordStateFile;
+export type WorkspaceRecordStateFile = WorkspaceProgramRecordStateFile;
 
 export type InstanceWorkspaceControlPlaneRecordSourceControlPlane = {
   schemaKey: typeof INSTANCE_WORKSPACE_CONTROL_PLANE_SCHEMA_KEY;
@@ -890,18 +860,6 @@ export type ResolvedFormlessConfigBase = {
 
 export type ResolvedFormlessConfigRuntime = {
   extensions: InstanceWorkspaceRuntimeExtensions;
-};
-
-export type InstanceWorkspaceApp = {
-  installId: string;
-  packageAppKey: string;
-  label: string;
-  statePath: string;
-  routes?: InstanceWorkspaceAppRoutes;
-};
-
-export type InstanceWorkspaceAppRoutes = {
-  admin?: `/apps/${string}`;
 };
 
 export type InstanceWorkspaceDomainIntent = {

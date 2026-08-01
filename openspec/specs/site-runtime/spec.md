@@ -58,8 +58,8 @@ declarations through a documented schema authoring subpath.
   source
 - AND authored and materialized source parse to the same App schema
 - AND the manifest `sourceSchemaHash` matches the materialized source
-- AND standalone install, archive, and upgrade paths may continue loading
-  `schema.json` without evaluating the TypeScript authoring entrypoint
+- AND package build and upgrade paths may continue loading `schema.json`
+  without evaluating the TypeScript authoring entrypoint
 - AND public Site runtime consumes the complete data-only Program artifact
   rather than the standalone Site schema or workspace TypeScript
 

@@ -8,7 +8,6 @@ import {
   resolveFormlessConfig,
   type FormlessConfig,
   type ResolvedFormlessConfig,
-  type WorkspacePackageAppSchemaProvenance,
 } from "@dpeek/formless-workspace";
 import {
   createWorkspaceAppPackageResolver,
@@ -17,7 +16,6 @@ import {
 import {
   bundledAppPackageManifests,
   runtimeInstallableAppPackageResolver,
-  type AppPackageResolver,
 } from "../shared/app-packages.ts";
 import { formatRuntimeWorkspaceAppPackages } from "../shared/workspace-runtime-packages.ts";
 import {
@@ -227,20 +225,6 @@ export function workspaceSourceSchemaForPackageApp(input: {
   }
 
   return undefined;
-}
-
-export function workspaceSchemaProvenanceForPackageApp(
-  packageApp: Pick<
-    NonNullable<ReturnType<AppPackageResolver["findPackage"]>>,
-    "packageAppKey" | "packageRevision" | "sourceSchemaHash"
-  >,
-): WorkspacePackageAppSchemaProvenance {
-  return {
-    kind: "package-app",
-    packageAppKey: packageApp.packageAppKey,
-    packageRevision: packageApp.packageRevision,
-    sourceSchemaHash: packageApp.sourceSchemaHash,
-  };
 }
 
 export function runtimeWorkspaceAppPackagesEnvValue(

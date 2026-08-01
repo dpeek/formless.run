@@ -8,17 +8,13 @@ import {
   ensureInstanceWorkspaceSecretStateIgnored as ensureFormlessInstanceWorkspaceSecretStateIgnored,
   formatInstanceWorkspaceSecretState as formatFormlessInstanceWorkspaceSecretState,
   instanceWorkspaceSecretStatePath as formlessInstanceWorkspaceSecretStatePath,
-  readInstanceWorkspaceControlPlaneStorageSnapshot,
+  readInstanceWorkspaceProgramStorageSnapshot,
   readInstanceWorkspaceSecretState as readFormlessInstanceWorkspaceSecretState,
   resolveInstanceWorkspaceAdminToken as resolveFormlessInstanceWorkspaceAdminToken,
   writeInstanceWorkspaceSecretState as writeFormlessInstanceWorkspaceSecretState,
 } from "../program/workspace.ts";
 import { packageExecCommand } from "./package-commands.ts";
-import {
-  createActiveWorkspaceAppPackages,
-  readWorkspaceConfig,
-  workspaceRootForInput,
-} from "./instance-workspace-foundation.ts";
+import { readWorkspaceConfig, workspaceRootForInput } from "./instance-workspace-foundation.ts";
 import {
   rotateCommandEnv,
   selectLocalWorkspaceDeploymentSource,
@@ -106,10 +102,8 @@ export async function rotateFormlessInstanceWorkspaceAdminToken(
 ): Promise<RotateFormlessInstanceWorkspaceAdminTokenResult> {
   const workspaceRoot = workspaceRootForInput(dependencies.cwd, input.workspacePath);
   const { config } = await readWorkspaceConfig(workspaceRoot);
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
-  const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
+  const controlPlane = await readInstanceWorkspaceProgramStorageSnapshot({
     manifest: config,
-    packageResolver: activePackages.resolver,
     workspaceRoot,
   });
   const deploymentSource = selectLocalWorkspaceDeploymentSource(controlPlane, input.targetAlias, {

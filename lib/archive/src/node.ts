@@ -6,12 +6,11 @@ import path from "node:path";
 
 import {
   PORTABLE_ARCHIVE_MANIFEST_FILE,
-  archiveApps,
   archiveMediaObjects,
   archiveRecordCount,
   formatPortableArchive,
   parsePortableArchive,
-  type ArchiveControlPlaneValidationOptions,
+  type ArchiveProgramValidationOptions,
   type PortableArchive,
 } from "./index.ts";
 
@@ -25,7 +24,6 @@ export type ArchiveDiskMediaFile = {
 };
 
 export type ArchiveDiskWriteResult = {
-  appCount: number;
   archivePath: string;
   mediaCount: number;
   recordCount: number;
@@ -42,7 +40,7 @@ export async function writePortableArchiveDirectory(
     archive: PortableArchive;
     mediaFiles: readonly ArchiveDiskMediaFile[];
     outDir: string;
-  } & ArchiveControlPlaneValidationOptions,
+  } & ArchiveProgramValidationOptions,
   dependencies: { cwd: string },
 ): Promise<ArchiveDiskWriteResult> {
   const archiveDir = path.resolve(dependencies.cwd, input.outDir);
@@ -52,8 +50,7 @@ export async function writePortableArchiveDirectory(
   await writeFile(
     archivePath,
     formatPortableArchive(input.archive, {
-      controlPlaneSnapshotContract: input.controlPlaneSnapshotContract,
-      packageResolver: input.packageResolver,
+      programSnapshotContract: input.programSnapshotContract,
     }),
   );
 
@@ -65,7 +62,6 @@ export async function writePortableArchiveDirectory(
   }
 
   return {
-    appCount: archiveApps(input.archive).length,
     archivePath,
     mediaCount: input.mediaFiles.length,
     recordCount: archiveRecordCount(input.archive),
@@ -74,13 +70,12 @@ export async function writePortableArchiveDirectory(
 
 export async function readPortableArchiveDirectory(
   archiveDirInput: string,
-  dependencies: { cwd: string } & ArchiveControlPlaneValidationOptions,
+  dependencies: { cwd: string } & ArchiveProgramValidationOptions,
 ): Promise<ReadPortableArchiveDirectoryResult> {
   const archiveDir = path.resolve(dependencies.cwd, archiveDirInput);
   const archivePath = path.join(archiveDir, PORTABLE_ARCHIVE_MANIFEST_FILE);
   const archive = parsePortableArchive(JSON.parse(await readFile(archivePath, "utf8")) as unknown, {
-    controlPlaneSnapshotContract: dependencies.controlPlaneSnapshotContract,
-    packageResolver: dependencies.packageResolver,
+    programSnapshotContract: dependencies.programSnapshotContract,
   });
   const mediaFiles = await Promise.all(
     archiveMediaObjects(archive).map(async (object) => {

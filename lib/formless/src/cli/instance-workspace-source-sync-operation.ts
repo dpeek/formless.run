@@ -214,10 +214,9 @@ function summarizeCheckResult(result: CheckLocalFormlessWorkspaceResult): Worksp
 function summarizePullResult(
   result: PullFormlessInstanceWorkspaceResult,
 ): WorkspaceOperationResult {
-  const pulledAppState = result.appState;
   const details: WorkspaceOperationDisplayObject = {
-    appState: pulledAppState.map((state) => state.installId),
     domainCount: result.domains.length,
+    statePath: result.instanceState.statePath,
     syncPlan: summarizeSyncPlan(result.syncPlan),
     target: result.selectedTarget.alias,
   };
@@ -231,11 +230,10 @@ function summarizePullResult(
     details,
     summary: {
       fields: {
-        appCount: pulledAppState.length,
-        mediaCount: pulledAppState.reduce((count, state) => count + state.mediaCount, 0),
+        mediaCount: result.instanceState.mediaCount,
         mode: result.mode,
         noop: result.noop,
-        recordCount: pulledAppState.reduce((count, state) => count + state.recordCount, 0),
+        recordCount: result.instanceState.recordCount,
       },
       title: "Workspace pulled",
     },
@@ -261,7 +259,6 @@ function summarizePushResult(
     noop: result.noop,
     remoteComparisonEvidence: result.forcedRecovery?.evidence.remoteComparison.status ?? null,
     restoreDryRunEvidence: result.forcedRecovery?.evidence.restoreDryRun.status ?? null,
-    sourceApps: result.source.appCount,
     sourceMedia: result.source.mediaCount,
     sourceRecords: result.source.recordCount,
     sync: result.syncPlan.status,
@@ -325,10 +322,10 @@ function summarizeRestore(result: RestorePortableArchiveResult): WorkspaceOperat
   const summary = result.remote.report?.summary ?? result.remote.plan?.summary;
 
   return {
-    createdInstalls: summary?.createdInstalls ?? [],
     errorCount: result.remote.errors?.length ?? 0,
+    mediaCount: summary?.mediaCount ?? 0,
     ok: result.remote.ok,
-    replacedInstalls: summary?.replacedInstalls ?? [],
+    recordCount: summary?.recordCounts.total ?? 0,
   };
 }
 
@@ -337,24 +334,17 @@ function summarizeSyncPlan(
 ): WorkspaceOperationDisplayObject {
   return {
     changedAreas: plan.changedAreas,
-    changedControlPlaneRecordCount: plan.changedControlPlaneRecords.length,
     changedDomainCount: plan.changedDomainCount,
     changedMediaCount: plan.changedMedia.length,
     changedRecordCount: plan.changedRecords.length,
     changedStatePathCount: plan.changedStatePaths.length,
-    extraInstallCount: plan.extraInstalls.length,
-    missingInstallCount: plan.missingInstalls.length,
     source: plan.source.label,
-    sourceAppCount: plan.source.appCount,
-    sourceControlPlaneRecordCount: plan.source.controlPlaneRecordCount,
     sourceDomainCount: plan.source.domainCount,
     sourceFingerprint: plan.source.fingerprint,
     sourceMediaCount: plan.source.mediaCount,
     sourceRecordCount: plan.source.recordCount,
     status: plan.status,
     target: plan.target.label,
-    targetAppCount: plan.target.appCount,
-    targetControlPlaneRecordCount: plan.target.controlPlaneRecordCount,
     targetDomainCount: plan.target.domainCount,
     targetFingerprint: plan.target.fingerprint,
     targetMediaCount: plan.target.mediaCount,

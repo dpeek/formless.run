@@ -5,7 +5,7 @@ import {
   INSTANCE_ARCHIVE_KIND,
   type InstanceArchive,
 } from "../program/archive.ts";
-import { formlessProgramSchema } from "../program/runtime.ts";
+import { formlessProgramSchema, formlessProgramSchemaProvenance } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
@@ -29,7 +29,10 @@ beforeAll(async () => {
   harness = await createWorkerHarness(
     "src/worker/index.ts",
     { FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true } },
-    { bindings: { FORMLESS_ADMIN_TOKEN: adminToken } },
+    {
+      bindings: { FORMLESS_ADMIN_TOKEN: adminToken },
+      r2Buckets: ["FORMLESS_MEDIA"],
+    },
   );
 });
 
@@ -47,19 +50,20 @@ afterAll(async () => {
 });
 
 describe("instance archive restore API", () => {
-  it("restores current Program records without dormant app installs or app routes", async () => {
+  it("restores one complete Program snapshot", async () => {
     const archive = programInstanceArchive();
     const restored = await harness.fetch("/api/formless/archive/restore", {
-      body: JSON.stringify({ archive }),
+      body: JSON.stringify({ archive, mediaFiles: [] }),
       headers: { ...adminHeaders(), "Content-Type": "application/json" },
       method: "POST",
     });
     const bootstrap = await harness.fetch("/api/formless/program/bootstrap?actorKind=owner", {
       headers: adminHeaders(),
     });
+    const restoredBody = await restored.clone().json();
     const body = (await bootstrap.json()) as BootstrapResponse;
 
-    expect(restored.status).toBe(200);
+    expect(restored.status, JSON.stringify(restoredBody)).toBe(200);
     expect(bootstrap.status).toBe(200);
     expect(body.records.map((record) => `${record.entity}:${record.id}`)).toEqual(
       expect.arrayContaining([
@@ -67,13 +71,11 @@ describe("instance archive restore API", () => {
         "route:route:host:publicSite:archive.example.com",
       ]),
     );
-    expect(body.records.some((record) => record.entity === "app-install")).toBe(false);
-    expect(body.records.some((record) => record.id === "route:personal:admin")).toBe(false);
   });
 
   it("requires write authorization", async () => {
     const response = await harness.fetch("/api/formless/archive/restore", {
-      body: JSON.stringify({ archive: programInstanceArchive() }),
+      body: JSON.stringify({ archive: programInstanceArchive(), mediaFiles: [] }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
@@ -92,20 +94,22 @@ function programInstanceArchive(): InstanceArchive {
     kind: INSTANCE_ARCHIVE_KIND,
     version: ARCHIVE_VERSION,
     exportedAt: now,
-    capabilities: ["schema-owned-control-plane"],
-    restorePolicy: { dryRun: false, installCollisions: "reject" },
+    capabilities: ["core-media-assets"],
+    restorePolicy: { dryRun: false },
     media: { objects: [] },
-    apps: [],
-    controlPlane: {
-      kind: STORAGE_SNAPSHOT_KIND,
-      version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
-      schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
-      exportedAt: now,
-      schemaUpdatedAt: now,
-      sourceCursor: records.length,
-      schema: formlessProgramSchema,
-      records,
+    program: {
+      schemaProvenance: formlessProgramSchemaProvenance,
+      snapshot: {
+        kind: STORAGE_SNAPSHOT_KIND,
+        version: STORAGE_SNAPSHOT_VERSION,
+        storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+        schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
+        exportedAt: now,
+        schemaUpdatedAt: now,
+        sourceCursor: records.length,
+        schema: formlessProgramSchema,
+        records,
+      },
     },
   };
 }
@@ -116,21 +120,6 @@ function archiveRecords(): StoredRecord[] {
       title: "Program archive task",
       done: false,
       priority: "normal",
-    }),
-    storedRecord("app-install", "personal", {
-      installId: "personal",
-      packageAppKey: "site",
-      label: "Dormant Site install",
-      status: "installed",
-    }),
-    storedRecord("route", "route:personal:admin", {
-      enabled: true,
-      matchPath: "/apps/personal",
-      matchPrefix: "/apps/personal/",
-      kind: "mount",
-      targetProfile: "app",
-      surface: "admin",
-      appInstall: "personal",
     }),
     storedRecord("route", "route:host:publicSite:archive.example.com", {
       enabled: true,

@@ -1,11 +1,9 @@
-import { setKeyedDefinition } from "../test/schema-definition-test-helpers.ts";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import packageJson from "../../package.json";
-import { packageAppFactsForKey, listInstallableAppPackages } from "@dpeek/formless-installed-apps";
 import { formlessProgramSchema } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
@@ -38,35 +36,12 @@ import {
   type WorkspaceDefaultAutoSaveSchedulerDependencies,
 } from "./workspace-gateway-auto-save.ts";
 import { createWorkspaceGatewayOperationHandlers } from "./workspace-gateway-operation-adapter.ts";
-import {
-  createWorkerHarness,
-  FORMLESS_WORKER_COMPATIBILITY_DATE,
-} from "../worker/miniflare-test.ts";
 
 const tempDirs: string[] = [];
 const privateSitePackageAppKey = "private-site";
 const rootKnownSitePackage = rootKnownPackageFactsResolver().findPackage("site")!;
 const privateSiteSourceSchemaHash =
   "sha256:06789270061b43a2a0e4709f96e8aac35514e0f61bf15a29f234ca253d021c25" as typeof rootKnownSitePackage.sourceSchemaHash;
-const privateSitePackage = {
-  ...rootKnownSitePackage,
-  defaultInstallId: "personal",
-  packageAppKey: privateSitePackageAppKey,
-  sourceOrigin: "workspace" as const,
-  sourceSchemaHash: privateSiteSourceSchemaHash,
-  sourceSchemaKey: privateSitePackageAppKey,
-  sourceSchemaLocation: {
-    kind: "workspace" as const,
-    key: privateSitePackageAppKey,
-    path: "packages/private-site/schema.json",
-  },
-};
-const privateSitePackageResolver = {
-  findPackage: (packageAppKey: string) =>
-    packageAppKey === privateSitePackageAppKey ? privateSitePackage : undefined,
-  listPackages: () => [privateSitePackage],
-};
-
 afterEach(async () => {
   await Promise.all(
     tempDirs
@@ -100,7 +75,7 @@ describe("workspace gateway auto-save", () => {
         dirtyGeneration: 1,
         displayState: "dirty",
         lastEnqueueAt: "2026-06-02T02:00:03.000Z",
-        storageIdentities: ["app:site"],
+        storageIdentities: ["instance:control-plane"],
         writeSources: ["schema-save"],
       },
       workspaceRoot,
@@ -110,7 +85,7 @@ describe("workspace gateway auto-save", () => {
       dirtyGeneration: 1,
       displayState: "dirty",
       savedGeneration: 0,
-      storageIdentities: ["app:site"],
+      storageIdentities: ["instance:control-plane"],
       writeSources: ["schema-save"],
     });
   });
@@ -142,13 +117,13 @@ describe("workspace gateway auto-save", () => {
     await expect(
       scheduler.enqueue({
         source: "app-operation",
-        storageIdentity: "app:site",
+        storageIdentity: "instance:control-plane",
         workspaceRoot,
       }),
     ).resolves.toMatchObject({
       dirtyGeneration: 1,
       displayState: "queued",
-      storageIdentities: ["app:site"],
+      storageIdentities: ["instance:control-plane"],
       writeSources: ["app-operation"],
     });
     await expect(
@@ -225,7 +200,7 @@ describe("workspace gateway auto-save", () => {
 
     await scheduler.enqueue({
       source: "app-operation",
-      storageIdentity: "app:site",
+      storageIdentity: "instance:control-plane",
       workspaceRoot,
     });
     await scheduler.enqueue({
@@ -245,7 +220,7 @@ describe("workspace gateway auto-save", () => {
 
     await scheduler.enqueue({
       source: "schema-save",
-      storageIdentity: "app:site",
+      storageIdentity: "instance:control-plane",
       workspaceRoot,
     });
     saving.resolve(undefined);
@@ -255,7 +230,7 @@ describe("workspace gateway auto-save", () => {
       dirtyGeneration: 3,
       displayState: "queued",
       savedGeneration: 2,
-      storageIdentities: ["app:site", "instance:control-plane"],
+      storageIdentities: ["instance:control-plane"],
       writeSources: ["app-operation", "deployment-intent", "schema-save"],
     });
   });
@@ -295,7 +270,7 @@ describe("workspace gateway auto-save", () => {
 
     await scheduler.enqueue({
       source: "app-operation",
-      storageIdentity: "app:site",
+      storageIdentity: "instance:control-plane",
       workspaceRoot,
     });
 
@@ -329,7 +304,7 @@ describe("workspace gateway auto-save", () => {
     const requests: CapturedRequest[] = [];
     const scheduler = createDefaultWorkspaceAutoSaveScheduler(
       autoSaveDeps(workspaceRoot, {
-        fetch: workspaceSaveFetch(requests, "site"),
+        fetch: workspaceSaveFetch(requests),
         operationIds: ["op_auto_save_00000001"],
         timestamps: [
           "2026-06-02T02:40:00.000Z",
@@ -360,7 +335,7 @@ describe("workspace gateway auto-save", () => {
         {
           now: () => "2026-06-02T02:40:00.000Z",
           source: "app-operation",
-          storageIdentity: "app:site",
+          storageIdentity: "instance:control-plane",
         },
       ),
       workspaceRoot,
@@ -393,9 +368,6 @@ describe("workspace gateway auto-save", () => {
       storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     });
     expect(instanceState.schema).toBeUndefined();
-    await expect(stat(path.join(workspaceRoot, "state/apps/site.json"))).rejects.toMatchObject({
-      code: "ENOENT",
-    });
     await expect(stat(path.join(workspaceRoot, "archives"))).rejects.toMatchObject({
       code: "ENOENT",
     });
@@ -410,141 +382,6 @@ describe("workspace gateway auto-save", () => {
     ]);
   });
 
-  it("omits installed-app documents from current Program auto-save", async () => {
-    const workspaceRoot = await makeTempDir();
-    const requests: CapturedRequest[] = [];
-    const privateBytes = new TextEncoder().encode("%PDF-1.7\nprivate workspace document");
-    const publicBytes = new TextEncoder().encode("%PDF-1.7\npublic workspace document");
-    const unreferencedBytes = new TextEncoder().encode("%PDF-1.7\nunreferenced document");
-    const scheduler = createDefaultWorkspaceAutoSaveScheduler(
-      autoSaveDeps(workspaceRoot, {
-        fetch: workspaceDocumentSaveFetch(requests, {
-          privateBytes,
-          publicBytes,
-          unreferencedBytes,
-        }),
-        operationIds: ["op_document_save_00000001"],
-        timestamps: [
-          "2026-06-02T02:45:00.000Z",
-          "2026-06-02T02:45:01.000Z",
-          "2026-06-02T02:45:02.000Z",
-          "2026-06-02T02:45:03.000Z",
-          "2026-06-02T02:45:04.000Z",
-        ],
-      }),
-    );
-
-    await writeWorkspaceConfig(workspaceRoot);
-    await writeLocalDevEnv(workspaceRoot);
-    await scheduler.enqueue({
-      source: "media-reference",
-      storageIdentity: "app:reports",
-      workspaceRoot,
-    });
-    await expect(scheduler.runNow(workspaceRoot)).resolves.toMatchObject({
-      displayState: "saved",
-      savedGeneration: 1,
-    });
-
-    await expect(stat(path.join(workspaceRoot, "state/media/manifest.json"))).rejects.toMatchObject(
-      { code: "ENOENT" },
-    );
-    expect(requests.map((request) => new URL(request.url).pathname)).not.toEqual(
-      expect.arrayContaining([
-        "/api/app-installs/private-site/reports/snapshot",
-        "/api/app-installs/private-site/reports/media/documents",
-      ]),
-    );
-  });
-
-  it("does not select installed-app uploads for current Program auto-save", async () => {
-    const workspaceRoot = await makeTempDir();
-    const mediaHarness = await createWorkerHarness(
-      "src/cli/workspace-document-media-worker-test.ts",
-      {},
-      {
-        compatibilityDate: FORMLESS_WORKER_COMPATIBILITY_DATE,
-        r2Buckets: ["FORMLESS_MEDIA"],
-      },
-    );
-
-    try {
-      const upload = await uploadWorkspaceDocument(mediaHarness, "referenced-report.pdf");
-
-      expect(upload.status).toBe(200);
-
-      const uploaded = (await upload.json()) as {
-        asset: ReturnType<typeof workspaceDocumentAsset>;
-      };
-      const referencedAsset = uploaded.asset;
-      const bucket = await mediaHarness.mf.getR2Bucket("FORMLESS_MEDIA");
-
-      await Promise.all(
-        Array.from({ length: 50 }, (_, index) =>
-          bucket.put(
-            `media/program/documents/!decoy-${String(index).padStart(2, "0")}.pdf`,
-            pdfBytesForWorkspace,
-            {
-              customMetadata: { decoy: String(index) },
-              httpMetadata: { contentType: "application/pdf" },
-            },
-          ),
-        ),
-      );
-
-      const list = await mediaHarness.fetch(
-        "/api/formless/program/media/documents?entity=block&field=privateDocument",
-      );
-
-      expect(list.status).toBe(200);
-      expect((await list.clone().json()) as unknown).toEqual({
-        assets: expect.arrayContaining([
-          expect.objectContaining({
-            id: referencedAsset.id,
-            storageKey: referencedAsset.storageKey,
-          }),
-        ]),
-      });
-
-      const scheduler = createDefaultWorkspaceAutoSaveScheduler(
-        autoSaveDeps(workspaceRoot, {
-          fetch: workspaceDocumentWorkerFetch(mediaHarness, referencedAsset.id),
-          operationIds: ["op_r2_document_save_00000001"],
-          timestamps: [
-            "2026-06-02T02:46:00.000Z",
-            "2026-06-02T02:46:01.000Z",
-            "2026-06-02T02:46:02.000Z",
-            "2026-06-02T02:46:03.000Z",
-            "2026-06-02T02:46:04.000Z",
-          ],
-        }),
-      );
-
-      await writeWorkspaceConfig(workspaceRoot);
-      await writeLocalDevEnv(workspaceRoot);
-      await scheduler.enqueue({
-        source: "media-reference",
-        storageIdentity: "app:reports",
-        workspaceRoot,
-      });
-      await expect(scheduler.runNow(workspaceRoot)).resolves.toMatchObject({
-        displayState: "saved",
-        savedGeneration: 1,
-      });
-
-      await expect(stat(path.join(workspaceRoot, "state/apps/reports.json"))).rejects.toMatchObject(
-        {
-          code: "ENOENT",
-        },
-      );
-      await expect(
-        stat(path.join(workspaceRoot, "state/media/manifest.json")),
-      ).rejects.toMatchObject({ code: "ENOENT" });
-    } finally {
-      await mediaHarness.dispose();
-    }
-  });
-
   it("lets manual gateway save flush failed dirty auto-save state", async () => {
     const workspaceRoot = await makeTempDir();
     const requests: CapturedRequest[] = [];
@@ -557,7 +394,7 @@ describe("workspace gateway auto-save", () => {
         {
           now: () => "2026-06-02T02:50:01.000Z",
           source: "app-operation",
-          storageIdentity: "app:site",
+          storageIdentity: "instance:control-plane",
         },
       ),
       {
@@ -567,7 +404,7 @@ describe("workspace gateway auto-save", () => {
       },
     );
     const deps = autoSaveDeps(workspaceRoot, {
-      fetch: workspaceSaveFetch(requests, "site"),
+      fetch: workspaceSaveFetch(requests),
       operationIds: ["op_manual_save_00000001"],
       timestamps: [
         "2026-06-02T02:50:03.000Z",
@@ -747,7 +584,7 @@ type CapturedRequest = {
   url: string;
 };
 
-function workspaceSaveFetch(requests: CapturedRequest[], installId: string): typeof fetch {
+function workspaceSaveFetch(requests: CapturedRequest[]): typeof fetch {
   return async (url, init) => {
     const requestUrl =
       typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
@@ -760,257 +597,11 @@ function workspaceSaveFetch(requests: CapturedRequest[], installId: string): typ
       url: requestUrl,
     });
 
-    if (parsedUrl.pathname === "/api/formless/app-installs") {
-      return Response.json({
-        installs: [installedSite(installId, "Site")],
-        packages: listInstallableAppPackages(privateSitePackageResolver),
-      });
-    }
-
     if (parsedUrl.pathname === "/api/formless/program/snapshot") {
-      return Response.json(controlPlaneSnapshot(gatewayControlPlaneRecords(installId)));
-    }
-
-    if (parsedUrl.pathname === `/api/app-installs/private-site/${installId}/snapshot`) {
-      return Response.json(snapshot([], `app:${installId}`));
+      return Response.json(controlPlaneSnapshot([]));
     }
 
     return Response.json({ error: "not found" }, { status: 404 });
-  };
-}
-
-function workspaceDocumentSaveFetch(
-  requests: CapturedRequest[],
-  input: {
-    privateBytes: Uint8Array;
-    publicBytes: Uint8Array;
-    unreferencedBytes: Uint8Array;
-  },
-): typeof fetch {
-  const installId = "reports";
-  const assets = [
-    workspaceDocumentAsset(installId, "private-report.pdf", "private", input.privateBytes),
-    workspaceDocumentAsset(installId, "public-report.pdf", "public", input.publicBytes),
-    workspaceDocumentAsset(installId, "unreferenced.pdf", "public", input.unreferencedBytes),
-  ];
-  const bytesByAssetId = new Map([
-    ["private-report.pdf", input.privateBytes],
-    ["public-report.pdf", input.publicBytes],
-    ["unreferenced.pdf", input.unreferencedBytes],
-  ]);
-
-  return async (url, init) => {
-    const requestUrl =
-      typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
-    const parsedUrl = new URL(requestUrl);
-
-    requests.push({
-      body: typeof init?.body === "string" ? init.body : undefined,
-      headers: normalizeHeaders(init?.headers),
-      method: init?.method ?? "GET",
-      url: requestUrl,
-    });
-
-    if (parsedUrl.pathname === "/api/formless/app-installs") {
-      return Response.json({
-        installs: [installedSite(installId, "Reports")],
-        packages: listInstallableAppPackages(privateSitePackageResolver),
-      });
-    }
-
-    if (parsedUrl.pathname === "/api/formless/program/snapshot") {
-      return Response.json(controlPlaneSnapshot(gatewayControlPlaneRecords(installId)));
-    }
-
-    if (parsedUrl.pathname === `/api/app-installs/private-site/${installId}/snapshot`) {
-      return Response.json({
-        ...snapshot(
-          [
-            {
-              createdAt: "2026-06-02T02:44:00.000Z",
-              entity: "block",
-              id: "documents",
-              updatedAt: "2026-06-02T02:44:00.000Z",
-              values: {
-                privateDocument: "private-report.pdf",
-                publicDocument: "public-report.pdf",
-                type: "group",
-              },
-            },
-          ],
-          `app:${installId}`,
-        ),
-        schema: workspaceDocumentSchema(),
-      });
-    }
-
-    if (parsedUrl.pathname === `/api/app-installs/private-site/${installId}/media/documents`) {
-      const field = parsedUrl.searchParams.get("field");
-      const access = field === "privateDocument" ? "private" : "public";
-
-      return Response.json({ assets: assets.filter((asset) => asset.access === access) });
-    }
-
-    const deliveryMatch = parsedUrl.pathname.match(
-      /^\/api\/app-installs\/private-site\/reports\/media\/documents\/([^/]+)$/,
-    );
-
-    if (deliveryMatch) {
-      const assetId = deliveryMatch[1] ?? "";
-      const bytes = bytesByAssetId.get(assetId);
-
-      return bytes
-        ? new Response(Buffer.from(bytes), {
-            headers: { "content-type": "application/pdf" },
-          })
-        : Response.json({ error: "not found" }, { status: 404 });
-    }
-
-    return Response.json({ error: "not found" }, { status: 404 });
-  };
-}
-
-function workspaceDocumentWorkerFetch(
-  mediaHarness: Awaited<ReturnType<typeof createWorkerHarness>>,
-  _referencedAssetId: string,
-): typeof fetch {
-  return async (url, init) => {
-    const requestUrl =
-      typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
-    const parsedUrl = new URL(requestUrl);
-
-    if (parsedUrl.pathname.startsWith("/api/formless/program/media/documents")) {
-      return (await mediaHarness.fetch(`${parsedUrl.pathname}${parsedUrl.search}`, {
-        headers: normalizeHeaders(init?.headers),
-        method: init?.method,
-      })) as unknown as Response;
-    }
-
-    if (parsedUrl.pathname === "/api/formless/program/snapshot") {
-      return Response.json(controlPlaneSnapshot(gatewayControlPlaneRecords("reports")));
-    }
-
-    return Response.json({ error: "not found" }, { status: 404 });
-  };
-}
-
-const pdfBytesForWorkspace = new TextEncoder().encode("%PDF-1.7\nworkspace R2 document");
-
-async function uploadWorkspaceDocument(
-  mediaHarness: Awaited<ReturnType<typeof createWorkerHarness>>,
-  filename: string,
-) {
-  const boundary = `formless-workspace-${filename}`;
-  const prefix = new TextEncoder().encode(
-    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: application/pdf\r\n\r\n`,
-  );
-  const suffix = new TextEncoder().encode(`\r\n--${boundary}--\r\n`);
-  const body = new Uint8Array(
-    prefix.byteLength + pdfBytesForWorkspace.byteLength + suffix.byteLength,
-  );
-
-  body.set(prefix);
-  body.set(pdfBytesForWorkspace, prefix.byteLength);
-  body.set(suffix, prefix.byteLength + pdfBytesForWorkspace.byteLength);
-
-  return mediaHarness.fetch(
-    "/api/formless/program/media/documents?entity=block&field=privateDocument",
-    {
-      body,
-      headers: {
-        "Content-Type": `multipart/form-data; boundary=${boundary}`,
-      },
-      method: "POST",
-    },
-  );
-}
-
-function installedSite(installId: string, label: string) {
-  const facts = packageAppFactsForKey(privateSitePackageAppKey, privateSitePackageResolver);
-
-  if (!facts) {
-    throw new Error("Missing bundled package facts for site.");
-  }
-
-  return {
-    adminRoute: `/apps/${installId}` as `/apps/${string}`,
-    createdAt: "2026-05-01T00:00:00.000Z",
-    installId,
-    label,
-    packageAppKey: privateSitePackageAppKey,
-    packageRevision: facts.packageRevision,
-    sourceSchemaHash: facts.sourceSchemaHash,
-    status: "installed" as const,
-    updatedAt: "2026-05-01T00:00:00.000Z",
-  };
-}
-
-function snapshot(
-  records: StoredRecord[],
-  storageIdentity: `app:${string}` = "app:david",
-): StorageSnapshot {
-  return {
-    exportedAt: "2026-05-12T02:00:00.000Z",
-    kind: STORAGE_SNAPSHOT_KIND,
-    records,
-    schema: siteSourceSchema,
-    schemaKey: privateSitePackageAppKey,
-    schemaUpdatedAt: "2026-05-01T00:00:00.000Z",
-    sourceCursor: 1,
-    storageIdentity,
-    version: STORAGE_SNAPSHOT_VERSION,
-  };
-}
-function workspaceDocumentSchema() {
-  const schema = structuredClone(siteSourceSchema);
-  const block = schema.entities.find((definition) => definition.key === "block")!;
-  if (!block) {
-    throw new Error("Expected Site block schema.");
-  }
-  setKeyedDefinition(block.fields, "privateDocument", {
-    asset: {
-      acceptedMimeTypes: ["application/pdf"],
-      access: "private",
-      kind: "document",
-      maxBytes: 1024 * 1024,
-    },
-    label: "Private document",
-    required: false,
-    type: "text",
-  });
-  setKeyedDefinition(block.fields, "publicDocument", {
-    asset: {
-      acceptedMimeTypes: ["application/pdf"],
-      access: "public",
-      kind: "document",
-      maxBytes: 1024 * 1024,
-    },
-    label: "Public document",
-    required: false,
-    type: "text",
-  });
-  return schema;
-}
-function workspaceDocumentAsset(
-  _installId: string,
-  assetId: string,
-  access: "private" | "public",
-  bytes: Uint8Array,
-) {
-  const storageKey = `media/program/documents/${assetId}`;
-
-  return {
-    access,
-    byteSize: bytes.byteLength,
-    contentType: "application/pdf",
-    deliveryHref: `/api/formless/program/media/documents/${assetId}`,
-    filename: assetId,
-    id: assetId,
-    kind: "document",
-    label: assetId,
-    provider: "r2",
-    status: "ready",
-    storageKey,
   };
 }
 
@@ -1026,40 +617,6 @@ function controlPlaneSnapshot(records: StoredRecord[]): StorageSnapshot {
     storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     version: STORAGE_SNAPSHOT_VERSION,
   };
-}
-
-function gatewayControlPlaneRecords(installId: string): StoredRecord[] {
-  const now = "2026-05-26T00:00:00.000Z";
-
-  return [
-    {
-      createdAt: now,
-      updatedAt: now,
-      entity: "app-install",
-      id: installId,
-      values: {
-        installId,
-        label: "Site",
-        packageAppKey: privateSitePackageAppKey,
-        status: "installed",
-        storageIdentity: `app:${installId}`,
-      },
-    },
-    {
-      createdAt: now,
-      updatedAt: now,
-      entity: "route",
-      id: `route:${installId}:admin`,
-      values: {
-        appInstall: installId,
-        enabled: true,
-        kind: "mount",
-        matchPath: `/apps/${installId}`,
-        surface: "admin",
-        targetProfile: "app",
-      },
-    },
-  ];
 }
 
 function normalizeHeaders(headers: HeadersInit | undefined): Record<string, string> {

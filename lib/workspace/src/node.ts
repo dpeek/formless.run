@@ -38,7 +38,6 @@ import {
   nextWorkspaceOperationState,
   parseWorkspaceAutoSaveStateJson,
   parseInstanceWorkspaceRelativePath,
-  parseInstanceWorkspaceResourceSlug,
   parseWorkspaceRecordStateFile,
   parseWorkspaceOperationStateJson,
   workspaceOperationStateFileName,
@@ -50,7 +49,6 @@ import type {
   WorkspacePackageLink,
   WorkspaceAutoSaveState,
   WorkspaceOperationState,
-  WorkspacePackageAppSchemaProvenance,
   WorkspaceRecordStateFile,
   WorkspaceSchemaProvenance,
 } from "./index.ts";
@@ -130,7 +128,7 @@ export type InstanceWorkspaceMediaFile = {
   object: unknown;
 };
 
-export type WorkspaceControlPlaneSnapshotContract = {
+export type WorkspaceProgramSnapshotContract = {
   canonicalize: (
     snapshot: StorageSnapshot,
     input?: {
@@ -140,7 +138,6 @@ export type WorkspaceControlPlaneSnapshotContract = {
   ) => StorageSnapshot;
   formatRecordEntity?: (entity: string) => string;
   normalizeRecordEntity?: (entity: string) => string;
-  parse: (context: string, value: unknown) => StorageSnapshot;
   schema: AppSchema;
   schemaKey: string;
   schemaProvenance: WorkspaceSchemaProvenance;
@@ -199,28 +196,6 @@ export function instanceWorkspaceInstanceStatePath(
   return path.join(workspaceRoot, instanceWorkspaceInstanceStateRelativePath(manifest));
 }
 
-export function instanceWorkspaceAppStateRootPath(
-  workspaceRoot: string,
-  manifest: ResolvedFormlessConfig,
-): string {
-  return path.join(workspaceRoot, manifest.state.root, "apps");
-}
-
-export function instanceWorkspaceAppStateRelativePath(
-  manifest: ResolvedFormlessConfig,
-  installId: string,
-): string {
-  return `${manifest.state.root}/apps/${parseWorkspaceStateInstallId(installId)}.json`;
-}
-
-export function instanceWorkspaceAppStatePath(
-  workspaceRoot: string,
-  manifest: ResolvedFormlessConfig,
-  installId: string,
-): string {
-  return path.join(workspaceRoot, instanceWorkspaceAppStateRelativePath(manifest, installId));
-}
-
 export function instanceWorkspaceMediaRootPath(
   workspaceRoot: string,
   manifest: ResolvedFormlessConfig,
@@ -249,19 +224,18 @@ export function instanceWorkspaceMediaManifestPath(
   );
 }
 
-export async function readInstanceWorkspaceControlPlaneStorageSnapshot(input: {
-  controlPlaneSnapshotContract: WorkspaceControlPlaneSnapshotContract;
+export async function readInstanceWorkspaceProgramStorageSnapshot(input: {
+  programSnapshotContract: WorkspaceProgramSnapshotContract;
   manifest: ResolvedFormlessConfig;
-  packageResolver?: AppPackageResolver;
   workspaceRoot: string;
 }): Promise<StorageSnapshot | undefined> {
   const filePath = instanceWorkspaceInstanceStatePath(input.workspaceRoot, input.manifest);
 
   try {
-    return await parseInstanceWorkspaceControlPlaneStorageSnapshot(
+    return await parseInstanceWorkspaceProgramStorageSnapshot(
       await readFile(filePath, "utf8"),
       `Workspace instance state ${instanceWorkspaceInstanceStateRelativePath(input.manifest)}`,
-      input.controlPlaneSnapshotContract,
+      input.programSnapshotContract,
     );
   } catch (error) {
     if (isNodeError(error) && error.code === "ENOENT") {
@@ -272,10 +246,9 @@ export async function readInstanceWorkspaceControlPlaneStorageSnapshot(input: {
   }
 }
 
-export async function writeInstanceWorkspaceControlPlaneStorageSnapshot(input: {
-  controlPlaneSnapshotContract: WorkspaceControlPlaneSnapshotContract;
+export async function writeInstanceWorkspaceProgramStorageSnapshot(input: {
+  programSnapshotContract: WorkspaceProgramSnapshotContract;
   manifest: ResolvedFormlessConfig;
-  packageResolver?: AppPackageResolver;
   snapshot: StorageSnapshot | undefined;
   sourceLabel?: string;
   validationContext?: string;
@@ -289,103 +262,22 @@ export async function writeInstanceWorkspaceControlPlaneStorageSnapshot(input: {
     return;
   }
 
-  const snapshot = input.controlPlaneSnapshotContract.canonicalize(input.snapshot, {
+  const snapshot = input.programSnapshotContract.canonicalize(input.snapshot, {
     context: input.validationContext,
     sourceLabel: input.sourceLabel,
   });
   const state = await workspaceRecordStateFileFromStorageSnapshot(snapshot, {
-    schemaProvenance: input.controlPlaneSnapshotContract.schemaProvenance,
+    schemaProvenance: input.programSnapshotContract.schemaProvenance,
   });
 
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(
     filePath,
     formatWorkspaceRecordStateFile(state, snapshot.schema, {
-      formatRecordEntity: input.controlPlaneSnapshotContract.formatRecordEntity,
-      normalizeRecordEntity: input.controlPlaneSnapshotContract.normalizeRecordEntity,
+      formatRecordEntity: input.programSnapshotContract.formatRecordEntity,
+      normalizeRecordEntity: input.programSnapshotContract.normalizeRecordEntity,
     }),
   );
-}
-
-export async function readInstanceWorkspaceAppStorageSnapshot(input: {
-  installId: string;
-  manifest: ResolvedFormlessConfig;
-  schemaKey?: string;
-  schemaProvenance?: WorkspacePackageAppSchemaProvenance;
-  sourceSchema?: AppSchema;
-  workspaceRoot: string;
-}): Promise<StorageSnapshot | undefined> {
-  const filePath = instanceWorkspaceAppStatePath(
-    input.workspaceRoot,
-    input.manifest,
-    input.installId,
-  );
-
-  try {
-    return parseInstanceWorkspaceAppStorageStateFile(
-      await readFile(filePath, "utf8"),
-      `Workspace app state ${instanceWorkspaceAppStateRelativePath(input.manifest, input.installId)}`,
-      {
-        schemaKey: input.schemaKey,
-        schemaProvenance: input.schemaProvenance,
-        sourceSchema: input.sourceSchema,
-        storageIdentity: `app:${input.installId}`,
-      },
-    );
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return undefined;
-    }
-
-    throw error;
-  }
-}
-
-export async function writeInstanceWorkspaceAppStorageSnapshot(input: {
-  installId: string;
-  manifest: ResolvedFormlessConfig;
-  schemaProvenance: WorkspacePackageAppSchemaProvenance;
-  snapshot: StorageSnapshot;
-  workspaceRoot: string;
-}): Promise<void> {
-  const snapshot = parseStorageSnapshot(input.snapshot, {
-    storageIdentity: `app:${parseWorkspaceStateInstallId(input.installId)}`,
-  });
-  const state = await workspaceRecordStateFileFromStorageSnapshot(snapshot, {
-    schemaProvenance: input.schemaProvenance,
-  });
-  const filePath = instanceWorkspaceAppStatePath(
-    input.workspaceRoot,
-    input.manifest,
-    input.installId,
-  );
-
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, formatWorkspaceRecordStateFile(state, snapshot.schema));
-}
-
-export async function replaceInstanceWorkspaceAppStorageSnapshots(input: {
-  manifest: ResolvedFormlessConfig;
-  snapshots: readonly {
-    installId: string;
-    schemaProvenance: WorkspacePackageAppSchemaProvenance;
-    snapshot: StorageSnapshot;
-  }[];
-  workspaceRoot: string;
-}): Promise<void> {
-  const appStateRoot = instanceWorkspaceAppStateRootPath(input.workspaceRoot, input.manifest);
-
-  await rm(appStateRoot, { force: true, recursive: true });
-
-  for (const app of input.snapshots) {
-    await writeInstanceWorkspaceAppStorageSnapshot({
-      installId: app.installId,
-      manifest: input.manifest,
-      schemaProvenance: app.schemaProvenance,
-      snapshot: app.snapshot,
-      workspaceRoot: input.workspaceRoot,
-    });
-  }
 }
 
 export async function readInstanceWorkspaceMediaFiles(input: {
@@ -840,79 +732,29 @@ export async function writeWorkspaceOperationState(
   );
 }
 
-async function parseInstanceWorkspaceControlPlaneStorageSnapshot(
+async function parseInstanceWorkspaceProgramStorageSnapshot(
   contents: string,
   context: string,
-  contract: WorkspaceControlPlaneSnapshotContract,
+  contract: WorkspaceProgramSnapshotContract,
 ): Promise<StorageSnapshot> {
   const parsed = parseWorkspaceStateJson(contents, context);
-
-  if (isWorkspaceRecordStateFile(parsed)) {
-    const state = parseWorkspaceRecordStateFile(parsed, {
-      context,
-      expected: {
-        schemaKey: contract.schemaKey,
-        schemaProvenanceKind: contract.schemaProvenance.kind,
-        storageIdentity: contract.storageIdentity,
-      },
-    });
-
-    if (!workspaceSchemaProvenanceEqual(state.schemaProvenance, contract.schemaProvenance)) {
-      throw new Error(`${context} schemaProvenance does not match resolved runtime source.`);
-    }
-
-    return contract.canonicalize(storageSnapshotFromWorkspaceRecordState(state, contract.schema), {
-      context: "Workspace control-plane storage snapshot records",
-      sourceLabel: "Workspace control-plane storage snapshot",
-    });
-  }
-
-  return contract.canonicalize(contract.parse(context, parsed), {
-    context: "Workspace control-plane storage snapshot records",
-    sourceLabel: "Workspace control-plane storage snapshot",
-  });
-}
-
-function parseInstanceWorkspaceAppStorageStateFile(
-  contents: string,
-  context: string,
-  expected: {
-    schemaKey?: string;
-    schemaProvenance?: WorkspacePackageAppSchemaProvenance;
-    sourceSchema?: AppSchema;
-    storageIdentity: string;
-  },
-): StorageSnapshot {
-  const parsed = parseWorkspaceStateJson(contents, context);
-
-  if (!isWorkspaceRecordStateFile(parsed)) {
-    return parseInstanceWorkspaceStorageSnapshotValue(parsed, {
-      schemaKey: expected.schemaKey,
-      storageIdentity: expected.storageIdentity,
-    });
-  }
-
-  if (expected.sourceSchema === undefined) {
-    throw new Error(`${context} requires a resolved source schema.`);
-  }
-
   const state = parseWorkspaceRecordStateFile(parsed, {
     context,
     expected: {
-      schemaKey: expected.schemaKey,
-      schemaProvenanceKind: "package-app",
-      storageIdentity: expected.storageIdentity,
+      schemaKey: contract.schemaKey,
+      schemaProvenanceKind: contract.schemaProvenance.kind,
+      storageIdentity: contract.storageIdentity,
     },
   });
 
-  if (
-    expected.schemaProvenance !== undefined &&
-    !workspaceSchemaProvenanceEqual(state.schemaProvenance, expected.schemaProvenance)
-  ) {
-    throw new Error(`${context} schemaProvenance does not match resolved package source.`);
+  if (!workspaceSchemaProvenanceEqual(state.schemaProvenance, contract.schemaProvenance)) {
+    throw new Error(`${context} schemaProvenance does not match resolved runtime source.`);
   }
 
-  return storageSnapshotFromWorkspaceRecordState(state, expected.sourceSchema);
+  return contract.canonicalize(storageSnapshotFromWorkspaceRecordState(state, contract.schema), {
+    context: "Workspace Program storage snapshot records",
+    sourceLabel: "Workspace Program storage snapshot",
+  });
 }
 
 function parseWorkspaceStateJson(contents: string, context: string): unknown {
@@ -925,13 +767,6 @@ function parseWorkspaceStateJson(contents: string, context: string): unknown {
 
     throw error;
   }
-}
-
-function parseInstanceWorkspaceStorageSnapshotValue(
-  value: unknown,
-  expected?: { schemaKey?: string; storageIdentity?: string },
-): StorageSnapshot {
-  return parseStorageSnapshot(value, expected);
 }
 
 async function workspaceRecordStateFileFromStorageSnapshot(
@@ -977,29 +812,7 @@ function workspaceSchemaProvenanceEqual(
   left: WorkspaceSchemaProvenance,
   right: WorkspaceSchemaProvenance,
 ): boolean {
-  if (left.kind !== right.kind || left.sourceSchemaHash !== right.sourceSchemaHash) {
-    return false;
-  }
-
-  if (left.kind === "instance-control-plane" || left.kind === "program") {
-    return true;
-  }
-
-  return (
-    right.kind === "package-app" &&
-    left.packageAppKey === right.packageAppKey &&
-    left.packageRevision === right.packageRevision
-  );
-}
-
-function isWorkspaceRecordStateFile(value: unknown): boolean {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "kind" in value &&
-    value.kind === WORKSPACE_RECORD_STATE_FILE_KIND
-  );
+  return left.sourceSchemaHash === right.sourceSchemaHash;
 }
 
 function workspaceStoredRecord(record: StoredRecord): StoredRecord {
@@ -1092,10 +905,6 @@ function assertWorkspaceLinkedPackageManifest(manifest: AppPackageManifest, cont
   if (manifest.sourceSchema.kind !== "workspace") {
     throw new Error(`${context} manifest sourceSchema kind must be "workspace".`);
   }
-}
-
-function parseWorkspaceStateInstallId(value: string): string {
-  return parseInstanceWorkspaceResourceSlug("workspace app state install id", value);
 }
 
 function parseWorkspaceMediaArchivePath(value: string): string {

@@ -20,8 +20,8 @@ import {
   type StoredRecord,
 } from "@dpeek/formless-storage";
 import {
-  readInstanceWorkspaceControlPlaneStorageSnapshot,
-  writeInstanceWorkspaceControlPlaneStorageSnapshot,
+  readInstanceWorkspaceProgramStorageSnapshot,
+  writeInstanceWorkspaceProgramStorageSnapshot,
 } from "../program/workspace.ts";
 
 import {
@@ -243,7 +243,7 @@ describe("Formless Cloudflare OAuth credentials", () => {
       id: "default",
       workspaceRoot,
     });
-    const snapshot = await readInstanceWorkspaceControlPlaneStorageSnapshot({
+    const snapshot = await readInstanceWorkspaceProgramStorageSnapshot({
       manifest,
       workspaceRoot,
     });
@@ -349,7 +349,7 @@ describe("Formless Cloudflare OAuth credentials", () => {
       updatedAt: now(),
     });
 
-    const snapshot = await readInstanceWorkspaceControlPlaneStorageSnapshot({
+    const snapshot = await readInstanceWorkspaceProgramStorageSnapshot({
       manifest,
       workspaceRoot,
     });
@@ -442,7 +442,7 @@ describe("Formless Cloudflare OAuth credentials", () => {
       status: "succeeded",
     });
 
-    const snapshot = await readInstanceWorkspaceControlPlaneStorageSnapshot({
+    const snapshot = await readInstanceWorkspaceProgramStorageSnapshot({
       manifest,
       workspaceRoot,
     });
@@ -694,7 +694,7 @@ async function writeWorkspaceControlPlaneStorageSnapshot(
   manifest: ResolvedFormlessConfig,
   records: StoredRecord[],
 ): Promise<void> {
-  await writeInstanceWorkspaceControlPlaneStorageSnapshot({
+  await writeInstanceWorkspaceProgramStorageSnapshot({
     manifest,
     snapshot: {
       kind: STORAGE_SNAPSHOT_KIND,

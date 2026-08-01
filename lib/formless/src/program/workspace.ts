@@ -1,6 +1,6 @@
 import {
-  readInstanceWorkspaceControlPlaneStorageSnapshot as readWorkspaceControlPlaneSnapshot,
-  writeInstanceWorkspaceControlPlaneStorageSnapshot as writeWorkspaceControlPlaneSnapshot,
+  readInstanceWorkspaceProgramStorageSnapshot as readWorkspaceProgramSnapshot,
+  writeInstanceWorkspaceProgramStorageSnapshot as writeWorkspaceProgramSnapshot,
 } from "@dpeek/formless-workspace/node";
 import type { ResolvedFormlessConfig } from "@dpeek/formless-workspace";
 import { materializeFormlessProgramSourceArtifact } from "./artifact.ts";
@@ -9,37 +9,37 @@ import { formlessProgramSourceSchema } from "./schema.ts";
 
 export * from "@dpeek/formless-workspace/node";
 
-type ReadWorkspaceControlPlaneSnapshotInput = Omit<
-  Parameters<typeof readWorkspaceControlPlaneSnapshot>[0],
-  "controlPlaneSnapshotContract"
+type ReadWorkspaceProgramSnapshotInput = Omit<
+  Parameters<typeof readWorkspaceProgramSnapshot>[0],
+  "programSnapshotContract"
 >;
 
-type WriteWorkspaceControlPlaneSnapshotInput = Omit<
-  Parameters<typeof writeWorkspaceControlPlaneSnapshot>[0],
-  "controlPlaneSnapshotContract"
+type WriteWorkspaceProgramSnapshotInput = Omit<
+  Parameters<typeof writeWorkspaceProgramSnapshot>[0],
+  "programSnapshotContract"
 >;
 
-export async function readInstanceWorkspaceControlPlaneStorageSnapshot(
-  input: ReadWorkspaceControlPlaneSnapshotInput,
+export async function readInstanceWorkspaceProgramStorageSnapshot(
+  input: ReadWorkspaceProgramSnapshotInput,
 ) {
   const artifact = await workspaceFormlessProgramArtifact(input.manifest);
 
-  return readWorkspaceControlPlaneSnapshot({
+  return readWorkspaceProgramSnapshot({
     ...input,
-    controlPlaneSnapshotContract: formlessProgramWorkspaceSnapshotContract({
+    programSnapshotContract: formlessProgramWorkspaceSnapshotContract({
       artifact,
     }),
   });
 }
 
-export async function writeInstanceWorkspaceControlPlaneStorageSnapshot(
-  input: WriteWorkspaceControlPlaneSnapshotInput,
+export async function writeInstanceWorkspaceProgramStorageSnapshot(
+  input: WriteWorkspaceProgramSnapshotInput,
 ) {
   const artifact = await workspaceFormlessProgramArtifact(input.manifest);
 
-  return writeWorkspaceControlPlaneSnapshot({
+  return writeWorkspaceProgramSnapshot({
     ...input,
-    controlPlaneSnapshotContract: formlessProgramWorkspaceSnapshotContract({
+    programSnapshotContract: formlessProgramWorkspaceSnapshotContract({
       artifact,
     }),
   });

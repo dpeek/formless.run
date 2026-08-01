@@ -5,13 +5,12 @@ import {
 } from "@dpeek/formless-workspace";
 import {
   INSTANCE_WORKSPACE_ADMIN_TOKEN_ENV_NAME,
-  readInstanceWorkspaceControlPlaneStorageSnapshot,
+  readInstanceWorkspaceProgramStorageSnapshot,
   readInstanceWorkspaceSecretState,
   type InstanceWorkspaceSecretState,
 } from "../program/workspace.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import {
-  createActiveWorkspaceAppPackages,
   readWorkspaceConfig,
   resolveFormlessInstanceWorkspaceRoot,
 } from "./instance-workspace-foundation.ts";
@@ -279,10 +278,8 @@ export async function resolveFormlessCliWorkspaceTarget(input: {
   targetAlias: string | null | undefined;
   workspaceRoot: string;
 }): Promise<InstanceWorkspaceTarget | undefined> {
-  const activePackages = await createActiveWorkspaceAppPackages(input.workspaceRoot, input.config);
-  const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
+  const controlPlane = await readInstanceWorkspaceProgramStorageSnapshot({
     manifest: input.config,
-    packageResolver: activePackages.resolver,
     workspaceRoot: input.workspaceRoot,
   });
   const deploymentConfig = selectFormlessCliDeploymentConfig(

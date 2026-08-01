@@ -827,11 +827,11 @@ The system SHALL represent record deletes as tombstones.
 The system SHALL provide schema reset and storage snapshot operations that
 preserve Authority storage invariants.
 
-#### Scenario: Replace populated app state
+#### Scenario: Replace populated Program state
 
 - GIVEN an owner or operator needs to replace the records of Program storage
 - WHEN a validated storage snapshot or portable archive restore applies
-- THEN the restored schema and records become the durable app state
+- THEN the restored schema and records become the durable Program state
 - AND replacement does not read package-owned initial records
 
 #### Scenario: Storage snapshot export

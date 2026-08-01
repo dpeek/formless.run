@@ -9,7 +9,7 @@ import {
 } from "@dpeek/formless-workspace";
 import { formatTestFormlessConfigModule } from "./instance-workspace-config-test.ts";
 import {
-  writeInstanceWorkspaceControlPlaneStorageSnapshot,
+  writeInstanceWorkspaceProgramStorageSnapshot,
   writeInstanceWorkspaceSecretState,
 } from "../program/workspace.ts";
 import { describe, expect, it } from "vite-plus/test";
@@ -116,7 +116,7 @@ async function writeTargetWorkspace(
     path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
     formatTestFormlessConfigModule(manifest),
   );
-  await writeInstanceWorkspaceControlPlaneStorageSnapshot({
+  await writeInstanceWorkspaceProgramStorageSnapshot({
     manifest,
     snapshot: controlPlaneSnapshot([deploymentConfigRecord()]),
     workspaceRoot,

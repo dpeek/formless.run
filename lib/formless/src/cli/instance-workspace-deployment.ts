@@ -33,10 +33,10 @@ import {
   ensureInstanceWorkspaceSecretStateIgnored as ensureFormlessInstanceWorkspaceSecretStateIgnored,
   formatWorkspaceDotEnv as formatDotEnv,
   instanceWorkspaceSecretStatePath as formlessInstanceWorkspaceSecretStatePath,
-  readInstanceWorkspaceControlPlaneStorageSnapshot,
+  readInstanceWorkspaceProgramStorageSnapshot,
   readInstanceWorkspaceSecretState as readFormlessInstanceWorkspaceSecretState,
   resolveInstanceWorkspaceAdminToken as resolveFormlessInstanceWorkspaceAdminToken,
-  writeInstanceWorkspaceControlPlaneStorageSnapshot,
+  writeInstanceWorkspaceProgramStorageSnapshot,
   writeInstanceWorkspaceSecretState as writeFormlessInstanceWorkspaceSecretState,
   parseWorkspaceDotEnv as parseDotEnv,
 } from "../program/workspace.ts";
@@ -149,7 +149,6 @@ export type PushFormlessInstanceWorkspaceExecutionDependencies =
 
 export type PushFormlessInstanceWorkspaceSource = {
   archivePath: string;
-  appCount: number;
   mediaCount: number;
   recordCount: number;
 };
@@ -481,8 +480,7 @@ export async function pushFormlessInstanceWorkspace(
       },
       dependencies,
     );
-    const { forcedRecovery, hasDataChanges, source, syncPlan } = sourceSync;
-    const packageResolver = sourceSync.packageResolver;
+    const { forcedRecovery, hasDataChanges, programArtifact, source, syncPlan } = sourceSync;
     const runtimeRebuild =
       planned.config.programSource === undefined &&
       planned.workspaceRuntimeExtensions === undefined &&
@@ -546,7 +544,7 @@ export async function pushFormlessInstanceWorkspace(
               {
                 adminToken: providerApply?.adminToken ?? adminToken,
                 outDir: workspacePushBackupPath(workspaceRoot, dependencies.now()),
-                packageResolver,
+                programArtifact,
                 target: selectedTarget.url,
               },
               dependencies,
@@ -562,7 +560,7 @@ export async function pushFormlessInstanceWorkspace(
               adminToken: providerApply?.adminToken ?? adminToken,
               apply: false,
               archiveRoot: composedArchiveRoot,
-              packageResolver,
+              programArtifact,
               selectedTarget,
             },
             dependencies,
@@ -580,7 +578,7 @@ export async function pushFormlessInstanceWorkspace(
               adminToken: provider?.adminToken ?? adminToken,
               apply: false,
               archiveRoot: composedArchiveRoot,
-              packageResolver,
+              programArtifact,
               selectedTarget,
             },
             dependencies,
@@ -599,7 +597,7 @@ export async function pushFormlessInstanceWorkspace(
               adminToken: provider?.adminToken ?? adminToken,
               apply: true,
               archiveRoot: composedArchiveRoot,
-              packageResolver,
+              programArtifact,
               selectedTarget,
             },
             dependencies,
@@ -856,10 +854,8 @@ export async function refreshFormlessInstanceDeploymentObservation(
     targetAlias: input.targetAlias,
     workspaceRoot,
   });
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
-  const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
+  const controlPlane = await readInstanceWorkspaceProgramStorageSnapshot({
     manifest: config,
-    packageResolver: activePackages.resolver,
     workspaceRoot,
   });
   const deploymentSource = selectLocalWorkspaceDeploymentSource(controlPlane, input.targetAlias, {
@@ -1268,9 +1264,8 @@ export async function planDeployLocalFormlessWorkspace(
   });
   const { config, configPath } = await readWorkspaceConfig(workspaceRoot);
   const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
-  const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
+  const controlPlane = await readInstanceWorkspaceProgramStorageSnapshot({
     manifest: config,
-    packageResolver: activePackages.resolver,
     workspaceRoot,
   });
   const deploymentSource = selectLocalWorkspaceDeploymentSource(controlPlane, input.targetAlias, {
@@ -1362,10 +1357,8 @@ export async function preflightPushFormlessCloudflareOAuthCredential(
     workspacePath: input.workspacePath,
   });
   const { config } = await readWorkspaceConfig(workspaceRoot);
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
-  const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
+  const controlPlane = await readInstanceWorkspaceProgramStorageSnapshot({
     manifest: config,
-    packageResolver: activePackages.resolver,
     workspaceRoot,
   });
   const deploymentSource = selectLocalWorkspaceDeploymentSource(controlPlane, input.targetAlias, {
@@ -1522,9 +1515,8 @@ export async function planDeployFormlessInstanceWorkspace(
   const workspaceRoot = workspaceRootForInput(dependencies.cwd, input.workspacePath);
   const { config } = await readWorkspaceConfig(workspaceRoot);
   const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
-  const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
+  const controlPlane = await readInstanceWorkspaceProgramStorageSnapshot({
     manifest: config,
-    packageResolver: activePackages.resolver,
     workspaceRoot,
   });
   const deploymentSource = selectLocalWorkspaceDeploymentSource(controlPlane, input.targetAlias, {
@@ -1665,9 +1657,8 @@ export async function resolveFormlessInstanceWorkspaceProviderContext(
   const workspaceRoot = workspaceRootForInput(dependencies.cwd, input.workspacePath);
   const { config } = await readWorkspaceConfig(workspaceRoot);
   const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
-  const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
+  const controlPlane = await readInstanceWorkspaceProgramStorageSnapshot({
     manifest: config,
-    packageResolver: activePackages.resolver,
     workspaceRoot,
   });
   const deploymentSource = selectLocalWorkspaceDeploymentSource(controlPlane, input.targetAlias, {
@@ -2123,9 +2114,8 @@ async function readDestroyRouteProjectionSource(
   projectionInput: DeployDesiredStateProjectionInput;
   source: DestroyFormlessInstanceWorkspaceRouteProviderResources["source"];
 }> {
-  const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
+  const controlPlane = await readInstanceWorkspaceProgramStorageSnapshot({
     manifest: context.config,
-    packageResolver: context.activePackages.resolver,
     workspaceRoot: context.workspaceRoot,
   });
 
@@ -2222,10 +2212,8 @@ async function writeLocalWorkspaceDeploymentConfigSource(input: {
   selectedTarget: FormlessInstanceWorkspaceTarget;
   workspaceRoot: string;
 }) {
-  const activePackages = await createActiveWorkspaceAppPackages(input.workspaceRoot, input.config);
-  const current = await readInstanceWorkspaceControlPlaneStorageSnapshot({
+  const current = await readInstanceWorkspaceProgramStorageSnapshot({
     manifest: input.config,
-    packageResolver: activePackages.resolver,
     workspaceRoot: input.workspaceRoot,
   });
   const targetId = input.selectedTarget.alias;
@@ -2262,9 +2250,8 @@ async function writeLocalWorkspaceDeploymentConfigSource(input: {
     deploymentConfigRecord,
   ];
 
-  await writeInstanceWorkspaceControlPlaneStorageSnapshot({
+  await writeInstanceWorkspaceProgramStorageSnapshot({
     manifest: input.config,
-    packageResolver: activePackages.resolver,
     snapshot: workspaceControlPlaneSnapshotFromRecords({
       current,
       exportedAt: input.now,

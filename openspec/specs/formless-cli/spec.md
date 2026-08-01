@@ -50,7 +50,7 @@ workspace operations that are promoted to public CLI bindings.
   rewriting `formless.ts`
 - **AND** `formless push` is the only normal command that reconciles a deployed
   instance from local workspace source, including runtime code, provider
-  resources, control-plane records, app records, schema, and media
+  resources, complete Program records, Program provenance, and media
 - **AND** `formless destroy` remains the explicit Cloudflare teardown boundary
 - **AND** `formless pull` and `formless push` are the first public CLI bindings
   selected by Formless CLI for workspace operation definitions
@@ -723,20 +723,19 @@ snapshots and media payloads.
   deterministic Program workspace snapshot
 - **AND** Task, Site, and CRM records are written through the Program snapshot
   in `state/instance.json`
-- **AND** no package or install identity produces `state/apps/<installId>.json`
+- **AND** `state/instance.json` is the only workspace record state file
 - **AND** browser IndexedDB state is not used as the source of truth
 - **AND** secrets are not written to `formless.ts`, storage snapshots, or
   media files
 
-#### Scenario: Runtime-installed app workflows are absent
+#### Scenario: Program-only workspace persistence
 
 - **WHEN** CLI archive, workspace, reset, deploy, or source synchronization
-  selects runtime state
-- **THEN** it does not select any package app key or install id as a target
-- **AND** it does not read, write, reset, migrate, import, or export an
-  `app:<installId>` Authority
-- **AND** Task, Site, and CRM data participates only through the complete Program
-  snapshot and Program source hash
+  selects persisted runtime state
+- **THEN** it selects one complete Program snapshot and referenced Program
+  media
+- **AND** Task, Site, CRM, and workspace-owned domain data participate through
+  the same Program snapshot and Program source hash
 
 #### Scenario: Auto-save local workspace state
 
@@ -755,8 +754,8 @@ snapshots and media payloads.
 - **WHEN** CLI output, gateway operation state, browser workspace status, or
   tests report workspace save, check, pull, or push results
 - **THEN** reviewable workspace source paths and counts are reported with
-  workspace state, storage state, app state, instance state, storage snapshot,
-  or media payload terminology
+  workspace state, Program state, instance state, storage snapshot, or media
+  payload terminology
 - **AND** archive terminology is used only when the operation exports, imports,
   restores, backs up, or composes a portable archive envelope
 
@@ -889,13 +888,12 @@ intent lives in schema-owned storage snapshots.
 
 - **WHEN** `formless pull` runs for a workspace targeting a remote Formless
   instance
-- **THEN** target control-plane records, app storage snapshots, and media
-  payloads are written into workspace source
-- **AND** app storage snapshot files and media payloads absent from the target
-  are removed from workspace source
-- **AND** target schema, app install records, routes, deployment config intent,
-  and other schema-owned control-plane records replace the corresponding local
+- **THEN** the target Program snapshot and referenced media payloads are written
+  into workspace source
+- **AND** Program media payloads absent from the target are removed from current
   workspace source
+- **AND** target Program provenance, routes, deployment config intent, and
+  domain records replace the corresponding local Program workspace source
 - **AND** raw provider state, Alchemy state, deployment observation cache fields,
   deployment execution history, and provider evidence are not written into
   reviewable workspace source
@@ -912,8 +910,8 @@ intent lives in schema-owned storage snapshots.
 
 - **WHEN** `formless push` runs with ready workspace source
 - **THEN** it reconciles the selected remote target so remote runtime code,
-  provider resources, control-plane records, app records, schema, and media
-  match local workspace source
+  provider resources, Program records, Program provenance, and media match local
+  workspace source
 - **AND** if the target already matches workspace source and deployment desired
   state, push exits without restore or provider mutation and reports
   `Everything up to date.`
@@ -931,21 +929,20 @@ intent lives in schema-owned storage snapshots.
 
 - **GIVEN** a local workspace source validates as a complete instance archive
 - **AND** the selected remote target is readable but was deployed with different
-  package source schemas, package facts, or active app schemas
+  Program provenance or active Program schema
 - **WHEN** `formless push` applies that workspace source
 - **THEN** the command keeps the local workspace source as the selected desired
   state and does not reject solely because the target's current runtime cannot
-  validate the replacement archive's source schema facts
+  validate the replacement archive's Program provenance
 - **AND** it reconciles the runtime and provider graph needed for the local
   workspace source before treating target restore dry-run results as final
 - **AND** it validates the composed archive restore against the selected target
-  runtime before mutating remote control-plane records, app records, app schemas,
-  or media
+  runtime before mutating remote Program records or media
 - **AND** restore validation failures that remain after runtime reconciliation
   fail before remote data mutation
 - **AND** invalid local workspace source, invalid local archives, auth failures,
-  network failures, provider failures, and unsupported packages still fail
-  before remote data mutation
+  network failures, and provider failures still fail before remote data
+  mutation
 
 ### Requirement: Push Provider Reconciliation
 
@@ -1040,7 +1037,7 @@ workspace-controlled deployment intent.
   bucket, Worker assets, Worker secrets, custom-domain provider resources, DNS
   provider resources, and Alchemy deploy state are
   destroyed through tracked selected deploy state
-- **AND** `formless.ts`, instance archives, and app archives remain in place
+- **AND** `formless.ts` and instance archives remain in place
 - **AND** ignored deploy state for the selected target is removed or marked
   destroyed only after provider destroy succeeds
 - **AND** provider credentials and admin tokens remain outside workspace
