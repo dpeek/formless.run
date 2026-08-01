@@ -26,13 +26,11 @@ current Program route targets.
 - WHEN the target is validated or a host-local session is minted
 - THEN target facts bind only the current instance, Program storage identity,
   current route id, target profile, host, and safe path-only continuation
-- AND no package app key, install id, `app:<installId>` storage identity,
-  app-registration gate, app role, or installed-app operation can become an
-  auth target or authorization principal
+- AND Program roles and protected-owner roles are the authorization principals
 
-#### Scenario: Dormant app auth state is unselected
+#### Scenario: Dormant non-Program auth state is unselected
 
-- GIVEN Program records or private auth state contain former installed-app
+- GIVEN Program records or private auth state contain dormant non-Program
   registration, continuation, handoff, session-target, or role facts
 - WHEN current account or authorization state is resolved
 - THEN those facts are not selected and confer no route, Program, operation,
@@ -427,9 +425,8 @@ principals, committing identity acceptance, and issuing central auth sessions.
 
 ### Requirement: Collaborator Invitation Acceptance Browser Surface
 
-The system SHALL render collaborator invitation acceptance as an auth-origin
-browser surface that drives the invitation acceptance APIs without depending on
-an installed app route or generated app UI.
+The system SHALL render collaborator invitation acceptance as a dedicated
+auth-origin browser surface that drives the invitation acceptance APIs.
 
 #### Scenario: Render eligible invitation
 
@@ -442,9 +439,8 @@ an installed app route or generated app UI.
 - AND it does not render or persist raw invite tokens, token hashes, passkey
   challenge secrets, credential material, central session ids, host session
   cookies, or handoff grant secrets
-- AND the surface is served by instance auth runtime behavior rather than by an
-  public Site document, source app screen, or generated
-  identity-control-plane record editor
+- AND the surface is served by instance auth runtime behavior outside public
+  Site documents and generated Program record editors
 
 #### Scenario: Render ineligible invitation safely
 
@@ -974,9 +970,7 @@ invitation, profile, credential, and policy state.
   are written through their owning Program or private-auth boundaries
 - AND completion is re-evaluated from current state before continuation or
   host-local handoff
-- AND account completion does not create app registrations, app-scoped role
-  assignments, installed-app records, package-derived profiles, or alternate
-  storage identities
+- AND account completion retains the current Program and private-auth storage identities
 ### Requirement: Email Verification Challenge State
 
 The system SHALL store email verification challenge secrets as private

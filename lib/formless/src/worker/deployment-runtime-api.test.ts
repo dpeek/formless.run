@@ -75,7 +75,6 @@ describe("instance deployment runtime API routes", () => {
 
     expect(first.response.headers.get("Cache-Control")).toBe("no-store");
     expect(first.body.target).toEqual({
-      kind: "instance",
       label: "Primary instance target",
       targetId: INSTANCE_DEPLOYMENT_PRIMARY_TARGET_ID,
     });
@@ -310,7 +309,6 @@ describe("instance deployment runtime API routes", () => {
   it("projects provider resources directly from route records without route timestamps or secrets", async () => {
     const deploymentConfig = await createControlPlaneRecord("deployment-config", {
       targetId: INSTANCE_DEPLOYMENT_PRIMARY_TARGET_ID,
-      targetKind: "instance",
       label: "Cloudflare primary",
       enabled: true,
       targetUrl: "https://direct.example.workers.dev",
@@ -438,7 +436,6 @@ describe("instance deployment runtime API routes", () => {
     );
     const deploymentConfig = await createControlPlaneRecord("deployment-config", {
       targetId: INSTANCE_DEPLOYMENT_PRIMARY_TARGET_ID,
-      targetKind: "instance",
       label: "Cloudflare primary",
       enabled: true,
       targetUrl: "https://direct.example.workers.dev",

@@ -6,9 +6,9 @@ Read this when editing `lib/workspace/*`.
 
 ## Owns
 
-- Public workspace configuration, source, state, and operation contract declarations and constants in `src/types.ts`.
+- Public workspace configuration, state, and operation contract declarations and constants in `src/types.ts`.
 - Runtime-neutral workspace configuration, operation, redaction, parse, format, and validation helpers exported from the package root.
-- Local Node filesystem adapters for workspace source, storage snapshots, media payloads, ignored local state, secret state, and operation state.
+- Local Node filesystem adapters for Program storage snapshots, media payloads, ignored local state, secret state, and operation state.
 - Canonical semantic operation input, result, event, log, summary, redaction, and persistence contracts used by Gateway transport and CLI runtime adapters.
 - Package-local tests for workspace contracts and deterministic Node adapters.
 

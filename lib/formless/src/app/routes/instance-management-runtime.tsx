@@ -2,8 +2,6 @@ import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import type { PresentationIntent } from "@dpeek/formless-presentation/contract";
 import { isManagementIntent, type PresentationNodeSet } from "@dpeek/formless-presentation/host";
-import { programClientTarget } from "../../client/program-target.ts";
-import { FORMLESS_PROGRAM_SCHEMA_KEY } from "../../program/target.ts";
 import { normalizeRuntimeBrowserPath } from "../runtime-profile.ts";
 import type { GeneratedWorkspaceRuntimeController } from "../generated/generated-workspace-runtime.tsx";
 import {
@@ -148,7 +146,6 @@ export function InstanceManagementRuntime({
     createInstanceManagementRuntimePublicationController(application),
   );
   const [controlPlaneLoadError, setControlPlaneLoadError] = useState<string>();
-  const programTarget = useMemo(() => programClientTarget(), []);
   const actions = useMemo<InstanceManagementIntentActions>(
     () => ({
       openAuthorization: onOpenWorkspaceAuthorization,
@@ -187,9 +184,7 @@ export function InstanceManagementRuntime({
         clientSync
         onClientLoadStateChange={updateControlPlaneLoadState}
         onGeneratedWorkspaceController={registerRoutes}
-        schemaKey={FORMLESS_PROGRAM_SCHEMA_KEY}
         screenPath="/routes"
-        target={programTarget}
       />
       {screenPath === "/routes" ? (
         <ApplicationPresentation
@@ -199,12 +194,7 @@ export function InstanceManagementRuntime({
           }}
         />
       ) : (
-        <HomeRoute
-          clientSync={false}
-          schemaKey={FORMLESS_PROGRAM_SCHEMA_KEY}
-          screenPath={screenPath}
-          target={programTarget}
-        />
+        <HomeRoute clientSync={false} screenPath={screenPath} />
       )}
     </>
   );

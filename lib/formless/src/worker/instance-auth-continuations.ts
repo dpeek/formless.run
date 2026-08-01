@@ -47,9 +47,6 @@ function accountCompletionHandoffContinueToFromRequest(
   handoffSearch.set("targetOrigin", target.targetOrigin);
   handoffSearch.set("routeId", target.routeId);
   handoffSearch.set("targetProfile", target.targetProfile);
-  if (target.storageIdentity !== undefined) {
-    handoffSearch.set("storageIdentity", target.storageIdentity);
-  }
   handoffSearch.set("returnTo", target.returnTo);
   handoffSearch.set("nonceHash", nonceHash);
   handoffSearch.set("state", state);

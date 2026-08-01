@@ -789,7 +789,7 @@ data reads, session behavior, operations, and effects.
 
 #### Scenario: Expose shell contract nodes
 
-- **GIVEN** runtime selects an eligible multi-app or app-only shell
+- **GIVEN** runtime selects an eligible Program shell route
 - **WHEN** it projects shell presentation for a renderer
 - **THEN** the host exposes typed references for one shell manifest and its
   ordered navigation-section nodes through the same generic contract-node
@@ -804,7 +804,7 @@ data reads, session behavior, operations, and effects.
 
 #### Scenario: Publish shell state transactionally
 
-- **GIVEN** route, app registry, root-record, create, sync, or session state
+- **GIVEN** route, Program access, root-record, create, sync, or session state
   changes one or more shell nodes
 - **WHEN** runtime publishes the next shell projection
 - **THEN** the complete immutable node set is committed before subscribers are
@@ -843,8 +843,7 @@ data reads, session behavior, operations, and effects.
 - **THEN** one subscribed Formless Renderer shell entrypoint reads only shell
   references and snapshots, renders the selected route workspace as its child,
   and dispatches canonical shell intents
-- **AND** production dev workbench, instance management, and Site authoring
-  routes use that renderer at their specified shell scope
+- **AND** production dev workbench and instance Program routes use that renderer
 - **AND** no-shell routes remain outside the shell host and renderer
 - **AND** application source consumes contracts and host behavior
   through documented `@dpeek/formless-presentation` exports and concrete
@@ -857,9 +856,9 @@ data reads, session behavior, operations, and effects.
 - **GIVEN** runtime publishes complete production shell contracts
 - **WHEN** the selected renderer implements the contracts in
   `lib/renderer`
-- **THEN** pure and subscribed renderer entrypoints render app switching,
-  generated screens, root records and create controls, instance management,
-  app settings, sync state, session identity, logout, and the route child
+- **THEN** pure and subscribed renderer entrypoints render Program navigation,
+  root records and create controls, Program settings, sync state, session
+  identity, logout, and the route child
   without importing generated runtime
 - **AND** app settings render as one navigation item whose hover and focus
   overlay contains sync and workspace-save status
@@ -879,11 +878,9 @@ data reads, session behavior, operations, and effects.
 
 - **GIVEN** runtime publishes complete production shell contracts
 - **WHEN** shell UX is evaluated with package-local renderer fixtures
-- **THEN** data-only memory-host fixtures cover App with Tasks, CRM, Site, and
-  Instance destinations, Instance management, app-only profiles, Site
-  authoring admin, generated screens, root records and counts,
-  controlled create, sync state, authenticated session state, and no-shell
-  selection
+- **THEN** data-only memory-host fixtures cover Program destinations, current
+  route selection, Site authoring, root records and counts, controlled create,
+  sync state, authenticated session state, and no-shell selection
 - **AND** fixture reducers may simulate root selection, create, and logout
   intents without importing generated runtime, schemas, routing, browser
   replica, storage, operation controllers, or session clients

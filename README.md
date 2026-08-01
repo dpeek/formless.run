@@ -35,7 +35,7 @@ Common commands:
   local source replacement plan without rewriting files.
 - `formless push [--dry-run]` syncs reviewable workspace source to the selected
   deployed target, including runtime code, provider resources, control-plane
-  records, app records, schema, routes, installed apps, and media. Apply is the
+  records, Program records, schema, routes, and media. Apply is the
   default; `--dry-run` reports the sync plan without mutating local source,
   remote data, Cloudflare resources, or Alchemy state.
 - `formless destroy` is the explicit Cloudflare boundary for tearing down the configured deployment.
@@ -56,17 +56,16 @@ The runtime already has:
 
 - app schemas for Tasks, Site, and CRM;
 - flat record storage through Durable Object Authority;
-- schema-only package bootstrap;
+- one build-time-composed Program schema and Authority;
 - browser IndexedDB replicas;
 - HTTP cursor sync and push sync;
 - generated React UI for schema-declared screens, views, tables, trees, fields, and actions;
 - Site records projected into public trees and SSR documents;
 - local-first workspace CLI for dev, save, pull, push, and destroy;
-- portable app and instance archives;
-- installed app identity and routes;
-- schema-owned instance control-plane records for installs, routes, domain
+- portable instance archives;
+- schema-owned instance control-plane records for routes, domain
   intent, and deployment intent;
-- product instance, dev workbench, app, Site authoring, and published Site runtime profiles;
+- product instance, dev workbench, and published Site runtime profiles;
 - owner passkey setup, owner sessions, logout, and admin bearer recovery boundaries;
 - public action execution and Site contact subscription records;
 - deployment desired-state versions, attempts, leases, status, and upgrade metadata;
@@ -79,7 +78,7 @@ Formless should feel like a Cloudflare-native app runtime, not a pile of helpers
 
 The runtime should own:
 
-- app installation and routing;
+- Program composition and routing;
 - durable record storage;
 - schema parsing and validation;
 - generated authoring surfaces;
@@ -116,7 +115,7 @@ Useful directions:
 
 Avoid:
 
-- deep platform abstraction before a real source app needs it;
+- deep platform abstraction before a real domain needs it;
 - broad account or marketplace work before one deployment story is clear;
 - Site-specific owned media paths outside core media;
 - arbitrary custom React escape hatches as the first extensibility story;

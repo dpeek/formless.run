@@ -26,7 +26,6 @@ import {
 } from "@dpeek/formless-workspace/node";
 import { resolveFormlessConfig } from "@dpeek/formless-workspace";
 import { describe, expect, it } from "vite-plus/test";
-import { programClientTarget } from "../client/program-target.ts";
 import { testSiteRecords } from "../test/site-records.ts";
 import rawFormlessProgramSchema from "./schema.json";
 import { formatFormlessProgramArtifact, materializeFormlessProgramArtifact } from "./artifact.ts";
@@ -47,6 +46,7 @@ import {
   resolveFormlessProgramScreenRouteTarget,
   validateFormlessProgramRecords,
 } from "./runtime.ts";
+import { formlessProgramTarget } from "./target.ts";
 
 const now = "2026-07-30T00:00:00.000Z";
 
@@ -60,7 +60,7 @@ describe("Formless Program runtime contracts", () => {
       kind: "program",
       sourceSchemaHash: FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
     });
-    expect(programClientTarget()).toEqual({
+    expect(formlessProgramTarget).toEqual({
       kind: "program",
       schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
       authorityName: FORMLESS_PROGRAM_STORAGE_IDENTITY,

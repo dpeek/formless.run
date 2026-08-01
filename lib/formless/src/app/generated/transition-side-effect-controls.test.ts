@@ -11,7 +11,6 @@ import type {
   OperationInvocationResponse,
 } from "../../shared/operation-invocation.ts";
 import type { ChangeRow } from "../../shared/protocol.ts";
-import { programClientTarget } from "../../client/program-target.ts";
 import {
   executeGeneratedTableRuntimeOperation,
   selectGeneratedWorkspaceTableFoundation,
@@ -172,7 +171,6 @@ describe("generated transition side-effect controls", () => {
     const rowController = createGeneratedOperationController({
       bindings: [rowTransition.binding],
       submitAuthorityOperation: rowSubmit.submit,
-      target: programClientTarget(),
     });
 
     await expect(
@@ -191,7 +189,6 @@ describe("generated transition side-effect controls", () => {
           recordId: "intake-pending",
           source: { protocol: "generated-ui", surface: "menuItem" },
         },
-        target: "formless:instance:control-plane",
       },
     ]);
 
@@ -199,7 +196,6 @@ describe("generated transition side-effect controls", () => {
     const detailController = createGeneratedOperationController({
       bindings: [detailTransition.binding],
       submitAuthorityOperation: detailSubmit.submit,
-      target: programClientTarget(),
     });
 
     await expect(
@@ -225,7 +221,6 @@ describe("generated transition side-effect controls", () => {
           recordId: "intake-pending",
           source: { protocol: "generated-ui", surface: "button" },
         },
-        target: "formless:instance:control-plane",
       },
     ]);
   });
@@ -500,7 +495,6 @@ type AuthoritySubmitCall = {
   entityName: string;
   operationName: string;
   request: OperationInvocationRequest;
-  target: string;
 };
 
 function captureAuthoritySubmitter(response: OperationInvocationResponse): {
@@ -511,12 +505,11 @@ function captureAuthoritySubmitter(response: OperationInvocationResponse): {
 
   return {
     calls,
-    submit: async (target, entityName, operationName, request) => {
+    submit: async (entityName, operationName, request) => {
       calls.push({
         entityName,
         operationName,
         request,
-        target: typeof target === "string" ? target : target.browserDatabaseName,
       });
 
       return response;

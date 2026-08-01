@@ -2,23 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import {
   connectBroadcastToClientStore,
   hydrateClientStore,
-  selectClientStoreTarget,
-  useActiveClientStorageName,
-  useActiveSchemaKey,
   useSchema,
 } from "../../client/store.ts";
 import { setSyncStatus, useSyncStatus } from "../../client/sync-status.ts";
 import { bootstrapClient, startPushSync } from "../../client/sync.ts";
-import {
-  programStorageIdentityForClientTarget,
-  clientTargetLabel,
-  clientTargetSourceSchemaKey,
-  type ProgramClientSchemaKey,
-  type ProgramClientTarget,
-} from "../../client/program-target.ts";
 import { selectScreenModelByPath } from "../../client/views.ts";
 import { todayDateString } from "../../shared/date.ts";
-import { SchemaAppProvider } from "../generated/schema-app-context.tsx";
+import { FORMLESS_PROGRAM_SCHEMA_KEY } from "../../program/target.ts";
 import {
   GeneratedWorkspaceRuntime,
   GeneratedWorkspaceRuntimeRegistration,
@@ -58,8 +48,6 @@ export function HomeRoute({
   clientSync = true,
   onClientLoadStateChange,
   onGeneratedWorkspaceController,
-  target,
-  schemaKey,
   sectionExternalActions,
   screenPath,
   workspaceActions,
@@ -69,26 +57,13 @@ export function HomeRoute({
   onGeneratedWorkspaceController?: (
     controller: GeneratedWorkspaceRuntimeController | undefined,
   ) => void;
-  target: ProgramClientTarget;
-  schemaKey: ProgramClientSchemaKey;
   sectionExternalActions?: Readonly<
     Record<string, readonly GeneratedWorkspaceSectionExternalAction[] | undefined>
   >;
   screenPath: string;
   workspaceActions?: readonly WorkspaceLinkActionContract[];
 }) {
-  const appTargetIdentity = programStorageIdentityForClientTarget(target);
-  const appLabel = clientTargetLabel(target);
-  const appSchemaKey = clientTargetSourceSchemaKey(target);
-  const activeClientStorageName = useActiveClientStorageName();
-  const activeSchemaKey = useActiveSchemaKey();
-  const activeSchema = useSchema();
-  const routeStoreMatchesTarget =
-    activeClientStorageName === null ||
-    activeClientStorageName === appTargetIdentity.browserDatabaseName;
-  const routeIsActive =
-    routeStoreMatchesTarget && (activeSchemaKey === null || activeSchemaKey === appSchemaKey);
-  const schema = routeIsActive ? activeSchema : null;
+  const schema = useSchema();
   const homeScreen = useMemo(
     () => (schema ? selectScreenModelByPath(schema, screenPath) : undefined),
     [schema, screenPath],
@@ -101,25 +76,24 @@ export function HomeRoute({
 
   useEffect(() => {
     setSelectionState(createHomeRouteSelectionState());
-  }, [appTargetIdentity.browserDatabaseName, setSelectionState]);
+  }, [setSelectionState]);
 
   useEffect(() => {
     if (!clientSync) {
       return;
     }
 
-    selectClientStoreTarget(target);
-    const stopBroadcast = connectBroadcastToClientStore(target);
+    const stopBroadcast = connectBroadcastToClientStore();
     let stopPushSync = () => {};
     let cancelled = false;
 
     async function startSync() {
       onClientLoadStateChange?.({ state: "loading" });
-      setSyncStatus({ state: "syncing", message: `Syncing ${appLabel}...` });
+      setSyncStatus({ state: "syncing", message: "Syncing Formless Program..." });
 
       try {
-        await hydrateClientStore(target);
-        await bootstrapClient(target);
+        await hydrateClientStore();
+        await bootstrapClient();
 
         if (cancelled) {
           return;
@@ -127,7 +101,7 @@ export function HomeRoute({
 
         setSyncStatus({ state: "idle", message: "Synced." });
         onClientLoadStateChange?.({ state: "ready" });
-        stopPushSync = startPushSync(target);
+        stopPushSync = startPushSync();
       } catch (error) {
         if (cancelled) {
           return;
@@ -146,20 +120,14 @@ export function HomeRoute({
       stopBroadcast();
       stopPushSync();
     };
-  }, [
-    appLabel,
-    appTargetIdentity.browserDatabaseName,
-    appTargetIdentity.kind,
-    clientSync,
-    onClientLoadStateChange,
-  ]);
+  }, [clientSync, onClientLoadStateChange]);
 
   if (!schema) {
     if (onGeneratedWorkspaceController) {
       return null;
     }
 
-    return <HomeRouteSchemaSystemState appLabel={appLabel} />;
+    return <HomeRouteSchemaSystemState />;
   }
 
   if (!homeScreen) {
@@ -175,7 +143,7 @@ export function HomeRoute({
       <ApplicationSystemStateRuntime
         snapshot={projectApplicationSystemState({
           heading: "Formless",
-          id: `application-system-state:schema-empty:${appSchemaKey}`,
+          id: `application-system-state:schema-empty:${FORMLESS_PROGRAM_SCHEMA_KEY}`,
           message: "No entities are defined in the active schema.",
           state: "empty",
         })}
@@ -183,51 +151,47 @@ export function HomeRoute({
     );
   }
 
-  const workspace = (
-    <SchemaAppProvider schemaKey={schemaKey} target={target}>
-      <HomeRouteGeneratedWorkspace
-        getSectionSelection={(section) => ({
-          selectedContextRecordId: selectHomeRouteSectionContextRecordId(
-            selectionState,
+  return (
+    <HomeRouteGeneratedWorkspace
+      getSectionSelection={(section) => ({
+        selectedContextRecordId: selectHomeRouteSectionContextRecordId(
+          selectionState,
+          homeScreen.screenName,
+          section.id,
+        ),
+        selectedQueryName: selectHomeRouteSectionQueryName(
+          selectionState,
+          homeScreen.screenName,
+          section.id,
+        ),
+      })}
+      onSelectContext={(section, recordId) =>
+        setSelectionState((current) =>
+          withHomeRouteSelectedSectionContextRecordId(
+            current,
             homeScreen.screenName,
             section.id,
+            recordId,
           ),
-          selectedQueryName: selectHomeRouteSectionQueryName(
-            selectionState,
+        )
+      }
+      onSelectQuery={(section, queryName) =>
+        setSelectionState((current) =>
+          withHomeRouteSelectedSectionQueryName(
+            current,
             homeScreen.screenName,
             section.id,
+            queryName,
           ),
-        })}
-        onSelectContext={(section, recordId) =>
-          setSelectionState((current) =>
-            withHomeRouteSelectedSectionContextRecordId(
-              current,
-              homeScreen.screenName,
-              section.id,
-              recordId,
-            ),
-          )
-        }
-        onSelectQuery={(section, queryName) =>
-          setSelectionState((current) =>
-            withHomeRouteSelectedSectionQueryName(
-              current,
-              homeScreen.screenName,
-              section.id,
-              queryName,
-            ),
-          )
-        }
-        onGeneratedWorkspaceController={onGeneratedWorkspaceController}
-        screen={homeScreen}
-        sectionExternalActions={sectionExternalActions}
-        today={today}
-        workspaceActions={workspaceActions}
-      />
-    </SchemaAppProvider>
+        )
+      }
+      onGeneratedWorkspaceController={onGeneratedWorkspaceController}
+      screen={homeScreen}
+      sectionExternalActions={sectionExternalActions}
+      today={today}
+      workspaceActions={workspaceActions}
+    />
   );
-
-  return workspace;
 }
 
 function HomeRouteGeneratedWorkspace({
@@ -248,7 +212,7 @@ function HomeRouteGeneratedWorkspace({
   );
 }
 
-function HomeRouteSchemaSystemState({ appLabel }: { appLabel: string }) {
+function HomeRouteSchemaSystemState() {
   const syncStatus = useSyncStatus();
   const failed = syncStatus.state === "error";
 
@@ -260,13 +224,13 @@ function HomeRouteSchemaSystemState({ appLabel }: { appLabel: string }) {
               feedback: {
                 id: "feedback:schema-load",
                 intent: "danger" as const,
-                title: `${appLabel} unavailable`,
+                title: "Formless Program unavailable",
               },
             }
           : {}),
         heading: "Formless",
-        id: `application-system-state:schema:${appLabel}`,
-        message: failed ? `Could not load ${appLabel}.` : `Loading ${appLabel}...`,
+        id: "application-system-state:schema:formless-program",
+        message: failed ? "Could not load Formless Program." : "Loading Formless Program...",
         state: failed ? "failure" : "loading",
       })}
     />

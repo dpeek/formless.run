@@ -305,10 +305,7 @@ export function selectFormlessCliDeploymentConfig(
   },
 ): StoredRecord | undefined {
   const targets = records.filter(
-    (record) =>
-      record.entity === "deployment-config" &&
-      record.values.targetKind === "instance" &&
-      record.values.enabled !== false,
+    (record) => record.entity === "deployment-config" && record.values.enabled !== false,
   );
   const requestedTargetId = targetAlias?.trim();
 
@@ -365,7 +362,6 @@ export function selectFormlessCliCredentialSetupDeploymentConfig(
   const targets = records.filter(
     (record) =>
       record.entity === "deployment-config" &&
-      record.values.targetKind === "instance" &&
       record.values.enabled !== false &&
       record.deletedAt === undefined,
   );
@@ -438,7 +434,6 @@ export function formlessCliDeploymentConfigRecordFromTarget(input: {
     entity: "deployment-config",
     values: {
       targetId: input.targetAlias,
-      targetKind: "instance",
       label: input.targetAlias,
       enabled: true,
       targetUrl: normalizeInstanceWorkspaceTargetUrl(input.targetUrl),

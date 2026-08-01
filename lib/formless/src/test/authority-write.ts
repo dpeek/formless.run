@@ -7,10 +7,8 @@ import {
 } from "@dpeek/formless-storage";
 import type { ChangeRow } from "../shared/protocol.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
-import type { SchemaKey } from "../shared/schema-apps.ts";
 import type { createWorkerHarness } from "../worker/miniflare-test.ts";
-import { schemaAppTestRecords } from "./schema-app-records.ts";
-import { crmSourceSchema, siteSourceSchema, taskSourceSchema } from "./schema-apps.ts";
+import { testSiteRecords } from "./site-records.ts";
 import { formlessProgramSchema } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
@@ -50,17 +48,10 @@ export type AuthorityTestCommandOperationRequest = {
 
 export function createAuthorityWriteHelpers(
   harness: AuthorityHarness,
-  initialSchemaKey: SchemaKey = "tasks",
   authHeaders: Record<string, string> = {},
   snapshotRestoreHeaders: Record<string, string> = authHeaders,
 ) {
-  let currentSchemaKey = initialSchemaKey;
-
-  function useSchemaApp(schemaKey: SchemaKey) {
-    currentSchemaKey = schemaKey;
-  }
-
-  function apiPath(path: string, _schemaKey = currentSchemaKey) {
+  function apiPath(path: string) {
     if (!path.startsWith("/api/")) {
       throw new Error(`Expected API path, received "${path}".`);
     }
@@ -68,13 +59,9 @@ export function createAuthorityWriteHelpers(
     return `/api/formless/program${path.slice("/api".length)}`;
   }
 
-  function fetchAuthority(
-    path: string,
-    init?: Parameters<AuthorityHarness["fetch"]>[1],
-    schemaKey: SchemaKey = currentSchemaKey,
-  ) {
+  function fetchAuthority(path: string, init?: Parameters<AuthorityHarness["fetch"]>[1]) {
     if (Object.keys(authHeaders).length > 0) {
-      return harness.fetch(apiPath(path, schemaKey), {
+      return harness.fetch(apiPath(path), {
         ...init,
         headers: {
           ...(init?.headers as Record<string, string> | undefined),
@@ -83,12 +70,12 @@ export function createAuthorityWriteHelpers(
       });
     }
 
-    return harness.fetch(apiPath(path, schemaKey), init);
+    return harness.fetch(apiPath(path), init);
   }
 
-  async function resetSchemaApp(schemaKey: SchemaKey) {
+  async function resetProgram() {
     const snapshot = testStorageSnapshot({
-      records: schemaAppTestRecords("site"),
+      records: testSiteRecords,
       schema: formlessProgramSchema,
       schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
       storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
@@ -96,7 +83,7 @@ export function createAuthorityWriteHelpers(
 
     await restoreTestStorageSnapshot(
       harness,
-      apiPath("/api/snapshot/restore", schemaKey),
+      apiPath("/api/snapshot/restore"),
       snapshot,
       snapshotRestoreHeaders,
     );
@@ -250,8 +237,7 @@ export function createAuthorityWriteHelpers(
     postCreateOperationForEntity,
     postJson,
     postRecordOperationRequest,
-    resetSchemaApp,
-    useSchemaApp,
+    resetProgram,
   };
 }
 
@@ -274,25 +260,6 @@ export function testStorageSnapshot(input: {
     schema: input.schema,
     records,
   };
-}
-
-export function schemaAppTestStorageSnapshot(
-  schemaKey: SchemaKey,
-  storageIdentity: string = schemaKey,
-): StorageSnapshot {
-  const schema =
-    schemaKey === "tasks"
-      ? taskSourceSchema
-      : schemaKey === "site"
-        ? siteSourceSchema
-        : crmSourceSchema;
-
-  return testStorageSnapshot({
-    records: schemaAppTestRecords(schemaKey),
-    schema,
-    schemaKey,
-    storageIdentity,
-  });
 }
 
 export function instanceControlPlaneTestStorageSnapshot(

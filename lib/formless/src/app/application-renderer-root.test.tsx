@@ -24,8 +24,6 @@ import { applyBootstrapResponse, resetClientStore } from "../client/store.ts";
 import { resetSyncStatus } from "../client/sync-status.ts";
 import { bootstrapResponse } from "../test/protocol-builders.ts";
 import { taskSourceSchema } from "../test/schema-apps.ts";
-import { programStorageIdentity } from "../shared/program-storage-identity.ts";
-import { getSchemaAppDefinition } from "../shared/schema-apps.ts";
 import { createInstanceRuntimeProfile } from "./runtime-profile.ts";
 (
   globalThis as {
@@ -46,14 +44,8 @@ afterEach(() => {
 
 describe("application root runtime", () => {
   it("updates the production subscribed application shell and document when theme mode changes", async () => {
-    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), programStorageIdentity());
+    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []));
     const runtimeProfile = createInstanceRuntimeProfile();
-    const routeWorld = {
-      app: getSchemaAppDefinition("site"),
-      generatedRoutes: true,
-      route: "/site" as const,
-      target: programStorageIdentity(),
-    };
     const mediaQuery = matchMediaFixture(true);
     vi.stubGlobal("matchMedia", () => mediaQuery);
     window.localStorage.setItem("formless:application:theme", "dark");
@@ -81,7 +73,6 @@ describe("application root runtime", () => {
           applicationTheme={applicationTheme}
           currentPath="/site"
           accountSession={{ authenticated: false, setupComplete: true }}
-          routeWorld={routeWorld}
           runtimeProfile={runtimeProfile}
           screenModels={[]}
         >
@@ -202,7 +193,7 @@ describe("application root runtime", () => {
 
     const mounted = render(
       <ApplicationRendererRoot
-        currentHref={() => "https://formless.test/apps/tasks"}
+        currentHref={() => "https://formless.test/tasks"}
         navigate={() => undefined}
         navigationTarget={navigationTarget}
         themeController={controller}

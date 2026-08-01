@@ -162,7 +162,7 @@ describe("instance auth email verification API", () => {
       {
         ...verificationRequestBody({
           email: "pending.verify@example.com",
-          target: { ...accountTarget(), storageIdentity: "instance:other" },
+          target: { ...accountTarget(), routeId: "route:other" },
         }),
         challengeId: requested.challenge.challengeId,
         token,
@@ -300,7 +300,6 @@ function accountTarget() {
   return {
     returnTo: "/formless/auth",
     routeId: "route:instance:admin",
-    storageIdentity: "instance:control-plane",
     targetOrigin: "https://instance.example.com",
     targetProfile: "instance",
   };

@@ -5,7 +5,7 @@
 Authority storage owns committed Program records, the active Program schema,
 operation invocations, write invariants, and the Program API contract. It is
 the durable source of truth that the one browser replica, storage snapshots,
-portable archive envelopes, and workspace state read from or write through.
+instance archive envelopes, and workspace state read from or write through.
 
 ## Requirements
 
@@ -22,8 +22,8 @@ The system SHALL use one Program Authority storage identity.
   `instance:control-plane` storage
 - AND one active `formless-program` schema and one `program` provenance hash
   govern those records
-- AND package, module, entity, field, media, or former app-install identity does
-  not select another Authority
+- AND Authority selection is a Program runtime fact rather than a package,
+  module, entity, field, media, or route input
 
 #### Scenario: Workspace-composed Program identity
 
@@ -32,10 +32,8 @@ The system SHALL use one Program Authority storage identity.
   records
 - THEN the one active artifact and its canonical Program provenance govern
   `instance:control-plane`
-- AND workspace module, package, entity, route, field, and media keys do not
-  select an Authority, storage identity, or authorization principal
-- AND Worker requests never evaluate workspace TypeScript or resolve a runtime
-  package manifest to select storage
+- AND Worker requests use that Program Authority without evaluating workspace
+  TypeScript at request time
 
 ### Requirement: Authority-Wide Record Identity
 
@@ -72,8 +70,7 @@ prefix.
 - WHEN the route is admitted
 - THEN it resolves Authority `instance:control-plane` through
   `/api/formless/program`
-- AND package app keys, install ids, and former `app:<installId>` names cannot
-  select an API route or Durable Object
+- AND the Program API prefix does not accept a caller-selected Authority target
 
 ### Requirement: Storage Snapshot Contract Boundary
 
@@ -121,7 +118,7 @@ Program storage APIs.
 The system SHALL keep Authority Program storage separate from instance media storage
 while consuming Media package Worker adapters through public subpaths.
 
-#### Scenario: App storage avoids media internals
+#### Scenario: Program storage avoids media internals
 
 - GIVEN Authority storage handles bootstrap, schema, sync, operations, reset,
   snapshot, or record restore
@@ -250,11 +247,11 @@ The system MUST commit writes only when Authority validation succeeds.
 
 - GIVEN a local workspace runtime needs to decide whether workspace source is
   dirty
-- WHEN an app operation, schema save, reset schema, snapshot restore, app
-  install, or control-plane write commits through Authority
+- WHEN a Program operation, schema save, reset schema, snapshot restore, or
+  control-plane write commits through Authority
 - THEN the committed storage outcome is the write classification boundary
-- AND the local runtime may enqueue workspace auto-save for the affected storage
-  identity
+- AND the local runtime may enqueue Program workspace auto-save with the write
+  source
 - AND failed validation, failed authorization, read-only requests, and replayed
   writes do not classify as new workspace source changes
 
@@ -337,8 +334,8 @@ materialization.
 - GIVEN generated UI, protocol, public, automation, CLI, or runner callers invoke
   an entity operation
 - WHEN Authority accepts the request for evaluation
-- THEN the envelope includes invocation id, canonical operation key, app storage
-  identity, entity, record id or selection when relevant, actor, source
+- THEN the envelope includes invocation id, canonical operation key, entity,
+  record id or selection when relevant, actor, source
   protocol, source route or UI surface when relevant, input, idempotency key
   when required, and received timestamp
 - AND envelope construction is owned by source-kind builders that map protocol,
@@ -350,8 +347,8 @@ materialization.
 - AND unsupported generic write protocol routes do not select Authority write
   operations
 - AND anonymous public callers can build an operation invocation envelope only
-  through target-scoped public operation routes that resolve a declared entity
-  operation on the target app storage identity
+  through narrow Program public-operation routes that resolve a declared
+  entity operation
 
 #### Scenario: Authorize operation before materialization
 
@@ -370,8 +367,8 @@ materialization.
 - WHEN the request is evaluated
 - THEN an idempotency key is required unless a trusted runtime actor supplies an
   explicit runtime-generated write identity
-- AND replaying the same operation for the same app storage identity and
-  idempotency key returns the stored operation output without duplicate change
+- AND replaying the same Program operation and idempotency key returns the
+  stored operation output without duplicate change
   rows, command effect rows, or operation invocation rows
 - AND list and get operations do not require idempotency keys
 
@@ -558,8 +555,8 @@ writes.
   field names, not from stored entity field names
 - AND later steps can reference ids and scalar outputs from earlier successful
   steps in the same plan
-- AND all committed steps share the invocation id, app storage identity, actor,
-  source context, and idempotency key from the operation envelope
+- AND all committed steps share the invocation id, actor, source context, and
+  idempotency key from the operation envelope
 - AND if any step fails validation or materialization, no plan step writes an
   app record, tombstone, operation handler replay row, or sync change row
 
@@ -615,8 +612,8 @@ writes.
   display-safe record identifiers or metadata for created plan steps
 - AND operation invocation audit remains the semantic root for the multi-record
   write
-- AND replaying the same operation for the same app storage identity and
-  idempotency key returns the stored operation output without duplicate app
+- AND replaying the same Program operation and idempotency key returns the
+  stored operation output without duplicate app
   records, tombstones, operation handler replay rows, operation invocation rows,
   or sync change rows
 - AND invoking the same record-scoped operation with a new idempotency key is a
@@ -694,7 +691,7 @@ separate from stored app records and sync change rows.
   failed, or resumed
 - WHEN Authority records the invocation outcome
 - THEN the row stores operation key and kind, actor and auth decision, source
-  protocol and route context, target app storage identity, input hash, safe
+  protocol and route context, input hash, safe
   input summary or explicitly allowed safe snapshot, affected change ids,
   idempotency facts, status, and timestamps
 - AND secret field values, challenge proofs, provider secrets, and runtime
@@ -709,7 +706,7 @@ separate from stored app records and sync change rows.
   verification rejects the request
 - THEN Authority stores an operation invocation row with anonymous actor,
   rejected or failed status, public source protocol, source host and path,
-  target app storage identity, canonical operation key, idempotency facts when
+  canonical operation key, idempotency facts when
   available, input hash, and safe input audit metadata
 - AND no sync change rows, operation handler replay rows, stored app records, or
   tombstones are written for the rejected attempt
@@ -776,9 +773,8 @@ outputs.
 #### Scenario: Change readback
 
 - WHEN sync reads committed changes after a cursor
-- THEN Authority storage returns change rows from the write log for that app
-  storage identity
-- AND changes from other app storage identities are not visible
+- THEN Authority storage returns Program change rows from the write log
+- AND the returned cursor belongs to the one Program lineage
 
 ### Requirement: Record Materialization Boundary
 
@@ -796,7 +792,7 @@ write-log append behavior.
 
 #### Scenario: Reset and restore materialization
 
-- WHEN source schema reset, snapshot restore, or archive app data restore runs
+- WHEN source schema reset, snapshot restore, or instance archive restore runs
 - THEN the reset or restore plan remains explicit before durable writes
 - AND operation handler executions are cleared only by operations whose storage
   semantics require clearing them
@@ -894,7 +890,7 @@ The system MUST guard writes when owner or admin protection is configured and SH
   can commit effects through that route
 - AND a Program-target public route does not grant Program bootstrap, schema,
   sync, WebSocket, generic operation, or snapshot access
-- AND all other app or Program storage write routes still return `401` before
+- AND all other protected Program storage write routes still return `401` before
   JSON body parsing, storage setup, operation envelope construction, or write
   materialization
 
@@ -922,8 +918,7 @@ separate from private authentication state.
   Program source hash
 - AND instance, identity, Task, Site, and CRM records share one record-id namespace,
   write log, cursor, snapshot boundary, and operation-invocation store
-- AND package, module, entity, field, media, or former app-install identity does
-  not select another record store
+- AND the Program runtime selects that record store directly
 - AND credentials, sessions, challenge secrets, token hashes, provider state,
   and media blobs remain outside Program Authority records
 
@@ -934,9 +929,7 @@ separate from private authentication state.
 - THEN it is written directly to storage identity `instance:control-plane`
 - AND ordinary globally unique Program record ids remain separate from the
   stable Task entity id
-- AND the runtime does not inspect, import, merge, or mutate records, cursors,
-  changes, operation invocations, archives, workspaces, browser replicas, or
-  provenance from any legacy `app:<installId>` Tasks Authority
+- AND Task package identity does not create another storage boundary
 
 #### Scenario: Site starts in Program Authority
 
@@ -946,10 +939,7 @@ separate from private authentication state.
 - THEN it is written directly to storage identity `instance:control-plane`
 - AND ordinary globally unique Program record ids remain separate from the
   stable Site entity ids
-- AND the runtime does not inspect, import, merge, or mutate records, cursors,
-  changes, operation invocations, media provenance, archives, workspaces,
-  browser replicas, or provenance from any legacy `app:<installId>` Site
-  Authority
+- AND Site package identity does not create another storage or media boundary
 
 #### Scenario: CRM starts in Program Authority
 
@@ -958,9 +948,7 @@ separate from private authentication state.
 - THEN it is written directly to storage identity `instance:control-plane`
 - AND the shared contact subscription entities use the existing Site stable
   entity ids while CRM non-overlapping entities keep their package-owned ids
-- AND the runtime does not inspect, import, merge, or mutate records, cursors,
-  changes, operation invocations, archives, workspaces, browser replicas, or
-  provenance from any legacy `app:<installId>` CRM Authority
+- AND CRM package identity does not create another storage boundary
 
 #### Scenario: Program API
 
@@ -1031,7 +1019,7 @@ explicit package-owned constraint adapters.
 
 - GIVEN one Program record set contains instance, identity, Task, Site, and CRM
   entities
-- WHEN bootstrap, source refresh, convergence, operation execution, snapshot
+- WHEN bootstrap, source refresh, operation execution, snapshot
   restore, archive restore, or workspace validation runs
 - THEN generic field, reference, unique, delete-blocker, stable entity identity,
   and record-id validation sees the complete Program schema and record set
@@ -1050,7 +1038,6 @@ explicit package-owned constraint adapters.
 - THEN the Program root dispatches the records to the Tasks adapter by stable
   entity id
 - AND reviewable flat Task records remain in the canonical Program snapshot
-- AND no app-install identity or package provenance is added to Task records
 
 #### Scenario: Canonicalize Site records through their package adapter
 
@@ -1060,40 +1047,6 @@ explicit package-owned constraint adapters.
 - THEN the Program root dispatches the records to the Site adapter by stable
   entity id
 - AND reviewable flat Site records remain in the canonical Program snapshot
-- AND no app-install identity or per-module provenance is added to Site records
-
-### Requirement: Control-Plane Record Convergence
-
-The system SHALL converge existing instance and identity control-plane records
-into the surviving Program Authority without changing permanent record identity.
-
-#### Scenario: Import identity records into the surviving lineage
-
-- GIVEN `instance:control-plane` and `instance:identity` contain existing active
-  or tombstoned records
-- WHEN the Program convergence operation runs
-- THEN it reads immutable source snapshots, checks every record id across both
-  histories, and rejects any intersection before mutation
-- AND it validates the complete merged record set against the materialized
-  Program schema and package-owned constraints
-- AND successful convergence preserves record ids, entity keys, values,
-  lifecycle timestamps, and tombstone state
-- AND identity records are appended as a single explicit convergence boundary
-  to the surviving `instance:control-plane` write-log lineage
-- AND the legacy identity cursor and change rows are not copied, interleaved, or
-  presented as Program history
-- AND failed convergence leaves both source Authorities unchanged
-- AND the convergence operation never reads or imports legacy Tasks Authorities
-
-#### Scenario: Convergence preserves private auth references
-
-- GIVEN private credential or session state refers to an identity principal id
-- WHEN identity records converge into Program storage
-- THEN the principal record id is preserved
-- AND credentials, sessions, challenge secrets, token hashes, grants, and
-  provider state are not copied into Program records
-- AND successful convergence is marked idempotently before the standalone
-  identity storage mount becomes unavailable
 
 ### Requirement: Active Schema Source Refresh
 
@@ -1114,19 +1067,6 @@ the source of schema truth.
   workspace state provenance
 - AND committed records, source cursor, operation invocations, and change rows are
   not replaced
-
-#### Scenario: Current Program source excludes removed installed-app state
-
-- GIVEN storage contains dormant records or write-log rows for removed
-  `app-install`, app-target route, `app-registration`, or app-scoped role facts
-- WHEN the complete materialized Program becomes the active source
-- THEN schema refresh, bootstrap, sync, snapshots, workspace source, archives,
-  projections, and browser replicas select only records and fields admitted by
-  the current Program schema and current route policy
-- AND cursors advance across unselected historical changes without delivering
-  them
-- AND the runtime does not import, merge, migrate, rewrite, tombstone, clean up,
-  alias, or expose a legacy rejection surface for the unselected state
 
 #### Scenario: Block incompatible Program refresh
 

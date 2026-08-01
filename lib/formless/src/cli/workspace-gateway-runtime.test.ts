@@ -236,7 +236,7 @@ describe("local workspace gateway", () => {
     );
     const enqueued = await gatewayJson(
       new Request(`http://local.test${WORKSPACE_GATEWAY_AUTO_SAVE_API_PATH}`, {
-        body: JSON.stringify({ source: "schema-save", storageIdentity: "app:site" }),
+        body: JSON.stringify({ source: "schema-save" }),
         headers: {
           "Content-Type": "application/json",
           ...browserHeaders({ cookie, csrf: true }),
@@ -259,7 +259,6 @@ describe("local workspace gateway", () => {
       autoSave: {
         dirtyGeneration: 1,
         displayState: "queued",
-        storageIdentities: ["app:site"],
         writeSources: ["schema-save"],
       },
       csrfToken,
@@ -267,7 +266,6 @@ describe("local workspace gateway", () => {
     expect(persisted).toMatchObject({
       dirtyGeneration: 1,
       displayState: "queued",
-      storageIdentities: ["app:site"],
       writeSources: ["schema-save"],
     });
     expect(scheduled.map((entry) => entry.delayMs)).toEqual([25]);

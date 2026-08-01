@@ -5,13 +5,13 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
-  PORTABLE_ARCHIVE_MANIFEST_FILE,
+  INSTANCE_ARCHIVE_MANIFEST_FILE,
   archiveMediaObjects,
   archiveRecordCount,
-  formatPortableArchive,
-  parsePortableArchive,
+  formatInstanceArchive,
+  parseInstanceArchive,
   type ArchiveProgramValidationOptions,
-  type PortableArchive,
+  type InstanceArchive,
 } from "./index.ts";
 
 export * from "./index.ts";
@@ -29,27 +29,27 @@ export type ArchiveDiskWriteResult = {
   recordCount: number;
 };
 
-export type ReadPortableArchiveDirectoryResult = {
-  archive: PortableArchive;
+export type ReadInstanceArchiveDirectoryResult = {
+  archive: InstanceArchive;
   archivePath: string;
   mediaFiles: ArchiveDiskMediaFile[];
 };
 
-export async function writePortableArchiveDirectory(
+export async function writeInstanceArchiveDirectory(
   input: {
-    archive: PortableArchive;
+    archive: InstanceArchive;
     mediaFiles: readonly ArchiveDiskMediaFile[];
     outDir: string;
   } & ArchiveProgramValidationOptions,
   dependencies: { cwd: string },
 ): Promise<ArchiveDiskWriteResult> {
   const archiveDir = path.resolve(dependencies.cwd, input.outDir);
-  const archivePath = path.join(archiveDir, PORTABLE_ARCHIVE_MANIFEST_FILE);
+  const archivePath = path.join(archiveDir, INSTANCE_ARCHIVE_MANIFEST_FILE);
 
   await mkdir(archiveDir, { recursive: true });
   await writeFile(
     archivePath,
-    formatPortableArchive(input.archive, {
+    formatInstanceArchive(input.archive, {
       programSnapshotContract: input.programSnapshotContract,
     }),
   );
@@ -68,13 +68,13 @@ export async function writePortableArchiveDirectory(
   };
 }
 
-export async function readPortableArchiveDirectory(
+export async function readInstanceArchiveDirectory(
   archiveDirInput: string,
   dependencies: { cwd: string } & ArchiveProgramValidationOptions,
-): Promise<ReadPortableArchiveDirectoryResult> {
+): Promise<ReadInstanceArchiveDirectoryResult> {
   const archiveDir = path.resolve(dependencies.cwd, archiveDirInput);
-  const archivePath = path.join(archiveDir, PORTABLE_ARCHIVE_MANIFEST_FILE);
-  const archive = parsePortableArchive(JSON.parse(await readFile(archivePath, "utf8")) as unknown, {
+  const archivePath = path.join(archiveDir, INSTANCE_ARCHIVE_MANIFEST_FILE);
+  const archive = parseInstanceArchive(JSON.parse(await readFile(archivePath, "utf8")) as unknown, {
     programSnapshotContract: dependencies.programSnapshotContract,
   });
   const mediaFiles = await Promise.all(

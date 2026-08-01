@@ -24,7 +24,7 @@ Read this when editing `lib/tasks-app/*`.
 - `src/schema-records.ts`: Tasks record and query declarations.
 - `src/schema-presentation.ts`: Tasks item view, view, and screen declarations.
 - `src/schema.ts`: public schema authoring subpath and authoritative Tasks schema composition.
-- `src/types.ts`: versioned public Tasks package constants.
+- `src/types.ts`: stable Task entity identity.
 - `src/index.ts`: runtime-neutral Tasks package exports.
 
 ## Rules

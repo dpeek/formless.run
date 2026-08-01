@@ -6,8 +6,7 @@ Read this when editing `lib/identity-control-plane/*`.
 
 ## Owns
 
-- Identity control-plane schema key, boundary schema key, storage identity, and
-  API route constants.
+- Identity boundary schema key and capability API route constants.
 - Identity entity names, first-pass runtime role keys, and public contract
   version declarations.
 - Runtime-neutral identity schema contracts and pure helpers as they are added.
@@ -27,8 +26,8 @@ Read this when editing `lib/identity-control-plane/*`.
 - `package.json`: package metadata plus root and runtime-neutral `./schema`
   public exports.
 - `tsconfig.json`: package-local TypeScript project extending the repo config.
-- `src/types.ts`: public contract version, identity constants, entity names, and
-  role key declarations.
+- `src/types.ts`: public contract version, boundary and capability constants,
+  entity names, and role key declarations.
 - `src/schema.ts`: reusable identity control-plane record and presentation
   schema modules plus the complete App schema source.
 - `src/index.ts`: runtime-neutral package root entrypoint.

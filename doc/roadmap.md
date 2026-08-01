@@ -138,7 +138,7 @@ Deferred unless a CRM operation proves the primitive is needed:
 - `add-custom-result-presentations`: add custom result presentations backed by
   schema-declared views.
 - `add-app-marketplace-shape`: define app marketplace/package metadata after
-  source app packaging is stable.
+  domain package schema authoring is stable.
 - `add-cross-app-references`: add cross-app references or queries when a real
   app needs them.
 - `add-job-operation-runners`: add queues, scheduled work, and durable

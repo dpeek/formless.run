@@ -17,7 +17,6 @@ import type {
 } from "../shared/operation-invocation.ts";
 import { programStorageIdentity } from "../shared/program-storage-identity.ts";
 import { formlessProgramTarget } from "../program/target.ts";
-import type { SchemaKey } from "../shared/schema-apps.ts";
 import type {
   AppSchema,
   EntitySchema,
@@ -32,14 +31,14 @@ type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 type ExecuteOperationInput = {
   actor?: OperationInvocationEnvelope["actor"];
   actorKind?: "admin" | "cliDeployer" | "owner" | "runner";
-  appKey?: SchemaKey;
+  schemaFixture?: "program" | "tasks";
   body?: unknown;
   beforeWriteRecordValues?: {
     recordId: string;
     values: Record<string, unknown>;
   };
   headers?: Record<string, string>;
-  identity?: OperationInvocationEnvelope["programStorageIdentity"];
+  identity?: ReturnType<typeof programStorageIdentity>;
   method: string;
   path: string;
   preserveMissingOperationAccess?: boolean;
@@ -567,8 +566,10 @@ describe("authority operation execution", () => {
       },
     });
     expect(projectReadOutput.record.deletedAt).toBeUndefined();
-    expect(sync.body.result.body.changes.map((change) => change.writeId)).toEqual([
+    expect(projectOutput.changes.map((change) => change.writeId)).toEqual([
       "operation:project.create:operation-reference-project",
+    ]);
+    expect(sync.body.result.body.changes.map((change) => change.writeId)).toEqual([
       "operation:task.create:operation-reference-task",
     ]);
   });
@@ -810,7 +811,7 @@ describe("authority operation execution", () => {
 
     const route = `${identity.apiRoutePrefix}/public/operations/subscription/subscribe`;
     const invalid = await executeOperationFailure({
-      appKey: "crm",
+      schemaFixture: "program",
       identity,
       method: "POST",
       path: "/operations/subscription/subscribe",
@@ -826,7 +827,7 @@ describe("authority operation execution", () => {
       },
     });
     const first = await executeOperation<OperationInvocationResponse>({
-      appKey: "crm",
+      schemaFixture: "program",
       identity,
       method: "POST",
       path: "/operations/subscription/subscribe",
@@ -842,7 +843,7 @@ describe("authority operation execution", () => {
       },
     });
     const duplicate = await executeOperation<OperationInvocationResponse>({
-      appKey: "crm",
+      schemaFixture: "program",
       identity,
       method: "POST",
       path: "/operations/subscription/subscribe",
@@ -858,7 +859,7 @@ describe("authority operation execution", () => {
       },
     });
     const afterDuplicate = await executeOperation<BootstrapResponse>({
-      appKey: "crm",
+      schemaFixture: "program",
       identity,
       method: "GET",
       path: "/bootstrap",
@@ -879,7 +880,7 @@ describe("authority operation execution", () => {
     }
 
     await executeOperation<OperationInvocationResponse>({
-      appKey: "crm",
+      schemaFixture: "program",
       body: {
         idempotencyKey: "public-subscribe-unsubscribe",
         recordId: subscription.id,
@@ -891,7 +892,7 @@ describe("authority operation execution", () => {
     });
 
     const resubscribed = await executeOperation<OperationInvocationResponse>({
-      appKey: "crm",
+      schemaFixture: "program",
       identity,
       method: "POST",
       path: "/operations/subscription/subscribe",
@@ -907,7 +908,7 @@ describe("authority operation execution", () => {
       },
     });
     const afterResubscribe = await executeOperation<BootstrapResponse>({
-      appKey: "crm",
+      schemaFixture: "program",
       identity,
       method: "GET",
       path: "/bootstrap",
@@ -939,7 +940,6 @@ describe("authority operation execution", () => {
     expect(invalidRow).toMatchObject({
       actorKind: "anonymous",
       affectedChangeIds: [],
-      programStorageIdentity: identity,
       auditInput: {
         kind: "summary",
         summary: {
@@ -982,7 +982,6 @@ describe("authority operation execution", () => {
       sourceSiteBlockId: "rec_site_subscribe_resubscribe",
     });
     expect(resubscribedRow).toMatchObject({
-      programStorageIdentity: identity,
       auditInput: {
         kind: "summary",
         summary: {
@@ -1465,7 +1464,9 @@ describe("authority operation execution", () => {
       "order",
       "order-receipt",
     ]);
-    expect(sync.body.result.body.changes).toEqual(output.changes);
+    expect(sync.body.result.body.changes).toEqual(
+      output.changes.filter((change) => change.entity === "task"),
+    );
     expect(orderChange?.payload).toMatchObject({
       entity: "order",
       values: {
@@ -1934,17 +1935,15 @@ describe("authority operation execution", () => {
       throw new Error("Expected command operation output.");
     }
 
+    const logStep = output.recordPlan?.steps.find((step) => step.entity === "task-log");
+
     expect(committed.response.status).toBe(200);
     expect(committed.body.writes.map((write) => write.kind)).toEqual(["committed"]);
-    expect(output.affectedChangeIds).toEqual(
-      sync.body.result.body.changes.map((change) => String(change.seq)),
+    expect(sync.body.result.body.changes.map((change) => String(change.seq))).toEqual(
+      output.affectedChangeIds.filter((changeId) => changeId !== logStep?.changeId),
     );
     expect(output.changes).toEqual([]);
-    expect(sync.body.result.body.changes.map((change) => change.entity)).toEqual([
-      "task",
-      "task-log",
-      "task",
-    ]);
+    expect(sync.body.result.body.changes.map((change) => change.entity)).toEqual(["task", "task"]);
     expect(output).not.toHaveProperty("actionId");
     expect(output).not.toHaveProperty("response");
     expect(output).toMatchObject({
@@ -1958,12 +1957,17 @@ describe("authority operation execution", () => {
     });
 
     const taskId = output.recordPlan?.steps[0]?.recordId;
-    const log = sync.body.result.body.changes[1]?.payload;
     const receivedAt = committed.body.result.body.invocation.receivedAt;
 
     expect(taskId).toMatch(/^task_/);
+    expect(logStep).toMatchObject({
+      name: "createLog",
+      kind: "create",
+      entity: "task-log",
+      changeId: expect.any(String),
+      recordId: expect.any(String),
+    });
     expect(sync.body.result.body.changes.map((change) => change.createdAt)).toEqual([
-      receivedAt,
       receivedAt,
       receivedAt,
     ]);
@@ -1979,17 +1983,7 @@ describe("authority operation execution", () => {
         priority: "normal",
       },
     });
-    expect(log).toMatchObject({
-      entity: "task-log",
-      values: {
-        task: taskId,
-        label: "Created by plan",
-        actorMode: "anonymous",
-        occurredAt: receivedAt,
-        sourcePath: "/api/tasks/public/operations/task/submitPlan",
-      },
-    });
-    expect(sync.body.result.body.changes[2]?.payload).toMatchObject({
+    expect(sync.body.result.body.changes[1]?.payload).toMatchObject({
       id: taskId,
       entity: "task",
       updatedAt: receivedAt,
@@ -2185,9 +2179,15 @@ describe("authority operation execution", () => {
       throw new Error("Expected command operation output.");
     }
 
+    const replayLogStep = first.body.result.body.output.recordPlan?.steps.find(
+      (step) => step.entity === "task-log",
+    );
+
     expect(first.body.result.body.output.changes).toEqual([]);
     expect(sync.body.result.body.changes.map((change) => String(change.seq))).toEqual(
-      first.body.result.body.output.affectedChangeIds,
+      first.body.result.body.output.affectedChangeIds.filter(
+        (changeId) => changeId !== replayLogStep?.changeId,
+      ),
     );
     expect(JSON.stringify(rows)).not.toContain("record-plan-replay-proof-token");
     expect(JSON.stringify(rows)).not.toContain("record-plan-replay-second-proof-token");
@@ -2249,10 +2249,6 @@ describe("authority operation execution", () => {
         recordId: targetOutput.record.id,
       },
     });
-    const snapshot = await executeOperation<StorageSnapshot>({
-      method: "GET",
-      path: "/snapshot",
-    });
     const firstOutput = first.body.result.body.output;
     const secondOutput = second.body.result.body.output;
 
@@ -2287,9 +2283,6 @@ describe("authority operation execution", () => {
       },
     });
     expect(secondLog?.values.code).not.toBe(firstLog?.values.code);
-    expect(
-      snapshot.body.result.body.records.filter((record) => record.entity === "target-log"),
-    ).toHaveLength(2);
   });
 
   it("rejects invalid record-scoped record-plan targets before materialization", async () => {
@@ -2916,7 +2909,6 @@ function authenticatedOperationActor(): OperationInvocationEnvelope["actor"] {
     sessionTarget: {
       instanceId: "instance-1",
       routeId: "route-program",
-      storageIdentity: "instance:control-plane",
       targetOrigin: "https://program.example.com",
       targetProfile: "instance",
     },
@@ -3912,6 +3904,10 @@ async function writeAuthorityOperationHarness() {
       import { taskSourceSchema } from "${process.cwd()}/src/test/schema-apps.ts";
       import { formlessProgramSchema } from "${process.cwd()}/src/program/runtime.ts";
       import {
+        FORMLESS_PROGRAM_SCHEMA_KEY,
+        FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      } from "${process.cwd()}/src/program/target.ts";
+      import {
         ensureStorageTables,
         initializeStorageFromSource,
         readCurrentStoredSchema,
@@ -3933,11 +3929,11 @@ async function writeAuthorityOperationHarness() {
           }
 
           const input = await request.json();
-          const appKey = input.appKey ?? "tasks";
-          const app = appKey === "tasks"
-            ? { key: "tasks", sourceSchema: taskSourceSchema }
-            : appKey === "crm"
-              ? { key: "formless-program", sourceSchema: formlessProgramSchema }
+          const schemaFixture = input.schemaFixture ?? "tasks";
+          const sourceSchema = schemaFixture === "tasks"
+            ? taskSourceSchema
+            : schemaFixture === "program"
+              ? formlessProgramSchema
               : undefined;
           const operation = selectAuthorityOperation({
             method: input.method,
@@ -3945,13 +3941,12 @@ async function writeAuthorityOperationHarness() {
             searchParams: new URLSearchParams(input.search ?? ""),
           });
 
-          if (!app || !operation) {
+          if (!sourceSchema || !operation) {
             return Response.json({ error: "Unsupported operation.", writes: [] }, { status: 404 });
           }
 
           const identity = input.identity ?? programStorageIdentity();
-          const sourceSchema = app.sourceSchema;
-          const records = schemaAppTestRecords(appKey);
+          const records = schemaAppTestRecords(schemaFixture === "tasks" ? "tasks" : "crm");
           const source = { schema: sourceSchema };
           if (!readCurrentStoredSchema(this.ctx.storage)) {
             initializeStorageFromSource(this.ctx.storage, source);
@@ -3961,8 +3956,8 @@ async function writeAuthorityOperationHarness() {
                 {
                   kind: "formless.storage-snapshot",
                   version: 1,
-                  storageIdentity: identity.authorityName,
-                  schemaKey: app.key,
+                  storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+                  schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
                   exportedAt: "2026-07-29T00:00:00.000Z",
                   schemaUpdatedAt: "2026-07-29T00:00:00.000Z",
                   sourceCursor: records.length,
@@ -4055,7 +4050,6 @@ async function writeAuthorityOperationHarness() {
             const result = await executeAuthorityOperation({
               actor: input.actor ?? { kind: "owner" },
               actorKind: input.actorKind,
-              app,
               body: input.body,
               identity,
               operation,

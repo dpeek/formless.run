@@ -39,7 +39,7 @@ import { AstryxSubscribedApplicationShellRenderer } from "./shell.tsx";
 export function FormlessApplicationShellLayout() {
   const [fixtures] = useState(createFormlessApplicationShellFixtureHosts);
   const [selectedFixtureId, setSelectedFixtureId] =
-    useState<FormlessApplicationShellFixtureId>("product-instance");
+    useState<FormlessApplicationShellFixtureId>("program-settings");
   const selectedFixture = fixtures.find((fixture) => fixture.id === selectedFixtureId);
 
   if (!selectedFixture) {

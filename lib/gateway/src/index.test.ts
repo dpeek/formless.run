@@ -185,11 +185,10 @@ describe("Gateway runtime-neutral contracts", () => {
     expect(workspaceGatewayAutoSaveApiPath("/local/workspace/")).toBe("/local/workspace/auto-save");
     expect(
       parseWorkspaceGatewayAutoSaveEnqueueInput({
-        source: "app-operation",
-        storageIdentity: "app:site",
+        source: "control-plane-write",
       }),
     ).toEqual({
-      input: { source: "app-operation", storageIdentity: "app:site" },
+      input: { source: "control-plane-write" },
       ok: true,
     });
     expect(parseWorkspaceGatewayAutoSaveEnqueueInput({ source: "raw-upload" })).toEqual({
@@ -212,15 +211,6 @@ describe("Gateway runtime-neutral contracts", () => {
       }),
     ).toEqual({
       error: 'Workspace gateway request includes forbidden key "token".',
-      ok: false,
-    });
-    expect(
-      parseWorkspaceGatewayAutoSaveEnqueueInput({
-        source: "schema-save",
-        storageIdentity: "",
-      }),
-    ).toEqual({
-      error: "Workspace auto-save storage identity is invalid.",
       ok: false,
     });
     expect(

@@ -17,11 +17,11 @@ import {
 describe("application runtime contract publication coordinator", () => {
   it("composes shell and route-child nodes on one stable host with scoped identity reuse", () => {
     const shell = shellPublication("Formless");
-    const workspace = workspacePublication("Apps");
+    const workspace = workspacePublication("Workspace");
     const coordinator = createApplicationRuntimePublicationCoordinator([["shell", shell]]);
     const host = coordinator.host;
     const shellReference = shellManifestReference("application-shell");
-    const workspaceReference = workspaceManifestReference("workspace:apps");
+    const workspaceReference = workspaceManifestReference("workspace:program");
     const initialShell = required(host.read(shellReference));
     const initialServerShell = required(host.getServerSnapshot(shellReference));
     const notifications = { shell: 0, workspace: 0 };
@@ -36,16 +36,19 @@ describe("application runtime contract publication coordinator", () => {
 
     expect(coordinator.host).toBe(host);
     expect(host.read(shellReference)).toBe(initialShell);
-    expect(host.read(workspaceReference)).toMatchObject({ id: "workspace:apps", label: "Apps" });
+    expect(host.read(workspaceReference)).toMatchObject({
+      id: "workspace:program",
+      label: "Workspace",
+    });
     expect(host.getServerSnapshot(workspaceReference)).toBeUndefined();
     expect(notifications).toEqual({ shell: 0, workspace: 1 });
 
     const initialWorkspace = required(host.read(workspaceReference));
-    coordinator.publish("route-child", workspacePublication("Installed Apps"));
+    coordinator.publish("route-child", workspacePublication("Current workspace"));
 
     expect(host.read(shellReference)).toBe(initialShell);
     expect(host.read(workspaceReference)).not.toBe(initialWorkspace);
-    expect(host.read(workspaceReference)).toMatchObject({ label: "Installed Apps" });
+    expect(host.read(workspaceReference)).toMatchObject({ label: "Current workspace" });
     expect(notifications).toEqual({ shell: 0, workspace: 2 });
 
     coordinator.remove("route-child");
@@ -58,11 +61,11 @@ describe("application runtime contract publication coordinator", () => {
   it("keeps initial route-child server snapshots stable for hydration", () => {
     const coordinator = createApplicationRuntimePublicationCoordinator([
       ["shell", shellPublication("Formless")],
-      ["route-child", workspacePublication("Server apps")],
+      ["route-child", workspacePublication("Server workspace")],
     ]);
     const host = coordinator.host;
     const shellReference = shellManifestReference("application-shell");
-    const workspaceReference = workspaceManifestReference("workspace:apps");
+    const workspaceReference = workspaceManifestReference("workspace:program");
     const serverShell = required(host.getServerSnapshot(shellReference));
     const serverWorkspace = required(host.getServerSnapshot(workspaceReference));
     let shellSeenFromWorkspaceNotification: unknown;
@@ -71,11 +74,11 @@ describe("application runtime contract publication coordinator", () => {
       shellSeenFromWorkspaceNotification = host.read(shellReference);
     });
 
-    coordinator.publish("route-child", workspacePublication("Client apps"));
+    coordinator.publish("route-child", workspacePublication("Client workspace"));
 
     expect(coordinator.host).toBe(host);
     expect(host.read(shellReference)).toBe(serverShell);
-    expect(host.read(workspaceReference)?.label).toBe("Client apps");
+    expect(host.read(workspaceReference)?.label).toBe("Client workspace");
     expect(host.getServerSnapshot(shellReference)).toBe(serverShell);
     expect(host.getServerSnapshot(workspaceReference)).toBe(serverWorkspace);
     expect(shellSeenFromWorkspaceNotification).toBe(serverShell);
@@ -92,16 +95,16 @@ describe("application runtime contract publication coordinator", () => {
       ],
       [
         "workspace",
-        workspacePublication("Apps", () => {
+        workspacePublication("Workspace", () => {
           calls.push("workspace:initial");
         }),
       ],
     ]);
     const workspaceIntent = {
-      collectionId: "workspace:apps:section:apps:collection:apps",
+      collectionId: "workspace:program:section:records:collection:records",
       queryId: "all",
-      screenId: "workspace:apps",
-      sectionId: "workspace:apps:section:apps",
+      screenId: "workspace:program",
+      sectionId: "workspace:program:section:records",
       type: "workspaceQuerySelection",
     } as const;
     const shellIntent = {
@@ -115,7 +118,7 @@ describe("application runtime contract publication coordinator", () => {
     await coordinator.host.dispatch(workspaceIntent);
     coordinator.publish(
       "workspace",
-      workspacePublication("Apps", () => {
+      workspacePublication("Workspace", () => {
         calls.push("workspace:current");
       }),
     );
@@ -133,14 +136,14 @@ describe("application runtime contract publication coordinator", () => {
   it("rejects an invalid combined graph without changing the current publication", () => {
     const coordinator = createApplicationRuntimePublicationCoordinator([
       ["shell", shellPublication("Formless")],
-      ["workspace", workspacePublication("Apps")],
+      ["workspace", workspacePublication("Workspace")],
     ]);
-    const workspaceReference = workspaceManifestReference("workspace:apps");
+    const workspaceReference = workspaceManifestReference("workspace:program");
     const currentWorkspace = coordinator.host.read(workspaceReference);
 
-    expect(() => coordinator.publish("duplicate", workspacePublication("Duplicate Apps"))).toThrow(
-      "Duplicate Formless UI contract reference",
-    );
+    expect(() =>
+      coordinator.publish("duplicate", workspacePublication("Duplicate workspace")),
+    ).toThrow("Duplicate Formless UI contract reference");
     expect(coordinator.host.read(workspaceReference)).toBe(currentWorkspace);
   });
 });
@@ -168,7 +171,6 @@ function shellPublication(
           id: reference.shellId,
           kind: "shellManifest",
           navigationSections: [],
-          scope: "multiApp",
           title,
         },
       },
@@ -180,7 +182,7 @@ function workspacePublication(
   label: string,
   dispatch: PresentationIntentHandler = () => undefined,
 ): ApplicationRuntimeContractPublication {
-  const reference = workspaceManifestReference("workspace:apps");
+  const reference = workspaceManifestReference("workspace:program");
 
   return {
     intentHandlers: [
@@ -194,7 +196,7 @@ function workspacePublication(
       {
         reference,
         snapshot: {
-          accessibilityLabel: "Apps workspace",
+          accessibilityLabel: "Program workspace",
           actions: [],
           id: reference.workspaceId,
           kind: "workspaceManifest",

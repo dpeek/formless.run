@@ -295,7 +295,6 @@ describe("instance control-plane API routes", () => {
         idempotencyKey: "same-origin-admin-deployment-config",
         input: {
           targetId: "instance.primary",
-          targetKind: "instance",
           label: "Primary",
           enabled: true,
           targetUrl: "https://same-origin-admin.example.workers.dev",
@@ -528,7 +527,6 @@ describe("instance control-plane API routes", () => {
         idempotencyKey: "operation-deployment-config-create",
         input: {
           targetId: "instance.primary",
-          targetKind: "instance",
           label: "Primary",
           enabled: true,
           targetUrl: "https://operation-managed.example.workers.dev",
@@ -817,7 +815,6 @@ describe("instance control-plane API routes", () => {
         idempotencyKey: "deployment-config",
         input: {
           targetId: "instance.primary",
-          targetKind: "instance",
           label: "Cloudflare",
           enabled: true,
           targetUrl: "https://instance.example.workers.dev",
@@ -832,7 +829,6 @@ describe("instance control-plane API routes", () => {
         idempotencyKey: "secret-deployment-config",
         input: {
           targetId: "instance.secret",
-          targetKind: "instance",
           label: "Secret",
           enabled: true,
           targetUrl: "https://secret.example.workers.dev",
@@ -1153,7 +1149,6 @@ function secretSnapshot(now: string): StorageSnapshot {
         updatedAt: now,
         values: {
           targetId: "instance.secret",
-          targetKind: "instance",
           label: "Secret",
           enabled: true,
           targetUrl: "https://secret.example.workers.dev",

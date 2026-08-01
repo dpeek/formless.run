@@ -90,7 +90,7 @@ describe("Deploy control-plane client helpers", () => {
             schemaVersion: 1,
             source: { fingerprint: "control-plane:abc", intentRevision: 7 },
           },
-          target: { kind: "instance", targetId: "instance.primary" },
+          target: { targetId: "instance.primary" },
         },
         "GET /api/formless/deployments/desired-state",
       ).target.targetId,
@@ -99,7 +99,7 @@ describe("Deploy control-plane client helpers", () => {
       parseDeployLatestStatusResponse(
         {
           status: { checkedAt: "2026-06-01T00:00:00.000Z", state: "no-target" },
-          target: { kind: "instance", targetId: "instance.primary" },
+          target: { targetId: "instance.primary" },
         },
         "GET /api/formless/deployments/status",
       ).status.state,

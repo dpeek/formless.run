@@ -86,10 +86,7 @@ package owns schema declarations and domain-specific runtime adapters.
   authoring source and an optional `schema.json` artifact
 - WHEN a trusted downstream Program composition root selects its declarations
 - THEN it imports the documented schema authoring subpath
-- AND root runtime does not keep duplicate source schema files for that app
-  package
-- AND root `schema/apps/<packageAppKey>` source files are removed for extracted
-  domain packages
+- AND the domain package is the repository source owner for those declarations
 
 ### Requirement: Package-Owned Schema Authoring Modules
 
@@ -122,9 +119,8 @@ domain declarations into the Schema package.
   and source maps
 - AND the complete standalone source continues to materialize the existing
   Tasks `schema.json` artifact
-- AND the public schema boundary does not compose Tasks into a Program, select
-  an Authority, change installed-app routing, or create another authoritative
-  copy of Tasks records
+- AND the public schema boundary returns declarations without selecting Program
+  storage, routing, or authorization
 
 #### Scenario: Site package publishes TypeScript-authored modules
 
@@ -812,7 +808,7 @@ deployment execution, or provider state.
 - WHEN runtime-neutral code consumes instance control-plane behavior
 - THEN they come from `lib/instance-control-plane`
 - AND deployment projection contracts come from the Deploy package
-- AND storage snapshot contracts come from the Storage package
+- AND stored-record contracts come from the Storage package
 
 #### Scenario: Package does not own control-plane execution
 
@@ -922,8 +918,8 @@ provider secrets or canonical provider state.
 - THEN they come from `lib/deploy`
 - AND provider SDK execution and Alchemy state remain outside the package's
   runtime-neutral contract
-- AND app install and app route identity contracts are consumed from the
-  instance control-plane model instead of being redefined as deploy-only shapes
+- AND deployment targets are identified by target id while schema-owned route
+  and deployment-config contracts remain in the Instance Control Plane package
 
 ### Requirement: Gateway Package Slice
 
@@ -1171,6 +1167,8 @@ runtime storage, provider execution, or Program records.
   source-tree modules or package internals
 - AND the local state adapter owns one Program state path and referenced media
   payload paths without per-install state roots or package-app provenance
+- AND Workspace does not import instance control-plane schema or record-source
+  scaffolding to select that Program state
 
 #### Scenario: Package does not own runtime execution
 

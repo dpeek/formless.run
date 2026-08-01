@@ -1,7 +1,4 @@
-import {
-  programStorageIdentityForClientTarget,
-  type ProgramClientTarget,
-} from "./program-target.ts";
+import { FORMLESS_PROGRAM_BROWSER_STORAGE_NAME } from "../program/target.ts";
 
 export type BroadcastEventType =
   | "records-updated"
@@ -13,8 +10,8 @@ export type BroadcastEvent = {
   type: BroadcastEventType;
 };
 
-export function publishClientEvent(target: ProgramClientTarget, type: BroadcastEventType) {
-  const channel = createChannel(target);
+export function publishClientEvent(type: BroadcastEventType) {
+  const channel = createChannel();
 
   if (!channel) {
     return;
@@ -24,11 +21,8 @@ export function publishClientEvent(target: ProgramClientTarget, type: BroadcastE
   channel.close();
 }
 
-export function listenForClientEvents(
-  target: ProgramClientTarget,
-  listener: (event: BroadcastEvent) => void,
-) {
-  const channel = createChannel(target);
+export function listenForClientEvents(listener: (event: BroadcastEvent) => void) {
+  const channel = createChannel();
 
   if (!channel) {
     return () => {};
@@ -45,16 +39,16 @@ export function listenForClientEvents(
   return () => channel.close();
 }
 
-function createChannel(target: ProgramClientTarget) {
+function createChannel() {
   if (typeof BroadcastChannel === "undefined") {
     return undefined;
   }
 
-  return new BroadcastChannel(channelName(target));
+  return new BroadcastChannel(channelName());
 }
 
-export function channelName(target: ProgramClientTarget) {
-  return programStorageIdentityForClientTarget(target).broadcastChannelName;
+export function channelName() {
+  return FORMLESS_PROGRAM_BROWSER_STORAGE_NAME;
 }
 
 function isBroadcastEvent(value: unknown): value is BroadcastEvent {

@@ -1,5 +1,3 @@
-import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
-
 import {
   type AccountCompletionGateTarget,
   type AccountRedirectTarget,
@@ -37,7 +35,6 @@ export function sameOriginAccountCompletionTargetForRuntimeRouteFacts(input: {
     return {
       returnTo: input.returnTo,
       routeId: input.runtimeRoute.id,
-      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
       targetOrigin: input.requestOrigin,
       targetProfile: "instance",
     };
@@ -53,7 +50,6 @@ export function sameOriginAccountCompletionTargetForRuntimeRouteFacts(input: {
   return {
     returnTo: input.returnTo,
     routeId: sameOriginInstanceRuntimeRouteId,
-    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     targetOrigin: input.requestOrigin,
     targetProfile: "instance",
   };

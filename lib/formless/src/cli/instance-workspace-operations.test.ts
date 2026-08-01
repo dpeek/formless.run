@@ -1279,7 +1279,7 @@ function authorityExportFetch(): typeof fetch {
           state: "pending-changes",
           targetId: desiredState.targetId,
         },
-        target: { kind: "instance", targetId: desiredState.targetId },
+        target: { targetId: desiredState.targetId },
       });
     }
 
@@ -1390,7 +1390,7 @@ function deployApplyFetch(
           schemaVersion: 1,
           source: { fingerprint: "source-1", intentRevision: 1 },
         },
-        target: { kind: "instance", targetId: desiredState.targetId },
+        target: { targetId: desiredState.targetId },
       });
     }
 
@@ -1404,7 +1404,7 @@ function deployApplyFetch(
           state: "pending-changes",
           targetId: desiredState.targetId,
         },
-        target: { kind: "instance", targetId: desiredState.targetId },
+        target: { targetId: desiredState.targetId },
       });
     }
 
@@ -1425,7 +1425,6 @@ function deployApplyFetch(
           label: "Primary instance",
           providerFamily: "cloudflare",
           targetId: "instance.primary",
-          targetKind: "instance",
           targetUrl: "https://personal.dpeek.workers.dev",
           updatedAt: "2026-05-26T00:00:00.000Z",
           workerName: "personal",
@@ -1579,7 +1578,6 @@ function deployControlPlaneRecords(
         label: "Primary instance",
         providerFamily: "cloudflare",
         targetId: "instance.primary",
-        targetKind: "instance",
         targetUrl: options.targetUrl ?? "https://personal.dpeek.workers.dev",
         ...(options.credentialRef === undefined ? {} : { credentialRef: options.credentialRef }),
         ...(workerName === null ? {} : { workerName }),

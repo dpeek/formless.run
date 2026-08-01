@@ -238,7 +238,7 @@ Future CRM broadcast change:
 ## Non-Goals
 
 - No general workflow engine.
-- No queue per installed app, schema key, operation, or tenant.
+- No queue per domain, Program operation, or tenant.
 - No provider email body in queue messages.
 - No public exposure of notification delivery errors in operation responses.
 - No CRM broadcast fan-out in the first email delivery queue change.

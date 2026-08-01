@@ -821,14 +821,12 @@ describe("workspace auto-save state contracts", () => {
     const initial = initialWorkspaceAutoSaveState({ now });
     const queued = nextWorkspaceAutoSaveEnqueuedState(initial, {
       now,
-      source: "app-operation",
-      storageIdentity: "app:site",
+      source: "control-plane-write",
     });
     const saving = nextWorkspaceAutoSaveSavingState(queued, { now });
     const coalesced = nextWorkspaceAutoSaveEnqueuedState(saving, {
       now,
       source: "schema-save",
-      storageIdentity: "app:site",
     });
     const stillQueued = nextWorkspaceAutoSaveSavedState(coalesced, { now });
     const failed = nextWorkspaceAutoSaveFailedState(stillQueued, {
@@ -847,7 +845,6 @@ describe("workspace auto-save state contracts", () => {
       kind: WORKSPACE_AUTO_SAVE_STATE_FILE_KIND,
       retryCount: 0,
       savedGeneration: 0,
-      storageIdentities: [],
       updatedAt: "2026-06-02T00:00:00.000Z",
       version: WORKSPACE_AUTO_SAVE_STATE_FILE_VERSION,
       writeSources: [],
@@ -856,21 +853,19 @@ describe("workspace auto-save state contracts", () => {
       dirtyGeneration: 1,
       displayState: "queued",
       lastEnqueueAt: "2026-06-02T00:00:01.000Z",
-      storageIdentities: ["app:site"],
-      writeSources: ["app-operation"],
+      writeSources: ["control-plane-write"],
     });
     expect(coalesced).toMatchObject({
       dirtyGeneration: 2,
       displayState: "saving",
       inFlightGeneration: 1,
-      storageIdentities: ["app:site"],
-      writeSources: ["app-operation", "schema-save"],
+      writeSources: ["control-plane-write", "schema-save"],
     });
     expect(stillQueued).toMatchObject({
       dirtyGeneration: 2,
       displayState: "queued",
       savedGeneration: 1,
-      writeSources: ["app-operation", "schema-save"],
+      writeSources: ["control-plane-write", "schema-save"],
     });
     expect(failed).toMatchObject({
       displayState: "failed",
@@ -894,7 +889,6 @@ describe("workspace auto-save state contracts", () => {
           {
             now: () => "2026-06-02T00:00:01.000Z",
             source: "deployment-intent",
-            storageIdentity: "instance:control-plane",
           },
         ),
         { now: () => "2026-06-02T00:00:02.000Z" },

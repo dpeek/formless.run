@@ -3,11 +3,10 @@ import path from "node:path";
 
 import {
   archiveMediaObjects,
-  parsePortableArchive,
-  PORTABLE_ARCHIVE_MANIFEST_FILE,
+  parseInstanceArchive,
+  INSTANCE_ARCHIVE_MANIFEST_FILE,
   type ArchiveMediaObject,
   type InstanceArchive,
-  type PortableArchive,
 } from "../program/archive.ts";
 import type { ArchiveDiskMediaFile } from "../program/archive-node.ts";
 import type { FormlessProgramArtifact } from "../program/artifact.ts";
@@ -23,14 +22,10 @@ export type WorkspaceRecordValueSource = {
   values: Record<string, unknown>;
 };
 export type WorkspaceArchiveDirectory = {
-  archive: PortableArchive;
+  archive: InstanceArchive;
   archivePath: string;
   mediaFiles: ArchiveDiskMediaFile[];
   missingMediaFiles: string[];
-};
-
-export type WorkspaceInstanceArchiveDirectory = WorkspaceArchiveDirectory & {
-  archive: InstanceArchive;
 };
 
 export type WorkspaceArchiveMediaComparisonSource = {
@@ -77,7 +72,7 @@ export async function readArchiveDirectoryForCheck(
   archiveRoot: string,
   options: { programArtifact?: FormlessProgramArtifact } = {},
 ): Promise<WorkspaceArchiveDirectory | undefined> {
-  const archivePath = path.join(archiveRoot, PORTABLE_ARCHIVE_MANIFEST_FILE);
+  const archivePath = path.join(archiveRoot, INSTANCE_ARCHIVE_MANIFEST_FILE);
   let contents: string;
 
   try {
@@ -91,7 +86,7 @@ export async function readArchiveDirectoryForCheck(
   }
 
   const value = JSON.parse(contents) as unknown;
-  const archive = parsePortableArchive(value, {
+  const archive = parseInstanceArchive(value, {
     programArtifact: options.programArtifact ?? formlessProgramArtifact,
   });
   const mediaFiles: ArchiveDiskMediaFile[] = [];
@@ -127,7 +122,7 @@ export async function readArchiveDirectoryForCheck(
 
 export async function readArchiveMediaFiles(
   archiveDir: string,
-  archive: PortableArchive,
+  archive: InstanceArchive,
 ): Promise<
   Array<
     ArchiveDiskMediaFile & {
@@ -166,12 +161,12 @@ export async function readArchiveMediaFiles(
 export async function readWorkspaceArchive(
   archiveDir: string,
   options: { programArtifact?: FormlessProgramArtifact } = {},
-): Promise<PortableArchive> {
+): Promise<InstanceArchive> {
   const value = JSON.parse(
-    await readFile(path.join(archiveDir, PORTABLE_ARCHIVE_MANIFEST_FILE), "utf8"),
+    await readFile(path.join(archiveDir, INSTANCE_ARCHIVE_MANIFEST_FILE), "utf8"),
   ) as unknown;
 
-  return parsePortableArchive(value, {
+  return parseInstanceArchive(value, {
     programArtifact: options.programArtifact ?? formlessProgramArtifact,
   });
 }

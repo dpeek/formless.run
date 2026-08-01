@@ -4,7 +4,7 @@
 
 CRM is a package-owned customer relationship domain composed into the default
 Program. It supplies portable standalone schema artifacts and CRM presentation
-declarations, but it is not a runtime-installable app or schema-key source app.
+declarations.
 
 ## Requirements
 
@@ -23,6 +23,8 @@ record, presentation, and complete standalone schema modules.
 - **AND** trusted Program composition imports the schema modules at
   build/materialization time while Worker request handling consumes only the
   complete Program artifact
+- **AND** the package root exports CRM record helpers without install or
+  source-schema selection keys
 - **AND** the standalone data artifact is retained for package checks and
   publication rather than runtime package resolution
 - **AND** the package does not own Program storage, routes, replicas, archive,
@@ -104,22 +106,6 @@ operation route.
   source install id
 - **AND** anonymous callers receive no Program bootstrap, schema, snapshot,
   generic operation, sync, WebSocket, or replica access
-
-### Requirement: CRM Runtime Availability
-
-CRM SHALL not be bundled runtime-installable or source-routable.
-
-#### Scenario: Removed CRM install and source surfaces
-
-- **WHEN** runtime availability, routing, package resolution, archive, reset,
-  workspace, deploy, drift, upgrade, or CLI target selection runs
-- **THEN** CRM is absent from bundled runtime-installable packages and from
-  schema-key/source-app registries
-- **AND** `/crm`, `/api/crm`, `/apps/crm`, and installed CRM API routes are not
-  current runtime surfaces
-- **AND** the runtime does not discover, merge, import, reset, or clean up
-  legacy CRM records, cursors, changes, operation histories, archives,
-  workspaces, browser replicas, or provenance
 
 ### Requirement: CRM Delivery Scope
 

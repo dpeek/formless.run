@@ -1,7 +1,6 @@
 import type { AppSchema, EntityOperationSchema } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 
-import { programStorageIdentity } from "../shared/program-storage-identity.ts";
 import type {
   OperationInvocationInput,
   OperationInvocationOutput,
@@ -270,7 +269,6 @@ function operationResponse(input: {
     invocation: {
       invocationId: "operation:request.submit:notification-display",
       actor: { kind: "anonymous" },
-      programStorageIdentity: programStorageIdentity(),
       idempotency: {
         required: true,
         key: "notification-display",

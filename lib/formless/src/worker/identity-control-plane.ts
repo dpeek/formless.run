@@ -146,7 +146,7 @@ export const INTERNAL_TERMS_ACCEPTANCE_COMMIT_PATH = "/_internal/identity/terms-
 export const INTERNAL_IDENTITY_APP_REFERENCE_TARGET_PATH =
   "/_internal/identity/app-reference-target";
 function ensureIdentityControlPlaneStorage(storage: DurableObjectStorage) {
-  ensureFormlessProgramStorage(storage, undefined);
+  ensureFormlessProgramStorage(storage);
 }
 
 type IdentityControlPlaneApiEnv = AuthorityAdminGuardEnv & {

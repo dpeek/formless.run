@@ -3,10 +3,6 @@ import type { AppSchema, EntityOperationSchema } from "@dpeek/formless-schema";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import { describe, expect, it } from "vite-plus/test";
 
-import {
-  programStorageIdentity,
-  type ProgramStorageIdentity,
-} from "../shared/program-storage-identity.ts";
 import type { EmailDeliveryScheduleRequest } from "../shared/email-runtime.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import {
@@ -20,7 +16,6 @@ describe("Site operation input notification scheduling", () => {
 
     await scheduleSiteOperationInputNotificationAfterPublicOperation({
       adapters: notificationAdapters(notificationControlPlaneRecords(), scheduled),
-      identity: programStorageIdentity(),
       records: operationFormSourceRecords({ replyToField: "email" }),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response: operationInputResponse({
@@ -42,7 +37,7 @@ describe("Site operation input notification scheduling", () => {
         idempotencyKey: expect.stringMatching(/^operation-input-notification:[a-f0-9]{64}$/),
         message: {
           subject: "New public operation input for request.submit",
-          text: expect.stringContaining("Target storage: instance:control-plane"),
+          text: expect.stringContaining("Operation: request.submit"),
           html: expect.stringContaining("Need &lt;testing&gt; &amp; review.<br>Second line."),
         },
         messageKind: "site-operation-input-notification",
@@ -80,7 +75,7 @@ describe("Site operation input notification scheduling", () => {
     expect(message.html).toContain("<table");
     expect(message.html).not.toContain("<dl>");
     expect(message.html).toMatch(
-      /<tr><th scope="row"[^>]*>Target storage<\/th><td[^>]*>instance:control-plane<\/td><\/tr>/,
+      /<tr><th scope="row"[^>]*>Operation<\/th><td[^>]*>request\.submit<\/td><\/tr>/,
     );
     expect(message.html).toMatch(
       /<tr><th scope="row"[^>]*>Request details &lt;safe label&gt;<\/th><td[^>]*>Need &lt;testing&gt; &amp; review\.<br>Second line\.<\/td><\/tr>/,
@@ -94,7 +89,6 @@ describe("Site operation input notification scheduling", () => {
 
     await scheduleSiteOperationInputNotificationAfterPublicOperation({
       adapters: notificationAdapters(notificationControlPlaneRecords(), scheduled),
-      identity: programStorageIdentity(),
       records: operationFormSourceRecords({ replyToField: "email" }),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response: operationInputResponse({
@@ -118,7 +112,6 @@ describe("Site operation input notification scheduling", () => {
 
     await scheduleSiteOperationInputNotificationAfterPublicOperation({
       adapters: notificationAdapters(notificationControlPlaneRecords(), scheduled),
-      identity: programStorageIdentity(),
       records: operationFormSourceRecords({ replyToField: "email" }),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response: operationInputCommandResponse({
@@ -162,7 +155,6 @@ describe("Site operation input notification scheduling", () => {
 
     await scheduleSiteOperationInputNotificationAfterPublicOperation({
       adapters: notificationAdapters(notificationControlPlaneRecords(), scheduled),
-      identity: programStorageIdentity(),
       records: operationFormSourceRecords(),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response: operationInputCommandResponse({
@@ -198,7 +190,6 @@ describe("Site operation input notification scheduling", () => {
 
     await scheduleSiteOperationInputNotificationAfterPublicOperation({
       adapters: notificationAdapters(notificationControlPlaneRecords(), scheduled),
-      identity: programStorageIdentity(),
       records: operationFormSourceRecords({ mode: "none" }),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response,
@@ -206,7 +197,6 @@ describe("Site operation input notification scheduling", () => {
     });
     await scheduleSiteOperationInputNotificationAfterPublicOperation({
       adapters: notificationAdapters([], scheduled),
-      identity: programStorageIdentity(),
       records: operationFormSourceRecords(),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response,
@@ -227,7 +217,6 @@ describe("Site operation input notification scheduling", () => {
     for (const response of [replayed, nonPublic]) {
       await scheduleSiteOperationInputNotificationAfterPublicOperation({
         adapters: notificationAdapters(notificationControlPlaneRecords(), scheduled),
-        identity: programStorageIdentity(),
         records: operationFormSourceRecords(),
         requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
         response,
@@ -249,7 +238,6 @@ describe("Site operation input notification scheduling", () => {
         scheduled,
         new Error("Email delivery queue or provider failed for owner@example.com."),
       ),
-      identity: programStorageIdentity(),
       records: operationFormSourceRecords({ replyToField: "email" }),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response,
@@ -270,7 +258,6 @@ describe("Site operation input notification scheduling", () => {
 
     await scheduleSiteOperationInputNotificationAfterPublicOperation({
       adapters,
-      identity: programStorageIdentity(),
       records: operationFormSourceRecords(),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response,
@@ -278,7 +265,6 @@ describe("Site operation input notification scheduling", () => {
     });
     await scheduleSiteOperationInputNotificationAfterPublicOperation({
       adapters,
-      identity: programStorageIdentity(),
       records: operationFormSourceRecords(),
       requestUrl: "https://www.example.com/api/site/public/operations/request/submit",
       response,
@@ -475,11 +461,9 @@ function recordPlanRequestOperation(): EntityOperationSchema {
 
 function operationInputResponse(
   input: {
-    identity?: ProgramStorageIdentity;
     input?: RecordValues;
   } = {},
 ): OperationInvocationResponse {
-  const identity = input.identity ?? programStorageIdentity();
   const values = input.input ?? {
     fullName: "Ada Lovelace",
     email: "ada@example.com",
@@ -492,7 +476,6 @@ function operationInputResponse(
     invocation: {
       invocationId: "operation:request.submit:operation-input-notify",
       actor: { kind: "anonymous" },
-      programStorageIdentity: identity,
       idempotency: {
         required: true,
         key: "operation-input-notify",
@@ -538,18 +521,14 @@ function operationInputResponse(
 }
 
 function operationInputCommandResponse(input: {
-  identity?: ProgramStorageIdentity;
   input: RecordValues;
   operation: EntityOperationSchema;
   outputValues?: RecordValues;
 }): OperationInvocationResponse {
-  const identity = input.identity ?? programStorageIdentity();
-
   return {
     invocation: {
       invocationId: "operation:request.submit:operation-input-notify",
       actor: { kind: "anonymous" },
-      programStorageIdentity: identity,
       idempotency: {
         required: true,
         key: "operation-input-notify",

@@ -311,7 +311,6 @@ function deploymentConfigRecord(input: { accountId: string; credentialRef: strin
       enabled: true,
       providerFamily: "cloudflare",
       targetId: "instance.primary",
-      targetKind: "instance",
       targetUrl: "https://personal-sites.personal.workers.dev",
       workerName: "personal-sites",
     },

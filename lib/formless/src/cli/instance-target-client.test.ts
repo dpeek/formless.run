@@ -101,7 +101,6 @@ describe("Formless instance target client", () => {
                 targetId: "instance.primary",
               },
               target: {
-                kind: "instance",
                 label: "Primary instance target",
                 targetId: "instance.primary",
               },
@@ -191,7 +190,7 @@ describe("Formless instance target control-plane client", () => {
                 schemaVersion: 1,
                 source: { fingerprint: "control-plane:abc", intentRevision: 5 },
               },
-              target: { kind: "instance", targetId: desiredStateRef.targetId },
+              target: { targetId: desiredStateRef.targetId },
             });
           }
 
@@ -202,7 +201,7 @@ describe("Formless instance target control-plane client", () => {
                 state: "no-target",
                 targetId: desiredStateRef.targetId,
               },
-              target: { kind: "instance", targetId: desiredStateRef.targetId },
+              target: { targetId: desiredStateRef.targetId },
             });
           }
 
@@ -368,7 +367,6 @@ function controlPlaneBootstrapResponse(): Response {
           enabled: true,
           providerFamily: "cloudflare",
           targetId: "instance.primary",
-          targetKind: "instance",
           targetUrl: "https://instance.example",
         },
       },

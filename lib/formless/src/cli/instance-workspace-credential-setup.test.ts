@@ -265,7 +265,6 @@ describe("Formless Cloudflare OAuth credentials", () => {
       enabled: true,
       providerFamily: "cloudflare",
       targetId: "instance.primary",
-      targetKind: "instance",
       targetUrl: "https://personal-sites.personal.workers.dev",
       workerName: "personal-sites",
     });
@@ -464,7 +463,6 @@ describe("Formless Cloudflare OAuth credentials", () => {
       label: "Staging",
       providerFamily: "cloudflare",
       targetId: "staging",
-      targetKind: "instance",
       targetUrl: "https://staging-sites.team.workers.dev",
       workerName: "staging-sites",
     });
@@ -728,7 +726,6 @@ function deploymentConfigRecord(input: {
     entity: "deployment-config",
     values: {
       targetId: input.targetId,
-      targetKind: "instance",
       label: input.label,
       enabled: true,
       targetUrl: input.targetUrl,

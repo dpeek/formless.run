@@ -182,11 +182,7 @@ function AstryxApplicationShellFrame({
   const [isMobileNavigationOpen, setIsMobileNavigationOpen] = useState(false);
 
   return (
-    <div
-      aria-label={manifest.accessibilityLabel}
-      data-formless-astryx-shell-scope={manifest.scope}
-      role="application"
-    >
+    <div aria-label={manifest.accessibilityLabel} role="application">
       <AppShell
         contentPadding={0}
         data-testid={`formless-astryx-application-shell:${manifest.id}`}

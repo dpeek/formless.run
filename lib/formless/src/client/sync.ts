@@ -1,18 +1,14 @@
 import { listenForClientEvents, publishClientEvent } from "./broadcast.ts";
-import {
-  programStorageIdentityForClientTarget,
-  type ProgramClientTarget,
-} from "./program-target.ts";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
 import {
-  deleteFormlessReplicaDatabases,
+  deleteProgramReplicaDatabase,
   mergeChanges,
   readCursor,
   readSchemaProvenance,
   readSchemaUpdatedAt,
   saveBootstrapResponse,
   saveSchema,
-  type FormlessReplicaDatabaseResetResult,
 } from "./db.ts";
 import {
   applyBootstrapResponse,
@@ -74,158 +70,123 @@ export type SubmitOperationOptions = BrowserWriteOptions & {
   autoSaveSource?: LocalWorkspaceAutoSaveWriteSource;
 };
 
-export async function bootstrapClient(target: ProgramClientTarget, fetcher: typeof fetch = fetch) {
-  const identity = programStorageIdentityForClientTarget(target);
-  const response = await fetchJson<BootstrapResponse>(fetcher, apiPath(identity, "bootstrap"));
+export async function bootstrapClient(fetcher: typeof fetch = fetch) {
+  const response = await fetchJson<BootstrapResponse>(fetcher, apiPath("bootstrap"));
 
-  await saveBootstrapResponse(identity, response);
-  applyBootstrapResponse(response, identity);
-  notifyLocalDataChanged(identity, { schemaChanged: true });
+  await saveBootstrapResponse(response);
+  applyBootstrapResponse(response);
+  notifyLocalDataChanged({ schemaChanged: true });
 
   return response;
 }
 
-export async function resetLocalBrowserReplicaState(): Promise<FormlessReplicaDatabaseResetResult> {
-  const result = await deleteFormlessReplicaDatabases();
+export async function resetLocalBrowserReplicaState(): Promise<void> {
+  await deleteProgramReplicaDatabase();
 
   resetClientStore();
-
-  return result;
 }
 
-export async function syncClient(target: ProgramClientTarget, fetcher: typeof fetch = fetch) {
-  const identity = programStorageIdentityForClientTarget(target);
-  const cursor = await readCursor(identity);
-  const schemaUpdatedAt = await readSchemaUpdatedAt(identity);
-  const url = syncUrl(identity, cursor, schemaUpdatedAt);
+export async function syncClient(fetcher: typeof fetch = fetch) {
+  const cursor = await readCursor();
+  const schemaUpdatedAt = await readSchemaUpdatedAt();
+  const url = syncUrl(cursor, schemaUpdatedAt);
   const response = await fetchJson<SyncResponse>(fetcher, url);
 
-  await applySyncResponse(identity, response, { currentCursor: cursor });
+  await applySyncResponse(response, { currentCursor: cursor });
 
   return response;
 }
 
 export async function applySyncResponse(
-  target: ProgramClientTarget,
   response: SyncResponse,
   options: { currentCursor?: number } = {},
 ) {
-  const identity = programStorageIdentityForClientTarget(target);
-  const cursor = options.currentCursor ?? (await readCursor(identity));
+  const cursor = options.currentCursor ?? (await readCursor());
   const schemaChanged = Boolean(response.schema && response.schemaUpdatedAt);
 
   if (response.schema && response.schemaUpdatedAt) {
-    await saveSchema(
-      identity,
-      response.schema,
-      response.schemaUpdatedAt,
-      response.schemaProvenance,
-    );
-    applySchemaSave(response.schema, response.schemaUpdatedAt, identity);
+    await saveSchema(response.schema, response.schemaUpdatedAt, response.schemaProvenance);
+    applySchemaSave(response.schema, response.schemaUpdatedAt);
   }
 
   if (response.changes.length > 0 || response.cursor !== cursor) {
-    await mergeChanges(identity, response.changes, response.cursor);
-    applyChanges(response.changes, response.cursor, identity);
+    await mergeChanges(response.changes, response.cursor);
+    applyChanges(response.changes, response.cursor);
   }
 
   if (response.changes.length > 0 || response.cursor !== cursor || schemaChanged) {
-    notifyLocalDataChanged(identity, { schemaChanged });
+    notifyLocalDataChanged({ schemaChanged });
   }
 
   return response;
 }
 
-export async function fetchActiveSchema(
-  target: ProgramClientTarget,
-  fetcher: typeof fetch = fetch,
-) {
-  const identity = programStorageIdentityForClientTarget(target);
-  const response = await fetchJson<SchemaResponse>(fetcher, apiPath(identity, "schema"));
+export async function fetchActiveSchema(fetcher: typeof fetch = fetch) {
+  const response = await fetchJson<SchemaResponse>(fetcher, apiPath("schema"));
 
-  await saveSchema(identity, response.schema, response.updatedAt, response.schemaProvenance);
-  applySchemaSave(response.schema, response.updatedAt, identity);
-  notifySchemaChanged(identity);
+  await saveSchema(response.schema, response.updatedAt, response.schemaProvenance);
+  applySchemaSave(response.schema, response.updatedAt);
+  notifySchemaChanged();
 
   return response;
 }
 
 export async function saveActiveSchema(
-  target: ProgramClientTarget,
   schema: AppSchema,
   fetcher: typeof fetch = fetch,
   options: BrowserWriteOptions = {},
 ) {
-  const identity = programStorageIdentityForClientTarget(target);
   const response = await postJson<SchemaUpdateResponse>(
     fetcher,
-    apiPath(identity, "schema"),
+    apiPath("schema"),
     {
       schema,
     },
-    { writeCompatibilityTarget: identity },
+    { includeBrowserReplicaWriteHeaders: true },
   );
 
-  await saveSchema(identity, response.schema, response.updatedAt, response.schemaProvenance);
-  applySchemaSave(response.schema, response.updatedAt, identity);
-  notifySchemaChanged(identity);
-  await enqueueLocalWorkspaceAutoSave(
-    { source: "schema-save", storageIdentity: identity.authorityName },
-    options,
-  );
+  await saveSchema(response.schema, response.updatedAt, response.schemaProvenance);
+  applySchemaSave(response.schema, response.updatedAt);
+  notifySchemaChanged();
+  await enqueueLocalWorkspaceAutoSave({ source: "schema-save" }, options);
 
   return response;
 }
 
-export async function exportStorageSnapshot(
-  target: ProgramClientTarget,
-  fetcher: typeof fetch = fetch,
-) {
-  const identity = programStorageIdentityForClientTarget(target);
-
-  return fetchJson<StorageSnapshot>(fetcher, apiPath(identity, "snapshot"));
+export async function exportStorageSnapshot(fetcher: typeof fetch = fetch) {
+  return fetchJson<StorageSnapshot>(fetcher, apiPath("snapshot"));
 }
 
 export async function restoreStorageSnapshot(
-  target: ProgramClientTarget,
   snapshot: unknown,
   fetcher: typeof fetch = fetch,
   options: BrowserWriteOptions = {},
 ) {
-  const identity = programStorageIdentityForClientTarget(target);
   const response = await postJson<BootstrapResponse>(
     fetcher,
-    apiPath(identity, "snapshot/restore"),
+    apiPath("snapshot/restore"),
     snapshot,
-    { writeCompatibilityTarget: identity },
+    { includeBrowserReplicaWriteHeaders: true },
   );
 
-  await saveBootstrapResponse(identity, response);
-  applyBootstrapResponse(response, identity);
-  notifyLocalDataChanged(identity, { schemaChanged: true });
-  await enqueueLocalWorkspaceAutoSave(
-    { source: "snapshot-restore", storageIdentity: identity.authorityName },
-    options,
-  );
+  await saveBootstrapResponse(response);
+  applyBootstrapResponse(response);
+  notifyLocalDataChanged({ schemaChanged: true });
+  await enqueueLocalWorkspaceAutoSave({ source: "snapshot-restore" }, options);
 
   return response;
 }
 
 export async function submitOperation(
-  target: ProgramClientTarget,
   entity: EntityName,
   operationName: string,
   request: OperationInvocationRequest = {},
   fetcher: typeof fetch = fetch,
   options: SubmitOperationOptions = {},
 ) {
-  const identity = programStorageIdentityForClientTarget(target);
   const response = await postJson<OperationInvocationResponse>(
     fetcher,
-    apiPath(
-      identity,
-      `operations/${encodeURIComponent(entity)}/${encodeURIComponent(operationName)}`,
-    ),
+    apiPath(`operations/${encodeURIComponent(entity)}/${encodeURIComponent(operationName)}`),
     {
       ...request,
       idempotencyKey: request.idempotencyKey ?? createOperationId(),
@@ -234,20 +195,19 @@ export async function submitOperation(
         protocol: "generated-ui",
       },
     },
-    { writeCompatibilityTarget: identity },
+    { includeBrowserReplicaWriteHeaders: true },
   );
 
   const materializedOutput = operationMaterializationOutput(response.output);
 
   if (materializedOutput) {
-    await mergeChanges(identity, materializedOutput.changes, materializedOutput.cursor);
-    applyChanges(materializedOutput.changes, materializedOutput.cursor, identity);
-    notifyLocalDataChanged(identity);
+    await mergeChanges(materializedOutput.changes, materializedOutput.cursor);
+    applyChanges(materializedOutput.changes, materializedOutput.cursor);
+    notifyLocalDataChanged();
     if (response.status === "committed") {
       await enqueueLocalWorkspaceAutoSave(
         {
-          source: options.autoSaveSource ?? autoSaveSourceForOperation(identity, entity),
-          storageIdentity: identity.authorityName,
+          source: options.autoSaveSource ?? autoSaveSourceForOperation(entity),
         },
         options,
       );
@@ -258,31 +218,25 @@ export async function submitOperation(
 }
 
 export async function resetSourceSchema(
-  target: ProgramClientTarget,
   fetcher: typeof fetch = fetch,
   options: BrowserWriteOptions = {},
 ) {
-  const identity = programStorageIdentityForClientTarget(target);
   const response = await postJson<BootstrapResponse>(
     fetcher,
-    apiPath(identity, "reset/schema"),
+    apiPath("reset/schema"),
     {},
-    { writeCompatibilityTarget: identity },
+    { includeBrowserReplicaWriteHeaders: true },
   );
 
-  await saveBootstrapResponse(identity, response);
-  applyBootstrapResponse(response, identity);
-  notifyLocalDataChanged(identity, { schemaChanged: true });
-  await enqueueLocalWorkspaceAutoSave(
-    { source: "reset-schema", storageIdentity: identity.authorityName },
-    options,
-  );
+  await saveBootstrapResponse(response);
+  applyBootstrapResponse(response);
+  notifyLocalDataChanged({ schemaChanged: true });
+  await enqueueLocalWorkspaceAutoSave({ source: "reset-schema" }, options);
 
   return response;
 }
 
-export function startPushSync(target: ProgramClientTarget, options: StartPushSyncOptions = {}) {
-  const identity = programStorageIdentityForClientTarget(target);
+export function startPushSync(options: StartPushSyncOptions = {}) {
   const onSynced = options.onSynced;
   const reconnectInitialDelayMs =
     options.reconnectInitialDelayMs ?? DEFAULT_RECONNECT_INITIAL_DELAY_MS;
@@ -304,7 +258,7 @@ export function startPushSync(target: ProgramClientTarget, options: StartPushSyn
     let nextSocket: SyncWebSocket;
 
     try {
-      nextSocket = socketFactory(syncWebSocketUrl(identity));
+      nextSocket = socketFactory(syncWebSocketUrl());
     } catch {
       setSyncStatus({ state: "error", message: "Push sync unavailable." });
       return;
@@ -321,7 +275,7 @@ export function startPushSync(target: ProgramClientTarget, options: StartPushSyn
       opened = true;
       reconnectDelayMs = reconnectInitialDelayMs;
       setSyncStatus({ state: "idle", message: "Push sync connected." });
-      void sendSyncSocketClientMessage(identity, nextSocket, "hello").catch(() => {
+      void sendSyncSocketClientMessage(nextSocket, "hello").catch(() => {
         if (!stopped && socket === nextSocket) {
           nextSocket.close();
         }
@@ -333,7 +287,7 @@ export function startPushSync(target: ProgramClientTarget, options: StartPushSyn
         return;
       }
 
-      void handleSyncSocketMessage(identity, event)
+      void handleSyncSocketMessage(event)
         .then((didApplySync) => {
           if (didApplySync && !stopped && socket === nextSocket) {
             onSynced?.();
@@ -395,7 +349,7 @@ export function startPushSync(target: ProgramClientTarget, options: StartPushSyn
     const currentSocket = socket;
 
     if (currentSocket && currentSocket.readyState === WEB_SOCKET_OPEN_READY_STATE) {
-      void sendSyncSocketClientMessage(identity, currentSocket, "sync-requested").catch(() => {
+      void sendSyncSocketClientMessage(currentSocket, "sync-requested").catch(() => {
         if (!stopped && socket === currentSocket) {
           currentSocket.close();
         }
@@ -403,7 +357,7 @@ export function startPushSync(target: ProgramClientTarget, options: StartPushSyn
     }
   }
 
-  stopListening = listenForClientEvents(identity, (event) => {
+  stopListening = listenForClientEvents((event) => {
     if (event.type === "sync-requested") {
       requestSocketSync();
     }
@@ -427,10 +381,8 @@ export function startPushSync(target: ProgramClientTarget, options: StartPushSyn
   }
 }
 
-export function requestSync(target: ProgramClientTarget) {
-  const identity = programStorageIdentityForClientTarget(target);
-
-  publishClientEvent(identity, "sync-requested");
+export function requestSync() {
+  publishClientEvent("sync-requested");
 }
 
 function createWebSocket(url: string): SyncWebSocket {
@@ -438,21 +390,19 @@ function createWebSocket(url: string): SyncWebSocket {
 }
 
 async function sendSyncSocketClientMessage(
-  target: ProgramClientTarget,
   socket: SyncWebSocket,
   type: SyncSocketClientMessage["type"],
 ) {
-  const identity = programStorageIdentityForClientTarget(target);
   const message = {
     type,
-    cursor: await readCursor(identity),
-    schemaUpdatedAt: await readSchemaUpdatedAt(identity),
+    cursor: await readCursor(),
+    schemaUpdatedAt: await readSchemaUpdatedAt(),
   } satisfies SyncSocketClientMessage;
 
   socket.send(JSON.stringify(message));
 }
 
-async function handleSyncSocketMessage(target: ProgramClientTarget, event: MessageEvent) {
+async function handleSyncSocketMessage(event: MessageEvent) {
   const message = parseSyncSocketServerMessage(event.data);
 
   if (!message) {
@@ -464,7 +414,7 @@ async function handleSyncSocketMessage(target: ProgramClientTarget, event: Messa
     return false;
   }
 
-  await applySyncResponse(target, message.payload);
+  await applySyncResponse(message.payload);
   setSyncStatus({ state: "idle", message: "Pushed sync received." });
   return true;
 }
@@ -499,7 +449,7 @@ async function postJson<T>(
   url: string,
   body: unknown,
   options: {
-    writeCompatibilityTarget?: ProgramClientTarget;
+    includeBrowserReplicaWriteHeaders?: boolean;
   } = {},
 ): Promise<T> {
   const headers = new Headers({
@@ -507,8 +457,8 @@ async function postJson<T>(
     "Content-Type": "application/json",
   });
 
-  if (options.writeCompatibilityTarget) {
-    await addBrowserReplicaWriteHeaders(headers, options.writeCompatibilityTarget);
+  if (options.includeBrowserReplicaWriteHeaders) {
+    await addBrowserReplicaWriteHeaders(headers);
   }
 
   const response = await fetcher(url, {
@@ -534,11 +484,10 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-async function addBrowserReplicaWriteHeaders(headers: Headers, target: ProgramClientTarget) {
-  const identity = programStorageIdentityForClientTarget(target);
+async function addBrowserReplicaWriteHeaders(headers: Headers) {
   const [schemaUpdatedAt, schemaProvenance] = await Promise.all([
-    readSchemaUpdatedAt(identity),
-    readSchemaProvenance(identity),
+    readSchemaUpdatedAt(),
+    readSchemaProvenance(),
   ]);
   headers.set(FORMLESS_CLIENT_RUNTIME_PROTOCOL_HEADER, String(FORMLESS_RUNTIME_PROTOCOL_VERSION));
 
@@ -551,25 +500,19 @@ async function addBrowserReplicaWriteHeaders(headers: Headers, target: ProgramCl
   }
 }
 
-function notifyLocalDataChanged(
-  target: ProgramClientTarget,
-  options: { schemaChanged?: boolean } = {},
-) {
-  publishClientEvent(target, "records-updated");
-  publishClientEvent(target, "cursor-updated");
+function notifyLocalDataChanged(options: { schemaChanged?: boolean } = {}) {
+  publishClientEvent("records-updated");
+  publishClientEvent("cursor-updated");
   if (options.schemaChanged) {
-    publishClientEvent(target, "schema-updated");
+    publishClientEvent("schema-updated");
   }
 }
 
-function notifySchemaChanged(target: ProgramClientTarget) {
-  publishClientEvent(target, "schema-updated");
+function notifySchemaChanged() {
+  publishClientEvent("schema-updated");
 }
 
-function autoSaveSourceForOperation(
-  _identity: ReturnType<typeof programStorageIdentityForClientTarget>,
-  entity: EntityName,
-): LocalWorkspaceAutoSaveWriteSource {
+function autoSaveSourceForOperation(entity: EntityName): LocalWorkspaceAutoSaveWriteSource {
   return entity === "deployment-config" ? "deployment-intent" : "control-plane-write";
 }
 
@@ -603,26 +546,24 @@ function isErrorResponse(value: unknown): value is { error: string } {
   );
 }
 
-function apiPath(target: ProgramClientTarget, path: string) {
-  const identity = programStorageIdentityForClientTarget(target);
-
-  return `${identity.apiRoutePrefix}/${path}`;
+function apiPath(path: string) {
+  return `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/${path}`;
 }
 
-function syncUrl(target: ProgramClientTarget, cursor: number, schemaUpdatedAt: string | null) {
+function syncUrl(cursor: number, schemaUpdatedAt: string | null) {
   const params = new URLSearchParams({ after: String(cursor) });
 
   if (schemaUpdatedAt) {
     params.set("schemaUpdatedAt", schemaUpdatedAt);
   }
 
-  return `${apiPath(target, "sync")}?${params.toString()}`;
+  return `${apiPath("sync")}?${params.toString()}`;
 }
 
-function syncWebSocketUrl(target: ProgramClientTarget) {
+function syncWebSocketUrl() {
   const baseUrl =
     typeof globalThis.location === "undefined" ? "http://localhost/" : globalThis.location.href;
-  const url = new URL(apiPath(target, "sync/ws"), baseUrl);
+  const url = new URL(apiPath("sync/ws"), baseUrl);
 
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
 

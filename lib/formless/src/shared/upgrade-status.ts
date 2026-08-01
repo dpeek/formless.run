@@ -22,7 +22,7 @@ export type UpgradeStorageIdentityStatus = {
 };
 
 export type InstanceUpgradeStatusResponse = {
-  storageIdentities: UpgradeStorageIdentityStatus[];
+  storageIdentity: UpgradeStorageIdentityStatus;
 };
 
 export type InstanceUpgradeApplyResponse = InstanceUpgradeStatusResponse;

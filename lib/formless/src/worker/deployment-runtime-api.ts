@@ -50,7 +50,6 @@ const removedDeploymentMutationPaths = new Set([
 ]);
 
 const primaryInstanceDeploymentTarget: DeploymentTarget = {
-  kind: "instance",
   label: "Primary instance target",
   targetId: INSTANCE_DEPLOYMENT_PRIMARY_TARGET_ID,
 };

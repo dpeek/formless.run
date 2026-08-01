@@ -56,7 +56,12 @@ export type InstanceArchive = {
   media: ArchiveMediaManifest;
 };
 
-export type PortableArchive = InstanceArchive;
+export class InstanceArchiveValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InstanceArchiveValidationError";
+  }
+}
 
 export type ArchiveProgramValidationOptions = {
   programSnapshotContract?: ArchiveProgramSnapshotContract;
@@ -71,14 +76,24 @@ export type ArchiveProgramSnapshotContract = {
 const archiveCapabilitySet = new Set<string>(archiveCapabilities);
 const sourceSchemaHashPattern = /^sha256:[a-f0-9]{64}$/;
 
-export function parsePortableArchive(
+export function parseInstanceArchive(
   value: unknown,
   options: ArchiveProgramValidationOptions = {},
-): PortableArchive {
-  return parseInstanceArchive(value, options);
+): InstanceArchive {
+  try {
+    return parseInstanceArchiveValue(value, options);
+  } catch (error) {
+    if (error instanceof InstanceArchiveValidationError) {
+      throw error;
+    }
+
+    throw new InstanceArchiveValidationError(
+      error instanceof Error ? error.message : "Instance archive is invalid.",
+    );
+  }
 }
 
-export function parseInstanceArchive(
+function parseInstanceArchiveValue(
   value: unknown,
   options: ArchiveProgramValidationOptions = {},
 ): InstanceArchive {

@@ -40,9 +40,8 @@ Program API is the only generic data route family.
 #### Scenario: Product instance route policy
 
 - GIVEN the runtime profile is `instance`
-- WHEN a request targets a former schema-key browser or API route
-- THEN that route is not a current runtime surface
-- AND the Program browser and `/api/formless/program` route family,
+- WHEN a request targets browser or API behavior
+- THEN the Program browser and `/api/formless/program` route family,
   Program-native Site preview and public routes, account auth routes,
   principal-backed browser session routes, instance browser routes, and the
   workspace gateway API route family remain route-policy eligible
@@ -54,8 +53,7 @@ Program API is the only generic data route family.
   instance, account auth, or workspace gateway API routes
 - THEN those route families remain available
 - AND the dev workbench composes Program and product instance surfaces together
-- AND Tasks, Site, and CRM are available through Program-owned paths rather than
-  schema-key source-app mounts
+- AND Tasks, Site, and CRM are available through Program-owned paths
 
 ### Requirement: Browser Route Mounts
 
@@ -69,7 +67,7 @@ The system SHALL mount browser surfaces according to the active runtime profile.
   `/deployments`,
   `/organizations`, `/access`, `/invitations`, `/policies`, or `/settings`
 - THEN the request is eligible for the client shell
-- AND former source-app routes are not separately eligible browser routes
+- AND route selection uses the Program route table
 
 #### Scenario: Product instance Program routes
 
@@ -150,8 +148,7 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 - THEN the client shell is eligible to render the runtime-owned account
   orchestrator or account gate surface
 - AND the route is reserved runtime auth behavior rather than a public Site
-  document, source app screen, generated identity-control-plane
-  editor, schema-key route, or static asset fallback
+  document, Program screen, or static asset fallback
 - AND protected target continuations remain governed by route access policy and
   account completion gates before the target surface is served
 - AND mapped public Site and non-auth mapped instance hosts do not
@@ -175,7 +172,7 @@ route-record selection and before protected browser or API behavior.
 
 - GIVEN a Program route has effective access `authenticated`
 - WHEN the request carries a valid central, local-owner, or matching host-local
-  session for an active principal and Program storage identity
+  session for an active principal and matched instance route
 - THEN the route remains eligible
 - AND authenticated access does not itself grant management, operation, or
   owner authority
@@ -208,8 +205,7 @@ route-record selection and before protected browser or API behavior.
 #### Scenario: Protected Program API
 
 - GIVEN a protected Program API request is received
-- WHEN the current principal, route, Program storage identity, or required
-  Program role does not match
+- WHEN the current principal, route, or required Program role does not match
 - THEN the runtime returns an unauthorized response
 - AND route eligibility does not replace operation or owner-only authorization
 
@@ -238,11 +234,9 @@ The system MUST route public Site documents through published Site behavior only
 - GIVEN the runtime profile or a route record selects the Program-native public
   Site target
 - WHEN a public Site document request is eligible for SSR
-- THEN route topology selects Program storage identity before document rendering
+- THEN route topology selects Program Site behavior before document rendering
 - AND Worker document rendering is dispatched through the built-in Site public
   runtime adapter
-- AND package app key and app install metadata are not published Site target
-  inputs
 
 #### Scenario: Non-document paths stay out of SSR
 
@@ -307,12 +301,10 @@ profile behavior.
 - **WHEN** the mapped host receives a public document request for `/` or a
   nested page path
 - **THEN** the response is rendered from Program storage
-- **AND** the route has no app install or package-derived target
 - **AND** public links, indexing resources, root icons, and core media use
   top-level mapped-host paths
-- **AND** generated app routes, schema-key routes, instance shell routes,
-  account orchestrator routes, account completion gate routes, and passkey
-  ceremony requests are blocked on that host
+- **AND** instance shell routes, account orchestrator routes, account
+  completion gate routes, and passkey ceremony requests are blocked on that host
 - **AND** account setup and sign-in gate browser requests redirect to the
   configured auth origin when the mapped public Site host is not that origin
 - **AND** public Site document, indexing, and icon behavior is selected from the
@@ -342,10 +334,7 @@ profile behavior.
   handoff and a host-local session when the mapped host is not the configured
   auth origin
 - **AND** protected Program management API requests may use a
-  host-local session bound to that admin route, target profile `instance`, and
-  storage identity `instance:control-plane`
-- **AND** schema-key browser routes, source app routes, and alternate storage
-  identities are not exposed through the mapped admin host
+  host-local session bound to that admin route and target profile `instance`
 - **AND** account setup, account sign-in, central auth session, and passkey
   ceremony routes are served on the mapped admin host only when that host is
   also the configured auth origin
@@ -365,7 +354,6 @@ Site from enabled schema-owned `route` records.
 - **WHEN** runtime topology resolves the route
 - **THEN** public reads use Program storage identity `instance:control-plane`
 - **AND** behavior uses the built-in Site public runtime adapter
-- **AND** no `app-install` record is synthesized or selected
 
 #### Scenario: Disabled or conflicting route
 
@@ -374,15 +362,6 @@ Site from enabled schema-owned `route` records.
 - **WHEN** runtime topology selects mountable routes
 - **THEN** the route is not eligible for runtime mounting
 - **AND** route validation prevents the conflict from becoming active
-
-#### Scenario: Removed app routes are not current routes
-
-- **GIVEN** dormant records contain app target profiles, install references, or
-  package-derived route facts
-- **WHEN** runtime topology selects hostless mounts, exact-host mounts, or
-  navigation
-- **THEN** those records are unselected before candidate ranking
-- **AND** they cannot shadow a Program Site, instance, or redirect route
 
 ### Requirement: Unified Route Resolution
 
@@ -397,7 +376,6 @@ source for hostless mounts, exact-host mounts, and redirects.
 - **AND** more specific exact path matches are evaluated before prefix matches
 - **AND** disabled route records are not eligible for runtime mounting or
   redirect handling
-- **AND** route selection does not inspect package metadata or app install facts
 
 #### Scenario: Redirect route
 
@@ -432,8 +410,7 @@ host-specific request handling.
 - **WHEN** runtime topology selects an exact-host mount, hostless mount,
   redirect, or captured-host not-found result
 - **THEN** the route Module consumes those facts directly and returns the
-  selected route, target storage identity, effective access, redirect, or
-  not-found result
+  selected route, effective access, redirect, or not-found result
 - **AND** deterministic route selection does not require Durable Object,
   SQLite, service-binding, asset, or Worker interfaces
 - **AND** exact-host precedence, path specificity, redirect preservation, and

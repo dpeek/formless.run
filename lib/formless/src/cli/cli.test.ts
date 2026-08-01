@@ -10,12 +10,12 @@ import packageJson from "../../package.json";
 import {
   ARCHIVE_VERSION,
   INSTANCE_ARCHIVE_KIND,
-  PORTABLE_ARCHIVE_MANIFEST_FILE,
+  INSTANCE_ARCHIVE_MANIFEST_FILE,
   type ArchiveMediaObject,
   type InstanceArchive,
 } from "../program/archive.ts";
 import {
-  writePortableArchiveDirectory,
+  writeInstanceArchiveDirectory,
   type ArchiveDiskMediaFile,
 } from "../program/archive-node.ts";
 import type {
@@ -74,7 +74,7 @@ import {
   initFormlessInstanceWorkspace,
   planFormlessInstanceDeployment,
   resolveFormlessInstanceWorkspaceRoot,
-  restorePortableArchive,
+  restoreInstanceArchive,
   runFormlessCli,
   workspaceDomainProviderAlchemyRuntime,
   type CheckFormlessInstanceDeployMetadataInput,
@@ -467,7 +467,7 @@ describe("Formless CLI", () => {
 
     await mkdir(archiveRoot, { recursive: true });
     await writeFile(
-      path.join(archiveRoot, PORTABLE_ARCHIVE_MANIFEST_FILE),
+      path.join(archiveRoot, INSTANCE_ARCHIVE_MANIFEST_FILE),
       JSON.stringify(instanceArchive([programArchive()]), null, 2),
     );
 
@@ -1356,7 +1356,6 @@ describe("Formless CLI", () => {
           label: "Staging",
           providerFamily: "cloudflare",
           targetId: "staging",
-          targetKind: "instance",
           targetUrl: "https://staging-sites.old.workers.dev",
           workerName: "staging-sites",
         },
@@ -1404,7 +1403,7 @@ describe("Formless CLI", () => {
               state: "pending-changes",
               targetId: "staging",
             },
-            target: { kind: "instance", targetId: "staging" },
+            target: { targetId: "staging" },
           });
         }
 
@@ -1424,7 +1423,7 @@ describe("Formless CLI", () => {
             schemaVersion: 1,
             source: { fingerprint: "source-1", intentRevision: 1 },
           },
-          target: { kind: "instance", targetId: "staging" },
+          target: { targetId: "staging" },
         });
       }
 
@@ -2652,7 +2651,7 @@ describe("Formless CLI", () => {
     }> = [
       {
         expected: "portable archive source exists",
-        path: PORTABLE_ARCHIVE_MANIFEST_FILE,
+        path: INSTANCE_ARCHIVE_MANIFEST_FILE,
         write: "file",
       },
       {
@@ -3188,7 +3187,7 @@ describe("Formless CLI", () => {
     responses.queueJson({ setupComplete: true });
     responses.queueJson(restorePlan());
 
-    const result = await restorePortableArchive(
+    const result = await restoreInstanceArchive(
       {
         adminToken: null,
         apply: false,
@@ -3209,7 +3208,7 @@ describe("Formless CLI", () => {
     expect(restoreBody.archive.restorePolicy).toEqual({
       dryRun: true,
     });
-    expect(result.archivePath).toBe(path.join(outDir, PORTABLE_ARCHIVE_MANIFEST_FILE));
+    expect(result.archivePath).toBe(path.join(outDir, INSTANCE_ARCHIVE_MANIFEST_FILE));
     expect(result).not.toHaveProperty("upgradePlanning");
   });
 
@@ -3220,7 +3219,7 @@ describe("Formless CLI", () => {
 
     await mkdir(outDir, { recursive: true });
     await writeFile(
-      path.join(outDir, PORTABLE_ARCHIVE_MANIFEST_FILE),
+      path.join(outDir, INSTANCE_ARCHIVE_MANIFEST_FILE),
       `${JSON.stringify(
         {
           ...instanceArchive([programArchive()]),
@@ -3232,7 +3231,7 @@ describe("Formless CLI", () => {
     );
 
     await expect(
-      restorePortableArchive(
+      restoreInstanceArchive(
         {
           adminToken: null,
           apply: true,
@@ -3511,7 +3510,7 @@ async function writeArchiveDirectory(
     });
   }
 
-  await writePortableArchiveDirectory(
+  await writeInstanceArchiveDirectory(
     {
       archive,
       mediaFiles,
@@ -3580,7 +3579,7 @@ function archiveFetch(
           state: "pending-changes",
           targetId: desiredState.targetId,
         },
-        target: { kind: "instance", targetId: desiredState.targetId },
+        target: { targetId: desiredState.targetId },
       });
     }
 
@@ -3602,7 +3601,7 @@ function archiveFetch(
           schemaVersion: 1,
           source: { fingerprint: "source-1", intentRevision: 1 },
         },
-        target: { kind: "instance", targetId: desiredState.targetId },
+        target: { targetId: desiredState.targetId },
       });
     }
 
@@ -3624,7 +3623,6 @@ function archiveFetch(
             id: body.recordId,
             values: {
               targetId: body.recordId,
-              targetKind: "instance",
               enabled: true,
               providerFamily: "cloudflare",
               targetUrl: "https://personal.dpeek.workers.dev",
@@ -3735,7 +3733,6 @@ function controlPlaneRecords(
       entity: "deployment-config",
       values: {
         targetId: deployTargetId,
-        targetKind: "instance",
         label: deployTargetId,
         enabled: true,
         targetUrl,

@@ -26,19 +26,14 @@ outside reviewable control-plane storage snapshots.
   without selecting a storage identity or API prefix
 - **AND** it defines flat records for unified routes, deployment configs,
   instance settings, email domains, and email senders
-- **AND** each deployment config stores the target identity, display-safe
+- **AND** each deployment config stores the target id, display-safe
   `targetUrl` origin facts, provider family, provider account, worker name, and
   optional display-safe credential reference used for that deployment target
 - **AND** each deployment config may store display-safe latest deployment
   observation fields such as status, observed time, desired-state hash, summary,
   error, and runner
-- **AND** it does not define separate `deploy-target`,
-  `provider-config-ref`, or `deploy-desired-resource` entities
-- **AND** it does not define `deploy-attempt`, `deploy-evidence-summary`, or
-  `deploy-drift-report` as schema-owned control-plane record entities
-- **AND** deployment attempt history, evidence history, drift history, cleanup
-  audit summaries, raw operation tokens, and provider resource truth are not
-  schema-owned control-plane record entities
+- **AND** deployment execution history, raw operation tokens, and provider
+  resource truth stay at the deployment runtime and provider boundaries
 
 ### Requirement: Instance Control Plane Package Boundary
 
@@ -49,8 +44,7 @@ through the Instance Control Plane package slice.
 
 - GIVEN Archive, Workspace, Worker runtime, Site runtime, Deploy runtime, or
   tests need entity names, entity contracts, schema modules, reviewable record
-  validation, display-safe canonicalization, or control-plane record snapshot
-  validation
+  validation, or display-safe canonicalization
 - WHEN those contracts are imported
 - THEN they come from `@dpeek/formless-instance-control-plane`
 - AND code does not import domain contracts from root runtime modules
@@ -68,18 +62,15 @@ through the Instance Control Plane package slice.
   entity policies
 - AND it exports one presentation module that depends on the record module key
   and owns item views, table views, views, and screens
-- AND the package's complete source schema explicitly composes the record
-  module before the presentation module and supplies runtime ownership at the
-  composition root
-- AND the recomposed source preserves the current schema data,
-  source-schema hash, and package provenance
+- AND a downstream Program composes the record module before the presentation
+  module and supplies runtime ownership at the composition root
 - AND the modules remain runtime-neutral when a downstream Program selects
   Authority, storage, API, cursor, snapshot, or browser replica behavior
 
 #### Scenario: Package consumes related public contracts
 
 - GIVEN the Instance Control Plane package needs deployment projection field
-  contracts, App schema behavior, or storage snapshot contracts
+  contracts, App schema behavior, or stored-record contracts
 - WHEN those dependencies are imported
 - THEN they come from public package exports such as `@dpeek/formless-deploy`,
   `@dpeek/formless-schema`, and `@dpeek/formless-storage`
@@ -97,19 +88,19 @@ through the Instance Control Plane package slice.
 - AND the Instance Control Plane package supplies schema contracts, reviewable
   validation, pure helpers, and package-local deterministic tests
 
-### Requirement: Control-Plane Module Provenance
+### Requirement: Control-Plane Module Schema
 
-The system SHALL keep the instance control-plane package schema deterministic
-while the downstream Program owns complete runtime provenance.
+The system SHALL keep instance control-plane declarations deterministic while
+the downstream Program owns complete runtime provenance.
 
-#### Scenario: Resolve control-plane source schema
+#### Scenario: Resolve control-plane declarations
 
-- GIVEN the runtime loads the instance control-plane schema contract
-- WHEN the schema is parsed for package validation, standalone package
-  materialization, or downstream composition
+- GIVEN a runtime loads the instance control-plane schema declarations
+- WHEN the declarations are parsed for package validation or downstream
+  Program composition
 - THEN it uses the normal App schema parser and App schema source hash rules
 - AND entity, field, relationship, query, read model, view, screen,
-  operation, and runtime metadata changes all affect package schema provenance
+  operation, and runtime metadata changes affect the composed Program schema
 - AND the schema authoring format is not observable through records, workspace
   state, archives, sync, or generated UI behavior
 
@@ -122,8 +113,7 @@ while the downstream Program owns complete runtime provenance.
   record materialization
 - THEN the runtime refreshes the active Program schema and schema timestamp
   without materializing or replacing records
-- AND the standalone instance package hash is not stored as a second active
-  schema provenance
+- AND the complete Program hash remains the active schema provenance
 - AND incompatible control-plane schema changes require an explicit migration,
   backfill, or reset path before they can become active
 
@@ -346,16 +336,14 @@ records.
 - **WHEN** the route is accepted
 - **THEN** `kind` is `mount`
 - **AND** the target profile is `instance` or `public-site`
-- **AND** the route records the selected Program surface without selecting a
-  package app key, install id, or alternate storage identity
+- **AND** the route records the selected Program surface
 
 #### Scenario: Program public Site mount
 
 - **GIVEN** an owner or admin creates a public Site mount route
 - **WHEN** the route is validated
 - **THEN** target profile is `public-site` and surface is `public-site`
-- **AND** the route targets Program storage without consulting an app package
-  resolver or package capability
+- **AND** the route targets Program storage
 
 #### Scenario: Mount route access
 
@@ -387,7 +375,7 @@ records.
 - **GIVEN** an enabled exact-host `route` mounts the instance profile with
   access `management` or `owner`
 - **AND** the browser has a valid host-local session for that route target and
-  storage identity `instance:control-plane`
+  instance
 - **WHEN** the browser reads or writes protected operational instance
   Program operations through the mapped host
 - **THEN** the Program API accepts the host-local session as operational
@@ -396,8 +384,8 @@ records.
   requested path
 - **AND** owner-only Program paths still recheck active `instance.owner`
   authority before privileged reads or writes
-- **AND** host-local sessions minted for another route, profile, host, storage
-  identity, or instance do
+- **AND** host-local sessions minted for another route, profile, host, or
+  instance do
   not authorize Program operations
 
 #### Scenario: Program administrator writes operational control-plane intent
@@ -412,9 +400,9 @@ records.
 - **AND** the write still commits through normal Program operation
   handling, record validation, immutable field checks, operation invocation
   recording, and storage provenance rules
-- **AND** app-owned data records, provider secrets, raw deployment history,
-  auth session material, and identity records are not written by the
-  control-plane operation
+- **AND** the control-plane operation writes only the named instance intent
+  while provider secrets, runtime history, auth session material, and identity
+  records stay at their owning boundaries
 
 #### Scenario: Program administrator cannot write owner-only control-plane policy
 
@@ -448,7 +436,6 @@ records.
 - **THEN** `kind` is `redirect`
 - **AND** the route stores the source match, target host or URL, status code,
   preservePath policy, and preserveQueryString policy
-- **AND** the route does not require an app install target
 
 #### Scenario: Desired route write
 
@@ -483,8 +470,8 @@ The system SHALL represent deploy target and provider selection as one
 
 - **GIVEN** the instance control-plane schema is loaded
 - **WHEN** the `deployment-config` entity is inspected
-- **THEN** each record stores camelCase fields for target id, target kind,
-  display label, enabled state, display-safe target URL, provider family,
+- **THEN** each record stores camelCase fields for target id, display label,
+  enabled state, display-safe target URL, provider family,
   provider account id, worker name, optional display-safe credential reference,
   and optional latest deployment observation fields
 - **AND** created and updated timestamps come from record system fields rather
@@ -554,20 +541,6 @@ The system SHALL represent deploy target and provider selection as one
 The system SHALL save instance control-plane and reviewable identity records
 through the one Program workspace state boundary.
 
-#### Scenario: Select current Program source
-
-- **GIVEN** stored state may include removed installed-app entities, app-target
-  routes, registration records, or app-scoped authorization facts
-- **WHEN** workspace materialization, exact replacement, runtime routing,
-  deployment projection, archive selection, or replica sync derives current
-  Program state
-- **THEN** it selects only entities, fields, records, and routes admitted by the
-  active complete Program schema
-- **AND** unselected records do not create routes, storage reads, package
-  resolution, auth targets, workspace state, archive content, or deploy targets
-- **AND** current source selection does not import, merge, migrate, rewrite, or
-  clean up unselected records
-
 #### Scenario: Save Program records to workspace state
 
 - **WHEN** local Program Authority state is saved to workspace source
@@ -590,12 +563,8 @@ through the one Program workspace state boundary.
   schema object
 - **AND** `formless.ts` does not duplicate those records as app, route,
   domain, email, or deploy intent
-- **AND** `deploy-target`, `provider-config-ref`,
-  `deploy-desired-resource`, `deploy-attempt`, `deploy-evidence-summary`, and
-  `deploy-drift-report` records are not written as workspace source
 - **AND** runtime-observed deployment cache fields on `deployment-config`
   records are omitted from reviewable workspace storage state
-- **AND** route records cannot carry app install or package target facts
 
 #### Scenario: Restore Program records from workspace state
 

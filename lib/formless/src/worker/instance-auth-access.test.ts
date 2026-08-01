@@ -16,7 +16,6 @@ import type { OwnerSession } from "./owner-session.ts";
 const target: InstanceAuthSessionTargetBinding = {
   access: "authenticated",
   routeId: "route:tasks",
-  storageIdentity: "instance:control-plane",
   targetOrigin: "https://tasks.example.com",
   targetProfile: "instance",
 };
@@ -422,7 +421,6 @@ describe("instance auth access readers and decisions", () => {
       sessionTarget: {
         instanceId: "auth.example.com",
         routeId: "route:tasks",
-        storageIdentity: "instance:control-plane",
         targetOrigin: "https://tasks.example.com",
         targetProfile: "instance",
       },
@@ -435,7 +433,7 @@ describe("instance auth access readers and decisions", () => {
     ).toBeUndefined();
   });
 
-  it("matches host sessions only to the current instance, host, route, profile, and storage", () => {
+  it("matches host sessions only to the current instance, host, route, and profile", () => {
     expect(
       validateHostSessionScope(hostSession, {
         instanceId: hostSession.instanceId,
@@ -455,10 +453,6 @@ describe("instance auth access readers and decisions", () => {
       { requestOrigin: "https://other.example.com", target },
       { requestOrigin: target.targetOrigin, target: { ...target, routeId: "route:other" } },
       { requestOrigin: target.targetOrigin, target: { ...target, targetProfile: "public-site" } },
-      {
-        requestOrigin: target.targetOrigin,
-        target: { ...target, storageIdentity: "other:program" },
-      },
     ] satisfies Array<{
       requestOrigin: string;
       target: InstanceAuthSessionTargetBinding;

@@ -75,7 +75,7 @@ function instanceUpgradeStatusResponse(
   storage: DurableObjectStorage,
 ): InstanceUpgradeStatusResponse {
   return {
-    storageIdentities: [instanceStorageUpgradeStatus(storage)],
+    storageIdentity: instanceStorageUpgradeStatus(storage),
   };
 }
 

@@ -61,15 +61,18 @@ const contextResultReference = recordResultReference({
   sectionId: "section:tasks",
   workspaceId: "workspace:tasks",
 });
-const shellReference = shellManifestReference("shell:tasks");
+const shellReference = shellManifestReference("shell:program");
 const themeReference = documentThemeReference("theme:application");
-const appSectionReference = shellNavigationSectionReference("shell:tasks", "shell-section:app");
+const programSectionReference = shellNavigationSectionReference(
+  "shell:program",
+  "shell-section:program",
+);
 const settingsSectionReference = shellNavigationSectionReference(
-  "shell:tasks",
+  "shell:program",
   "shell-section:settings",
 );
 const sessionSectionReference = shellNavigationSectionReference(
-  "shell:tasks",
+  "shell:program",
   "shell-section:session",
 );
 
@@ -96,14 +99,14 @@ describe("memory Presentation Host", () => {
       ...shellReference,
     });
     const shellSection: ShellNavigationSectionContract | undefined = host.read({
-      ...appSectionReference,
+      ...programSectionReference,
     });
 
     expect(workspace?.label).toBe("Work");
     expect(list?.accessibilityLabel).toBe("Tasks");
     expect(table?.kind).toBe("table");
     expect(record?.kind).toBe("recordResult");
-    expect(shell?.scope).toBe("multiApp");
+    expect(shell?.title).toBe("Formless Program");
     expect(shellSection?.destinations[0]?.label).toBe("Tasks");
   });
 
@@ -121,7 +124,7 @@ describe("memory Presentation Host", () => {
       kind: "documentTheme",
       policy: { kind: "fixed", mode: "dark" },
     });
-    expect(host.read(shellReference)?.title).toBe("Tasks");
+    expect(host.read(shellReference)?.title).toBe("Formless Program");
 
     host.publish([...shellNodes(), userThemeNodes("system", "light")]);
 
@@ -192,20 +195,19 @@ describe("memory Presentation Host", () => {
 
   it("validates parent scopes, shell references, and active destinations", () => {
     const crossShellSectionReference = shellNavigationSectionReference(
-      "shell:crm",
-      "shell-section:app",
+      "shell:other",
+      "shell-section:program",
     );
     const invalidScopeNodes: PresentationNodeSet = [
       {
         reference: shellReference,
         snapshot: {
-          accessibilityLabel: "Tasks application shell",
+          accessibilityLabel: "Formless Program application shell",
           activeDestination: null,
           id: shellReference.shellId,
           kind: "shellManifest",
           navigationSections: [crossShellSectionReference],
-          scope: "multiApp",
-          title: "Tasks",
+          title: "Formless Program",
         },
       },
       {
@@ -229,7 +231,7 @@ describe("memory Presentation Host", () => {
               ...node.snapshot,
               activeDestination: {
                 destinationId: "destination:missing",
-                sectionId: appSectionReference.sectionId,
+                sectionId: programSectionReference.sectionId,
               },
             },
           }
@@ -424,50 +426,49 @@ function userThemeNodes(
 }
 
 function shellNodes({
-  appLabel = "Tasks",
+  destinationLabel = "Tasks",
   includeSettings = true,
   syncMessage = "Local cache ready.",
-  title = "Tasks",
+  title = "Formless Program",
 }: {
-  appLabel?: string;
+  destinationLabel?: string;
   includeSettings?: boolean;
   syncMessage?: string;
   title?: string;
 } = {}): PresentationNodeSet {
   const navigationSections = includeSettings
-    ? [appSectionReference, settingsSectionReference, sessionSectionReference]
-    : [appSectionReference, sessionSectionReference];
+    ? [programSectionReference, settingsSectionReference, sessionSectionReference]
+    : [programSectionReference, sessionSectionReference];
   const nodes: PresentationNodeSet = [
     {
       reference: shellReference,
       snapshot: {
-        accessibilityLabel: "Tasks application shell",
+        accessibilityLabel: "Formless Program application shell",
         activeDestination: {
           destinationId: "destination:tasks",
-          sectionId: appSectionReference.sectionId,
+          sectionId: programSectionReference.sectionId,
         },
         id: shellReference.shellId,
         kind: "shellManifest",
         navigationSections,
-        scope: "multiApp",
         title,
       },
     },
     {
-      reference: appSectionReference,
+      reference: programSectionReference,
       snapshot: shellSection({
         destinations: [
           {
-            accessibilityLabel: `${appLabel} app`,
+            accessibilityLabel: `${destinationLabel} screen`,
             availability: { available: true },
-            href: "/apps/tasks",
+            href: "/tasks",
             id: "destination:tasks",
             kind: "shellLinkDestination",
-            label: appLabel,
+            label: destinationLabel,
             selected: true,
           },
         ],
-        id: appSectionReference.sectionId,
+        id: programSectionReference.sectionId,
         shellId: shellReference.shellId,
       }),
     },
@@ -495,7 +496,7 @@ function shellNodes({
           reference: settingsSectionReference,
           snapshot: shellSection({
             id: settingsSectionReference.sectionId,
-            role: "appSettings",
+            role: "settings",
             settings: {
               id: "settings:tasks",
               kind: "shellSettings",
@@ -525,7 +526,7 @@ function shellNodes({
 function shellSection({
   destinations = [],
   id,
-  role = "appSwitcher",
+  role = "program",
   session,
   settings,
   shellId,

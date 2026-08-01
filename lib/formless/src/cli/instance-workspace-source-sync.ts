@@ -8,13 +8,14 @@ import {
 } from "@dpeek/formless-deploy";
 import {
   ARCHIVE_VERSION,
+  InstanceArchiveValidationError,
   INSTANCE_ARCHIVE_KIND,
   archiveMediaReferences,
   type ArchiveMediaObject,
   type ArchiveMediaReference,
   type InstanceArchive,
 } from "../program/archive.ts";
-import { writePortableArchiveDirectory } from "../program/archive-node.ts";
+import { writeInstanceArchiveDirectory } from "../program/archive-node.ts";
 import {
   coreImageMediaDeliveryFactsForAssetId,
   documentMediaAssetIsCompatible,
@@ -67,7 +68,7 @@ import {
 import {
   exportInstanceArchive,
   restoreWorkspacePushArchive,
-  type RestorePortableArchiveResult,
+  type RestoreInstanceArchiveResult,
 } from "./archive-workflows.ts";
 import {
   activeWorkspaceProgramArtifact,
@@ -85,7 +86,6 @@ import {
   type WorkspaceArchiveDirectory,
   type WorkspaceArchiveMediaComparisonSource,
   type WorkspaceControlPlaneRecords,
-  type WorkspaceInstanceArchiveDirectory,
 } from "./instance-workspace-control-plane.ts";
 
 const deploymentConfigObservedFieldSet = new Set<string>(
@@ -301,7 +301,7 @@ export async function pullFormlessInstanceWorkspace(
       throw new Error("Formless instance pull did not write an instance archive.");
     }
 
-    const pulledInstanceDirectory: WorkspaceInstanceArchiveDirectory = {
+    const pulledInstanceDirectory: WorkspaceArchiveDirectory = {
       ...pulledInstanceArchive,
       archive: pulledInstanceArchive.archive,
     };
@@ -692,19 +692,9 @@ function classifyForcedPushRemoteArchiveReadFailure(
     return undefined;
   }
 
-  const message = error.message;
-
-  if (
-    message.startsWith("Instance archive ") ||
-    message.startsWith("App archive ") ||
-    message.startsWith("Storage snapshot ") ||
-    message.startsWith("Formless Program storage snapshot ") ||
-    message.includes("Instance archive controlPlane") ||
-    message.includes("Instance archive apps[") ||
-    message.includes("controlPlane records")
-  ) {
+  if (error instanceof InstanceArchiveValidationError) {
     return {
-      message,
+      message: error.message,
       type: "validation",
     };
   }
@@ -883,7 +873,7 @@ async function exportWorkspaceSourceFromLocalAuthority(
     tempRoot: string;
   },
   dependencies: SaveLocalFormlessWorkspaceDependencies,
-): Promise<WorkspaceInstanceArchiveDirectory> {
+): Promise<WorkspaceArchiveDirectory> {
   const archiveRoot = path.join(input.tempRoot, "authority");
 
   await exportInstanceArchive(
@@ -948,7 +938,7 @@ function controlPlaneRecordEntity(record: StoredRecord): string | undefined {
 
 async function staleSavedWorkspaceSourcePaths(input: {
   config: FormlessResolvedConfig;
-  exported: WorkspaceInstanceArchiveDirectory;
+  exported: WorkspaceArchiveDirectory;
   sourceControlPlane: WorkspaceControlPlaneRecords | undefined;
   workspaceRoot: string;
 }): Promise<string[]> {
@@ -992,7 +982,7 @@ async function staleSavedWorkspaceSourcePaths(input: {
 
 async function writeSavedWorkspaceSource(input: {
   config: FormlessResolvedConfig;
-  exported: WorkspaceInstanceArchiveDirectory;
+  exported: WorkspaceArchiveDirectory;
   sourceControlPlane: WorkspaceControlPlaneRecords | undefined;
   workspaceRoot: string;
 }) {
@@ -1062,7 +1052,7 @@ async function workspaceProgramMediaFromSnapshot(input: {
 }
 
 function programMediaFromInstanceArchive(
-  directory: WorkspaceInstanceArchiveDirectory,
+  directory: WorkspaceArchiveDirectory,
 ): WorkspaceProgramMediaSource {
   const archivePaths = new Set(directory.archive.media.objects.map((object) => object.archivePath));
 
@@ -1097,7 +1087,7 @@ function assertWorkspaceProgramMediaComplete(
 async function pullWorkspaceReplacementPlan(input: {
   localControlPlane: WorkspaceControlPlaneRecords | undefined;
   manifest: FormlessResolvedConfig;
-  remoteArchive: WorkspaceInstanceArchiveDirectory;
+  remoteArchive: WorkspaceArchiveDirectory;
   syncPlan: FormlessInstanceWorkspaceSyncPlan;
   workspaceRoot: string;
 }): Promise<PullFormlessInstanceWorkspaceReplacementPlan> {
@@ -1692,7 +1682,7 @@ export async function restoreWorkspacePushSourceArchive(
     selectedTarget: FormlessInstanceWorkspaceTarget;
   },
   dependencies: WorkspacePushSourceSyncDependencies,
-): Promise<RestorePortableArchiveResult> {
+): Promise<RestoreInstanceArchiveResult> {
   return restoreWorkspacePushArchive(
     {
       adminToken: input.adminToken,
@@ -1734,7 +1724,7 @@ async function writeComposedWorkspacePushArchive(input: {
     },
     media: { objects: input.programMedia.objects },
   };
-  const write = await writePortableArchiveDirectory(
+  const write = await writeInstanceArchiveDirectory(
     {
       archive: instanceArchive,
       mediaFiles: input.programMedia.mediaFiles,

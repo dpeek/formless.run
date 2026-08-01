@@ -1,5 +1,4 @@
 import type { OperationRateLimitPolicySchema } from "@dpeek/formless-schema";
-import type { ProgramStorageIdentity } from "../shared/program-storage-identity.ts";
 
 export type PublicOperationReadRateLimitDecision =
   | { allowed: true }
@@ -9,7 +8,6 @@ export type PublicOperationReadRateLimitDecision =
     };
 
 export type PublicOperationReadRateLimitAdapterInput = {
-  identity: ProgramStorageIdentity;
   nowMs: number;
   operationKey: string;
   policy: OperationRateLimitPolicySchema;
@@ -87,12 +85,7 @@ async function publicOperationReadRateLimitScopeKey(
   const trustedClientNetwork =
     input.request.headers.get(trustedClientNetworkHeader)?.trim().toLowerCase() || "unavailable";
   const digest = await sha256Hex(
-    [
-      "formless-public-read-rate-limit-v1",
-      input.identity.authorityName,
-      input.operationKey,
-      trustedClientNetwork,
-    ].join("\n"),
+    ["formless-public-read-rate-limit-v1", input.operationKey, trustedClientNetwork].join("\n"),
   );
 
   return `sha256:${digest}`;

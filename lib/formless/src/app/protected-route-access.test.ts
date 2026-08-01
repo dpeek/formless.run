@@ -55,7 +55,6 @@ function completeResponse(returnTo: `/${string}`): Response {
     target: {
       returnTo,
       routeId: "route:instance",
-      storageIdentity: "formless-program",
       targetOrigin: "https://formless.test",
       targetProfile: "instance",
     },

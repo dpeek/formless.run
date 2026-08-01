@@ -32,14 +32,16 @@ schema declarations composed into the downstream Program.
   invite token hashes, auth sessions, cross-domain grants, raw recovery
   material, and provider responses are not identity control-plane records
 
-#### Scenario: Normal App schema provenance
+#### Scenario: Normal App schema hashing
 
 - GIVEN the runtime loads the identity control-plane schema contract
 - WHEN the schema is parsed for package validation, standalone package
   materialization, or downstream composition
 - THEN it uses the normal App schema parser and App schema source hash rules
 - AND entity, field, relationship, query, read model, view, screen, operation,
-  and runtime metadata changes all affect package schema provenance
+  and runtime metadata changes all affect the normal source-schema hash
+- AND complete Program provenance remains owned by the downstream composition
+  root
 - AND entity records remain flat Authority records with system-owned created
   and updated timestamps
 
@@ -70,8 +72,8 @@ schema declarations composed into the downstream Program.
 - AND the package's complete source schema explicitly composes the record
   module before the presentation module and supplies runtime ownership at the
   composition root
-- AND the recomposed source preserves the current schema data,
-  source-schema hash, and package provenance
+- AND the recomposed source preserves the current schema data and normal
+  source-schema hash
 - AND the modules remain runtime-neutral when a downstream Program selects
   Authority, storage, API, cursor, snapshot, or browser replica behavior
 

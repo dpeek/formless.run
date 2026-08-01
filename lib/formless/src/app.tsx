@@ -21,51 +21,26 @@ import {
   type PublicSiteRouteProps,
 } from "./app/public-site-runtime.tsx";
 import type { ApplicationShellRuntimeBoundaryProps } from "./app/application-shell-runtime.tsx";
-import { selectGeneratedShellScope } from "./app/generated/application-shell-projection.ts";
-import type {
-  GeneratedWorkspaceRuntimeController,
-  GeneratedWorkspaceSectionExternalAction,
-} from "./app/generated/generated-workspace-runtime.tsx";
-import type { HomeRouteClientLoadState } from "./app/routes/home.tsx";
+import { shouldRenderGeneratedShell } from "./app/generated/application-shell-projection.ts";
 import { sitePublicRenderer as workspaceSitePublicRenderer } from "virtual:formless/site-public-renderer/browser";
 import {
-  findRuntimeWorldMountByRoute,
-  hasGeneratedRoutes,
   normalizeRuntimeBrowserPath,
   resolveRuntimeProfile,
   runtimeBrowserRoutePatterns,
   type RuntimeProfile,
-  type RuntimeWorldMount,
 } from "./app/runtime-profile.ts";
-import type { ProgramClientSchemaKey, ProgramClientTarget } from "./client/program-target.ts";
 import {
   authAccountContinuationLocationForReturnTarget,
   COLLABORATOR_INVITATION_ACCEPT_PATH,
   type AccountRedirectTarget,
 } from "./shared/instance-auth.ts";
 import { runtimeTopologyRoutes, type RuntimeRouteAccess } from "./shared/runtime-topology.ts";
-import type { WorkspaceLinkActionContract } from "@dpeek/formless-presentation/contract";
 import { initialInstanceManagementRuntimeContribution } from "./app/routes/instance-management-contract.ts";
 import { FORMLESS_PROGRAM_SCREEN_PATHS } from "./program/runtime.ts";
 import { projectApplicationSystemState } from "./app/routes/application-system-state-projection.ts";
 import { ApplicationSystemStateRuntime } from "./app/routes/application-system-state-runtime.tsx";
 import { useApplicationRootThemeRuntime } from "./app/application-root-context.tsx";
 import { resolveProtectedRouteAccess } from "./app/protected-route-access.ts";
-
-type HomeRouteProps = {
-  clientSync?: boolean | undefined;
-  onClientLoadStateChange?: ((state: HomeRouteClientLoadState) => void) | undefined;
-  onGeneratedWorkspaceController?: (
-    controller: GeneratedWorkspaceRuntimeController | undefined,
-  ) => void;
-  sectionExternalActions?: Readonly<
-    Record<string, readonly GeneratedWorkspaceSectionExternalAction[] | undefined>
-  >;
-  target: ProgramClientTarget;
-  schemaKey: ProgramClientSchemaKey;
-  screenPath: string;
-  workspaceActions?: readonly WorkspaceLinkActionContract[];
-};
 
 type InstanceShellRouteProps = {
   localWorkspaceGatewayAvailable?: boolean | undefined;
@@ -76,7 +51,6 @@ export type AppRouteComponents = {
   ApplicationShellRuntimeBoundary: ElementType<ApplicationShellRuntimeBoundaryProps>;
   AuthAccountRoute: ElementType;
   CollaboratorInvitationAcceptanceRoute: ElementType;
-  HomeRoute: ElementType<HomeRouteProps>;
   InstanceShellRoute: ElementType<InstanceShellRouteProps>;
   LocalSessionRoute: ElementType;
   AccountSignInRoute: ElementType;
@@ -101,9 +75,6 @@ const defaultRouteComponents: AppRouteComponents = {
     import("./app/routes/collaborator-invitation-acceptance.tsx").then((module) => ({
       default: module.CollaboratorInvitationAcceptanceRoute,
     })),
-  ),
-  HomeRoute: lazy(() =>
-    import("./app/routes/home.tsx").then((module) => ({ default: module.HomeRoute })),
   ),
   InstanceShellRoute: lazy(() =>
     import("./app/routes/instance-shell.tsx").then((module) => ({
@@ -181,15 +152,12 @@ function AppRuntime({
     localWorkspaceGatewayAvailableProp,
     routeMayNeedLocalWorkspaceGateway(browserRoutes, normalizedLocation),
   );
-  const routeWorld = findRuntimeWorldMountByRoute(runtimeProfile, location);
-
-  const shellScope = selectGeneratedShellScope({
+  const renderShell = shouldRenderGeneratedShell({
     currentPath: location,
-    routeWorld,
     runtimeProfile,
   });
 
-  if (!shellScope) {
+  if (!renderShell) {
     return (
       <AppRoutes
         localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
@@ -207,7 +175,6 @@ function AppRuntime({
         applicationTheme={rootThemeRuntime}
         currentPath={location}
         initialRouteContractContributions={initialRouteContractContributions}
-        routeWorld={routeWorld}
         runtimeProfile={runtimeProfile}
       >
         <AppRoutes
@@ -292,13 +259,11 @@ function AppRoutes({
   const {
     AuthAccountRoute,
     CollaboratorInvitationAcceptanceRoute,
-    HomeRoute,
     InstanceShellRoute,
     LocalSessionRoute,
     AccountSignInRoute,
     SitePageRoute,
   } = routeComponents;
-  const generatedWorlds = runtimeProfile.worlds.filter(hasGeneratedRoutes);
   const browserRoutes = runtimeBrowserRoutePatterns(runtimeProfile);
   const publishedSite = runtimeProfile.publishedSite;
   const publicSitePreview = runtimeProfile.publicSitePreview;
@@ -352,7 +317,6 @@ function AppRoutes({
             routeProps={{
               linkMode: "published",
               slug: publishedSite.homeSlug,
-              target: publishedSite.target.storageIdentity,
             }}
           />
         </Route>
@@ -365,38 +329,11 @@ function AppRoutes({
               routeProps={{
                 linkMode: "published",
                 slug: runtimeWildcardSiteSlug(params),
-                target: publishedSite.target.storageIdentity,
               }}
             />
           )}
         </Route>
       ) : null}
-      {generatedWorlds.map((world) => (
-        <Route key={world.route} path={world.route}>
-          <ProtectedRouteGuard access={world.access ?? "anonymous"}>
-            <HomeRoute
-              schemaKey={world.target.schemaKey}
-              screenPath="/"
-              target={world.target}
-              workspaceActions={siteWorkspaceLinkActionsForWorld(world, publicSitePreview)}
-            />
-          </ProtectedRouteGuard>
-        </Route>
-      ))}
-      {generatedWorlds.map((world) => (
-        <Route key={`${world.route}/*`} path={runtimeScreenWildcardRoute(world)}>
-          {(params) => (
-            <ProtectedRouteGuard access={world.access ?? "anonymous"}>
-              <HomeRoute
-                schemaKey={world.target.schemaKey}
-                screenPath={runtimeWildcardScreenPath(params)}
-                target={world.target}
-                workspaceActions={siteWorkspaceLinkActionsForWorld(world, publicSitePreview)}
-              />
-            </ProtectedRouteGuard>
-          )}
-        </Route>
-      ))}
       {publicSitePreview ? (
         <Route path={publicSitePreview.rootRoute}>
           {publicSitePreview.homeRoute ? (
@@ -407,7 +344,6 @@ function AppRoutes({
               routeProps={{
                 linkMode: publicSitePreview.linkMode,
                 slug: publicSitePreview.homeSlug,
-                target: publicSitePreview.target?.storageIdentity,
               }}
             />
           )}
@@ -421,7 +357,6 @@ function AppRoutes({
               routeProps={{
                 linkMode: publicSitePreview.linkMode,
                 slug: runtimeWildcardSiteSlug(params),
-                target: publicSitePreview.target?.storageIdentity,
               }}
             />
           )}
@@ -434,31 +369,6 @@ function AppRoutes({
   );
 
   return <Suspense fallback={<RouteLoading />}>{routes}</Suspense>;
-}
-
-function siteWorkspaceLinkActionsForWorld(
-  world: RuntimeWorldMount,
-  publicSitePreview: RuntimeProfile["publicSitePreview"],
-): readonly WorkspaceLinkActionContract[] {
-  if (!publicSitePreview || world.app.key !== "site") {
-    return [];
-  }
-
-  return siteWorkspaceLinkActions(publicSitePreview.homeRoute ?? publicSitePreview.rootRoute);
-}
-
-function siteWorkspaceLinkActions(href: string): readonly WorkspaceLinkActionContract[] {
-  return [
-    {
-      accessibilityLabel: "View site (opens in a new tab)",
-      href,
-      id: "view-site",
-      kind: "workspaceLinkAction",
-      label: "View site",
-      prominence: "primary",
-      target: "newTab",
-    },
-  ];
 }
 
 function PublicSiteRoute({
@@ -664,16 +574,6 @@ function protectedRouteTarget(location: string): AccountRedirectTarget {
 
 function protectedRouteTargetFromLocation(location: string): AccountRedirectTarget {
   return location.startsWith("/") ? (location as AccountRedirectTarget) : "/";
-}
-
-function runtimeScreenWildcardRoute(world: RuntimeWorldMount): `/${string}` {
-  return world.route === "/" ? "/*" : `${world.route}/*`;
-}
-
-function runtimeWildcardScreenPath(params: unknown): string {
-  const wildcard = (params as { "*": string | undefined })["*"];
-
-  return `/${wildcard ?? ""}`;
 }
 
 function runtimeWildcardSiteSlug(params: unknown): string {

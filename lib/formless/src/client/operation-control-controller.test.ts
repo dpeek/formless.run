@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vite-plus/test";
-import { programClientTarget, type ProgramClientTarget } from "./program-target.ts";
 import {
   buildGeneratedOperationInvocationRequest,
   createGeneratedOperationController,
@@ -42,7 +41,6 @@ describe("generated operation control controller", () => {
         }),
       ],
       submitAuthorityOperation: submit.submit,
-      target: programClientTarget(),
       writeOptions: { autoSave },
     });
 
@@ -55,7 +53,6 @@ describe("generated operation control controller", () => {
 
     expect(submit.calls).toEqual([
       {
-        target: programClientTarget(),
         entityName: "task",
         operationName: "create",
         request: {
@@ -101,7 +98,6 @@ describe("generated operation control controller", () => {
       ],
       submitAuthorityOperation: captureAuthoritySubmitter(operationResponse(output, "replayed"))
         .submit,
-      target: programClientTarget(),
     });
 
     const result = await controller.execute({
@@ -155,7 +151,6 @@ describe("generated operation control controller", () => {
         }),
       ],
       submitAuthorityOperation: captureAuthoritySubmitter(operationResponse(output)).submit,
-      target: programClientTarget(),
     });
 
     await expect(
@@ -179,7 +174,6 @@ describe("generated operation control controller", () => {
       submitAuthorityOperation: async () => {
         throw { internal: "do not render" };
       },
-      target: programClientTarget(),
     });
 
     const result = await controller.execute({
@@ -326,7 +320,6 @@ describe("generated operation control controller", () => {
         }),
       ],
       submitAuthorityOperation: submit.submit,
-      target: programClientTarget(),
     });
 
     const first = controller.execute({
@@ -582,7 +575,6 @@ type AuthoritySubmitCall = {
   operationName: string;
   options: SubmitOperationOptions;
   request: OperationInvocationRequest;
-  target: ProgramClientTarget;
 };
 function captureAuthoritySubmitter(
   response: OperationInvocationResponse | Promise<OperationInvocationResponse>,
@@ -593,8 +585,8 @@ function captureAuthoritySubmitter(
   const calls: AuthoritySubmitCall[] = [];
   return {
     calls,
-    submit: async (target, entityName, operationName, request, _fetcher, options) => {
-      calls.push({ target, entityName, operationName, request, options });
+    submit: async (entityName, operationName, request, _fetcher, options) => {
+      calls.push({ entityName, operationName, request, options });
 
       return response;
     },

@@ -10,7 +10,6 @@ import {
   type RecordPlanEntityOperationEffectSchema,
 } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
-import { programStorageIdentity } from "../shared/program-storage-identity.ts";
 import type {
   OperationCommandOutput,
   OperationInvocationEnvelope,
@@ -765,7 +764,6 @@ function operationEnvelope(
 ): OperationInvocationEnvelope {
   return {
     invocationId: input.operationId,
-    programStorageIdentity: programStorageIdentity(),
     actor: input.actor ?? { kind: "owner" },
     source: {
       protocol: "generated-ui",
@@ -802,7 +800,6 @@ function authenticatedSessionTarget() {
   return {
     instanceId: "instance-1",
     routeId: "route:instance:admin",
-    storageIdentity: programStorageIdentity().authorityName,
     targetOrigin: "https://tasks.example.com",
     targetProfile: "instance" as const,
   };

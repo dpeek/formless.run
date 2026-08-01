@@ -3,9 +3,7 @@ import {
   type ArchiveProgramValidationOptions,
   type ArchiveRestorePolicy,
   type InstanceArchive,
-  type PortableArchive,
   parseInstanceArchive,
-  parsePortableArchive,
 } from "./types.ts";
 import { archiveMediaReferences } from "./media-references.ts";
 import { getAppSchemaDefinitionIndex, isValidStoredFieldValue } from "@dpeek/formless-schema";
@@ -96,21 +94,6 @@ export type ArchiveRestorePlan = {
 export type ArchiveRestorePlanResult =
   | { ok: true; plan: ArchiveRestorePlan }
   | { errors: ArchiveRestorePlanError[]; ok: false };
-
-export function planPortableArchiveRestore(
-  value: unknown,
-  target: ArchiveRestoreTargetState = {},
-): ArchiveRestorePlanResult {
-  let archive: PortableArchive;
-
-  try {
-    archive = parsePortableArchive(value, target);
-  } catch (error) {
-    return invalidArchiveResult(error);
-  }
-
-  return planParsedArchiveRestore(archive, target);
-}
 
 export function planInstanceArchiveRestore(
   value: unknown,

@@ -7,7 +7,7 @@ import {
   type WorkspaceOperationResult,
 } from "@dpeek/formless-workspace";
 
-import type { RestorePortableArchiveResult } from "./archive-workflows.ts";
+import type { RestoreInstanceArchiveResult } from "./archive-workflows.ts";
 import {
   pushFormlessInstanceWorkspace,
   type LocalWorkspaceDeploymentDisplayFacts,
@@ -318,7 +318,7 @@ function deploymentDisplayFields(
   };
 }
 
-function summarizeRestore(result: RestorePortableArchiveResult): WorkspaceOperationDisplayObject {
+function summarizeRestore(result: RestoreInstanceArchiveResult): WorkspaceOperationDisplayObject {
   const summary = result.remote.report?.summary ?? result.remote.plan?.summary;
 
   return {

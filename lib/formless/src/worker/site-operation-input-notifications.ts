@@ -4,7 +4,6 @@ import {
 } from "@dpeek/formless-instance-control-plane";
 import type { AppSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
-import type { ProgramStorageIdentity } from "../shared/program-storage-identity.ts";
 import {
   parseEmailDeliveryAddress,
   type EmailDeliveryAddress,
@@ -23,6 +22,7 @@ import {
   operationInputNotificationSubmittedInput,
 } from "./operation-input-notification-display.ts";
 import { getBootstrapRecords } from "./storage.ts";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 
 const operationInputNotificationMessageKind = "site-operation-input-notification";
 const operationInputNotificationPurpose = "operation-input-notification";
@@ -74,7 +74,6 @@ export function createSiteOperationInputNotificationAdapters(
 
 export async function scheduleSiteOperationInputNotificationAfterPublicOperation(input: {
   adapters: SiteOperationInputNotificationAdapters;
-  identity: ProgramStorageIdentity;
   records?: readonly StoredRecord[];
   requestUrl: string;
   response: OperationInvocationResponse;
@@ -129,7 +128,6 @@ export async function scheduleSiteOperationInputNotificationAfterPublicOperation
           outputFields,
           path: input.response.invocation.source.path,
           siteBlockId: input.response.invocation.source.siteBlockId,
-          storageIdentity: input.identity.authorityName,
         }),
         messageKind: operationInputNotificationMessageKind,
         recipients: [
@@ -148,7 +146,7 @@ export async function scheduleSiteOperationInputNotificationAfterPublicOperation
         source: {
           operationId: input.response.invocation.invocationId,
           ...createdRecordId(input.response),
-          storageIdentity: input.identity.authorityName,
+          storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
         },
       },
     });
@@ -239,11 +237,9 @@ function renderOperationInputNotificationMessage(input: {
   outputFields: Array<{ label: string; value: string }>;
   path?: string;
   siteBlockId?: string;
-  storageIdentity: string;
 }) {
   const facts = [
     { label: "Operation", value: input.operationKey },
-    { label: "Target storage", value: input.storageIdentity },
     ...(input.host === undefined ? [] : [{ label: "Host", value: input.host }]),
     ...(input.path === undefined ? [] : [{ label: "Path", value: input.path }]),
     ...(input.siteBlockId === undefined ? [] : [{ label: "Site block", value: input.siteBlockId }]),

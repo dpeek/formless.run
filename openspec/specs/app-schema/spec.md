@@ -2,28 +2,27 @@
 
 ## Purpose
 
-App schema is runtime data that defines how a schema key stores flat records,
-projects those records, and exposes operations over them. It is the durable
-contract for source schemas, generated UI, Authority storage,
+App schema is runtime data that defines flat records, projections, and
+operations. It is the durable contract for package schema sources, generated UI, Authority storage,
 browser replicas, public bindings, automation, and package adapters.
 
 ## Requirements
 
-### Requirement: Bundled Source Apps
+### Requirement: Bundled Domain Schemas
 
-The system SHALL provide source schemas for the current routable bundled schema
-keys `site` and `crm` without coupling package source to initial app records.
+The system SHALL provide package-owned Tasks, Site, and CRM schemas for trusted
+build-time Program composition without coupling package source to initial records.
 
-#### Scenario: Load current source app
+#### Scenario: Load current package schema
 
-- **GIVEN** a current schema key `site` or `crm`
-- **WHEN** the runtime loads the source schema
-- **THEN** the app schema is available for that schema key
+- **GIVEN** trusted Program composition imports the Tasks, Site, or CRM package
+- **WHEN** it loads the package's documented schema entrypoint
+- **THEN** the package's App schema declarations and standalone artifact are available
 - **AND** package source loading does not supply initial stored records
 - **AND** app records enter Authority through operations, workspace state,
-  storage snapshot restore, or portable archive restore
-- **AND** the standalone Tasks package schema remains a portable package
-  artifact rather than a routable default schema-key app
+  storage snapshot restore, or instance archive restore
+- **AND** the default Program composes the domain declarations into the one
+  `formless-program` schema used by runtime storage and routes
 
 ### Requirement: TypeScript Schema Authoring
 

@@ -1,16 +1,9 @@
-import { getSchemaAppDefinition, type SchemaAppDefinition } from "../shared/schema-apps.ts";
-import type { ProgramStorageIdentity } from "../shared/program-storage-identity.ts";
-import {
-  programPublicSiteRuntimeTarget,
-  type PublicSiteRuntimeTarget,
-} from "../shared/public-site-runtime-target.ts";
 import {
   FORMLESS_RUNTIME_PROFILE_META_NAME,
   resolveRuntimeProfileKind,
   runtimeRoutePolicyForProfileKind,
   runtimeTopologyRoutes,
   stringRuntimeConfigValue,
-  type RuntimeRouteAccess,
   type RuntimeProfileKind,
 } from "../shared/runtime-topology.ts";
 
@@ -18,16 +11,6 @@ export type { RuntimeProfileKind };
 export { FORMLESS_RUNTIME_PROFILE_META_NAME };
 
 export type RuntimeShellKind = "instance" | "dev" | "publishedSite";
-
-export type RuntimeAppDefinition = Omit<SchemaAppDefinition, "key"> & { key: string };
-
-export type RuntimeWorldMount = {
-  access?: RuntimeRouteAccess;
-  app: RuntimeAppDefinition;
-  generatedRoutes: boolean;
-  route: `/${string}`;
-  target: ProgramStorageIdentity;
-};
 
 export type RuntimePublicSitePreviewLinkMode = "preview" | "authoring";
 
@@ -37,20 +20,17 @@ export type RuntimePublicSitePreview = {
   homeRoute?: `/${string}`;
   homeSlug: string;
   linkMode: RuntimePublicSitePreviewLinkMode;
-  target?: PublicSiteRuntimeTarget;
 };
 
 export type RuntimePublishedSiteRoutes = {
   homeSlug: "home";
   rootRoute: "/";
   routePattern: "/*";
-  target: PublicSiteRuntimeTarget;
 };
 
 export type RuntimeProfile = {
   kind: RuntimeProfileKind;
   shell: RuntimeShellKind;
-  worlds: readonly RuntimeWorldMount[];
   defaultRedirect?: `/${string}`;
   instanceShell?: boolean;
   publicSitePreview?: RuntimePublicSitePreview;
@@ -97,7 +77,6 @@ export function createInstanceRuntimeProfile(): RuntimeProfile {
   return {
     kind: "instance",
     shell: "instance",
-    worlds: [],
     instanceShell: true,
   };
 }
@@ -110,7 +89,6 @@ export function createDevWorkbenchRuntimeProfile(): RuntimeProfile {
   return {
     kind: "dev",
     shell: "dev",
-    worlds: [],
     instanceShell: true,
     publicSitePreview: {
       rootRoute: runtimeTopologyRoutes.publicSitePreviewRouteBase,
@@ -118,31 +96,18 @@ export function createDevWorkbenchRuntimeProfile(): RuntimeProfile {
       homeRoute: `${runtimeTopologyRoutes.publicSitePreviewRouteBase}/home`,
       homeSlug: runtimeTopologyRoutes.publicSiteHomeSlug,
       linkMode: "preview",
-      target: programPublicSiteRuntimeTarget(),
     },
   };
 }
 
 export function createPublishedSiteRuntimeProfile(): RuntimeProfile {
-  const target = programPublicSiteRuntimeTarget();
-  const app = getSchemaAppDefinition("site");
-
   return {
     kind: "publishedSite",
     shell: "publishedSite",
-    worlds: [
-      {
-        app: runtimeAppDefinitionFromSchemaApp(app),
-        generatedRoutes: false,
-        route: runtimeTopologyRoutes.instanceRootRoute,
-        target: target.storageIdentity,
-      },
-    ],
     publishedSite: {
       homeSlug: runtimeTopologyRoutes.publicSiteHomeSlug,
       rootRoute: runtimeTopologyRoutes.instanceRootRoute,
       routePattern: "/*",
-      target,
     },
   };
 }
@@ -182,23 +147,10 @@ export function normalizeRuntimeBrowserPath(path: string): string {
   return path.split("?")[0] ?? path;
 }
 
-export function findRuntimeWorldMountByRoute(
-  profile: RuntimeProfile,
-  pathname: string,
-): RuntimeWorldMount | undefined {
-  return profile.worlds
-    .filter(hasGeneratedRoutes)
-    .find((world) => runtimeScreenPathFromRoute(world, pathname));
-}
-
-export function hasGeneratedRoutes(world: RuntimeWorldMount): boolean {
-  return world.generatedRoutes;
-}
-
 export function isRuntimePublicSiteRoute(profile: RuntimeProfile, pathname: string): boolean {
   const preview = profile.publicSitePreview;
 
-  if (!preview || findRuntimeWorldMountByRoute(profile, pathname)) {
+  if (!preview) {
     return false;
   }
 
@@ -208,41 +160,6 @@ export function isRuntimePublicSiteRoute(profile: RuntimeProfile, pathname: stri
       ? pathname.startsWith("/")
       : pathname.startsWith(`${preview.rootRoute}/`)),
   );
-}
-
-export function runtimeScreenRoute(world: RuntimeWorldMount, screenPath: string): `/${string}` {
-  if (screenPath === "/") {
-    return world.route;
-  }
-
-  return world.route === "/"
-    ? (screenPath as `/${string}`)
-    : (`${world.route}${screenPath}` as const);
-}
-
-export function runtimeScreenPathFromRoute(
-  world: RuntimeWorldMount,
-  pathname: string,
-): string | undefined {
-  if (pathname === world.route) {
-    return "/";
-  }
-
-  if (world.route === "/") {
-    return pathname.startsWith("/") ? pathname : undefined;
-  }
-
-  const routePrefix = `${world.route}/`;
-
-  return pathname.startsWith(routePrefix) ? pathname.slice(world.route.length) : undefined;
-}
-
-function runtimeAppDefinitionFromSchemaApp(app: SchemaAppDefinition): RuntimeAppDefinition {
-  return {
-    key: app.key,
-    label: app.label,
-    route: app.route,
-  };
 }
 
 function browserRuntimeProfileConfig(): RuntimeProfileResolverInput {

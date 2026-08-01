@@ -20,8 +20,7 @@ standalone artifact, reusable schema modules, and domain adapters.
 - **THEN** Tasks source data lives under `lib/tasks-app/`
 - **AND** the package contains `schema.json`, package-local `AGENTS.md`,
   `package.json`, `tsconfig.json`, and root and schema `src/` exports
-- **AND** root runtime does not keep a duplicate Tasks source schema under
-  `schema/apps/tasks`
+- **AND** `lib/tasks-app/` is the repository source owner for Tasks schema declarations
 
 #### Scenario: Tasks package runtime boundary
 
@@ -30,6 +29,8 @@ standalone artifact, reusable schema modules, and domain adapters.
 - **WHEN** the default Program is materialized and served
 - **THEN** trusted build-time composition imports the schema modules
 - **AND** Worker request handling consumes only the complete Program artifact
+- **AND** the package root exports domain record helpers and the stable Task
+  entity id without install or source-schema selection keys
 - **AND** the standalone artifact is not an install, route, Authority, replica,
   archive, workspace, upgrade, deploy, or authorization identity
 
@@ -66,7 +67,7 @@ standalone artifact.
 ### Requirement: Program-Native Singleton Tasks
 
 The default Formless runtime SHALL expose one Tasks domain through the Program
-without a schema-key or installed-app Tasks surface.
+screen, Authority, replica, archive, and workspace.
 
 #### Scenario: Compose Tasks into the default Program
 

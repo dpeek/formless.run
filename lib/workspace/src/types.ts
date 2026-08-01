@@ -23,35 +23,7 @@ export const WORKSPACE_MEDIA_MANIFEST_FILE = "manifest.json";
 export const WORKSPACE_MEDIA_MANIFEST_KIND = "formless.workspaceMedia";
 export const WORKSPACE_MEDIA_MANIFEST_VERSION = 1;
 
-export const INSTANCE_WORKSPACE_CONTROL_PLANE_SCHEMA_KEY = "instance-control-plane";
 export const INSTANCE_WORKSPACE_PROGRAM_SCHEMA_KEY = "formless-program";
-export const INSTANCE_WORKSPACE_CONTROL_PLANE_BOUNDARY_SCHEMA_KEY = "instance";
-export const INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_FILE_KIND =
-  "formless.instanceControlPlaneRecordSource";
-export const INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_FILE_VERSION = 1;
-export const INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_ENTITIES = [
-  "route",
-  "deployment-config",
-  "instance-settings",
-  "email-domain",
-  "email-sender",
-] as const;
-export const INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_EXCLUDED_ENTITIES = [
-  "deploy-desired-resource",
-  "deploy-target",
-  "deploy-attempt",
-  "deploy-evidence-summary",
-  "deploy-drift-report",
-  "provider-config-ref",
-] as const;
-export const INSTANCE_WORKSPACE_CONTROL_PLANE_DEPLOYMENT_CONFIG_OBSERVED_FIELDS = [
-  "observedStatus",
-  "observedAt",
-  "observedDesiredStateHash",
-  "observedSummary",
-  "observedError",
-  "observedRunnerId",
-] as const;
 
 export const WORKSPACE_OPERATION_STATE_FILE_KIND = "formless.workspaceOperation";
 export const WORKSPACE_OPERATION_STATE_FILE_VERSION = 1;
@@ -417,12 +389,6 @@ function hasWorkspaceGatewayBinding(
   return "gateway" in definition.bindings;
 }
 
-export type InstanceWorkspaceControlPlaneRecordSourceEntity =
-  (typeof INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_ENTITIES)[number];
-
-export type InstanceWorkspaceControlPlaneRecordSourceExcludedEntity =
-  (typeof INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_EXCLUDED_ENTITIES)[number];
-
 export type InstanceWorkspaceRecordValue = string | boolean | number;
 
 export type InstanceWorkspaceRecordValues = Record<string, InstanceWorkspaceRecordValue>;
@@ -466,21 +432,6 @@ export type WorkspaceProgramRecordStateFile =
   };
 
 export type WorkspaceRecordStateFile = WorkspaceProgramRecordStateFile;
-
-export type InstanceWorkspaceControlPlaneRecordSourceControlPlane = {
-  schemaKey: typeof INSTANCE_WORKSPACE_CONTROL_PLANE_SCHEMA_KEY;
-  schemaUpdatedAt: string;
-  records: InstanceWorkspaceStoredRecord[];
-};
-
-export type InstanceWorkspaceControlPlaneRecordSourceFile = {
-  kind: typeof INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_FILE_KIND;
-  version: typeof INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_FILE_VERSION;
-  schemaKey: typeof INSTANCE_WORKSPACE_CONTROL_PLANE_SCHEMA_KEY;
-  schemaUpdatedAt: string;
-  entity: string;
-  records: InstanceWorkspaceStoredRecord[];
-};
 
 export type WorkspaceOperationStatus = "failed" | "queued" | "running" | "succeeded";
 
@@ -572,7 +523,6 @@ export type WorkspaceOperationState = {
 };
 
 export const WORKSPACE_AUTO_SAVE_WRITE_SOURCES = [
-  "app-operation",
   "control-plane-write",
   "deployment-intent",
   "media-reference",
@@ -630,7 +580,6 @@ export type WorkspaceAutoSaveState = {
   lastSavedAt?: string;
   retryCount: number;
   savedGeneration: number;
-  storageIdentities: string[];
   suppressed?: WorkspaceAutoSaveSuppression;
   updatedAt: string;
   version: typeof WORKSPACE_AUTO_SAVE_STATE_FILE_VERSION;
@@ -639,7 +588,6 @@ export type WorkspaceAutoSaveState = {
 
 export type WorkspaceAutoSaveEnqueueInput = {
   source: WorkspaceAutoSaveWriteSource;
-  storageIdentity?: string;
 };
 
 export type InitWorkspaceOperationInput = {

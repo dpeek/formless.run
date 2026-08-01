@@ -47,10 +47,8 @@ export type DeployProviderFamily = "cloudflare";
 
 export type DeployRunnerId = string;
 export type DeployTargetId = string;
-export type DeployTargetKind = "instance";
 
 export type DeployTargetRef = {
-  kind: DeployTargetKind;
   label?: string;
   targetId: DeployTargetId;
 };

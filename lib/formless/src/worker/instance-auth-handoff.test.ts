@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 import type { InstanceRuntimeMountRouteResolution } from "./instance-runtime-routes.ts";
 import {
   configuredInstanceAuthOriginFromFacts,
@@ -78,7 +77,7 @@ describe("instance auth origin and protected-route handoff decisions", () => {
     });
   });
 
-  it("binds public Site and instance handoff to Program storage", () => {
+  it("binds public Site and instance handoff to current routes and profiles", () => {
     expect(
       planProtectedRouteAuthRedirect({
         authOrigin: "https://auth.example.com",
@@ -92,7 +91,6 @@ describe("instance auth origin and protected-route handoff decisions", () => {
       kind: "handoff",
       target: {
         routeId: "route:public-site:program",
-        storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
         targetProfile: "public-site",
       },
     });
@@ -110,7 +108,6 @@ describe("instance auth origin and protected-route handoff decisions", () => {
       entryPath: INSTANCE_AUTH_HANDOFF_START_PATH,
       kind: "handoff",
       target: {
-        storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
         targetProfile: "instance",
       },
     });
@@ -128,7 +125,6 @@ describe("instance auth origin and protected-route handoff decisions", () => {
       target: {
         access: "owner",
         routeId: "route:instance:admin",
-        storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
         targetOrigin: "https://admin.example.com",
         targetProfile: "instance",
       },
@@ -150,7 +146,6 @@ describe("instance auth origin and protected-route handoff decisions", () => {
     ).toEqual({
       access: "owner",
       routeId: "route:instance:admin",
-      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
       targetOrigin: "https://admin.example.com",
       targetProfile: "instance",
     });

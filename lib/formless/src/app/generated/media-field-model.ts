@@ -6,7 +6,7 @@ import type {
   RecordFieldConfig,
   RecordUnionPresentationConfig,
 } from "../../client/views.ts";
-import type { ProgramClientTarget } from "../../client/program-target.ts";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../../program/target.ts";
 
 export type GeneratedMediaField = {
   entityName: string;
@@ -31,12 +31,11 @@ export function generatedMediaAssetOptionsForField(
 }
 
 export function generatedDocumentMediaTarget(
-  programTarget: ProgramClientTarget,
   entityName: string,
   fieldName: string,
 ): ProgramDocumentMediaTarget {
   return {
-    documentsPath: `${programTarget.apiRoutePrefix}/media/documents`,
+    documentsPath: `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/media/documents`,
     field: { entityName, fieldName },
   };
 }

@@ -9,12 +9,6 @@ import {
   type ReactNode,
 } from "react";
 import type { ShellIntent } from "@dpeek/formless-presentation/contract";
-import {
-  programStorageIdentityForClientTarget,
-  clientTargetSourceSchemaKey,
-  programClientTarget,
-  type ProgramClientTarget,
-} from "../client/program-target.ts";
 import { getClientStoreSnapshot, subscribeToClientStore } from "../client/store.ts";
 import { useSyncStatus } from "../client/sync-status.ts";
 import { selectGeneratedRootNavigationFacts } from "../client/generated-authoring.ts";
@@ -43,11 +37,10 @@ import {
 import {
   generatedShellRootSectionId,
   projectGeneratedApplicationShell,
-  selectGeneratedShellScope,
+  shouldRenderGeneratedShell,
 } from "./generated/application-shell-projection.ts";
 import { ApplicationPresentation } from "./application-presentation.tsx";
 import type { ApplicationRootThemeRuntime } from "./application-root-context.tsx";
-import { SchemaAppProvider } from "./generated/schema-app-context.tsx";
 import {
   HomeRouteSelectionProvider,
   selectHomeRouteSectionContextRecordId,
@@ -55,13 +48,7 @@ import {
   withHomeRouteSelectedSectionContextRecordId,
 } from "./routes/home-selection.tsx";
 import { fetchAccountSessionStatus, logoutAccountSession } from "./routes/account-sign-in.tsx";
-import {
-  normalizeRuntimeBrowserPath,
-  runtimeScreenPathFromRoute,
-  type RuntimeProfile,
-  type RuntimeWorldMount,
-} from "./runtime-profile.ts";
-import { FORMLESS_PROGRAM_SCHEMA_KEY } from "../program/target.ts";
+import { normalizeRuntimeBrowserPath, type RuntimeProfile } from "./runtime-profile.ts";
 import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
 import {
   resolveProtectedRouteAccess,
@@ -86,48 +73,31 @@ export type ApplicationShellRuntimeDependencies = {
 };
 
 export type ApplicationShellRuntimeBoundaryProps = {
-  activeScreenPath?: string | undefined;
   applicationTheme?: ApplicationRootThemeRuntime | undefined;
   children: ReactNode;
   currentPath: string;
   dependencies?: ApplicationShellRuntimeDependencies;
   initialRouteContractContributions?: readonly ApplicationRuntimeContractContribution[];
   accountSession?: AccountSessionStatusResponse | undefined;
-  routeWorld: RuntimeWorldMount | undefined;
   runtimeProfile: RuntimeProfile;
   screenModels?: readonly HomeScreenModel[] | undefined;
 };
 
 export function ApplicationShellRuntimeBoundary(props: ApplicationShellRuntimeBoundaryProps) {
-  const runtime = (
+  return (
     <HomeRouteSelectionProvider>
       <ApplicationShellRuntime {...props} />
     </HomeRouteSelectionProvider>
   );
-
-  if (!props.routeWorld) {
-    return runtime;
-  }
-
-  return (
-    <SchemaAppProvider
-      schemaKey={props.routeWorld.target.schemaKey}
-      target={props.routeWorld.target}
-    >
-      {runtime}
-    </SchemaAppProvider>
-  );
 }
 
 function ApplicationShellRuntime({
-  activeScreenPath,
   applicationTheme,
   children,
   currentPath,
   dependencies = {},
   initialRouteContractContributions,
   accountSession: accountSessionProp,
-  routeWorld,
   runtimeProfile,
   screenModels: screenModelsProp,
 }: ApplicationShellRuntimeBoundaryProps) {
@@ -145,36 +115,13 @@ function ApplicationShellRuntime({
     currentPath: normalizedCurrentPath,
     resolveRouteAccess: dependencies.resolveRouteAccess,
   });
-  const routeTarget = routeWorld
-    ? runtimeWorldClientTarget(routeWorld)
-    : programRoute
-      ? programClientTarget()
-      : undefined;
-  const routeIdentity = routeTarget
-    ? programStorageIdentityForClientTarget(routeTarget)
-    : undefined;
-  const routeSchemaKey = routeTarget ? clientTargetSourceSchemaKey(routeTarget) : undefined;
-  const storeMatchesRoute =
-    snapshot.activeClientStorageName === null ||
-    snapshot.activeClientStorageName === routeIdentity?.browserDatabaseName;
-  const routeSchema =
-    (routeWorld || programRoute) &&
-    storeMatchesRoute &&
-    (snapshot.activeSchemaKey === null || snapshot.activeSchemaKey === routeSchemaKey)
-      ? snapshot.schema
-      : null;
+  const routeSchema = programRoute ? snapshot.schema : null;
   const projectedScreenModels = useMemo(
     () => (routeSchema ? selectPrimaryScreenModels(routeSchema) : []),
     [routeSchema],
   );
   const screenModels = screenModelsProp ?? projectedScreenModels;
-  const selectedScreenPath =
-    activeScreenPath ??
-    (routeWorld
-      ? runtimeScreenPathFromRoute(routeWorld, currentPath)
-      : programRoute
-        ? normalizedCurrentPath
-        : undefined);
+  const selectedScreenPath = programRoute ? normalizedCurrentPath : undefined;
   const activeScreen = screenModels.find((screen) => screen.path === selectedScreenPath);
   const rootFacts = activeScreen ? selectGeneratedRootNavigationFacts(activeScreen) : undefined;
   const selectedRootRecordId =
@@ -238,13 +185,8 @@ function ApplicationShellRuntime({
     accountSessionProp,
   );
   const [logoutState, setLogoutState] = useState<"error" | "idle" | "pending">("idle");
-  const scope = selectGeneratedShellScope({
-    currentPath,
-    routeWorld,
-    runtimeProfile,
-  });
+  const renderShell = shouldRenderGeneratedShell({ currentPath, runtimeProfile });
   const projection = projectGeneratedApplicationShell({
-    activeScreenPath: selectedScreenPath,
     authorizedProgramScreenPaths,
     currentPath,
     logoutState,
@@ -259,19 +201,13 @@ function ApplicationShellRuntime({
             snapshot,
             today: todayDateString(),
           },
-    routeWorld,
     runtimeProfile,
-    screenModels,
-    sync: routeIdentity
+    sync: programRoute
       ? {
-          cursor: storeMatchesRoute ? snapshot.cursor : 0,
-          lastSyncedAt: storeMatchesRoute ? snapshot.lastSyncedAt : null,
-          schemaVersion: storeMatchesRoute ? (snapshot.schema?.version ?? null) : null,
+          cursor: snapshot.cursor,
+          lastSyncedAt: snapshot.lastSyncedAt,
+          schemaVersion: snapshot.schema?.version ?? null,
           status: syncStatus,
-          worldLabel:
-            routeIdentity.kind === "program"
-              ? FORMLESS_PROGRAM_SCHEMA_KEY
-              : routeIdentity.authorityName,
         }
       : undefined,
   });
@@ -362,7 +298,7 @@ function ApplicationShellRuntime({
       return;
     }
 
-    if (!scope) {
+    if (!renderShell) {
       setAccountSession(undefined);
       return;
     }
@@ -385,7 +321,7 @@ function ApplicationShellRuntime({
     return () => {
       stopped = true;
     };
-  }, [dependencies.fetchAccountSession, accountSessionProp, scope]);
+  }, [dependencies.fetchAccountSession, accountSessionProp, renderShell]);
 
   async function executeLogout() {
     if (logoutState === "pending" || accountSession?.authenticated !== true) {
@@ -569,10 +505,6 @@ function RegisteredRootCreateRuntime({
   );
 
   return null;
-}
-
-function runtimeWorldClientTarget(world: RuntimeWorldMount): ProgramClientTarget {
-  return world.target;
 }
 
 function navigateTo(path: `/${string}`, navigate: ((path: `/${string}`) => void) | undefined) {

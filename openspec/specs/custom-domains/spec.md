@@ -41,6 +41,8 @@ exact-host `route` records before ordinary host profile behavior.
 - **GIVEN** desired mapping routes exist
 - **WHEN** mapping reads or enabled-host lookup runs
 - **THEN** reads are projected from active `route` records
+- **AND** route target profile is the mapping and provider-evidence selection
+  value
 - **AND** disabled desired routes do not create mapped hosts or desired
   provider resources
 

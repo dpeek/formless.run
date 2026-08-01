@@ -180,14 +180,13 @@ async function handleLookupRequest(
 
   const host = url.searchParams.get("host");
   const profile = url.searchParams.get("profile") ?? undefined;
-  const surface = url.searchParams.get("surface") ?? (profile === undefined ? "site" : undefined);
 
   if (host === null || host.trim() === "") {
     return jsonResponse({ error: "Domain mapping lookup requires host." }, 400);
   }
 
   const profileResult = resolveInstanceDomainMappingProfile(
-    { profile, surface },
+    { profile },
     { defaultProfile: "publicSite" },
   );
 
@@ -269,7 +268,6 @@ function domainMappingFromControlPlaneRecord(
   return {
     host: String(record.values.matchHost),
     profile,
-    ...(profile === "publicSite" ? { surface: "site" as const } : {}),
     enabled: true,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,

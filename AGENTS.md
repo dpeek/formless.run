@@ -58,7 +58,8 @@ Data stays flat. Compose in query, view, projection, action layer.
 - `lib/formless/src/cli/`: Formless CLI implementation, project files, publish, archives, domains.
 - `lib/formless/src/media/`: core media model and providers.
 - `lib/formless/src/test/`: shared test fixtures.
-- `schema/apps/`: bundled Tasks and CRM app schemas.
+- `lib/tasks-app/`: reusable Tasks schema modules and standalone artifact.
+- `lib/crm-app/`: reusable CRM schema modules and standalone artifact.
 - `lib/site-app/`: bundled Site schema modules, standalone artifact, and adapters.
 - `lib/presentation/`: renderer-neutral Formless UI contracts, hosts, and React adapters.
 - `lib/renderer/`: Formless Renderer application and Site presentation backed by Astryx.
@@ -70,8 +71,8 @@ Data stays flat. Compose in query, view, projection, action layer.
 ## Core Terms
 
 - App schema: runtime data contract.
-- Source schema: `schema/apps/<key>/schema.json`.
-- Schema key: route and storage key such as `tasks`, `site`, `crm`.
+- Package schema source: domain-owned declarations under `lib/*-app/src/schema.ts`.
+- Schema key: schema artifact identity; the active Program uses `formless-program`.
 - Entity: flat record type.
 - Field: scalar or reference value.
 - Record: stored entity instance with flat values.
@@ -87,23 +88,23 @@ Data stays flat. Compose in query, view, projection, action layer.
 
 - Formless instance: Program data, media, auth, and deploy config.
 - Product instance profile: Program and instance management runtime.
-- Dev workbench profile: bundled source app development runtime.
+- Dev workbench profile: local Program development runtime.
 - Browser replica: IndexedDB copy of the Program keyed by Program storage identity.
 - Authority: Durable Object that owns committed storage and invariants.
 - Storage: records, changes, schema, action executions.
 - Sync cursor: timestamp cursor for HTTP sync and push catch-up.
-- Push sync: hibernatable WebSocket at `/api/:schemaKey/sync/ws` or install route.
+- Push sync: hibernatable WebSocket at `/api/formless/program/sync/ws`.
 - Generated UI: React surfaces selected from schema models.
 - Public tree: Site flat block and placement projection into nested output.
 - Core media: instance-owned media assets referenced by flat app records.
 - Media package: reusable core media contracts, helpers, and adapters under `lib/media`.
 - Custom domain mapping: exact-host profile route intent stored on the instance.
-- Instance control plane: schema records for routes, domain intent, and deploy intent.
+- Instance control plane: Program schema records for routes, domain intent, and deploy intent.
 - Deployment runtime: versioned desired deploy state, attempt history, leases, and status.
 - Instance auth: owner passkey setup, sessions, logout, and admin bearer boundary.
 - Public action: schema-declared action opened through target-scoped public routes.
 - Contact subscription: flat Site-owned contact, email address, audience, and subscription records.
-- Portable archive: versioned app or instance export, restore, import envelope.
+- Instance archive: versioned Program, media, and instance configuration envelope.
 - Package slice: reusable capability package under `lib/<package>` without app records.
 - Upgrade migration: registered runtime or app-data migration with safety policy and apply evidence.
 

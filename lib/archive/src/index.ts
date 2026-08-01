@@ -5,25 +5,14 @@ export * from "./types.ts";
 export * from "./media-references.ts";
 export * from "./restore-plan.ts";
 
-import {
-  formatInstanceArchive,
-  type ArchiveProgramValidationOptions,
-  type PortableArchive,
-} from "./types.ts";
+import type { InstanceArchive } from "./types.ts";
 
-export const PORTABLE_ARCHIVE_MANIFEST_FILE = "archive.json";
+export const INSTANCE_ARCHIVE_MANIFEST_FILE = "archive.json";
 
-export function formatPortableArchive(
-  archive: PortableArchive,
-  options: ArchiveProgramValidationOptions = {},
-): string {
-  return formatInstanceArchive(archive, options);
-}
-
-export function archiveMediaObjects(archive: PortableArchive) {
+export function archiveMediaObjects(archive: InstanceArchive) {
   return archive.media.objects;
 }
 
-export function archiveRecordCount(archive: PortableArchive): number {
+export function archiveRecordCount(archive: InstanceArchive): number {
   return archive.program.snapshot.records.length;
 }

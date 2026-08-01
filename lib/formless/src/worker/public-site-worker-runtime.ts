@@ -1,10 +1,6 @@
 import type { AppSchema } from "@dpeek/formless-schema";
 
 import {
-  programPublicSiteRuntimeTarget,
-  type ProgramPublicSiteRuntimeTarget,
-} from "../shared/public-site-runtime-target.ts";
-import {
   FORMLESS_RUNTIME_PROFILE_META_NAME,
   runtimeTopologyRoutes,
 } from "../shared/runtime-topology.ts";
@@ -30,6 +26,10 @@ import { getEquivalentRequestForHead, responseWithoutBodyForHead } from "./head-
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { BootstrapResponse } from "../shared/protocol.ts";
 import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
+import {
+  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import {
   shouldBlockMappedSiteHostBrowserRoute,
   shouldHandleMappedSiteHostDocument,
@@ -58,7 +58,6 @@ export type PublicSiteWorkerRequestOptions = {
 
 export type MappedSiteHost = {
   host: string;
-  target: ProgramPublicSiteRuntimeTarget;
 };
 
 export type PublicSiteWorkerAdapter = {
@@ -128,7 +127,6 @@ export async function handlePublicSiteIconRequest(
     return undefined;
   }
 
-  const requestTarget = publicSiteRequestTarget(options);
   const adapter = programPublicSiteWorkerAdapter();
 
   const getRequest = getEquivalentRequestForHead(request);
@@ -143,7 +141,7 @@ export async function handlePublicSiteIconRequest(
   const response = await adapter.renderIcon({
     request: getRequest,
     route,
-    svg: await fetchAuthoredSiteIconSource(getRequest, env, requestTarget.storageIdentity),
+    svg: await fetchAuthoredSiteIconSource(getRequest, env),
   });
 
   return responseWithoutBodyForHead(request, response);
@@ -158,7 +156,6 @@ export async function handlePublicSiteIndexingRequest(
     return undefined;
   }
 
-  const requestTarget = publicSiteRequestTarget(options);
   const adapter = programPublicSiteWorkerAdapter();
 
   const getRequest = getEquivalentRequestForHead(request);
@@ -184,7 +181,7 @@ export async function handlePublicSiteIndexingRequest(
             ...FORMLESS_PROGRAM_SCREEN_PATHS.filter((path) => path !== "/"),
           ] as `/${string}`[],
           origin: url.origin,
-          records: await fetchSiteBootstrapRecords(getRequest, env, requestTarget.storageIdentity),
+          records: await fetchSiteBootstrapRecords(getRequest, env),
           resource,
         },
   );
@@ -216,18 +213,12 @@ export async function handlePublicSiteDocumentRequest(
     return undefined;
   }
 
-  const requestTarget = publicSiteRequestTarget(options);
   const adapter = programPublicSiteWorkerAdapter();
 
   const getRequest = getEquivalentRequestForHead(request);
   const requestUrl = new URL(getRequest.url);
   const slug = normalizeSiteRoutePath(requestUrl.pathname);
-  const treeResult = await fetchSitePageTreeResult(
-    getRequest,
-    env,
-    slug,
-    requestTarget.storageIdentity,
-  );
+  const treeResult = await fetchSitePageTreeResult(getRequest, env, slug);
   const response = await adapter.renderDocument({
     clientAssets: await loadClientDocumentAssets(getRequest, env, {
       includeScripts: publicSiteDocumentNeedsClientScripts(treeResult, {
@@ -258,14 +249,7 @@ export function mappedPublicSiteHostFromRuntimeRoute(
 
   return {
     host: route.matchHost,
-    target: programPublicSiteRuntimeTarget(),
   };
-}
-
-function publicSiteRequestTarget(
-  options: PublicSiteWorkerRequestOptions,
-): ProgramPublicSiteRuntimeTarget {
-  return options.mappedSiteHost?.target ?? programPublicSiteRuntimeTarget();
 }
 
 function publicSiteIconRequest(runtimeTopology?: WorkerRuntimeRequestTopology): boolean {
@@ -293,15 +277,9 @@ async function fetchSitePageTreeResult(
   request: Request,
   env: Env,
   slug: string,
-  target: ProgramPublicSiteRuntimeTarget["storageIdentity"],
 ): Promise<PublicSiteDocumentTreeResult> {
   try {
-    const response = await fetchAuthorityJson(
-      request,
-      env,
-      target,
-      `/tree/${encodeURIComponent(slug)}`,
-    );
+    const response = await fetchAuthorityJson(request, env, `/tree/${encodeURIComponent(slug)}`);
 
     if (response.status === 404) {
       return { kind: "not-found" };
@@ -320,14 +298,13 @@ async function fetchSitePageTreeResult(
 async function fetchSiteBootstrapRecords(
   request: Request,
   env: Env,
-  target: ProgramPublicSiteRuntimeTarget["storageIdentity"],
 ): Promise<StoredRecord[] | undefined> {
   try {
-    const authorityId = env.FORMLESS_AUTHORITY.idFromName(target.authorityName);
+    const authorityId = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
     const authority = env.FORMLESS_AUTHORITY.get(authorityId);
     const url = new URL(INTERNAL_PUBLIC_SITE_BOOTSTRAP_PATH, request.url);
 
-    url.searchParams.set("apiRoutePrefix", target.apiRoutePrefix);
+    url.searchParams.set("apiRoutePrefix", FORMLESS_PROGRAM_API_ROUTE_PREFIX);
 
     const response = await authority.fetch(
       new Request(url, {
@@ -349,12 +326,11 @@ async function fetchSiteBootstrapRecords(
 async function fetchAuthorityJson(
   request: Request,
   env: Env,
-  target: ProgramPublicSiteRuntimeTarget["storageIdentity"],
   path: `/${string}`,
 ): Promise<Response> {
-  const authorityId = env.FORMLESS_AUTHORITY.idFromName(target.authorityName);
+  const authorityId = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
   const authority = env.FORMLESS_AUTHORITY.get(authorityId);
-  const url = new URL(`${target.apiRoutePrefix}${path}`, request.url);
+  const url = new URL(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${path}`, request.url);
 
   return authority.fetch(
     new Request(url, {
@@ -367,9 +343,8 @@ async function fetchAuthorityJson(
 async function fetchAuthoredSiteIconSource(
   request: Request,
   env: Env,
-  target: ProgramPublicSiteRuntimeTarget["storageIdentity"],
 ): Promise<string | undefined> {
-  const records = await fetchSiteBootstrapRecords(request, env, target);
+  const records = await fetchSiteBootstrapRecords(request, env);
   const settings = records ? primarySiteSettingsRecord(records) : undefined;
   const icon = settings?.values.icon;
 

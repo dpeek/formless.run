@@ -4,11 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import {
-  INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  instanceControlPlaneSchema,
-} from "@dpeek/formless-instance-control-plane";
+import { parseAppSchema } from "@dpeek/formless-schema";
 
 import {
   STORAGE_SNAPSHOT_KIND,
@@ -60,20 +56,100 @@ import {
   writeInstanceWorkspaceSecretState,
 } from "./node.ts";
 
+const programStorageIdentity = "instance:control-plane";
+const workspaceTestSchema = parseAppSchema({
+  version: 1,
+  entities: [
+    testEntity("entity_11111111-1111-4111-8111-111111111111", "instance-settings", [
+      "settingsId",
+      "canonicalOrigin",
+      "defaultEmailDomain",
+      "defaultContactSender",
+      "contactNotificationRecipient",
+      "productionIdentityStatus",
+    ]),
+    testEntity("entity_22222222-2222-4222-8222-222222222222", "email-domain", [
+      "enabled",
+      "providerFamily",
+      "domain",
+      "dnsStatus",
+    ]),
+    testEntity("entity_33333333-3333-4333-8333-333333333333", "email-sender", [
+      "enabled",
+      "address",
+      "purpose",
+      "emailDomain",
+    ]),
+    testEntity("entity_44444444-4444-4444-8444-444444444444", "route", [
+      "enabled",
+      "matchPath",
+      "matchPrefix",
+      "kind",
+      "targetProfile",
+      "surface",
+    ]),
+  ],
+  queries: [{ key: "routeAll", label: "Routes", entity: "route", expression: { kind: "all" } }],
+  itemViews: [
+    {
+      key: "routeItem",
+      entity: "route",
+      fields: [{ field: "enabled", editor: "boolean", commit: "immediate" }],
+    },
+  ],
+  tableViews: [],
+  views: [
+    {
+      key: "routeList",
+      type: "collection",
+      label: "Routes",
+      entity: "route",
+      queries: [{ query: "routeAll" }],
+      defaultQuery: "routeAll",
+      result: { type: "list", itemView: "routeItem" },
+    },
+  ],
+  screens: [
+    {
+      key: "home",
+      type: "workspace",
+      label: "Home",
+      layout: {
+        type: "stack",
+        sections: [{ id: "routes", type: "collection", view: "routeList" }],
+      },
+    },
+  ],
+});
+
+function testEntity(id: string, key: string, fields: string[]) {
+  return {
+    id,
+    key,
+    label: key,
+    fields: fields.map((field) => ({
+      key: field,
+      label: field,
+      required: false,
+      type: field === "enabled" ? ("boolean" as const) : ("text" as const),
+    })),
+  };
+}
+
 function programSnapshotContract() {
   return {
     canonicalize: (snapshot: StorageSnapshot) =>
       parseStorageSnapshot(snapshot, {
         schemaKey: "formless-program",
-        storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+        storageIdentity: programStorageIdentity,
       }),
-    schema: instanceControlPlaneSchema,
+    schema: workspaceTestSchema,
     schemaKey: "formless-program",
     schemaProvenance: {
       kind: "program" as const,
       sourceSchemaHash: `sha256:${"a".repeat(64)}` as const,
     },
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+    storageIdentity: programStorageIdentity,
   };
 }
 
@@ -261,7 +337,7 @@ describe("workspace record state node files", () => {
         id: "settings:instance",
         entity: "instance-settings",
         values: {
-          settingsId: INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID,
+          settingsId: "instance",
           canonicalOrigin: "https://www.example.com",
           defaultEmailDomain: "email-domain:mail.example.com",
           defaultContactSender: "email-sender:contact@mail.example.com",
@@ -299,12 +375,12 @@ describe("workspace record state node files", () => {
     const snapshot: StorageSnapshot = {
       kind: STORAGE_SNAPSHOT_KIND,
       version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+      storageIdentity: programStorageIdentity,
       schemaKey: "formless-program",
       exportedAt: "2026-06-18T00:00:00.000Z",
       schemaUpdatedAt: "2026-06-18T00:00:01.000Z",
       sourceCursor: records.length,
-      schema: instanceControlPlaneSchema,
+      schema: workspaceTestSchema,
       records,
     };
 
@@ -318,7 +394,7 @@ describe("workspace record state node files", () => {
     const file = JSON.parse(fileText) as Record<string, unknown>;
 
     expect(file.kind).toBe(WORKSPACE_RECORD_STATE_FILE_KIND);
-    expect(file.storageIdentity).toBe(INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY);
+    expect(file.storageIdentity).toBe(programStorageIdentity);
     expect(file.schema).toBeUndefined();
     expect(file.schemaProvenance).toEqual(programSnapshotContract().schemaProvenance);
     expect((file.records as StoredRecord[]).map((record) => record.entity)).toEqual([
@@ -345,12 +421,12 @@ describe("workspace record state node files", () => {
     const snapshot: StorageSnapshot = {
       kind: STORAGE_SNAPSHOT_KIND,
       version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+      storageIdentity: programStorageIdentity,
       schemaKey: "formless-program",
       exportedAt: "2026-06-18T00:00:00.000Z",
       schemaUpdatedAt: "2026-06-18T00:00:01.000Z",
       sourceCursor: 0,
-      schema: instanceControlPlaneSchema,
+      schema: workspaceTestSchema,
       records: [],
     };
 
@@ -398,12 +474,12 @@ describe("workspace record state node files", () => {
     const snapshot: StorageSnapshot = {
       kind: STORAGE_SNAPSHOT_KIND,
       version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
+      storageIdentity: programStorageIdentity,
       schemaKey: "formless-program",
       exportedAt: "2026-06-18T00:00:00.000Z",
       schemaUpdatedAt: "2026-06-18T00:00:01.000Z",
       sourceCursor: records.length,
-      schema: instanceControlPlaneSchema,
+      schema: workspaceTestSchema,
       records,
     };
 
@@ -598,7 +674,6 @@ describe("workspace auto-save node state", () => {
       {
         now: () => "2026-06-02T00:00:01.000Z",
         source: "control-plane-write",
-        storageIdentity: "instance:control-plane",
       },
     );
 

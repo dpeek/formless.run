@@ -31,9 +31,7 @@ import {
 const shellReference = shellManifestReference("shell:application");
 const themeReference = documentThemeReference("theme:application");
 const sectionReferences = {
-  instance: shellNavigationSectionReference(shellReference.shellId, "section:instance"),
-  apps: shellNavigationSectionReference(shellReference.shellId, "section:apps"),
-  screens: shellNavigationSectionReference(shellReference.shellId, "section:screens"),
+  program: shellNavigationSectionReference(shellReference.shellId, "section:program"),
   roots: shellNavigationSectionReference(shellReference.shellId, "section:roots"),
   settings: shellNavigationSectionReference(shellReference.shellId, "section:settings"),
   session: shellNavigationSectionReference(shellReference.shellId, "section:session"),
@@ -61,13 +59,13 @@ describe("Astryx application shell renderer", () => {
       </AstryxApplicationShellRenderer>,
     );
     const { container } = mountedRenderer;
-    expect(new Set(sideNavSectionLabels(container))).toEqual(new Set(["Tasks screens", "Pages"]));
+    expect(new Set(sideNavSectionLabels(container))).toEqual(new Set(["Program", "Pages"]));
     const pages = required(
       container.querySelector<HTMLButtonElement>('button[aria-current="page"]'),
     );
     expect(pages.getAttribute("aria-current")).toBe("page");
     expect((pages as HTMLButtonElement).disabled).toBe(false);
-    expect(container.querySelector('a[href="/"]')).not.toBeNull();
+    expect(container.querySelector('a[href="/tasks"]')).not.toBeNull();
     expect(rendererText(mountedRenderer)).toContain("Settings");
     expect(rendererText(mountedRenderer)).toContain("Sync failed. Try again.");
     expect(rendererText(mountedRenderer)).toContain("Workspace changes are queued.");
@@ -162,8 +160,8 @@ describe("Astryx application shell renderer", () => {
     ]);
 
     const updatedSections = shellSections().map((section) =>
-      section.id === sectionReferences.screens.sectionId
-        ? { ...section, label: "Updated screens" }
+      section.id === sectionReferences.program.sectionId
+        ? { ...section, label: "Updated Program navigation" }
         : section,
     );
     await act(async () => {
@@ -171,7 +169,9 @@ describe("Astryx application shell renderer", () => {
     });
 
     await waitFor(() =>
-      expect(sideNavSectionLabels(mountedRenderer.container)).toContain("Updated screens"),
+      expect(sideNavSectionLabels(mountedRenderer.container)).toContain(
+        "Updated Program navigation",
+      ),
     );
 
     mountedRenderer.unmount();
@@ -223,7 +223,7 @@ describe("Astryx application shell renderer", () => {
 
 function shellManifest(): ShellManifestContract {
   return {
-    accessibilityLabel: "Tasks application shell",
+    accessibilityLabel: "Formless Program application shell",
     activeDestination: {
       destinationId: "root:pages",
       sectionId: sectionReferences.roots.sectionId,
@@ -231,14 +231,12 @@ function shellManifest(): ShellManifestContract {
     id: shellReference.shellId,
     kind: "shellManifest",
     navigationSections: [
-      sectionReferences.apps,
-      sectionReferences.screens,
+      sectionReferences.program,
       sectionReferences.roots,
       sectionReferences.settings,
       sectionReferences.session,
     ],
-    scope: "multiApp",
-    title: "Tasks",
+    title: "Formless Program",
   };
 }
 
@@ -252,17 +250,14 @@ function shellSections(): ShellNavigationSectionContract[] {
   };
 
   return [
-    shellSection(sectionReferences.apps.sectionId, "appSwitcher", {
+    shellSection(sectionReferences.program.sectionId, "program", {
+      accessibilityLabel: "Program navigation",
       destinations: [
-        { ...shellLink("app:tasks", "Tasks", "/tasks"), selected: true },
-        shellLink("app:site", "Site", "/site"),
-        shellLink("instance:home", "Instance", "/"),
+        { ...shellLink("program:tasks", "Tasks", "/tasks"), selected: true },
+        shellLink("program:site", "Site", "/site"),
+        shellLink("program:settings", "Settings", "/settings"),
       ],
-      label: "Apps",
-    }),
-    shellSection(sectionReferences.screens.sectionId, "screens", {
-      accessibilityLabel: "Tasks screens",
-      destinations: [shellLink("screen:today", "Today", "/tasks/today")],
+      label: "Program",
     }),
     shellSection(sectionReferences.roots.sectionId, "rootRecords", {
       createSurface: createSurface(),
@@ -281,14 +276,14 @@ function shellSections(): ShellNavigationSectionContract[] {
       ],
       label: "Pages",
     }),
-    shellSection(sectionReferences.settings.sectionId, "appSettings", {
+    shellSection(sectionReferences.settings.sectionId, "settings", {
       label: "Settings",
       settings: {
         id: "settings:tasks",
         kind: "shellSettings",
         sync: {
           details: [
-            { label: "World", value: "tasks" },
+            { label: "Program", value: "Formless Program" },
             { label: "Cursor", value: "27" },
           ],
           id: "sync:tasks",

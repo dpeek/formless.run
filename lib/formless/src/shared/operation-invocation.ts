@@ -7,7 +7,6 @@ import type {
   EntityOperationSchema,
   EntityOperationScope,
 } from "@dpeek/formless-schema";
-import type { ProgramStorageIdentity } from "./program-storage-identity.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { ChangeRow } from "./protocol.ts";
 
@@ -20,7 +19,6 @@ export type OperationInvocationActor = {
 export type OperationInvocationActorSessionTarget = {
   instanceId: string;
   routeId: string;
-  storageIdentity: string;
   targetOrigin: string;
   targetProfile: "instance" | "public-site";
 };
@@ -98,7 +96,6 @@ export type OperationInvocationOperation = {
 
 export type OperationInvocationEnvelope = {
   invocationId: string;
-  programStorageIdentity: ProgramStorageIdentity;
   actor: OperationInvocationActor;
   source: OperationInvocationSource;
   input: OperationInvocationInput;

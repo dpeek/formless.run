@@ -33,18 +33,14 @@ describe("instance domain mapping evidence contracts", () => {
     });
   });
 
-  it("keeps legacy Site surface aliases limited to public Site profile resolution", () => {
-    expect(resolveInstanceDomainMappingProfile({ surface: "site" })).toEqual({
+  it("resolves explicit and default profiles", () => {
+    expect(resolveInstanceDomainMappingProfile({ profile: "publicSite" })).toEqual({
       ok: true,
       profile: "publicSite",
     });
-    expect(resolveInstanceDomainMappingProfile({ profile: "instance", surface: "site" })).toEqual({
-      ok: false,
-      error: {
-        code: "invalid-surface",
-        field: "surface",
-        message: 'Domain mapping surface compatibility is only valid with profile "publicSite".',
-      },
+    expect(resolveInstanceDomainMappingProfile({}, { defaultProfile: "instance" })).toEqual({
+      ok: true,
+      profile: "instance",
     });
   });
 
@@ -80,7 +76,6 @@ describe("instance domain mapping evidence contracts", () => {
       appliedState: {
         host: "www.example.com",
         profile: "publicSite",
-        surface: "site",
         provider: "cloudflare-worker-custom-domain",
         accountId: "account-123",
         zoneId: "zone-1",
@@ -97,7 +92,7 @@ describe("instance domain mapping evidence contracts", () => {
       buildInstanceDomainMappingAppliedState({
         existingMappings: [],
         host: "missing.example.com",
-        surface: "site",
+        profile: "publicSite",
         provider: "cloudflare-worker-custom-domain",
         accountId: "account-123",
         zoneId: "zone-1",
@@ -141,7 +136,7 @@ describe("instance domain mapping evidence contracts", () => {
     expect(
       parseRecordInstanceDomainMappingApplyEvidenceRequest({
         host: "example.com",
-        surface: "site",
+        profile: "publicSite",
         provider: "cloudflare-worker-custom-domain",
         accountId: "account-123",
         zoneId: "zone-1",
@@ -152,7 +147,7 @@ describe("instance domain mapping evidence contracts", () => {
       }),
     ).toEqual({
       host: "example.com",
-      surface: "site",
+      profile: "publicSite",
       provider: "cloudflare-worker-custom-domain",
       accountId: "account-123",
       zoneId: "zone-1",
@@ -165,6 +160,7 @@ describe("instance domain mapping evidence contracts", () => {
     expect(() =>
       parseRecordInstanceDomainMappingApplyEvidenceRequest({
         host: "example.com",
+        profile: "publicSite",
       }),
     ).toThrow('Domain mapping apply evidence request must include "provider".');
   });
@@ -177,7 +173,6 @@ function mapping(input: {
   return {
     host: input.host,
     profile: input.profile,
-    ...(input.profile === "publicSite" ? { surface: "site" as const } : {}),
     enabled: true,
     createdAt: now,
     updatedAt: now,

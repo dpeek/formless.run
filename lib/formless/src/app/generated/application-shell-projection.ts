@@ -1,10 +1,8 @@
 import type {
   CreateSurfaceContract,
-  ShellDestinationContract,
   ShellDestinationIdentity,
   ShellManifestContract,
   ShellNavigationSectionContract,
-  ShellScope,
   ShellSessionContract,
   ShellSyncStatusContract,
 } from "@dpeek/formless-presentation/contract";
@@ -20,27 +18,19 @@ import {
   selectGeneratedRootNavigationStateFacts,
   type GeneratedRootNavigationFacts,
 } from "../../client/generated-authoring.ts";
-import type { HomeScreenModel } from "../../client/views.ts";
 import type { AccountSessionStatusResponse } from "../../shared/instance-auth.ts";
 import { COLLABORATOR_INVITATION_ACCEPT_PATH } from "../../shared/instance-auth.ts";
-import {
-  isRuntimeAuthAccountRoutePath,
-  runtimeTopologyRoutes,
-} from "../../shared/runtime-topology.ts";
+import { isRuntimeAuthAccountRoutePath } from "../../shared/runtime-topology.ts";
 import { formatGeneratedWorkspaceCount } from "./workspace-projection.ts";
 import {
   isRuntimePublicSiteRoute,
   normalizeRuntimeBrowserPath,
   runtimeBrowserRoutePatterns,
-  runtimeScreenRoute,
   type RuntimeProfile,
-  type RuntimeWorldMount,
 } from "../runtime-profile.ts";
 import { FORMLESS_PROGRAM_SCREEN_PATHS, formlessProgramSchema } from "../../program/runtime.ts";
 
 export const GENERATED_APPLICATION_SHELL_ID = "application-shell";
-
-const GENERATED_APPLICATION_SHELL_INSTANCE_DESTINATION_ID = "instance:home";
 
 export type GeneratedShellLogoutState = "error" | "idle" | "pending";
 
@@ -49,7 +39,6 @@ export type GeneratedShellSyncFacts = {
   lastSyncedAt: string | null;
   schemaVersion: number | null;
   status: SyncStatus;
-  worldLabel: string;
 };
 
 export type GeneratedShellRootProjectionInput = {
@@ -66,27 +55,22 @@ export type GeneratedApplicationShellProjection = {
 };
 
 export type ProjectGeneratedApplicationShellOptions = {
-  activeScreenPath?: string | undefined;
   authorizedProgramScreenPaths?: readonly string[] | undefined;
   currentPath: string;
   logoutState?: GeneratedShellLogoutState | undefined;
   accountSession?: AccountSessionStatusResponse | undefined;
   root?: GeneratedShellRootProjectionInput | undefined;
-  routeWorld: RuntimeWorldMount | undefined;
   runtimeProfile: RuntimeProfile;
-  screenModels?: readonly HomeScreenModel[] | undefined;
   sync?: GeneratedShellSyncFacts | undefined;
 };
 
-export function selectGeneratedShellScope({
+export function shouldRenderGeneratedShell({
   currentPath,
-  routeWorld,
   runtimeProfile,
 }: {
   currentPath: string;
-  routeWorld: RuntimeWorldMount | undefined;
   runtimeProfile: RuntimeProfile;
-}): ShellScope | undefined {
+}): boolean {
   const path = normalizeRuntimeBrowserPath(currentPath);
   const routes = runtimeBrowserRoutePatterns(runtimeProfile);
 
@@ -97,18 +81,18 @@ export function selectGeneratedShellScope({
     runtimeProfile.shell === "publishedSite" ||
     isRuntimePublicSiteRoute(runtimeProfile, path)
   ) {
-    return undefined;
+    return false;
   }
 
   if (runtimeProfile.shell === "dev") {
-    return "multiApp";
+    return true;
   }
 
   if (runtimeProfile.shell === "instance") {
-    return FORMLESS_PROGRAM_SCREEN_PATHS.includes(path) || routeWorld ? "multiApp" : undefined;
+    return FORMLESS_PROGRAM_SCREEN_PATHS.includes(path);
   }
 
-  return routeWorld ? "appOnly" : undefined;
+  return false;
 }
 
 export function selectGeneratedShellActiveHref(
@@ -121,81 +105,6 @@ export function selectGeneratedShellActiveHref(
   );
 
   return matches.sort((left, right) => right.length - left.length)[0] ?? null;
-}
-
-export function selectGeneratedShellAppDestinations({
-  currentPath,
-  runtimeProfile,
-}: {
-  currentPath: string;
-  runtimeProfile: RuntimeProfile;
-}): ShellDestinationContract[] {
-  const sourceWorlds = runtimeProfile.worlds.filter((world) => world.generatedRoutes);
-  const adminDestinations = sourceWorlds.map((world) => ({
-    href: world.route,
-    id: `app:${world.app.key}`,
-    label: world.app.label,
-  }));
-  const destinations = dedupeShellLinks([
-    ...adminDestinations,
-    {
-      href: runtimeTopologyRoutes.instanceRootRoute,
-      id: GENERATED_APPLICATION_SHELL_INSTANCE_DESTINATION_ID,
-      label: "Instance",
-    },
-  ]);
-  const activeHref = selectGeneratedShellActiveHref(
-    currentPath,
-    destinations.map(({ href }) => href),
-  );
-  const instanceSelected = isGeneratedShellInstancePath(currentPath);
-
-  return destinations.map(({ href, id, label }) => ({
-    accessibilityLabel: label,
-    availability: { available: true },
-    href,
-    id,
-    kind: "shellLinkDestination",
-    label,
-    selected:
-      id === GENERATED_APPLICATION_SHELL_INSTANCE_DESTINATION_ID
-        ? instanceSelected
-        : !instanceSelected && href === activeHref,
-  }));
-}
-
-export function selectGeneratedShellScreenDestinations({
-  activeScreenPath,
-  currentPath,
-  screenModels,
-  world,
-}: {
-  activeScreenPath: string | undefined;
-  currentPath: string;
-  screenModels: readonly HomeScreenModel[];
-  world: RuntimeWorldMount;
-}): ShellDestinationContract[] {
-  const screens = screenModels.filter(
-    (screen): screen is HomeScreenModel & { path: string } => screen.path !== undefined,
-  );
-  const activeHref = selectGeneratedShellActiveHref(
-    currentPath,
-    screens.map((screen) => runtimeScreenRoute(world, screen.path)),
-  );
-
-  return screens.map((screen) => {
-    const href = runtimeScreenRoute(world, screen.path);
-
-    return {
-      accessibilityLabel: screen.label,
-      availability: { available: true },
-      href,
-      id: `screen:${screen.screenName}`,
-      kind: "shellLinkDestination",
-      label: screen.label,
-      selected: screen.path === activeScreenPath || href === activeHref,
-    };
-  });
 }
 
 export function selectGeneratedShellRootSections({
@@ -280,11 +189,10 @@ export function selectGeneratedShellSyncStatus({
   lastSyncedAt,
   schemaVersion,
   status,
-  worldLabel,
 }: GeneratedShellSyncFacts): ShellSyncStatusContract {
   return {
     details: [
-      { label: "World", value: worldLabel },
+      { label: "Program", value: "Formless Program" },
       { label: "Schema", value: schemaVersion === null ? "Loading" : `v${schemaVersion}` },
       { label: "Cursor", value: String(cursor) },
       { label: "Last sync", value: lastSyncedAt ?? "None yet" },
@@ -294,9 +202,7 @@ export function selectGeneratedShellSyncStatus({
     label:
       status.state === "error" ? "Sync issue" : status.state === "syncing" ? "Syncing" : "Synced",
     message:
-      status.state === "error"
-        ? "Sync failed. Check the current app and try again."
-        : status.message,
+      status.state === "error" ? "Sync failed. Check the Program and try again." : status.message,
     state: status.state,
   };
 }
@@ -347,63 +253,22 @@ export function selectGeneratedShellActiveDestination(
 }
 
 export function projectGeneratedApplicationShell({
-  activeScreenPath,
   authorizedProgramScreenPaths = [],
   currentPath,
   logoutState = "idle",
   accountSession,
   root,
-  routeWorld,
   runtimeProfile,
-  screenModels = [],
   sync,
 }: ProjectGeneratedApplicationShellOptions): GeneratedApplicationShellProjection | undefined {
-  const scope = selectGeneratedShellScope({
-    currentPath,
-    routeWorld,
-    runtimeProfile,
-  });
-
-  if (!scope) {
+  if (!shouldRenderGeneratedShell({ currentPath, runtimeProfile })) {
     return undefined;
   }
 
   const sections: ShellNavigationSectionContract[] = [];
-  const instanceSelected = isGeneratedShellInstancePath(currentPath);
 
-  if (scope === "multiApp") {
-    sections.push({
-      accessibilityLabel: "Applications",
-      destinations: selectGeneratedShellAppDestinations({
-        currentPath,
-        runtimeProfile,
-      }),
-      id: `${GENERATED_APPLICATION_SHELL_ID}:apps`,
-      kind: "shellNavigationSection",
-      label: "Apps",
-      role: "appSwitcher",
-      shellId: GENERATED_APPLICATION_SHELL_ID,
-    });
-
-    if (instanceSelected) {
-      sections.push(instanceSection(currentPath, authorizedProgramScreenPaths));
-    }
-  }
-
-  if (routeWorld) {
-    sections.push({
-      accessibilityLabel: `${routeWorld.app.label} screens`,
-      destinations: selectGeneratedShellScreenDestinations({
-        activeScreenPath,
-        currentPath,
-        screenModels,
-        world: routeWorld,
-      }),
-      id: `${GENERATED_APPLICATION_SHELL_ID}:screens:${routeWorld.app.key}`,
-      kind: "shellNavigationSection",
-      role: "screens",
-      shellId: GENERATED_APPLICATION_SHELL_ID,
-    });
+  if (isGeneratedShellProgramPath(currentPath)) {
+    sections.push(programSection(currentPath, authorizedProgramScreenPaths));
   }
 
   if (root) {
@@ -411,16 +276,15 @@ export function projectGeneratedApplicationShell({
   }
 
   if (sync) {
-    const settingsKey = routeWorld?.app.key ?? "formless-program";
     sections.push({
-      accessibilityLabel: `${routeWorld?.app.label ?? "Formless Program"} settings`,
+      accessibilityLabel: "Formless Program settings",
       destinations: [],
-      id: `${GENERATED_APPLICATION_SHELL_ID}:settings:${settingsKey}`,
+      id: `${GENERATED_APPLICATION_SHELL_ID}:settings:formless-program`,
       kind: "shellNavigationSection",
       label: "Settings",
-      role: "appSettings",
+      role: "settings",
       settings: {
-        id: `${GENERATED_APPLICATION_SHELL_ID}:settings:${settingsKey}:controls`,
+        id: `${GENERATED_APPLICATION_SHELL_ID}:settings:formless-program:controls`,
         kind: "shellSettings",
         sync: selectGeneratedShellSyncStatus(sync),
       },
@@ -440,23 +304,20 @@ export function projectGeneratedApplicationShell({
 
   return {
     manifest: {
-      accessibilityLabel: `${
-        routeWorld?.app.label ?? (instanceSelected ? "Instance" : "Formless")
-      } application shell`,
+      accessibilityLabel: "Formless Program application shell",
       activeDestination: selectGeneratedShellActiveDestination(sections),
       id: GENERATED_APPLICATION_SHELL_ID,
       kind: "shellManifest",
       navigationSections: sections.map((section) =>
         shellNavigationSectionReference(GENERATED_APPLICATION_SHELL_ID, section.id),
       ),
-      scope,
-      title: routeWorld?.app.label ?? (instanceSelected ? "Instance" : "Formless"),
+      title: "Formless Program",
     },
     sections,
   };
 }
 
-function isGeneratedShellInstancePath(currentPath: string): boolean {
+function isGeneratedShellProgramPath(currentPath: string): boolean {
   const path = normalizeRuntimeBrowserPath(currentPath);
 
   return FORMLESS_PROGRAM_SCREEN_PATHS.includes(path);
@@ -470,7 +331,7 @@ export function generatedShellRootSectionId(
   return `${GENERATED_APPLICATION_SHELL_ID}:roots:${screenName}:${sectionId}:${queryName}`;
 }
 
-function instanceSection(
+function programSection(
   currentPath: string,
   authorizedProgramScreenPaths: readonly string[],
 ): ShellNavigationSectionContract {
@@ -485,7 +346,7 @@ function instanceSection(
     )
     .map((screen) => ({
       href: screen.path,
-      id: `instance:${screen.key}`,
+      id: `program:${screen.key}`,
       label: screen.label,
     }));
   const activeHref = selectGeneratedShellActiveHref(
@@ -494,7 +355,7 @@ function instanceSection(
   );
 
   return {
-    accessibilityLabel: "Instance navigation",
+    accessibilityLabel: "Program navigation",
     destinations: destinations.map(({ href, id, label }) => ({
       accessibilityLabel: label,
       availability: { available: true },
@@ -504,9 +365,9 @@ function instanceSection(
       label,
       selected: href === activeHref,
     })),
-    id: `${GENERATED_APPLICATION_SHELL_ID}:instance`,
+    id: `${GENERATED_APPLICATION_SHELL_ID}:program`,
     kind: "shellNavigationSection",
-    role: "instance",
+    role: "program",
     shellId: GENERATED_APPLICATION_SHELL_ID,
   };
 }
@@ -521,19 +382,4 @@ function shellButton(id: string, label: string, prominence: "primary" | "seconda
     prominence,
     type: "button" as const,
   };
-}
-
-function dedupeShellLinks<T extends { href: string; id: string }>(links: readonly T[]): T[] {
-  const seen = new Set<string>();
-
-  return links.filter((link) => {
-    const key = `${link.id}:${link.href}`;
-
-    if (seen.has(key)) {
-      return false;
-    }
-
-    seen.add(key);
-    return true;
-  });
 }

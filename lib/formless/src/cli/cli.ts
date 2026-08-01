@@ -9,9 +9,9 @@ import { fileURLToPath } from "node:url";
 import packageJson from "../../package.json";
 import {
   exportInstanceArchive as exportInstanceArchiveCommand,
-  restorePortableArchive as restorePortableArchiveCommand,
+  restoreInstanceArchive as restoreInstanceArchiveCommand,
   type ArchiveDiskWriteResult,
-  type RestorePortableArchiveResult,
+  type RestoreInstanceArchiveResult,
 } from "./archive-workflows.ts";
 import {
   cloudflareDomainClientFromEnv,
@@ -262,7 +262,7 @@ export {
   type FormlessInstanceTargetStatus,
 } from "./instance-target-client.ts";
 export {
-  PORTABLE_ARCHIVE_MANIFEST_FILE,
+  INSTANCE_ARCHIVE_MANIFEST_FILE,
   type ArchiveRestoreRemoteResult,
 } from "./archive-workflows.ts";
 export {
@@ -537,7 +537,7 @@ export async function exportInstanceArchive(
   return exportInstanceArchiveCommand(input, dependencies);
 }
 
-export async function restorePortableArchive(
+export async function restoreInstanceArchive(
   input: {
     adminToken?: string | null;
     apply: boolean;
@@ -548,8 +548,8 @@ export async function restorePortableArchive(
     FormlessCliDependencies,
     "cwd" | "env" | "fetch" | "now"
   > = nodeFormlessCliDependencies(),
-): Promise<RestorePortableArchiveResult> {
-  return restorePortableArchiveCommand(input, dependencies);
+): Promise<RestoreInstanceArchiveResult> {
+  return restoreInstanceArchiveCommand(input, dependencies);
 }
 
 export async function initFormlessInstanceWorkspace(

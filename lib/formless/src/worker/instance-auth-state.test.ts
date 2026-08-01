@@ -58,7 +58,6 @@ const instanceId = "instance.example.com";
 const principalId = "principal-1";
 const targetOrigin = canonicalOrigin;
 const routeId = "route:instance:admin";
-const storageIdentity = "instance:control-plane";
 const returnTo = "/settings?panel=routes";
 const invitationId = "invitation:ada";
 const revokedInvitationId = "invitation:grace";
@@ -456,7 +455,6 @@ describe("instance auth state", () => {
       targetOrigin,
       routeId,
       targetProfile: "instance",
-      storageIdentity,
       sessionVersion: 1,
       updatedAt: createdAt,
     });
@@ -506,7 +504,6 @@ describe("instance auth state", () => {
         targetOrigin,
         routeId,
         targetProfile: "instance",
-        storageIdentity,
         returnTo,
         nonceHash,
         state,
@@ -762,7 +759,7 @@ describe("instance auth state", () => {
       now: updatedAt,
       principalId,
       purpose: "account-completion",
-      target: { ...accountCompletionTarget(), storageIdentity: "instance:other" },
+      target: { ...accountCompletionTarget(), routeId: "route:other" },
       tokenHash,
     });
     const validated = await validateEmailVerificationChallenge({
@@ -1121,7 +1118,6 @@ function handoffGrantInput() {
     targetOrigin,
     routeId,
     targetProfile: "instance",
-    storageIdentity,
     returnTo,
     nonceHash,
     state,
@@ -1134,7 +1130,6 @@ function accountCompletionTarget() {
   return {
     returnTo: "/formless/auth",
     routeId,
-    storageIdentity,
     targetOrigin,
     targetProfile: "instance",
   };
@@ -1148,7 +1143,6 @@ function hostSessionTarget() {
     targetOrigin,
     routeId,
     targetProfile: "instance",
-    storageIdentity,
   };
 }
 
@@ -1646,7 +1640,6 @@ async function writeInstanceAuthHarness() {
           targetOrigin: url.searchParams.get("targetOrigin") ?? undefined,
           routeId: url.searchParams.get("routeId") ?? undefined,
           targetProfile: url.searchParams.get("targetProfile") ?? undefined,
-          storageIdentity: url.searchParams.get("storageIdentity") ?? undefined,
         };
       }
 

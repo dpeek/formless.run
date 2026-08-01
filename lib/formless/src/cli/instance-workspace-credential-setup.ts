@@ -365,7 +365,6 @@ async function writeFormlessOAuthDeploymentConfigSource(input: {
     values: {
       ...withoutControlPlaneLifecycleValues(existing?.values ?? {}),
       targetId,
-      targetKind: "instance",
       label: stringRecordValue(existing, "label") ?? targetId,
       enabled: true,
       targetUrl,

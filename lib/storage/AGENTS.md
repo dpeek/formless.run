@@ -16,7 +16,7 @@ Read this when editing `lib/storage/*`.
 
 - Authority bootstrap, schema storage, change rows, sync protocol, mutation routes,
   reset, restore, Durable Object storage, or browser replica persistence.
-- App records or bundled source app packages.
+- Domain records or package-owned App schema declarations.
 - App schema language parsing beyond consuming the public Schema package parser.
 - Archive restore execution, Workspace IO policy, CLI command handling, React UI,
   Worker routes, Node adapters, provider SDKs, or filesystem APIs.

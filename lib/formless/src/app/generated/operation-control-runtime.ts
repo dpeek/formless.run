@@ -13,7 +13,6 @@ import {
 import { setSyncStatus, type SyncStatus } from "../../client/sync-status.ts";
 import type { OrderingMovePatchPlan } from "../../shared/result-ordering.ts";
 import type { ResultOrderingContext } from "./ordering-ui.ts";
-import { useSchemaAppTarget, useSchemaAppWriteOptions } from "./schema-app-context.tsx";
 
 type GeneratedOperationFeedbackOptions = {
   committedMessage?: string | ((result: GeneratedOperationExecutionResult) => string);
@@ -48,17 +47,12 @@ export type HandleGeneratedOperationIntentOptions = {
 export function useGeneratedOperationController(
   bindings: readonly GeneratedOperationControlBinding[],
 ): GeneratedOperationController {
-  const target = useSchemaAppTarget();
-  const writeOptions = useSchemaAppWriteOptions();
-
   return useMemo(
     () =>
       createGeneratedOperationController({
         bindings,
-        target,
-        writeOptions,
       }),
-    [bindings, target, writeOptions],
+    [bindings],
   );
 }
 

@@ -5,10 +5,10 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import {
   ARCHIVE_VERSION,
   INSTANCE_ARCHIVE_KIND,
-  PORTABLE_ARCHIVE_MANIFEST_FILE,
-  parsePortableArchive,
-  readPortableArchiveDirectory,
-  writePortableArchiveDirectory,
+  INSTANCE_ARCHIVE_MANIFEST_FILE,
+  parseInstanceArchive,
+  readInstanceArchiveDirectory,
+  writeInstanceArchiveDirectory,
   type ArchiveProgramSnapshotContract,
   type InstanceArchive,
 } from "./node.ts";
@@ -84,7 +84,7 @@ describe("portable archive directory adapter", () => {
     const root = await tempRoot();
     const bytes = new Uint8Array([1, 2, 3, 4]);
     const archive = instanceArchive(bytes.byteLength);
-    const write = await writePortableArchiveDirectory(
+    const write = await writeInstanceArchiveDirectory(
       {
         archive,
         mediaFiles: [
@@ -108,16 +108,16 @@ describe("portable archive directory adapter", () => {
       program: { schemaProvenance: { kind: "program", sourceSchemaHash } },
     });
 
-    const read = await readPortableArchiveDirectory("backup", {
+    const read = await readInstanceArchiveDirectory("backup", {
       cwd: root,
       programSnapshotContract: contract,
     });
 
     expect(read.archive).toEqual(
-      parsePortableArchive(archive, { programSnapshotContract: contract }),
+      parseInstanceArchive(archive, { programSnapshotContract: contract }),
     );
     expect(read.mediaFiles[0]?.bytes).toEqual(bytes);
-    expect(read.archivePath).toBe(path.join(root, "backup", PORTABLE_ARCHIVE_MANIFEST_FILE));
+    expect(read.archivePath).toBe(path.join(root, "backup", INSTANCE_ARCHIVE_MANIFEST_FILE));
   });
 
   it("rejects unsafe media paths before filesystem access", async () => {
@@ -126,7 +126,7 @@ describe("portable archive directory adapter", () => {
     archive.media.objects[0]!.archivePath = "../escape.png";
 
     await expect(
-      writePortableArchiveDirectory(
+      writeInstanceArchiveDirectory(
         {
           archive,
           mediaFiles: [],

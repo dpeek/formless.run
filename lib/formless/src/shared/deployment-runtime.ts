@@ -72,11 +72,8 @@ export type DeploymentActor = {
   runnerId?: DeploymentRunnerId;
 };
 
-export type DeploymentTargetKind = "instance";
-
 export type DeploymentTarget = {
   targetId: DeploymentTargetId;
-  kind: DeploymentTargetKind;
   label?: string;
 };
 

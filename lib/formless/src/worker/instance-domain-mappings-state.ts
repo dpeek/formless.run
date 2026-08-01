@@ -7,13 +7,11 @@ import {
   type InstanceDomainMappingAppliedState,
   type InstanceDomainMappingAuditEvent,
   type InstanceDomainMappingProfile,
-  type InstanceDomainMappingSurface,
   type RecordInstanceDomainMappingApplyEvidenceRequest,
 } from "../shared/instance-domain-mappings.ts";
 type InstanceDomainMappingAppliedStateRow = {
   host: string;
   profile: InstanceDomainMappingProfile;
-  surface: InstanceDomainMappingSurface | null;
   provider: InstanceDomainMappingAppliedProvider;
   account_id: string;
   alchemy_resource_id: string | null;
@@ -51,7 +49,6 @@ const appliedStateTableSql = `
   CREATE TABLE IF NOT EXISTS instance_domain_mapping_applied_state (
     host TEXT NOT NULL,
     profile TEXT NOT NULL CHECK (profile IN ('instance', 'publicSite')),
-    surface TEXT CHECK (surface IS NULL OR surface = 'site'),
     provider TEXT NOT NULL CHECK (provider = 'cloudflare-worker-custom-domain'),
     account_id TEXT NOT NULL,
     alchemy_resource_id TEXT,
@@ -72,7 +69,6 @@ const auditEventsTableSql = `
     event_id INTEGER PRIMARY KEY AUTOINCREMENT,
     host TEXT NOT NULL,
     profile TEXT NOT NULL CHECK (profile IN ('instance', 'publicSite')),
-    surface TEXT CHECK (surface IS NULL OR surface = 'site'),
     provider TEXT NOT NULL CHECK (provider = 'cloudflare-worker-custom-domain'),
     account_id TEXT NOT NULL,
     alchemy_resource_id TEXT,
@@ -205,7 +201,6 @@ function readAppliedStates(storage: DurableObjectStorage): InstanceDomainMapping
       SELECT
         host,
         profile,
-        surface,
         provider,
         account_id,
         alchemy_resource_id,
@@ -236,7 +231,6 @@ function readAuditEvents(storage: DurableObjectStorage): InstanceDomainMappingAu
         event_id,
         host,
         profile,
-        surface,
         provider,
         account_id,
         alchemy_resource_id,
@@ -267,7 +261,6 @@ function writeAppliedState(
       INSERT INTO instance_domain_mapping_applied_state (
         host,
         profile,
-        surface,
         provider,
         account_id,
         alchemy_resource_id,
@@ -280,9 +273,8 @@ function writeAppliedState(
         applied_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(host, profile) DO UPDATE SET
-        surface = excluded.surface,
         provider = excluded.provider,
         account_id = excluded.account_id,
         alchemy_resource_id = excluded.alchemy_resource_id,
@@ -297,7 +289,6 @@ function writeAppliedState(
     `,
     state.host,
     state.profile,
-    state.surface ?? null,
     state.provider,
     state.accountId,
     state.alchemyResourceId ?? null,
@@ -318,7 +309,6 @@ function writeAuditEvent(storage: DurableObjectStorage, state: InstanceDomainMap
       INSERT INTO instance_domain_mapping_audit_events (
         host,
         profile,
-        surface,
         provider,
         account_id,
         alchemy_resource_id,
@@ -331,11 +321,10 @@ function writeAuditEvent(storage: DurableObjectStorage, state: InstanceDomainMap
         applied_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     state.host,
     state.profile,
-    state.surface ?? null,
     state.provider,
     state.accountId,
     state.alchemyResourceId ?? null,
@@ -357,7 +346,6 @@ function readLastAuditEvent(storage: DurableObjectStorage): InstanceDomainMappin
         event_id,
         host,
         profile,
-        surface,
         provider,
         account_id,
         alchemy_resource_id,
@@ -386,7 +374,6 @@ function appliedStateFromRow(
   return {
     host: row.host,
     profile: row.profile,
-    ...(row.surface === null ? {} : { surface: row.surface }),
     provider: row.provider,
     accountId: row.account_id,
     ...(row.alchemy_resource_id === null ? {} : { alchemyResourceId: row.alchemy_resource_id }),

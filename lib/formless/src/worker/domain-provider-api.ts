@@ -829,7 +829,6 @@ function domainMappingsFromControlPlaneRecords(
         {
           host: String(record.values.matchHost),
           profile,
-          ...(profile === "publicSite" ? { surface: "site" as const } : {}),
           enabled: true,
           createdAt: record.createdAt,
           updatedAt: record.updatedAt,

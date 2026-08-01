@@ -1,6 +1,7 @@
 import type { StoredRecord } from "@dpeek/formless-storage";
-import type { SchemaKey } from "../shared/schema-apps.ts";
 import { testSiteRecords } from "./site-records.ts";
+
+export type AppSchemaFixtureKey = "tasks" | "site" | "crm";
 
 export const taskStorageSnapshotRecords: StoredRecord[] = [
   testRecord({
@@ -75,7 +76,7 @@ export const crmTestRecords: StoredRecord[] = [
   }),
 ];
 
-export function schemaAppTestRecords(schemaKey: SchemaKey): StoredRecord[] {
+export function schemaAppTestRecords(schemaKey: AppSchemaFixtureKey): StoredRecord[] {
   switch (schemaKey) {
     case "tasks":
       return taskStorageSnapshotRecords;

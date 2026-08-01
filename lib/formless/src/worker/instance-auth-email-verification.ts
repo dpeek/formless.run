@@ -475,7 +475,6 @@ async function emailVerificationChallengeIdempotencyKey(input: {
       input.target.targetOrigin,
       input.target.routeId,
       input.target.targetProfile,
-      input.target.storageIdentity,
       input.target.selectedOrganization ?? "",
       input.target.returnTo,
     ].join("\n"),

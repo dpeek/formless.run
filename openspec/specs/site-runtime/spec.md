@@ -176,16 +176,14 @@ package-owned Site adapter and the one Program storage target.
 - AND every preview, mapped, and published target uses Program storage identity
   `instance:control-plane`
 
-#### Scenario: Built-in Site has no source fallback
+#### Scenario: Resolve the built-in Site target
 
 - GIVEN preview, mapped-host, or published rendering selects the built-in Site
 - WHEN its public runtime target is resolved
 - THEN it uses the built-in Site adapter with Program storage identity
   `instance:control-plane`
 - AND preview uses `/pages` with API prefix `/api/formless/program`
-- AND `/site` and `/api/site` do not expose a schema-key Site source app
-- AND a missing Program target does not fall back to dormant install-scoped or
-  schema-key Site storage
+- AND Program route policy and the built-in Site adapter supply the complete target
 
 ### Requirement: Workspace Site Renderer Extension
 

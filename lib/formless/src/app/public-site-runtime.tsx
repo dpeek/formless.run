@@ -4,19 +4,14 @@ import {
   type SitePublicSystemStateRendererComponent,
   type SitePageLinkMode,
 } from "@dpeek/formless-site-app/public/react";
-import {
-  programStorageIdentityForClientTarget,
-  programClientTarget,
-  type ProgramClientTarget,
-} from "../client/program-target.ts";
 import { listenForClientEvents } from "../client/broadcast.ts";
 import { startPushSync } from "../client/sync.ts";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 
 export type PublicSiteRouteInputProps = {
   linkMode?: SitePageLinkMode;
   routeBase?: `/${string}`;
   slug: string;
-  target?: ProgramClientTarget;
   workspaceRenderer?: SitePublicRendererComponent;
 };
 
@@ -31,32 +26,29 @@ export function CoreSitePageRoute({
   linkMode = "preview",
   routeBase,
   slug,
-  target = programClientTarget(),
   workspaceRenderer,
 }: PublicSiteRouteProps) {
-  const identity = programStorageIdentityForClientTarget(target);
-
   return (
     <PackageSitePageRoute
-      apiRoutePrefix={identity.apiRoutePrefix}
+      apiRoutePrefix={FORMLESS_PROGRAM_API_ROUTE_PREFIX}
       builtInRenderer={builtInRenderer}
       builtInSystemStateRenderer={builtInSystemStateRenderer}
       linkMode={linkMode}
-      listenForPreviewChanges={(onChanged) => listenForSitePreviewChanges(target, onChanged)}
+      listenForPreviewChanges={listenForSitePreviewChanges}
       routeBase={routeBase}
       slug={slug}
-      startPreviewSync={(onSynced) => startSitePreviewSync(target, onSynced)}
+      startPreviewSync={startSitePreviewSync}
       workspaceRenderer={workspaceRenderer}
     />
   );
 }
 
-function startSitePreviewSync(target: ProgramClientTarget, onSynced: () => void) {
-  return startPushSync(target, { onSynced });
+function startSitePreviewSync(onSynced: () => void) {
+  return startPushSync({ onSynced });
 }
 
-function listenForSitePreviewChanges(target: ProgramClientTarget, onChanged: () => void) {
-  return listenForClientEvents(target, (event) => {
+function listenForSitePreviewChanges(onChanged: () => void) {
+  return listenForClientEvents((event) => {
     if (event.type === "records-updated" || event.type === "schema-updated") {
       onChanged();
     }

@@ -61,9 +61,7 @@ Program media without app-install ownership or package namespaces.
   document
 - WHEN it addresses a Program document asset
 - THEN it uses `/api/formless/program/media/documents`
-- AND it does not address an installed-app document route or reveal generic
-  Program bootstrap, schema, snapshot, operation, sync, WebSocket, or replica
-  access
+- AND the route exposes only the Program document behavior authorized for the request
 
 #### Scenario: Public and private document policy
 

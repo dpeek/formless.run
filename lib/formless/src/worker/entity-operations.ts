@@ -147,9 +147,7 @@ function assertAuthenticatedOperationActor(envelope: OperationInvocationEnvelope
     typeof target.targetOrigin !== "string" ||
     target.targetOrigin.trim() === "" ||
     typeof target.targetProfile !== "string" ||
-    target.targetProfile.trim() === "" ||
-    typeof target.storageIdentity !== "string" ||
-    target.storageIdentity.trim() === ""
+    target.targetProfile.trim() === ""
   ) {
     throw new BadRequestError(
       `Operation "${envelope.operation.canonicalKey}" requires authenticated actor facts.`,

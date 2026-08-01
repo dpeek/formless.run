@@ -396,7 +396,6 @@ function completeAccountCompletion(targetOrigin: string) {
     target: {
       returnTo: "/dashboard?view=home",
       routeId: "route:site",
-      storageIdentity: "instance:control-plane",
       targetOrigin,
       targetProfile: "instance",
     },

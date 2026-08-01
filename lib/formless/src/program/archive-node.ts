@@ -1,6 +1,6 @@
 import {
-  readPortableArchiveDirectory as readArchiveDirectory,
-  writePortableArchiveDirectory as writeArchiveDirectory,
+  readInstanceArchiveDirectory as readArchiveDirectory,
+  writeInstanceArchiveDirectory as writeArchiveDirectory,
 } from "@dpeek/formless-archive/node";
 import type { AppSchema } from "@dpeek/formless-schema";
 import type { FormlessProgramArtifact } from "./artifact.ts";
@@ -23,7 +23,7 @@ type WriteArchiveDirectoryInput = Omit<
   programSchema?: AppSchema;
 };
 
-export async function readPortableArchiveDirectory(
+export async function readInstanceArchiveDirectory(
   archiveDirInput: string,
   dependencies: ReadArchiveDirectoryDependencies,
 ) {
@@ -38,7 +38,7 @@ export async function readPortableArchiveDirectory(
   });
 }
 
-export async function writePortableArchiveDirectory(
+export async function writeInstanceArchiveDirectory(
   input: WriteArchiveDirectoryInput,
   dependencies: Parameters<typeof writeArchiveDirectory>[1],
 ) {

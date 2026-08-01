@@ -1,11 +1,8 @@
 export type InstanceDomainMappingProfile = "instance" | "publicSite";
 
-export type InstanceDomainMappingSurface = "site";
-
 export type InstanceDomainMapping = {
   host: string;
   profile: InstanceDomainMappingProfile;
-  surface?: InstanceDomainMappingSurface;
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
@@ -23,7 +20,6 @@ export type InstanceDomainMappingAppliedProvider = "cloudflare-worker-custom-dom
 export type InstanceDomainMappingAppliedState = {
   host: string;
   profile: InstanceDomainMappingProfile;
-  surface?: InstanceDomainMappingSurface;
   provider: InstanceDomainMappingAppliedProvider;
   accountId: string;
   alchemyResourceId?: string;
@@ -43,8 +39,7 @@ export type InstanceDomainMappingAuditEvent = InstanceDomainMappingAppliedState 
 
 export type RecordInstanceDomainMappingApplyEvidenceRequest = {
   host: string;
-  profile?: string;
-  surface?: string;
+  profile: string;
   provider: string;
   accountId: string;
   alchemyResourceId?: string;
@@ -72,8 +67,7 @@ export type InstanceDomainMappingRegistryErrorCode =
   | "invalid-applied-action"
   | "invalid-host"
   | "invalid-profile"
-  | "invalid-provider"
-  | "invalid-surface";
+  | "invalid-provider";
 
 export type InstanceDomainMappingRegistryError = {
   code: InstanceDomainMappingRegistryErrorCode;
@@ -83,7 +77,6 @@ export type InstanceDomainMappingRegistryError = {
     | "host"
     | "profile"
     | "provider"
-    | "surface"
     | "workerDomainId"
     | "workerName"
     | "zoneId"
@@ -140,8 +133,7 @@ export function parseRecordInstanceDomainMappingApplyEvidenceRequest(
 
   return {
     host: parseTrimmedNonEmptyString("Domain mapping host", value.host),
-    ...optionalStringProperty("profile", "Domain mapping profile", value.profile),
-    ...optionalStringProperty("surface", "Domain mapping surface", value.surface),
+    profile: parseTrimmedNonEmptyString("Domain mapping profile", value.profile),
     provider: parseTrimmedNonEmptyString("Domain mapping applied provider", value.provider),
     accountId: parseTrimmedNonEmptyString("Domain mapping Cloudflare account id", value.accountId),
     ...optionalStringProperty(
@@ -270,14 +262,10 @@ export function normalizeInstanceDomainHost(value: string): InstanceDomainHostVa
 }
 
 export function resolveInstanceDomainMappingProfile(
-  input: {
-    profile?: string;
-    surface?: string;
-  },
+  input: { profile?: string },
   options: { defaultProfile?: InstanceDomainMappingProfile } = {},
 ): InstanceDomainMappingProfileResolutionResult {
   const profile = input.profile;
-  const surface = input.surface;
   const profileResult =
     profile === undefined ? undefined : parseInstanceDomainMappingProfile(profile);
 
@@ -285,30 +273,8 @@ export function resolveInstanceDomainMappingProfile(
     return profileResult;
   }
 
-  const surfaceResult =
-    surface === undefined ? undefined : parseInstanceDomainMappingSurface(surface);
-
-  if (surfaceResult && !surfaceResult.ok) {
-    return surfaceResult;
-  }
-
-  if (surfaceResult?.ok && profileResult?.ok && profileResult.profile !== "publicSite") {
-    return {
-      ok: false,
-      error: domainMappingError(
-        "invalid-surface",
-        "surface",
-        'Domain mapping surface compatibility is only valid with profile "publicSite".',
-      ),
-    };
-  }
-
   if (profileResult?.ok) {
     return profileResult;
-  }
-
-  if (surfaceResult?.ok) {
-    return { ok: true, profile: "publicSite" };
   }
 
   if (options.defaultProfile !== undefined) {
@@ -342,7 +308,6 @@ function instanceDomainMappingAppliedStateFromParts(input: {
   return {
     host: input.host,
     profile: input.profile,
-    ...compatibilitySurfaceForProfile(input.profile),
     provider: input.provider,
     accountId: input.accountId,
     ...(input.alchemyResourceId === undefined
@@ -359,12 +324,6 @@ function instanceDomainMappingAppliedStateFromParts(input: {
   };
 }
 
-function compatibilitySurfaceForProfile(profile: InstanceDomainMappingProfile): {
-  surface?: InstanceDomainMappingSurface;
-} {
-  return profile === "publicSite" ? { surface: "site" } : {};
-}
-
 function parseInstanceDomainMappingProfile(
   value: string,
 ): InstanceDomainMappingProfileResolutionResult {
@@ -378,29 +337,6 @@ function parseInstanceDomainMappingProfile(
       "invalid-profile",
       "profile",
       'Domain mapping profile must be "instance" or "publicSite".',
-    ),
-  };
-}
-
-function parseInstanceDomainMappingSurface(value: string):
-  | {
-      ok: true;
-      surface: InstanceDomainMappingSurface;
-    }
-  | {
-      ok: false;
-      error: InstanceDomainMappingRegistryError;
-    } {
-  if (value === "site") {
-    return { ok: true, surface: value };
-  }
-
-  return {
-    ok: false,
-    error: domainMappingError(
-      "invalid-surface",
-      "surface",
-      'Domain mapping surface must be "site".',
     ),
   };
 }
@@ -495,6 +431,7 @@ function optionalStringProperty<K extends string>(
 function assertRecordInstanceDomainMappingApplyEvidenceRequestKeys(value: Record<string, unknown>) {
   const requiredKeys = [
     "host",
+    "profile",
     "provider",
     "accountId",
     "zoneId",
@@ -503,13 +440,7 @@ function assertRecordInstanceDomainMappingApplyEvidenceRequestKeys(value: Record
     "workerDomainId",
     "action",
   ];
-  const allowedKeys = new Set([
-    ...requiredKeys,
-    "alchemyResourceId",
-    "profile",
-    "runnerId",
-    "surface",
-  ]);
+  const allowedKeys = new Set([...requiredKeys, "alchemyResourceId", "runnerId"]);
 
   assertOnlyKeys(value, allowedKeys, "Domain mapping apply evidence request");
   assertRequiredKeys(value, requiredKeys, "Domain mapping apply evidence request");

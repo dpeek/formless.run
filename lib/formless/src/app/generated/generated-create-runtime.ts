@@ -40,7 +40,6 @@ import {
   useGeneratedOperationControllerVersion,
 } from "./operation-control-runtime.ts";
 import { shouldUseAppReplicaReferenceOptions } from "./reference-field-options.ts";
-import { useSchemaAppTarget } from "./schema-app-context.tsx";
 import {
   collectCreatePresentationFields,
   generatedMediaAssetOptionsForField,
@@ -114,7 +113,6 @@ export function useGeneratedCreateRuntime({
     Record<string, MediaAssetOption[] | undefined>
   >({});
   const [draftSessionState, setDraftSessionState] = useState(() => initialCreateState(operation));
-  const programTarget = useSchemaAppTarget();
   const mediaFields = useMemo(() => collectGeneratedCreateMediaFields(operation), [operation]);
   const draftSession = selectGeneratedCreateDraftSession({
     defaults: operation.defaults,
@@ -166,7 +164,7 @@ export function useGeneratedCreateRuntime({
   useEffect(() => {
     let cancelled = false;
 
-    void loadGeneratedMediaAssetOptions(mediaFields, programTarget).then((options) => {
+    void loadGeneratedMediaAssetOptions(mediaFields).then((options) => {
       if (!cancelled) {
         setMediaAssetOptionsByFieldKey(options);
       }
@@ -175,7 +173,7 @@ export function useGeneratedCreateRuntime({
     return () => {
       cancelled = true;
     };
-  }, [programTarget, mediaFields]);
+  }, [mediaFields]);
 
   useEffect(() => {
     if (!open && closeOnSuccess) {
@@ -212,7 +210,6 @@ export function useGeneratedCreateRuntime({
 
       try {
         const result = await uploadGeneratedMediaFile({
-          programTarget,
           entityName: operation.entityName,
           field: mediaField,
           fieldName: fieldConfig.fieldName,

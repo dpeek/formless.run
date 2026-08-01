@@ -1,4 +1,3 @@
-import type { ProgramStorageIdentity } from "../shared/program-storage-identity.ts";
 import {
   PublicOperationRouteError,
   parsePublicOperationRouteSuffix,
@@ -54,7 +53,6 @@ type PublicOperationExecutionInput = {
   afterCommit?: (response: OperationInvocationResponse) => Promise<void> | void;
   body: unknown;
   env: PublicOperationEnv;
-  identity: ProgramStorageIdentity;
   identityReferenceResolver?: IdentityReferenceTargetResolver;
   request: Request;
   route: PublicOperationRoute;
@@ -112,7 +110,6 @@ export async function executePublicOperationRequest(
   return executePublicOperationExecutor({
     adapters: publicOperationExecutorAdapters(input),
     body: input.body,
-    identity: input.identity,
     request: input.request,
     route: input.route,
     schema: input.schema,

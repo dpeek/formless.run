@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { programStorageIdentity } from "../shared/program-storage-identity.ts";
 import {
   consumePublicOperationReadRateLimit,
   type PublicOperationReadRateLimitState,
@@ -10,9 +9,7 @@ import {
 describe("public operation read rate limit", () => {
   it("isolates attempts by operation and trusted client network", async () => {
     const store = memoryRateLimitStore();
-    const schemaIdentity = programStorageIdentity();
     const base = {
-      identity: schemaIdentity,
       nowMs: Date.parse("2026-07-27T03:00:00.000Z"),
       operationKey: "certificate.lookup",
       policy: { maxRequests: 1, windowSeconds: 60 },
@@ -43,7 +40,6 @@ describe("public operation read rate limit", () => {
   it("uses only the trusted client-network header and stores hashed scope keys", async () => {
     const store = memoryRateLimitStore();
     const input = {
-      identity: programStorageIdentity(),
       nowMs: Date.parse("2026-07-27T03:01:00.000Z"),
       operationKey: "certificate.lookup",
       policy: { maxRequests: 1, windowSeconds: 60 },
@@ -78,7 +74,6 @@ describe("public operation read rate limit", () => {
     const store = memoryRateLimitStore();
     const startedAt = Date.parse("2026-07-27T03:02:00.000Z");
     const input = {
-      identity: programStorageIdentity(),
       nowMs: startedAt,
       operationKey: "certificate.lookup",
       policy: { maxRequests: 2, windowSeconds: 30 },

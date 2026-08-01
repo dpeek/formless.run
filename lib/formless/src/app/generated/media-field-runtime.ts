@@ -8,7 +8,6 @@ import {
   type MediaAssetOption,
   type UploadedImageMedia,
 } from "@dpeek/formless-media/client";
-import type { ProgramClientTarget } from "../../client/program-target.ts";
 import { imageMediaAssetOptionFromUpload } from "./record-field-authoring.ts";
 import {
   generatedDocumentMediaTarget,
@@ -23,7 +22,6 @@ export type GeneratedMediaFileUpload = {
 
 export async function loadGeneratedMediaAssetOptions(
   fields: readonly GeneratedMediaField[],
-  programTarget: ProgramClientTarget,
 ): Promise<Record<string, MediaAssetOption[]>> {
   const imageFields = fields.filter((field) => field.field.asset === undefined);
   const imageOptions =
@@ -34,7 +32,7 @@ export async function loadGeneratedMediaAssetOptions(
       if (field.field.asset?.kind !== "document") {
         return [key, imageOptions] as const;
       }
-      const target = generatedDocumentMediaTarget(programTarget, field.entityName, field.fieldName);
+      const target = generatedDocumentMediaTarget(field.entityName, field.fieldName);
       const options = await listProgramDocumentMediaAssets(target).catch(() => []);
       return [key, options] as const;
     }),
@@ -44,17 +42,15 @@ export async function loadGeneratedMediaAssetOptions(
 }
 
 export async function uploadGeneratedMediaFile({
-  programTarget,
   entityName,
   field,
   fieldName,
   file,
 }: GeneratedMediaField & {
-  programTarget: ProgramClientTarget;
   file: File;
 }): Promise<GeneratedMediaFileUpload> {
   if (field.asset?.kind === "document") {
-    const target = generatedDocumentMediaTarget(programTarget, entityName, fieldName);
+    const target = generatedDocumentMediaTarget(entityName, fieldName);
     const upload = await uploadProgramDocumentMediaFile(file, target);
     if (!upload.asset) {
       throw new Error("Document upload did not return a media asset.");

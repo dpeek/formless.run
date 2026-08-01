@@ -2,7 +2,6 @@ import { INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID } from "@dpeek/formless-ins
 import type { StoredRecord } from "@dpeek/formless-storage";
 import { describe, expect, it } from "vite-plus/test";
 
-import { programStorageIdentity } from "../shared/program-storage-identity.ts";
 import type { EmailDeliveryScheduleRequest } from "../shared/email-runtime.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import {
@@ -16,7 +15,6 @@ describe("Site contact notification scheduling", () => {
 
     await scheduleSiteContactNotificationAfterPublicOperation({
       adapters: notificationAdapters(contactNotificationControlPlaneRecords(), scheduled),
-      identity: programStorageIdentity(),
       requestUrl: "https://www.example.com/api/site/public/operations/contact-message/submit",
       response: contactMessageResponse(),
     });
@@ -65,7 +63,6 @@ describe("Site contact notification scheduling", () => {
 
     await scheduleSiteContactNotificationAfterPublicOperation({
       adapters: notificationAdapters([], scheduled),
-      identity: programStorageIdentity(),
       requestUrl: "https://www.example.com/api/site/public/operations/contact-message/submit",
       response: contactMessageResponse(),
     });
@@ -84,7 +81,6 @@ describe("Site contact notification scheduling", () => {
     for (const response of [replayed, otherOperation]) {
       await scheduleSiteContactNotificationAfterPublicOperation({
         adapters: notificationAdapters(contactNotificationControlPlaneRecords(), scheduled),
-        identity: programStorageIdentity(),
         requestUrl: "https://www.example.com/api/site/public/operations/contact-message/submit",
         response,
       });
@@ -104,7 +100,6 @@ describe("Site contact notification scheduling", () => {
         scheduled,
         new Error("Email delivery queue or provider failed for owner@example.com."),
       ),
-      identity: programStorageIdentity(),
       requestUrl: "https://www.example.com/api/site/public/operations/contact-message/submit",
       response,
     });
@@ -122,13 +117,11 @@ describe("Site contact notification scheduling", () => {
 
     await scheduleSiteContactNotificationAfterPublicOperation({
       adapters,
-      identity: programStorageIdentity(),
       requestUrl: "https://www.example.com/api/site/public/operations/contact-message/submit",
       response,
     });
     await scheduleSiteContactNotificationAfterPublicOperation({
       adapters,
-      identity: programStorageIdentity(),
       requestUrl: "https://www.example.com/api/site/public/operations/contact-message/submit",
       response,
     });
@@ -203,13 +196,10 @@ function contactNotificationControlPlaneRecords(): StoredRecord[] {
 }
 
 function contactMessageResponse(): OperationInvocationResponse {
-  const identity = programStorageIdentity();
-
   return {
     invocation: {
       invocationId: "operation:contact-message.submit:contact-create-email-notify",
       actor: { kind: "anonymous" },
-      programStorageIdentity: identity,
       idempotency: {
         required: true,
         key: "contact-create-email-notify",

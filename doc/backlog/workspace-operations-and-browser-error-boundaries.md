@@ -166,7 +166,6 @@ save is not resumed. A later committed browser write schedules a new save.
 | Workspace package                         | Shared semantic operation inputs and identities only where multiple runtimes need them. No display vocabulary, logs, errors, summaries, or persisted browser state.  |
 | CLI/runtime domain                        | Typed Push, Pull, Check, Status, Save, deployment, and credential results; execution orchestration; local exceptions and diagnostics; semantic Push progress events. |
 | Gateway package                           | Push status, waiting interactions, transport failure codes, active-operation reads, and auto-save status.                                                            |
-| Installed Apps package                    | Existing install registry failure codes and bounded field facts.                                                                                                     |
 | Deploy and control-plane packages         | Semantic deployment observation status, outcome, and failure codes. No arbitrary observed summary or error.                                                          |
 | Browser runtime                           | Gateway polling, interaction submission, semantic code and phase mapping, and source-owned presentation copy.                                                        |
 | Formless Renderer contract and projection | Final renderer-neutral progress, interaction, status, and feedback facts. No runtime diagnostics.                                                                    |
@@ -230,7 +229,7 @@ Emit progress around real awaited boundaries:
 - provider reconciliation when required;
 - source archive construction and sync planning;
 - remote dry-run validation when required;
-- source application when required;
+- Program source restore when required;
 - deployment observation and cleanup.
 
 The phase list is ordered by first emission, not by a fixed assumed sequence.
@@ -565,7 +564,6 @@ begins, update shipped or desired facts in:
 - `openspec/specs/generated-ui/spec.md`
 - `openspec/specs/deployment-runtime/spec.md`
 - `openspec/specs/instance-control-plane/spec.md`
-- `openspec/specs/installed-apps/spec.md`
 - `openspec/specs/package-slices/spec.md`
 - `openspec/specs/portable-archives/spec.md`
 

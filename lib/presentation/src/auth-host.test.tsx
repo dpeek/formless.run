@@ -75,7 +75,7 @@ describe("auth memory Presentation Host", () => {
       purpose: "verification-token",
     });
     expect(invitation?.state).toBe("eligible");
-    expect(host.read(shellReference)?.title).toBe("Formless");
+    expect(host.read(shellReference)?.title).toBe("Formless Program");
   });
 
   it("validates auth surface, canonical field, and embedded intent identities", () => {
@@ -381,13 +381,12 @@ function shellNode(): ShellManifestNode {
   return {
     reference: shellReference,
     snapshot: {
-      accessibilityLabel: "Formless application shell",
+      accessibilityLabel: "Formless Program application shell",
       activeDestination: null,
       id: shellReference.shellId,
       kind: "shellManifest",
       navigationSections: [],
-      scope: "multiApp",
-      title: "Formless",
+      title: "Formless Program",
     },
   };
 }

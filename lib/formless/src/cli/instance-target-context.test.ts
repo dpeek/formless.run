@@ -160,7 +160,6 @@ function deploymentConfigRecord(): StoredRecord {
       label: "Primary instance",
       providerFamily: "cloudflare",
       targetId: "instance.primary",
-      targetKind: "instance",
       targetUrl: "https://personal.example",
     },
     createdAt: now,

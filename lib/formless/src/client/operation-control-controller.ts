@@ -1,4 +1,3 @@
-import type { ProgramClientTarget } from "./program-target.ts";
 import type {
   GeneratedOperationCallerInput,
   GeneratedOperationControlBinding,
@@ -16,7 +15,6 @@ import type {
 } from "../shared/operation-invocation.ts";
 
 export type GeneratedOperationAuthoritySubmitter = (
-  target: ProgramClientTarget,
   entityName: string,
   operationName: string,
   request: OperationInvocationRequest,
@@ -72,7 +70,6 @@ export type GeneratedOperationControllerOptions = {
     Record<GeneratedOperationRuntimeAdapterKind, GeneratedOperationRuntimeAdapter>
   >;
   submitAuthorityOperation?: GeneratedOperationAuthoritySubmitter;
-  target?: ProgramClientTarget;
   writeOptions?: SubmitOperationOptions;
 };
 
@@ -180,17 +177,12 @@ export function createGeneratedOperationController(
       return executeRuntimeOperation(binding, callerInput, binding.input.kind);
     }
 
-    if (options.target === undefined) {
-      return failedResult("Operation target is unavailable.");
-    }
-
     if (binding.entityName === undefined || binding.operationName === undefined) {
       return failedResult("Operation endpoint is unavailable.");
     }
 
     const request = buildGeneratedOperationInvocationRequest(binding, callerInput);
     const response = await submitAuthorityOperation(
-      options.target,
       binding.entityName,
       binding.operationName,
       request,

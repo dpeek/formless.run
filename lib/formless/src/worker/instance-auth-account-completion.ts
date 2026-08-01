@@ -411,7 +411,6 @@ function termsAcceptanceCompletionId(
   return [
     principalId,
     target.targetProfile,
-    target.storageIdentity,
     target.selectedOrganization ?? "",
     [...policyIds].sort().join(","),
   ].join(":");

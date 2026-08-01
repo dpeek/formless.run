@@ -345,7 +345,6 @@ export function authenticatedOperationActorForAccess(
     sessionTarget: {
       instanceId: access.session.instanceId,
       routeId: access.target.routeId,
-      storageIdentity: access.target.storageIdentity,
       targetOrigin: access.target.targetOrigin,
       targetProfile: access.target.targetProfile,
     },
@@ -514,7 +513,6 @@ function sessionTargetBindingsEqual(
     left.targetOrigin === right.targetOrigin &&
     left.routeId === right.routeId &&
     left.targetProfile === right.targetProfile &&
-    left.access === right.access &&
-    left.storageIdentity === right.storageIdentity
+    left.access === right.access
   );
 }

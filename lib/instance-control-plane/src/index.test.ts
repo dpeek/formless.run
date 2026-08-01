@@ -2,8 +2,6 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   INSTANCE_CONTROL_PLANE_BOUNDARY_SCHEMA_KEY,
   INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID,
-  INSTANCE_CONTROL_PLANE_SOURCE_SCHEMA_HASH,
-  INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
   formatInstanceControlPlaneBoundaryEntityName,
   instanceControlPlanePreferredAdminOriginFromRecords,
   instanceControlPlaneProductionIdentityFromRecords,
@@ -11,18 +9,16 @@ import {
   instanceControlPlaneEffectiveRouteAccess,
   instanceControlPlaneEntityNames,
   instanceControlPlaneImmutableFields,
+  reviewableInstanceControlPlaneRecords,
   instanceControlPlaneSchema,
-  instanceControlPlaneSchemaProvenance,
   instanceControlPlaneSourceSchema,
   isInstanceControlPlaneEntityName,
   isInstanceControlPlaneRouteSafePath,
   parseInstanceControlPlaneBoundaryEntityName,
-  parseInstanceControlPlaneStorageSnapshot,
-  reviewableInstanceControlPlaneStorageSnapshot,
+  validateInstanceControlPlaneRecords,
 } from "./index.ts";
 import { computeSourceSchemaHash } from "@dpeek/formless-schema";
-import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
-import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
+import type { StoredRecord } from "@dpeek/formless-storage";
 import type { AppSchema } from "@dpeek/formless-schema";
 import {
   isRuntimeControlPlaneObservedField,
@@ -84,7 +80,7 @@ describe("instance control-plane schema contracts", () => {
     }
   });
 
-  it("publishes deterministic source provenance for the full control-plane schema", async () => {
+  it("uses normal App schema source hashing for the full control-plane schema", async () => {
     const baseHash = await computeSourceSchemaHash(instanceControlPlaneSourceSchema);
     const mutationCases: Array<[string, (schema: AppSchema) => void]> = [
       [
@@ -112,11 +108,7 @@ describe("instance control-plane schema contracts", () => {
       ],
     ];
 
-    expect(INSTANCE_CONTROL_PLANE_SOURCE_SCHEMA_HASH).toBe(baseHash);
-    expect(instanceControlPlaneSchemaProvenance).toEqual({
-      kind: "instance-control-plane",
-      sourceSchemaHash: baseHash,
-    });
+    expect(baseHash).toMatch(/^sha256:[a-f0-9]{64}$/);
 
     for (const [label, mutate] of mutationCases) {
       const changedSchema = structuredClone(
@@ -160,11 +152,6 @@ describe("instance control-plane schema contracts", () => {
     );
     expect(deploymentFields).toMatchObject({
       targetId: { type: "text", required: true },
-      targetKind: {
-        type: "enum",
-        required: true,
-        values: [{ key: "instance", label: "Instance" }],
-      },
       label: { type: "text", required: true },
       enabled: { type: "boolean", required: true, default: true },
       targetUrl: { type: "text", required: true, format: "href" },
@@ -195,7 +182,6 @@ describe("instance control-plane schema contracts", () => {
     });
     expect(Object.keys(deploymentFields ?? {})).toEqual([
       "targetId",
-      "targetKind",
       "label",
       "enabled",
       "targetUrl",
@@ -283,57 +269,45 @@ describe("instance control-plane schema contracts", () => {
       relyingPartyId: "example.com",
       relyingPartyName: "Example Instance",
     });
-    expect(
-      parseInstanceControlPlaneStorageSnapshot(
-        "Instance archive controlPlane",
-        controlPlaneSnapshot({ records }),
-      ).records.map((record) => record.entity),
-    ).toEqual(expect.arrayContaining(["instance-settings", "email-domain", "email-sender"]));
+    expect(reviewableInstanceControlPlaneRecords(records).map((record) => record.entity)).toEqual(
+      expect.arrayContaining(["instance-settings", "email-domain", "email-sender"]),
+    );
 
     expect(() =>
-      parseInstanceControlPlaneStorageSnapshot(
-        "Instance archive controlPlane",
-        controlPlaneSnapshot({
-          records: [
-            ...records,
-            {
-              ...records.find((record) => record.entity === "instance-settings")!,
-              id: "settings:duplicate",
-            },
-          ],
-        }),
-      ),
+      validateInstanceControlPlaneRecords("Control-plane records", [
+        ...records,
+        {
+          ...records.find((record) => record.entity === "instance-settings")!,
+          id: "settings:duplicate",
+        },
+      ]),
     ).toThrow("at most one active instance:instance-settings");
 
     expect(() =>
-      parseInstanceControlPlaneStorageSnapshot(
-        "Instance archive controlPlane",
-        controlPlaneSnapshot({
-          records: records.map((record) =>
-            record.entity === "email-sender"
-              ? { ...record, values: { ...record.values, address: "contact@other.example.com" } }
-              : record,
-          ),
-        }),
+      validateInstanceControlPlaneRecords(
+        "Control-plane records",
+        records.map((record) =>
+          record.entity === "email-sender"
+            ? { ...record, values: { ...record.values, address: "contact@other.example.com" } }
+            : record,
+        ),
       ),
     ).toThrow('field "instance:email-sender.address" host must belong');
 
     expect(() =>
-      parseInstanceControlPlaneStorageSnapshot(
-        "Instance archive controlPlane",
-        controlPlaneSnapshot({
-          records: records.map((record) =>
-            record.entity === "instance-settings"
-              ? {
-                  ...record,
-                  values: {
-                    ...record.values,
-                    defaultAuthSender: "email-sender:contact@mail.example.com",
-                  },
-                }
-              : record,
-          ),
-        }),
+      validateInstanceControlPlaneRecords(
+        "Control-plane records",
+        records.map((record) =>
+          record.entity === "instance-settings"
+            ? {
+                ...record,
+                values: {
+                  ...record.values,
+                  defaultAuthSender: "email-sender:contact@mail.example.com",
+                },
+              }
+            : record,
+        ),
       ),
     ).toThrow(
       'field "instance:instance-settings.defaultAuthSender" must reference a sender with purpose "auth"',
@@ -341,7 +315,6 @@ describe("instance control-plane schema contracts", () => {
   });
 
   it("validates preferred admin route references in control-plane record sources", () => {
-    const now = "2026-05-28T00:00:00.000Z";
     const settings = storedInstanceSettingsRecord({
       adminRoute: "route:host:instance:admin.example.com",
       productionIdentityStatus: "unconfigured",
@@ -351,17 +324,9 @@ describe("instance control-plane schema contracts", () => {
       matchHost: "admin.example.com",
     });
     const parseRecords = (records: StoredRecord[]) =>
-      parseInstanceControlPlaneStorageSnapshot(
-        "Instance archive controlPlane",
-        controlPlaneSnapshot({
-          records,
-          sourceCursor: records.length,
-          exportedAt: now,
-          schemaUpdatedAt: now,
-        }),
-      );
+      reviewableInstanceControlPlaneRecords(records);
 
-    expect(parseRecords([settings, adminRoute]).records).toEqual([settings, adminRoute]);
+    expect(parseRecords([settings, adminRoute])).toEqual([settings, adminRoute]);
     expect(() =>
       parseRecords([
         settings,
@@ -525,7 +490,6 @@ describe("instance control-plane schema contracts", () => {
     ]);
     expect(operationInputKeys(schema, "deployment-config", "create")).toEqual([
       "targetId",
-      "targetKind",
       "label",
       "enabled",
       "targetUrl",
@@ -536,7 +500,6 @@ describe("instance control-plane schema contracts", () => {
     ]);
     expect(operationInputKeys(schema, "deployment-config", "update")).toEqual([
       "targetId",
-      "targetKind",
       "label",
       "enabled",
       "targetUrl",
@@ -665,7 +628,6 @@ describe("instance control-plane schema contracts", () => {
 
   it("records identity invariants outside mutable generated fields", () => {
     expect(INSTANCE_CONTROL_PLANE_BOUNDARY_SCHEMA_KEY).toBe("instance");
-    expect(INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY).toBe("instance:control-plane");
     expect(formatInstanceControlPlaneBoundaryEntityName("route")).toBe("instance:route");
     expect(
       parseInstanceControlPlaneBoundaryEntityName("Archive record entity", "instance:route"),
@@ -675,7 +637,6 @@ describe("instance control-plane schema contracts", () => {
     ).toThrow('Archive record entity schema key must be "instance".');
     expect(instanceControlPlaneImmutableFields["deployment-config"]).toEqual([
       "targetId",
-      "targetKind",
       "providerFamily",
     ]);
     expect(instanceControlPlaneImmutableFields["instance-settings"]).toEqual(["settingsId"]);
@@ -822,7 +783,6 @@ describe("instance control-plane schema contracts", () => {
     expect(deploymentConfigTable?.columns).toMatchObject([
       { field: "label", display: "readOnly" },
       { field: "targetId", display: "readOnly" },
-      { field: "targetKind", display: "readOnly" },
       { field: "providerFamily", display: "readOnly" },
       { field: "accountId", display: "readOnly" },
       { field: "workerName", display: "readOnly" },
@@ -949,30 +909,15 @@ describe("instance control-plane schema contracts", () => {
     expect(isInstanceControlPlaneRouteSafePath("/formless/auth")).toBe(false);
   });
 
-  it("validates reviewable control-plane storage snapshots", () => {
-    const snapshot = controlPlaneSnapshot();
-
+  it("canonicalizes reviewable control-plane records", () => {
     expect(
-      parseInstanceControlPlaneStorageSnapshot("Instance archive controlPlane", snapshot),
-    ).toEqual(snapshot);
-    expect(
-      reviewableInstanceControlPlaneStorageSnapshot({
-        ...snapshot,
-        records: controlPlaneRecords({ observedCache: true }),
-      }).records.find((record) => record.entity === "deployment-config")?.values,
+      reviewableInstanceControlPlaneRecords(controlPlaneRecords({ observedCache: true })).find(
+        (record) => record.entity === "deployment-config",
+      )?.values,
     ).not.toHaveProperty("observedStatus");
 
-    expect(
-      parseInstanceControlPlaneStorageSnapshot("Instance archive controlPlane", {
-        ...snapshot,
-        records: controlPlaneRecords({ observedCache: true }),
-      }).records.find((record) => record.entity === "deployment-config")?.values,
-    ).not.toHaveProperty("observedStatus");
     expect(() =>
-      parseInstanceControlPlaneStorageSnapshot("Instance archive controlPlane", {
-        ...snapshot,
-        records: controlPlaneRecords({ accountId: "CF_API_TOKEN" }),
-      }),
+      reviewableInstanceControlPlaneRecords(controlPlaneRecords({ accountId: "CF_API_TOKEN" })),
     ).toThrow("cannot store control-plane secret values");
   });
 });
@@ -1048,20 +993,6 @@ function storedInstanceSettingsRecord(values: Record<string, string>): StoredRec
   };
 }
 
-function controlPlaneSnapshot(overrides: Partial<StorageSnapshot> = {}): StorageSnapshot {
-  return {
-    kind: STORAGE_SNAPSHOT_KIND,
-    version: STORAGE_SNAPSHOT_VERSION,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-    schemaKey: "instance-control-plane",
-    exportedAt: "2026-05-28T00:00:00.000Z",
-    schemaUpdatedAt: "2026-05-28T00:00:00.000Z",
-    sourceCursor: controlPlaneRecords().length,
-    schema: instanceControlPlaneSchema,
-    records: controlPlaneRecords(),
-    ...overrides,
-  };
-}
 function controlPlaneRecords(
   options: {
     accountId?: string;
@@ -1168,7 +1099,6 @@ function controlPlaneRecords(
       entity: "deployment-config",
       values: {
         targetId: "instance.primary",
-        targetKind: "instance",
         label: "instance.primary",
         enabled: true,
         targetUrl: "https://personal.dpeek.workers.dev",

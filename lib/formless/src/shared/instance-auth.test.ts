@@ -163,7 +163,7 @@ describe("collaborator invitation acceptance protocol", () => {
           displayName: "Ada Collaborator",
         },
         accountCompletion: {
-          continueTo: "/apps/site?screen=home",
+          continueTo: "/site?screen=home",
           status: "complete",
           target: accountCompletionTarget(),
         },
@@ -188,7 +188,7 @@ describe("collaborator invitation acceptance protocol", () => {
         displayName: "Ada Collaborator",
       },
       accountCompletion: {
-        continueTo: "/apps/site?screen=home",
+        continueTo: "/site?screen=home",
         status: "complete",
         target: accountCompletionTarget(),
       },
@@ -362,13 +362,12 @@ describe("account completion gate protocol", () => {
     }
   });
 
-  it("parses Program target binding fields and requires a storage identity", () => {
+  it("parses current Program route target binding fields", () => {
     expect(
       parseAccountCompletionGateTarget({
         returnTo: "/records?view=mine",
         routeId: " route:access ",
         selectedOrganization: " organization:acme ",
-        storageIdentity: " instance:control-plane ",
         targetOrigin: "https://Instance.Example.com/",
         targetProfile: "instance",
       }),
@@ -376,19 +375,9 @@ describe("account completion gate protocol", () => {
       returnTo: "/records?view=mine",
       routeId: "route:access",
       selectedOrganization: "organization:acme",
-      storageIdentity: "instance:control-plane",
       targetOrigin: "https://instance.example.com",
       targetProfile: "instance",
     });
-
-    expect(() =>
-      parseAccountCompletionGateTarget({
-        returnTo: "/",
-        routeId: "route:site",
-        targetOrigin: "https://instance.example.com",
-        targetProfile: "instance",
-      }),
-    ).toThrow('Account completion gate target must include "storageIdentity".');
   });
 
   it("keeps continuation targets path-only", () => {
@@ -493,7 +482,7 @@ describe("account completion gate protocol", () => {
         target,
       },
       {
-        continueTo: "/apps/site",
+        continueTo: "/site",
         hostSessionCookie: "private-cookie",
         status: "complete",
         target,
@@ -564,7 +553,7 @@ describe("account passkey protocol", () => {
   it("rejects malformed passkey payloads and unsupported keys", () => {
     expect(() =>
       parseAccountPasskeyLoginVerifyRequest({
-        redirectTo: "/apps/site",
+        redirectTo: "/site",
         response: authenticationResponse(),
       }),
     ).toThrow('Passkey login verify request has unsupported key "redirectTo".');
@@ -579,7 +568,7 @@ describe("account passkey protocol", () => {
     expect(() =>
       parseAccountPasskeyLoginVerifyResponse({
         authenticated: true,
-        continueTo: "https://evil.example/apps/site",
+        continueTo: "https://evil.example/site",
         principal,
         session: { expiresAt: "2026-06-28T00:00:00.000Z" },
       }),
@@ -587,7 +576,7 @@ describe("account passkey protocol", () => {
     expect(() =>
       parseAccountPasskeyLoginVerifyResponse({
         authenticated: true,
-        continueTo: "/apps/site",
+        continueTo: "/site",
         principal,
         session: { expiresAt: "2026-06-28T00:00:00.000Z" },
       }),
@@ -619,33 +608,31 @@ describe("account passkey protocol", () => {
 
 describe("account redirects", () => {
   it("keeps only same-origin path and query return targets", () => {
-    expect(parseAccountRedirectTarget("/apps/personal?screen=routes")).toBe(
-      "/apps/personal?screen=routes",
+    expect(parseAccountRedirectTarget("/settings?screen=routes")).toBe("/settings?screen=routes");
+    expect(accountRedirectTargetFromSearch("?redirectTo=%2Fsettings%3Fpanel%3Ddeploy")).toBe(
+      "/settings?panel=deploy",
     );
-    expect(
-      accountRedirectTargetFromSearch("?redirectTo=%2Fapps%2Fpersonal%2Fsettings%3Fpanel%3Ddeploy"),
-    ).toBe("/apps/personal/settings?panel=deploy");
-    expect(accountRedirectLocationForRoute("/apps/personal?screen=routes")).toBe(
-      "/formless/auth/sign-in?redirectTo=%2Fapps%2Fpersonal%3Fscreen%3Droutes",
+    expect(accountRedirectLocationForRoute("/settings?screen=routes")).toBe(
+      "/formless/auth/sign-in?redirectTo=%2Fsettings%3Fscreen%3Droutes",
     );
   });
 
   it("ignores unsafe account return targets", () => {
     for (const value of [
-      "https://formless.local/apps/personal",
-      "https://example.com/apps/personal",
-      "//example.com/apps/personal",
-      "apps/personal",
-      "/apps/personal#secret",
+      "https://formless.local/settings",
+      "https://example.com/settings",
+      "//example.com/settings",
+      "settings",
+      "/settings#secret",
       "/\\example.com",
-      "/apps/personal\u0000",
+      "/settings\u0000",
       undefined,
     ]) {
       expect(parseAccountRedirectTarget(value)).toBeUndefined();
     }
 
     expect(accountRedirectTargetFromSearch("?redirectTo=https%3A%2F%2Fexample.com")).toBe("/");
-    expect(accountRedirectLocationForRoute("https://example.com/apps/personal")).toBe(
+    expect(accountRedirectLocationForRoute("https://example.com/settings")).toBe(
       "/formless/auth/sign-in?redirectTo=%2F",
     );
   });
@@ -656,7 +643,6 @@ function accountCompletionTarget() {
     returnTo: "/access",
     routeId: "route:access",
     selectedOrganization: "organization:acme",
-    storageIdentity: "instance:control-plane",
     targetOrigin: "https://instance.example.com",
     targetProfile: "instance",
   } as const;

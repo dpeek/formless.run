@@ -22,8 +22,6 @@ import {
   useGeneratedWorkspaceRuntimeController,
   type GeneratedWorkspaceRuntimeController,
 } from "./generated-workspace-runtime.tsx";
-import { SchemaAppProvider } from "./schema-app-context.tsx";
-import { programStorageIdentity } from "../../shared/program-storage-identity.ts";
 
 const submitOperationMock = vi.hoisted(() => vi.fn());
 const listProgramDocumentMediaAssetsMock = vi.hoisted(() => vi.fn());
@@ -61,10 +59,7 @@ beforeEach(() => {
 
 describe("generated workspace tree selection runtime", () => {
   it("owns selection across intents, refresh, creation, removal, and stale identities", async () => {
-    applyBootstrapResponse(
-      bootstrapResponse(siteSourceSchema, testSiteRecords),
-      programStorageIdentity(),
-    );
+    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords));
     const screen = required(
       selectScreenModels(siteSourceSchema).find(
         (candidate) => candidate.screenName === "siteEditor",
@@ -87,11 +82,7 @@ describe("generated workspace tree selection runtime", () => {
     }
 
     await act(async () => {
-      renderer = render(
-        <SchemaAppProvider schemaKey="formless-program" target={programStorageIdentity()}>
-          <RuntimeProbe />
-        </SchemaAppProvider>,
-      );
+      renderer = render(<RuntimeProbe />);
     });
 
     const initialTree = currentTree(required(controller));
@@ -129,7 +120,6 @@ describe("generated workspace tree selection runtime", () => {
           },
         ],
         undefined,
-        programStorageIdentity(),
       );
     });
     expect(currentTree(required(controller)).selectedEditor).toMatchObject({
@@ -140,7 +130,7 @@ describe("generated workspace tree selection runtime", () => {
     const createdBlock = block("block-created", "Created block");
     const createdPlacement = placement("placement-created", createdBlock.id);
     await act(async () => {
-      applyRecordMerge([createdBlock, createdPlacement], undefined, programStorageIdentity());
+      applyRecordMerge([createdBlock, createdPlacement], undefined);
     });
     const createdItem = required(
       flattenTreeItems(currentTree(required(controller)).items).find(
@@ -186,7 +176,6 @@ describe("generated workspace tree selection runtime", () => {
           },
         ],
         undefined,
-        programStorageIdentity(),
       );
     });
     const fallbackTree = currentTree(required(controller));
@@ -200,21 +189,14 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("owns controlled disclosure through exact tree intents", async () => {
-    applyBootstrapResponse(
-      bootstrapResponse(siteSourceSchema, testSiteRecords),
-      programStorageIdentity(),
-    );
+    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords));
     const branch = typedBlock("block-disclosure-branch", "group", "Disclosure branch");
     const child = typedBlock("block-disclosure-child", "markdown", "Disclosure child", {
       body: "Nested disclosure coverage.",
     });
     const branchPlacement = placement("placement-disclosure-branch", branch.id);
     const childPlacement = placementForParent("placement-disclosure-child", branch.id, child.id);
-    applyRecordMerge(
-      [branch, child, branchPlacement, childPlacement],
-      undefined,
-      programStorageIdentity(),
-    );
+    applyRecordMerge([branch, child, branchPlacement, childPlacement], undefined);
     const screen = required(
       selectScreenModels(siteSourceSchema).find(
         (candidate) => candidate.screenName === "siteEditor",
@@ -235,11 +217,7 @@ describe("generated workspace tree selection runtime", () => {
     }
 
     await act(async () => {
-      renderer = render(
-        <SchemaAppProvider schemaKey="formless-program" target={programStorageIdentity()}>
-          <RuntimeProbe />
-        </SchemaAppProvider>,
-      );
+      renderer = render(<RuntimeProbe />);
     });
 
     const initialBranch = required(
@@ -290,14 +268,10 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("routes item context navigation and child field failures by exact identity", async () => {
-    applyBootstrapResponse(
-      bootstrapResponse(siteSourceSchema, testSiteRecords),
-      programStorageIdentity(),
-    );
+    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords));
     applyRecordMerge(
       [placement("placement-header-context", "rec_site_content_group_header")],
       undefined,
-      programStorageIdentity(),
     );
     const screen = required(
       selectScreenModels(siteSourceSchema).find(
@@ -321,11 +295,7 @@ describe("generated workspace tree selection runtime", () => {
     }
 
     await act(async () => {
-      renderer = render(
-        <SchemaAppProvider schemaKey="formless-program" target={programStorageIdentity()}>
-          <RuntimeProbe />
-        </SchemaAppProvider>,
-      );
+      renderer = render(<RuntimeProbe />);
     });
 
     const headerItem = required(
@@ -399,7 +369,6 @@ describe("generated workspace tree selection runtime", () => {
     });
     expect(submitOperationMock).toHaveBeenCalledTimes(1);
     expect(submitOperationMock).toHaveBeenCalledWith(
-      programStorageIdentity(),
       "block",
       "update",
       expect.objectContaining({ input: { label: "Next hero" } }),
@@ -418,17 +387,14 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("loads and uploads media for selected tree records and tree child creation", async () => {
-    applyBootstrapResponse(
-      bootstrapResponse(siteSourceSchema, testSiteRecords),
-      programStorageIdentity(),
-    );
+    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords));
     const image = typedBlock("block-tree-media", "image", "Tree media", {
       height: 180,
       mediaAssetId: "old.webp",
       width: 320,
     });
     const imagePlacement = placement("placement-tree-media", image.id);
-    applyRecordMerge([image, imagePlacement], undefined, programStorageIdentity());
+    applyRecordMerge([image, imagePlacement], undefined);
     listCoreImageMediaAssetsMock.mockResolvedValue([
       { href: "/media/existing.webp", id: "existing.webp", label: "Existing" },
     ]);
@@ -452,11 +418,7 @@ describe("generated workspace tree selection runtime", () => {
     }
 
     await act(async () => {
-      renderer = render(
-        <SchemaAppProvider schemaKey="formless-program" target={programStorageIdentity()}>
-          <RuntimeProbe />
-        </SchemaAppProvider>,
-      );
+      renderer = render(<RuntimeProbe />);
     });
 
     expect(listCoreImageMediaAssetsMock).toHaveBeenCalledTimes(1);
@@ -498,7 +460,6 @@ describe("generated workspace tree selection runtime", () => {
 
     expect(uploadCoreImageMediaFileMock).toHaveBeenCalledWith(recordFile);
     expect(submitOperationMock).toHaveBeenCalledWith(
-      programStorageIdentity(),
       "block",
       "update",
       {
@@ -577,14 +538,13 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("loads compatible Program documents and replaces a tree record with a new flat asset id", async () => {
-    const appTarget = programStorageIdentity();
     const documentSchema = siteSchemaWithDocumentMedia();
-    applyBootstrapResponse(bootstrapResponse(documentSchema, testSiteRecords), appTarget);
+    applyBootstrapResponse(bootstrapResponse(documentSchema, testSiteRecords));
     const image = typedBlock("block-tree-document", "image", "Tree document", {
       mediaAssetId: "old-report.pdf",
     });
     const imagePlacement = placement("placement-tree-document", image.id);
-    applyRecordMerge([image, imagePlacement], undefined, appTarget);
+    applyRecordMerge([image, imagePlacement], undefined);
     const existingOption = {
       access: "private",
       byteSize: 1200,
@@ -614,11 +574,7 @@ describe("generated workspace tree selection runtime", () => {
     }
 
     await act(async () => {
-      renderer = render(
-        <SchemaAppProvider schemaKey="formless-program" target={appTarget}>
-          <RuntimeProbe />
-        </SchemaAppProvider>,
-      );
+      renderer = render(<RuntimeProbe />);
     });
 
     const documentTarget = {
@@ -695,7 +651,6 @@ describe("generated workspace tree selection runtime", () => {
       documentTarget,
     );
     expect(submitOperationMock).toHaveBeenCalledWith(
-      appTarget,
       "block",
       "update",
       {
@@ -726,19 +681,12 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("owns root cancel and nested child create validation, failure, retry, pending, and selection", async () => {
-    applyBootstrapResponse(
-      bootstrapResponse(siteSourceSchema, testSiteRecords),
-      programStorageIdentity(),
-    );
+    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords));
     const feature = typedBlock("block-feature-create", "feature", "Feature create parent");
     const featurePlacement = placement("placement-feature-create", feature.id);
     const leaf = typedBlock("block-leaf-create", "card", "Leaf create target");
     const leafPlacement = placement("placement-leaf-create", leaf.id);
-    applyRecordMerge(
-      [feature, featurePlacement, leaf, leafPlacement],
-      undefined,
-      programStorageIdentity(),
-    );
+    applyRecordMerge([feature, featurePlacement, leaf, leafPlacement], undefined);
     const screen = required(
       selectScreenModels(siteSourceSchema).find(
         (candidate) => candidate.screenName === "siteEditor",
@@ -759,11 +707,7 @@ describe("generated workspace tree selection runtime", () => {
     }
 
     await act(async () => {
-      renderer = render(
-        <SchemaAppProvider schemaKey="formless-program" target={programStorageIdentity()}>
-          <RuntimeProbe />
-        </SchemaAppProvider>,
-      );
+      renderer = render(<RuntimeProbe />);
     });
 
     const rootVariant = required(
@@ -903,14 +847,13 @@ describe("generated workspace tree selection runtime", () => {
         .form.submit,
     ).toMatchObject({ disabled: true, pending: { isPending: true } });
     await act(async () => {
-      applyRecordMerge([createdChild, createdPlacement], undefined, programStorageIdentity());
+      applyRecordMerge([createdChild, createdPlacement], undefined);
       required(resolveSubmission)(commandResponse([createdChild, createdPlacement]));
       await submission;
     });
 
     expect(submitOperationMock).toHaveBeenCalledTimes(2);
     expect(submitOperationMock).toHaveBeenLastCalledWith(
-      programStorageIdentity(),
       "block-placement",
       "addTreeChild",
       expect.objectContaining({
@@ -938,10 +881,7 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("executes semantic tree moves inside the exact scope with safe retry feedback", async () => {
-    applyBootstrapResponse(
-      bootstrapResponse(siteSourceSchema, testSiteRecords),
-      programStorageIdentity(),
-    );
+    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords));
     const root = typedBlock("ordering-root", "page", "Ordering root");
     const mainFirstChild = block("ordering-main-first-child", "Main first");
     const mainSecondChild = block("ordering-main-second-child", "Main second");
@@ -976,7 +916,6 @@ describe("generated workspace tree selection runtime", () => {
         sideSecond,
       ],
       undefined,
-      programStorageIdentity(),
     );
     const screen = required(
       selectScreenModels(siteSourceSchema).find(
@@ -998,11 +937,7 @@ describe("generated workspace tree selection runtime", () => {
     }
 
     await act(async () => {
-      renderer = render(
-        <SchemaAppProvider schemaKey="formless-program" target={programStorageIdentity()}>
-          <RuntimeProbe />
-        </SchemaAppProvider>,
-      );
+      renderer = render(<RuntimeProbe />);
     });
 
     let tree = currentTree(required(controller));
@@ -1027,7 +962,6 @@ describe("generated workspace tree selection runtime", () => {
     await dispatchTreeIntent(required(controller), moveUp.intent);
     expect(submitOperationMock).toHaveBeenCalledTimes(1);
     expect(submitOperationMock).toHaveBeenLastCalledWith(
-      programStorageIdentity(),
       "block-placement",
       "update",
       {
@@ -1083,7 +1017,7 @@ describe("generated workspace tree selection runtime", () => {
     expect(tree.feedback).toMatchObject([{ status: "pending", title: "Moving placement." }]);
 
     await act(async () => {
-      applyRecordMerge([movedPlacement], undefined, programStorageIdentity());
+      applyRecordMerge([movedPlacement], undefined);
       required(resolveMove)(commandResponse([movedPlacement]));
       await submission;
     });
@@ -1105,10 +1039,7 @@ describe("generated workspace tree selection runtime", () => {
   });
 
   it("routes placement removal confirmation, retry, refresh, and fallback by exact identity", async () => {
-    applyBootstrapResponse(
-      bootstrapResponse(siteSourceSchema, testSiteRecords),
-      programStorageIdentity(),
-    );
+    applyBootstrapResponse(bootstrapResponse(siteSourceSchema, testSiteRecords));
     const screen = required(
       selectScreenModels(siteSourceSchema).find(
         (candidate) => candidate.screenName === "siteEditor",
@@ -1129,11 +1060,7 @@ describe("generated workspace tree selection runtime", () => {
     }
 
     await act(async () => {
-      renderer = render(
-        <SchemaAppProvider schemaKey="formless-program" target={programStorageIdentity()}>
-          <RuntimeProbe />
-        </SchemaAppProvider>,
-      );
+      renderer = render(<RuntimeProbe />);
     });
 
     const initialTree = currentTree(required(controller));
@@ -1229,14 +1156,13 @@ describe("generated workspace tree selection runtime", () => {
     });
 
     await act(async () => {
-      applyRecordMerge([removedPlacement], undefined, programStorageIdentity());
+      applyRecordMerge([removedPlacement], undefined);
       required(resolveRemoval)(commandResponse([removedPlacement]));
       await submission;
     });
 
     expect(submitOperationMock).toHaveBeenCalledTimes(2);
     expect(submitOperationMock).toHaveBeenLastCalledWith(
-      programStorageIdentity(),
       "block-placement",
       "removeTreePlacement",
       {

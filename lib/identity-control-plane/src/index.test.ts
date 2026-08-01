@@ -7,14 +7,12 @@ import {
   identityControlPlaneRecordSchemaModule,
 } from "@dpeek/formless-identity-control-plane/schema";
 import {
-  IDENTITY_CONTROL_PLANE_SOURCE_SCHEMA_HASH,
   formatIdentityControlPlaneBoundaryEntityName,
   identityControlPlaneEntityNames,
   identityControlPlaneImmutableFields,
   identityControlPlaneRecordSourceEntityName,
   identityControlPlaneRoleKeys,
   identityControlPlaneSchema,
-  identityControlPlaneSchemaProvenance,
   identityControlPlaneSourceSchema,
   isIdentityControlPlaneEntityName,
   parseIdentityControlPlaneBoundaryEntityName,
@@ -72,18 +70,14 @@ describe("identity control-plane schema contracts", () => {
     });
   });
 
-  it("publishes deterministic source provenance", async () => {
+  it("uses normal App schema source hashing", async () => {
     const sourceHash = await computeSourceSchemaHash(identityControlPlaneSourceSchema);
     const changed = structuredClone(identityControlPlaneSourceSchema) as unknown as AppSchema;
 
     changed.entities.find((entity) => entity.key === "principal")!.label = "Person";
 
     expect(parseAppSchema(identityControlPlaneSourceSchema)).toEqual(identityControlPlaneSchema);
-    expect(IDENTITY_CONTROL_PLANE_SOURCE_SCHEMA_HASH).toBe(sourceHash);
-    expect(identityControlPlaneSchemaProvenance).toEqual({
-      kind: "identity-control-plane",
-      sourceSchemaHash: sourceHash,
-    });
+    expect(sourceHash).toMatch(/^sha256:[a-f0-9]{64}$/);
     expect(await computeSourceSchemaHash(changed)).not.toBe(sourceHash);
   });
 

@@ -16,61 +16,58 @@ in the current instance archive envelope.
 
 #### Scenario: Current archive kind
 
-- GIVEN a portable archive is parsed
+- GIVEN an instance archive is parsed
 - WHEN the archive kind is read
 - THEN the only supported kind is `formless.instanceArchive`
 - AND the archive contains one Program storage snapshot and one global Program
   media manifest
-- AND the envelope does not contain app installs, per-app snapshots, package
-  facts, install collision policy, or install retargeting metadata
 
 #### Scenario: Media capability
 
 - GIVEN an archive includes Program-owned image or document media
 - WHEN capabilities are parsed
-- THEN `core-media-assets` is accepted
-- AND `app-scoped-media` is rejected
+- THEN `core-media-assets` describes the archive media capability
 - AND image and document asset metadata remain distinguished inside the one
   current core media capability
 
-### Requirement: Current Archive Input Only
+### Requirement: Current Archive Validation
 
-The system SHALL accept only the current Program archive and workspace state
-contracts before restore, import, or workspace validation.
+The system SHALL validate the current Program archive and workspace state
+contracts before restore or workspace synchronization.
 
-#### Scenario: Reject non-current archive input
+#### Scenario: Validate archive input
 
-- WHEN archive restore, restore dry-run planning, import validation, or
-  workspace validation reads an unsupported kind, non-current version,
-  non-Program storage identity or provenance, or unsupported entity-name
-  spelling
-- THEN the archive is rejected before mutation
-- AND target Program and media data remain unchanged
+- WHEN archive restore, restore dry-run planning, or workspace validation reads
+  an instance archive
+- THEN its kind, version, Program storage identity, Program provenance, entity
+  names, records, references, and media are validated before mutation
+- AND invalid input leaves Program and media data unchanged
 
-#### Scenario: Program cutover advances current state contracts
+#### Scenario: Select current workspace source
 
-- GIVEN an instance archive or `state/instance.json` uses the former standalone
-  instance-control-plane schema key or provenance
-- WHEN current archive or workspace parsing runs after the Program cutover
-- THEN the input is rejected as non-current before mutation
-- AND current output uses schema key `formless-program`, provenance kind
-  `program`, and one mixed Program record set
-- AND the runtime does not retain dual current archive or workspace state shapes
+- GIVEN workspace state contains one Program record state file and referenced
+  media payloads
+- WHEN archive export, restore, save, check, pull, push, or local
+  materialization selects current source
+- THEN the current Program snapshot and referenced Program media are selected
+- AND the archive boundary does not discover additional storage targets
 
-#### Scenario: Dormant unselected state is not a source
+### Requirement: Archive API Vocabulary
 
-- GIVEN local storage still contains files or data outside the current Program
-  archive and workspace contracts
-- WHEN archive export, restore, save, check, pull, push, or local materialization
-  selects current source
-- THEN only the current Program snapshot and referenced Program media are
-  selected
-- AND dormant state is not discovered, imported, merged, migrated, rewritten,
-  cleaned up, aliased, or exposed through a legacy-specific rejection surface
+The system SHALL expose one Instance archive API vocabulary.
+
+#### Scenario: Consume Instance archive contracts
+
+- WHEN runtime, CLI, Workspace, Worker, or tests parse, format, plan, read, or
+  write an archive
+- THEN public contracts use `InstanceArchive`, `parseInstanceArchive`,
+  `formatInstanceArchive`, and `planInstanceArchiveRestore`
+- AND local directory adapters use corresponding Instance archive names
+- AND the package does not expose a second alias family for the same envelope
 
 ### Requirement: Export Latest Archive Format
 
-The system SHALL write portable archives using the latest supported archive
+The system SHALL write instance archives using the latest supported archive
 envelope.
 
 #### Scenario: Export instance archive
@@ -97,7 +94,6 @@ browser replica state.
 - AND core images referenced by Program-native Site records are carried by a
   Program media manifest using archive paths under `media/program/`
 - AND Program document media is carried by that same Program media manifest
-  without app-install owner metadata or package media namespaces
 - AND archive media files are written at manifest archive paths
 - AND protected target reads use owner session or admin bearer authorization
   supplied by the caller
@@ -111,7 +107,7 @@ irrelevant.
 #### Scenario: Format flat record values
 
 - GIVEN a stored record has flat `values`
-- WHEN the record is formatted for a storage snapshot, portable archive,
+- WHEN the record is formatted for a storage snapshot, instance archive,
   workspace state, or CLI-readable output
 - THEN known value properties are written in the containing entity's field
   declaration order
@@ -159,7 +155,7 @@ state.
 
 #### Scenario: Restore dry-run
 
-- GIVEN a portable archive directory exists
+- GIVEN an instance archive directory exists
 - WHEN restore planning or push dry-run runs
 - THEN validation and planning run as a dry-run
 - AND no remote Program or media data is mutated
@@ -194,11 +190,11 @@ portable archives and restore media before Program records.
 
 ### Requirement: Archive Package Boundary
 
-The system SHALL expose reusable portable archive contracts, current-envelope
+The system SHALL expose reusable instance archive contracts, current-envelope
 parsing, restore planning, and local archive file adapters through the Archive
 package slice.
 
-#### Scenario: Package owns portable archive contracts
+#### Scenario: Package owns instance archive contracts
 
 - **WHEN** CLI runtime, Worker restore APIs, Workspace operations,
   sync planning, tests, or package slices need archive envelope kinds,
@@ -243,7 +239,7 @@ package slice.
 
 - **GIVEN** archive parsing, restore dry-run planning, or workspace validation
   checks read an archive envelope
-- **WHEN** the archive version differs from the current portable archive version
+- **WHEN** the archive version differs from the current instance archive version
 - **THEN** the archive is rejected with an unsupported archive version error
 - **AND** Program provenance is read only from current archive fields
 
@@ -568,8 +564,7 @@ history.
   are excluded from instance archives and workspace state
 - **AND** runtime-observed deployment cache fields on `deployment-config`
   records are excluded from instance archives and workspace state
-- **AND** no package, module, entity, field, media, or former install identity
-  creates another archive storage scope
+- **AND** every record and media object belongs to the Program archive scope
 
 #### Scenario: Workspace Program state remains reviewable
 

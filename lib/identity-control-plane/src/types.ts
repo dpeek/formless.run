@@ -1,15 +1,13 @@
 /**
  * Versioned public identity control-plane contract declarations.
  *
- * Version 1 covers runtime-neutral schema identity constants, identity entity
- * names, and first-pass runtime role keys. Runtime execution and private auth
- * state remain outside this package contract.
+ * Version 1 covers runtime-neutral identity entity names, capability route
+ * constants, and first-pass runtime role keys. Runtime execution and private
+ * auth state remain outside this package contract.
  */
 export const IDENTITY_CONTROL_PLANE_PUBLIC_CONTRACT_VERSION = 1;
 
-export const IDENTITY_CONTROL_PLANE_SCHEMA_KEY = "identity-control-plane";
 export const IDENTITY_CONTROL_PLANE_BOUNDARY_SCHEMA_KEY = "auth";
-export const IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY = "instance:identity";
 export const IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX = "/api/formless/identity";
 export const IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH = "/access-summary";
 export const IDENTITY_ACCESS_PERSON_ROLE_REPLACEMENT_API_PATH = "/access-people/replace-roles";
@@ -17,10 +15,8 @@ export const IDENTITY_ACCESS_PERSON_REMOVAL_API_PATH = "/access-people/remove";
 export const IDENTITY_COLLABORATOR_INVITATIONS_API_PATH = "/collaborator-invitations";
 export const IDENTITY_COLLABORATOR_INVITATION_REVOKE_API_PATH = "/collaborator-invitations/revoke";
 
-export type IdentityControlPlaneSchemaKey = typeof IDENTITY_CONTROL_PLANE_SCHEMA_KEY;
 export type IdentityControlPlaneBoundarySchemaKey =
   typeof IDENTITY_CONTROL_PLANE_BOUNDARY_SCHEMA_KEY;
-export type IdentityControlPlaneStorageIdentity = typeof IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY;
 export type IdentityControlPlaneApiRoutePrefix = typeof IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX;
 export type IdentityAccessManagementSummaryApiPath =
   typeof IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH;

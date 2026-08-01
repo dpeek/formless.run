@@ -1,19 +1,16 @@
 import {
-  parsePortableArchive,
-  planPortableArchiveRestore,
+  parseInstanceArchive,
+  planInstanceArchiveRestore,
   type ArchiveMediaObject,
   type ArchiveRestoreMediaFile,
   type ArchiveRestorePlan,
   type ArchiveRestorePlanError,
   type ArchiveRestorePlanStep,
-  type PortableArchive,
+  type InstanceArchive,
 } from "../program/archive.ts";
 import type { FormlessProgramArtifact } from "../program/artifact.ts";
 import { formlessProgramArchiveSnapshotContract } from "../program/runtime.ts";
-import {
-  programStorageIdentity,
-  type ProgramStorageIdentity,
-} from "../shared/program-storage-identity.ts";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import {
   CORE_IMAGE_KEY_PREFIX,
   MEDIA_DOCUMENT_UPLOAD_MAX_BYTES,
@@ -40,14 +37,9 @@ export type ArchiveRestoreMediaAdapter = {
   readFile: (archivePath: string) => Promise<ArchiveRestoreMediaRead | undefined>;
   restoreObject: (input: {
     bytes: Uint8Array;
-    identity: ProgramStorageIdentity;
     object: ArchiveMediaObject;
   }) => Promise<MediaWriteResponse>;
-  validateObject?: (input: {
-    bytes: Uint8Array;
-    identity: ProgramStorageIdentity;
-    object: ArchiveMediaObject;
-  }) => Promise<void>;
+  validateObject?: (input: { bytes: Uint8Array; object: ArchiveMediaObject }) => Promise<void>;
 };
 
 export type ArchiveRestoreTransaction = {
@@ -113,7 +105,7 @@ export type ArchiveRestoreExecutionResult =
       plan?: ArchiveRestorePlan;
     };
 
-export async function dryRunPortableArchiveRestore(
+export async function dryRunInstanceArchiveRestore(
   value: unknown,
   target: ArchiveRestoreApplyTarget,
 ): Promise<ArchiveRestoreExecutionResult> {
@@ -134,7 +126,7 @@ export async function dryRunPortableArchiveRestore(
   };
 }
 
-export async function applyPortableArchiveRestore(
+export async function applyInstanceArchiveRestore(
   value: unknown,
   target: ArchiveRestoreApplyTarget,
 ): Promise<ArchiveRestoreExecutionResult> {
@@ -183,7 +175,6 @@ export async function applyPortableArchiveRestore(
         try {
           await target.media.restoreObject({
             bytes: mediaRead.bytes,
-            identity: programStorageIdentity(),
             object: mediaObjectFromStep(step),
           });
         } catch (error) {
@@ -259,7 +250,6 @@ export async function applyPortableArchiveRestore(
 
 export async function restoreArchiveMediaObjectToStore(
   store: MediaObjectStore,
-  identity: ProgramStorageIdentity,
   object: ArchiveMediaObject,
   bytes: Uint8Array,
 ): Promise<MediaWriteResponse> {
@@ -294,12 +284,8 @@ export async function restoreArchiveMediaObjectToStore(
   }
 
   if (object.asset?.kind === "document") {
-    if (identity.kind !== "program") {
-      throw new Error("Document archive restore is available only for global Program media.");
-    }
-
     const asset = object.asset;
-    const expectedHref = documentArchiveDeliveryHref(identity, asset.id);
+    const expectedHref = documentArchiveDeliveryHref(asset.id);
     const existing = await compatibleExistingArchiveDocument(store, object, bytes);
 
     if (existing) {
@@ -322,7 +308,7 @@ export async function restoreArchiveMediaObjectToStore(
         maxBytes: MEDIA_DOCUMENT_UPLOAD_MAX_BYTES,
       },
       contentType: object.contentType,
-      hrefForAssetId: (assetId) => documentArchiveDeliveryHref(identity, assetId),
+      hrefForAssetId: documentArchiveDeliveryHref,
       store,
     });
 
@@ -359,7 +345,7 @@ async function prepareArchiveRestore(
   target: ArchiveRestoreApplyTarget,
 ): Promise<
   | {
-      archive: PortableArchive;
+      archive: InstanceArchive;
       mediaFiles: Map<string, ArchiveRestoreMediaRead>;
       ok: true;
       plan: ArchiveRestorePlan;
@@ -370,10 +356,10 @@ async function prepareArchiveRestore(
       plan?: ArchiveRestorePlan;
     }
 > {
-  let archive: PortableArchive;
+  let archive: InstanceArchive;
 
   try {
-    archive = parsePortableArchive(value, {
+    archive = parseInstanceArchive(value, {
       programArtifact: target.programArtifact,
       programSchema: target.programSchema,
     });
@@ -385,7 +371,7 @@ async function prepareArchiveRestore(
   }
 
   const mediaFiles = target.media ? await target.media.listFiles() : undefined;
-  const planResult = planPortableArchiveRestore(archive, {
+  const planResult = planInstanceArchiveRestore(archive, {
     mediaFiles,
     programSnapshotContract: formlessProgramArchiveSnapshotContract({
       artifact: target.programArtifact,
@@ -516,7 +502,6 @@ async function validatePreparedMediaRestores(
     try {
       await target.media.validateObject({
         bytes: file.bytes,
-        identity: programStorageIdentity(),
         object: mediaObjectFromStep(step),
       });
     } catch (error) {
@@ -581,8 +566,8 @@ async function compatibleExistingArchiveDocument(
   return true;
 }
 
-function documentArchiveDeliveryHref(identity: ProgramStorageIdentity, assetId: string): string {
-  return `${identity.apiRoutePrefix}/media/documents/${assetId}`;
+function documentArchiveDeliveryHref(assetId: string): string {
+  return `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/media/documents/${assetId}`;
 }
 
 function sameDocumentMediaAsset(

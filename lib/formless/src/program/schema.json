@@ -380,18 +380,6 @@
           "type": "text"
         },
         {
-          "key": "targetKind",
-          "label": "Kind",
-          "required": true,
-          "type": "enum",
-          "values": [
-            {
-              "key": "instance",
-              "label": "Instance"
-            }
-          ]
-        },
-        {
           "key": "label",
           "label": "Label",
           "required": true,
@@ -533,10 +521,6 @@
                 "key": "targetId"
               },
               {
-                "field": "targetKind",
-                "key": "targetKind"
-              },
-              {
                 "field": "label",
                 "key": "label"
               },
@@ -599,10 +583,6 @@
               {
                 "field": "targetId",
                 "key": "targetId"
-              },
-              {
-                "field": "targetKind",
-                "key": "targetKind"
               },
               {
                 "field": "label",
@@ -8670,7 +8650,7 @@
           ]
         },
         "deployment-config": {
-          "immutableFields": ["targetId", "targetKind", "providerFamily"],
+          "immutableFields": ["targetId", "providerFamily"],
           "observedFields": [
             "observedStatus",
             "observedAt",
@@ -9238,11 +9218,6 @@
         {
           "display": "readOnly",
           "field": "targetId",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "targetKind",
           "type": "field"
         },
         {
@@ -11064,10 +11039,6 @@
         {
           "editor": "text",
           "field": "targetId"
-        },
-        {
-          "editor": "enum",
-          "field": "targetKind"
         },
         {
           "editor": "text",

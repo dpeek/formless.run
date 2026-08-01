@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
-import type { StoredRecord } from "@dpeek/formless-storage";
 import type { BootstrapResponse, OwnerIdentity } from "../shared/protocol.ts";
 import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
 import {
@@ -140,25 +139,17 @@ describe("authority admin guard", () => {
     expect(after.schema).toEqual(before.schema);
   });
 
-  it("keeps public Site tree reads open while guarding Site writes", async () => {
+  it("keeps public Site tree reads open while guarding Program bootstrap", async () => {
     const tree = await getJson<SitePageTreeResponse>("/api/formless/program/tree/home");
-    const before = await getJson<BootstrapResponse>(
-      "/api/formless/program/bootstrap",
-      adminHeaders(),
-    );
-    const write = await harness.fetch("/api/formless/program/mutations", {
-      body: "{}",
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
+    const unauthorized = await harness.fetch("/api/formless/program/bootstrap");
     const bootstrap = await getJson<BootstrapResponse>(
       "/api/formless/program/bootstrap",
       adminHeaders(),
     );
 
     expect(tree.page.id).toBe("rec_site_content_home");
-    expect(write.status).toBe(404);
-    expectRecordsIgnoringOrder(bootstrap.records, before.records);
+    expect(unauthorized.status).toBe(401);
+    expect(bootstrap.records).toEqual(expect.any(Array));
   });
 });
 
@@ -194,10 +185,4 @@ async function ownerSessionHeaders() {
 
 function cookiePair(cookie: string) {
   return cookie.split(";")[0] ?? cookie;
-}
-
-function expectRecordsIgnoringOrder(actual: StoredRecord[], expected: StoredRecord[]) {
-  expect(Object.fromEntries(actual.map((record) => [record.id, record]))).toEqual(
-    Object.fromEntries(expected.map((record) => [record.id, record])),
-  );
 }

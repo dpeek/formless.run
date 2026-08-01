@@ -45,7 +45,6 @@ export type WorkspaceGatewayOperationAutoSaveScheduler = {
 
 export type WorkspaceAutoSaveSchedulerSaveInput = {
   dirtyGeneration: number;
-  storageIdentities: readonly string[];
   workspaceRoot: string;
   writeSources: readonly WorkspaceAutoSaveWriteSource[];
 };
@@ -178,7 +177,6 @@ export function createWorkspaceAutoSaveScheduler(
     try {
       await dependencies.save({
         dirtyGeneration: state.inFlightGeneration ?? state.dirtyGeneration,
-        storageIdentities: state.storageIdentities,
         workspaceRoot,
         writeSources: state.writeSources,
       });
@@ -210,9 +208,6 @@ export function createWorkspaceAutoSaveScheduler(
         {
           now: dependencies.now,
           source: input.source,
-          ...(input.storageIdentity === undefined
-            ? {}
-            : { storageIdentity: input.storageIdentity }),
         },
       );
 

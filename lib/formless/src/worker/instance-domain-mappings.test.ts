@@ -55,14 +55,13 @@ describe("instance domain mapping route boundary", () => {
     });
 
     const lookup = await getJson<InstanceDomainMappingLookupResponse>(
-      "/api/formless/domain-mappings/lookup?host=WWW.Example.COM.:443&surface=site",
+      "/api/formless/domain-mappings/lookup?host=WWW.Example.COM.:443&profile=publicSite",
     );
 
     expect(lookup.body.mapping).toMatchObject({
       enabled: true,
       host: "www.example.com",
       profile: "publicSite",
-      surface: "site",
     });
   });
 
@@ -78,7 +77,7 @@ describe("instance domain mapping route boundary", () => {
     });
 
     const lookup = await getJson<InstanceDomainMappingLookupResponse>(
-      "/api/formless/domain-mappings/lookup?host=disabled.example.com&surface=site",
+      "/api/formless/domain-mappings/lookup?host=disabled.example.com&profile=publicSite",
     );
 
     expect(lookup.body.mapping).toBeNull();
@@ -99,7 +98,7 @@ describe("instance domain mapping route boundary", () => {
       "/api/formless/domain-mappings/apply-evidence",
       {
         host: "applied.example.com",
-        surface: "site",
+        profile: "publicSite",
         provider: "cloudflare-worker-custom-domain",
         accountId: "account-123",
         zoneId: "zone-1",
@@ -126,8 +125,7 @@ describe("instance domain mapping route boundary", () => {
     const rejected = await harness.fetch("/api/formless/domain-mappings/apply-evidence", {
       body: JSON.stringify({
         host: "example.com",
-        surface: "site",
-        installId: "personal",
+        profile: "publicSite",
         provider: "cloudflare-worker-custom-domain",
         accountId: "account-123",
         zoneId: "zone-1",

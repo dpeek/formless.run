@@ -1870,15 +1870,7 @@ export type WorkspaceContract = {
   width: WorkspaceWidth;
 };
 
-export type ShellScope = "appOnly" | "multiApp";
-
-export type ShellNavigationSectionRole =
-  | "appSettings"
-  | "appSwitcher"
-  | "instance"
-  | "rootRecords"
-  | "screens"
-  | "session";
+export type ShellNavigationSectionRole = "program" | "rootRecords" | "settings" | "session";
 
 export type ShellDestinationAvailability =
   | {
@@ -1993,7 +1985,6 @@ export type ShellManifestContract = {
   id: string;
   kind: "shellManifest";
   navigationSections: readonly ShellNavigationSectionReference[];
-  scope: ShellScope;
   title: string;
 };
 

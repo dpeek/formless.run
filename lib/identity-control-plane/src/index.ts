@@ -1,21 +1,13 @@
-import type { SourceSchemaHash } from "@dpeek/formless-schema";
 import {
   formatQualifiedEntityName,
   isValidStoredFieldValue,
   parseAppSchema,
   parseQualifiedEntityName,
 } from "@dpeek/formless-schema";
-import {
-  parseStorageSnapshot,
-  type RecordValues,
-  type StorageSnapshot,
-  type StoredRecord,
-} from "@dpeek/formless-storage";
+import { type RecordValues, type StoredRecord } from "@dpeek/formless-storage";
 import { identityControlPlaneSourceSchema } from "./schema.ts";
 import {
   IDENTITY_CONTROL_PLANE_BOUNDARY_SCHEMA_KEY,
-  IDENTITY_CONTROL_PLANE_SCHEMA_KEY,
-  IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
   identityControlPlaneEntityNames,
   identityControlPlaneRoleKeys,
   type IdentityControlPlaneEntityName,
@@ -31,14 +23,6 @@ import type {
 
 export * from "./types.ts";
 export { identityControlPlaneSourceSchema } from "./schema.ts";
-
-export const IDENTITY_CONTROL_PLANE_SOURCE_SCHEMA_HASH =
-  "sha256:43522c59dea539970cb0acf590c06dab675b1244fe264a9d1ced3046bf5a708b" satisfies SourceSchemaHash;
-
-export const identityControlPlaneSchemaProvenance = {
-  kind: "identity-control-plane",
-  sourceSchemaHash: IDENTITY_CONTROL_PLANE_SOURCE_SCHEMA_HASH,
-} as const;
 
 export const identityControlPlaneSchema = parseAppSchema(identityControlPlaneSourceSchema);
 export const identityControlPlaneEntityIds = identityControlPlaneSchema.entities.map(
@@ -178,38 +162,6 @@ export function identityControlPlaneRecordSourceEntityName(
   return localEntity !== undefined && isIdentityControlPlaneEntityName(localEntity)
     ? localEntity
     : undefined;
-}
-
-export function parseIdentityControlPlaneStorageSnapshot(
-  context: string,
-  value: unknown,
-  options: IdentityControlPlaneRecordValidationOptions = {},
-): StorageSnapshot {
-  const snapshot = parseStorageSnapshot(value, {
-    schemaKey: IDENTITY_CONTROL_PLANE_SCHEMA_KEY,
-    storageIdentity: IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
-  });
-
-  validateIdentityControlPlaneRecords(`${context} records`, snapshot.records, options);
-
-  return snapshot;
-}
-
-export function reviewableIdentityControlPlaneStorageSnapshot(
-  snapshot: StorageSnapshot,
-  options: IdentityControlPlaneRecordValidationOptions = {},
-): StorageSnapshot {
-  const parsed = parseStorageSnapshot(snapshot, {
-    schemaKey: IDENTITY_CONTROL_PLANE_SCHEMA_KEY,
-    storageIdentity: IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY,
-  });
-  const records = reviewableIdentityControlPlaneRecords(parsed.records, options);
-
-  return {
-    ...parsed,
-    records,
-    sourceCursor: records.length,
-  };
 }
 
 export function parseIdentityControlPlaneRecords(context: string, value: unknown): StoredRecord[] {

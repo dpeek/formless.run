@@ -69,7 +69,6 @@ describe("workspace gateway auto-save", () => {
         dirtyGeneration: 1,
         displayState: "dirty",
         lastEnqueueAt: "2026-06-02T02:00:03.000Z",
-        storageIdentities: ["instance:control-plane"],
         writeSources: ["schema-save"],
       },
       workspaceRoot,
@@ -79,7 +78,6 @@ describe("workspace gateway auto-save", () => {
       dirtyGeneration: 1,
       displayState: "dirty",
       savedGeneration: 0,
-      storageIdentities: ["instance:control-plane"],
       writeSources: ["schema-save"],
     });
   });
@@ -110,15 +108,13 @@ describe("workspace gateway auto-save", () => {
 
     await expect(
       scheduler.enqueue({
-        source: "app-operation",
-        storageIdentity: "instance:control-plane",
+        source: "control-plane-write",
         workspaceRoot,
       }),
     ).resolves.toMatchObject({
       dirtyGeneration: 1,
       displayState: "queued",
-      storageIdentities: ["instance:control-plane"],
-      writeSources: ["app-operation"],
+      writeSources: ["control-plane-write"],
     });
     await expect(
       scheduler.recordGatewayOperationStateSuppressed({ workspaceRoot }),
@@ -193,13 +189,11 @@ describe("workspace gateway auto-save", () => {
     });
 
     await scheduler.enqueue({
-      source: "app-operation",
-      storageIdentity: "instance:control-plane",
+      source: "control-plane-write",
       workspaceRoot,
     });
     await scheduler.enqueue({
       source: "deployment-intent",
-      storageIdentity: "instance:control-plane",
       workspaceRoot,
     });
 
@@ -214,7 +208,6 @@ describe("workspace gateway auto-save", () => {
 
     await scheduler.enqueue({
       source: "schema-save",
-      storageIdentity: "instance:control-plane",
       workspaceRoot,
     });
     saving.resolve(undefined);
@@ -224,8 +217,7 @@ describe("workspace gateway auto-save", () => {
       dirtyGeneration: 3,
       displayState: "queued",
       savedGeneration: 2,
-      storageIdentities: ["instance:control-plane"],
-      writeSources: ["app-operation", "deployment-intent", "schema-save"],
+      writeSources: ["control-plane-write", "deployment-intent", "schema-save"],
     });
   });
   it("records retryable failed state with display-safe errors and explicit run-now recovery", async () => {
@@ -263,8 +255,7 @@ describe("workspace gateway auto-save", () => {
     });
 
     await scheduler.enqueue({
-      source: "app-operation",
-      storageIdentity: "instance:control-plane",
+      source: "control-plane-write",
       workspaceRoot,
     });
 
@@ -288,7 +279,6 @@ describe("workspace gateway auto-save", () => {
       displayState: "saved",
       retryCount: 0,
       savedGeneration: 1,
-      storageIdentities: [],
       writeSources: [],
     });
   });
@@ -328,8 +318,7 @@ describe("workspace gateway auto-save", () => {
         }),
         {
           now: () => "2026-06-02T02:40:00.000Z",
-          source: "app-operation",
-          storageIdentity: "instance:control-plane",
+          source: "control-plane-write",
         },
       ),
       workspaceRoot,
@@ -338,7 +327,6 @@ describe("workspace gateway auto-save", () => {
       dirtyGeneration: 1,
       displayState: "saved",
       savedGeneration: 1,
-      storageIdentities: [],
       suppressed: { reason: "auto-save" },
       writeSources: [],
     });
@@ -387,8 +375,7 @@ describe("workspace gateway auto-save", () => {
         }),
         {
           now: () => "2026-06-02T02:50:01.000Z",
-          source: "app-operation",
-          storageIdentity: "instance:control-plane",
+          source: "control-plane-write",
         },
       ),
       {
@@ -437,7 +424,6 @@ describe("workspace gateway auto-save", () => {
       displayState: "saved",
       retryCount: 0,
       savedGeneration: 1,
-      storageIdentities: [],
       suppressed: { reason: "manual-save" },
       writeSources: [],
     });

@@ -45,10 +45,10 @@ describe("protected route guard", () => {
     expect(rejected.states).toEqual(["checking", "redirect"]);
   });
 
-  it("keeps temporarily reachable installed app routes on the owner-session check", async () => {
+  it("keeps Program owner routes on the owner-session check", async () => {
     const result = await runGuard("owner", {
       response: Response.json({ authenticated: false, setupComplete: true }),
-      route: "/apps/personal/settings",
+      route: "/site/settings",
     });
 
     expect(result.calls).toEqual(["/api/formless/session"]);
@@ -209,7 +209,6 @@ function routeTarget(route: `/${string}`) {
   return {
     returnTo: route,
     routeId: "route:instance",
-    storageIdentity: "formless-program",
     targetOrigin: "https://formless.test",
     targetProfile: "instance",
   };

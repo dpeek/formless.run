@@ -3,7 +3,6 @@ import {
   instanceControlPlaneProductionIdentityFromRecords,
 } from "@dpeek/formless-instance-control-plane";
 import type { StoredRecord } from "@dpeek/formless-storage";
-import type { ProgramStorageIdentity } from "../shared/program-storage-identity.ts";
 import type { EmailDeliveryScheduleRequest } from "../shared/email-runtime.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import type { DeploymentControlPlaneClientEnv } from "./deployment-control-plane-client.ts";
@@ -12,6 +11,7 @@ import {
   resolveDefaultEmailSenderReference,
   schedulePlatformEmailDelivery,
 } from "./email-runtime.ts";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 
 const contactNotificationMessageKind = "site-contact-notification";
 
@@ -62,7 +62,6 @@ export function createSiteContactNotificationAdapters(
 
 export async function scheduleSiteContactNotificationAfterPublicOperation(input: {
   adapters: SiteContactNotificationAdapters;
-  identity: ProgramStorageIdentity;
   requestUrl: string;
   response: OperationInvocationResponse;
 }): Promise<void> {
@@ -113,7 +112,7 @@ export async function scheduleSiteContactNotificationAfterPublicOperation(input:
         source: {
           operationId: input.response.invocation.invocationId,
           recordId: record.id,
-          storageIdentity: input.identity.authorityName,
+          storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
         },
       },
     });

@@ -578,7 +578,6 @@ export function initialWorkspaceAutoSaveState(input: {
     kind: WORKSPACE_AUTO_SAVE_STATE_FILE_KIND,
     retryCount: 0,
     savedGeneration: 0,
-    storageIdentities: [],
     updatedAt: now,
     version: WORKSPACE_AUTO_SAVE_STATE_FILE_VERSION,
     writeSources: [],
@@ -600,10 +599,6 @@ export function nextWorkspaceAutoSaveEnqueuedState(
     displayState: current.inFlightGeneration === undefined ? "queued" : "saving",
     lastEnqueueAt: now,
     retryCount: current.displayState === "failed" ? 0 : current.retryCount,
-    storageIdentities: sortedUnique([
-      ...current.storageIdentities,
-      ...(input.storageIdentity === undefined ? [] : [input.storageIdentity]),
-    ]),
     updatedAt: now,
     writeSources: sortedUnique([...current.writeSources, input.source]),
   };
@@ -643,7 +638,6 @@ export function nextWorkspaceAutoSaveSavedState(
     lastSavedAt: now,
     retryCount: hasNewerDirtyGeneration ? current.retryCount : 0,
     savedGeneration: Math.max(current.savedGeneration, persistedGeneration),
-    storageIdentities: hasNewerDirtyGeneration ? current.storageIdentities : [],
     updatedAt: now,
     writeSources: hasNewerDirtyGeneration ? current.writeSources : [],
   };
@@ -712,9 +706,7 @@ export function parseWorkspaceAutoSaveState(value: unknown): WorkspaceAutoSaveSt
     !isNonNegativeInteger(value.retryCount) ||
     typeof value.updatedAt !== "string" ||
     !Array.isArray(value.writeSources) ||
-    !value.writeSources.every(isWorkspaceAutoSaveWriteSource) ||
-    !Array.isArray(value.storageIdentities) ||
-    !value.storageIdentities.every((identity) => typeof identity === "string")
+    !value.writeSources.every(isWorkspaceAutoSaveWriteSource)
   ) {
     throw new Error("Workspace auto-save state file is invalid.");
   }

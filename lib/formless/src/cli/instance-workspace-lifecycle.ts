@@ -5,8 +5,8 @@ import path from "node:path";
 
 import {
   INSTANCE_ARCHIVE_KIND,
-  PORTABLE_ARCHIVE_MANIFEST_FILE,
-  type PortableArchive,
+  INSTANCE_ARCHIVE_MANIFEST_FILE,
+  type InstanceArchive,
 } from "../program/archive.ts";
 import { runtimeWorkspaceExtensionsEnvValue } from "../shared/workspace-runtime-extensions.ts";
 import {
@@ -33,7 +33,7 @@ import {
   resolveFormlessCliTargetContext,
   formlessCliWorkspaceStatusSecretStateLabel,
 } from "./instance-target-context.ts";
-import { restorePortableArchive, type RestorePortableArchiveResult } from "./archive-workflows.ts";
+import { restoreInstanceArchive, type RestoreInstanceArchiveResult } from "./archive-workflows.ts";
 import type { StartWorkspaceGatewaySidecarDependencies } from "./workspace-gateway-runtime.ts";
 import {
   createWorkspaceTempRoot,
@@ -219,7 +219,7 @@ export async function initFormlessInstanceWorkspace(
       : normalizeFormlessInstanceWorkspaceTargetUrl(input.targetUrl);
   const targetAlias = input.targetAlias ?? "remote";
   let remoteStatus: FormlessInstanceTargetStatus | undefined;
-  let archive: PortableArchive | undefined;
+  let archive: InstanceArchive | undefined;
   let archiveDir: string | undefined;
   let archiveSourcePath: string | undefined;
 
@@ -516,7 +516,7 @@ async function bootstrapWorkspaceLocalInstance(
       return { status: "empty" };
     }
 
-    const restore = await restorePortableArchive(
+    const restore = await restoreInstanceArchive(
       {
         adminToken: input.adminToken,
         apply: true,
@@ -549,7 +549,7 @@ async function bootstrapWorkspaceLocalInstance(
 }
 
 async function writeInitialInstanceWorkspaceState(input: {
-  archive: PortableArchive | undefined;
+  archive: InstanceArchive | undefined;
   archiveDir: string | undefined;
   config: FormlessResolvedConfig;
   remoteStatus: FormlessInstanceTargetStatus | undefined;
@@ -618,7 +618,7 @@ async function assertLocalOnboardingWorkspaceReady(workspaceRoot: string) {
   await assertNoExistingWorkspaceConfig(workspaceRoot);
   await assertNoLocalOnboardingConflict(
     workspaceRoot,
-    PORTABLE_ARCHIVE_MANIFEST_FILE,
+    INSTANCE_ARCHIVE_MANIFEST_FILE,
     "portable archive source",
     "Import or move existing archive source before browser setup.",
   );
@@ -699,11 +699,7 @@ async function pathExists(filePath: string): Promise<boolean> {
   }
 }
 
-async function prepareWorkspaceDirectories(
-  workspaceRoot: string,
-  config: FormlessResolvedConfig,
-  _options: { appArchiveRoot?: boolean } = {},
-) {
+async function prepareWorkspaceDirectories(workspaceRoot: string, config: FormlessResolvedConfig) {
   await mkdir(path.join(workspaceRoot, config.local.stateRoot), { recursive: true });
 }
 
@@ -855,7 +851,7 @@ function instanceProgramBootstrapUrl(origin: string): string {
   return new URL("/api/formless/program/bootstrap", `${origin}/`).toString();
 }
 
-function restoreErrors(restore: RestorePortableArchiveResult): string {
+function restoreErrors(restore: RestoreInstanceArchiveResult): string {
   return restore.remote.errors?.map((error) => error.message).join("; ") || "unknown error";
 }
 

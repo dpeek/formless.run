@@ -102,7 +102,6 @@ export type {
   DeployRunnerId,
   DeploySecretReference,
   DeployTargetId,
-  DeployTargetKind,
   DeployTargetRef,
   MaterializeDeployDesiredStateVersionInput,
 } from "./types.ts";

@@ -106,7 +106,6 @@ import {
   upsertMediaAssetOption,
 } from "./record-field-authoring.ts";
 import { shouldUseAppReplicaReferenceOptions } from "./reference-field-options.ts";
-import { useSchemaAppTarget, useSchemaAppWriteOptions } from "./schema-app-context.tsx";
 import { executeTransitionStateOperation } from "./state-machine-operation-runtime.ts";
 import type { OperationCommandOutput } from "../../shared/operation-invocation.ts";
 import { selectRecordFieldsForActiveUnion } from "./union-presentation.ts";
@@ -321,9 +320,6 @@ export function useGeneratedWorkspaceRuntimeController({
     mediaAssetOptionsByFieldKey,
     workspaceActions,
   });
-  const programTarget = useSchemaAppTarget();
-  const writeOptions = useSchemaAppWriteOptions();
-
   useEffect(() => {
     let cancelled = false;
 
@@ -332,7 +328,7 @@ export function useGeneratedWorkspaceRuntimeController({
       return;
     }
 
-    void loadGeneratedMediaAssetOptions(mediaFields, programTarget)
+    void loadGeneratedMediaAssetOptions(mediaFields)
       .then((optionsByFieldKey) => {
         if (!cancelled) {
           setMediaAssetOptionsByFieldKey(optionsByFieldKey);
@@ -347,7 +343,7 @@ export function useGeneratedWorkspaceRuntimeController({
     return () => {
       cancelled = true;
     };
-  }, [programTarget, mediaFields]);
+  }, [mediaFields]);
 
   async function uploadAndStoreGeneratedMediaFile(
     entityName: string,
@@ -361,7 +357,6 @@ export function useGeneratedWorkspaceRuntimeController({
     }
 
     const result = await uploadGeneratedMediaFile({
-      programTarget,
       entityName,
       field,
       fieldName: fieldConfig.fieldName,
@@ -1334,15 +1329,11 @@ export function useGeneratedWorkspaceRuntimeController({
     setSyncStatus({ state: "syncing", message: `Updating ${fieldName}...` });
     try {
       await submitOperation(
-        programTarget,
         record.entity,
         updateOperation.operationName,
         { input: patchValues, recordId: record.id },
         undefined,
-        {
-          ...writeOptions,
-          ...(autoSaveSource === undefined ? {} : { autoSaveSource }),
-        },
+        autoSaveSource === undefined ? {} : { autoSaveSource },
       );
       setRecordStateByResultId((states) => ({
         ...states,
@@ -1451,12 +1442,11 @@ export function useGeneratedWorkspaceRuntimeController({
           uploadPatchFields: mediaAuthoring.uploadPatchFields,
         });
         await submitOperation(
-          programTarget,
           record.entity,
           model.updateOperation.operationName,
           { input: resolution.patchValues, recordId },
           undefined,
-          { ...writeOptions, autoSaveSource: "media-reference" },
+          { autoSaveSource: "media-reference" },
         );
         setListStateByResultId((states) => ({
           ...states,
@@ -1546,12 +1536,10 @@ export function useGeneratedWorkspaceRuntimeController({
     }));
     try {
       await submitOperation(
-        programTarget,
         record.entity,
         model.updateOperation.operationName,
         { input: committedPatch.patchValues, recordId },
         undefined,
-        writeOptions,
       );
       setListStateByResultId((states) => ({
         ...states,
@@ -1684,12 +1672,11 @@ export function useGeneratedWorkspaceRuntimeController({
           uploadPatchFields: mediaAuthoring.uploadPatchFields,
         });
         await submitOperation(
-          programTarget,
           context.entityName,
           context.updateOperation.operationName,
           { input: resolution.patchValues, recordId: context.recordId },
           undefined,
-          { ...writeOptions, autoSaveSource: "media-reference" },
+          { autoSaveSource: "media-reference" },
         );
         setTableStateByResultId((states) => ({
           ...states,
@@ -1760,12 +1747,10 @@ export function useGeneratedWorkspaceRuntimeController({
     }));
     try {
       await submitOperation(
-        programTarget,
         context.entityName,
         context.updateOperation.operationName,
         { input: committedPatch.patchValues, recordId: context.recordId },
         undefined,
-        writeOptions,
       );
       setTableStateByResultId((states) => ({
         ...states,

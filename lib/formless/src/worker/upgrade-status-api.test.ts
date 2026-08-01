@@ -41,14 +41,13 @@ describe("runtime upgrade status API", () => {
     });
     const appliedBody = (await applied.json()) as InstanceUpgradeStatusResponse;
 
-    expect(status.storageIdentities).toEqual([
+    expect(status.storageIdentity).toEqual(
       expect.objectContaining({
         identity: { authorityName: "__formless_instance__", kind: "instance" },
       }),
-    ]);
+    );
     expect(applied.status).toBe(200);
-    expect(appliedBody.storageIdentities).toHaveLength(1);
-    expect(appliedBody.storageIdentities[0]?.identity.kind).toBe("instance");
+    expect(appliedBody.storageIdentity.identity.kind).toBe("instance");
   });
 });
 

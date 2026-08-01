@@ -290,9 +290,7 @@ export function parseWorkspaceGatewayAutoSaveEnqueueInput(
     return { error: "Workspace auto-save enqueue request must be an object.", ok: false };
   }
 
-  const unsupportedField = Object.keys(body).find(
-    (field) => field !== "source" && field !== "storageIdentity",
-  );
+  const unsupportedField = Object.keys(body).find((field) => field !== "source");
 
   if (unsupportedField) {
     return {
@@ -305,19 +303,8 @@ export function parseWorkspaceGatewayAutoSaveEnqueueInput(
     return { error: "Workspace auto-save write source is invalid.", ok: false };
   }
 
-  if ("storageIdentity" in body && body.storageIdentity !== undefined) {
-    if (typeof body.storageIdentity !== "string" || body.storageIdentity.trim() === "") {
-      return { error: "Workspace auto-save storage identity is invalid.", ok: false };
-    }
-  }
-
   return {
-    input: {
-      source: body.source,
-      ...(typeof body.storageIdentity === "string"
-        ? { storageIdentity: body.storageIdentity }
-        : {}),
-    },
+    input: { source: body.source },
     ok: true,
   };
 }

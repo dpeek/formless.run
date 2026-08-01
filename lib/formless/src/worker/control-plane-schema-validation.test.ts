@@ -18,12 +18,11 @@ beforeAll(async () => {
     { FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true } },
     { bindings: { FORMLESS_ADMIN_TOKEN: adminToken } },
   );
-  authority = createAuthorityWriteHelpers(harness, "site", adminHeaders(), adminHeaders());
+  authority = createAuthorityWriteHelpers(harness, adminHeaders(), adminHeaders());
 });
 
 beforeEach(async () => {
-  authority.useSchemaApp("site");
-  await authority.resetSchemaApp("site");
+  await authority.resetProgram();
 });
 
 afterAll(async () => {
@@ -38,7 +37,6 @@ describe("control-plane schema runtime validation", () => {
       operationName: "create",
       input: {
         targetId: "instance.primary",
-        targetKind: "instance",
         label: "Primary Cloudflare",
         enabled: true,
         targetUrl: "https://personal.example.workers.dev",

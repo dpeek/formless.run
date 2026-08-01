@@ -2,16 +2,15 @@ import {
   ARCHIVE_VERSION,
   INSTANCE_ARCHIVE_KIND,
   archiveMediaReferences,
-  formatPortableArchive,
+  formatInstanceArchive,
   type ArchiveMediaObject,
   type ArchiveMediaReference,
   type ArchiveRestorePolicy,
   type InstanceArchive,
-  type PortableArchive,
 } from "../program/archive.ts";
 import {
-  readPortableArchiveDirectory,
-  writePortableArchiveDirectory,
+  readInstanceArchiveDirectory,
+  writeInstanceArchiveDirectory,
   type ArchiveDiskMediaFile,
   type ArchiveDiskWriteResult,
 } from "../program/archive-node.ts";
@@ -35,19 +34,11 @@ import {
 } from "@dpeek/formless-media";
 import type { StorageSnapshot } from "@dpeek/formless-storage";
 import {
-  readPortableArchiveInputStatus,
-  type PortableArchiveInputStatus,
-} from "./archive-input-status.ts";
-import {
   resolveFormlessCliAdminToken,
   formlessCliTargetFetchHeaders,
 } from "./instance-target-context.ts";
 
-export {
-  PORTABLE_ARCHIVE_MANIFEST_FILE,
-  readPortableArchiveInputStatus,
-  type PortableArchiveInputStatus,
-} from "./archive-input-status.ts";
+export { INSTANCE_ARCHIVE_MANIFEST_FILE } from "../program/archive.ts";
 export type { ArchiveDiskMediaFile, ArchiveDiskWriteResult } from "../program/archive-node.ts";
 
 const INSTANCE_ARCHIVE_RESTORE_API_PATH = "/api/formless/archive/restore";
@@ -72,8 +63,7 @@ export type ArchiveRestoreRemoteResult = {
   errors?: { message: string }[];
 };
 
-export type RestorePortableArchiveResult = {
-  archiveInput: PortableArchiveInputStatus;
+export type RestoreInstanceArchiveResult = {
   archivePath: string;
   remote: ArchiveRestoreRemoteResult;
 };
@@ -120,7 +110,7 @@ export async function exportInstanceArchive(
     media: { objects: media.objects },
   };
 
-  return writePortableArchiveDirectory(
+  return writeInstanceArchiveDirectory(
     {
       archive,
       mediaFiles: media.files,
@@ -274,7 +264,7 @@ async function fetchRemoteProgramArchive(input: {
   );
 }
 
-export async function restorePortableArchive(
+export async function restoreInstanceArchive(
   input: {
     adminToken?: string | null;
     apply: boolean;
@@ -283,7 +273,7 @@ export async function restorePortableArchive(
     target: string;
   },
   dependencies: ArchiveWorkflowDependencies,
-): Promise<RestorePortableArchiveResult> {
+): Promise<RestoreInstanceArchiveResult> {
   return restoreArchive(input, dependencies);
 }
 
@@ -296,7 +286,7 @@ export async function restoreWorkspacePushArchive(
     target: string;
   },
   dependencies: ArchiveWorkflowDependencies,
-): Promise<RestorePortableArchiveResult> {
+): Promise<RestoreInstanceArchiveResult> {
   return restoreArchive(input, dependencies);
 }
 
@@ -309,17 +299,13 @@ async function restoreArchive(
     target: string;
   },
   dependencies: ArchiveWorkflowDependencies,
-): Promise<RestorePortableArchiveResult> {
-  const archiveInput = await readPortableArchiveInputStatus({
-    archiveDir: input.archiveDir,
-    cwd: dependencies.cwd,
-  });
+): Promise<RestoreInstanceArchiveResult> {
   const programArtifact = input.programArtifact ?? formlessProgramArtifact;
-  const diskArchive = await readPortableArchiveDirectory(input.archiveDir, {
+  const diskArchive = await readInstanceArchiveDirectory(input.archiveDir, {
     ...dependencies,
     programArtifact,
   });
-  const archive: PortableArchive = {
+  const archive: InstanceArchive = {
     ...diskArchive.archive,
     restorePolicy: restorePolicy(input),
   };
@@ -334,7 +320,7 @@ async function restoreArchive(
     dependencies,
   );
 
-  return { archiveInput, archivePath: diskArchive.archivePath, remote };
+  return { archivePath: diskArchive.archivePath, remote };
 }
 
 function restorePolicy(input: { apply: boolean }): ArchiveRestorePolicy {
@@ -470,7 +456,7 @@ function archiveExportAdminToken(auth: ArchiveExportAuth | undefined): string | 
 async function postRemoteArchiveRestore(
   input: {
     adminToken?: string | null;
-    archive: PortableArchive;
+    archive: InstanceArchive;
     mediaFiles: readonly ArchiveDiskMediaFile[];
     programArtifact: FormlessProgramArtifact;
     target: string;
@@ -485,7 +471,7 @@ async function postRemoteArchiveRestore(
     {
       body: JSON.stringify({
         archive: JSON.parse(
-          formatPortableArchive(input.archive, { programArtifact: input.programArtifact }),
+          formatInstanceArchive(input.archive, { programArtifact: input.programArtifact }),
         ) as unknown,
         mediaFiles: input.mediaFiles.map(archiveRestoreRequestMediaFile),
       }),

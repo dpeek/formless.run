@@ -5,7 +5,7 @@ import {
   archiveMediaObjects,
   archiveRecordCount,
   formatInstanceArchive,
-  parsePortableArchive,
+  parseInstanceArchive,
   type ArchiveProgramSnapshotContract,
   type InstanceArchive,
 } from "./index.ts";
@@ -86,19 +86,19 @@ const contract: ArchiveProgramSnapshotContract = {
 describe("portable Program archive protocol", () => {
   it("parses only the current instance archive with one required Program", () => {
     const archive = instanceArchive();
-    const parsed = parsePortableArchive(archive, { programSnapshotContract: contract });
+    const parsed = parseInstanceArchive(archive, { programSnapshotContract: contract });
 
     expect(parsed.program.snapshot.schema.screens[0]?.layout).toMatchObject({ width: "standard" });
     expect(archiveRecordCount(archive)).toBe(2);
     expect(archiveMediaObjects(archive)).toEqual([]);
     expect(() =>
-      parsePortableArchive(
+      parseInstanceArchive(
         { ...archive, kind: "unknown.archive" },
         { programSnapshotContract: contract },
       ),
     ).toThrow(`Instance archive kind must be "${INSTANCE_ARCHIVE_KIND}".`);
     expect(() =>
-      parsePortableArchive({ ...archive, unexpected: true }, { programSnapshotContract: contract }),
+      parseInstanceArchive({ ...archive, unexpected: true }, { programSnapshotContract: contract }),
     ).toThrow('Instance archive has unsupported key "unexpected".');
   });
 
@@ -106,19 +106,19 @@ describe("portable Program archive protocol", () => {
     const archive = instanceArchive();
 
     expect(() =>
-      parsePortableArchive(
+      parseInstanceArchive(
         { ...archive, capabilities: ["unknown-capability"] },
         { programSnapshotContract: contract },
       ),
     ).toThrow('Instance archive capabilities[0] "unknown-capability" is unsupported.');
     expect(() =>
-      parsePortableArchive(
+      parseInstanceArchive(
         { ...archive, restorePolicy: { dryRun: true, unexpected: "value" } },
         { programSnapshotContract: contract },
       ),
     ).toThrow('Instance archive restorePolicy has unsupported key "unexpected".');
     expect(() =>
-      parsePortableArchive(
+      parseInstanceArchive(
         {
           ...archive,
           program: {
@@ -142,7 +142,7 @@ describe("portable Program archive protocol", () => {
       },
     });
     const formatted = formatInstanceArchive(archive, { programSnapshotContract: contract });
-    const reparsed = parsePortableArchive(JSON.parse(formatted), {
+    const reparsed = parseInstanceArchive(JSON.parse(formatted), {
       programSnapshotContract: contract,
     });
 

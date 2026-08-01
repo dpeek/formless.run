@@ -1,5 +1,4 @@
 import { instanceControlPlaneProductionIdentityFromRecords } from "@dpeek/formless-instance-control-plane";
-import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 
 import { nowIsoString } from "../shared/clock.ts";
 import {
@@ -108,7 +107,6 @@ const handoffTargetProfiles = ["instance", "public-site"] as const;
 const handoffTargetHeaders = {
   access: "x-formless-auth-handoff-access",
   routeId: "x-formless-auth-handoff-route-id",
-  storageIdentity: "x-formless-auth-handoff-storage-identity",
   targetOrigin: "x-formless-auth-handoff-target-origin",
   targetProfile: "x-formless-auth-handoff-target-profile",
 } as const;
@@ -312,9 +310,6 @@ async function startProtectedRouteAuthRedirect(
   location.searchParams.set("targetOrigin", plan.target.targetOrigin);
   location.searchParams.set("routeId", plan.target.routeId);
   location.searchParams.set("targetProfile", plan.target.targetProfile);
-  if (plan.target.storageIdentity !== undefined) {
-    location.searchParams.set("storageIdentity", plan.target.storageIdentity);
-  }
   location.searchParams.set("returnTo", plan.returnTo);
   location.searchParams.set("nonceHash", nonceHash);
   location.searchParams.set("state", state);
@@ -701,7 +696,6 @@ export function routeAccessTargetForRuntimeRoute(
     routeId: mountRoute.id,
     targetOrigin: requestOriginForAuth(request),
     targetProfile: mountRoute.targetProfile,
-    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
   };
 }
 
@@ -736,7 +730,6 @@ export function hostAuthSessionTargetForRuntimeRouteFacts(input: {
   return {
     access: effectiveAccess,
     routeId: mountRoute.id,
-    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     targetOrigin,
     targetProfile: mountRoute.targetProfile,
   };
@@ -771,11 +764,7 @@ export function mappedInstanceManagementTargetFromFacts(input: {
     runtimeRoute: input.runtimeRoute,
   });
 
-  if (
-    !target ||
-    target.targetProfile !== "instance" ||
-    target.storageIdentity !== FORMLESS_PROGRAM_STORAGE_IDENTITY
-  ) {
+  if (!target || target.targetProfile !== "instance") {
     return undefined;
   }
 
@@ -797,7 +786,6 @@ export function setHostAuthSessionTargetHeaders(
     headers.delete(handoffTargetHeaders.targetOrigin);
     headers.delete(handoffTargetHeaders.routeId);
     headers.delete(handoffTargetHeaders.targetProfile);
-    headers.delete(handoffTargetHeaders.storageIdentity);
 
     return;
   }
@@ -806,8 +794,6 @@ export function setHostAuthSessionTargetHeaders(
   headers.set(handoffTargetHeaders.targetOrigin, target.targetOrigin);
   headers.set(handoffTargetHeaders.routeId, target.routeId);
   headers.set(handoffTargetHeaders.targetProfile, target.targetProfile);
-
-  headers.set(handoffTargetHeaders.storageIdentity, target.storageIdentity);
 }
 
 export async function validateHostAuthSessionAuthority(
@@ -1089,13 +1075,11 @@ export async function validateBoundInstanceAuthAccessSession(
   env: InstanceAuthAccessEnv,
   options: {
     now?: string;
-    storageIdentity: string;
   },
 ): Promise<boolean> {
   return validateBoundInstanceAuthAuthoritySession(value, env, {
     now: options.now,
     requiredAuthority: "owner",
-    storageIdentity: options.storageIdentity,
   });
 }
 
@@ -1104,13 +1088,11 @@ export async function validateBoundInstanceManagementAccessSession(
   env: InstanceAuthAccessEnv,
   options: {
     now?: string;
-    storageIdentity: string;
   },
 ): Promise<boolean> {
   return validateBoundInstanceAuthAuthoritySession(value, env, {
     now: options.now,
     requiredAuthority: "management",
-    storageIdentity: options.storageIdentity,
   });
 }
 
@@ -1121,7 +1103,6 @@ export async function validateBoundProgramAccessSession(
     access: AccessRequirement;
     now?: string;
     schema: AppSchema;
-    storageIdentity: string;
   },
 ): Promise<boolean> {
   const binding = parseInstanceAuthAccessBinding(value);
@@ -1131,7 +1112,6 @@ export async function validateBoundProgramAccessSession(
     !(await validateBoundInstanceAuthAuthoritySession(binding, env, {
       now: options.now,
       requiredAuthority: "authenticated",
-      storageIdentity: options.storageIdentity,
     }))
   ) {
     return false;
@@ -1151,7 +1131,6 @@ async function validateBoundInstanceAuthAuthoritySession(
   options: {
     now?: string;
     requiredAuthority: "authenticated" | "management" | "owner";
-    storageIdentity: string;
   },
 ): Promise<boolean> {
   const binding = parseInstanceAuthAccessBinding(value);
@@ -1165,11 +1144,7 @@ async function validateBoundInstanceAuthAuthoritySession(
       ? hostAuthSessionTargetFromSession(binding.session as HostAuthSession)
       : undefined;
 
-  if (
-    target !== undefined &&
-    (target.storageIdentity !== options.storageIdentity ||
-      !boundTargetMatchesAuthority(target, options.requiredAuthority))
-  ) {
+  if (target !== undefined && !boundTargetMatchesAuthority(target, options.requiredAuthority)) {
     return false;
   }
 
@@ -1508,7 +1483,6 @@ function accountCompletionTargetForHandoffTarget(
     access: target.access,
     returnTo,
     routeId: target.routeId,
-    storageIdentity: target.storageIdentity,
     targetOrigin: target.targetOrigin,
     targetProfile: target.targetProfile,
   };
@@ -1529,7 +1503,6 @@ function accountCompletionTargetForRouteRequest(
     access: target.access,
     returnTo,
     routeId: target.routeId,
-    storageIdentity: target.storageIdentity,
     targetOrigin: target.targetOrigin,
     targetProfile: target.targetProfile,
   };
@@ -1778,7 +1751,6 @@ async function validateHostAuthSessionCookie(
       principalId: payload.principalId,
       routeId: payload.routeId,
       sessionVersion: payload.sessionVersion,
-      storageIdentity: payload.storageIdentity,
       targetOrigin: payload.targetOrigin,
       targetProfile: payload.targetProfile,
     },
@@ -1794,19 +1766,12 @@ function handoffStartTargetFromSearch(
     throw new Error("Handoff return target must be path-only.");
   }
 
-  const storageIdentity = optionalSearchParam(url, "storageIdentity");
-
-  if (storageIdentity === undefined) {
-    throw new Error("Handoff target requires a storage identity.");
-  }
-
   return {
     access: handoffTargetAccessValue(requiredSearchParam(url, "access")),
     nonceHash: base64UrlSearchParam(url, "nonceHash"),
     returnTo,
     routeId: requiredSearchParam(url, "routeId"),
     state: base64UrlSearchParam(url, "state"),
-    storageIdentity,
     targetOrigin: parseInstanceAuthCanonicalOrigin(requiredSearchParam(url, "targetOrigin")),
     targetProfile: handoffTargetProfileSearchParam(url),
   };
@@ -1939,7 +1904,6 @@ async function createHostAuthSessionCookie(
     instanceId: grant.instanceId,
     principalId: grant.principalId,
     routeId: grant.routeId,
-    storageIdentity: grant.storageIdentity,
     targetOrigin: grant.targetOrigin,
     targetProfile: grant.targetProfile,
   });
@@ -1951,7 +1915,6 @@ async function createHostAuthSessionCookie(
     principalId: grant.principalId,
     routeId: grant.routeId,
     sessionVersion: revocationVersion?.sessionVersion ?? 0,
-    storageIdentity: grant.storageIdentity,
     targetOrigin: grant.targetOrigin,
     targetProfile: grant.targetProfile,
   };
@@ -2052,16 +2015,9 @@ function requestWithHandoffTargetHeaders(
 }
 
 function handoffTargetBindingFromHeaders(headers: Headers): InstanceAuthSessionTargetBinding {
-  const storageIdentity = optionalHeader(headers, handoffTargetHeaders.storageIdentity);
-
-  if (storageIdentity === undefined) {
-    throw new Error("Handoff callback target requires a storage identity.");
-  }
-
   return {
     access: handoffTargetAccessValue(requiredHeader(headers, handoffTargetHeaders.access)),
     routeId: requiredHeader(headers, handoffTargetHeaders.routeId),
-    storageIdentity,
     targetOrigin: parseInstanceAuthCanonicalOrigin(
       requiredHeader(headers, handoffTargetHeaders.targetOrigin),
     ),
@@ -2113,7 +2069,6 @@ function parseHostAuthSession(value: unknown): HostAuthSession | undefined {
   const access = typeof value.access === "string" ? handoffTargetAccessValue(value.access) : null;
   const targetProfile =
     typeof value.targetProfile === "string" ? handoffTargetProfileValue(value.targetProfile) : null;
-  const storageIdentity = optionalRecordString(value.storageIdentity);
 
   if (
     typeof value.instanceId !== "string" ||
@@ -2132,8 +2087,7 @@ function parseHostAuthSession(value: unknown): HostAuthSession | undefined {
     !isTimestamp(value.expiresAt) ||
     sessionVersion === undefined ||
     access === null ||
-    targetProfile === null ||
-    storageIdentity === undefined
+    targetProfile === null
   ) {
     return undefined;
   }
@@ -2148,7 +2102,6 @@ function parseHostAuthSession(value: unknown): HostAuthSession | undefined {
     sessionVersion,
     targetOrigin: parseInstanceAuthCanonicalOrigin(value.targetOrigin),
     targetProfile,
-    storageIdentity,
   };
 }
 
@@ -2243,7 +2196,6 @@ function hostAuthSessionTargetFromSession(
   return {
     access: session.access,
     routeId: session.routeId,
-    storageIdentity: session.storageIdentity,
     targetOrigin: session.targetOrigin,
     targetProfile: session.targetProfile,
   };
@@ -2293,8 +2245,7 @@ function hostAuthSessionTargetBindingsEqual(
     left.targetOrigin === right.targetOrigin &&
     left.routeId === right.routeId &&
     left.targetProfile === right.targetProfile &&
-    left.access === right.access &&
-    left.storageIdentity === right.storageIdentity
+    left.access === right.access
   );
 }
 
@@ -2583,10 +2534,6 @@ function isTimestamp(value: string): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function optionalRecordString(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
 }
 
 function parseNonNegativeIntegerValue(value: unknown): number | undefined {

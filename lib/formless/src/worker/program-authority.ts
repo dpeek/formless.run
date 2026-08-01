@@ -11,69 +11,29 @@ import {
   validateFormlessProgramRecords,
 } from "../program/runtime.ts";
 import {
-  FORMLESS_PROGRAM_SCHEMA_KEY,
-  FORMLESS_PROGRAM_STORAGE_IDENTITY,
-} from "../program/target.ts";
-import {
-  convergeProgramStorage,
   ensureStorageTables,
   getBootstrapRecords,
   initializeStorageFromSource,
   reconcileRuntimeInvariantRecords,
-  type InitializedStorageState,
   type RecordConstraintValidator,
   type StorageSource,
 } from "./storage.ts";
-
-export const INTERNAL_PROGRAM_CONVERGENCE_SOURCE_PATH = "/_internal/program-convergence/source";
 
 const builtInRoleCreatedAt = "2026-06-26T00:00:00.000Z";
 const identityEntityNames = new Set(
   identityControlPlaneSchema.entities.map((entity) => entity.key),
 );
 
-export type WorkerProgramDefinition = {
-  key: string;
-  label: string;
-  route: `/${string}`;
-  sourceSchema: typeof formlessProgramSchema;
-};
-
-export const formlessProgramApp = {
-  key: FORMLESS_PROGRAM_SCHEMA_KEY,
-  label: "Formless Program",
-  route: "/",
-  sourceSchema: formlessProgramSchema,
-} satisfies WorkerProgramDefinition;
-
 export function formlessProgramSource(): StorageSource {
   return {
     schema: formlessProgramSchema,
-    schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
     schemaProvenance: formlessProgramSchemaProvenance,
-    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
   };
 }
 
-export function ensureFormlessProgramStorage(
-  storage: DurableObjectStorage,
-  legacyIdentityState: InitializedStorageState | undefined,
-) {
+export function ensureFormlessProgramStorage(storage: DurableObjectStorage) {
   ensureStorageTables(storage);
   const source = formlessProgramSource();
-  const convergence = convergeProgramStorage(storage, {
-    importedRecords: selectCurrentFormlessProgramRecords(legacyIdentityState?.records ?? []),
-    source,
-    sourceCursor: legacyIdentityState?.cursor ?? 0,
-    ...(legacyIdentityState === undefined
-      ? {}
-      : { sourceSchemaUpdatedAt: legacyIdentityState.schemaUpdatedAt }),
-    validate: (records) =>
-      validateFormlessProgramRecords(
-        "Program convergence records",
-        selectCurrentFormlessProgramRecords(records),
-      ),
-  });
 
   initializeStorageFromSource(storage, source, {
     selectRecordsForSchemaRefresh: selectCurrentFormlessProgramRecords,
@@ -86,8 +46,6 @@ export function ensureFormlessProgramStorage(
       ),
     writeIdPrefix: "identity-role-reconcile",
   });
-
-  return convergence;
 }
 
 export function validateFormlessProgramRecordConstraint(

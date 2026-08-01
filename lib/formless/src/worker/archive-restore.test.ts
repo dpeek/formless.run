@@ -14,8 +14,8 @@ import {
 import { coreMediaHrefForKey } from "@dpeek/formless-media";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import {
-  applyPortableArchiveRestore,
-  dryRunPortableArchiveRestore,
+  applyInstanceArchiveRestore,
+  dryRunInstanceArchiveRestore,
   type ArchiveRestoreApplyTarget,
 } from "./archive-restore.ts";
 
@@ -25,7 +25,7 @@ const bytes = new Uint8Array([1, 2, 3, 4]);
 describe("portable Program archive restore", () => {
   it("plans a dry run without beginning a restore transaction", async () => {
     const events: string[] = [];
-    const result = await dryRunPortableArchiveRestore(
+    const result = await dryRunInstanceArchiveRestore(
       instanceArchive({ dryRun: true }),
       restoreTarget(events),
     );
@@ -37,7 +37,7 @@ describe("portable Program archive restore", () => {
 
   it("restores global media before the complete Program snapshot", async () => {
     const events: string[] = [];
-    const result = await applyPortableArchiveRestore(
+    const result = await applyInstanceArchiveRestore(
       instanceArchive({ dryRun: false }),
       restoreTarget(events),
     );
@@ -57,7 +57,7 @@ describe("portable Program archive restore", () => {
     const target = restoreTarget(events);
     target.media!.readFile = async () => undefined;
 
-    const result = await applyPortableArchiveRestore(instanceArchive({ dryRun: false }), target);
+    const result = await applyInstanceArchiveRestore(instanceArchive({ dryRun: false }), target);
 
     expect(result).toMatchObject({
       ok: false,
@@ -74,7 +74,7 @@ describe("portable Program archive restore", () => {
       throw new Error("Program restore failed");
     };
 
-    const result = await applyPortableArchiveRestore(instanceArchive({ dryRun: false }), target);
+    const result = await applyInstanceArchiveRestore(instanceArchive({ dryRun: false }), target);
 
     expect(result).toMatchObject({
       ok: false,

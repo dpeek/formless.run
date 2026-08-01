@@ -95,7 +95,6 @@ import type { TurnstileRuntimeEnv } from "../shared/turnstile-config.ts";
 import { WORKSPACE_OPERATION_CAPABILITIES } from "@dpeek/formless-workspace";
 import {
   FORMLESS_PROGRAM_EDITOR_ACCESS_REQUIREMENT,
-  FORMLESS_PROGRAM_STORAGE_IDENTITY,
   formlessProgramSchema,
 } from "../program/runtime.ts";
 
@@ -248,10 +247,7 @@ export default {
       : undefined;
     const programDocumentMediaResponse = await handleProgramDocumentMediaRequest(request, env, {
       pathname: requestTopology.pathname,
-      target:
-        programHostSessionTarget?.storageIdentity === FORMLESS_PROGRAM_STORAGE_IDENTITY
-          ? programHostSessionTarget
-          : undefined,
+      target: programHostSessionTarget,
     });
 
     if (programDocumentMediaResponse) {

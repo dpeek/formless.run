@@ -55,9 +55,11 @@ import { programPublicSiteWorkerAdapter } from "./public-site-worker-runtime.ts"
 import {
   selectCurrentFormlessProgramChanges,
   selectCurrentFormlessProgramRecords,
-  type WorkerProgramDefinition,
 } from "./program-authority.ts";
-import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
+import {
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 
 export type AuthorityOperationMode = "read" | "write";
 
@@ -162,7 +164,6 @@ type AuthorityOperationExecutionInput = {
   actor?: OperationInvocationActor;
   actorCandidates?: OperationInvocationActorCandidates;
   actorKind?: SchemaOperationActorKind;
-  app: WorkerProgramDefinition;
   body?: unknown;
   createRecordId?: (entity: string, values: RecordValues) => string | undefined;
   identity: ProgramStorageIdentity;
@@ -252,7 +253,7 @@ export async function executeAuthorityOperation(
       const storedSchema = initializeStorageFromSource(input.storage, input.source);
 
       return {
-        body: bootstrapResponse(input.storage, storedSchema, input.source),
+        body: bootstrapResponse(input.storage, storedSchema),
         headers: browserReplicaUpgradeHeaders(input.storage),
       };
     }
@@ -270,14 +271,15 @@ export async function executeAuthorityOperation(
 
       const snapshot = exportStorageSnapshot(
         input.storage,
-        input.identity.authorityName,
-        input.app.key,
+        FORMLESS_PROGRAM_STORAGE_IDENTITY,
+        FORMLESS_PROGRAM_SCHEMA_KEY,
       );
 
       return {
-        body: isFormlessProgramSource(input.source)
-          ? { ...snapshot, records: selectCurrentFormlessProgramRecords(snapshot.records) }
-          : snapshot,
+        body: {
+          ...snapshot,
+          records: selectCurrentFormlessProgramRecords(snapshot.records),
+        },
       };
     }
 
@@ -311,9 +313,7 @@ export async function executeAuthorityOperation(
     case "sync": {
       const storedSchema = initializeStorageFromSource(input.storage, input.source);
       const storedChanges = getChangesAfter(input.storage, operation.after);
-      const changes = isFormlessProgramSource(input.source)
-        ? selectCurrentFormlessProgramChanges(storedChanges)
-        : storedChanges;
+      const changes = selectCurrentFormlessProgramChanges(storedChanges);
       const schemaFields =
         operation.clientSchemaUpdatedAt === storedSchema.updatedAt
           ? {}
@@ -345,8 +345,8 @@ export async function executeAuthorityOperation(
       const snapshot = await validateStorageSnapshotRestore(
         input.body,
         {
-          schemaKey: input.app.key,
-          storageIdentity: input.identity.authorityName,
+          schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
+          storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
         },
         { identityReferenceResolver: input.identityReferenceResolver },
       );
@@ -380,7 +380,6 @@ export async function executeAuthorityOperation(
           operationInvocationActorFromCandidates(input.actorCandidates, operationSchema),
         actorKind: input.actorKind,
         body: input.body,
-        identity: input.identity,
         method: operation.metadata.method,
         path: operation.metadata.path,
         route: {
@@ -425,7 +424,7 @@ export async function executeAuthorityOperation(
               input.source,
               validateSourceSchemaReset,
             ),
-            (storedSchema) => bootstrapResponse(input.storage, storedSchema, input.source),
+            (storedSchema) => bootstrapResponse(input.storage, storedSchema),
           ),
         ),
       );
@@ -637,7 +636,6 @@ function operationMetadata<
 function bootstrapResponse(
   storage: DurableObjectStorage,
   storedSchema: StoredSchema,
-  source: StorageSource,
 ): BootstrapResponse {
   const storedRecords = getBootstrapRecords(storage);
 
@@ -647,15 +645,9 @@ function bootstrapResponse(
       ? {}
       : { schemaProvenance: storedSchema.schemaProvenance }),
     schemaUpdatedAt: storedSchema.updatedAt,
-    records: isFormlessProgramSource(source)
-      ? selectCurrentFormlessProgramRecords(storedRecords)
-      : storedRecords,
+    records: selectCurrentFormlessProgramRecords(storedRecords),
     cursor: getCurrentCursor(storage),
   };
-}
-
-function isFormlessProgramSource(source: StorageSource): boolean {
-  return source.storageIdentity === FORMLESS_PROGRAM_STORAGE_IDENTITY;
 }
 
 function schemaResponse(storedSchema: StoredSchema): SchemaResponse {

@@ -91,7 +91,7 @@ describe("account sign-in route data flow", () => {
   it("uses client navigation for normal account sign-in redirects", () => {
     const clientLocations: unknown[] = [];
     const documentLocations: string[] = [];
-    const redirectTarget = "/apps/personal/settings?panel=routes" as const;
+    const redirectTarget = "/settings?panel=routes" as const;
 
     navigateAfterAccountSignIn(redirectTarget, {
       replaceDocumentLocation: (target) => documentLocations.push(target),

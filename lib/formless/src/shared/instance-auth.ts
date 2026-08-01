@@ -178,9 +178,6 @@ export const accountCompletionCredentialMethods = ["passkey"] as const;
 export type AccountCompletionCredentialMethod = (typeof accountCompletionCredentialMethods)[number];
 
 export const accountCompletionBrowserVisiblePrivateFieldNames = [
-  "appPrivateProfile",
-  "appPrivateProfileMaterial",
-  "appPrivateProfileValues",
   "centralSessionId",
   "challengeSecret",
   "credential",
@@ -215,7 +212,6 @@ export type AccountCompletionGateTarget = {
   returnTo: AccountRedirectTarget;
   routeId: string;
   selectedOrganization?: string;
-  storageIdentity: string;
   targetOrigin: string;
   targetProfile: AccountCompletionGateTargetProfile;
 };
@@ -661,7 +657,7 @@ export function parseAccountCompletionGateTarget(value: unknown): AccountComplet
   assertKeys(
     "Account completion gate target",
     object,
-    ["returnTo", "routeId", "storageIdentity", "targetOrigin", "targetProfile"],
+    ["returnTo", "routeId", "targetOrigin", "targetProfile"],
     ["access", "selectedOrganization"],
   );
 
@@ -676,11 +672,6 @@ export function parseAccountCompletionGateTarget(value: unknown): AccountComplet
     throw new Error("Account completion gate target access must be protected.");
   }
 
-  const storageIdentity = parseTrimmedNonEmptyString(
-    "Account completion gate target storageIdentity",
-    object.storageIdentity,
-  );
-
   const selectedOrganization = parseOptionalTrimmedNonEmptyString(
     "Account completion gate target selectedOrganization",
     object.selectedOrganization,
@@ -694,7 +685,6 @@ export function parseAccountCompletionGateTarget(value: unknown): AccountComplet
     ),
     routeId: parseTrimmedNonEmptyString("Account completion gate target routeId", object.routeId),
     ...(selectedOrganization === undefined ? {} : { selectedOrganization }),
-    storageIdentity,
     targetOrigin: parseInstanceAuthCanonicalOrigin(object.targetOrigin),
     targetProfile: parseStringLiteral(
       "Account completion gate target profile",

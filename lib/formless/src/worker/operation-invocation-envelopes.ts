@@ -8,7 +8,6 @@ import {
   type EntitySchema,
   type SchemaOperationActorKind,
 } from "@dpeek/formless-schema";
-import type { ProgramStorageIdentity } from "../shared/program-storage-identity.ts";
 import { nowIsoString } from "../shared/clock.ts";
 import type {
   PublicOperationChallengeVerification,
@@ -24,8 +23,6 @@ import type {
 } from "../shared/operation-invocation.ts";
 import { BadRequestError } from "./errors.ts";
 
-type OperationStorageIdentity = ProgramStorageIdentity;
-
 type EntityOperationRoute = {
   entityName: string;
   operationName: string;
@@ -35,7 +32,6 @@ type EntityOperationRoute = {
 type OperationInvocationBuildBase = {
   actor?: OperationInvocationActor;
   actorKind?: SchemaOperationActorKind;
-  identity: OperationStorageIdentity;
   receivedAt?: string;
   schema: AppSchema;
 };
@@ -101,7 +97,6 @@ export function buildProtocolOperationInvocationEnvelope(
 
   return operationInvocationEnvelope({
     actor,
-    identity: input.identity,
     idempotency,
     input: invocationInput,
     invocationId,
@@ -132,7 +127,6 @@ export function buildVerifiedPublicOperationInvocationEnvelope(
 
 function operationInvocationEnvelope(input: {
   actor: OperationInvocationActor;
-  identity: OperationStorageIdentity;
   idempotency: OperationInvocationIdempotency;
   input: OperationInvocationInput;
   invocationId: string;
@@ -147,7 +141,6 @@ function operationInvocationEnvelope(input: {
 }): OperationInvocationEnvelope {
   return {
     invocationId: input.invocationId,
-    programStorageIdentity: input.identity,
     actor: input.actor,
     source: input.source,
     input: input.input,
@@ -227,7 +220,6 @@ function publicOperationInvocationEnvelope(
 
   return operationInvocationEnvelope({
     actor: { kind: "anonymous" },
-    identity: input.identity,
     idempotency,
     input: publicOperationInvocationInput(operation, input.publicInput, input.proof),
     invocationId: input.invocationId ?? idempotency.writeIdentity ?? createOperationInvocationId(),

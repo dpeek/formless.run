@@ -61,7 +61,6 @@ import {
 import {
   ensureFormlessProgramStorage,
   formlessProgramCreatedRecordId,
-  formlessProgramApp,
   formlessProgramSource,
   validateFormlessProgramRecordConstraint,
 } from "./program-authority.ts";
@@ -74,7 +73,7 @@ export const INTERNAL_SYNC_DEPLOYMENT_PROJECTION_PATH = "/_internal/sync-deploym
 const instanceControlPlaneSourceSchema = instanceControlPlaneSchema;
 
 function initializeControlPlaneStorage(storage: DurableObjectStorage) {
-  ensureFormlessProgramStorage(storage, undefined);
+  ensureFormlessProgramStorage(storage);
 }
 
 function ensureControlPlaneStorage(storage: DurableObjectStorage) {
@@ -259,7 +258,6 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
             programOperationAuthorized: true,
           }
         : {}),
-      app: formlessProgramApp,
       body,
       createRecordId: formlessProgramCreatedRecordId,
       identity: route.identity,
@@ -290,11 +288,7 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
 function hostAuthSessionTargetForInstanceControlPlaneRequest(request: Request) {
   const target = hostAuthSessionTargetFromRequestHeaders(request.headers);
 
-  if (
-    !target ||
-    target.targetProfile !== "instance" ||
-    target.storageIdentity !== FORMLESS_PROGRAM_STORAGE_IDENTITY
-  ) {
+  if (!target || target.targetProfile !== "instance") {
     return undefined;
   }
 
@@ -944,7 +938,6 @@ function upsertDeploymentConfigRecord(
 
   const values: RecordValues = {
     targetId: input.target.targetId,
-    targetKind: input.target.kind,
     label: input.target.label ?? input.target.targetId,
     enabled: true,
     targetUrl: input.targetUrl,
@@ -1136,15 +1129,9 @@ function parseDeploymentTarget(value: unknown): DeploymentTarget {
   }
 
   const targetId = parseRequiredString("target.targetId", value.targetId);
-  const kind = parseRequiredString("target.kind", value.kind);
-
-  if (kind !== "instance") {
-    throw new BadRequestError(`Deployment target kind "${kind}" is unsupported.`);
-  }
 
   return {
     targetId,
-    kind,
     ...(typeof value.label === "string" && value.label.trim() !== "" ? { label: value.label } : {}),
   };
 }
@@ -1193,7 +1180,6 @@ function parseInternalDomainMapping(value: unknown): InstanceDomainMapping {
   return {
     host: parseRequiredString("mapping.host", value.host),
     profile,
-    ...(profile === "publicSite" ? { surface: "site" as const } : {}),
     enabled: booleanRecordValue(value.enabled, "mapping.enabled"),
     createdAt: parseRequiredString("mapping.createdAt", value.createdAt),
     updatedAt: parseRequiredString("mapping.updatedAt", value.updatedAt),

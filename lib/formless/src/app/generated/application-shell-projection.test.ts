@@ -2,75 +2,74 @@ import { describe, expect, it } from "vite-plus/test";
 import { createMemoryPresentationHost } from "@dpeek/formless-presentation/host";
 import { selectGeneratedRootNavigationFacts } from "../../client/generated-authoring.ts";
 import { selectPrimaryScreenModels } from "../../client/views.ts";
+import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../../program/runtime.ts";
 import { testSiteRecords } from "../../test/site-records.ts";
 import { siteSourceSchema } from "../../test/schema-apps.ts";
 import {
   createDevRuntimeProfile,
   createInstanceRuntimeProfile,
   createPublishedSiteRuntimeProfile,
-  findRuntimeWorldMountByRoute,
 } from "../runtime-profile.ts";
-import type { RuntimeWorldMount } from "../runtime-profile.ts";
 import { projectInitialGeneratedCreateRuntimeSurface } from "./generated-create-runtime.ts";
 import {
   projectGeneratedApplicationShell,
   selectGeneratedShellActiveHref,
-  selectGeneratedShellScope,
+  shouldRenderGeneratedShell,
   type GeneratedApplicationShellProjection,
 } from "./application-shell-projection.ts";
 import {
   projectGeneratedApplicationShellContractHostPublication,
   resolveGeneratedApplicationShellIntent,
 } from "./generated-application-shell-contract-host.ts";
-import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../../program/runtime.ts";
-import { programStorageIdentity } from "../../shared/program-storage-identity.ts";
-import { getSchemaAppDefinition } from "../../shared/schema-apps.ts";
 
 describe("generated application shell projection", () => {
-  it("selects Program and no-shell presentation from profile and route state", () => {
+  it("selects the Program shell from profile and current route", () => {
     const dev = createDevRuntimeProfile();
     const instance = createInstanceRuntimeProfile();
-    const programWorld = generatedWorld();
 
-    expect(shellScope(dev, "/routes", programWorld)).toBe("multiApp");
-    expect(shellScope(dev, "/unknown", undefined)).toBe("multiApp");
-    expect(shellScope(instance, "/", undefined)).toBe("multiApp");
-    expect(shellScope(instance, "/access", undefined)).toBe("multiApp");
-    expect(shellScope(instance, "/routes", programWorld)).toBe("multiApp");
-
-    expect(shellScope(instance, "/unknown", undefined)).toBeUndefined();
-    expect(shellScope(dev, "/formless/auth/sign-in", undefined)).toBeUndefined();
-    expect(shellScope(dev, "/formless/auth/invitations/accept", undefined)).toBeUndefined();
-    expect(shellScope(dev, "/local-session", undefined)).toBeUndefined();
+    expect(shouldRenderGeneratedShell({ currentPath: "/routes", runtimeProfile: dev })).toBe(true);
+    expect(shouldRenderGeneratedShell({ currentPath: "/unknown", runtimeProfile: dev })).toBe(true);
+    expect(shouldRenderGeneratedShell({ currentPath: "/", runtimeProfile: instance })).toBe(true);
+    expect(shouldRenderGeneratedShell({ currentPath: "/access", runtimeProfile: instance })).toBe(
+      true,
+    );
+    expect(shouldRenderGeneratedShell({ currentPath: "/unknown", runtimeProfile: instance })).toBe(
+      false,
+    );
     expect(
-      shellScope(createPublishedSiteRuntimeProfile(), "/blog/launch", undefined),
-    ).toBeUndefined();
+      shouldRenderGeneratedShell({
+        currentPath: "/formless/auth/sign-in",
+        runtimeProfile: dev,
+      }),
+    ).toBe(false);
+    expect(shouldRenderGeneratedShell({ currentPath: "/local-session", runtimeProfile: dev })).toBe(
+      false,
+    );
+    expect(
+      shouldRenderGeneratedShell({
+        currentPath: "/blog/launch",
+        runtimeProfile: createPublishedSiteRuntimeProfile(),
+      }),
+    ).toBe(false);
   });
 
-  it("selects the longest segment-matched href without treating root as a wildcard", () => {
+  it("selects the longest segment-matched Program href", () => {
     expect(
-      selectGeneratedShellActiveHref("/apps/personal/settings?tab=sync", [
-        "/",
-        "/apps/personal",
-        "/apps/personal/settings",
-      ]),
-    ).toBe("/apps/personal/settings");
-    expect(selectGeneratedShellActiveHref("/unknown", ["/", "/apps"])).toBeNull();
+      selectGeneratedShellActiveHref("/site/settings?tab=sync", ["/", "/site", "/site/settings"]),
+    ).toBe("/site/settings");
+    expect(selectGeneratedShellActiveHref("/unknown", ["/", "/tasks"])).toBeNull();
     expect(selectGeneratedShellActiveHref("/tasks-extra", ["/tasks"])).toBeNull();
   });
 
-  it("projects destinations, roots, controlled create, settings, and display-safe session state", () => {
+  it("projects Program destinations, roots, create, settings, and display-safe session state", () => {
     const projection = completeProjection();
     const roles = projection.sections.map((section) => section.role);
-    const appSection = required(
-      projection.sections.find((section) => section.role === "appSwitcher"),
-    );
-    const screenSection = required(
-      projection.sections.find((section) => section.role === "screens"),
+    const programSection = required(
+      projection.sections.find((section) => section.role === "program"),
     );
     const rootSections = projection.sections.filter((section) => section.role === "rootRecords");
     const settingsSection = required(
-      projection.sections.find((section) => section.role === "appSettings"),
+      projection.sections.find((section) => section.role === "settings"),
     );
     const sessionSection = required(
       projection.sections.find((section) => section.role === "session"),
@@ -78,34 +77,25 @@ describe("generated application shell projection", () => {
 
     expect(projection.manifest).toMatchObject({
       activeDestination: { destinationId: expect.stringMatching(/^root:/) },
+      accessibilityLabel: "Formless Program application shell",
       id: "application-shell",
       kind: "shellManifest",
-      scope: "multiApp",
-      title: "Site",
+      title: "Formless Program",
     });
     expect(roles).toEqual([
-      "appSwitcher",
-      "instance",
-      "screens",
+      "program",
       "rootRecords",
       "rootRecords",
       "rootRecords",
       "rootRecords",
-      "appSettings",
+      "settings",
       "session",
     ]);
-    expect(appSection.destinations).toEqual(
+    expect(programSection.destinations).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ href: "/", label: "Instance", selected: true }),
+        expect.objectContaining({ href: "/site", label: "Blocks", selected: true }),
       ]),
     );
-    expect(appSection.destinations).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ href: "/sites/personal" }),
-        expect.objectContaining({ href: "/sites/disabled" }),
-      ]),
-    );
-    expect(screenSection.destinations.length).toBeGreaterThan(0);
     expect(rootSections).toHaveLength(4);
     expect(rootSections.some((section) => section.createSurface !== undefined)).toBe(true);
     expect(
@@ -133,7 +123,7 @@ describe("generated application shell projection", () => {
     expect(settingsSection.settings).toMatchObject({
       sync: {
         label: "Sync issue",
-        message: "Sync failed. Check the current app and try again.",
+        message: "Sync failed. Check the Program and try again.",
         state: "error",
       },
     });
@@ -145,13 +135,12 @@ describe("generated application shell projection", () => {
     expect(JSON.stringify(projection)).not.toContain("session-token");
   });
 
-  it("presents Instance in the top-level switcher with route-local management navigation", () => {
+  it("presents current Program navigation", () => {
     const runtimeProfile = createDevRuntimeProfile();
-    const settingsProjection = required(
+    const principalsProjection = required(
       projectGeneratedApplicationShell({
         authorizedProgramScreenPaths: FORMLESS_PROGRAM_SCREEN_PATHS,
         currentPath: "/",
-        routeWorld: undefined,
         runtimeProfile,
       }),
     );
@@ -159,52 +148,36 @@ describe("generated application shell projection", () => {
       projectGeneratedApplicationShell({
         authorizedProgramScreenPaths: FORMLESS_PROGRAM_SCREEN_PATHS,
         currentPath: "/access",
-        routeWorld: undefined,
         runtimeProfile,
       }),
     );
 
-    expect(settingsProjection.manifest).toMatchObject({
+    expect(principalsProjection.manifest).toMatchObject({
       activeDestination: {
-        destinationId: "instance:principals",
-        sectionId: "application-shell:instance",
+        destinationId: "program:principals",
+        sectionId: "application-shell:program",
       },
-      title: "Instance",
+      title: "Formless Program",
     });
-    expect(settingsProjection.sections.map((section) => section.role)).toEqual([
-      "appSwitcher",
-      "instance",
+    expect(principalsProjection.sections.map((section) => section.role)).toEqual([
+      "program",
       "session",
     ]);
     expect(
-      required(settingsProjection.sections.find((section) => section.role === "appSwitcher"))
-        .destinations,
-    ).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          href: "/",
-          id: "instance:home",
-          label: "Instance",
-          selected: true,
-        }),
-      ]),
-    );
-    expect(
-      required(accessProjection.sections.find((section) => section.role === "instance"))
+      required(accessProjection.sections.find((section) => section.role === "program"))
         .destinations,
     ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ href: "/access", label: "Access", selected: true }),
       ]),
     );
-    const settingsSection = required(
-      settingsProjection.sections.find((section) => section.role === "instance"),
+    const programSection = required(
+      principalsProjection.sections.find((section) => section.role === "program"),
     );
-    expect(settingsSection.label).toBeUndefined();
     expect(
-      settingsSection.destinations.map((destination) => {
+      programSection.destinations.map((destination) => {
         if (destination.kind !== "shellLinkDestination") {
-          throw new Error("Expected instance navigation to contain only links.");
+          throw new Error("Expected Program navigation to contain only links.");
         }
         return {
           href: destination.href,
@@ -225,14 +198,6 @@ describe("generated application shell projection", () => {
       { href: "/policies", label: "Policies", selected: false },
       { href: "/settings", label: "Settings", selected: false },
     ]);
-    expect(
-      settingsProjection.sections
-        .flatMap((section) => section.destinations)
-        .filter(
-          (destination) =>
-            destination.kind === "shellLinkDestination" && destination.href === "/tasks",
-        ),
-    ).toHaveLength(1);
   });
 
   it("projects only server-authorized Program destinations in artifact order", () => {
@@ -241,43 +206,31 @@ describe("generated application shell projection", () => {
       projectGeneratedApplicationShell({
         authorizedProgramScreenPaths: ["/settings", "/deployments"],
         currentPath: "/deployments",
-        routeWorld: undefined,
         runtimeProfile,
       }),
     );
-    const hidden = required(
-      projectGeneratedApplicationShell({
-        currentPath: "/deployments",
-        routeWorld: undefined,
-        runtimeProfile,
-      }),
+    const programSection = required(
+      filtered.sections.find((section) => section.role === "program"),
     );
 
     expect(
-      required(filtered.sections.find((section) => section.role === "instance")).destinations.map(
-        (destination) => ({
-          href: destination.kind === "shellLinkDestination" ? destination.href : undefined,
-          label: destination.label,
-          selected: destination.selected,
-        }),
-      ),
+      programSection.destinations.map((destination) => ({
+        href: destination.kind === "shellLinkDestination" ? destination.href : undefined,
+        label: destination.label,
+        selected: destination.selected,
+      })),
     ).toEqual([
       { href: "/deployments", label: "Deployments", selected: true },
       { href: "/settings", label: "Settings", selected: false },
     ]);
-    expect(
-      required(hidden.sections.find((section) => section.role === "instance")).destinations,
-    ).toEqual([]);
   });
 
-  it("projects anonymous session state without synthesizing a sign-in destination", () => {
-    const dev = createDevRuntimeProfile();
+  it("projects anonymous session state", () => {
     const projection = required(
       projectGeneratedApplicationShell({
         currentPath: "/unknown",
         accountSession: { authenticated: false, setupComplete: true },
-        routeWorld: undefined,
-        runtimeProfile: dev,
+        runtimeProfile: createDevRuntimeProfile(),
       }),
     );
     const session = required(
@@ -289,32 +242,11 @@ describe("generated application shell projection", () => {
       kind: "shellSession",
       state: "anonymous",
     });
-    expect(projection.sections.flatMap((section) => section.destinations)).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ label: expect.stringMatching(/sign in/i) }),
-      ]),
-    );
   });
 });
 
-function generatedWorld(): RuntimeWorldMount {
-  return {
-    app: { key: "formless-program", label: "Program", route: "/" },
-    generatedRoutes: true,
-    route: "/",
-    target: {
-      apiRoutePrefix: "/api/formless/program",
-      authorityName: "instance:control-plane",
-      broadcastChannelName: "formless:instance:control-plane",
-      browserDatabaseName: "formless:instance:control-plane",
-      kind: "program",
-      schemaKey: "formless-program",
-    },
-  };
-}
-
 describe("generated application shell host and intents", () => {
-  it("publishes one complete node graph and resolves only current scoped intents", () => {
+  it("publishes one complete node graph and resolves current intents", () => {
     const projection = completeProjection();
     const publication = projectGeneratedApplicationShellContractHostPublication(projection);
     const host = createMemoryPresentationHost({ nodes: publication.nodes });
@@ -414,18 +346,10 @@ describe("generated application shell host and intents", () => {
 });
 
 function completeProjection(): GeneratedApplicationShellProjection {
-  const runtimeProfile = createInstanceRuntimeProfile();
-  const routeWorld = {
-    app: getSchemaAppDefinition("site"),
-    generatedRoutes: true,
-    route: "/site" as const,
-    target: programStorageIdentity(),
-  };
   const screenModels = selectPrimaryScreenModels(siteSourceSchema);
   const activeScreen = required(
     screenModels.find((screen) => selectGeneratedRootNavigationFacts(screen) !== undefined),
   );
-  const activeScreenPath = required(activeScreen.path);
   const rootFacts = required(selectGeneratedRootNavigationFacts(activeScreen));
   const snapshot = siteSnapshot();
   const createSurfacesByQueryName = Object.fromEntries(
@@ -452,8 +376,8 @@ function completeProjection(): GeneratedApplicationShellProjection {
 
   return required(
     projectGeneratedApplicationShell({
-      activeScreenPath,
-      currentPath: `/site${activeScreenPath === "/" ? "" : activeScreenPath}`,
+      authorizedProgramScreenPaths: FORMLESS_PROGRAM_SCREEN_PATHS,
+      currentPath: "/site",
       logoutState: "idle",
       accountSession: {
         authenticated: true,
@@ -472,26 +396,15 @@ function completeProjection(): GeneratedApplicationShellProjection {
         snapshot,
         today: "2026-07-16",
       },
-      routeWorld,
-      runtimeProfile,
-      screenModels,
+      runtimeProfile: createInstanceRuntimeProfile(),
       sync: {
         cursor: 27,
         lastSyncedAt: "2026-07-16T01:00:00.000Z",
         schemaVersion: siteSourceSchema.version,
         status: { state: "error", message: "alchemy-secret-value" },
-        worldLabel: "site",
       },
     }),
   );
-}
-
-function shellScope(
-  runtimeProfile: ReturnType<typeof createDevRuntimeProfile>,
-  currentPath: string,
-  routeWorld: ReturnType<typeof findRuntimeWorldMountByRoute>,
-) {
-  return selectGeneratedShellScope({ currentPath, routeWorld, runtimeProfile });
 }
 
 function siteSnapshot() {

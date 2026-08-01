@@ -32,7 +32,6 @@ import {
   FORMLESS_CLIENT_SCHEMA_UPDATED_AT_HEADER,
   FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER,
 } from "../shared/protocol.ts";
-import { programClientTarget } from "./program-target.ts";
 import type {
   BootstrapResponse,
   ChangeRow,
@@ -50,17 +49,14 @@ import {
 } from "../test/schema-apps.ts";
 import type { LocalWorkspaceAutoSaveClient } from "./workspace-auto-save.ts";
 
-const program = programClientTarget();
-
 beforeEach(async () => {
-  await deleteClientDb(program);
+  await deleteClientDb();
   resetClientStore();
 });
 
 describe("client sync", () => {
   it("bootstraps local state from the authority", async () => {
     await bootstrapClient(
-      program,
       jsonFetcher("/api/formless/program/bootstrap", {
         schema: appSchema,
         schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
@@ -69,7 +65,7 @@ describe("client sync", () => {
       } satisfies BootstrapResponse),
     );
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
 
     expect(snapshot.schema).toEqual(appSchema);
     expect(snapshot.schemaUpdatedAt).toBe("2026-04-28T00:00:00.000Z");
@@ -77,31 +73,25 @@ describe("client sync", () => {
     expect(snapshot.cursor).toBe(1);
   });
 
-  it("bootstraps the instance control-plane client target through its runtime API", async () => {
-    const controlPlaneTarget = programClientTarget();
-
+  it("bootstraps the Program replica through its runtime API", async () => {
     await bootstrapClient(
-      controlPlaneTarget,
       jsonFetcher("/api/formless/program/bootstrap", {
         schema: appSchema,
         schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-        records: [record("install-1", "Personal Site")],
+        records: [record("record-1", "Program record")],
         cursor: 1,
       } satisfies BootstrapResponse),
     );
 
-    expect((await readLocalSnapshot(controlPlaneTarget)).records).toEqual([
-      record("install-1", "Personal Site"),
-    ]);
+    expect((await readLocalSnapshot()).records).toEqual([record("record-1", "Program record")]);
     expect(getClientStoreSnapshot()).toMatchObject({
-      activeClientStorageName: "formless:instance:control-plane",
-      activeSchemaKey: "formless-program",
+      hydrated: true,
+      schema: appSchema,
     });
   });
 
   it("re-bootstraps opened surfaces from Authority after local browser replica reset", async () => {
     await bootstrapClient(
-      program,
       jsonFetcher("/api/formless/program/bootstrap", {
         schema: appSchema,
         schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
@@ -110,18 +100,15 @@ describe("client sync", () => {
       } satisfies BootstrapResponse),
     );
 
-    const reset = await resetLocalBrowserReplicaState();
+    await resetLocalBrowserReplicaState();
 
-    expect(reset.deletedDatabaseNames).toEqual(["formless:instance:control-plane"]);
     expect(getClientStoreSnapshot()).toMatchObject({
-      activeClientStorageName: null,
-      activeSchemaKey: null,
+      hydrated: false,
       schema: null,
       recordsById: {},
     });
 
     await bootstrapClient(
-      program,
       jsonFetcher("/api/formless/program/bootstrap", {
         schema: appSchema,
         schemaUpdatedAt: "2026-04-28T00:01:00.000Z",
@@ -130,18 +117,15 @@ describe("client sync", () => {
       } satisfies BootstrapResponse),
     );
 
-    expect((await readLocalSnapshot(program)).records).toEqual([
-      record("record-2", "Authority state"),
-    ]);
+    expect((await readLocalSnapshot()).records).toEqual([record("record-2", "Authority state")]);
     expect(getClientStoreSnapshot()).toMatchObject({
-      activeClientStorageName: "formless:instance:control-plane",
-      activeSchemaKey: "formless-program",
+      hydrated: true,
       schemaUpdatedAt: "2026-04-28T00:01:00.000Z",
     });
   });
 
   it("merges incremental sync records and advances the cursor", async () => {
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "First")],
@@ -149,7 +133,6 @@ describe("client sync", () => {
     });
 
     await syncClient(
-      program,
       jsonFetcher(
         "/api/formless/program/sync?after=1&schemaUpdatedAt=2026-04-28T00%3A00%3A00.000Z",
         {
@@ -159,7 +142,7 @@ describe("client sync", () => {
       ),
     );
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
 
     expect(snapshot.records.map((storedRecord) => storedRecord.id)).toEqual([
       "record-1",
@@ -170,7 +153,6 @@ describe("client sync", () => {
 
   it("requests sync without schema metadata when no schema is cached", async () => {
     await syncClient(
-      program,
       jsonFetcher("/api/formless/program/sync?after=0", {
         changes: [],
         cursor: 0,
@@ -179,7 +161,7 @@ describe("client sync", () => {
       } satisfies SyncResponse),
     );
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
 
     expect(snapshot.schema).toEqual(appSchema);
     expect(snapshot.schemaUpdatedAt).toBe("2026-04-28T00:00:00.000Z");
@@ -189,7 +171,6 @@ describe("client sync", () => {
     await createUnsafeLegacyReplica("formless:tasks");
 
     await syncClient(
-      program,
       jsonFetcher("/api/formless/program/sync?after=0", {
         changes: [writeLogChange(1, "record-1", "Authority")],
         cursor: 1,
@@ -198,7 +179,7 @@ describe("client sync", () => {
       } satisfies SyncResponse),
     );
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
 
     expect(snapshot.schema).toEqual(appSchema);
     expect(snapshot.records).toEqual([record("record-1", "Authority")]);
@@ -209,7 +190,7 @@ describe("client sync", () => {
     const storedSourceSchemaHash =
       "sha256:9999999999999999999999999999999999999999999999999999999999999999" as const;
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaProvenance: {
         kind: "program",
@@ -221,7 +202,6 @@ describe("client sync", () => {
     });
 
     await submitOperation(
-      program,
       "task",
       "create",
       { input: { title: "Headers", done: false } },
@@ -253,11 +233,10 @@ describe("client sync", () => {
   });
 
   it("sends stored control-plane source provenance with operation writes", async () => {
-    const controlPlaneTarget = programClientTarget();
     const controlPlaneSourceSchemaHash =
       "sha256:8888888888888888888888888888888888888888888888888888888888888888" as const;
 
-    await saveBootstrapResponse(controlPlaneTarget, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaProvenance: {
         kind: "program",
@@ -268,7 +247,7 @@ describe("client sync", () => {
       cursor: 0,
     });
 
-    await submitOperation(controlPlaneTarget, "task", "noop", {}, async (input, init) => {
+    await submitOperation("task", "noop", {}, async (input, init) => {
       const headers = new Headers(init?.headers);
 
       expect(input).toBe("/api/formless/program/operations/task/noop");
@@ -296,7 +275,7 @@ describe("client sync", () => {
   it("merges schema returned by HTTP sync", async () => {
     const nextSchema = schemaWithSummary();
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [],
@@ -304,7 +283,6 @@ describe("client sync", () => {
     });
 
     await syncClient(
-      program,
       jsonFetcher(
         "/api/formless/program/sync?after=0&schemaUpdatedAt=2026-04-28T00%3A00%3A00.000Z",
         {
@@ -316,27 +294,27 @@ describe("client sync", () => {
       ),
     );
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
 
     expect(snapshot.schema).toEqual(nextSchema);
     expect(snapshot.schemaUpdatedAt).toBe("2026-04-28T00:01:00.000Z");
   });
 
   it("applies pushed sync responses and advances the cursor", async () => {
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "First")],
       cursor: 1,
     });
-    await refreshClientStoreFromDb(program);
+    await refreshClientStoreFromDb();
 
-    await applySyncResponse(program, {
+    await applySyncResponse({
       changes: [writeLogChange(2, "record-2", "Second")],
       cursor: 2,
     } satisfies SyncResponse);
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
     const storeSnapshot = getClientStoreSnapshot();
 
     expect(snapshot.records.map((storedRecord) => storedRecord.id)).toEqual([
@@ -351,22 +329,22 @@ describe("client sync", () => {
   it("applies schema-only pushed sync responses", async () => {
     const nextSchema = schemaWithSummary();
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [],
       cursor: 1,
     });
-    await refreshClientStoreFromDb(program);
+    await refreshClientStoreFromDb();
 
-    await applySyncResponse(program, {
+    await applySyncResponse({
       changes: [],
       cursor: 1,
       schema: nextSchema,
       schemaUpdatedAt: "2026-04-28T00:01:00.000Z",
     } satisfies SyncResponse);
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
     const storeSnapshot = getClientStoreSnapshot();
 
     expect(snapshot.schema).toEqual(nextSchema);
@@ -379,14 +357,14 @@ describe("client sync", () => {
   it("opens a keyed push sync socket and sends hello with local sync state", async () => {
     const sockets = fakeSocketFactory();
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "First")],
       cursor: 1,
     });
 
-    const stop = startPushSync(program, { socketFactory: sockets.create });
+    const stop = startPushSync({ socketFactory: sockets.create });
 
     try {
       expect(new URL(sockets.instances[0]?.url ?? "").pathname).toBe(
@@ -408,7 +386,7 @@ describe("client sync", () => {
 
   it("opens rate-card push sync on the CRM schema key", () => {
     const sockets = fakeSocketFactory();
-    const stop = startPushSync(program, { socketFactory: sockets.create });
+    const stop = startPushSync({ socketFactory: sockets.create });
 
     try {
       expect(new URL(sockets.instances[0]?.url ?? "").pathname).toBe(
@@ -421,7 +399,7 @@ describe("client sync", () => {
 
   it("opens Tasks push sync on the Program API path", () => {
     const sockets = fakeSocketFactory();
-    const stop = startPushSync(programClientTarget(), {
+    const stop = startPushSync({
       socketFactory: sockets.create,
     });
 
@@ -437,15 +415,15 @@ describe("client sync", () => {
   it("merges pushed sync messages into the selected local database", async () => {
     const sockets = fakeSocketFactory();
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "First")],
       cursor: 1,
     });
-    await refreshClientStoreFromDb(program);
+    await refreshClientStoreFromDb();
 
-    const stop = startPushSync(program, { socketFactory: sockets.create });
+    const stop = startPushSync({ socketFactory: sockets.create });
 
     try {
       sockets.instances[0]?.open();
@@ -460,7 +438,7 @@ describe("client sync", () => {
 
       await waitFor(() => getClientStoreSnapshot().cursor === 2);
 
-      const taskSnapshot = await readLocalSnapshot(program);
+      const taskSnapshot = await readLocalSnapshot();
 
       expect(taskSnapshot.records.map((storedRecord) => storedRecord.id)).toEqual([
         "record-1",
@@ -478,15 +456,15 @@ describe("client sync", () => {
     const sockets = fakeSocketFactory();
     const nextSchema = schemaWithSummary();
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "First")],
       cursor: 1,
     });
-    await refreshClientStoreFromDb(program);
+    await refreshClientStoreFromDb();
 
-    const stop = startPushSync(program, { socketFactory: sockets.create });
+    const stop = startPushSync({ socketFactory: sockets.create });
 
     try {
       sockets.instances[0]?.open();
@@ -510,7 +488,7 @@ describe("client sync", () => {
 
       await waitFor(() => getClientStoreSnapshot().cursor === 2);
 
-      const snapshot = await readLocalSnapshot(program);
+      const snapshot = await readLocalSnapshot();
       const storeSnapshot = getClientStoreSnapshot();
 
       expect(snapshot.schema).toEqual(nextSchema);
@@ -532,15 +510,15 @@ describe("client sync", () => {
     const sockets = fakeSocketFactory();
     let syncedCount = 0;
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "First")],
       cursor: 1,
     });
-    await refreshClientStoreFromDb(program);
+    await refreshClientStoreFromDb();
 
-    const stop = startPushSync(program, {
+    const stop = startPushSync({
       onSynced: () => {
         syncedCount += 1;
       },
@@ -572,20 +550,20 @@ describe("client sync", () => {
   it("sends sync-requested over an open push sync socket", async () => {
     const sockets = fakeSocketFactory();
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "First")],
       cursor: 1,
     });
 
-    const stop = startPushSync(program, { socketFactory: sockets.create });
+    const stop = startPushSync({ socketFactory: sockets.create });
 
     try {
       sockets.instances[0]?.open();
       await waitFor(() => sockets.instances[0]?.sentMessages.length === 1);
 
-      requestSync(program);
+      requestSync();
 
       await waitFor(() => sockets.instances[0]?.sentMessages.length === 2);
       expect(parseSocketClientMessage(sockets.instances[0]?.sentMessages[1])).toEqual({
@@ -602,21 +580,20 @@ describe("client sync", () => {
     const sockets = fakeSocketFactory();
     const acceptedRecord = record("record-2", "Second");
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "First")],
       cursor: 1,
     });
 
-    const stop = startPushSync(program, { socketFactory: sockets.create });
+    const stop = startPushSync({ socketFactory: sockets.create });
 
     try {
       sockets.instances[0]?.open();
       await waitFor(() => sockets.instances[0]?.sentMessages.length === 1);
 
       await submitOperation(
-        program,
         "task",
         "create",
         { input: { title: "Second", done: false } },
@@ -638,7 +615,7 @@ describe("client sync", () => {
         },
       );
 
-      requestSync(program);
+      requestSync();
 
       await waitFor(() => sockets.instances[0]?.sentMessages.length === 2);
       expect(parseSocketClientMessage(sockets.instances[0]?.sentMessages[1])).toEqual({
@@ -653,7 +630,7 @@ describe("client sync", () => {
 
   it("reconnects push sync after an opened socket closes", async () => {
     const sockets = fakeSocketFactory();
-    const stop = startPushSync(program, {
+    const stop = startPushSync({
       reconnectInitialDelayMs: 1,
       reconnectMaxDelayMs: 2,
       socketFactory: sockets.create,
@@ -675,7 +652,7 @@ describe("client sync", () => {
 
   it("closes the push sync socket when stopped", async () => {
     const sockets = fakeSocketFactory();
-    const stop = startPushSync(program, { socketFactory: sockets.create });
+    const stop = startPushSync({ socketFactory: sockets.create });
 
     sockets.instances[0]?.open();
     await waitFor(() => sockets.instances[0]?.sentMessages.length === 1);
@@ -688,7 +665,6 @@ describe("client sync", () => {
     const acceptedRecord = record("record-1", "First");
 
     const response = await submitOperation(
-      program,
       "task",
       "create",
       { input: { title: "First", done: false } },
@@ -717,7 +693,7 @@ describe("client sync", () => {
       },
     );
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
 
     expect(response.output.type).toBe("create");
     expect(response.output.type === "create" ? response.output.record : undefined).toEqual(
@@ -732,7 +708,6 @@ describe("client sync", () => {
     const replayedRecord = record("record-1", "Replayed");
 
     const response = await submitOperation(
-      program,
       "task",
       "create",
       { idempotencyKey: "operation-replay-key", input: { title: "Ignored", done: false } },
@@ -758,7 +733,7 @@ describe("client sync", () => {
       { autoSave },
     );
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
 
     expect(response.status).toBe("replayed");
     expect(response.output.type === "create" ? response.output.record : undefined).toEqual(
@@ -773,7 +748,6 @@ describe("client sync", () => {
     const acceptedRecord = record("record-1", "First", true);
 
     const response = await submitOperation(
-      program,
       "task",
       "update",
       { input: { done: true }, recordId: "record-1" },
@@ -803,7 +777,7 @@ describe("client sync", () => {
       },
     );
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
 
     expect(response.output.type).toBe("update");
     expect(response.output.type === "update" ? response.output.record : undefined).toEqual(
@@ -820,16 +794,15 @@ describe("client sync", () => {
       deletedAt: "2026-04-28T00:01:00.000Z",
     };
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [activeRecord],
       cursor: 1,
     });
-    await refreshClientStoreFromDb(program);
+    await refreshClientStoreFromDb();
 
     const response = await submitOperation(
-      program,
       "task",
       "delete",
       { recordId: "record-1" },
@@ -859,7 +832,7 @@ describe("client sync", () => {
       },
     );
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
     const storeSnapshot = getClientStoreSnapshot();
 
     expect(response.output.type).toBe("delete");
@@ -877,7 +850,6 @@ describe("client sync", () => {
     const lifecycleRecord = record("record-2", "Lifecycle");
 
     await submitOperation(
-      program,
       "task",
       "create",
       { input: { title: "First", done: false } },
@@ -900,7 +872,7 @@ describe("client sync", () => {
       },
     );
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
     const storeSnapshot = getClientStoreSnapshot();
 
     expect(snapshot.records).toEqual([primaryRecord, lifecycleRecord]);
@@ -909,7 +881,7 @@ describe("client sync", () => {
   });
 
   it("merges remote patched records", async () => {
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "First", false)],
@@ -917,7 +889,6 @@ describe("client sync", () => {
     });
 
     await syncClient(
-      program,
       jsonFetcher(
         "/api/formless/program/sync?after=1&schemaUpdatedAt=2026-04-28T00%3A00%3A00.000Z",
         {
@@ -927,7 +898,7 @@ describe("client sync", () => {
       ),
     );
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
 
     expect(snapshot.records).toEqual([record("record-1", "First", true)]);
     expect(snapshot.cursor).toBe(2);
@@ -941,16 +912,15 @@ describe("client sync", () => {
       deletedAt: "2026-04-28T00:01:00.000Z",
     };
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [activeRecord, openRecord],
       cursor: 3,
     });
-    await refreshClientStoreFromDb(program);
+    await refreshClientStoreFromDb();
 
     await syncClient(
-      program,
       jsonFetcher(
         "/api/formless/program/sync?after=3&schemaUpdatedAt=2026-04-28T00%3A00%3A00.000Z",
         {
@@ -960,7 +930,7 @@ describe("client sync", () => {
       ),
     );
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
     const storeSnapshot = getClientStoreSnapshot();
 
     expect(snapshot.schema).toEqual(appSchema);
@@ -978,16 +948,15 @@ describe("client sync", () => {
       deletedAt: "2026-04-28T00:01:00.000Z",
     };
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "Done", true)],
       cursor: 1,
     });
-    await refreshClientStoreFromDb(program);
+    await refreshClientStoreFromDb();
 
     const response = await submitOperation(
-      program,
       "task",
       "clearCompletedTasks",
       {},
@@ -1012,7 +981,7 @@ describe("client sync", () => {
       },
     );
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
     const storeSnapshot = getClientStoreSnapshot();
 
     expect(response.status).toBe("committed");
@@ -1036,7 +1005,6 @@ describe("client sync", () => {
     const resetSchemaRecord = record("record-3", "Reset schema");
 
     await submitOperation(
-      program,
       "task",
       "create",
       { input: { title: "First", done: false } },
@@ -1060,7 +1028,6 @@ describe("client sync", () => {
     );
 
     await saveActiveSchema(
-      program,
       nextSchema,
       jsonFetcher("/api/formless/program/schema", {
         schema: nextSchema,
@@ -1070,7 +1037,6 @@ describe("client sync", () => {
     );
 
     await restoreStorageSnapshot(
-      program,
       storageSnapshot({ records: [restoredRecord] }),
       jsonFetcher("/api/formless/program/snapshot/restore", {
         schema: appSchema,
@@ -1082,7 +1048,6 @@ describe("client sync", () => {
     );
 
     await resetSourceSchema(
-      program,
       jsonFetcher("/api/formless/program/reset/schema", {
         schema: appSchema,
         schemaUpdatedAt: "2026-04-28T00:03:00.000Z",
@@ -1093,16 +1058,15 @@ describe("client sync", () => {
     );
 
     expect(autoSave.inputs).toEqual([
-      { source: "control-plane-write", storageIdentity: "instance:control-plane" },
-      { source: "schema-save", storageIdentity: "instance:control-plane" },
-      { source: "snapshot-restore", storageIdentity: "instance:control-plane" },
-      { source: "reset-schema", storageIdentity: "instance:control-plane" },
+      { source: "control-plane-write" },
+      { source: "schema-save" },
+      { source: "snapshot-restore" },
+      { source: "reset-schema" },
     ]);
   });
 
   it("classifies control-plane, deployment intent, and media reference writes", async () => {
     const autoSave = captureAutoSave();
-    const controlPlaneTarget = programClientTarget();
     const routeRecord: StoredRecord = {
       createdAt: "2026-04-28T00:00:01.000Z",
       updatedAt: "2026-04-28T00:00:01.000Z",
@@ -1126,7 +1090,6 @@ describe("client sync", () => {
     };
 
     await submitOperation(
-      controlPlaneTarget,
       "route",
       "update",
       { input: { enabled: true }, recordId: routeRecord.id },
@@ -1150,7 +1113,6 @@ describe("client sync", () => {
     );
 
     await submitOperation(
-      controlPlaneTarget,
       "deployment-config",
       "update",
       { input: { enabled: true }, recordId: deploymentRecord.id },
@@ -1174,7 +1136,6 @@ describe("client sync", () => {
     );
 
     await submitOperation(
-      controlPlaneTarget,
       "block",
       "update",
       { input: { mediaAsset: "hero.webp" }, recordId: mediaRecord.id },
@@ -1198,9 +1159,9 @@ describe("client sync", () => {
     );
 
     expect(autoSave.inputs).toEqual([
-      { source: "control-plane-write", storageIdentity: "instance:control-plane" },
-      { source: "deployment-intent", storageIdentity: "instance:control-plane" },
-      { source: "media-reference", storageIdentity: "instance:control-plane" },
+      { source: "control-plane-write" },
+      { source: "deployment-intent" },
+      { source: "media-reference" },
     ]);
   });
 
@@ -1209,7 +1170,6 @@ describe("client sync", () => {
 
     await expect(
       submitOperation(
-        program,
         "task",
         "create",
         { input: { title: "Rejected", done: false } },
@@ -1220,7 +1180,6 @@ describe("client sync", () => {
 
     await expect(
       saveActiveSchema(
-        program,
         schemaWithSummary(),
         async () => Response.json({ error: "Invalid schema." }, { status: 400 }),
         { autoSave },
@@ -1231,7 +1190,6 @@ describe("client sync", () => {
   });
 
   it("uses Program API paths for Task sync, writes, snapshots, and schema reset", async () => {
-    const work = programClientTarget();
     const createdRecord = record("record-2", "Created in work");
     const tombstone = {
       ...createdRecord,
@@ -1239,16 +1197,15 @@ describe("client sync", () => {
     };
     const restoredRecord = record("record-4", "Restored work");
 
-    await saveBootstrapResponse(work, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "Existing work")],
       cursor: 1,
     });
-    await refreshClientStoreFromDb(work);
+    await refreshClientStoreFromDb();
 
     await syncClient(
-      work,
       jsonFetcher(
         "/api/formless/program/sync?after=1&schemaUpdatedAt=2026-04-28T00%3A00%3A00.000Z",
         {
@@ -1259,7 +1216,6 @@ describe("client sync", () => {
     );
 
     await submitOperation(
-      work,
       "task",
       "create",
       { input: { title: "Created in work", done: false } },
@@ -1284,7 +1240,7 @@ describe("client sync", () => {
       },
     );
 
-    await submitOperation(work, "task", "clearCompletedTasks", {}, async (input, init) => {
+    await submitOperation("task", "clearCompletedTasks", {}, async (input, init) => {
       const operation = parseOperationRequestBody(init?.body);
       const changes = [commandMaterializationChange(4, tombstone, operation.idempotencyKey)];
 
@@ -1302,7 +1258,6 @@ describe("client sync", () => {
     });
 
     const exported = await exportStorageSnapshot(
-      work,
       jsonFetcher(
         "/api/formless/program/snapshot",
         storageSnapshot({
@@ -1314,7 +1269,6 @@ describe("client sync", () => {
       ),
     );
     const restored = await restoreStorageSnapshot(
-      work,
       storageSnapshot({
         records: [restoredRecord],
         schemaKey: "formless-program",
@@ -1335,7 +1289,6 @@ describe("client sync", () => {
     );
 
     await resetSourceSchema(
-      work,
       jsonFetcher("/api/formless/program/reset/schema", {
         schema: appSchema,
         schemaUpdatedAt: "2026-04-28T00:05:00.000Z",
@@ -1346,10 +1299,9 @@ describe("client sync", () => {
 
     expect(exported.records).toEqual([tombstone]);
     expect(restored.records).toEqual([restoredRecord]);
-    expect((await readLocalSnapshot(work)).records).toEqual([restoredRecord]);
+    expect((await readLocalSnapshot()).records).toEqual([restoredRecord]);
     expect(getClientStoreSnapshot()).toMatchObject({
-      activeClientStorageName: "formless:instance:control-plane",
-      activeSchemaKey: "formless-program",
+      hydrated: true,
       cursor: 6,
     });
   });
@@ -1357,16 +1309,15 @@ describe("client sync", () => {
   it("submits CRM command operations to the Program API and merges created rates", async () => {
     const createdRate = rateRecord("rate-1", "resource-1", "card-1");
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: rateCardSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [],
       cursor: 0,
     });
-    await refreshClientStoreFromDb(program);
+    await refreshClientStoreFromDb();
 
     const response = await submitOperation(
-      program,
       "rate",
       "regenerateMissingRates",
       {},
@@ -1391,7 +1342,7 @@ describe("client sync", () => {
       },
     );
 
-    const rateSnapshot = await readLocalSnapshot(program);
+    const rateSnapshot = await readLocalSnapshot();
     const storeSnapshot = getClientStoreSnapshot();
 
     expect(
@@ -1409,16 +1360,15 @@ describe("client sync", () => {
       deletedAt: "2026-04-28T00:01:00.000Z",
     };
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "Done", true), record("record-2", "Open")],
       cursor: 1,
     });
-    await refreshClientStoreFromDb(program);
+    await refreshClientStoreFromDb();
 
     await syncClient(
-      program,
       jsonFetcher(
         "/api/formless/program/sync?after=1&schemaUpdatedAt=2026-04-28T00%3A00%3A00.000Z",
         {
@@ -1428,7 +1378,7 @@ describe("client sync", () => {
       ),
     );
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
     const storeSnapshot = getClientStoreSnapshot();
 
     expect(snapshot.records).toContainEqual(tombstone);
@@ -1440,14 +1390,13 @@ describe("client sync", () => {
     const nextSchema = schemaWithSummary();
 
     await fetchActiveSchema(
-      program,
       jsonFetcher("/api/formless/program/schema", {
         schema: nextSchema,
         updatedAt: "2026-04-28T00:00:00.000Z",
       } satisfies SchemaResponse),
     );
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
 
     expect(snapshot.schema).toEqual(nextSchema);
     expect(snapshot.schemaUpdatedAt).toBe("2026-04-28T00:00:00.000Z");
@@ -1456,7 +1405,7 @@ describe("client sync", () => {
   it("saves accepted schema updates into local state", async () => {
     const nextSchema = schemaWithSummary();
 
-    const response = await saveActiveSchema(program, nextSchema, async (input, init) => {
+    const response = await saveActiveSchema(nextSchema, async (input, init) => {
       expect(input).toBe("/api/formless/program/schema");
       expect(init?.method).toBe("POST");
       expect(parsePlainRequestBody(init?.body)).toEqual({ schema: nextSchema });
@@ -1467,21 +1416,20 @@ describe("client sync", () => {
       } satisfies SchemaUpdateResponse);
     });
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
 
     expect(response.schema).toEqual(nextSchema);
     expect(snapshot.schema).toEqual(nextSchema);
     expect(snapshot.schemaUpdatedAt).toBe("2026-04-28T00:00:00.000Z");
   });
 
-  it("exports storage snapshots from the schema-keyed authority", async () => {
+  it("exports the Program storage snapshot", async () => {
     const snapshot = storageSnapshot({
       records: [record("record-1", "First")],
       sourceCursor: 3,
     });
 
     const response = await exportStorageSnapshot(
-      program,
       jsonFetcher("/api/formless/program/snapshot", snapshot),
     );
 
@@ -1496,15 +1444,15 @@ describe("client sync", () => {
       schema: restoredSchema,
     });
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "Old")],
       cursor: 1,
     });
-    await refreshClientStoreFromDb(program);
+    await refreshClientStoreFromDb();
 
-    const response = await restoreStorageSnapshot(program, requestSnapshot, async (input, init) => {
+    const response = await restoreStorageSnapshot(requestSnapshot, async (input, init) => {
       expect(input).toBe("/api/formless/program/snapshot/restore");
       expect(init?.method).toBe("POST");
       expect(parsePlainRequestBody(init?.body)).toEqual(requestSnapshot);
@@ -1516,7 +1464,7 @@ describe("client sync", () => {
         cursor: 4,
       } satisfies BootstrapResponse);
     });
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
     const clientSnapshot = getClientStoreSnapshot();
 
     expect(response.records).toEqual([restoredRecord]);
@@ -1532,16 +1480,16 @@ describe("client sync", () => {
   it("keeps the selected local replica unchanged when snapshot restore fails", async () => {
     const existingRecord = record("record-1", "Old");
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [existingRecord],
       cursor: 1,
     });
-    await refreshClientStoreFromDb(program);
+    await refreshClientStoreFromDb();
 
     try {
-      await restoreStorageSnapshot(program, storageSnapshot(), async () =>
+      await restoreStorageSnapshot(storageSnapshot(), async () =>
         Response.json({ error: 'Storage snapshot schemaKey must be "tasks".' }, { status: 400 }),
       );
       throw new Error("Expected restore to fail.");
@@ -1550,7 +1498,7 @@ describe("client sync", () => {
       expect((error as Error).message).toBe('Storage snapshot schemaKey must be "tasks".');
     }
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
     const clientSnapshot = getClientStoreSnapshot();
 
     expect(snapshot.records).toEqual([existingRecord]);
@@ -1562,7 +1510,7 @@ describe("client sync", () => {
   it("resets source schema without deleting the selected local database", async () => {
     const acceptedRecord = record("record-2", "Second");
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "First")],
@@ -1570,7 +1518,6 @@ describe("client sync", () => {
     });
 
     const response = await resetSourceSchema(
-      program,
       jsonFetcher("/api/formless/program/reset/schema", {
         schema: appSchema,
         schemaUpdatedAt: "2026-04-28T00:01:00.000Z",
@@ -1578,7 +1525,7 @@ describe("client sync", () => {
         cursor: 2,
       } satisfies BootstrapResponse),
     );
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
     const storeSnapshot = getClientStoreSnapshot();
 
     expect(response.records).toEqual([acceptedRecord]);
@@ -1590,7 +1537,7 @@ describe("client sync", () => {
   });
 
   it("can request the rate-card source schema reset", async () => {
-    await resetSourceSchema(program, async (input, init) => {
+    await resetSourceSchema(async (input, init) => {
       expect(input).toBe("/api/formless/program/reset/schema");
       expect(init?.method).toBe("POST");
       expect(parsePlainRequestBody(init?.body)).toEqual({});
@@ -1607,12 +1554,11 @@ describe("client sync", () => {
   it("refreshes schema state from broadcast events", async () => {
     const states = [getClientStoreSnapshot()];
     const unsubscribe = subscribeToClientStore(() => states.push(getClientStoreSnapshot()));
-    const stopBroadcast = connectBroadcastToClientStore(program);
+    const stopBroadcast = connectBroadcastToClientStore();
     const nextSchema = schemaWithSummary();
 
     try {
       await saveActiveSchema(
-        program,
         nextSchema,
         jsonFetcher("/api/formless/program/schema", {
           schema: nextSchema,
@@ -1636,11 +1582,11 @@ describe("client sync", () => {
   it("refreshes state from broadcast events without remounting routes", async () => {
     const states = [getClientStoreSnapshot()];
     const unsubscribe = subscribeToClientStore(() => states.push(getClientStoreSnapshot()));
-    const stopBroadcast = connectBroadcastToClientStore(program);
+    const stopBroadcast = connectBroadcastToClientStore();
 
     try {
-      await mergeRecords(program, [record("record-1", "First")], 1);
-      publishClientEvent(program, "records-updated");
+      await mergeRecords([record("record-1", "First")], 1);
+      publishClientEvent("records-updated");
 
       await waitFor(() => states.some((state) => state.recordIdsByEntity.task?.length === 1));
       expect(states.at(-1)?.recordsById["record-1"]).toEqual(record("record-1", "First"));
@@ -1654,7 +1600,6 @@ describe("client sync", () => {
     const notifications: unknown[] = [];
 
     await bootstrapClient(
-      program,
       jsonFetcher("/api/formless/program/bootstrap", {
         schema: appSchema,
         schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
@@ -1677,7 +1622,7 @@ describe("client sync", () => {
     );
 
     try {
-      await refreshClientStoreFromDb(program);
+      await refreshClientStoreFromDb();
 
       const after = getClientStoreSnapshot();
 

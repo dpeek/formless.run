@@ -57,6 +57,10 @@ import {
   storageSqlMigrationFamily,
 } from "./sql-migrations.ts";
 import { assertEntityIdentityContinuity } from "./entity-identity-continuity.ts";
+import {
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 
 type RecordRow = {
   id: string;
@@ -77,13 +81,6 @@ type TableInfoRow = {
   name: string;
 };
 
-type ProgramConvergenceRow = {
-  converged_at: string;
-  imported_record_count: number;
-  source_cursor: number;
-  source_schema_updated_at: string | null;
-};
-
 type OperationInvocationRow = {
   invocation_id: string;
   operation_key: string;
@@ -94,7 +91,6 @@ type OperationInvocationRow = {
   auth_decision: OperationInvocationAuthDecision;
   source_protocol: string;
   source_json: string;
-  program_storage_identity_json: string;
   input_hash: string;
   input_audit_json: string;
   affected_change_ids_json: string;
@@ -123,22 +119,10 @@ const authoritySqlMigrations = createSqlStorageMigrationRegistry([
     },
   },
 ]);
-const programConvergenceTableName = "formless_program_convergence";
-
 export type StoredSchema = {
   schema: AppSchema;
-  schemaProvenance?: StorageSchemaProvenance;
+  schemaProvenance?: ProgramSchemaProvenance;
   updatedAt: string;
-};
-
-export type InstanceControlPlaneSchemaProvenance = {
-  kind: "instance-control-plane";
-  sourceSchemaHash: SourceSchemaHash;
-};
-
-export type IdentityControlPlaneSchemaProvenance = {
-  kind: "identity-control-plane";
-  sourceSchemaHash: SourceSchemaHash;
 };
 
 export type ProgramSchemaProvenance = {
@@ -146,17 +130,12 @@ export type ProgramSchemaProvenance = {
   sourceSchemaHash: SourceSchemaHash;
 };
 
-export type StorageSchemaProvenance =
-  | IdentityControlPlaneSchemaProvenance
-  | InstanceControlPlaneSchemaProvenance
-  | ProgramSchemaProvenance;
-
 export type ActiveSchemaRefreshBlocker = {
-  currentSchemaProvenance?: StorageSchemaProvenance;
+  currentSchemaProvenance?: ProgramSchemaProvenance;
   reason: string;
   schemaKey?: string;
   storageIdentity?: string;
-  targetSchemaProvenance: StorageSchemaProvenance;
+  targetSchemaProvenance: ProgramSchemaProvenance;
 };
 
 export class ActiveSchemaRefreshBlockedError extends Error {
@@ -221,7 +200,6 @@ export type StoredOperationInvocation = {
   authDecision: OperationInvocationAuthDecision;
   sourceProtocol: string;
   source: OperationInvocationEnvelope["source"];
-  programStorageIdentity: OperationInvocationEnvelope["programStorageIdentity"];
   inputHash: string;
   auditInput: OperationInvocationAuditInput;
   affectedChangeIds: string[];
@@ -237,22 +215,7 @@ export type StoredOperationInvocation = {
 
 export type StorageSource = {
   schema: AppSchema;
-  schemaKey?: string;
-  schemaProvenance?: StorageSchemaProvenance;
-  storageIdentity?: string;
-};
-
-export type ProgramConvergenceEvidence = {
-  convergedAt: string;
-  importedRecordCount: number;
-  sourceCursor: number;
-  sourceSchemaUpdatedAt?: string;
-};
-
-export type InitializedStorageState = {
-  cursor: number;
-  records: StoredRecord[];
-  schemaUpdatedAt: string;
+  schemaProvenance?: ProgramSchemaProvenance;
 };
 
 export type StorageSchemaResetValidator = (
@@ -398,13 +361,6 @@ export function ensureStorageTables(storage: DurableObjectStorage) {
       created_at TEXT NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS ${programConvergenceTableName} (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      source_cursor INTEGER NOT NULL,
-      source_schema_updated_at TEXT,
-      imported_record_count INTEGER NOT NULL,
-      converged_at TEXT NOT NULL
-    );
   `);
   ensureRecordUpdatedAtColumn(storage);
   ensureAppSchemaProvenanceColumn(storage);
@@ -443,7 +399,6 @@ export function ensureOperationInvocationTables(storage: DurableObjectStorage) {
       auth_decision TEXT NOT NULL CHECK (auth_decision IN ('allowed', 'denied')),
       source_protocol TEXT NOT NULL,
       source_json TEXT NOT NULL,
-      program_storage_identity_json TEXT NOT NULL,
       input_hash TEXT NOT NULL,
       input_audit_json TEXT NOT NULL,
       affected_change_ids_json TEXT NOT NULL,
@@ -512,180 +467,6 @@ export function initializeStorageFromSource(
   });
 }
 
-export function readInitializedStorageState(
-  storage: DurableObjectStorage,
-): InitializedStorageState | undefined {
-  if (
-    !storageTableExists(storage, "app_schema") ||
-    !storageTableExists(storage, "records") ||
-    !storageTableExists(storage, "changes")
-  ) {
-    return undefined;
-  }
-
-  return storage.transactionSync(() => {
-    const schema = readStoredSchema(storage);
-
-    return schema
-      ? {
-          cursor: getCurrentCursor(storage),
-          records: getBootstrapRecords(storage),
-          schemaUpdatedAt: schema.updatedAt,
-        }
-      : undefined;
-  });
-}
-
-export function readProgramConvergenceSourceState(
-  storage: DurableObjectStorage,
-): InitializedStorageState | undefined {
-  if (
-    !storageTableExists(storage, "app_schema") ||
-    !storageTableExists(storage, "records") ||
-    !storageTableExists(storage, "changes")
-  ) {
-    return undefined;
-  }
-
-  return storage.transactionSync(() => {
-    const schemaRow = storage.sql
-      .exec<{ updated_at: string }>("SELECT updated_at FROM app_schema WHERE id = 1")
-      .next();
-
-    return schemaRow.done
-      ? undefined
-      : {
-          cursor: getCurrentCursor(storage),
-          records: getBootstrapRecords(storage),
-          schemaUpdatedAt: schemaRow.value.updated_at,
-        };
-  });
-}
-
-export function convergeProgramStorage(
-  storage: DurableObjectStorage,
-  input: {
-    importedRecords: readonly StoredRecord[];
-    source: StorageSource;
-    sourceCursor: number;
-    sourceSchemaUpdatedAt?: string;
-    validate: (records: readonly StoredRecord[]) => void;
-  },
-): ProgramConvergenceEvidence {
-  return storage.transactionSync(() => {
-    const existingEvidence = readProgramConvergenceEvidence(storage);
-
-    if (existingEvidence) {
-      return existingEvidence;
-    }
-
-    const survivorRecords = getBootstrapRecords(storage);
-    const survivorIds = new Set(survivorRecords.map((record) => record.id));
-    const importedIds = new Set<string>();
-
-    for (const record of input.importedRecords) {
-      if (importedIds.has(record.id)) {
-        throw new Error(`Identity convergence includes duplicate record id "${record.id}".`);
-      }
-      if (survivorIds.has(record.id)) {
-        throw new Error(
-          `Program convergence record id collision: "${record.id}" exists in both control-plane Authorities.`,
-        );
-      }
-      importedIds.add(record.id);
-    }
-
-    input.validate([...survivorRecords, ...input.importedRecords]);
-
-    const convergedAt = nowIsoString();
-    writeActiveSchemaAt(storage, input.source.schema, convergedAt, input.source.schemaProvenance);
-
-    const writeId = "program-convergence:instance:identity";
-    for (const record of input.importedRecords) {
-      storage.sql.exec(
-        `
-          INSERT INTO records (id, entity, values_json, created_at, updated_at, deleted_at)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `,
-        record.id,
-        record.entity,
-        JSON.stringify(record.values),
-        record.createdAt,
-        record.updatedAt,
-        record.deletedAt ?? null,
-      );
-      appendWriteLogChange(storage, {
-        writeId,
-        operationKind: record.deletedAt === undefined ? "create" : "delete",
-        entity: record.entity,
-        record,
-        createdAt: convergedAt,
-      });
-    }
-
-    storage.sql.exec(
-      `
-        INSERT INTO ${programConvergenceTableName} (
-          id,
-          source_cursor,
-          source_schema_updated_at,
-          imported_record_count,
-          converged_at
-        )
-        VALUES (1, ?, ?, ?, ?)
-      `,
-      input.sourceCursor,
-      input.sourceSchemaUpdatedAt ?? null,
-      input.importedRecords.length,
-      convergedAt,
-    );
-
-    return {
-      convergedAt,
-      importedRecordCount: input.importedRecords.length,
-      sourceCursor: input.sourceCursor,
-      ...(input.sourceSchemaUpdatedAt === undefined
-        ? {}
-        : { sourceSchemaUpdatedAt: input.sourceSchemaUpdatedAt }),
-    };
-  });
-}
-
-export function readProgramConvergenceEvidence(
-  storage: DurableObjectStorage,
-): ProgramConvergenceEvidence | undefined {
-  if (!storageTableExists(storage, programConvergenceTableName)) {
-    return undefined;
-  }
-
-  const row = storage.sql
-    .exec<ProgramConvergenceRow>(
-      `
-        SELECT
-          source_cursor,
-          source_schema_updated_at,
-          imported_record_count,
-          converged_at
-        FROM ${programConvergenceTableName}
-        WHERE id = 1
-      `,
-    )
-    .next();
-
-  if (row.done) {
-    return undefined;
-  }
-
-  return {
-    convergedAt: row.value.converged_at,
-    importedRecordCount: row.value.imported_record_count,
-    sourceCursor: row.value.source_cursor,
-    ...(row.value.source_schema_updated_at === null
-      ? {}
-      : { sourceSchemaUpdatedAt: row.value.source_schema_updated_at }),
-  };
-}
-
 function refreshActiveSchemaFromSource(
   storage: DurableObjectStorage,
   existing: StoredSchema,
@@ -733,8 +514,8 @@ function activeSchemaRefreshBlocked(existing: StoredSchema, source: StorageSourc
       ? {}
       : { currentSchemaProvenance: existing.schemaProvenance }),
     reason,
-    ...(source.schemaKey === undefined ? {} : { schemaKey: source.schemaKey }),
-    ...(source.storageIdentity === undefined ? {} : { storageIdentity: source.storageIdentity }),
+    schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     targetSchemaProvenance: source.schemaProvenance,
   });
 }
@@ -760,7 +541,7 @@ function writeActiveSchemaAt(
   storage: DurableObjectStorage,
   schema: AppSchema,
   updatedAt: string,
-  schemaProvenance?: StorageSchemaProvenance,
+  schemaProvenance?: ProgramSchemaProvenance,
 ): StoredSchema {
   getAppSchemaDefinitionIndex(schema);
   storage.sql.exec(
@@ -1361,7 +1142,6 @@ export function readOperationInvocations(
           auth_decision,
           source_protocol,
           source_json,
-          program_storage_identity_json,
           input_hash,
           input_audit_json,
           affected_change_ids_json,
@@ -1399,7 +1179,6 @@ export function getOperationInvocationById(
           auth_decision,
           source_protocol,
           source_json,
-          program_storage_identity_json,
           input_hash,
           input_audit_json,
           affected_change_ids_json,
@@ -2446,7 +2225,6 @@ function upsertOperationInvocation(
         auth_decision,
         source_protocol,
         source_json,
-        program_storage_identity_json,
         input_hash,
         input_audit_json,
         affected_change_ids_json,
@@ -2459,7 +2237,7 @@ function upsertOperationInvocation(
         updated_at,
         completed_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(invocation_id) DO UPDATE SET
         operation_key = excluded.operation_key,
         operation_kind = excluded.operation_kind,
@@ -2469,7 +2247,6 @@ function upsertOperationInvocation(
         auth_decision = excluded.auth_decision,
         source_protocol = excluded.source_protocol,
         source_json = excluded.source_json,
-        program_storage_identity_json = excluded.program_storage_identity_json,
         input_hash = excluded.input_hash,
         input_audit_json = excluded.input_audit_json,
         affected_change_ids_json = excluded.affected_change_ids_json,
@@ -2490,7 +2267,6 @@ function upsertOperationInvocation(
     input.authDecision,
     input.envelope.source.protocol,
     JSON.stringify(input.envelope.source),
-    JSON.stringify(input.envelope.programStorageIdentity),
     hashOperationInvocationInput(input.envelope.input),
     JSON.stringify(auditInput),
     JSON.stringify(affectedChangeIds),
@@ -2516,9 +2292,6 @@ function operationInvocationFromRow(row: OperationInvocationRow): StoredOperatio
     authDecision: row.auth_decision,
     sourceProtocol: row.source_protocol,
     source: JSON.parse(row.source_json) as OperationInvocationEnvelope["source"],
-    programStorageIdentity: JSON.parse(
-      row.program_storage_identity_json,
-    ) as OperationInvocationEnvelope["programStorageIdentity"],
     inputHash: row.input_hash,
     auditInput: JSON.parse(row.input_audit_json) as OperationInvocationAuditInput,
     affectedChangeIds: JSON.parse(row.affected_change_ids_json) as string[],
@@ -2760,8 +2533,8 @@ function schemasEqual(left: AppSchema, right: AppSchema) {
 }
 
 function schemaProvenancesEqual(
-  left: StorageSchemaProvenance | undefined,
-  right: StorageSchemaProvenance | undefined,
+  left: ProgramSchemaProvenance | undefined,
+  right: ProgramSchemaProvenance | undefined,
 ) {
   if (left === undefined || right === undefined) {
     return left === right;
@@ -2798,7 +2571,7 @@ function readStoredSchema(storage: DurableObjectStorage): StoredSchema | undefin
   };
 }
 
-function parseStoredSchemaProvenance(value: string | null): StorageSchemaProvenance | undefined {
+function parseStoredSchemaProvenance(value: string | null): ProgramSchemaProvenance | undefined {
   if (value === null) {
     return undefined;
   }
@@ -2813,20 +2586,6 @@ function parseStoredSchemaProvenance(value: string | null): StorageSchemaProvena
 
   if (!isJsonObject(parsed) || !isSourceSchemaHash(parsed.sourceSchemaHash)) {
     return undefined;
-  }
-
-  if (parsed.kind === "instance-control-plane") {
-    return {
-      kind: "instance-control-plane",
-      sourceSchemaHash: parsed.sourceSchemaHash,
-    };
-  }
-
-  if (parsed.kind === "identity-control-plane") {
-    return {
-      kind: "identity-control-plane",
-      sourceSchemaHash: parsed.sourceSchemaHash,
-    };
   }
 
   if (parsed.kind === "program") {
@@ -2857,20 +2616,8 @@ function activeSchemaRefreshBlockedMessage(blocker: ActiveSchemaRefreshBlocker) 
   ].join(" ");
 }
 
-function formatSchemaProvenance(provenance: StorageSchemaProvenance) {
-  if (provenance.kind === "instance-control-plane") {
-    return `kind=instance-control-plane sourceSchemaHash=${provenance.sourceSchemaHash}`;
-  }
-
-  if (provenance.kind === "identity-control-plane") {
-    return `kind=identity-control-plane sourceSchemaHash=${provenance.sourceSchemaHash}`;
-  }
-
-  if (provenance.kind === "program") {
-    return `kind=program sourceSchemaHash=${provenance.sourceSchemaHash}`;
-  }
-
-  throw new Error("Unsupported schema provenance.");
+function formatSchemaProvenance(provenance: ProgramSchemaProvenance) {
+  return `kind=program sourceSchemaHash=${provenance.sourceSchemaHash}`;
 }
 
 function recordFromRow(row: RecordRow): StoredRecord {
@@ -2897,17 +2644,6 @@ function parseJsonRecord(value: string): RecordValues {
   }
 
   return parsed;
-}
-
-function storageTableExists(storage: DurableObjectStorage, tableName: string): boolean {
-  const row = storage.sql
-    .exec<{ name: string }>(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-      tableName,
-    )
-    .next();
-
-  return !row.done;
 }
 
 function parseStoredSchema(value: string): AppSchema {

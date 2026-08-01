@@ -2,7 +2,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Router } from "wouter";
 import { describe, expect, it } from "vite-plus/test";
 import { App, type AppRouteComponents } from "./app.tsx";
-import type { ProgramClientTarget } from "./client/program-target.ts";
 import {
   createDevRuntimeProfile,
   createPublishedSiteRuntimeProfile,
@@ -10,7 +9,7 @@ import {
 } from "./app/runtime-profile.ts";
 
 describe("application route selection", () => {
-  it("selects instance and generated app surfaces inside the application shell", () => {
+  it("selects Program surfaces inside the application shell", () => {
     const instance = renderRoute("/");
     const crmProgramScreen = renderRoute("/crm/audiences");
 
@@ -42,10 +41,8 @@ describe("application route selection", () => {
     expect(publishedSite).toContain('data-route="public-site"');
     expect(publishedSite).toContain('data-link-mode="published"');
     expect(publishedSite).toContain('data-slug="blog/shipping"');
-    expect(publishedSite).toContain('data-target-kind="program"');
     expect(previewSite).toContain('data-link-mode="preview"');
     expect(previewSite).toContain('data-slug="blog/shipping"');
-    expect(previewSite).toContain('data-target-kind="program"');
     expect(`${localSession}${account}${publishedSite}${previewSite}`).not.toContain(
       'data-surface="application-shell"',
     );
@@ -73,40 +70,21 @@ function renderRoute(
 function routeComponents(): AppRouteComponents {
   return {
     AccessRoute: () => <output data-route="access" />,
-    ApplicationShellRuntimeBoundary: ({ children, routeWorld }) => (
-      <section data-surface="application-shell" data-world={routeWorld?.app.key}>
-        {children}
-      </section>
+    ApplicationShellRuntimeBoundary: ({ children }) => (
+      <section data-surface="application-shell">{children}</section>
     ),
     AuthAccountRoute: () => <output data-route="auth-account" />,
     CollaboratorInvitationAcceptanceRoute: () => <output data-route="invitation" />,
-    HomeRoute: ({ schemaKey, screenPath, target, workspaceActions }) => (
-      <output
-        data-route="home"
-        data-schema-key={schemaKey}
-        data-screen-path={screenPath}
-        data-target-kind={targetKind(target)}
-      >
-        {workspaceActions?.map((action) => (
-          <span data-workspace-href={action.href} key={action.id} />
-        ))}
-      </output>
-    ),
     InstanceShellRoute: () => <output data-route="instance" />,
     LocalSessionRoute: () => <output data-route="local-session" />,
     AccountSignInRoute: () => <output data-route="account-sign-in" />,
-    SitePageRoute: ({ linkMode, routeBase, slug, target }) => (
+    SitePageRoute: ({ linkMode, routeBase, slug }) => (
       <output
         data-link-mode={linkMode}
         data-route="public-site"
         data-route-base={routeBase}
         data-slug={slug}
-        data-target-kind={targetKind(target)}
       />
     ),
   };
-}
-
-function targetKind(target: ProgramClientTarget | undefined) {
-  return typeof target === "string" ? "schemaKey" : (target?.kind ?? "none");
 }

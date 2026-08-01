@@ -7,15 +7,14 @@ import type {
   DocumentThemeMode,
   ShellManifestContract,
   ShellNavigationSectionContract,
-  ShellScope,
 } from "@dpeek/formless-presentation/contract";
 import { shellNavigationSectionReference } from "@dpeek/formless-presentation/host";
 
 export type FormlessApplicationShellFixtureId =
-  | "app-only"
   | "dev-workbench"
   | "no-shell"
-  | "product-instance"
+  | "program-roots"
+  | "program-settings"
   | "site-authoring";
 
 export type FormlessApplicationShellFixtureState = {
@@ -37,24 +36,24 @@ export function createFormlessApplicationShellFixtures(): FormlessApplicationShe
   return [
     {
       documentTheme: fixedDocumentTheme("light"),
-      id: "product-instance",
-      label: "Instance",
+      id: "program-settings",
+      label: "Program settings",
       routeLabel: "Settings",
-      shell: productInstanceShell(),
+      shell: programSettingsShell(),
     },
     {
       documentTheme: userDocumentTheme("system", "dark"),
       id: "dev-workbench",
-      label: "App",
+      label: "Program workbench",
       routeLabel: "Tasks workspace",
       shell: devWorkbenchShell(),
     },
     {
       documentTheme: fixedDocumentTheme("dark"),
-      id: "app-only",
-      label: "App only",
+      id: "program-roots",
+      label: "Program roots",
       routeLabel: "Tasks workspace",
-      shell: appOnlyShell(),
+      shell: programRootsShell(),
     },
     {
       documentTheme: userDocumentTheme("dark", "dark"),
@@ -116,12 +115,7 @@ function userDocumentTheme(
 
 function devWorkbenchShell(): FormlessApplicationShellFixtureState {
   const sections = [
-    appSwitcherSection("/apps/tasks"),
-    screenSection("tasks", "Tasks", "/apps/tasks", [
-      ["today", "Today"],
-      ["planning", "Planning"],
-      ["completed", "Completed"],
-    ]),
+    programSection("/tasks"),
     rootSection("tasks", "Projects", [
       ["launch", "Launch", "12"],
       ["website", "Website", "7"],
@@ -130,7 +124,7 @@ function devWorkbenchShell(): FormlessApplicationShellFixtureState {
     settingsSection("tasks", {
       sync: {
         details: [
-          { label: "World", value: "tasks" },
+          { label: "Program", value: "Formless Program" },
           { label: "Schema", value: "v8" },
           { label: "Cursor", value: "42" },
           { label: "Last sync", value: "Just now" },
@@ -148,22 +142,18 @@ function devWorkbenchShell(): FormlessApplicationShellFixtureState {
     sessionSection(),
   ];
 
-  return shell("Tasks", "multiApp", sections);
+  return shell(sections);
 }
 
-function productInstanceShell(): FormlessApplicationShellFixtureState {
-  const sections = [appSwitcherSection("/"), instanceSection("/"), sessionSection()];
+function programSettingsShell(): FormlessApplicationShellFixtureState {
+  const sections = [programSection("/settings"), sessionSection()];
 
-  return shell("Instance", "multiApp", sections);
+  return shell(sections);
 }
 
-function appOnlyShell(): FormlessApplicationShellFixtureState {
+function programRootsShell(): FormlessApplicationShellFixtureState {
   const sections = [
-    screenSection("tasks", "Tasks", "/today", [
-      ["today", "Today"],
-      ["planning", "Planning"],
-      ["completed", "Completed"],
-    ]),
+    programSection("/tasks"),
     rootSection(
       "tasks",
       "Projects",
@@ -183,16 +173,12 @@ function appOnlyShell(): FormlessApplicationShellFixtureState {
     sessionSection(),
   ];
 
-  return shell("Tasks", "appOnly", sections);
+  return shell(sections);
 }
 
 function siteAuthoringShell(): FormlessApplicationShellFixtureState {
   const sections = [
-    screenSection("site", "Site", "/admin/content", [
-      ["content", "Content"],
-      ["forms", "Forms"],
-      ["navigation", "Navigation"],
-    ]),
+    programSection("/site"),
     rootSection("site", "Pages", [
       ["home", "Home", "8"],
       ["about", "About", "4"],
@@ -201,19 +187,17 @@ function siteAuthoringShell(): FormlessApplicationShellFixtureState {
     settingsSection("site", {
       sync: {
         label: "Sync issue",
-        message: "Sync failed. Check the current app and try again.",
+        message: "Sync failed. Check the Program and try again.",
         state: "error",
       },
     }),
     sessionSection(),
   ];
 
-  return shell("Site", "appOnly", sections);
+  return shell(sections);
 }
 
 function shell(
-  title: string,
-  scope: ShellScope,
   sections: readonly ShellNavigationSectionContract[],
 ): FormlessApplicationShellFixtureState {
   const selectedSection = [...sections]
@@ -225,7 +209,7 @@ function shell(
 
   return {
     manifest: {
-      accessibilityLabel: `${title} application shell`,
+      accessibilityLabel: "Formless Program application shell",
       activeDestination:
         selectedSection && selectedDestination
           ? { destinationId: selectedDestination.id, sectionId: selectedSection.id }
@@ -235,71 +219,45 @@ function shell(
       navigationSections: sections.map((section) =>
         shellNavigationSectionReference(shellId, section.id),
       ),
-      scope,
-      title,
+      title: "Formless Program",
     },
     sections,
   };
 }
 
-function instanceSection(selectedHref: string | null): ShellNavigationSectionContract {
-  return section("instance", "instance", {
-    destinations: [
-      shellLink("instance:settings", "Settings", "/", selectedHref === "/"),
-      shellLink("instance:access", "Access", "/access", selectedHref === "/access"),
-    ],
-  });
-}
-
-function appSwitcherSection(selectedHref: string | null): ShellNavigationSectionContract {
-  return section("apps", "appSwitcher", {
-    destinations: applicationDestinations().map((destination) => ({
+function programSection(selectedHref: string): ShellNavigationSectionContract {
+  return section("program", "program", {
+    accessibilityLabel: "Program navigation",
+    destinations: programDestinations().map((destination) => ({
       ...destination,
       selected: destination.href === selectedHref,
     })),
-    label: "Apps",
+    label: "Program",
   });
 }
 
-function applicationDestinations() {
+function programDestinations() {
   return [
-    shellLink("app:tasks", "Tasks", "/apps/tasks"),
-    shellLink("app:crm", "CRM", "/apps/crm"),
-    shellLink("app:site", "Site", "/apps/site"),
-    shellLink("instance:home", "Instance", "/"),
+    shellLink("program:principals", "Principals", "/"),
+    shellLink("program:tasks", "Tasks", "/tasks"),
+    shellLink("program:site", "Site", "/site"),
+    shellLink("program:crm", "CRM", "/crm"),
+    shellLink("program:routes", "Routes", "/routes"),
+    shellLink("program:deployments", "Deployments", "/deployments"),
+    shellLink("program:settings", "Settings", "/settings"),
   ];
 }
 
-function screenSection(
-  appKey: string,
-  appLabel: string,
-  selectedHref: string,
-  screens: readonly (readonly [id: string, label: string])[],
-): ShellNavigationSectionContract {
-  return section(`screens:${appKey}`, "screens", {
-    accessibilityLabel: `${appLabel} screens`,
-    destinations: screens.map(([id, label]) => {
-      const href = selectedHref.startsWith("/apps/")
-        ? `/apps/${appKey}/${id}`
-        : selectedHref.startsWith("/admin/")
-          ? `/admin/${id}`
-          : `/${id}`;
-
-      return shellLink(`screen:${id}`, label, href, href === selectedHref);
-    }),
-  });
-}
-
 function rootSection(
-  appKey: string,
+  contextKey: string,
   label: string,
   roots: readonly (readonly [recordId: string, recordLabel: string, countText: string])[],
   withCreate = true,
 ): ShellNavigationSectionContract {
-  const sectionId = `${shellId}:roots:${appKey}`;
+  const sectionId = `${shellId}:roots:${contextKey}`;
 
-  return section(`roots:${appKey}`, "rootRecords", {
-    ...(withCreate ? { createSurface: createSurface(appKey, label) } : {}),
+  return section(`roots:${contextKey}`, "rootRecords", {
+    ...(withCreate ? { createSurface: createSurface(contextKey, label) } : {}),
     destinations: roots.map(([recordId, recordLabel, countText], index) => ({
       accessibilityLabel: recordLabel,
       availability: { available: true },
@@ -322,7 +280,7 @@ function rootSection(
 }
 
 function settingsSection(
-  appKey: string,
+  contextKey: string,
   options: {
     sync?: {
       details?: readonly {
@@ -340,16 +298,16 @@ function settingsSection(
     };
   },
 ): ShellNavigationSectionContract {
-  return section(`settings:${appKey}`, "appSettings", {
+  return section(`settings:${contextKey}`, "settings", {
     label: "Settings",
     settings: {
-      id: `${shellId}:settings:${appKey}:controls`,
+      id: `${shellId}:settings:${contextKey}:controls`,
       kind: "shellSettings",
       ...(options.sync
         ? {
             sync: {
               ...options.sync,
-              id: `${shellId}:sync:${appKey}`,
+              id: `${shellId}:sync:${contextKey}`,
               kind: "shellSyncStatus",
             },
           }
@@ -358,7 +316,7 @@ function settingsSection(
         ? {
             workspaceSave: {
               ...options.workspaceSave,
-              id: `${shellId}:workspace-save:${appKey}`,
+              id: `${shellId}:workspace-save:${contextKey}`,
               kind: "shellWorkspaceSaveStatus",
             },
           }
@@ -420,8 +378,8 @@ function shellLink(id: string, label: string, href: string, selected = false) {
   };
 }
 
-function createSurface(appKey: string, label: string): CreateSurfaceContract {
-  const id = `${shellId}:create:${appKey}`;
+function createSurface(contextKey: string, label: string): CreateSurfaceContract {
+  const id = `${shellId}:create:${contextKey}`;
 
   return {
     dialog: {

@@ -4,7 +4,6 @@ import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
 import { HStack } from "@astryxdesign/core/HStack";
 import { HoverCard } from "@astryxdesign/core/HoverCard";
 import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList";
-import { NavHeadingMenu, NavHeadingMenuItem } from "@astryxdesign/core/NavMenu";
 import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
 import { Text } from "@astryxdesign/core/Text";
 import { radiusVars } from "@astryxdesign/core/theme/tokens.stylex";
@@ -29,7 +28,7 @@ import {
 } from "@dpeek/formless-presentation/host/react";
 import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
 
-type AstryxShellSectionSlot = "appSwitcher" | "navigation" | "session";
+type AstryxShellSectionSlot = "navigation" | "session";
 
 const shellSessionStyles = stylex.create({
   avatarTrigger: {
@@ -50,14 +49,6 @@ export function AstryxApplicationSideNav({
 }) {
   return (
     <AstryxApplicationSideNavFrame
-      appSwitcher={sections.map((section) => (
-        <AstryxApplicationShellSectionSlot
-          key={section.id}
-          onIntent={onIntent}
-          section={section}
-          slot="appSwitcher"
-        />
-      ))}
       manifest={manifest}
       navigation={sections.map((section) => (
         <AstryxApplicationShellSectionSlot
@@ -93,14 +84,6 @@ export function AstryxSubscribedApplicationSideNav({
 
   return (
     <AstryxApplicationSideNavFrame
-      appSwitcher={references.map((reference) => (
-        <AstryxSubscribedApplicationShellSectionSlot
-          key={`${reference.shellId}:${reference.sectionId}`}
-          onIntent={onIntent}
-          reference={reference}
-          slot="appSwitcher"
-        />
-      ))}
       manifest={manifest}
       navigation={references.map((reference) => (
         <AstryxSubscribedApplicationShellSectionSlot
@@ -124,13 +107,11 @@ export function AstryxSubscribedApplicationSideNav({
 }
 
 function AstryxApplicationSideNavFrame({
-  appSwitcher,
   manifest,
   navigation,
   session,
   themeControl,
 }: {
-  appSwitcher: ReactNode;
   manifest: ShellManifestContract;
   navigation: ReactNode;
   session: ReactNode;
@@ -150,16 +131,7 @@ function AstryxApplicationSideNavFrame({
           {themeControl}
         </HStack>
       }
-      header={
-        <SideNavHeading
-          heading={manifest.title}
-          menu={
-            manifest.scope === "multiApp" ? (
-              <NavHeadingMenu size="lg">{appSwitcher}</NavHeadingMenu>
-            ) : undefined
-          }
-        />
-      }
+      header={<SideNavHeading heading={manifest.title} />}
     >
       {navigation}
     </SideNav>
@@ -198,54 +170,17 @@ function AstryxApplicationShellSectionSlot({
   section: ShellNavigationSectionContract;
   slot: AstryxShellSectionSlot;
 }) {
-  if (slot === "appSwitcher") {
-    return section.role === "appSwitcher" ? (
-      <AstryxApplicationSwitcherSection section={section} />
-    ) : null;
-  }
-
   if (slot === "session") {
     return section.role === "session" && section.session ? (
       <AstryxShellSession onIntent={onIntent} section={section} session={section.session} />
     ) : null;
   }
 
-  if (section.role === "appSwitcher" || section.role === "session") {
+  if (section.role === "session") {
     return null;
   }
 
   return <AstryxShellNavigationSection onIntent={onIntent} section={section} />;
-}
-
-function AstryxApplicationSwitcherSection({
-  section,
-}: {
-  section: ShellNavigationSectionContract;
-}) {
-  return section.destinations.map((destination) => (
-    <NavHeadingMenuItem
-      description={destinationSupportingText(destination)}
-      href={destination.kind === "shellLinkDestination" ? destination.href : undefined}
-      isDisabled={!destination.availability.available}
-      key={destination.id}
-      label={
-        <HStack align="center" gap={2} justify="between" width="100%">
-          <Text type="label" weight={destination.selected ? "semibold" : undefined}>
-            <span aria-current={destination.selected ? "page" : undefined}>
-              {destination.label}
-            </span>
-          </Text>
-          {destination.countText ? (
-            <Badge
-              aria-label={`${destination.accessibilityLabel} count`}
-              label={destination.countText}
-              variant="neutral"
-            />
-          ) : null}
-        </HStack>
-      }
-    />
-  ));
 }
 
 function AstryxShellNavigationSection({
@@ -255,7 +190,7 @@ function AstryxShellNavigationSection({
   onIntent: ShellIntentHandler;
   section: ShellNavigationSectionContract;
 }) {
-  if (section.role === "appSettings" && section.settings) {
+  if (section.role === "settings" && section.settings) {
     return <AstryxShellSettingsNavigationItem section={section} settings={section.settings} />;
   }
 

@@ -16,7 +16,7 @@ Read this when editing `lib/deploy/*`.
 - Provider SDK execution.
 - Provider credentials or secret values.
 - Alchemy provider-state storage.
-- Installed app records or Authority storage implementation.
+- Program records or Authority storage implementation.
 - Generic generated UI layout or field commit behavior.
 
 ## Map

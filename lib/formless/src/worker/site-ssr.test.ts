@@ -2,7 +2,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus
 
 import { FORMLESS_RUNTIME_PROFILE_META_NAME } from "../app/runtime-profile.ts";
 import { INITIAL_SITE_PAGE_TREE_SCRIPT_ID } from "@dpeek/formless-site-app/react";
-import { programPublicSiteRuntimeTarget } from "../shared/public-site-runtime-target.ts";
 import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
 import {
   instanceControlPlaneTestStorageSnapshot,
@@ -72,7 +71,6 @@ describe("published Site Worker SSR", () => {
 
     expect(mappedPublicSiteHostFromRuntimeRoute(route)).toEqual({
       host: "example.com",
-      target: programPublicSiteRuntimeTarget(),
     });
   });
 
@@ -293,7 +291,6 @@ describe("published Site Worker SSR", () => {
       {
         mappedSiteHost: {
           host: "example.com",
-          target: programPublicSiteRuntimeTarget(),
         },
       },
     );

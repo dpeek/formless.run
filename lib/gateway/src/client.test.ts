@@ -120,7 +120,7 @@ describe("gateway package client helpers", () => {
       },
     });
     const enqueued = await enqueueWorkspaceGatewayAutoSave(
-      { source: "schema-save", storageIdentity: "app:site" },
+      { source: "schema-save" },
       {
         config,
         csrfToken: "csrf-token",
@@ -159,7 +159,6 @@ describe("gateway package client helpers", () => {
     expect(calls[1]?.method).toBe("POST");
     expect(calls[1]?.body).toEqual({
       source: "schema-save",
-      storageIdentity: "app:site",
     });
   });
 
@@ -274,7 +273,6 @@ function autoSaveState(overrides: Record<string, unknown> = {}) {
     kind: "formless.workspaceAutoSaveState",
     retryCount: 0,
     savedGeneration: 0,
-    storageIdentities: [],
     updatedAt: "2026-06-02T00:00:00.000Z",
     version: 1,
     writeSources: [],

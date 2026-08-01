@@ -44,103 +44,6 @@ afterAll(async () => {
   }
 });
 describe("storage", () => {
-  it("imports legacy records once at the Program convergence boundary without copying its cursor", async () => {
-    const survivor = record("survivor", "Surviving record", {
-      createdAt: "2026-07-01T00:00:00.000Z",
-      updatedAt: "2026-07-02T00:00:00.000Z",
-    });
-    const imported = record("imported", "Imported identity record", {
-      createdAt: "2026-06-01T00:00:00.000Z",
-      updatedAt: "2026-06-02T00:00:00.000Z",
-    });
-    const tombstoned = {
-      ...record("imported-tombstone", "Imported tombstone", {
-        createdAt: "2026-05-01T00:00:00.000Z",
-        updatedAt: "2026-05-03T00:00:00.000Z",
-        values: { title: "Imported tombstone", done: true },
-      }),
-      deletedAt: "2026-05-03T00:00:00.000Z",
-    };
-    const result = await postJson<{
-      changes: ChangeRow[];
-      evidence: {
-        importedRecordCount: number;
-        sourceCursor: number;
-        sourceSchemaUpdatedAt: string;
-      };
-      records: StoredRecord[];
-      repeatedEvidence: unknown;
-      schema: StoredSchema;
-    }>("/program-converge", {
-      importedRecords: [imported, tombstoned],
-      sourceCursor: 41,
-      sourceSchemaUpdatedAt: "2026-06-03T00:00:00.000Z",
-      survivorRecords: [survivor],
-    });
-
-    expect(result.records).toHaveLength(3);
-    expect(result.records).toEqual(expect.arrayContaining([survivor, imported, tombstoned]));
-    expect(result.evidence).toMatchObject({
-      importedRecordCount: 2,
-      sourceCursor: 41,
-      sourceSchemaUpdatedAt: "2026-06-03T00:00:00.000Z",
-    });
-    expect(result.repeatedEvidence).toEqual(result.evidence);
-    expect(result.changes).toHaveLength(3);
-    expect(result.changes.map((change) => change.recordId)).toEqual([
-      "survivor",
-      "imported",
-      "imported-tombstone",
-    ]);
-    expect(result.changes.at(-1)?.seq).toBe(3);
-    expect(result.schema.schemaProvenance).toEqual({
-      kind: "program",
-      sourceSchemaHash: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-    });
-  });
-
-  it("leaves survivor storage unchanged when Program convergence preflight finds an id collision", async () => {
-    const survivor = record("collision", "Survivor");
-    const response = await fetchStorage("/program-converge", {
-      body: JSON.stringify({
-        importedRecords: [record("collision", "Imported")],
-        sourceCursor: 7,
-        survivorRecords: [survivor],
-      }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-    const body = (await response.json()) as {
-      changes: ChangeRow[];
-      error: string;
-      evidence: unknown;
-      records: StoredRecord[];
-    };
-
-    expect(response.status).toBe(409);
-    expect(body.error).toBe(
-      'Program convergence record id collision: "collision" exists in both control-plane Authorities.',
-    );
-    expect(body.records).toEqual([survivor]);
-    expect(body.changes).toHaveLength(1);
-    expect(body.evidence).toBeNull();
-  });
-
-  it("reads immutable legacy convergence state without parsing its source schema shape", async () => {
-    const legacy = record("legacy", "Legacy identity record");
-    const result = await postJson<{
-      cursor: number;
-      records: StoredRecord[];
-      schemaUpdatedAt: string;
-    }>("/program-convergence-source-state", { records: [legacy] });
-
-    expect(result).toEqual({
-      cursor: 1,
-      records: [legacy],
-      schemaUpdatedAt: "2026-07-01T00:00:00.000Z",
-    });
-  });
-
   it("seeds the active schema when storage is empty", async () => {
     const stored = await getJson<{
       schema: AppSchema;
@@ -308,12 +211,15 @@ describe("storage", () => {
     });
   });
 
-  it("refreshes compatible source schema provenance without replacing records", async () => {
+  it("bootstraps and refreshes Program provenance without replacing its write log", async () => {
     const initialHash = sourceHash("1");
     const refreshedHash = sourceHash("2");
     const initial = await postJson<StoredSchema>("/source-bootstrap", {
       sourceSchemaHash: initialHash,
     });
+    expect(await getJson<ChangeRow[]>("/changes?after=0")).toEqual([]);
+    expect(await getJson<number>("/cursor")).toBe(0);
+
     const created = await createRecord("write-before-refresh", "Keep me");
     const beforeChanges = await getJson<ChangeRow[]>("/changes?after=0");
     const beforeCursor = await getJson<number>("/cursor");
@@ -335,52 +241,6 @@ describe("storage", () => {
       sourceSchemaHash: refreshedHash,
     });
     expect(await getJson<StoredRecord[]>("/records")).toEqual([created.record]);
-    expect(await getJson<ChangeRow[]>("/changes?after=0")).toEqual(beforeChanges);
-    expect(await getJson<number>("/cursor")).toBe(beforeCursor);
-  });
-
-  it("initializes empty control-plane source and refreshes compatible schema provenance", async () => {
-    const initialHash = sourceHash("1");
-    const viewHash = sourceHash("2");
-    const runtimeHash = sourceHash("3");
-    const initial = await postJson<StoredSchema>("/control-plane-source-bootstrap", {
-      sourceSchemaHash: initialHash,
-    });
-    const beforeChanges = await getJson<ChangeRow[]>("/changes?after=0");
-    const beforeCursor = await getJson<number>("/cursor");
-
-    const viewRefreshed = await postJson<StoredSchema>("/control-plane-source-bootstrap", {
-      schemaKind: "view-label",
-      sourceSchemaHash: viewHash,
-    });
-    const runtimeRefreshed = await postJson<StoredSchema>("/control-plane-source-bootstrap", {
-      schemaKind: "runtime-metadata",
-      sourceSchemaHash: runtimeHash,
-    });
-
-    expect(initial.schemaProvenance).toEqual({
-      kind: "instance-control-plane",
-      sourceSchemaHash: initialHash,
-    });
-    expect(viewRefreshed.updatedAt).not.toBe(initial.updatedAt);
-    expect(
-      viewRefreshed.schema.views.find((definition) => definition.key === "routeList")!,
-    ).toMatchObject({
-      label: "Refreshed control-plane routes",
-    });
-    expect(viewRefreshed.schemaProvenance).toEqual({
-      kind: "instance-control-plane",
-      sourceSchemaHash: viewHash,
-    });
-    expect(runtimeRefreshed.schema.runtime?.controlPlane?.entities.route?.immutableFields).toEqual([
-      "kind",
-      "matchPath",
-    ]);
-    expect(runtimeRefreshed.schemaProvenance).toEqual({
-      kind: "instance-control-plane",
-      sourceSchemaHash: runtimeHash,
-    });
-    expect(await getJson<StoredRecord[]>("/records")).toEqual([]);
     expect(await getJson<ChangeRow[]>("/changes?after=0")).toEqual(beforeChanges);
     expect(await getJson<number>("/cursor")).toBe(beforeCursor);
   });
@@ -1224,14 +1084,9 @@ async function writeStorageHarness() {
       import rawSeedSchema from "@dpeek/formless-tasks-app/schema.json";
       import { parseAppSchema } from "@dpeek/formless-schema";
       import {
-        instanceControlPlaneSchema,
-        instanceControlPlaneSchemaProvenance,
-      } from "@dpeek/formless-instance-control-plane";
-      import {
         ActiveSchemaRefreshBlockedError,
         createStoredRecord,
         createStoredRecordOutcome,
-        convergeProgramStorage,
         deleteStoredRecord,
         ensureStorageTables,
         exportStorageSnapshot,
@@ -1244,9 +1099,6 @@ async function writeStorageHarness() {
         initializeStorageFromSource,
         patchStoredRecord,
         readCurrentStoredSchema,
-        readInitializedStorageState,
-        readProgramConvergenceSourceState,
-        readProgramConvergenceEvidence,
         resetStorageSchemaToSource,
         resetStorageToEmpty,
         restoreStorageSnapshot,
@@ -1257,7 +1109,6 @@ async function writeStorageHarness() {
       } from "${process.cwd()}/src/worker/storage.ts";
 
       const seedSchema = parseAppSchema(rawSeedSchema);
-      const controlPlaneSchema = parseAppSchema(instanceControlPlaneSchema);
       const sourceSchemaHash = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
 
       function schemaForSourceRefresh(kind) {
@@ -1286,55 +1137,15 @@ async function writeStorageHarness() {
         return schema;
       }
 
-      function schemaForControlPlaneSourceRefresh(kind) {
-        const schema = structuredClone(controlPlaneSchema);
-
-        if (kind === "view-label") {
-          schema.views.find((definition) => definition.key === "routeList").label = "Refreshed control-plane routes";
-          return schema;
-        }
-
-        if (kind === "runtime-metadata") {
-          schema.runtime.controlPlane.entities.route.immutableFields = ["kind", "matchPath"];
-          return schema;
-        }
-
-        if (kind === "required-field") {
-          schema.entities.find((definition) => definition.key === "route").fields.push({
-            key: "auditNote",
-            type: "text",
-            required: true,
-            label: "Audit note",
-          });
-          return schema;
-        }
-
-        return schema;
-      }
-
       function sourceForBootstrap(body) {
         const nextSourceSchemaHash = body.sourceSchemaHash ?? sourceSchemaHash;
 
         return {
           schema: schemaForSourceRefresh(body.schemaKind),
-          schemaKey: "formless-program",
           schemaProvenance: {
             kind: "program",
             sourceSchemaHash: nextSourceSchemaHash,
           },
-          storageIdentity: "instance:control-plane",
-        };
-      }
-
-      function controlPlaneSourceForBootstrap(body) {
-        return {
-          schema: schemaForControlPlaneSourceRefresh(body.schemaKind),
-          schemaKey: "instance-control-plane",
-          schemaProvenance: {
-            ...instanceControlPlaneSchemaProvenance,
-            sourceSchemaHash: body.sourceSchemaHash ?? instanceControlPlaneSchemaProvenance.sourceSchemaHash,
-          },
-          storageIdentity: "instance:control-plane",
         };
       }
 
@@ -1416,29 +1227,6 @@ async function writeStorageHarness() {
             }
           }
 
-          if (request.method === "POST" && url.pathname === "/control-plane-source-bootstrap") {
-            try {
-              return Response.json(
-                initializeStorageFromSource(
-                  this.ctx.storage,
-                  controlPlaneSourceForBootstrap(await request.json()),
-                ),
-              );
-            } catch (error) {
-              if (error instanceof ActiveSchemaRefreshBlockedError) {
-                return Response.json(
-                  { error: error.message, blocker: error.blocker },
-                  { status: 409 },
-                );
-              }
-
-              return Response.json(
-                { error: error instanceof Error ? error.message : "Unknown error." },
-                { status: 500 },
-              );
-            }
-          }
-
           if (request.method === "POST" && url.pathname === "/create-outcome") {
             return Response.json(createStoredRecordOutcome(this.ctx.storage, await request.json()));
           }
@@ -1500,107 +1288,6 @@ async function writeStorageHarness() {
                 { status: 500 },
               );
             }
-          }
-
-          if (request.method === "POST" && url.pathname === "/program-converge") {
-            const body = await request.json();
-            const source = {
-              schema: seedSchema,
-              schemaKey: "formless-program",
-              schemaProvenance: {
-                kind: "program",
-                sourceSchemaHash: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-              },
-              storageIdentity: "instance:control-plane",
-            };
-
-            resetStorageToEmpty(this.ctx.storage);
-            restoreStorageSnapshot(this.ctx.storage, {
-              kind: "formless.storageSnapshot",
-              version: 1,
-              storageIdentity: "instance:control-plane",
-              schemaKey: "formless-program",
-              exportedAt: "2026-07-01T00:00:00.000Z",
-              schemaUpdatedAt: "2026-07-01T00:00:00.000Z",
-              sourceCursor: body.survivorRecords.length,
-              schema: seedSchema,
-              records: body.survivorRecords,
-            });
-
-            try {
-              const evidence = convergeProgramStorage(this.ctx.storage, {
-                importedRecords: body.importedRecords,
-                source,
-                sourceCursor: body.sourceCursor,
-                ...(body.sourceSchemaUpdatedAt === undefined
-                  ? {}
-                  : { sourceSchemaUpdatedAt: body.sourceSchemaUpdatedAt }),
-                validate: () => undefined,
-              });
-              const repeatedEvidence = convergeProgramStorage(this.ctx.storage, {
-                importedRecords: body.importedRecords,
-                source,
-                sourceCursor: body.sourceCursor,
-                validate: () => {
-                  throw new Error("Idempotent convergence must not revalidate.");
-                },
-              });
-
-              return Response.json({
-                changes: getChangesAfter(this.ctx.storage, 0),
-                evidence,
-                records: readInitializedStorageState(this.ctx.storage).records,
-                repeatedEvidence,
-                schema: readCurrentStoredSchema(this.ctx.storage),
-              });
-            } catch (error) {
-              return Response.json(
-                {
-                  changes: getChangesAfter(this.ctx.storage, 0),
-                  error: error instanceof Error ? error.message : "Unknown error.",
-                  evidence: readProgramConvergenceEvidence(this.ctx.storage) ?? null,
-                  records: readInitializedStorageState(this.ctx.storage).records,
-                },
-                { status: 409 },
-              );
-            }
-          }
-
-          if (
-            request.method === "POST" &&
-            url.pathname === "/program-convergence-source-state"
-          ) {
-            const body = await request.json();
-
-            resetStorageToEmpty(this.ctx.storage);
-            restoreStorageSnapshot(this.ctx.storage, {
-              kind: "formless.storageSnapshot",
-              version: 1,
-              storageIdentity: "instance:identity",
-              schemaKey: "instance-identity",
-              exportedAt: "2026-07-01T00:00:00.000Z",
-              schemaUpdatedAt: "2026-07-01T00:00:00.000Z",
-              sourceCursor: body.records.length,
-              schema: seedSchema,
-              records: body.records,
-            });
-            this.ctx.storage.sql.exec(
-              "UPDATE app_schema SET schema_json = ?, updated_at = ? WHERE id = 1",
-              JSON.stringify({
-                version: 1,
-                entities: {
-                  task: {
-                    label: "Task",
-                    fields: {
-                      title: { type: "text", label: "Title" },
-                    },
-                  },
-                },
-              }),
-              "2026-07-01T00:00:00.000Z",
-            );
-
-            return Response.json(readProgramConvergenceSourceState(this.ctx.storage));
           }
 
           if (request.method === "POST" && url.pathname === "/schema") {

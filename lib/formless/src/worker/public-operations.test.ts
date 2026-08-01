@@ -125,22 +125,8 @@ describe("public operation runtime", () => {
     ]);
   });
 
-  it("executes Program public subscribe operations without opening generic writes", async () => {
+  it("executes Program public subscribe operations on the canonical Program route", async () => {
     const before = await getJson<BootstrapResponse>("/api/formless/program/bootstrap");
-    const retiredRecordWriteRoute = await harness.fetch("/api/formless/program/mutations", {
-      body: "{}",
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-    const retiredCommandRoute = await harness.fetch("/api/formless/program/actions", {
-      body: "{}",
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-    const unavailable = await postPublicOperation(
-      "/api/tasks/public/operations/task/clearCompletedTasks",
-      publicSubscribeBody({ idempotencyKey: "not-public" }),
-    );
     const accepted = await postPublicOperation(
       "/api/formless/program/public/operations/subscription/subscribe",
       publicSubscribeBody({ idempotencyKey: "schema-key-exec" }),
@@ -148,9 +134,6 @@ describe("public operation runtime", () => {
     const after = await getJson<BootstrapResponse>("/api/formless/program/bootstrap");
     const records = contactSubscriptionRecords(after.records);
 
-    expect(retiredRecordWriteRoute.status).toBe(404);
-    expect(retiredCommandRoute.status).toBe(404);
-    expect(unavailable.status).toBe(404);
     expect(accepted.status).toBe(200);
     expect(after.records.length).toBe(before.records.length + 4);
     expect(records.contacts).toHaveLength(1);

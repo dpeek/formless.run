@@ -16,8 +16,6 @@ import { resetSyncStatus } from "../client/sync-status.ts";
 import type { HomeScreenModel } from "../client/views.ts";
 import { bootstrapResponse } from "../test/protocol-builders.ts";
 import { taskSourceSchema } from "../test/schema-apps.ts";
-import { programStorageIdentity } from "../shared/program-storage-identity.ts";
-import { getSchemaAppDefinition } from "../shared/schema-apps.ts";
 import { ApplicationShellRuntimeBoundary } from "./application-shell-runtime.tsx";
 import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
 import {
@@ -43,9 +41,8 @@ beforeEach(() => {
 
 describe("application shell runtime boundary", () => {
   it("publishes the selected root theme into the existing stable shell host", async () => {
-    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), programStorageIdentity());
+    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []));
     const runtimeProfile = createInstanceRuntimeProfile();
-    const routeWorld = programSiteWorld();
     const reference = documentThemeReference("theme:application");
     const snapshot: DocumentThemeContract = {
       activeMode: "dark",
@@ -68,7 +65,6 @@ describe("application shell runtime boundary", () => {
         }}
         currentPath="/site"
         accountSession={{ authenticated: false, setupComplete: true }}
-        routeWorld={routeWorld}
         runtimeProfile={runtimeProfile}
         screenModels={[]}
       >
@@ -85,10 +81,8 @@ describe("application shell runtime boundary", () => {
   it("keeps one host while resolving root selection and controlled create against current state", async () => {
     applyBootstrapResponse(
       bootstrapResponse(taskSourceSchema, [projectRecord("project-1"), projectRecord("project-2")]),
-      programStorageIdentity(),
     );
     const runtimeProfile = createInstanceRuntimeProfile();
-    const routeWorld = programSiteWorld();
     const screen = rootScreenFixture();
     let host: PresentationHost | undefined;
     let selectedRecordId: string | null = null;
@@ -123,11 +117,9 @@ describe("application shell runtime boundary", () => {
 
     const renderer = render(
       <ApplicationShellRuntimeBoundary
-        activeScreenPath="/"
         currentPath="/site"
         dependencies={dependencies}
         accountSession={{ authenticated: false, setupComplete: true }}
-        routeWorld={routeWorld}
         runtimeProfile={runtimeProfile}
         screenModels={[screen]}
       >
@@ -247,9 +239,8 @@ describe("application shell runtime boundary", () => {
   });
 
   it("executes logout effects while projecting only display-safe session status", async () => {
-    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []), programStorageIdentity());
+    applyBootstrapResponse(bootstrapResponse(taskSourceSchema, []));
     const runtimeProfile = createInstanceRuntimeProfile();
-    const routeWorld = programSiteWorld();
     let host: PresentationHost | undefined;
     let logoutCount = 0;
     const navigations: string[] = [];
@@ -280,7 +271,6 @@ describe("application shell runtime boundary", () => {
           session: { expiresAt: "private-session-value" },
           setupComplete: true,
         }}
-        routeWorld={routeWorld}
         runtimeProfile={runtimeProfile}
       >
         <HostProbe>
@@ -349,7 +339,6 @@ describe("application shell runtime boundary", () => {
         accountSession={accountSession}
         currentPath="/deployments"
         dependencies={dependencies}
-        routeWorld={undefined}
         runtimeProfile={runtimeProfile}
         screenModels={[]}
       >
@@ -366,7 +355,6 @@ describe("application shell runtime boundary", () => {
         accountSession={accountSession}
         currentPath="/settings"
         dependencies={dependencies}
-        routeWorld={undefined}
         runtimeProfile={runtimeProfile}
         screenModels={[]}
       >
@@ -400,7 +388,7 @@ function readSection(host: PresentationHost, sectionId: string) {
 
 function programDestinationPaths(host: PresentationHost): string[] {
   return required(
-    readSections(host).find((section) => section.role === "instance"),
+    readSections(host).find((section) => section.role === "program"),
   ).destinations.map((destination) => {
     if (destination.kind !== "shellLinkDestination") {
       throw new Error("Expected Program navigation to contain only links.");
@@ -471,7 +459,7 @@ function rootScreenFixture(): HomeScreenModel {
       type: "stack",
     },
     navigation: { primary: true },
-    path: "/",
+    path: "/site",
     screenName: "projects-screen",
     type: "workspace",
   } as unknown as HomeScreenModel;
@@ -493,13 +481,4 @@ function required<T>(value: T | null | undefined): T {
   }
 
   return value;
-}
-
-function programSiteWorld() {
-  return {
-    app: getSchemaAppDefinition("site"),
-    generatedRoutes: true,
-    route: "/site" as const,
-    target: programStorageIdentity(),
-  };
 }

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import type { AppSchema } from "@dpeek/formless-schema";
-import { programStorageIdentity } from "../shared/program-storage-identity.ts";
 import type { PublicOperationProof } from "../shared/protocol.ts";
 import { sourceLikeTaskSchema } from "../test/schema-builders.ts";
 import { BadRequestError } from "./errors.ts";
@@ -26,7 +25,6 @@ describe("operation invocation envelope construction", () => {
           surface: "taskHome",
         },
       },
-      identity: programStorageIdentity(),
       method: "POST",
       path: "/operations/task/create",
       receivedAt: "2026-06-27T00:00:00.000Z",
@@ -87,7 +85,6 @@ describe("operation invocation envelope construction", () => {
           path: "/tasks",
         },
       },
-      identity: programStorageIdentity(),
       method: "POST",
       path: "/operations/task/create",
       receivedAt: "2026-06-27T00:10:00.000Z",
@@ -136,7 +133,6 @@ describe("operation invocation envelope construction", () => {
         },
         runtimeWriteId: "runtime-write-1",
       },
-      identity: programStorageIdentity(),
       method: "POST",
       path: "/operations/task/create",
       route: {
@@ -165,7 +161,6 @@ describe("operation invocation envelope construction", () => {
       body: {
         invocationId: "operation:list-request",
       },
-      identity: programStorageIdentity(),
       method: "GET",
       path: "/operations/task/activeList",
       route: {
@@ -194,7 +189,6 @@ describe("operation invocation envelope construction", () => {
             done: false,
           },
         },
-        identity: programStorageIdentity(),
         method: "GET",
         path: "/operations/task/create",
         route: {
@@ -208,7 +202,6 @@ describe("operation invocation envelope construction", () => {
 
   it("builds unverified public envelopes with public source facts and no proof", () => {
     const envelope = buildUnverifiedPublicOperationInvocationEnvelope({
-      identity: programStorageIdentity(),
       idempotencyKey: "public-create-1",
       publicInput: {
         title: "Public task",
@@ -263,7 +256,6 @@ describe("operation invocation envelope construction", () => {
 
   it("builds challenge-free public list envelopes without idempotency reservation", () => {
     const envelope = buildUnverifiedPublicOperationInvocationEnvelope({
-      identity: programStorageIdentity(),
       invocationId: "operation:public-read-1",
       publicInput: {
         lookup: "CODE-ALPHA",
@@ -311,7 +303,6 @@ describe("operation invocation envelope construction", () => {
     const proofFacts = publicTurnstileProofFacts();
     const proof = publicTurnstileProof(proofFacts);
     const envelope = buildVerifiedPublicOperationInvocationEnvelope({
-      identity: programStorageIdentity(),
       idempotencyKey: "public-handler-1",
       proof: proofFacts,
       publicInput: {
@@ -347,7 +338,6 @@ describe("operation invocation envelope construction", () => {
 
   it("keeps verified proof facts out of public record-plan command input", () => {
     const envelope = buildVerifiedPublicOperationInvocationEnvelope({
-      identity: programStorageIdentity(),
       idempotencyKey: "public-plan-1",
       proof: publicTurnstileProofFacts(),
       publicInput: {
@@ -559,7 +549,6 @@ function authenticatedSessionTarget() {
   return {
     instanceId: "instance-1",
     routeId: "route:instance:admin",
-    storageIdentity: programStorageIdentity().authorityName,
     targetOrigin: "https://tasks.example.com",
     targetProfile: "instance" as const,
   };

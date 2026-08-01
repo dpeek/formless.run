@@ -2811,7 +2811,6 @@ describe("home view model collections", () => {
     ).toEqual([
       { fieldName: "label", display: "readOnly" },
       { fieldName: "targetId", display: "readOnly" },
-      { fieldName: "targetKind", display: "readOnly" },
       { fieldName: "providerFamily", display: "readOnly" },
       { fieldName: "accountId", display: "readOnly" },
       { fieldName: "workerName", display: "readOnly" },

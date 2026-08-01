@@ -23,7 +23,6 @@ import {
   instanceControlPlaneEffectiveRouteAccess,
   instanceControlPlanePreferredAdminOriginFromRecords,
 } from "@dpeek/formless-instance-control-plane";
-import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 import type { OwnerIdentity } from "../shared/protocol.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
@@ -524,7 +523,6 @@ function preferredAdminInvitationTarget(
         access: route.access,
         returnTo: route.matchPath,
         routeId: route.recordId,
-        storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
         targetOrigin: parseInstanceAuthCanonicalOrigin(resolution.adminOrigin),
         targetProfile: "instance",
       };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { FormlessReplicaDatabaseDeleteBlockedError } from "../../client/db.ts";
+import { FormlessProgramReplicaDeleteBlockedError } from "../../client/db.ts";
 import {
   localSessionBrowserResetRequestedFromSearch,
   localSessionRedirectTargetFromSearch,
@@ -19,7 +19,6 @@ describe("local session route data flow", () => {
     const stop = startLocalSessionRouteSession({
       resetBrowserState: async () => {
         events.push("reset-browser-state");
-        return { deletedDatabaseNames: [], skippedDatabaseNames: [] };
       },
       fetcher: jsonFetcher({
         authenticated: true,
@@ -47,14 +46,6 @@ describe("local session route data flow", () => {
     const stop = startLocalSessionRouteSession({
       resetBrowserState: async () => {
         events.push("reset-browser-state");
-        return {
-          deletedDatabaseNames: [
-            "formless:app:personal",
-            "formless:instance:control-plane",
-            "formless:tasks",
-          ],
-          skippedDatabaseNames: ["notes"],
-        };
       },
       fetcher: jsonFetcher({
         authenticated: true,
@@ -86,7 +77,7 @@ describe("local session route data flow", () => {
     const events: string[] = [];
     const stop = startLocalSessionRouteSession({
       resetBrowserState: async () => {
-        throw new FormlessReplicaDatabaseDeleteBlockedError(["formless:tasks"]);
+        throw new FormlessProgramReplicaDeleteBlockedError();
       },
       fetcher: jsonFetcher({
         authenticated: true,
@@ -110,9 +101,8 @@ describe("local session route data flow", () => {
       { status: "resetting" },
       {
         status: "blocked",
-        blockedDatabaseNames: ["formless:tasks"],
         message:
-          "Local browser replica reset was blocked for formless:tasks. Close other tabs using this local runtime and try again.",
+          "Local Program browser replica reset was blocked. Close other tabs using this local runtime and try again.",
       },
     ]);
     expect(events).toEqual([]);
@@ -124,7 +114,6 @@ describe("local session route data flow", () => {
     const stop = startLocalSessionRouteSession({
       resetBrowserState: async () => {
         events.push("reset-browser-state");
-        return { deletedDatabaseNames: [], skippedDatabaseNames: [] };
       },
       fetcher: jsonFetcher({ authenticated: false, setupComplete: true }),
       onComplete: () => events.push("complete"),
@@ -146,15 +135,13 @@ describe("local session route data flow", () => {
   });
 
   it("keeps redirect targets same-origin and avoids local-session loops", () => {
-    expect(localSessionRedirectTargetFromSearch("?redirectTo=%2Fapps%2Fpersonal")).toBe(
-      "/apps/personal",
-    );
+    expect(localSessionRedirectTargetFromSearch("?redirectTo=%2Fsettings")).toBe("/settings");
     expect(localSessionRedirectTargetFromSearch("?redirectTo=https%3A%2F%2Fevil.example")).toBe(
       "/",
     );
     expect(localSessionRedirectTargetFromSearch("?redirectTo=%2Flocal-session")).toBe("/");
-    expect(localSessionRedirectTargetFromSearch("?reset=1&redirectTo=%2Fapps%2Fpersonal")).toBe(
-      "/apps/personal",
+    expect(localSessionRedirectTargetFromSearch("?reset=1&redirectTo=%2Fsettings")).toBe(
+      "/settings",
     );
   });
 

@@ -3,8 +3,7 @@ import { beforeEach, describe, expect, it } from "vite-plus/test";
 import {
   clientDbName,
   deleteClientDb,
-  deleteFormlessReplicaDatabases,
-  isFormlessReplicaDatabaseName,
+  deleteProgramReplicaDatabase,
   saveBootstrapResponse,
   saveSchema,
   mergeChanges,
@@ -12,34 +11,27 @@ import {
   readCursor,
   readLocalSnapshot,
 } from "./db.ts";
-import { programClientTarget } from "./program-target.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { BootstrapResponse, ChangeRow } from "../shared/protocol.ts";
 import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
 import { taskSourceSchema as appSchema } from "../test/schema-apps.ts";
 import { testSiteRecords } from "../test/site-records.ts";
 
-const program = programClientTarget();
-
 beforeEach(async () => {
-  await deleteClientDb(program);
-  await deleteRawDatabase("formless:site");
-  await deleteRawDatabase("formless:tasks");
-  await deleteRawDatabase("formless:app:personal");
-  await deleteRawDatabase("formless:instance:identity");
+  await deleteClientDb();
   await deleteRawDatabase("notes");
 });
 
 describe("client db", () => {
   it("stores bootstrap schema, records, cursor, and last-sync metadata", async () => {
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "First")],
       cursor: 7,
     } satisfies BootstrapResponse);
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
 
     expect(snapshot.schema).toEqual(appSchema);
     expect(snapshot.schemaProvenance).toBeNull();
@@ -53,7 +45,7 @@ describe("client db", () => {
     const sourceSchemaHash =
       "sha256:7777777777777777777777777777777777777777777777777777777777777777" as const;
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaProvenance: {
         kind: "program",
@@ -64,42 +56,36 @@ describe("client db", () => {
       cursor: 0,
     } satisfies BootstrapResponse);
 
-    expect((await readLocalSnapshot(program)).schemaProvenance).toEqual({
+    expect((await readLocalSnapshot()).schemaProvenance).toEqual({
       kind: "program",
       sourceSchemaHash,
     });
 
-    await saveSchema(program, appSchema, "2026-04-28T00:01:00.000Z");
+    await saveSchema(appSchema, "2026-04-28T00:01:00.000Z");
 
-    expect((await readLocalSnapshot(program)).schemaProvenance).toBeNull();
+    expect((await readLocalSnapshot()).schemaProvenance).toBeNull();
   });
 
-  it("stores instance, identity, and Site records in one Program replica", async () => {
+  it("stores Program records in one replica", async () => {
     const site = testSiteRecords.find((record) => record.entity === "site");
 
     if (!site) {
       throw new Error("Expected a Site record fixture.");
     }
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [record("install-1", "Personal Site"), record("role-1", "Instance owner"), site],
-      cursor: 3,
+      records: [record("task-1", "Program task"), site],
+      cursor: 2,
     });
 
-    expect(clientDbName(program)).toBe("formless:instance:control-plane");
-    expect((await readLocalSnapshot(program)).records).toEqual([
-      record("install-1", "Personal Site"),
-      record("role-1", "Instance owner"),
-      site,
-    ]);
+    expect(clientDbName()).toBe("formless:instance:control-plane");
+    expect((await readLocalSnapshot()).records).toEqual([record("task-1", "Program task"), site]);
   });
 
   it("deletes only the active Program replica", async () => {
-    await createRawDatabase("formless:tasks");
-    await createRawDatabase("formless:app:personal");
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-3", "Control plane")],
@@ -107,47 +93,25 @@ describe("client db", () => {
     });
     await createRawDatabase("notes");
 
-    const result = await deleteFormlessReplicaDatabases();
+    await deleteProgramReplicaDatabase();
     const databaseNames = await rawDatabaseNames();
 
-    expect(result.deletedDatabaseNames).toEqual(["formless:instance:control-plane"]);
-    expect(result.skippedDatabaseNames).toContain("formless:app:personal");
-    expect(result.skippedDatabaseNames).toContain("formless:tasks");
-    expect(result.skippedDatabaseNames).toContain("notes");
-    expect(databaseNames).toContain("formless:tasks");
-    expect(databaseNames).toContain("formless:app:personal");
     expect(databaseNames).not.toContain("formless:instance:control-plane");
     expect(databaseNames).toContain("notes");
-    expect(isFormlessReplicaDatabaseName("notes")).toBe(false);
-    expect(isFormlessReplicaDatabaseName("formless:unknown")).toBe(false);
-    expect(isFormlessReplicaDatabaseName("formless:app:")).toBe(false);
-  });
-
-  it("does not open dormant built-in Site replica databases during cleanup", async () => {
-    const db = await openRawDatabase("formless:site");
-
-    try {
-      await expect(deleteFormlessReplicaDatabases()).resolves.toEqual({
-        deletedDatabaseNames: [],
-        skippedDatabaseNames: ["formless:site"],
-      });
-    } finally {
-      db.close();
-    }
   });
 
   it("merges records and advances the cursor", async () => {
-    await mergeRecords(program, [record("record-1", "First")], 1);
-    await mergeChanges(program, [change(2, "record-2", "Second", true)], 2);
+    await mergeRecords([record("record-1", "First")], 1);
+    await mergeChanges([change(2, "record-2", "Second", true)], 2);
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
 
     expect(snapshot.records.map((storedRecord) => storedRecord.id)).toEqual([
       "record-1",
       "record-2",
     ]);
     expect(snapshot.cursor).toBe(2);
-    expect(await readCursor(program)).toBe(2);
+    expect(await readCursor()).toBe(2);
   });
   it("updates the cached schema without replacing records", async () => {
     const fields = [
@@ -172,15 +136,15 @@ describe("client db", () => {
       screens: appSchema.screens,
     });
 
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "First")],
       cursor: 1,
     });
-    await saveSchema(program, nextSchema, "2026-04-28T00:01:00.000Z");
+    await saveSchema(nextSchema, "2026-04-28T00:01:00.000Z");
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
 
     expect(snapshot.schema).toEqual(nextSchema);
     expect(snapshot.schemaUpdatedAt).toBe("2026-04-28T00:01:00.000Z");
@@ -189,30 +153,30 @@ describe("client db", () => {
   });
 
   it("stores and merges boolean record values", async () => {
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [record("record-1", "First", false)],
       cursor: 1,
     });
-    await mergeChanges(program, [change(2, "record-1", "First", true)], 2);
+    await mergeChanges([change(2, "record-1", "First", true)], 2);
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
 
     expect(snapshot.records).toEqual([record("record-1", "First", true)]);
     expect(typeof snapshot.records[0]?.values.done).toBe("boolean");
   });
 
   it("stores and merges number record values", async () => {
-    await saveBootstrapResponse(program, {
+    await saveBootstrapResponse({
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
       records: [recordWithEstimate("record-1", "First", 2)],
       cursor: 1,
     });
-    await mergeChanges(program, [changeWithEstimate(2, "record-1", "First", 3)], 2);
+    await mergeChanges([changeWithEstimate(2, "record-1", "First", 3)], 2);
 
-    const snapshot = await readLocalSnapshot(program);
+    const snapshot = await readLocalSnapshot();
 
     expect(snapshot.records).toEqual([recordWithEstimate("record-1", "First", 3)]);
     expect(typeof snapshot.records[0]?.values.estimate).toBe("number");

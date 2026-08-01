@@ -1,11 +1,11 @@
-import { parsePortableArchive } from "../program/archive.ts";
+import { parseInstanceArchive } from "../program/archive.ts";
 import {
   FORMLESS_PROGRAM_API_ROUTE_PREFIX,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
 } from "../program/target.ts";
 import {
-  applyPortableArchiveRestore,
-  dryRunPortableArchiveRestore,
+  applyInstanceArchiveRestore,
+  dryRunInstanceArchiveRestore,
   restoreArchiveMediaObjectToStore,
   validateArchiveMediaObjectRestoreToStore,
   type ArchiveRestoreApplyTarget,
@@ -79,12 +79,12 @@ export async function handleInstanceArchiveDurableObjectRequest(
     }
 
     const body = parseArchiveRestoreRequest(await readJson(request));
-    const archive = parsePortableArchive(body.archive);
+    const archive = parseInstanceArchive(body.archive);
     const mediaFilesByPath = new Map(body.mediaFiles.map((file) => [file.archivePath, file]));
     const target = archiveRestoreApiTarget(request, env, mediaFilesByPath);
     const result = archive.restorePolicy.dryRun
-      ? await dryRunPortableArchiveRestore(archive, target)
-      : await applyPortableArchiveRestore(archive, target);
+      ? await dryRunInstanceArchiveRestore(archive, target)
+      : await applyInstanceArchiveRestore(archive, target);
 
     return jsonResponse(result, result.ok ? 200 : 400);
   } catch (error) {
@@ -120,10 +120,9 @@ function archiveRestoreApiTarget(
           object,
           bytes,
         ),
-      restoreObject: async ({ bytes, identity, object }) =>
+      restoreObject: async ({ bytes, object }) =>
         restoreArchiveMediaObjectToStore(
           mediaObjectStoreFromR2Bucket(env.FORMLESS_MEDIA),
-          identity,
           object,
           bytes,
         ),

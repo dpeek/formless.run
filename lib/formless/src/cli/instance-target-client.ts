@@ -849,8 +849,8 @@ function parseInstanceUpgradeStatusResponse(
   value: unknown,
   context: string,
 ): InstanceUpgradeStatusResponse {
-  if (!isRecord(value) || !Array.isArray(value.storageIdentities)) {
-    throw new Error(`${context} failed: upgrade status must include storageIdentities.`);
+  if (!isRecord(value) || !isRecord(value.storageIdentity)) {
+    throw new Error(`${context} failed: upgrade status must include storageIdentity.`);
   }
 
   return value as InstanceUpgradeStatusResponse;

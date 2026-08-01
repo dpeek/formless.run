@@ -130,17 +130,17 @@ describe("runtime topology", () => {
   });
 
   it("matches and builds runtime routes under shared route bases", () => {
-    expect(matchRuntimeRouteBase("/apps/personal", "/apps")).toEqual({
+    expect(matchRuntimeRouteBase("/records/personal", "/records")).toEqual({
       pathSuffix: "",
-      routeBase: "/apps",
+      routeBase: "/records",
       routeId: "personal",
       suffixSegments: [],
     });
-    expect(matchRuntimeRouteBase("/apps/personal/schema", "/apps")).toEqual({
-      pathSuffix: "/schema",
-      routeBase: "/apps",
+    expect(matchRuntimeRouteBase("/records/personal/history", "/records")).toEqual({
+      pathSuffix: "/history",
+      routeBase: "/records",
       routeId: "personal",
-      suffixSegments: ["schema"],
+      suffixSegments: ["history"],
     });
     expect(matchRuntimeRouteBase("/sites/personal/blog/post", "/sites")).toEqual({
       pathSuffix: "/blog/post",
@@ -148,9 +148,9 @@ describe("runtime topology", () => {
       routeId: "personal",
       suffixSegments: ["blog", "post"],
     });
-    expect(matchRuntimeRouteBase("/apps", "/apps")).toBeUndefined();
-    expect(matchRuntimeRouteBase("/app/personal", "/apps")).toBeUndefined();
-    expect(runtimeRouteFromBase("/apps", "personal")).toBe("/apps/personal");
+    expect(matchRuntimeRouteBase("/records", "/records")).toBeUndefined();
+    expect(matchRuntimeRouteBase("/record/personal", "/records")).toBeUndefined();
+    expect(runtimeRouteFromBase("/records", "personal")).toBe("/records/personal");
     expect(runtimeRouteFromBase("/sites", "personal", "/blog/post")).toBe(
       "/sites/personal/blog/post",
     );

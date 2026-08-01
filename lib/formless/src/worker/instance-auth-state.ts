@@ -171,7 +171,6 @@ type HostSessionRevocationVersionRow = {
   route_id: string;
   target_profile: string;
   access: string;
-  storage_identity: string;
   session_version: number;
   updated_at: string;
 };
@@ -185,7 +184,6 @@ type HandoffGrantRow = {
   route_id: string;
   target_profile: string;
   access: string;
-  storage_identity: string;
   return_to: string;
   nonce_hash: string;
   state: string;
@@ -218,7 +216,6 @@ type EmailVerificationChallengeRow = {
   target_origin: string;
   route_id: string;
   target_profile: string;
-  storage_identity: string;
   selected_organization: string | null;
   return_to: string;
   created_at: string;
@@ -371,7 +368,6 @@ export type InstanceAuthHandoffTargetProfile = (typeof instanceAuthHandoffTarget
 export type InstanceAuthSessionTargetBinding = {
   access: Exclude<RuntimeRouteAccess, "anonymous">;
   routeId: string;
-  storageIdentity: string;
   targetOrigin: string;
   targetProfile: InstanceAuthHandoffTargetProfile;
 };
@@ -700,7 +696,6 @@ export function ensureInstanceAuthTables(storage: DurableObjectStorage) {
       route_id TEXT NOT NULL,
       target_profile TEXT NOT NULL CHECK (target_profile IN ('instance', 'public-site')),
       access TEXT NOT NULL CHECK (access IN ('authenticated', 'management', 'owner')),
-      storage_identity TEXT NOT NULL,
       session_version INTEGER NOT NULL CHECK (session_version >= 0),
       updated_at TEXT NOT NULL
     );
@@ -712,8 +707,7 @@ export function ensureInstanceAuthTables(storage: DurableObjectStorage) {
       ON instance_auth_host_session_versions (
         target_origin,
         route_id,
-        target_profile,
-        storage_identity
+        target_profile
       );
 
     CREATE TABLE IF NOT EXISTS instance_auth_handoff_grants (
@@ -725,7 +719,6 @@ export function ensureInstanceAuthTables(storage: DurableObjectStorage) {
       route_id TEXT NOT NULL,
       target_profile TEXT NOT NULL CHECK (target_profile IN ('instance', 'public-site')),
       access TEXT NOT NULL CHECK (access IN ('authenticated', 'management', 'owner')),
-      storage_identity TEXT NOT NULL,
       return_to TEXT NOT NULL,
       nonce_hash TEXT NOT NULL,
       state TEXT NOT NULL,
@@ -741,8 +734,7 @@ export function ensureInstanceAuthTables(storage: DurableObjectStorage) {
       ON instance_auth_handoff_grants (
         target_origin,
         route_id,
-        target_profile,
-        storage_identity
+        target_profile
       );
 
     CREATE INDEX IF NOT EXISTS idx_instance_auth_handoff_grants_expires_at
@@ -794,7 +786,6 @@ export function ensureInstanceAuthTables(storage: DurableObjectStorage) {
       target_origin TEXT NOT NULL,
       route_id TEXT NOT NULL,
       target_profile TEXT NOT NULL CHECK (target_profile IN ('instance', 'public-site')),
-      storage_identity TEXT NOT NULL,
       selected_organization TEXT,
       return_to TEXT NOT NULL,
       created_at TEXT NOT NULL,
@@ -813,8 +804,7 @@ export function ensureInstanceAuthTables(storage: DurableObjectStorage) {
       ON instance_auth_email_verification_challenges (
         target_origin,
         route_id,
-        target_profile,
-        storage_identity
+        target_profile
       );
   `);
   runSqlStorageMigrations(storage, {
@@ -1403,11 +1393,10 @@ export function bumpHostSessionRevocationVersion(
           route_id,
           target_profile,
           access,
-          storage_identity,
           session_version,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(scope_key) DO UPDATE SET
           session_version = excluded.session_version,
           updated_at = excluded.updated_at
@@ -1419,7 +1408,6 @@ export function bumpHostSessionRevocationVersion(
       scope.routeId,
       scope.targetProfile,
       scope.access,
-      scope.storageIdentity,
       sessionVersion,
       updatedAt,
     );
@@ -1471,7 +1459,6 @@ export function createHandoffGrant(
           route_id,
           target_profile,
           access,
-          storage_identity,
           return_to,
           nonce_hash,
           state,
@@ -1479,7 +1466,7 @@ export function createHandoffGrant(
           expires_at,
           consumed_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
       `,
       grant.grantId,
       grant.grantSecretHash,
@@ -1489,7 +1476,6 @@ export function createHandoffGrant(
       grant.routeId,
       grant.targetProfile,
       grant.access,
-      grant.storageIdentity,
       grant.returnTo,
       grant.nonceHash,
       grant.state,
@@ -1782,7 +1768,6 @@ export function createEmailVerificationChallenge(
           target_origin,
           route_id,
           target_profile,
-          storage_identity,
           selected_organization,
           return_to,
           created_at,
@@ -1790,7 +1775,7 @@ export function createEmailVerificationChallenge(
           consumed_at,
           revoked_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
       `,
       challenge.challengeId,
       challenge.idempotencyKey,
@@ -1803,7 +1788,6 @@ export function createEmailVerificationChallenge(
       challenge.targetOrigin,
       challenge.routeId,
       challenge.targetProfile,
-      challenge.storageIdentity,
       challenge.selectedOrganization ?? null,
       challenge.returnTo,
       challenge.createdAt,
@@ -1846,7 +1830,6 @@ export function listEmailVerificationChallenges(
           target_origin,
           route_id,
           target_profile,
-          storage_identity,
           selected_organization,
           return_to,
           created_at,
@@ -2501,7 +2484,6 @@ function readHostSessionRevocationVersionByScopeKey(
           route_id,
           target_profile,
           access,
-          storage_identity,
           session_version,
           updated_at
         FROM instance_auth_host_session_versions
@@ -2524,7 +2506,6 @@ function hostSessionRevocationVersionFromRow(
     routeId: row.route_id,
     targetProfile: parseInstanceAuthHandoffTargetProfile(row.target_profile),
     access: parseProtectedRuntimeRouteAccess(row.access),
-    storageIdentity: row.storage_identity,
     sessionVersion: parseNonNegativeInteger("Host session revocation version", row.session_version),
     updatedAt: row.updated_at,
   };
@@ -2538,7 +2519,6 @@ function hostSessionScopeKey(input: HostSessionRevocationVersionInput): string {
     input.routeId,
     input.targetProfile,
     input.access,
-    input.storageIdentity,
   ]);
 }
 
@@ -2649,7 +2629,6 @@ function readHandoffGrantById(
           route_id,
           target_profile,
           access,
-          storage_identity,
           return_to,
           nonce_hash,
           state,
@@ -2682,7 +2661,6 @@ function readHandoffGrantBySecretHash(
           route_id,
           target_profile,
           access,
-          storage_identity,
           return_to,
           nonce_hash,
           state,
@@ -2709,7 +2687,6 @@ function handoffGrantFromRow(row: HandoffGrantRow): StoredHandoffGrant {
     routeId: row.route_id,
     targetProfile: parseInstanceAuthHandoffTargetProfile(row.target_profile),
     access: parseProtectedRuntimeRouteAccess(row.access),
-    storageIdentity: row.storage_identity,
     returnTo: parsePathOnlyReturnTarget("Stored handoff grant return target", row.return_to),
     nonceHash: row.nonce_hash,
     state: row.state,
@@ -2985,7 +2962,6 @@ function readEmailVerificationChallengeById(
           target_origin,
           route_id,
           target_profile,
-          storage_identity,
           selected_organization,
           return_to,
           created_at,
@@ -3021,7 +2997,6 @@ function readEmailVerificationChallengeByHash(
           target_origin,
           route_id,
           target_profile,
-          storage_identity,
           selected_organization,
           return_to,
           created_at,
@@ -3057,7 +3032,6 @@ function readEmailVerificationChallengeByIdempotencyKey(
           target_origin,
           route_id,
           target_profile,
-          storage_identity,
           selected_organization,
           return_to,
           created_at,
@@ -3100,7 +3074,6 @@ function emailVerificationChallengeFromRow(
     ...(row.selected_organization === null
       ? {}
       : { selectedOrganization: row.selected_organization }),
-    storageIdentity: row.storage_identity,
   };
 }
 
@@ -3113,8 +3086,7 @@ function accountCompletionGateTargetsEqual(
     left.routeId === right.routeId &&
     left.targetOrigin === right.targetOrigin &&
     left.targetProfile === right.targetProfile &&
-    (left.selectedOrganization ?? undefined) === (right.selectedOrganization ?? undefined) &&
-    left.storageIdentity === right.storageIdentity
+    (left.selectedOrganization ?? undefined) === (right.selectedOrganization ?? undefined)
   );
 }
 
@@ -3132,7 +3104,6 @@ function parseAccountCompletionGateTargetProfile(
   return parseAccountCompletionGateTarget({
     returnTo: "/formless/auth",
     routeId: "parse-target-profile",
-    storageIdentity: "instance:control-plane",
     targetOrigin: "https://parse-target-profile.example.com",
     targetProfile: value,
   }).targetProfile;
@@ -3194,10 +3165,6 @@ function normalizeInstanceAuthTargetBinding(
   input: InstanceAuthSessionTargetBinding,
 ): InstanceAuthSessionTargetBinding {
   const access = parseProtectedRuntimeRouteAccess(input.access);
-  const storageIdentity = parseNonEmptyString(
-    "Instance auth target storage identity",
-    input.storageIdentity,
-  );
   const targetProfile = parseInstanceAuthHandoffTargetProfile(input.targetProfile);
 
   return {
@@ -3205,7 +3172,6 @@ function normalizeInstanceAuthTargetBinding(
     targetOrigin: parseInstanceAuthCanonicalOrigin(input.targetOrigin),
     routeId: parseNonEmptyString("Instance auth target route id", input.routeId),
     targetProfile,
-    storageIdentity,
   };
 }
 
@@ -3217,8 +3183,7 @@ function instanceAuthTargetBindingsEqual(
     left.targetOrigin === right.targetOrigin &&
     left.routeId === right.routeId &&
     left.targetProfile === right.targetProfile &&
-    left.access === right.access &&
-    left.storageIdentity === right.storageIdentity
+    left.access === right.access
   );
 }
 

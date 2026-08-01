@@ -13,6 +13,10 @@ import type {
 import { fieldCreateDefaultValue, matchesQuery } from "@dpeek/formless-schema";
 import { nowIsoString } from "../shared/clock.ts";
 import { createRecordId } from "../shared/ids.ts";
+import {
+  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+  FORMLESS_PROGRAM_SCHEMA_KEY,
+} from "../program/target.ts";
 import type {
   OperationCommandOutput,
   OperationInvocationEnvelope,
@@ -1339,12 +1343,11 @@ function findActiveRecordByField(
 function subscribeSourceValues(envelope: OperationInvocationEnvelope): RecordValues {
   const host = parseNonEmptyString("Public operation source host", envelope.source.host);
   const path = parseNonEmptyString("Public operation source path", envelope.source.path);
-  const identity = envelope.programStorageIdentity;
   const values: RecordValues = {
     sourceKind: "publicOperation",
-    sourceTargetKind: identity.kind,
-    sourceSchemaKey: identity.schemaKey,
-    sourceApiRoutePrefix: identity.apiRoutePrefix,
+    sourceTargetKind: "program",
+    sourceSchemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
+    sourceApiRoutePrefix: FORMLESS_PROGRAM_API_ROUTE_PREFIX,
     sourceOperationKey: envelope.operation.canonicalKey,
     sourceHost: host,
     sourcePath: path,

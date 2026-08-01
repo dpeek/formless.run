@@ -4,24 +4,20 @@ import {
   createInstanceRuntimeProfile,
   createPublishedSiteRuntimeProfile,
   FORMLESS_RUNTIME_PROFILE_META_NAME,
-  findRuntimeWorldMountByRoute,
   readRuntimeProfileDocumentHint,
   resolveRuntimeProfile,
   runtimeBrowserRoutePatterns,
   runtimeRoutePolicy,
-  runtimeScreenPathFromRoute,
   selectBrowserRuntimeProfileHint,
 } from "./runtime-profile.ts";
 
 describe("runtime profile resolver", () => {
-  it("resolves instance and dev profiles without installed app mounts", () => {
+  it("resolves instance and dev Program shell profiles", () => {
     const instance = createInstanceRuntimeProfile();
     const dev = createDevWorkbenchRuntimeProfile();
 
-    expect(instance).toMatchObject({ kind: "instance", shell: "instance", worlds: [] });
-    expect(dev).toMatchObject({ kind: "dev", shell: "dev", worlds: [] });
-    expect(findRuntimeWorldMountByRoute(instance, "/apps/tasks")).toBeUndefined();
-    expect(findRuntimeWorldMountByRoute(dev, "/apps/tasks/schema")).toBeUndefined();
+    expect(instance).toMatchObject({ instanceShell: true, kind: "instance", shell: "instance" });
+    expect(dev).toMatchObject({ instanceShell: true, kind: "dev", shell: "dev" });
     expect(runtimeRoutePolicy(instance)).toEqual({
       accountSessionBrowserRoutes: true,
       instanceBrowserRoutes: true,
@@ -36,33 +32,27 @@ describe("runtime profile resolver", () => {
     });
   });
 
-  it("keeps the dev public Site preview Program-native", () => {
+  it("keeps the dev public Site preview on current preview routes", () => {
     const profile = createDevWorkbenchRuntimeProfile();
 
     expect(profile.publicSitePreview).toMatchObject({
       homeRoute: "/pages/home",
-      target: {
-        storageIdentity: {
-          authorityName: "instance:control-plane",
-          kind: "program",
-        },
-      },
+      linkMode: "preview",
+      rootRoute: "/pages",
     });
   });
 
   it("resolves the published Site profile without generated admin routes", () => {
     const profile = createPublishedSiteRuntimeProfile();
-    const world = profile.worlds[0];
 
     expect(profile).toMatchObject({ kind: "publishedSite", shell: "publishedSite" });
-    expect(world).toMatchObject({ generatedRoutes: false, route: "/" });
+    expect(profile.publishedSite).toEqual({ homeSlug: "home", rootRoute: "/", routePattern: "/*" });
     expect(runtimeBrowserRoutePatterns(profile)).toEqual({
       authAccountGateRoutePattern: "/formless/auth/*",
       authAccountRoute: "/formless/auth",
       authAccountSetupRoute: "/formless/auth/setup",
       authAccountSignInRoute: "/formless/auth/sign-in",
     });
-    expect(world && runtimeScreenPathFromRoute(world, "/blog")).toBe("/blog");
   });
 
   it("uses the dev profile as the fallback", () => {

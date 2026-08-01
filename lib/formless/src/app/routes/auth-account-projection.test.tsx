@@ -98,7 +98,6 @@ function target(): AccountCompletionGateTarget {
     access: "authenticated",
     returnTo: "/",
     routeId: "route:program",
-    storageIdentity: "instance:control-plane",
     targetOrigin: "https://example.com",
     targetProfile: "instance",
   };

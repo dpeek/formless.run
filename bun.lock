@@ -219,7 +219,6 @@
       "name": "@dpeek/formless-workspace",
       "version": "0.1.0",
       "dependencies": {
-        "@dpeek/formless-instance-control-plane": "workspace:*",
         "@dpeek/formless-schema": "workspace:*",
         "@dpeek/formless-storage": "workspace:*",
       },

@@ -212,7 +212,6 @@ function deploymentConfigRecord(values: Record<string, unknown> = {}): StoredRec
       label: "Primary",
       providerFamily: "cloudflare",
       targetId: INSTANCE_DEPLOYMENT_PRIMARY_TARGET_ID,
-      targetKind: "instance",
       targetUrl: "https://primary.example.workers.dev",
       ...values,
     },

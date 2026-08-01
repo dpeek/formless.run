@@ -1,4 +1,3 @@
-import type { SourceSchemaHash } from "@dpeek/formless-schema";
 import {
   CONTROL_PLANE_DEPLOYMENT_CONFIG_OBSERVED_FIELDS,
   type ControlPlaneDeploymentConfigObservedStatus,
@@ -21,26 +20,11 @@ import type {
   ToManyRelationshipSchema,
   ToOneRelationshipSchema,
 } from "@dpeek/formless-schema";
-import {
-  formatStoredRecordsForArtifact,
-  parseStorageSnapshot,
-  type RecordValues,
-  type StorageSnapshot,
-  type StoredRecord,
-} from "@dpeek/formless-storage";
+import { type RecordValues, type StoredRecord } from "@dpeek/formless-storage";
 export * from "./types.ts";
 
-export const INSTANCE_CONTROL_PLANE_SCHEMA_KEY = "instance-control-plane";
 export const INSTANCE_CONTROL_PLANE_BOUNDARY_SCHEMA_KEY = "instance";
-export const INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY = "instance:control-plane";
-export const INSTANCE_CONTROL_PLANE_API_ROUTE_PREFIX = "/api/formless/control-plane";
-export const INSTANCE_CONTROL_PLANE_SOURCE_SCHEMA_HASH =
-  "sha256:82551301b01d497b1e6ffb65df5f8bc2416b214a6777abd927dcd49d5a72f4d0" satisfies SourceSchemaHash;
 export const INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID = "instance";
-export const instanceControlPlaneSchemaProvenance = {
-  kind: "instance-control-plane",
-  sourceSchemaHash: INSTANCE_CONTROL_PLANE_SOURCE_SCHEMA_HASH,
-} as const;
 
 export const instanceControlPlaneEntityNames = [
   "route",
@@ -132,7 +116,6 @@ export type InstanceControlPlaneRouteValues = {
 
 export type InstanceControlPlaneProviderFamily = "cloudflare";
 
-export type InstanceControlPlaneDeploymentConfigTargetKind = "instance";
 export type InstanceControlPlaneDeploymentConfigObservedStatus =
   ControlPlaneDeploymentConfigObservedStatus;
 
@@ -141,7 +124,6 @@ export const instanceControlPlaneDeploymentConfigObservedFields =
 
 export type InstanceControlPlaneDeploymentConfigValues = {
   targetId: string;
-  targetKind: InstanceControlPlaneDeploymentConfigTargetKind;
   label: string;
   enabled: boolean;
   targetUrl: string;
@@ -285,7 +267,7 @@ export type AnyInstanceControlPlaneRecord = {
 }[InstanceControlPlaneEntityName];
 
 export const instanceControlPlaneImmutableFields = {
-  "deployment-config": ["targetId", "targetKind", "providerFamily"],
+  "deployment-config": ["targetId", "providerFamily"],
   "email-domain": ["providerFamily"],
   "email-sender": ["emailDomain"],
   "instance-settings": ["settingsId"],
@@ -417,10 +399,6 @@ export const instanceControlPlaneRecordSchemaModule = defineAppSchemaModule({
           ...textField("Target id"),
         },
         {
-          key: "targetKind",
-          ...enumField("Kind", { instance: "Instance" }),
-        },
-        {
           key: "label",
           ...textField("Label"),
         },
@@ -483,7 +461,6 @@ export const instanceControlPlaneRecordSchemaModule = defineAppSchemaModule({
         "Deployment config",
         [
           "targetId",
-          "targetKind",
           "label",
           "enabled",
           "targetUrl",
@@ -495,7 +472,6 @@ export const instanceControlPlaneRecordSchemaModule = defineAppSchemaModule({
         {
           updateFields: [
             "targetId",
-            "targetKind",
             "label",
             "enabled",
             "targetUrl",
@@ -992,7 +968,6 @@ export const instanceControlPlanePresentationSchemaModule = defineAppSchemaModul
         [
           "label",
           "targetId",
-          "targetKind",
           "providerFamily",
           "accountId",
           "workerName",
@@ -1156,7 +1131,6 @@ export const instanceControlPlanePresentationSchemaModule = defineAppSchemaModul
       key: "deploymentConfigCreate",
       ...createView("deployment-config", [
         "targetId",
-        "targetKind",
         "label",
         "enabled",
         "targetUrl",
@@ -1521,62 +1495,6 @@ export type InstanceControlPlaneRecordValidationOptions = {
   context?: string;
   sourceLabel?: string;
 };
-
-export function parseInstanceControlPlaneStorageSnapshot(
-  context: string,
-  value: unknown,
-  options: InstanceControlPlaneRecordValidationOptions = {},
-): StorageSnapshot {
-  const snapshot = parseStorageSnapshot(value, {
-    schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  });
-  const records = reviewableInstanceControlPlaneRecords(snapshot.records, {
-    ...options,
-    context: `${context} records`,
-  });
-
-  return { ...snapshot, records };
-}
-
-export function reviewableInstanceControlPlaneStorageSnapshot(
-  snapshot: StorageSnapshot,
-  options: InstanceControlPlaneRecordValidationOptions = {},
-): StorageSnapshot {
-  const parsed = parseStorageSnapshot(snapshot, {
-    schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
-    storageIdentity: INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
-  });
-  const records = reviewableInstanceControlPlaneRecords(parsed.records, options);
-
-  return {
-    ...parsed,
-    records,
-    sourceCursor: records.length,
-  };
-}
-
-export function canonicalizeInstanceControlPlaneStorageSnapshot(
-  snapshot: StorageSnapshot,
-  options: InstanceControlPlaneRecordValidationOptions = {},
-): StorageSnapshot {
-  const reviewable = reviewableInstanceControlPlaneStorageSnapshot(snapshot, options);
-
-  return {
-    kind: reviewable.kind,
-    version: reviewable.version,
-    storageIdentity: reviewable.storageIdentity,
-    schemaKey: reviewable.schemaKey,
-    exportedAt: reviewable.exportedAt,
-    schemaUpdatedAt: reviewable.schemaUpdatedAt,
-    sourceCursor: reviewable.sourceCursor,
-    schema: stableJsonValue(reviewable.schema) as AppSchema,
-    records: formatStoredRecordsForArtifact(
-      reviewable.schema,
-      reviewable.records.map(canonicalInstanceControlPlaneRecord),
-    ),
-  };
-}
 
 export function parseInstanceControlPlaneRecords(context: string, value: unknown): StoredRecord[] {
   if (!Array.isArray(value)) {
@@ -3413,40 +3331,21 @@ function editorForField(field: string): FieldEditor {
   }
 
   if (
-    field === "revision" ||
-    field === "packageRevision" ||
-    field === "createCount" ||
-    field === "updateCount" ||
-    field === "deleteCount"
-  ) {
-    return "number";
-  }
-
-  if (
-    field === "status" ||
-    field === "routeKind" ||
     field === "surface" ||
     field === "access" ||
-    field === "packageCapability" ||
-    field === "targetKind" ||
     field === "targetProfile" ||
     field === "providerFamily" ||
     field === "observedStatus" ||
     field === "dnsStatus" ||
     field === "productionIdentityStatus" ||
     field === "purpose" ||
-    field === "profile" ||
     field === "statusCode" ||
-    field === "kind" ||
-    field === "mode" ||
-    field === "actorKind" ||
-    field === "action"
+    field === "kind"
   ) {
     return "enum";
   }
 
   if (
-    field === "appRoute" ||
     field === "deploymentConfig" ||
     field === "primaryRoute" ||
     field === "adminRoute" ||
@@ -3454,22 +3353,12 @@ function editorForField(field: string): FieldEditor {
     field === "defaultEmailDomain" ||
     field === "defaultContactSender" ||
     field === "defaultAuthSender" ||
-    field === "emailDomain" ||
-    field === "route" ||
-    field === "domainMapping" ||
-    field === "redirectIntent" ||
-    field === "deployAttempt"
+    field === "emailDomain"
   ) {
     return "reference";
   }
 
-  if (
-    field === "inputsJson" ||
-    field === "dependenciesJson" ||
-    field === "providerResourceIdsJson" ||
-    field === "affectedLogicalIdsJson" ||
-    field === "latestError"
-  ) {
+  if (field === "latestError") {
     return "textarea";
   }
 

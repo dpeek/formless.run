@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   ARCHIVE_VERSION,
   INSTANCE_ARCHIVE_KIND,
-  planPortableArchiveRestore,
+  planInstanceArchiveRestore,
   type ArchiveMediaObject,
   type ArchiveProgramSnapshotContract,
   type InstanceArchive,
@@ -74,7 +74,7 @@ const contract: ArchiveProgramSnapshotContract = {
 describe("Program archive restore planning", () => {
   it("plans deterministic media-before-record dry-run steps", () => {
     const media = imageObject("hero");
-    const result = planPortableArchiveRestore(instanceArchive({ media: { objects: [media] } }), {
+    const result = planInstanceArchiveRestore(instanceArchive({ media: { objects: [media] } }), {
       mediaFiles: [
         {
           archivePath: media.archivePath,
@@ -110,7 +110,7 @@ describe("Program archive restore planning", () => {
       },
       media: { objects: [imageObject("missing")] },
     });
-    const result = planPortableArchiveRestore(archive, {
+    const result = planInstanceArchiveRestore(archive, {
       mediaFiles: [],
       programSnapshotContract: contract,
     });
@@ -127,7 +127,7 @@ describe("Program archive restore planning", () => {
     const archive = instanceArchive();
     archive.program.schemaProvenance.sourceSchemaHash =
       "sha256:2222222222222222222222222222222222222222222222222222222222222222";
-    const result = planPortableArchiveRestore(archive, {
+    const result = planInstanceArchiveRestore(archive, {
       programSnapshotContract: contract,
     });
 

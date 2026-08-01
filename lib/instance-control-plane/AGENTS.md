@@ -6,9 +6,9 @@ Read this when editing `lib/instance-control-plane/*`.
 
 ## Owns
 
-- Instance control-plane schema keys, storage identity constants, and API route constants.
+- Instance control-plane boundary schema key and entity identity constants.
 - Control-plane entity names, entity value contracts, schema contract, and route helpers.
-- Reviewable control-plane record validation, display-safe canonicalization, and storage snapshot validation.
+- Reviewable control-plane record validation and display-safe canonicalization.
 - Package-local deterministic instance control-plane contract tests.
 
 ## Does Not Own

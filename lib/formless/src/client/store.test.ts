@@ -8,7 +8,6 @@ import {
   resetClientStore,
   subscribeToClientStoreSelector,
 } from "./store.ts";
-import { programClientTarget } from "./program-target.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { BootstrapResponse } from "../shared/protocol.ts";
 import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
@@ -89,20 +88,6 @@ describe("client store", () => {
     expect(after.schema).toBe(before.schema);
     expect(after.recordsById).toBe(before.recordsById);
     expect(after.recordIdsByEntity).toBe(before.recordIdsByEntity);
-  });
-
-  it("tracks the runtime-owned control-plane schema key for its client target", () => {
-    const controlPlaneTarget = programClientTarget();
-
-    applyBootstrapResponse(bootstrap([record("install-1", "Personal Site")]), controlPlaneTarget);
-
-    expect(getClientStoreSnapshot()).toMatchObject({
-      activeClientStorageName: "formless:instance:control-plane",
-      activeSchemaKey: "formless-program",
-    });
-    expect(getClientStoreSnapshot().recordsById["install-1"]).toEqual(
-      record("install-1", "Personal Site"),
-    );
   });
 });
 

@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import {
-  FormlessReplicaDatabaseDeleteBlockedError,
-  type FormlessReplicaDatabaseResetResult,
-} from "../../client/db.ts";
+import { FormlessProgramReplicaDeleteBlockedError } from "../../client/db.ts";
 import { resetLocalBrowserReplicaState } from "../../client/sync.ts";
 import {
   accountDefaultRedirectTarget,
@@ -17,7 +14,7 @@ import { projectApplicationSystemState } from "./application-system-state-projec
 import { ApplicationSystemStateRuntime } from "./application-system-state-runtime.tsx";
 
 export type LocalSessionRouteState =
-  | { status: "blocked"; blockedDatabaseNames: string[]; message: string }
+  | { status: "blocked"; message: string }
   | { status: "checking" }
   | { status: "complete" }
   | { status: "failed"; message: string }
@@ -27,7 +24,7 @@ type StartLocalSessionRouteSessionOptions = {
   fetcher?: typeof fetch;
   onComplete?: () => void;
   onState: (state: LocalSessionRouteState) => void;
-  resetBrowserState?: () => Promise<FormlessReplicaDatabaseResetResult>;
+  resetBrowserState?: () => Promise<void>;
   resetBrowserStateRequested?: boolean;
 };
 
@@ -61,11 +58,6 @@ export function projectLocalSessionRouteSystemState(
   return projectApplicationSystemState({
     ...(state.status === "blocked"
       ? {
-          facts: state.blockedDatabaseNames.map((databaseName, index) => ({
-            id: `blocked-database:${index}`,
-            label: `Blocked database ${index + 1}`,
-            value: databaseName,
-          })),
           feedback: {
             detail: state.message,
             id: "feedback:local-session-blocked",
@@ -135,10 +127,9 @@ export function startLocalSessionRouteSession({
         return;
       }
 
-      if (error instanceof FormlessReplicaDatabaseDeleteBlockedError) {
+      if (error instanceof FormlessProgramReplicaDeleteBlockedError) {
         onState({
           status: "blocked",
-          blockedDatabaseNames: error.blockedDatabaseNames,
           message: error.message,
         });
         return;

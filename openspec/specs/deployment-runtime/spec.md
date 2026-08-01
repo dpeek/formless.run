@@ -426,6 +426,8 @@ The system SHALL expose instance deployment runtime reads through the
 - WHEN a client reads `/api/formless/deployments/desired-state` or
   `/api/formless/deployments/status`
 - THEN the runtime reads the requested supported target
+- AND the target is selected by target id without a one-case deployment target
+  kind
 - AND the desired-state projection may be materialized from schema-owned
   control-plane records when that target supports them
 - AND status reads derive from desired-state projection and the target

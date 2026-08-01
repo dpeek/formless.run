@@ -953,8 +953,7 @@ workspace-controlled deployment intent.
 - **WHEN** `formless push` runs with a validated Formless-owned Cloudflare
   OAuth credential reference available to the CLI or trusted local deployer
 - **THEN** the deployment uses the instance runtime profile
-- **AND** the deployment does not require installed app records or app storage
-  snapshots
+- **AND** deployment source contains one Program schema and Program storage snapshot
 - **AND** display-safe target facts are copied to ignored `.formless/` deploy
   state
 - **AND** the deployer refreshes the Formless-owned Cloudflare OAuth access
@@ -1072,8 +1071,7 @@ workspace-controlled deployment intent.
 - **AND** preferred admin-origin facts needed for post-setup browser links are
   part of the owner setup status response when configured or unambiguously
   derivable
-- **AND** it does not require installed app registry, route, deployment status,
-  archive, or browser owner session reads before the first owner passkey exists
+- **AND** the focused bootstrap reads finish before the first owner passkey exists
 
 ### Requirement: Schema Control-Plane Protocol
 

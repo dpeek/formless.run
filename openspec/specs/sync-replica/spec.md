@@ -23,10 +23,7 @@ identity.
 - AND the matching broadcast channel uses the same Program scope
 - AND the replica contains instance, reviewable identity, Task, Site, and CRM records
   from one active `formless-program` schema and cursor
-- AND there is no separate identity-control-plane, Tasks, or built-in Site
-  browser database or broadcast channel
-- AND there is no installed-app database, cursor, broadcast channel, or
-  selective replica
+- AND all Program projections read from that replica
 
 #### Scenario: Workspace Program extension replica
 
@@ -52,8 +49,8 @@ The system SHALL persist browser replica metadata and records locally.
 
 - GIVEN a storage snapshot restore returns a bootstrap-shaped response
 - WHEN the client accepts that restore for a matching storage identity
-- THEN the selected local replica is saved from the restored bootstrap response
-- AND later browser reads use that storage identity's local replica
+- THEN the Program replica is saved from the restored bootstrap response
+- AND later browser reads use that Program replica
 
 #### Scenario: Store portable schema data
 
@@ -129,8 +126,8 @@ truth migrations.
 - THEN the browser deletes the same-origin Formless Program replica before
   rendering owner-only local runtime surfaces
 - AND non-Formless IndexedDB databases on the same origin are not deleted
-- AND after reset, each opened Formless surface re-bootstraps or syncs from
-  Authority storage for its storage identity
+- AND after reset, the Program surface re-bootstraps or syncs from Program
+  Authority storage
 - AND if deletion is blocked by another tab or browser connection, the client
   reports the blocked local cache reset instead of treating browser cache state
   as source of truth
@@ -142,7 +139,7 @@ The system SHALL use a sync cursor to catch up a browser replica from Authority 
 #### Scenario: Catch up from stale cursor
 
 - GIVEN a browser replica has an older sync cursor
-- WHEN the client requests sync for its selected storage identity
+- WHEN the client requests Program sync
 - THEN the Authority returns committed changes after that cursor
 - AND the browser replica merges those changes into local records
 - AND the local sync cursor advances
@@ -150,7 +147,7 @@ The system SHALL use a sync cursor to catch up a browser replica from Authority 
 #### Scenario: Current cursor
 
 - GIVEN a browser replica has a current sync cursor
-- WHEN the client requests sync for its selected storage identity
+- WHEN the client requests Program sync
 - THEN no older changes are replayed into the local replica
 - AND the local cursor remains ready for future catch-up
 
@@ -163,8 +160,7 @@ the matching storage identity.
 
 - WHEN a browser replica requests HTTP sync after a stale cursor
 - THEN the Authority returns committed write-log changes after that cursor
-- AND the response cursor advances to the latest committed cursor for that
-  storage identity
+- AND the response cursor advances to the latest committed Program cursor
 - AND write-log change fields use `writeId` and `operationKind`
 
 #### Scenario: Push catch-up reads write-log changes
@@ -187,9 +183,6 @@ Program identity.
 - THEN the surviving Program Authority catches up from its one write-log cursor
 - AND the socket receives instance, identity, Task, Site, and CRM record changes
   through the same connection
-- AND no standalone instance or identity control-plane sync socket exposes a
-  second cursor
-- AND no installed-app or package-derived socket exposes another cursor
 
 #### Scenario: Program push authorization remains current
 
@@ -199,7 +192,7 @@ Program identity.
   change broadcast
 - THEN the runtime rechecks current principal status, protected owner or
   Program role-assignment facts, session version, route target, and
-  `instance:control-plane` storage identity through the shared access evaluator
+  instance through the shared access evaluator
 - AND current editor and administrator assignments satisfy the ordered member
   requirement
 - AND a disabled principal, removed matching assignment, unassigned
@@ -271,8 +264,8 @@ outcomes, not browser replica cache writes.
   committed local write response
 - OR a core media upload is accepted and then referenced by a committed Program
   record
-- THEN the client emits a local workspace dirty signal with the storage identity
-  and write source
+- THEN the client emits a local Program workspace dirty signal with the write
+  source
 - AND the dirty signal is emitted after Authority or media storage accepts the
   write
 - AND the dirty signal does not make browser IndexedDB a workspace source of
@@ -319,5 +312,5 @@ The system SHALL derive generated UI read state from browser replica records ins
 
 - GIVEN a synced change marks a record deleted
 - WHEN the browser replica merges the change
-- THEN local subscriptions receive reconciled record state for that app storage identity
+- THEN local subscriptions receive reconciled Program record state
 - AND generated UI projections update from the reconciled local records

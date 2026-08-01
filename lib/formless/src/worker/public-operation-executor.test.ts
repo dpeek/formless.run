@@ -3,7 +3,6 @@ import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import type { AppSchema } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 
-import { programStorageIdentity } from "../shared/program-storage-identity.ts";
 import type {
   OperationInvocationEnvelope,
   OperationInvocationOutput,
@@ -34,7 +33,6 @@ describe("public operation executor adapters", () => {
     const result = await executePublicOperationExecutor({
       adapters: harness.adapters,
       body: publicContactMessageBody("adapter-create"),
-      identity: programStorageIdentity(),
       request: publicOperationRequest("/api/site/public/operations/contact-message/submit"),
       route: {
         entityName: "contact-message",
@@ -112,7 +110,6 @@ describe("public operation executor adapters", () => {
     const result = await executePublicOperationExecutor({
       adapters: harness.adapters,
       body: publicContactMessageBody("adapter-replay"),
-      identity: programStorageIdentity(),
       request: publicOperationRequest("/api/site/public/operations/contact-message/submit"),
       route: {
         entityName: "contact-message",
@@ -145,7 +142,6 @@ describe("public operation executor adapters", () => {
           ...publicContactMessageBody("adapter-malformed-proof"),
           proof: { turnstileToken: " " },
         },
-        identity: programStorageIdentity(),
         request: publicOperationRequest("/api/site/public/operations/contact-message/submit"),
         route: {
           entityName: "contact-message",
@@ -179,7 +175,6 @@ describe("public operation executor adapters", () => {
       executePublicOperationExecutor({
         adapters: harness.adapters,
         body: publicContactMessageBody("adapter-failed-challenge"),
-        identity: programStorageIdentity(),
         request: publicOperationRequest("/api/site/public/operations/contact-message/submit"),
         route: {
           entityName: "contact-message",
@@ -217,7 +212,6 @@ describe("public operation executor adapters", () => {
       executePublicOperationExecutor({
         adapters: harness.adapters,
         body: publicContactMessageBody("missing-operation"),
-        identity: programStorageIdentity(),
         request: publicOperationRequest(route.path),
         route,
         schema: siteSourceSchema,
@@ -236,7 +230,6 @@ describe("public operation executor adapters", () => {
       executePublicOperationExecutor({
         adapters: harness.adapters,
         body: publicContactMessageBody("non-public-operation"),
-        identity: programStorageIdentity(),
         request: publicOperationRequest("/api/site/public/operations/contact-message/submit"),
         route: {
           entityName: "contact-message",
@@ -308,7 +301,6 @@ describe("public operation executor adapters", () => {
         executePublicOperationExecutor({
           adapters: harness.adapters,
           body: testCase.body,
-          identity: programStorageIdentity(),
           request: publicOperationRequest("/api/site/public/operations/contact-message/submit"),
           route: {
             entityName: "contact-message",
@@ -386,7 +378,6 @@ describe("public operation executor adapters", () => {
         source: { siteBlockId: "subscribe-block" },
         idempotencyKey: "command-key",
       },
-      identity: programStorageIdentity(),
       request: publicOperationRequest("/api/site/public/operations/subscription/subscribe"),
       route: {
         entityName: "subscription",
@@ -585,7 +576,6 @@ describe("public operation executor adapters", () => {
     expect(harness.state.authorityEnvelopes[0]?.idempotency).not.toHaveProperty("writeIdentity");
     expect(harness.state.rateLimitStages).toHaveLength(1);
     expect(harness.state.rateLimitStages[0]).toMatchObject({
-      identity: programStorageIdentity(),
       operationKey: "certificate.lookup",
       policy: { maxRequests: 2, windowSeconds: 60 },
     });
@@ -852,7 +842,6 @@ function executeContactMessage(
   return executePublicOperationExecutor({
     adapters: harness.adapters,
     body,
-    identity: programStorageIdentity(),
     request,
     route: {
       entityName: "contact-message",
@@ -871,7 +860,6 @@ function executePublicLookup(
   return executePublicOperationExecutor({
     adapters: harness.adapters,
     body,
-    identity: programStorageIdentity(),
     request,
     route: {
       entityName: "certificate",

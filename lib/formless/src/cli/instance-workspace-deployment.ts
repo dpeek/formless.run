@@ -47,7 +47,7 @@ import {
 import { parseOwnerSetupToken } from "../shared/protocol.ts";
 import { runtimeWorkspaceExtensionsEnvValue } from "../shared/workspace-runtime-extensions.ts";
 import type { DomainProviderPlan } from "../shared/domain-provider-protocol.ts";
-import { exportInstanceArchive, type RestorePortableArchiveResult } from "./archive-workflows.ts";
+import { exportInstanceArchive, type RestoreInstanceArchiveResult } from "./archive-workflows.ts";
 import {
   ALCHEMY_PASSWORD_ENV_NAME,
   FORMLESS_INSTANCE_LOCAL_ENV_FILE,
@@ -174,14 +174,14 @@ export type PushFormlessInstanceWorkspaceForcedRecoveryEvidence = {
 };
 
 export type PushFormlessInstanceWorkspaceResult = {
-  applyResult?: RestorePortableArchiveResult;
+  applyResult?: RestoreInstanceArchiveResult;
   backup?: ArchiveDiskWriteResult;
   deployment?: DeployFormlessInstanceResult;
   deploymentDisplay: LocalWorkspaceDeploymentDisplayFacts;
   deploymentObservation?: DeployLocalFormlessWorkspaceObservation;
   deploymentStatePath?: string;
   deploymentStateRoot?: string;
-  dryRun?: RestorePortableArchiveResult;
+  dryRun?: RestoreInstanceArchiveResult;
   healthCheck?: CheckFormlessInstanceDeployMetadataResult;
   localSecretEnv?: EnsureFormlessInstanceLocalSecretEnvResult;
   mode: "apply" | "dry-run";
@@ -2205,7 +2205,6 @@ async function writeLocalWorkspaceDeploymentConfigSource(input: {
     values: {
       ...withoutControlPlaneLifecycleValues(existing?.values ?? {}),
       targetId,
-      targetKind: "instance",
       label: stringRecordValue(existing, "label") ?? targetId,
       enabled: true,
       targetUrl: input.selectedTarget.url,

@@ -6,10 +6,6 @@ import type {
   ChangeRow,
 } from "../shared/protocol.ts";
 import { nowIsoString } from "../shared/clock.ts";
-import {
-  programStorageIdentityForClientTarget,
-  type ProgramClientTarget,
-} from "./program-target.ts";
 
 const DB_VERSION = 2;
 
@@ -22,8 +18,7 @@ const SCHEMA_UPDATED_AT_KEY = "schemaUpdatedAt";
 const CURSOR_KEY = "cursor";
 const LAST_SYNCED_AT_KEY = "lastSyncedAt";
 const REPLICA_VERSION_KEY = "replicaVersion";
-const FORMLESS_REPLICA_DB_PREFIX = "formless:";
-const FORMLESS_INSTANCE_CONTROL_PLANE_REPLICA_DB = `${FORMLESS_REPLICA_DB_PREFIX}instance:control-plane`;
+export const FORMLESS_PROGRAM_REPLICA_DATABASE_NAME = "formless:instance:control-plane";
 
 export type LocalSnapshot = {
   schema: AppSchema | null;
@@ -34,25 +29,17 @@ export type LocalSnapshot = {
   lastSyncedAt: string | null;
 };
 
-export type FormlessReplicaDatabaseResetResult = {
-  deletedDatabaseNames: string[];
-  skippedDatabaseNames: string[];
-};
-
-export class FormlessReplicaDatabaseDeleteBlockedError extends Error {
-  readonly blockedDatabaseNames: string[];
-
-  constructor(blockedDatabaseNames: string[]) {
+export class FormlessProgramReplicaDeleteBlockedError extends Error {
+  constructor() {
     super(
-      `Local browser replica reset was blocked for ${blockedDatabaseNames.join(", ")}. Close other tabs using this local runtime and try again.`,
+      "Local Program browser replica reset was blocked. Close other tabs using this local runtime and try again.",
     );
-    this.name = "FormlessReplicaDatabaseDeleteBlockedError";
-    this.blockedDatabaseNames = blockedDatabaseNames;
+    this.name = "FormlessProgramReplicaDeleteBlockedError";
   }
 }
 
-export async function readLocalSnapshot(target: ProgramClientTarget): Promise<LocalSnapshot> {
-  const db = await openClientDb(target);
+export async function readLocalSnapshot(): Promise<LocalSnapshot> {
+  const db = await openClientDb();
 
   try {
     const transaction = db.transaction([META_STORE, RECORDS_STORE], "readonly");
@@ -78,7 +65,7 @@ export async function readLocalSnapshot(target: ProgramClientTarget): Promise<Lo
         schema = parseAppSchema(storedSchema);
       } catch {
         db.close();
-        await deleteClientDb(target);
+        await deleteClientDb();
         return emptyLocalSnapshot();
       }
     }
@@ -107,11 +94,8 @@ function emptyLocalSnapshot(): LocalSnapshot {
   };
 }
 
-export async function saveBootstrapResponse(
-  target: ProgramClientTarget,
-  response: BootstrapResponse,
-) {
-  const db = await openClientDb(target);
+export async function saveBootstrapResponse(response: BootstrapResponse) {
+  const db = await openClientDb();
 
   try {
     const transaction = db.transaction([META_STORE, RECORDS_STORE], "readwrite");
@@ -136,12 +120,11 @@ export async function saveBootstrapResponse(
 }
 
 export async function saveSchema(
-  target: ProgramClientTarget,
   schema: AppSchema,
   updatedAt: string,
   schemaProvenance?: BrowserReplicaSchemaProvenance,
 ) {
-  const db = await openClientDb(target);
+  const db = await openClientDb();
 
   try {
     const transaction = db.transaction(META_STORE, "readwrite");
@@ -158,24 +141,15 @@ export async function saveSchema(
   }
 }
 
-export async function mergeChanges(
-  target: ProgramClientTarget,
-  changes: ChangeRow[],
-  cursor: number,
-) {
+export async function mergeChanges(changes: ChangeRow[], cursor: number) {
   await mergeRecords(
-    target,
     changes.map((change) => change.payload),
     cursor,
   );
 }
 
-export async function mergeRecords(
-  target: ProgramClientTarget,
-  recordsToMerge: StoredRecord[],
-  cursor?: number,
-) {
-  const db = await openClientDb(target);
+export async function mergeRecords(recordsToMerge: StoredRecord[], cursor?: number) {
+  const db = await openClientDb();
 
   try {
     const transaction = db.transaction([META_STORE, RECORDS_STORE], "readwrite");
@@ -197,10 +171,8 @@ export async function mergeRecords(
   }
 }
 
-export async function readSchemaProvenance(
-  target: ProgramClientTarget,
-): Promise<BrowserReplicaSchemaProvenance | null> {
-  const db = await openClientDb(target);
+export async function readSchemaProvenance(): Promise<BrowserReplicaSchemaProvenance | null> {
+  const db = await openClientDb();
 
   try {
     const transaction = db.transaction(META_STORE, "readonly");
@@ -215,8 +187,8 @@ export async function readSchemaProvenance(
   }
 }
 
-export async function readSchemaUpdatedAt(target: ProgramClientTarget) {
-  const db = await openClientDb(target);
+export async function readSchemaUpdatedAt() {
+  const db = await openClientDb();
 
   try {
     const transaction = db.transaction(META_STORE, "readonly");
@@ -231,8 +203,8 @@ export async function readSchemaUpdatedAt(target: ProgramClientTarget) {
   }
 }
 
-export async function readCursor(target: ProgramClientTarget) {
-  const db = await openClientDb(target);
+export async function readCursor() {
+  const db = await openClientDb();
 
   try {
     const transaction = db.transaction(META_STORE, "readonly");
@@ -247,9 +219,9 @@ export async function readCursor(target: ProgramClientTarget) {
   }
 }
 
-export function deleteClientDb(target: ProgramClientTarget) {
+export function deleteClientDb() {
   return new Promise<void>((resolve, reject) => {
-    const request = indexedDB.deleteDatabase(clientDbName(target));
+    const request = indexedDB.deleteDatabase(clientDbName());
 
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error ?? new Error("Could not delete IndexedDB."));
@@ -257,52 +229,30 @@ export function deleteClientDb(target: ProgramClientTarget) {
   });
 }
 
-export async function deleteFormlessReplicaDatabases(): Promise<FormlessReplicaDatabaseResetResult> {
-  const databaseNames = await listIndexedDbDatabaseNames();
-  const replicaDatabaseNames = databaseNames.filter(isFormlessReplicaDatabaseName).toSorted();
-  const skippedDatabaseNames = databaseNames
-    .filter((name) => !isFormlessReplicaDatabaseName(name))
-    .toSorted();
-  const deletedDatabaseNames: string[] = [];
-  const blockedDatabaseNames: string[] = [];
+export async function deleteProgramReplicaDatabase(): Promise<void> {
+  const result = await deleteIndexedDbDatabase(FORMLESS_PROGRAM_REPLICA_DATABASE_NAME);
 
-  for (const databaseName of replicaDatabaseNames) {
-    const result = await deleteIndexedDbDatabase(databaseName);
-
-    if (result === "blocked") {
-      blockedDatabaseNames.push(databaseName);
-    } else {
-      deletedDatabaseNames.push(databaseName);
-    }
+  if (result === "blocked") {
+    throw new FormlessProgramReplicaDeleteBlockedError();
   }
-
-  if (blockedDatabaseNames.length > 0) {
-    throw new FormlessReplicaDatabaseDeleteBlockedError(blockedDatabaseNames);
-  }
-
-  return { deletedDatabaseNames, skippedDatabaseNames };
 }
 
-export function isFormlessReplicaDatabaseName(name: string): boolean {
-  return name === FORMLESS_INSTANCE_CONTROL_PLANE_REPLICA_DB;
+export function clientDbName() {
+  return FORMLESS_PROGRAM_REPLICA_DATABASE_NAME;
 }
 
-export function clientDbName(target: ProgramClientTarget) {
-  return programStorageIdentityForClientTarget(target).browserDatabaseName;
-}
-
-async function openClientDb(target: ProgramClientTarget) {
+async function openClientDb() {
   try {
-    return await openClientDbOnce(target);
+    return await openClientDbOnce();
   } catch {
-    await deleteClientDb(target);
-    return openClientDbOnce(target);
+    await deleteClientDb();
+    return openClientDbOnce();
   }
 }
 
-function openClientDbOnce(target: ProgramClientTarget) {
+function openClientDbOnce() {
   return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(clientDbName(target), DB_VERSION);
+    const request = indexedDB.open(clientDbName(), DB_VERSION);
 
     request.onupgradeneeded = () => {
       try {
@@ -352,28 +302,6 @@ function putOrDeleteMeta(store: IDBObjectStore, value: unknown, key: string) {
   }
 
   store.put(value, key);
-}
-
-type IndexedDbDatabaseInfo = {
-  name?: string | null;
-};
-
-type IndexedDbFactoryWithDatabases = IDBFactory & {
-  databases?: () => Promise<IndexedDbDatabaseInfo[]>;
-};
-
-async function listIndexedDbDatabaseNames(): Promise<string[]> {
-  const databaseLister = (indexedDB as IndexedDbFactoryWithDatabases).databases?.bind(indexedDB);
-
-  if (!databaseLister) {
-    throw new Error("IndexedDB database enumeration is unavailable.");
-  }
-
-  const databases = await databaseLister();
-
-  return databases
-    .map((database) => database.name)
-    .filter((name): name is string => typeof name === "string" && name.length > 0);
 }
 
 function deleteIndexedDbDatabase(name: string) {

@@ -1,4 +1,3 @@
-import type { ProgramStorageIdentity } from "../shared/program-storage-identity.ts";
 import type {
   PublicOperationChallengeVerification,
   PublicOperationRequestSource,
@@ -119,7 +118,6 @@ export type PublicOperationExecutorResult = {
 export type PublicOperationExecutorInput = {
   adapters: PublicOperationExecutorAdapters;
   body: unknown;
-  identity: ProgramStorageIdentity;
   request: Request;
   route: PublicOperationExecutorRoute;
   schema: AppSchema;
@@ -165,7 +163,6 @@ export async function executePublicOperationExecutor(
       })));
   const requestUrlFacts = publicRequestUrlFacts(input.request);
   const unverifiedEnvelope = buildUnverifiedPublicOperationInvocationEnvelope({
-    identity: input.identity,
     ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
     publicInput: envelopeFields.input,
     receivedAt,
@@ -188,7 +185,6 @@ export async function executePublicOperationExecutor(
       assertPublicOperationOrigin(input.request, selected.operation);
       await consumePublicOperationRateLimit({
         adapters: input.adapters,
-        identity: input.identity,
         operation: selected.operation,
         operationKey: unverifiedEnvelope.operation.canonicalKey,
         receivedAt,
@@ -205,7 +201,6 @@ export async function executePublicOperationExecutor(
 
       if (challengeFreeRead) {
         return buildUnverifiedPublicOperationInvocationEnvelope({
-          identity: input.identity,
           invocationId: unverifiedEnvelope.invocationId,
           publicInput: parsed.input,
           receivedAt,
@@ -239,7 +234,6 @@ export async function executePublicOperationExecutor(
       const verification = await input.adapters.challenge.verify(stage);
 
       return buildVerifiedPublicOperationInvocationEnvelope({
-        identity: input.identity,
         idempotencyKey,
         invocationId: unverifiedEnvelope.invocationId,
         proof: {
@@ -407,7 +401,6 @@ function assertPublicOperationOrigin(request: Request, operation: EntityOperatio
 
 async function consumePublicOperationRateLimit(input: {
   adapters: PublicOperationExecutorAdapters;
-  identity: ProgramStorageIdentity;
   operation: EntityOperationSchema;
   operationKey: string;
   receivedAt: string;
@@ -419,7 +412,6 @@ async function consumePublicOperationRateLimit(input: {
   }
 
   const decision = await input.adapters.rateLimit.consume({
-    identity: input.identity,
     nowMs: Date.parse(input.receivedAt),
     operationKey: input.operationKey,
     policy,

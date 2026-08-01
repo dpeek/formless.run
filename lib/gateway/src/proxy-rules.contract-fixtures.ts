@@ -237,10 +237,9 @@ export function workspaceGatewayAutoSaveState(
     kind: "formless.workspaceAutoSaveState",
     retryCount: 0,
     savedGeneration: 0,
-    storageIdentities: displayState === "queued" ? ["app:site"] : [],
     updatedAt: "2026-06-03T00:00:01.000Z",
     version: 1,
-    writeSources: displayState === "queued" ? ["app-operation"] : [],
+    writeSources: displayState === "queued" ? ["control-plane-write"] : [],
     ...overrides,
   };
 }

@@ -221,7 +221,7 @@ describe("sidecar workspace gateway adapter", () => {
     );
     const autoSaveEnqueueResponse = await handleWorkspaceGatewaySidecarRequest(
       new Request(`http://127.0.0.1${WORKSPACE_GATEWAY_AUTO_SAVE_API_PATH}`, {
-        body: JSON.stringify({ source: "schema-save", storageIdentity: "app:site" }),
+        body: JSON.stringify({ source: "schema-save" }),
         headers: {
           "Content-Type": "application/json",
           ...sidecarProxyHeaders({ operation: "save", via: "owner-session" }),
@@ -506,7 +506,6 @@ function autoSaveState(
     kind: "formless.workspaceAutoSaveState",
     retryCount: 0,
     savedGeneration: 0,
-    storageIdentities: [],
     updatedAt: "2026-06-02T01:00:00.000Z",
     version: 1,
     writeSources: [],

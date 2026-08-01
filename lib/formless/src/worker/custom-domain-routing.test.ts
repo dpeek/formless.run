@@ -4,10 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID } from "@dpeek/formless-instance-control-plane";
-import {
-  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
-  FORMLESS_PROGRAM_STORAGE_IDENTITY,
-} from "../program/target.ts";
+import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import {
   IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH,
   IDENTITY_COLLABORATOR_INVITATIONS_API_PATH,
@@ -438,9 +435,6 @@ describe("instance custom-domain Worker routing", () => {
     );
     expect(protectedRouteUrl.searchParams.get("routeId")).toBe(mappedInstanceRouteId);
     expect(protectedRouteUrl.searchParams.get("targetProfile")).toBe("instance");
-    expect(protectedRouteUrl.searchParams.get("storageIdentity")).toBe(
-      FORMLESS_PROGRAM_STORAGE_IDENTITY,
-    );
     expect(protectedRouteUrl.searchParams.get("returnTo")).toBe("/deployments");
     expect(protectedRouteUrl.searchParams.get("nonceHash")).toMatch(/^[A-Za-z0-9_-]+$/);
     expect(protectedRouteUrl.searchParams.get("state")).toMatch(/^[A-Za-z0-9_-]+$/);
@@ -493,7 +487,6 @@ describe("instance custom-domain Worker routing", () => {
     expect(startUrl.searchParams.get("targetOrigin")).toBe(`https://${mappedInstanceHost}`);
     expect(startUrl.searchParams.get("routeId")).toBe(mappedInstanceRouteId);
     expect(startUrl.searchParams.get("targetProfile")).toBe("instance");
-    expect(startUrl.searchParams.get("storageIdentity")).toBe(FORMLESS_PROGRAM_STORAGE_IDENTITY);
     expect(startUrl.searchParams.get("returnTo")).toBe("/deployments");
 
     expect(accountContinuation.status).toBe(302);
@@ -502,7 +495,6 @@ describe("instance custom-domain Worker routing", () => {
     expect(handoffUrl.searchParams.get("targetOrigin")).toBe(`https://${mappedInstanceHost}`);
     expect(handoffUrl.searchParams.get("routeId")).toBe(mappedInstanceRouteId);
     expect(handoffUrl.searchParams.get("targetProfile")).toBe("instance");
-    expect(handoffUrl.searchParams.get("storageIdentity")).toBe(FORMLESS_PROGRAM_STORAGE_IDENTITY);
     expect(handoffUrl.searchParams.get("returnTo")).toBe("/deployments");
 
     expect(grant.status).toBe(302);
@@ -550,7 +542,6 @@ describe("instance custom-domain Worker routing", () => {
         purpose: "host-session",
         routeId: mappedInstanceRouteId,
         sessionVersion: 0,
-        storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
         targetOrigin: `https://${mappedInstanceHost}`,
         targetProfile: "instance",
         version: 1,
@@ -1476,7 +1467,6 @@ async function mappedInstanceHostSessionCookieForPrincipal(principalId: string) 
     purpose: "host-session",
     routeId,
     sessionVersion: 0,
-    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     targetOrigin: `https://${mappedInstanceHost}`,
     targetProfile: "instance",
     version: 1,

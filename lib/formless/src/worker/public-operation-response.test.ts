@@ -2,7 +2,6 @@ import type { EntityOperationSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import { describe, expect, it } from "vite-plus/test";
 
-import { programStorageIdentity } from "../shared/program-storage-identity.ts";
 import type {
   OperationInvocationEnvelope,
   OperationInvocationOutput,
@@ -184,7 +183,6 @@ function publicInvocation(kind: "create" | "command"): OperationInvocationEnvelo
 
   return {
     invocationId: `operation:${entityName}.${operationName}:${key}`,
-    programStorageIdentity: programStorageIdentity(),
     actor: { kind: "anonymous" },
     source: {
       protocol: "public",
@@ -259,7 +257,6 @@ function publicListInvocation(): OperationInvocationEnvelope {
 
   return {
     invocationId: "operation:certificate.lookup:read-1",
-    programStorageIdentity: programStorageIdentity(),
     actor: { kind: "anonymous" },
     source: {
       protocol: "public",

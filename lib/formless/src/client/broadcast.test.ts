@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { channelName } from "./broadcast.ts";
-import { programClientTarget } from "./program-target.ts";
 
 describe("client broadcast channels", () => {
   it("uses the single Program channel", () => {
-    expect(channelName(programClientTarget())).toBe("formless:instance:control-plane");
+    expect(channelName()).toBe("formless:instance:control-plane");
   });
 });
