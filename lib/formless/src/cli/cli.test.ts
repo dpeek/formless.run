@@ -1,4 +1,3 @@
-import { setKeyedDefinition } from "../test/schema-definition-test-helpers.ts";
 import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -14,7 +13,6 @@ import {
   INSTANCE_ARCHIVE_KIND,
   PORTABLE_ARCHIVE_MANIFEST_FILE,
   archiveApps,
-  parsePortableArchive,
   type AppArchive,
   type InstanceArchive,
 } from "../program/archive.ts";
@@ -40,8 +38,6 @@ import {
   appPackageManifestVersion,
   bundledAppPackageManifests,
   bundledAppPackageResolver,
-  createAppPackageResolver,
-  parseAppPackageManifest,
   rootKnownPackageFactsResolver,
 } from "../shared/app-packages.ts";
 import {
@@ -61,7 +57,6 @@ import {
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
 } from "../program/target.ts";
 import { computeSourceSchemaHash, type SourceSchemaHash } from "../shared/upgrade-migrations.ts";
-import { FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME } from "../shared/workspace-runtime-packages.ts";
 import {
   FORMLESS_SITE_PROJECT_ROOT_ENV_NAME,
   FORMLESS_WORKSPACE_RUNTIME_EXTENSIONS_ENV_NAME,
@@ -85,12 +80,7 @@ import {
   readWorkspaceConfig,
 } from "./instance-workspace-foundation.ts";
 import { formatTestFormlessConfigModule } from "./instance-workspace-config-test.ts";
-import {
-  crmTestRecords,
-  crmSourceSchema,
-  siteSourceSchema,
-  taskSourceSchema,
-} from "../test/schema-apps.ts";
+import { crmSourceSchema, siteSourceSchema, taskSourceSchema } from "../test/schema-apps.ts";
 import {
   FORMLESS_CLI_WORKSPACE_OPERATION_BINDINGS,
   formlessCliUsage,
@@ -109,7 +99,6 @@ import {
 import {
   FORMLESS_ALCHEMY_APP_NAME,
   discoverFormlessInstanceWorkspaceRoot,
-  exportAppArchive,
   initFormlessInstanceWorkspace,
   planFormlessInstanceDeployment,
   resolveFormlessInstanceWorkspaceRoot,
@@ -136,7 +125,6 @@ import {
   type FormlessCloudflareOAuthAdapter,
   type FormlessCloudflareOAuthTokenSet,
 } from "./cloudflare-oauth.ts";
-import { appArchiveControlPlaneRecords } from "./instance-workspace-control-plane.ts";
 
 const tempDirs: string[] = [];
 const setupToken = "abcDEF0123456789_-abcDEF0123456789_-";
@@ -496,7 +484,6 @@ describe("Formless CLI", () => {
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
       "GET https://personal.dpeek.workers.dev/api/formless/deploy",
       "GET https://personal.dpeek.workers.dev/api/formless/setup",
-      "GET https://personal.dpeek.workers.dev/api/formless/app-installs",
     ]);
   });
 
@@ -525,17 +512,6 @@ describe("Formless CLI", () => {
       formatFormlessConfigModule({ name: "personal-sites" }),
     );
     expect(result.archiveSourcePath).toBe("archives/instance");
-  });
-
-  it("projects archive app admin routes over generated nested screens", () => {
-    expect(
-      appArchiveControlPlaneRecords(appArchive("david", "David Peek")).find(
-        (record) => record.id === "route:david:admin",
-      )?.values,
-    ).toMatchObject({
-      matchPath: "/apps/david",
-      matchPrefix: "/apps/david/",
-    });
   });
 
   it("discovers nearest exact Formless workspace configuration", async () => {
@@ -955,7 +931,6 @@ describe("Formless CLI", () => {
       readFile(path.join(workspaceRoot, "state/apps/david.json"), "utf8"),
     ).rejects.toMatchObject({ code: "ENOENT" });
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
-      "GET https://source-owned.dpeek.workers.dev/api/formless/app-installs",
       "GET https://source-owned.dpeek.workers.dev/api/formless/program/snapshot?actorKind=cliDeployer",
       "GET https://source-owned.dpeek.workers.dev/api/formless/program/bootstrap?actorKind=cliDeployer",
     ]);
@@ -964,194 +939,7 @@ describe("Formless CLI", () => {
     );
     expect(logs).toHaveLength(1);
     expect(logs.join("\n")).not.toContain("stored-archive-token");
-    await expect(stat(path.join(workspaceRoot, "state/apps/stale.json"))).rejects.toMatchObject({
-      code: "ENOENT",
-    });
-  });
-
-  it("pulls, pushes, and rebuilds referenced document workspace source", async () => {
-    const tempDir = await makeTempDir();
-    const workspaceRoot = path.join(tempDir, "document-workspace");
-    const targetUrl = "https://documents.dpeek.workers.dev";
-    const privateBytes = new TextEncoder().encode("%PDF-1.7\nprivate report");
-    const publicBytes = new TextEncoder().encode("%PDF-1.7\npublic report");
-    const unreferencedBytes = new TextEncoder().encode("%PDF-1.7\nunreferenced report");
-    const remoteRequests: CapturedFetchRequest[] = [];
-    const packageRoot = path.join(tempDir, "document-package");
-    const sourceSchema = documentArchiveSourceSchema();
-    const sourceSchemaHash = await computeSourceSchemaHash(sourceSchema);
-
-    await writeWorkspaceConfig(workspaceRoot, { apps: [] });
-    await writeWorkspacePackageLinks(workspaceRoot, "../document-package/formless.app.json");
-    await writePrivatePackageFixture(packageRoot, sourceSchemaHash, sourceSchema);
-    const activePackages = await createWorkspaceAppPackageResolver({
-      bundledManifests: bundledAppPackageManifests,
-      manifest: (await readWorkspaceConfig(workspaceRoot)).config,
-      workspaceRoot,
-    });
-    const documentPackage = activePackages.resolver.findPackage("private-labs");
-
-    if (!documentPackage) {
-      throw new Error("Missing linked document package.");
-    }
-
-    const fetcher = documentWorkspaceFetch(remoteRequests, {
-      appPackage: documentPackage,
-      privateBytes,
-      publicBytes,
-      sourceSchemaHash,
-      targetUrl,
-      unreferencedBytes,
-    });
-
-    await writeWorkspaceControlPlaneStorageSnapshot(
-      workspaceRoot,
-      controlPlaneRecords({ targetUrl }).filter((record) => record.entity === "deployment-config"),
-    );
-    await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
-    await writeFile(
-      path.join(workspaceRoot, ".formless/instance.env"),
-      "FORMLESS_ADMIN_TOKEN=document-admin-token\n",
-    );
-
-    await runFormlessCli(
-      ["pull", "--workspace", workspaceRoot],
-      cliDeps(tempDir, { fetch: fetcher, logs: [] }),
-    );
-
-    const mediaManifest = JSON.parse(
-      await readFile(path.join(workspaceRoot, "state/media/manifest.json"), "utf8"),
-    ) as {
-      objects: Array<{
-        archivePath: string;
-        asset: {
-          access: string;
-          contentType: string;
-          filename: string;
-        };
-      }>;
-    };
-    expect(mediaManifest.objects).toMatchObject([
-      {
-        archivePath: "media/reports/media/app-installs/reports/documents/private-report.pdf",
-        asset: {
-          access: "private",
-          contentType: "application/pdf",
-          filename: "private-report.pdf",
-        },
-      },
-      {
-        archivePath: "media/reports/media/app-installs/reports/documents/public-report.pdf",
-        asset: {
-          access: "public",
-          contentType: "application/pdf",
-          filename: "public-report.pdf",
-        },
-      },
-    ]);
-    expect(JSON.stringify(mediaManifest)).not.toContain("unreferenced.pdf");
-
-    const workspaceConfig = (await readWorkspaceConfig(workspaceRoot)).config;
-
-    await writeInstanceWorkspaceAppStorageSnapshot({
-      installId: "reports",
-      manifest: workspaceConfig,
-      schemaProvenance: {
-        kind: "package-app",
-        packageAppKey: documentPackage.packageAppKey,
-        packageRevision: documentPackage.packageRevision,
-        sourceSchemaHash: documentPackage.sourceSchemaHash,
-      },
-      snapshot: {
-        ...snapshot(
-          [
-            ...workspaceDocumentRecords(),
-            block("local-note", "2026-05-05T00:00:04.000Z", {
-              label: "Local note",
-              type: "group",
-            }),
-          ],
-          "app:reports",
-        ),
-        schema: sourceSchema,
-        schemaKey: documentPackage.sourceSchemaKey,
-      },
-      workspaceRoot,
-    });
-
-    await runFormlessCli(
-      ["push", "--workspace", workspaceRoot, "--dry-run"],
-      cliDeps(tempDir, { fetch: fetcher, logs: [] }),
-    );
-
-    const pushRestoreRequest = remoteRequests.find(
-      (request) =>
-        request.method === "POST" && request.url === `${targetUrl}/api/formless/archive/restore`,
-    );
-    const pushRestoreBody = capturedRequestJson<{
-      archive: InstanceArchive;
-      mediaFiles: Array<{
-        archivePath: string;
-        bytesBase64: string;
-        contentType: string;
-      }>;
-    }>(pushRestoreRequest);
-    expect(pushRestoreBody.archive.apps[0]?.media.objects).toMatchObject(mediaManifest.objects);
-    expect(pushRestoreBody.mediaFiles.map((file) => file.archivePath)).toEqual([
-      "media/reports/media/app-installs/reports/documents/private-report.pdf",
-      "media/reports/media/app-installs/reports/documents/public-report.pdf",
-    ]);
-    expect(pushRestoreBody.mediaFiles.map((file) => file.contentType)).toEqual([
-      "application/pdf",
-      "application/pdf",
-    ]);
-    expect(pushRestoreBody.mediaFiles.map((file) => file.bytesBase64)).toEqual([
-      Buffer.from(privateBytes).toString("base64"),
-      Buffer.from(publicBytes).toString("base64"),
-    ]);
-
-    const child = new FakeCliDevChild();
-    const localRequests: CapturedFetchRequest[] = [];
-    const logs: string[] = [];
-    const run = runFormlessCli(
-      ["dev", "--workspace", workspaceRoot, "--reset"],
-      cliDeps(tempDir, {
-        env: { PORT: "4450" },
-        fetch: localInstanceDevFetch(localRequests, []),
-        logs,
-        spawn: ((_command: string, _args: string[], options: CapturedSpawnOptions) => {
-          announceFakeCliDevServer(child, options.env);
-
-          return child as unknown as ReturnType<typeof spawn>;
-        }) as typeof spawn,
-      }),
-    );
-
-    await waitUntil(() => logs.some((line) => line.includes(LOCAL_SESSION_BOOTSTRAP_API_PATH)));
-    child.close(0);
-    await run;
-
-    const localRestoreRequest = localRequests.find(
-      (request) =>
-        request.method === "POST" &&
-        request.url === "http://localhost:4450/api/formless/archive/restore",
-    );
-    const localRestoreBody = capturedRequestJson<{
-      archive: InstanceArchive;
-      mediaFiles: Array<{
-        archivePath: string;
-        bytesBase64: string;
-        contentType: string;
-      }>;
-    }>(localRestoreRequest);
-    expect(localRestoreBody.archive.apps[0]?.media.objects).toMatchObject(mediaManifest.objects);
-    expect(localRestoreBody.mediaFiles.map((file) => file.bytesBase64)).toEqual([
-      Buffer.from(privateBytes).toString("base64"),
-      Buffer.from(publicBytes).toString("base64"),
-    ]);
-    expect(
-      remoteRequests.some((request) => request.url.endsWith("/documents/unreferenced.pdf")),
-    ).toBe(false);
+    await expect(stat(path.join(workspaceRoot, "state/apps/stale.json"))).resolves.toBeTruthy();
   });
 
   it("emits output for repeat pull without mutation", async () => {
@@ -1350,7 +1138,7 @@ describe("Formless CLI", () => {
 
       if (
         method === "GET" &&
-        parsedUrl.pathname === "/api/formless/app-installs" &&
+        parsedUrl.pathname === "/api/formless/program/snapshot" &&
         missingTargetReads === 0
       ) {
         missingTargetReads += 1;
@@ -1459,7 +1247,7 @@ describe("Formless CLI", () => {
 
       if (
         method === "GET" &&
-        parsedUrl.pathname === "/api/formless/app-installs" &&
+        parsedUrl.pathname === "/api/formless/program/snapshot" &&
         missingTargetReads === 0
       ) {
         missingTargetReads += 1;
@@ -1499,7 +1287,7 @@ describe("Formless CLI", () => {
     expect(missingTargetReads).toBe(1);
     expect(deployInputs).toEqual([]);
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
-      "GET https://personal.dpeek.workers.dev/api/formless/app-installs",
+      "GET https://personal.dpeek.workers.dev/api/formless/program/snapshot?actorKind=cliDeployer",
     ]);
     expect(logs).toHaveLength(1);
   });
@@ -2651,11 +2439,9 @@ describe("Formless CLI", () => {
       VITE_FORMLESS_RUNTIME_PROFILE: "instance",
     });
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
-      "GET http://localhost:4443/api/formless/app-installs",
-      "GET http://localhost:4443/api/formless/app-installs",
+      "GET http://localhost:4443/api/formless/program/bootstrap",
     ]);
     expect(requests.map((request) => request.headers.authorization)).toEqual([
-      "Bearer generated-token",
       "Bearer generated-token",
     ]);
     expect(openedUrls).toEqual([]);
@@ -2742,7 +2528,6 @@ describe("Formless CLI", () => {
     expect(openedUrls[0]).not.toContain("generated-token");
     expect(requests.map((request) => request.headers.authorization)).toEqual([
       "Bearer generated-token",
-      "Bearer generated-token",
     ]);
   });
 
@@ -2782,8 +2567,7 @@ describe("Formless CLI", () => {
     expect(bootstrapUrl.pathname).toBe(LOCAL_SESSION_BOOTSTRAP_API_PATH);
     expect(bootstrapUrl.searchParams.get("token")).toEqual(expect.any(String));
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
-      "GET http://localhost:4443/api/formless/app-installs",
-      "GET http://localhost:4443/api/formless/app-installs",
+      "GET http://localhost:4443/api/formless/program/bootstrap",
     ]);
   });
 
@@ -2825,11 +2609,9 @@ describe("Formless CLI", () => {
     expect(openedUrl.searchParams.get("redirectTo")).toBeNull();
     expect(openedUrl.searchParams.get("reset")).toBeNull();
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
-      "GET http://localhost:5174/api/formless/app-installs",
-      "GET http://localhost:5174/api/formless/app-installs",
+      "GET http://localhost:5174/api/formless/program/bootstrap",
     ]);
     expect(requests.map((request) => request.headers.authorization)).toEqual([
-      "Bearer generated-token",
       "Bearer generated-token",
     ]);
   });
@@ -2891,8 +2673,7 @@ describe("Formless CLI", () => {
       cwd: "/package",
     });
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
-      "GET http://127.0.0.1:5174/api/formless/app-installs",
-      "GET http://127.0.0.1:5174/api/formless/app-installs",
+      "GET http://127.0.0.1:5174/api/formless/program/bootstrap",
     ]);
   });
 
@@ -2936,7 +2717,6 @@ describe("Formless CLI", () => {
       VITE_FORMLESS_RUNTIME_PROFILE: "instance",
     });
     expect(requests.map((request) => request.headers.authorization)).toEqual([
-      "Bearer generated-token",
       "Bearer generated-token",
     ]);
     await expect(readFile(path.join(workspaceRoot, FORMLESS_CONFIG_FILE), "utf8")).resolves.toBe(
@@ -3021,7 +2801,7 @@ describe("Formless CLI", () => {
     }
   });
 
-  it("starts workspace dev with a linked private app package and clean install records", async () => {
+  it("starts workspace dev with a linked package without creating install records", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "instance");
     const packageRoot = path.join(tempDir, "app");
@@ -3075,15 +2855,9 @@ describe("Formless CLI", () => {
     child.close(0);
     await run;
 
-    const runtimePackages = spawnCalls[0]?.env?.[FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME];
     const runtimeExtensions = spawnCalls[0]?.env?.[FORMLESS_WORKSPACE_RUNTIME_EXTENSIONS_ENV_NAME];
 
     expect(spawnCalls[0]?.env?.[FORMLESS_SITE_PROJECT_ROOT_ENV_NAME]).toBe(workspaceRoot);
-    expect(runtimePackages).toContain('"packageAppKey": "private-labs"');
-    expect(runtimePackages).toContain('"sourceSchema"');
-    expect(runtimePackages).not.toContain("../app/formless.app.json");
-    expect(runtimePackages).not.toContain(packageRoot);
-    expect(runtimePackages).not.toContain("public-renderer");
     expect(JSON.parse(runtimeExtensions ?? "")).toEqual({
       [SITE_PUBLIC_RENDERER_RUNTIME_EXTENSION_KEY]: {
         browser: "renderers/site-public.browser.tsx",
@@ -3104,23 +2878,10 @@ describe("Formless CLI", () => {
       (record) => record.entity === "route",
     );
 
-    expect(appInstall?.values).toMatchObject({
-      installId: "labs",
-      packageAppKey: "private-labs",
-      sourceSchemaHash,
-    });
-    expect(
-      routes
-        ?.map((record) => record.values.matchPath)
-        .sort((left, right) => String(left).localeCompare(String(right))),
-    ).toEqual(["/apps/labs"]);
-    expect(restoreBody.archive.apps[0]?.app).toMatchObject({
-      installId: "labs",
-      packageAppKey: "private-labs",
-      sourceSchemaHash,
-      sourceSchemaKey: "private-labs",
-    });
-    expect(controlPlaneJson).toContain("private-labs");
+    expect(appInstall).toBeUndefined();
+    expect(routes?.map((record) => record.values.matchPath)).not.toContain("/apps/labs");
+    expect(restoreBody.archive.apps).toEqual([]);
+    expect(controlPlaneJson).not.toContain("private-labs");
     expect(controlPlaneJson).not.toContain("../app");
     expect(controlPlaneJson).not.toContain("formless.app.json");
     expect(controlPlaneJson).not.toContain(packageRoot);
@@ -3224,17 +2985,15 @@ describe("Formless CLI", () => {
       VITE_FORMLESS_RUNTIME_PROFILE: "instance",
     });
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
-      "GET http://localhost:4446/api/formless/app-installs",
-      "GET http://localhost:4446/api/formless/app-installs",
+      "GET http://localhost:4446/api/formless/program/bootstrap",
     ]);
     expect(requests.map((request) => request.headers.authorization)).toEqual([
-      "Bearer generated-token",
       "Bearer generated-token",
     ]);
     expect(logs).toEqual([devSessionBootstrapUrlLogLine(logs)]);
   });
 
-  it("keeps existing workspace-local installs on instance dev rerun", async () => {
+  it("omits existing workspace-local installs on instance dev rerun", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const child = new FakeCliDevChild();
@@ -3262,11 +3021,9 @@ describe("Formless CLI", () => {
     await run;
 
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
-      "GET http://localhost:4445/api/formless/app-installs",
-      "GET http://localhost:4445/api/formless/app-installs",
+      "GET http://localhost:4445/api/formless/program/bootstrap",
     ]);
     expect(requests.map((request) => request.headers.authorization)).toEqual([
-      "Bearer generated-token",
       "Bearer generated-token",
     ]);
     expect(logs).toEqual([devSessionBootstrapUrlLogLine(logs)]);
@@ -3388,12 +3145,10 @@ describe("Formless CLI", () => {
 
     expect(logs).toEqual([devSessionBootstrapUrlLogLine(logs)]);
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
-      "GET http://localhost:4450/api/formless/app-installs",
-      "GET http://localhost:4450/api/formless/app-installs",
+      "GET http://localhost:4450/api/formless/program/bootstrap",
       "POST http://localhost:4450/api/formless/archive/restore",
     ]);
     expect(requests.map((request) => request.headers.authorization)).toEqual([
-      "Bearer generated-token",
       "Bearer generated-token",
       "Bearer generated-token",
     ]);
@@ -3609,75 +3364,6 @@ describe("Formless CLI", () => {
       "Formless instance destroy requires ALCHEMY_PASSWORD in ignored deploy secrets",
     );
     expect(destroyInputs).toEqual([]);
-  });
-
-  it("exports private installed app archives without media requests", async () => {
-    const tempDir = await makeTempDir();
-    const outDir = path.join(tempDir, "tasks-backup");
-    const requests: CapturedFetchRequest[] = [];
-    const responses = responseQueue();
-    const sourceSchemaHash = await computeSourceSchemaHash(crmSourceSchema);
-    const privateResolver = createAppPackageResolver([
-      parseAppPackageManifest(privatePackageManifest(sourceSchemaHash), "private package"),
-    ]);
-    const packageFacts = packageAppFactsForKey("private-labs", privateResolver)!;
-    const snapshot = {
-      ...crmSnapshot(crmTestRecords, "app:work"),
-      schemaKey: "private-labs",
-    };
-
-    responses.queueJson({
-      packages: listInstallableAppPackages(privateResolver),
-      installs: [
-        {
-          adminRoute: "/apps/work",
-          createdAt: "2026-05-01T00:00:00.000Z",
-          installId: "work",
-          label: "Work CRM",
-          packageAppKey: "private-labs",
-          ...packageFacts,
-          registrationPolicy: "closed",
-          status: "installed",
-          updatedAt: "2026-05-01T00:00:00.000Z",
-        },
-      ],
-    });
-    responses.queueJson(snapshot);
-
-    await exportAppArchive(
-      {
-        installId: "work",
-        outDir,
-        target: "https://instance.example",
-      },
-      cliDeps(tempDir, {
-        fetch: responses.fetcher(requests),
-      }),
-    );
-
-    const archivePath = path.join(outDir, PORTABLE_ARCHIVE_MANIFEST_FILE);
-    const archive = parsePortableArchive(
-      JSON.parse(await readFile(archivePath, "utf8")) as unknown,
-      { packageResolver: bundledAppPackageResolver },
-    );
-
-    if (archive.kind !== APP_ARCHIVE_KIND) {
-      throw new Error("Expected app archive.");
-    }
-
-    expect(archive.app).toMatchObject({
-      installId: "work",
-      packageAppKey: "private-labs",
-      packageRevision: packageFacts.packageRevision,
-      sourceSchemaKey: "private-labs",
-      sourceSchemaHash: packageFacts.sourceSchemaHash,
-    });
-    expect(archive.data).toEqual(snapshot);
-    expect(archive.media.objects).toEqual([]);
-    expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
-      "GET https://instance.example/api/formless/app-installs",
-      "GET https://instance.example/api/app-installs/private-labs/work/snapshot",
-    ]);
   });
 
   it("omits upgrade planning from archive restore dry-run without mutating target", async () => {
@@ -4068,7 +3754,6 @@ function installedApp(installId: string, label: string, packageAppKey: "site" | 
     label,
     packageAppKey,
     packageRevision: facts.packageRevision,
-    registrationPolicy: "closed" as const,
     sourceSchemaHash: facts.sourceSchemaHash,
     status: "installed" as const,
     updatedAt: "2026-05-01T00:00:00.000Z",
@@ -4088,7 +3773,6 @@ function privateControlPlaneRecords(sourceSchemaHash: SourceSchemaHash): StoredR
         packageRevision: 7,
         sourceSchemaHash,
         label: "Private Labs",
-        registrationPolicy: "closed",
         status: "installed",
         storageIdentity: "app:labs",
       },
@@ -4105,63 +3789,6 @@ function privateControlPlaneRecords(sourceSchemaHash: SourceSchemaHash): StoredR
         targetProfile: "app",
         appInstall: "labs",
         surface: "admin",
-      },
-      createdAt: now,
-      updatedAt: now,
-    },
-  ];
-}
-
-function documentControlPlaneRecords(input: {
-  install: AppInstall;
-  targetUrl: string;
-}): StoredRecord[] {
-  const now = "2026-05-26T00:00:00.000Z";
-  const install = input.install;
-
-  return [
-    {
-      id: install.installId,
-      entity: "app-install",
-      values: {
-        installId: install.installId,
-        packageAppKey: install.packageAppKey,
-        packageRevision: install.packageRevision,
-        sourceSchemaHash: install.sourceSchemaHash,
-        label: install.label,
-        registrationPolicy: install.registrationPolicy,
-        status: install.status,
-        storageIdentity: `app:${install.installId}`,
-      },
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
-      id: `route:${install.installId}:admin`,
-      entity: "route",
-      values: {
-        enabled: true,
-        matchPath: `/apps/${install.installId}`,
-        kind: "mount",
-        targetProfile: "app",
-        appInstall: install.installId,
-        surface: "admin",
-      },
-      createdAt: now,
-      updatedAt: now,
-    },
-    {
-      id: "instance.primary",
-      entity: "deployment-config",
-      values: {
-        targetId: "instance.primary",
-        targetKind: "instance",
-        label: "Primary",
-        enabled: true,
-        targetUrl: input.targetUrl,
-        providerFamily: "cloudflare",
-        accountId: "account-123",
-        workerName: "documents",
       },
       createdAt: now,
       updatedAt: now,
@@ -4210,7 +3837,6 @@ function appArchive(
       sourceSchemaKey: "site",
       sourceSchemaHash: packageFacts.sourceSchemaHash,
       label,
-      registrationPolicy: "closed",
       status: "installed",
       createdAt: "2026-05-01T00:00:00.000Z",
       updatedAt: "2026-05-01T00:00:00.000Z",
@@ -4257,7 +3883,6 @@ function privateAppArchive(sourceSchemaHash: SourceSchemaHash): AppArchive {
       sourceSchemaKey: "private-labs",
       sourceSchemaHash,
       label: "Private Labs",
-      registrationPolicy: "closed",
       status: "installed",
       createdAt: "2026-05-01T00:00:00.000Z",
       updatedAt: "2026-05-01T00:00:00.000Z",
@@ -4585,150 +4210,6 @@ function archiveFetch(
   };
 }
 
-function documentWorkspaceFetch(
-  requests: CapturedFetchRequest[],
-  input: {
-    appPackage: InstallableAppPackage;
-    privateBytes: Uint8Array;
-    publicBytes: Uint8Array;
-    sourceSchemaHash: SourceSchemaHash;
-    targetUrl: string;
-    unreferencedBytes: Uint8Array;
-  },
-): typeof fetch {
-  const install: AppInstall = {
-    adminRoute: "/apps/reports",
-    createdAt: "2026-05-01T00:00:00.000Z",
-    installId: "reports",
-    label: "Reports",
-    packageAppKey: input.appPackage.packageAppKey,
-    packageRevision: input.appPackage.packageRevision,
-    registrationPolicy: "closed",
-    sourceSchemaHash: input.sourceSchemaHash,
-    status: "installed",
-    updatedAt: "2026-05-01T00:00:00.000Z",
-  };
-  const records = workspaceDocumentRecords();
-  const controlPlane = documentControlPlaneRecords({
-    install,
-    targetUrl: input.targetUrl,
-  });
-  const delegate = archiveFetch(
-    requests,
-    [install],
-    { reports: { records } },
-    [input.appPackage],
-    controlPlane,
-  );
-  const assets = [
-    appDocumentAsset(
-      install.installId,
-      "private-report",
-      "private",
-      input.privateBytes.byteLength,
-      install.packageAppKey,
-    ),
-    appDocumentAsset(
-      install.installId,
-      "public-report",
-      "public",
-      input.publicBytes.byteLength,
-      install.packageAppKey,
-    ),
-    appDocumentAsset(
-      install.installId,
-      "unreferenced",
-      "public",
-      input.unreferencedBytes.byteLength,
-      install.packageAppKey,
-    ),
-  ];
-  const bytesByAssetId = new Map([
-    ["private-report.pdf", input.privateBytes],
-    ["public-report.pdf", input.publicBytes],
-    ["unreferenced.pdf", input.unreferencedBytes],
-  ]);
-
-  return async (url, init) => {
-    const requestUrl =
-      typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
-    const parsedUrl = new URL(requestUrl);
-    const method = init?.method ?? "GET";
-
-    if (
-      method === "GET" &&
-      parsedUrl.pathname ===
-        `/api/app-installs/${install.packageAppKey}/${install.installId}/snapshot`
-    ) {
-      requests.push({
-        body: init?.body,
-        headers: normalizeHeaders(init?.headers),
-        method,
-        url: requestUrl,
-      });
-
-      return Response.json({
-        ...snapshot(records, `app:${install.installId}`),
-        schema: documentArchiveSourceSchema(),
-        schemaKey: input.appPackage.sourceSchemaKey,
-      });
-    }
-
-    if (
-      method === "GET" &&
-      parsedUrl.pathname ===
-        `/api/app-installs/${install.packageAppKey}/${install.installId}/media/documents`
-    ) {
-      requests.push({
-        body: init?.body,
-        headers: normalizeHeaders(init?.headers),
-        method,
-        url: requestUrl,
-      });
-      const access =
-        parsedUrl.searchParams.get("field") === "privateDocument" ? "private" : "public";
-
-      return Response.json({ assets: assets.filter((asset) => asset.access === access) });
-    }
-
-    const deliveryMatch = parsedUrl.pathname.match(
-      /^\/api\/app-installs\/private-labs\/reports\/media\/documents\/([^/]+)$/,
-    );
-
-    if (method === "GET" && deliveryMatch) {
-      requests.push({
-        body: init?.body,
-        headers: normalizeHeaders(init?.headers),
-        method,
-        url: requestUrl,
-      });
-      const bytes = bytesByAssetId.get(deliveryMatch[1] ?? "");
-
-      return bytes
-        ? new Response(Buffer.from(bytes), {
-            headers: { "content-type": "application/pdf" },
-          })
-        : Response.json({ error: "not found" }, { status: 404 });
-    }
-
-    if (method === "POST" && parsedUrl.pathname === "/api/formless/archive/restore") {
-      requests.push({
-        body: init?.body,
-        headers: normalizeHeaders(init?.headers),
-        method,
-        url: requestUrl,
-      });
-
-      return Response.json({
-        errors: [{ message: 'Installed app "reports" already exists.' }],
-        ok: false,
-      });
-    }
-
-    return delegate(url, init);
-  };
-}
-
 function controlPlaneRecords(
   options: {
     credentialRef?: string;
@@ -4755,7 +4236,6 @@ function controlPlaneRecords(
         installId,
         packageAppKey: "site",
         label: "David Peek",
-        registrationPolicy: "closed",
         status: "installed",
         storageIdentity: `app:${installId}`,
       },
@@ -5066,7 +4546,7 @@ function deploymentDesiredResourcesByKind(
 
 function localInstanceDevFetch(
   requests: CapturedFetchRequest[],
-  installs: ReturnType<typeof installedApp>[],
+  _installs: ReturnType<typeof installedApp>[],
 ): typeof fetch {
   return async (url, init) => {
     const requestUrl =
@@ -5081,11 +4561,8 @@ function localInstanceDevFetch(
       url: requestUrl,
     });
 
-    if (method === "GET" && parsedUrl.pathname === "/api/formless/app-installs") {
-      return Response.json({
-        packages: listInstallableAppPackages(bundledAppPackageResolver),
-        installs,
-      });
+    if (method === "GET" && parsedUrl.pathname === "/api/formless/program/bootstrap") {
+      return Response.json({ records: [], cursor: 0 });
     }
 
     if (method === "POST" && parsedUrl.pathname === "/api/formless/archive/restore") {
@@ -5434,62 +4911,6 @@ function snapshot(
     records,
   };
 }
-function documentArchiveSourceSchema() {
-  const schema = structuredClone(siteSourceSchema);
-  const block = schema.entities.find((definition) => definition.key === "block")!;
-  if (!block) {
-    throw new Error("Expected Site block schema.");
-  }
-  setKeyedDefinition(block.fields, "privateDocument", {
-    type: "text",
-    required: false,
-    label: "Private document",
-    asset: {
-      kind: "document",
-      acceptedMimeTypes: ["application/pdf"],
-      maxBytes: 1024 * 1024,
-      access: "private",
-    },
-  });
-  setKeyedDefinition(block.fields, "publicDocument", {
-    type: "text",
-    required: false,
-    label: "Public document",
-    asset: {
-      kind: "document",
-      acceptedMimeTypes: ["application/pdf"],
-      maxBytes: 1024 * 1024,
-      access: "public",
-    },
-  });
-  return schema;
-}
-function appDocumentAsset(
-  installId: string,
-  name: string,
-  access: "public" | "private",
-  byteSize: number,
-  packageAppKey = "site",
-) {
-  const id = `${name}.pdf`;
-  const storageKey = `media/app-installs/${installId}/documents/${id}`;
-
-  return {
-    access,
-    byteSize,
-    contentType: "application/pdf" as const,
-    deliveryHref: `/api/app-installs/${packageAppKey}/${installId}/media/documents/${id}`,
-    filename: id,
-    id,
-    kind: "document" as const,
-    label: id,
-    ownerAppInstallId: installId,
-    provider: "r2",
-    status: "ready" as const,
-    storageKey,
-  };
-}
-
 function controlPlaneSnapshot(records: StoredRecord[]): StorageSnapshot {
   return {
     kind: STORAGE_SNAPSHOT_KIND,
@@ -5569,17 +4990,6 @@ function mediaRecords(): StoredRecord[] {
       type: "image",
       label: "Cover",
       mediaAssetId: "cover.png",
-    }),
-  ];
-}
-
-function workspaceDocumentRecords(): StoredRecord[] {
-  return [
-    block("block-documents", "2026-05-05T00:00:01.000Z", {
-      label: "Reports",
-      privateDocument: "private-report.pdf",
-      publicDocument: "public-report.pdf",
-      type: "group",
     }),
   ];
 }

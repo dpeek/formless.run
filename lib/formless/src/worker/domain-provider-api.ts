@@ -46,7 +46,6 @@ import {
   readInstanceDomainMappingAppliedStates,
 } from "./instance-domain-mappings-state.ts";
 import { readControlPlaneRecords } from "./deployment-control-plane-client.ts";
-import { readControlPlaneAppInstallsForRequest } from "./instance-app-installs.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import {
   createSqlStorageMigrationRegistry,
@@ -518,9 +517,6 @@ async function domainProviderPlanResponse(
         enabled: mapping.enabled,
         host: mapping.host,
         profile: mapping.profile,
-        ...(mapping.targetInstallId === undefined
-          ? {}
-          : { targetInstallId: mapping.targetInstallId }),
       })),
     policy: options.policy ?? "create-only",
     redirectIntents: redirectIntents
@@ -579,13 +575,7 @@ function readDomainProviderDeleteTargets(
 
     const logicalId =
       state.alchemyResourceId ??
-      logicalResourceId(
-        instanceId,
-        "custom-domain",
-        state.host,
-        state.profile,
-        state.targetInstallId,
-      );
+      logicalResourceId(instanceId, "custom-domain", state.host, state.profile);
 
     targets.push({
       accountId: state.accountId,
@@ -600,7 +590,6 @@ function readDomainProviderDeleteTargets(
       resourceId: state.workerDomainId,
       resourceJson: JSON.stringify(state),
       ...(state.runnerId === undefined ? {} : { runnerId: state.runnerId }),
-      ...(state.targetInstallId === undefined ? {} : { targetInstallId: state.targetInstallId }),
       workerName: state.workerName,
       zoneId: state.zoneId,
       zoneName: state.zoneName,
@@ -647,7 +636,6 @@ function customDomainResourceFromDeleteTarget(
     logicalId: target.logicalId,
     host: target.host,
     profile: target.profile,
-    ...(target.targetInstallId === undefined ? {} : { targetInstallId: target.targetInstallId }),
     props: {
       adopt: target.action === "adopted" || target.action === "overridden",
       name: target.host,
@@ -801,16 +789,6 @@ async function readControlPlaneSyncedDomainProviderIntent(
   mappings: InstanceDomainMapping[];
   redirectIntents: InstanceDomainProviderRedirectIntent[];
 }> {
-  if (env.FORMLESS_AUTHORITY) {
-    await readControlPlaneAppInstallsForRequest(
-      {
-        ...env,
-        FORMLESS_AUTHORITY: env.FORMLESS_AUTHORITY,
-      },
-      requestUrl,
-    );
-  }
-
   const records = await readControlPlaneRecords({ env, requestUrl });
 
   if (records === undefined) {
@@ -836,7 +814,10 @@ function domainMappingsFromControlPlaneRecords(
         record.entity !== "route" ||
         record.values.enabled !== true ||
         record.values.kind !== "mount" ||
-        typeof record.values.matchHost !== "string"
+        typeof record.values.matchHost !== "string" ||
+        record.values.targetProfile === "app" ||
+        record.values.appInstall !== undefined ||
+        record.values.requiredRole !== undefined
       ) {
         return [];
       }
@@ -847,15 +828,11 @@ function domainMappingsFromControlPlaneRecords(
         return [];
       }
 
-      const targetInstallId =
-        typeof record.values.appInstall === "string" ? record.values.appInstall : undefined;
-
       return [
         {
           host: String(record.values.matchHost),
           profile,
           ...(profile === "publicSite" ? { surface: "site" as const } : {}),
-          ...(targetInstallId === undefined ? {} : { installId: targetInstallId, targetInstallId }),
           enabled: true,
           createdAt: record.createdAt,
           updatedAt: record.updatedAt,
@@ -868,7 +845,7 @@ function domainMappingsFromControlPlaneRecords(
 function domainMappingProfileFromRouteTarget(
   value: unknown,
 ): InstanceDomainMapping["profile"] | undefined {
-  if (value === "app" || value === "instance") {
+  if (value === "instance") {
     return value;
   }
 
@@ -1206,9 +1183,6 @@ function customDomainAppliedStateFromDeleteTarget(
     profile: target.profile,
     provider: "cloudflare-worker-custom-domain",
     ...(target.runnerId === undefined ? {} : { runnerId: target.runnerId }),
-    ...(target.targetInstallId === undefined
-      ? {}
-      : { installId: target.targetInstallId, targetInstallId: target.targetInstallId }),
     updatedAt: now,
     workerDomainId: target.resourceId,
     workerName: target.workerName,

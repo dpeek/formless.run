@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { AccessReadyContract } from "@dpeek/formless-presentation/contract";
 import type { IdentityAccessManagementSummary } from "@dpeek/formless-identity-control-plane";
-import type { AppInstall } from "@dpeek/formless-installed-apps";
 import { createApplicationRuntimePublicationCoordinator } from "../generated/application-runtime-contract-host.tsx";
 import {
   createInitialAccessPersonRoleDraft,
@@ -47,16 +46,10 @@ describe("access projection", () => {
     expect(authoring.roleSelection.options.map(({ label }) => label)).toEqual([
       "Instance — Owner",
       "Program — Administrator",
-      "Site — Administrator",
-      "Site — Editor",
-      "Formless — Administrator",
     ]);
     expect(authoring.roleSelection.options.map(({ surfaceId }) => surfaceId)).toEqual([
       "instance",
       "program",
-      "app-install:install:site",
-      "app-install:install:site",
-      "organization:organization:formless",
     ]);
 
     const selected = required(
@@ -73,9 +66,6 @@ describe("access projection", () => {
     expect(selected.roleSelection.options.map(({ label }) => label)).toEqual([
       "Instance — Owner",
       "Program — Administrator",
-      "Site — Administrator",
-      "Site — Editor",
-      "Formless — Administrator",
     ]);
     expect(selected.fields.acceptanceTarget).toBeUndefined();
   });
@@ -95,10 +85,10 @@ describe("access projection", () => {
 
     expect(authoring.fields.acceptanceTarget).toMatchObject({
       options: [
+        { label: "Instance", value: "instance" },
         { label: "Program", value: "program" },
-        { label: "Site", value: "app-install:install:site" },
       ],
-      value: "app-install:install:site",
+      value: "instance",
     });
     expect(authoring.pending).toEqual({ isPending: true, label: "Sending invitation" });
     expect(authoring.roleSelection.disabledReason).toBe("Invitation creation is in progress.");
@@ -132,17 +122,12 @@ describe("access projection", () => {
       displayName: "Ada Owner",
       personId: "principal:ada",
       roleSelection: {
-        selectedOptionIds: [
-          roleOptionId("instance", "instance", "instance.owner"),
-          roleOptionId("app-install", "install:site", "app.editor"),
-        ],
+        selectedOptionIds: [roleOptionId("instance", "instance", "instance.owner")],
       },
     });
     expect(authoring.roleSelection.options.map(({ label }) => label)).toEqual([
       "Instance — Owner",
       "Program — Administrator",
-      "Site — Editor",
-      "Formless — Administrator",
     ]);
     expect(manifest.personAuthoring).toEqual(
       instanceAccessPersonRoleAuthoringReference("principal:ada"),
@@ -169,7 +154,7 @@ describe("access intent resolution", () => {
     const authoring = required(projection.authoring);
     const selectedIds = [
       roleOptionId("program", "program", "administrator"),
-      roleOptionId("app-install", "install:site", "app.editor"),
+      roleOptionId("instance", "instance", "instance.owner"),
     ];
     const intent = {
       ...authoring.roleSelection.changeIntent,
@@ -191,17 +176,11 @@ describe("access intent resolution", () => {
     expect(resolveAccessIntent(selectedOptions, selectedProjection, submit)).toMatchObject({
       kind: "invitationSubmit",
       request: {
-        appRegistrations: [{ appInstallId: "install:site" }],
         roleAssignments: [
+          { roleKey: "instance.owner", scopeKind: "instance" },
           { roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357", scopeKind: "program" },
-          {
-            appInstallId: "install:site",
-            roleKey: "app.editor",
-            scopeKind: "app-install",
-          },
         ],
-        targetAppInstallId: "install:site",
-        targetSurface: "app-install",
+        targetSurface: "instance",
       },
     });
 
@@ -233,14 +212,7 @@ describe("access intent resolution", () => {
       kind: "personRoleSubmit",
       request: {
         principalId: "principal:ada",
-        roles: [
-          { roleKey: "instance.owner", scopeKind: "instance" },
-          {
-            appInstallId: "install:site",
-            roleKey: "app.editor",
-            scopeKind: "app-install",
-          },
-        ],
+        roles: [{ roleKey: "instance.owner", scopeKind: "instance" }],
       },
     });
 
@@ -318,7 +290,6 @@ function input({
   authoringOpen = false,
   confirmation,
   draft = validDraft(),
-  installs = [siteInstall()],
   invitationDeletion = { status: "idle" },
   invitationSubmitAttempted = false,
   personAuthoringDraft,
@@ -334,7 +305,6 @@ function input({
     authoringOpen,
     ...(confirmation ? { confirmation } : {}),
     draft,
-    installs,
     invitationDeletion,
     invitationSubmitAttempted,
     ...(personAuthoringDraft ? { personAuthoringDraft } : {}),
@@ -358,10 +328,10 @@ function validDraft(): AccessInvitationDraft {
 function selectedDraft(): AccessInvitationDraft {
   return {
     ...validDraft(),
-    acceptanceTargetId: "app-install:install:site",
+    acceptanceTargetId: "instance",
     roleOptionIds: [
       roleOptionId("program", "program", "administrator"),
-      roleOptionId("app-install", "install:site", "app.editor"),
+      roleOptionId("instance", "instance", "instance.owner"),
     ],
   };
 }
@@ -374,7 +344,6 @@ function populatedSummary({
   secondOwner?: boolean;
 } = {}): IdentityAccessManagementSummary {
   return {
-    appRegistrations: [],
     groups: [
       {
         createdAt: "2026-01-01T00:00:00.000Z",
@@ -405,32 +374,10 @@ function populatedSummary({
           : []),
         {
           displayLabel: "Program — Administrator",
-          roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+          roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357" as const,
           roleKey: "administrator",
           scopeKind: "program",
         },
-        {
-          appInstallId: "install:site",
-          displayLabel: "Site — Administrator",
-          roleKey: "app.admin",
-          scopeKind: "app-install",
-        },
-        {
-          appInstallId: "install:site",
-          displayLabel: "Site — Editor",
-          roleKey: "app.editor",
-          scopeKind: "app-install",
-        },
-        ...(owner
-          ? [
-              {
-                displayLabel: "Formless — Administrator",
-                roleKey: "app.admin" as const,
-                scopeKind: "organization" as const,
-                scopeOrganizationId: "organization:formless",
-              },
-            ]
-          : []),
       ],
     },
     invitations: [
@@ -440,9 +387,8 @@ function populatedSummary({
         invitationId: "invitation:lin",
         inviterPrincipalId: "principal:ada",
         status: "pending",
-        targetAppInstallId: "install:site",
         targetEmail: "lin@example.com",
-        targetSurface: "app-install",
+        targetSurface: "instance",
         updatedAt: "2026-07-16T00:00:00.000Z",
       },
     ],
@@ -477,10 +423,6 @@ function populatedSummary({
         ],
     roles: [
       role("role-assignment:ada-owner", "principal:ada", "instance.owner", "instance"),
-      {
-        ...role("role-assignment:ada-site-editor", "principal:ada", "app.editor", "app-install"),
-        appInstallId: "install:site",
-      },
       ...(secondOwner
         ? [role("role-assignment:bo-owner", "principal:bo", "instance.owner", "instance")]
         : []),
@@ -502,8 +444,8 @@ function person(principalId: string, displayName: string) {
 function role(
   roleAssignmentId: string,
   targetPrincipalId: string,
-  roleKey: "app.editor" | "instance.owner",
-  scopeKind: "app-install" | "instance",
+  roleKey: "instance.owner",
+  scopeKind: "instance",
 ) {
   return {
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -515,21 +457,6 @@ function role(
     status: "active" as const,
     targetKind: "principal" as const,
     targetPrincipalId,
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  };
-}
-
-function siteInstall(): AppInstall {
-  return {
-    adminRoute: "/apps/install:site",
-    createdAt: "2026-01-01T00:00:00.000Z",
-    installId: "install:site",
-    label: "Site",
-    packageAppKey: "site",
-    packageRevision: 1,
-    registrationPolicy: "closed",
-    sourceSchemaHash: `sha256:${"a".repeat(64)}`,
-    status: "installed",
     updatedAt: "2026-01-01T00:00:00.000Z",
   };
 }

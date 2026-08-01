@@ -1,61 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import type { AppInstall } from "@dpeek/formless-installed-apps";
-import { instanceControlPlaneDefaultRoutesForInstall } from "@dpeek/formless-instance-control-plane";
 import type { StoredRecord } from "@dpeek/formless-storage";
-import type { SchemaKey } from "../shared/schema-apps.ts";
-import { createAppPackageResolver } from "../shared/app-packages.ts";
-import { bundledSourceSchemaHashFixtures } from "../shared/upgrade-migrations.ts";
-import { workspaceAppPackageManifestFixture } from "../test/workspace-app-package.ts";
-import { resolveInstanceRuntimeRouteFromRecords as resolveRuntimeRouteFromRecords } from "./instance-runtime-routes.ts";
-
-const packageResolver = createAppPackageResolver([
-  workspaceAppPackageManifestFixture({
-    defaultInstallId: "crm",
-    label: "CRM",
-    packageAppKey: "test-crm",
-    sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
-  }),
-]);
-
-function resolveInstanceRuntimeRouteFromRecords(
-  input: Omit<Parameters<typeof resolveRuntimeRouteFromRecords>[0], "packageResolver">,
-) {
-  return resolveRuntimeRouteFromRecords({ ...input, packageResolver });
-}
+import { resolveInstanceRuntimeRouteFromRecords } from "./instance-runtime-routes.ts";
 
 describe("instance runtime route resolution", () => {
-  it("resolves a generated installed-app admin route for its nested screens", () => {
-    const appInstalls = [appInstall("crm", "test-crm")];
-    const records = instanceControlPlaneDefaultRoutesForInstall({
-      installId: "crm",
-      packageAppKey: "test-crm",
-      now: "2026-06-02T00:00:00.000Z",
-    });
-
-    expect(
-      resolveInstanceRuntimeRouteFromRecords({
-        appInstalls,
-        records,
-        request: { host: "formless.local", pathname: "/apps/crm/settings" },
-      }),
-    ).toMatchObject({
-      access: "authenticated",
-      id: "route:crm:admin",
-      matchPath: "/apps/crm",
-      matchPrefix: "/apps/crm/",
-      requiredRole: "app.admin",
-      target: {
-        installId: "crm",
-        kind: "appInstall",
-        packageAppKey: "test-crm",
-      },
-    });
-  });
-
   it("orders exact host, exact path, redirect, mount, and hostless matches deterministically", () => {
     const route = resolveInstanceRuntimeRouteFromRecords({
-      appInstalls: [],
       records: [
         routeRecord("hostless-exact-mount", {
           enabled: true,
@@ -143,21 +93,18 @@ describe("instance runtime route resolution", () => {
 
     expect(
       resolveInstanceRuntimeRouteFromRecords({
-        appInstalls: [],
         records,
         request: { host: "docs.example.com", pathname: "/docs/api/reference" },
       }),
     ).toMatchObject({ id: "host-longer-prefix", matchPrefix: "/docs/api/" });
     expect(
       resolveInstanceRuntimeRouteFromRecords({
-        appInstalls: [],
         records,
         request: { host: "docs.example.com", pathname: "/docs/api" },
       }),
     ).toMatchObject({ id: "host-prefix", matchHost: "docs.example.com" });
     expect(
       resolveInstanceRuntimeRouteFromRecords({
-        appInstalls: [],
         records,
         request: { host: "other.example.com", pathname: "/docs/api" },
       }),
@@ -167,7 +114,6 @@ describe("instance runtime route resolution", () => {
   it("builds redirect responses from schema-owned route target fields", () => {
     expect(
       resolveInstanceRuntimeRouteFromRecords({
-        appInstalls: [],
         records: [
           routeRecord("to-host", {
             enabled: true,
@@ -198,7 +144,6 @@ describe("instance runtime route resolution", () => {
 
     expect(
       resolveInstanceRuntimeRouteFromRecords({
-        appInstalls: [],
         records: [
           routeRecord("to-url-drop-request-parts", {
             enabled: true,
@@ -229,7 +174,6 @@ describe("instance runtime route resolution", () => {
 
     expect(
       resolveInstanceRuntimeRouteFromRecords({
-        appInstalls: [],
         records: [
           routeRecord("to-url-preserve-request-parts", {
             enabled: true,
@@ -261,7 +205,6 @@ describe("instance runtime route resolution", () => {
 
   it("can restrict resolution to exact-host route records", () => {
     const route = resolveInstanceRuntimeRouteFromRecords({
-      appInstalls: [],
       records: [
         routeRecord("hostless-exact-mount", {
           enabled: true,
@@ -317,7 +260,6 @@ describe("instance runtime route resolution", () => {
 
     expect(
       resolveInstanceRuntimeRouteFromRecords({
-        appInstalls: [],
         records,
         request: { host: "old.example.com", pathname: "/apps/site" },
       }),
@@ -329,7 +271,6 @@ describe("instance runtime route resolution", () => {
 
     expect(
       resolveInstanceRuntimeRouteFromRecords({
-        appInstalls: [],
         records,
         request: { host: "old.example.com", pathname: "/allowed" },
       }),
@@ -341,7 +282,6 @@ describe("instance runtime route resolution", () => {
 
     expect(
       resolveInstanceRuntimeRouteFromRecords({
-        appInstalls: [],
         records,
         request: { host: "other.example.com", pathname: "/apps/site" },
       }),
@@ -351,312 +291,40 @@ describe("instance runtime route resolution", () => {
     });
   });
 
-  it("resolves enabled app, Program public Site, exact-host, and disabled mount routes", () => {
+  it("omits dormant app-target routes before ranking current Program routes", () => {
     const records = [
-      routeRecord("route:crm:admin", {
-        access: "owner",
-        enabled: true,
-        matchPath: "/apps/crm",
-        matchPrefix: "/apps/crm/",
-        kind: "mount",
-        targetProfile: "app",
+      routeRecord("dormant-app", {
         appInstall: "crm",
-        surface: "admin",
-        createdAt: "2026-06-02T00:00:00.000Z",
-        updatedAt: "2026-06-02T00:00:00.000Z",
-      }),
-      routeRecord("route:crm:members", {
-        access: "authenticated",
         enabled: true,
-        matchPath: "/apps/crm/members",
+        matchHost: "app.example.com",
+        matchPath: "/",
+        matchPrefix: "/",
         kind: "mount",
-        targetProfile: "app",
-        appInstall: "crm",
         requiredRole: "app.admin",
         surface: "admin",
-        createdAt: "2026-06-02T00:00:00.000Z",
-        updatedAt: "2026-06-02T00:00:00.000Z",
-      }),
-      routeRecord("route:crm:settings", {
-        access: "authenticated",
-        enabled: true,
-        matchPath: "/apps/crm/settings",
-        matchPrefix: "/apps/crm/settings/",
-        kind: "mount",
         targetProfile: "app",
-        appInstall: "crm",
-        requiredRole: "app.admin",
-        surface: "admin",
-        createdAt: "2026-06-02T00:00:00.000Z",
-        updatedAt: "2026-06-02T00:00:00.000Z",
       }),
-      routeRecord("route:host:publicSite:www.example.com", {
-        enabled: true,
-        matchHost: "www.example.com",
-        matchPath: "/",
-        matchPrefix: "/",
-        kind: "mount",
-        targetProfile: "public-site",
-        surface: "public-site",
-        createdAt: "2026-06-02T00:00:00.000Z",
-        updatedAt: "2026-06-02T00:00:00.000Z",
-      }),
-      routeRecord("route:host:00-installed-publicSite:www.example.com", {
-        appInstall: "crm",
-        enabled: true,
-        matchHost: "www.example.com",
-        matchPath: "/",
-        matchPrefix: "/",
-        kind: "mount",
-        targetProfile: "public-site",
-        surface: "public-site",
-      }),
-      routeRecord("route:host:instance:admin.example.com", {
-        access: "management",
-        enabled: true,
-        matchHost: "admin.example.com",
-        matchPath: "/",
-        matchPrefix: "/",
-        kind: "mount",
-        targetProfile: "instance",
-        surface: "admin",
-      }),
-      routeRecord("route:disabled", {
-        enabled: false,
-        matchPath: "/disabled",
-        kind: "mount",
-        targetProfile: "instance",
-        createdAt: "2026-06-02T00:00:00.000Z",
-        updatedAt: "2026-06-02T00:00:00.000Z",
-      }),
-    ];
-    const appInstalls = [appInstall("crm", "test-crm")];
-
-    expect(
-      resolveInstanceRuntimeRouteFromRecords({
-        appInstalls,
-        records,
-        request: { host: "formless.local", pathname: "/apps/crm" },
-      }),
-    ).toMatchObject({
-      access: "owner",
-      id: "route:crm:admin",
-      kind: "mount",
-      surface: "admin",
-      target: { installId: "crm", kind: "appInstall", packageAppKey: "test-crm" },
-      targetProfile: "app",
-    });
-    expect(
-      resolveInstanceRuntimeRouteFromRecords({
-        appInstalls,
-        records,
-        request: { host: "formless.local", pathname: "/apps/crm/members" },
-      }),
-    ).toMatchObject({
-      access: "authenticated",
-      id: "route:crm:members",
-      kind: "mount",
-      requiredRole: "app.admin",
-      surface: "admin",
-      target: { installId: "crm", kind: "appInstall", packageAppKey: "test-crm" },
-      targetProfile: "app",
-    });
-    expect(
-      resolveInstanceRuntimeRouteFromRecords({
-        appInstalls,
-        records,
-        request: { host: "formless.local", pathname: "/apps/crm/settings/profile" },
-      }),
-    ).toMatchObject({
-      id: "route:crm:settings",
-      matchPrefix: "/apps/crm/settings/",
-    });
-    expect(
-      resolveInstanceRuntimeRouteFromRecords({
-        appInstalls,
-        records,
-        request: { host: "admin.example.com", pathname: "/settings" },
-      }),
-    ).toMatchObject({
-      access: "management",
-      id: "route:host:instance:admin.example.com",
-      kind: "mount",
-      matchHost: "admin.example.com",
-      targetProfile: "instance",
-    });
-    expect(
-      resolveInstanceRuntimeRouteFromRecords({
-        appInstalls,
-        records,
-        request: { host: "www.example.com", pathname: "/blog" },
-      }),
-    ).toMatchObject({
-      access: "anonymous",
-      id: "route:host:publicSite:www.example.com",
-      matchHost: "www.example.com",
-      surface: "public-site",
-      targetProfile: "public-site",
-    });
-    expect(
-      resolveInstanceRuntimeRouteFromRecords({
-        appInstalls,
-        records,
-        request: { host: "www.example.com", pathname: "/blog" },
-      }),
-    ).not.toHaveProperty("target");
-    expect(
-      resolveInstanceRuntimeRouteFromRecords({
-        appInstalls,
-        records,
-        request: { host: "formless.local", pathname: "/disabled" },
-      }),
-    ).toBeUndefined();
-  });
-
-  it("derives default access and rejects app routes without an installed storage target", () => {
-    const appInstalls = [appInstall("crm", "test-crm")];
-    const records = [
-      routeRecord("crm-default-owner", {
-        enabled: true,
-        matchPath: "/apps/crm",
-        kind: "mount",
-        targetProfile: "app",
-        appInstall: "crm",
-        surface: "admin",
-      }),
-      routeRecord("site-default-anonymous", {
-        enabled: true,
-        matchPath: "/pages",
-        kind: "mount",
-        targetProfile: "public-site",
-        surface: "public-site",
-      }),
-      routeRecord("instance-default-management", {
-        enabled: true,
-        matchPath: "/settings",
-        kind: "mount",
-        targetProfile: "instance",
-        surface: "admin",
-      }),
-      routeRecord("missing-install", {
-        enabled: true,
-        matchPath: "/apps/missing",
-        kind: "mount",
-        targetProfile: "app",
-        appInstall: "missing",
-        surface: "admin",
-      }),
-      routeRecord("installed-public-site", {
-        appInstall: "crm",
-        enabled: true,
-        matchPath: "/installed-public-site",
-        kind: "mount",
-        targetProfile: "public-site",
-        surface: "public-site",
-      }),
-    ];
-
-    expect(
-      resolveInstanceRuntimeRouteFromRecords({
-        appInstalls,
-        records,
-        request: { host: "formless.local", pathname: "/settings" },
-      }),
-    ).toMatchObject({
-      access: "management",
-      id: "instance-default-management",
-      targetProfile: "instance",
-    });
-    expect(
-      resolveInstanceRuntimeRouteFromRecords({
-        appInstalls,
-        records,
-        request: { host: "formless.local", pathname: "/apps/crm" },
-      }),
-    ).toMatchObject({
-      access: "owner",
-      target: {
-        authorityName: "app:crm",
-        installId: "crm",
-        kind: "appInstall",
-        packageAppKey: "test-crm",
-      },
-    });
-    expect(
-      resolveInstanceRuntimeRouteFromRecords({
-        appInstalls,
-        records,
-        request: { host: "formless.local", pathname: "/pages" },
-      }),
-    ).toMatchObject({
-      access: "anonymous",
-      targetProfile: "public-site",
-    });
-    expect(
-      resolveInstanceRuntimeRouteFromRecords({
-        appInstalls,
-        records,
-        request: { host: "formless.local", pathname: "/apps/missing" },
-      }),
-    ).toBeUndefined();
-    expect(
-      resolveInstanceRuntimeRouteFromRecords({
-        appInstalls,
-        records,
-        request: { host: "formless.local", pathname: "/installed-public-site" },
-      }),
-    ).toBeUndefined();
-  });
-
-  it("filters dormant Program-native package mounts before route ranking", () => {
-    const dormantTasks = appInstall("tasks", "tasks");
-    const dormantSite = appInstall("site", "site");
-    const crm = appInstall("crm", "test-crm");
-    const records = [
-      routeRecord("dormant-tasks", {
+      routeRecord("program-site", {
         enabled: true,
         matchHost: "app.example.com",
         matchPath: "/",
         matchPrefix: "/",
         kind: "mount",
-        targetProfile: "app",
-        appInstall: "tasks",
-        surface: "admin",
-      }),
-      routeRecord("dormant-site", {
-        enabled: true,
-        matchHost: "app.example.com",
-        matchPath: "/",
-        matchPrefix: "/",
-        kind: "mount",
-        targetProfile: "app",
-        appInstall: "site",
-        surface: "admin",
-      }),
-      routeRecord("active-crm", {
-        enabled: true,
-        matchHost: "app.example.com",
-        matchPath: "/",
-        matchPrefix: "/",
-        kind: "mount",
-        targetProfile: "app",
-        appInstall: "crm",
-        surface: "admin",
+        surface: "public-site",
+        targetProfile: "public-site",
       }),
     ];
 
     expect(
       resolveInstanceRuntimeRouteFromRecords({
-        appInstalls: [dormantTasks, dormantSite, crm],
         records,
         request: { host: "app.example.com", pathname: "/dashboard" },
       }),
     ).toMatchObject({
-      id: "active-crm",
-      target: {
-        installId: "crm",
-        packageAppKey: "test-crm",
-      },
+      access: "anonymous",
+      id: "program-site",
+      surface: "public-site",
+      targetProfile: "public-site",
     });
   });
 });
@@ -668,23 +336,5 @@ function routeRecord(id: string, values: StoredRecord["values"]): StoredRecord {
     entity: "route",
     id,
     values,
-  };
-}
-
-function appInstall(installId: string, packageAppKey: SchemaKey | "test-crm"): AppInstall {
-  return {
-    adminRoute: `/apps/${installId}`,
-    createdAt: "2026-06-02T00:00:00.000Z",
-    installId,
-    label: installId,
-    packageAppKey,
-    packageRevision: 1,
-    registrationPolicy: "closed",
-    sourceSchemaHash:
-      packageAppKey === "test-crm"
-        ? bundledSourceSchemaHashFixtures.crm
-        : bundledSourceSchemaHashFixtures[packageAppKey],
-    status: "installed",
-    updatedAt: "2026-06-02T00:00:00.000Z",
   };
 }

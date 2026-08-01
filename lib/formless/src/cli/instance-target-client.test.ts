@@ -15,7 +15,6 @@ import {
 import { bundledSourceSchemaHashFixtures } from "../shared/upgrade-migrations.ts";
 import {
   patchFormlessInstanceDeploymentConfigObservation,
-  readFormlessInstanceAppRegistry,
   readFormlessInstanceControlPlaneRecords,
   readFormlessInstanceDeploymentCommandContext,
   readFormlessInstanceDeployMetadata,
@@ -64,46 +63,6 @@ describe("Formless instance target client", () => {
       storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
       version: "0.1.8",
     });
-  });
-
-  it("does not select app registry package facts as target status", async () => {
-    const result = await readFormlessInstanceAppRegistry(
-      { targetUrl: "https://instance.example" },
-      {
-        fetch: async () =>
-          Response.json({
-            packages: [
-              {
-                adminRouteBase: "/apps",
-                defaultInstallId: "site",
-                description: "Site package",
-                label: "Site",
-                packageAppKey: "site",
-                packageRevision: 1,
-                sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
-                sourceSchemaKey: "site",
-                supportsMultipleInstalls: true,
-              },
-            ],
-            installs: [
-              {
-                adminRoute: "/apps/site",
-                createdAt: "2026-05-28T00:00:00.000Z",
-                installId: "site",
-                label: "Site",
-                packageAppKey: "site",
-                registrationOperation: "profile.register",
-                registrationPolicy: "custom-operation",
-                status: "installed",
-                updatedAt: "2026-05-28T00:00:00.000Z",
-              },
-            ],
-          }),
-      },
-    );
-
-    expect(result.installs).toEqual([]);
-    expect(result.packages).toEqual([]);
   });
 
   it("surfaces target upgrade facts through HTTP reads without Durable Object SQLite access", async () => {
@@ -169,7 +128,6 @@ describe("Formless instance target client", () => {
                   label: "Site",
                   packageAppKey: "site",
                   packageRevision: 1,
-                  registrationPolicy: "closed",
                   sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
                   status: "installed",
                   updatedAt: "2026-05-28T00:00:00.000Z",
@@ -209,7 +167,6 @@ describe("Formless instance target client", () => {
     expect(requests).toEqual([
       "GET https://instance.example/api/formless/deploy",
       "GET https://instance.example/api/formless/setup",
-      "GET https://instance.example/api/formless/app-installs",
       "GET https://instance.example/api/formless/deployments/status",
     ]);
     expect(result.ownerSetup).toEqual({
@@ -237,7 +194,7 @@ describe("Formless instance target client", () => {
     expect(result.upgradeStatus.deployment?.status.state).toBe("deployed");
   });
 
-  it("compares deploy metadata against active resolved local package facts", async () => {
+  it("does not compare Program deploy metadata against dormant package facts", async () => {
     const resolver = createAppPackageResolver([
       ...bundledAppPackageManifests,
       privatePackageManifest(),
@@ -276,13 +233,6 @@ describe("Formless instance target client", () => {
             return Response.json({ setupComplete: true });
           }
 
-          if (pathname === "/api/formless/app-installs") {
-            return Response.json({
-              packages: listInstallableAppPackages(bundledAppPackageResolver),
-              installs: [],
-            });
-          }
-
           return Response.json({ error: "not found" }, { status: 404 });
         },
       },
@@ -293,12 +243,7 @@ describe("Formless instance target client", () => {
       packageRevision: 7,
       sourceSchemaHash: privateSourceSchemaHash,
     });
-    expect(result.upgradeStatus.verificationFailures).toContainEqual({
-      code: "deploy-metadata-package-app-missing",
-      message: 'Deployed metadata is missing package app "private-labs".',
-      packageAppKey: "private-labs",
-      source: "deployed-metadata",
-    });
+    expect(result.upgradeStatus.verificationFailures).toEqual([]);
   });
 
   it("returns explicit upgrade verification failures for legacy target metadata", async () => {
@@ -318,24 +263,6 @@ describe("Formless instance target client", () => {
             return Response.json({ setupComplete: true });
           }
 
-          if (pathname === "/api/formless/app-installs") {
-            return Response.json({
-              packages: listInstallableAppPackages(bundledAppPackageResolver),
-              installs: [
-                {
-                  adminRoute: "/apps/site",
-                  createdAt: "2026-05-28T00:00:00.000Z",
-                  installId: "site",
-                  label: "Site",
-                  packageAppKey: "site",
-                  registrationPolicy: "closed",
-                  status: "installed",
-                  updatedAt: "2026-05-28T00:00:00.000Z",
-                },
-              ],
-            });
-          }
-
           if (pathname === "/api/formless/deployments/status") {
             return Response.json({ error: "not found" }, { status: 404 });
           }
@@ -350,7 +277,6 @@ describe("Formless instance target client", () => {
       "deploy-metadata-package-version-missing",
       "deploy-metadata-runtime-protocol-version-missing",
       "deploy-metadata-storage-migration-set-missing",
-      "deploy-metadata-package-apps-missing",
       "deployment-status-unavailable",
     ]);
   });

@@ -26,9 +26,8 @@ const eligibleInvitation = {
   invitationId: "invitation:eligible",
   invitedPrincipalDisplayName: "Ada Collaborator",
   passkeyRegistrationRequired: true,
-  targetAppInstallId: "site",
   targetEmail: "Ada.Collab@example.com",
-  targetSurface: "app-install",
+  targetSurface: "instance",
 } satisfies CollaboratorInvitationAcceptanceInvitationSummary;
 
 const failureCases = [
@@ -395,12 +394,11 @@ function completeAccountCompletion(targetOrigin: string) {
     continueTo: "/dashboard?view=home",
     status: "complete",
     target: {
-      appInstallId: "site",
       returnTo: "/dashboard?view=home",
       routeId: "route:site",
-      storageIdentity: "app:site",
+      storageIdentity: "instance:control-plane",
       targetOrigin,
-      targetProfile: "app",
+      targetProfile: "instance",
     },
   } as const;
 }

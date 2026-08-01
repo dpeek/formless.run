@@ -28,7 +28,6 @@ import {
   WORKSPACE_GATEWAY_PROXY_TOKEN_ENV,
   WORKSPACE_GATEWAY_SIDECAR_URL_ENV,
 } from "@dpeek/formless-gateway";
-import { FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME } from "../shared/workspace-runtime-packages.ts";
 import {
   FORMLESS_SITE_PROJECT_ROOT_ENV_NAME,
   SITE_PUBLIC_RENDERER_BROWSER_ENTRYPOINT_MODULE_ID,
@@ -70,7 +69,6 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
   const isUnitTest = env.VITEST === "true" && env.NODE_ENV !== "production";
   const installedNodeModulesRoot = packageInstallNodeModulesRoot(packageRoot);
   const siteProjectRoot = env[FORMLESS_SITE_PROJECT_ROOT_ENV_NAME];
-  const workspaceAppPackages = env[FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]?.trim();
   const workspaceProgramArtifact = runtimeFormlessProgramArtifactFromEnv(env);
   const serverFsAllow = [
     packageRoot,
@@ -106,7 +104,6 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
     },
     define: {
       [FORMLESS_PROGRAM_ARTIFACT_DEFINE_NAME]: JSON.stringify(workspaceProgramArtifact ?? ""),
-      __FORMLESS_WORKSPACE_APP_PACKAGES_JSON__: JSON.stringify(workspaceAppPackages ?? ""),
     },
     plugins: [
       formlessWorkspaceRuntimeExtensionsPlugin({ env }),

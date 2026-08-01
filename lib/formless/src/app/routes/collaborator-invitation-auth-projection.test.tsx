@@ -24,9 +24,8 @@ const invitation = {
   invitationId: "invitation:eligible",
   invitedPrincipalDisplayName: "Ada Collaborator",
   passkeyRegistrationRequired: true,
-  targetAppInstallId: "site-private-id",
   targetEmail: "Ada.Collab@example.com",
-  targetSurface: "app-install",
+  targetSurface: "instance",
 } satisfies CollaboratorInvitationAcceptanceInvitationSummary;
 
 const acceptedState = {
@@ -100,7 +99,7 @@ describe("collaborator invitation auth projection", () => {
 
     expect(surface.facts.map(({ label, value }) => [label, value])).toEqual([
       ["Email", "Ada.Collab@example.com"],
-      ["Surface", "App install"],
+      ["Surface", "Instance"],
       ["Name", "Ada Collaborator"],
       ["Expires", "2026-07-01T00:00:00.000Z"],
     ]);
@@ -112,7 +111,6 @@ describe("collaborator invitation auth projection", () => {
     expect(surface.fields).toEqual([]);
     expect(surface.policies).toEqual([]);
     expect(serialized).not.toContain(invitation.invitationId);
-    expect(serialized).not.toContain(invitation.targetAppInstallId);
     expect(serialized).not.toContain(rawToken);
     expect(serialized).not.toContain(tokenHash);
     expect(serialized).not.toContain(credentialId);

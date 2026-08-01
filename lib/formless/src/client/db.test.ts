@@ -16,7 +16,6 @@ import { programClientTarget } from "./app-target.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { BootstrapResponse, ChangeRow } from "../shared/protocol.ts";
 import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
-import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
 import { taskSourceSchema as appSchema } from "../test/schema-apps.ts";
 import { testSiteRecords } from "../test/site-records.ts";
 
@@ -24,10 +23,9 @@ const program = programClientTarget();
 
 beforeEach(async () => {
   await deleteClientDb(program);
-  await deleteClientDb(installedCRMIdentity("personal"));
-  await deleteClientDb(installedCRMIdentity("docs"));
   await deleteRawDatabase("formless:site");
   await deleteRawDatabase("formless:tasks");
+  await deleteRawDatabase("formless:app:personal");
   await deleteRawDatabase("formless:instance:identity");
   await deleteRawDatabase("notes");
 });
@@ -58,9 +56,7 @@ describe("client db", () => {
     await saveBootstrapResponse(program, {
       schema: appSchema,
       schemaProvenance: {
-        kind: "package-app",
-        packageAppKey: "tasks",
-        packageRevision: 4,
+        kind: "program",
         sourceSchemaHash,
       },
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
@@ -69,43 +65,13 @@ describe("client db", () => {
     } satisfies BootstrapResponse);
 
     expect((await readLocalSnapshot(program)).schemaProvenance).toEqual({
-      kind: "package-app",
-      packageAppKey: "tasks",
-      packageRevision: 4,
+      kind: "program",
       sourceSchemaHash,
     });
 
     await saveSchema(program, appSchema, "2026-04-28T00:01:00.000Z");
 
     expect((await readLocalSnapshot(program)).schemaProvenance).toBeNull();
-  });
-
-  it("stores installed app replicas by install id", async () => {
-    const personal = installedCRMIdentity("personal");
-    const docs = installedCRMIdentity("docs");
-
-    await saveBootstrapResponse(personal, {
-      schema: appSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [record("record-1", "Personal")],
-      cursor: 1,
-    });
-    await saveBootstrapResponse(docs, {
-      schema: appSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [record("record-2", "Docs")],
-      cursor: 2,
-    });
-
-    await deleteRawDatabase("formless:app:docs");
-
-    expect(clientDbName(personal)).toBe("formless:app:personal");
-    expect((await readLocalSnapshot(personal)).records).toEqual([record("record-1", "Personal")]);
-    expect(await readLocalSnapshot(docs)).toMatchObject({
-      schema: null,
-      records: [],
-      cursor: 0,
-    });
   });
 
   it("stores instance, identity, and Site records in one Program replica", async () => {
@@ -130,15 +96,9 @@ describe("client db", () => {
     ]);
   });
 
-  it("deletes active Formless replicas without adopting the legacy Tasks replica", async () => {
-    const personal = installedCRMIdentity("personal");
+  it("deletes only the active Program replica", async () => {
     await createRawDatabase("formless:tasks");
-    await saveBootstrapResponse(personal, {
-      schema: appSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [record("record-2", "Personal")],
-      cursor: 2,
-    });
+    await createRawDatabase("formless:app:personal");
     await saveBootstrapResponse(program, {
       schema: appSchema,
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
@@ -150,14 +110,12 @@ describe("client db", () => {
     const result = await deleteFormlessReplicaDatabases();
     const databaseNames = await rawDatabaseNames();
 
-    expect(result.deletedDatabaseNames).toEqual([
-      "formless:app:personal",
-      "formless:instance:control-plane",
-    ]);
+    expect(result.deletedDatabaseNames).toEqual(["formless:instance:control-plane"]);
+    expect(result.skippedDatabaseNames).toContain("formless:app:personal");
     expect(result.skippedDatabaseNames).toContain("formless:tasks");
     expect(result.skippedDatabaseNames).toContain("notes");
     expect(databaseNames).toContain("formless:tasks");
-    expect(databaseNames).not.toContain("formless:app:personal");
+    expect(databaseNames).toContain("formless:app:personal");
     expect(databaseNames).not.toContain("formless:instance:control-plane");
     expect(databaseNames).toContain("notes");
     expect(isFormlessReplicaDatabaseName("notes")).toBe(false);
@@ -304,16 +262,6 @@ async function rawDatabaseNames() {
     .filter((name): name is string => typeof name === "string")
     .toSorted();
 }
-function installedCRMIdentity(installId: string) {
-  const identity = installedAppStorageIdentity({ installId, packageAppKey: "crm" });
-
-  if (!identity) {
-    throw new Error(`Expected installed CRM identity for ${installId}.`);
-  }
-
-  return identity;
-}
-
 function recordWithEstimate(id: string, title: string, estimate: number): StoredRecord {
   return {
     ...record(id, title),

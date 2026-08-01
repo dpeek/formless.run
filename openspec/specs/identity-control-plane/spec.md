@@ -4,9 +4,9 @@
 
 Identity control plane defines the runtime-owned, reviewable identity records
 for a Formless instance. It supplies common principal, email, group,
-organization, role, membership, app registration, invitation, account policy,
-and policy acceptance contracts while keeping credentials, challenges, token
-hashes, sessions, grants, and provider state outside reviewable app records.
+organization, protected-owner role, membership, invitation, account policy, and
+policy acceptance contracts while keeping credentials, challenges, token
+hashes, sessions, grants, and provider state outside reviewable Program records.
 
 ## Requirements
 
@@ -22,8 +22,8 @@ schema declarations composed into the downstream Program.
 - THEN it uses boundary schema key `auth` without selecting a separate runtime
   schema key, storage identity, generic API, cursor, snapshot, or replica
 - AND it defines flat records for principals, principal emails, groups,
-  organizations, memberships, roles, role assignments, app registrations, and
-  invitations
+  organizations, memberships, protected-owner roles and assignments, Program
+  role assignments, and invitations
 - AND it defines flat records for account policies and principal policy
   acceptances used by account completion gates
 - AND identity and instance declarations remain package-owned domains inside one
@@ -99,9 +99,7 @@ without forcing private auth state into reviewable storage.
 - THEN storage is initialized from the complete materialized Program source
 - AND schema-defined Program roles come from the root-owned
   `authorization.roles` catalog rather than mutable identity `role` records
-- AND built-in `role` records remain only for protected owner authority and
-  installed-app authorization while those boundaries still use legacy
-  role-assignment records
+- AND built-in `role` records remain only for protected owner authority
 - AND each remaining built-in role record has a deterministic id derived from
   its role key, such as `role:instance.owner` for `instance.owner`
 
@@ -139,8 +137,8 @@ without forcing private auth state into reviewable storage.
 - AND each Program role assignment references a stable role id from the active
   Program schema and at most one active Program role assignment exists for a
   principal
-- AND selected-target uniqueness for memberships, legacy role assignments, app
-  registrations, and policy acceptances is enforced before commit
+- AND selected-target uniqueness for memberships, protected-owner role
+  assignments, and policy acceptances is enforced before commit
 - AND invalid references, unsupported entity names, duplicate active role keys,
   unknown Program role ids, duplicate normalized active emails, and duplicate
   assignment or selected-target facts reject the write without a partial commit
@@ -154,6 +152,17 @@ without forcing private auth state into reviewable storage.
   snapshot, archive, workspace state file, and browser replica as instance
   control-plane records
 - AND private auth state remains excluded from each of those boundaries
+
+#### Scenario: Removed app identity facts are not current Program state
+
+- GIVEN stored Program history contains app registrations, app role records,
+  app-scoped assignments, or app-targeted invitations and policies
+- WHEN identity validation, access summaries, account completion, snapshots,
+  workspace source, archives, sync, or replica projection selects current state
+- THEN those facts are omitted because they are not declared by the active
+  identity module or current Program schema
+- AND omission does not migrate, rewrite, tombstone, clean up, alias, or expose
+  a compatibility surface for the dormant records
 
 ### Requirement: Principal And Email Records
 
@@ -215,10 +224,10 @@ boundaries as flat identity records.
   target record
 - AND membership facts do not duplicate app-specific account or profile records
 
-### Requirement: Program And Legacy Role Assignments
+### Requirement: Program And Protected Owner Role Assignments
 
 The system SHALL store Program-wide schema role assignments without adapting
-installed-app scopes or protected owner authority into the Program role model.
+protected owner authority into the Program role model.
 
 #### Scenario: Program role assignment record shape
 
@@ -233,51 +242,22 @@ installed-app scopes or protected owner authority into the Program role model.
 - AND the assignment has no target-kind selector, scope kind, app-install id,
   organization id, mutable role record reference, grants, or inheritance
 
-#### Scenario: Legacy role vocabulary remains isolated
+#### Scenario: Protected owner vocabulary remains isolated
 
-- GIVEN installed-app data remains in external installed-app Authorities
-- WHEN protected owner or installed-app authority is inspected
-- THEN built-in legacy role records are limited to `instance.owner`,
-  `app.admin`, `app.editor`, `app.viewer`, and `app.user`
+- GIVEN protected owner authority is inspected
+- WHEN built-in identity role records are selected
+- THEN the only built-in role key is `instance.owner`
 - AND `instance.admin` is not a role record, assignment, or authorization fact
-- AND legacy role assignments retain their existing target and scope fields
-  only for protected owner and installed-app or organization authorization
-- AND those legacy assignments are not interpreted as Program schema role
+- AND protected-owner assignments target a principal at instance scope
+- AND those assignments are not interpreted as Program schema role
   assignments
 - AND the first owner remains represented as an `instance.owner` role
   assignment for a principal at instance scope
 
-#### Scenario: App admin runtime scope
+### Requirement: Invitation Records
 
-- GIVEN an active principal has an active `app.admin` role assignment at
-  app-install scope
-- WHEN runtime authorization resolves a protected installed app target
-- THEN the assignment authorizes only the app install named by its scope id
-- AND it does not authorize another app install, operational instance
-  management, or owner-only behavior
-- AND disabling the principal, role record, or role assignment removes that
-  authority from subsequent route, read, write, sync, and push checks without
-  relying on session expiry
-
-### Requirement: App Registration And Invitation Records
-
-The system SHALL store display-safe app identity enrollment and pending invite
-facts without storing raw auth secrets.
-
-#### Scenario: App registration record shape
-
-- GIVEN the identity control-plane schema defines `app-registration`
-- WHEN app registration records are inspected
-- THEN each registration stores an app install id, target kind, target
-  reference, registration status, and optional selected organization reference
-  as flat values
-- AND supported target kinds are `principal` and `organization`
-- AND supported first-pass statuses are `active`, `pending`, and `disabled`
-- AND active app registrations are unique by app install id, target kind, and
-  selected target record
-- AND app-specific profile or account records remain app-owned records and
-  reference identity records by id through supported app-schema reference
-  targets such as `auth:principal` and `auth:organization`
+The system SHALL store display-safe pending invitation facts without storing
+raw auth secrets.
 
 #### Scenario: Invitation record shape
 
@@ -303,11 +283,9 @@ flat identity records without treating acceptance as a credential.
 - THEN each policy stores display name, policy key, version, scope kind,
   optional scope reference, status, and optional published timestamp as flat
   values
-- AND supported first-pass scope kinds are `instance`, `app-install`, and
-  `organization`
+- AND supported first-pass scope kinds are `instance` and `organization`
 - AND `instance` scope does not require a scope reference
-- AND `app-install` and `organization` scopes require the selected scope
-  reference
+- AND `organization` scope requires the selected scope reference
 - AND supported first-pass statuses are `active` and `retired`
 - AND the policy record may reference display-safe policy text, document, or
   app-owned content by id or URL, but it does not store credentials, sessions,
@@ -322,17 +300,15 @@ flat identity records without treating acceptance as a credential.
 - AND supported first-pass statuses are `accepted` and `revoked`
 - AND active accepted records are unique by principal and account policy
 - AND terms or policy acceptance does not by itself authenticate the principal,
-  grant roles, activate app registrations, issue sessions, or mint handoff
-  grants
+  grant roles, issue sessions, or mint handoff grants
 
 #### Scenario: Account policy acceptance target scope
 
-- GIVEN an active account policy is scoped to an instance, app install, or
-  organization
+- GIVEN an active account policy is scoped to an instance or organization
 - WHEN account completion evaluates a `terms-acceptance` gate for a target
 - THEN only policies whose scope applies to that target can block that target
-- AND accepting a policy for one app install or organization does not satisfy an
-  unrelated app-install or organization policy
+- AND accepting a policy for one organization does not satisfy an unrelated
+  organization policy
 - AND stale, revoked, retired, tombstoned, or wrong-scope acceptance records do
   not satisfy the gate
 - AND policy acceptance records remain reviewable identity records rather than
@@ -351,18 +327,17 @@ as reviewable identity records.
 - OR trusted automation supplies valid admin bearer authorization
 - WHEN the request creates a collaborator invitation through
   `POST /api/formless/identity/collaborator-invitations` for a valid target
-  email, target surface, and optional target app install or organization
+  email, target surface, and optional target organization
 - THEN identity storage commits one pending `invitation` record with
   display-safe target facts
 - AND the runtime sets expiry to seven days after the accepted request time
 - AND the inviter principal reference is recorded when the request is
   authorized by a browser principal session
 - AND optional invited principal, principal-email, membership,
-  `program-role-assignment`, legacy role-assignment, or app-registration
-  records are normal flat identity records linked by id
+  `program-role-assignment`, or protected-owner role-assignment records are
+  normal flat identity records linked by id
 - AND invited principal and membership records use invited status until invite
   acceptance activates them
-- AND app-registration records created before acceptance use pending status
 - AND any role assignment created for an invited principal does not authorize
   browser access until the invited principal becomes active
 - AND raw invite tokens, token hashes, rendered email bodies, email delivery
@@ -371,13 +346,11 @@ as reviewable identity records.
 #### Scenario: Select invitation roles across access surfaces
 
 - GIVEN access management offers current grant-authorized Program role levels,
-  protected owner authority, and installed-app or organization role levels
+  protected owner authority, and organization membership
 - WHEN an invitation selects role grants
 - THEN each choice identifies one exact access surface and one role level
 - AND the invitation may select role levels for more than one access surface
 - AND it selects at most one role level for each exact access surface
-- AND each selected app-install surface creates one pending app registration
-  for the invited principal when no matching registration exists
 - AND the invitation record retains one exact target surface for acceptance
   continuation
 - AND when one role surface is selected that surface may be used as the target
@@ -392,9 +365,8 @@ as reviewable identity records.
   `instance.owner` authority at instance scope
 - WHEN the principal creates a collaborator invitation
 - THEN the request may include invited principal, principal-email, membership,
-  app-registration, Program role-assignment, and legacy role-assignment records
-  for any schema-defined Program role or supported legacy role, including
-  `instance.owner`
+  Program role-assignment, and protected-owner role-assignment records for any
+  schema-defined Program role or `instance.owner`
 - AND owner-only last-owner, recovery, credential, and admin-bearer safety
   rules remain enforced by the owner-only paths that manage those capabilities
 - AND the invitation still does not authorize browser access until invite
@@ -408,10 +380,8 @@ as reviewable identity records.
 - AND the principal does not have active `instance.owner` authority
 - WHEN the principal creates a collaborator invitation
 - THEN the request may include invited principal and principal-email records
-- AND it may include app-registration records for app-install targets
 - AND it may include one Program role assignment for `administrator`, `editor`,
-  or `member` and app-scoped `app.admin`, `app.editor`, `app.viewer`, or
-  `app.user` assignments at app-install scope
+  or `member`
 - AND it may not include `instance.owner`, organization-scoped role
   assignments, group memberships, organization memberships, or owner recovery
   capabilities
@@ -456,11 +426,10 @@ identity-control-plane record editor to normal administrators.
 - THEN the surface reads identity data through purpose-built access management
   behavior
 - AND the response includes only display-safe people, primary email, role,
-  app-registration, organization, group, and invitation summary facts needed by
-  the surface
+  organization, group, and invitation summary facts needed by the surface
 - AND the response includes display-safe collaborator invitation grant choices
   derived from the current actor's active owner or Program administrator
-  authority and exact available Program, app-install, and organization surfaces
+  authority and exact available Program and organization surfaces
 - AND revoked invitations and disabled principals may remain reviewable
   identity records without remaining in the active invitation or people lists
 - AND raw invite tokens, token hashes, credential material, passkey challenge
@@ -474,7 +443,7 @@ identity-control-plane record editor to normal administrators.
 
 - GIVEN the dedicated access management surface submits an invitation request
   for a target email, display name, target surface, and requested
-  roles, app registrations, groups, or organization memberships
+  roles, groups, or organization memberships
 - WHEN the request is accepted
 - THEN it uses the collaborator invitation creation contract and private invite
   token boundary
@@ -498,12 +467,12 @@ identity-control-plane record editor to normal administrators.
 - AND the active invitation list omits the revoked invitation after refresh
 - AND the reviewable invitation record is retained rather than hard deleted
 - AND the invitation keeps display-safe target email, target surface, inviter
-  principal, invited principal, target app install or organization, expiry, and
+  principal, invited principal, target organization, expiry, and
   accepted timestamp facts when present
 - AND private instance auth state revokes the matching invitation token so the
   invitation link can no longer be accepted
 - AND revocation does not activate invited principals, verify principal emails,
-  enable invited memberships, enable pending app registrations, grant role
+  enable invited memberships, grant role
   authority, issue credentials, issue sessions, or mint handoff grants
 - AND raw invite tokens, token hashes, credential material, passkey challenge
   secrets, session ids, handoff grant secrets, provider responses, recovery
@@ -535,8 +504,7 @@ identity-control-plane record editor to normal administrators.
 - AND only an active `instance.owner` may grant, replace, or remove
   `instance.owner`
 - AND a Program administrator may manage `administrator`, `editor`, `member`,
-  and app-install role levels but may not manage owner or organization
-  authority
+  but may not manage owner or organization authority
 - AND current principal, role, assignment, target, and actor authority are
   re-read during the mutation instead of trusted from the browser summary
 - AND successful replacement immediately narrows subsequent route, data,
@@ -552,7 +520,7 @@ identity-control-plane record editor to normal administrators.
 - THEN the mutation is authorized only for an active `instance.owner`
 - AND it is rejected if it would leave the instance without an active owner
 - AND the rejection does not change principal, role assignment, credential,
-  session, invitation, membership, app registration, or private auth state
+  session, invitation, membership, or private auth state
 
 #### Scenario: Remove person from access management
 
@@ -566,8 +534,8 @@ identity-control-plane record editor to normal administrators.
 - AND private instance auth state revokes the matching pending invitation
   tokens so those invitation links can no longer be accepted
 - AND the active people list omits the disabled principal after refresh
-- AND existing email, membership, app-registration, role-assignment, policy,
-  and invitation identity records, including revoked invitations, remain
+- AND existing email, membership, role-assignment, policy, and invitation
+  identity records, including revoked invitations, remain
   reviewable rather than being hard deleted
 - AND private credentials remain outside reviewable identity records and are
   not deleted by this access-management action
@@ -634,9 +602,9 @@ revocation, refresh, validation, and private auth state.
   selected surface are omitted until that selected level is removed
 - AND person removal and invitation deletion carry explicit confirmation,
   pending, success, and failure contracts
-- AND organization, group, membership, app-registration, app-install, role,
-  inviter, and scope labels are resolved before publication rather than being
-  reconstructed from raw records or displayed from storage ids
+- AND organization, group, membership, role, inviter, and scope labels are
+  resolved before publication rather than being reconstructed from raw records
+  or displayed from storage ids
 - AND access snapshots contain no raw identity records, grant-authority
   internals, invitation requests, API clients, runtime callbacks, React nodes,
   raw invite tokens, token hashes, credentials, challenge secrets, session ids,
@@ -800,7 +768,6 @@ records.
 - AND the target principal email is recorded as verified for the accepted
   principal
 - AND invited memberships for the accepted principal become active
-- AND pending app registrations for the accepted principal become active
 - AND role assignments linked to the accepted principal authorize only after
   the principal is active and current authorization checks pass
 - AND all reviewable identity changes for acceptance are committed together or
@@ -845,11 +812,9 @@ target and scope rather than raw optional fields.
   selected target record is rejected
 - AND tombstoned duplicate memberships do not block the active membership
 
-#### Scenario: Role assignment uniqueness allows multiple targets
+#### Scenario: Role assignment uniqueness
 
 - GIVEN two different active principals receive the same role in the same scope
-- OR the same active principal receives the same role in two different app
-  install scopes
 - WHEN identity-control-plane records are validated
 - THEN the records are valid
 - AND two different active role levels for the same target kind, selected target
@@ -857,17 +822,6 @@ target and scope rather than raw optional fields.
 - AND replacing a level disables the prior assignment before the new level
   becomes active in the same identity commit
 - AND tombstoned duplicate role assignments do not block the active assignment
-
-#### Scenario: App registration uniqueness allows multiple users
-
-- GIVEN two different active principals register for the same app install
-- OR one active principal registers for two different app installs
-- WHEN identity-control-plane records are validated
-- THEN the records are valid
-- AND a duplicate active registration for the same app install id, target kind,
-  and selected target record is rejected
-- AND tombstoned duplicate app registrations do not block the active
-  registration
 
 #### Scenario: Policy acceptance uniqueness allows multiple policies
 
@@ -935,8 +889,8 @@ reviewable identity records.
   state, archives, sync payloads, generated UI, or reviewable snapshots
 - THEN those private auth facts are absent
 - AND display-safe identity records may reference principals, roles, groups,
-  organizations, app installs, invitations, account policies, policy
-  acceptances, and verification status without exposing raw secrets
+  organizations, invitations, account policies, policy acceptances, and
+  verification status without exposing raw secrets
 
 #### Scenario: Owner auth uses principal and role records
 

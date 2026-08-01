@@ -12,12 +12,16 @@ import {
   type InstanceArchiveControlPlane,
   type PortableArchive,
 } from "../program/archive.ts";
-import type { AppInstall, InstallableAppPackage } from "@dpeek/formless-installed-apps";
 import {
-  installedAppStorageIdentity,
+  validateAppInstallId,
+  type AppInstall,
+  type AppInstallId,
+  type InstallableAppPackage,
+  type PackageAppKey,
+} from "@dpeek/formless-installed-apps";
+import {
   programStorageIdentity,
   type AuthorityStorageIdentity,
-  type InstalledAppStorageIdentity,
 } from "../shared/app-storage-identity.ts";
 import { listResolvedAppPackages, type AppPackageResolver } from "../shared/app-packages.ts";
 import {
@@ -46,17 +50,51 @@ export type ArchiveRestoreMediaRead = ArchiveRestoreMediaFile & {
   bytes: Uint8Array;
 };
 
+type InstalledAppStorageIdentity = {
+  apiRoutePrefix: `/api/app-installs/${PackageAppKey}/${AppInstallId}`;
+  authorityName: `app:${AppInstallId}`;
+  installId: AppInstallId;
+  kind: "appInstall";
+  packageAppKey: PackageAppKey;
+  sourceSchemaKey: string;
+};
+
+type ArchiveStorageIdentity = AuthorityStorageIdentity | InstalledAppStorageIdentity;
+
+export function installedArchiveStorageIdentity(
+  input: { installId: string; packageAppKey: string },
+  resolver?: AppPackageResolver,
+): InstalledAppStorageIdentity | undefined {
+  const installId = validateAppInstallId(input.installId);
+  const appPackage = listResolvedAppPackages(resolver).find(
+    (candidate) => candidate.packageAppKey === input.packageAppKey,
+  );
+
+  if (!installId.ok || !appPackage) {
+    return undefined;
+  }
+
+  return {
+    apiRoutePrefix: `/api/app-installs/${appPackage.packageAppKey}/${installId.installId}`,
+    authorityName: `app:${installId.installId}`,
+    installId: installId.installId,
+    kind: "appInstall",
+    packageAppKey: appPackage.packageAppKey,
+    sourceSchemaKey: appPackage.sourceSchemaKey,
+  };
+}
+
 export type ArchiveRestoreMediaAdapter = {
   listFiles: () => Promise<ArchiveRestoreMediaFile[]>;
   readFile: (archivePath: string) => Promise<ArchiveRestoreMediaRead | undefined>;
   restoreObject: (input: {
     bytes: Uint8Array;
-    identity: AuthorityStorageIdentity;
+    identity: ArchiveStorageIdentity;
     object: AppArchiveMediaObject;
   }) => Promise<MediaWriteResponse>;
   validateObject?: (input: {
     bytes: Uint8Array;
-    identity: AuthorityStorageIdentity;
+    identity: ArchiveStorageIdentity;
     object: AppArchiveMediaObject;
   }) => Promise<void>;
 };
@@ -273,17 +311,19 @@ export async function applyPortableArchiveRestore(
 
     if (step.kind === "restoreMedia") {
       const programMedia = "program" in step;
+      const programDocument = step.asset?.kind === "document";
       const archiveApp = programMedia ? undefined : archiveApps.get(step.appInstallId);
-      const identity = programMedia
-        ? programStorageIdentity()
-        : archiveApp &&
-          installedAppStorageIdentity(
-            {
-              installId: archiveApp.app.installId,
-              packageAppKey: archiveApp.app.packageAppKey,
-            },
-            target.packageResolver,
-          );
+      const identity =
+        programMedia || programDocument
+          ? programStorageIdentity()
+          : archiveApp &&
+            installedArchiveStorageIdentity(
+              {
+                installId: archiveApp.app.installId,
+                packageAppKey: archiveApp.app.packageAppKey,
+              },
+              target.packageResolver,
+            );
       const mediaRead = mediaReads.files.get(step.archivePath);
 
       if (!identity || (!programMedia && !archiveApp) || !mediaRead || !target.media) {
@@ -358,7 +398,7 @@ export async function applyPortableArchiveRestore(
     const archiveApp = archiveApps.get(step.appInstallId);
     const identity =
       archiveApp &&
-      installedAppStorageIdentity(
+      installedArchiveStorageIdentity(
         {
           installId: archiveApp.app.installId,
           packageAppKey: archiveApp.app.packageAppKey,
@@ -462,7 +502,7 @@ export function restoreArchiveAppDataToStorageOutcome(
 
 export async function restoreArchiveMediaObjectToStore(
   store: MediaObjectStore,
-  identity: AuthorityStorageIdentity,
+  identity: ArchiveStorageIdentity,
   object: AppArchiveMediaObject,
   bytes: Uint8Array,
 ): Promise<MediaWriteResponse> {
@@ -497,18 +537,11 @@ export async function restoreArchiveMediaObjectToStore(
   }
 
   if (object.asset?.kind === "document") {
+    if (identity.kind !== "program") {
+      throw new Error("Document archive restore is available only for global Program media.");
+    }
     const asset = object.asset;
     const expectedHref = documentArchiveDeliveryHref(identity, asset.id);
-    const expectedOwnerAppInstallId =
-      identity.kind === "appInstall" ? identity.installId : undefined;
-
-    if (asset.ownerAppInstallId !== expectedOwnerAppInstallId) {
-      throw new Error(
-        identity.kind === "program"
-          ? "Program document media cannot contain app-install owner metadata."
-          : "Installed-app document media must match its target install.",
-      );
-    }
 
     const existing = await compatibleExistingArchiveDocument(store, object, bytes);
 
@@ -530,7 +563,6 @@ export async function restoreArchiveMediaObjectToStore(
         acceptedMimeTypes: [MEDIA_PDF_CONTENT_TYPE],
         access: asset.access,
         maxBytes: MEDIA_DOCUMENT_UPLOAD_MAX_BYTES,
-        ...(identity.kind === "appInstall" ? { ownerAppInstallId: identity.installId } : {}),
       },
       contentType: object.contentType,
       hrefForAssetId: (assetId) => documentArchiveDeliveryHref(identity, assetId),
@@ -605,7 +637,7 @@ async function compatibleExistingArchiveDocument(
   return true;
 }
 
-function documentArchiveDeliveryHref(identity: AuthorityStorageIdentity, assetId: string): string {
+function documentArchiveDeliveryHref(identity: ArchiveStorageIdentity, assetId: string): string {
   return `${identity.apiRoutePrefix}/media/documents/${assetId}`;
 }
 
@@ -623,7 +655,6 @@ function sameDocumentMediaAsset(
     left.filename === right.filename &&
     left.id === right.id &&
     left.label === right.label &&
-    left.ownerAppInstallId === right.ownerAppInstallId &&
     left.provider === right.provider &&
     left.status === right.status &&
     left.storageKey === right.storageKey
@@ -811,7 +842,7 @@ async function validatePreparedMediaRestores(
     const identity = programMedia
       ? programStorageIdentity()
       : app &&
-        installedAppStorageIdentity(
+        installedArchiveStorageIdentity(
           {
             installId: app.app.installId,
             packageAppKey: app.app.packageAppKey,

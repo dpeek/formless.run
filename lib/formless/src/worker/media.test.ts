@@ -406,252 +406,6 @@ describe("media worker routes", () => {
     expect((await headResponse.arrayBuffer()).byteLength).toBe(0);
   });
 
-  it("uses active field policy and isolates document list and upload by app-admin install", async () => {
-    const firstInstallId = "documents-first";
-    const secondInstallId = "documents-second";
-
-    await configureDocumentSchema(firstInstallId);
-    await configureDocumentSchema(secondInstallId);
-
-    const firstAdmin = await createPrincipalSession({
-      appInstallId: firstInstallId,
-      displayName: "First App Admin",
-      role: "app.admin",
-    });
-    const secondAdmin = await createPrincipalSession({
-      appInstallId: secondInstallId,
-      displayName: "Second App Admin",
-      role: "app.admin",
-    });
-    const programAdministrator = await createPrincipalSession({
-      displayName: "Program Administrator",
-      role: "administrator",
-    });
-    const uploaded = await uploadAppDocument(
-      firstInstallId,
-      privateDocumentField,
-      documentFile("first-private.pdf"),
-      firstAdmin.headers,
-    );
-    await expectResponseStatus(uploaded, 200);
-    const uploadedBody = (await uploaded.json()) as {
-      asset: DocumentMediaAsset;
-    };
-    const crossInstallUpload = await uploadAppDocument(
-      secondInstallId,
-      privateDocumentField,
-      documentFile("cross-install.pdf"),
-      firstAdmin.headers,
-    );
-    const programAdministratorUpload = await uploadAppDocument(
-      firstInstallId,
-      privateDocumentField,
-      documentFile("program-administrator.pdf"),
-      programAdministrator.headers,
-    );
-    const adminBearerUpload = await uploadAppDocument(
-      firstInstallId,
-      privateDocumentField,
-      documentFile("admin-bearer.pdf"),
-      adminHeaders(),
-    );
-    const unsupportedTypeUpload = await uploadAppDocument(
-      firstInstallId,
-      privateDocumentField,
-      {
-        content: pdfBytes,
-        name: "wrong-type.pdf",
-        type: "text/plain",
-      },
-      firstAdmin.headers,
-    );
-    const oversizedUpload = await uploadAppDocument(
-      firstInstallId,
-      privateDocumentField,
-      {
-        content: concatBytes([pdfBytes, new Uint8Array(1024)]),
-        name: "too-large.pdf",
-        type: "application/pdf",
-      },
-      firstAdmin.headers,
-    );
-    const anonymousList = await listAppDocuments(firstInstallId, privateDocumentField);
-    const firstList = await listAppDocuments(
-      firstInstallId,
-      privateDocumentField,
-      firstAdmin.headers,
-    );
-    const secondList = await listAppDocuments(
-      secondInstallId,
-      privateDocumentField,
-      secondAdmin.headers,
-    );
-    const crossInstallList = await listAppDocuments(
-      secondInstallId,
-      privateDocumentField,
-      firstAdmin.headers,
-    );
-    const archiveExportHeaders = adminHeaders({
-      "X-Formless-Archive-Export": "1",
-    });
-    const archiveExportList = await listAppDocuments(
-      firstInstallId,
-      privateDocumentField,
-      archiveExportHeaders,
-    );
-    const archiveExportRead = await guardedHarness.fetch(
-      documentDeliveryPath(firstInstallId, uploadedBody.asset.id),
-      { headers: archiveExportHeaders },
-    );
-
-    expect(uploadedBody.asset).toMatchObject({
-      access: "private",
-      byteSize: pdfBytes.byteLength,
-      contentType: "application/pdf",
-      filename: "first-private.pdf",
-      kind: "document",
-      ownerAppInstallId: firstInstallId,
-    });
-    expect(uploadedBody.asset.deliveryHref).toBe(
-      documentDeliveryPath(firstInstallId, uploadedBody.asset.id),
-    );
-    expect(crossInstallUpload.status).toBe(403);
-    expect(programAdministratorUpload.status).toBe(403);
-    expect(adminBearerUpload.status).toBe(401);
-    expect(unsupportedTypeUpload.status).toBe(415);
-    expect(oversizedUpload.status).toBe(413);
-    expect(anonymousList.status).toBe(401);
-    expect(anonymousList.headers.get("WWW-Authenticate")).toBe('Bearer realm="formless-app-admin"');
-    expect((await firstList.json()) as unknown).toEqual({ assets: [uploadedBody.asset] });
-    expect((await secondList.json()) as unknown).toEqual({ assets: [] });
-    expect(crossInstallList.status).toBe(403);
-    expect((await archiveExportList.json()) as unknown).toEqual({
-      assets: [uploadedBody.asset],
-    });
-    expect(archiveExportRead.status).toBe(200);
-    expect(new Uint8Array(await archiveExportRead.arrayBuffer())).toEqual(pdfBytes);
-    await expectMediaBucketKeys(guardedHarness, [uploadedBody.asset.storageKey]);
-  });
-
-  it("protects private document delivery by stored owner and allows current owner override", async () => {
-    const firstInstallId = "private-first";
-    const secondInstallId = "private-second";
-
-    await configureDocumentSchema(firstInstallId);
-    await configureDocumentSchema(secondInstallId);
-
-    const firstAdmin = await createPrincipalSession({
-      appInstallId: firstInstallId,
-      displayName: "Private First Admin",
-      role: "app.admin",
-    });
-    const secondAdmin = await createPrincipalSession({
-      appInstallId: secondInstallId,
-      displayName: "Private Second Admin",
-      role: "app.admin",
-    });
-    const ownerIdentity = await ensureTestIdentityOwner(guardedHarness, adminToken, owner);
-    const ownerHeaders = await centralSessionHeaders(ownerIdentity.id);
-    const upload = await uploadAppDocument(
-      firstInstallId,
-      privateDocumentField,
-      documentFile("private-report.pdf"),
-      firstAdmin.headers,
-    );
-    await expectResponseStatus(upload, 200);
-    const asset = (
-      (await upload.json()) as {
-        asset: DocumentMediaAsset;
-      }
-    ).asset;
-    const deliveryPath = documentDeliveryPath(firstInstallId, asset.id);
-    const anonymous = await guardedHarness.fetch(deliveryPath);
-    const wrongAdmin = await guardedHarness.fetch(deliveryPath, {
-      headers: secondAdmin.headers,
-    });
-    const wrongRoute = await guardedHarness.fetch(documentDeliveryPath(secondInstallId, asset.id), {
-      headers: secondAdmin.headers,
-    });
-    const ownerList = await listAppDocuments(firstInstallId, privateDocumentField, ownerHeaders);
-    const ownerUpload = await uploadAppDocument(
-      secondInstallId,
-      privateDocumentField,
-      documentFile("owner-upload.pdf"),
-      ownerHeaders,
-    );
-    const ownerGet = await guardedHarness.fetch(deliveryPath, { headers: ownerHeaders });
-    const ownerHead = await guardedHarness.fetch(deliveryPath, {
-      headers: ownerHeaders,
-      method: "HEAD",
-    });
-
-    expect(anonymous.status).toBe(401);
-    expect(wrongAdmin.status).toBe(403);
-    expect(wrongRoute.status).toBe(404);
-    expect((await ownerList.json()) as unknown).toEqual({ assets: [asset] });
-    await expectResponseStatus(ownerUpload, 200);
-    expect(ownerGet.status).toBe(200);
-    expect(ownerGet.headers.get("Cache-Control")).toBe(MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL);
-    expect(ownerGet.headers.get("Content-Disposition")).toBe(
-      'inline; filename="private-report.pdf"',
-    );
-    expect(new Uint8Array(await ownerGet.arrayBuffer())).toEqual(pdfBytes);
-    expect(ownerHead.status).toBe(200);
-    expect(ownerHead.headers.get("Cache-Control")).toBe(MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL);
-    expect((await ownerHead.arrayBuffer()).byteLength).toBe(0);
-  });
-
-  it("delivers stored-public documents anonymously by opaque id without public listing", async () => {
-    const installId = "public-documents";
-
-    await configureDocumentSchema(installId);
-
-    const admin = await createPrincipalSession({
-      appInstallId: installId,
-      displayName: "Public Document Admin",
-      role: "app.admin",
-    });
-    const upload = await uploadAppDocument(
-      installId,
-      publicDocumentField,
-      documentFile("issued-coa.pdf"),
-      admin.headers,
-    );
-    await expectResponseStatus(upload, 200);
-    const asset = (
-      (await upload.json()) as {
-        asset: DocumentMediaAsset;
-      }
-    ).asset;
-    const deliveryPath = documentDeliveryPath(installId, asset.id);
-    const anonymousList = await listAppDocuments(installId, publicDocumentField);
-    const getResponse = await guardedHarness.fetch(deliveryPath);
-    const headResponse = await guardedHarness.fetch(`${deliveryPath}?download=1`, {
-      method: "HEAD",
-    });
-    const wrongOwnerRoute = await guardedHarness.fetch(
-      documentDeliveryPath("public-documents-other", asset.id),
-    );
-
-    expect(asset.access).toBe("public");
-    expect(anonymousList.status).toBe(401);
-    expect(getResponse.status).toBe(200);
-    expect(getResponse.headers.get("Cache-Control")).toBe(MEDIA_OBJECT_CACHE_CONTROL);
-    expect(getResponse.headers.get("Content-Type")).toBe("application/pdf");
-    expect(getResponse.headers.get("X-Content-Type-Options")).toBe("nosniff");
-    expect(getResponse.headers.get("Content-Disposition")).toBe(
-      'inline; filename="issued-coa.pdf"',
-    );
-    expect(new Uint8Array(await getResponse.arrayBuffer())).toEqual(pdfBytes);
-    expect(headResponse.status).toBe(200);
-    expect(headResponse.headers.get("Cache-Control")).toBe(MEDIA_OBJECT_CACHE_CONTROL);
-    expect(headResponse.headers.get("Content-Disposition")).toBe(
-      'attachment; filename="issued-coa.pdf"',
-    );
-    expect((await headResponse.arrayBuffer()).byteLength).toBe(0);
-    expect(wrongOwnerRoute.status).toBe(404);
-  });
-
   it("uses Program field policy and role authorization for global public and private documents", async () => {
     await configureProgramDocumentSchema();
 
@@ -735,55 +489,6 @@ describe("media worker routes", () => {
   });
 });
 
-async function configureDocumentSchema(installId: string) {
-  const schemaPath = `/api/app-installs/${taskPackageAppKey}/${installId}/schema`;
-  const current = await guardedHarness.fetch(schemaPath, {
-    headers: adminHeaders(),
-  });
-  expect(current.status).toBe(200);
-  const body = (await current.json()) as SchemaResponse;
-  const schema = structuredClone(body.schema);
-  const task = schema.entities.find((definition) => definition.key === "task")!;
-  if (!task) {
-    throw new Error("Expected Tasks active schema.");
-  }
-  setKeyedDefinition(task.fields, privateDocumentField, {
-    asset: {
-      acceptedMimeTypes: ["application/pdf"],
-      access: "private",
-      kind: "document",
-      maxBytes: 1024,
-    },
-    label: "Private report",
-    required: false,
-    type: "text",
-  });
-  setKeyedDefinition(task.fields, publicDocumentField, {
-    asset: {
-      acceptedMimeTypes: ["application/pdf"],
-      access: "public",
-      kind: "document",
-      maxBytes: 1024,
-    },
-    label: "Public report",
-    required: false,
-    type: "text",
-  });
-  const update = await guardedHarness.fetch(schemaPath, {
-    body: JSON.stringify({ schema }),
-    headers: adminHeaders({ "Content-Type": "application/json" }),
-    method: "POST",
-  });
-
-  expect({
-    body: await update.clone().text(),
-    status: update.status,
-  }).toEqual({
-    body: expect.any(String),
-    status: 200,
-  });
-}
-
 async function configureProgramDocumentSchema() {
   const schemaPath = `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/schema`;
   const current = await guardedHarness.fetch(schemaPath, {
@@ -835,9 +540,8 @@ function programDocumentSchema(source: SchemaResponse["schema"]) {
 }
 
 async function createPrincipalSession(input: {
-  appInstallId?: string;
   displayName: string;
-  role: "app.admin" | "administrator" | "editor" | "member";
+  role: "administrator" | "editor" | "member";
 }) {
   const key = input.displayName.replace(/\W+/g, "-").toLowerCase();
   const principal = await postIdentityRecordOperation({
@@ -852,24 +556,14 @@ async function createPrincipalSession(input: {
   });
 
   await postIdentityRecordOperation({
-    entity: input.role === "app.admin" ? "role-assignment" : "program-role-assignment",
+    entity: "program-role-assignment",
     idempotencyKey: `document-media-role-${key}`,
     operationName: "create",
-    input:
-      input.role === "app.admin"
-        ? {
-            appInstallId: input.appInstallId,
-            role: "role:app.admin",
-            scopeKind: "app-install",
-            status: "active",
-            targetKind: "principal",
-            targetPrincipal: principal.id,
-          }
-        : {
-            principal: principal.id,
-            roleId: programRoleId(input.role),
-            status: "active",
-          },
+    input: {
+      principal: principal.id,
+      roleId: programRoleId(input.role),
+      status: "active",
+    },
   });
   return {
     headers: await centralSessionHeaders(principal.id),
@@ -946,28 +640,6 @@ async function centralSessionHeaders(principalId: string) {
   };
 }
 
-async function uploadAppDocument(
-  installId: string,
-  fieldName: string,
-  file: TestFile,
-  headers: Record<string, string> = {},
-) {
-  return uploadForm(
-    guardedHarness,
-    multipartFormData([file]),
-    headers,
-    documentCollectionPath(installId, fieldName),
-  );
-}
-
-function listAppDocuments(
-  installId: string,
-  fieldName: string,
-  headers: Record<string, string> = {},
-) {
-  return guardedHarness.fetch(documentCollectionPath(installId, fieldName), { headers });
-}
-
 function uploadProgramDocument(
   fieldName: string,
   file: TestFile,
@@ -992,19 +664,6 @@ function programDocumentCollectionPath(fieldName: string) {
   });
 
   return `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/media/documents?${query.toString()}`;
-}
-
-function documentCollectionPath(installId: string, fieldName: string) {
-  const query = new URLSearchParams({
-    entity: "task",
-    field: fieldName,
-  });
-
-  return `/api/app-installs/${taskPackageAppKey}/${installId}/media/documents?${query.toString()}`;
-}
-
-function documentDeliveryPath(installId: string, assetId: string) {
-  return `/api/app-installs/${taskPackageAppKey}/${installId}/media/documents/${assetId}`;
 }
 
 function documentFile(name: string): TestFile {

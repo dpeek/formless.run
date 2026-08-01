@@ -1,6 +1,6 @@
 import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
 
-export const runtimeProfileKinds = ["instance", "dev", "app", "publishedSite"] as const;
+export const runtimeProfileKinds = ["instance", "dev", "publishedSite"] as const;
 
 export type RuntimeProfileKind = (typeof runtimeProfileKinds)[number];
 
@@ -13,14 +13,9 @@ export const runtimeRouteAccessKinds = [
 
 export type RuntimeRouteAccess = (typeof runtimeRouteAccessKinds)[number];
 
-export const runtimeRouteRequiredRoles = ["app.admin"] as const;
-
-export type RuntimeRouteRequiredRole = (typeof runtimeRouteRequiredRoles)[number];
-
 export type RuntimeTopologyRoutePolicy = {
   instanceBrowserRoutes: boolean;
   installedAppApiRoutes: boolean;
-  installedAppBrowserRoutes: boolean;
   accountSessionBrowserRoutes: boolean;
   workspaceGatewayApiRoutes: boolean;
 };
@@ -34,17 +29,13 @@ export type RuntimeProfileKindResolverInput = {
 const runtimeAuthAccountRoute = "/formless/auth";
 
 export const runtimeAuthAccountGateRoutes = {
-  appRegistration: `${runtimeAuthAccountRoute}/app-registration`,
   credential: `${runtimeAuthAccountRoute}/credential`,
   emailVerification: `${runtimeAuthAccountRoute}/email-verification`,
   invitation: `${runtimeAuthAccountRoute}/invitation`,
   profileCompletion: `${runtimeAuthAccountRoute}/profile-completion`,
-  roleReview: `${runtimeAuthAccountRoute}/role-review`,
   termsAcceptance: `${runtimeAuthAccountRoute}/terms-acceptance`,
 } as const satisfies Record<string, `/${string}`>;
 
-export const FORMLESS_RUNTIME_APP_INSTALL_ID_META_NAME = "formless-runtime-app-install-id";
-export const FORMLESS_RUNTIME_PACKAGE_APP_KEY_META_NAME = "formless-runtime-package-app-key";
 export const FORMLESS_RUNTIME_PROFILE_META_NAME = "formless-runtime-profile";
 
 export const runtimeTopologyRoutes = {
@@ -53,7 +44,6 @@ export const runtimeTopologyRoutes = {
   authAccountGateRoutePattern: `${runtimeAuthAccountRoute}/*`,
   authAccountSetupRoute: `${runtimeAuthAccountRoute}/setup`,
   authAccountSignInRoute: `${runtimeAuthAccountRoute}/sign-in`,
-  appRouteBase: "/apps",
   clientShellAssetPath: "/index.html",
   dynamicSiteIconPaths: ["/favicon.svg", "/favicon.ico", "/apple-touch-icon.png"],
   formlessRouteBase: "/formless",
@@ -84,15 +74,11 @@ const clientRoutePaths = [
   "/tasks",
 ] as const;
 const clientRoutePrefixes = [
-  runtimeTopologyRoutes.appRouteBase,
   runtimeTopologyRoutes.formlessRouteBase,
   runtimeTopologyRoutes.publicSitePreviewRouteBase,
   "/schema",
 ] as const;
-const publishedProfileClientRoutePrefixes = [
-  runtimeTopologyRoutes.appRouteBase,
-  runtimeTopologyRoutes.formlessRouteBase,
-] as const;
+const publishedProfileClientRoutePrefixes = [runtimeTopologyRoutes.formlessRouteBase] as const;
 const instanceProfileClientRoutePaths = [
   ...FORMLESS_PROGRAM_SCREEN_PATHS,
   runtimeTopologyRoutes.localSessionRoute,
@@ -113,7 +99,6 @@ export function parseRuntimeProfileKind(value: string | undefined): RuntimeProfi
   switch (value) {
     case "instance":
     case "dev":
-    case "app":
     case "publishedSite":
       return value;
     default:
@@ -131,12 +116,6 @@ export function parseRuntimeRouteAccess(value: string | undefined): RuntimeRoute
     default:
       return undefined;
   }
-}
-
-export function parseRuntimeRouteRequiredRole(
-  value: string | undefined,
-): RuntimeRouteRequiredRole | undefined {
-  return value === "app.admin" ? value : undefined;
 }
 
 export function isRuntimeRouteAccess(value: unknown): value is RuntimeRouteAccess {
@@ -190,10 +169,6 @@ export function runtimeProfileKindFromHost(
     return "instance";
   }
 
-  if (normalized.startsWith("app.")) {
-    return "app";
-  }
-
   if (isWorkersDevHost(normalized)) {
     return "publishedSite";
   }
@@ -210,7 +185,6 @@ export function runtimeRoutePolicyForProfileKind(
   return {
     instanceBrowserRoutes,
     installedAppApiRoutes: true,
-    installedAppBrowserRoutes: instanceBrowserRoutes,
     accountSessionBrowserRoutes: instanceBrowserRoutes || profileKind === "publishedSite",
     workspaceGatewayApiRoutes,
   };

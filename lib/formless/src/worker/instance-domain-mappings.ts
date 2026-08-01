@@ -14,7 +14,6 @@ import {
   recordInstanceDomainMappingApplyEvidence,
   resetInstanceDomainMappingTables,
 } from "./instance-domain-mappings-state.ts";
-import { readControlPlaneAppInstallsForRequest } from "./instance-app-installs.ts";
 import { readControlPlaneRecords } from "./deployment-control-plane-client.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 
@@ -54,7 +53,6 @@ export async function lookupEnabledInstanceRoutableDomainMappingForRequestHost(
 ): Promise<InstanceDomainMapping | undefined> {
   return (
     (await lookupEnabledInstanceDomainMappingForRequestHost(request, env, "instance")) ??
-    (await lookupEnabledInstanceDomainMappingForRequestHost(request, env, "app")) ??
     (await lookupEnabledInstanceDomainMappingForRequestHost(request, env, "publicSite"))
   );
 }
@@ -62,7 +60,7 @@ export async function lookupEnabledInstanceRoutableDomainMappingForRequestHost(
 async function lookupEnabledInstanceDomainMappingForRequestHost(
   request: Request,
   env: InstanceDomainMappingsApiEnv,
-  profile: "instance" | "app" | "publicSite",
+  profile: "instance" | "publicSite",
 ): Promise<InstanceDomainMapping | undefined> {
   const requestUrl = new URL(request.url);
   const lookupUrl = new URL(INSTANCE_DOMAIN_MAPPINGS_LOOKUP_API_PATH, requestUrl.origin);
@@ -228,7 +226,6 @@ async function readControlPlaneSyncedDomainMappings(
   env: InstanceDomainMappingsApiEnv,
   requestUrl: string,
 ): Promise<InstanceDomainMapping[]> {
-  await readControlPlaneAppInstallsForRequest(env, requestUrl);
   const records = await readControlPlaneRecords({ env, requestUrl });
 
   if (records === undefined) {
@@ -258,7 +255,10 @@ function domainMappingFromControlPlaneRecord(
     record.entity !== "route" ||
     record.values.enabled !== true ||
     record.values.kind !== "mount" ||
-    typeof record.values.matchHost !== "string"
+    typeof record.values.matchHost !== "string" ||
+    record.values.targetProfile === "app" ||
+    record.values.appInstall !== undefined ||
+    record.values.requiredRole !== undefined
   ) {
     return undefined;
   }
@@ -269,20 +269,10 @@ function domainMappingFromControlPlaneRecord(
     return undefined;
   }
 
-  const targetInstallId =
-    typeof record.values.appInstall === "string" ? record.values.appInstall : undefined;
-
-  if (profile === "publicSite" && targetInstallId !== undefined) {
-    return undefined;
-  }
-
   return {
     host: String(record.values.matchHost),
     profile,
     ...(profile === "publicSite" ? { surface: "site" as const } : {}),
-    ...(profile !== "app" || targetInstallId === undefined
-      ? {}
-      : { installId: targetInstallId, targetInstallId }),
     enabled: true,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
@@ -292,7 +282,7 @@ function domainMappingFromControlPlaneRecord(
 function domainMappingProfileFromRouteTarget(
   value: unknown,
 ): InstanceDomainMapping["profile"] | undefined {
-  if (value === "app" || value === "instance") {
+  if (value === "instance") {
     return value;
   }
 

@@ -1,15 +1,6 @@
-import {
-  FORMLESS_RUNTIME_APP_INSTALL_ID_META_NAME,
-  FORMLESS_RUNTIME_PACKAGE_APP_KEY_META_NAME,
-  FORMLESS_RUNTIME_PROFILE_META_NAME,
-  runtimeTopologyRoutes,
-} from "../shared/runtime-topology.ts";
+import { runtimeTopologyRoutes } from "../shared/runtime-topology.ts";
 import { getEquivalentRequestForHead, responseWithoutBodyForHead } from "./head-response.ts";
-import type { MappedAppHost } from "./mapped-app-host.ts";
-import {
-  shouldServeMappedAppHostClientShell,
-  type WorkerRuntimeRequestTopology,
-} from "./routing.ts";
+import type { WorkerRuntimeRequestTopology } from "./routing.ts";
 
 type ClientAssetEnv = {
   ASSETS?: Fetcher;
@@ -18,29 +9,10 @@ type ClientAssetEnv = {
 export async function handleClientAssetRequest(
   request: Request,
   env: ClientAssetEnv,
-  options: { mappedAppHost?: MappedAppHost; runtimeTopology?: WorkerRuntimeRequestTopology } = {},
+  options: { runtimeTopology?: WorkerRuntimeRequestTopology } = {},
 ): Promise<Response | undefined> {
   if (!env.ASSETS) {
     return undefined;
-  }
-
-  if (options.mappedAppHost && shouldServeMappedAppHostShell(request, options.runtimeTopology)) {
-    const shellResponse = await env.ASSETS.fetch(
-      clientShellAssetRequest(getEquivalentRequestForHead(request)),
-    );
-
-    if (!isHtmlResponse(shellResponse)) {
-      return responseWithoutBodyForHead(request, shellResponse);
-    }
-
-    const shellHtml = await shellResponse.text();
-    const response = injectMappedAppHostDocumentHints(
-      shellResponse,
-      shellHtml,
-      options.mappedAppHost,
-    );
-
-    return responseWithoutBodyForHead(request, response);
   }
 
   if (shouldServeRuntimeClientShellDocument(options.runtimeTopology)) {
@@ -71,13 +43,6 @@ export async function handleClientShellDocumentRequest(
   return responseWithoutBodyForHead(request, response);
 }
 
-function shouldServeMappedAppHostShell(
-  request: Request,
-  runtimeTopology?: WorkerRuntimeRequestTopology,
-): boolean {
-  return shouldServeMappedAppHostClientShell(request, runtimeTopology);
-}
-
 function shouldServeRuntimeClientShellDocument(
   runtimeTopology?: WorkerRuntimeRequestTopology,
 ): boolean {
@@ -104,14 +69,6 @@ function clientShellAssetRequest(request: Request): Request {
     headers: request.headers,
     method: "GET",
   });
-}
-
-function injectMappedAppHostDocumentHints(
-  response: Response,
-  html: string,
-  mappedAppHost: MappedAppHost,
-): Response {
-  return htmlResponse(response, injectHeadHtml(html, mappedAppHostHints(mappedAppHost)));
 }
 
 function htmlResponse(response: Response, html: string): Response {
@@ -155,25 +112,6 @@ function fallbackClientShellDocumentResponse(): Response {
   );
 }
 
-function mappedAppHostHints(mappedAppHost: MappedAppHost): string {
-  return `
-    <meta name="${FORMLESS_RUNTIME_PROFILE_META_NAME}" content="app" />
-    <meta name="${FORMLESS_RUNTIME_APP_INSTALL_ID_META_NAME}" content="${escapeHtmlAttribute(mappedAppHost.installId)}" />
-    <meta name="${FORMLESS_RUNTIME_PACKAGE_APP_KEY_META_NAME}" content="${escapeHtmlAttribute(mappedAppHost.target.packageAppKey)}" />`;
-}
-
-function injectHeadHtml(html: string, injectedHtml: string): string {
-  return html.replace(/<head\b[^>]*>/i, (match) => `${match}${injectedHtml}`);
-}
-
 function isHtmlResponse(response: Response): boolean {
   return (response.headers.get("Content-Type") ?? "").toLowerCase().includes("text/html");
-}
-
-function escapeHtmlAttribute(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
 }

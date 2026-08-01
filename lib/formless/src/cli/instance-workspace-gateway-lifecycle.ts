@@ -20,13 +20,13 @@ import {
   type InstanceWorkspaceLocalDevSecretState as FormlessInstanceWorkspaceLocalDevSecretState,
 } from "@dpeek/formless-workspace/node";
 import { FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME } from "../program/artifact.ts";
+import { FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME } from "../shared/workspace-runtime-packages.ts";
 import {
   FORMLESS_TURNSTILE_ALWAYS_PASS_SECRET_KEY,
   FORMLESS_TURNSTILE_ALWAYS_PASS_SITE_KEY,
   FORMLESS_TURNSTILE_SECRET_KEY_ENV_NAME,
   FORMLESS_TURNSTILE_SITE_KEY_ENV_NAME,
 } from "../shared/turnstile-config.ts";
-import { FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME } from "../shared/workspace-runtime-packages.ts";
 import {
   FORMLESS_SITE_PROJECT_ROOT_ENV_NAME,
   FORMLESS_WORKSPACE_RUNTIME_EXTENSIONS_ENV_NAME,
@@ -189,12 +189,6 @@ export function formlessInstanceWorkspaceDevEnv(
     delete nextEnv[WORKSPACE_GATEWAY_PROXY_TOKEN_ENV];
   }
 
-  if (options.workspaceAppPackages) {
-    nextEnv[FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME] = options.workspaceAppPackages;
-  } else {
-    delete nextEnv[FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME];
-  }
-
   if (options.workspaceProgramArtifactPath) {
     nextEnv[FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME] = options.workspaceProgramArtifactPath;
   } else {
@@ -209,6 +203,7 @@ export function formlessInstanceWorkspaceDevEnv(
 
   delete nextEnv.FORMLESS_LOCAL_WORKSPACE_GATEWAY;
   delete nextEnv[WORKSPACE_GATEWAY_ROOT_ENV];
+  delete nextEnv[FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME];
   delete nextEnv.VITE_FORMLESS_ADMIN_TOKEN;
   delete nextEnv.VITE_FORMLESS_LOCAL_PUBLISH_BROKER_TOKEN;
   delete nextEnv.VITE_FORMLESS_LOCAL_PUBLISH_BROKER_URL;

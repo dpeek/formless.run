@@ -14,14 +14,11 @@ import type {
   FieldIntent,
   OwnerSetupAuthSurfaceContract,
   OwnerSetupStep,
-  SignupAuthSurfaceContract,
-  SignupStep,
 } from "@dpeek/formless-presentation/contract";
 import { authSurfaceReference } from "@dpeek/formless-presentation/host";
 import type { FieldValue } from "@dpeek/formless-schema";
 import type { CreateFieldConfig } from "../../client/views.ts";
 import type {
-  AccountCompletionAppRegistrationGate,
   AccountCompletionGate,
   AccountCompletionGateOperationInputContract,
   AccountCompletionGateTarget,
@@ -45,25 +42,19 @@ import {
   projectGeneratedOperationFields,
 } from "../generated/field-projection.ts";
 import { displaySafeText } from "./instance-management-display-safety.ts";
-import { passkeyUnavailableMessage } from "./passkey-browser.ts";
 import type { AuthAccountRouteState } from "./auth-account.tsx";
 
 type AuthAccountGateRouteState = Exclude<
   AuthAccountRouteState,
-  { status: `owner-setup-${string}` } | { status: `signup-${string}` }
+  { status: `owner-setup-${string}` }
 >;
 
 export const AUTH_ACCOUNT_GATE_SURFACE_ID = "auth:account";
 export const AUTH_ACCOUNT_OWNER_SETUP_SURFACE_ID = "auth:account:owner-setup";
-export const AUTH_ACCOUNT_SIGNUP_SURFACE_ID = "auth:account:signup";
 
 export const authAccountGateSurfaceReference = authSurfaceReference({
   surfaceId: AUTH_ACCOUNT_GATE_SURFACE_ID,
   surfaceKind: "account-gate",
-});
-export const authAccountSignupSurfaceReference = authSurfaceReference({
-  surfaceId: AUTH_ACCOUNT_SIGNUP_SURFACE_ID,
-  surfaceKind: "signup",
 });
 export const authAccountOwnerSetupSurfaceReference = authSurfaceReference({
   surfaceId: AUTH_ACCOUNT_OWNER_SETUP_SURFACE_ID,
@@ -85,11 +76,9 @@ export type AuthAccountDraftSession = {
 };
 
 export type AuthAccountDraftSubmission =
-  | { kind: "app-registration"; ok: true }
   | { acceptedPolicyIds: string[]; kind: "terms-acceptance"; ok: true }
   | { displayName: string; email: string; kind: "owner-setup-identity"; ok: true }
   | { kind: "owner-setup-verification-token"; ok: true; token: string }
-  | { displayName: string; email: string; kind: "signup-identity"; ok: true }
   | { input: Record<string, unknown>; kind: "profile-completion"; ok: true }
   | { kind: "verification-token"; ok: true; token: string }
   | { email: string; kind: "email-verification"; ok: true }
@@ -219,9 +208,6 @@ export function selectAuthAccountDraftSubmission({
         ? { email, kind: "email-verification", ok: true }
         : { ok: false };
     }
-    if (isCompletableAppRegistrationGate(gate)) {
-      return { kind: "app-registration", ok: true };
-    }
     if (gate.kind === "terms-acceptance") {
       const acceptedPolicyIds = gate.policies
         .map((policy) => policy.accountPolicyId)
@@ -243,21 +229,6 @@ export function selectAuthAccountDraftSubmission({
     return { ok: false };
   }
 
-  if (isSignupIdentityState(state)) {
-    const displayName = stringFieldValue(create.values.displayName);
-    const email = stringFieldValue(create.values.email);
-    return create.canSubmit && displayName && email
-      ? { displayName, email, kind: "signup-identity", ok: true }
-      : { ok: false };
-  }
-
-  if (isSignupEmailVerificationState(state)) {
-    const token = stringFieldValue(create.values.token);
-    return create.canSubmit && token
-      ? { kind: "verification-token", ok: true, token }
-      : { ok: false };
-  }
-
   return { ok: false };
 }
 
@@ -267,20 +238,16 @@ export function projectAuthAccountSurface({
 }: {
   session: AuthAccountDraftSession;
   state: AuthAccountRouteState;
-}): AccountGateAuthSurfaceContract | OwnerSetupAuthSurfaceContract | SignupAuthSurfaceContract {
+}): AccountGateAuthSurfaceContract | OwnerSetupAuthSurfaceContract {
   if (isOwnerSetupState(state)) return projectOwnerSetupSurface({ session, state });
-  return isSignupState(state)
-    ? projectSignupSurface({ session, state })
-    : projectAccountGateSurface({ session, state });
+  return projectAccountGateSurface({ session, state });
 }
 
 export function authAccountSurfaceReference(
   surface: AuthSurfaceContract,
-): AuthSurfaceReference<"account-gate" | "owner-setup" | "signup"> {
+): AuthSurfaceReference<"account-gate" | "owner-setup"> {
   if (surface.surfaceKind === "owner-setup") return authAccountOwnerSetupSurfaceReference;
-  return surface.surfaceKind === "signup"
-    ? authAccountSignupSurfaceReference
-    : authAccountGateSurfaceReference;
+  return authAccountGateSurfaceReference;
 }
 
 function projectAccountGateSurface({
@@ -355,43 +322,6 @@ function projectOwnerSetupSurface({
   };
 }
 
-function projectSignupSurface({
-  session,
-  state,
-}: {
-  session: AuthAccountDraftSession;
-  state: Extract<AuthAccountRouteState, { status: `signup-${string}` }>;
-}): SignupAuthSurfaceContract {
-  const pending =
-    state.status.endsWith("-sending") ||
-    state.status.endsWith("-verifying") ||
-    state.status.endsWith("-submitting");
-  const feedback =
-    state.message && state.status !== "signup-passkey-unavailable"
-      ? authFeedback("signup-failure", "Account setup failed", state.message)
-      : undefined;
-  const passkey = signupPasskey(state);
-  const continuation = signupContinuation(state);
-
-  return {
-    actions: signupActions(state),
-    ...(continuation ? { continuation } : {}),
-    facts: signupFacts(state),
-    ...(feedback ? { feedback } : {}),
-    fields: signupFields(state, session, pending),
-    frame: authFrame(signupHeading(state), signupDescription(state)),
-    id: AUTH_ACCOUNT_SIGNUP_SURFACE_ID,
-    kind: "authSurface",
-    ...(signupMessage(state) ? { message: signupMessage(state) } : {}),
-    ...(passkey ? { passkey } : {}),
-    pending,
-    policies: [],
-    state: signupContractState(state),
-    step: signupStep(state),
-    surfaceKind: "signup",
-  };
-}
-
 function ownerSetupFields(
   state: Extract<AuthAccountRouteState, { status: `owner-setup-${string}` }>,
   session: AuthAccountDraftSession,
@@ -444,34 +374,6 @@ function accountGateFields(
     session,
     surfaceId: AUTH_ACCOUNT_GATE_SURFACE_ID,
   });
-}
-
-function signupFields(
-  state: Extract<AuthAccountRouteState, { status: `signup-${string}` }>,
-  session: AuthAccountDraftSession,
-  pending: boolean,
-): readonly AuthFieldContract[] {
-  if (isSignupIdentityState(state)) {
-    return projectCreateAuthFields({
-      fields: accountDraftFieldConfigs.filter(
-        (field) => field.fieldName === "displayName" || field.fieldName === "email",
-      ),
-      pending,
-      purposeByFieldName: { displayName: "display-name", email: "email" },
-      session,
-      surfaceId: AUTH_ACCOUNT_SIGNUP_SURFACE_ID,
-    });
-  }
-  if (isSignupEmailVerificationState(state)) {
-    return projectCreateAuthFields({
-      fields: accountDraftFieldConfigs.filter((field) => field.fieldName === "token"),
-      pending,
-      purposeByFieldName: { token: "verification-token" },
-      session,
-      surfaceId: AUTH_ACCOUNT_SIGNUP_SURFACE_ID,
-    });
-  }
-  return [];
 }
 
 function projectCreateAuthFields({
@@ -659,16 +561,6 @@ function accountGateActions(state: AuthAccountGateRouteState): readonly AuthActi
       ),
     ];
   }
-  if (isCompletableAppRegistrationGate(gate))
-    return [
-      authAction(
-        AUTH_ACCOUNT_GATE_SURFACE_ID,
-        "submit",
-        operationLabel(gate.operation) ?? "Register for app",
-        "primary",
-        accountGateActionIsPending(state.action),
-      ),
-    ];
   if (gate.kind === "profile-completion" && profileCompletionIsAvailable(gate))
     return [
       authAction(
@@ -687,32 +579,6 @@ function accountGateActions(state: AuthAccountGateRouteState): readonly AuthActi
         operationLabel(gate.operation) ?? "Accept terms",
         "primary",
         accountGateActionIsPending(state.action),
-      ),
-    ];
-  return [];
-}
-
-function signupActions(
-  state: Extract<AuthAccountRouteState, { status: `signup-${string}` }>,
-): readonly AuthActionContract[] {
-  if (isSignupIdentityState(state))
-    return [
-      authAction(
-        AUTH_ACCOUNT_SIGNUP_SURFACE_ID,
-        "submit",
-        "Send verification email",
-        "primary",
-        state.status === "signup-email-sending",
-      ),
-    ];
-  if (isSignupEmailVerificationState(state))
-    return [
-      authAction(
-        AUTH_ACCOUNT_SIGNUP_SURFACE_ID,
-        "submit",
-        "Verify email",
-        "primary",
-        state.status === "signup-email-verifying",
       ),
     ];
   return [];
@@ -790,20 +656,6 @@ function accountGateFacts(state: AuthAccountGateRouteState): readonly AuthFactCo
   return targetFacts(state.result.target);
 }
 
-function signupFacts(
-  state: Extract<AuthAccountRouteState, { status: `signup-${string}` }>,
-): readonly AuthFactContract[] {
-  const identityFacts =
-    isSignupPasskeyState(state) ||
-    state.status === "signup-complete" ||
-    state.status === "signup-continuing"
-      ? [authFact("email", "Email", state.email), authFact("name", "Name", state.displayName)]
-      : isSignupEmailVerificationState(state)
-        ? [authFact("email", "Email", state.email), authFact("expires", "Expires", state.expiresAt)]
-        : [];
-  return [...identityFacts, ...targetFacts(state.target)].filter(factIsPresent);
-}
-
 function gateFacts(gate: AccountCompletionGate): AuthFactContract[] {
   const operation = operationLabel(gate.operation);
   switch (gate.kind) {
@@ -830,35 +682,15 @@ function gateFacts(gate: AccountCompletionGate): AuthFactContract[] {
         authFact("surface", "Surface", titleCase(gate.targetSurface)),
         authFact("action", "Action", operation),
       );
-    case "app-registration":
-      return compactFacts(
-        authFact(
-          "gate",
-          "Gate",
-          gate.registrationPolicy === "closed" ? "Closed app registration" : "App registration",
-        ),
-        authFact("policy", "Registration policy", titleCase(gate.registrationPolicy)),
-        authFact("app", "App install", gate.appInstallId),
-        authFact("organization", "Organization", gate.selectedOrganization),
-        authFact("action", "Action", gate.registrationPolicy === "closed" ? undefined : operation),
-      );
     case "profile-completion":
       return compactFacts(
         authFact("gate", "Gate", "Profile completion"),
-        authFact("app", "App install", gate.appInstallId),
         authFact("organization", "Organization", gate.selectedOrganization),
         authFact("action", "Action", operation),
       );
     case "terms-acceptance":
       return compactFacts(
         authFact("gate", "Gate", "Terms acceptance"),
-        authFact("action", "Action", operation),
-      );
-    case "role-review":
-      return compactFacts(
-        authFact("gate", "Gate", "Role review"),
-        authFact("role", "Role", gate.roleKey),
-        authFact("scope", "Scope", titleCase(gate.scopeKind)),
         authFact("action", "Action", operation),
       );
   }
@@ -870,7 +702,6 @@ function targetFacts(target: AccountCompletionGateTarget): AuthFactContract[] {
     authFact("origin", "Origin", safeHttpOrigin(target.targetOrigin)),
     authFact("target-surface", "Surface", targetProfileLabel(target.targetProfile)),
     authFact("route", "Route", target.routeId),
-    authFact("target-app", "App install", target.appInstallId),
     authFact("target-organization", "Organization", target.selectedOrganization),
   );
 }
@@ -1042,29 +873,6 @@ function accountGateContractState(
   return accountGateActions(state).length > 0 ? "ready" : "blocked";
 }
 
-function signupContractState(
-  state: Extract<AuthAccountRouteState, { status: `signup-${string}` }>,
-): Exclude<SignupAuthSurfaceContract["state"], "loading"> {
-  if (state.status === "signup-complete") return "complete";
-  if (state.status === "signup-continuing") return "continuing";
-  if (state.status === "signup-passkey-unavailable") return "passkey-unavailable";
-  if (
-    state.status.endsWith("-sending") ||
-    state.status.endsWith("-verifying") ||
-    state.status.endsWith("-submitting")
-  )
-    return "submitting";
-  return state.message ? "failed" : "ready";
-}
-
-function signupStep(
-  state: Extract<AuthAccountRouteState, { status: `signup-${string}` }>,
-): SignupStep {
-  if (isSignupIdentityState(state)) return "identity";
-  if (isSignupEmailVerificationState(state)) return "email-verification";
-  return "passkey";
-}
-
 function accountGateHeading(state: AuthAccountGateRouteState): string {
   if (state.status === "loading") return "Checking account";
   if (state.status === "failed") return "Account unavailable";
@@ -1082,29 +890,6 @@ function accountGateDescription(state: AuthAccountGateRouteState): string | unde
   return undefined;
 }
 
-function signupHeading(
-  state: Extract<AuthAccountRouteState, { status: `signup-${string}` }>,
-): string {
-  if (isSignupIdentityState(state)) return "Create account";
-  if (isSignupEmailVerificationState(state)) return "Verify email";
-  if (state.status === "signup-passkey-unavailable") return "Passkeys are unavailable";
-  if (state.status === "signup-complete" || state.status === "signup-continuing")
-    return "Account ready";
-  return "Create passkey";
-}
-
-function signupDescription(
-  state: Extract<AuthAccountRouteState, { status: `signup-${string}` }>,
-): string | undefined {
-  if (isSignupIdentityState(state)) return "Verify your email and create a passkey to continue.";
-  if (isSignupEmailVerificationState(state))
-    return `A verification email was sent to ${displaySafeText(state.email ?? "your email")}.`;
-  if (state.status === "signup-complete") return "Your account is ready to continue.";
-  if (state.status === "signup-continuing") return "Opening your approved destination.";
-  if (isSignupPasskeyState(state)) return "Create a passkey credential to finish account setup.";
-  return undefined;
-}
-
 function accountGateMessage(state: AuthAccountGateRouteState): AuthMessageContract | undefined {
   if (state.status === "loading") return authMessage("loading", "Loading account status.");
   if (state.status === "continuing") return authMessage("continuing", "Continuing...", "success");
@@ -1116,16 +901,6 @@ function accountGateMessage(state: AuthAccountGateRouteState): AuthMessageContra
     );
   if (state.status === "blocked" && accountGateIsUnavailable(state.result.gate))
     return authMessage("unavailable", accountGateUnavailableMessage(state.result.gate), "warning");
-  return undefined;
-}
-
-function signupMessage(
-  state: Extract<AuthAccountRouteState, { status: `signup-${string}` }>,
-): AuthMessageContract | undefined {
-  if (state.status === "signup-passkey-unavailable")
-    return authMessage("passkey", state.message ?? passkeyUnavailableMessage, "warning");
-  if (state.status === "signup-continuing")
-    return authMessage("continuing", "Continuing...", "success");
   return undefined;
 }
 
@@ -1169,53 +944,6 @@ function accountGateContinuation(
   return authContinuation(AUTH_ACCOUNT_GATE_SURFACE_ID, state.result.target, state.continueTo);
 }
 
-function signupContinuation(
-  state: Extract<AuthAccountRouteState, { status: `signup-${string}` }>,
-): AuthContinuationContract | undefined {
-  if (
-    (state.status !== "signup-complete" && state.status !== "signup-continuing") ||
-    !state.continueTo
-  )
-    return undefined;
-  return authContinuation(AUTH_ACCOUNT_SIGNUP_SURFACE_ID, state.result.target, state.continueTo);
-}
-
-function signupPasskey(
-  state: Extract<AuthAccountRouteState, { status: `signup-${string}` }>,
-): AuthPasskeyContract | undefined {
-  if (state.status === "signup-passkey-unavailable")
-    return {
-      availability: "unavailable",
-      id: `${AUTH_ACCOUNT_SIGNUP_SURFACE_ID}:passkey:create`,
-      kind: "authPasskey",
-      purpose: "create",
-      unavailableReason: displaySafeText(state.message ?? passkeyUnavailableMessage),
-    };
-  if (!isSignupPasskeyState(state)) return undefined;
-  const passkeyId = `${AUTH_ACCOUNT_SIGNUP_SURFACE_ID}:passkey:create`;
-  const pending = state.status === "signup-credential-submitting";
-  const control = authButton(
-    `${passkeyId}:control`,
-    pending ? "Creating passkey..." : "Create passkey",
-    "primary",
-    "submit",
-    { pending },
-  );
-  return {
-    availability: "available",
-    control,
-    id: passkeyId,
-    intent: {
-      controlId: control.id,
-      passkeyId,
-      surfaceId: AUTH_ACCOUNT_SIGNUP_SURFACE_ID,
-      type: "authPasskey",
-    },
-    kind: "authPasskey",
-    purpose: "create",
-  };
-}
-
 function authAccountCreateFieldConfigs(state: AuthAccountRouteState): CreateFieldConfig[] {
   if (isOwnerSetupIdentityState(state))
     return accountDraftFieldConfigs.filter(
@@ -1231,12 +959,6 @@ function authAccountCreateFieldConfigs(state: AuthAccountRouteState): CreateFiel
         : "email";
     return accountDraftFieldConfigs.filter((field) => field.fieldName === name);
   }
-  if (isSignupIdentityState(state))
-    return accountDraftFieldConfigs.filter(
-      (field) => field.fieldName === "displayName" || field.fieldName === "email",
-    );
-  if (isSignupEmailVerificationState(state))
-    return accountDraftFieldConfigs.filter((field) => field.fieldName === "token");
   return [];
 }
 
@@ -1260,11 +982,6 @@ function authAccountDraftSeedValues(state: AuthAccountRouteState): Record<string
       state.action && "email" in state.action ? state.action.email : state.result.gate.displayEmail;
     return email ? { email } : {};
   }
-  if (isSignupState(state))
-    return {
-      ...(state.displayName ? { displayName: state.displayName } : {}),
-      ...(state.email ? { email: state.email } : {}),
-    };
   return {};
 }
 
@@ -1273,7 +990,6 @@ function authAccountDraftSessionKey(state: AuthAccountRouteState): string {
     const challengeId = "challengeId" in state ? state.challengeId : "identity";
     return `owner-setup:${challengeId}`;
   }
-  if (isSignupState(state)) return `signup:${targetKey(state.target)}`;
   if (state.status === "blocked") {
     const operationKey = state.result.gate.operation?.operationKey ?? "none";
     return `gate:${targetKey(state.result.target)}:${state.result.gate.kind}:${operationKey}`;
@@ -1287,8 +1003,6 @@ function targetKey(target: AccountCompletionGateTarget): string {
     target.routeId,
     target.targetProfile,
     target.access,
-    target.requiredRole,
-    target.appInstallId,
     target.selectedOrganization,
     target.returnTo,
   ]);
@@ -1317,43 +1031,6 @@ function isOwnerSetupEmailVerificationState(
 > {
   return (
     state.status === "owner-setup-email-sent" || state.status === "owner-setup-email-verifying"
-  );
-}
-
-function isSignupState(
-  state: AuthAccountRouteState,
-): state is Extract<AuthAccountRouteState, { status: `signup-${string}` }> {
-  return state.status.startsWith("signup-");
-}
-
-function isSignupIdentityState(
-  state: AuthAccountRouteState,
-): state is Extract<AuthAccountRouteState, { status: "signup-ready" | "signup-email-sending" }> {
-  return state.status === "signup-ready" || state.status === "signup-email-sending";
-}
-
-function isSignupEmailVerificationState(
-  state: AuthAccountRouteState,
-): state is Extract<
-  AuthAccountRouteState,
-  { status: "signup-email-sent" | "signup-email-verifying" }
-> {
-  return state.status === "signup-email-sent" || state.status === "signup-email-verifying";
-}
-
-function isSignupPasskeyState(state: AuthAccountRouteState): state is Extract<
-  AuthAccountRouteState,
-  {
-    status:
-      | "signup-credential-ready"
-      | "signup-credential-submitting"
-      | "signup-passkey-unavailable";
-  }
-> {
-  return (
-    state.status === "signup-credential-ready" ||
-    state.status === "signup-credential-submitting" ||
-    state.status === "signup-passkey-unavailable"
   );
 }
 
@@ -1388,16 +1065,6 @@ function accountGateUnavailableMessage(gate: AccountCompletionGate): string {
       return "Profile completion requires fields this form cannot render.";
   }
   return "This account step is unavailable.";
-}
-
-function isCompletableAppRegistrationGate(
-  gate: AccountCompletionGate,
-): gate is AccountCompletionAppRegistrationGate {
-  return (
-    gate.kind === "app-registration" &&
-    gate.registrationPolicy === "email-verified" &&
-    gate.operation?.operationKey === "auth.app-registration.complete"
-  );
 }
 
 function authAction(
@@ -1562,17 +1229,6 @@ function gateCopy(gate: AccountCompletionGate): { heading: string; message: stri
         heading: "Accept invitation",
         message: "An invitation must be accepted before continuing.",
       };
-    case "app-registration":
-      return gate.registrationPolicy === "closed"
-        ? {
-            heading: "Registration closed",
-            message:
-              "This app uses closed registration. Ask an administrator to grant access before continuing.",
-          }
-        : {
-            heading: "Register for app",
-            message: "App registration is required before continuing.",
-          };
     case "profile-completion":
       return {
         heading: "Complete profile",
@@ -1582,11 +1238,6 @@ function gateCopy(gate: AccountCompletionGate): { heading: string; message: stri
       return {
         heading: "Accept terms",
         message: "Required account policies must be accepted before continuing.",
-      };
-    case "role-review":
-      return {
-        heading: "Access review required",
-        message: "Access must be reviewed before continuing.",
       };
   }
 }

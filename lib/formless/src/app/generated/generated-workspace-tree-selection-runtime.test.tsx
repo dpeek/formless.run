@@ -23,16 +23,12 @@ import {
   type GeneratedWorkspaceRuntimeController,
 } from "./generated-workspace-runtime.tsx";
 import { SchemaAppProvider } from "./schema-app-context.tsx";
-import {
-  installedAppStorageIdentity,
-  programStorageIdentity,
-} from "../../shared/app-storage-identity.ts";
-import { bundledSourceSchemaHashFixtures } from "../../shared/upgrade-migrations.ts";
+import { programStorageIdentity } from "../../shared/app-storage-identity.ts";
 
 const submitOperationMock = vi.hoisted(() => vi.fn());
-const listAppDocumentMediaAssetsMock = vi.hoisted(() => vi.fn());
+const listProgramDocumentMediaAssetsMock = vi.hoisted(() => vi.fn());
 const listCoreImageMediaAssetsMock = vi.hoisted(() => vi.fn());
-const uploadAppDocumentMediaFileMock = vi.hoisted(() => vi.fn());
+const uploadProgramDocumentMediaFileMock = vi.hoisted(() => vi.fn());
 const uploadCoreImageMediaFileMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../client/sync.ts", async (importOriginal) => ({
@@ -42,9 +38,9 @@ vi.mock("../../client/sync.ts", async (importOriginal) => ({
 
 vi.mock("@dpeek/formless-media/client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@dpeek/formless-media/client")>()),
-  listAppDocumentMediaAssets: listAppDocumentMediaAssetsMock,
+  listProgramDocumentMediaAssets: listProgramDocumentMediaAssetsMock,
   listCoreImageMediaAssets: listCoreImageMediaAssetsMock,
-  uploadAppDocumentMediaFile: uploadAppDocumentMediaFileMock,
+  uploadProgramDocumentMediaFile: uploadProgramDocumentMediaFileMock,
   uploadCoreImageMediaFile: uploadCoreImageMediaFileMock,
 }));
 (
@@ -55,11 +51,11 @@ vi.mock("@dpeek/formless-media/client", async (importOriginal) => ({
 beforeEach(() => {
   resetClientStore();
   submitOperationMock.mockReset();
-  listAppDocumentMediaAssetsMock.mockReset();
-  listAppDocumentMediaAssetsMock.mockResolvedValue([]);
+  listProgramDocumentMediaAssetsMock.mockReset();
+  listProgramDocumentMediaAssetsMock.mockResolvedValue([]);
   listCoreImageMediaAssetsMock.mockReset();
   listCoreImageMediaAssetsMock.mockResolvedValue([]);
-  uploadAppDocumentMediaFileMock.mockReset();
+  uploadProgramDocumentMediaFileMock.mockReset();
   uploadCoreImageMediaFileMock.mockReset();
 });
 
@@ -580,34 +576,8 @@ describe("generated workspace tree selection runtime", () => {
     });
   });
 
-  it("loads compatible app documents and replaces a tree record with a new flat asset id", async () => {
-    const privatePackage = {
-      adminRouteBase: "/apps" as const,
-      defaultInstallId: "private",
-      description: "Private Site fixture.",
-      label: "Private Site",
-      packageAppKey: "private-site",
-      packageRevision: 1,
-      sourceOrigin: "workspace" as const,
-      sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
-      sourceSchemaKey: "private-site",
-      sourceSchemaLocation: {
-        kind: "workspace" as const,
-        key: "private-site",
-        path: "source/schema.json",
-      },
-      supportsMultipleInstalls: true,
-    };
-    const appTarget = required(
-      installedAppStorageIdentity(
-        { installId: "private", packageAppKey: "private-site" },
-        {
-          findPackage: (packageAppKey) =>
-            packageAppKey === privatePackage.packageAppKey ? privatePackage : undefined,
-          listPackages: () => [privatePackage],
-        },
-      ),
-    );
+  it("loads compatible Program documents and replaces a tree record with a new flat asset id", async () => {
+    const appTarget = programStorageIdentity();
     const documentSchema = siteSchemaWithDocumentMedia();
     applyBootstrapResponse(bootstrapResponse(documentSchema, testSiteRecords), appTarget);
     const image = typedBlock("block-tree-document", "image", "Tree document", {
@@ -619,14 +589,13 @@ describe("generated workspace tree selection runtime", () => {
       access: "private",
       byteSize: 1200,
       contentType: "application/pdf",
-      downloadHref:
-        "/api/app-installs/private-site/private/media/documents/existing.pdf?download=1",
+      downloadHref: "/api/formless/program/media/documents/existing.pdf?download=1",
       filename: "Existing report.pdf",
-      href: "/api/app-installs/private-site/private/media/documents/existing.pdf",
+      href: "/api/formless/program/media/documents/existing.pdf",
       id: "existing.pdf",
       label: "Existing report.pdf",
     } as const;
-    listAppDocumentMediaAssetsMock.mockResolvedValue([existingOption]);
+    listProgramDocumentMediaAssetsMock.mockResolvedValue([existingOption]);
     const screen = required(
       selectScreenModels(documentSchema).find((candidate) => candidate.screenName === "siteEditor"),
     );
@@ -646,18 +615,18 @@ describe("generated workspace tree selection runtime", () => {
 
     await act(async () => {
       renderer = render(
-        <SchemaAppProvider schemaKey="site" target={appTarget}>
+        <SchemaAppProvider schemaKey="formless-program" target={appTarget}>
           <RuntimeProbe />
         </SchemaAppProvider>,
       );
     });
 
     const documentTarget = {
-      documentsPath: "/api/app-installs/private-site/private/media/documents",
+      documentsPath: "/api/formless/program/media/documents",
       field: { entityName: "block", fieldName: "mediaAssetId" },
     };
     expect(listCoreImageMediaAssetsMock).not.toHaveBeenCalled();
-    expect(listAppDocumentMediaAssetsMock).toHaveBeenCalledWith(documentTarget);
+    expect(listProgramDocumentMediaAssetsMock).toHaveBeenCalledWith(documentTarget);
 
     const imageItem = required(
       flattenTreeItems(currentTree(required(controller)).items).find(
@@ -689,25 +658,24 @@ describe("generated workspace tree selection runtime", () => {
       type: "application/pdf",
     });
     const replacementId = "replacement.pdf";
-    uploadAppDocumentMediaFileMock.mockResolvedValue({
+    uploadProgramDocumentMediaFileMock.mockResolvedValue({
       asset: {
         access: "private",
         byteSize: replacementFile.size,
         contentType: "application/pdf",
-        deliveryHref: `/api/app-installs/private-site/private/media/documents/${replacementId}`,
+        deliveryHref: `/api/formless/program/media/documents/${replacementId}`,
         filename: "replacement.pdf",
         id: replacementId,
         kind: "document",
         label: "replacement.pdf",
-        ownerAppInstallId: "private",
         provider: "r2",
         status: "ready",
-        storageKey: `media/app-installs/private/documents/${replacementId}`,
+        storageKey: `media/program/documents/${replacementId}`,
       },
       assetId: replacementId,
       contentType: "application/pdf",
-      href: `/api/app-installs/private-site/private/media/documents/${replacementId}`,
-      key: `media/app-installs/private/documents/${replacementId}`,
+      href: `/api/formless/program/media/documents/${replacementId}`,
+      key: `media/program/documents/${replacementId}`,
       size: replacementFile.size,
     });
     await dispatchTreeIntent(required(controller), {
@@ -722,7 +690,10 @@ describe("generated workspace tree selection runtime", () => {
       type: "treeField",
     });
 
-    expect(uploadAppDocumentMediaFileMock).toHaveBeenCalledWith(replacementFile, documentTarget);
+    expect(uploadProgramDocumentMediaFileMock).toHaveBeenCalledWith(
+      replacementFile,
+      documentTarget,
+    );
     expect(submitOperationMock).toHaveBeenCalledWith(
       appTarget,
       "block",
@@ -742,9 +713,9 @@ describe("generated workspace tree selection runtime", () => {
     expect(mediaField.options?.mediaAssetOptions).toContainEqual({
       byteSize: replacementFile.size,
       contentType: "application/pdf",
-      downloadHref: `/api/app-installs/private-site/private/media/documents/${replacementId}?download=1`,
+      downloadHref: `/api/formless/program/media/documents/${replacementId}?download=1`,
       filename: "replacement.pdf",
-      href: `/api/app-installs/private-site/private/media/documents/${replacementId}`,
+      href: `/api/formless/program/media/documents/${replacementId}`,
       id: replacementId,
       label: "replacement.pdf",
     });

@@ -202,11 +202,9 @@ describe("workspace source sync operation domain", () => {
           entity: "program-report",
           id: "program-report:private",
         }),
-        expect.objectContaining({ entity: "app-install", id: "legacy-tasks" }),
-        expect.objectContaining({ entity: "app-install", id: "legacy-site" }),
-        expect.objectContaining({ entity: "app-install", id: "legacy-crm" }),
       ]),
     );
+    expect(instanceState.records.map((record) => record.entity)).not.toContain("app-install");
     expect(instanceState).not.toHaveProperty("media");
     for (const installId of ["legacy-tasks", "legacy-site", "legacy-crm"]) {
       await expect(
@@ -277,14 +275,7 @@ describe("workspace source sync operation domain", () => {
       mediaFiles: Array<{ archivePath: string }>;
     }>(requestByPath(pushRequests, "/api/formless/archive/restore"));
 
-    expect(restoreBody.archive.apps).toEqual([
-      expect.objectContaining({
-        app: expect.objectContaining({
-          installId: "david",
-          packageAppKey: privateSitePackageAppKey,
-        }),
-      }),
-    ]);
+    expect(restoreBody.archive.apps).toEqual([]);
     expect(restoreBody.archive.controlPlane.records).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ entity: "task", id: "task:program-native" }),
@@ -295,10 +286,10 @@ describe("workspace source sync operation domain", () => {
           entity: "program-report",
           id: "program-report:private",
         }),
-        expect.objectContaining({ entity: "app-install", id: "legacy-tasks" }),
-        expect.objectContaining({ entity: "app-install", id: "legacy-site" }),
-        expect.objectContaining({ entity: "app-install", id: "legacy-crm" }),
       ]),
+    );
+    expect(restoreBody.archive.controlPlane.records.map((record) => record.entity)).not.toContain(
+      "app-install",
     );
     expect(restoreBody.archive.media.objects).toEqual([
       expect.objectContaining({
@@ -402,15 +393,13 @@ describe("workspace source sync operation domain", () => {
         expect.objectContaining({ entity: "company", id: "company:program-native-deleted" }),
       ]),
     );
-    expect(restoreBody.archive.apps.map(({ app }) => app.packageAppKey)).toEqual([
-      privateSitePackageAppKey,
-    ]);
+    expect(restoreBody.archive.apps).toEqual([]);
     expect(requests.map(({ url }) => new URL(url).pathname)).not.toContain(
       "/api/app-installs/crm/legacy-crm/snapshot",
     );
   });
 
-  it("pulls remote source into workspace with display-safe writeback results", async () => {
+  it("omits remote app state from workspace pull without mutating dormant local state", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const requests: CapturedRequest[] = [];
@@ -467,48 +456,37 @@ describe("workspace source sync operation domain", () => {
 
     expect(result).toMatchObject({
       details: {
-        appState: ["david", "james"],
+        appState: [],
         domainCount: 1,
         syncPlan: {
-          changedStatePathCount: expect.any(Number),
-          status: "changes",
+          changedStatePathCount: 0,
+          status: "up-to-date",
           target: "workspace",
         },
         target: "instance.primary",
       },
       summary: {
         fields: {
-          appCount: 2,
-          mediaCount: 1,
+          appCount: 0,
+          mediaCount: 0,
           mode: "apply",
-          noop: false,
-          recordCount: 2,
+          noop: true,
+          recordCount: 0,
         },
         title: "Workspace pulled",
       },
     });
-    expect(
-      (
-        result.details?.syncPlan as
-          | {
-              changedStatePathCount?: number;
-            }
-          | undefined
-      )?.changedStatePathCount,
-    ).toBeGreaterThan(0);
     expect(JSON.stringify(result)).not.toContain("stored-archive-token");
     expect(JSON.stringify(pulledControlPlaneRecords)).not.toContain("observedStatus");
     expect(JSON.stringify(pulledControlPlaneRecords)).not.toContain("deploy-evidence-summary");
     expect(JSON.stringify(pulledControlPlaneRecords)).not.toContain("raw-provider-evidence");
     await expect(
-      readFile(path.join(workspaceRoot, "state/media/media/david/media/images/cover.png")),
-    ).resolves.toEqual(Buffer.from([4, 5, 6]));
-    await expect(
-      readFile(path.join(workspaceRoot, "state/apps/james.json"), "utf8"),
-    ).resolves.toContain('"storageIdentity": "app:james"');
-    await expect(stat(path.join(workspaceRoot, "state/apps/stale.json"))).rejects.toMatchObject({
+      stat(path.join(workspaceRoot, "state/media/media/david/media/images/cover.png")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(stat(path.join(workspaceRoot, "state/apps/james.json"))).rejects.toMatchObject({
       code: "ENOENT",
     });
+    await expect(stat(path.join(workspaceRoot, "state/apps/stale.json"))).resolves.toBeTruthy();
     await expect(readFile(path.join(workspaceRoot, FORMLESS_CONFIG_FILE), "utf8")).resolves.toBe(
       configBytes,
     );
@@ -517,7 +495,7 @@ describe("workspace source sync operation domain", () => {
     );
   });
 
-  it("plans pull replacement without mutating workspace source during dry-run", async () => {
+  it("omits remote app replacement during pull dry-run", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const requests: CapturedRequest[] = [];
@@ -552,17 +530,17 @@ describe("workspace source sync operation domain", () => {
 
     expect(result).toMatchObject({
       details: {
-        changedStatePaths: expect.arrayContaining(["state/apps/david.json"]),
+        changedStatePaths: [],
         prunedStatePaths: [],
         syncPlan: {
-          changedRecordCount: 1,
-          status: "changes",
+          changedRecordCount: 0,
+          status: "up-to-date",
         },
       },
       summary: {
         fields: {
           mode: "dry-run",
-          noop: false,
+          noop: true,
         },
         title: "Workspace pulled",
       },
@@ -683,7 +661,7 @@ describe("workspace source sync operation domain", () => {
         fields: {
           mode: "dry-run",
           noop: true,
-          sourceApps: 1,
+          sourceApps: 0,
           sourceRecords: 0,
           sync: "up-to-date",
         },
@@ -697,12 +675,12 @@ describe("workspace source sync operation domain", () => {
 
     expect(requests.every((request) => request.method === "GET")).toBe(true);
     expect(requestPaths).toContain("GET /api/formless/program/snapshot");
-    expect(requestPaths).toContain("GET /api/app-installs/private-site/david/snapshot");
+    expect(requestPaths).not.toContain("GET /api/app-installs/private-site/david/snapshot");
     expect(requestPaths).not.toContain("POST /api/formless/archive/restore");
     expect(requestPaths).not.toContain("GET /api/formless/deployments/desired-state");
   });
 
-  it("plans push dry-run restore payloads from local source without provider mutation", async () => {
+  it("omits dormant local app state from push dry-run source", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const requests: CapturedRequest[] = [];
@@ -747,50 +725,31 @@ describe("workspace source sync operation domain", () => {
         ],
       ),
     );
-    const restoreRequest = requestByPath(requests, "/api/formless/archive/restore");
-    const restoreBody = capturedRequestJson<{
-      archive: {
-        apps: Array<{
-          app: {
-            installId: string;
-          };
-        }>;
-        restorePolicy: unknown;
-      };
-      exactInstanceReplacement: boolean;
-    }>(restoreRequest);
     expect(result).toMatchObject({
       details: {
-        dryRunRestore: {
-          ok: true,
-          replacedInstalls: ["david"],
-        },
+        dryRunRestore: null,
         syncPlan: {
-          changedRecordCount: 1,
-          changedStatePathCount: 1,
-          status: "changes",
+          changedRecordCount: 0,
+          changedStatePathCount: 0,
+          status: "up-to-date",
         },
         target: "instance.primary",
       },
       summary: {
         fields: {
           mode: "dry-run",
-          noop: false,
-          sourceApps: 1,
-          sourceMedia: 1,
-          sourceRecords: 2,
-          sync: "changes",
+          noop: true,
+          sourceApps: 0,
+          sourceMedia: 0,
+          sourceRecords: 0,
+          sync: "up-to-date",
         },
         title: "Workspace push planned",
       },
     });
-    expect(restoreRequest.headers.authorization).toBe("Bearer local-token");
-    expect(restoreBody.archive.restorePolicy).toEqual({
-      dryRun: true,
-      installCollisions: "replace",
-    });
-    expect(restoreBody.archive.apps.map((app) => app.app.installId)).toEqual(["david"]);
-    expect(restoreBody.exactInstanceReplacement).toBe(true);
+    expect(requests.map((request) => new URL(request.url).pathname)).not.toContain(
+      "/api/formless/archive/restore",
+    );
     expect(
       requests.map((request) => `${request.method} ${new URL(request.url).pathname}`),
     ).not.toContain("POST /api/formless/program/operations/deployment-config/update");
@@ -939,7 +898,7 @@ describe("deployment refresh operation domain", () => {
 });
 
 describe("deployment runtime domain", () => {
-  it("applies provider reconciliation, writes deploy state, and returns display-safe deployment summary", async () => {
+  it("does not deploy when only dormant installed-app source differs", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const requests: CapturedRequest[] = [];
@@ -968,80 +927,32 @@ describe("deployment runtime domain", () => {
         fetch: deployFetch(requests),
       }),
     );
-    const observation = capturedRequestJson<{
-      input: {
-        observedDesiredStateHash: string;
-        observedStatus: string;
-      };
-      recordId: string;
-    }>(requestByPath(requests, "/api/formless/program/operations/deployment-config/update"));
-    const deploymentStateRoot = path.join(workspaceRoot, ".formless/deploy/personal");
-
-    expect(deployInputs).toHaveLength(1);
-    expect(deployInputs[0]).toMatchObject({
-      credentialProfile: null,
-      packageRoot: tempDir,
-      secrets: {
-        ALCHEMY_PASSWORD: "generated-secret",
-        CLOUDFLARE_API_TOKEN: "manual-provider-token",
-        FORMLESS_ADMIN_TOKEN: "local-token",
-      },
-      stateRoot: deploymentStateRoot,
-      workspaceRoot,
-    });
-    expect(
-      deployInputs[0]?.deploymentResourceGraph?.resources.map((resource) => resource.kind),
-    ).toEqual(["cloudflare-worker-custom-domain"]);
+    expect(deployInputs).toEqual([]);
     expect(result).toMatchObject({
-      deployment: {
-        accountId: "account-123",
-        deploymentUrl: "https://personal.dpeek.workers.dev",
-        desiredStateVersion: expect.stringMatching(/^desired\.instance\.primary\./),
-        healthCheckVersion: packageJson.version,
-        observedStatus: "deployed",
-        providerFamily: "cloudflare",
-        target: "instance.primary",
-        workerName: "personal",
-      },
       details: {
-        applyRestore: {
-          ok: true,
-          replacedInstalls: ["david"],
-        },
-        dryRunRestore: {
-          ok: true,
-          replacedInstalls: ["david"],
-        },
+        applyRestore: null,
+        dryRunRestore: null,
         syncPlan: {
-          status: "changes",
+          status: "up-to-date",
         },
       },
       summary: {
         fields: {
-          applyRestoreOk: true,
-          dryRunRestoreOk: true,
           mode: "apply",
-          noop: false,
-          sync: "changes",
+          noop: true,
+          sync: "up-to-date",
         },
         title: "Workspace push applied",
       },
     });
-    expect(observation).toMatchObject({
-      input: {
-        observedDesiredStateHash: expect.stringMatching(/^sha256:/),
-        observedStatus: "deployed",
-      },
-      recordId: "instance.primary",
-    });
-    await expect(
-      readFile(path.join(deploymentStateRoot, FORMLESS_INSTANCE_STATE_FILE), "utf8"),
-    ).resolves.toContain("personal-authority");
+    expect(requests.map((request) => new URL(request.url).pathname)).not.toContain(
+      "/api/formless/archive/restore",
+    );
     expect(JSON.stringify(result)).not.toContain("manual-provider-token");
     expect(JSON.stringify(result)).not.toContain("local-token");
   });
 
-  it("reconciles readable package fact drift before final push restore validation", async () => {
+  it("ignores dormant installed package fact drift", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const requests: CapturedRequest[] = [];
@@ -1107,59 +1018,27 @@ describe("deployment runtime domain", () => {
         request.method === "POST" &&
         new URL(request.url).pathname === "/api/formless/archive/restore",
     );
-    const restoreBodies = restoreRequests.map((request) =>
-      capturedRequestJson<{
-        archive: {
-          apps: Array<{
-            app: {
-              packageRevision: number;
-              sourceSchemaHash: string;
-            };
-          }>;
-          restorePolicy: unknown;
-        };
-        exactInstanceReplacement: boolean;
-      }>(request),
-    );
-
-    expect(deployInputs).toHaveLength(1);
-    expect(restoreEvents).toEqual(["postdeploy:dry-run", "postdeploy:apply"]);
+    expect(deployInputs).toEqual([]);
+    expect(restoreEvents).toEqual([]);
     expect(result).toMatchObject({
       details: {
-        applyRestore: {
-          ok: true,
-          replacedInstalls: ["david"],
-        },
-        dryRunRestore: {
-          ok: true,
-          replacedInstalls: ["david"],
-        },
+        applyRestore: null,
+        dryRunRestore: null,
         syncPlan: {
-          changedAreas: expect.arrayContaining(["packages"]),
-          status: "changes",
+          changedAreas: [],
+          status: "up-to-date",
         },
       },
       summary: {
         fields: {
-          applyRestoreOk: true,
-          dryRunRestoreOk: true,
           mode: "apply",
-          noop: false,
-          sync: "changes",
+          noop: true,
+          sync: "up-to-date",
         },
         title: "Workspace push applied",
       },
     });
-    expect(restoreRequests).toHaveLength(2);
-    expect(restoreBodies.map((body) => body.archive.restorePolicy)).toEqual([
-      { dryRun: true, installCollisions: "replace" },
-      { dryRun: false, installCollisions: "replace" },
-    ]);
-    expect(restoreBodies.every((body) => body.exactInstanceReplacement)).toBe(true);
-    expect(restoreBodies[1]?.archive.apps[0]?.app).toMatchObject({
-      packageRevision: localPackageFacts.packageRevision,
-      sourceSchemaHash: localPackageFacts.sourceSchemaHash,
-    });
+    expect(restoreRequests).toEqual([]);
   });
 
   it("rebuilds runtime extensions on repeat push apply without restoring archive data", async () => {
@@ -1343,7 +1222,7 @@ describe("deployment runtime domain", () => {
     expect(JSON.stringify(restoreBody.archive)).not.toContain("legacy-control-plane-record");
   });
 
-  it("rejects invalid local push source before provider or restore mutation", async () => {
+  it("accepts current Program source without dormant local app state", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const requests: CapturedRequest[] = [];
@@ -1357,20 +1236,29 @@ describe("deployment runtime domain", () => {
       "FORMLESS_ADMIN_TOKEN=local-token\n",
     );
 
-    await expect(
-      pushFormlessInstanceWorkspace(
-        {
-          apply: true,
-          force: false,
-          workspacePath: workspaceRoot,
-        },
-        deploymentApplyOperationDeps(tempDir, {
-          deployInputs,
-          env: { CLOUDFLARE_API_TOKEN: "manual-provider-token" },
-          fetch: deployFetch(requests),
-        }),
-      ),
-    ).rejects.toThrow("Formless instance push requires local app state state/apps/david.json.");
+    const result = await pushFormlessInstanceWorkspace(
+      {
+        apply: true,
+        force: false,
+        workspacePath: workspaceRoot,
+      },
+      deploymentApplyOperationDeps(tempDir, {
+        deployInputs,
+        env: { CLOUDFLARE_API_TOKEN: "manual-provider-token" },
+        fetch: deployFetch(requests),
+      }),
+    );
+    expect(result).toMatchObject({
+      noop: true,
+      source: {
+        appCount: 0,
+        mediaCount: 0,
+        recordCount: 0,
+      },
+      syncPlan: {
+        status: "up-to-date",
+      },
+    });
     expect(deployInputs).toHaveLength(0);
     expect(
       requests.filter(
@@ -2418,7 +2306,6 @@ function installedSite(installId: string, label: string) {
     label,
     packageAppKey: privateSitePackageAppKey,
     packageRevision: facts.packageRevision,
-    registrationPolicy: "closed" as const,
     sourceSchemaHash: facts.sourceSchemaHash,
     status: "installed" as const,
     updatedAt: "2026-05-01T00:00:00.000Z",
@@ -2439,7 +2326,6 @@ function installedDormantPackage(installId: string, packageAppKey: "crm" | "site
     label: `Legacy ${packageAppKey === "site" ? "Site" : packageAppKey === "crm" ? "CRM" : "Tasks"}`,
     packageAppKey,
     packageRevision: facts.packageRevision,
-    registrationPolicy: "closed" as const,
     sourceSchemaHash: facts.sourceSchemaHash,
     status: "installed" as const,
     updatedAt: "2026-05-01T00:00:00.000Z",
@@ -2494,7 +2380,6 @@ function controlPlaneRecords(): StoredRecord[] {
         installId,
         label: "David Peek",
         packageAppKey: privateSitePackageAppKey,
-        registrationPolicy: "closed",
         status: "installed",
         storageIdentity: `app:${installId}`,
       },
@@ -2597,7 +2482,6 @@ function dormantBuiltInProgramRecords(): StoredRecord[] {
         label: install.label,
         packageAppKey: install.packageAppKey,
         packageRevision: install.packageRevision,
-        registrationPolicy: install.registrationPolicy,
         sourceSchemaHash: install.sourceSchemaHash,
         status: install.status,
         storageIdentity: `app:${install.installId}`,

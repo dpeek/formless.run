@@ -38,7 +38,6 @@ import type {
   IdentityAccessProgramRoleSummary,
   IdentityAccessRoleSummary,
 } from "@dpeek/formless-identity-control-plane";
-import type { AppInstall } from "@dpeek/formless-installed-apps";
 import type {
   CreateIdentityAccessManagementInvitationInput,
   RevokeIdentityAccessManagementInvitationInput,
@@ -112,7 +111,6 @@ export type ProjectAccessOptions = {
   authoringOpen: boolean;
   confirmation?: AccessConfirmationTarget | undefined;
   draft: AccessInvitationDraft;
-  installs: readonly AppInstall[];
   invitationDeletion: AccessInvitationDeletionState;
   invitationSubmitAttempted: boolean;
   personAuthoringDraft?: AccessPersonRoleDraft | undefined;
@@ -167,7 +165,6 @@ export type AccessIntentActions = {
 
 type AccessLabels = {
   groups: ReadonlyMap<string, string>;
-  installs: ReadonlyMap<string, string>;
   organizations: ReadonlyMap<string, string>;
   people: ReadonlyMap<string, string>;
 };
@@ -177,13 +174,7 @@ type ProjectedRoleChoice = AccessRoleOptionContract & {
   surfaceLabel: string;
 };
 
-export function createInitialAccessInvitationDraft({
-  installs: _installs,
-  summary: _summary,
-}: {
-  installs: readonly AppInstall[];
-  summary?: IdentityAccessManagementSummary | undefined;
-}): AccessInvitationDraft {
+export function createInitialAccessInvitationDraft(): AccessInvitationDraft {
   return {
     acceptanceTargetId: "",
     displayName: "",
@@ -197,7 +188,7 @@ export function createInitialAccessPersonRoleDraft(
   summary: IdentityAccessManagementSummary,
   personId: string,
 ): AccessPersonRoleDraft {
-  const choices = projectRoleChoices(summary.invitationGrantOptions, accessLabels(summary, []));
+  const choices = projectRoleChoices(summary.invitationGrantOptions, accessLabels(summary));
   const choiceIds = new Set(choices.map(({ id }) => id));
 
   return {
@@ -250,7 +241,7 @@ export function projectAccess(options: ProjectAccessOptions): AccessProjection {
   }
 
   const summary = options.state.summary;
-  const labels = accessLabels(summary, options.installs);
+  const labels = accessLabels(summary);
   const roleChoices = projectRoleChoices(summary.invitationGrantOptions, labels);
   const authoringProjection = projectAccessInvitationAuthoring(
     options,
@@ -1389,7 +1380,7 @@ function accessInvitationRequest(
   }
   const choices = projectRoleChoices(
     options.state.summary.invitationGrantOptions,
-    accessLabels(options.state.summary, options.installs),
+    accessLabels(options.state.summary),
   );
   const selected = choices.filter(({ id }) =>
     authoring.roleSelection.selectedOptionIds.includes(id),
@@ -1417,13 +1408,8 @@ function accessInvitationRequest(
     throw new Error("Access invitation requires a selected acceptance target.");
   }
   const target = invitationTargetFromRole(acceptanceChoice.role);
-  const appRegistrations = distinctStrings(
-    selected.flatMap(({ role }) => (role.scopeKind === "app-install" ? [role.appInstallId] : [])),
-  ).map((appInstallId) => ({ appInstallId }));
-
   return {
     ...target,
-    appRegistrations,
     invitedPrincipal: { displayName: options.draft.displayName.trim() },
     memberships,
     principalEmail: { primary: true, recovery: false },
@@ -1441,7 +1427,7 @@ function accessPersonRoleRequest(
   }
   const choices = projectRoleChoices(
     options.state.summary.invitationGrantOptions,
-    accessLabels(options.state.summary, options.installs),
+    accessLabels(options.state.summary),
   );
   const byId = new Map(choices.map((choice) => [choice.id, choice.role]));
 
@@ -1473,61 +1459,23 @@ function projectRoleChoices(
 
 function accessRoleSurface(
   role: IdentityAccessInvitationRoleGrantOption,
-  labels: AccessLabels,
+  _labels: AccessLabels,
 ): { id: string; label: string } {
-  if (role.scopeKind === "app-install") {
-    return {
-      id: `app-install:${role.appInstallId}`,
-      label: labels.installs.get(role.appInstallId) ?? "Unavailable app install",
-    };
-  }
-  if (role.scopeKind === "organization") {
-    return {
-      id: `organization:${role.scopeOrganizationId}`,
-      label: labels.organizations.get(role.scopeOrganizationId) ?? "Unavailable organization",
-    };
-  }
   if (role.scopeKind === "program") {
     return { id: "program", label: "Program" };
   }
   return { id: "instance", label: "Instance" };
 }
 
-function invitationTargetFromRole(
-  role: IdentityAccessInvitationRoleGrantOption,
-):
-  | { targetAppInstallId: string; targetSurface: "app-install" }
-  | { targetOrganization: string; targetSurface: "organization" }
-  | { targetSurface: "instance" } {
-  if (role.scopeKind === "app-install") {
-    return { targetAppInstallId: role.appInstallId, targetSurface: "app-install" };
-  }
-  if (role.scopeKind === "organization") {
-    return {
-      targetOrganization: role.scopeOrganizationId,
-      targetSurface: "organization",
-    };
-  }
+function invitationTargetFromRole(_role: IdentityAccessInvitationRoleGrantOption): {
+  targetSurface: "instance";
+} {
   return { targetSurface: "instance" };
 }
 
 function invitationRoleAssignment(
   role: IdentityAccessInvitationRoleGrantOption,
 ): NonNullable<CreateIdentityAccessManagementInvitationInput["roleAssignments"]>[number] {
-  if (role.scopeKind === "app-install") {
-    return {
-      appInstallId: role.appInstallId,
-      roleKey: role.roleKey,
-      scopeKind: "app-install",
-    };
-  }
-  if (role.scopeKind === "organization") {
-    return {
-      roleKey: role.roleKey,
-      scopeKind: "organization",
-      scopeOrganization: role.scopeOrganizationId,
-    };
-  }
   if (role.scopeKind === "program") {
     return { roleId: role.roleId, scopeKind: "program" };
   }
@@ -1537,20 +1485,6 @@ function invitationRoleAssignment(
 function identityPersonRoleSelection(
   role: IdentityAccessInvitationRoleGrantOption,
 ): IdentityAccessPersonRoleSelection {
-  if (role.scopeKind === "app-install") {
-    return {
-      appInstallId: role.appInstallId,
-      roleKey: role.roleKey,
-      scopeKind: "app-install",
-    };
-  }
-  if (role.scopeKind === "organization") {
-    return {
-      roleKey: role.roleKey,
-      scopeKind: "organization",
-      scopeOrganizationId: role.scopeOrganizationId,
-    };
-  }
   if (role.scopeKind === "program") {
     return { roleId: role.roleId, scopeKind: "program" };
   }
@@ -1581,16 +1515,10 @@ function rolesByPrincipal(summary: IdentityAccessManagementSummary) {
   return roles;
 }
 
-function accessLabels(
-  summary: IdentityAccessManagementSummary,
-  installs: readonly AppInstall[],
-): AccessLabels {
+function accessLabels(summary: IdentityAccessManagementSummary): AccessLabels {
   return {
     groups: new Map(
       summary.groups.map((group) => [group.groupId, safeLabel(group.displayName, "Unnamed group")]),
-    ),
-    installs: new Map(
-      installs.map((install) => [install.installId, safeLabel(install.label, "Unnamed app")]),
     ),
     organizations: new Map(
       summary.organizations.map((organization) => [
@@ -1614,11 +1542,6 @@ function accessRoleScopeLabel(
   if (role.scopeKind === "program") {
     return "Program";
   }
-  if (role.scopeKind === "app-install") {
-    return role.appInstallId
-      ? (labels.installs.get(role.appInstallId) ?? "Unavailable app install")
-      : "Unavailable app install";
-  }
   if (role.scopeKind === "organization") {
     return role.scopeOrganizationId
       ? (labels.organizations.get(role.scopeOrganizationId) ?? "Unavailable organization")
@@ -1631,14 +1554,6 @@ function accessRoleLabel(roleKey: string): string {
   switch (roleKey) {
     case "instance.owner":
       return "Owner";
-    case "app.admin":
-      return "Administrator";
-    case "app.editor":
-      return "Editor";
-    case "app.viewer":
-      return "Viewer";
-    case "app.user":
-      return "User";
     default:
       return fieldKeyLabel(roleKey);
   }
@@ -1648,11 +1563,6 @@ function accessInvitationScopeLabel(
   invitation: IdentityAccessInvitationSummary,
   labels: AccessLabels,
 ): string {
-  if (invitation.targetSurface === "app-install") {
-    return invitation.targetAppInstallId
-      ? (labels.installs.get(invitation.targetAppInstallId) ?? "Unavailable app install")
-      : "Unavailable app install";
-  }
   if (invitation.targetSurface === "organization") {
     return invitation.targetOrganizationId
       ? (labels.organizations.get(invitation.targetOrganizationId) ?? "Unavailable organization")
@@ -1665,25 +1575,16 @@ function accessRoleSummaryOptionId(
   role: IdentityAccessProgramRoleSummary | IdentityAccessRoleSummary,
 ): string {
   const surface =
-    role.scopeKind === "app-install"
-      ? (role.appInstallId ?? "unavailable")
-      : role.scopeKind === "organization"
-        ? (role.scopeOrganizationId ?? "unavailable")
-        : role.scopeKind === "program"
-          ? "program"
-          : "instance";
+    role.scopeKind === "organization"
+      ? (role.scopeOrganizationId ?? "unavailable")
+      : role.scopeKind === "program"
+        ? "program"
+        : "instance";
   return `${INSTANCE_ACCESS_ID}:role-option:${correlationSegment(role.scopeKind)}:${correlationSegment(surface)}:${correlationSegment(role.roleKey)}`;
 }
 
 function accessRoleOptionId(option: IdentityAccessInvitationRoleGrantOption): string {
-  const surface =
-    option.scopeKind === "app-install"
-      ? option.appInstallId
-      : option.scopeKind === "organization"
-        ? option.scopeOrganizationId
-        : option.scopeKind === "program"
-          ? "program"
-          : "instance";
+  const surface = option.scopeKind === "program" ? "program" : "instance";
   return `${INSTANCE_ACCESS_ID}:role-option:${correlationSegment(option.scopeKind)}:${correlationSegment(surface)}:${correlationSegment(option.roleKey)}`;
 }
 

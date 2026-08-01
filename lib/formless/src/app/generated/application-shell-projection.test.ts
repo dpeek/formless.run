@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
 import { createMemoryPresentationHost } from "@dpeek/formless-presentation/host";
-import type { AppInstall } from "@dpeek/formless-installed-apps";
 import { selectGeneratedRootNavigationFacts } from "../../client/generated-authoring.ts";
 import { selectPrimaryScreenModels } from "../../client/views.ts";
 import { testSiteRecords } from "../../test/site-records.ts";
@@ -11,7 +10,7 @@ import {
   createPublishedSiteRuntimeProfile,
   findRuntimeWorldMountByRoute,
 } from "../runtime-profile.ts";
-import type { RuntimeProfile, RuntimeWorldMount } from "../runtime-profile.ts";
+import type { RuntimeWorldMount } from "../runtime-profile.ts";
 import { projectInitialGeneratedCreateRuntimeSurface } from "./generated-create-runtime.ts";
 import {
   projectGeneratedApplicationShell,
@@ -28,18 +27,16 @@ import { programStorageIdentity } from "../../shared/app-storage-identity.ts";
 import { getSchemaAppDefinition } from "../../shared/schema-apps.ts";
 
 describe("generated application shell projection", () => {
-  it("selects multi-app, app-only, and no-shell presentation from profile and route state", () => {
+  it("selects Program and no-shell presentation from profile and route state", () => {
     const dev = createDevRuntimeProfile();
     const instance = createInstanceRuntimeProfile();
-    const appWorld = installedWorld();
-    const app: RuntimeProfile = { kind: "app", shell: "app", worlds: [appWorld] };
+    const programWorld = generatedWorld();
 
-    expect(shellScope(dev, "/apps/personal", appWorld)).toBe("multiApp");
+    expect(shellScope(dev, "/routes", programWorld)).toBe("multiApp");
     expect(shellScope(dev, "/unknown", undefined)).toBe("multiApp");
     expect(shellScope(instance, "/", undefined)).toBe("multiApp");
     expect(shellScope(instance, "/access", undefined)).toBe("multiApp");
-    expect(shellScope(instance, "/apps/personal", appWorld)).toBe("multiApp");
-    expect(shellScope(app, "/audiences", appWorld)).toBe("appOnly");
+    expect(shellScope(instance, "/routes", programWorld)).toBe("multiApp");
 
     expect(shellScope(instance, "/unknown", undefined)).toBeUndefined();
     expect(shellScope(dev, "/formless/auth/sign-in", undefined)).toBeUndefined();
@@ -219,7 +216,6 @@ describe("generated application shell projection", () => {
       { href: "/tasks", label: "Tasks", selected: false },
       { href: "/site", label: "Blocks", selected: false },
       { href: "/crm", label: "Contacts", selected: false },
-      { href: "/apps", label: "Apps", selected: false },
       { href: "/routes", label: "Routes", selected: false },
       { href: "/deployments", label: "Deployments", selected: false },
       { href: "/", label: "Principals", selected: true },
@@ -243,7 +239,7 @@ describe("generated application shell projection", () => {
     const runtimeProfile = createDevRuntimeProfile();
     const filtered = required(
       projectGeneratedApplicationShell({
-        authorizedProgramScreenPaths: ["/settings", "/apps", "/deployments"],
+        authorizedProgramScreenPaths: ["/settings", "/deployments"],
         currentPath: "/deployments",
         routeWorld: undefined,
         runtimeProfile,
@@ -266,7 +262,6 @@ describe("generated application shell projection", () => {
         }),
       ),
     ).toEqual([
-      { href: "/apps", label: "Apps", selected: false },
       { href: "/deployments", label: "Deployments", selected: true },
       { href: "/settings", label: "Settings", selected: false },
     ]);
@@ -302,20 +297,18 @@ describe("generated application shell projection", () => {
   });
 });
 
-function installedWorld(): RuntimeWorldMount {
+function generatedWorld(): RuntimeWorldMount {
   return {
-    app: { key: "private-app", label: "Private app", route: "/" },
+    app: { key: "formless-program", label: "Program", route: "/" },
     generatedRoutes: true,
     route: "/",
     target: {
-      apiRoutePrefix: "/api/app-installs/private-app/personal",
-      authorityName: "app:personal",
-      broadcastChannelName: "formless:app:personal",
-      browserDatabaseName: "formless:app:personal",
-      installId: "personal",
-      kind: "appInstall",
-      packageAppKey: "private-app",
-      sourceSchemaKey: "private-app",
+      apiRoutePrefix: "/api/formless/program",
+      authorityName: "instance:control-plane",
+      broadcastChannelName: "formless:instance:control-plane",
+      browserDatabaseName: "formless:instance:control-plane",
+      kind: "program",
+      schemaKey: "formless-program",
     },
   };
 }
@@ -461,7 +454,6 @@ function completeProjection(): GeneratedApplicationShellProjection {
     projectGeneratedApplicationShell({
       activeScreenPath,
       currentPath: `/site${activeScreenPath === "/" ? "" : activeScreenPath}`,
-      installs: [installedSiteFixture()],
       logoutState: "idle",
       accountSession: {
         authenticated: true,
@@ -513,21 +505,6 @@ function siteSnapshot() {
       ]),
     ),
     recordsById: Object.fromEntries(testSiteRecords.map((record) => [record.id, record])),
-  };
-}
-
-function installedSiteFixture(): AppInstall {
-  return {
-    adminRoute: "/apps/personal",
-    createdAt: "2026-07-16T00:00:00.000Z",
-    installId: "personal",
-    label: "Personal Site",
-    packageAppKey: "site",
-    packageRevision: 1,
-    registrationPolicy: "closed",
-    sourceSchemaHash: `sha256:${"a".repeat(64)}`,
-    status: "installed",
-    updatedAt: "2026-07-16T00:00:00.000Z",
   };
 }
 

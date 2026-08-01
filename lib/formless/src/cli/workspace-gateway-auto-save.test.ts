@@ -387,28 +387,15 @@ describe("workspace gateway auto-save", () => {
       };
       storageIdentity: string;
     };
-    const appState = JSON.parse(
-      await readFile(path.join(workspaceRoot, "state/apps/site.json"), "utf8"),
-    ) as {
-      kind: string;
-      schema?: unknown;
-      schemaProvenance?: {
-        kind: string;
-      };
-      storageIdentity: string;
-    };
     expect(instanceState).toMatchObject({
       kind: WORKSPACE_RECORD_STATE_FILE_KIND,
       schemaProvenance: { kind: "program" },
       storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     });
     expect(instanceState.schema).toBeUndefined();
-    expect(appState).toMatchObject({
-      kind: WORKSPACE_RECORD_STATE_FILE_KIND,
-      schemaProvenance: { kind: "package-app" },
-      storageIdentity: "app:site",
+    await expect(stat(path.join(workspaceRoot, "state/apps/site.json"))).rejects.toMatchObject({
+      code: "ENOENT",
     });
-    expect(appState.schema).toBeUndefined();
     await expect(stat(path.join(workspaceRoot, "archives"))).rejects.toMatchObject({
       code: "ENOENT",
     });
@@ -416,18 +403,14 @@ describe("workspace gateway auto-save", () => {
       code: "ENOENT",
     });
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
-      "GET http://localhost:5173/api/formless/app-installs",
       "GET http://localhost:5173/api/formless/program/snapshot?actorKind=cliDeployer",
-      "GET http://localhost:5173/api/app-installs/private-site/site/snapshot",
     ]);
     expect(requests.map((request) => request.headers.authorization)).toEqual([
-      "Bearer local-save-token",
-      "Bearer local-save-token",
       "Bearer local-save-token",
     ]);
   });
 
-  it("saves referenced public and private documents with manifest metadata", async () => {
+  it("omits installed-app documents from current Program auto-save", async () => {
     const workspaceRoot = await makeTempDir();
     const requests: CapturedRequest[] = [];
     const privateBytes = new TextEncoder().encode("%PDF-1.7\nprivate workspace document");
@@ -463,66 +446,18 @@ describe("workspace gateway auto-save", () => {
       savedGeneration: 1,
     });
 
-    const mediaManifest = JSON.parse(
-      await readFile(path.join(workspaceRoot, "state/media/manifest.json"), "utf8"),
-    ) as {
-      objects: Array<{
-        archivePath: string;
-        asset: {
-          access: string;
-          contentType: string;
-          filename: string;
-        };
-      }>;
-    };
-    expect(mediaManifest.objects).toMatchObject([
-      {
-        archivePath: "media/reports/media/app-installs/reports/documents/private-report.pdf",
-        asset: {
-          access: "private",
-          contentType: "application/pdf",
-          filename: "private-report.pdf",
-        },
-      },
-      {
-        archivePath: "media/reports/media/app-installs/reports/documents/public-report.pdf",
-        asset: {
-          access: "public",
-          contentType: "application/pdf",
-          filename: "public-report.pdf",
-        },
-      },
-    ]);
-    await expect(
-      readFile(
-        path.join(
-          workspaceRoot,
-          "state/media/media/reports/media/app-installs/reports/documents/private-report.pdf",
-        ),
-      ),
-    ).resolves.toEqual(Buffer.from(privateBytes));
-    await expect(
-      readFile(
-        path.join(
-          workspaceRoot,
-          "state/media/media/reports/media/app-installs/reports/documents/public-report.pdf",
-        ),
-      ),
-    ).resolves.toEqual(Buffer.from(publicBytes));
-    await expect(
-      stat(
-        path.join(
-          workspaceRoot,
-          "state/media/media/reports/media/app-installs/reports/documents/unreferenced.pdf",
-        ),
-      ),
-    ).rejects.toMatchObject({ code: "ENOENT" });
-    expect(requests.map((request) => request.url)).not.toContain(
-      "http://localhost:5173/api/app-installs/private-site/reports/media/documents/unreferenced.pdf",
+    await expect(stat(path.join(workspaceRoot, "state/media/manifest.json"))).rejects.toMatchObject(
+      { code: "ENOENT" },
+    );
+    expect(requests.map((request) => new URL(request.url).pathname)).not.toEqual(
+      expect.arrayContaining([
+        "/api/app-installs/private-site/reports/snapshot",
+        "/api/app-installs/private-site/reports/media/documents",
+      ]),
     );
   });
 
-  it("saves an uploaded document beyond the first production-date R2 list page", async () => {
+  it("does not select installed-app uploads for current Program auto-save", async () => {
     const workspaceRoot = await makeTempDir();
     const mediaHarness = await createWorkerHarness(
       "src/cli/workspace-document-media-worker-test.ts",
@@ -547,7 +482,7 @@ describe("workspace gateway auto-save", () => {
       await Promise.all(
         Array.from({ length: 50 }, (_, index) =>
           bucket.put(
-            `media/app-installs/reports/documents/!decoy-${String(index).padStart(2, "0")}.pdf`,
+            `media/program/documents/!decoy-${String(index).padStart(2, "0")}.pdf`,
             pdfBytesForWorkspace,
             {
               customMetadata: { decoy: String(index) },
@@ -558,7 +493,7 @@ describe("workspace gateway auto-save", () => {
       );
 
       const list = await mediaHarness.fetch(
-        "/api/app-installs/private-site/reports/media/documents?entity=block&field=privateDocument",
+        "/api/formless/program/media/documents?entity=block&field=privateDocument",
       );
 
       expect(list.status).toBe(200);
@@ -597,31 +532,14 @@ describe("workspace gateway auto-save", () => {
         savedGeneration: 1,
       });
 
-      const appState = JSON.parse(
-        await readFile(path.join(workspaceRoot, "state/apps/reports.json"), "utf8"),
-      ) as { records: StoredRecord[] };
-      const mediaManifest = JSON.parse(
-        await readFile(path.join(workspaceRoot, "state/media/manifest.json"), "utf8"),
-      ) as {
-        objects: Array<{
-          archivePath: string;
-          asset?: { id: string };
-        }>;
-      };
-      const mediaStatePath = path.join(
-        workspaceRoot,
-        "state/media/media/reports",
-        referencedAsset.storageKey,
+      await expect(stat(path.join(workspaceRoot, "state/apps/reports.json"))).rejects.toMatchObject(
+        {
+          code: "ENOENT",
+        },
       );
-
-      expect(appState.records[0]?.values.privateDocument).toBe(referencedAsset.id);
-      expect(mediaManifest.objects).toEqual([
-        expect.objectContaining({
-          archivePath: `media/reports/${referencedAsset.storageKey}`,
-          asset: expect.objectContaining({ id: referencedAsset.id }),
-        }),
-      ]);
-      await expect(readFile(mediaStatePath)).resolves.toEqual(Buffer.from(pdfBytesForWorkspace));
+      await expect(
+        stat(path.join(workspaceRoot, "state/media/manifest.json")),
+      ).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       await mediaHarness.dispose();
     }
@@ -954,54 +872,22 @@ function workspaceDocumentSaveFetch(
 
 function workspaceDocumentWorkerFetch(
   mediaHarness: Awaited<ReturnType<typeof createWorkerHarness>>,
-  referencedAssetId: string,
+  _referencedAssetId: string,
 ): typeof fetch {
-  const installId = "reports";
-
   return async (url, init) => {
     const requestUrl =
       typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
     const parsedUrl = new URL(requestUrl);
 
-    if (
-      parsedUrl.pathname.startsWith(`/api/app-installs/private-site/${installId}/media/documents`)
-    ) {
+    if (parsedUrl.pathname.startsWith("/api/formless/program/media/documents")) {
       return (await mediaHarness.fetch(`${parsedUrl.pathname}${parsedUrl.search}`, {
         headers: normalizeHeaders(init?.headers),
         method: init?.method,
       })) as unknown as Response;
     }
 
-    if (parsedUrl.pathname === "/api/formless/app-installs") {
-      return Response.json({
-        installs: [installedSite(installId, "Reports")],
-        packages: listInstallableAppPackages(privateSitePackageResolver),
-      });
-    }
-
     if (parsedUrl.pathname === "/api/formless/program/snapshot") {
-      return Response.json(controlPlaneSnapshot(gatewayControlPlaneRecords(installId)));
-    }
-
-    if (parsedUrl.pathname === `/api/app-installs/private-site/${installId}/snapshot`) {
-      return Response.json({
-        ...snapshot(
-          [
-            {
-              createdAt: "2026-06-02T02:45:00.000Z",
-              entity: "block",
-              id: "document",
-              updatedAt: "2026-06-02T02:45:00.000Z",
-              values: {
-                privateDocument: referencedAssetId,
-                type: "group",
-              },
-            },
-          ],
-          `app:${installId}`,
-        ),
-        schema: workspaceDocumentSchema(),
-      });
+      return Response.json(controlPlaneSnapshot(gatewayControlPlaneRecords("reports")));
     }
 
     return Response.json({ error: "not found" }, { status: 404 });
@@ -1028,7 +914,7 @@ async function uploadWorkspaceDocument(
   body.set(suffix, prefix.byteLength + pdfBytesForWorkspace.byteLength);
 
   return mediaHarness.fetch(
-    "/api/app-installs/private-site/reports/media/documents?entity=block&field=privateDocument",
+    "/api/formless/program/media/documents?entity=block&field=privateDocument",
     {
       body,
       headers: {
@@ -1053,7 +939,6 @@ function installedSite(installId: string, label: string) {
     label,
     packageAppKey: privateSitePackageAppKey,
     packageRevision: facts.packageRevision,
-    registrationPolicy: "closed" as const,
     sourceSchemaHash: facts.sourceSchemaHash,
     status: "installed" as const,
     updatedAt: "2026-05-01T00:00:00.000Z",
@@ -1107,23 +992,22 @@ function workspaceDocumentSchema() {
   return schema;
 }
 function workspaceDocumentAsset(
-  installId: string,
+  _installId: string,
   assetId: string,
   access: "private" | "public",
   bytes: Uint8Array,
 ) {
-  const storageKey = `media/app-installs/${installId}/documents/${assetId}`;
+  const storageKey = `media/program/documents/${assetId}`;
 
   return {
     access,
     byteSize: bytes.byteLength,
     contentType: "application/pdf",
-    deliveryHref: `/api/app-installs/private-site/${installId}/media/documents/${assetId}`,
+    deliveryHref: `/api/formless/program/media/documents/${assetId}`,
     filename: assetId,
     id: assetId,
     kind: "document",
     label: assetId,
-    ownerAppInstallId: installId,
     provider: "r2",
     status: "ready",
     storageKey,
@@ -1157,7 +1041,6 @@ function gatewayControlPlaneRecords(installId: string): StoredRecord[] {
         installId,
         label: "Site",
         packageAppKey: privateSitePackageAppKey,
-        registrationPolicy: "closed",
         status: "installed",
         storageIdentity: `app:${installId}`,
       },

@@ -1,20 +1,13 @@
 import type {
   ButtonContract,
-  CreateFieldContract,
   ManagementAuthorizationPromptContract,
   ManagementFeedbackContract,
-  ManagementInstallDialogContract,
   ManagementIntent,
   ManagementManifestContract,
   ManagementReadyContract,
   ManagementWorkspaceOperationContract,
   WorkspaceManifestReference,
 } from "@dpeek/formless-presentation/contract";
-import {
-  validateAppInstallId,
-  type InstallableAppPackage,
-  type PackageAppKey,
-} from "@dpeek/formless-installed-apps";
 import type { WorkspaceGatewayOperation } from "@dpeek/formless-gateway/client";
 import { workspaceBrowserOperationControlMetadata } from "@dpeek/formless-workspace";
 import {
@@ -25,48 +18,33 @@ import {
   type GeneratedOperationExecutionState,
 } from "../../client/views.ts";
 import { projectGeneratedOperationControl } from "../generated/operation-projection.ts";
-import type {
-  InstanceShellRouteState,
-  PackageInstallDraft,
-  PackageInstallDrafts,
-  WorkspaceGatewayRouteState,
-} from "./instance-shell.tsx";
+import type { WorkspaceGatewayRouteState } from "./instance-shell.tsx";
 import {
   displaySafeAuthorizationUrl,
   displaySafeText,
 } from "./instance-management-display-safety.ts";
 import {
   INSTANCE_MANAGEMENT_ID,
-  INSTANCE_MANAGEMENT_INSTALL_DIALOG_ID,
   INSTANCE_MANAGEMENT_PUSH_CONTROL_ID,
   INSTANCE_MANAGEMENT_PUSH_OPERATION_ID,
-  instanceManagementInstallDialogReference,
   instanceManagementLoadingManifest,
 } from "./instance-management-contract.ts";
 
 export {
   INSTANCE_MANAGEMENT_ID,
-  INSTANCE_MANAGEMENT_INSTALL_DIALOG_ID,
   INSTANCE_MANAGEMENT_PUSH_CONTROL_ID,
   INSTANCE_MANAGEMENT_PUSH_OPERATION_ID,
-  instanceManagementInstallDialogReference,
   instanceManagementReference,
 } from "./instance-management-contract.ts";
 
 export type InstanceManagementWorkspaceReferences = {
-  apps: WorkspaceManifestReference;
   routes: WorkspaceManifestReference;
 };
 
 export type ProjectInstanceManagementOptions = {
-  activeWorkspace: keyof InstanceManagementWorkspaceReferences;
-  controlPlaneLoadError?: string | undefined;
-  installDialogOpen: boolean;
-  installDrafts: PackageInstallDrafts;
-  selectedPackageAppKey?: PackageAppKey | undefined;
-  state: InstanceShellRouteState;
+  controlPlaneLoadError?: string;
   workspaceGatewayState: WorkspaceGatewayRouteState;
-  workspaces?: InstanceManagementWorkspaceReferences | undefined;
+  workspaces?: InstanceManagementWorkspaceReferences;
 };
 
 export type InstanceManagementAuthorizationRuntime = {
@@ -77,30 +55,19 @@ export type InstanceManagementAuthorizationRuntime = {
 };
 
 export type InstanceManagementProjection = {
-  authorization?: InstanceManagementAuthorizationRuntime | undefined;
-  dialog?: ManagementInstallDialogContract | undefined;
+  authorization?: InstanceManagementAuthorizationRuntime;
   manifest: ManagementManifestContract;
-  selectedDraft?: PackageInstallDraft | undefined;
-  selectedPackageAppKey?: PackageAppKey | undefined;
 };
 
 export type ResolvedInstanceManagementIntent =
   | { kind: "authorizationOpen"; authorization: InstanceManagementAuthorizationRuntime }
   | { kind: "ignored" }
-  | { kind: "installDialogOpenChange"; open: boolean }
-  | { draft: PackageInstallDraft; kind: "installDraftChange"; packageAppKey: PackageAppKey }
-  | { kind: "installPackageSelection"; packageAppKey: PackageAppKey }
-  | { kind: "installSubmit"; packageAppKey: PackageAppKey }
   | { kind: "workspacePush" };
 
 export type InstanceManagementIntentActions = {
-  changeInstallDraft: (packageAppKey: PackageAppKey, draft: PackageInstallDraft) => void;
-  changeInstallDialogOpen: (open: boolean) => void;
   openAuthorization: (url: string) => void;
   pollWorkspaceOperation: (operationId: string, operationKind: "push") => Promise<void> | void;
-  selectInstallPackage: (packageAppKey: PackageAppKey) => void;
   startWorkspacePush: () => Promise<void> | void;
-  submitInstall: (packageAppKey: PackageAppKey) => Promise<void> | void;
 };
 
 export function projectInstanceManagement(
@@ -112,27 +79,6 @@ export function projectInstanceManagement(
     kind: "managementManifest" as const,
     title: "Instance Settings",
   };
-
-  if (options.state.status === "loading") {
-    return {
-      manifest: instanceManagementLoadingManifest,
-    };
-  }
-
-  if (options.state.status === "failed") {
-    return {
-      manifest: {
-        ...base,
-        feedback: managementFeedback(
-          "management-load",
-          "Instance management unavailable",
-          options.state.message,
-          "danger",
-        ),
-        state: "failed",
-      },
-    };
-  }
 
   if (options.controlPlaneLoadError) {
     return {
@@ -150,25 +96,12 @@ export function projectInstanceManagement(
   }
 
   if (!options.workspaces) {
-    return {
-      manifest: {
-        ...base,
-        message: "Loading Instance control plane...",
-        state: "loading",
-      },
-    };
+    return { manifest: instanceManagementLoadingManifest };
   }
 
-  const workspaces = options.workspaces;
-  const selectedPackage = selectInstanceManagementPackage(
-    options.state.packages,
-    options.selectedPackageAppKey,
-    options.state.installErrorPackageAppKey,
-  );
   const workspace = projectWorkspaceOperation(options.workspaceGatewayState);
-  const readyManifest = (): ManagementReadyContract => ({
+  const manifest: ManagementReadyContract = {
     ...base,
-    installDialog: instanceManagementInstallDialogReference,
     state: "ready",
     ...(workspace.operation === undefined
       ? {}
@@ -179,57 +112,15 @@ export function projectInstanceManagement(
               : { ...workspace.operation, authorizationPrompt: workspace.authorization },
         }),
     ...(workspace.feedback === undefined ? {} : { workspaceFeedback: workspace.feedback }),
-    workspaces: [
-      {
-        reference: workspaces[options.activeWorkspace],
-        role: options.activeWorkspace,
-      },
-    ],
-  });
-
-  if (!selectedPackage) {
-    return {
-      ...(workspace.authorizationRuntime === undefined
-        ? {}
-        : { authorization: workspace.authorizationRuntime }),
-      manifest: readyManifest(),
-    };
-  }
-
-  const selectedDraft = options.installDrafts[selectedPackage.packageAppKey] ?? {
-    installId: selectedPackage.defaultInstallId,
-    label: selectedPackage.label,
+    workspaces: [{ reference: options.workspaces.routes, role: "routes" }],
   };
-  const dialog = projectInstallDialog({
-    draft: selectedDraft,
-    installDialogOpen: options.installDialogOpen,
-    selectedPackage,
-    state: options.state,
-  });
 
   return {
     ...(workspace.authorizationRuntime === undefined
       ? {}
       : { authorization: workspace.authorizationRuntime }),
-    dialog,
-    manifest: readyManifest(),
-    selectedDraft,
-    selectedPackageAppKey: selectedPackage.packageAppKey,
+    manifest,
   };
-}
-
-export function selectInstanceManagementPackage(
-  packages: readonly InstallableAppPackage[],
-  requestedPackageAppKey?: PackageAppKey,
-  failedPackageAppKey?: PackageAppKey,
-): InstallableAppPackage | undefined {
-  const selectedKey =
-    failedPackageAppKey &&
-    packages.some(({ packageAppKey }) => packageAppKey === failedPackageAppKey)
-      ? failedPackageAppKey
-      : requestedPackageAppKey;
-
-  return packages.find(({ packageAppKey }) => packageAppKey === selectedKey) ?? packages[0];
 }
 
 export function resolveInstanceManagementIntent(
@@ -240,81 +131,31 @@ export function resolveInstanceManagementIntent(
     return { kind: "ignored" };
   }
 
-  const dialog = projection.dialog;
-  if (!dialog) {
-    return { kind: "ignored" };
+  if (intent.type === "managementWorkspaceOperation") {
+    const operation = projection.manifest.workspaceOperation;
+    return operation &&
+      intent.operationId === operation.id &&
+      intent.controlId === operation.control.id &&
+      intent.intent.type === "operationInvoke" &&
+      intent.intent.controlId === operation.control.id &&
+      operation.control.trigger.disabled !== true
+      ? { kind: "workspacePush" }
+      : { kind: "ignored" };
   }
 
-  switch (intent.type) {
-    case "managementInstallDialogOpenChange":
-      return intent.dialogId === dialog.id
-        ? { kind: "installDialogOpenChange", open: intent.open }
-        : { kind: "ignored" };
-    case "managementInstallPackageSelection": {
-      const option = dialog.packageOptions.find(
-        (candidate) =>
-          candidate.id === intent.optionId &&
-          candidate.selectionIntent.fieldId === intent.fieldId &&
-          intent.dialogId === dialog.id,
-      );
-      return option
-        ? { kind: "installPackageSelection", packageAppKey: option.packageAppKey as PackageAppKey }
-        : { kind: "ignored" };
-    }
-    case "managementInstallField": {
-      if (intent.dialogId !== dialog.id || intent.intent.type !== "createDraftChange") {
-        return { kind: "ignored" };
-      }
-      const fieldIntent = intent.intent;
-      const field = Object.values(dialog.fields).find(
-        (candidate) =>
-          candidate.fieldId === intent.fieldId && candidate.fieldName === fieldIntent.fieldName,
-      );
-      const packageAppKey = projection.selectedPackageAppKey;
-      const draft = projection.selectedDraft;
-      if (!field || !packageAppKey || !draft || field.fieldName === "packageAppKey") {
-        return { kind: "ignored" };
-      }
-      const value = fieldIntent.fieldValue.value;
-      if (typeof value !== "string") {
-        return { kind: "ignored" };
-      }
-      return {
-        draft: { ...draft, [field.fieldName]: value },
-        kind: "installDraftChange",
-        packageAppKey,
-      };
-    }
-    case "managementInstallSubmit":
-      return intent.dialogId === dialog.id &&
-        intent.controlId === dialog.submit.id &&
-        dialog.submit.disabled !== true &&
-        projection.selectedPackageAppKey
-        ? { kind: "installSubmit", packageAppKey: projection.selectedPackageAppKey }
-        : { kind: "ignored" };
-    case "managementWorkspaceOperation": {
-      const operation = projection.manifest.workspaceOperation;
-      return operation &&
-        intent.operationId === operation.id &&
-        intent.controlId === operation.control.id &&
-        intent.intent.type === "operationInvoke" &&
-        intent.intent.controlId === operation.control.trigger.id &&
-        operation.control.trigger.disabled !== true
-        ? { kind: "workspacePush" }
-        : { kind: "ignored" };
-    }
-    case "managementAuthorizationOpen": {
-      const operation = projection.manifest.workspaceOperation;
-      const prompt = operation?.authorizationPrompt;
-      return prompt &&
-        projection.authorization &&
-        intent.operationId === operation?.id &&
-        intent.promptId === prompt.id &&
-        intent.controlId === prompt.action.id
-        ? { authorization: projection.authorization, kind: "authorizationOpen" }
-        : { kind: "ignored" };
-    }
+  if (intent.type === "managementAuthorizationOpen") {
+    const operation = projection.manifest.workspaceOperation;
+    const prompt = operation?.authorizationPrompt;
+    return prompt &&
+      projection.authorization &&
+      intent.operationId === operation.id &&
+      intent.promptId === prompt.id &&
+      intent.controlId === prompt.action.id
+      ? { authorization: projection.authorization, kind: "authorizationOpen" }
+      : { kind: "ignored" };
   }
+
+  return { kind: "ignored" };
 }
 
 export async function dispatchInstanceManagementIntent(
@@ -324,30 +165,17 @@ export async function dispatchInstanceManagementIntent(
 ): Promise<void> {
   const resolved = resolveInstanceManagementIntent(projection, intent);
 
-  switch (resolved.kind) {
-    case "ignored":
-      return;
-    case "installDialogOpenChange":
-      actions.changeInstallDialogOpen(resolved.open);
-      return;
-    case "installPackageSelection":
-      actions.selectInstallPackage(resolved.packageAppKey);
-      return;
-    case "installDraftChange":
-      actions.changeInstallDraft(resolved.packageAppKey, resolved.draft);
-      return;
-    case "installSubmit":
-      await actions.submitInstall(resolved.packageAppKey);
-      return;
-    case "workspacePush":
-      await actions.startWorkspacePush();
-      return;
-    case "authorizationOpen":
-      actions.openAuthorization(resolved.authorization.url);
-      await actions.pollWorkspaceOperation(
-        resolved.authorization.operationId,
-        resolved.authorization.operationKind,
-      );
+  if (resolved.kind === "workspacePush") {
+    await actions.startWorkspacePush();
+    return;
+  }
+
+  if (resolved.kind === "authorizationOpen") {
+    actions.openAuthorization(resolved.authorization.url);
+    await actions.pollWorkspaceOperation(
+      resolved.authorization.operationId,
+      resolved.authorization.operationKind,
+    );
   }
 }
 
@@ -420,174 +248,6 @@ export function workspacePushOperationExecutionState({
     status: displaySafeResult.type,
     result: displaySafeResult,
     ...(completedAt === undefined ? {} : { completedAt }),
-  };
-}
-
-function projectInstallDialog({
-  draft,
-  installDialogOpen,
-  selectedPackage,
-  state,
-}: {
-  draft: PackageInstallDraft;
-  installDialogOpen: boolean;
-  selectedPackage: InstallableAppPackage;
-  state: Extract<InstanceShellRouteState, { status: "ready" }>;
-}): ManagementInstallDialogContract {
-  const pending = state.installing;
-  const selectedInstalling =
-    pending && state.installingPackageAppKey === selectedPackage.packageAppKey;
-  const validation = validateInstallDraft(draft, state);
-  const installError =
-    state.installErrorPackageAppKey === selectedPackage.packageAppKey
-      ? state.installError
-      : undefined;
-  const packageField = createInstallField({
-    fieldName: "packageAppKey",
-    label: "App type",
-    pending,
-    value: selectedPackage.packageAppKey,
-  });
-  const labelField = createInstallField({
-    error: validation.label,
-    fieldName: "label",
-    label: "Label",
-    pending,
-    value: draft.label,
-  });
-  const installIdField = createInstallField({
-    error: validation.installId,
-    fieldName: "installId",
-    label: "Install id",
-    pending,
-    value: draft.installId,
-  });
-  const submit = button(
-    "instance-management:install-submit",
-    selectedInstalling ? "Installing..." : `Install ${selectedPackage.label}`,
-    "primary",
-    "submit",
-    pending || validation.errors.length > 0,
-  );
-
-  return {
-    cancel: button("instance-management:install-cancel", "Cancel", "secondary", "button", pending),
-    closeIntent: {
-      dialogId: INSTANCE_MANAGEMENT_INSTALL_DIALOG_ID,
-      managementId: INSTANCE_MANAGEMENT_ID,
-      open: false,
-      type: "managementInstallDialogOpenChange",
-    },
-    description: "Choose an app type, then set its instance label and install id.",
-    errors: validation.errors,
-    ...(installError === undefined
-      ? {}
-      : {
-          feedback: managementFeedback(
-            `install:${selectedPackage.packageAppKey}`,
-            `${selectedPackage.label} install failed`,
-            installError,
-            "danger",
-          ),
-        }),
-    fields: { installId: installIdField, label: labelField, package: packageField },
-    id: INSTANCE_MANAGEMENT_INSTALL_DIALOG_ID,
-    kind: "managementInstallDialog",
-    managementId: INSTANCE_MANAGEMENT_ID,
-    open: installDialogOpen,
-    packageOptions: state.packages.map((appPackage) => {
-      const id = `instance-management:package:${appPackage.packageAppKey}`;
-      return {
-        description: appPackage.description,
-        id,
-        kind: "managementPackageOption" as const,
-        label: appPackage.label,
-        packageAppKey: appPackage.packageAppKey,
-        selected: appPackage.packageAppKey === selectedPackage.packageAppKey,
-        selectionIntent: {
-          dialogId: INSTANCE_MANAGEMENT_INSTALL_DIALOG_ID,
-          fieldId: packageField.fieldId,
-          managementId: INSTANCE_MANAGEMENT_ID,
-          optionId: id,
-          type: "managementInstallPackageSelection" as const,
-        },
-      };
-    }),
-    ...(pending ? { pending: { isPending: true, label: "Installing app" } } : {}),
-    selectedPackageOptionId: `instance-management:package:${selectedPackage.packageAppKey}`,
-    submit,
-    submitIntent: {
-      controlId: submit.id,
-      dialogId: INSTANCE_MANAGEMENT_INSTALL_DIALOG_ID,
-      managementId: INSTANCE_MANAGEMENT_ID,
-      type: "managementInstallSubmit",
-    },
-    title: "Install app",
-  };
-}
-
-function validateInstallDraft(
-  draft: PackageInstallDraft,
-  state: Extract<InstanceShellRouteState, { status: "ready" }>,
-): { errors: string[]; installId?: string; label?: string } {
-  const installIdResult = validateAppInstallId(draft.installId);
-  const duplicate = state.installs.some(({ installId }) => installId === draft.installId.trim());
-  const installId = !installIdResult.ok
-    ? installIdResult.error.message
-    : duplicate
-      ? `Install id "${draft.installId.trim()}" is already installed.`
-      : undefined;
-  const label = draft.label.trim() === "" ? "Install label is required." : undefined;
-  return {
-    errors: [label, installId].filter((message): message is string => message !== undefined),
-    ...(installId === undefined ? {} : { installId }),
-    ...(label === undefined ? {} : { label }),
-  };
-}
-
-function createInstallField({
-  error,
-  fieldName,
-  label,
-  pending,
-  value,
-}: {
-  error?: string;
-  fieldName: "installId" | "label" | "packageAppKey";
-  label: string;
-  pending: boolean;
-  value: string;
-}): CreateFieldContract {
-  const field = { label, required: true, type: "text" as const };
-  return {
-    access: { canPatch: true, kind: "editable", writable: true },
-    commit: "submit",
-    control: {
-      control: { inputType: "text", kind: "input" },
-      controlKind: "text",
-      createDefaultChecked: false,
-      createDefaultValue: undefined,
-      editor: "text",
-      field,
-      inputAttributes: {},
-      kind: "text",
-      label,
-      required: true,
-    },
-    density: "default",
-    draftInput: { kind: "input", value },
-    editor: "text",
-    ...(error === undefined ? {} : { errors: [{ fieldName, message: error }] }),
-    field,
-    fieldId: `field:standalone:${INSTANCE_MANAGEMENT_INSTALL_DIALOG_ID}:${fieldName}`,
-    fieldName,
-    label,
-    labelVisibility: "visible",
-    mode: "editor",
-    ...(pending ? { pending: { isPending: true, label: "Installing app" } } : {}),
-    required: true,
-    surface: "create",
-    value,
   };
 }
 

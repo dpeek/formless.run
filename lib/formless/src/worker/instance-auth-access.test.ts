@@ -15,15 +15,10 @@ import type { OwnerSession } from "./owner-session.ts";
 
 const target: InstanceAuthSessionTargetBinding = {
   access: "authenticated",
-  appInstallId: "tasks",
   routeId: "route:tasks",
-  storageIdentity: "app:tasks",
+  storageIdentity: "instance:control-plane",
   targetOrigin: "https://tasks.example.com",
-  targetProfile: "app",
-};
-const appAdminTarget: InstanceAuthSessionTargetBinding = {
-  ...target,
-  requiredRole: "app.admin",
+  targetProfile: "instance",
 };
 const accountTarget: AccountCompletionGateTarget = {
   ...target,
@@ -392,169 +387,6 @@ describe("instance auth access readers and decisions", () => {
     });
   });
 
-  it("accepts only owner or matching app-install admin authority and selects role review", async () => {
-    const input = {
-      accountCompletionTarget: accountTarget,
-      localOwnerSessionFallbackAllowed: false,
-      requiredAuthority: "app.admin" as const,
-      target: appAdminTarget,
-    };
-    const centralReader = {
-      readCentralSession: async () => ({
-        ok: true as const,
-        ownerSessionFallbackAllowed: false,
-        session: centralSession,
-      }),
-    };
-
-    for (const authority of [
-      {
-        appAdmin: true,
-        appInstallId: "tasks",
-        id: centralSession.principalId,
-        instanceOwner: false,
-      },
-      {
-        appAdmin: false,
-        appInstallId: "tasks",
-        id: centralSession.principalId,
-        instanceOwner: true,
-      },
-    ]) {
-      await expect(
-        resolveInstanceAuthAccess(
-          input,
-          accessReaders({
-            ...centralReader,
-            readAppAdminAuthority: async () => authority,
-          }),
-        ),
-      ).resolves.toMatchObject({
-        ok: true,
-        ownerAuthorized: authority.instanceOwner,
-        via: "central-session",
-      });
-    }
-
-    for (const authority of [
-      null,
-      {
-        appAdmin: true,
-        appInstallId: "crm",
-        id: centralSession.principalId,
-        instanceOwner: false,
-      },
-      {
-        appAdmin: false,
-        appInstallId: "tasks",
-        id: centralSession.principalId,
-        instanceOwner: false,
-      },
-    ]) {
-      const missingAppAuthority = await resolveInstanceAuthAccess(
-        input,
-        accessReaders({
-          ...centralReader,
-          readAppAdminAuthority: async () => authority,
-        }),
-      );
-
-      expect(missingAppAuthority).toMatchObject({
-        authenticated: {
-          principalId: centralSession.principalId,
-          session: centralSession,
-          via: "central-session",
-        },
-        ok: false,
-        reason: "missing-app-admin-authority",
-      });
-    }
-
-    await expect(
-      resolveInstanceAuthAccess(
-        { ...input, localOwnerSessionFallbackAllowed: true },
-        accessReaders({
-          readAppAdminAuthority: async (session, appInstallId) => ({
-            appAdmin: false,
-            appInstallId,
-            id: session.principalId,
-            instanceOwner: true,
-          }),
-          readCentralSession: async () => ({
-            ok: false,
-            ownerSessionFallbackAllowed: true,
-            reason: "missing-cookie",
-          }),
-          readLocalOwnerSession: async () => ({ ok: true, session: ownerSession }),
-        }),
-      ),
-    ).resolves.toMatchObject({
-      ok: true,
-      ownerAuthorized: true,
-      via: "owner-session",
-    });
-    await expect(
-      resolveInstanceAuthAccess(
-        input,
-        accessReaders({
-          readAppAdminAuthority: async (session, appInstallId) => ({
-            appAdmin: true,
-            appInstallId,
-            id: session.principalId,
-            instanceOwner: false,
-          }),
-          readHostSession: async () => ({
-            ok: true,
-            session: { ...hostSession, ...appAdminTarget },
-          }),
-        }),
-      ),
-    ).resolves.toMatchObject({
-      ok: true,
-      ownerAuthorized: false,
-      via: "host-session",
-    });
-
-    const roleReview = {
-      gate: {
-        kind: "role-review" as const,
-        roleKey: "app.admin" as const,
-        scopeKind: "app-install" as const,
-      },
-      status: "blocked" as const,
-      target: accountTarget,
-    };
-    const roleReviewResult = await resolveInstanceAuthAccess(
-      input,
-      accessReaders({
-        ...centralReader,
-        readAccountCompletion: async () => roleReview,
-        readAppAdminAuthority: async () => null,
-      }),
-    );
-
-    expect(roleReviewResult).toMatchObject({
-      accountCompletion: roleReview,
-      authenticated: {
-        principalId: centralSession.principalId,
-        session: centralSession,
-        via: "central-session",
-      },
-      ok: false,
-      reason: "account-completion-required",
-    });
-    await expect(
-      resolveInstanceAuthAccess(
-        input,
-        accessReaders({
-          ...centralReader,
-          readActivePrincipal: async () => null,
-          readAppAdminAuthority: async () => null,
-        }),
-      ),
-    ).resolves.toEqual({ ok: false, reason: "missing-principal" });
-  });
-
   it("blocks current account gates and builds authenticated operation actor facts", async () => {
     const blocked = {
       gate: { kind: "email-verification" as const },
@@ -588,12 +420,11 @@ describe("instance auth access readers and decisions", () => {
       kind: "authenticated",
       principalId: hostSession.principalId,
       sessionTarget: {
-        appInstallId: "tasks",
         instanceId: "auth.example.com",
         routeId: "route:tasks",
-        storageIdentity: "app:tasks",
+        storageIdentity: "instance:control-plane",
         targetOrigin: "https://tasks.example.com",
-        targetProfile: "app",
+        targetProfile: "instance",
       },
     });
     expect(
@@ -623,8 +454,7 @@ describe("instance auth access readers and decisions", () => {
     for (const facts of [
       { requestOrigin: "https://other.example.com", target },
       { requestOrigin: target.targetOrigin, target: { ...target, routeId: "route:other" } },
-      { requestOrigin: target.targetOrigin, target: { ...target, targetProfile: "instance" } },
-      { requestOrigin: target.targetOrigin, target: { ...target, appInstallId: "crm" } },
+      { requestOrigin: target.targetOrigin, target: { ...target, targetProfile: "public-site" } },
       {
         requestOrigin: target.targetOrigin,
         target: { ...target, storageIdentity: "app:other" },
@@ -664,12 +494,6 @@ function accessReaders(
     readActivePrincipal: async (session) => ({
       displayName: "Active principal",
       id: session.principalId,
-    }),
-    readAppAdminAuthority: async (session, appInstallId) => ({
-      appAdmin: true,
-      appInstallId,
-      id: session.principalId,
-      instanceOwner: false,
     }),
     readCentralSession: async () => ({
       ok: false,

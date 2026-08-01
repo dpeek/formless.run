@@ -1,12 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
-import {
-  FORMLESS_RUNTIME_APP_INSTALL_ID_META_NAME,
-  FORMLESS_RUNTIME_PACKAGE_APP_KEY_META_NAME,
-  FORMLESS_RUNTIME_PROFILE_META_NAME,
-} from "../app/runtime-profile.ts";
+import { FORMLESS_RUNTIME_PROFILE_META_NAME } from "../app/runtime-profile.ts";
 import { INITIAL_SITE_PAGE_TREE_SCRIPT_ID } from "@dpeek/formless-site-app/react";
-import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
 import { programPublicSiteRuntimeTarget } from "../shared/public-site-runtime-target.ts";
 import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
 import {
@@ -18,13 +13,6 @@ import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { Env } from "./index.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
-import {
-  FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
-  formatRuntimeWorkspaceAppPackages,
-} from "../shared/workspace-runtime-packages.ts";
-import { createAppPackageResolver, type AppPackageResolver } from "../shared/app-packages.ts";
-import { siteSourceSchema } from "../test/schema-apps.ts";
-import { runtimeWorkspaceTaskAppPackageFixture } from "../test/workspace-app-package.ts";
 import {
   handlePublicSiteDocumentRequest,
   mappedPublicSiteHostFromRuntimeRoute,
@@ -38,21 +26,9 @@ import {
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
 const adminToken = "test-admin-token";
-const privateSitePackageAppKey = "private-site";
 let harness: Harness;
-let privateSitePackages: string;
-let privateSitePackageResolver: AppPackageResolver;
 
 beforeAll(async () => {
-  const privateSitePackage = await runtimeWorkspaceTaskAppPackageFixture({
-    capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],
-    defaultInstallId: "personal",
-    label: "Private Site",
-    packageAppKey: privateSitePackageAppKey,
-    sourceSchema: siteSourceSchema,
-  });
-  privateSitePackages = formatRuntimeWorkspaceAppPackages([privateSitePackage]);
-  privateSitePackageResolver = createAppPackageResolver([privateSitePackage.manifest]);
   harness = await createWorkerHarness(
     "src/worker/index.ts",
     {
@@ -62,7 +38,6 @@ beforeAll(async () => {
       bindings: {
         FORMLESS_RUNTIME_PROFILE: "publishedSite",
         FORMLESS_ADMIN_TOKEN: adminToken,
-        [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: privateSitePackages,
       },
       compatibilityDate: "2026-04-28",
     },
@@ -83,19 +58,7 @@ afterAll(async () => {
 });
 
 describe("published Site Worker SSR", () => {
-  it("maps only install-free public-site host routes to Program storage", () => {
-    const installedStorage = installedAppStorageIdentity(
-      {
-        installId: "personal",
-        packageAppKey: privateSitePackageAppKey,
-      },
-      privateSitePackageResolver,
-    );
-
-    if (!installedStorage) {
-      throw new Error("Missing installed Site target.");
-    }
-
+  it("maps public-site host routes to Program storage", () => {
     const route = {
       access: "anonymous" as const,
       id: "route:host:public-site",
@@ -111,12 +74,6 @@ describe("published Site Worker SSR", () => {
       host: "example.com",
       target: programPublicSiteRuntimeTarget(),
     });
-    expect(
-      mappedPublicSiteHostFromRuntimeRoute({
-        ...route,
-        target: installedStorage,
-      }),
-    ).toBeUndefined();
   });
 
   it("does not render published Site documents outside the published runtime profile", async () => {
@@ -196,29 +153,6 @@ describe("published Site Worker SSR", () => {
     );
 
     expect(response?.status).toBe(200);
-    expect(authorityRequests).toEqual([`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/tree/home`]);
-  });
-
-  it("ignores published install target environment metadata", async () => {
-    const authorityRequests: string[] = [];
-    const [installedTarget, partialTarget] = await Promise.all([
-      handlePublicSiteDocumentRequest(
-        new Request("https://example.com/", { headers: { Accept: "text/html" } }),
-        envWithTreeResponse(Response.json(testSitePageTree("home")), undefined, "publishedSite", {
-          authorityRequests,
-          installId: "personal",
-          packageAppKey: privateSitePackageAppKey,
-        }),
-      ),
-      handlePublicSiteDocumentRequest(
-        new Request("https://example.com/", { headers: { Accept: "text/html" } }),
-        envWithTreeResponse(Response.json(testSitePageTree("home")), undefined, "publishedSite", {
-          packageAppKey: "site",
-        }),
-      ),
-    ]);
-
-    expect([installedTarget?.status, partialTarget?.status]).toEqual([200, 200]);
     expect(authorityRequests).toEqual([`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/tree/home`]);
   });
 
@@ -371,8 +305,6 @@ describe("published Site Worker SSR", () => {
     expect(html).toContain(
       `<meta name="${FORMLESS_RUNTIME_PROFILE_META_NAME}" content="publishedSite" />`,
     );
-    expect(html).not.toContain(FORMLESS_RUNTIME_APP_INSTALL_ID_META_NAME);
-    expect(html).not.toContain(FORMLESS_RUNTIME_PACKAGE_APP_KEY_META_NAME);
   });
 
   it("returns server-rendered HTML for nested published Site slugs", async () => {
@@ -705,8 +637,6 @@ function envWithTreeResponse(
       } = "publishedSite",
   options: {
     authorityRequests?: string[];
-    installId?: string;
-    packageAppKey?: string;
   } = {},
 ): Env {
   const runtimeProfile =
@@ -738,13 +668,6 @@ function envWithTreeResponse(
       idFromName: () => "site-id",
     },
     FORMLESS_RUNTIME_PROFILE: runtimeProfile,
-    [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: privateSitePackages,
-    ...(options.installId === undefined
-      ? {}
-      : { FORMLESS_RUNTIME_APP_INSTALL_ID: options.installId }),
-    ...(options.packageAppKey === undefined
-      ? {}
-      : { FORMLESS_RUNTIME_PACKAGE_APP_KEY: options.packageAppKey }),
   } as unknown as Env;
 }
 

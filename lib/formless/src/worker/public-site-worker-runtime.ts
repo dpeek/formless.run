@@ -251,8 +251,7 @@ export function mappedPublicSiteHostFromRuntimeRoute(
     route.kind !== "mount" ||
     route.targetProfile !== "public-site" ||
     route.surface !== "public-site" ||
-    !route.matchHost ||
-    route.target !== undefined
+    !route.matchHost
   ) {
     return undefined;
   }

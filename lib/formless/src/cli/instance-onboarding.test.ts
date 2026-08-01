@@ -9,7 +9,6 @@ import {
   FORMLESS_STORAGE_MIGRATION_SET_ID,
 } from "../shared/deploy-metadata.ts";
 import { planDomainProviderResources } from "../shared/domain-provider-planner.ts";
-import { FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME } from "../shared/workspace-runtime-packages.ts";
 import {
   FORMLESS_SITE_PROJECT_ROOT_ENV_NAME,
   FORMLESS_WORKSPACE_RUNTIME_EXTENSIONS_ENV_NAME,
@@ -1150,7 +1149,6 @@ describe("Alchemy Formless instance deployment", () => {
               FORMLESS_WORKSPACE_PROGRAM_ARTIFACT_PATH:
                 "/workspace/.formless/local/formless-program.json",
               [FORMLESS_SITE_PROJECT_ROOT_ENV_NAME]: "/workspace",
-              [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: "runtime-package-payload",
               [FORMLESS_WORKSPACE_RUNTIME_EXTENSIONS_ENV_NAME]: workspaceRuntimeExtensions,
               VITE_FORMLESS_RUNTIME_PROFILE: "instance",
             },
@@ -1158,7 +1156,6 @@ describe("Alchemy Formless instance deployment", () => {
           bundle: {
             define: {
               __FORMLESS_PROGRAM_ARTIFACT_JSON__: JSON.stringify("program-artifact-payload"),
-              __FORMLESS_WORKSPACE_APP_PACKAGES_JSON__: JSON.stringify("runtime-package-payload"),
             },
             plugins: [
               expect.objectContaining({

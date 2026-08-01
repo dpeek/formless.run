@@ -1,8 +1,8 @@
 import {
   documentMediaAssetOptionFromAsset,
-  listAppDocumentMediaAssets,
+  listProgramDocumentMediaAssets,
   listCoreImageMediaAssets,
-  uploadAppDocumentMediaFile,
+  uploadProgramDocumentMediaFile,
   uploadCoreImageMediaFile,
   type DocumentMediaUploadResponse,
   type MediaAssetOption,
@@ -36,7 +36,7 @@ export async function loadGeneratedMediaAssetOptions(
       }
       const target = generatedDocumentMediaTarget(appTarget, field.entityName, field.fieldName);
       const options =
-        target === undefined ? [] : await listAppDocumentMediaAssets(target).catch(() => []);
+        target === undefined ? [] : await listProgramDocumentMediaAssets(target).catch(() => []);
       return [key, options] as const;
     }),
   );
@@ -59,7 +59,7 @@ export async function uploadGeneratedMediaFile({
     if (!target) {
       throw new Error("Document media is unavailable for this app target.");
     }
-    const upload = await uploadAppDocumentMediaFile(file, target);
+    const upload = await uploadProgramDocumentMediaFile(file, target);
     if (!upload.asset) {
       throw new Error("Document upload did not return a media asset.");
     }

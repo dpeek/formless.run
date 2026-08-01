@@ -4,8 +4,6 @@ import type {
   IdentityAccessPersonRemovalRequest,
   IdentityAccessPersonRoleReplacementRequest,
 } from "@dpeek/formless-identity-control-plane";
-import type { AppInstall } from "@dpeek/formless-installed-apps";
-import { fetchInstanceAppInstalls } from "../../client/app-installs.ts";
 import {
   createIdentityAccessManagementInvitation,
   fetchIdentityAccessManagementSummary,
@@ -16,7 +14,6 @@ import {
   type CreateIdentityAccessManagementInvitationInput,
   type RevokeIdentityAccessManagementInvitationInput,
 } from "../../client/identity-access-management.ts";
-import type { AppInstallsResponse } from "../../shared/protocol.ts";
 import { ApplicationPresentation } from "../application-presentation.tsx";
 import { useApplicationRuntimePublicationCoordinatorContext } from "../generated/application-runtime-contract-host.tsx";
 import { instanceAccessReference } from "./access-contract.ts";
@@ -39,7 +36,6 @@ export type AccessRouteDependencies = {
   createIdempotencyKey?: (purpose: "invitation" | "person-removal" | "person-role") => string;
   createInvitation?: (input: CreateIdentityAccessManagementInvitationInput) => Promise<unknown>;
   deleteInvitation?: (input: RevokeIdentityAccessManagementInvitationInput) => Promise<unknown>;
-  fetchInstalls?: (options?: { signal?: AbortSignal }) => Promise<AppInstallsResponse>;
   fetchSummary?: (options?: { signal?: AbortSignal }) => Promise<IdentityAccessManagementSummary>;
   removePerson?: (input: IdentityAccessPersonRemovalRequest) => Promise<unknown>;
   replacePersonRoles?: (input: IdentityAccessPersonRoleReplacementRequest) => Promise<unknown>;
@@ -50,7 +46,6 @@ export function AccessRoute({ dependencies = {} }: { dependencies?: AccessRouteD
   const [publicationController] = useState(() =>
     createAccessRuntimePublicationController(application),
   );
-  const fetchInstalls = dependencies.fetchInstalls ?? fetchInstanceAppInstalls;
   const fetchSummary = dependencies.fetchSummary ?? fetchIdentityAccessManagementSummary;
   const createInvitation =
     dependencies.createInvitation ?? createIdentityAccessManagementInvitation;
@@ -60,13 +55,10 @@ export function AccessRoute({ dependencies = {} }: { dependencies?: AccessRouteD
     dependencies.replacePersonRoles ?? replaceIdentityAccessManagementPersonRoles;
   const removePerson = dependencies.removePerson ?? removeIdentityAccessManagementPerson;
   const createIdempotencyKey = dependencies.createIdempotencyKey ?? createAccessIdempotencyKey;
-  const [installs, setInstalls] = useState<readonly AppInstall[]>([]);
   const [state, setState] = useState<AccessManagementPresentationState>({ status: "loading" });
   const [authoringOpen, setAuthoringOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<AccessConfirmationTarget>();
-  const [draft, setDraft] = useState<AccessInvitationDraft>(() =>
-    createInitialAccessInvitationDraft({ installs: [] }),
-  );
+  const [draft, setDraft] = useState<AccessInvitationDraft>(createInitialAccessInvitationDraft);
   const [personAuthoringDraft, setPersonAuthoringDraft] = useState<AccessPersonRoleDraft>();
   const [submission, setSubmission] = useState<AccessInvitationSubmissionState>({
     status: "idle",
@@ -93,16 +85,12 @@ export function AccessRoute({ dependencies = {} }: { dependencies?: AccessRouteD
     let stopped = false;
     setState({ status: "loading" });
 
-    void Promise.all([
-      fetchSummary({ signal: controller.signal }),
-      fetchInstalls({ signal: controller.signal }),
-    ])
-      .then(([summary, registry]) => {
+    void fetchSummary({ signal: controller.signal })
+      .then((summary) => {
         if (stopped) {
           return;
         }
-        setInstalls(registry.installs);
-        setDraft(createInitialAccessInvitationDraft({ installs: registry.installs, summary }));
+        setDraft(createInitialAccessInvitationDraft());
         setState({ status: "ready", summary });
       })
       .catch((error: unknown) => {
@@ -124,7 +112,7 @@ export function AccessRoute({ dependencies = {} }: { dependencies?: AccessRouteD
       mounted.current = false;
       controller.abort();
     };
-  }, [fetchInstalls, fetchSummary]);
+  }, [fetchSummary]);
 
   const refreshSummary = useCallback(async () => {
     const summary = await fetchSummary();
@@ -179,11 +167,11 @@ export function AccessRoute({ dependencies = {} }: { dependencies?: AccessRouteD
       setSubmission({ status: "submitting" });
       try {
         await createInvitation(input);
-        const summary = await refreshSummary();
+        await refreshSummary();
         if (!mounted.current) {
           return;
         }
-        setDraft(createInitialAccessInvitationDraft({ installs, summary }));
+        setDraft(createInitialAccessInvitationDraft());
         setAuthoringOpen(false);
         setSubmission({ message: "Invitation created.", status: "succeeded" });
       } catch (error) {
@@ -194,7 +182,7 @@ export function AccessRoute({ dependencies = {} }: { dependencies?: AccessRouteD
         createPending.current = false;
       }
     },
-    [createInvitation, installs, refreshSummary],
+    [createInvitation, refreshSummary],
   );
 
   const submitInvitationDeletion = useCallback(
@@ -335,7 +323,6 @@ export function AccessRoute({ dependencies = {} }: { dependencies?: AccessRouteD
       authoringOpen,
       ...(confirmation ? { confirmation } : {}),
       draft,
-      installs,
       invitationDeletion,
       invitationSubmitAttempted,
       ...(personAuthoringDraft ? { personAuthoringDraft } : {}),
@@ -348,7 +335,6 @@ export function AccessRoute({ dependencies = {} }: { dependencies?: AccessRouteD
       authoringOpen,
       confirmation,
       draft,
-      installs,
       invitationDeletion,
       invitationSubmitAttempted,
       personAuthoringDraft,

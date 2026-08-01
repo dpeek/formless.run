@@ -2,23 +2,16 @@ import {
   FORMLESS_DEPLOY_METADATA_PATH,
   FORMLESS_RUNTIME_PROTOCOL_VERSION,
   FORMLESS_STORAGE_MIGRATION_SET_ID,
-  deployPackageAppMetadataFromResolver,
   type FormlessDeployMetadata,
 } from "../shared/deploy-metadata.ts";
-import type { AppPackageResolver } from "../shared/app-packages.ts";
 
 export type DeployMetadataEnv = {
   FORMLESS_DEPLOY_VERSION?: string;
 };
 
-export type DeployMetadataOptions = {
-  packageResolver?: AppPackageResolver;
-};
-
 export function handleDeployMetadataRequest(
   request: Request,
   env: DeployMetadataEnv,
-  options: DeployMetadataOptions = {},
 ): Response | undefined {
   const url = new URL(request.url);
 
@@ -36,7 +29,6 @@ export function handleDeployMetadataRequest(
   }
 
   const metadata: FormlessDeployMetadata = {
-    packageApps: deployPackageAppMetadataFromResolver(options.packageResolver),
     packageVersion: stringConfigValue(env.FORMLESS_DEPLOY_VERSION) ?? null,
     runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
     storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,

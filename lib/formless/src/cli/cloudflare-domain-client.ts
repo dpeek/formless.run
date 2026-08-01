@@ -11,7 +11,6 @@ export type CloudflareDomainPreflightPolicy = "adopt" | "create-only" | "overrid
 export type CloudflareDomainIntent = {
   host: string;
   profile: InstanceDomainMappingProfile;
-  targetInstallId?: string;
 };
 
 export type CloudflareZone = {
@@ -71,7 +70,6 @@ export type CloudflareDomainPreflightHostPlan = {
   host: string;
   profile: InstanceDomainMappingProfile;
   status: "blocked" | "ready" | "warning";
-  targetInstallId?: string;
   warnings: CloudflareDomainPreflightIssue[];
   workerDomains: CloudflareWorkerDomain[];
   workerRoutes: CloudflareWorkerRoute[];
@@ -312,9 +310,6 @@ function buildHostPlan(input: {
     host: input.intent.host,
     profile: input.intent.profile,
     status: blockers.length > 0 ? "blocked" : warnings.length > 0 ? "warning" : "ready",
-    ...(input.intent.targetInstallId === undefined
-      ? {}
-      : { targetInstallId: input.intent.targetInstallId }),
     warnings,
     workerDomains: input.workerDomains,
     workerRoutes: input.workerRoutes,
@@ -386,22 +381,14 @@ function normalizeDomainIntents(
     return {
       host: host.host,
       profile: intent.profile,
-      ...(intent.targetInstallId === undefined ? {} : { targetInstallId: intent.targetInstallId }),
     };
   });
 
   return normalized.sort((left, right) => {
     const hostOrder = left.host.localeCompare(right.host);
-
     const profileOrder = left.profile.localeCompare(right.profile);
-    const leftTarget = left.targetInstallId ?? "";
-    const rightTarget = right.targetInstallId ?? "";
 
-    return hostOrder === 0
-      ? profileOrder === 0
-        ? leftTarget.localeCompare(rightTarget)
-        : profileOrder
-      : hostOrder;
+    return hostOrder === 0 ? profileOrder : hostOrder;
   });
 }
 

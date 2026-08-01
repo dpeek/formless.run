@@ -26,14 +26,12 @@ import {
   type IdentityAccessPersonSummary,
   type IdentityAccessProgramRoleSummary,
   type IdentityAccessRoleSummary,
-  type IdentityAppRegistrationStatus,
   type IdentityCollaboratorInvitationGrantRecord,
   type IdentityCollaboratorInvitationRevokeErrorResponse,
   type IdentityCollaboratorInvitationRevokeFailureReason,
   type IdentityCollaboratorInvitationRevokeRequest,
   type IdentityCollaboratorInvitationRevokeResponse,
   type IdentityContainerStatus,
-  type IdentityAppRegistrationValues,
   type IdentityControlPlaneRoleKey,
   type IdentityGroupValues,
   type IdentityInvitationValues,
@@ -48,7 +46,6 @@ import {
   type IdentityProgramRoleAssignmentValues,
   type IdentityPrincipalEmailVerificationStatus,
   type IdentityRoleAssignmentStatus,
-  type IdentityRoleAssignmentScopeKind,
   type IdentityRoleAssignmentValues,
   type IdentityRoleAssignmentTargetKind,
   type IdentityRoleValues,
@@ -73,14 +70,12 @@ import type { EmailDeliveryRecord, EmailDeliveryScheduleRequest } from "../share
 import {
   INTERNAL_IDENTITY_ACTIVE_PRINCIPAL_PATH,
   INTERNAL_IDENTITY_ACCOUNT_COMPLETION_STATE_PATH,
-  INTERNAL_IDENTITY_APP_AUTHORITY_PATH,
   INTERNAL_IDENTITY_EMAIL_VERIFICATION_COMMIT_PATH,
   INTERNAL_IDENTITY_OWNER_PATH,
   INTERNAL_IDENTITY_OWNER_PRINCIPAL_PATH,
   INTERNAL_IDENTITY_PRINCIPAL_AUTHORITY_PATH,
   INTERNAL_IDENTITY_OWNER_RESET_PATH,
   type AccountCompletionIdentityState,
-  type ActiveIdentityAppAuthority,
   type ActiveIdentityAuthority,
   type ActiveIdentityPrincipal,
 } from "./identity-owner-internal.ts";
@@ -118,9 +113,14 @@ import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { nowIsoString } from "../shared/clock.ts";
 import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 import { validateFormlessProgramRecords } from "../program/runtime.ts";
-import { ensureFormlessProgramStorage, isIdentityProgramRecord } from "./program-authority.ts";
+import {
+  ensureFormlessProgramStorage,
+  isCurrentFormlessProgramRecord,
+  isIdentityProgramRecord,
+  selectCurrentFormlessProgramRecords,
+} from "./program-authority.ts";
 
-const invitationTargetSurfaces = ["app-install", "instance", "organization"] as const;
+const invitationTargetSurfaces = ["instance", "organization"] as const;
 const invitationStatuses = [
   "accepted",
   "expired",
@@ -128,13 +128,6 @@ const invitationStatuses = [
   "revoked",
 ] as const satisfies readonly IdentityInvitationStatus[];
 const membershipTargetKinds = ["group", "organization"] as const;
-const roleAssignmentScopeKinds = ["app-install", "instance", "organization"] as const;
-const appScopedInvitationRoleKeys = [
-  "app.admin",
-  "app.editor",
-  "app.viewer",
-  "app.user",
-] as const satisfies readonly IdentityControlPlaneRoleKey[];
 const builtInRoleCreatedAt = "2026-06-26T00:00:00.000Z";
 const collaboratorInvitationLifetimeMs = 7 * 24 * 60 * 60 * 1000;
 const collaboratorInvitationDeliveryMessageKind = "identity.collaboratorInvitation";
@@ -147,12 +140,8 @@ export const INTERNAL_COLLABORATOR_INVITATION_ACCEPTANCE_STATUS_PATH =
   "/_internal/identity/collaborator-invitation-acceptance-status";
 export const INTERNAL_COLLABORATOR_INVITATION_ACCEPTANCE_COMMIT_PATH =
   "/_internal/identity/collaborator-invitation-acceptance-commit";
-export const INTERNAL_EMAIL_VERIFIED_SIGNUP_COMMIT_PATH =
-  "/_internal/identity/email-verified-signup-commit";
 export const INTERNAL_OWNER_SETUP_ACTIVATION_COMMIT_PATH =
   "/_internal/identity/owner-setup-activation-commit";
-export const INTERNAL_EMAIL_VERIFIED_APP_REGISTRATION_COMMIT_PATH =
-  "/_internal/identity/email-verified-app-registration-commit";
 export const INTERNAL_TERMS_ACCEPTANCE_COMMIT_PATH = "/_internal/identity/terms-acceptance-commit";
 export const INTERNAL_IDENTITY_APP_REFERENCE_TARGET_PATH =
   "/_internal/identity/app-reference-target";
@@ -252,14 +241,8 @@ type CollaboratorInvitationTokenRevocationResult =
       >["reason"];
     };
 type CollaboratorInvitationTargetFacts = {
-  targetAppInstallId?: string;
   targetOrganization?: string;
   targetSurface: IdentityInvitationTargetSurface;
-};
-
-type IdentityAccessInstalledAppSurface = {
-  appInstallId: string;
-  displayLabel: string;
 };
 
 type CollaboratorInvitationPrincipalInput = {
@@ -287,21 +270,12 @@ type CollaboratorInvitationRoleAssignmentInput =
       scopeKind: "program";
     }
   | {
-      appInstallId?: string;
       id?: string;
       role: string;
-      scopeKind: IdentityRoleAssignmentScopeKind;
-      scopeOrganization?: string;
+      scopeKind: "instance";
     };
 
-type CollaboratorInvitationAppRegistrationInput = {
-  appInstallId: string;
-  id?: string;
-  selectedOrganization?: string;
-};
-
 type CreateCollaboratorInvitationBaseInput = {
-  appRegistrations: CollaboratorInvitationAppRegistrationInput[];
   expiresAt: string;
   idempotencyKey: string;
   invitedPrincipal?: CollaboratorInvitationPrincipalInput;
@@ -408,52 +382,6 @@ export type IdentityEmailVerificationCommitResult =
       reason: IdentityEmailVerificationCommitFailureReason;
     };
 
-export type IdentityEmailVerifiedSignupCommitInput = {
-  appInstallId: string;
-  displayEmail: string;
-  displayName: string;
-  normalizedEmail: string;
-  principalId: string;
-  selectedOrganization?: string;
-  signupId: string;
-  verifiedAt: string;
-};
-
-export type IdentityEmailVerifiedSignupPrincipalSummary = {
-  displayName: string;
-  principalId: string;
-};
-
-export type IdentityEmailVerifiedSignupAppRegistrationSummary = {
-  appInstallId: string;
-  appRegistrationId: string;
-  selectedOrganization?: string;
-  status: "active";
-  targetKind: "principal";
-  targetPrincipal: string;
-};
-
-export type IdentityEmailVerifiedSignupCommitFailureReason =
-  | "email-owned-by-another-principal"
-  | "identity-validation-failed"
-  | "inactive-principal";
-
-export type IdentityEmailVerifiedSignupCommitResult =
-  | {
-      appRegistration: IdentityEmailVerifiedSignupAppRegistrationSummary;
-      ok: true;
-      output: OperationCommandOutput;
-      principal: IdentityEmailVerifiedSignupPrincipalSummary;
-      principalEmail: IdentityEmailVerificationPrincipalEmailSummary;
-      records: StoredRecord[];
-      status: "committed" | "replayed";
-    }
-  | {
-      error: string;
-      ok: false;
-      reason: IdentityEmailVerifiedSignupCommitFailureReason;
-    };
-
 export type IdentityOwnerSetupActivationCommitInput = {
   activatedAt: string;
   completionId: string;
@@ -481,34 +409,6 @@ export type IdentityOwnerSetupActivationCommitResult =
       error: string;
       ok: false;
       reason: IdentityOwnerSetupActivationCommitFailureReason;
-    };
-
-export type IdentityEmailVerifiedAppRegistrationCommitInput = {
-  appInstallId: string;
-  completedAt: string;
-  completionId: string;
-  principalId: string;
-  selectedOrganization?: string;
-};
-
-export type IdentityEmailVerifiedAppRegistrationCommitFailureReason =
-  | "conflicting-active-app-registration"
-  | "identity-validation-failed"
-  | "inactive-principal"
-  | "missing-verified-primary-email";
-
-export type IdentityEmailVerifiedAppRegistrationCommitResult =
-  | {
-      appRegistration: IdentityEmailVerifiedSignupAppRegistrationSummary;
-      ok: true;
-      output: OperationCommandOutput;
-      records: StoredRecord[];
-      status: "committed" | "replayed";
-    }
-  | {
-      error: string;
-      ok: false;
-      reason: IdentityEmailVerifiedAppRegistrationCommitFailureReason;
     };
 
 export type IdentityTermsAcceptanceCommitInput = {
@@ -624,7 +524,6 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
         readIdentityAccessManagementSummary(
           storage,
           identityAccessGrantAuthorityFromAuthorization(storage, authorization),
-          identityAccessInstalledAppSurfaces(getBootstrapRecords(storage)),
         ),
       );
     }
@@ -713,15 +612,10 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
         typeof authorization.session?.principalId === "string"
           ? authorization.session.principalId
           : undefined;
-      const created = createCollaboratorInvitation(
-        storage,
-        await readJson(request),
-        {
-          grantAuthorityPrincipalId: inviterPrincipalId,
-          inviterPrincipalId,
-        },
-        identityAccessInstalledAppSurfaces(getBootstrapRecords(storage)),
-      );
+      const created = createCollaboratorInvitation(storage, await readJson(request), {
+        grantAuthorityPrincipalId: inviterPrincipalId,
+        inviterPrincipalId,
+      });
 
       return jsonResponse({
         ...created,
@@ -983,31 +877,6 @@ export async function commitIdentityEmailVerification(
   return body;
 }
 
-export async function commitIdentityEmailVerifiedSignup(
-  env: IdentityOwnerEnv,
-  input: IdentityEmailVerifiedSignupCommitInput,
-): Promise<IdentityEmailVerifiedSignupCommitResult> {
-  const response = await fetchIdentityOwnerInternal(
-    env,
-    INTERNAL_EMAIL_VERIFIED_SIGNUP_COMMIT_PATH,
-    {
-      body: JSON.stringify(input),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    },
-  );
-  const body = (await response.json()) as
-    | IdentityEmailVerifiedSignupCommitResult
-    | {
-        error?: string;
-      };
-  if (!response.ok || !isIdentityEmailVerifiedSignupCommitResult(body)) {
-    throw new Error(responseBodyError(body) ?? "Identity email-verified signup commit failed.");
-  }
-
-  return body;
-}
-
 export async function commitIdentityOwnerSetupActivation(
   env: IdentityOwnerEnv,
   input: IdentityOwnerSetupActivationCommitInput,
@@ -1028,33 +897,6 @@ export async function commitIdentityOwnerSetupActivation(
       };
   if (!response.ok || !isIdentityOwnerSetupActivationCommitResult(body)) {
     throw new Error(responseBodyError(body) ?? "Identity owner setup activation failed.");
-  }
-
-  return body;
-}
-
-export async function commitIdentityEmailVerifiedAppRegistration(
-  env: IdentityOwnerEnv,
-  input: IdentityEmailVerifiedAppRegistrationCommitInput,
-): Promise<IdentityEmailVerifiedAppRegistrationCommitResult> {
-  const response = await fetchIdentityOwnerInternal(
-    env,
-    INTERNAL_EMAIL_VERIFIED_APP_REGISTRATION_COMMIT_PATH,
-    {
-      body: JSON.stringify(input),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    },
-  );
-  const body = (await response.json()) as
-    | IdentityEmailVerifiedAppRegistrationCommitResult
-    | {
-        error?: string;
-      };
-  if (!response.ok || !isIdentityEmailVerifiedAppRegistrationCommitResult(body)) {
-    throw new Error(
-      responseBodyError(body) ?? "Identity email-verified app-registration commit failed.",
-    );
   }
 
   return body;
@@ -1148,25 +990,6 @@ async function handleIdentityOwnerInternalRequest(
     });
   }
 
-  if (url.pathname === INTERNAL_IDENTITY_APP_AUTHORITY_PATH) {
-    if (request.method !== "GET") {
-      return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "GET" });
-    }
-
-    const principalId = parseNonEmptyString(
-      "Identity app authority principal id",
-      url.searchParams.get("principalId"),
-    );
-    const appInstallId = parseNonEmptyString(
-      "Identity app authority app install id",
-      url.searchParams.get("appInstallId"),
-    );
-
-    return jsonResponse({
-      authority: readActiveIdentityAppAuthorityForPrincipal(storage, principalId, appInstallId),
-    });
-  }
-
   if (url.pathname === INTERNAL_IDENTITY_ACCOUNT_COMPLETION_STATE_PATH) {
     if (request.method !== "POST") {
       return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
@@ -1217,32 +1040,12 @@ async function handleIdentityOwnerInternalRequest(
     return jsonResponse(result);
   }
 
-  if (url.pathname === INTERNAL_EMAIL_VERIFIED_SIGNUP_COMMIT_PATH) {
-    if (request.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
-    }
-
-    const result = commitEmailVerifiedSignupIntoIdentity(storage, await readJson(request));
-
-    return jsonResponse(result);
-  }
-
   if (url.pathname === INTERNAL_OWNER_SETUP_ACTIVATION_COMMIT_PATH) {
     if (request.method !== "POST") {
       return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
     }
 
     const result = commitOwnerSetupActivationIntoIdentity(storage, await readJson(request));
-
-    return jsonResponse(result);
-  }
-
-  if (url.pathname === INTERNAL_EMAIL_VERIFIED_APP_REGISTRATION_COMMIT_PATH) {
-    if (request.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
-    }
-
-    const result = commitEmailVerifiedAppRegistrationIntoIdentity(storage, await readJson(request));
 
     return jsonResponse(result);
   }
@@ -1366,7 +1169,7 @@ function ensureIdentityOwnerRecords(
 
   ensureIdentityControlPlaneStorage(storage);
 
-  const records = getBootstrapRecords(storage);
+  const records = selectCurrentFormlessProgramRecords(getBootstrapRecords(storage));
   const now = parseNonEmptyString("Identity owner createdAt", input.now);
   const ownerInput = normalizeIdentityOwnerInput(input.owner);
   const principalId =
@@ -1383,7 +1186,7 @@ function ensureIdentityOwnerRecords(
   const candidateRecords = [...records, ...newRecords];
   validateIdentityControlPlaneRecords(
     "Identity owner records",
-    candidateRecords.filter(isIdentityProgramRecord),
+    candidateRecords.filter(isIdentityProgramRecord).filter(isCurrentFormlessProgramRecord),
     {
       authorizationRoles: formlessProgramSchema.authorization?.roles,
       candidateRecords,
@@ -1444,11 +1247,10 @@ function identityAccessGrantAuthorityFromAuthorization(
 function readIdentityAccessManagementSummary(
   storage: DurableObjectStorage,
   grantAuthority: IdentityAccessInvitationGrantAuthoritySummary,
-  installedAppSurfaces: readonly IdentityAccessInstalledAppSurface[],
 ): IdentityAccessManagementSummary {
   ensureIdentityControlPlaneStorage(storage);
 
-  const records = getBootstrapRecords(storage);
+  const records = selectCurrentFormlessProgramRecords(getBootstrapRecords(storage));
   const primaryEmails = primaryIdentityAccessEmailsByPrincipal(records);
   const roleRecords = new Map(
     identityAccessRecordsForEntity(records, "role").map((record) => [record.id, record]),
@@ -1460,27 +1262,6 @@ function readIdentityAccessManagementSummary(
   );
 
   return {
-    appRegistrations: identityAccessRecordsForEntity(records, "app-registration").map((record) => {
-      const values = record.values as IdentityAppRegistrationValues;
-
-      return {
-        appInstallId: values.appInstallId,
-        appRegistrationId: record.id,
-        createdAt: record.createdAt,
-        ...(values.selectedOrganization === undefined
-          ? {}
-          : { selectedOrganizationId: values.selectedOrganization }),
-        status: values.status as IdentityAppRegistrationStatus,
-        targetKind: values.targetKind,
-        ...(values.targetOrganization === undefined
-          ? {}
-          : { targetOrganizationId: values.targetOrganization }),
-        ...(values.targetPrincipal === undefined
-          ? {}
-          : { targetPrincipalId: values.targetPrincipal }),
-        updatedAt: record.updatedAt,
-      };
-    }),
     groups: identityAccessRecordsForEntity(records, "group").map((record) => {
       const values = record.values as IdentityGroupValues;
 
@@ -1492,11 +1273,7 @@ function readIdentityAccessManagementSummary(
         updatedAt: record.updatedAt,
       };
     }),
-    invitationGrantOptions: identityAccessInvitationGrantOptions(
-      records,
-      grantAuthority,
-      installedAppSurfaces,
-    ),
+    invitationGrantOptions: identityAccessInvitationGrantOptions(records, grantAuthority),
     invitations: identityAccessRecordsForEntity(records, "invitation")
       .filter((record) => (record.values as IdentityInvitationValues).status !== "revoked")
       .map(identityAccessInvitationSummary),
@@ -1609,13 +1386,12 @@ function identityAccessRoleSummary(
   const roleValues = role.values as IdentityRoleValues;
 
   return {
-    ...(values.appInstallId === undefined ? {} : { appInstallId: values.appInstallId }),
     createdAt: record.createdAt,
     displayLabel: roleValues.displayLabel,
     roleAssignmentId: record.id,
     roleId: role.id,
     roleKey: roleValues.key,
-    scopeKind: values.scopeKind as IdentityRoleAssignmentScopeKind,
+    scopeKind: values.scopeKind,
     ...(values.scopeOrganization === undefined
       ? {}
       : { scopeOrganizationId: values.scopeOrganization }),
@@ -1633,12 +1409,11 @@ function identityAccessRoleSummary(
 function identityAccessInvitationGrantOptions(
   records: readonly StoredRecord[],
   authority: IdentityAccessInvitationGrantAuthoritySummary,
-  installedAppSurfaces: readonly IdentityAccessInstalledAppSurface[],
 ): IdentityAccessInvitationGrantOptions {
   return {
     authority,
     memberships: identityAccessInvitationMembershipGrantOptions(records, authority),
-    roles: identityAccessInvitationRoleGrantOptions(records, authority, installedAppSurfaces),
+    roles: identityAccessInvitationRoleGrantOptions(records, authority),
   };
 }
 
@@ -1657,9 +1432,6 @@ function identityAccessInvitationSummary(record: StoredRecord): IdentityAccessIn
       ? {}
       : { inviterPrincipalId: values.inviterPrincipal }),
     status: values.status,
-    ...(values.targetAppInstallId === undefined
-      ? {}
-      : { targetAppInstallId: values.targetAppInstallId }),
     targetEmail: values.targetEmail,
     ...(values.targetOrganization === undefined
       ? {}
@@ -1672,19 +1444,12 @@ function identityAccessInvitationSummary(record: StoredRecord): IdentityAccessIn
 function identityAccessInvitationRoleGrantOptions(
   records: readonly StoredRecord[],
   authority: IdentityAccessInvitationGrantAuthoritySummary,
-  installedAppSurfaces: readonly IdentityAccessInstalledAppSurface[],
 ): IdentityAccessInvitationRoleGrantOption[] {
   const activeRoleKeys = new Set(
     identityAccessRecordsForEntity(records, "role")
       .filter((record) => (record.values as IdentityRoleValues).status === "active")
       .map((record) => (record.values as IdentityRoleValues).key),
   );
-  const activeOrganizations = identityAccessRecordsForEntity(records, "organization")
-    .filter((record) => (record.values as IdentityOrganizationValues).status === "active")
-    .map((record) => ({
-      displayLabel: (record.values as IdentityOrganizationValues).displayName,
-      organizationId: record.id,
-    }));
   const options: IdentityAccessInvitationRoleGrantOption[] = [];
 
   if (authority.instanceOwner && activeRoleKeys.has("instance.owner")) {
@@ -1715,37 +1480,6 @@ function identityAccessInvitationRoleGrantOptions(
     }
   }
 
-  for (const roleKey of appScopedInvitationRoleKeys) {
-    if (!activeRoleKeys.has(roleKey)) {
-      continue;
-    }
-
-    if (authority.instanceOwner || authority.programAdministrator) {
-      for (const app of installedAppSurfaces) {
-        options.push({
-          appInstallId: app.appInstallId,
-          displayLabel: identityAccessInvitationRoleGrantDisplayLabel(app.displayLabel, roleKey),
-          roleKey,
-          scopeKind: "app-install",
-        });
-      }
-    }
-
-    if (authority.instanceOwner) {
-      for (const organization of activeOrganizations) {
-        options.push({
-          displayLabel: identityAccessInvitationRoleGrantDisplayLabel(
-            organization.displayLabel,
-            roleKey,
-          ),
-          roleKey,
-          scopeKind: "organization",
-          scopeOrganizationId: organization.organizationId,
-        });
-      }
-    }
-  }
-
   return options;
 }
 
@@ -1754,27 +1488,6 @@ function identityAccessInvitationRoleGrantDisplayLabel(
   roleKey: IdentityControlPlaneRoleKey,
 ): string {
   return `${surfaceLabel} — ${identityAccessRoleLevelLabel(roleKey)}`;
-}
-
-function identityAccessInstalledAppSurfaces(
-  records: readonly StoredRecord[],
-): IdentityAccessInstalledAppSurface[] {
-  return records
-    .filter(
-      (record) =>
-        record.entity === "app-install" &&
-        !record.deletedAt &&
-        record.values.status === "installed",
-    )
-    .map((record) => ({
-      appInstallId: parseNonEmptyString("Identity access app install id", record.values.installId),
-      displayLabel: parseNonEmptyString("Identity access app install label", record.values.label),
-    }))
-    .sort(
-      (left, right) =>
-        left.displayLabel.localeCompare(right.displayLabel) ||
-        left.appInstallId.localeCompare(right.appInstallId),
-    );
 }
 
 function identityAccessInvitationMembershipGrantOptions(
@@ -1885,7 +1598,7 @@ function replaceIdentityAccessPersonRoles(
   actor: IdentityAccessMutationActor,
 ): IdentityAccessPersonRoleReplacementResponse {
   const input = parseIdentityAccessPersonRoleReplacementRequest(value);
-  const records = getBootstrapRecords(storage);
+  const records = selectCurrentFormlessProgramRecords(getBootstrapRecords(storage));
   const authority = currentIdentityAccessMutationAuthority(records, actor);
   const principal = currentIdentityAccessMutationPrincipal(records, input.principalId, {
     activeOnly: true,
@@ -1931,11 +1644,9 @@ function replaceIdentityAccessPersonRoles(
   );
 
   for (const assignment of currentAssignments) {
-    const roleKey = identityAccessRoleKeyForAssignment(assignment, rolesById);
-
     if (
       assignment.values.status === "active" &&
-      !identityAccessRoleAssignmentIsEditable(assignment, roleKey, authority) &&
+      !identityAccessRoleAssignmentIsEditable(authority) &&
       desiredBySurface.has(identityAccessRoleAssignmentSurfaceKey(assignment))
     ) {
       throw identityAccessPersonMutationError(
@@ -2000,7 +1711,7 @@ function replaceIdentityAccessPersonRoles(
 
     const roleKey = identityAccessRoleKeyForAssignment(assignment, rolesById);
 
-    if (!identityAccessRoleAssignmentIsEditable(assignment, roleKey, authority)) {
+    if (!identityAccessRoleAssignmentIsEditable(authority)) {
       continue;
     }
 
@@ -2147,11 +1858,7 @@ async function removeIdentityAccessPerson(
 
   if (
     !authority.instanceOwner &&
-    activeAssignments.some((assignment) => {
-      const roleKey = identityAccessRoleKeyForAssignment(assignment, rolesById);
-
-      return !identityAccessRoleAssignmentIsEditable(assignment, roleKey, authority);
-    })
+    activeAssignments.some(() => !identityAccessRoleAssignmentIsEditable(authority))
   ) {
     throw identityAccessPersonMutationError(
       "Current principal cannot remove a person with protected role authority.",
@@ -2408,13 +2115,7 @@ function identityAccessRoleSelectionIsEditable(
     );
   }
 
-  return (
-    authority.programAdministrator &&
-    selection.scopeKind === "app-install" &&
-    appScopedInvitationRoleKeys.includes(
-      selection.roleKey as (typeof appScopedInvitationRoleKeys)[number],
-    )
-  );
+  return false;
 }
 
 function identityAccessProgramRoleAssignmentIsEditable(
@@ -2424,42 +2125,21 @@ function identityAccessProgramRoleAssignmentIsEditable(
 }
 
 function identityAccessRoleAssignmentIsEditable(
-  assignment: StoredRecord,
-  roleKey: IdentityControlPlaneRoleKey,
   authority: IdentityAccessMutationAuthority,
 ): boolean {
-  if (authority.instanceOwner) {
-    return true;
-  }
-
-  return (
-    authority.programAdministrator &&
-    assignment.values.scopeKind === "app-install" &&
-    appScopedInvitationRoleKeys.includes(roleKey as (typeof appScopedInvitationRoleKeys)[number])
-  );
+  return authority.instanceOwner;
 }
 
 function identityAccessRoleSelectionSurfaceKey(
   selection: IdentityAccessPersonRoleSelection,
 ): string {
-  return JSON.stringify([
-    selection.scopeKind,
-    selection.scopeKind === "app-install"
-      ? selection.appInstallId
-      : selection.scopeKind === "organization"
-        ? selection.scopeOrganizationId
-        : "",
-  ]);
+  return JSON.stringify([selection.scopeKind, ""]);
 }
 
 function identityAccessRoleAssignmentSurfaceKey(assignment: StoredRecord): string {
   return JSON.stringify([
     assignment.values.scopeKind,
-    assignment.values.scopeKind === "app-install"
-      ? assignment.values.appInstallId
-      : assignment.values.scopeKind === "organization"
-        ? assignment.values.scopeOrganization
-        : "",
+    assignment.values.scopeKind === "organization" ? assignment.values.scopeOrganization : "",
   ]);
 }
 
@@ -2486,28 +2166,6 @@ function identityAccessPersonRoleAssignmentValues(
 ): IdentityRoleAssignmentValues {
   if (selection.scopeKind === "program") {
     throw new Error("Program role selections use Program role assignment records.");
-  }
-
-  if (selection.scopeKind === "app-install") {
-    return {
-      appInstallId: selection.appInstallId,
-      role: roleId,
-      scopeKind: selection.scopeKind,
-      status: "active",
-      targetKind: "principal",
-      targetPrincipal: principalId,
-    };
-  }
-
-  if (selection.scopeKind === "organization") {
-    return {
-      role: roleId,
-      scopeKind: selection.scopeKind,
-      scopeOrganization: selection.scopeOrganizationId,
-      status: "active",
-      targetKind: "principal",
-      targetPrincipal: principalId,
-    };
   }
 
   return {
@@ -2643,30 +2301,15 @@ function parseIdentityAccessPersonRoleSelection(
   const context = `Identity access person roles ${index}`;
   const object = parseRecord(context, value);
 
-  assertAllowedKeys(context, object, [
-    "appInstallId",
-    "roleId",
-    "roleKey",
-    "scopeKind",
-    "scopeOrganizationId",
-  ]);
+  assertAllowedKeys(context, object, ["roleId", "roleKey", "scopeKind"]);
 
   const scopeKind = parseStringLiteral(`${context} scopeKind`, object.scopeKind, [
-    ...roleAssignmentScopeKinds,
+    "instance",
     "program",
   ] as const);
-  const appInstallId = parseOptionalNonEmptyString(`${context} appInstallId`, object.appInstallId);
-  const scopeOrganizationId = parseOptionalNonEmptyString(
-    `${context} scopeOrganizationId`,
-    object.scopeOrganizationId,
-  );
 
   if (scopeKind === "program") {
-    if (
-      object.roleKey !== undefined ||
-      appInstallId !== undefined ||
-      scopeOrganizationId !== undefined
-    ) {
+    if (object.roleKey !== undefined) {
       throw identityAccessPersonMutationError(
         "Identity access Program role selection has incompatible fields.",
         "invalid-role-selection",
@@ -2691,45 +2334,8 @@ function parseIdentityAccessPersonRoleSelection(
     identityControlPlaneRoleKeys,
   );
 
-  if (
-    scopeKind === "instance" &&
-    roleKey === "instance.owner" &&
-    appInstallId === undefined &&
-    scopeOrganizationId === undefined
-  ) {
+  if (scopeKind === "instance" && roleKey === "instance.owner" && object.roleId === undefined) {
     return { roleKey, scopeKind };
-  }
-
-  if (
-    scopeKind === "app-install" &&
-    appScopedInvitationRoleKeys.includes(roleKey as (typeof appScopedInvitationRoleKeys)[number]) &&
-    appInstallId !== undefined &&
-    scopeOrganizationId === undefined
-  ) {
-    return {
-      appInstallId,
-      roleKey: roleKey as Extract<
-        IdentityControlPlaneRoleKey,
-        "app.admin" | "app.editor" | "app.user" | "app.viewer"
-      >,
-      scopeKind,
-    };
-  }
-
-  if (
-    scopeKind === "organization" &&
-    appScopedInvitationRoleKeys.includes(roleKey as (typeof appScopedInvitationRoleKeys)[number]) &&
-    appInstallId === undefined &&
-    scopeOrganizationId !== undefined
-  ) {
-    return {
-      roleKey: roleKey as Extract<
-        IdentityControlPlaneRoleKey,
-        "app.admin" | "app.editor" | "app.user" | "app.viewer"
-      >,
-      scopeKind,
-      scopeOrganizationId,
-    };
   }
 
   throw identityAccessPersonMutationError(
@@ -2788,12 +2394,10 @@ function createCollaboratorInvitation(
     grantAuthorityPrincipalId?: string;
     inviterPrincipalId?: string;
   },
-  installedAppSurfaces: readonly IdentityAccessInstalledAppSurface[],
 ): CreateCollaboratorInvitationWriteResponse {
   const input = resolveCreateCollaboratorInvitationInput(
     storage,
     parseCreateCollaboratorInvitationRequest(value),
-    installedAppSurfaces,
   );
   const plans = collaboratorInvitationRecordWritePlans(input, options);
 
@@ -2826,10 +2430,8 @@ function createCollaboratorInvitation(
 function resolveCreateCollaboratorInvitationInput(
   storage: DurableObjectStorage,
   input: ParsedCreateCollaboratorInvitationInput,
-  installedAppSurfaces: readonly IdentityAccessInstalledAppSurface[],
 ): CreateCollaboratorInvitationInput {
   const records = getBootstrapRecords(storage);
-  const installedAppIds = new Set(installedAppSurfaces.map((surface) => surface.appInstallId));
   const activeOrganizationIds = new Set(
     identityAccessRecordsForEntity(records, "organization")
       .filter((record) => record.values.status === "active")
@@ -2842,7 +2444,7 @@ function resolveCreateCollaboratorInvitationInput(
     const surfaceKey = collaboratorInvitationTargetKey(surface);
 
     assertCollaboratorInvitationRoleLevel(records, roleAssignment, index);
-    assertCollaboratorInvitationSurfaceAvailable(surface, installedAppIds, activeOrganizationIds);
+    assertCollaboratorInvitationSurfaceAvailable(surface, activeOrganizationIds);
 
     if (selectedSurfaces.has(surfaceKey)) {
       throw new BadRequestError(
@@ -2853,46 +2455,17 @@ function resolveCreateCollaboratorInvitationInput(
     selectedSurfaces.set(surfaceKey, surface);
   }
 
-  for (const appRegistration of input.appRegistrations) {
-    if (!installedAppIds.has(appRegistration.appInstallId)) {
-      throw new BadRequestError(
-        `Collaborator invitation app install "${appRegistration.appInstallId}" is unavailable.`,
-      );
-    }
-  }
-
   const acceptanceTarget = resolveCollaboratorInvitationAcceptanceTarget(input.acceptanceTarget, [
     ...selectedSurfaces.values(),
   ]);
 
-  assertCollaboratorInvitationSurfaceAvailable(
-    acceptanceTarget,
-    installedAppIds,
-    activeOrganizationIds,
-  );
-
-  const registeredAppIds = new Set(
-    input.appRegistrations.map((registration) => registration.appInstallId),
-  );
-  const appRegistrations = [...input.appRegistrations];
-
-  for (const surface of selectedSurfaces.values()) {
-    if (
-      surface.targetSurface === "app-install" &&
-      surface.targetAppInstallId !== undefined &&
-      !registeredAppIds.has(surface.targetAppInstallId)
-    ) {
-      appRegistrations.push({ appInstallId: surface.targetAppInstallId });
-      registeredAppIds.add(surface.targetAppInstallId);
-    }
-  }
+  assertCollaboratorInvitationSurfaceAvailable(acceptanceTarget, activeOrganizationIds);
 
   const { acceptanceTarget: _acceptanceTarget, ...baseInput } = input;
 
   return {
     ...baseInput,
     ...acceptanceTarget,
-    appRegistrations,
   };
 }
 
@@ -2901,26 +2474,6 @@ function collaboratorInvitationRoleSurface(
 ): CollaboratorInvitationTargetFacts {
   if (roleAssignment.scopeKind === "program") {
     return { targetSurface: "instance" };
-  }
-
-  if (roleAssignment.scopeKind === "app-install") {
-    return {
-      targetAppInstallId: requiredParsedString(
-        "Collaborator invitation role assignment app install id",
-        roleAssignment.appInstallId,
-      ),
-      targetSurface: "app-install",
-    };
-  }
-
-  if (roleAssignment.scopeKind === "organization") {
-    return {
-      targetOrganization: requiredParsedString(
-        "Collaborator invitation role assignment organization id",
-        roleAssignment.scopeOrganization,
-      ),
-      targetSurface: "organization",
-    };
   }
 
   return { targetSurface: "instance" };
@@ -2959,12 +2512,7 @@ function assertCollaboratorInvitationRoleLevel(
     );
   }
 
-  const instanceRole = roleKey === "instance.owner";
-  const compatible =
-    (roleAssignment.scopeKind === "instance" && instanceRole) ||
-    (roleAssignment.scopeKind !== "instance" && !instanceRole);
-
-  if (!compatible) {
+  if (roleKey !== "instance.owner") {
     throw new BadRequestError(
       `Collaborator invitation role assignment ${index} role "${roleKey}" is unavailable for ${roleAssignment.scopeKind} scope.`,
     );
@@ -3024,18 +2572,8 @@ function resolveCollaboratorInvitationAcceptanceTarget(
 
 function assertCollaboratorInvitationSurfaceAvailable(
   surface: CollaboratorInvitationTargetFacts,
-  installedAppIds: ReadonlySet<string>,
   activeOrganizationIds: ReadonlySet<string>,
 ) {
-  if (
-    surface.targetSurface === "app-install" &&
-    (surface.targetAppInstallId === undefined || !installedAppIds.has(surface.targetAppInstallId))
-  ) {
-    throw new BadRequestError(
-      `Collaborator invitation app install "${surface.targetAppInstallId ?? ""}" is unavailable.`,
-    );
-  }
-
   if (
     surface.targetSurface === "organization" &&
     (surface.targetOrganization === undefined ||
@@ -3048,10 +2586,6 @@ function assertCollaboratorInvitationSurfaceAvailable(
 }
 
 function collaboratorInvitationTargetKey(target: CollaboratorInvitationTargetFacts): string {
-  if (target.targetSurface === "app-install") {
-    return `app-install:${target.targetAppInstallId ?? ""}`;
-  }
-
   if (target.targetSurface === "organization") {
     return `organization:${target.targetOrganization ?? ""}`;
   }
@@ -3483,25 +3017,6 @@ function collaboratorInvitationAcceptanceRecordWritePlans(
     }
   }
 
-  for (const appRegistration of records) {
-    if (
-      appRegistration.entity === "app-registration" &&
-      !appRegistration.deletedAt &&
-      appRegistration.values.targetKind === "principal" &&
-      appRegistration.values.targetPrincipal === input.principalId &&
-      appRegistration.values.status === "pending"
-    ) {
-      plans.push({
-        kind: "patch",
-        record: appRegistration,
-        values: {
-          ...appRegistration.values,
-          status: "active",
-        },
-      });
-    }
-  }
-
   plans.push({
     kind: "patch",
     record: invitation,
@@ -3822,367 +3337,6 @@ function emailVerificationPrincipalEmailSummary(
   };
 }
 
-function commitEmailVerifiedSignupIntoIdentity(
-  storage: DurableObjectStorage,
-  value: unknown,
-): IdentityEmailVerifiedSignupCommitResult {
-  const input = parseIdentityEmailVerifiedSignupCommitRequest(value);
-
-  ensureIdentityControlPlaneStorage(storage);
-
-  let plans: OperationRecordWritePlan[];
-
-  try {
-    const planned = emailVerifiedSignupWritePlans(getBootstrapRecords(storage), input);
-
-    if (!planned.ok) {
-      return planned;
-    }
-
-    plans = planned.plans;
-  } catch {
-    return identityEmailVerifiedSignupCommitFailure("identity-validation-failed");
-  }
-
-  let outcome: WriteOutcome<OperationCommandOutput>;
-
-  try {
-    outcome = writeRecordSetForCommandOperationOutcome(
-      storage,
-      `email-verified-signup:${input.signupId}`,
-      plans,
-      validateIdentityControlPlaneRecordConstraint(storage),
-      { now: input.verifiedAt },
-    );
-  } catch {
-    return identityEmailVerifiedSignupCommitFailure("identity-validation-failed");
-  }
-
-  const records = getBootstrapRecords(storage);
-  const principal = records.find(
-    (record) =>
-      record.entity === "principal" &&
-      record.id === input.principalId &&
-      !record.deletedAt &&
-      record.values.status === "active",
-  );
-  const principalEmail = records.find(
-    (record) =>
-      record.entity === "principal-email" &&
-      !record.deletedAt &&
-      record.values.normalizedEmail === input.normalizedEmail &&
-      record.values.principal === input.principalId,
-  );
-  const appRegistration = records.find(
-    (record) =>
-      record.entity === "app-registration" &&
-      !record.deletedAt &&
-      record.values.appInstallId === input.appInstallId &&
-      record.values.targetKind === "principal" &&
-      record.values.targetPrincipal === input.principalId &&
-      record.values.status === "active" &&
-      (record.values.selectedOrganization ?? undefined) ===
-        (input.selectedOrganization ?? undefined),
-  );
-
-  if (!principal || !principalEmail || !appRegistration) {
-    return identityEmailVerifiedSignupCommitFailure("identity-validation-failed");
-  }
-
-  return {
-    appRegistration: emailVerifiedSignupAppRegistrationSummary(appRegistration),
-    ok: true,
-    output: outcome.response,
-    principal: {
-      displayName: parseNonEmptyString(
-        "Identity email-verified signup principal displayName",
-        principal.values.displayName,
-      ),
-      principalId: principal.id,
-    },
-    principalEmail: emailVerificationPrincipalEmailSummary(principalEmail),
-    records: outcome.response.changes.map((change) => change.payload),
-    status: outcome.kind === "replay" ? "replayed" : "committed",
-  };
-}
-
-function emailVerifiedSignupWritePlans(
-  records: readonly StoredRecord[],
-  input: IdentityEmailVerifiedSignupCommitInput,
-):
-  | {
-      ok: true;
-      plans: OperationRecordWritePlan[];
-    }
-  | Extract<
-      IdentityEmailVerifiedSignupCommitResult,
-      {
-        ok: false;
-      }
-    > {
-  const principal = records.find(
-    (record) => record.entity === "principal" && record.id === input.principalId,
-  );
-
-  if (principal?.deletedAt || (principal && principal.values.status !== "active")) {
-    return identityEmailVerifiedSignupCommitFailure("inactive-principal");
-  }
-
-  const existingEmail = records.find(
-    (record) =>
-      record.entity === "principal-email" &&
-      !record.deletedAt &&
-      record.values.normalizedEmail === input.normalizedEmail,
-  );
-
-  if (existingEmail && existingEmail.values.principal !== input.principalId) {
-    return identityEmailVerifiedSignupCommitFailure("email-owned-by-another-principal");
-  }
-
-  const plans: OperationRecordWritePlan[] = [];
-
-  if (!principal) {
-    plans.push({
-      kind: "create",
-      entity: "principal",
-      id: input.principalId,
-      values: {
-        displayName: input.displayName,
-        kind: "human",
-        status: "active",
-      },
-    });
-  } else if (principal.values.displayName !== input.displayName) {
-    plans.push({
-      kind: "patch",
-      record: principal,
-      values: {
-        ...principal.values,
-        displayName: input.displayName,
-      },
-    });
-  }
-
-  plans.push(...emailVerifiedSignupPrimaryEmailWritePlans(records, input, existingEmail));
-  plans.push(...emailVerifiedSignupAppRegistrationWritePlans(records, input));
-
-  return { ok: true, plans };
-}
-
-function emailVerifiedSignupPrimaryEmailWritePlans(
-  records: readonly StoredRecord[],
-  input: IdentityEmailVerifiedSignupCommitInput,
-  existingEmail: StoredRecord | undefined,
-): OperationRecordWritePlan[] {
-  const plans: OperationRecordWritePlan[] = [];
-
-  for (const record of records) {
-    if (
-      record.entity === "principal-email" &&
-      !record.deletedAt &&
-      record.values.principal === input.principalId &&
-      record.values.primary === true &&
-      record.id !== existingEmail?.id
-    ) {
-      plans.push({
-        kind: "patch",
-        record,
-        values: {
-          ...record.values,
-          primary: false,
-        },
-      });
-    }
-  }
-
-  if (existingEmail) {
-    plans.push({
-      kind: "patch",
-      record: existingEmail,
-      values: {
-        ...existingEmail.values,
-        displayEmail: input.displayEmail,
-        normalizedEmail: input.normalizedEmail,
-        verificationStatus: "verified",
-        primary: true,
-        recovery: false,
-        verifiedAt: input.verifiedAt,
-      },
-    });
-
-    return plans;
-  }
-
-  plans.push({
-    kind: "create",
-    entity: "principal-email",
-    id: generatedIdentityRecordId("principal-email"),
-    values: {
-      principal: input.principalId,
-      displayEmail: input.displayEmail,
-      normalizedEmail: input.normalizedEmail,
-      verificationStatus: "verified",
-      primary: true,
-      recovery: false,
-      verifiedAt: input.verifiedAt,
-    },
-  });
-
-  return plans;
-}
-
-function emailVerifiedSignupAppRegistrationWritePlans(
-  records: readonly StoredRecord[],
-  input: IdentityEmailVerifiedSignupCommitInput,
-): OperationRecordWritePlan[] {
-  const existing = records.find(
-    (record) =>
-      record.entity === "app-registration" &&
-      !record.deletedAt &&
-      record.values.appInstallId === input.appInstallId &&
-      record.values.targetKind === "principal" &&
-      record.values.targetPrincipal === input.principalId &&
-      (record.values.selectedOrganization ?? undefined) ===
-        (input.selectedOrganization ?? undefined),
-  );
-
-  if (existing) {
-    if (existing.values.status === "active") {
-      return [];
-    }
-
-    return [
-      {
-        kind: "patch",
-        record: existing,
-        values: {
-          ...existing.values,
-          status: "active",
-        },
-      },
-    ];
-  }
-
-  return [
-    {
-      kind: "create",
-      entity: "app-registration",
-      id: generatedIdentityRecordId("app-registration"),
-      values: {
-        appInstallId: input.appInstallId,
-        targetKind: "principal",
-        targetPrincipal: input.principalId,
-        status: "active",
-        ...(input.selectedOrganization === undefined
-          ? {}
-          : { selectedOrganization: input.selectedOrganization }),
-      },
-    },
-  ];
-}
-
-function parseIdentityEmailVerifiedSignupCommitRequest(
-  value: unknown,
-): IdentityEmailVerifiedSignupCommitInput {
-  const object = parseRecord("Identity email-verified signup commit request", value);
-
-  assertAllowedKeys("Identity email-verified signup commit request", object, [
-    "appInstallId",
-    "displayEmail",
-    "displayName",
-    "normalizedEmail",
-    "principalId",
-    "selectedOrganization",
-    "signupId",
-    "verifiedAt",
-  ]);
-
-  const displayEmail = normalizeEmailDeliveryAddress(
-    "Identity email-verified signup display email",
-    object.displayEmail,
-  );
-  const normalizedEmail = normalizeEmailDeliveryAddress(
-    "Identity email-verified signup normalized email",
-    object.normalizedEmail,
-  ).toLowerCase();
-
-  if (displayEmail.toLowerCase() !== normalizedEmail) {
-    throw new BadRequestError("Identity email-verified signup display email must match email.");
-  }
-
-  return {
-    appInstallId: parseNonEmptyString(
-      "Identity email-verified signup app install id",
-      object.appInstallId,
-    ),
-    displayEmail,
-    displayName: parseNonEmptyString(
-      "Identity email-verified signup display name",
-      object.displayName,
-    ),
-    normalizedEmail,
-    principalId: parseNonEmptyString(
-      "Identity email-verified signup principal id",
-      object.principalId,
-    ),
-    ...(object.selectedOrganization === undefined
-      ? {}
-      : {
-          selectedOrganization: parseNonEmptyString(
-            "Identity email-verified signup selected organization",
-            object.selectedOrganization,
-          ),
-        }),
-    signupId: parseNonEmptyString("Identity email-verified signup id", object.signupId),
-    verifiedAt: parseIsoTimestamp("Identity email-verified signup verifiedAt", object.verifiedAt),
-  };
-}
-function identityEmailVerifiedSignupCommitFailure(
-  reason: IdentityEmailVerifiedSignupCommitFailureReason,
-): Extract<
-  IdentityEmailVerifiedSignupCommitResult,
-  {
-    ok: false;
-  }
-> {
-  return {
-    error:
-      reason === "inactive-principal"
-        ? "Email-verified signup principal is inactive."
-        : reason === "email-owned-by-another-principal"
-          ? "Email-verified signup could not be committed."
-          : "Email-verified signup could not be committed.",
-    ok: false,
-    reason,
-  };
-}
-
-function emailVerifiedSignupAppRegistrationSummary(
-  record: StoredRecord,
-): IdentityEmailVerifiedSignupAppRegistrationSummary {
-  return {
-    appInstallId: parseNonEmptyString(
-      "Identity email-verified signup app-registration appInstallId",
-      record.values.appInstallId,
-    ),
-    appRegistrationId: record.id,
-    ...(record.values.selectedOrganization === undefined
-      ? {}
-      : {
-          selectedOrganization: parseNonEmptyString(
-            "Identity email-verified signup app-registration selectedOrganization",
-            record.values.selectedOrganization,
-          ),
-        }),
-    status: "active",
-    targetKind: "principal",
-    targetPrincipal: parseNonEmptyString(
-      "Identity email-verified signup app-registration targetPrincipal",
-      record.values.targetPrincipal,
-    ),
-  };
-}
-
 function commitOwnerSetupActivationIntoIdentity(
   storage: DurableObjectStorage,
   value: unknown,
@@ -4477,224 +3631,6 @@ function identityOwnerSetupActivationCommitFailure(
   };
 }
 
-function commitEmailVerifiedAppRegistrationIntoIdentity(
-  storage: DurableObjectStorage,
-  value: unknown,
-): IdentityEmailVerifiedAppRegistrationCommitResult {
-  const input = parseIdentityEmailVerifiedAppRegistrationCommitRequest(value);
-
-  ensureIdentityControlPlaneStorage(storage);
-
-  let plans: OperationRecordWritePlan[];
-
-  try {
-    const planned = emailVerifiedAppRegistrationWritePlans(getBootstrapRecords(storage), input);
-
-    if (!planned.ok) {
-      return planned;
-    }
-
-    plans = planned.plans;
-  } catch {
-    return identityEmailVerifiedAppRegistrationCommitFailure("identity-validation-failed");
-  }
-
-  let outcome: WriteOutcome<OperationCommandOutput>;
-
-  try {
-    outcome = writeRecordSetForCommandOperationOutcome(
-      storage,
-      `email-verified-app-registration:${input.completionId}`,
-      plans,
-      validateIdentityControlPlaneRecordConstraint(storage),
-      { now: input.completedAt },
-    );
-  } catch {
-    return identityEmailVerifiedAppRegistrationCommitFailure("identity-validation-failed");
-  }
-
-  const records = getBootstrapRecords(storage);
-  const appRegistration = records.find(
-    (record) =>
-      record.entity === "app-registration" &&
-      !record.deletedAt &&
-      record.values.appInstallId === input.appInstallId &&
-      record.values.targetKind === "principal" &&
-      record.values.targetPrincipal === input.principalId &&
-      record.values.status === "active" &&
-      (record.values.selectedOrganization ?? undefined) ===
-        (input.selectedOrganization ?? undefined),
-  );
-
-  if (!appRegistration) {
-    return identityEmailVerifiedAppRegistrationCommitFailure("identity-validation-failed");
-  }
-
-  return {
-    appRegistration: emailVerifiedSignupAppRegistrationSummary(appRegistration),
-    ok: true,
-    output: outcome.response,
-    records: outcome.response.changes.map((change) => change.payload),
-    status: outcome.kind === "replay" ? "replayed" : "committed",
-  };
-}
-
-function emailVerifiedAppRegistrationWritePlans(
-  records: readonly StoredRecord[],
-  input: IdentityEmailVerifiedAppRegistrationCommitInput,
-):
-  | {
-      ok: true;
-      plans: OperationRecordWritePlan[];
-    }
-  | Extract<
-      IdentityEmailVerifiedAppRegistrationCommitResult,
-      {
-        ok: false;
-      }
-    > {
-  const principal = records.find(
-    (record) => record.entity === "principal" && record.id === input.principalId,
-  );
-
-  if (!principal || principal.deletedAt || principal.values.status !== "active") {
-    return identityEmailVerifiedAppRegistrationCommitFailure("inactive-principal");
-  }
-
-  const primaryEmail = records.find(
-    (record) =>
-      record.entity === "principal-email" &&
-      !record.deletedAt &&
-      record.values.principal === input.principalId &&
-      record.values.primary === true &&
-      record.values.verificationStatus === "verified",
-  );
-
-  if (!primaryEmail) {
-    return identityEmailVerifiedAppRegistrationCommitFailure("missing-verified-primary-email");
-  }
-
-  const existing = records.find(
-    (record) =>
-      record.entity === "app-registration" &&
-      !record.deletedAt &&
-      record.values.appInstallId === input.appInstallId &&
-      record.values.targetKind === "principal" &&
-      record.values.targetPrincipal === input.principalId,
-  );
-
-  if (existing) {
-    if (existing.values.status === "active") {
-      return (existing.values.selectedOrganization ?? undefined) ===
-        (input.selectedOrganization ?? undefined)
-        ? { ok: true, plans: [] }
-        : identityEmailVerifiedAppRegistrationCommitFailure("conflicting-active-app-registration");
-    }
-
-    const values: RecordValues = {
-      ...existing.values,
-      status: "active",
-    };
-
-    if (input.selectedOrganization === undefined) {
-      delete values.selectedOrganization;
-    } else {
-      values.selectedOrganization = input.selectedOrganization;
-    }
-
-    return {
-      ok: true,
-      plans: [
-        {
-          kind: "patch",
-          record: existing,
-          values,
-        },
-      ],
-    };
-  }
-
-  return {
-    ok: true,
-    plans: [
-      {
-        kind: "create",
-        entity: "app-registration",
-        id: generatedIdentityRecordId("app-registration"),
-        values: {
-          appInstallId: input.appInstallId,
-          targetKind: "principal",
-          targetPrincipal: input.principalId,
-          status: "active",
-          ...(input.selectedOrganization === undefined
-            ? {}
-            : { selectedOrganization: input.selectedOrganization }),
-        },
-      },
-    ],
-  };
-}
-
-function parseIdentityEmailVerifiedAppRegistrationCommitRequest(
-  value: unknown,
-): IdentityEmailVerifiedAppRegistrationCommitInput {
-  const object = parseRecord("Identity email-verified app-registration commit request", value);
-
-  assertAllowedKeys("Identity email-verified app-registration commit request", object, [
-    "appInstallId",
-    "completedAt",
-    "completionId",
-    "principalId",
-    "selectedOrganization",
-  ]);
-
-  return {
-    appInstallId: parseNonEmptyString(
-      "Identity email-verified app-registration app install id",
-      object.appInstallId,
-    ),
-    completedAt: parseIsoTimestamp(
-      "Identity email-verified app-registration completedAt",
-      object.completedAt,
-    ),
-    completionId: parseNonEmptyString(
-      "Identity email-verified app-registration completion id",
-      object.completionId,
-    ),
-    principalId: parseNonEmptyString(
-      "Identity email-verified app-registration principal id",
-      object.principalId,
-    ),
-    ...(object.selectedOrganization === undefined
-      ? {}
-      : {
-          selectedOrganization: parseNonEmptyString(
-            "Identity email-verified app-registration selected organization",
-            object.selectedOrganization,
-          ),
-        }),
-  };
-}
-function identityEmailVerifiedAppRegistrationCommitFailure(
-  reason: IdentityEmailVerifiedAppRegistrationCommitFailureReason,
-): Extract<
-  IdentityEmailVerifiedAppRegistrationCommitResult,
-  {
-    ok: false;
-  }
-> {
-  return {
-    error:
-      reason === "inactive-principal"
-        ? "Email-verified app-registration requires an active principal."
-        : reason === "missing-verified-primary-email"
-          ? "Email-verified app-registration requires a verified primary email."
-          : "Email-verified app-registration could not be committed.",
-    ok: false,
-    reason,
-  };
-}
-
 function commitTermsAcceptanceIntoIdentity(
   storage: DurableObjectStorage,
   value: unknown,
@@ -4901,7 +3837,6 @@ function parseIdentityCollaboratorInvitationAcceptanceCommitRequest(
     "invitationId",
     "now",
     "principalId",
-    "targetAppInstallId",
     "targetEmail",
     "targetOrganization",
     "targetSurface",
@@ -5002,35 +3937,6 @@ function isIdentityEmailVerificationCommitResult(
   );
 }
 
-function isIdentityEmailVerifiedSignupCommitResult(
-  value: unknown,
-): value is IdentityEmailVerifiedSignupCommitResult {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return false;
-  }
-
-  const record = value as Record<string, unknown>;
-
-  if (record.ok === true) {
-    return (
-      typeof record.status === "string" &&
-      typeof record.output === "object" &&
-      record.output !== null &&
-      typeof record.principal === "object" &&
-      record.principal !== null &&
-      typeof record.principalEmail === "object" &&
-      record.principalEmail !== null &&
-      typeof record.appRegistration === "object" &&
-      record.appRegistration !== null &&
-      Array.isArray(record.records)
-    );
-  }
-
-  return (
-    record.ok === false && typeof record.reason === "string" && typeof record.error === "string"
-  );
-}
-
 function isIdentityOwnerSetupActivationCommitResult(
   value: unknown,
 ): value is IdentityOwnerSetupActivationCommitResult {
@@ -5058,31 +3964,6 @@ function isIdentityOwnerSetupActivationCommitResult(
   );
 }
 
-function isIdentityEmailVerifiedAppRegistrationCommitResult(
-  value: unknown,
-): value is IdentityEmailVerifiedAppRegistrationCommitResult {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return false;
-  }
-
-  const record = value as Record<string, unknown>;
-
-  if (record.ok === true) {
-    return (
-      typeof record.status === "string" &&
-      typeof record.output === "object" &&
-      record.output !== null &&
-      typeof record.appRegistration === "object" &&
-      record.appRegistration !== null &&
-      Array.isArray(record.records)
-    );
-  }
-
-  return (
-    record.ok === false && typeof record.reason === "string" && typeof record.error === "string"
-  );
-}
-
 function responseBodyError(value: unknown): string | undefined {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return undefined;
@@ -5099,7 +3980,6 @@ function collaboratorInvitationTargetFactsEqual(
 ): boolean {
   return (
     left.targetSurface === right.targetSurface &&
-    (left.targetAppInstallId ?? undefined) === (right.targetAppInstallId ?? undefined) &&
     (left.targetOrganization ?? undefined) === (right.targetOrganization ?? undefined)
   );
 }
@@ -5304,9 +4184,6 @@ async function createFreshCollaboratorInvitationToken(
       tokenHash: await hashCollaboratorInvitationToken(rawToken),
       targetEmail: input.targetEmail,
       targetSurface: input.targetSurface,
-      ...(input.targetAppInstallId === undefined
-        ? {}
-        : { targetAppInstallId: input.targetAppInstallId }),
       ...(input.targetOrganization === undefined
         ? {}
         : { targetOrganization: input.targetOrganization }),
@@ -5413,7 +4290,6 @@ function parseCollaboratorInvitationDeliveryRequest(
     "createdAt",
     "expiresAt",
     "invitationId",
-    "targetAppInstallId",
     "targetEmail",
     "targetOrganization",
     "targetSurface",
@@ -5535,8 +4411,7 @@ function collaboratorInvitationRecordWritePlans(
   const linkedRecordsRequested =
     input.principalEmail !== undefined ||
     input.memberships.length > 0 ||
-    input.roleAssignments.length > 0 ||
-    input.appRegistrations.length > 0;
+    input.roleAssignments.length > 0;
 
   if (linkedRecordsRequested && invitedPrincipalId === undefined) {
     throw new BadRequestError(
@@ -5617,21 +4492,6 @@ function collaboratorInvitationRecordWritePlans(
     );
   }
 
-  for (const [index, appRegistration] of input.appRegistrations.entries()) {
-    if (invitedPrincipalId === undefined) {
-      throw new BadRequestError(
-        `Collaborator invitation app registration ${index} requires principal.`,
-      );
-    }
-
-    plans.push({
-      kind: "create",
-      entity: "app-registration",
-      id: appRegistration.id ?? generatedIdentityRecordId("app-registration"),
-      values: collaboratorInvitationAppRegistrationValues(appRegistration, invitedPrincipalId),
-    });
-  }
-
   plans.push({
     kind: "create",
     entity: "invitation",
@@ -5653,20 +4513,7 @@ function collaboratorInvitationRecordWritePlans(
 
 function collaboratorInvitationTargetValues(
   input: CollaboratorInvitationTargetFacts,
-): Pick<
-  CreateCollaboratorInvitationInput,
-  "targetAppInstallId" | "targetOrganization" | "targetSurface"
-> {
-  if (input.targetSurface === "app-install") {
-    return {
-      targetSurface: input.targetSurface,
-      targetAppInstallId: requiredParsedString(
-        "Collaborator invitation target app install id",
-        input.targetAppInstallId,
-      ),
-    };
-  }
-
+): Pick<CreateCollaboratorInvitationInput, "targetOrganization" | "targetSurface"> {
   if (input.targetSurface === "organization") {
     return {
       targetSurface: input.targetSurface,
@@ -5717,55 +4564,12 @@ function collaboratorInvitationRoleAssignmentValues(
     throw new Error("Program invitation roles use Program role assignment records.");
   }
 
-  if (input.scopeKind === "app-install") {
-    return {
-      role: input.role,
-      targetKind: "principal",
-      targetPrincipal: principalId,
-      scopeKind: input.scopeKind,
-      appInstallId: requiredParsedString(
-        "Collaborator invitation role assignment app install id",
-        input.appInstallId,
-      ),
-      status: "active",
-    };
-  }
-
-  if (input.scopeKind === "organization") {
-    return {
-      role: input.role,
-      targetKind: "principal",
-      targetPrincipal: principalId,
-      scopeKind: input.scopeKind,
-      scopeOrganization: requiredParsedString(
-        "Collaborator invitation role assignment scope organization",
-        input.scopeOrganization,
-      ),
-      status: "active",
-    };
-  }
-
   return {
     role: input.role,
     targetKind: "principal",
     targetPrincipal: principalId,
     scopeKind: input.scopeKind,
     status: "active",
-  };
-}
-
-function collaboratorInvitationAppRegistrationValues(
-  input: CollaboratorInvitationAppRegistrationInput,
-  principalId: string,
-): IdentityAppRegistrationValues {
-  return {
-    appInstallId: input.appInstallId,
-    targetKind: "principal",
-    targetPrincipal: principalId,
-    status: "pending",
-    ...(input.selectedOrganization === undefined
-      ? {}
-      : { selectedOrganization: input.selectedOrganization }),
   };
 }
 
@@ -5937,41 +4741,6 @@ function readActiveIdentityAuthorityForPrincipal(
   };
 }
 
-function readActiveIdentityAppAuthorityForPrincipal(
-  storage: DurableObjectStorage,
-  principalId: string,
-  appInstallId: string,
-): ActiveIdentityAppAuthority | null {
-  ensureIdentityControlPlaneStorage(storage);
-
-  const records = getBootstrapRecords(storage);
-  const principal = records.find(
-    (record) =>
-      record.id === principalId &&
-      record.entity === "principal" &&
-      !record.deletedAt &&
-      record.values.status === "active",
-  );
-
-  if (!principal) {
-    return null;
-  }
-
-  const ownerRole = activeRoleRecordOrUndefined(records, "instance.owner");
-  const appAdminRole = activeRoleRecordOrUndefined(records, "app.admin");
-
-  return {
-    appAdmin:
-      appAdminRole !== undefined &&
-      hasActiveAppInstallRoleAssignment(records, principal.id, appAdminRole.id, appInstallId),
-    appInstallId,
-    id: principal.id,
-    instanceOwner:
-      ownerRole !== undefined &&
-      hasActiveInstanceRoleAssignment(records, principal.id, ownerRole.id),
-  };
-}
-
 function readActiveIdentityPrincipal(
   storage: DurableObjectStorage,
   principalId: string,
@@ -5999,7 +4768,7 @@ function readAccountCompletionIdentityState(
 ): AccountCompletionIdentityState {
   ensureIdentityControlPlaneStorage(storage);
 
-  const records = getBootstrapRecords(storage);
+  const records = selectCurrentFormlessProgramRecords(getBootstrapRecords(storage));
   const principal = records.find(
     (record) =>
       record.id === input.principalId && record.entity === "principal" && !record.deletedAt,
@@ -6020,14 +4789,6 @@ function readAccountCompletionIdentityState(
           record.entity === "account-policy" &&
           !record.deletedAt &&
           accountPolicyAppliesToCompletionTarget(record, input.target),
-      )
-      .sort(compareStoredRecords),
-    appRegistrations: records
-      .filter(
-        (record) =>
-          record.entity === "app-registration" &&
-          !record.deletedAt &&
-          appRegistrationAppliesToCompletionTarget(record, input.principalId, input.target),
       )
       .sort(compareStoredRecords),
     invitations: records
@@ -6057,40 +4818,7 @@ function readAccountCompletionIdentityState(
       .sort(compareStoredRecords),
     primaryEmail: emails.find((record) => record.values.primary === true) ?? null,
     principal: principal ?? null,
-    roleAssignments: records
-      .filter(
-        (record) =>
-          record.entity === "role-assignment" &&
-          !record.deletedAt &&
-          roleAssignmentAppliesToCompletionTarget(record, input.principalId, input.target, records),
-      )
-      .sort(compareStoredRecords),
-    roles: records
-      .filter((record) => record.entity === "role" && !record.deletedAt)
-      .sort(compareStoredRecords),
   };
-}
-
-function appRegistrationAppliesToCompletionTarget(
-  record: StoredRecord,
-  principalId: string,
-  target: ReturnType<typeof parseAccountCompletionGateTarget>,
-): boolean {
-  if (target.appInstallId === undefined || record.values.appInstallId !== target.appInstallId) {
-    return false;
-  }
-
-  if (target.selectedOrganization !== undefined) {
-    return (
-      (record.values.targetKind === "organization" &&
-        record.values.targetOrganization === target.selectedOrganization) ||
-      (record.values.targetKind === "principal" &&
-        record.values.targetPrincipal === principalId &&
-        record.values.selectedOrganization === target.selectedOrganization)
-    );
-  }
-
-  return record.values.targetKind === "principal" && record.values.targetPrincipal === principalId;
 }
 
 function invitationAppliesToCompletionTarget(
@@ -6099,12 +4827,6 @@ function invitationAppliesToCompletionTarget(
 ): boolean {
   if (record.values.targetSurface === "instance") {
     return target.targetProfile === "instance";
-  }
-
-  if (record.values.targetSurface === "app-install") {
-    return (
-      target.appInstallId !== undefined && record.values.targetAppInstallId === target.appInstallId
-    );
   }
 
   return (
@@ -6122,106 +4844,10 @@ function accountPolicyAppliesToCompletionTarget(
     return true;
   }
 
-  if (record.values.scopeKind === "app-install") {
-    return target.appInstallId !== undefined && record.values.appInstallId === target.appInstallId;
-  }
-
   return (
     target.selectedOrganization !== undefined &&
     record.values.scopeKind === "organization" &&
     record.values.scopeOrganization === target.selectedOrganization
-  );
-}
-
-function roleAssignmentAppliesToCompletionTarget(
-  record: StoredRecord,
-  principalId: string,
-  target: ReturnType<typeof parseAccountCompletionGateTarget>,
-  records: readonly StoredRecord[],
-): boolean {
-  if (!roleAssignmentScopeAppliesToCompletionTarget(record, target)) {
-    return false;
-  }
-
-  if (record.values.targetKind === "principal") {
-    return record.values.targetPrincipal === principalId;
-  }
-
-  if (record.values.targetKind === "group") {
-    return records.some(
-      (candidate) =>
-        candidate.entity === "membership" &&
-        !candidate.deletedAt &&
-        candidate.values.status === "active" &&
-        candidate.values.principal === principalId &&
-        candidate.values.targetKind === "group" &&
-        candidate.values.targetGroup === record.values.targetGroup,
-    );
-  }
-
-  return records.some(
-    (candidate) =>
-      candidate.entity === "membership" &&
-      !candidate.deletedAt &&
-      candidate.values.status === "active" &&
-      candidate.values.principal === principalId &&
-      candidate.values.targetKind === "organization" &&
-      candidate.values.targetOrganization === record.values.targetOrganization,
-  );
-}
-
-function roleAssignmentScopeAppliesToCompletionTarget(
-  record: StoredRecord,
-  target: ReturnType<typeof parseAccountCompletionGateTarget>,
-): boolean {
-  if (record.values.scopeKind === "instance") {
-    return true;
-  }
-
-  if (record.values.scopeKind === "app-install") {
-    return target.appInstallId !== undefined && record.values.appInstallId === target.appInstallId;
-  }
-
-  return (
-    target.selectedOrganization !== undefined &&
-    record.values.scopeKind === "organization" &&
-    record.values.scopeOrganization === target.selectedOrganization
-  );
-}
-
-function hasActiveInstanceRoleAssignment(
-  records: readonly StoredRecord[],
-  principalId: string,
-  roleId: string,
-): boolean {
-  return records.some(
-    (record) =>
-      record.entity === "role-assignment" &&
-      !record.deletedAt &&
-      record.values.status === "active" &&
-      record.values.role === roleId &&
-      record.values.targetKind === "principal" &&
-      record.values.scopeKind === "instance" &&
-      record.values.targetPrincipal === principalId,
-  );
-}
-
-function hasActiveAppInstallRoleAssignment(
-  records: readonly StoredRecord[],
-  principalId: string,
-  roleId: string,
-  appInstallId: string,
-): boolean {
-  return records.some(
-    (record) =>
-      record.entity === "role-assignment" &&
-      !record.deletedAt &&
-      record.values.status === "active" &&
-      record.values.role === roleId &&
-      record.values.targetKind === "principal" &&
-      record.values.scopeKind === "app-install" &&
-      record.values.appInstallId === appInstallId &&
-      record.values.targetPrincipal === principalId,
   );
 }
 
@@ -6349,7 +4975,6 @@ function parseCreateCollaboratorInvitationRequest(
   const object = parseRecord("Collaborator invitation request", value);
 
   assertAllowedKeys("Collaborator invitation request", object, [
-    "appRegistrations",
     "idempotencyKey",
     "invitationId",
     "invitedPrincipal",
@@ -6357,7 +4982,6 @@ function parseCreateCollaboratorInvitationRequest(
     "now",
     "principalEmail",
     "roleAssignments",
-    "targetAppInstallId",
     "targetEmail",
     "targetOrganization",
     "targetSurface",
@@ -6393,7 +5017,6 @@ function parseCreateCollaboratorInvitationRequest(
       : { principalEmail: parseCollaboratorInvitationPrincipalEmail(object.principalEmail) }),
     memberships: parseCollaboratorInvitationMemberships(object.memberships),
     roleAssignments: parseCollaboratorInvitationRoleAssignments(object.roleAssignments),
-    appRegistrations: parseCollaboratorInvitationAppRegistrations(object.appRegistrations),
     ...(acceptanceTarget === undefined ? {} : { acceptanceTarget }),
     ...(now === undefined ? {} : { now }),
   };
@@ -6402,11 +5025,7 @@ function parseCreateCollaboratorInvitationRequest(
 function parseOptionalCollaboratorInvitationTargetFacts(
   object: Record<string, unknown>,
 ): CollaboratorInvitationTargetFacts | undefined {
-  if (
-    object.targetSurface === undefined &&
-    object.targetAppInstallId === undefined &&
-    object.targetOrganization === undefined
-  ) {
+  if (object.targetSurface === undefined && object.targetOrganization === undefined) {
     return undefined;
   }
 
@@ -6427,30 +5046,13 @@ function parseCollaboratorInvitationTargetFacts(
     object.targetSurface,
     invitationTargetSurfaces,
   );
-  const targetAppInstallId = parseOptionalNonEmptyString(
-    "Collaborator invitation targetAppInstallId",
-    object.targetAppInstallId,
-  );
   const targetOrganization = parseOptionalNonEmptyString(
     "Collaborator invitation targetOrganization",
     object.targetOrganization,
   );
 
-  if (targetSurface === "app-install") {
-    if (targetAppInstallId === undefined || targetOrganization !== undefined) {
-      throw new BadRequestError(
-        "Collaborator invitation app-install target requires targetAppInstallId only.",
-      );
-    }
-
-    return {
-      targetSurface,
-      targetAppInstallId,
-    };
-  }
-
   if (targetSurface === "organization") {
-    if (targetOrganization === undefined || targetAppInstallId !== undefined) {
+    if (targetOrganization === undefined) {
       throw new BadRequestError(
         "Collaborator invitation organization target requires targetOrganization only.",
       );
@@ -6462,7 +5064,7 @@ function parseCollaboratorInvitationTargetFacts(
     };
   }
 
-  if (targetAppInstallId !== undefined || targetOrganization !== undefined) {
+  if (targetOrganization !== undefined) {
     throw new BadRequestError("Collaborator invitation instance target cannot include target ids.");
   }
 
@@ -6583,36 +5185,21 @@ function parseCollaboratorInvitationRoleAssignments(
     const object = parseRecord(`Collaborator invitation roleAssignments ${index}`, item);
 
     assertAllowedKeys(`Collaborator invitation roleAssignments ${index}`, object, [
-      "appInstallId",
       "id",
       "role",
       "roleId",
       "roleKey",
       "scopeKind",
-      "scopeOrganization",
     ]);
 
     const scopeKind = parseStringLiteral(
       `Collaborator invitation roleAssignments ${index} scopeKind`,
       object.scopeKind,
-      [...roleAssignmentScopeKinds, "program"] as const,
-    );
-    const appInstallId = parseOptionalNonEmptyString(
-      `Collaborator invitation roleAssignments ${index} appInstallId`,
-      object.appInstallId,
-    );
-    const scopeOrganization = parseOptionalNonEmptyString(
-      `Collaborator invitation roleAssignments ${index} scopeOrganization`,
-      object.scopeOrganization,
+      ["instance", "program"] as const,
     );
 
     if (scopeKind === "program") {
-      if (
-        object.role !== undefined ||
-        object.roleKey !== undefined ||
-        appInstallId !== undefined ||
-        scopeOrganization !== undefined
-      ) {
+      if (object.role !== undefined || object.roleKey !== undefined) {
         throw new BadRequestError(
           `Collaborator invitation roleAssignments ${index} Program scope requires roleId only.`,
         );
@@ -6651,56 +5238,6 @@ function parseCollaboratorInvitationRoleAssignments(
     }
 
     const role = parseCollaboratorInvitationRoleReference(object, index);
-
-    if (scopeKind === "app-install") {
-      if (appInstallId === undefined || scopeOrganization !== undefined) {
-        throw new BadRequestError(
-          `Collaborator invitation roleAssignments ${index} app-install scope requires appInstallId only.`,
-        );
-      }
-
-      return {
-        ...(object.id === undefined
-          ? {}
-          : {
-              id: parseNonEmptyString(
-                `Collaborator invitation roleAssignments ${index} id`,
-                object.id,
-              ),
-            }),
-        role,
-        scopeKind,
-        appInstallId,
-      };
-    }
-
-    if (scopeKind === "organization") {
-      if (scopeOrganization === undefined || appInstallId !== undefined) {
-        throw new BadRequestError(
-          `Collaborator invitation roleAssignments ${index} organization scope requires scopeOrganization only.`,
-        );
-      }
-
-      return {
-        ...(object.id === undefined
-          ? {}
-          : {
-              id: parseNonEmptyString(
-                `Collaborator invitation roleAssignments ${index} id`,
-                object.id,
-              ),
-            }),
-        role,
-        scopeKind,
-        scopeOrganization,
-      };
-    }
-
-    if (appInstallId !== undefined || scopeOrganization !== undefined) {
-      throw new BadRequestError(
-        `Collaborator invitation roleAssignments ${index} instance scope cannot include scope ids.`,
-      );
-    }
 
     return {
       ...(object.id === undefined
@@ -6743,43 +5280,6 @@ function parseCollaboratorInvitationRoleReference(
   return role ?? `role:${roleKey}`;
 }
 
-function parseCollaboratorInvitationAppRegistrations(
-  value: unknown,
-): CollaboratorInvitationAppRegistrationInput[] {
-  return parseOptionalArray("Collaborator invitation appRegistrations", value, (item, index) => {
-    const object = parseRecord(`Collaborator invitation appRegistrations ${index}`, item);
-
-    assertAllowedKeys(`Collaborator invitation appRegistrations ${index}`, object, [
-      "appInstallId",
-      "id",
-      "selectedOrganization",
-    ]);
-
-    return {
-      appInstallId: parseNonEmptyString(
-        `Collaborator invitation appRegistrations ${index} appInstallId`,
-        object.appInstallId,
-      ),
-      ...(object.id === undefined
-        ? {}
-        : {
-            id: parseNonEmptyString(
-              `Collaborator invitation appRegistrations ${index} id`,
-              object.id,
-            ),
-          }),
-      ...(object.selectedOrganization === undefined
-        ? {}
-        : {
-            selectedOrganization: parseNonEmptyString(
-              `Collaborator invitation appRegistrations ${index} selectedOrganization`,
-              object.selectedOrganization,
-            ),
-          }),
-    };
-  });
-}
-
 function normalizeIdentityOwnerInput(value: unknown): OwnerIdentityInput {
   const object = parseRecord("Identity owner", value);
   const allowedKeys = new Set(["email", "name"]);
@@ -6820,7 +5320,7 @@ function validateIdentityControlPlaneRecordConstraint(
 
     validateIdentityControlPlaneRecords(
       "Identity control-plane records",
-      candidateRecords.filter(isIdentityProgramRecord),
+      candidateRecords.filter(isIdentityProgramRecord).filter(isCurrentFormlessProgramRecord),
       {
         authorizationRoles: formlessProgramSchema.authorization?.roles,
         candidateRecords,

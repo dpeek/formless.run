@@ -43,7 +43,6 @@ const emailVerificationPurposes = [
   "invitation-acceptance",
   "owner-setup",
   "recovery",
-  "signup",
 ] as const satisfies readonly EmailVerificationChallengePurpose[];
 
 type InstanceAuthEmailVerificationEnv = {
@@ -476,7 +475,6 @@ async function emailVerificationChallengeIdempotencyKey(input: {
       input.target.targetOrigin,
       input.target.routeId,
       input.target.targetProfile,
-      input.target.appInstallId ?? "",
       input.target.storageIdentity ?? "",
       input.target.selectedOrganization ?? "",
       input.target.returnTo,

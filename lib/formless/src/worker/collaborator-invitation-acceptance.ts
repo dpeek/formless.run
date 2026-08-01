@@ -49,10 +49,7 @@ import {
 import { createCentralAuthSessionCookie } from "./central-auth-session.ts";
 import { readControlPlaneRecords } from "./deployment-control-plane-client.ts";
 import { handleClientShellDocumentRequest } from "./client-shell.ts";
-import {
-  customOperationProfileCompletionRequirementForTarget,
-  resolveAccountCompletionGate,
-} from "./instance-auth-account-completion.ts";
+import { resolveAccountCompletionGate } from "./instance-auth-account-completion.ts";
 
 type CollaboratorInvitationAcceptanceEnv = {
   ASSETS?: Fetcher;
@@ -309,9 +306,6 @@ async function handlePasskeyRegistrationVerifyRequest(
     principalId: candidate.principalId,
     targetEmail: candidate.invitation.targetEmail,
     targetSurface: candidate.invitation.targetSurface,
-    ...(candidate.invitation.targetAppInstallId === undefined
-      ? {}
-      : { targetAppInstallId: candidate.invitation.targetAppInstallId }),
     ...(candidate.invitation.targetOrganization === undefined
       ? {}
       : { targetOrganization: candidate.invitation.targetOrganization }),
@@ -330,9 +324,6 @@ async function handlePasskeyRegistrationVerifyRequest(
         targetEmail: candidate.invitation.targetEmail,
         target: {
           targetSurface: candidate.invitation.targetSurface,
-          ...(candidate.invitation.targetAppInstallId === undefined
-            ? {}
-            : { targetAppInstallId: candidate.invitation.targetAppInstallId }),
           ...(candidate.invitation.targetOrganization === undefined
             ? {}
             : { targetOrganization: candidate.invitation.targetOrganization }),
@@ -383,10 +374,6 @@ async function handlePasskeyRegistrationVerifyRequest(
   const continuation = await collaboratorInvitationAcceptanceContinuation(request, env, {
     invitation: identityAcceptance.invitation,
   });
-  const profileCompletion =
-    continuation === undefined
-      ? undefined
-      : await customOperationProfileCompletionRequirementForTarget(env, continuation.target);
   const accountCompletion =
     continuation === undefined
       ? undefined
@@ -395,7 +382,6 @@ async function handlePasskeyRegistrationVerifyRequest(
           input: {
             actorKind: "authenticated",
             principalId: identityAcceptance.principalId,
-            ...(profileCompletion === undefined ? {} : { profileCompletion }),
             target: continuation.target,
           },
           storage,
@@ -516,22 +502,7 @@ function invitationAcceptanceHandoffTarget(
     return preferredAdminInvitationTarget(records);
   }
 
-  const route = mappedInvitationTargetRoute(records, invitation);
-
-  if (route === undefined || route.access === "anonymous" || route.appInstall === undefined) {
-    return undefined;
-  }
-
-  return {
-    access: route.access,
-    appInstallId: route.appInstall,
-    ...(route.requiredRole === undefined ? {} : { requiredRole: route.requiredRole }),
-    returnTo: route.matchPath,
-    routeId: route.recordId,
-    storageIdentity: `app:${route.appInstall}`,
-    targetOrigin: parseInstanceAuthCanonicalOrigin(`https://${route.matchHost}`),
-    targetProfile: route.targetProfile,
-  };
+  return undefined;
 }
 
 function preferredAdminInvitationTarget(
@@ -547,11 +518,10 @@ function preferredAdminInvitationTarget(
     .map(routeRecordTarget)
     .find((candidate) => candidate?.recordId === resolution.routeId);
 
-  return route === undefined || route.access === "anonymous"
+  return route === undefined || route.targetProfile !== "instance" || route.access === "anonymous"
     ? undefined
     : {
         access: route.access,
-        ...(route.requiredRole === undefined ? {} : { requiredRole: route.requiredRole }),
         returnTo: route.matchPath,
         routeId: route.recordId,
         storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
@@ -560,29 +530,13 @@ function preferredAdminInvitationTarget(
       };
 }
 
-function mappedInvitationTargetRoute(
-  records: readonly StoredRecord[],
-  invitation: IdentityCollaboratorInvitationAcceptanceStatus,
-): NonNullable<ReturnType<typeof routeRecordTarget>> | undefined {
-  return records
-    .flatMap((record) => {
-      const route = routeRecordTarget(record);
-
-      return route ? [route] : [];
-    })
-    .filter((route) => invitationMatchesRouteTarget(invitation, route))
-    .sort((left, right) => left.recordId.localeCompare(right.recordId))[0];
-}
-
 function routeRecordTarget(record: StoredRecord):
   | {
-      appInstall?: string;
       access: "anonymous" | "authenticated" | "management" | "owner";
       matchHost: string;
       matchPath: `/${string}`;
       recordId: string;
-      requiredRole?: "app.admin";
-      targetProfile: "app" | "instance" | "public-site";
+      targetProfile: "instance" | "public-site";
     }
   | undefined {
   if (record.deletedAt || record.entity !== "route" || record.values.kind !== "mount") {
@@ -612,37 +566,15 @@ function routeRecordTarget(record: StoredRecord):
           : undefined,
       targetProfile,
     }),
-    ...(stringValue(record.values.appInstall) === undefined
-      ? {}
-      : { appInstall: stringValue(record.values.appInstall) }),
     matchHost,
     matchPath,
     recordId: record.id,
-    ...(record.values.requiredRole === "app.admin" ? { requiredRole: "app.admin" as const } : {}),
     targetProfile,
   };
 }
 
-function invitationMatchesRouteTarget(
-  invitation: IdentityCollaboratorInvitationAcceptanceStatus,
-  route: NonNullable<ReturnType<typeof routeRecordTarget>>,
-): boolean {
-  if (invitation.targetSurface === "instance") {
-    return route.targetProfile === "instance";
-  }
-
-  if (invitation.targetSurface === "app-install") {
-    return (
-      (route.targetProfile === "app" || route.targetProfile === "public-site") &&
-      route.appInstall === invitation.targetAppInstallId
-    );
-  }
-
-  return false;
-}
-
-function routeTargetProfile(value: unknown): "app" | "instance" | "public-site" | undefined {
-  return value === "app" || value === "instance" || value === "public-site" ? value : undefined;
+function routeTargetProfile(value: unknown): "instance" | "public-site" | undefined {
+  return value === "instance" || value === "public-site" ? value : undefined;
 }
 
 async function collaboratorInvitationAcceptanceCandidate(input: {
@@ -770,9 +702,6 @@ function collaboratorInvitationSummary(
     passkeyRegistrationRequired: true,
     targetEmail: invitation.targetEmail,
     targetSurface: invitation.targetSurface,
-    ...(invitation.targetAppInstallId === undefined
-      ? {}
-      : { targetAppInstallId: invitation.targetAppInstallId }),
     ...(invitation.targetOrganization === undefined
       ? {}
       : { targetOrganization: invitation.targetOrganization }),
@@ -785,7 +714,6 @@ function collaboratorInvitationTargetFactsEqual(
 ): boolean {
   return (
     left.targetSurface === right.targetSurface &&
-    (left.targetAppInstallId ?? undefined) === (right.targetAppInstallId ?? undefined) &&
     (left.targetOrganization ?? undefined) === (right.targetOrganization ?? undefined)
   );
 }

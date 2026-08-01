@@ -219,9 +219,9 @@ describe("generated media presentation conformance", () => {
       access: "private",
       byteSize: 42000,
       contentType: "application/pdf",
-      downloadHref: "/api/app-installs/reports/private/media/documents/report.pdf?download=1",
+      downloadHref: "/api/formless/program/media/documents/report.pdf?download=1",
       filename: "Quarterly report.pdf",
-      href: "/api/app-installs/reports/private/media/documents/report.pdf",
+      href: "/api/formless/program/media/documents/report.pdf",
       id: "report.pdf",
       label: "Quarterly report.pdf",
     } as const;

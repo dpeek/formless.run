@@ -64,9 +64,9 @@ describe("access memory Presentation Host", () => {
       state: "ready",
     });
     expect(invitation).toMatchObject({
-      fields: { acceptanceTarget: { value: "surface:site" } },
+      fields: { acceptanceTarget: { value: "program" } },
       membershipSelection: { selectedOptionIds: ["membership:research"] },
-      roleSelection: { selectedOptionIds: ["role:site-admin"] },
+      roleSelection: { selectedOptionIds: ["role:program-editor"] },
     });
     expect(person).toMatchObject({
       personId: "person:alex",
@@ -209,7 +209,7 @@ function readyManifestNode(): AccessManifestNode & { snapshot: AccessReadyContra
 function invitationAuthoringNode(): AccessInvitationAuthoringNode {
   const roleSelection = selection({
     authoringId: invitationReference.authoringId,
-    selectedId: "role:site-admin",
+    selectedId: "role:program-editor",
     type: "invitation",
   });
 
@@ -233,13 +233,13 @@ function invitationAuthoringNode(): AccessInvitationAuthoringNode {
           "Continue to",
           "acceptance-target",
           "select",
-          "surface:site",
+          "program",
           [
             {
               id: "target:site",
               label: "Site",
               selected: true,
-              value: "surface:site",
+              value: "program",
             },
             {
               id: "target:instance",
@@ -364,10 +364,10 @@ function selection({
     options: [
       {
         id: selectedId,
-        label: selectedId.includes("site") ? "Site — Administrator" : "Instance — Administrator",
+        label: selectedId.includes("program") ? "Program — Editor" : "Instance — Administrator",
         selected: true,
-        surfaceId: selectedId.includes("site") ? "surface:site" : "surface:instance",
-        surfaceKind: selectedId.includes("site") ? "app-install" : "instance",
+        surfaceId: selectedId.includes("program") ? "program" : "surface:instance",
+        surfaceKind: selectedId.includes("program") ? "program" : "instance",
       },
     ],
     selectedOptionIds: [selectedId],

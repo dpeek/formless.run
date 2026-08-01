@@ -46,14 +46,8 @@ function archiveOptions(
   return {
     ...options,
     controlPlaneSnapshotContract: {
-      canonicalize: (snapshot) =>
-        canonicalizeInstanceControlPlaneStorageSnapshot(snapshot, {
-          packageResolver: options.packageResolver,
-        }),
-      parse: (context, value) =>
-        parseInstanceControlPlaneStorageSnapshot(context, value, {
-          packageResolver: options.packageResolver,
-        }),
+      canonicalize: (snapshot) => canonicalizeInstanceControlPlaneStorageSnapshot(snapshot),
+      parse: (context, value) => parseInstanceControlPlaneStorageSnapshot(context, value),
     },
   };
 }
@@ -191,64 +185,6 @@ describe("portable archive protocol", () => {
     expect(parsePortableArchive(archive)).toEqual(archive);
   });
 
-  it("accepts and preserves app install registration policy metadata", () => {
-    const archive = appArchive({
-      app: { ...archivedInstall("members", "Members"), registrationPolicy: "email-verified" },
-    });
-    const customOperationArchive = appArchive({
-      app: {
-        ...archivedInstall("profiles", "Profiles"),
-        registrationOperation: "profile.register",
-        registrationPolicy: "custom-operation",
-      },
-    });
-    const formatted = JSON.parse(formatAppArchive(archive)) as AppArchive;
-    const formattedCustomOperation = JSON.parse(
-      formatAppArchive(customOperationArchive),
-    ) as AppArchive;
-    const omittedPolicyApp = { ...archive.app } as Record<string, unknown>;
-    delete omittedPolicyApp.registrationPolicy;
-
-    expect(parseAppArchive(archive).app.registrationPolicy).toBe("email-verified");
-    expect(parseAppArchive(customOperationArchive).app).toMatchObject({
-      registrationOperation: "profile.register",
-      registrationPolicy: "custom-operation",
-    });
-    expect(formatted.app.registrationPolicy).toBe("email-verified");
-    expect(formattedCustomOperation.app.registrationOperation).toBe("profile.register");
-    expect(parseAppArchive({ ...archive, app: omittedPolicyApp }).app.registrationPolicy).toBe(
-      "closed",
-    );
-    expect(() =>
-      parseAppArchive({
-        ...archive,
-        app: { ...archive.app, registrationPolicy: "custom-operation" },
-      }),
-    ).toThrow(
-      'App archive app registrationOperation is required when registrationPolicy is "custom-operation".',
-    );
-    expect(() =>
-      parseAppArchive({
-        ...archive,
-        app: {
-          ...archive.app,
-          registrationOperation: "profile.register",
-          registrationPolicy: "email-verified",
-        },
-      }),
-    ).toThrow(
-      'App archive app registrationOperation must be omitted unless registrationPolicy is "custom-operation".',
-    );
-    expect(() =>
-      parseAppArchive({
-        ...archive,
-        app: { ...archive.app, registrationPolicy: "domain-allowlist" },
-      }),
-    ).toThrow(
-      'App archive app registrationPolicy must be "closed", "email-verified", or "custom-operation".',
-    );
-  });
-
   it("parses instance archives as app archive collections", () => {
     const archive = instanceArchive({
       apps: [
@@ -361,31 +297,25 @@ describe("portable archive protocol", () => {
     ).toThrow(
       'Instance archive controlPlane records record "route:host:publicSite:www.example.com" field "instance:route.toUrl" cannot store control-plane secret values.',
     );
-    expect(() =>
-      parseInstanceArchive(
-        {
-          ...archive,
-          controlPlane: {
-            ...controlPlane,
-            records: controlPlaneRecords().map((record) =>
-              record.entity === "route" && record.id === "route:site:public-site"
-                ? {
-                    ...record,
-                    values: {
-                      ...record.values,
-                      appInstall: "missing",
-                    },
-                  }
-                : record,
-            ),
-          },
+    expect(
+      parseInstanceArchive({
+        ...archive,
+        controlPlane: {
+          ...controlPlane,
+          records: [
+            ...controlPlaneRecords(),
+            {
+              id: "legacy-install",
+              entity: "app-install",
+              values: { installId: "legacy-install" },
+              createdAt: now,
+              updatedAt: now,
+            },
+          ],
         },
-        { packageResolver: archivePackageResolver },
-      ),
-    ).toThrow(
-      'Instance archive controlPlane records record "route:site:public-site" field "instance:route.appInstall" references unknown instance:app-install record "missing".',
-    );
-    expect(() =>
+      }).controlPlane?.records.some((record) => record.entity === "app-install"),
+    ).toBe(false);
+    expect(
       parseInstanceArchive(
         {
           ...archive,
@@ -395,11 +325,11 @@ describe("portable archive protocol", () => {
           },
         },
         { packageResolver: archivePackageResolver },
-      ),
-    ).toThrow("cannot store runtime-observed deployment cache fields");
+      ).controlPlane?.records.find((record) => record.entity === "deployment-config")?.values,
+    ).not.toHaveProperty("observedStatus");
   });
 
-  it("rejects deployment execution history as instance control-plane source", () => {
+  it("omits deployment execution history from instance control-plane source", () => {
     const archive = instanceArchive({
       capabilities: [
         "installed-app-registry",
@@ -434,9 +364,11 @@ describe("portable archive protocol", () => {
       }),
     });
 
-    expect(() => parseInstanceArchive(archive)).toThrow(
-      'Instance archive controlPlane records record "deploy-drift:instance.primary" references unknown entity "deploy-drift-report".',
-    );
+    expect(
+      parseInstanceArchive(archive).controlPlane?.records.some(
+        (record) => record.entity === "deploy-drift-report",
+      ),
+    ).toBe(false);
   });
 
   it("rejects unknown kinds, unsupported versions, and missing sections", () => {
@@ -559,33 +491,14 @@ describe("portable archive protocol", () => {
         filename: "draft.pdf",
         id: "draft.pdf",
         kind: "document",
-        ownerAppInstallId: "personal",
       }),
       expect.objectContaining({
         access: "public",
         filename: "issued.pdf",
         id: "issued.pdf",
         kind: "document",
-        ownerAppInstallId: "personal",
       }),
     ]);
-
-    expect(() =>
-      parseAppArchive({
-        ...archive,
-        media: {
-          objects: [
-            {
-              ...documentMediaObject("draft", "private"),
-              asset: {
-                ...documentMediaObject("draft", "private").asset,
-                ownerAppInstallId: "other",
-              },
-            },
-          ],
-        },
-      }),
-    ).toThrow("must be valid document media metadata");
   });
 
   it("formats instance archives deterministically by install id", () => {
@@ -644,7 +557,6 @@ function archivedInstall(installId: string, label: string): AppArchive["app"] {
     sourceSchemaKey: "site",
     sourceSchemaHash: siteSourceSchemaHash,
     label,
-    registrationPolicy: "closed",
     status: "installed",
     createdAt: "2026-05-23T00:00:00.000Z",
     updatedAt: "2026-05-23T00:01:00.000Z",
@@ -657,20 +569,6 @@ function controlPlaneRecords(
   } = {},
 ): StoredRecord[] {
   return [
-    {
-      id: "site",
-      entity: "app-install",
-      values: {
-        installId: "site",
-        packageAppKey: "site",
-        label: "Site",
-        registrationPolicy: "closed",
-        status: "installed",
-        storageIdentity: "app:site",
-      },
-      createdAt: now,
-      updatedAt: now,
-    },
     {
       id: "route:site:public-site",
       entity: "route",
@@ -801,8 +699,8 @@ function mediaObject(name: string): AppArchiveMediaObject {
 
 function documentMediaObject(name: string, access: "public" | "private"): AppArchiveMediaObject {
   const id = `${name}.pdf`;
-  const storageKey = `media/app-installs/personal/documents/${id}`;
-  const deliveryHref = `/api/app-installs/site/personal/media/documents/${id}`;
+  const storageKey = `media/program/documents/${id}`;
+  const deliveryHref = `/api/formless/program/media/documents/${id}`;
 
   return {
     storageKey,
@@ -816,7 +714,6 @@ function documentMediaObject(name: string, access: "public" | "private"): AppArc
       id,
       kind: "document",
       label: id,
-      ownerAppInstallId: "personal",
       provider: "r2",
       status: "ready",
       storageKey,

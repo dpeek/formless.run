@@ -736,9 +736,8 @@ describe("archive restore planner", () => {
       asset: expect.objectContaining({
         access: "private",
         filename: "report.pdf",
-        ownerAppInstallId: "personal",
       }),
-      storageKey: "media/app-installs/personal/documents/report.pdf",
+      storageKey: "media/program/documents/report.pdf",
     });
   });
 
@@ -788,35 +787,8 @@ describe("archive restore planner", () => {
 
     expect(metadataErrors.map((error) => error.code)).toContain("invalid-media");
     expect(payloadErrors.map((error) => error.message)).toContain(
-      'Archive app "personal" document file "media/personal/media/app-installs/personal/documents/report.pdf" has invalid PDF payload.',
+      'Archive app "personal" document file "media/personal/media/program/documents/report.pdf" has invalid PDF payload.',
     );
-  });
-
-  it("preserves app install registration policy in restore plans", () => {
-    const plan = expectPlan(
-      planAppArchiveRestore(
-        appArchive({
-          app: {
-            ...archivedInstall("members", "Members"),
-            registrationOperation: "profile.register",
-            registrationPolicy: "custom-operation",
-          },
-        }),
-        {
-          packages: archiveTestInstallablePackages,
-          sourceSchemas: { site: siteSourceSchema },
-        },
-      ),
-    );
-
-    expect(plan.steps.find((step) => step.kind === "createInstall")).toMatchObject({
-      install: {
-        installId: "members",
-        registrationOperation: "profile.register",
-        registrationPolicy: "custom-operation",
-      },
-      kind: "createInstall",
-    });
   });
 
   it("reports codec failures as invalid archive planner errors", () => {
@@ -896,7 +868,6 @@ function archivedInstall(
     sourceSchemaKey: packageAppKey,
     sourceSchemaHash: sourceSchemaHashForPackageAppKey(packageAppKey),
     label,
-    registrationPolicy: "closed",
     status: "installed",
     createdAt: "2026-05-23T00:00:00.000Z",
     updatedAt: "2026-05-23T00:01:00.000Z",
@@ -1072,8 +1043,8 @@ function documentMediaObject(
   byteSize: number,
 ): AppArchiveMediaObject {
   const id = `${name}.pdf`;
-  const storageKey = `media/app-installs/personal/documents/${id}`;
-  const deliveryHref = `/api/app-installs/site/personal/media/documents/${id}`;
+  const storageKey = `media/program/documents/${id}`;
+  const deliveryHref = `/api/formless/program/media/documents/${id}`;
 
   return {
     archivePath: `media/personal/${storageKey}`,
@@ -1086,7 +1057,6 @@ function documentMediaObject(
       id,
       kind: "document",
       label: id,
-      ownerAppInstallId: "personal",
       provider: "r2",
       status: "ready",
       storageKey,
@@ -1100,7 +1070,7 @@ function documentMediaObject(
 
 function documentMediaFile(name: string, bytes: Uint8Array): ArchiveRestoreMediaFile {
   return {
-    archivePath: `media/personal/media/app-installs/personal/documents/${name}.pdf`,
+    archivePath: `media/personal/media/program/documents/${name}.pdf`,
     byteSize: bytes.byteLength,
     bytes,
     contentType: "application/pdf",
@@ -1159,7 +1129,6 @@ function siteInstall(installId: string): AppInstall {
     label: "Personal",
     packageAppKey: "site",
     packageRevision: 1,
-    registrationPolicy: "closed",
     sourceSchemaHash: siteSourceSchemaHash,
     status: "installed",
     updatedAt: now,

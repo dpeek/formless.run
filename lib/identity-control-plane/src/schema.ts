@@ -12,8 +12,6 @@ import {
   identityControlPlaneRoleKeys,
   type IdentityAccountPolicyScopeKind,
   type IdentityAccountPolicyStatus,
-  type IdentityAppRegistrationStatus,
-  type IdentityAppRegistrationTargetKind,
   type IdentityContainerStatus,
   type IdentityControlPlaneEntityName,
   type IdentityInvitationStatus,
@@ -91,7 +89,6 @@ const roleAssignmentTargetKindLabels = {
 } satisfies Record<IdentityRoleAssignmentTargetKind, string>;
 
 const roleAssignmentScopeKindLabels = {
-  "app-install": "App install",
   instance: "Instance",
   organization: "Organization",
 } satisfies Record<IdentityRoleAssignmentScopeKind, string>;
@@ -106,19 +103,7 @@ const programRoleAssignmentStatusLabels = {
   disabled: "Disabled",
 } satisfies Record<IdentityProgramRoleAssignmentStatus, string>;
 
-const appRegistrationTargetKindLabels = {
-  organization: "Organization",
-  principal: "Principal",
-} satisfies Record<IdentityAppRegistrationTargetKind, string>;
-
-const appRegistrationStatusLabels = {
-  active: "Active",
-  disabled: "Disabled",
-  pending: "Pending",
-} satisfies Record<IdentityAppRegistrationStatus, string>;
-
 const invitationTargetSurfaceLabels = {
-  "app-install": "App install",
   instance: "Instance",
   organization: "Organization",
 } satisfies Record<IdentityInvitationTargetSurface, string>;
@@ -131,7 +116,6 @@ const invitationStatusLabels = {
 } satisfies Record<IdentityInvitationStatus, string>;
 
 const accountPolicyScopeKindLabels = {
-  "app-install": "App install",
   instance: "Instance",
   organization: "Organization",
 } satisfies Record<IdentityAccountPolicyScopeKind, string>;
@@ -239,10 +223,6 @@ const entityViewConfig = {
       },
       "scopeKind",
       {
-        field: "appInstallId",
-        visibleWhen: { field: "scopeKind", values: ["app-install"] },
-      },
-      {
         field: "scopeOrganization",
         visibleWhen: { field: "scopeKind", values: ["organization"] },
       },
@@ -258,7 +238,6 @@ const entityViewConfig = {
       "targetGroup",
       "targetOrganization",
       "scopeKind",
-      "appInstallId",
       "scopeOrganization",
       "status",
     ],
@@ -270,41 +249,10 @@ const entityViewConfig = {
     label: "Program role assignments",
     tableFields: ["principal", "roleId", "status"],
   },
-  "app-registration": {
-    createFields: [
-      "appInstallId",
-      "targetKind",
-      {
-        field: "targetPrincipal",
-        visibleWhen: { field: "targetKind", values: ["principal"] },
-      },
-      {
-        field: "targetOrganization",
-        visibleWhen: { field: "targetKind", values: ["organization"] },
-      },
-      "status",
-      "selectedOrganization",
-    ],
-    editFields: ["status", "selectedOrganization"],
-    itemFields: ["appInstallId", "targetKind", "status", "selectedOrganization"],
-    label: "App registrations",
-    tableFields: [
-      "appInstallId",
-      "targetKind",
-      "targetPrincipal",
-      "targetOrganization",
-      "status",
-      "selectedOrganization",
-    ],
-  },
   invitation: {
     createFields: [
       "targetEmail",
       "targetSurface",
-      {
-        field: "targetAppInstallId",
-        visibleWhen: { field: "targetSurface", values: ["app-install"] },
-      },
       {
         field: "targetOrganization",
         visibleWhen: { field: "targetSurface", values: ["organization"] },
@@ -321,7 +269,6 @@ const entityViewConfig = {
     tableFields: [
       "targetEmail",
       "targetSurface",
-      "targetAppInstallId",
       "targetOrganization",
       "invitedPrincipal",
       "inviterPrincipal",
@@ -336,10 +283,6 @@ const entityViewConfig = {
       "policyKey",
       "version",
       "scopeKind",
-      {
-        field: "appInstallId",
-        visibleWhen: { field: "scopeKind", values: ["app-install"] },
-      },
       {
         field: "scopeOrganization",
         visibleWhen: { field: "scopeKind", values: ["organization"] },
@@ -357,7 +300,6 @@ const entityViewConfig = {
       "policyKey",
       "version",
       "scopeKind",
-      "appInstallId",
       "scopeOrganization",
       "status",
       "publishedAt",
@@ -581,10 +523,6 @@ export const identityControlPlaneRecordSchemaModule = defineAppSchemaModule({
           ...enumField("Scope kind", roleAssignmentScopeKindLabels),
         },
         {
-          key: "appInstallId",
-          ...optionalTextField("App install id"),
-        },
-        {
           key: "scopeOrganization",
           ...optionalReferenceField("Scope organization", "organization", "displayName"),
         },
@@ -602,7 +540,6 @@ export const identityControlPlaneRecordSchemaModule = defineAppSchemaModule({
           "targetGroup",
           "targetOrganization",
           "scopeKind",
-          "appInstallId",
           "scopeOrganization",
           "status",
         ],
@@ -636,51 +573,6 @@ export const identityControlPlaneRecordSchemaModule = defineAppSchemaModule({
       }),
     },
     {
-      id: "entity_735d1c4d-dc89-4423-9cc7-0daa06559d75",
-      key: "app-registration",
-      label: "App registration",
-      fields: [
-        {
-          key: "appInstallId",
-          ...textField("App install id"),
-        },
-        {
-          key: "targetKind",
-          ...enumField("Target kind", appRegistrationTargetKindLabels),
-        },
-        {
-          key: "targetPrincipal",
-          ...optionalReferenceField("Target principal", "principal", "displayName"),
-        },
-        {
-          key: "targetOrganization",
-          ...optionalReferenceField("Target organization", "organization", "displayName"),
-        },
-        {
-          key: "status",
-          ...enumField("Status", appRegistrationStatusLabels, "pending"),
-        },
-        {
-          key: "selectedOrganization",
-          ...optionalReferenceField("Selected organization", "organization", "displayName"),
-        },
-      ],
-      operations: writeOperations(
-        "app registration",
-        [
-          "appInstallId",
-          "targetKind",
-          "targetPrincipal",
-          "targetOrganization",
-          "status",
-          "selectedOrganization",
-        ],
-        {
-          updateFields: ["status", "selectedOrganization"],
-        },
-      ),
-    },
-    {
       id: "entity_f176ed5c-3e07-4107-8e4d-50e89539c9e1",
       key: "invitation",
       label: "Invitation",
@@ -692,10 +584,6 @@ export const identityControlPlaneRecordSchemaModule = defineAppSchemaModule({
         {
           key: "targetSurface",
           ...enumField("Target surface", invitationTargetSurfaceLabels),
-        },
-        {
-          key: "targetAppInstallId",
-          ...optionalTextField("Target app install id"),
         },
         {
           key: "targetOrganization",
@@ -727,7 +615,6 @@ export const identityControlPlaneRecordSchemaModule = defineAppSchemaModule({
         [
           "targetEmail",
           "targetSurface",
-          "targetAppInstallId",
           "targetOrganization",
           "invitedPrincipal",
           "inviterPrincipal",
@@ -762,10 +649,6 @@ export const identityControlPlaneRecordSchemaModule = defineAppSchemaModule({
           ...enumField("Scope kind", accountPolicyScopeKindLabels),
         },
         {
-          key: "appInstallId",
-          ...optionalTextField("App install id"),
-        },
-        {
           key: "scopeOrganization",
           ...optionalReferenceField("Scope organization", "organization", "displayName"),
         },
@@ -793,7 +676,6 @@ export const identityControlPlaneRecordSchemaModule = defineAppSchemaModule({
           "policyKey",
           "version",
           "scopeKind",
-          "appInstallId",
           "scopeOrganization",
           "status",
           "publishedAt",
@@ -965,33 +847,6 @@ export const identityControlPlaneRecordSchemaModule = defineAppSchemaModule({
       ),
     },
     {
-      key: "appRegistrationTargetPrincipal",
-      ...toOne(
-        "App registration principal target",
-        "app-registration",
-        "targetPrincipal",
-        "principal",
-      ),
-    },
-    {
-      key: "appRegistrationTargetOrganization",
-      ...toOne(
-        "App registration organization target",
-        "app-registration",
-        "targetOrganization",
-        "organization",
-      ),
-    },
-    {
-      key: "appRegistrationSelectedOrganization",
-      ...toOne(
-        "App registration selected organization",
-        "app-registration",
-        "selectedOrganization",
-        "organization",
-      ),
-    },
-    {
       key: "invitationTargetOrganization",
       ...toOne(
         "Invitation target organization",
@@ -1131,10 +986,6 @@ export const identityControlPlanePresentationSchemaModule = defineAppSchemaModul
         ["roles", "roleList"],
         ["role-assignments", "roleAssignmentList"],
       ]),
-    },
-    {
-      key: "apps",
-      ...screen("Apps", "/apps", [["app-registrations", "appRegistrationList"]]),
     },
     {
       key: "invitations",

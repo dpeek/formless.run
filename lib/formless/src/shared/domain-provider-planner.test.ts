@@ -12,8 +12,7 @@ describe("domain provider planner", () => {
       {
         enabled: true,
         host: "App.Example.COM.",
-        profile: "app",
-        targetInstallId: "tasks",
+        profile: "instance",
       },
       {
         enabled: false,
@@ -29,12 +28,6 @@ describe("domain provider planner", () => {
         enabled: true,
         host: "www.example.com",
         profile: "publicSite",
-      },
-      {
-        enabled: true,
-        host: "legacy.example.com",
-        profile: "publicSite",
-        targetInstallId: "site",
       },
     ];
 
@@ -55,7 +48,7 @@ describe("domain provider planner", () => {
     ).toEqual([
       {
         kind: "cloudflare-worker-custom-domain",
-        logicalId: "primary-instance-custom-domain-app-example-com-app-tasks",
+        logicalId: "primary-instance-custom-domain-app-example-com-instance",
       },
       {
         kind: "cloudflare-worker-custom-domain",
@@ -129,8 +122,7 @@ describe("domain provider planner", () => {
         {
           enabled: true,
           host: "app.example.com",
-          profile: "app",
-          targetInstallId: "tasks",
+          profile: "instance",
         },
       ],
       redirectIntents: [

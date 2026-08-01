@@ -18,7 +18,6 @@ import type {
   PresentationReference,
   DocumentThemeIntentHandler,
   DocumentThemeReference,
-  ManagementInstallDialogReference,
   ManagementIntentHandler,
   ManagementManifestReference,
   ResultReference,
@@ -140,10 +139,6 @@ export function useDocumentTheme(reference: DocumentThemeReference) {
 }
 
 export function useManagementManifest(reference: ManagementManifestReference) {
-  return usePresentationSnapshot(reference);
-}
-
-export function useManagementInstallDialog(reference: ManagementInstallDialogReference) {
   return usePresentationSnapshot(reference);
 }
 

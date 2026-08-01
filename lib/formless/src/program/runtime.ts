@@ -11,6 +11,7 @@ import {
 } from "@dpeek/formless-crm-app";
 import {
   instanceControlPlaneEntityIds,
+  isCurrentInstanceControlPlaneRecord,
   parseInstanceControlPlaneEntityName,
   reviewableInstanceControlPlaneRecordValues,
   reviewableInstanceControlPlaneRecords,
@@ -47,7 +48,6 @@ import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
 } from "./target.ts";
-import { rootKnownPackageFactsResolver } from "../shared/app-packages.ts";
 import {
   FORMLESS_PROGRAM_ARTIFACT_KIND,
   FORMLESS_PROGRAM_ARTIFACT_VERSION,
@@ -142,7 +142,6 @@ export function resolveFormlessProgramScreenRouteTarget(
 }
 
 export type FormlessProgramValidationOptions = {
-  allowDormantPackageFacts?: boolean;
   artifact?: FormlessProgramArtifact;
   packageResolver?: AppPackageResolver;
   schema?: AppSchema;
@@ -197,14 +196,11 @@ const formlessProgramConstraintAdapters: readonly FormlessProgramConstraintAdapt
   {
     label: "instance control plane",
     entityIds: new Set(instanceControlPlaneEntityIds),
-    reviewable: (records, candidateRecords, _schema, options) =>
+    reviewable: (records, candidateRecords) =>
       reviewableInstanceControlPlaneRecords(records, {
         candidateRecords,
-        packageResolver: options.allowDormantPackageFacts
-          ? rootKnownPackageFactsResolver(options.packageResolver)
-          : options.packageResolver,
       }),
-    validate: (context, records, candidateRecords, schema, options) =>
+    validate: (context, records, candidateRecords, schema) =>
       validateInstanceControlPlaneRecords(
         context,
         reviewableActiveInstanceRecords(records, schema),
@@ -212,9 +208,6 @@ const formlessProgramConstraintAdapters: readonly FormlessProgramConstraintAdapt
           candidateRecords: candidateRecords.map((record) =>
             reviewableInstanceCandidateRecord(record, schema),
           ),
-          packageResolver: options.allowDormantPackageFacts
-            ? rootKnownPackageFactsResolver(options.packageResolver)
-            : options.packageResolver,
         },
       ),
   },
@@ -339,24 +332,19 @@ export function parseFormlessProgramStorageSnapshot(
     schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
     storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
   });
+  const records = snapshot.records.filter(isCurrentInstanceControlPlaneRecord);
 
   assertFormlessProgramSchema(context, snapshot.schema, schema);
-  validateFormlessProgramRecords(`${context} records`, snapshot.records, {
-    ...options,
-    allowDormantPackageFacts: true,
-  });
+  validateFormlessProgramRecords(`${context} records`, records, options);
 
-  return snapshot;
+  return { ...snapshot, records };
 }
 
 export function canonicalizeFormlessProgramStorageSnapshot(
   snapshot: StorageSnapshot,
   options: FormlessProgramValidationOptions = {},
 ): StorageSnapshot {
-  const validationOptions = {
-    ...options,
-    allowDormantPackageFacts: true,
-  };
+  const validationOptions = options;
   const parsed = parseFormlessProgramStorageSnapshot(
     "Formless Program storage snapshot",
     snapshot,

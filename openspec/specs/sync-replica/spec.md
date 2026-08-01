@@ -2,24 +2,18 @@
 
 ## Purpose
 
-Sync replica keeps browser state aligned with Authority storage for a
-browser-backed storage identity. It stores a local IndexedDB replica, advances
-sync cursors through HTTP or push sync, merges committed changes, and derives
-local projections for generated UI surfaces. Authority storage remains the
-source of truth; the browser replica remains a cache.
+Sync replica keeps browser state aligned with the Program Authority. It stores
+one local IndexedDB replica, advances one cursor through HTTP or push sync,
+merges committed changes, and derives local projections for generated UI
+surfaces. Program storage remains the source of truth; the browser replica
+remains a cache.
 
 ## Requirements
 
 ### Requirement: Replica Identity
 
-The system SHALL key each browser replica by storage identity.
-
-#### Scenario: Installed app browser replica
-
-- GIVEN an installed app with an app install id
-- WHEN the browser opens the installed app
-- THEN the local IndexedDB replica uses `formless:app:<installId>`
-- AND the matching broadcast channel uses the same app install id scope
+The system SHALL expose one browser replica keyed by the Program storage
+identity.
 
 #### Scenario: Program browser replica
 
@@ -31,6 +25,8 @@ The system SHALL key each browser replica by storage identity.
   from one active `formless-program` schema and cursor
 - AND there is no separate identity-control-plane, Tasks, or built-in Site
   browser database or broadcast channel
+- AND there is no installed-app database, cursor, broadcast channel, or
+  selective replica
 
 #### Scenario: Workspace Program extension replica
 
@@ -85,7 +81,7 @@ errors.
 #### Scenario: Reject stale write
 
 - WHEN a browser replica sends an operation write using a stale runtime
-  protocol, schema timestamp, or package app revision that is no longer write
+  protocol, schema timestamp, or Program provenance that is no longer write
   compatible
 - THEN the Authority rejects the write with a reload-required error
 - AND no committed change row is appended
@@ -130,8 +126,7 @@ truth migrations.
 
 - WHEN a local dev authenticated session bootstrap URL requests a fresh browser
   replica state
-- THEN the browser deletes same-origin Formless replica IndexedDB databases for
-  installed apps and the Program before
+- THEN the browser deletes the same-origin Formless Program replica before
   rendering owner-only local runtime surfaces
 - AND non-Formless IndexedDB databases on the same origin are not deleted
 - AND after reset, each opened Formless surface re-bootstraps or syncs from
@@ -182,8 +177,8 @@ the matching storage identity.
 
 ### Requirement: Push Sync Connection
 
-The system SHALL support push sync over hibernatable WebSockets for the Program
-and installed app identities.
+The system SHALL support push sync over one hibernatable WebSocket for the
+Program identity.
 
 #### Scenario: Program push sync route
 
@@ -194,7 +189,7 @@ and installed app identities.
   through the same connection
 - AND no standalone instance or identity control-plane sync socket exposes a
   second cursor
-- AND no installed-app CRM socket exposes another CRM cursor
+- AND no installed-app or package-derived socket exposes another cursor
 
 #### Scenario: Program push authorization remains current
 
@@ -221,28 +216,6 @@ and installed app identities.
 - AND it does not open `/api/formless/program/sync/ws`
 - AND authenticated `/pages` preview may use the existing Program socket
   because it is a Program member surface
-
-#### Scenario: Installed app push sync route
-
-- GIVEN an installed app storage identity
-- WHEN the browser connects to the installed app sync WebSocket route
-- THEN the Authority accepts push sync messages for that installed app
-- AND the socket can catch up from the client's cursor
-
-#### Scenario: Installed app admin push authorization remains current
-
-- GIVEN an installed app admin push socket was accepted for an active owner or
-  matching app-install-scoped app administrator
-- WHEN the socket sends catch-up messages or becomes eligible for a committed
-  change broadcast
-- THEN the runtime rechecks current principal status, matching authority, and
-  session version before returning protected app changes
-- AND a disabled principal, disabled or removed matching role, changed session
-  version, ordinary authenticated principal, Program administrator without a
-  matching app role, or app admin for another install receives no later
-  catch-up or broadcast data
-- AND an unauthorized socket is closed or suppressed instead of retaining
-  handshake-time authority
 
 ### Requirement: Push Sync Messages
 
@@ -293,11 +266,11 @@ outcomes, not browser replica cache writes.
 #### Scenario: Successful browser write marks workspace dirty
 
 - GIVEN local workspace auto-save is available
-- WHEN a browser operation, schema save, app install, control-plane operation,
+- WHEN a browser operation, schema save, control-plane operation,
   reset schema, snapshot restore, or deployment intent write returns a
   committed local write response
 - OR a core media upload is accepted and then referenced by a committed Program
-  or installed-app record
+  record
 - THEN the client emits a local workspace dirty signal with the storage identity
   and write source
 - AND the dirty signal is emitted after Authority or media storage accepts the
@@ -326,7 +299,7 @@ The system MUST NOT depend on push sync for validation or replay behavior.
 
 #### Scenario: No polling fallback
 
-- GIVEN browser push sync is enabled for an app storage identity
+- GIVEN browser push sync is enabled for the Program storage identity
 - WHEN the push sync connection is unavailable
 - THEN the browser does not switch to a polling fallback
 - AND no automatic polling catch-up runs as a fallback

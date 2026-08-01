@@ -4,7 +4,7 @@
 
 Generated UI renders React app surfaces selected from app schema models and
 runtime profiles. It turns screens, views, fields, read models, operation
-bindings, and app storage identity into browser behavior for records without
+bindings, and Program storage identity into browser behavior for records without
 requiring custom app code.
 
 ## Requirements
@@ -16,35 +16,11 @@ The system SHALL select generated surfaces from the active runtime profile and r
 #### Scenario: Dev workbench routes
 
 - **GIVEN** the dev workbench profile
-- **WHEN** the user visits Program `/tasks`, `/site`, `/crm`, installed app
-  admin routes, or Program public Site routes
-- **THEN** the matching Program, generated app, admin, or public Site surface
+- **WHEN** the user visits Program `/tasks`, `/site`, `/crm`, or Program public
+  Site routes
+- **THEN** the matching Program, admin, or public Site surface
   mounts
-- **AND** `/tasks` does not mount a schema-key or installed-app Tasks surface
-
-#### Scenario: Installed workspace package admin routes
-
-- **GIVEN** an enabled installed app admin route targets an app install whose
-  package app key is present only in the active workspace package resolver
-- **WHEN** the browser visits `/apps/<installId>` or an app screen path under
-  that route
-- **THEN** generated UI mounts the installed app using package metadata from the
-  active install registry response
-- **AND** the source schema key can be a resolved package source schema key
-  outside the bundled `site` and `crm` source app set
-- **AND** app bootstrap, sync, operations, reset, and schema reads use the
-  install-scoped app API prefix for that app install
-- **AND** generated UI does not require the package source schema to be bundled
-  into the browser build before the installed route can mount
-
-#### Scenario: App custom-domain host
-
-- **GIVEN** an app custom-domain host mapped to an app install
-- **WHEN** the user visits `/` or an app screen path such as `/schema`
-- **THEN** the installed app mounts through normal generated app routing
-- **AND** `/schema` is treated as an app screen path when the active source
-  schema declares it
-- **AND** the instance shell is not exposed
+- **AND** `/tasks` does not mount a schema-key surface
 
 #### Scenario: Published public Site avoids generated admin entrypoint
 
@@ -54,8 +30,8 @@ The system SHALL select generated surfaces from the active runtime profile and r
 - **THEN** the selected assets do not require the generated admin `HomeRoute`,
   instance shell, app settings shell, owner setup or login routes, workspace
   gateway controls, or generated field editor modules to load
-- **AND** generated app and instance management routes continue to mount through
-  their own generated UI entrypoint when an admin or owner visits those routes
+- **AND** Program and instance management routes continue to mount through their
+  own generated UI entrypoint when an admin or owner visits those routes
 - **AND** public Site browser behavior is limited to the package public route
   component, configured public renderer, read-only markdown display, and public
   form behavior needed by the rendered tree
@@ -71,13 +47,11 @@ shell.
 - **GIVEN** React routing selects a generated admin, management, auth, or public
   surface
 - **WHEN** the runtime selects application chrome
-- **THEN** the dev workbench profile uses one multi-app shell for instance
-  settings, instance access, bundled source apps, supported installed app admin
-  routes, and unknown dev routes
-- **AND** the product instance profile uses the multi-app shell for instance
-  settings, instance access, and supported installed app admin routes
-- **AND** app profiles, mapped app hosts, and Site authoring admin profiles use
-  the same shell in app-only scope
+- **THEN** the dev workbench profile uses one Program shell for instance
+  settings, instance access, Program screens, and unknown dev routes
+- **AND** the product instance profile uses the Program shell for instance
+  settings, instance access, and Program screens
+- **AND** Site authoring admin uses the same Program shell
 - **AND** unknown product instance routes, owner setup and login routes,
   invitation routes, local session routes, mapped public Site hosts, published
   Site profiles, and Program public Site routes do not render the shell
@@ -87,9 +61,9 @@ shell.
 #### Scenario: Instance management shell
 
 - **GIVEN** the product instance shell renders
-- **WHEN** bundled app packages and custom domains are available
-- **THEN** install controls support Site and CRM packages by default
-- **AND** Tasks appears as a Program destination rather than an install choice
+- **WHEN** Program screens and custom domains are available
+- **THEN** Tasks, Site, CRM, and downstream workspace modules appear as Program
+  destinations
 - **AND** custom domain management shows desired route state and provider applied
   evidence separately
 - **AND** deployment navigation comes only from the schema-owned Program screen
@@ -101,24 +75,22 @@ shell.
 
 #### Scenario: Unified shell navigation
 
-- **GIVEN** an eligible multi-app or app-only shell is selected
-- **WHEN** runtime profile, route, app registry, app schema, sync, and session
+- **GIVEN** an eligible Program shell is selected
+- **WHEN** runtime profile, route, Program schema, sync, and session
   facts are available
 - **THEN** runtime projects one shell manifest with stable identity, title,
   scope, active destination, and ordered navigation-section references
-- **AND** the multi-app switcher presents one explicit Instance destination
-  alongside available app destinations
+- **AND** navigation presents Program screens from the complete materialized
+  Program artifact
 - **AND** instance settings and access are projected as local navigation only
   while an instance route is selected
 - **AND** navigation sections can contain instance settings and access,
-  available app admin destinations, generated app screens, root
+  generated Program screens, root
   record navigation, app settings, and display-safe session controls
 - **AND** public Site routes are excluded from the top-level switcher and are
   exposed from Site admin workspaces as prominent links that open a new tab
-- **AND** disabled install routes are omitted, destination hrefs derive from
-  active route data, and selected state derives from the current path
-- **AND** app install and route configuration tables remain available through
-  instance settings rather than becoming shell-owned management UI
+- **AND** destination hrefs derive from active Program route data and selected
+  state derives from the current path
 - **AND** the selected route workspace remains a React child of the shell
   renderer rather than contract data
 - **AND** the shell contract does not expose runtime profiles, route policy,
@@ -871,9 +843,8 @@ data reads, session behavior, operations, and effects.
 - **THEN** one subscribed Formless Renderer shell entrypoint reads only shell
   references and snapshots, renders the selected route workspace as its child,
   and dispatches canonical shell intents
-- **AND** production dev workbench, instance management, installed app admin,
-  app-profile, mapped-app, and Site authoring admin routes use that renderer at
-  their specified shell scope
+- **AND** production dev workbench, instance management, and Site authoring
+  routes use that renderer at their specified shell scope
 - **AND** no-shell routes remain outside the shell host and renderer
 - **AND** application source consumes contracts and host behavior
   through documented `@dpeek/formless-presentation` exports and concrete
@@ -2157,17 +2128,14 @@ navigation, and external effects.
 - WHEN generated runtime projects instance management presentation
 - THEN a typed management manifest reference resolves one loading, failed, or
   ready management snapshot
-- AND a ready snapshot carries the `Instance Settings` title, ordered Apps and
-  Routes generated-workspace manifest references, an optional local Push
-  operation presentation, and one controlled install-dialog reference
-- AND the install dialog carries stable identity, open state, ordered
-  installable package options, package, install-id, and label field
-  presentations, display-safe validation, pending state, and operation feedback
+- AND a ready snapshot carries the `Instance Settings` title, an ordered Routes
+  generated-workspace manifest reference, and an optional local Push operation
+  presentation
 - AND Push presentation composes canonical operation control, progress, status,
   feedback, and optional external-authorization prompt facts
-- AND Apps and Routes retain their existing workspace, section, result, field,
-  create, and operation contract shapes rather than defining management-specific
-  table contracts
+- AND Routes retains its existing workspace, section, result, field, create,
+  and operation contract shapes rather than defining management-specific table
+  contracts
 - AND management snapshots contain no control-plane records, gateway clients,
   operation handlers, browser replica APIs, route objects, React nodes, runtime
   callbacks, raw logs, filesystem paths, provider credentials, or secrets
@@ -2177,7 +2145,7 @@ navigation, and external effects.
 - GIVEN an active principal has active `instance.admin` authority
 - WHEN the browser opens Instance Settings or `/access`
 - THEN the client management guard accepts the management route
-- AND Apps, Routes, and access-management presentation render through their
+- AND Routes and access-management presentation render through their
   existing operational API authorization
 - AND owner setup, recovery, owner-role management, auth-origin policy, and
   admin-bearer recovery controls remain unavailable without owner authority
@@ -2186,10 +2154,10 @@ navigation, and external effects.
 
 - GIVEN an application shell host is active and the selected React route child
   renders instance management
-- WHEN shell, management, install-dialog, Apps workspace, or Routes workspace
+- WHEN shell, management, or Routes workspace
   presentation changes
 - THEN one application-host publication coordinator commits the complete next
-  set of shell, management, dialog, and generated-workspace contract nodes
+  set of shell, management, and generated-workspace contract nodes
 - AND each participating runtime contributes renderer-neutral nodes and current
   intent handlers without creating a nested host or replacing the stable host
   context
@@ -2206,12 +2174,12 @@ navigation, and external effects.
 
 - GIVEN a subscribed management renderer reads the management manifest and its
   referenced nodes from the application host
-- WHEN the user opens or edits the install dialog, submits an install, starts
-  Push, opens an external authorization URL, or interacts with Apps or Routes
+- WHEN the user starts Push, opens an external authorization URL, or interacts
+  with Routes
 - THEN controlled management interactions dispatch canonical intent envelopes
   carrying stable manifest, dialog, field occurrence, control, or prompt
   identity as applicable
-- AND nested Apps and Routes interactions continue to dispatch their existing
+- AND nested Routes interactions continue to dispatch their existing
   canonical generated-workspace intents through the same host
 - AND runtime resolves every intent against its latest contributed state before
   changing drafts, invoking operations, opening a browser URL, polling gateway
@@ -2225,8 +2193,8 @@ navigation, and external effects.
   contracts for generated workspaces and workspace gateway controls
 - WHEN runtime publishes the complete management contract graph
 - THEN one subscribed Formless Renderer management entrypoint reads only
-  contract references and snapshots, renders the referenced Apps and Routes
-  workspaces and install dialog, and dispatches canonical intents
+  contract references and snapshots, renders the referenced Routes workspace,
+  and dispatches canonical intents
 - AND application source consumes contracts and host behavior through
   documented `@dpeek/formless-presentation` exports and concrete rendering
   through documented `@dpeek/formless-renderer` exports
@@ -2248,10 +2216,9 @@ navigation, and external effects.
 
 - GIVEN runtime publishes complete production management contracts
 - WHEN instance management UX is evaluated with package-local renderer fixtures
-- THEN data-only memory-host fixtures cover loading, failed, empty, installed
-  Apps and Routes, install-dialog idle, validation, pending, and failure states,
-  gateway unavailable, and Push idle, pending, success, failure, and
-  authorization-required states
+- THEN data-only memory-host fixtures cover loading, failed, empty, and
+  populated Routes states, gateway unavailable, and Push idle, pending,
+  success, failure, and authorization-required states
 - AND an integrated fixture composes the management renderer as the route child
   of the application shell renderer through one memory host
 - AND fixture reducers may simulate management and nested workspace intents
@@ -2263,15 +2230,15 @@ navigation, and external effects.
 ### Requirement: Schema-Driven Instance Management UI
 
 The system SHALL render instance management in the instance shell from
-schema-owned app install, route, deployment config, deployment observation
-cache, provider evidence, view, screen, read model, and operation models.
+schema-owned route, deployment config, deployment observation cache, provider
+evidence, view, screen, read model, and operation models.
 
 #### Scenario: Instance management surface
 
 - **GIVEN** the product instance shell renders instance management
 - **WHEN** control-plane records are available
-- **THEN** app installs, routes, and deployment configs come from the instance
-  control-plane schema
+- **THEN** routes and deployment configs come from the instance control-plane
+  schema
 - **AND** latest deployment status comes from deployment config observation
   cache fields and read-only deployment projection
 - **AND** active local operation progress, evidence summaries, and sync
@@ -2282,12 +2249,11 @@ cache, provider evidence, view, screen, read model, and operation models.
 #### Scenario: Instance overview surface
 
 - **GIVEN** an owner or instance admin opens `/` on the product instance shell
-- **WHEN** app install, route, workspace gateway, deployment config,
+- **WHEN** route, workspace gateway, deployment config,
   deployment observation, desired-state projection, and provider evidence data
   are available
 - **THEN** the overview is titled `Instance Settings`
-- **AND** the overview renders app install management and route management as
-  table-backed sections
+- **AND** the overview renders route management as a table-backed section
 - **AND** route management uses the default route collection title, table, and
   `Create Route` control without route-category query tabs
 - **AND** the overview renders one local workspace control, `Push`, only when
@@ -2306,9 +2272,9 @@ cache, provider evidence, view, screen, read model, and operation models.
 
 #### Scenario: Workspace gateway state does not gate instance editors
 
-- **GIVEN** app install and route management data is ready
+- **GIVEN** route management data is ready
 - **WHEN** local workspace gateway status is loading, unavailable, or failed
-- **THEN** the Apps and Routes generated workspaces remain available
+- **THEN** the Routes generated workspace remains available
 - **AND** gateway availability governs only the Push control and associated
   display-safe progress, feedback, and external authorization prompt
 - **AND** an unavailable gateway omits or disables Push without presenting a
@@ -2324,39 +2290,6 @@ cache, provider evidence, view, screen, read model, and operation models.
 - **WHEN** browser responses are returned
 - **THEN** Cloudflare API tokens, Alchemy passwords, Alchemy state tokens, raw
   lease tokens, and runtime secrets are not exposed to the browser
-
-### Requirement: App Install Editor
-
-The generated instance UI SHALL provide an editor experience for app install
-records that matches current table-driven install management behavior.
-
-#### Scenario: Install list
-
-- **GIVEN** owner or admin users open app management
-- **WHEN** installed apps are rendered
-- **THEN** app installs render in a scannable collection with package, label,
-  status, and route summary fields derived from `route` records
-- **AND** install controls support Site and CRM package creation by default
-- **AND** Program-native Tasks is absent from package selection
-- **AND** workspace-linked packages returned by the active package resolver are
-  selectable only in that resolver scope
-
-#### Scenario: Create install
-
-- **GIVEN** owner or admin users create an app install
-- **WHEN** the create flow is submitted
-- **THEN** the editor provides package selection, route-safe install id input,
-  label input, and validation feedback for duplicate or reserved install ids
-- **AND** successful creation shows the generated admin and public Site route
-  records for that install when those routes are supported
-
-#### Scenario: Edit install metadata
-
-- **GIVEN** owner or admin users edit an existing app install
-- **WHEN** metadata fields render
-- **THEN** label and supported display metadata are editable
-- **AND** install identity, package app key, storage identity, and package
-  source initialization facts render as read-only
 
 ### Requirement: Actor-Safe Workspace Sync Operations
 
@@ -2392,12 +2325,12 @@ that covers instance paths, host mappings, public Site routes, and redirects.
 - **GIVEN** owner or admin users inspect routes
 - **WHEN** route records render
 - **THEN** routes show match host, match path, match prefix, kind, target
-  profile, app install target, surface, redirect target, and enabled state
+  profile, surface, redirect target, and enabled state
 - **AND** routes render as a single all-routes collection with the default
   `Create Route` control
 - **AND** route management does not render route-category query tabs for
-  enabled routes, mounts, host mappings, redirects, instance paths, app install
-  routes, or public Site routes
+  enabled routes, mounts, host mappings, redirects, instance paths, or public
+  Site routes
 - **AND** route lifecycle timestamps may render only as read-only record metadata
   in surfaces that explicitly include them
 - **AND** browser route management does not expose deployment config grouping,
@@ -2408,10 +2341,7 @@ that covers instance paths, host mappings, public Site routes, and redirects.
 - **GIVEN** owner or admin users edit an allowed mount route field
 - **WHEN** the edit is submitted
 - **THEN** the editor validates route-safe match shape, reserved path
-  conflicts, package capability, target profile, surface, app install target,
-  and enabled-route uniqueness
-- **AND** route edits do not change the app install's storage identity or app
-  data
+  conflicts, target profile, surface, and enabled-route uniqueness
 - **AND** the browser editor omits deployment config selection so route writes
   use the primary deployment target by default
 
@@ -2421,7 +2351,7 @@ that covers instance paths, host mappings, public Site routes, and redirects.
 - **WHEN** the edit is submitted
 - **THEN** the editor validates match host, match path, redirect target, status
   code, preservePath policy, and preserveQueryString policy
-- **AND** the redirect route does not require an app install target
+- **AND** the redirect route does not select a Program storage target
 
 #### Scenario: Evidence remains separate
 
@@ -2474,8 +2404,7 @@ the schema-owned Program screen and its independently authorized operations.
 - **WHEN** workspace sync operations are available
 - **THEN** only the `Push` control may render through the workspace operation
   controls
-- **AND** app install management, route management, owner auth, and app-local
-  navigation remain outside those controls
+- **AND** route management and owner auth remain outside those controls
 - **AND** deployment config records may exist as schema-owned intent, but the UI
   does not expose target selectors, enabled target counts, routes-by-target
   groupings, or raw generated `deployment-config` management tables
@@ -2563,18 +2492,9 @@ workspace gateway proxy is available through the local runtime.
 Generated instance management UI SHALL support onboarding a CLI-bootstrapped
 local workspace from the browser.
 
-#### Scenario: Empty workspace onboarding
-
-- **WHEN** the browser opens a fresh local workspace runtime after CLI-owned
-  workspace bootstrap
-- **THEN** the UI can create package app installs through Authority-backed app
-  install operations
-- **AND** the UI does not invoke workspace initialization through the gateway
-
 #### Scenario: Save after browser edits
 
-- **WHEN** a browser owner or admin edits app install, route, domain, or deploy
-  intent records
+- **WHEN** a browser owner or admin edits route, domain, or deploy intent records
 - **THEN** the UI enqueues workspace auto-save through the gateway after the
   Authority-backed write commits
 - **AND** the saved workspace source is generated from Authority-backed records,
@@ -2589,8 +2509,8 @@ behavior for onboarding steps that write schema records.
 
 #### Scenario: Onboarding record form
 
-- **WHEN** a browser onboarding step creates or edits app install, route,
-  or deployment config records
+- **WHEN** a browser onboarding step creates or edits route or deployment
+  config records
 - **THEN** field rendering reuses generated create/edit field controls, field
   editor selection, defaults, `visibleWhen`, and union variant behavior where
   the step is backed by schema view facts

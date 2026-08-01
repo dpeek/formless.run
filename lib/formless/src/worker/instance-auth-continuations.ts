@@ -40,8 +40,6 @@ function accountCompletionHandoffContinueToFromRequest(
   const target = accountCompletion.target;
   const handoffSearch = new URLSearchParams();
   const access = target.access ?? protectedAccessSearchParam(url.searchParams.get("access"));
-  const requiredRole =
-    target.requiredRole ?? appAdminRoleSearchParam(url.searchParams.get("requiredRole"));
 
   if (access !== undefined) {
     handoffSearch.set("access", access);
@@ -49,12 +47,6 @@ function accountCompletionHandoffContinueToFromRequest(
   handoffSearch.set("targetOrigin", target.targetOrigin);
   handoffSearch.set("routeId", target.routeId);
   handoffSearch.set("targetProfile", target.targetProfile);
-  if (target.appInstallId !== undefined) {
-    handoffSearch.set("appInstallId", target.appInstallId);
-  }
-  if (requiredRole !== undefined) {
-    handoffSearch.set("requiredRole", requiredRole);
-  }
   if (target.storageIdentity !== undefined) {
     handoffSearch.set("storageIdentity", target.storageIdentity);
   }
@@ -79,8 +71,4 @@ function protectedAccessSearchParam(
   return value === "authenticated" || value === "management" || value === "owner"
     ? value
     : undefined;
-}
-
-function appAdminRoleSearchParam(value: string | null): "app.admin" | undefined {
-  return value === "app.admin" ? value : undefined;
 }

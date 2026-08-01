@@ -1,11 +1,8 @@
 import { listenForClientEvents, publishClientEvent } from "./broadcast.ts";
 import { appStorageIdentityForClientTarget, type ClientAppTarget } from "./app-target.ts";
-import { packageAppFactsForKey, type AppPackageResolver } from "@dpeek/formless-installed-apps";
-import { bundledAppPackageResolver } from "../shared/app-packages.ts";
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
 import {
   deleteFormlessReplicaDatabases,
-  deleteLegacyIdentityReplicaDatabase,
   mergeChanges,
   readCursor,
   readSchemaProvenance,
@@ -33,7 +30,6 @@ import type {
 } from "../shared/operation-invocation.ts";
 import type { StorageSnapshot } from "@dpeek/formless-storage";
 import {
-  FORMLESS_CLIENT_PACKAGE_REVISION_HEADER,
   FORMLESS_CLIENT_RUNTIME_PROTOCOL_HEADER,
   FORMLESS_CLIENT_SCHEMA_UPDATED_AT_HEADER,
   FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER,
@@ -69,9 +65,7 @@ type StartPushSyncOptions = {
   socketFactory?: (url: string) => SyncWebSocket;
 };
 
-export type BrowserWriteOptions = LocalWorkspaceAutoSaveOptions & {
-  activePackageResolver?: AppPackageResolver | undefined;
-};
+export type BrowserWriteOptions = LocalWorkspaceAutoSaveOptions;
 
 export type SubmitOperationOptions = BrowserWriteOptions & {
   autoSaveSource?: LocalWorkspaceAutoSaveWriteSource;
@@ -80,10 +74,6 @@ export type SubmitOperationOptions = BrowserWriteOptions & {
 export async function bootstrapClient(target: ClientAppTarget, fetcher: typeof fetch = fetch) {
   const identity = appStorageIdentityForClientTarget(target);
   const response = await fetchJson<BootstrapResponse>(fetcher, apiPath(identity, "bootstrap"));
-
-  if (identity.kind === "program") {
-    await deleteLegacyIdentityReplicaDatabase();
-  }
 
   await saveBootstrapResponse(identity, response);
   applyBootstrapResponse(response, identity);
@@ -167,10 +157,7 @@ export async function saveActiveSchema(
     {
       schema,
     },
-    {
-      activePackageResolver: options.activePackageResolver,
-      writeCompatibilityTarget: identity,
-    },
+    { writeCompatibilityTarget: identity },
   );
 
   await saveSchema(identity, response.schema, response.updatedAt, response.schemaProvenance);
@@ -204,10 +191,7 @@ export async function restoreStorageSnapshot(
     fetcher,
     apiPath(identity, "snapshot/restore"),
     snapshot,
-    {
-      activePackageResolver: options.activePackageResolver,
-      writeCompatibilityTarget: identity,
-    },
+    { writeCompatibilityTarget: identity },
   );
 
   await saveBootstrapResponse(identity, response);
@@ -244,10 +228,7 @@ export async function submitOperation(
         protocol: "generated-ui",
       },
     },
-    {
-      activePackageResolver: options.activePackageResolver,
-      writeCompatibilityTarget: identity,
-    },
+    { writeCompatibilityTarget: identity },
   );
 
   const materializedOutput = operationMaterializationOutput(response.output);
@@ -280,10 +261,7 @@ export async function resetSourceSchema(
     fetcher,
     apiPath(identity, "reset/schema"),
     {},
-    {
-      activePackageResolver: options.activePackageResolver,
-      writeCompatibilityTarget: identity,
-    },
+    { writeCompatibilityTarget: identity },
   );
 
   await saveBootstrapResponse(identity, response);
@@ -515,7 +493,6 @@ async function postJson<T>(
   url: string,
   body: unknown,
   options: {
-    activePackageResolver?: AppPackageResolver | undefined;
     writeCompatibilityTarget?: ClientAppTarget;
   } = {},
 ): Promise<T> {
@@ -525,9 +502,7 @@ async function postJson<T>(
   });
 
   if (options.writeCompatibilityTarget) {
-    await addBrowserReplicaWriteHeaders(headers, options.writeCompatibilityTarget, {
-      activePackageResolver: options.activePackageResolver,
-    });
+    await addBrowserReplicaWriteHeaders(headers, options.writeCompatibilityTarget);
   }
 
   const response = await fetcher(url, {
@@ -553,46 +528,20 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-async function addBrowserReplicaWriteHeaders(
-  headers: Headers,
-  target: ClientAppTarget,
-  options: { activePackageResolver?: AppPackageResolver | undefined } = {},
-) {
+async function addBrowserReplicaWriteHeaders(headers: Headers, target: ClientAppTarget) {
   const identity = appStorageIdentityForClientTarget(target);
   const [schemaUpdatedAt, schemaProvenance] = await Promise.all([
     readSchemaUpdatedAt(identity),
     readSchemaProvenance(identity),
   ]);
-  const packageFacts =
-    schemaProvenance || identity.kind === "program"
-      ? undefined
-      : packageAppFactsForKey(
-          identity.packageAppKey,
-          identity.kind === "appInstall"
-            ? (options.activePackageResolver ?? bundledAppPackageResolver)
-            : bundledAppPackageResolver,
-        );
-
   headers.set(FORMLESS_CLIENT_RUNTIME_PROTOCOL_HEADER, String(FORMLESS_RUNTIME_PROTOCOL_VERSION));
 
   if (schemaUpdatedAt) {
     headers.set(FORMLESS_CLIENT_SCHEMA_UPDATED_AT_HEADER, schemaUpdatedAt);
   }
 
-  if (schemaProvenance?.kind === "package-app") {
-    headers.set(FORMLESS_CLIENT_PACKAGE_REVISION_HEADER, String(schemaProvenance.packageRevision));
-    headers.set(FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER, schemaProvenance.sourceSchemaHash);
-    return;
-  }
-
   if (schemaProvenance?.kind === "program") {
     headers.set(FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER, schemaProvenance.sourceSchemaHash);
-    return;
-  }
-
-  if (packageFacts) {
-    headers.set(FORMLESS_CLIENT_PACKAGE_REVISION_HEADER, String(packageFacts.packageRevision));
-    headers.set(FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER, packageFacts.sourceSchemaHash);
   }
 }
 
@@ -612,13 +561,9 @@ function notifySchemaChanged(target: ClientAppTarget) {
 }
 
 function autoSaveSourceForOperation(
-  identity: ReturnType<typeof appStorageIdentityForClientTarget>,
+  _identity: ReturnType<typeof appStorageIdentityForClientTarget>,
   entity: EntityName,
 ): LocalWorkspaceAutoSaveWriteSource {
-  if (identity.kind !== "program") {
-    return "app-operation";
-  }
-
   return entity === "deployment-config" ? "deployment-intent" : "control-plane-write";
 }
 

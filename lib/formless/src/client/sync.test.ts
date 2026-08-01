@@ -1,7 +1,6 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 import { publishClientEvent } from "./broadcast.ts";
-import { activeAppPackageResolverFromPackages } from "./app-installs.ts";
 import { deleteClientDb, mergeRecords, readLocalSnapshot, saveBootstrapResponse } from "./db.ts";
 import {
   connectBroadcastToClientStore,
@@ -29,12 +28,10 @@ import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts"
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
-  FORMLESS_CLIENT_PACKAGE_REVISION_HEADER,
   FORMLESS_CLIENT_RUNTIME_PROTOCOL_HEADER,
   FORMLESS_CLIENT_SCHEMA_UPDATED_AT_HEADER,
   FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER,
 } from "../shared/protocol.ts";
-import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
 import { programClientTarget } from "./app-target.ts";
 import type {
   BootstrapResponse,
@@ -47,25 +44,16 @@ import type {
 } from "../shared/protocol.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
-import type { InstallableAppPackage } from "@dpeek/formless-installed-apps";
 import {
   rateSourceSchema as rateCardSchema,
   taskSourceSchema as appSchema,
 } from "../test/schema-apps.ts";
 import type { LocalWorkspaceAutoSaveClient } from "./workspace-auto-save.ts";
 
-const privateSourceSchemaHash =
-  "sha256:4444444444444444444444444444444444444444444444444444444444444444" as const;
 const program = programClientTarget();
 
 beforeEach(async () => {
   await deleteClientDb(program);
-  await deleteClientDb(installedWorkspaceSiteIdentity("personal"));
-  await deleteClientDb(installedWorkspaceSiteIdentity("docs"));
-  await deleteClientDb(installedWorkspaceSiteIdentity("rates"));
-  await deleteClientDb(installedWorkspaceSiteIdentity("alt-rates"));
-  await deleteClientDb(installedWorkspaceSiteIdentity("work"));
-  await deleteClientDb(installedWorkspaceSiteIdentity("private-site"));
   resetClientStore();
 });
 
@@ -89,28 +77,6 @@ describe("client sync", () => {
     expect(snapshot.cursor).toBe(1);
   });
 
-  it("bootstraps installed app data into the selected install replica only", async () => {
-    const personal = installedWorkspaceSiteIdentity("personal");
-    const docs = installedWorkspaceSiteIdentity("docs");
-
-    await bootstrapClient(
-      personal,
-      jsonFetcher("/api/app-installs/private-site/personal/bootstrap", {
-        schema: appSchema,
-        schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-        records: [record("record-1", "Personal")],
-        cursor: 1,
-      } satisfies BootstrapResponse),
-    );
-
-    expect((await readLocalSnapshot(personal)).records).toEqual([record("record-1", "Personal")]);
-    expect((await readLocalSnapshot(docs)).records).toEqual([]);
-    expect(getClientStoreSnapshot()).toMatchObject({
-      activeClientStorageName: "formless:app:personal",
-      activeSchemaKey: "private-site",
-    });
-  });
-
   it("bootstraps the instance control-plane client target through its runtime API", async () => {
     const controlPlaneTarget = programClientTarget();
 
@@ -130,30 +96,6 @@ describe("client sync", () => {
     expect(getClientStoreSnapshot()).toMatchObject({
       activeClientStorageName: "formless:instance:control-plane",
       activeSchemaKey: "formless-program",
-    });
-  });
-
-  it("bootstraps a private installed package into an install-scoped replica only", async () => {
-    const rates = installedWorkspaceSiteIdentity("rates");
-    const altRates = installedWorkspaceSiteIdentity("alt-rates");
-    const rate = rateRecord("rate-1", "resource-1", "card-1");
-
-    await bootstrapClient(
-      rates,
-      jsonFetcher("/api/app-installs/private-site/rates/bootstrap", {
-        schema: rateCardSchema,
-        schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-        records: [rate],
-        cursor: 1,
-      } satisfies BootstrapResponse),
-    );
-
-    expect((await readLocalSnapshot(rates)).records).toEqual([rate]);
-    expect((await readLocalSnapshot(altRates)).records).toEqual([]);
-    expect((await readLocalSnapshot(program)).records).toEqual([]);
-    expect(getClientStoreSnapshot()).toMatchObject({
-      activeClientStorageName: "formless:app:rates",
-      activeSchemaKey: "private-site",
     });
   });
 
@@ -270,9 +212,7 @@ describe("client sync", () => {
     await saveBootstrapResponse(program, {
       schema: appSchema,
       schemaProvenance: {
-        kind: "package-app",
-        packageAppKey: "tasks",
-        packageRevision: 3,
+        kind: "program",
         sourceSchemaHash: storedSourceSchemaHash,
       },
       schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
@@ -295,7 +235,6 @@ describe("client sync", () => {
         expect(headers.get(FORMLESS_CLIENT_SCHEMA_UPDATED_AT_HEADER)).toBe(
           "2026-04-28T00:00:00.000Z",
         );
-        expect(headers.get(FORMLESS_CLIENT_PACKAGE_REVISION_HEADER)).toBe("3");
         expect(headers.get(FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER)).toBe(storedSourceSchemaHash);
 
         const changes = [writeLogChange(1, "record-1", "Headers")];
@@ -309,54 +248,6 @@ describe("client sync", () => {
             record: record("record-1", "Headers"),
           }),
         );
-      },
-    );
-  });
-
-  it("sends active package facts with workspace installed app operation writes", async () => {
-    const privateSite = installedWorkspaceSiteIdentity("private-site");
-
-    await saveBootstrapResponse(privateSite, {
-      schema: appSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [],
-      cursor: 0,
-    });
-
-    await submitOperation(
-      privateSite,
-      "task",
-      "create",
-      { input: { title: "Workspace install", done: false } },
-      async (input, init) => {
-        const headers = new Headers(init?.headers);
-
-        expect(input).toBe("/api/app-installs/private-site/private-site/operations/task/create");
-        expect(headers.get(FORMLESS_CLIENT_RUNTIME_PROTOCOL_HEADER)).toBe(
-          String(FORMLESS_RUNTIME_PROTOCOL_VERSION),
-        );
-        expect(headers.get(FORMLESS_CLIENT_SCHEMA_UPDATED_AT_HEADER)).toBe(
-          "2026-04-28T00:00:00.000Z",
-        );
-        expect(headers.get(FORMLESS_CLIENT_PACKAGE_REVISION_HEADER)).toBe("7");
-        expect(headers.get(FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER)).toBe(
-          privateSourceSchemaHash,
-        );
-
-        const changes = [writeLogChange(1, "record-1", "Workspace install")];
-
-        return Response.json(
-          operationResponse({
-            type: "create",
-            affectedChangeIds: changes.map((change) => String(change.seq)),
-            changes,
-            cursor: 1,
-            record: record("record-1", "Workspace install"),
-          }),
-        );
-      },
-      {
-        activePackageResolver: activeAppPackageResolverFromPackages([privateSitePackage()]),
       },
     );
   });
@@ -377,17 +268,16 @@ describe("client sync", () => {
       cursor: 0,
     });
 
-    await submitOperation(controlPlaneTarget, "app-install", "noop", {}, async (input, init) => {
+    await submitOperation(controlPlaneTarget, "task", "noop", {}, async (input, init) => {
       const headers = new Headers(init?.headers);
 
-      expect(input).toBe("/api/formless/program/operations/app-install/noop");
+      expect(input).toBe("/api/formless/program/operations/task/noop");
       expect(headers.get(FORMLESS_CLIENT_RUNTIME_PROTOCOL_HEADER)).toBe(
         String(FORMLESS_RUNTIME_PROTOCOL_VERSION),
       );
       expect(headers.get(FORMLESS_CLIENT_SCHEMA_UPDATED_AT_HEADER)).toBe(
         "2026-04-28T00:00:00.000Z",
       );
-      expect(headers.get(FORMLESS_CLIENT_PACKAGE_REVISION_HEADER)).toBeNull();
       expect(headers.get(FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER)).toBe(
         controlPlaneSourceSchemaHash,
       );
@@ -529,21 +419,6 @@ describe("client sync", () => {
     }
   });
 
-  it("opens installed app push sync on the install API path", () => {
-    const sockets = fakeSocketFactory();
-    const stop = startPushSync(installedWorkspaceSiteIdentity("personal"), {
-      socketFactory: sockets.create,
-    });
-
-    try {
-      expect(new URL(sockets.instances[0]?.url ?? "").pathname).toBe(
-        "/api/app-installs/private-site/personal/sync/ws",
-      );
-    } finally {
-      stop();
-    }
-  });
-
   it("opens Tasks push sync on the Program API path", () => {
     const sockets = fakeSocketFactory();
     const stop = startPushSync(programClientTarget(), {
@@ -553,21 +428,6 @@ describe("client sync", () => {
     try {
       expect(new URL(sockets.instances[0]?.url ?? "").pathname).toBe(
         "/api/formless/program/sync/ws",
-      );
-    } finally {
-      stop();
-    }
-  });
-
-  it("opens installed CRM push sync on the CRM install API path", () => {
-    const sockets = fakeSocketFactory();
-    const stop = startPushSync(installedWorkspaceSiteIdentity("rates"), {
-      socketFactory: sockets.create,
-    });
-
-    try {
-      expect(new URL(sockets.instances[0]?.url ?? "").pathname).toBe(
-        "/api/app-installs/private-site/rates/sync/ws",
       );
     } finally {
       stop();
@@ -1494,134 +1354,6 @@ describe("client sync", () => {
     });
   });
 
-  it("uses private installed package API paths for sync, writes, snapshots, and schema reset", async () => {
-    const rates = installedWorkspaceSiteIdentity("rates");
-    const existingRate = rateRecord("rate-1", "resource-1", "card-1");
-    const syncedRate = rateRecord("rate-2", "resource-2", "card-1");
-    const createdResource = resourceRecord("resource-2", "Writer");
-    const commandRate = rateRecord("rate-3", createdResource.id, "card-2");
-    const restoredRate = rateRecord("rate-4", "resource-4", "card-2");
-
-    await saveBootstrapResponse(rates, {
-      schema: rateCardSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [existingRate],
-      cursor: 1,
-    });
-    await refreshClientStoreFromDb(rates);
-
-    await syncClient(
-      rates,
-      jsonFetcher(
-        "/api/app-installs/private-site/rates/sync?after=1&schemaUpdatedAt=2026-04-28T00%3A00%3A00.000Z",
-        {
-          changes: [materializedRecordChange(2, "write-rate-sync", syncedRate, "create")],
-          cursor: 2,
-        } satisfies SyncResponse,
-      ),
-    );
-
-    await submitOperation(
-      rates,
-      "resource",
-      "create",
-      { input: { name: "Writer", kind: "role", unit: "day" } },
-      async (input, init) => {
-        const operation = parseOperationRequestBody(init?.body);
-        const changes = [
-          materializedRecordChange(3, operation.idempotencyKey, createdResource, "create"),
-        ];
-
-        expect(input).toBe("/api/app-installs/private-site/rates/operations/resource/create");
-        expect(init?.method).toBe("POST");
-
-        return Response.json(
-          operationResponse({
-            type: "create",
-            affectedChangeIds: changes.map((change) => String(change.seq)),
-            changes,
-            cursor: 3,
-            record: createdResource,
-          }),
-        );
-      },
-    );
-
-    await submitOperation(rates, "rate", "regenerateMissingRates", {}, async (input, init) => {
-      const operation = parseOperationRequestBody(init?.body);
-      const changes = [commandMaterializationChange(4, commandRate, operation.idempotencyKey)];
-
-      expect(input).toBe(
-        "/api/app-installs/private-site/rates/operations/rate/regenerateMissingRates",
-      );
-      expect(init?.method).toBe("POST");
-
-      return Response.json(
-        operationResponse({
-          type: "command",
-          affectedChangeIds: changes.map((change) => String(change.seq)),
-          changes,
-          cursor: 4,
-        }),
-      );
-    });
-
-    const exported = await exportStorageSnapshot(
-      rates,
-      jsonFetcher(
-        "/api/app-installs/private-site/rates/snapshot",
-        storageSnapshot({
-          schemaKey: "crm",
-          storageIdentity: "app:rates",
-          schema: rateCardSchema,
-          records: [commandRate],
-          sourceCursor: 4,
-        }),
-      ),
-    );
-    const restored = await restoreStorageSnapshot(
-      rates,
-      storageSnapshot({
-        schemaKey: "crm",
-        storageIdentity: "app:rates",
-        schema: rateCardSchema,
-        records: [restoredRate],
-        sourceCursor: 4,
-      }),
-      async (input, init) => {
-        expect(input).toBe("/api/app-installs/private-site/rates/snapshot/restore");
-        expect(init?.method).toBe("POST");
-
-        return Response.json({
-          schema: rateCardSchema,
-          schemaUpdatedAt: "2026-04-28T00:04:00.000Z",
-          records: [restoredRate],
-          cursor: 5,
-        } satisfies BootstrapResponse);
-      },
-    );
-
-    await resetSourceSchema(
-      rates,
-      jsonFetcher("/api/app-installs/private-site/rates/reset/schema", {
-        schema: rateCardSchema,
-        schemaUpdatedAt: "2026-04-28T00:05:00.000Z",
-        records: [restoredRate],
-        cursor: 6,
-      } satisfies BootstrapResponse),
-    );
-
-    expect(exported.records).toEqual([commandRate]);
-    expect(restored.records).toEqual([restoredRate]);
-    expect((await readLocalSnapshot(program)).records).toEqual([]);
-    expect((await readLocalSnapshot(rates)).records).toEqual([restoredRate]);
-    expect(getClientStoreSnapshot()).toMatchObject({
-      activeClientStorageName: "formless:app:rates",
-      activeSchemaKey: "private-site",
-      cursor: 6,
-    });
-  });
-
   it("submits CRM command operations to the Program API and merges created rates", async () => {
     const createdRate = rateRecord("rate-1", "resource-1", "card-1");
 
@@ -1751,22 +1483,6 @@ describe("client sync", () => {
     const response = await exportStorageSnapshot(
       program,
       jsonFetcher("/api/formless/program/snapshot", snapshot),
-    );
-
-    expect(response).toEqual(snapshot);
-  });
-
-  it("exports storage snapshots from an installed app authority", async () => {
-    const snapshot = storageSnapshot({
-      schemaKey: "site",
-      storageIdentity: "app:personal",
-      records: [record("record-1", "Personal")],
-      sourceCursor: 3,
-    });
-
-    const response = await exportStorageSnapshot(
-      installedWorkspaceSiteIdentity("personal"),
-      jsonFetcher("/api/app-installs/private-site/personal/snapshot", snapshot),
     );
 
     expect(response).toEqual(snapshot);
@@ -1923,31 +1639,6 @@ describe("client sync", () => {
     const stopBroadcast = connectBroadcastToClientStore(program);
 
     try {
-      await mergeRecords(program, [record("record-1", "First")], 1);
-      publishClientEvent(program, "records-updated");
-
-      await waitFor(() => states.some((state) => state.recordIdsByEntity.task?.length === 1));
-      expect(states.at(-1)?.recordsById["record-1"]).toEqual(record("record-1", "First"));
-    } finally {
-      stopBroadcast();
-      unsubscribe();
-    }
-  });
-
-  it("ignores broadcast events for another installed app", async () => {
-    const states = [getClientStoreSnapshot()];
-    const unsubscribe = subscribeToClientStore(() => states.push(getClientStoreSnapshot()));
-    const stopBroadcast = connectBroadcastToClientStore(program);
-    const other = installedWorkspaceSiteIdentity("rates");
-    states.length = 0;
-
-    try {
-      await mergeRecords(other, [record("record-2", "Rate")], 1);
-      publishClientEvent(other, "records-updated");
-
-      await delay(20);
-      expect(states).toEqual([]);
-
       await mergeRecords(program, [record("record-1", "First")], 1);
       publishClientEvent(program, "records-updated");
 
@@ -2232,39 +1923,6 @@ function storageSnapshot(overrides: Partial<StorageSnapshot> = {}): StorageSnaps
   };
 }
 
-function installedWorkspaceSiteIdentity(installId: string) {
-  const identity = installedAppStorageIdentity(
-    { installId, packageAppKey: "private-site" },
-    activeAppPackageResolverFromPackages([privateSitePackage()]),
-  );
-
-  if (!identity) {
-    throw new Error(`Expected installed workspace Site identity for ${installId}.`);
-  }
-
-  return identity;
-}
-
-function privateSitePackage(): InstallableAppPackage {
-  return {
-    adminRouteBase: "/apps",
-    defaultInstallId: "private-site",
-    description: "Workspace-linked public Site package.",
-    label: "Private Site",
-    packageAppKey: "private-site",
-    packageRevision: 7,
-    sourceOrigin: "workspace",
-    sourceSchemaHash: privateSourceSchemaHash,
-    sourceSchemaKey: "private-site",
-    sourceSchemaLocation: {
-      kind: "workspace",
-      key: "private-site",
-      path: "source/schema.json",
-    },
-    supportsMultipleInstalls: false,
-  };
-}
-
 function record(id: string, title: string, done = false): StoredRecord {
   const timestamp = `2026-04-28T00:00:0${id.at(-1)}.000Z`;
 
@@ -2272,22 +1930,6 @@ function record(id: string, title: string, done = false): StoredRecord {
     id,
     entity: "task",
     values: { title, done },
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  };
-}
-
-function resourceRecord(id: string, name: string): StoredRecord {
-  const timestamp = `2026-04-28T00:00:0${id.at(-1)}.000Z`;
-
-  return {
-    id,
-    entity: "resource",
-    values: {
-      name,
-      kind: "role",
-      unit: "day",
-    },
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -2374,8 +2016,4 @@ async function waitFor(predicate: () => boolean) {
 
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
-}
-
-async function delay(ms: number) {
-  await new Promise((resolve) => setTimeout(resolve, ms));
 }

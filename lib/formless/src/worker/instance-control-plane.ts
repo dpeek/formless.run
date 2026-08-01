@@ -1,27 +1,9 @@
-import {
-  parseProgramApiRoute,
-  type ProgramStorageIdentity,
-} from "../shared/app-storage-identity.ts";
-import {
-  appInstallRegistryError,
-  createAppInstall,
-  findAppInstall,
-  isAppInstallRegistrationPolicy,
-  parseAppInstallRegistrationOperation,
-  type AppInstall,
-  type AppInstallId,
-  type PackageAppKey,
-} from "@dpeek/formless-installed-apps";
-import { findResolvedAppPackage, type AppPackageResolver } from "../shared/app-packages.ts";
+import { parseProgramApiRoute } from "../shared/app-storage-identity.ts";
 import { nowIsoString } from "../shared/clock.ts";
 import {
   INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID,
-  instanceControlPlaneAppInstallsFromRecords,
   instanceControlPlaneDefaultRouteAccess,
-  type InstanceControlPlaneRecord,
-  instanceControlPlaneRecordsForAppInstall,
   instanceControlPlaneSchema,
-  type InstanceControlPlaneAppInstallValues,
   type InstanceControlPlaneRedirectStatusCode,
   type InstanceControlPlaneRouteValues,
 } from "@dpeek/formless-instance-control-plane";
@@ -39,17 +21,10 @@ import type {
 } from "../shared/instance-domain-mappings.ts";
 import { normalizeInstanceDomainHost } from "../shared/instance-domain-mappings.ts";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
-import { parseCreateAppInstallRequest, type CreateAppInstallRequest } from "../shared/protocol.ts";
-import { type EntityOperationSchema, type SchemaOperationActorKind } from "@dpeek/formless-schema";
-import {
-  isSourceSchemaHash,
-  type PackageAppRevision,
-  type SourceSchemaHash,
-} from "../shared/upgrade-migrations.ts";
+import { type SchemaOperationActorKind } from "@dpeek/formless-schema";
 import {
   authorizeAuthorityOperation,
   authorizeOwnerManagementRead,
-  authorizeOperationalManagement,
   authorizeProgramAccess,
   type AuthorityAdminGuardEnv,
   type ProgramAccessAuthorizationResult,
@@ -67,33 +42,18 @@ import { assertUniqueConstraints } from "./constraints.ts";
 import { BadRequestError } from "./errors.ts";
 import {
   createRecordSetForOperationOutcome,
-  ensureStorageTables,
   ActiveSchemaRefreshBlockedError,
   getBootstrapRecords,
-  getOperationInvocationById,
   getStoredRecord,
   patchStoredRecordOutcome,
-  recordOperationInvocationAccepted,
-  recordOperationInvocationFailed,
-  recordOperationInvocationOutcome,
   readOperationInvocations,
   writeRecordSetForOperationOutcome,
-  writeRecordSetForCommandOperationOutcome,
 } from "./storage.ts";
-import type {
-  OperationInvocationEnvelope,
-  OperationCommandOutput,
-  OperationInvocationResponse,
-} from "../shared/operation-invocation.ts";
 import {
   INTERNAL_RESOLVE_INSTANCE_RUNTIME_ROUTE_PATH,
   resolveInstanceRuntimeRouteFromRecords,
 } from "./instance-runtime-routes.ts";
-import {
-  activeAppPackageResolver,
-  findActiveWorkerSchemaAppDefinition,
-  type ActiveRuntimeAppPackageEnv,
-} from "./runtime-app-packages.ts";
+import type { OperationInvocationEnvelope } from "../shared/operation-invocation.ts";
 import {
   authenticatedOperationActorForSession,
   hostAuthSessionTargetFromRequestHeaders,
@@ -107,21 +67,6 @@ import {
 } from "./program-authority.ts";
 
 const actorKinds = ["admin", "cliDeployer", "owner", "runner"] as const;
-const createAppInstallControlPlaneOperation = "createAppInstall";
-const createAppInstallControlPlaneOperationKey = "app-install.createAppInstall";
-export const CREATE_APP_INSTALL_CONTROL_PLANE_OPERATION_PATH =
-  "/operations/app-install/createAppInstall";
-const createAppInstallControlPlaneOperationSchema = {
-  label: "Create app install",
-  kind: "command",
-  scope: "collection",
-  output: { type: "command" },
-  idempotency: { required: true },
-  audit: { input: "summary" },
-  policy: { actors: ["admin", "owner"], visible: false },
-} satisfies EntityOperationSchema;
-export const INTERNAL_UPDATE_APP_INSTALL_PACKAGE_FACTS_PATH =
-  "/_internal/update-app-install-package-facts";
 export const INTERNAL_READ_RECORDS_PATH = "/_internal/read-records";
 export const INTERNAL_READ_OPERATION_INVOCATIONS_PATH = "/_internal/read-operation-invocations";
 export const INTERNAL_SYNC_DOMAIN_INTENT_PATH = "/_internal/sync-domain-intent";
@@ -136,15 +81,8 @@ function ensureControlPlaneStorage(storage: DurableObjectStorage) {
   initializeControlPlaneStorage(storage);
 }
 
-type InstanceControlPlaneApiEnv = AuthorityAdminGuardEnv &
-  ActiveRuntimeAppPackageEnv & {
-    FORMLESS_AUTHORITY: DurableObjectNamespace;
-  };
-
-type ParsedCreateAppInstallOperationRequest = {
-  idempotencyKey: string;
-  input: CreateAppInstallRequest;
-  operationId: string;
+type InstanceControlPlaneApiEnv = AuthorityAdminGuardEnv & {
+  FORMLESS_AUTHORITY: DurableObjectNamespace;
 };
 
 type RouteIntentSyncCandidate = {
@@ -190,10 +128,6 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
   }
 
   try {
-    if (route.path === INTERNAL_UPDATE_APP_INSTALL_PACKAGE_FACTS_PATH) {
-      return await handleInternalUpdateAppInstallPackageFacts(request, storage, env);
-    }
-
     if (route.path === INTERNAL_READ_RECORDS_PATH) {
       return handleInternalReadRecords(request, storage);
     }
@@ -207,15 +141,11 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
     }
 
     if (route.path === INTERNAL_RESOLVE_INSTANCE_RUNTIME_ROUTE_PATH) {
-      return handleInternalResolveRuntimeRoute(request, storage, env);
+      return handleInternalResolveRuntimeRoute(request, storage);
     }
 
     if (route.path === INTERNAL_SYNC_DEPLOYMENT_PROJECTION_PATH) {
       return await handleInternalSyncDeploymentProjection(request, storage);
-    }
-
-    if (route.path === CREATE_APP_INSTALL_CONTROL_PLANE_OPERATION_PATH) {
-      return await handleCreateAppInstallOperation(request, route.identity, storage, env);
     }
 
     if (
@@ -313,13 +243,10 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
     const body = operation.metadata.mode === "write" ? await readJson(request) : undefined;
 
     if (operation.kind === "restoreSnapshot") {
-      parseFormlessProgramStorageSnapshot("Formless Program storage snapshot", body, {
-        packageResolver: activeAppPackageResolver(env),
-      });
+      parseFormlessProgramStorageSnapshot("Formless Program storage snapshot", body);
     }
 
     ensureControlPlaneStorage(storage);
-    const packageResolver = activeAppPackageResolver(env);
     const source = formlessProgramSource();
     const result = await executeAuthorityOperation({
       ...(operation.kind === "entityOperation" && programAuthorization?.authorized
@@ -337,12 +264,11 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
       createRecordId: formlessProgramCreatedRecordId,
       identity: route.identity,
       operation,
-      packageResolver,
       source,
       storage,
       validateConstraints:
         operation.metadata.mode === "write"
-          ? validateFormlessProgramRecordConstraint(storage, packageResolver)
+          ? validateFormlessProgramRecordConstraint(storage)
           : undefined,
       writes,
     });
@@ -361,80 +287,59 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
   }
 }
 
-export function readControlPlaneAppInstalls(
-  storage: DurableObjectStorage,
-  packageResolver?: AppPackageResolver,
-): AppInstall[] {
-  ensureStorageTables(storage);
+function hostAuthSessionTargetForInstanceControlPlaneRequest(request: Request) {
+  const target = hostAuthSessionTargetFromRequestHeaders(request.headers);
 
-  return instanceControlPlaneAppInstallsFromRecords(
-    activeControlPlaneRecords(storage),
-    packageResolver,
+  if (
+    !target ||
+    target.targetProfile !== "instance" ||
+    target.storageIdentity !== FORMLESS_PROGRAM_STORAGE_IDENTITY
+  ) {
+    return undefined;
+  }
+
+  return target;
+}
+
+function isProgramReplicaReadOperation(operation: AuthorityOperation): boolean {
+  return (
+    operation.kind === "bootstrap" || operation.kind === "readSchema" || operation.kind === "sync"
   );
 }
 
-async function handleInternalUpdateAppInstallPackageFacts(
-  request: Request,
-  storage: DurableObjectStorage,
-  env: InstanceControlPlaneApiEnv,
-): Promise<Response> {
-  if (request.method !== "POST") {
-    return methodNotAllowedResponse("POST");
+function programOperationInvocationActor(
+  authorization: Extract<ProgramAccessAuthorizationResult, { authorized: true }>,
+  requestedActorKind: SchemaOperationActorKind,
+  target: ReturnType<typeof hostAuthSessionTargetForInstanceControlPlaneRequest>,
+): OperationInvocationEnvelope["actor"] {
+  if (authorization.callerFacts.kind === "trusted") {
+    return {
+      kind:
+        requestedActorKind === "cliDeployer" || requestedActorKind === "runner"
+          ? requestedActorKind
+          : "admin",
+    };
   }
 
-  ensureControlPlaneStorage(storage);
-
-  const packageResolver = activeAppPackageResolver(env);
-  const parsed = parseInternalAppInstallPackageFactsUpdate(
-    await readJson(request),
-    packageResolver,
-  );
-  const install = findAppInstall(
-    readControlPlaneAppInstalls(storage, packageResolver),
-    parsed.installId,
-  );
-
-  if (!install) {
-    throw new BadRequestError(`Install id "${parsed.installId}" is not installed.`);
+  if (authorization.callerFacts.kind === "principal" && authorization.callerFacts.owner) {
+    return { kind: "owner" };
   }
 
-  if (install.packageAppKey !== parsed.packageAppKey) {
-    throw new BadRequestError(
-      `Install id "${parsed.installId}" uses package "${install.packageAppKey}", not "${parsed.packageAppKey}".`,
-    );
-  }
+  const authenticated =
+    authorization.session === undefined
+      ? undefined
+      : authenticatedOperationActorForSession({
+          principalId: authorization.session.principalId,
+          session: authorization.session,
+          target,
+        });
 
-  noopWriteNotifier.apply(() =>
-    patchStoredRecordOutcome(
-      storage,
-      {
-        entity: "app-install",
-        writeId: `updateAppInstallPackageFacts:${parsed.installId}:${parsed.packageRevision}:${parsed.sourceSchemaHash}`,
-        kind: "patch",
-        recordId: parsed.installId,
-        values: {
-          packageRevision: parsed.packageRevision,
-          sourceSchemaHash: parsed.sourceSchemaHash,
-        },
-      },
-      withoutControlPlaneLifecycleValues({
-        ...getStoredRecord(storage, parsed.installId)?.values,
-        packageRevision: parsed.packageRevision,
-        sourceSchemaHash: parsed.sourceSchemaHash,
-      }),
-      validateControlPlaneRecordWrite(storage, instanceControlPlaneSourceSchema, {
-        packageResolver,
-      }),
-    ),
+  return (
+    authenticated ?? {
+      kind: "authenticated",
+      principalId: authorization.session?.principalId,
+    }
   );
-
-  return jsonResponse({
-    install: findAppInstall(
-      readControlPlaneAppInstalls(storage, packageResolver),
-      parsed.installId,
-    ),
-    installs: readControlPlaneAppInstalls(storage, packageResolver),
-  });
 }
 
 function handleInternalReadRecords(request: Request, storage: DurableObjectStorage): Response {
@@ -505,7 +410,6 @@ async function handleInternalSyncDomainIntent(
 function handleInternalResolveRuntimeRoute(
   request: Request,
   storage: DurableObjectStorage,
-  env: InstanceControlPlaneApiEnv,
 ): Response {
   if (request.method !== "GET") {
     return methodNotAllowedResponse("GET");
@@ -518,12 +422,9 @@ function handleInternalResolveRuntimeRoute(
   const pathname = routeRequestPath(url.searchParams.get("path"));
   const search = url.searchParams.get("search") ?? "";
   const includeHostless = url.searchParams.get("includeHostless") !== "false";
-  const packageResolver = activeAppPackageResolver(env);
-
   return jsonResponse({
     route:
       resolveInstanceRuntimeRouteFromRecords({
-        appInstalls: readControlPlaneAppInstalls(storage, packageResolver),
         records: activeControlPlaneRecords(storage),
         request: {
           host,
@@ -531,313 +432,8 @@ function handleInternalResolveRuntimeRoute(
           search,
         },
         options: { includeHostless },
-        packageResolver,
       }) ?? null,
   });
-}
-
-async function handleCreateAppInstallOperation(
-  request: Request,
-  identity: ProgramStorageIdentity,
-  storage: DurableObjectStorage,
-  env: InstanceControlPlaneApiEnv,
-): Promise<Response> {
-  if (request.method !== "POST") {
-    return methodNotAllowedResponse("POST");
-  }
-
-  const actorKind = controlPlaneActorKindFromRequest(request, new URL(request.url));
-  assertBrowserControlPlaneOperationActor(actorKind, createAppInstallControlPlaneOperationKey);
-
-  const authorization = await authorizeOperationalManagement(request, env, {
-    error:
-      "Owner session, Program administrator session, or admin authorization is required for this write endpoint.",
-    hostSessionTarget: hostAuthSessionTargetForInstanceControlPlaneRequest(request),
-  });
-
-  if (!authorization.authorized) {
-    return jsonResponse(
-      { error: authorization.error },
-      authorization.status,
-      authorization.headers,
-    );
-  }
-
-  ensureControlPlaneStorage(storage);
-
-  const parsed = parseCreateAppInstallOperationRequest(await readJson(request));
-  const receivedAt = nowIsoString();
-  const envelope = createAppInstallOperationEnvelope({
-    actorKind,
-    identity,
-    input: parsed.input,
-    receivedAt,
-    writeIdentity: parsed.operationId,
-    idempotencyKey: parsed.idempotencyKey,
-  });
-
-  recordOperationInvocationAccepted(storage, envelope);
-
-  try {
-    const replay = createAppInstallOperationReplayResponse(storage, envelope);
-
-    if (replay) {
-      recordOperationInvocationOutcome(storage, {
-        envelope,
-        output: replay.output,
-        status: replay.status,
-      });
-
-      return jsonResponse(replay);
-    }
-
-    const packageResolver = activeAppPackageResolver(env);
-    const result = createAppInstall({
-      existingInstalls: readControlPlaneAppInstalls(storage, packageResolver),
-      installId: parsed.input.installId,
-      label: parsed.input.label,
-      now: receivedAt,
-      packageAppKey: parsed.input.packageAppKey,
-      packageResolver,
-      registrationOperation: parsed.input.registrationOperation,
-      registrationPolicy: parsed.input.registrationPolicy,
-      validateInitialSource: ({ initialization }) => {
-        const source = findActiveWorkerSchemaAppDefinition(initialization.sourceSchemaKey, env);
-
-        if (!source) {
-          return appInstallRegistryError(
-            "source-validation-failed",
-            "source",
-            `Package app "${initialization.packageAppKey}" source is unavailable.`,
-          );
-        }
-
-        return undefined;
-      },
-    });
-
-    if (!result.ok) {
-      recordOperationInvocationFailed(storage, envelope, new BadRequestError(result.error.message));
-
-      return jsonResponse(
-        {
-          error: result.error.message,
-          code: result.error.code,
-          ...(result.error.field === undefined ? {} : { field: result.error.field }),
-          installs: result.installs,
-        },
-        result.error.code === "duplicate-install-id" ? 409 : 400,
-      );
-    }
-
-    const records = instanceControlPlaneRecordsForAppInstall({
-      install: result.install,
-      now: receivedAt,
-    });
-    preflightAppInstallRecordSet(storage, records, receivedAt, packageResolver);
-
-    const outcome = writeRecordSetForCommandOperationOutcome(
-      storage,
-      parsed.operationId,
-      records.map((record) => ({
-        kind: "create",
-        entity: record.entity,
-        id: record.id,
-        values: record.values,
-      })),
-      validateControlPlaneRecordWrite(storage, instanceControlPlaneSourceSchema, {
-        packageResolver,
-      }),
-      { allowStoredReplay: false, now: receivedAt },
-    );
-    const response = createAppInstallOperationResponse(
-      envelope,
-      outcome.response,
-      outcome.kind === "replay" ? "replayed" : "committed",
-    );
-
-    recordOperationInvocationOutcome(storage, {
-      envelope,
-      output: response.output,
-      status: response.status,
-    });
-
-    return jsonResponse(response);
-  } catch (error) {
-    recordOperationInvocationFailed(storage, envelope, error);
-    throw error;
-  }
-}
-
-function hostAuthSessionTargetForInstanceControlPlaneRequest(request: Request) {
-  const target = hostAuthSessionTargetFromRequestHeaders(request.headers);
-
-  if (
-    !target ||
-    target.appInstallId !== undefined ||
-    target.targetProfile !== "instance" ||
-    target.storageIdentity !== FORMLESS_PROGRAM_STORAGE_IDENTITY
-  ) {
-    return undefined;
-  }
-
-  return target;
-}
-
-function isProgramReplicaReadOperation(operation: AuthorityOperation): boolean {
-  return (
-    operation.kind === "bootstrap" || operation.kind === "readSchema" || operation.kind === "sync"
-  );
-}
-
-function programOperationInvocationActor(
-  authorization: Extract<ProgramAccessAuthorizationResult, { authorized: true }>,
-  requestedActorKind: SchemaOperationActorKind,
-  target: ReturnType<typeof hostAuthSessionTargetForInstanceControlPlaneRequest>,
-): OperationInvocationEnvelope["actor"] {
-  if (authorization.callerFacts.kind === "trusted") {
-    return {
-      kind:
-        requestedActorKind === "cliDeployer" || requestedActorKind === "runner"
-          ? requestedActorKind
-          : "admin",
-    };
-  }
-
-  if (authorization.callerFacts.kind === "principal" && authorization.callerFacts.owner) {
-    return { kind: "owner" };
-  }
-
-  const authenticated =
-    authorization.session === undefined
-      ? undefined
-      : authenticatedOperationActorForSession({
-          principalId: authorization.session.principalId,
-          session: authorization.session,
-          target,
-        });
-
-  return (
-    authenticated ?? {
-      kind: "authenticated",
-      principalId: authorization.session?.principalId,
-    }
-  );
-}
-
-function createAppInstallOperationEnvelope(input: {
-  actorKind: SchemaOperationActorKind;
-  identity: ProgramStorageIdentity;
-  input: CreateAppInstallRequest;
-  idempotencyKey: string;
-  receivedAt: string;
-  writeIdentity: string;
-}): OperationInvocationEnvelope {
-  return {
-    invocationId: input.writeIdentity,
-    appStorageIdentity: input.identity,
-    actor: { kind: input.actorKind },
-    source: {
-      protocol: controlPlaneOperationSourceProtocol(input.actorKind),
-      route: CREATE_APP_INSTALL_CONTROL_PLANE_OPERATION_PATH,
-    },
-    input: {
-      type: "command",
-      input: input.input,
-    },
-    idempotency: {
-      required: true,
-      key: input.idempotencyKey,
-      source: "caller",
-      writeIdentity: input.writeIdentity,
-    },
-    operation: {
-      entityName: "app-install",
-      operationName: createAppInstallControlPlaneOperation,
-      canonicalKey: createAppInstallControlPlaneOperationKey,
-      kind: createAppInstallControlPlaneOperationSchema.kind,
-      scope: createAppInstallControlPlaneOperationSchema.scope,
-      output: createAppInstallControlPlaneOperationSchema.output,
-      policy: createAppInstallControlPlaneOperationSchema.policy,
-    },
-    receivedAt: input.receivedAt,
-    schemaOperation: createAppInstallControlPlaneOperationSchema,
-  };
-}
-
-function createAppInstallOperationResponse(
-  envelope: OperationInvocationEnvelope,
-  output: OperationCommandOutput,
-  status: OperationInvocationResponse["status"],
-): OperationInvocationResponse {
-  return {
-    invocation: envelope,
-    output,
-    status,
-  };
-}
-
-function createAppInstallOperationReplayResponse(
-  storage: DurableObjectStorage,
-  envelope: OperationInvocationEnvelope,
-): OperationInvocationResponse | undefined {
-  const replay = getOperationInvocationById(storage, envelope.invocationId);
-
-  if (!replay?.output) {
-    return undefined;
-  }
-
-  if (replay.output.type !== "command") {
-    throw new Error(
-      `Stored operation "${envelope.operation.canonicalKey}" output is not command output.`,
-    );
-  }
-
-  return createAppInstallOperationResponse(envelope, replay.output, "replayed");
-}
-
-function createAppInstallOperationWriteIdentity(idempotencyKey: string) {
-  return `operation:${createAppInstallControlPlaneOperationKey}:${idempotencyKey}`;
-}
-
-function controlPlaneOperationSourceProtocol(
-  actorKind: SchemaOperationActorKind,
-): OperationInvocationEnvelope["source"]["protocol"] {
-  if (actorKind === "cliDeployer") {
-    return "cli";
-  }
-
-  if (actorKind === "runner") {
-    return "runner";
-  }
-
-  return "protocol";
-}
-
-function preflightAppInstallRecordSet(
-  storage: DurableObjectStorage,
-  records: [
-    InstanceControlPlaneRecord<"app-install", InstanceControlPlaneAppInstallValues>,
-    ...InstanceControlPlaneRecord<"route", InstanceControlPlaneRouteValues>[],
-  ],
-  createdAt: string,
-  packageResolver?: AppPackageResolver,
-) {
-  const pendingRecords: StoredRecord[] = records.map((record) => ({
-    createdAt,
-    entity: record.entity,
-    id: record.id,
-    updatedAt: createdAt,
-    values: record.values,
-  }));
-  const validate = validateControlPlaneRecordWrite(storage, instanceControlPlaneSourceSchema, {
-    additionalRecords: pendingRecords,
-    packageResolver,
-  });
-
-  for (const record of pendingRecords) {
-    validate(record.entity, record.values, { ignoreRecordId: record.id });
-  }
 }
 
 function validateControlPlaneRecordWrite(
@@ -845,7 +441,6 @@ function validateControlPlaneRecordWrite(
   schema: typeof instanceControlPlaneSourceSchema,
   options: {
     additionalRecords?: StoredRecord[];
-    packageResolver?: AppPackageResolver;
   } = {},
 ) {
   return (
@@ -870,7 +465,6 @@ function validateControlPlaneRecordWrite(
         entityName,
         schema,
         existingRecordId: recordOptions?.ignoreRecordId,
-        packageResolver: options.packageResolver,
       },
     );
 
@@ -881,21 +475,17 @@ function validateControlPlaneRecordWrite(
       options,
       recordOptions?.ignoreRecordId,
     );
-    validateFormlessProgramRecordConstraint(storage, options.packageResolver)(
-      entityName,
-      validated,
-      {
-        ...(options.additionalRecords === undefined
-          ? {}
-          : { additionalRecords: options.additionalRecords }),
-        ...(recordOptions?.candidateRecordId === undefined
-          ? {}
-          : { candidateRecordId: recordOptions.candidateRecordId }),
-        ...(recordOptions?.ignoreRecordId === undefined
-          ? {}
-          : { ignoreRecordId: recordOptions.ignoreRecordId }),
-      },
-    );
+    validateFormlessProgramRecordConstraint(storage)(entityName, validated, {
+      ...(options.additionalRecords === undefined
+        ? {}
+        : { additionalRecords: options.additionalRecords }),
+      ...(recordOptions?.candidateRecordId === undefined
+        ? {}
+        : { candidateRecordId: recordOptions.candidateRecordId }),
+      ...(recordOptions?.ignoreRecordId === undefined
+        ? {}
+        : { ignoreRecordId: recordOptions.ignoreRecordId }),
+    });
     assertUniqueConstraints(storage, schema, entityName, validated, recordOptions);
   };
 }
@@ -906,29 +496,9 @@ function validateControlPlanePackageBoundary(
   values: RecordValues,
   options: {
     additionalRecords?: StoredRecord[];
-    packageResolver?: AppPackageResolver;
   },
   existingRecordId?: string,
 ) {
-  if (entityName === "app-install") {
-    const packageAppKey = parseRequiredString("packageAppKey", values.packageAppKey);
-    const registrationPolicy = parseRequiredString("registrationPolicy", values.registrationPolicy);
-
-    if (!isAppInstallRegistrationPolicy(registrationPolicy)) {
-      throw new BadRequestError(
-        'App install registration policy must be "closed", "email-verified", or "custom-operation".',
-      );
-    }
-
-    validateAppInstallRegistrationOperationBoundary(values, registrationPolicy);
-
-    if (!findResolvedAppPackage(packageAppKey, options.packageResolver)) {
-      throw new BadRequestError(`App install package "${packageAppKey}" is unsupported.`);
-    }
-
-    return;
-  }
-
   if (entityName === "instance-settings") {
     validateInstanceSettingsBoundary(storage, values, options.additionalRecords, existingRecordId);
     return;
@@ -941,38 +511,6 @@ function validateControlPlanePackageBoundary(
 
   if (entityName === "email-sender") {
     validateEmailSenderBoundary(storage, values, options.additionalRecords);
-  }
-}
-
-function validateAppInstallRegistrationOperationBoundary(
-  values: RecordValues,
-  registrationPolicy: string,
-) {
-  const registrationOperation = values.registrationOperation;
-
-  if (registrationPolicy === "custom-operation") {
-    if (registrationOperation === undefined) {
-      throw new BadRequestError(
-        'App install registration operation is required when registration policy is "custom-operation".',
-      );
-    }
-
-    try {
-      parseAppInstallRegistrationOperation(
-        registrationOperation,
-        "App install registration operation",
-      );
-    } catch (error) {
-      throw new BadRequestError(errorMessage(error));
-    }
-
-    return;
-  }
-
-  if (registrationOperation !== undefined) {
-    throw new BadRequestError(
-      'App install registration operation must be omitted unless registration policy is "custom-operation".',
-    );
   }
 }
 
@@ -1332,44 +870,6 @@ function isLocalControlPlaneHost(value: string) {
   return value === "localhost" || value.endsWith(".localhost");
 }
 
-function parseCreateAppInstallOperationRequest(
-  value: unknown,
-): ParsedCreateAppInstallOperationRequest {
-  if (!isRecord(value)) {
-    throw new BadRequestError("Control-plane operation request must be an object.");
-  }
-
-  const inputValue = isRecord(value.input) ? value.input : value;
-  const input = parseCreateAppInstallRequest(inputValue);
-  const idempotencyKey = parseOptionalOperationIdentity(value.idempotencyKey);
-
-  if (idempotencyKey === undefined) {
-    throw new BadRequestError(
-      `Operation "${createAppInstallControlPlaneOperationKey}" requires an idempotency key.`,
-    );
-  }
-
-  return {
-    idempotencyKey,
-    input,
-    operationId: createAppInstallOperationWriteIdentity(idempotencyKey),
-  };
-}
-
-function parseOptionalOperationIdentity(value: unknown): string | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (typeof value !== "string" || value.trim() === "") {
-    throw new BadRequestError(
-      "Control-plane operation idempotency key must be a non-empty string.",
-    );
-  }
-
-  return value.trim();
-}
-
 function syncDeploymentProjectionRecords(
   storage: DurableObjectStorage,
   input: {
@@ -1389,8 +889,7 @@ function syncDomainIntentRecords(
     redirectIntents?: InstanceDomainProviderRedirectIntent[];
   },
 ) {
-  const domainRouteCandidates =
-    input.mappings?.map((mapping) => domainMappingRouteCandidate(storage, mapping)) ?? [];
+  const domainRouteCandidates = input.mappings?.map(domainMappingRouteCandidate) ?? [];
   const redirectRouteCandidates =
     input.redirectIntents?.map((intent) => redirectRouteCandidate(intent)) ?? [];
   const safeCandidates = assertRouteIntentSyncCandidatesAreSafe(storage, [
@@ -1518,28 +1017,15 @@ function upsertControlPlaneRecord(
   );
 }
 
-function domainMappingRouteCandidate(
-  storage: DurableObjectStorage,
-  mapping: InstanceDomainMapping,
-): RouteIntentSyncCandidate {
+function domainMappingRouteCandidate(mapping: InstanceDomainMapping): RouteIntentSyncCandidate {
   return {
     id: domainMappingRouteRecordId(mapping),
     source: `domain mapping route sync "${mapping.profile}:${mapping.host}"`,
-    values: domainMappingRouteRecordValues(storage, mapping),
+    values: domainMappingRouteRecordValues(mapping),
   };
 }
 
-function domainMappingRouteRecordValues(
-  storage: DurableObjectStorage,
-  mapping: InstanceDomainMapping,
-): RecordValues {
-  const targetInstallId = mapping.targetInstallId ?? mapping.installId;
-  const appInstall =
-    mapping.profile === "app" &&
-    targetInstallId &&
-    activeControlPlaneRecordExists(storage, "app-install", targetInstallId)
-      ? targetInstallId
-      : undefined;
+function domainMappingRouteRecordValues(mapping: InstanceDomainMapping): RecordValues {
   const surface = domainMappingSurfaceForProfile(mapping.profile);
 
   return {
@@ -1549,7 +1035,6 @@ function domainMappingRouteRecordValues(
     matchPrefix: "/",
     kind: "mount",
     targetProfile: domainMappingTargetProfile(mapping.profile),
-    ...(appInstall === undefined ? {} : { appInstall }),
     ...(surface === undefined ? {} : { surface }),
     access: instanceControlPlaneDefaultRouteAccess({
       kind: "mount",
@@ -1677,42 +1162,6 @@ function parseDeploymentTarget(value: unknown): DeploymentTarget {
   };
 }
 
-function parseInternalAppInstallPackageFactsUpdate(
-  value: unknown,
-  packageResolver?: AppPackageResolver,
-): {
-  installId: AppInstallId;
-  packageAppKey: PackageAppKey;
-  packageRevision: PackageAppRevision;
-  sourceSchemaHash: SourceSchemaHash;
-} {
-  if (!isRecord(value)) {
-    throw new BadRequestError("App install package facts update must be an object.");
-  }
-
-  const packageAppKey = parseRequiredString("packageAppKey", value.packageAppKey);
-  const packageApp = findResolvedAppPackage(packageAppKey, packageResolver);
-
-  if (!packageApp) {
-    throw new BadRequestError(`App install package "${packageAppKey}" is unsupported.`);
-  }
-
-  return {
-    installId: parseRequiredString("installId", value.installId),
-    packageAppKey: packageApp.packageAppKey,
-    packageRevision: parsePackageRevision(
-      "packageRevision",
-      value.packageRevision,
-      packageApp.packageRevision,
-    ),
-    sourceSchemaHash: parseSourceSchemaHash(
-      "sourceSchemaHash",
-      value.sourceSchemaHash,
-      packageApp.sourceSchemaHash,
-    ),
-  };
-}
-
 function parseInternalDomainIntentSyncRequest(value: unknown): {
   mappings?: InstanceDomainMapping[];
   now: string;
@@ -1744,12 +1193,12 @@ function parseInternalDomainMappings(value: unknown): InstanceDomainMapping[] {
     throw new BadRequestError("Domain intent sync mappings must be an array.");
   }
 
-  return value.flatMap((item) => {
-    const mapping = parseInternalDomainMapping(item);
-    const targetInstallId = mapping.targetInstallId ?? mapping.installId;
-
-    return mapping.profile === "publicSite" && targetInstallId !== undefined ? [] : [mapping];
-  });
+  return value.flatMap((item) =>
+    isRecord(item) &&
+    (item.profile === "app" || item.targetInstallId !== undefined || item.installId !== undefined)
+      ? []
+      : [parseInternalDomainMapping(item)],
+  );
 }
 
 function parseInternalDomainMapping(value: unknown): InstanceDomainMapping {
@@ -1757,15 +1206,12 @@ function parseInternalDomainMapping(value: unknown): InstanceDomainMapping {
     throw new BadRequestError("Domain intent sync mapping must be an object.");
   }
 
-  const targetInstallId =
-    optionalStringRecordValue(value.targetInstallId) ?? optionalStringRecordValue(value.installId);
   const profile = parseDomainMappingProfile(value.profile);
 
   return {
     host: parseRequiredString("mapping.host", value.host),
     profile,
     ...(profile === "publicSite" ? { surface: "site" as const } : {}),
-    ...(targetInstallId === undefined ? {} : { installId: targetInstallId, targetInstallId }),
     enabled: booleanRecordValue(value.enabled, "mapping.enabled"),
     createdAt: parseRequiredString("mapping.createdAt", value.createdAt),
     updatedAt: parseRequiredString("mapping.updatedAt", value.updatedAt),
@@ -1811,42 +1257,6 @@ function parseRequiredString(field: string, value: unknown): string {
   return value;
 }
 
-function parsePackageRevision(
-  field: string,
-  value: unknown,
-  fallback: PackageAppRevision,
-): PackageAppRevision {
-  if (value === undefined) {
-    return fallback;
-  }
-
-  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
-    throw new BadRequestError(`Field "${field}" must be a positive integer.`);
-  }
-
-  return value;
-}
-
-function parseSourceSchemaHash(
-  field: string,
-  value: unknown,
-  fallback: SourceSchemaHash,
-): SourceSchemaHash {
-  if (value === undefined) {
-    return fallback;
-  }
-
-  if (!isSourceSchemaHash(value)) {
-    throw new BadRequestError(`Field "${field}" must be a sha256 source schema hash.`);
-  }
-
-  return value;
-}
-
-function optionalStringRecordValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() !== "" ? value : undefined;
-}
-
 function booleanRecordValue(value: unknown, field: string): boolean {
   if (typeof value !== "boolean") {
     throw new BadRequestError(`Field "${field}" must be a boolean.`);
@@ -1857,14 +1267,6 @@ function booleanRecordValue(value: unknown, field: string): boolean {
 
 function stringRecordValue(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
-}
-
-function withoutControlPlaneLifecycleValues(values: RecordValues): RecordValues {
-  return Object.fromEntries(
-    Object.entries(values).filter(
-      ([fieldName]) => fieldName !== "createdAt" && fieldName !== "updatedAt",
-    ),
-  ) as RecordValues;
 }
 
 function parseRouteString(field: string, value: unknown): `/${string}` {
@@ -1878,11 +1280,11 @@ function parseRouteString(field: string, value: unknown): `/${string}` {
 }
 
 function parseDomainMappingProfile(value: unknown): InstanceDomainMappingProfile {
-  if (value === "app" || value === "instance" || value === "publicSite") {
+  if (value === "instance" || value === "publicSite") {
     return value;
   }
 
-  throw new BadRequestError('Field "mapping.profile" must be "app", "instance", or "publicSite".');
+  throw new BadRequestError('Field "mapping.profile" must be "instance" or "publicSite".');
 }
 
 function parseRedirectStatusCode(
@@ -1907,8 +1309,6 @@ function domainMappingSurfaceForProfile(
   profile: InstanceDomainMappingProfile,
 ): InstanceControlPlaneRouteValues["surface"] | undefined {
   switch (profile) {
-    case "app":
-      return "admin";
     case "publicSite":
       return "public-site";
     case "instance":
@@ -1920,23 +1320,11 @@ function domainMappingTargetProfile(
   profile: InstanceDomainMappingProfile,
 ): NonNullable<InstanceControlPlaneRouteValues["targetProfile"]> {
   switch (profile) {
-    case "app":
-      return "app";
     case "publicSite":
       return "public-site";
     case "instance":
       return "instance";
   }
-}
-
-function activeControlPlaneRecordExists(
-  storage: DurableObjectStorage,
-  entity: string,
-  id: string,
-): boolean {
-  const record = getStoredRecord(storage, id);
-
-  return record?.entity === entity && !record.deletedAt;
 }
 
 function assertRouteIntentSyncCandidatesAreSafe(
@@ -2115,17 +1503,6 @@ function assertBrowserControlPlaneWriteActor(
   throw new BadRequestError(
     `Control-plane ${operation.kind} writes are not exposed to actor "${actorKind}".`,
   );
-}
-
-function assertBrowserControlPlaneOperationActor(
-  actorKind: SchemaOperationActorKind,
-  operationKey: string,
-) {
-  if (actorKind === "owner" || actorKind === "admin") {
-    return;
-  }
-
-  throw new BadRequestError(`Operation "${operationKey}" is not exposed to actor "${actorKind}".`);
 }
 
 const noopWriteNotifier: AuthorityWriteNotifier = {

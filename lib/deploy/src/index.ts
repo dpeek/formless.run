@@ -1,6 +1,5 @@
 import {
   DEPLOY_PUBLIC_CONTRACT_VERSION,
-  type ControlPlaneAppInstallProjectionRecord,
   type ControlPlaneDeploymentConfigObservationRecord,
   type ControlPlaneDeploymentConfigObservedStatus,
   type ControlPlaneDomainMappingProfile,
@@ -32,7 +31,6 @@ import {
   type DeployResourceGraph,
   type DeployResourceKind,
   type DeployRunnerId,
-  type DeployRouteTargetProjection,
   type DeployTargetId,
   type MaterializeDeployDesiredStateVersionInput,
 } from "./types.ts";
@@ -44,9 +42,6 @@ export {
   DEPLOY_PUBLIC_CONTRACT_VERSION,
 } from "./types.ts";
 export type {
-  ControlPlaneAppRouteKind,
-  ControlPlaneAppRouteSurface,
-  ControlPlaneAppInstallProjectionRecord,
   ControlPlaneDeploymentConfigObservationRecord,
   ControlPlaneDeploymentConfigObservedField,
   ControlPlaneDeploymentConfigObservedStatus,
@@ -105,7 +100,6 @@ export type {
   DeployResourceGraph,
   DeployResourceKind,
   DeployRunnerId,
-  DeployRouteTargetProjection,
   DeploySecretReference,
   DeployTargetId,
   DeployTargetKind,
@@ -146,7 +140,6 @@ export function deployDesiredStateProjectionInputFromControlPlaneRecords(
   const workerName = primaryProviderConfig?.workerName ?? input.workerName;
 
   return {
-    appInstalls: appInstallProjectionRecordsFromControlPlaneRecords(activeRecords),
     emailDomains,
     emailSenders,
     instanceId: input.instanceId,
@@ -164,7 +157,6 @@ export function projectDeployControlPlaneDesiredState(
   const providerConfigs = input.providerConfigs ?? [];
   const emailDomains = input.emailDomains ?? [];
   const emailSenders = input.emailSenders ?? [];
-  const routeTargets = projectDeployRouteTargets(routes, input.appInstalls ?? []);
   const providerConfigsById = providerConfigRecordsById(providerConfigs);
   const resources = [
     ...projectRouteProviderResources(routes, {
@@ -188,7 +180,6 @@ export function projectDeployControlPlaneDesiredState(
       : { emailSenders: normalizeEmailSenderInputs(emailSenders) }),
     providerConfigs: normalizeProviderConfigInputs(providerConfigs, routes),
     routes: normalizeRouteInputs(routes),
-    routeTargets,
     targetId: input.targetId,
   };
   const sourceFingerprint = `control-plane:${stableDeployJsonStringify(projectionIntent)}`;
@@ -198,48 +189,9 @@ export function projectDeployControlPlaneDesiredState(
       resources,
       targetId: input.targetId,
     },
-    routeTargets,
     sourceFingerprint,
     targetId: input.targetId,
   };
-}
-
-export function projectDeployRouteTargets(
-  routes: readonly ControlPlaneRouteProjectionRecord[],
-  appInstalls: readonly ControlPlaneAppInstallProjectionRecord[] = [],
-): DeployRouteTargetProjection[] {
-  const appInstallsByInstallId = new Map(
-    appInstalls.map((install) => [install.installId, install]),
-  );
-
-  return routes
-    .filter(
-      (route) =>
-        isCurrentProgramPublicSiteRoute(route) &&
-        route.enabled &&
-        route.kind === "mount" &&
-        route.matchHost === undefined &&
-        route.appInstall !== undefined &&
-        routeTargetSurface(route) !== undefined,
-    )
-    .map((route) => {
-      const appInstallId = route.appInstall ?? "";
-      const appInstall = appInstallsByInstallId.get(appInstallId);
-      const surface = routeTargetSurface(route) ?? "admin";
-
-      return {
-        appInstallId,
-        path: route.matchPath,
-        ...(appInstall?.packageAppKey === undefined
-          ? {}
-          : { packageAppKey: appInstall.packageAppKey }),
-        ...(route.matchPrefix === undefined ? {} : { prefix: route.matchPrefix }),
-        routeId: route.id,
-        routeKind: surface,
-        surface,
-      };
-    })
-    .sort(compareRouteTargets);
 }
 
 export async function materializeDeployDesiredStateVersion(
@@ -639,29 +591,6 @@ export function deployLogicalResourceId(
     .join("-");
 }
 
-function appInstallProjectionRecordsFromControlPlaneRecords(
-  records: readonly ControlPlaneProjectionSourceRecord[],
-): ControlPlaneAppInstallProjectionRecord[] {
-  return records
-    .filter((record) => record.entity === "app-install")
-    .map((record) => {
-      const installId = stringRecordValue(record, "installId");
-      const packageAppKey = stringRecordValue(record, "packageAppKey");
-
-      if (installId === undefined || packageAppKey === undefined) {
-        return undefined;
-      }
-
-      return {
-        id: record.id,
-        installId,
-        packageAppKey,
-      };
-    })
-    .filter((record): record is ControlPlaneAppInstallProjectionRecord => record !== undefined)
-    .sort((left, right) => left.id.localeCompare(right.id));
-}
-
 function routeProjectionRecordsFromControlPlaneRecords(
   records: readonly ControlPlaneProjectionSourceRecord[],
 ): ControlPlaneRouteProjectionRecord[] {
@@ -684,11 +613,16 @@ function routeProjectionRecordFromControlPlaneRecord(
   const kind = stringRecordValue(record, "kind");
   const matchPath = stringRecordValue(record, "matchPath");
 
-  if ((kind !== "mount" && kind !== "redirect") || matchPath === undefined) {
+  if (
+    (kind !== "mount" && kind !== "redirect") ||
+    matchPath === undefined ||
+    record.values.targetProfile === "app" ||
+    record.values.appInstall !== undefined ||
+    record.values.requiredRole !== undefined
+  ) {
     return undefined;
   }
 
-  const appInstall = stringRecordValue(record, "appInstall");
   const deploymentConfig = stringRecordValue(record, "deploymentConfig");
   const matchHost = stringRecordValue(record, "matchHost");
   const matchPrefix = stringRecordValue(record, "matchPrefix");
@@ -705,7 +639,6 @@ function routeProjectionRecordFromControlPlaneRecord(
     id: record.id,
     kind,
     matchPath,
-    ...(appInstall === undefined ? {} : { appInstall }),
     ...(deploymentConfig === undefined ? {} : { providerConfig: deploymentConfig }),
     ...(matchHost === undefined ? {} : { matchHost }),
     ...(matchPrefix === undefined ? {} : { matchPrefix }),
@@ -920,7 +853,7 @@ function routeSurfaceRecordValue(
 ): ControlPlaneRouteProjectionRecord["surface"] | undefined {
   const value = stringRecordValue(record, fieldName);
 
-  if (value === "admin" || value === "public-site" || value === "schema") {
+  if (value === "admin" || value === "public-site") {
     return value;
   }
 
@@ -933,7 +866,7 @@ function routeTargetProfileRecordValue(
 ): ControlPlaneRouteProjectionRecord["targetProfile"] | undefined {
   const value = stringRecordValue(record, fieldName);
 
-  if (value === "app" || value === "instance" || value === "public-site") {
+  if (value === "instance" || value === "public-site") {
     return value;
   }
 
@@ -1008,7 +941,6 @@ function projectRouteCustomDomainResource(
     return undefined;
   }
 
-  const targetInstallId = optionalText(route.appInstall);
   const workerName = routeWorkerName(route.providerConfig, input);
 
   return {
@@ -1019,17 +951,10 @@ function projectRouteCustomDomainResource(
       name: host,
       overrideExistingOrigin: false,
       profile,
-      ...(targetInstallId === undefined ? {} : { targetInstallId }),
       ...(workerName === undefined ? {} : { workerName }),
     },
     kind: "cloudflare-worker-custom-domain",
-    logicalId: deployLogicalResourceId(
-      input.instanceId,
-      "custom-domain",
-      host,
-      profile,
-      targetInstallId,
-    ),
+    logicalId: deployLogicalResourceId(input.instanceId, "custom-domain", host, profile),
     providerFamily: "cloudflare",
     targetId: input.targetId,
   };
@@ -1168,35 +1093,18 @@ function redirectRouteIntent(
   };
 }
 
-function routeTargetSurface(
-  route: ControlPlaneRouteProjectionRecord,
-): DeployRouteTargetProjection["surface"] | undefined {
-  if (route.surface === "admin" || route.surface === "schema") {
-    return route.surface;
-  }
-
-  if (route.surface === "public-site" || route.targetProfile === "public-site") {
-    return "publicSite";
-  }
-
-  return undefined;
-}
-
 function isCurrentProgramPublicSiteRoute(route: ControlPlaneRouteProjectionRecord): boolean {
   const publicSiteShaped = route.targetProfile === "public-site" || route.surface === "public-site";
 
   return (
-    !publicSiteShaped ||
-    (route.targetProfile === "public-site" &&
-      route.surface === "public-site" &&
-      route.appInstall === undefined)
+    !publicSiteShaped || (route.targetProfile === "public-site" && route.surface === "public-site")
   );
 }
 
 function domainMappingProfileFromRouteTarget(
   value: ControlPlaneRouteProjectionRecord["targetProfile"],
 ): ControlPlaneDomainMappingProfile | undefined {
-  if (value === "app" || value === "instance") {
+  if (value === "instance") {
     return value;
   }
 
@@ -1421,7 +1329,6 @@ function canonicalizeDeployProjection(
         .sort(compareDeployResources),
       targetId: projection.resourceGraph.targetId,
     },
-    routeTargets: [...projection.routeTargets].sort(compareRouteTargets),
     sourceFingerprint: projection.sourceFingerprint,
     targetId: projection.targetId,
   };
@@ -1490,7 +1397,6 @@ function normalizeRouteInputs(
   return routes
     .filter((route) => route.enabled)
     .map((route) => ({
-      appInstall: route.appInstall ?? null,
       id: route.id,
       kind: route.kind,
       matchHost: normalizeOptionalHost(route.matchHost) ?? null,
@@ -1571,11 +1477,4 @@ function compareDeployResources(left: DeployResource, right: DeployResource): nu
   return `${left.kind}\u0000${left.logicalId}`.localeCompare(
     `${right.kind}\u0000${right.logicalId}`,
   );
-}
-
-function compareRouteTargets(
-  left: DeployRouteTargetProjection,
-  right: DeployRouteTargetProjection,
-): number {
-  return `${left.path}\u0000${left.routeId}`.localeCompare(`${right.path}\u0000${right.routeId}`);
 }

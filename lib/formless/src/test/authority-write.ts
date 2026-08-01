@@ -21,8 +21,6 @@ type AuthorityHarness = Pick<
   Awaited<ReturnType<typeof createWorkerHarness>>,
   "durableObjectFetch" | "fetch"
 >;
-const taskTestPackageAppKey = "test-tasks";
-const taskTestInstallId = "test-tasks";
 
 export type AuthorityWriteHelpers = ReturnType<typeof createAuthorityWriteHelpers>;
 export type AuthorityTestRecordOperationResult = {
@@ -62,14 +60,12 @@ export function createAuthorityWriteHelpers(
     currentSchemaKey = schemaKey;
   }
 
-  function apiPath(path: string, schemaKey = currentSchemaKey) {
+  function apiPath(path: string, _schemaKey = currentSchemaKey) {
     if (!path.startsWith("/api/")) {
       throw new Error(`Expected API path, received "${path}".`);
     }
 
-    return schemaKey === "tasks"
-      ? `/api/app-installs/${taskTestPackageAppKey}/${taskTestInstallId}${path.slice("/api".length)}`
-      : `/api/formless/program${path.slice("/api".length)}`;
+    return `/api/formless/program${path.slice("/api".length)}`;
   }
 
   function fetchAuthority(
@@ -91,13 +87,11 @@ export function createAuthorityWriteHelpers(
   }
 
   async function resetSchemaApp(schemaKey: SchemaKey) {
-    const schema = schemaKey === "tasks" ? taskSourceSchema : formlessProgramSchema;
     const snapshot = testStorageSnapshot({
-      records: schemaAppTestRecords(schemaKey),
-      schema,
-      schemaKey: schemaKey === "tasks" ? taskTestPackageAppKey : FORMLESS_PROGRAM_SCHEMA_KEY,
-      storageIdentity:
-        schemaKey === "tasks" ? `app:${taskTestInstallId}` : FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      records: schemaAppTestRecords("site"),
+      schema: formlessProgramSchema,
+      schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
+      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     });
 
     await restoreTestStorageSnapshot(
@@ -320,8 +314,8 @@ export async function restoreTestStorageSnapshot(
 ): Promise<void> {
   const resetResponse = await harness.durableObjectFetch(
     "FORMLESS_AUTHORITY",
-    snapshot.storageIdentity,
-    "/_internal/reset-app-storage",
+    FORMLESS_PROGRAM_STORAGE_IDENTITY,
+    "/_internal/reset-program-storage",
     { method: "POST" },
   );
 

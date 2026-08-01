@@ -1,11 +1,9 @@
 import type { FieldSchema } from "@dpeek/formless-schema";
 import type {
-  ActionTriggerContract,
   ButtonContract,
   CreateFieldContract,
   CreateSurfaceContract,
   FieldContract,
-  ManagementInstallDialogContract,
   ManagementManifestContract,
   ManagementReadyContract,
   ManagementWorkspaceOperationContract,
@@ -21,7 +19,6 @@ import type {
   WorkspaceSectionContract,
 } from "@dpeek/formless-presentation/contract";
 import {
-  managementInstallDialogReference,
   managementManifestReference,
   workspaceManifestReference,
 } from "@dpeek/formless-presentation/host";
@@ -31,7 +28,6 @@ import {
   draftInput,
   enumControl,
   enumOptions,
-  fieldError,
   recordDrafts,
   recordField,
   referenceControl,
@@ -50,7 +46,6 @@ export type FormlessInstanceManagementFixtureId =
   | "push-authorization-required";
 
 export type FormlessInstanceManagementFixtureState = {
-  dialog: ManagementInstallDialogContract | null;
   manifest: ManagementManifestContract;
   workspaces: readonly WorkspaceContract[];
 };
@@ -62,30 +57,14 @@ export type FormlessInstanceManagementFixture = {
 };
 
 export const instanceManagementReference = managementManifestReference("instance-management");
-export const instanceManagementInstallDialogReference = managementInstallDialogReference(
-  instanceManagementReference.managementId,
-  "instance-management:install-dialog",
-);
-export const instanceManagementAppsReference = workspaceManifestReference(
-  "instance-management:apps",
-);
 export const instanceManagementRoutesReference = workspaceManifestReference(
   "instance-management:routes",
 );
-export const instanceManagementInstallActionId = "instance-management:apps:install";
-export const instanceManagementInstallActionControlId = `${instanceManagementInstallActionId}:control`;
 export const instanceManagementWorkspacePushOperationId = "instance-management:workspace:push";
 export const instanceManagementWorkspacePushFixture = createWorkspacePushOperationControlFixture({
   id: `${instanceManagementWorkspacePushOperationId}:control`,
   outcome: "success",
 });
-const installFieldSchema = (label: string) =>
-  ({ label, required: true, type: "text" }) satisfies Extract<
-    FieldSchema,
-    {
-      type: "text";
-    }
-  >;
 const routeEnabledField = {
   default: true,
   label: "Enabled",
@@ -146,7 +125,6 @@ const routeTargetProfileField = {
   required: false,
   type: "enum",
   values: [
-    { key: "app", label: "App" },
     { key: "instance", label: "Instance" },
     { key: "public-site", label: "Public Site" },
   ],
@@ -154,18 +132,6 @@ const routeTargetProfileField = {
   FieldSchema,
   {
     type: "enum";
-  }
->;
-const routeAppInstallField = {
-  displayField: "label",
-  label: "App install",
-  required: false,
-  to: "app-install",
-  type: "reference",
-} as const satisfies Extract<
-  FieldSchema,
-  {
-    type: "reference";
   }
 >;
 const routeSurfaceField = {
@@ -209,10 +175,6 @@ const routeDeploymentConfigField = {
     type: "reference";
   }
 >;
-const routeAppInstallOptions = [
-  { id: "site", label: "Site" },
-  { id: "tasks", label: "Tasks" },
-] as const;
 const routeDeploymentConfigOptions = [
   { id: "instance.primary", label: "instance.primary" },
 ] as const;
@@ -220,12 +182,10 @@ const routeDeploymentConfigOptions = [
 export function createFormlessInstanceManagementFixtures(): FormlessInstanceManagementFixture[] {
   return [
     fixture("loading", "Loading", {
-      dialog: null,
       manifest: loadingManifest(),
       workspaces: [],
     }),
     fixture("failed", "Failed", {
-      dialog: null,
       manifest: failedManifest(),
       workspaces: [],
     }),
@@ -260,14 +220,12 @@ function readyFixture(
   id: FormlessInstanceManagementFixtureId,
   label: string,
   options: {
-    dialog?: ManagementInstallDialogContract;
     installed?: boolean;
     manifestOverrides?: Partial<ManagementReadyContract>;
     pushState?: PushFixtureState;
   },
 ) {
   const installed = options.installed ?? true;
-  const dialog = options.dialog ?? installDialog();
   const manifest = readyManifest(
     options.pushState === undefined
       ? options.manifestOverrides
@@ -278,9 +236,8 @@ function readyFixture(
   );
 
   return fixture(id, label, {
-    dialog,
     manifest,
-    workspaces: [appsWorkspace(installed), routesWorkspace(installed)],
+    workspaces: [routesWorkspace(installed)],
   });
 }
 
@@ -317,132 +274,10 @@ function failedManifest(): ManagementManifestContract {
 function readyManifest(overrides: Partial<ManagementReadyContract> = {}): ManagementReadyContract {
   return {
     ...manifestBase(),
-    installDialog: instanceManagementInstallDialogReference,
     state: "ready",
     workspaceOperation: pushOperation("idle"),
-    workspaces: [
-      { reference: instanceManagementAppsReference, role: "apps" },
-      { reference: instanceManagementRoutesReference, role: "routes" },
-    ],
+    workspaces: [{ reference: instanceManagementRoutesReference, role: "routes" }],
     ...overrides,
-  };
-}
-
-function installDialog(
-  overrides: Partial<ManagementInstallDialogContract> = {},
-): ManagementInstallDialogContract {
-  const fields = overrides.fields ?? installFields();
-  const packageOptions = packageOptionsFor(fields.package);
-  const submit =
-    overrides.submit ??
-    button("instance-management:install-submit", "Install Site", {
-      prominence: "primary",
-      type: "submit",
-    });
-
-  return {
-    cancel: button("instance-management:install-cancel", "Cancel"),
-    closeIntent: {
-      dialogId: instanceManagementInstallDialogReference.dialogId,
-      managementId: instanceManagementReference.managementId,
-      open: false,
-      type: "managementInstallDialogOpenChange",
-    },
-    description: "Choose an app type, then set its instance label and install id.",
-    errors: [],
-    fields,
-    id: instanceManagementInstallDialogReference.dialogId,
-    kind: "managementInstallDialog",
-    managementId: instanceManagementReference.managementId,
-    open: false,
-    packageOptions,
-    selectedPackageOptionId: packageOptions[0]!.id,
-    submit,
-    submitIntent: {
-      controlId: submit.id,
-      dialogId: instanceManagementInstallDialogReference.dialogId,
-      managementId: instanceManagementReference.managementId,
-      type: "managementInstallSubmit",
-    },
-    title: "Install app",
-    ...overrides,
-  };
-}
-function installFields(
-  options: {
-    installId?: string;
-    installIdError?: string;
-  } = {},
-) {
-  return {
-    installId: installField(
-      "installId",
-      options.installId ?? "docs",
-      "Install id",
-      options.installIdError,
-    ),
-    label: installField("label", "Docs Site", "Label"),
-    package: installField("packageAppKey", "site", "App type"),
-  } satisfies ManagementInstallDialogContract["fields"];
-}
-
-function installField(
-  fieldName: string,
-  value: string,
-  label: string,
-  error?: string,
-): CreateFieldContract {
-  const field = installFieldSchema(label);
-  const control = textControl(field);
-
-  return createField({
-    control,
-    draftInput: { kind: "input", value },
-    editor: control.editor,
-    ...(error === undefined ? {} : { errors: [fieldError(fieldName, error, value)] }),
-    field,
-    fieldName,
-    labelVisibility: "visible",
-    occurrence: {
-      ownerId: instanceManagementInstallDialogReference.dialogId,
-      placementId: fieldName,
-    },
-    recordId: instanceManagementInstallDialogReference.dialogId,
-    value,
-  });
-}
-
-function packageOptionsFor(packageField: CreateFieldContract) {
-  return [
-    packageOption(packageField, "site", "Site", "Install the Site package.", true),
-    packageOption(packageField, "tasks", "Tasks", "Install the Tasks package.", false),
-    packageOption(packageField, "crm", "CRM", "Install the CRM package.", false),
-  ];
-}
-
-function packageOption(
-  packageField: CreateFieldContract,
-  packageAppKey: string,
-  label: string,
-  description: string,
-  selected: boolean,
-) {
-  const id = `instance-management:package:${packageAppKey}`;
-
-  return {
-    description,
-    id,
-    kind: "managementPackageOption" as const,
-    label,
-    packageAppKey,
-    selected,
-    selectionIntent: {
-      dialogId: instanceManagementInstallDialogReference.dialogId,
-      fieldId: packageField.fieldId,
-      managementId: instanceManagementReference.managementId,
-      optionId: id,
-      type: "managementInstallPackageSelection" as const,
-    },
   };
 }
 
@@ -509,48 +344,28 @@ function managementFeedback(
   };
 }
 
-function appsWorkspace(installed: boolean) {
-  return managementWorkspace(instanceManagementAppsReference.workspaceId, "Apps", "apps", {
-    columns: [
-      ["label", "App", "field"],
-      ["install-id", "Install id", "computed"],
-    ],
-    emptyDescription: "Install an app to add it to this instance.",
-    emptyTitle: "No apps installed",
-    keepCollectionReadyWhenEmpty: true,
-    rows: installed
-      ? [
-          ["site", "Site", "site"],
-          ["tasks", "Tasks", "tasks"],
-        ]
-      : [],
-    sectionActions: () => [installAppAction()],
-  });
-}
-
 function routesWorkspace(installed: boolean) {
   return managementWorkspace(instanceManagementRoutesReference.workspaceId, "Routes", "routes", {
     collectionActions: routeCollectionActions,
     columns: [
-      ["app", "App", "reference"],
+      ["profile", "Profile", "field"],
       ["path", "Path", "computed"],
     ],
-    emptyDescription: "Installed apps publish their routes here.",
+    emptyDescription: "Program routes appear here.",
     emptyTitle: "No routes configured",
     keepCollectionReadyWhenEmpty: true,
-    rowActions: (scope, [id, app, path]) =>
+    rowActions: (scope, [id, profile, path]) =>
       routeRowActions(scope, {
         access: id === "site-home" ? "anonymous" : "owner",
-        appInstall: app.toLowerCase(),
         id,
         matchPath: path,
         surface: id === "site-home" ? "public-site" : "admin",
-        targetProfile: id === "site-home" ? "public-site" : "app",
+        targetProfile: profile === "Public Site" ? "public-site" : "instance",
       }),
     rows: installed
       ? [
-          ["site-home", "Site", "/"],
-          ["tasks-home", "Tasks", "/apps/tasks"],
+          ["site-home", "Public Site", "/"],
+          ["instance", "Instance", "/admin"],
         ]
       : [],
   });
@@ -719,28 +534,6 @@ function managementTable(
   };
 }
 
-function installAppAction(): WorkspaceSectionContract["actions"][number] {
-  const action: ActionTriggerContract = {
-    accessibilityLabel: "Install app",
-    icon: "add",
-    id: instanceManagementInstallActionControlId,
-    intent: "primary",
-    invocationSource: "button",
-    invoke: {
-      controlId: instanceManagementInstallActionControlId,
-      invocationSource: "button",
-    },
-    kind: "actionTrigger",
-    label: "Install App",
-  };
-
-  return {
-    action,
-    id: instanceManagementInstallActionId,
-    kind: "workspaceExternalAction",
-  };
-}
-
 function routeCollectionActions(
   scope: WorkspaceIntentScope,
 ): WorkspaceCollectionActionGroupContract {
@@ -794,13 +587,6 @@ function routeCreateFields(ownerId: string): CreateFieldContract[] {
     createRouteTextField(ownerId, "matchPrefix", routeMatchPrefixField, ""),
     createRouteEnumField(ownerId, "kind", routeKindField, "mount"),
     createRouteEnumField(ownerId, "targetProfile", routeTargetProfileField, "public-site"),
-    createRouteReferenceField(
-      ownerId,
-      "appInstall",
-      routeAppInstallField,
-      "site",
-      routeAppInstallOptions,
-    ),
     createRouteEnumField(ownerId, "surface", routeSurfaceField, "public-site"),
     createRouteEnumField(ownerId, "access", routeAccessField, "anonymous"),
     createRouteReferenceField(
@@ -925,11 +711,10 @@ function createRouteReferenceField(
 
 type RouteFixtureRecord = {
   access: "anonymous" | "authenticated" | "owner";
-  appInstall: string;
   id: string;
   matchPath: string;
   surface: "admin" | "public-site";
-  targetProfile: "app" | "instance" | "public-site";
+  targetProfile: "instance" | "public-site";
 };
 
 function routeRowActions(
@@ -993,13 +778,6 @@ function routeEditFields(rowId: string, record: RouteFixtureRecord): FieldContra
     recordRouteTextField(rowId, "matchPath", routeMatchPathField, record.matchPath),
     recordRouteTextField(rowId, "matchPrefix", routeMatchPrefixField, ""),
     recordRouteEnumField(rowId, "targetProfile", routeTargetProfileField, record.targetProfile),
-    recordRouteReferenceField(
-      rowId,
-      "appInstall",
-      routeAppInstallField,
-      record.appInstall,
-      routeAppInstallOptions,
-    ),
     recordRouteEnumField(rowId, "surface", routeSurfaceField, record.surface),
     recordRouteEnumField(rowId, "access", routeAccessField, record.access),
     recordRouteReferenceField(

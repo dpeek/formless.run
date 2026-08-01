@@ -2,26 +2,12 @@ import {
   INSTANCE_ARCHIVE_KIND,
   archiveMediaObjects,
   parsePortableArchive,
-  type AppArchiveData,
   type InstanceArchiveControlPlane,
   type PortableArchive,
 } from "../program/archive.ts";
-import {
-  installedAppStorageIdentity,
-  type InstalledAppStorageIdentity,
-} from "../shared/app-storage-identity.ts";
-import type { AppInstall } from "@dpeek/formless-installed-apps";
-import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
-import type { StorageSnapshot } from "@dpeek/formless-storage";
 import { type BootstrapResponse } from "../shared/protocol.ts";
 import {
-  instanceControlPlaneAppInstallsFromRecords,
-  instanceControlPlaneRecordsForAppInstall,
-} from "@dpeek/formless-instance-control-plane";
-import { formlessProgramSchema } from "../program/runtime.ts";
-import {
   FORMLESS_PROGRAM_API_ROUTE_PREFIX,
-  FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
 } from "../program/target.ts";
 import {
@@ -34,28 +20,15 @@ import {
 } from "./archive-restore.ts";
 import { authorizeInstanceWrite, type AuthorityAdminGuardEnv } from "./authority-admin-guard.ts";
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
-import { readControlPlaneAppInstallsForRequest } from "./instance-app-installs.ts";
-import { readControlPlaneRecords } from "./deployment-control-plane-client.ts";
-import {
-  activeAppPackageResolver,
-  activeWorkerSourceSchemas,
-  listActiveAppPackages,
-  type ActiveRuntimeAppPackageEnv,
-} from "./runtime-app-packages.ts";
 import { mediaObjectStoreFromR2Bucket } from "@dpeek/formless-media/worker";
-import {
-  APP_DOCUMENT_MEDIA_KEY_PREFIX,
-  CORE_IMAGE_KEY_PREFIX,
-  PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX,
-} from "@dpeek/formless-media";
+import { CORE_IMAGE_KEY_PREFIX, PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX } from "@dpeek/formless-media";
 
 export const INSTANCE_ARCHIVE_RESTORE_API_PATH = "/api/formless/archive/restore";
 
-type InstanceArchiveApiEnv = AuthorityAdminGuardEnv &
-  ActiveRuntimeAppPackageEnv & {
-    FORMLESS_AUTHORITY: DurableObjectNamespace;
-    FORMLESS_MEDIA: R2Bucket;
-  };
+type InstanceArchiveApiEnv = AuthorityAdminGuardEnv & {
+  FORMLESS_AUTHORITY: DurableObjectNamespace;
+  FORMLESS_MEDIA: R2Bucket;
+};
 
 type ArchiveRestoreRequest = {
   archive: unknown;
@@ -106,11 +79,9 @@ export async function handleInstanceArchiveDurableObjectRequest(
       );
     }
 
-    const packageResolver = activeAppPackageResolver(env);
     const body = parseArchiveRestoreRequest(await readJson(request));
-    const archive = parsePortableArchive(body.archive, { packageResolver });
+    const archive = parsePortableArchive(body.archive);
     const mediaFilesByPath = new Map(body.mediaFiles.map((file) => [file.archivePath, file]));
-    const existingInstalls = await readControlPlaneAppInstallsForRequest(env, request.url);
     const target = archiveRestoreApiTarget(request, env, mediaFilesByPath);
 
     if (body.exactInstanceReplacement && archive.kind !== INSTANCE_ARCHIVE_KIND) {
@@ -130,9 +101,8 @@ export async function handleInstanceArchiveDurableObjectRequest(
       : await applyPortableArchiveRestore(archive, target);
 
     if (result.ok && body.exactInstanceReplacement && !archive.restorePolicy.dryRun) {
-      await applyExactInstanceReplacement(request, env, {
+      await applyExactInstanceReplacement(env, {
         archive,
-        existingInstalls,
       });
     }
 
@@ -147,10 +117,8 @@ function archiveRestoreApiTarget(
   env: InstanceArchiveApiEnv,
   mediaFilesByPath: Map<string, ArchiveRestoreMediaRead>,
 ): ArchiveRestoreApplyTarget {
-  const packageResolver = activeAppPackageResolver(env);
-
   return {
-    listInstalledApps: () => readControlPlaneAppInstallsForRequest(env, request.url),
+    listInstalledApps: () => [],
     media: {
       listFiles: async () => [...mediaFilesByPath.values()],
       readFile: async (archivePath) => mediaFilesByPath.get(archivePath),
@@ -168,104 +136,36 @@ function archiveRestoreApiTarget(
           bytes,
         ),
     },
-    restoreAppData: async ({ data, identity }) =>
-      restoreAppDataViaAuthority(request, env, data, identity),
+    restoreAppData: async () => {
+      throw new Error("Installed app archive data is not a Program restore target.");
+    },
     restoreControlPlane: async (controlPlane) => {
       await restoreControlPlaneViaAuthority(request, env, controlPlane);
     },
-    restoreInstall: ({ action, install }) =>
-      restoreInstallViaControlPlane(request, env, { action, install }),
-    packageResolver,
-    packages: listActiveAppPackages(env),
-    sourceSchemas: activeWorkerSourceSchemas(env),
+    restoreInstall: () => undefined,
+    packages: [],
+    sourceSchemas: {},
   };
 }
 
 async function applyExactInstanceReplacement(
-  request: Request,
   env: InstanceArchiveApiEnv,
   input: {
     archive: PortableArchive;
-    existingInstalls: AppInstall[];
   },
 ): Promise<void> {
   if (input.archive.kind !== INSTANCE_ARCHIVE_KIND) {
     return;
   }
 
-  const archiveInstallIds = new Set(input.archive.apps.map((app) => app.app.installId));
-  const sourceSchemas = activeWorkerSourceSchemas(env);
-  const packageResolver = activeAppPackageResolver(env);
-  const removedInstallSnapshots = input.existingInstalls
-    .filter((install) => !archiveInstallIds.has(install.installId))
-    .map((install) =>
-      emptySnapshotForRemovedInstall({
-        install,
-        packageResolver,
-        sourceSchemas,
-        timestamp: input.archive.exportedAt,
-      }),
-    );
-
-  for (const snapshot of removedInstallSnapshots) {
-    await restoreAppDataViaAuthority(request, env, snapshot.data, snapshot.identity);
-  }
-
   await pruneCoreMediaObjects(env.FORMLESS_MEDIA, archiveCoreMediaKeys(input.archive));
-}
-
-function emptySnapshotForRemovedInstall(input: {
-  install: AppInstall;
-  packageResolver: ReturnType<typeof activeAppPackageResolver>;
-  sourceSchemas: Partial<Record<string, StorageSnapshot["schema"]>>;
-  timestamp: string;
-}): { data: AppArchiveData; identity: InstalledAppStorageIdentity } {
-  const identity = installedAppStorageIdentity(
-    {
-      installId: input.install.installId,
-      packageAppKey: input.install.packageAppKey,
-    },
-    input.packageResolver,
-  );
-
-  if (!identity) {
-    throw new Error(
-      `Removed install "${input.install.installId}" does not resolve to installed app storage.`,
-    );
-  }
-
-  const schema = input.sourceSchemas[identity.sourceSchemaKey];
-
-  if (!schema) {
-    throw new Error(
-      `Removed install "${input.install.installId}" source schema "${identity.sourceSchemaKey}" is unavailable.`,
-    );
-  }
-
-  return {
-    data: {
-      kind: STORAGE_SNAPSHOT_KIND,
-      version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: identity.authorityName,
-      schemaKey: identity.sourceSchemaKey,
-      exportedAt: input.timestamp,
-      schemaUpdatedAt: input.timestamp,
-      sourceCursor: 0,
-      schema,
-      records: [],
-    },
-    identity,
-  };
 }
 
 async function pruneCoreMediaObjects(
   bucket: R2Bucket,
   desiredStorageKeys: ReadonlySet<string>,
 ): Promise<void> {
-  const prefixes = [
-    mediaKeyPrefix(APP_DOCUMENT_MEDIA_KEY_PREFIX),
-    mediaKeyPrefix(PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX),
-  ];
+  const prefixes = [mediaKeyPrefix(PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX)];
   const keysToDelete: string[] = [];
   for (const prefix of prefixes) {
     let cursor: string | undefined;
@@ -299,7 +199,6 @@ function archiveCoreMediaKeys(archive: PortableArchive): ReadonlySet<string> {
   const keys = new Set<string>();
   const prefixes = [
     mediaKeyPrefix(CORE_IMAGE_KEY_PREFIX),
-    mediaKeyPrefix(APP_DOCUMENT_MEDIA_KEY_PREFIX),
     mediaKeyPrefix(PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX),
   ];
 
@@ -314,60 +213,6 @@ function archiveCoreMediaKeys(archive: PortableArchive): ReadonlySet<string> {
 
 function mediaKeyPrefix(prefix: string): string {
   return prefix.endsWith("/") ? prefix : `${prefix}/`;
-}
-
-async function restoreInstallViaControlPlane(
-  request: Request,
-  env: InstanceArchiveApiEnv,
-  input: { action: "create" | "replace"; install: AppInstall },
-): Promise<void> {
-  const packageResolver = activeAppPackageResolver(env);
-  const records = (await readControlPlaneRecords({ env, requestUrl: request.url })) ?? [];
-  const existing = instanceControlPlaneAppInstallsFromRecords(records, packageResolver).find(
-    (install) => install.installId === input.install.installId,
-  );
-
-  if (input.action === "create" && existing) {
-    throw new Error(`Install id "${input.install.installId}" is already installed.`);
-  }
-
-  if (input.action === "replace" && !existing) {
-    throw new Error(`Install id "${input.install.installId}" is not installed.`);
-  }
-
-  if (existing && existing.packageAppKey !== input.install.packageAppKey) {
-    throw new Error(
-      `Install id "${input.install.installId}" uses package "${existing.packageAppKey}", not "${input.install.packageAppKey}".`,
-    );
-  }
-
-  const nextRecords = records
-    .filter((record) => record.deletedAt === undefined)
-    .filter(
-      (record) =>
-        record.id !== input.install.installId &&
-        !(
-          record.entity === "route" &&
-          record.values.appInstall === input.install.installId &&
-          record.values.matchHost === undefined
-        ),
-    );
-  const now = input.install.updatedAt || input.install.createdAt;
-
-  await restoreControlPlaneViaAuthority(request, env, {
-    kind: STORAGE_SNAPSHOT_KIND,
-    version: STORAGE_SNAPSHOT_VERSION,
-    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
-    schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
-    exportedAt: now,
-    schemaUpdatedAt: now,
-    sourceCursor: 0,
-    schema: formlessProgramSchema,
-    records: [
-      ...nextRecords,
-      ...instanceControlPlaneRecordsForAppInstall({ install: input.install, now }),
-    ],
-  });
 }
 
 async function restoreControlPlaneViaAuthority(
@@ -393,36 +238,6 @@ async function restoreControlPlaneViaAuthority(
     return JSON.parse(text) as BootstrapResponse;
   } catch {
     throw new Error("Failed control-plane restore: response was not JSON.");
-  }
-}
-
-async function restoreAppDataViaAuthority(
-  request: Request,
-  env: InstanceArchiveApiEnv,
-  data: AppArchiveData,
-  identity: InstalledAppStorageIdentity,
-): Promise<BootstrapResponse> {
-  const id = env.FORMLESS_AUTHORITY.idFromName(identity.authorityName);
-  const url = new URL(`${identity.apiRoutePrefix}/snapshot/restore`, request.url);
-  const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
-    new Request(url, {
-      body: JSON.stringify(data),
-      headers: archiveRestoreForwardHeaders(request.headers),
-      method: "POST",
-    }),
-  );
-  const text = await response.text();
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed app data restore for "${identity.installId}": HTTP ${response.status} ${text}`,
-    );
-  }
-
-  try {
-    return JSON.parse(text) as BootstrapResponse;
-  } catch {
-    throw new Error(`Failed app data restore for "${identity.installId}": response was not JSON.`);
   }
 }
 

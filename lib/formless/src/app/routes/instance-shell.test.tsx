@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { InstallableAppPackage } from "@dpeek/formless-installed-apps";
-import { bundledSourceSchemaHashFixtures } from "../../shared/upgrade-migrations.ts";
 import {
-  instanceShellUninitializedWorkspaceInstallState,
   operationPollsAutomatically,
   selectWorkspaceGatewayOperationControls,
 } from "./instance-shell.tsx";
@@ -13,20 +10,6 @@ import {
 } from "@dpeek/formless-workspace";
 
 describe("instance shell route view", () => {
-  it("uses fetched active registry packages for uninitialized workspace install state", () => {
-    const privateSite = privateSitePackage();
-    const { state } = instanceShellUninitializedWorkspaceInstallState({
-      installs: [],
-      packages: [privateSite],
-    });
-    expect(state.installs).toEqual([]);
-    expect(state.packages).toEqual([privateSite]);
-    expect(state.packages[0]).toMatchObject({
-      packageAppKey: "private-site",
-      sourceOrigin: "workspace",
-    });
-  });
-
   it("selects browser operation controls from gateway bindings and runtime capabilities", () => {
     expect(selectWorkspaceGatewayOperationControls().map((control) => control.kind)).toEqual([
       "check",
@@ -142,25 +125,5 @@ function workspaceOperation(
     version: 1,
     workspace: { label: "personal-sites" },
     ...overrides,
-  };
-}
-
-function privateSitePackage(): InstallableAppPackage {
-  return {
-    adminRouteBase: "/apps",
-    defaultInstallId: "private-site",
-    description: "Workspace-linked package.",
-    label: "Private Site",
-    packageAppKey: "private-site",
-    packageRevision: 7,
-    sourceOrigin: "workspace",
-    sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
-    sourceSchemaKey: "private-site",
-    sourceSchemaLocation: {
-      kind: "workspace",
-      key: "private-site",
-      path: "source/schema.json",
-    },
-    supportsMultipleInstalls: false,
   };
 }

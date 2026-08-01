@@ -15,7 +15,6 @@ import {
   matchRuntimeRouteBase,
   parseRuntimeProfileKind,
   parseRuntimeRouteAccess,
-  parseRuntimeRouteRequiredRole,
   publishedSiteRedirectLocation,
   resolveRuntimeProfileKind,
   runtimeRouteFromBase,
@@ -30,7 +29,6 @@ describe("runtime topology", () => {
   it("parses the shared runtime profile vocabulary", () => {
     expect(parseRuntimeProfileKind("instance")).toBe("instance");
     expect(parseRuntimeProfileKind("dev")).toBe("dev");
-    expect(parseRuntimeProfileKind("app")).toBe("app");
     expect(parseRuntimeProfileKind("siteAuthoring")).toBeUndefined();
     expect(parseRuntimeProfileKind("publishedSite")).toBe("publishedSite");
     expect(parseRuntimeProfileKind("")).toBeUndefined();
@@ -72,14 +70,10 @@ describe("runtime topology", () => {
     expect(effectiveRuntimeRouteAccess({ routeAccess: "anonymous", screenAccess: "owner" })).toBe(
       "owner",
     );
-    expect(parseRuntimeRouteRequiredRole("app.admin")).toBe("app.admin");
-    expect(parseRuntimeRouteRequiredRole("app.viewer")).toBeUndefined();
-    expect(parseRuntimeRouteRequiredRole(undefined)).toBeUndefined();
   });
 
   it("infers profile kinds from current host conventions", () => {
     expect(runtimeProfileKindFromHost("instance.formless.local")).toBe("instance");
-    expect(runtimeProfileKindFromHost("app.formless.local")).toBe("app");
     expect(runtimeProfileKindFromHost("site-authoring.formless.local")).toBeUndefined();
     expect(runtimeProfileKindFromHost("published-site.formless.local")).toBe("publishedSite");
     expect(runtimeProfileKindFromHost("FORMLESS.TWITCHY.WORKERS.DEV")).toBe("publishedSite");
@@ -94,7 +88,6 @@ describe("runtime topology", () => {
         profile: "instance",
       }),
     ).toBe("instance");
-    expect(resolveRuntimeProfileKind({ hostname: "app.formless.local" })).toBe("app");
     expect(resolveRuntimeProfileKind({ hostname: "formless.local" })).toBe("dev");
     expect(resolveRuntimeProfileKind({ fallback: "instance", profile: "missing" })).toBe(
       "instance",
@@ -105,23 +98,14 @@ describe("runtime topology", () => {
     expect(runtimeRoutePolicyForProfileKind("instance")).toEqual({
       instanceBrowserRoutes: true,
       installedAppApiRoutes: true,
-      installedAppBrowserRoutes: true,
       accountSessionBrowserRoutes: true,
       workspaceGatewayApiRoutes: true,
     });
     expect(runtimeRoutePolicyForProfileKind("dev")).toEqual({
       instanceBrowserRoutes: true,
       installedAppApiRoutes: true,
-      installedAppBrowserRoutes: true,
       accountSessionBrowserRoutes: true,
       workspaceGatewayApiRoutes: true,
-    });
-    expect(runtimeRoutePolicyForProfileKind("app")).toMatchObject({
-      instanceBrowserRoutes: false,
-      installedAppApiRoutes: true,
-      installedAppBrowserRoutes: false,
-      accountSessionBrowserRoutes: false,
-      workspaceGatewayApiRoutes: false,
     });
     expect(runtimeRoutePolicyForProfileKind("publishedSite")).toMatchObject({
       accountSessionBrowserRoutes: true,
@@ -129,9 +113,8 @@ describe("runtime topology", () => {
     });
   });
 
-  it("owns installed admin and Program public Site route constants", () => {
+  it("owns Program and public Site route constants", () => {
     expect(runtimeTopologyRoutes.accessRoute).toBe("/access");
-    expect(runtimeTopologyRoutes.appRouteBase).toBe("/apps");
     expect(runtimeTopologyRoutes.authAccountRoute).toBe("/formless/auth");
     expect(runtimeTopologyRoutes.authAccountGateRoutePattern).toBe("/formless/auth/*");
     expect(runtimeTopologyRoutes.authAccountSetupRoute).toBe("/formless/auth/setup");
@@ -140,12 +123,10 @@ describe("runtime topology", () => {
     expect(runtimeTopologyRoutes.publicSiteHomeSlug).toBe("home");
     expect(runtimeTopologyRoutes.publicSitePreviewRouteBase).toBe("/pages");
     expect(runtimeAuthAccountGateRoutes).toEqual({
-      appRegistration: "/formless/auth/app-registration",
       credential: "/formless/auth/credential",
       emailVerification: "/formless/auth/email-verification",
       invitation: "/formless/auth/invitation",
       profileCompletion: "/formless/auth/profile-completion",
-      roleReview: "/formless/auth/role-review",
       termsAcceptance: "/formless/auth/terms-acceptance",
     });
   });
@@ -188,14 +169,12 @@ describe("runtime topology", () => {
     expect(isRuntimeClientShellRoute("/formless/auth/sign-in")).toBe(true);
     expect(isRuntimeClientShellRoute("/formless/auth/setup")).toBe(true);
     expect(isRuntimeClientShellRoute("/formless/auth/invitations/accept")).toBe(true);
-    expect(isRuntimeClientShellRoute("/apps/personal")).toBe(true);
     expect(isRuntimeClientShellRoute("/local-session")).toBe(true);
     expect(isRuntimeClientShellRoute("/login")).toBe(false);
     expect(isRuntimeClientShellRoute("/setup")).toBe(false);
     expect(isRuntimeClientShellRoute("/rates")).toBe(false);
     expect(isRuntimeClientShellRoute("/blog")).toBe(false);
 
-    expect(isRuntimePublishedProfileClientShellRoute("/apps/personal")).toBe(true);
     expect(isRuntimePublishedProfileClientShellRoute("/formless/auth")).toBe(true);
     expect(isRuntimePublishedProfileClientShellRoute("/formless/auth/profile-completion")).toBe(
       true,
@@ -219,7 +198,6 @@ describe("runtime topology", () => {
     expect(isRuntimeInstanceProfileClientShellRoute("/formless/auth/sign-in")).toBe(true);
     expect(isRuntimeInstanceProfileClientShellRoute("/formless/auth/setup")).toBe(true);
     expect(isRuntimeInstanceProfileClientShellRoute("/deployments")).toBe(true);
-    expect(isRuntimeInstanceProfileClientShellRoute("/apps/personal")).toBe(true);
     expect(isRuntimeInstanceProfileClientShellRoute("/tasks")).toBe(true);
     expect(isRuntimeInstanceProfileClientShellRoute("/pages/home")).toBe(false);
     expect(isRuntimeAuthAccountRoutePath("/formless/auth")).toBe(true);

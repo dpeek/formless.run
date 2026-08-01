@@ -1,6 +1,5 @@
 import { createHash, generateKeyPairSync, type KeyObject } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
-import type { WebSocketEventMap } from "miniflare";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,20 +13,11 @@ import {
   IDENTITY_COLLABORATOR_INVITATIONS_API_PATH,
   IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX,
 } from "@dpeek/formless-identity-control-plane";
-import type { AppSchema } from "@dpeek/formless-schema";
-
-import {
-  FORMLESS_RUNTIME_APP_INSTALL_ID_META_NAME,
-  FORMLESS_RUNTIME_PACKAGE_APP_KEY_META_NAME,
-  FORMLESS_RUNTIME_PROFILE_META_NAME,
-} from "../app/runtime-profile.ts";
 import { runtimeTopologyRoutes } from "../shared/runtime-topology.ts";
 import {
   COLLABORATOR_INVITATION_ACCEPT_PATH,
   accountRedirectLocationForRoute,
-  type AccountCompletionGateTarget,
 } from "../shared/instance-auth.ts";
-import type { SyncSocketServerMessage } from "../shared/protocol.ts";
 import type { EmailDeliveryRenderedMessage } from "../shared/email-runtime.ts";
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { INTERNAL_RESET_INSTANCE_DOMAIN_MAPPINGS_PATH } from "./instance-domain-mappings.ts";
@@ -43,20 +33,12 @@ import {
 } from "./instance-auth-handoff.ts";
 import {
   instanceControlPlaneTestStorageSnapshot,
-  recordOperationRequest,
   operationWriteRequest,
   restoreTestStorageSnapshot,
-  schemaAppTestStorageSnapshot,
 } from "../test/authority-write.ts";
 import { ensureTestIdentityOwner } from "../test/identity-owner.ts";
 import { identityControlPlaneEntityNames } from "@dpeek/formless-identity-control-plane";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
-import {
-  FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
-  formatRuntimeWorkspaceAppPackages,
-} from "../shared/workspace-runtime-packages.ts";
-import { siteSourceSchema } from "../test/schema-apps.ts";
-import { runtimeWorkspaceTaskAppPackageFixture } from "../test/workspace-app-package.ts";
 import type {
   PublicKeyCredentialCreationOptionsJSON,
   RegistrationResponseJSON,
@@ -70,15 +52,8 @@ type DispatchFetchInit = Parameters<Harness["mf"]["dispatchFetch"]>[1];
 const adminToken = "test-admin-token";
 const controlPlaneApi = "/api/formless/program";
 const programAdministratorRoleId = "role_04144de6-7927-49f2-826a-cdcc70c47357";
-const createAppInstallOperation = `${controlPlaneApi}/operations/app-install/createAppInstall`;
 const mappedHost = "www.example.com";
-const mappedAppHost = "tasks.example.com";
 const mappedInstanceHost = "admin.example.com";
-const installId = "personal";
-const privateSitePackageAppKey = "private-site";
-const privateSiteInstallId = "private-site";
-const taskPackageAppKey = "test-tasks";
-const taskInstallId = "task-workspace";
 const setupToken = "abcDEF0123456789_-abcDEF0123456789_-";
 
 let harness: Harness;
@@ -176,140 +151,6 @@ describe("instance custom-domain Worker routing", () => {
     });
   });
 
-  it("serves an anonymous app profile custom host with installed app document hints", async () => {
-    await resetWorkerState(harness, ["controlPlane", "taskStorage"]);
-    await setupMappedApp({ access: "anonymous" });
-    assetRequests = [];
-
-    const home = await fetchHost(mappedAppHost, "/", {
-      headers: { Accept: "text/html" },
-    });
-    const schema = await fetchHost(mappedAppHost, "/schema", {
-      headers: { Accept: "text/html" },
-    });
-    const schemaKeyApi = await fetchHost(mappedAppHost, "/api/tasks/bootstrap");
-    const installApi = await fetchHost(
-      mappedAppHost,
-      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
-      { headers: adminHeaders() },
-    );
-    const homeHtml = await home.text();
-    const schemaHtml = await schema.text();
-
-    expect(home.status).toBe(200);
-    expect(homeHtml).toContain(
-      `<meta name="${FORMLESS_RUNTIME_PROFILE_META_NAME}" content="app" />`,
-    );
-    expect(homeHtml).toContain(
-      `<meta name="${FORMLESS_RUNTIME_APP_INSTALL_ID_META_NAME}" content="${taskInstallId}" />`,
-    );
-    expect(homeHtml).toContain(
-      `<meta name="${FORMLESS_RUNTIME_PACKAGE_APP_KEY_META_NAME}" content="${taskPackageAppKey}" />`,
-    );
-    expect(homeHtml).not.toContain("Personal custom-domain home");
-    expect(schema.status).toBe(200);
-    expect(schemaHtml).toContain(
-      `<meta name="${FORMLESS_RUNTIME_PROFILE_META_NAME}" content="app" />`,
-    );
-    expect(schemaKeyApi.status).toBe(404);
-    expect(installApi.status).toBe(200);
-    expect(assetRequests).toEqual(["/index.html", "/index.html"]);
-  });
-
-  it("starts owner auth account handoff for mapped app hosts", async () => {
-    await resetWorkerState(harness, ["controlPlane", "auth"]);
-    await setupPrimaryProductionIdentity();
-    await setupMappedApp();
-    assetRequests = [];
-
-    const response = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: { Accept: "text/html" },
-      redirect: "manual",
-    });
-    const location = requiredHeader(response, "Location");
-    const handoffUrl = new URL(location);
-    const mappedAppRouteId = routeRecordIds.get(`route:host:app:${mappedAppHost}`);
-
-    expect(response.status).toBe(302);
-    expect(handoffUrl.origin).toBe("https://www.example.com");
-    expect(handoffUrl.pathname).toBe(runtimeTopologyRoutes.authAccountRoute);
-    expect(handoffUrl.searchParams.get("targetOrigin")).toBe(`https://${mappedAppHost}`);
-    expect(handoffUrl.searchParams.get("routeId")).toBe(mappedAppRouteId);
-    expect(handoffUrl.searchParams.get("targetProfile")).toBe("app");
-    expect(handoffUrl.searchParams.get("appInstallId")).toBe(taskInstallId);
-    expect(handoffUrl.searchParams.get("storageIdentity")).toBe(`app:${taskInstallId}`);
-    expect(handoffUrl.searchParams.get("returnTo")).toBe("/schema?view=board");
-    expect(handoffUrl.searchParams.get("nonceHash")).toMatch(/^[A-Za-z0-9_-]+$/);
-    expect(handoffUrl.searchParams.get("state")).toMatch(/^[A-Za-z0-9_-]+$/);
-    expect(response.headers.get("Set-Cookie")).toContain(`${HOST_AUTH_NONCE_COOKIE_NAME}=`);
-    expect(response.headers.get("Set-Cookie")).toContain("HttpOnly");
-    expect(response.headers.get("Set-Cookie")).toContain("SameSite=Lax");
-    expect(response.headers.get("Set-Cookie")).toContain("Secure");
-    expect(assetRequests).toEqual([]);
-  });
-
-  it("issues owner handoff grants on the auth origin after owner authority", async () => {
-    await resetWorkerState(harness, ["controlPlane", "auth"]);
-    await setupPrimaryProductionIdentity();
-    await setupMappedApp();
-
-    const owner = await ensureTestIdentityOwner(harness, adminToken, {
-      name: "Owner Example",
-    });
-    const sessionCookie = await createCentralAuthSessionCookieForPrincipal(owner.id);
-    const start = await fetchHost(mappedAppHost, "/", {
-      headers: { Accept: "text/html" },
-      redirect: "manual",
-    });
-    const startLocation = requiredHeader(start, "Location");
-    const unauthenticated = await harness.mf.dispatchFetch(startLocation, {
-      headers: { Accept: "text/html" },
-      redirect: "manual",
-    });
-    const missingHandoffSessionUrl = new URL(
-      `${INSTANCE_AUTH_HANDOFF_START_PATH}${new URL(startLocation).search}`,
-      startLocation,
-    );
-    const missingHandoffSession = await harness.mf.dispatchFetch(
-      missingHandoffSessionUrl.toString(),
-      {
-        headers: { Accept: "application/json" },
-        redirect: "manual",
-      },
-    );
-    const missingHandoffSessionBody = (await missingHandoffSession.json()) as {
-      error?: string;
-    };
-    const {
-      account: authenticated,
-      grant,
-      handoffUrl,
-    } = await issueHandoffGrantFromAuthAccount(startLocation, sessionCookie);
-    const callbackUrl = new URL(requiredHeader(grant, "Location"), startLocation);
-    const startUrl = new URL(startLocation);
-
-    expect(unauthenticated.status).toBe(302);
-    expect(unauthenticated.headers.get("Location")).toBe(
-      accountRedirectLocationForRoute(
-        `${runtimeTopologyRoutes.authAccountRoute}${startUrl.search}`,
-      ),
-    );
-    expect(missingHandoffSession.status).toBe(401);
-    expect(missingHandoffSession.headers.get("Location")).toBeNull();
-    expect(missingHandoffSessionBody.error).toBe("Authenticated account session is required.");
-
-    expect(authenticated.status).toBe(302);
-    expect(handoffUrl.pathname).toBe(INSTANCE_AUTH_HANDOFF_START_PATH);
-    expect(handoffUrl.search).toBe(startUrl.search);
-    expect(grant.status).toBe(302);
-    expect(callbackUrl.origin).toBe(`https://${mappedAppHost}`);
-    expect(callbackUrl.pathname).toBe(INSTANCE_AUTH_HANDOFF_CALLBACK_PATH);
-    expect(callbackUrl.searchParams.get("grantId")).toMatch(/^[A-Za-z0-9_-]+$/);
-    expect(callbackUrl.searchParams.get("grantSecret")).toMatch(/^[A-Za-z0-9_-]+$/);
-    expect(callbackUrl.searchParams.get("state")).toBe(startUrl.searchParams.get("state"));
-    expect(requiredHeader(grant, "Location")).not.toContain("nonceHash=");
-  });
-
   it("continues same-origin Workers.dev instance targets without exact-host routes", async () => {
     await withWorkersDevAuthHarness(async (deploymentOrigin) => {
       await resetWorkerState(harness, ["controlPlane", "auth"]);
@@ -342,137 +183,6 @@ describe("instance custom-domain Worker routing", () => {
       );
       expect(authenticated.status).toBe(302);
       expect(authenticated.headers.get("Location")).toBe("/");
-    });
-  });
-
-  it("continues owner-protected hostless installed apps on the instance profile", async () => {
-    await withWorkersDevAuthHarness(async (deploymentOrigin) => {
-      await resetWorkerState(harness, ["controlPlane", "auth", "taskStorage"]);
-
-      await configureHarnessAuth(deploymentOrigin);
-      await setupTaskAppInstall();
-
-      const returnTo = `/apps/${taskInstallId}`;
-      const accountPath = `${runtimeTopologyRoutes.authAccountRoute}?returnTo=${encodeURIComponent(returnTo)}`;
-      const owner = await ensureTestIdentityOwner(harness, adminToken, {
-        name: "Hostless App Owner",
-      });
-      const centralCookie = await createCentralAuthSessionCookieForPrincipal(
-        owner.id,
-        deploymentOrigin,
-      );
-      const unauthenticated = await harness.mf.dispatchFetch(`${deploymentOrigin}${accountPath}`, {
-        headers: { Accept: "text/html" },
-        redirect: "manual",
-      });
-      const authenticated = await harness.mf.dispatchFetch(`${deploymentOrigin}${accountPath}`, {
-        headers: { Accept: "text/html", Cookie: centralCookie },
-        redirect: "manual",
-      });
-
-      expect(unauthenticated.status).toBe(302);
-      expect(unauthenticated.headers.get("Location")).toBe(
-        accountRedirectLocationForRoute(accountPath),
-      );
-      expect(authenticated.status).toBe(302);
-      expect(authenticated.headers.get("Location")).toBe(returnTo);
-    });
-  });
-
-  it("continues install-scoped app admins to nested generated app screens", async () => {
-    await withWorkersDevAuthHarness(async (deploymentOrigin) => {
-      await resetWorkerState(harness, ["controlPlane", "auth"]);
-
-      await configureHarnessAuth(deploymentOrigin);
-      await postAdminJson("/api/formless/app-installs", {
-        packageAppKey: privateSitePackageAppKey,
-        installId,
-        label: "Personal",
-      });
-      await postAdminJson("/api/formless/app-installs", {
-        packageAppKey: taskPackageAppKey,
-        installId: "verifi",
-        label: "Verifi",
-      });
-
-      const matching = await createAccountReadyPrincipalSessionCookie(
-        "Nested Site App Admin",
-        deploymentOrigin,
-      );
-      await assignIdentityAppRole(matching.principalId, installId);
-      const wrongInstall = await createAccountReadyPrincipalSessionCookie(
-        "Nested Verifi App Admin",
-        deploymentOrigin,
-      );
-      await assignIdentityAppRole(wrongInstall.principalId, "verifi");
-      const ordinary = await createAccountReadyPrincipalSessionCookie(
-        "Nested Ordinary Principal",
-        deploymentOrigin,
-      );
-      const returnTo = `/apps/${installId}/settings`;
-      const accountPath = `${runtimeTopologyRoutes.authAccountRoute}?returnTo=${encodeURIComponent(returnTo)}`;
-
-      const unauthenticated = await harness.mf.dispatchFetch(`${deploymentOrigin}${accountPath}`, {
-        headers: { Accept: "text/html" },
-        redirect: "manual",
-      });
-      const matchingAccount = await harness.mf.dispatchFetch(`${deploymentOrigin}${accountPath}`, {
-        headers: { Accept: "text/html", Cookie: matching.cookie },
-        redirect: "manual",
-      });
-      const matchingBase = await harness.mf.dispatchFetch(`${deploymentOrigin}/apps/${installId}`, {
-        headers: { Accept: "text/html", Cookie: matching.cookie },
-        redirect: "manual",
-      });
-      const matchingNested = await harness.mf.dispatchFetch(`${deploymentOrigin}${returnTo}`, {
-        headers: { Accept: "text/html", Cookie: matching.cookie },
-        redirect: "manual",
-      });
-      const wrongInstallStatus = await harness.mf.dispatchFetch(
-        `${deploymentOrigin}${accountPath}`,
-        {
-          headers: { Accept: "application/json", Cookie: wrongInstall.cookie },
-          redirect: "manual",
-        },
-      );
-      const ordinaryStatus = await harness.mf.dispatchFetch(`${deploymentOrigin}${accountPath}`, {
-        headers: { Accept: "application/json", Cookie: ordinary.cookie },
-        redirect: "manual",
-      });
-      const wrongInstallBody = (await wrongInstallStatus.json()) as {
-        gate?: {
-          kind?: string;
-          roleKey?: string;
-          scopeKind?: string;
-        };
-      };
-      const ordinaryBody = (await ordinaryStatus.json()) as {
-        gate?: {
-          kind?: string;
-          roleKey?: string;
-          scopeKind?: string;
-        };
-      };
-      expect(unauthenticated.status).toBe(302);
-      expect(unauthenticated.headers.get("Location")).toBe(
-        accountRedirectLocationForRoute(accountPath),
-      );
-      expect(matchingAccount.status).toBe(302);
-      expect(matchingAccount.headers.get("Location")).toBe(returnTo);
-      expect(matchingBase.status).toBe(200);
-      expect(matchingNested.status).toBe(200);
-      expect(wrongInstallStatus.status, JSON.stringify(wrongInstallBody)).toBe(409);
-      expect(wrongInstallBody.gate).toMatchObject({
-        kind: "role-review",
-        roleKey: "app.admin",
-        scopeKind: "app-install",
-      });
-      expect(ordinaryStatus.status, JSON.stringify(ordinaryBody)).toBe(409);
-      expect(ordinaryBody.gate).toMatchObject({
-        kind: "role-review",
-        roleKey: "app.admin",
-        scopeKind: "app-install",
-      });
     });
   });
 
@@ -654,12 +364,11 @@ describe("instance custom-domain Worker routing", () => {
     );
   });
 
-  it("carries an accepted Program administrator invitation into Settings and Access without app authority", async () => {
-    await resetWorkerState(harness, ["controlPlane", "taskStorage", "auth"]);
+  it("carries an accepted Program administrator invitation into Settings and Access", async () => {
+    await resetWorkerState(harness, ["controlPlane", "auth"]);
     await setupPrimaryProductionIdentity();
     await patchRouteRecord("route:primary-production", { access: "management" });
     await configureAuthEmail({ settingsMode: "update", testKey: "program-administrator-journey" });
-    await setupMappedApp({ access: "authenticated", requiredRole: "app.admin" });
 
     const accepted = await inviteAndAcceptCollaborator({
       displayName: "Invited Program Administrator",
@@ -683,26 +392,6 @@ describe("instance custom-domain Worker routing", () => {
       `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}${IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH}`,
       { headers: { Cookie: accepted.cookie } },
     );
-    const registry = await fetchAuth("/api/formless/app-installs", {
-      headers: { Cookie: accepted.cookie },
-    });
-    const registryBody = (await registry.json()) as {
-      installs?: Array<{
-        installId?: string;
-      }>;
-    };
-    const appBootstrap = await fetchAuth(
-      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
-      {
-        headers: { Cookie: accepted.cookie },
-      },
-    );
-    const appSync = await fetchAuth(
-      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/sync?after=0`,
-      {
-        headers: { Cookie: accepted.cookie },
-      },
-    );
     const ownerRecovery = await fetchAuth("/api/formless/setup/capability", {
       body: "not-json",
       headers: {
@@ -716,1398 +405,8 @@ describe("instance custom-domain Worker routing", () => {
     expect(settings.status).toBe(200);
     expect(access.status).toBe(200);
     expect(accessSummary.status).toBe(200);
-    expect(registry.status).toBe(200);
-    expect(registryBody.installs?.map((install) => install.installId)).toContain(taskInstallId);
-    expect(appBootstrap.status).toBe(401);
-    expect(appSync.status).toBe(401);
     expect(ownerRecovery.status).toBe(401);
   }, 10000);
-  it("consumes mapped app auth callbacks into host-local session cookies", async () => {
-    await resetWorkerState(harness, ["controlPlane", "auth"]);
-    await setupPrimaryProductionIdentity();
-    await setupMappedApp();
-    assetRequests = [];
-
-    const owner = await ensureTestIdentityOwner(harness, adminToken, {
-      name: "Callback Owner",
-    });
-    const sessionCookie = await createCentralAuthSessionCookieForPrincipal(owner.id);
-    const start = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: { Accept: "text/html" },
-      redirect: "manual",
-    });
-    const nonceCookie = cookiePair(requiredHeader(start, "Set-Cookie"));
-    const { grant } = await issueHandoffGrantFromAuthAccount(
-      requiredHeader(start, "Location"),
-      sessionCookie,
-    );
-    const callbackLocation = requiredHeader(grant, "Location");
-    const wrongHostUrl = new URL(callbackLocation);
-    const wrongStateUrl = new URL(callbackLocation);
-    const mappedAppRouteId = routeRecordIds.get(`route:host:app:${mappedAppHost}`);
-
-    wrongHostUrl.hostname = "www.example.com";
-    wrongStateUrl.searchParams.set("state", "d3Jvbmc");
-
-    const wrongHost = await harness.mf.dispatchFetch(wrongHostUrl.toString(), {
-      headers: { Cookie: nonceCookie },
-      redirect: "manual",
-    });
-    const wrongState = await harness.mf.dispatchFetch(wrongStateUrl.toString(), {
-      headers: { Cookie: nonceCookie },
-      redirect: "manual",
-    });
-    const wrongNonce = await harness.mf.dispatchFetch(callbackLocation, {
-      headers: { Cookie: `${HOST_AUTH_NONCE_COOKIE_NAME}=wrong` },
-      redirect: "manual",
-    });
-    const callback = await harness.mf.dispatchFetch(callbackLocation, {
-      headers: { Cookie: nonceCookie },
-      redirect: "manual",
-    });
-    const replay = await harness.mf.dispatchFetch(callbackLocation, {
-      headers: { Cookie: nonceCookie },
-      redirect: "manual",
-    });
-    const setCookie = requiredHeader(callback, "Set-Cookie");
-    const hostSessionPayload = signedCookiePayload(setCookie, HOST_AUTH_SESSION_COOKIE_NAME);
-
-    expect(wrongHost.status).toBe(400);
-    expect(wrongState.status).toBe(400);
-    expect(wrongNonce.status).toBe(400);
-    expect(wrongHost.headers.get("Set-Cookie") ?? "").not.toContain(
-      `${HOST_AUTH_SESSION_COOKIE_NAME}=`,
-    );
-    expect(wrongState.headers.get("Set-Cookie") ?? "").not.toContain(
-      `${HOST_AUTH_SESSION_COOKIE_NAME}=`,
-    );
-    expect(wrongNonce.headers.get("Set-Cookie") ?? "").not.toContain(
-      `${HOST_AUTH_SESSION_COOKIE_NAME}=`,
-    );
-
-    expect(callback.status).toBe(302);
-    expect(callback.headers.get("Location")).toBe("/schema?view=board");
-    expect(setCookie).toContain(`${HOST_AUTH_SESSION_COOKIE_NAME}=`);
-    expect(setCookie).toContain(`${HOST_AUTH_NONCE_COOKIE_NAME}=;`);
-    expect(setCookie).toContain("HttpOnly");
-    expect(setCookie).toContain("SameSite=Lax");
-    expect(setCookie).toContain("Secure");
-    expect(hostSessionPayload).toEqual(
-      expect.objectContaining({
-        access: "owner",
-        appInstallId: taskInstallId,
-        instanceId: "www.example.com",
-        principalId: owner.id,
-        purpose: "host-session",
-        routeId: mappedAppRouteId,
-        sessionVersion: 0,
-        storageIdentity: `app:${taskInstallId}`,
-        targetOrigin: `https://${mappedAppHost}`,
-        targetProfile: "app",
-        version: 1,
-      }),
-    );
-    expect(Date.parse(hostSessionPayload.issuedAt as string)).toBeGreaterThan(0);
-    expect(Date.parse(hostSessionPayload.expiresAt as string)).toBeGreaterThan(
-      Date.parse(hostSessionPayload.issuedAt as string),
-    );
-    expect(replay.status).toBe(400);
-    expect(replay.headers.get("Set-Cookie") ?? "").not.toContain(
-      `${HOST_AUTH_SESSION_COOKIE_NAME}=`,
-    );
-    expect(assetRequests).toEqual([]);
-  });
-
-  it("accepts host-local sessions for matched mapped app owner routes and APIs", async () => {
-    await resetWorkerState(harness, ["controlPlane", "taskStorage", "auth"]);
-    await setupPrimaryProductionIdentity();
-    await setupMappedApp();
-
-    const { cookie } = await createMappedAppHostSession("Authorized Host Owner");
-    const writeRequest = recordOperationRequest({
-      idempotencyKey: "host-session-write",
-      entity: "task",
-      operationName: "create",
-      input: { title: "Host session write", done: false },
-    });
-
-    assetRequests = [];
-
-    const shell = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: {
-        Accept: "text/html",
-        Cookie: cookie,
-      },
-      redirect: "manual",
-    });
-    const bootstrap = await fetchHost(
-      mappedAppHost,
-      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
-      {
-        headers: { Cookie: cookie },
-      },
-    );
-    const write = await fetchHost(
-      mappedAppHost,
-      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}${writeRequest.path.slice("/api".length)}`,
-      {
-        body: JSON.stringify(writeRequest.body),
-        headers: {
-          Cookie: cookie,
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-      },
-    );
-    const writeBody = writeRequest.response(await write.json());
-
-    expect(shell.status).toBe(200);
-    expect(bootstrap.status).toBe(200);
-    expect(write.status).toBe(200);
-    expect(writeBody.record.values.title).toBe("Host session write");
-    expect(assetRequests).toEqual(["/index.html"]);
-  });
-
-  it("returns app principals to authorized mapped app targets and forbids unavailable targets", async () => {
-    await resetWorkerState(harness, ["controlPlane", "auth"]);
-    await setupPrimaryProductionIdentity();
-    await setupMappedApp({ access: "authenticated" });
-
-    const principal = await createCompletionReadyPrincipalSessionCookie("Authenticated Principal");
-    const start = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: { Accept: "text/html" },
-      redirect: "manual",
-    });
-    const startLocation = requiredHeader(start, "Location");
-    const { account, grant, handoffUrl } = await issueHandoffGrantFromAuthAccount(
-      startLocation,
-      principal.cookie,
-    );
-    const callbackUrl = new URL(requiredHeader(grant, "Location"), startLocation);
-    const callback = await harness.mf.dispatchFetch(callbackUrl.toString(), {
-      headers: { Cookie: cookiePair(requiredHeader(start, "Set-Cookie")) },
-      redirect: "manual",
-    });
-    const hostSessionCookie = cookiePair(requiredHeader(callback, "Set-Cookie"));
-    const target = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: { Accept: "text/html", Cookie: hostSessionCookie },
-      redirect: "manual",
-    });
-
-    expect(start.status).toBe(302);
-    expect(account.status).toBe(302);
-    expect(handoffUrl.pathname).toBe(INSTANCE_AUTH_HANDOFF_START_PATH);
-    expect(grant.status).toBe(302);
-    expect(callbackUrl.origin).toBe(`https://${mappedAppHost}`);
-    expect(callbackUrl.pathname).toBe(INSTANCE_AUTH_HANDOFF_CALLBACK_PATH);
-    expect(callback.status).toBe(302);
-    expect(callback.headers.get("Location")).toBe("/schema?view=board");
-    expect(target.status).toBe(200);
-
-    await resetWorkerState(harness, ["controlPlane", "auth"]);
-    await setupPrimaryProductionIdentity();
-    await setupMappedApp();
-
-    const ownerOnlyPrincipal = await createActivePrincipalSessionCookie(
-      "Owner Route Non Owner Principal",
-    );
-    const ownerOnlyStart = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: { Accept: "text/html" },
-      redirect: "manual",
-    });
-    const ownerOnlyStartUrl = new URL(requiredHeader(ownerOnlyStart, "Location"));
-    const ownerOnlyAccount = await harness.mf.dispatchFetch(ownerOnlyStartUrl.toString(), {
-      headers: {
-        Accept: "text/html",
-        Cookie: ownerOnlyPrincipal.cookie,
-      },
-      redirect: "manual",
-    });
-    const ownerOnlyStatus = await harness.mf.dispatchFetch(ownerOnlyStartUrl.toString(), {
-      headers: {
-        Accept: "application/json",
-        Cookie: ownerOnlyPrincipal.cookie,
-      },
-      redirect: "manual",
-    });
-    const ownerOnlyStatusBody = (await ownerOnlyStatus.json()) as {
-      principal?: {
-        displayName?: string;
-        principalId?: string;
-      };
-      status?: string;
-    };
-    const handoffStartUrl = new URL(
-      `${INSTANCE_AUTH_HANDOFF_START_PATH}${ownerOnlyStartUrl.search}`,
-      ownerOnlyStartUrl,
-    );
-    const ownerOnlyGrant = await harness.mf.dispatchFetch(handoffStartUrl.toString(), {
-      headers: {
-        Accept: "application/json",
-        Cookie: ownerOnlyPrincipal.cookie,
-      },
-      redirect: "manual",
-    });
-    const ownerOnlyGrantBody = (await ownerOnlyGrant.json()) as {
-      principal?: {
-        principalId?: string;
-      };
-      status?: string;
-    };
-    expect(ownerOnlyAccount.status).toBe(200);
-    expect(ownerOnlyAccount.headers.get("Location")).toBeNull();
-    expect(ownerOnlyStatus.status).toBe(403);
-    expect(ownerOnlyStatusBody).toMatchObject({
-      principal: {
-        displayName: "Owner Route Non Owner Principal",
-        principalId: ownerOnlyPrincipal.principalId,
-      },
-      status: "forbidden",
-    });
-    expect(ownerOnlyGrant.status).toBe(403);
-    expect(ownerOnlyGrantBody).toEqual(ownerOnlyStatusBody);
-    expect(ownerOnlyGrant.headers.get("Location")).toBeNull();
-    expect(ownerOnlyGrant.headers.get("Set-Cookie")).toBeNull();
-    expect(JSON.stringify(ownerOnlyStatusBody)).not.toContain("targetOrigin");
-    expect(JSON.stringify(ownerOnlyStatusBody)).not.toContain("routeId");
-    expect(JSON.stringify(ownerOnlyStatusBody)).not.toContain("storageIdentity");
-    expect(JSON.stringify(ownerOnlyStatusBody)).not.toContain("grant");
-  });
-
-  it("authorizes matching app admins through central and host-local sessions with owner override", async () => {
-    await resetWorkerState(harness, ["controlPlane", "auth"]);
-    await setupPrimaryProductionIdentity();
-    await setupMappedApp({ access: "authenticated", requiredRole: "app.admin" });
-
-    const matching = await createAccountReadyPrincipalSessionCookie("Matching App Admin");
-    const matchingAssignment = await assignIdentityAppRole(matching.principalId, taskInstallId);
-    const ordinary = await createAccountReadyPrincipalSessionCookie("Ordinary App Principal");
-    const owner = await ensureTestIdentityOwner(harness, adminToken, {
-      name: "App Override Owner",
-    });
-    const ownerCookie = await createCentralAuthSessionCookieForPrincipal(owner.id);
-    const start = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: { Accept: "text/html" },
-      redirect: "manual",
-    });
-    const accountUrl = requiredHeader(start, "Location");
-
-    const matchingStatus = await harness.mf.dispatchFetch(accountUrl, {
-      headers: { Accept: "application/json", Cookie: matching.cookie },
-      redirect: "manual",
-    });
-    const ordinaryStatus = await harness.mf.dispatchFetch(accountUrl, {
-      headers: { Accept: "application/json", Cookie: ordinary.cookie },
-      redirect: "manual",
-    });
-    const ownerStatus = await harness.mf.dispatchFetch(accountUrl, {
-      headers: { Accept: "application/json", Cookie: ownerCookie },
-      redirect: "manual",
-    });
-    const ordinaryBody = (await ordinaryStatus.json()) as {
-      gate?: {
-        kind?: string;
-        roleKey?: string;
-        scopeKind?: string;
-      };
-    };
-    const { grant } = await issueHandoffGrantFromAuthAccount(accountUrl, matching.cookie);
-    const callback = await harness.mf.dispatchFetch(requiredHeader(grant, "Location"), {
-      headers: { Cookie: cookiePair(requiredHeader(start, "Set-Cookie")) },
-      redirect: "manual",
-    });
-    const hostCookie = cookiePair(requiredHeader(callback, "Set-Cookie"));
-    const hostShell = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: { Accept: "text/html", Cookie: hostCookie },
-      redirect: "manual",
-    });
-    await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/role-assignment/update`, {
-      idempotencyKey: "revoke-matching-app-admin",
-      recordId: matchingAssignment.id,
-      input: { status: "disabled" },
-    });
-    const revokedHostShell = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: { Accept: "text/html", Cookie: hostCookie },
-      redirect: "manual",
-    });
-
-    expect(matchingStatus.status).toBe(200);
-    expect(ownerStatus.status).toBe(200);
-    expect(ordinaryStatus.status).toBe(409);
-    expect(ordinaryBody.gate).toMatchObject({
-      kind: "role-review",
-      roleKey: "app.admin",
-      scopeKind: "app-install",
-    });
-    expect(callback.status).toBe(302);
-    expect(hostShell.status).toBe(200);
-    expect(revokedHostShell.status).toBe(302);
-    expect(new URL(requiredHeader(revokedHostShell, "Location")).origin).toBe(
-      "https://www.example.com",
-    );
-  });
-
-  it("authorizes installed app HTTP data by current install scope and preserves owner-only controls", async () => {
-    await resetWorkerState(harness, ["controlPlane", "auth"]);
-    await setupPrimaryProductionIdentity();
-    await setupMappedApp({ access: "authenticated", requiredRole: "app.admin" });
-    await postAdminJson("/api/formless/app-installs", {
-      packageAppKey: taskPackageAppKey,
-      installId: "other-workspace",
-      label: "Other Workspace",
-    });
-    const dataApi = `/api/app-installs/${taskPackageAppKey}/${taskInstallId}`;
-    const schemaResponse = await fetchMappedHost(`${dataApi}/schema`, {
-      headers: adminHeaders(),
-    });
-    const schemaBody = (await schemaResponse.json()) as {
-      schema: AppSchema;
-    };
-    const schema = structuredClone(schemaBody.schema);
-    const createOperation = schema.entities
-      .find((definition) => definition.key === "task")
-      ?.operations!.find((definition) => definition.key === "create")!;
-    if (!createOperation) {
-      throw new Error("Expected the installed Tasks schema create operation.");
-    }
-
-    createOperation.policy = { actors: ["admin", "owner"] };
-    const schemaWrite = await fetchMappedHost(`${dataApi}/schema`, {
-      body: JSON.stringify({ schema }),
-      headers: adminHeaders({ "Content-Type": "application/json" }),
-      method: "POST",
-    });
-
-    expect(schemaWrite.status).toBe(200);
-
-    const matching = await createCompletionReadyPrincipalSessionCookie("HTTP Matching App Admin");
-    await assignIdentityAppRole(matching.principalId, taskInstallId);
-    const wrongInstall = await createActivePrincipalSessionCookie("HTTP Wrong App Admin");
-    await assignIdentityAppRole(wrongInstall.principalId, "other-workspace");
-    const programAdministrator = await createInstanceAdminPrincipalSessionCookie(
-      "HTTP Program Administrator",
-    );
-    const ordinary = await createActivePrincipalSessionCookie("HTTP Ordinary Principal");
-    const disabled = await createActivePrincipalSessionCookie("HTTP Disabled Principal");
-    await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal/update`, {
-      idempotencyKey: "disable-http-data-principal",
-      recordId: disabled.principalId,
-      input: { status: "disabled" },
-    });
-    const owner = await ensureTestIdentityOwner(harness, adminToken, {
-      name: "HTTP Data Owner",
-    });
-    const ownerCookie = await createCentralAuthSessionCookieForPrincipal(owner.id);
-
-    const matchingReads = await Promise.all(
-      ["/bootstrap", "/schema", "/sync?after=0"].map((path) =>
-        fetchMappedHost(`${dataApi}${path}`, {
-          headers: { Cookie: matching.cookie },
-        }),
-      ),
-    );
-    const ownerBootstrap = await fetchMappedHost(`${dataApi}/bootstrap`, {
-      headers: { Cookie: ownerCookie },
-    });
-    const deniedBootstraps = await Promise.all(
-      [wrongInstall.cookie, programAdministrator.cookie, ordinary.cookie, disabled.cookie].map(
-        (cookie) =>
-          fetchMappedHost(`${dataApi}/bootstrap`, {
-            headers: { Cookie: cookie },
-          }),
-      ),
-    );
-
-    expect(matchingReads.map((response) => response.status)).toEqual([200, 200, 200]);
-    expect(ownerBootstrap.status).toBe(200);
-    expect(deniedBootstraps.map((response) => response.status)).toEqual([401, 401, 401, 401]);
-
-    const matchingCreate = recordOperationRequest({
-      entity: "task",
-      idempotencyKey: "http-matching-admin-create",
-      input: { done: false, title: "Matching app admin" },
-      operationName: "create",
-    });
-    const matchingCreateResponse = await fetchMappedHost(
-      `${dataApi}${matchingCreate.path.slice("/api".length)}`,
-      {
-        body: JSON.stringify(matchingCreate.body),
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: matching.cookie,
-        },
-        method: "POST",
-      },
-    );
-    const matchingCreateBody = (await matchingCreateResponse.json()) as OperationInvocationResponse;
-    const ownerCreate = recordOperationRequest({
-      entity: "task",
-      idempotencyKey: "http-owner-create",
-      input: { done: false, title: "Owner override" },
-      operationName: "create",
-    });
-    const ownerCreateResponse = await fetchMappedHost(
-      `${dataApi}${ownerCreate.path.slice("/api".length)}`,
-      {
-        body: JSON.stringify(ownerCreate.body),
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: ownerCookie,
-        },
-        method: "POST",
-      },
-    );
-    const ownerCreateBody = (await ownerCreateResponse.json()) as OperationInvocationResponse;
-    const wrongCreate = recordOperationRequest({
-      entity: "task",
-      idempotencyKey: "http-wrong-admin-create",
-      input: { done: false, title: "Wrong app admin" },
-      operationName: "create",
-    });
-    const wrongCreateResponse = await fetchMappedHost(
-      `${dataApi}${wrongCreate.path.slice("/api".length)}`,
-      {
-        body: JSON.stringify(wrongCreate.body),
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: wrongInstall.cookie,
-        },
-        method: "POST",
-      },
-    );
-
-    expect(matchingCreateResponse.status).toBe(200);
-    expect(matchingCreateBody.invocation.actor).toEqual({
-      kind: "admin",
-      principalId: matching.principalId,
-    });
-    expect(ownerCreateResponse.status).toBe(200);
-    expect(ownerCreateBody.invocation.actor).toEqual({ kind: "owner" });
-    expect(wrongCreateResponse.status).toBe(401);
-
-    const hostSession = await createMappedAppHostSessionFromCentralCookie(matching.cookie);
-    const hostBootstrap = await fetchHost(mappedAppHost, `${dataApi}/bootstrap`, {
-      headers: { Cookie: hostSession.cookie },
-    });
-    const hostCreate = recordOperationRequest({
-      entity: "task",
-      idempotencyKey: "http-host-admin-create",
-      input: { done: false, title: "Host app admin" },
-      operationName: "create",
-    });
-    const hostCreateResponse = await fetchHost(
-      mappedAppHost,
-      `${dataApi}${hostCreate.path.slice("/api".length)}`,
-      {
-        body: JSON.stringify(hostCreate.body),
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: hostSession.cookie,
-        },
-        method: "POST",
-      },
-    );
-    const hostCreateBody = (await hostCreateResponse.json()) as OperationInvocationResponse;
-
-    expect(hostBootstrap.status).toBe(200);
-    expect(hostCreateResponse.status).toBe(200);
-    expect(hostCreateBody.invocation.actor).toMatchObject({
-      kind: "admin",
-      principalId: matching.principalId,
-      sessionTarget: {
-        appInstallId: taskInstallId,
-        storageIdentity: `app:${taskInstallId}`,
-        targetOrigin: `https://${mappedAppHost}`,
-      },
-    });
-
-    const deniedControls = await Promise.all([
-      fetchMappedHost(`${dataApi}/snapshot`, {
-        headers: { Cookie: matching.cookie },
-      }),
-      ...["/schema", "/snapshot/restore", "/reset/schema", "/package-migrations/apply"].map(
-        (path) =>
-          fetchMappedHost(`${dataApi}${path}`, {
-            body: "not-json",
-            headers: {
-              "Content-Type": "application/json",
-              Cookie: matching.cookie,
-            },
-            method: "POST",
-          }),
-      ),
-      fetchMappedHost("/api/formless/archive/restore", {
-        body: "not-json",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: matching.cookie,
-        },
-        method: "POST",
-      }),
-      fetchMappedHost("/api/formless/setup/capability", {
-        body: "not-json",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: matching.cookie,
-        },
-        method: "POST",
-      }),
-    ]);
-    expect(deniedControls.map((response) => response.status)).toEqual(
-      deniedControls.map(() => 401),
-    );
-  }, 10000);
-
-  it("authorizes installed app push sync by current principal and exact app target", async () => {
-    await resetWorkerState(harness, ["controlPlane", "taskStorage", "auth"]);
-    await setupPrimaryProductionIdentity();
-    await setupMappedApp({ access: "authenticated", requiredRole: "app.admin" });
-    await postAdminJson("/api/formless/app-installs", {
-      packageAppKey: taskPackageAppKey,
-      installId: "other-workspace",
-      label: "Other Workspace",
-    });
-
-    const matching = await createCompletionReadyPrincipalSessionCookie("Push Matching App Admin");
-    await assignIdentityAppRole(matching.principalId, taskInstallId);
-    const wrongInstall = await createActivePrincipalSessionCookie("Push Wrong App Admin");
-    await assignIdentityAppRole(wrongInstall.principalId, "other-workspace");
-    const programAdministrator = await createInstanceAdminPrincipalSessionCookie(
-      "Push Program Administrator",
-    );
-    const ordinary = await createActivePrincipalSessionCookie("Push Ordinary Principal");
-    const disabled = await createActivePrincipalSessionCookie("Push Disabled Principal");
-    await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal/update`, {
-      idempotencyKey: "disable-push-principal-before-upgrade",
-      recordId: disabled.principalId,
-      input: { status: "disabled" },
-    });
-    const owner = await ensureTestIdentityOwner(harness, adminToken, {
-      name: "Push Owner",
-    });
-    const ownerCookie = await createCentralAuthSessionCookieForPrincipal(owner.id);
-    const syncPath = `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/sync/ws`;
-    const ownerSocket = await openInstalledAppSyncSocket("www.example.com", syncPath, ownerCookie);
-    const matchingSocket = await openInstalledAppSyncSocket(
-      "www.example.com",
-      syncPath,
-      matching.cookie,
-    );
-
-    try {
-      const ownerMessage = readInstalledAppSyncSocketMessage(ownerSocket);
-      const matchingMessage = readInstalledAppSyncSocketMessage(matchingSocket);
-
-      ownerSocket.send(JSON.stringify({ type: "hello", cursor: 0, schemaUpdatedAt: null }));
-      matchingSocket.send(JSON.stringify({ type: "hello", cursor: 0, schemaUpdatedAt: null }));
-
-      await expect(ownerMessage).resolves.toMatchObject({
-        type: "sync",
-        payload: { cursor: expect.any(Number) },
-      });
-      await expect(matchingMessage).resolves.toMatchObject({
-        type: "sync",
-        payload: { cursor: expect.any(Number) },
-      });
-    } finally {
-      ownerSocket.close();
-      matchingSocket.close();
-    }
-
-    const denied = await Promise.all(
-      [wrongInstall.cookie, programAdministrator.cookie, ordinary.cookie, disabled.cookie].map(
-        (cookie) =>
-          fetchHost("www.example.com", syncPath, {
-            headers: { Cookie: cookie, Upgrade: "websocket" },
-          }),
-      ),
-    );
-    const hostSession = await createMappedAppHostSessionFromCentralCookie(matching.cookie);
-    const hostSocket = await openInstalledAppSyncSocket(
-      mappedAppHost,
-      syncPath,
-      hostSession.cookie,
-    );
-    const wrongTarget = await fetchHost(
-      mappedAppHost,
-      `/api/app-installs/${taskPackageAppKey}/other-workspace/sync/ws`,
-      {
-        headers: { Cookie: hostSession.cookie, Upgrade: "websocket" },
-      },
-    );
-
-    hostSocket.close();
-
-    expect(denied.map((response) => response.status)).toEqual([401, 401, 401, 401]);
-    expect(wrongTarget.status).toBe(401);
-  }, 10000);
-
-  it("closes installed app push sockets after authority or session version narrows", async () => {
-    await resetWorkerState(harness, ["controlPlane", "taskStorage", "auth"]);
-    await setupPrimaryProductionIdentity();
-    await setupMappedApp({ access: "authenticated", requiredRole: "app.admin" });
-
-    const syncPath = `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/sync/ws`;
-    const revokedRole =
-      await createCompletionReadyPrincipalSessionCookie("Push Revoked Role Admin");
-    const revokedAssignment = await assignIdentityAppRole(revokedRole.principalId, taskInstallId);
-    const revokedRoleSocket = await openInstalledAppSyncSocket(
-      "www.example.com",
-      syncPath,
-      revokedRole.cookie,
-    );
-
-    await primeInstalledAppSyncSocket(revokedRoleSocket);
-    await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/role-assignment/update`, {
-      idempotencyKey: "revoke-push-role-after-upgrade",
-      recordId: revokedAssignment.id,
-      input: { status: "disabled" },
-    });
-    const revokedRoleClosed = expectInstalledAppSyncSocketClosedWithoutMessage(revokedRoleSocket);
-
-    revokedRoleSocket.send(
-      JSON.stringify({ type: "sync-requested", cursor: 0, schemaUpdatedAt: null }),
-    );
-    await revokedRoleClosed;
-
-    const disabledPrincipal = await createCompletionReadyPrincipalSessionCookie(
-      "Push Later Disabled Admin",
-    );
-    await assignIdentityAppRole(disabledPrincipal.principalId, taskInstallId);
-    const disabledPrincipalSocket = await openInstalledAppSyncSocket(
-      "www.example.com",
-      syncPath,
-      disabledPrincipal.cookie,
-    );
-
-    await primeInstalledAppSyncSocket(disabledPrincipalSocket);
-    await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal/update`, {
-      idempotencyKey: "disable-push-principal-after-upgrade",
-      recordId: disabledPrincipal.principalId,
-      input: { status: "disabled" },
-    });
-    const disabledPrincipalClosed =
-      expectInstalledAppSyncSocketClosedWithoutMessage(disabledPrincipalSocket);
-
-    await postInstalledAppRecordOperation(taskPackageAppKey, taskInstallId, {
-      entity: "task",
-      idempotencyKey: "push-broadcast-after-principal-disable",
-      input: { done: false, title: "No stale push delivery" },
-      operationName: "create",
-    });
-    await disabledPrincipalClosed;
-
-    const versioned = await createCompletionReadyPrincipalSessionCookie(
-      "Push Versioned Host Admin",
-    );
-    await assignIdentityAppRole(versioned.principalId, taskInstallId);
-    const hostSession = await createMappedAppHostSessionFromCentralCookie(versioned.cookie);
-    const versionedSocket = await openInstalledAppSyncSocket(
-      mappedAppHost,
-      syncPath,
-      hostSession.cookie,
-    );
-
-    await primeInstalledAppSyncSocket(versionedSocket);
-    await bumpHarnessHostSessionVersion(hostSession.setCookie);
-    const versionedClosed = expectInstalledAppSyncSocketClosedWithoutMessage(versionedSocket);
-
-    versionedSocket.send(
-      JSON.stringify({ type: "sync-requested", cursor: 0, schemaUpdatedAt: null }),
-    );
-    await versionedClosed;
-  });
-
-  it("narrows accepted app-admin journeys after role removal and principal disabling", async () => {
-    await resetWorkerState(harness, ["controlPlane", "taskStorage", "auth"]);
-    await setupPrimaryProductionIdentity();
-    await patchRouteRecord("route:primary-production", { access: "management" });
-    await configureAuthEmail({ settingsMode: "update", testKey: "app-admin-journey" });
-    await setupMappedApp({ access: "authenticated", requiredRole: "app.admin" });
-    await postAdminJson("/api/formless/app-installs", {
-      packageAppKey: taskPackageAppKey,
-      installId: "other-workspace",
-      label: "Other Workspace",
-    });
-    await allowTaskAdminCreates();
-
-    const removed = await inviteAndAcceptCollaborator({
-      displayName: "Invited App Admin",
-      roleAssignment: {
-        appInstallId: taskInstallId,
-        roleKey: "app.admin",
-        scopeKind: "app-install",
-      },
-      targetAppInstallId: taskInstallId,
-      targetEmail: "invited-app-admin@example.com",
-      targetSurface: "app-install",
-      testKey: "app-admin-journey",
-    });
-    const removedHostSession = await createMappedAppHostSessionFromCentralCookie(removed.cookie);
-    const dataApi = `/api/app-installs/${taskPackageAppKey}/${taskInstallId}`;
-    const centralRegistry = await fetchAuth("/api/formless/app-installs", {
-      headers: { Cookie: removed.cookie },
-    });
-    const centralRegistryBody = (await centralRegistry.json()) as {
-      installs: Array<{
-        installId: string;
-      }>;
-    };
-    const centralSync = await fetchAuth(`${dataApi}/sync?after=0`, {
-      headers: { Cookie: removed.cookie },
-    });
-    const centralCreate = recordOperationRequest({
-      entity: "task",
-      idempotencyKey: "accepted-app-admin-central-create",
-      input: { done: false, title: "Accepted central app admin" },
-      operationName: "create",
-    });
-    const centralCreateResponse = await fetchAuth(
-      `${dataApi}${centralCreate.path.slice("/api".length)}`,
-      {
-        body: JSON.stringify(centralCreate.body),
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: removed.cookie,
-        },
-        method: "POST",
-      },
-    );
-    const hostEntry = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: { Accept: "text/html", Cookie: removedHostSession.cookie },
-      redirect: "manual",
-    });
-    const hostRegistry = await fetchHost(mappedAppHost, "/api/formless/app-installs", {
-      headers: { Cookie: removedHostSession.cookie },
-    });
-    const hostRegistryBody = (await hostRegistry.json()) as {
-      installs: Array<{
-        installId: string;
-      }>;
-    };
-    const wrongTarget = await fetchHost(
-      mappedAppHost,
-      `/api/app-installs/${taskPackageAppKey}/other-workspace/bootstrap`,
-      { headers: { Cookie: removedHostSession.cookie } },
-    );
-    const management = await fetchAuth("/access", {
-      headers: { Accept: "text/html", Cookie: removed.cookie },
-      redirect: "manual",
-    });
-    const ownerRecovery = await fetchAuth("/api/formless/setup/capability", {
-      body: "not-json",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: removed.cookie,
-      },
-      method: "POST",
-    });
-    const removedSocket = await openInstalledAppSyncSocket(
-      mappedAppHost,
-      `${dataApi}/sync/ws`,
-      removedHostSession.cookie,
-    );
-
-    await primeInstalledAppSyncSocket(removedSocket);
-
-    expect(removed.verify.status).toBe(200);
-    expect(centralRegistry.status).toBe(200);
-    expect(centralRegistryBody.installs.map((install) => install.installId)).toEqual([
-      taskInstallId,
-    ]);
-    expect(centralSync.status).toBe(200);
-    expect(centralCreateResponse.status).toBe(200);
-    expect(hostEntry.status).toBe(200);
-    expect(hostRegistry.status).toBe(200);
-    expect(hostRegistryBody.installs.map((install) => install.installId)).toEqual([taskInstallId]);
-    expect(wrongTarget.status).toBe(401);
-    expect(management.status).toBe(403);
-    expect(ownerRecovery.status).toBe(401);
-
-    await deleteIdentityRoleAssignment(removed.roleAssignmentId, "accepted-app-admin");
-    const removedSocketClosed = expectInstalledAppSyncSocketClosedWithoutMessage(removedSocket);
-
-    removedSocket.send(
-      JSON.stringify({ type: "sync-requested", cursor: 0, schemaUpdatedAt: null }),
-    );
-    await removedSocketClosed;
-
-    const removedEntry = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: { Accept: "text/html", Cookie: removedHostSession.cookie },
-      redirect: "manual",
-    });
-    const removedRegistry = await fetchAuth("/api/formless/app-installs", {
-      headers: { Cookie: removed.cookie },
-    });
-    const removedRegistryBody = (await removedRegistry.json()) as {
-      installs: Array<{
-        installId: string;
-      }>;
-    };
-    const removedSync = await fetchHost(mappedAppHost, `${dataApi}/sync?after=0`, {
-      headers: { Cookie: removedHostSession.cookie },
-    });
-    const removedCreate = recordOperationRequest({
-      entity: "task",
-      idempotencyKey: "removed-app-admin-create",
-      input: { done: false, title: "Removed app admin" },
-      operationName: "create",
-    });
-    const removedCreateResponse = await fetchAuth(
-      `${dataApi}${removedCreate.path.slice("/api".length)}`,
-      {
-        body: JSON.stringify(removedCreate.body),
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: removed.cookie,
-        },
-        method: "POST",
-      },
-    );
-
-    expect(removedEntry.status).toBe(302);
-    expect(removedRegistry.status).toBe(200);
-    expect(removedRegistryBody.installs).toEqual([]);
-    expect(removedSync.status).toBe(409);
-    expect(removedCreateResponse.status).toBe(401);
-
-    const disabled = await inviteAndAcceptCollaborator({
-      displayName: "Disabled Invited App Admin",
-      roleAssignment: {
-        appInstallId: taskInstallId,
-        roleKey: "app.admin",
-        scopeKind: "app-install",
-      },
-      targetAppInstallId: taskInstallId,
-      targetEmail: "disabled-invited-app-admin@example.com",
-      targetSurface: "app-install",
-      testKey: "disabled-app-admin-journey",
-    });
-    const disabledHostSession = await createMappedAppHostSessionFromCentralCookie(disabled.cookie);
-    const disabledSocket = await openInstalledAppSyncSocket(
-      "www.example.com",
-      `${dataApi}/sync/ws`,
-      disabled.cookie,
-    );
-
-    await primeInstalledAppSyncSocket(disabledSocket);
-    await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal/update`, {
-      idempotencyKey: "disable-accepted-app-admin",
-      recordId: disabled.principalId,
-      input: { status: "disabled" },
-    });
-    const disabledSocketClosed = expectInstalledAppSyncSocketClosedWithoutMessage(disabledSocket);
-
-    await postInstalledAppRecordOperation(taskPackageAppKey, taskInstallId, {
-      entity: "task",
-      idempotencyKey: "broadcast-after-accepted-principal-disable",
-      input: { done: false, title: "No disabled collaborator delivery" },
-      operationName: "create",
-    });
-    await disabledSocketClosed;
-
-    const disabledEntry = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: { Accept: "text/html", Cookie: disabledHostSession.cookie },
-      redirect: "manual",
-    });
-    const disabledRegistry = await fetchAuth("/api/formless/app-installs", {
-      headers: { Cookie: disabled.cookie },
-    });
-    const disabledSync = await fetchAuth(`${dataApi}/sync?after=0`, {
-      headers: { Cookie: disabled.cookie },
-    });
-    const disabledCreate = recordOperationRequest({
-      entity: "task",
-      idempotencyKey: "disabled-app-admin-create",
-      input: { done: false, title: "Disabled app admin" },
-      operationName: "create",
-    });
-    const disabledCreateResponse = await fetchHost(
-      mappedAppHost,
-      `${dataApi}${disabledCreate.path.slice("/api".length)}`,
-      {
-        body: JSON.stringify(disabledCreate.body),
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: disabledHostSession.cookie,
-        },
-        method: "POST",
-      },
-    );
-
-    expect(disabledEntry.status).toBe(302);
-    expect(disabledRegistry.status).toBe(401);
-    expect(disabledSync.status).toBe(401);
-    expect(disabledCreateResponse.status).toBe(401);
-  }, 20000);
-  it("blocks authenticated handoff grants until target account gates are satisfied", async () => {
-    await resetWorkerState(harness, ["controlPlane", "auth"]);
-    await setupPrimaryProductionIdentity();
-    await setupMappedApp({ access: "authenticated" });
-
-    const principal = await createActivePrincipalSessionCookie("Blocked Authenticated Principal");
-    const start = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: { Accept: "text/html" },
-      redirect: "manual",
-    });
-    const startLocation = requiredHeader(start, "Location");
-    const missingEmail = await harness.mf.dispatchFetch(startLocation, {
-      headers: {
-        Accept: "application/json",
-        Cookie: principal.cookie,
-      },
-      redirect: "manual",
-    });
-    const missingEmailBody = (await missingEmail.json()) as {
-      gate?: {
-        kind?: string;
-      };
-      status?: string;
-      target?: {
-        returnTo?: string;
-      };
-    };
-    const missingEmailHtml = await harness.mf.dispatchFetch(startLocation, {
-      headers: {
-        Accept: "text/html",
-        Cookie: principal.cookie,
-      },
-      redirect: "manual",
-    });
-    const accountSurfaceUrl = new URL(startLocation);
-    const directHandoffStartUrl = new URL(
-      `${INSTANCE_AUTH_HANDOFF_START_PATH}${accountSurfaceUrl.search}`,
-      accountSurfaceUrl,
-    );
-    const missingEmailHandoff = await harness.mf.dispatchFetch(directHandoffStartUrl.toString(), {
-      headers: {
-        Accept: "application/json",
-        Cookie: principal.cookie,
-      },
-      redirect: "manual",
-    });
-    const missingEmailHandoffBody = (await missingEmailHandoff.json()) as {
-      gate?: {
-        kind?: string;
-      };
-      status?: string;
-      target?: {
-        returnTo?: string;
-      };
-    };
-    const accountSurface = await harness.mf.dispatchFetch(accountSurfaceUrl.toString(), {
-      headers: {
-        Accept: "text/html",
-        Cookie: principal.cookie,
-      },
-      redirect: "manual",
-    });
-    const accountStatus = await harness.mf.dispatchFetch(accountSurfaceUrl.toString(), {
-      headers: {
-        Accept: "application/json",
-        Cookie: principal.cookie,
-      },
-      redirect: "manual",
-    });
-    const accountStatusBody = (await accountStatus.json()) as {
-      gate?: {
-        kind?: string;
-      };
-      status?: string;
-      target?: {
-        returnTo?: string;
-      };
-    };
-    await createVerifiedPrimaryEmail(principal.principalId, "blocked-authenticated@example.com");
-    await createPrivateCredentialForPrincipal(principal.principalId, "blocked-authenticated");
-    const missingRegistration = await harness.mf.dispatchFetch(startLocation, {
-      headers: {
-        Accept: "application/json",
-        Cookie: principal.cookie,
-      },
-      redirect: "manual",
-    });
-    const missingRegistrationBody = (await missingRegistration.json()) as {
-      gate?: {
-        appInstallId?: string;
-        kind?: string;
-        registrationPolicy?: string;
-      };
-      status?: string;
-    };
-    await createAppRegistration(principal.principalId, taskInstallId);
-    const completeStatus = await harness.mf.dispatchFetch(accountSurfaceUrl.toString(), {
-      headers: {
-        Accept: "application/json",
-        Cookie: principal.cookie,
-      },
-      redirect: "manual",
-    });
-    const completeStatusBody = (await completeStatus.json()) as {
-      continueTo?: string;
-      status?: string;
-      target?: {
-        returnTo?: string;
-        targetOrigin?: string;
-      };
-    };
-    const accountContinue = await harness.mf.dispatchFetch(startLocation, {
-      headers: {
-        Accept: "text/html",
-        Cookie: principal.cookie,
-      },
-      redirect: "manual",
-    });
-    const handoffStartUrl = new URL(requiredHeader(accountContinue, "Location"), startLocation);
-    const granted = await harness.mf.dispatchFetch(handoffStartUrl.toString(), {
-      headers: {
-        Accept: "text/html",
-        Cookie: principal.cookie,
-      },
-      redirect: "manual",
-    });
-    const callbackUrl = new URL(requiredHeader(granted, "Location"));
-
-    expect(missingEmail.status).toBe(409);
-    expect(missingEmail.headers.get("Location")).toBeNull();
-    expect(missingEmailBody).toMatchObject({
-      gate: { kind: "email-verification" },
-      status: "blocked",
-      target: { returnTo: "/schema?view=board" },
-    });
-    expect(JSON.stringify(missingEmailBody)).not.toContain("session");
-    expect(JSON.stringify(missingEmailBody)).not.toContain("grantSecret");
-    expect(missingEmailHtml.status).toBe(200);
-    expect(missingEmailHtml.headers.get("Location")).toBeNull();
-    expect(accountSurfaceUrl.pathname).toBe(runtimeTopologyRoutes.authAccountRoute);
-    expect(accountSurfaceUrl.search).toBe(new URL(startLocation).search);
-    expect(missingEmailHtml.headers.get("Set-Cookie") ?? "").not.toContain(
-      `${HOST_AUTH_SESSION_COOKIE_NAME}=`,
-    );
-    expect(accountSurface.status).toBe(200);
-    expect(accountSurface.headers.get("Content-Type")).toContain("text/html");
-
-    expect(missingEmailHandoff.status).toBe(409);
-    expect(missingEmailHandoff.headers.get("Location")).toBeNull();
-    expect(missingEmailHandoffBody).toMatchObject({
-      gate: { kind: "email-verification" },
-      status: "blocked",
-      target: { returnTo: "/schema?view=board" },
-    });
-    expect(JSON.stringify(missingEmailHandoffBody)).not.toContain("grantSecret");
-
-    expect(accountStatus.status).toBe(409);
-    expect(accountStatus.headers.get("Location")).toBeNull();
-    expect(accountStatus.headers.get("Set-Cookie")).toBeNull();
-    expect(accountStatusBody).toMatchObject({
-      gate: { kind: "email-verification" },
-      status: "blocked",
-      target: { returnTo: "/schema?view=board" },
-    });
-    expect(JSON.stringify(accountStatusBody)).not.toContain("session");
-    expect(JSON.stringify(accountStatusBody)).not.toContain("grantSecret");
-    expect(JSON.stringify(accountStatusBody)).not.toContain("credential");
-    expect(JSON.stringify(accountStatusBody)).not.toContain("tokenHash");
-
-    expect(missingRegistration.status).toBe(409);
-    expect(missingRegistration.headers.get("Location")).toBeNull();
-    expect(missingRegistrationBody).toMatchObject({
-      gate: { appInstallId: taskInstallId, kind: "app-registration", registrationPolicy: "closed" },
-      status: "blocked",
-    });
-
-    expect(completeStatus.status).toBe(200);
-    expect(completeStatus.headers.get("Location")).toBeNull();
-    expect(completeStatus.headers.get("Set-Cookie")).toBeNull();
-    expect(completeStatusBody).toMatchObject({
-      continueTo: `${INSTANCE_AUTH_HANDOFF_START_PATH}${accountSurfaceUrl.search}`,
-      status: "complete",
-      target: {
-        returnTo: "/schema?view=board",
-        targetOrigin: `https://${mappedAppHost}`,
-      },
-    });
-    expect(JSON.stringify(completeStatusBody)).not.toContain("grantSecret");
-    expect(JSON.stringify(completeStatusBody)).not.toContain("hostSessionCookie");
-
-    expect(accountContinue.status).toBe(302);
-    expect(handoffStartUrl.pathname).toBe(INSTANCE_AUTH_HANDOFF_START_PATH);
-    expect(granted.status).toBe(302);
-    expect(callbackUrl.origin).toBe(`https://${mappedAppHost}`);
-    expect(callbackUrl.pathname).toBe(INSTANCE_AUTH_HANDOFF_CALLBACK_PATH);
-    expect(callbackUrl.searchParams.get("grantSecret")).toMatch(/^[A-Za-z0-9_-]+$/);
-  });
-
-  it("signs up mapped app users through auth-origin continuation, handoff, callback, and original path return", async () => {
-    await resetWorkerState(harness, ["controlPlane", "auth"]);
-    await setupPrimaryProductionIdentity();
-    await configureAuthEmail({ settingsMode: "update", testKey: "mapped-signup" });
-    await setupMappedAppRouteRecord(
-      { access: "authenticated" },
-      { registrationPolicy: "email-verified" },
-    );
-    assetRequests = [];
-
-    const entry = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: { Accept: "text/html" },
-      redirect: "manual",
-    });
-    const nonceCookie = cookiePair(requiredHeader(entry, "Set-Cookie"));
-    const accountUrl = new URL(requiredHeader(entry, "Location"));
-    const target = signupTargetFromAccountUrl(accountUrl);
-    const signup = await completeEmailVerifiedSignup({
-      accountSearch: accountUrl.search,
-      credentialId: "Y3JlZGVudGlhbC1tYXBwZWQtaG9zdC0x",
-      displayName: "Mapped Signup",
-      email: "Mapped.Signup@example.com",
-      rpId: "example.com",
-      target,
-    });
-    const centralCookie = cookiePair(requiredHeader(signup.response, "Set-Cookie"));
-    const handoffUrl = new URL(signup.body.continueTo ?? "/", "https://www.example.com");
-    const grant = await harness.mf.dispatchFetch(handoffUrl.toString(), {
-      headers: {
-        Accept: "text/html",
-        Cookie: centralCookie,
-      },
-      redirect: "manual",
-    });
-    const callbackLocation = requiredHeader(grant, "Location");
-    const callback = await harness.mf.dispatchFetch(callbackLocation, {
-      headers: { Cookie: nonceCookie },
-      redirect: "manual",
-    });
-    const replay = await harness.mf.dispatchFetch(callbackLocation, {
-      headers: { Cookie: nonceCookie },
-      redirect: "manual",
-    });
-    const setCookie = requiredHeader(callback, "Set-Cookie");
-    const hostSessionPayload = signedCookiePayload(setCookie, HOST_AUTH_SESSION_COOKIE_NAME);
-    const continued = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: {
-        Accept: "text/html",
-        Cookie: cookiePair(setCookie),
-      },
-      redirect: "manual",
-    });
-
-    expect(entry.status).toBe(302);
-    expect(accountUrl.origin).toBe("https://www.example.com");
-    expect(accountUrl.pathname).toBe(runtimeTopologyRoutes.authAccountRoute);
-    expect(target).toMatchObject({
-      appInstallId: taskInstallId,
-      returnTo: "/schema?view=board",
-      storageIdentity: `app:${taskInstallId}`,
-      targetOrigin: `https://${mappedAppHost}`,
-      targetProfile: "app",
-    });
-
-    expect(signup.response.status).toBe(200);
-    expect(requiredHeader(signup.response, "Set-Cookie")).not.toContain(
-      `${HOST_AUTH_SESSION_COOKIE_NAME}=`,
-    );
-    expect(signup.body).toMatchObject({
-      accountCompletion: { status: "complete" },
-      continueTo: expect.stringContaining(INSTANCE_AUTH_HANDOFF_START_PATH),
-      handoff: { returnTo: "/schema?view=board", targetOrigin: `https://${mappedAppHost}` },
-      principal: { displayName: "Mapped Signup" },
-      verified: true,
-    });
-
-    expect(handoffUrl.pathname).toBe(INSTANCE_AUTH_HANDOFF_START_PATH);
-    expect(handoffUrl.searchParams.get("targetOrigin")).toBe(`https://${mappedAppHost}`);
-    expect(grant.status).toBe(302);
-    expect(new URL(callbackLocation).origin).toBe(`https://${mappedAppHost}`);
-    expect(new URL(callbackLocation).pathname).toBe(INSTANCE_AUTH_HANDOFF_CALLBACK_PATH);
-
-    expect(callback.status).toBe(302);
-    expect(callback.headers.get("Location")).toBe("/schema?view=board");
-    expect(setCookie).toContain(`${HOST_AUTH_SESSION_COOKIE_NAME}=`);
-    expect(setCookie).toContain(`${HOST_AUTH_NONCE_COOKIE_NAME}=;`);
-    expect(hostSessionPayload).toEqual(
-      expect.objectContaining({
-        access: "authenticated",
-        appInstallId: taskInstallId,
-        principalId: signup.body.principal.principalId,
-        purpose: "host-session",
-        routeId: routeRecordIds.get(`route:host:app:${mappedAppHost}`),
-        storageIdentity: `app:${taskInstallId}`,
-        targetOrigin: `https://${mappedAppHost}`,
-        targetProfile: "app",
-        version: 1,
-      }),
-    );
-    expect(replay.status).toBe(400);
-    expect(continued.status).toBe(200);
-    expect(assetRequests).toEqual(["/index.html"]);
-  }, 10000);
-  it("executes authenticated operations for app admins from matched host-local sessions", async () => {
-    await resetWorkerState(harness, ["controlPlane", "taskStorage", "auth"]);
-    await setupPrimaryProductionIdentity();
-    await setupMappedApp({ access: "authenticated" });
-
-    const principal = await createCompletionReadyPrincipalSessionCookie(
-      "Authenticated App Admin Operator",
-    );
-    await assignIdentityAppRole(principal.principalId, taskInstallId);
-    const { cookie } = await createMappedAppHostSessionFromCentralCookie(principal.cookie);
-    const principalId = principal.principalId;
-    const unauthenticatedBootstrap = await fetchHost(
-      mappedAppHost,
-      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
-    );
-    const bootstrap = await fetchHost(
-      mappedAppHost,
-      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
-      {
-        headers: { Cookie: cookie },
-      },
-    );
-    const bootstrapBody = (await bootstrap.json()) as {
-      schema: AppSchema;
-    };
-    const taskEntity = bootstrapBody.schema.entities.find(
-      (definition) => definition.key === "task",
-    )!;
-    const createOperation = taskEntity?.operations!.find(
-      (definition) => definition.key === "create",
-    )!;
-    if (!taskEntity || !createOperation) {
-      throw new Error("Expected task create operation.");
-    }
-    const schema: AppSchema = {
-      ...bootstrapBody.schema,
-      entities: bootstrapBody.schema.entities.map((entity) =>
-        entity.key === "task"
-          ? {
-              ...taskEntity,
-              operations: (taskEntity.operations ?? []).map((operation) =>
-                operation.key === "create"
-                  ? {
-                      ...createOperation,
-                      policy: { actors: ["authenticated"] },
-                      key: "create",
-                    }
-                  : operation,
-              ),
-              key: "task",
-            }
-          : entity,
-      ),
-    };
-    const schemaWrite = await harness.fetch(
-      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/schema`,
-      {
-        body: JSON.stringify({ schema }),
-        headers: adminHeaders({ "Content-Type": "application/json" }),
-        method: "POST",
-      },
-    );
-    const writeRequest = recordOperationRequest({
-      idempotencyKey: "authenticated-host-session-create",
-      entity: "task",
-      operationName: "create",
-      input: { title: "Authenticated host operation", done: false },
-    });
-    const write = await fetchHost(
-      mappedAppHost,
-      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}${writeRequest.path.slice("/api".length)}`,
-      {
-        body: JSON.stringify(writeRequest.body),
-        headers: {
-          Cookie: cookie,
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-      },
-    );
-    const writeBody = (await write.json()) as OperationInvocationResponse;
-
-    expect(unauthenticatedBootstrap.status).toBe(401);
-    expect(bootstrap.status).toBe(200);
-    expect(schemaWrite.status).toBe(200);
-    expect(write.status).toBe(200);
-    expect(writeBody.invocation.actor).toMatchObject({
-      kind: "authenticated",
-      principalId,
-      sessionTarget: {
-        appInstallId: taskInstallId,
-        storageIdentity: `app:${taskInstallId}`,
-        targetOrigin: `https://${mappedAppHost}`,
-        targetProfile: "app",
-      },
-    });
-    expect(operationRecord(writeBody).values.title).toBe("Authenticated host operation");
-  });
-
-  it("blocks authenticated host-local sessions when target gates become current blockers", async () => {
-    await resetWorkerState(harness, ["controlPlane", "taskStorage", "auth"]);
-    await setupPrimaryProductionIdentity();
-    await setupMappedApp({ access: "authenticated" });
-
-    const principal = await createCompletionReadyPrincipalSessionCookie(
-      "Policy Gated Host Session",
-    );
-    await assignIdentityAppRole(principal.principalId, taskInstallId);
-    const { cookie } = await createMappedAppHostSessionFromCentralCookie(principal.cookie);
-    const principalId = principal.principalId;
-    const policy = await createAccountPolicy({
-      appInstallId: taskInstallId,
-      displayName: "Task workspace terms",
-      policyKey: "task-workspace-terms",
-    });
-
-    const blocked = await fetchHost(
-      mappedAppHost,
-      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
-      {
-        headers: { Cookie: cookie },
-      },
-    );
-    const blockedShell = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: {
-        Accept: "text/html",
-        Cookie: cookie,
-      },
-      redirect: "manual",
-    });
-    const blockedShellLocation = new URL(requiredHeader(blockedShell, "Location"));
-    const blockedBody = (await blocked.json()) as {
-      gate?: {
-        kind?: string;
-        policies?: Array<{
-          accountPolicyId?: string;
-        }>;
-      };
-      status?: string;
-    };
-    await acceptPolicy(principalId, policy.id);
-    const continued = await fetchHost(
-      mappedAppHost,
-      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
-      {
-        headers: { Cookie: cookie },
-      },
-    );
-
-    expect(blocked.status).toBe(409);
-    expect(blockedShell.status).toBe(302);
-    expect(blockedShellLocation.origin).toBe("https://www.example.com");
-    expect(blockedShellLocation.pathname).toBe(runtimeTopologyRoutes.authAccountRoute);
-    expect(blockedShellLocation.searchParams.get("targetOrigin")).toBe(`https://${mappedAppHost}`);
-    expect(blockedShellLocation.searchParams.get("returnTo")).toBe("/schema?view=board");
-    expect(blockedShell.headers.get("Set-Cookie")).toContain(`${HOST_AUTH_NONCE_COOKIE_NAME}=`);
-    expect(blockedBody).toMatchObject({
-      gate: {
-        kind: "terms-acceptance",
-        policies: [{ accountPolicyId: policy.id }],
-      },
-      status: "blocked",
-    });
-    expect(JSON.stringify(blockedBody)).not.toContain("credentialId");
-    expect(JSON.stringify(blockedBody)).not.toContain("session");
-    expect(continued.status).toBe(200);
-  });
 
   it("starts mapped instance handoff and redirects its sign-in gate to the auth origin", async () => {
     await resetWorkerState(harness, ["controlPlane", "auth"]);
@@ -2427,40 +726,6 @@ describe("instance custom-domain Worker routing", () => {
       },
     );
     const routeWriteBody = (await routeWrite.json()) as OperationInvocationResponse;
-    const createInstall = await fetchHost(mappedInstanceHost, createAppInstallOperation, {
-      body: JSON.stringify({
-        idempotencyKey: "mapped-instance-host-session-create-install",
-        input: {
-          packageAppKey: privateSitePackageAppKey,
-          installId: "host-session-site",
-          label: "Host Session Site",
-        },
-      }),
-      headers: {
-        Cookie: cookie,
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-    });
-    const createInstallBody = (await createInstall.json()) as OperationInvocationResponse;
-    const appInstalls = await fetchHost(mappedInstanceHost, "/api/formless/app-installs", {
-      headers: { Cookie: cookie },
-    });
-    const appInstallsBody = (await appInstalls.json()) as {
-      installs?: Array<{
-        installId?: string;
-      }>;
-    };
-    const installedAppBootstrap = await fetchHost(
-      mappedInstanceHost,
-      `/api/app-installs/${privateSitePackageAppKey}/host-session-site/bootstrap`,
-      {
-        headers: { Cookie: cookie },
-      },
-    );
-    const installedAppBootstrapBody = (await installedAppBootstrap.json()) as {
-      schema?: AppSchema;
-    };
     const staleVersionBootstrap = await fetchHost(
       mappedInstanceHost,
       `${controlPlaneApi}/bootstrap`,
@@ -2476,14 +741,6 @@ describe("instance custom-domain Worker routing", () => {
       matchPath: "/host-session-route",
       targetProfile: "instance",
     });
-    expect(createInstall.status).toBe(200);
-    expect(createInstallBody.status).toBe("committed");
-    expect(appInstalls.status).toBe(200);
-    expect(
-      appInstallsBody.installs?.some((install) => install.installId === "host-session-site"),
-    ).toBe(true);
-    expect(installedAppBootstrap.status).toBe(401);
-    expect(installedAppBootstrapBody.schema).toBeUndefined();
     expect(staleVersionBootstrap.status).toBe(401);
     expect(assetRequests).toEqual(["/"]);
   });
@@ -2558,70 +815,9 @@ describe("instance custom-domain Worker routing", () => {
     expect(operationRecord(ownerWriteBody).values.matchPath).toBe("/owner-host-session-route");
   });
 
-  it("rejects host-local sessions after owner authority or session version changes", async () => {
-    await resetWorkerState(harness, ["controlPlane", "taskStorage", "auth"]);
-    await setupPrimaryProductionIdentity();
-    await setupMappedApp();
-
-    const { cookie, owner, setCookie } = await createMappedAppHostSession("Stale Host Owner");
-    const staleVersionCookie = await hostSessionCookieWithPayload(setCookie, {
-      sessionVersion: 1,
-    });
-
-    const staleVersionRead = await fetchHost(
-      mappedAppHost,
-      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
-      {
-        headers: { Cookie: staleVersionCookie },
-      },
-    );
-
-    const disableOwner = recordOperationRequest({
-      entity: "principal",
-      idempotencyKey: "disable-stale-host-owner",
-      operationName: "update",
-      recordId: owner.id,
-      input: { status: "disabled" },
-    });
-    await postAdminJson(
-      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${disableOwner.path.slice("/api".length)}`,
-      disableOwner.body,
-    );
-
-    assetRequests = [];
-
-    const staleOwnerShell = await fetchHost(mappedAppHost, "/schema?view=board", {
-      headers: {
-        Accept: "text/html",
-        Cookie: cookie,
-      },
-      redirect: "manual",
-    });
-    const staleOwnerRead = await fetchHost(
-      mappedAppHost,
-      `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/bootstrap`,
-      {
-        headers: { Cookie: cookie },
-      },
-    );
-    const handoffUrl = new URL(requiredHeader(staleOwnerShell, "Location"));
-
-    expect(staleVersionRead.status).toBe(401);
-    expect(staleOwnerShell.status).toBe(302);
-    expect(handoffUrl.origin).toBe("https://www.example.com");
-    expect(handoffUrl.pathname).toBe(runtimeTopologyRoutes.authAccountRoute);
-    expect(staleOwnerRead.status).toBe(401);
-    expect(assetRequests).toEqual([]);
-  });
-
   it("reserves auth callbacks on mapped public Site hosts", async () => {
     await resetWorkerState(harness, ["controlPlane", "auth"]);
     await setupPrimaryProductionIdentity();
-    await postAdminJson("/api/formless/app-installs", {
-      packageAppKey: privateSitePackageAppKey,
-      installId,
-      label: "Personal",
-    });
     await createRouteRecord("route:host:publicSite:site.example.com", {
       enabled: true,
       matchHost: "site.example.com",
@@ -2664,8 +860,6 @@ describe("instance custom-domain Worker routing", () => {
 
     expect(document.status).toBe(200);
     expect(html).toContain("Home");
-    expect(html).not.toContain(FORMLESS_RUNTIME_APP_INSTALL_ID_META_NAME);
-    expect(html).not.toContain(FORMLESS_RUNTIME_PACKAGE_APP_KEY_META_NAME);
     expect(robots.status).toBe(200);
     expect(await robots.text()).toContain("User-agent: *");
     expect(favicon.status).toBe(200);
@@ -2726,7 +920,13 @@ describe("instance custom-domain Worker routing", () => {
   });
 
   it("stops mapped public Site routing after desired route disablement with provider evidence", async () => {
-    await resetWorkerState(harness, ["controlPlane", "siteStorage", "domainMappings"]);
+    await resetWorkerState(harness, ["controlPlane", "domainMappings"]);
+    await restoreTestStorageSnapshot(
+      harness,
+      `${controlPlaneApi}/snapshot/restore`,
+      instanceControlPlaneTestStorageSnapshot(testSiteRecords),
+      adminHeaders(),
+    );
     await setupMappedSite();
     await postAdminJson("/api/formless/domain-mappings/apply-evidence", {
       accountId: "account-123",
@@ -2873,19 +1073,12 @@ async function configureAuthEmail(input: { settingsMode: "create" | "update"; te
 
 async function inviteAndAcceptCollaborator(input: {
   displayName: string;
-  roleAssignment:
-    | {
-        appInstallId: string;
-        roleKey: "app.admin";
-        scopeKind: "app-install";
-      }
-    | {
-        roleId: typeof programAdministratorRoleId;
-        scopeKind: "program";
-      };
-  targetAppInstallId?: string;
+  roleAssignment: {
+    roleId: typeof programAdministratorRoleId;
+    scopeKind: "program";
+  };
   targetEmail: string;
-  targetSurface: "app-install" | "instance";
+  targetSurface: "instance";
   testKey: string;
 }) {
   const invitationId = `invitation:${input.testKey}`;
@@ -2914,17 +1107,6 @@ async function inviteAndAcceptCollaborator(input: {
       ],
       targetEmail: input.targetEmail,
       targetSurface: input.targetSurface,
-      ...(input.targetAppInstallId === undefined
-        ? {}
-        : {
-            appRegistrations: [
-              {
-                appInstallId: input.targetAppInstallId,
-                id: `app-registration:${input.testKey}`,
-              },
-            ],
-            targetAppInstallId: input.targetAppInstallId,
-          }),
     },
   );
   const invitationBody = (await invitationResponse.json()) as {
@@ -2996,47 +1178,6 @@ async function inviteAndAcceptCollaborator(input: {
   };
 }
 
-async function allowTaskAdminCreates() {
-  const dataApi = `/api/app-installs/${taskPackageAppKey}/${taskInstallId}`;
-  const schemaResponse = await harness.fetch(`${dataApi}/schema`, {
-    headers: adminHeaders(),
-  });
-  const schemaBody = (await schemaResponse.json()) as {
-    schema?: AppSchema;
-  };
-  const schema = schemaBody.schema;
-  const createOperation = schema?.entities
-    .find((definition) => definition.key === "task")
-    ?.operations!.find((definition) => definition.key === "create")!;
-  if (!schema || !createOperation) {
-    throw new Error("Expected installed Tasks create operation.");
-  }
-
-  createOperation.policy = { actors: ["admin", "owner"] };
-
-  const write = await harness.fetch(`${dataApi}/schema`, {
-    body: JSON.stringify({ schema }),
-    headers: adminHeaders({ "Content-Type": "application/json" }),
-    method: "POST",
-  });
-
-  expect(write.status).toBe(200);
-}
-
-async function deleteIdentityRoleAssignment(roleAssignmentId: string, testKey: string) {
-  const request = recordOperationRequest({
-    entity: "role-assignment",
-    idempotencyKey: `delete-role-assignment-${testKey}`,
-    operationName: "delete",
-    recordId: roleAssignmentId,
-  });
-
-  await postAdminJson(
-    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${request.path.slice("/api".length)}`,
-    request.body,
-  );
-}
-
 async function instanceSettingsRecordId(): Promise<string> {
   const response = await harness.fetch(`${controlPlaneApi}/bootstrap`, {
     headers: adminHeaders(),
@@ -3063,10 +1204,6 @@ async function setupMappedSite() {
   await setupMappedSiteRouteRecord();
 }
 
-async function setupMappedApp(values: Record<string, unknown> = {}) {
-  await setupMappedAppRouteRecord(values);
-}
-
 async function setupMappedInstance(values: Record<string, unknown> = {}) {
   await createRouteRecord(`route:host:instance:${mappedInstanceHost}`, {
     enabled: true,
@@ -3082,11 +1219,6 @@ async function setupMappedInstance(values: Record<string, unknown> = {}) {
 }
 
 async function setupMappedSiteRouteRecord() {
-  await postAdminJson("/api/formless/app-installs", {
-    packageAppKey: privateSitePackageAppKey,
-    installId,
-    label: "Personal",
-  });
   await createRouteRecord(`route:host:publicSite:${mappedHost}`, {
     enabled: true,
     matchHost: mappedHost,
@@ -3095,33 +1227,6 @@ async function setupMappedSiteRouteRecord() {
     kind: "mount",
     targetProfile: "public-site",
     surface: "public-site",
-  });
-}
-
-async function setupMappedAppRouteRecord(
-  values: Record<string, unknown> = {},
-  installValues: Record<string, unknown> = {},
-) {
-  await setupTaskAppInstall(installValues);
-  await createRouteRecord(`route:host:app:${mappedAppHost}`, {
-    enabled: true,
-    matchHost: mappedAppHost,
-    matchPath: "/",
-    matchPrefix: "/",
-    kind: "mount",
-    targetProfile: "app",
-    appInstall: taskInstallId,
-    surface: "admin",
-    ...values,
-  });
-}
-
-async function setupTaskAppInstall(values: Record<string, unknown> = {}) {
-  await postAdminJson("/api/formless/app-installs", {
-    packageAppKey: taskPackageAppKey,
-    installId: taskInstallId,
-    label: "Task Workspace",
-    ...values,
   });
 }
 
@@ -3174,102 +1279,6 @@ function fetchHost(host: string, path: string, init?: DispatchFetchInit) {
   return fetchHarnessHost(harness, host, path, init);
 }
 
-async function openInstalledAppSyncSocket(host: string, path: string, cookie: string) {
-  const response = await fetchHost(host, path, {
-    headers: { Cookie: cookie, Upgrade: "websocket" },
-  });
-
-  expect(response.status).toBe(101);
-  expect(response.webSocket).toBeTruthy();
-
-  const socket = response.webSocket;
-
-  if (!socket) {
-    throw new Error("Installed app WebSocket upgrade did not return a client socket.");
-  }
-
-  socket.accept();
-
-  return socket;
-}
-
-function readInstalledAppSyncSocketMessage(
-  socket: Awaited<ReturnType<typeof openInstalledAppSyncSocket>>,
-) {
-  return new Promise<SyncSocketServerMessage>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      cleanup();
-      reject(new Error("Timed out waiting for installed app sync message."));
-    }, 1000);
-    const cleanup = () => {
-      clearTimeout(timeout);
-      socket.removeEventListener("message", onMessage);
-      socket.removeEventListener("error", onError);
-    };
-    const onMessage = (event: WebSocketEventMap["message"]) => {
-      cleanup();
-
-      if (typeof event.data !== "string") {
-        reject(new Error("Installed app sync message was not text."));
-        return;
-      }
-
-      resolve(JSON.parse(event.data) as SyncSocketServerMessage);
-    };
-    const onError = () => {
-      cleanup();
-      reject(new Error("Installed app sync socket emitted an error."));
-    };
-
-    socket.addEventListener("message", onMessage);
-    socket.addEventListener("error", onError);
-  });
-}
-
-async function primeInstalledAppSyncSocket(
-  socket: Awaited<ReturnType<typeof openInstalledAppSyncSocket>>,
-) {
-  socket.send(JSON.stringify({ type: "hello", cursor: 0, schemaUpdatedAt: null }));
-
-  await expect(readInstalledAppSyncSocketMessage(socket)).resolves.toMatchObject({
-    type: "sync",
-    payload: { cursor: expect.any(Number) },
-  });
-}
-
-function expectInstalledAppSyncSocketClosedWithoutMessage(
-  socket: Awaited<ReturnType<typeof openInstalledAppSyncSocket>>,
-) {
-  return new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      cleanup();
-      reject(new Error("Timed out waiting for installed app sync socket to close."));
-    }, 1000);
-    const cleanup = () => {
-      clearTimeout(timeout);
-      socket.removeEventListener("close", onClose);
-      socket.removeEventListener("message", onMessage);
-      socket.removeEventListener("error", onError);
-    };
-    const onClose = () => {
-      cleanup();
-      resolve();
-    };
-    const onMessage = () => {
-      cleanup();
-      reject(new Error("Unauthorized installed app sync socket received protected data."));
-    };
-    const onError = () => {
-      cleanup();
-      reject(new Error("Installed app sync socket errored before closing."));
-    };
-
-    socket.addEventListener("close", onClose);
-    socket.addEventListener("message", onMessage);
-    socket.addEventListener("error", onError);
-  });
-}
-
 function fetchHarnessHost(
   targetHarness: Harness,
   host: string,
@@ -3283,100 +1292,8 @@ function cookiePair(cookie: string) {
   return cookie.split(";")[0] ?? cookie;
 }
 
-function signupTargetFromAccountUrl(url: URL): AccountCompletionGateTarget {
-  return {
-    access: requiredSearchParam(url, "access") as NonNullable<
-      AccountCompletionGateTarget["access"]
-    >,
-    appInstallId: requiredSearchParam(url, "appInstallId"),
-    ...(url.searchParams.get("requiredRole") === "app.admin"
-      ? { requiredRole: "app.admin" as const }
-      : {}),
-    returnTo: requiredSearchParam(url, "returnTo") as `/${string}`,
-    routeId: requiredSearchParam(url, "routeId"),
-    storageIdentity: requiredSearchParam(url, "storageIdentity"),
-    targetOrigin: requiredSearchParam(url, "targetOrigin"),
-    targetProfile: requiredSearchParam(
-      url,
-      "targetProfile",
-    ) as AccountCompletionGateTarget["targetProfile"],
-  };
-}
-
-async function completeEmailVerifiedSignup(input: {
-  accountSearch: string;
-  credentialId: string;
-  displayName: string;
-  email: string;
-  rpId: string;
-  target: AccountCompletionGateTarget;
-}) {
-  const started = await postAuthJson<SignupStartResponse>("/formless/auth/signup/start", {
-    email: input.email,
-    target: input.target,
-  });
-  const message = await readRenderedEmailMessage(started.delivery.deliveryId);
-  const token = verificationTokenFromMessage(message.message);
-
-  await postAuthJson<SignupEmailVerifyResponse>("/formless/auth/signup/email/verify", {
-    challengeId: started.signup.challengeId,
-    email: started.signup.displayEmail,
-    target: started.signup.target,
-    token,
-  });
-
-  const options = await postAuthJson<SignupPasskeyOptionsResponse>(
-    "/formless/auth/signup/passkeys/register/options",
-    {
-      challengeId: started.signup.challengeId,
-      displayName: input.displayName,
-      email: started.signup.displayEmail,
-      target: started.signup.target,
-    },
-  );
-  const passkey = new VirtualPasskey(input.credentialId);
-  const response = await fetchAuth(
-    `/formless/auth/signup/passkeys/register/verify${input.accountSearch}`,
-    {
-      body: JSON.stringify({
-        challengeId: started.signup.challengeId,
-        displayName: input.displayName,
-        email: started.signup.displayEmail,
-        response: passkey.registrationResponse(options.options, {
-          origin: "https://www.example.com",
-          rpId: input.rpId,
-        }),
-        target: started.signup.target,
-      }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    },
-  );
-  const body = (await response.json()) as SignupPasskeyVerifyResponse;
-
-  expect(response.status).toBe(200);
-
-  return { body, response, started, token };
-}
-
 function fetchAuth(path: string, init?: DispatchFetchInit) {
   return harness.mf.dispatchFetch(`${activeAuthOrigin}${path}`, init);
-}
-
-async function postAuthJson<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetchAuth(path, {
-    body: JSON.stringify(body),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  });
-
-  if (response.status !== 200) {
-    throw new Error(
-      `Expected auth POST ${path} to return 200, got ${response.status}: ${await response.text()}`,
-    );
-  }
-
-  return (await response.json()) as T;
 }
 
 async function readRenderedEmailMessage(deliveryId: string) {
@@ -3399,16 +1316,6 @@ function verificationTokenFromMessage(message: EmailDeliveryRenderedMessage | un
   return match[1];
 }
 
-function requiredSearchParam(url: URL, name: string): string {
-  const value = url.searchParams.get(name);
-
-  if (!value) {
-    throw new Error(`Missing ${name} search param.`);
-  }
-
-  return value;
-}
-
 async function issueHandoffGrantFromAuthAccount(startLocation: string, centralCookie: string) {
   const account = await harness.mf.dispatchFetch(startLocation, {
     headers: {
@@ -3427,57 +1334,6 @@ async function issueHandoffGrantFromAuthAccount(startLocation: string, centralCo
   });
 
   return { account, grant, handoffUrl };
-}
-
-async function createMappedAppHostSession(ownerName: string) {
-  const owner = await ensureTestIdentityOwner(harness, adminToken, {
-    name: ownerName,
-  });
-  const centralCookie = await createCentralAuthSessionCookieForPrincipal(owner.id);
-  const hostSession = await createMappedAppHostSessionFromCentralCookie(centralCookie);
-
-  return {
-    ...hostSession,
-    owner,
-  };
-}
-
-async function createMappedAppHostSessionFromCentralCookie(centralCookie: string) {
-  const start = await fetchHost(mappedAppHost, "/schema?view=board", {
-    headers: { Accept: "text/html" },
-    redirect: "manual",
-  });
-  const { grant } = await issueHandoffGrantFromAuthAccount(
-    requiredHeader(start, "Location"),
-    centralCookie,
-  );
-  const callback = await harness.mf.dispatchFetch(requiredHeader(grant, "Location"), {
-    headers: { Cookie: cookiePair(requiredHeader(start, "Set-Cookie")) },
-    redirect: "manual",
-  });
-  const setCookie = requiredHeader(callback, "Set-Cookie");
-
-  expect(callback.status).toBe(302);
-
-  return {
-    cookie: cookiePair(setCookie),
-    setCookie,
-  };
-}
-
-async function bumpHarnessHostSessionVersion(setCookie: string) {
-  const response = await harness.durableObjectFetch(
-    "FORMLESS_AUTHORITY",
-    FORMLESS_INSTANCE_AUTHORITY_NAME,
-    "/harness/auth/host-session/revoke",
-    {
-      body: JSON.stringify(signedCookiePayload(setCookie, HOST_AUTH_SESSION_COOKIE_NAME)),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    },
-  );
-
-  expect(response.status).toBe(200);
 }
 
 async function createActivePrincipalSessionCookie(
@@ -3504,29 +1360,6 @@ async function createActivePrincipalSessionCookie(
   };
 }
 
-async function createCompletionReadyPrincipalSessionCookie(displayName: string) {
-  const principal = await createAccountReadyPrincipalSessionCookie(displayName);
-
-  await createAppRegistration(principal.principalId, taskInstallId);
-
-  return principal;
-}
-
-async function createAccountReadyPrincipalSessionCookie(
-  displayName: string,
-  origin = "https://www.example.com",
-) {
-  const principal = await createActivePrincipalSessionCookie(displayName, origin);
-
-  await createVerifiedPrimaryEmail(
-    principal.principalId,
-    `${displayName.replace(/\W+/g, "-").toLowerCase()}@example.com`,
-  );
-  await createPrivateCredentialForPrincipal(principal.principalId, displayName);
-
-  return principal;
-}
-
 async function createVerifiedPrimaryEmail(principalId: string, email: string) {
   await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal-email/create`, {
     idempotencyKey: `verified-email-${principalId.replace(/\W+/g, "-")}`,
@@ -3540,64 +1373,6 @@ async function createVerifiedPrimaryEmail(principalId: string, email: string) {
       verifiedAt: "2026-07-06T00:00:00.000Z",
     },
   });
-}
-
-async function createAppRegistration(principalId: string, appInstallId: string) {
-  await postAdminJson(`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/app-registration/create`, {
-    idempotencyKey: [
-      "app-registration",
-      principalId.replace(/\W+/g, "-"),
-      appInstallId.replace(/\W+/g, "-"),
-    ].join("-"),
-    input: {
-      appInstallId,
-      status: "active",
-      targetKind: "principal",
-      targetPrincipal: principalId,
-    },
-  });
-}
-
-async function createAccountPolicy(input: {
-  appInstallId: string;
-  displayName: string;
-  policyKey: string;
-}) {
-  const response = await postAdminJson(
-    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/account-policy/create`,
-    {
-      idempotencyKey: `account-policy-${input.policyKey}`,
-      input: {
-        appInstallId: input.appInstallId,
-        displayName: input.displayName,
-        policyKey: input.policyKey,
-        scopeKind: "app-install",
-        status: "active",
-        version: "2026-07-06",
-      },
-    },
-  );
-
-  return operationRecord((await response.json()) as OperationInvocationResponse);
-}
-
-async function acceptPolicy(principalId: string, accountPolicy: string) {
-  await postAdminJson(
-    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/principal-policy-acceptance/create`,
-    {
-      idempotencyKey: [
-        "policy-acceptance",
-        principalId.replace(/\W+/g, "-"),
-        accountPolicy.replace(/\W+/g, "-"),
-      ].join("-"),
-      input: {
-        acceptedAt: "2026-07-06T00:00:00.000Z",
-        accountPolicy,
-        principal: principalId,
-        status: "accepted",
-      },
-    },
-  );
 }
 
 async function createPrivateCredentialForPrincipal(principalId: string, label: string) {
@@ -3688,30 +1463,6 @@ async function createInstanceAdminPrincipalSessionCookie(displayName: string) {
   };
 }
 
-async function assignIdentityAppRole(principalId: string, appInstallId: string) {
-  const response = await postAdminJson(
-    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/role-assignment/create`,
-    {
-      idempotencyKey: [
-        "custom-domain-assign",
-        principalId.replace(/\W+/g, "-"),
-        "app-admin",
-        appInstallId,
-      ].join("-"),
-      input: {
-        appInstallId,
-        role: "role:app.admin",
-        scopeKind: "app-install",
-        status: "active",
-        targetKind: "principal",
-        targetPrincipal: principalId,
-      },
-    },
-  );
-
-  return operationRecord((await response.json()) as OperationInvocationResponse);
-}
-
 async function mappedInstanceHostSessionCookieForPrincipal(principalId: string) {
   const routeId = routeRecordIds.get(`route:host:instance:${mappedInstanceHost}`);
 
@@ -3762,52 +1513,6 @@ async function createMappedInstanceHostSession(ownerName: string) {
     setCookie,
   };
 }
-
-type SignupStartResponse = {
-  delivery: {
-    deliveryId: string;
-    queued: boolean;
-    replayed: boolean;
-    status: "scheduled";
-  };
-  signup: {
-    challengeId: string;
-    displayEmail: string;
-    expiresAt: string;
-    target: AccountCompletionGateTarget;
-  };
-};
-
-type SignupEmailVerifyResponse = {
-  signup: SignupStartResponse["signup"];
-  verified: true;
-};
-
-type SignupPasskeyOptionsResponse = {
-  options: PublicKeyCredentialCreationOptionsJSON;
-};
-
-type SignupPasskeyVerifyResponse = {
-  accountCompletion: {
-    continueTo?: `/${string}`;
-    gate?: Record<string, unknown>;
-    status: "blocked" | "complete";
-    target: AccountCompletionGateTarget;
-  };
-  continueTo?: `/${string}`;
-  handoff?: {
-    returnTo: `/${string}`;
-    targetOrigin: string;
-  };
-  principal: {
-    displayName: string;
-    principalId: string;
-  };
-  session: {
-    expiresAt: string;
-  };
-  verified: true;
-};
 
 class VirtualPasskey {
   private readonly credentialId: string;
@@ -4134,26 +1839,6 @@ async function programOwnerHeaders() {
   };
 }
 
-async function postInstalledAppRecordOperation(
-  packageAppKey: string,
-  appInstallId: string,
-  body: Parameters<typeof recordOperationRequest>[0],
-) {
-  const request = recordOperationRequest(body);
-  const response = await harness.fetch(
-    `/api/app-installs/${packageAppKey}/${appInstallId}${request.path.slice("/api".length)}`,
-    {
-      body: JSON.stringify(request.body),
-      headers: adminHeaders({ "Content-Type": "application/json" }),
-      method: "POST",
-    },
-  );
-
-  expect([200, 201]).toContain(response.status);
-
-  return request.response(await response.json());
-}
-
 function adminHeaders(headers: Record<string, string> = {}) {
   return {
     ...headers,
@@ -4176,13 +1861,7 @@ function assetResponse(request: Request): Response {
   });
 }
 
-type WorkerStateResource =
-  | "auth"
-  | "controlPlane"
-  | "domainMappings"
-  | "media"
-  | "siteStorage"
-  | "taskStorage";
+type WorkerStateResource = "auth" | "controlPlane" | "domainMappings" | "media";
 
 async function resetWorkerState(target: Harness, resources: readonly WorkerStateResource[]) {
   if (resources.includes("controlPlane")) {
@@ -4201,26 +1880,6 @@ async function resetWorkerState(target: Harness, resources: readonly WorkerState
     domainMappings: () =>
       postInternalInstanceReset(target, INTERNAL_RESET_INSTANCE_DOMAIN_MAPPINGS_PATH),
     media: () => clearMediaBucket(target),
-    siteStorage: () =>
-      restoreTestStorageSnapshot(
-        target,
-        `/api/app-installs/${privateSitePackageAppKey}/${installId}/snapshot/restore`,
-        {
-          ...schemaAppTestStorageSnapshot("site", `app:${installId}`),
-          schemaKey: privateSitePackageAppKey,
-        },
-        adminHeaders(),
-      ),
-    taskStorage: () =>
-      restoreTestStorageSnapshot(
-        target,
-        `/api/app-installs/${taskPackageAppKey}/${taskInstallId}/snapshot/restore`,
-        {
-          ...schemaAppTestStorageSnapshot("tasks", `app:${taskInstallId}`),
-          schemaKey: taskPackageAppKey,
-        },
-        adminHeaders(),
-      ),
   };
 
   for (const resource of resources) {
@@ -4284,17 +1943,6 @@ async function createCustomDomainHarness(
   runtimeProfile?: "instance" | "publishedSite",
   bindings: Record<string, string> = {},
 ) {
-  const taskPackage = await runtimeWorkspaceTaskAppPackageFixture({
-    packageAppKey: taskPackageAppKey,
-  });
-  const privateSitePackage = await runtimeWorkspaceTaskAppPackageFixture({
-    capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],
-    defaultInstallId: privateSiteInstallId,
-    label: "Private Site",
-    packageAppKey: privateSitePackageAppKey,
-    sourceSchema: siteSourceSchema,
-  });
-
   return createWorkerHarness(
     harnessPath,
     {
@@ -4303,10 +1951,6 @@ async function createCustomDomainHarness(
     {
       bindings: {
         FORMLESS_ADMIN_TOKEN: adminToken,
-        [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
-          taskPackage,
-          privateSitePackage,
-        ]),
         ...bindings,
         ...(runtimeProfile === undefined ? {} : { FORMLESS_RUNTIME_PROFILE: runtimeProfile }),
       },
@@ -4341,28 +1985,11 @@ async function writeCustomDomainHarness() {
         ensureEmailDeliveryTables,
         readEmailDeliveryRenderedMessageById,
       } from "${process.cwd()}/src/worker/email-runtime-state.ts";
-      import {
-        handleInstanceAuthSignupDurableObjectRequest,
-      } from "${process.cwd()}/src/worker/instance-auth-signup.ts";
       import { ensureRuntimeInstanceAuthConfig } from "${process.cwd()}/src/worker/instance-auth-runtime.ts";
 
       export class CustomDomainHarnessAuthority extends FormlessAuthority {
         async fetch(request) {
           const url = new URL(request.url);
-
-          if (url.pathname.startsWith("/formless/auth/signup/")) {
-            await ensureRuntimeInstanceAuthConfig(this.ctx.storage, request, this.env);
-
-            const signupResponse = await handleInstanceAuthSignupDurableObjectRequest(
-              request,
-              this.ctx.storage,
-              customDomainHarnessEnv(this.env, this.ctx.storage),
-            );
-
-            if (signupResponse) {
-              return signupResponse;
-            }
-          }
 
           if (url.pathname === "/harness/auth/config") {
             if (request.method === "GET") {

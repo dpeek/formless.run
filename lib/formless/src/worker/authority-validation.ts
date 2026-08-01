@@ -1178,10 +1178,8 @@ function isInstanceControlPlaneRouteValidationEntity(schema: AppSchema, entityNa
     entity.fields.find((definition) => definition.key === "matchPrefix")?.type === "text" &&
     entity.fields.find((definition) => definition.key === "kind")?.type === "enum" &&
     entity.fields.find((definition) => definition.key === "targetProfile")?.type === "enum" &&
-    entity.fields.find((definition) => definition.key === "appInstall")?.type === "reference" &&
     entity.fields.find((definition) => definition.key === "surface")?.type === "enum" &&
     entity.fields.find((definition) => definition.key === "access")?.type === "enum" &&
-    entity.fields.find((definition) => definition.key === "requiredRole")?.type === "enum" &&
     entity.fields.find((definition) => definition.key === "deploymentConfig")?.type ===
       "reference" &&
     entity.fields.find((definition) => definition.key === "toHost")?.type === "text" &&
@@ -1218,14 +1216,7 @@ function validateInstanceControlPlaneRouteValues(
   }
 
   if (kind === "mount") {
-    validateInstanceControlPlaneMountRoute(
-      values,
-      reader,
-      matchHost,
-      matchPath,
-      matchPrefix,
-      additionalRecords,
-    );
+    validateInstanceControlPlaneMountRoute(values, matchHost, matchPath, matchPrefix);
   } else if (kind === "redirect") {
     validateInstanceControlPlaneRedirectRoute(values, matchHost);
   } else {
@@ -1246,46 +1237,20 @@ function validateInstanceControlPlaneRouteValues(
 
 function validateInstanceControlPlaneRouteAuthorization(values: RecordValues, kind: string) {
   const access = optionalStringRecordValue(values, "access");
-  const requiredRole = optionalStringRecordValue(values, "requiredRole");
   const targetProfile = optionalStringRecordValue(values, "targetProfile");
-  const appInstall = optionalStringRecordValue(values, "appInstall");
-  const surface = optionalStringRecordValue(values, "surface");
 
   if (access === "management" && (kind !== "mount" || targetProfile !== "instance")) {
     throw new BadRequestError('Field "access" can only be "management" for instance mount routes.');
-  }
-
-  if (requiredRole === undefined) {
-    return;
-  }
-
-  if (requiredRole !== "app.admin") {
-    throw new BadRequestError('Field "requiredRole" must be "app.admin".');
-  }
-
-  if (
-    kind !== "mount" ||
-    access !== "authenticated" ||
-    targetProfile !== "app" ||
-    appInstall === undefined ||
-    surface !== "admin"
-  ) {
-    throw new BadRequestError(
-      'Field "requiredRole" requires an authenticated app admin mount with one app install.',
-    );
   }
 }
 
 function validateInstanceControlPlaneMountRoute(
   values: RecordValues,
-  reader: AuthorityRecordValidationReader,
   matchHost: string | undefined,
   matchPath: string,
   matchPrefix: string | undefined,
-  additionalRecords: StoredRecord[] | undefined,
 ) {
   const targetProfile = optionalStringRecordValue(values, "targetProfile");
-  const appInstall = optionalStringRecordValue(values, "appInstall");
   const surface = optionalStringRecordValue(values, "surface");
 
   if (optionalStringRecordValue(values, "toHost") !== undefined) {
@@ -1305,10 +1270,6 @@ function validateInstanceControlPlaneMountRoute(
   }
 
   if (targetProfile === "instance") {
-    if (appInstall !== undefined) {
-      throw new BadRequestError('Field "appInstall" is incompatible with instance mount routes.');
-    }
-
     if (surface !== undefined && surface !== "admin") {
       throw new BadRequestError('Field "surface" is incompatible with instance mount routes.');
     }
@@ -1316,12 +1277,8 @@ function validateInstanceControlPlaneMountRoute(
     return;
   }
 
-  if (targetProfile !== "app" && targetProfile !== "public-site") {
+  if (targetProfile !== "public-site") {
     throw new BadRequestError('Field "targetProfile" is invalid for mount routes.');
-  }
-
-  if (targetProfile === "app" && appInstall === undefined) {
-    throw new BadRequestError(`Field "appInstall" is required for ${targetProfile} mount routes.`);
   }
 
   if (targetProfile === "public-site" && surface !== "public-site") {
@@ -1330,42 +1287,7 @@ function validateInstanceControlPlaneMountRoute(
     );
   }
 
-  if (targetProfile === "public-site") {
-    if (appInstall !== undefined) {
-      throw new BadRequestError(
-        'Field "appInstall" is incompatible with public-site mount routes.',
-      );
-    }
-
-    validateHostMountedPublicSiteRoute(matchHost, matchPath, matchPrefix);
-    return;
-  }
-
-  if (appInstall === undefined) {
-    throw new BadRequestError(`Field "appInstall" is required for ${targetProfile} mount routes.`);
-  }
-
-  const install = getStoredRecordForValidation(reader, appInstall, additionalRecords);
-
-  if (!install || install.entity !== "app-install" || install.deletedAt) {
-    throw new BadRequestError(
-      `Field "appInstall" references unknown app-install record "${appInstall}".`,
-    );
-  }
-
-  if (install.values.status !== "installed") {
-    throw new BadRequestError(
-      `Field "appInstall" references non-installed app-install record "${appInstall}".`,
-    );
-  }
-
-  if (targetProfile === "app") {
-    if (surface !== "admin") {
-      throw new BadRequestError('Field "surface" must be "admin" for app mount routes.');
-    }
-
-    return;
-  }
+  validateHostMountedPublicSiteRoute(matchHost, matchPath, matchPrefix);
 }
 
 function validateHostMountedPublicSiteRoute(
@@ -1388,7 +1310,7 @@ function validateInstanceControlPlaneRedirectRoute(
     throw new BadRequestError('Field "matchHost" is required for redirect routes.');
   }
 
-  for (const fieldName of ["targetProfile", "appInstall", "surface"] as const) {
+  for (const fieldName of ["targetProfile", "surface"] as const) {
     if (optionalStringRecordValue(values, fieldName) !== undefined) {
       throw new BadRequestError(`Field "${fieldName}" is incompatible with redirect routes.`);
     }

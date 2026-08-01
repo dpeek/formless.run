@@ -28,7 +28,6 @@ export async function readInstanceWorkspaceControlPlaneStorageSnapshot(
     ...input,
     controlPlaneSnapshotContract: formlessProgramWorkspaceSnapshotContract({
       artifact,
-      packageResolver: input.packageResolver,
     }),
   });
 }
@@ -42,7 +41,6 @@ export async function writeInstanceWorkspaceControlPlaneStorageSnapshot(
     ...input,
     controlPlaneSnapshotContract: formlessProgramWorkspaceSnapshotContract({
       artifact,
-      packageResolver: input.packageResolver,
     }),
   });
 }

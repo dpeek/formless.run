@@ -32,7 +32,6 @@ export type DomainProviderProfileMappingIntent = {
   enabled: boolean;
   host: string;
   profile: InstanceDomainMappingProfile;
-  targetInstallId?: string;
 };
 
 export type DomainProviderResourceKind = "cloudflare-worker-custom-domain";
@@ -56,7 +55,6 @@ export type DomainProviderCustomDomainResource = {
   host: string;
   profile?: InstanceDomainMappingProfile;
   routeKind?: "redirect";
-  targetInstallId?: string;
   zone: DomainProviderZone;
   props: {
     adopt: boolean;

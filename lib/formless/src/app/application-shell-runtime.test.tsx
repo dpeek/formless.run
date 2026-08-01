@@ -358,9 +358,7 @@ describe("application shell runtime boundary", () => {
     );
 
     await waitFor(() => expect(routeChecks).toHaveLength(FORMLESS_PROGRAM_SCREEN_PATHS.length));
-    await waitFor(() =>
-      expect(programDestinationPaths(required(host))).toEqual(["/apps", "/deployments"]),
-    );
+    await waitFor(() => expect(programDestinationPaths(required(host))).toEqual(["/deployments"]));
 
     allowedPaths = new Set(["/settings"]);
     renderer.rerender(

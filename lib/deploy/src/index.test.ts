@@ -18,10 +18,8 @@ import {
   deriveDeployLatestStatus,
   materializeDeployDesiredStateVersion,
   projectDeployControlPlaneDesiredState,
-  projectDeployRouteTargets,
 } from "./index.ts";
 import type {
-  ControlPlaneAppInstallProjectionRecord,
   ControlPlaneDeploymentConfigObservationRecord,
   ControlPlaneEmailDomainProjectionRecord,
   ControlPlaneEmailSenderProjectionRecord,
@@ -54,13 +52,6 @@ describe("Deploy control-plane projection helpers", () => {
         workerName: "fallback-worker",
       }),
     ).toEqual({
-      appInstalls: [
-        {
-          id: "app-install:site",
-          installId: "site",
-          packageAppKey: "site",
-        },
-      ],
       emailDomains: [],
       emailSenders: [],
       instanceId: "demo-instance",
@@ -134,19 +125,6 @@ describe("Deploy control-plane projection helpers", () => {
     expect(serialized).not.toContain("gone.example.com");
   });
 
-  it("projects enabled hostless mount routes as deterministic route targets", () => {
-    expect(projectDeployRouteTargets([...appRoutes].reverse(), appInstalls)).toEqual([
-      {
-        appInstallId: "site",
-        packageAppKey: "site",
-        path: "/apps/site",
-        routeId: "route:site:admin",
-        routeKind: "admin",
-        surface: "admin",
-      },
-    ]);
-  });
-
   it("omits route-derived resources when route records are absent", async () => {
     const projection = projectDeployControlPlaneDesiredState(
       deployDesiredStateProjectionInputFromControlPlaneRecords({
@@ -166,7 +144,6 @@ describe("Deploy control-plane projection helpers", () => {
     );
 
     expect(projection.resourceGraph.resources).toEqual([]);
-    expect(projection.routeTargets).toEqual([]);
     expect(projection.sourceFingerprint).toMatch(/^control-plane:/);
     expect(await computeDeployProjectionHash(reorderedProjection)).toBe(
       await computeDeployProjectionHash(projection),
@@ -175,10 +152,9 @@ describe("Deploy control-plane projection helpers", () => {
 
   it("keeps route-derived custom-domain projection stable and display-safe", async () => {
     const projection = projectDeployControlPlaneDesiredState({
-      appInstalls,
       instanceId: "demo-instance",
       providerConfigs,
-      routes: [...appRoutes, ...domainRoutes],
+      routes: domainRoutes,
       targetId: "instance.primary",
     });
 
@@ -201,7 +177,7 @@ describe("Deploy control-plane projection helpers", () => {
     ]);
     expect(deployProjectionCanonicalJson(projection)).not.toContain("secret");
     expect(await computeDeployProjectionHash(projection)).toBe(
-      "sha256:dec59218d115206812d265d3af03b3ab63c596a8daad0e83aca158a4717c244e",
+      "sha256:226a4eecb7b456fe8544802fab61d4917d97bb25b38cefa991535ea07e65e049",
     );
   });
 
@@ -420,7 +396,7 @@ describe("Deploy control-plane projection helpers", () => {
       },
     ]);
     expect(await computeDeployProjectionHash(projection)).toBe(
-      "sha256:545e7fd5af37ddf7e8435b966b178b54f9cb97dd6f5765880fad9d6881c7de92",
+      "sha256:b00b8b191043b7dc6dbdbe8cbc2d7ca34257052e31763c19e077d81885fdfdb3",
     );
   });
 
@@ -457,21 +433,6 @@ describe("Deploy control-plane projection helpers", () => {
         logicalId: "demo-instance-redirect-custom-domain-docs-example-com",
       }),
     ]);
-  });
-
-  it("keeps route-only projection stable", async () => {
-    const projection = projectDeployControlPlaneDesiredState({
-      appInstalls,
-      instanceId: "demo-instance",
-      routes: appRoutes,
-      targetId: "instance.primary",
-    });
-
-    expect(projection.resourceGraph.resources).toEqual([]);
-    expect(projection.routeTargets).toHaveLength(1);
-    expect(await computeDeployProjectionHash(projection)).toBe(
-      "sha256:e9f1933685a90a4c3a2fd334e2b9dc780b3bc0e028ecc9f372d5423b6bf8184e",
-    );
   });
 });
 
@@ -833,51 +794,6 @@ describe("Deploy desired-state version helpers", () => {
     ).not.toContain("secret-token");
   });
 });
-
-const appInstalls = [
-  {
-    id: "app-install:site",
-    installId: "site",
-    packageAppKey: "site",
-  },
-  {
-    id: "app-install:docs",
-    installId: "docs",
-    packageAppKey: "site",
-  },
-] satisfies ControlPlaneAppInstallProjectionRecord[];
-
-const appRoutes = [
-  {
-    appInstall: "site",
-    enabled: true,
-    id: "route:site:admin",
-    kind: "mount",
-    matchPath: "/apps/site",
-    surface: "admin",
-    targetProfile: "app",
-  },
-  {
-    appInstall: "site",
-    enabled: true,
-    id: "route:site:public-site",
-    kind: "mount",
-    matchPath: "/sites/site",
-    matchPrefix: "/sites/site/",
-    surface: "public-site",
-    targetProfile: "public-site",
-  },
-  {
-    appInstall: "docs",
-    enabled: false,
-    id: "route:docs:public-site",
-    kind: "mount",
-    matchPath: "/sites/docs",
-    matchPrefix: "/sites/docs/",
-    surface: "public-site",
-    targetProfile: "public-site",
-  },
-] satisfies ControlPlaneRouteProjectionRecord[];
 
 const domainRoutes = [
   {

@@ -444,6 +444,29 @@ describe("storage", () => {
       beforeState,
     );
   });
+
+  it("refreshes selected current records without mutating dormant stored records", async () => {
+    const refreshedHash = sourceHash("2");
+
+    await postJson<StoredSchema>("/source-bootstrap", {
+      sourceSchemaHash: sourceHash("1"),
+    });
+    await createRecord("write-dormant-before-refresh", "Dormant record");
+    const beforeRecords = await getJson<StoredRecord[]>("/records");
+    const beforeChanges = await getJson<ChangeRow[]>("/changes?after=0");
+    const beforeCursor = await getJson<number>("/cursor");
+
+    const refreshed = await postJson<StoredSchema>("/source-bootstrap?selectRecords=none", {
+      schemaKind: "required-field",
+      sourceSchemaHash: refreshedHash,
+    });
+
+    expect(refreshed.schemaProvenance).toMatchObject({ sourceSchemaHash: refreshedHash });
+    expect(await getJson<StoredRecord[]>("/records")).toEqual(beforeRecords);
+    expect(await getJson<ChangeRow[]>("/changes?after=0")).toEqual(beforeChanges);
+    expect(await getJson<number>("/cursor")).toBe(beforeCursor);
+  });
+
   it("blocks source refresh that changes a continuing entity id", async () => {
     const initialHash = sourceHash("1");
     const refreshedHash = sourceHash("2");
@@ -1858,7 +1881,13 @@ async function writeStorageHarness() {
           if (request.method === "POST" && url.pathname === "/source-bootstrap") {
             try {
               return Response.json(
-                initializeStorageFromSource(this.ctx.storage, sourceForBootstrap(await request.json())),
+                initializeStorageFromSource(
+                  this.ctx.storage,
+                  sourceForBootstrap(await request.json()),
+                  url.searchParams.get("selectRecords") === "none"
+                    ? { selectRecordsForSchemaRefresh: () => [] }
+                    : {},
+                ),
               );
             } catch (error) {
               if (error instanceof ActiveSchemaRefreshBlockedError) {

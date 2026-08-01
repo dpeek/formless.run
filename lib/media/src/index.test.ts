@@ -1,20 +1,17 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
-  APP_DOCUMENT_MEDIA_KEY_PREFIX,
   CORE_IMAGE_KEY_PREFIX,
   CORE_MEDIA_ROUTE_PREFIX,
   MEDIA_OBJECT_CACHE_CONTROL,
   MEDIA_PDF_CONTENT_TYPE,
   MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL,
   PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX,
-  appDocumentMediaKeyPrefixForOwner,
   coreImageMediaDeliveryFactsForAssetId,
   coreMediaHrefForKey,
   coreMediaKeyFromAssetId,
   coreMediaKeyFromHref,
   documentMediaAssetIsCompatible,
   documentMediaAssetMatchesAccess,
-  documentMediaAssetMatchesOwner,
   documentMediaContentTypeForKey,
   documentMediaDeliveryFactsForAssetId,
   documentMediaExtensionForContentType,
@@ -30,7 +27,6 @@ import {
   isRestorableDocumentMediaKey,
   isRestorableImageMediaKey,
   isValidDocumentMediaAssetId,
-  isValidDocumentMediaOwnerAppInstallId,
   isValidImageMediaAssetId,
   isValidMediaStorageKey,
   mediaAssetFromObjectMetadata,
@@ -73,30 +69,6 @@ describe("Media runtime-neutral contract helpers", () => {
     expect(isValidDocumentMediaAssetId("../coa-fixed.pdf")).toBe(false);
   });
 
-  it("derives and validates immutable app-scoped document keys", () => {
-    expect(isValidDocumentMediaOwnerAppInstallId("verifi-prod")).toBe(true);
-    expect(isValidDocumentMediaOwnerAppInstallId(" verifi-prod ")).toBe(false);
-    expect(isValidDocumentMediaOwnerAppInstallId("../verifi")).toBe(false);
-    expect(appDocumentMediaKeyPrefixForOwner("verifi-prod")).toBe(
-      `${APP_DOCUMENT_MEDIA_KEY_PREFIX}/verifi-prod/documents/`,
-    );
-    expect(
-      documentMediaStorageKeyForAssetId("coa-fixed.pdf", {
-        ownerAppInstallId: "verifi-prod",
-      }),
-    ).toBe("media/app-installs/verifi-prod/documents/coa-fixed.pdf");
-    expect(
-      isRestorableDocumentMediaKey("media/app-installs/verifi-prod/documents/coa-fixed.pdf", {
-        ownerAppInstallId: "verifi-prod",
-      }),
-    ).toBe(true);
-    expect(
-      isRestorableDocumentMediaKey("media/app-installs/another-app/documents/coa-fixed.pdf", {
-        ownerAppInstallId: "verifi-prod",
-      }),
-    ).toBe(false);
-  });
-
   it("derives global Program document keys without app-install ownership", () => {
     expect(documentMediaStorageKeyForAssetId("program-report.pdf")).toBe(
       `${PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX}/program-report.pdf`,
@@ -104,9 +76,6 @@ describe("Media runtime-neutral contract helpers", () => {
     expect(
       isRestorableDocumentMediaKey(`${PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX}/program-report.pdf`),
     ).toBe(true);
-    expect(
-      isRestorableDocumentMediaKey("media/app-installs/program/documents/program-report.pdf"),
-    ).toBe(false);
   });
 
   it("validates restorable image keys inside the configured prefix", () => {
@@ -166,7 +135,7 @@ describe("Media runtime-neutral contract helpers", () => {
     expect(mediaAssetFromObjectMetadata(undefined)).toBeUndefined();
   });
 
-  it("round-trips document metadata and validates owner and access invariants", () => {
+  it("round-trips Program document metadata and validates access invariants", () => {
     const asset = documentMediaAsset();
     const metadata = mediaObjectMetadataForAsset(asset);
 
@@ -174,28 +143,20 @@ describe("Media runtime-neutral contract helpers", () => {
       "formless-media-asset-id": "coa-fixed.pdf",
       "formless-media-byte-size": "12",
       "formless-media-content-type": "application/pdf",
-      "formless-media-delivery-href":
-        "/api/app-installs/verifi/verifi-prod/media/documents/coa-fixed.pdf",
+      "formless-media-delivery-href": "/api/formless/program/media/documents/coa-fixed.pdf",
       "formless-media-document-access": "private",
       "formless-media-filename": "coa.pdf",
       "formless-media-kind": "document",
       "formless-media-label": "Certificate of analysis",
-      "formless-media-owner-app-install-id": "verifi-prod",
       "formless-media-provider": "r2",
       "formless-media-status": "ready",
-      "formless-media-storage-key": "media/app-installs/verifi-prod/documents/coa-fixed.pdf",
+      "formless-media-storage-key": "media/program/documents/coa-fixed.pdf",
     });
     expect(mediaAssetFromObjectMetadata(metadata)).toEqual(asset);
     expect(
       mediaAssetFromObjectMetadata({
         ...metadata,
         "formless-media-document-access": "authenticated",
-      }),
-    ).toBeUndefined();
-    expect(
-      mediaAssetFromObjectMetadata({
-        ...metadata,
-        "formless-media-owner-app-install-id": "other-app",
       }),
     ).toBeUndefined();
     expect(
@@ -213,7 +174,6 @@ describe("Media runtime-neutral contract helpers", () => {
     expect(metadata).not.toHaveProperty("formless-media-owner-app-install-id");
     expect(mediaAssetFromObjectMetadata(metadata)).toEqual(asset);
     expect(isDocumentMediaAsset(asset)).toBe(true);
-    expect(documentMediaAssetMatchesOwner(asset)).toBe(true);
     expect(
       documentMediaAssetIsCompatible(asset, {
         acceptedMimeTypes: ["application/pdf"],
@@ -221,14 +181,6 @@ describe("Media runtime-neutral contract helpers", () => {
         maxBytes: 12,
       }),
     ).toBe(true);
-    expect(
-      documentMediaAssetIsCompatible(asset, {
-        acceptedMimeTypes: ["application/pdf"],
-        access: "public",
-        maxBytes: 12,
-        ownerAppInstallId: "program",
-      }),
-    ).toBe(false);
   });
 
   it("discriminates image and document assets and checks document compatibility", () => {
@@ -241,8 +193,6 @@ describe("Media runtime-neutral contract helpers", () => {
     expect(isImageMediaAsset(document)).toBe(false);
     expect(isDocumentMediaAccess("public")).toBe(true);
     expect(isDocumentMediaAccess("authenticated")).toBe(false);
-    expect(documentMediaAssetMatchesOwner(document, "verifi-prod")).toBe(true);
-    expect(documentMediaAssetMatchesOwner(document, "other-app")).toBe(false);
     expect(documentMediaAssetMatchesAccess(document, "private")).toBe(true);
     expect(documentMediaAssetMatchesAccess(document, "public")).toBe(false);
     expect(
@@ -250,7 +200,6 @@ describe("Media runtime-neutral contract helpers", () => {
         acceptedMimeTypes: ["application/pdf"],
         access: "private",
         maxBytes: 12,
-        ownerAppInstallId: "verifi-prod",
       }),
     ).toBe(true);
     expect(
@@ -258,7 +207,6 @@ describe("Media runtime-neutral contract helpers", () => {
         acceptedMimeTypes: ["application/pdf"],
         access: "public",
         maxBytes: 12,
-        ownerAppInstallId: "verifi-prod",
       }),
     ).toBe(false);
   });
@@ -324,19 +272,6 @@ describe("Media runtime-neutral contract helpers", () => {
       xContentTypeOptions: "nosniff",
     });
     expect(
-      documentMediaDeliveryFactsForAssetId("coa-fixed.pdf", {
-        hrefForAssetId: (assetId) =>
-          `/api/app-installs/verifi/verifi-prod/media/documents/${assetId}`,
-        ownerAppInstallId: "verifi-prod",
-      }),
-    ).toEqual({
-      assetId: "coa-fixed.pdf",
-      href: "/api/app-installs/verifi/verifi-prod/media/documents/coa-fixed.pdf",
-      kind: "document",
-      ownerAppInstallId: "verifi-prod",
-      storageKey: "media/app-installs/verifi-prod/documents/coa-fixed.pdf",
-    });
-    expect(
       documentMediaDeliveryFactsForAssetId("program-report.pdf", {
         hrefForAssetId: (assetId) => `/api/formless/program/media/documents/${assetId}`,
       }),
@@ -400,15 +335,14 @@ function documentMediaAsset(): DocumentMediaAsset {
     access: "private",
     byteSize: 12,
     contentType: MEDIA_PDF_CONTENT_TYPE,
-    deliveryHref: "/api/app-installs/verifi/verifi-prod/media/documents/coa-fixed.pdf",
+    deliveryHref: "/api/formless/program/media/documents/coa-fixed.pdf",
     filename: "coa.pdf",
     id: "coa-fixed.pdf",
     kind: "document",
     label: "Certificate of analysis",
-    ownerAppInstallId: "verifi-prod",
     provider: "r2",
     status: "ready",
-    storageKey: "media/app-installs/verifi-prod/documents/coa-fixed.pdf",
+    storageKey: "media/program/documents/coa-fixed.pdf",
   };
 }
 

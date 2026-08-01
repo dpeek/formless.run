@@ -1046,7 +1046,7 @@ async function identityRecords() {
 }
 function authorizingIdentityRecords(records: StoredRecord[]) {
   return records.filter((record) =>
-    ["app-registration", "principal", "principal-email", "role-assignment"].includes(record.entity),
+    ["principal", "principal-email", "role-assignment"].includes(record.entity),
   );
 }
 

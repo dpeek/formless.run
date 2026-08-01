@@ -20,247 +20,6 @@
   },
   "entities": [
     {
-      "constraints": [
-        {
-          "fields": ["installId"],
-          "key": "uniqueInstallId",
-          "kind": "unique"
-        },
-        {
-          "fields": ["storageIdentity"],
-          "key": "uniqueStorageIdentity",
-          "kind": "unique"
-        }
-      ],
-      "fields": [
-        {
-          "key": "installId",
-          "label": "Install id",
-          "required": true,
-          "type": "text"
-        },
-        {
-          "key": "packageAppKey",
-          "label": "Package",
-          "required": true,
-          "type": "text"
-        },
-        {
-          "integer": true,
-          "key": "packageRevision",
-          "label": "Package revision",
-          "min": 0,
-          "required": false,
-          "type": "number"
-        },
-        {
-          "key": "sourceSchemaHash",
-          "label": "Source schema hash",
-          "required": false,
-          "type": "text"
-        },
-        {
-          "key": "label",
-          "label": "Label",
-          "required": true,
-          "type": "text"
-        },
-        {
-          "key": "registrationPolicy",
-          "label": "Registration policy",
-          "required": true,
-          "type": "enum",
-          "values": [
-            {
-              "key": "closed",
-              "label": "Closed"
-            },
-            {
-              "key": "email-verified",
-              "label": "Email verified"
-            },
-            {
-              "key": "custom-operation",
-              "label": "Custom operation"
-            }
-          ]
-        },
-        {
-          "key": "registrationOperation",
-          "label": "Registration operation",
-          "required": false,
-          "type": "text"
-        },
-        {
-          "key": "status",
-          "label": "Status",
-          "required": true,
-          "type": "enum",
-          "values": [
-            {
-              "key": "disabled",
-              "label": "Disabled"
-            },
-            {
-              "key": "failed",
-              "label": "Failed"
-            },
-            {
-              "key": "installed",
-              "label": "Installed"
-            }
-          ]
-        },
-        {
-          "key": "storageIdentity",
-          "label": "Storage identity",
-          "required": true,
-          "type": "text"
-        }
-      ],
-      "id": "entity_703e0070-a642-4c2d-8103-3221222a6c35",
-      "key": "app-install",
-      "label": "App install",
-      "operations": [
-        {
-          "access": {
-            "anyOf": [
-              {
-                "role": "administrator"
-              },
-              {
-                "actor": "adminBearer"
-              }
-            ]
-          },
-          "audit": {
-            "input": "summary"
-          },
-          "effect": {
-            "type": "createRecord"
-          },
-          "idempotency": {
-            "required": true
-          },
-          "input": {
-            "fields": [
-              {
-                "field": "installId",
-                "key": "installId"
-              },
-              {
-                "field": "packageAppKey",
-                "key": "packageAppKey"
-              },
-              {
-                "field": "packageRevision",
-                "key": "packageRevision"
-              },
-              {
-                "field": "sourceSchemaHash",
-                "key": "sourceSchemaHash"
-              },
-              {
-                "field": "label",
-                "key": "label"
-              },
-              {
-                "field": "registrationPolicy",
-                "key": "registrationPolicy"
-              },
-              {
-                "field": "registrationOperation",
-                "key": "registrationOperation"
-              },
-              {
-                "field": "status",
-                "key": "status"
-              },
-              {
-                "field": "storageIdentity",
-                "key": "storageIdentity"
-              }
-            ]
-          },
-          "key": "create",
-          "kind": "create",
-          "label": "Create App install",
-          "output": {
-            "type": "create"
-          },
-          "scope": "collection"
-        },
-        {
-          "access": {
-            "anyOf": [
-              {
-                "role": "administrator"
-              },
-              {
-                "actor": "adminBearer"
-              }
-            ]
-          },
-          "audit": {
-            "input": "summary"
-          },
-          "effect": {
-            "type": "patchRecord"
-          },
-          "idempotency": {
-            "required": true
-          },
-          "input": {
-            "fields": [
-              {
-                "field": "installId",
-                "key": "installId"
-              },
-              {
-                "field": "packageAppKey",
-                "key": "packageAppKey"
-              },
-              {
-                "field": "packageRevision",
-                "key": "packageRevision"
-              },
-              {
-                "field": "sourceSchemaHash",
-                "key": "sourceSchemaHash"
-              },
-              {
-                "field": "label",
-                "key": "label"
-              },
-              {
-                "field": "registrationPolicy",
-                "key": "registrationPolicy"
-              },
-              {
-                "field": "registrationOperation",
-                "key": "registrationOperation"
-              },
-              {
-                "field": "status",
-                "key": "status"
-              },
-              {
-                "field": "storageIdentity",
-                "key": "storageIdentity"
-              }
-            ]
-          },
-          "key": "update",
-          "kind": "update",
-          "label": "Update App install",
-          "output": {
-            "type": "update"
-          },
-          "scope": "record"
-        }
-      ]
-    },
-    {
       "fields": [
         {
           "default": true,
@@ -310,10 +69,6 @@
           "type": "enum",
           "values": [
             {
-              "key": "app",
-              "label": "App"
-            },
-            {
               "key": "instance",
               "label": "Instance"
             },
@@ -322,14 +77,6 @@
               "label": "Public Site"
             }
           ]
-        },
-        {
-          "displayField": "label",
-          "key": "appInstall",
-          "label": "App install",
-          "required": false,
-          "to": "app-install",
-          "type": "reference"
         },
         {
           "key": "surface",
@@ -368,18 +115,6 @@
             {
               "key": "owner",
               "label": "Owner"
-            }
-          ]
-        },
-        {
-          "key": "requiredRole",
-          "label": "Required role",
-          "required": false,
-          "type": "enum",
-          "values": [
-            {
-              "key": "app.admin",
-              "label": "App admin"
             }
           ]
         },
@@ -498,20 +233,12 @@
                 "key": "targetProfile"
               },
               {
-                "field": "appInstall",
-                "key": "appInstall"
-              },
-              {
                 "field": "surface",
                 "key": "surface"
               },
               {
                 "field": "access",
                 "key": "access"
-              },
-              {
-                "field": "requiredRole",
-                "key": "requiredRole"
               },
               {
                 "field": "deploymentConfig",
@@ -594,20 +321,12 @@
                 "key": "targetProfile"
               },
               {
-                "field": "appInstall",
-                "key": "appInstall"
-              },
-              {
                 "field": "surface",
                 "key": "surface"
               },
               {
                 "field": "access",
                 "key": "access"
-              },
-              {
-                "field": "requiredRole",
-                "key": "requiredRole"
               },
               {
                 "field": "deploymentConfig",
@@ -2221,22 +1940,6 @@
             {
               "key": "instance.owner",
               "label": "instance.owner"
-            },
-            {
-              "key": "app.admin",
-              "label": "app.admin"
-            },
-            {
-              "key": "app.editor",
-              "label": "app.editor"
-            },
-            {
-              "key": "app.viewer",
-              "label": "app.viewer"
-            },
-            {
-              "key": "app.user",
-              "label": "app.user"
             }
           ]
         },
@@ -2401,10 +2104,6 @@
           "type": "enum",
           "values": [
             {
-              "key": "app-install",
-              "label": "App install"
-            },
-            {
               "key": "instance",
               "label": "Instance"
             },
@@ -2413,12 +2112,6 @@
               "label": "Organization"
             }
           ]
-        },
-        {
-          "key": "appInstallId",
-          "label": "App install id",
-          "required": false,
-          "type": "text"
         },
         {
           "displayField": "displayName",
@@ -2488,10 +2181,6 @@
               {
                 "field": "scopeKind",
                 "key": "scopeKind"
-              },
-              {
-                "field": "appInstallId",
-                "key": "appInstallId"
               },
               {
                 "field": "scopeOrganization",
@@ -2693,164 +2382,6 @@
     {
       "fields": [
         {
-          "key": "appInstallId",
-          "label": "App install id",
-          "required": true,
-          "type": "text"
-        },
-        {
-          "key": "targetKind",
-          "label": "Target kind",
-          "required": true,
-          "type": "enum",
-          "values": [
-            {
-              "key": "organization",
-              "label": "Organization"
-            },
-            {
-              "key": "principal",
-              "label": "Principal"
-            }
-          ]
-        },
-        {
-          "displayField": "displayName",
-          "key": "targetPrincipal",
-          "label": "Target principal",
-          "required": false,
-          "to": "principal",
-          "type": "reference"
-        },
-        {
-          "displayField": "displayName",
-          "key": "targetOrganization",
-          "label": "Target organization",
-          "required": false,
-          "to": "organization",
-          "type": "reference"
-        },
-        {
-          "default": "pending",
-          "key": "status",
-          "label": "Status",
-          "required": true,
-          "type": "enum",
-          "values": [
-            {
-              "key": "active",
-              "label": "Active"
-            },
-            {
-              "key": "disabled",
-              "label": "Disabled"
-            },
-            {
-              "key": "pending",
-              "label": "Pending"
-            }
-          ]
-        },
-        {
-          "displayField": "displayName",
-          "key": "selectedOrganization",
-          "label": "Selected organization",
-          "required": false,
-          "to": "organization",
-          "type": "reference"
-        }
-      ],
-      "id": "entity_735d1c4d-dc89-4423-9cc7-0daa06559d75",
-      "key": "app-registration",
-      "label": "App registration",
-      "operations": [
-        {
-          "access": {
-            "actor": "owner"
-          },
-          "audit": {
-            "input": "summary"
-          },
-          "effect": {
-            "type": "createRecord"
-          },
-          "idempotency": {
-            "required": true
-          },
-          "input": {
-            "fields": [
-              {
-                "field": "appInstallId",
-                "key": "appInstallId"
-              },
-              {
-                "field": "targetKind",
-                "key": "targetKind"
-              },
-              {
-                "field": "targetPrincipal",
-                "key": "targetPrincipal"
-              },
-              {
-                "field": "targetOrganization",
-                "key": "targetOrganization"
-              },
-              {
-                "field": "status",
-                "key": "status"
-              },
-              {
-                "field": "selectedOrganization",
-                "key": "selectedOrganization"
-              }
-            ]
-          },
-          "key": "create",
-          "kind": "create",
-          "label": "Create app registration",
-          "output": {
-            "type": "create"
-          },
-          "scope": "collection"
-        },
-        {
-          "access": {
-            "actor": "owner"
-          },
-          "audit": {
-            "input": "summary"
-          },
-          "effect": {
-            "type": "patchRecord"
-          },
-          "idempotency": {
-            "required": true
-          },
-          "input": {
-            "fields": [
-              {
-                "field": "status",
-                "key": "status"
-              },
-              {
-                "field": "selectedOrganization",
-                "key": "selectedOrganization"
-              }
-            ]
-          },
-          "key": "update",
-          "kind": "update",
-          "label": "Update app registration",
-          "output": {
-            "type": "update"
-          },
-          "scope": "record"
-        }
-      ]
-    },
-    {
-      "fields": [
-        {
           "key": "targetEmail",
           "label": "Target email",
           "required": true,
@@ -2863,10 +2394,6 @@
           "type": "enum",
           "values": [
             {
-              "key": "app-install",
-              "label": "App install"
-            },
-            {
               "key": "instance",
               "label": "Instance"
             },
@@ -2875,12 +2402,6 @@
               "label": "Organization"
             }
           ]
-        },
-        {
-          "key": "targetAppInstallId",
-          "label": "Target app install id",
-          "required": false,
-          "type": "text"
         },
         {
           "displayField": "displayName",
@@ -2970,10 +2491,6 @@
               {
                 "field": "targetSurface",
                 "key": "targetSurface"
-              },
-              {
-                "field": "targetAppInstallId",
-                "key": "targetAppInstallId"
               },
               {
                 "field": "targetOrganization",
@@ -3071,10 +2588,6 @@
           "type": "enum",
           "values": [
             {
-              "key": "app-install",
-              "label": "App install"
-            },
-            {
               "key": "instance",
               "label": "Instance"
             },
@@ -3083,12 +2596,6 @@
               "label": "Organization"
             }
           ]
-        },
-        {
-          "key": "appInstallId",
-          "label": "App install id",
-          "required": false,
-          "type": "text"
         },
         {
           "displayField": "displayName",
@@ -3169,10 +2676,6 @@
               {
                 "field": "scopeKind",
                 "key": "scopeKind"
-              },
-              {
-                "field": "appInstallId",
-                "key": "appInstallId"
               },
               {
                 "field": "scopeOrganization",
@@ -6140,42 +5643,6 @@
   ],
   "itemViews": [
     {
-      "entity": "app-install",
-      "fields": [
-        {
-          "commit": "field-commit",
-          "editor": "text",
-          "field": "label"
-        },
-        {
-          "commit": "field-commit",
-          "editor": "text",
-          "field": "installId"
-        },
-        {
-          "commit": "field-commit",
-          "editor": "text",
-          "field": "packageAppKey"
-        },
-        {
-          "commit": "immediate",
-          "editor": "enum",
-          "field": "registrationPolicy"
-        },
-        {
-          "commit": "field-commit",
-          "editor": "text",
-          "field": "registrationOperation"
-        },
-        {
-          "commit": "immediate",
-          "editor": "enum",
-          "field": "status"
-        }
-      ],
-      "key": "appInstallItem"
-    },
-    {
       "entity": "route",
       "fields": [
         {
@@ -6497,32 +5964,6 @@
         }
       ],
       "key": "programRoleAssignmentItem"
-    },
-    {
-      "entity": "app-registration",
-      "fields": [
-        {
-          "commit": "field-commit",
-          "editor": "text",
-          "field": "appInstallId"
-        },
-        {
-          "commit": "immediate",
-          "editor": "enum",
-          "field": "targetKind"
-        },
-        {
-          "commit": "immediate",
-          "editor": "enum",
-          "field": "status"
-        },
-        {
-          "commit": "immediate",
-          "editor": "reference",
-          "field": "selectedOrganization"
-        }
-      ],
-      "key": "appRegistrationItem"
     },
     {
       "entity": "invitation",
@@ -7466,7 +6907,6 @@
       "taskHome",
       "siteEditor",
       "contacts",
-      "apps",
       "routes",
       "deployments",
       "principals",
@@ -7478,14 +6918,6 @@
     ]
   },
   "queries": [
-    {
-      "entity": "app-install",
-      "expression": {
-        "kind": "all"
-      },
-      "key": "appInstallAll",
-      "label": "App installs"
-    },
     {
       "entity": "route",
       "expression": {
@@ -7577,20 +7009,6 @@
       },
       "key": "routeInstanceMount",
       "label": "Instance paths"
-    },
-    {
-      "entity": "route",
-      "expression": {
-        "kind": "where",
-        "op": "eq",
-        "ref": {
-          "kind": "value",
-          "name": "targetProfile"
-        },
-        "value": "app"
-      },
-      "key": "routeAppMount",
-      "label": "App install routes"
     },
     {
       "entity": "route",
@@ -7760,14 +7178,6 @@
       },
       "key": "programRoleAssignmentAll",
       "label": "Program role assignments"
-    },
-    {
-      "entity": "app-registration",
-      "expression": {
-        "kind": "all"
-      },
-      "key": "appRegistrationAll",
-      "label": "App registrations"
     },
     {
       "entity": "invitation",
@@ -8410,18 +7820,6 @@
     {
       "from": {
         "entity": "route",
-        "field": "appInstall"
-      },
-      "key": "routeInstall",
-      "kind": "toOne",
-      "label": "Route install",
-      "to": {
-        "entity": "app-install"
-      }
-    },
-    {
-      "from": {
-        "entity": "route",
         "field": "deploymentConfig"
       },
       "inverse": "deploymentConfigRoutes",
@@ -8781,42 +8179,6 @@
       "key": "roleAssignmentScopeOrganization",
       "kind": "toOne",
       "label": "Role assignment scope organization",
-      "to": {
-        "entity": "organization"
-      }
-    },
-    {
-      "from": {
-        "entity": "app-registration",
-        "field": "targetPrincipal"
-      },
-      "key": "appRegistrationTargetPrincipal",
-      "kind": "toOne",
-      "label": "App registration principal target",
-      "to": {
-        "entity": "principal"
-      }
-    },
-    {
-      "from": {
-        "entity": "app-registration",
-        "field": "targetOrganization"
-      },
-      "key": "appRegistrationTargetOrganization",
-      "kind": "toOne",
-      "label": "App registration organization target",
-      "to": {
-        "entity": "organization"
-      }
-    },
-    {
-      "from": {
-        "entity": "app-registration",
-        "field": "selectedOrganization"
-      },
-      "key": "appRegistrationSelectedOrganization",
-      "kind": "toOne",
-      "label": "App registration selected organization",
       "to": {
         "entity": "organization"
       }
@@ -9330,22 +8692,10 @@
             "policyKey",
             "version",
             "scopeKind",
-            "appInstallId",
             "scopeOrganization",
             "policyDocumentUrl",
             "policyContentRef"
           ]
-        },
-        "app-install": {
-          "immutableFields": [
-            "installId",
-            "packageAppKey",
-            "registrationOperation",
-            "storageIdentity"
-          ]
-        },
-        "app-registration": {
-          "immutableFields": ["appInstallId", "targetKind", "targetPrincipal", "targetOrganization"]
         },
         "deployment-config": {
           "immutableFields": ["targetId", "targetKind", "providerFamily"],
@@ -9372,12 +8722,7 @@
           "immutableFields": ["settingsId"]
         },
         "invitation": {
-          "immutableFields": [
-            "targetEmail",
-            "targetSurface",
-            "targetAppInstallId",
-            "targetOrganization"
-          ]
+          "immutableFields": ["targetEmail", "targetSurface", "targetOrganization"]
         },
         "membership": {
           "immutableFields": ["principal", "targetKind", "targetGroup", "targetOrganization"]
@@ -9408,7 +8753,6 @@
             "targetGroup",
             "targetOrganization",
             "scopeKind",
-            "appInstallId",
             "scopeOrganization"
           ]
         },
@@ -9830,84 +9174,9 @@
       },
       "path": "/crm/broadcasts",
       "type": "workspace"
-    },
-    {
-      "access": {
-        "role": "administrator"
-      },
-      "key": "apps",
-      "label": "Apps",
-      "layout": {
-        "sections": [
-          {
-            "id": "app-installs",
-            "type": "collection",
-            "view": "appInstallList"
-          },
-          {
-            "id": "app-registrations",
-            "type": "collection",
-            "view": "appRegistrationList"
-          }
-        ],
-        "type": "stack"
-      },
-      "path": "/apps",
-      "type": "workspace"
     }
   ],
   "tableViews": [
-    {
-      "columns": [
-        {
-          "display": "editor",
-          "field": "label",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "installId",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "packageAppKey",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "registrationPolicy",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "registrationOperation",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "status",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "storageIdentity",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "packageRevision",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "sourceSchemaHash",
-          "type": "field"
-        }
-      ],
-      "entity": "app-install",
-      "key": "appInstallTable"
-    },
     {
       "columns": [
         {
@@ -9942,22 +9211,12 @@
         },
         {
           "display": "readOnly",
-          "field": "appInstall",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
           "field": "surface",
           "type": "field"
         },
         {
           "display": "readOnly",
           "field": "access",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "requiredRole",
           "type": "field"
         },
         {
@@ -10576,11 +9835,6 @@
         },
         {
           "display": "readOnly",
-          "field": "appInstallId",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
           "field": "scopeOrganization",
           "type": "field"
         },
@@ -10654,71 +9908,12 @@
       "columns": [
         {
           "display": "readOnly",
-          "field": "appInstallId",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "targetKind",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "targetPrincipal",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "targetOrganization",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "status",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "selectedOrganization",
-          "type": "field"
-        },
-        {
-          "align": "end",
-          "label": "app registration operations",
-          "operations": ["app-registration.update"],
-          "presentation": "dropdown",
-          "type": "operationControl",
-          "width": "xs"
-        }
-      ],
-      "entity": "app-registration",
-      "key": "appRegistrationTable",
-      "operations": [
-        {
-          "editView": "appRegistrationEdit",
-          "label": "Edit app registration",
-          "operation": "app-registration.update",
-          "target": {
-            "kind": "row"
-          }
-        }
-      ]
-    },
-    {
-      "columns": [
-        {
-          "display": "readOnly",
           "field": "targetEmail",
           "type": "field"
         },
         {
           "display": "readOnly",
           "field": "targetSurface",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "targetAppInstallId",
           "type": "field"
         },
         {
@@ -10793,11 +9988,6 @@
         {
           "display": "readOnly",
           "field": "scopeKind",
-          "type": "field"
-        },
-        {
-          "display": "readOnly",
-          "field": "appInstallId",
           "type": "field"
         },
         {
@@ -11670,71 +10860,6 @@
   "version": 1,
   "views": [
     {
-      "entity": "app-install",
-      "fields": [
-        {
-          "editor": "text",
-          "field": "installId"
-        },
-        {
-          "editor": "text",
-          "field": "packageAppKey"
-        },
-        {
-          "editor": "number",
-          "field": "packageRevision"
-        },
-        {
-          "editor": "text",
-          "field": "sourceSchemaHash"
-        },
-        {
-          "editor": "text",
-          "field": "label"
-        },
-        {
-          "editor": "enum",
-          "field": "registrationPolicy"
-        },
-        {
-          "editor": "text",
-          "field": "registrationOperation"
-        },
-        {
-          "editor": "enum",
-          "field": "status"
-        },
-        {
-          "editor": "text",
-          "field": "storageIdentity"
-        }
-      ],
-      "key": "appInstallCreate",
-      "type": "create"
-    },
-    {
-      "defaultQuery": "appInstallAll",
-      "entity": "app-install",
-      "key": "appInstallList",
-      "label": "App installs",
-      "navigation": {
-        "primary": true
-      },
-      "queries": [
-        {
-          "count": {
-            "type": "count"
-          },
-          "query": "appInstallAll"
-        }
-      ],
-      "result": {
-        "tableView": "appInstallTable",
-        "type": "table"
-      },
-      "type": "collection"
-    },
-    {
       "entity": "route",
       "fields": [
         {
@@ -11766,19 +10891,11 @@
           }
         },
         {
-          "editor": "reference",
-          "field": "appInstall",
-          "visibleWhen": {
-            "field": "targetProfile",
-            "values": ["app", "public-site"]
-          }
-        },
-        {
           "editor": "enum",
           "field": "surface",
           "visibleWhen": {
             "field": "targetProfile",
-            "values": ["app", "public-site"]
+            "values": ["instance", "public-site"]
           }
         },
         {
@@ -11787,14 +10904,6 @@
           "visibleWhen": {
             "field": "kind",
             "values": ["mount"]
-          }
-        },
-        {
-          "editor": "enum",
-          "field": "requiredRole",
-          "visibleWhen": {
-            "field": "targetProfile",
-            "values": ["app"]
           }
         },
         {
@@ -11879,20 +10988,11 @@
         },
         {
           "commit": "immediate",
-          "editor": "reference",
-          "field": "appInstall",
-          "visibleWhen": {
-            "field": "targetProfile",
-            "values": ["app", "public-site"]
-          }
-        },
-        {
-          "commit": "immediate",
           "editor": "enum",
           "field": "surface",
           "visibleWhen": {
             "field": "targetProfile",
-            "values": ["app", "public-site"]
+            "values": ["instance", "public-site"]
           }
         },
         {
@@ -11902,15 +11002,6 @@
           "visibleWhen": {
             "field": "kind",
             "values": ["mount"]
-          }
-        },
-        {
-          "commit": "immediate",
-          "editor": "enum",
-          "field": "requiredRole",
-          "visibleWhen": {
-            "field": "targetProfile",
-            "values": ["app"]
           }
         },
         {
@@ -12875,14 +11966,6 @@
           "field": "scopeKind"
         },
         {
-          "editor": "text",
-          "field": "appInstallId",
-          "visibleWhen": {
-            "field": "scopeKind",
-            "values": ["app-install"]
-          }
-        },
-        {
           "editor": "reference",
           "field": "scopeOrganization",
           "visibleWhen": {
@@ -12992,87 +12075,6 @@
       "type": "collection"
     },
     {
-      "entity": "app-registration",
-      "fields": [
-        {
-          "editor": "text",
-          "field": "appInstallId"
-        },
-        {
-          "editor": "enum",
-          "field": "targetKind"
-        },
-        {
-          "editor": "reference",
-          "field": "targetPrincipal",
-          "visibleWhen": {
-            "field": "targetKind",
-            "values": ["principal"]
-          }
-        },
-        {
-          "editor": "reference",
-          "field": "targetOrganization",
-          "visibleWhen": {
-            "field": "targetKind",
-            "values": ["organization"]
-          }
-        },
-        {
-          "editor": "enum",
-          "field": "status"
-        },
-        {
-          "editor": "reference",
-          "field": "selectedOrganization"
-        }
-      ],
-      "key": "appRegistrationCreate",
-      "type": "create"
-    },
-    {
-      "entity": "app-registration",
-      "fields": [
-        {
-          "commit": "immediate",
-          "editor": "enum",
-          "field": "status"
-        },
-        {
-          "commit": "immediate",
-          "editor": "reference",
-          "field": "selectedOrganization"
-        }
-      ],
-      "key": "appRegistrationEdit",
-      "type": "edit"
-    },
-    {
-      "defaultQuery": "appRegistrationAll",
-      "entity": "app-registration",
-      "key": "appRegistrationList",
-      "label": "App registrations",
-      "operations": [
-        {
-          "createView": "appRegistrationCreate",
-          "operation": "app-registration.create"
-        }
-      ],
-      "queries": [
-        {
-          "count": {
-            "type": "count"
-          },
-          "query": "appRegistrationAll"
-        }
-      ],
-      "result": {
-        "tableView": "appRegistrationTable",
-        "type": "table"
-      },
-      "type": "collection"
-    },
-    {
       "entity": "invitation",
       "fields": [
         {
@@ -13082,14 +12084,6 @@
         {
           "editor": "enum",
           "field": "targetSurface"
-        },
-        {
-          "editor": "text",
-          "field": "targetAppInstallId",
-          "visibleWhen": {
-            "field": "targetSurface",
-            "values": ["app-install"]
-          }
         },
         {
           "editor": "reference",
@@ -13183,14 +12177,6 @@
         {
           "editor": "enum",
           "field": "scopeKind"
-        },
-        {
-          "editor": "text",
-          "field": "appInstallId",
-          "visibleWhen": {
-            "field": "scopeKind",
-            "values": ["app-install"]
-          }
         },
         {
           "editor": "reference",

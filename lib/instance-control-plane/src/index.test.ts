@@ -5,17 +5,12 @@ import {
   INSTANCE_CONTROL_PLANE_SOURCE_SCHEMA_HASH,
   INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
   formatInstanceControlPlaneBoundaryEntityName,
-  instanceControlPlaneAppLaunchLinksFromRecords,
   instanceControlPlanePreferredAdminOriginFromRecords,
   instanceControlPlaneProductionIdentityFromRecords,
-  instanceControlPlaneAppInstallRecord,
-  instanceControlPlaneAppInstallsFromRecords,
-  instanceControlPlaneDefaultRoutesForInstall,
   instanceControlPlaneDeploymentConfigObservedFields,
   instanceControlPlaneEffectiveRouteAccess,
   instanceControlPlaneEntityNames,
   instanceControlPlaneImmutableFields,
-  instanceControlPlaneRecordsForAppInstall,
   instanceControlPlaneSchema,
   instanceControlPlaneSchemaProvenance,
   instanceControlPlaneSourceSchema,
@@ -25,19 +20,11 @@ import {
   parseInstanceControlPlaneStorageSnapshot,
   reviewableInstanceControlPlaneStorageSnapshot,
 } from "./index.ts";
-import {
-  appPackageManifestKind,
-  appPackageManifestVersion,
-  computeSourceSchemaHash,
-  createAppInstall,
-  createAppPackageResolver,
-  type CreateAppInstallResult,
-} from "@dpeek/formless-installed-apps";
+import { computeSourceSchemaHash } from "@dpeek/formless-installed-apps";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import type { AppSchema } from "@dpeek/formless-schema";
 import {
-  isRuntimeControlPlaneImmutableField,
   isRuntimeControlPlaneObservedField,
   isRuntimeControlPlaneSecretReferenceField,
 } from "@dpeek/formless-schema";
@@ -46,39 +33,15 @@ import {
   instanceControlPlaneRecordSchemaModule,
 } from "@dpeek/formless-instance-control-plane/schema";
 
-const siteSourceSchemaHash =
-  "sha256:1111111111111111111111111111111111111111111111111111111111111111";
-const verifiSourceSchemaHash =
-  "sha256:2222222222222222222222222222222222222222222222222222222222222222";
-const privateSourceSchemaHash =
-  "sha256:3333333333333333333333333333333333333333333333333333333333333333";
-const controlPlanePackageManifests = [
-  packageManifest({
-    label: "Site",
-    packageAppKey: "site",
-    sourceSchemaHash: siteSourceSchemaHash,
-  }),
-  packageManifest({
-    label: "Verifi Labs",
-    packageAppKey: "verifi",
-    sourceSchemaHash: verifiSourceSchemaHash,
-  }),
-];
-const controlPlanePackageResolver = createAppPackageResolver(controlPlanePackageManifests);
-
 describe("instance control-plane schema contracts", () => {
   it("publishes record declarations before dependent presentation declarations", () => {
     expect(instanceControlPlaneRecordSchemaModule).toMatchObject({
       key: "instance-control-plane-records",
       entities: instanceControlPlaneEntityNames.map((key) => expect.objectContaining({ key })),
       relationships: expect.arrayContaining([
-        expect.objectContaining({ key: "routeInstall" }),
         expect.objectContaining({ key: "emailDomainSenders" }),
       ]),
-      queries: expect.arrayContaining([
-        expect.objectContaining({ key: "appInstallAll" }),
-        expect.objectContaining({ key: "emailSenderEnabled" }),
-      ]),
+      queries: expect.arrayContaining([expect.objectContaining({ key: "emailSenderEnabled" })]),
       runtime: expect.objectContaining({
         controlPlane: expect.objectContaining({
           entities: expect.any(Object),
@@ -88,14 +51,8 @@ describe("instance control-plane schema contracts", () => {
     expect(instanceControlPlanePresentationSchemaModule).toMatchObject({
       key: "instance-control-plane-presentation",
       requires: ["instance-control-plane-records"],
-      itemViews: expect.arrayContaining([expect.objectContaining({ key: "appInstallItem" })]),
-      tableViews: expect.arrayContaining([expect.objectContaining({ key: "appInstallTable" })]),
-      views: expect.arrayContaining([
-        expect.objectContaining({ key: "appInstallList" }),
-        expect.objectContaining({ key: "emailSenderList" }),
-      ]),
+      views: expect.arrayContaining([expect.objectContaining({ key: "emailSenderList" })]),
       screens: expect.arrayContaining([
-        expect.objectContaining({ key: "apps" }),
         expect.objectContaining({ key: "routes" }),
         expect.objectContaining({ key: "deployments" }),
         expect.objectContaining({ key: "settings" }),
@@ -181,57 +138,11 @@ describe("instance control-plane schema contracts", () => {
     expect(schema.entities.map(({ key }) => key)).not.toContain("appInstall");
     expect(referenceTargets.filter((target) => target.includes(":"))).toEqual([]);
     expect(referenceTargets).toEqual(
-      expect.arrayContaining([
-        "app-install",
-        "deployment-config",
-        "email-domain",
-        "email-sender",
-        "route",
-      ]),
+      expect.arrayContaining(["deployment-config", "email-domain", "email-sender", "route"]),
     );
     expect(schema.entities.map(({ key }) => key)).not.toEqual(
       expect.arrayContaining(["deploy-target", "provider-config-ref", "deploy-desired-resource"]),
     );
-    expect(
-      schema.relationships?.find((definition) => definition.key === "routeInstall"),
-    ).toMatchObject({
-      kind: "toOne",
-      label: "Route install",
-      from: { entity: "route", field: "appInstall" },
-      to: { entity: "app-install" },
-    });
-    expect(
-      schema.entities
-        .find((definition) => definition.key === "app-install")!
-        .fields.find((definition) => definition.key === "packageAppKey")!,
-    ).toMatchObject({
-      type: "text",
-      required: true,
-    });
-    expect(
-      definitionRecord(
-        schema.entities.find((definition) => definition.key === "app-install")!.fields,
-      ).registrationPolicy,
-    ).toEqual({
-      label: "Registration policy",
-      type: "enum",
-      required: true,
-      values: [
-        { key: "closed", label: "Closed" },
-        { key: "email-verified", label: "Email verified" },
-        { key: "custom-operation", label: "Custom operation" },
-      ],
-    });
-    expect(
-      definitionRecord(
-        schema.entities.find((definition) => definition.key === "app-install")!.fields,
-      ).registrationOperation,
-    ).toEqual({
-      label: "Registration operation",
-      type: "text",
-      required: false,
-    });
-    expect(schema.screens.find((definition) => definition.key === "apps")!.path).toBe("/");
     expect(schema.screens.find((definition) => definition.key === "routes")!.path).toBe("/routes");
     expect(schema.screens.find((definition) => definition.key === "deployments")!.path).toBe(
       "/deployments",
@@ -376,7 +287,6 @@ describe("instance control-plane schema contracts", () => {
       parseInstanceControlPlaneStorageSnapshot(
         "Instance archive controlPlane",
         controlPlaneSnapshot({ records }),
-        { packageResolver: controlPlanePackageResolver },
       ).records.map((record) => record.entity),
     ).toEqual(expect.arrayContaining(["instance-settings", "email-domain", "email-sender"]));
 
@@ -392,7 +302,6 @@ describe("instance control-plane schema contracts", () => {
             },
           ],
         }),
-        { packageResolver: controlPlanePackageResolver },
       ),
     ).toThrow("at most one active instance:instance-settings");
 
@@ -406,7 +315,6 @@ describe("instance control-plane schema contracts", () => {
               : record,
           ),
         }),
-        { packageResolver: controlPlanePackageResolver },
       ),
     ).toThrow('field "instance:email-sender.address" host must belong');
 
@@ -426,7 +334,6 @@ describe("instance control-plane schema contracts", () => {
               : record,
           ),
         }),
-        { packageResolver: controlPlanePackageResolver },
       ),
     ).toThrow(
       'field "instance:instance-settings.defaultAuthSender" must reference a sender with purpose "auth"',
@@ -584,56 +491,6 @@ describe("instance control-plane schema contracts", () => {
   });
   it("declares operation contracts for generated instance management records", () => {
     const schema = instanceControlPlaneSchema;
-    expect(
-      Object.fromEntries(
-        (
-          schema.entities.find((definition) => definition.key === "app-install")?.operations ?? []
-        ).map((operation) => [
-          operation.key,
-          {
-            kind: operation.kind,
-            scope: operation.scope,
-            effect: operation.effect,
-            output: operation.output,
-          },
-        ]),
-      ),
-    ).toEqual({
-      create: {
-        kind: "create",
-        scope: "collection",
-        effect: { type: "createRecord" },
-        output: { type: "create" },
-      },
-      update: {
-        kind: "update",
-        scope: "record",
-        effect: { type: "patchRecord" },
-        output: { type: "update" },
-      },
-    });
-    expect(operationInputKeys(schema, "app-install", "create")).toEqual([
-      "installId",
-      "packageAppKey",
-      "packageRevision",
-      "sourceSchemaHash",
-      "label",
-      "registrationPolicy",
-      "registrationOperation",
-      "status",
-      "storageIdentity",
-    ]);
-    expect(operationInputKeys(schema, "app-install", "update")).toEqual([
-      "installId",
-      "packageAppKey",
-      "packageRevision",
-      "sourceSchemaHash",
-      "label",
-      "registrationPolicy",
-      "registrationOperation",
-      "status",
-      "storageIdentity",
-    ]);
     expect(operationInputKeys(schema, "route", "create")).toEqual([
       "enabled",
       "matchHost",
@@ -641,10 +498,8 @@ describe("instance control-plane schema contracts", () => {
       "matchPrefix",
       "kind",
       "targetProfile",
-      "appInstall",
       "surface",
       "access",
-      "requiredRole",
       "deploymentConfig",
       "toHost",
       "toUrl",
@@ -659,10 +514,8 @@ describe("instance control-plane schema contracts", () => {
       "matchPrefix",
       "kind",
       "targetProfile",
-      "appInstall",
       "surface",
       "access",
-      "requiredRole",
       "deploymentConfig",
       "toHost",
       "toUrl",
@@ -745,16 +598,9 @@ describe("instance control-plane schema contracts", () => {
         type: "enum",
         required: false,
         values: [
-          { key: "app", label: "App" },
           { key: "instance", label: "Instance" },
           { key: "public-site", label: "Public Site" },
         ],
-      },
-      appInstall: {
-        type: "reference",
-        required: false,
-        to: "app-install",
-        displayField: "label",
       },
       surface: {
         type: "enum",
@@ -773,11 +619,6 @@ describe("instance control-plane schema contracts", () => {
           { key: "management", label: "Management" },
           { key: "owner", label: "Owner" },
         ],
-      },
-      requiredRole: {
-        type: "enum",
-        required: false,
-        values: [{ key: "app.admin", label: "App admin" }],
       },
       deploymentConfig: {
         type: "reference",
@@ -808,10 +649,8 @@ describe("instance control-plane schema contracts", () => {
       "matchPrefix",
       "kind",
       "targetProfile",
-      "appInstall",
       "surface",
       "access",
-      "requiredRole",
       "deploymentConfig",
       "toHost",
       "toUrl",
@@ -837,12 +676,6 @@ describe("instance control-plane schema contracts", () => {
         "instance-control-plane:app-install",
       ),
     ).toThrow('Archive record entity schema key must be "instance".');
-    expect(instanceControlPlaneImmutableFields["app-install"]).toEqual([
-      "installId",
-      "packageAppKey",
-      "registrationOperation",
-      "storageIdentity",
-    ]);
     expect(instanceControlPlaneImmutableFields["deployment-config"]).toEqual([
       "targetId",
       "targetKind",
@@ -852,7 +685,7 @@ describe("instance control-plane schema contracts", () => {
     expect(instanceControlPlaneImmutableFields["email-domain"]).toEqual(["providerFamily"]);
     expect(instanceControlPlaneImmutableFields["email-sender"]).toEqual(["emailDomain"]);
     expect(instanceControlPlaneImmutableFields.route).toEqual(["kind"]);
-    expect(isInstanceControlPlaneEntityName("app-install")).toBe(true);
+    expect(isInstanceControlPlaneEntityName("app-install")).toBe(false);
     expect(isInstanceControlPlaneEntityName("deployment-config")).toBe(true);
     expect(isInstanceControlPlaneEntityName("instance-settings")).toBe(true);
     expect(isInstanceControlPlaneEntityName("email-domain")).toBe(true);
@@ -862,11 +695,6 @@ describe("instance control-plane schema contracts", () => {
     expect(isInstanceControlPlaneEntityName("missing")).toBe(false);
 
     const schema = instanceControlPlaneSchema;
-    expect(isRuntimeControlPlaneImmutableField(schema, "app-install", "installId")).toBe(true);
-    expect(
-      isRuntimeControlPlaneImmutableField(schema, "app-install", "registrationOperation"),
-    ).toBe(true);
-    expect(isRuntimeControlPlaneImmutableField(schema, "app-install", "label")).toBe(false);
     expect(
       isRuntimeControlPlaneSecretReferenceField(schema, "deployment-config", "credentialRef"),
     ).toBe(true);
@@ -888,22 +716,17 @@ describe("instance control-plane schema contracts", () => {
       schema.entities.find((definition) => definition.key === "deploy-drift-report")!,
     ).toBeUndefined();
   });
-  it("marks generated install and route editor fields by ownership", () => {
+  it("marks generated route editor fields by ownership", () => {
     const schema = instanceControlPlaneSchema;
     const routeTable = schema.tableViews.find((definition) => definition.key === "routeTable")!;
     const routesScreen = schema.screens.find((definition) => definition.key === "routes")!;
     const routeCreate = schema.views.find((definition) => definition.key === "routeCreate")!;
     const routeEdit = schema.views.find((definition) => definition.key === "routeEdit")!;
-    const appInstallList = schema.views.find((definition) => definition.key === "appInstallList")!;
     const routeList = schema.views.find((definition) => definition.key === "routeList")!;
     const routeCreateFields =
       routeCreate.type === "create" ? routeCreate.fields.map(({ field }) => field) : [];
     const routeEditFields =
       routeEdit.type === "edit" ? routeEdit.fields.map(({ field }) => field) : [];
-    expect(appInstallList.type).toBe("collection");
-    expect(
-      appInstallList.type === "collection" ? appInstallList.operations : undefined,
-    ).toBeUndefined();
     expect(routeList.type).toBe("collection");
     expect(routeList.type === "collection" ? routeList.operations : undefined).toEqual([
       { operation: "route.create", createView: "routeCreate" },
@@ -922,19 +745,6 @@ describe("instance control-plane schema contracts", () => {
       label: "Edit route",
       editView: "routeEdit",
     });
-    expect(
-      schema.tableViews.find((definition) => definition.key === "appInstallTable")?.columns,
-    ).toMatchObject([
-      { field: "label", display: "editor" },
-      { field: "installId", display: "readOnly" },
-      { field: "packageAppKey", display: "readOnly" },
-      { field: "registrationPolicy", display: "readOnly" },
-      { field: "registrationOperation", display: "readOnly" },
-      { field: "status", display: "readOnly" },
-      { field: "storageIdentity", display: "readOnly" },
-      { field: "packageRevision", display: "readOnly" },
-      { field: "sourceSchemaHash", display: "readOnly" },
-    ]);
     expect(routeTable?.columns).toMatchObject([
       { field: "enabled", display: "editor" },
       { field: "matchHost", display: "readOnly" },
@@ -942,10 +752,8 @@ describe("instance control-plane schema contracts", () => {
       { field: "matchPrefix", display: "readOnly" },
       { field: "kind", display: "readOnly" },
       { field: "targetProfile", display: "readOnly" },
-      { field: "appInstall", display: "readOnly" },
       { field: "surface", display: "readOnly" },
       { field: "access", display: "readOnly" },
-      { field: "requiredRole", display: "readOnly" },
       { field: "toHost", display: "readOnly" },
       { field: "toUrl", display: "readOnly" },
       { field: "statusCode", display: "readOnly" },
@@ -957,9 +765,7 @@ describe("instance control-plane schema contracts", () => {
       routeEdit.type === "edit" ? definitionRecord(routeEdit.fields, "field") : undefined,
     ).toMatchObject({
       targetProfile: { visibleWhen: { field: "kind", values: ["mount"] } },
-      appInstall: { visibleWhen: { field: "targetProfile", values: ["app", "public-site"] } },
       access: { visibleWhen: { field: "kind", values: ["mount"] } },
-      requiredRole: { visibleWhen: { field: "targetProfile", values: ["app"] } },
       toHost: { visibleWhen: { field: "kind", values: ["redirect"] } },
       statusCode: { visibleWhen: { field: "kind", values: ["redirect"] } },
     });
@@ -1109,124 +915,7 @@ describe("instance control-plane schema contracts", () => {
     });
   });
 
-  it("derives default app route records without nesting installed app data", () => {
-    const now = "2026-05-28T00:00:00.000Z";
-
-    expect(
-      instanceControlPlaneAppInstallRecord({
-        adminRoute: "/apps/personal",
-        createdAt: now,
-        installId: "personal",
-        label: "Personal Site",
-        packageAppKey: "site",
-        packageRevision: 1,
-        registrationPolicy: "closed",
-        sourceSchemaHash: siteSourceSchemaHash,
-        status: "installed",
-        updatedAt: now,
-      }),
-    ).toEqual({
-      createdAt: now,
-      entity: "app-install",
-      id: "personal",
-      updatedAt: now,
-      values: {
-        installId: "personal",
-        packageAppKey: "site",
-        packageRevision: 1,
-        sourceSchemaHash: siteSourceSchemaHash,
-        label: "Personal Site",
-        registrationPolicy: "closed",
-        status: "installed",
-        storageIdentity: "app:personal",
-      },
-    });
-    expect(
-      Object.keys(
-        instanceControlPlaneAppInstallRecord({
-          adminRoute: "/apps/members",
-          createdAt: now,
-          installId: "members",
-          label: "Members",
-          packageAppKey: "site",
-          packageRevision: 1,
-          registrationPolicy: "email-verified",
-          sourceSchemaHash: siteSourceSchemaHash,
-          status: "installed",
-          updatedAt: now,
-        }).values,
-      ).sort(),
-    ).toEqual([
-      "installId",
-      "label",
-      "packageAppKey",
-      "packageRevision",
-      "registrationPolicy",
-      "sourceSchemaHash",
-      "status",
-      "storageIdentity",
-    ]);
-    expect(
-      instanceControlPlaneAppInstallRecord({
-        adminRoute: "/apps/custom",
-        createdAt: now,
-        installId: "custom",
-        label: "Custom",
-        packageAppKey: "site",
-        packageRevision: 1,
-        registrationOperation: "profile.register",
-        registrationPolicy: "custom-operation",
-        sourceSchemaHash: siteSourceSchemaHash,
-        status: "installed",
-        updatedAt: now,
-      }).values.registrationOperation,
-    ).toBe("profile.register");
-
-    expect(
-      instanceControlPlaneDefaultRoutesForInstall({
-        installId: "personal",
-        packageAppKey: "site",
-        packageResolver: controlPlanePackageResolver,
-        now,
-      }).map((record) => record.values),
-    ).toEqual([
-      {
-        enabled: true,
-        matchPath: "/apps/personal",
-        matchPrefix: "/apps/personal/",
-        kind: "mount",
-        targetProfile: "app",
-        appInstall: "personal",
-        surface: "admin",
-        access: "authenticated",
-        requiredRole: "app.admin",
-      },
-    ]);
-
-    expect(
-      instanceControlPlaneDefaultRoutesForInstall({
-        installId: "verifi",
-        packageAppKey: "verifi",
-        packageResolver: controlPlanePackageResolver,
-        now,
-      }).map((record) => record.values.surface),
-    ).toEqual(["admin"]);
-    expect(
-      instanceControlPlaneDefaultRoutesForInstall({
-        installId: "verifi",
-        packageAppKey: "verifi",
-        packageResolver: controlPlanePackageResolver,
-        now,
-      }).map((record) => record.values.access),
-    ).toEqual(["authenticated"]);
-    expect(
-      instanceControlPlaneDefaultRoutesForInstall({
-        installId: "verifi",
-        packageAppKey: "verifi",
-        packageResolver: controlPlanePackageResolver,
-        now,
-      }).map((record) => record.values.requiredRole),
-    ).toEqual(["app.admin"]);
+  it("derives Program route access without app install scope", () => {
     expect(
       instanceControlPlaneEffectiveRouteAccess({
         kind: "mount",
@@ -1245,392 +934,13 @@ describe("instance control-plane schema contracts", () => {
     expect(
       instanceControlPlaneEffectiveRouteAccess({
         kind: "mount",
-        targetProfile: "public-site",
-        surface: "public-site",
-        access: "authenticated",
-      }),
-    ).toBe("authenticated");
-    expect(
-      instanceControlPlaneEffectiveRouteAccess({
-        kind: "mount",
         targetProfile: "instance",
         surface: "admin",
       }),
     ).toBe("management");
   });
 
-  it("validates management and app-role route authorization combinations", () => {
-    const install = storedAppInstallRecord({
-      installId: "personal",
-      label: "Personal Site",
-      packageAppKey: "site",
-    });
-    const parseRoute = (route: StoredRecord) =>
-      parseInstanceControlPlaneStorageSnapshot(
-        "Instance archive controlPlane",
-        controlPlaneSnapshot({ records: [install, route] }),
-        { packageResolver: controlPlanePackageResolver },
-      );
-    const managementRoute = storedRouteRecord({
-      id: "route:instance:settings",
-      values: {
-        access: "management",
-        enabled: true,
-        kind: "mount",
-        matchPath: "/settings",
-        surface: "admin",
-        targetProfile: "instance",
-      },
-    });
-    const appAdminRoute = storedRouteRecord({
-      id: "route:personal:admin",
-      values: {
-        access: "authenticated",
-        appInstall: "personal",
-        enabled: true,
-        kind: "mount",
-        matchPath: "/apps/personal",
-        requiredRole: "app.admin",
-        surface: "admin",
-        targetProfile: "app",
-      },
-    });
-
-    expect(parseRoute(managementRoute).records).toEqual([install, managementRoute]);
-    expect(parseRoute(appAdminRoute).records).toEqual([install, appAdminRoute]);
-
-    const invalidCases: Array<[string, StoredRecord, RegExp]> = [
-      [
-        "management app mount",
-        {
-          ...appAdminRoute,
-          values: {
-            access: "management",
-            appInstall: "personal",
-            enabled: true,
-            kind: "mount",
-            matchPath: "/apps/personal",
-            surface: "admin",
-            targetProfile: "app",
-          },
-        },
-        /access.*can only be "management" for instance mount routes/,
-      ],
-      [
-        "owner app role",
-        { ...appAdminRoute, values: { ...appAdminRoute.values, access: "owner" } },
-        /requiredRole.*requires an authenticated app admin mount/,
-      ],
-      [
-        "anonymous app role",
-        { ...appAdminRoute, values: { ...appAdminRoute.values, access: "anonymous" } },
-        /requiredRole.*requires an authenticated app admin mount/,
-      ],
-      [
-        "instance app role",
-        {
-          ...managementRoute,
-          values: {
-            ...managementRoute.values,
-            access: "authenticated",
-            requiredRole: "app.admin",
-          },
-        },
-        /requiredRole.*requires an authenticated app admin mount/,
-      ],
-      [
-        "unsupported role",
-        { ...appAdminRoute, values: { ...appAdminRoute.values, requiredRole: "app.viewer" } },
-        /requiredRole.*must be "app.admin"/,
-      ],
-    ];
-
-    for (const [label, route, error] of invalidCases) {
-      expect(() => parseRoute(route), label).toThrow(error);
-    }
-  });
-
-  it("derives private package route records from resolved capabilities", () => {
-    const now = "2026-05-28T00:00:00.000Z";
-    const resolver = createAppPackageResolver([
-      ...controlPlanePackageManifests,
-      privatePackageManifest(),
-    ]);
-    const result = expectCreateAppInstallSuccess(
-      createAppInstall({
-        existingInstalls: [],
-        installId: "labs",
-        label: "Private Labs",
-        now,
-        packageAppKey: "private-labs",
-        packageResolver: resolver,
-      }),
-    );
-    const records = instanceControlPlaneRecordsForAppInstall({
-      install: result.install,
-      now,
-    });
-
-    expect(records.map((record) => record.id)).toEqual(["labs", "route:labs:admin"]);
-    expect(records.map((record) => record.entity)).toEqual(["app-install", "route"]);
-    expect(records.map((record) => record.values).slice(1)).toEqual(
-      instanceControlPlaneDefaultRoutesForInstall({
-        installId: "labs",
-        packageAppKey: "private-labs",
-        packageResolver: resolver,
-        now,
-      }).map((record) => record.values),
-    );
-    expect(JSON.stringify(records[0].values)).not.toContain("packages/private-labs");
-    expect(JSON.stringify(records[0].values)).not.toContain("workspace");
-    expect(
-      reviewableInstanceControlPlaneStorageSnapshot(controlPlaneSnapshot({ records }), {
-        packageResolver: resolver,
-      }).records[0]?.values.packageAppKey,
-    ).toBe("private-labs");
-  });
-
-  it("projects admin launch link hrefs, route ids, and access from enabled route records", () => {
-    const records: StoredRecord[] = [
-      storedAppInstallRecord({
-        installId: "personal",
-        label: "Personal Site",
-        packageAppKey: "site",
-      }),
-      storedRouteRecord({
-        id: "route:personal:admin",
-        values: {
-          enabled: true,
-          matchPath: "/launch/personal-admin",
-          kind: "mount",
-          targetProfile: "app",
-          appInstall: "personal",
-          surface: "admin",
-          access: "authenticated",
-          requiredRole: "app.admin",
-        },
-      }),
-    ];
-
-    expect(
-      instanceControlPlaneAppLaunchLinksFromRecords(records, controlPlanePackageResolver),
-    ).toEqual([
-      {
-        access: "authenticated",
-        href: "/launch/personal-admin",
-        installId: "personal",
-        label: "Personal Site",
-        packageAppKey: "site",
-        requiredRole: "app.admin",
-        routeId: "route:personal:admin",
-        routeKind: "admin",
-      },
-    ]);
-  });
-
-  it("projects launch links from enabled hostless route records", () => {
-    const records: StoredRecord[] = [
-      storedAppInstallRecord({
-        createdAt: "2026-05-28T00:00:00.000Z",
-        installId: "personal",
-        label: "Personal Site",
-        packageAppKey: "site",
-      }),
-      storedAppInstallRecord({
-        createdAt: "2026-05-28T00:01:00.000Z",
-        installId: "verifi",
-        label: "Verifi Labs",
-        packageAppKey: "verifi",
-        registrationOperation: "profile.register",
-        registrationPolicy: "custom-operation",
-      }),
-      storedAppInstallRecord({
-        createdAt: "2026-05-28T00:02:00.000Z",
-        deletedAt: "2026-05-28T00:03:00.000Z",
-        installId: "archived",
-        label: "Archived Site",
-        packageAppKey: "site",
-      }),
-      storedRouteRecord({
-        id: "route:personal:admin-default",
-        values: {
-          enabled: false,
-          matchPath: "/apps/personal",
-          kind: "mount",
-          targetProfile: "app",
-          appInstall: "personal",
-          surface: "admin",
-          access: "owner",
-        },
-      }),
-      storedRouteRecord({
-        id: "route:personal:admin-custom",
-        values: {
-          enabled: true,
-          matchPath: "/apps/personal-admin",
-          kind: "mount",
-          targetProfile: "app",
-          appInstall: "personal",
-          surface: "admin",
-          access: "owner",
-        },
-      }),
-      storedRouteRecord({
-        id: "route:verifi:admin",
-        values: {
-          enabled: true,
-          matchPath: "/apps/verifi-labs",
-          kind: "mount",
-          targetProfile: "app",
-          appInstall: "verifi",
-          surface: "admin",
-          access: "owner",
-        },
-      }),
-      storedRouteRecord({
-        id: "route:archived:admin",
-        values: {
-          enabled: true,
-          matchPath: "/apps/archived",
-          kind: "mount",
-          targetProfile: "app",
-          appInstall: "archived",
-          surface: "admin",
-          access: "owner",
-        },
-      }),
-    ];
-    const links = instanceControlPlaneAppLaunchLinksFromRecords(
-      records,
-      controlPlanePackageResolver,
-    );
-    const installs = instanceControlPlaneAppInstallsFromRecords(
-      records,
-      controlPlanePackageResolver,
-    );
-
-    expect(links).toEqual([
-      {
-        access: "owner",
-        href: "/apps/personal-admin",
-        installId: "personal",
-        label: "Personal Site",
-        packageAppKey: "site",
-        routeId: "route:personal:admin-custom",
-        routeKind: "admin",
-      },
-      {
-        access: "owner",
-        href: "/apps/verifi-labs",
-        installId: "verifi",
-        label: "Verifi Labs",
-        packageAppKey: "verifi",
-        routeId: "route:verifi:admin",
-        routeKind: "admin",
-      },
-    ]);
-    expect(installs.map((install) => install.installId)).toEqual(["personal", "verifi"]);
-    expect(installs[0]).toMatchObject({
-      adminRoute: "/apps/personal-admin",
-      registrationPolicy: "closed",
-      launchLinks: [links[0]],
-    });
-    expect(installs[1]).toMatchObject({
-      adminRoute: "/apps/verifi-labs",
-      registrationOperation: "profile.register",
-      registrationPolicy: "custom-operation",
-      launchLinks: [links[1]],
-    });
-  });
-
-  it("projects fallback launch links only when no route records exist for an install", () => {
-    const records: StoredRecord[] = [
-      storedAppInstallRecord({
-        createdAt: "2026-05-28T00:00:00.000Z",
-        installId: "personal",
-        label: "Personal Site",
-        packageAppKey: "site",
-      }),
-      storedAppInstallRecord({
-        createdAt: "2026-05-28T00:01:00.000Z",
-        installId: "verifi",
-        label: "Verifi Labs",
-        packageAppKey: "verifi",
-        registrationOperation: "profile.register",
-        registrationPolicy: "custom-operation",
-      }),
-    ];
-    const links = instanceControlPlaneAppLaunchLinksFromRecords(
-      records,
-      controlPlanePackageResolver,
-    );
-    const installs = instanceControlPlaneAppInstallsFromRecords(
-      records,
-      controlPlanePackageResolver,
-    );
-
-    expect(links).toEqual([
-      {
-        access: "owner",
-        href: "/apps/personal",
-        installId: "personal",
-        label: "Personal Site",
-        packageAppKey: "site",
-        routeKind: "admin",
-      },
-      {
-        access: "owner",
-        href: "/apps/verifi",
-        installId: "verifi",
-        label: "Verifi Labs",
-        packageAppKey: "verifi",
-        routeKind: "admin",
-      },
-    ]);
-    expect(links.every((link) => link.routeId === undefined)).toBe(true);
-    expect(installs[0]).toMatchObject({
-      adminRoute: "/apps/personal",
-      launchLinks: [links[0]],
-    });
-    expect(installs[0]).not.toHaveProperty("routes");
-    expect(installs[1]).toMatchObject({
-      adminRoute: "/apps/verifi",
-      registrationOperation: "profile.register",
-      registrationPolicy: "custom-operation",
-      launchLinks: [links[1]],
-    });
-  });
-
-  it("omits operational projections for app installs whose package is unsupported", () => {
-    const records: StoredRecord[] = [
-      storedAppInstallRecord({
-        installId: "missing",
-        label: "Missing Package",
-        packageAppKey: "missing",
-      }),
-      storedRouteRecord({
-        id: "route:missing:admin",
-        values: {
-          enabled: true,
-          matchPath: "/apps/missing",
-          kind: "mount",
-          targetProfile: "app",
-          appInstall: "missing",
-          surface: "admin",
-          access: "owner",
-        },
-      }),
-    ];
-
-    expect(
-      instanceControlPlaneAppLaunchLinksFromRecords(records, controlPlanePackageResolver),
-    ).toEqual([]);
-    expect(
-      instanceControlPlaneAppInstallsFromRecords(records, controlPlanePackageResolver),
-    ).toEqual([]);
-  });
-
-  it("keeps route paths static, app-relative, lowercase, and away from reserved roots", () => {
+  it("keeps route paths static, lowercase, and away from reserved roots", () => {
     expect(isInstanceControlPlaneRouteSafePath("/apps/personal")).toBe(true);
     expect(isInstanceControlPlaneRouteSafePath("/sites/personal")).toBe(true);
     expect(isInstanceControlPlaneRouteSafePath("apps/personal")).toBe(false);
@@ -1646,175 +956,27 @@ describe("instance control-plane schema contracts", () => {
     const snapshot = controlPlaneSnapshot();
 
     expect(
-      parseInstanceControlPlaneStorageSnapshot("Instance archive controlPlane", snapshot, {
-        packageResolver: controlPlanePackageResolver,
-      }),
+      parseInstanceControlPlaneStorageSnapshot("Instance archive controlPlane", snapshot),
     ).toEqual(snapshot);
     expect(
-      reviewableInstanceControlPlaneStorageSnapshot(
-        {
-          ...snapshot,
-          records: controlPlaneRecords({ observedCache: true }),
-        },
-        { packageResolver: controlPlanePackageResolver },
-      ).records.find((record) => record.entity === "deployment-config")?.values,
+      reviewableInstanceControlPlaneStorageSnapshot({
+        ...snapshot,
+        records: controlPlaneRecords({ observedCache: true }),
+      }).records.find((record) => record.entity === "deployment-config")?.values,
     ).not.toHaveProperty("observedStatus");
 
+    expect(
+      parseInstanceControlPlaneStorageSnapshot("Instance archive controlPlane", {
+        ...snapshot,
+        records: controlPlaneRecords({ observedCache: true }),
+      }).records.find((record) => record.entity === "deployment-config")?.values,
+    ).not.toHaveProperty("observedStatus");
     expect(() =>
-      parseInstanceControlPlaneStorageSnapshot(
-        "Instance archive controlPlane",
-        {
-          ...snapshot,
-          records: controlPlaneRecords({ observedCache: true }),
-        },
-        { packageResolver: controlPlanePackageResolver },
-      ),
-    ).toThrow("cannot store runtime-observed deployment cache fields");
-    expect(() =>
-      parseInstanceControlPlaneStorageSnapshot(
-        "Instance archive controlPlane",
-        {
-          ...snapshot,
-          records: controlPlaneRecords({ accountId: "CF_API_TOKEN" }),
-        },
-        { packageResolver: controlPlanePackageResolver },
-      ),
+      parseInstanceControlPlaneStorageSnapshot("Instance archive controlPlane", {
+        ...snapshot,
+        records: controlPlaneRecords({ accountId: "CF_API_TOKEN" }),
+      }),
     ).toThrow("cannot store control-plane secret values");
-    const emailVerifiedSnapshot = parseInstanceControlPlaneStorageSnapshot(
-      "Instance archive controlPlane",
-      {
-        ...snapshot,
-        records: controlPlaneRecords().map((record) =>
-          record.entity === "app-install"
-            ? {
-                ...record,
-                values: {
-                  ...record.values,
-                  registrationPolicy: "email-verified",
-                },
-              }
-            : record,
-        ),
-      },
-      { packageResolver: controlPlanePackageResolver },
-    );
-
-    expect(
-      emailVerifiedSnapshot.records.find((record) => record.entity === "app-install")?.values
-        .registrationPolicy,
-    ).toBe("email-verified");
-    const customOperationSnapshot = parseInstanceControlPlaneStorageSnapshot(
-      "Instance archive controlPlane",
-      {
-        ...snapshot,
-        records: controlPlaneRecords().map((record) =>
-          record.entity === "app-install"
-            ? {
-                ...record,
-                values: {
-                  ...record.values,
-                  registrationPolicy: "custom-operation",
-                  registrationOperation: "profile.register",
-                },
-              }
-            : record,
-        ),
-      },
-      { packageResolver: controlPlanePackageResolver },
-    );
-
-    expect(
-      customOperationSnapshot.records.find((record) => record.entity === "app-install")?.values,
-    ).toMatchObject({
-      registrationOperation: "profile.register",
-      registrationPolicy: "custom-operation",
-    });
-    expect(() =>
-      parseInstanceControlPlaneStorageSnapshot(
-        "Instance archive controlPlane",
-        {
-          ...snapshot,
-          records: controlPlaneRecords().map((record) =>
-            record.entity === "app-install"
-              ? {
-                  ...record,
-                  values: {
-                    ...record.values,
-                    registrationPolicy: "custom-operation",
-                  },
-                }
-              : record,
-          ),
-        },
-        { packageResolver: controlPlanePackageResolver },
-      ),
-    ).toThrow(
-      'field "instance:app-install.registrationOperation" is required when registration policy is "custom-operation"',
-    );
-    expect(() =>
-      parseInstanceControlPlaneStorageSnapshot(
-        "Instance archive controlPlane",
-        {
-          ...snapshot,
-          records: controlPlaneRecords().map((record) =>
-            record.entity === "app-install"
-              ? {
-                  ...record,
-                  values: {
-                    ...record.values,
-                    registrationPolicy: "custom-operation",
-                    registrationOperation: "Profile.register",
-                  },
-                }
-              : record,
-          ),
-        },
-        { packageResolver: controlPlanePackageResolver },
-      ),
-    ).toThrow('record "site" has invalid field "instance:app-install.registrationOperation"');
-    expect(() =>
-      parseInstanceControlPlaneStorageSnapshot(
-        "Instance archive controlPlane",
-        {
-          ...snapshot,
-          records: controlPlaneRecords().map((record) =>
-            record.entity === "app-install"
-              ? {
-                  ...record,
-                  values: {
-                    ...record.values,
-                    registrationPolicy: "email-verified",
-                    registrationOperation: "profile.register",
-                  },
-                }
-              : record,
-          ),
-        },
-        { packageResolver: controlPlanePackageResolver },
-      ),
-    ).toThrow(
-      'field "instance:app-install.registrationOperation" must be omitted unless registration policy is "custom-operation"',
-    );
-    expect(() =>
-      parseInstanceControlPlaneStorageSnapshot(
-        "Instance archive controlPlane",
-        {
-          ...snapshot,
-          records: controlPlaneRecords().map((record) =>
-            record.entity === "app-install"
-              ? {
-                  ...record,
-                  values: {
-                    ...record.values,
-                    registrationPolicy: "domain-allowlist",
-                  },
-                }
-              : record,
-          ),
-        },
-        { packageResolver: controlPlanePackageResolver },
-      ),
-    ).toThrow('record "site" has invalid field "instance:app-install.registrationPolicy"');
   });
 });
 function operationInputKeys(schema: AppSchema, entityKey: string, operationKey: string): string[] {
@@ -1835,94 +997,6 @@ function definitionRecord<T extends object>(
     }),
   );
 }
-function expectCreateAppInstallSuccess(result: CreateAppInstallResult): Extract<
-  CreateAppInstallResult,
-  {
-    ok: true;
-  }
-> {
-  expect(result.ok).toBe(true);
-  if (!result.ok) {
-    throw new Error(result.error.message);
-  }
-
-  return result;
-}
-
-function privatePackageManifest(): Record<string, unknown> {
-  return packageManifest({
-    label: "Private Labs",
-    packageAppKey: "private-labs",
-    packageRevision: 7,
-    sourceSchemaHash: privateSourceSchemaHash,
-    sourceSchemaKind: "workspace",
-    sourceSchemaPath: "packages/private-labs/schema.json",
-  });
-}
-
-function packageManifest(input: {
-  label: string;
-  packageAppKey: string;
-  packageRevision?: number;
-  sourceSchemaHash: string;
-  sourceSchemaKind?: "bundled" | "workspace";
-  sourceSchemaPath?: string;
-}): Record<string, unknown> {
-  return {
-    kind: appPackageManifestKind,
-    version: appPackageManifestVersion,
-    packageAppKey: input.packageAppKey,
-    label: input.label,
-    description: `${input.label} package fixture.`,
-    defaultInstallId: input.packageAppKey === "private-labs" ? "labs" : input.packageAppKey,
-    supportsMultipleInstalls: false,
-    packageRevision: input.packageRevision ?? 1,
-    sourceSchema: {
-      kind: input.sourceSchemaKind ?? "bundled",
-      key: input.packageAppKey,
-      path: input.sourceSchemaPath ?? "schema.json",
-    },
-    sourceSchemaHash: input.sourceSchemaHash,
-    capabilities: [
-      {
-        kind: "generatedAdmin",
-        routeBase: "/apps",
-      },
-    ],
-  };
-}
-
-function storedAppInstallRecord(input: {
-  createdAt?: string;
-  deletedAt?: string;
-  installId: string;
-  label: string;
-  packageAppKey: string;
-  registrationOperation?: string;
-  registrationPolicy?: "closed" | "custom-operation" | "email-verified";
-}): StoredRecord {
-  const now = input.createdAt ?? "2026-05-28T00:00:00.000Z";
-
-  return {
-    id: input.installId,
-    entity: "app-install",
-    values: {
-      installId: input.installId,
-      packageAppKey: input.packageAppKey,
-      label: input.label,
-      registrationPolicy: input.registrationPolicy ?? "closed",
-      ...(input.registrationOperation === undefined
-        ? {}
-        : { registrationOperation: input.registrationOperation }),
-      status: "installed",
-      storageIdentity: `app:${input.installId}`,
-    },
-    createdAt: now,
-    updatedAt: now,
-    ...(input.deletedAt === undefined ? {} : { deletedAt: input.deletedAt }),
-  };
-}
-
 function storedRouteRecord(input: {
   id: string;
   values: Record<string, boolean | string>;
@@ -2000,20 +1074,6 @@ function controlPlaneRecords(
 ): StoredRecord[] {
   const now = "2026-05-28T00:00:00.000Z";
   return [
-    {
-      id: "site",
-      entity: "app-install",
-      values: {
-        installId: "site",
-        packageAppKey: "site",
-        label: "Site",
-        registrationPolicy: "closed",
-        status: "installed",
-        storageIdentity: "app:site",
-      },
-      createdAt: now,
-      updatedAt: now,
-    },
     {
       id: "route:program:public-site",
       entity: "route",

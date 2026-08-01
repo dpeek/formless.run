@@ -20,10 +20,8 @@ The system SHALL store desired exact-host profile mappings as instance
 - **WHEN** the host and profile are valid
 - **THEN** the host is normalized
 - **AND** an enabled mount `route` record stores the exact match host and
-  target profile `instance`, `app`, or `public-site`
-- **AND** `app` mappings require a target app install id
-- **AND** `public-site` mappings select the Program-native Site and do not carry
-  a target app install id
+  target profile `instance` or `public-site`
+- **AND** `public-site` mappings select the Program-native Site
 
 #### Scenario: Mapping uniqueness
 
@@ -64,8 +62,8 @@ evidence.
 
 - **GIVEN** provider resources have been applied for a host/profile target
 - **WHEN** deployment evidence is recorded
-- **THEN** current provider state is keyed by host, profile, optional target
-  install id, and route-derived logical resource ids
+- **THEN** current provider state is keyed by host, profile, and route-derived
+  logical resource ids
 - **AND** audit events are append-only
 
 #### Scenario: Disable desired route
@@ -147,7 +145,7 @@ semantics.
 
 #### Scenario: Project enabled route mappings
 
-- **GIVEN** enabled exact-host `instance`, `app`, or `public-site` mount routes
+- **GIVEN** enabled exact-host `instance` or `public-site` mount routes
   exist
 - **WHEN** deployment desired state is built for a target
 - **THEN** enabled mapping routes are projected into deployment graph resources
@@ -280,10 +278,9 @@ schema-owned `route` control-plane records.
 - **GIVEN** an authorized owner or admin creates an exact-host mapping
 - **WHEN** the mapping is accepted
 - **THEN** the mapping is stored as a `route` record with host, target profile,
-  optional target install id, enabled state, and timestamps
+  enabled state, and timestamps
 - **AND** route behavior matches existing custom-domain mapping semantics
-- **AND** app mappings reference the target app install record while public Site
-  mappings target the Program
+- **AND** every mapping targets a Program surface
 
 #### Scenario: Redirect record
 

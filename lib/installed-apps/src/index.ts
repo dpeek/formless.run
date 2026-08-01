@@ -7,8 +7,6 @@ import {
   type AppInstallId,
   type AppInstallIdValidationResult,
   type AppInstallInitializationPlan,
-  type AppInstallRegistrationOperation,
-  type AppInstallRegistrationPolicy,
   type AppInstallRegistryError,
   type AppInstallRegistryErrorCode,
   type AppPackageCapability,
@@ -33,8 +31,6 @@ const routeSafeIdMinLength = 2;
 const routeSafeIdMaxLength = 64;
 const sourceLocationPathPattern = /^[a-z0-9][a-z0-9._/-]*\.json$/;
 const sha256DigestPattern = /^sha256:[a-f0-9]{64}$/;
-const schemaLocalEntityKeyPattern = /^[a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)*$/;
-const appInstallRegistrationPolicies = ["closed", "email-verified", "custom-operation"] as const;
 const reservedInstallIds = new Set([
   "admin",
   "api",
@@ -303,40 +299,11 @@ export function createAppInstall(input: CreateAppInstallInput): CreateAppInstall
     };
   }
 
-  const registrationPolicy = input.registrationPolicy ?? defaultAppInstallRegistrationPolicy();
-
-  if (!isAppInstallRegistrationPolicy(registrationPolicy)) {
-    return {
-      ok: false,
-      error: appInstallRegistryError(
-        "invalid-registration-policy",
-        "registrationPolicy",
-        appInstallRegistrationPolicyMessage("Install registration policy"),
-      ),
-      installs: input.existingInstalls,
-    };
-  }
-
-  const registrationOperationResult = validateAppInstallRegistrationOperationForPolicy({
-    registrationOperation: input.registrationOperation,
-    registrationPolicy,
-  });
-
-  if (!registrationOperationResult.ok) {
-    return {
-      ok: false,
-      error: registrationOperationResult.error,
-      installs: input.existingInstalls,
-    };
-  }
-
   const install = appInstallFromPackage({
     installId: installIdResult.installId,
     label,
     now: input.now,
     packageApp,
-    registrationOperation: registrationOperationResult.registrationOperation,
-    registrationPolicy,
   });
   const initialization = initializationPlanForInstall(packageApp, install);
 
@@ -401,52 +368,6 @@ export function appInstallRegistryError(
   };
 }
 
-export function defaultAppInstallRegistrationPolicy(): AppInstallRegistrationPolicy {
-  return "closed";
-}
-
-export function isAppInstallRegistrationPolicy(
-  value: unknown,
-): value is AppInstallRegistrationPolicy {
-  return (
-    typeof value === "string" &&
-    appInstallRegistrationPolicies.includes(value as AppInstallRegistrationPolicy)
-  );
-}
-
-export function parseAppInstallRegistrationPolicy(
-  value: unknown,
-  context = "app install registration policy",
-): AppInstallRegistrationPolicy {
-  if (isAppInstallRegistrationPolicy(value)) {
-    return value;
-  }
-
-  throw new Error(appInstallRegistrationPolicyMessage(context));
-}
-
-export function parseAppInstallRegistrationOperation(
-  value: unknown,
-  context = "app install registration operation",
-): AppInstallRegistrationOperation {
-  if (typeof value !== "string") {
-    throw new Error(`${context} must be a string.`);
-  }
-
-  const parts = value.split(".");
-
-  if (parts.length !== 2) {
-    throw new Error(`${context} must use "<entity-key>.<operation-key>" format.`);
-  }
-
-  const [entityKey, operationKey] = parts;
-
-  assertAppInstallRegistrationOperationEntityKey(`${context} entity "${entityKey}"`, entityKey);
-  assertAppInstallRegistrationOperationKey(`${context} operation "${operationKey}"`, operationKey);
-
-  return `${entityKey}.${operationKey}`;
-}
-
 export function sourceSchemaCanonicalJson(schema: unknown): string {
   return canonicalJsonStringify(schema);
 }
@@ -473,14 +394,6 @@ export function isPackageAppRevision(value: unknown): value is PackageAppRevisio
 
 function resolveAppPackageManifest(manifest: unknown, context: string): ResolvedAppPackage {
   const parsed = parseAppPackageManifest(manifest, context);
-  const generatedAdmin = parsed.capabilities.find(
-    (capability): capability is Extract<AppPackageCapability, { kind: "generatedAdmin" }> =>
-      capability.kind === "generatedAdmin",
-  );
-
-  if (!generatedAdmin) {
-    throw new Error(`${context} capabilities must include generatedAdmin.`);
-  }
 
   return {
     packageAppKey: parsed.packageAppKey,
@@ -493,7 +406,6 @@ function resolveAppPackageManifest(manifest: unknown, context: string): Resolved
     sourceOrigin: parsed.sourceSchema.kind,
     sourceSchemaKey: parsed.sourceSchema.key,
     sourceSchemaLocation: cloneSourceLocation(parsed.sourceSchema),
-    adminRouteBase: generatedAdmin.routeBase,
   };
 }
 
@@ -502,8 +414,6 @@ function appInstallFromPackage(input: {
   label: string;
   now: string;
   packageApp: ResolvedAppPackage;
-  registrationOperation: AppInstallRegistrationOperation | undefined;
-  registrationPolicy: AppInstallRegistrationPolicy;
 }): AppInstall {
   return {
     installId: input.installId,
@@ -511,103 +421,11 @@ function appInstallFromPackage(input: {
     packageRevision: input.packageApp.packageRevision,
     sourceSchemaHash: input.packageApp.sourceSchemaHash,
     label: input.label,
-    registrationPolicy: input.registrationPolicy,
-    ...(input.registrationOperation === undefined
-      ? {}
-      : { registrationOperation: input.registrationOperation }),
     status: "installed",
     createdAt: input.now,
     updatedAt: input.now,
-    adminRoute: `${input.packageApp.adminRouteBase}/${input.installId}`,
+    adminRoute: `/apps/${input.installId}`,
   };
-}
-
-function validateAppInstallRegistrationOperationForPolicy(input: {
-  registrationOperation: AppInstallRegistrationOperation | undefined;
-  registrationPolicy: AppInstallRegistrationPolicy;
-}):
-  | {
-      ok: true;
-      registrationOperation: AppInstallRegistrationOperation | undefined;
-    }
-  | {
-      ok: false;
-      error: AppInstallRegistryError;
-    } {
-  if (input.registrationPolicy === "custom-operation") {
-    if (input.registrationOperation === undefined) {
-      return {
-        ok: false,
-        error: appInstallRegistryError(
-          "invalid-registration-operation",
-          "registrationOperation",
-          'Install registration operation is required when registration policy is "custom-operation".',
-        ),
-      };
-    }
-
-    try {
-      return {
-        ok: true,
-        registrationOperation: parseAppInstallRegistrationOperation(
-          input.registrationOperation,
-          "Install registration operation",
-        ),
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        error: appInstallRegistryError(
-          "invalid-registration-operation",
-          "registrationOperation",
-          error instanceof Error && error.message.trim() !== ""
-            ? error.message
-            : "Install registration operation is invalid.",
-        ),
-      };
-    }
-  }
-
-  if (input.registrationOperation !== undefined) {
-    return {
-      ok: false,
-      error: appInstallRegistryError(
-        "invalid-registration-operation",
-        "registrationOperation",
-        'Install registration operation must be omitted unless registration policy is "custom-operation".',
-      ),
-    };
-  }
-
-  return {
-    ok: true,
-    registrationOperation: undefined,
-  };
-}
-
-function appInstallRegistrationPolicyMessage(context: string): string {
-  return `${context} must be "closed", "email-verified", or "custom-operation".`;
-}
-
-function assertAppInstallRegistrationOperationEntityKey(context: string, value: string) {
-  if (!schemaLocalEntityKeyPattern.test(value)) {
-    throw new Error(`${context} must be a singular kebab-case entity key.`);
-  }
-}
-
-function assertAppInstallRegistrationOperationKey(context: string, value: string) {
-  if (
-    value.trim() === "" ||
-    value.trim() !== value ||
-    value.includes(".") ||
-    value.includes("/") ||
-    value.includes(":") ||
-    /\s/.test(value)
-  ) {
-    throw new Error(
-      `${context} must be non-empty and must not contain whitespace, dots, slashes, or colons.`,
-    );
-  }
 }
 
 function initializationPlanForInstall(

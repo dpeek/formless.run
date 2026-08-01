@@ -45,35 +45,14 @@ describe("protected route guard", () => {
     expect(rejected.states).toEqual(["checking", "redirect"]);
   });
 
-  it("checks exact app-role authorization before an installed app can mount or sync", async () => {
-    const matching = await runGuard("authenticated", {
-      requiredRole: "app.admin",
-      response: completeRouteResponse("/apps/personal/settings"),
+  it("keeps temporarily reachable installed app routes on the owner-session check", async () => {
+    const result = await runGuard("owner", {
+      response: Response.json({ authenticated: false, setupComplete: true }),
       route: "/apps/personal/settings",
     });
-    const wrongApp = await runGuard("authenticated", {
-      requiredRole: "app.admin",
-      response: forbiddenRouteResponse(),
-      route: "/apps/work",
-    });
-    const incomplete = await runGuard("authenticated", {
-      requiredRole: "app.admin",
-      response: blockedRouteResponse("/apps/review"),
-      route: "/apps/review",
-    });
 
-    expect(matching.calls).toEqual(["/formless/auth?returnTo=%2Fapps%2Fpersonal%2Fsettings"]);
-    expect(matching.states).toEqual(["checking", "authorized"]);
-    expect(wrongApp.calls).toEqual(["/formless/auth?returnTo=%2Fapps%2Fwork"]);
-    expect(wrongApp.states).toEqual(["checking", "forbidden"]);
-    expect(incomplete.calls).toEqual(["/formless/auth?returnTo=%2Fapps%2Freview"]);
-    expect(incomplete.states).toEqual(["checking", "redirect"]);
-    expect(
-      `${matching.calls.join(" ")} ${wrongApp.calls.join(" ")} ${incomplete.calls.join(" ")}`,
-    ).not.toContain("/bootstrap");
-    expect(
-      `${matching.calls.join(" ")} ${wrongApp.calls.join(" ")} ${incomplete.calls.join(" ")}`,
-    ).not.toContain("/sync");
+    expect(result.calls).toEqual(["/api/formless/session"]);
+    expect(result.states).toEqual(["checking", "redirect"]);
   });
 
   it("keeps owner routes on the owner-session check", async () => {
@@ -153,7 +132,6 @@ describe("protected route guard", () => {
 async function runGuard(
   access: "authenticated" | "management" | "owner",
   input: {
-    requiredRole?: "app.admin";
     response: Response;
     route: `/${string}`;
   },
@@ -175,7 +153,6 @@ async function runGuard(
     fetcher,
     location: input.route,
     onState: (state) => states.push(state),
-    requiredRole: input.requiredRole,
   });
 
   try {
@@ -215,17 +192,6 @@ function completeRouteResponse(route: `/${string}`): Response {
   });
 }
 
-function blockedRouteResponse(route: `/${string}`): Response {
-  return Response.json(
-    {
-      gate: { kind: "role-review", roleKey: "app.admin", scopeKind: "app-install" },
-      status: "blocked",
-      target: routeTarget(route),
-    },
-    { status: 409 },
-  );
-}
-
 function forbiddenRouteResponse(): Response {
   return Response.json(
     {
@@ -240,14 +206,11 @@ function forbiddenRouteResponse(): Response {
 }
 
 function routeTarget(route: `/${string}`) {
-  const appInstallId = route.startsWith("/apps/") ? route.split("/").filter(Boolean)[1] : undefined;
-
   return {
-    ...(appInstallId === undefined ? {} : { appInstallId }),
     returnTo: route,
-    routeId: appInstallId ? `route:${appInstallId}:admin` : "route:instance",
-    storageIdentity: appInstallId ? `app:${appInstallId}` : "formless-program",
+    routeId: "route:instance",
+    storageIdentity: "formless-program",
     targetOrigin: "https://formless.test",
-    targetProfile: appInstallId ? "app" : "instance",
+    targetProfile: "instance",
   };
 }

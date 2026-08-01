@@ -22,7 +22,6 @@ import {
   shouldHandlePublishedSiteIndexingResource,
   shouldRedirectAnonymousProtectedBrowserRoute,
   shouldRedirectAnonymousOwnerBrowserRoute,
-  shouldServeMappedAppHostClientShell,
   workerRuntimeRoutePolicy,
 } from "./routing.ts";
 
@@ -70,57 +69,27 @@ describe("Worker document routing", () => {
     const documentTopology = resolveWorkerRuntimeRequestTopology(document, {
       profile: "publishedSite",
     });
-    const mappedAppShell = documentRequest("http://tasks.example.com/");
-    const mappedAppTopology = resolveWorkerRuntimeRequestTopology(mappedAppShell, {
-      profile: "app",
-    });
-
     expect(shouldHandlePublishedSiteDocument(document, documentTopology)).toBe(true);
     expect(shouldDeferToStaticAssets(document, documentTopology)).toBe(false);
-    expect(shouldServeMappedAppHostClientShell(mappedAppShell, mappedAppTopology)).toBe(true);
   });
 
   it("derives mapped-host runtime and auth-route eligibility from explicit route facts", () => {
-    const mappedAppRoute = {
+    const mappedInstanceRoute = {
       access: "owner",
-      id: "route:host:app:tasks.example.com",
+      id: "route:host:instance:admin.example.com",
       kind: "mount",
-      matchHost: "tasks.example.com",
+      matchHost: "admin.example.com",
       matchPath: "/",
       matchPrefix: "/",
-      targetProfile: "app",
+      targetProfile: "instance",
     } as const;
     const mappedSiteRoute = {
-      ...mappedAppRoute,
+      ...mappedInstanceRoute,
       access: "anonymous",
       id: "route:host:site:www.example.com",
       matchHost: "www.example.com",
       targetProfile: "public-site",
     } as const;
-    const mappedInstanceRoute = {
-      ...mappedAppRoute,
-      id: "route:host:instance:admin.example.com",
-      matchHost: "admin.example.com",
-      targetProfile: "instance",
-    } as const;
-    const hostlessAppRoute = {
-      ...mappedAppRoute,
-      id: "route:app:tasks",
-      matchHost: undefined,
-      matchPath: "/apps/tasks",
-      matchPrefix: undefined,
-    } as const;
-
-    expect(
-      mappedRuntimeRoutePolicyFromFacts({
-        configuredRuntimeProfile: "publishedSite",
-        runtimeRoute: mappedAppRoute,
-      }),
-    ).toEqual({
-      blocksAuthOriginRoutes: true,
-      mappedTargetProfile: "app",
-      runtimeProfile: "app",
-    });
     expect(
       mappedRuntimeRoutePolicyFromFacts({
         configuredRuntimeProfile: "instance",
@@ -141,27 +110,17 @@ describe("Worker document routing", () => {
       mappedTargetProfile: "instance",
       runtimeProfile: "instance",
     });
-    expect(
-      mappedRuntimeRoutePolicyFromFacts({
-        configuredRuntimeProfile: "dev",
-        runtimeRoute: hostlessAppRoute,
-      }),
-    ).toEqual({
-      blocksAuthOriginRoutes: false,
-      runtimeProfile: "dev",
-    });
-
     const signInTopology = resolveWorkerRuntimeRequestTopology(
-      documentRequest("https://tasks.example.com/formless/auth/sign-in?returnTo=%2Fschema"),
-      { profile: "app" },
+      documentRequest("https://site.example.com/formless/auth/sign-in?returnTo=%2Fblog"),
+      { profile: "publishedSite" },
     );
-    const mappedAppPolicy = mappedRuntimeRoutePolicyFromFacts({ runtimeRoute: mappedAppRoute });
+    const mappedSitePolicy = mappedRuntimeRoutePolicyFromFacts({ runtimeRoute: mappedSiteRoute });
 
     expect(
       mappedAuthOriginRouteDecisionFromFacts({
         authOriginRead: false,
-        mappedRoutePolicy: mappedAppPolicy,
-        requestOrigin: "https://tasks.example.com",
+        mappedRoutePolicy: mappedSitePolicy,
+        requestOrigin: "https://site.example.com",
         reservedAuthOriginRoute: true,
         topology: signInTopology,
       }),
@@ -170,24 +129,24 @@ describe("Worker document routing", () => {
       mappedAuthOriginRouteDecisionFromFacts({
         authOrigin: "https://auth.example.com",
         authOriginRead: true,
-        mappedRoutePolicy: mappedAppPolicy,
-        requestOrigin: "https://tasks.example.com",
+        mappedRoutePolicy: mappedSitePolicy,
+        requestOrigin: "https://site.example.com",
         reservedAuthOriginRoute: true,
         topology: signInTopology,
       }),
     ).toEqual({
       kind: "redirect",
-      location: "https://auth.example.com/formless/auth/sign-in?returnTo=%2Fschema",
+      location: "https://auth.example.com/formless/auth/sign-in?returnTo=%2Fblog",
     });
     expect(
       mappedAuthOriginRouteDecisionFromFacts({
         authOriginRead: true,
-        mappedRoutePolicy: mappedAppPolicy,
-        requestOrigin: "https://tasks.example.com",
+        mappedRoutePolicy: mappedSitePolicy,
+        requestOrigin: "https://site.example.com",
         reservedAuthOriginRoute: true,
         topology: resolveWorkerRuntimeRequestTopology(
-          documentRequest("https://tasks.example.com/formless/auth/profile-completion"),
-          { profile: "app" },
+          documentRequest("https://site.example.com/formless/auth/profile-completion"),
+          { profile: "publishedSite" },
         ),
       }),
     ).toEqual({ kind: "not-found" });
@@ -207,16 +166,16 @@ describe("Worker document routing", () => {
   it("plans protected browser access from topology, route, and session-result facts", () => {
     const mappedRoute = {
       access: "authenticated",
-      id: "route:host:app:tasks.example.com",
+      id: "route:host:instance:admin.example.com",
       kind: "mount",
-      matchHost: "tasks.example.com",
+      matchHost: "admin.example.com",
       matchPath: "/",
       matchPrefix: "/",
-      targetProfile: "app",
+      targetProfile: "instance",
     } as const;
     const topology = resolveWorkerRuntimeRequestTopology(
-      documentRequest("https://tasks.example.com/schema?view=board"),
-      { profile: "app" },
+      documentRequest("https://admin.example.com/access?view=board"),
+      { profile: "instance" },
     );
 
     expect(
@@ -225,7 +184,7 @@ describe("Worker document routing", () => {
         session: "unread",
         topology,
       }),
-    ).toEqual({ kind: "validate-session", requiredAccess: "authenticated" });
+    ).toMatchObject({ kind: "validate-session", requiredAccess: "authenticated" });
     expect(
       protectedBrowserRouteDecisionFromFacts({
         runtimeRoute: mappedRoute,
@@ -252,10 +211,10 @@ describe("Worker document routing", () => {
         runtimeRoute: mappedRoute,
         session: "unread",
         topology: resolveWorkerRuntimeRequestTopology(
-          new Request("https://tasks.example.com/schema", {
+          new Request("https://admin.example.com/access", {
             headers: { Accept: "application/json" },
           }),
-          { profile: "app" },
+          { profile: "instance" },
         ),
       }),
     ).toEqual({ kind: "continue" });
@@ -425,12 +384,6 @@ describe("Worker document routing", () => {
     ).toBe(true);
     expect(
       shouldDeferToStaticAssets(
-        documentRequest("http://example.com/apps/personal"),
-        instanceProfile,
-      ),
-    ).toBe(true);
-    expect(
-      shouldDeferToStaticAssets(
         documentRequest("http://example.com/assets/index.js"),
         instanceProfile,
       ),
@@ -452,40 +405,8 @@ describe("Worker document routing", () => {
     ).toBe(false);
   });
 
-  it("marks only owner browser routes for anonymous login redirects", () => {
+  it("uses current Program and public Site route access for browser redirects", () => {
     const instanceProfile = { profile: "instance" };
-    const publicSiteRoute = {
-      access: "anonymous",
-      id: "route:site:public-site",
-      kind: "mount",
-      matchPath: "/sites/personal",
-      matchPrefix: "/sites/personal/",
-      surface: "public-site",
-      targetProfile: "public-site",
-    } as const;
-    const anonymousAppRoute = {
-      access: "anonymous",
-      id: "route:tasks:admin",
-      kind: "mount",
-      matchPath: "/apps/tasks",
-      surface: "admin",
-      targetProfile: "app",
-    } as const;
-    const mappedOwnerAppRoute = {
-      access: "owner",
-      id: "route:host:app:tasks.example.com",
-      kind: "mount",
-      matchHost: "tasks.example.com",
-      matchPath: "/",
-      matchPrefix: "/",
-      surface: "admin",
-      targetProfile: "app",
-    } as const;
-    const mappedAuthenticatedAppRoute = {
-      ...mappedOwnerAppRoute,
-      access: "authenticated",
-      id: "route:host:app:authenticated-tasks.example.com",
-    } as const;
     const mappedProtectedSiteRoute = {
       access: "authenticated",
       id: "route:host:public-site:site.example.com",
@@ -498,30 +419,6 @@ describe("Worker document routing", () => {
     } as const;
 
     expect(
-      shouldRedirectAnonymousOwnerBrowserRoute(
-        documentRequest("http://example.com/"),
-        instanceProfile,
-      ),
-    ).toBe(false);
-    expect(
-      shouldRedirectAnonymousOwnerBrowserRoute(
-        documentRequest("http://example.com/apps/personal?screen=routes"),
-        instanceProfile,
-      ),
-    ).toBe(true);
-    expect(
-      shouldRedirectAnonymousOwnerBrowserRoute(
-        documentRequest("http://example.com/deployments"),
-        instanceProfile,
-      ),
-    ).toBe(false);
-    expect(
-      shouldRedirectAnonymousOwnerBrowserRoute(
-        documentRequest("http://example.com/access"),
-        instanceProfile,
-      ),
-    ).toBe(false);
-    expect(
       shouldRedirectAnonymousProtectedBrowserRoute(
         documentRequest("http://example.com/access"),
         instanceProfile,
@@ -529,77 +426,8 @@ describe("Worker document routing", () => {
     ).toBe(true);
     expect(
       shouldRedirectAnonymousOwnerBrowserRoute(
-        new Request("http://example.com/apps/personal/schema", {
-          headers: { Accept: "text/html" },
-          method: "HEAD",
-        }),
+        documentRequest("http://example.com/access"),
         instanceProfile,
-      ),
-    ).toBe(true);
-    expect(
-      shouldRedirectAnonymousOwnerBrowserRoute(
-        documentRequest("http://example.com/login"),
-        instanceProfile,
-      ),
-    ).toBe(false);
-    expect(
-      shouldRedirectAnonymousOwnerBrowserRoute(
-        documentRequest("http://example.com/setup"),
-        instanceProfile,
-      ),
-    ).toBe(false);
-    expect(
-      shouldRedirectAnonymousOwnerBrowserRoute(
-        documentRequest("http://example.com/local-session"),
-        instanceProfile,
-      ),
-    ).toBe(false);
-    expect(
-      shouldRedirectAnonymousOwnerBrowserRoute(
-        documentRequest("http://example.com/sites/personal/blog"),
-        instanceProfile,
-        publicSiteRoute,
-      ),
-    ).toBe(false);
-    expect(
-      shouldRedirectAnonymousOwnerBrowserRoute(
-        documentRequest("http://example.com/assets/index.js"),
-        instanceProfile,
-      ),
-    ).toBe(false);
-    expect(
-      shouldRedirectAnonymousOwnerBrowserRoute(
-        new Request("http://example.com/apps/personal", {
-          headers: { Accept: "application/json" },
-        }),
-        instanceProfile,
-      ),
-    ).toBe(false);
-    expect(
-      shouldRedirectAnonymousOwnerBrowserRoute(
-        documentRequest("http://example.com/apps/personal"),
-        { profile: "publishedSite" },
-      ),
-    ).toBe(false);
-    expect(
-      shouldRedirectAnonymousOwnerBrowserRoute(
-        documentRequest("https://tasks.example.com/schema"),
-        { profile: "app" },
-        mappedOwnerAppRoute,
-      ),
-    ).toBe(true);
-    expect(
-      shouldRedirectAnonymousProtectedBrowserRoute(
-        documentRequest("https://tasks.example.com/schema"),
-        { profile: "app" },
-        mappedAuthenticatedAppRoute,
-      ),
-    ).toBe(true);
-    expect(
-      shouldRedirectAnonymousOwnerBrowserRoute(
-        documentRequest("https://tasks.example.com/schema"),
-        { profile: "app" },
-        mappedAuthenticatedAppRoute,
       ),
     ).toBe(false);
     expect(
@@ -618,25 +446,11 @@ describe("Worker document routing", () => {
     ).toBe(false);
     expect(
       ownerBrowserRouteAccessForRequest(
-        documentRequest("http://example.com/apps/tasks"),
-        instanceProfile,
-        anonymousAppRoute,
-      ),
-    ).toBe("anonymous");
-    expect(
-      ownerBrowserRouteAccessForRequest(
         documentRequest("http://example.com/access"),
         instanceProfile,
       ),
     ).toBe("authenticated");
-    expect(
-      ownerBrowserRouteAccessForRequest(
-        documentRequest("http://example.com/deployments"),
-        instanceProfile,
-      ),
-    ).toBe("authenticated");
   });
-
   it("projects shared route policy by runtime profile", () => {
     for (const profileKind of runtimeProfileKinds) {
       const sharedPolicy = runtimeRoutePolicyForProfileKind(profileKind);
@@ -655,7 +469,6 @@ describe("Worker document routing", () => {
         ]),
       ),
     ).toEqual({
-      app: false,
       dev: true,
       instance: true,
       publishedSite: false,
@@ -665,7 +478,7 @@ describe("Worker document routing", () => {
   it("lets explicit profile config override host-derived profile config", () => {
     expect(
       shouldHandlePublishedSiteDocument(documentRequest("http://published-site.example.com/"), {
-        profile: "app",
+        profile: "instance",
       }),
     ).toBe(false);
     expect(
@@ -683,7 +496,7 @@ describe("Worker document routing", () => {
     ).toBe(false);
   });
 
-  it("keeps API, Formless view, preview redirect, generated app, app-profile, asset, and non-HTML routes out of SSR", () => {
+  it("keeps API, Formless view, preview redirect, assets, and non-HTML routes out of SSR", () => {
     const nonSsrRequests = [
       documentRequest("http://example.com/api/site/tree/home"),
       documentRequest("http://example.com/formless/auth/callback"),
@@ -693,7 +506,6 @@ describe("Worker document routing", () => {
       documentRequest(`http://example.com${runtimeTopologyRoutes.authAccountSetupRoute}`),
       documentRequest(`http://example.com${runtimeTopologyRoutes.authAccountSignInRoute}`),
       documentRequest("http://example.com/local-session"),
-      documentRequest("http://example.com/apps/personal"),
       documentRequest("http://example.com/assets/index.js"),
       new Request("http://example.com/@vite/client", { headers: { Accept: "*/*" } }),
       new Request("http://example.com/@react-refresh", { headers: { Accept: "*/*" } }),
@@ -709,7 +521,7 @@ describe("Worker document routing", () => {
       ),
     ).toEqual(nonSsrRequests.map(() => false));
 
-    expect(shouldHandlePublishedSiteDocument(documentRequest("http://app.example.com/"))).toBe(
+    expect(shouldHandlePublishedSiteDocument(documentRequest("http://admin.example.com/"))).toBe(
       false,
     );
     expect(
@@ -787,9 +599,6 @@ describe("Worker document routing", () => {
 
   it("marks client-shell and static asset requests for asset serving fallback", () => {
     expect(shouldDeferToStaticAssets(documentRequest("http://example.com/pages/home"))).toBe(true);
-    expect(shouldDeferToStaticAssets(documentRequest("http://example.com/apps/personal"))).toBe(
-      true,
-    );
     expect(shouldDeferToStaticAssets(documentRequest("http://example.com/sites/personal"))).toBe(
       true,
     );
@@ -894,11 +703,6 @@ describe("Worker document routing", () => {
         profile: "publishedSite",
       }),
     ).toBe(false);
-    expect(
-      shouldDeferToStaticAssets(documentRequest("http://example.com/apps/personal"), {
-        profile: "publishedSite",
-      }),
-    ).toBe(true);
   });
 
   it("keeps dynamic root icon requests out of static fallback for read methods", () => {
@@ -997,12 +801,11 @@ describe("Worker document routing", () => {
     ).toBe(undefined);
   });
 
-  it("recognizes generated app and preview route prefixes as client shell routes", () => {
+  it("recognizes Program and preview route prefixes as client shell routes", () => {
     expect(isClientShellRoute("/pages/home")).toBe(true);
     expect(isClientShellRoute("/tasks")).toBe(true);
     expect(isClientShellRoute("/crm/audiences")).toBe(false);
     expect(isClientShellRoute("/site/schema")).toBe(false);
-    expect(isClientShellRoute("/apps/personal")).toBe(true);
     expect(isClientShellRoute("/formless/auth")).toBe(true);
     expect(isClientShellRoute("/formless/auth/profile-completion")).toBe(true);
     expect(isClientShellRoute(runtimeTopologyRoutes.authAccountSetupRoute)).toBe(true);

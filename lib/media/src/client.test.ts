@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
-  appDocumentMediaCollectionHref,
+  programDocumentMediaCollectionHref,
   coreImageMediaAssetOptionForId,
   DOCUMENT_UPLOAD_ACCEPT,
   documentMediaDownloadHref,
   IMAGE_UPLOAD_ACCEPT,
-  listAppDocumentMediaAssets,
+  listProgramDocumentMediaAssets,
   listCoreImageMediaAssets,
   parseDocumentMediaListResponse,
   parseDocumentMediaUploadResponse,
   parseImageMediaListResponse,
   parseImageMediaUploadResponse,
-  uploadAppDocumentMediaFile,
+  uploadProgramDocumentMediaFile,
   uploadCoreImageMediaFile,
 } from "./client.ts";
 import type { DocumentMediaAsset } from "./types.ts";
@@ -149,12 +149,12 @@ describe("Media client adapter", () => {
     );
   });
 
-  it("uploads app-scoped documents with field identity but no caller-owned policy", async () => {
+  it("uploads Program documents with field identity but no caller-owned policy", async () => {
     const file = new File([new TextEncoder().encode("%PDF-1.7\nbody")], "unsafe/report.pdf", {
       type: " APPLICATION/PDF ; charset=binary ",
     });
     const target = {
-      documentsPath: "/api/app-installs/verifi/verifi-prod/media/documents" as const,
+      documentsPath: "/api/formless/program/media/documents" as const,
       field: {
         entityName: "certificate",
         fieldName: "report asset",
@@ -163,14 +163,14 @@ describe("Media client adapter", () => {
     const asset = documentMediaAsset();
 
     expect(DOCUMENT_UPLOAD_ACCEPT).toBe("application/pdf");
-    expect(appDocumentMediaCollectionHref(target)).toBe(
-      "/api/app-installs/verifi/verifi-prod/media/documents?entity=certificate&field=report+asset",
+    expect(programDocumentMediaCollectionHref(target)).toBe(
+      "/api/formless/program/media/documents?entity=certificate&field=report+asset",
     );
 
     await expect(
-      uploadAppDocumentMediaFile(file, target, {
+      uploadProgramDocumentMediaFile(file, target, {
         fetcher: async (input, init) => {
-          expect(input).toBe(appDocumentMediaCollectionHref(target));
+          expect(input).toBe(programDocumentMediaCollectionHref(target));
           expect(init?.method).toBe("POST");
           expect(init?.headers).toEqual({ Accept: "application/json" });
           expect(init?.body).toBeInstanceOf(FormData);
@@ -204,7 +204,7 @@ describe("Media client adapter", () => {
 
   it("lists compatible documents and projects open and download intents", async () => {
     const target = {
-      documentsPath: "/api/app-installs/verifi/verifi-prod/media/documents" as const,
+      documentsPath: "/api/formless/program/media/documents" as const,
       field: {
         entityName: "certificate",
         fieldName: "report",
@@ -213,10 +213,10 @@ describe("Media client adapter", () => {
     const asset = documentMediaAsset();
 
     await expect(
-      listAppDocumentMediaAssets(target, {
+      listProgramDocumentMediaAssets(target, {
         fetcher: async (input, init) => {
           expect(input).toBe(
-            "/api/app-installs/verifi/verifi-prod/media/documents?entity=certificate&field=report",
+            "/api/formless/program/media/documents?entity=certificate&field=report",
           );
           expect(init?.headers).toEqual({ Accept: "application/json" });
 
@@ -228,10 +228,9 @@ describe("Media client adapter", () => {
         access: "private",
         byteSize: 13,
         contentType: "application/pdf",
-        downloadHref:
-          "/api/app-installs/verifi/verifi-prod/media/documents/coa-fixed.pdf?download=1",
+        downloadHref: "/api/formless/program/media/documents/coa-fixed.pdf?download=1",
         filename: "coa.pdf",
-        href: "/api/app-installs/verifi/verifi-prod/media/documents/coa-fixed.pdf",
+        href: "/api/formless/program/media/documents/coa-fixed.pdf",
         id: "coa-fixed.pdf",
         label: "Certificate of analysis",
       },
@@ -268,14 +267,13 @@ function documentMediaAsset(): DocumentMediaAsset {
     access: "private",
     byteSize: 13,
     contentType: "application/pdf",
-    deliveryHref: "/api/app-installs/verifi/verifi-prod/media/documents/coa-fixed.pdf",
+    deliveryHref: "/api/formless/program/media/documents/coa-fixed.pdf",
     filename: "coa.pdf",
     id: "coa-fixed.pdf",
     kind: "document",
     label: "Certificate of analysis",
-    ownerAppInstallId: "verifi-prod",
     provider: "r2",
     status: "ready",
-    storageKey: "media/app-installs/verifi-prod/documents/coa-fixed.pdf",
+    storageKey: "media/program/documents/coa-fixed.pdf",
   };
 }

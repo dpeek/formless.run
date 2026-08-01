@@ -319,10 +319,10 @@ function fixtureRoleSelection({
       surfaceKind: "instance" as const,
     },
     {
-      id: "role:site-admin",
-      label: "Site — Administrator",
-      surfaceId: "app-install:site",
-      surfaceKind: "app-install" as const,
+      id: "role:program-editor",
+      label: "Program — Editor",
+      surfaceId: "program",
+      surfaceKind: "program" as const,
     },
   ]
     .filter(
@@ -330,8 +330,7 @@ function fixtureRoleSelection({
         !selectedOptionIds.some(
           (selectedId) =>
             selectedId !== optionId &&
-            (selectedId.startsWith("role:instance") ? "instance" : "app-install:site") ===
-              surfaceId,
+            (selectedId.startsWith("role:instance") ? "instance" : "program") === surfaceId,
         ),
     )
     .map((option) => ({ ...option, selected: selectedOptionIds.includes(option.id) }));

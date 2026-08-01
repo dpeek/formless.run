@@ -299,8 +299,6 @@ function targetSurfaceLabel(
   surface: CollaboratorInvitationAcceptanceInvitationSummary["targetSurface"],
 ): string {
   switch (surface) {
-    case "app-install":
-      return "App install";
     case "instance":
       return "Instance";
     case "organization":

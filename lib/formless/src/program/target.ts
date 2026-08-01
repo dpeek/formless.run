@@ -5,7 +5,7 @@ export const FORMLESS_PROGRAM_STORAGE_IDENTITY = "instance:control-plane";
 export const FORMLESS_PROGRAM_API_ROUTE_PREFIX = "/api/formless/program";
 export const FORMLESS_PROGRAM_BROWSER_STORAGE_NAME = "formless:instance:control-plane";
 export const FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH =
-  "sha256:4d762ea936239027dd193280076150b22a83f86db06632a9374000049069b150" satisfies SourceSchemaHash;
+  "sha256:f9b600246e6824692b8a7deaa51131e578bc8d04f14435485d51878e735660e5" satisfies SourceSchemaHash;
 
 export const formlessProgramTarget = {
   kind: "program",

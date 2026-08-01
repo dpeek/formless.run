@@ -41,7 +41,6 @@ export const identityControlPlaneEntityNames = [
   "role",
   "role-assignment",
   "program-role-assignment",
-  "app-registration",
   "invitation",
   "account-policy",
   "principal-policy-acceptance",
@@ -49,13 +48,7 @@ export const identityControlPlaneEntityNames = [
 
 export type IdentityControlPlaneEntityName = (typeof identityControlPlaneEntityNames)[number];
 
-export const identityControlPlaneRoleKeys = [
-  "instance.owner",
-  "app.admin",
-  "app.editor",
-  "app.viewer",
-  "app.user",
-] as const;
+export const identityControlPlaneRoleKeys = ["instance.owner"] as const;
 
 export type IdentityControlPlaneRoleKey = (typeof identityControlPlaneRoleKeys)[number];
 
@@ -67,15 +60,13 @@ export type IdentityMembershipTargetKind = "group" | "organization";
 export type IdentityMembershipStatus = "active" | "disabled" | "invited";
 export type IdentityRoleStatus = "active" | "disabled";
 export type IdentityRoleAssignmentTargetKind = "group" | "organization" | "principal";
-export type IdentityRoleAssignmentScopeKind = "app-install" | "instance" | "organization";
+export type IdentityRoleAssignmentScopeKind = "instance" | "organization";
 export type IdentityRoleAssignmentStatus = "active" | "disabled";
 export type IdentityProgramRoleAssignmentStatus = "active" | "disabled";
 export type IdentityProgramRoleId = `role_${string}`;
-export type IdentityAppRegistrationTargetKind = "organization" | "principal";
-export type IdentityAppRegistrationStatus = "active" | "disabled" | "pending";
-export type IdentityInvitationTargetSurface = "app-install" | "instance" | "organization";
+export type IdentityInvitationTargetSurface = "instance" | "organization";
 export type IdentityInvitationStatus = "accepted" | "expired" | "pending" | "revoked";
-export type IdentityAccountPolicyScopeKind = "app-install" | "instance" | "organization";
+export type IdentityAccountPolicyScopeKind = "instance" | "organization";
 export type IdentityAccountPolicyStatus = "active" | "retired";
 export type IdentityPrincipalPolicyAcceptanceStatus = "accepted" | "revoked";
 
@@ -126,7 +117,6 @@ export type IdentityRoleAssignmentValues = {
   targetGroup?: string;
   targetOrganization?: string;
   scopeKind: IdentityRoleAssignmentScopeKind;
-  appInstallId?: string;
   scopeOrganization?: string;
   status: IdentityRoleAssignmentStatus;
 };
@@ -137,19 +127,9 @@ export type IdentityProgramRoleAssignmentValues = {
   status: IdentityProgramRoleAssignmentStatus;
 };
 
-export type IdentityAppRegistrationValues = {
-  appInstallId: string;
-  targetKind: IdentityAppRegistrationTargetKind;
-  targetPrincipal?: string;
-  targetOrganization?: string;
-  status: IdentityAppRegistrationStatus;
-  selectedOrganization?: string;
-};
-
 export type IdentityInvitationValues = {
   targetEmail: string;
   targetSurface: IdentityInvitationTargetSurface;
-  targetAppInstallId?: string;
   targetOrganization?: string;
   invitedPrincipal?: string;
   inviterPrincipal?: string;
@@ -163,7 +143,6 @@ export type IdentityAccountPolicyValues = {
   policyKey: string;
   version: string;
   scopeKind: IdentityAccountPolicyScopeKind;
-  appInstallId?: string;
   scopeOrganization?: string;
   status: IdentityAccountPolicyStatus;
   publishedAt?: string;
@@ -180,7 +159,6 @@ export type IdentityPrincipalPolicyAcceptanceValues = {
 
 export type IdentityControlPlaneRecordValuesByEntity = {
   "account-policy": IdentityAccountPolicyValues;
-  "app-registration": IdentityAppRegistrationValues;
   group: IdentityGroupValues;
   invitation: IdentityInvitationValues;
   membership: IdentityMembershipValues;
@@ -207,17 +185,14 @@ export const identityControlPlaneImmutableFields = {
     "targetGroup",
     "targetOrganization",
     "scopeKind",
-    "appInstallId",
     "scopeOrganization",
   ],
   "program-role-assignment": ["principal", "roleId"],
-  "app-registration": ["appInstallId", "targetKind", "targetPrincipal", "targetOrganization"],
-  invitation: ["targetEmail", "targetSurface", "targetAppInstallId", "targetOrganization"],
+  invitation: ["targetEmail", "targetSurface", "targetOrganization"],
   "account-policy": [
     "policyKey",
     "version",
     "scopeKind",
-    "appInstallId",
     "scopeOrganization",
     "policyDocumentUrl",
     "policyContentRef",
@@ -244,7 +219,6 @@ export type IdentityAccessPersonSummary = {
 };
 
 export type IdentityAccessRoleSummary = {
-  appInstallId?: string;
   createdAt: string;
   displayLabel: string;
   roleAssignmentId: string;
@@ -269,18 +243,6 @@ export type IdentityAccessProgramRoleSummary = {
   scopeKind: "program";
   status: IdentityProgramRoleAssignmentStatus;
   targetPrincipalId: string;
-  updatedAt: string;
-};
-
-export type IdentityAccessAppRegistrationSummary = {
-  appInstallId: string;
-  appRegistrationId: string;
-  createdAt: string;
-  selectedOrganizationId?: string;
-  status: IdentityAppRegistrationStatus;
-  targetKind: IdentityAppRegistrationTargetKind;
-  targetOrganizationId?: string;
-  targetPrincipalId?: string;
   updatedAt: string;
 };
 
@@ -319,7 +281,6 @@ export type IdentityAccessInvitationSummary = {
   invitationId: string;
   inviterPrincipalId?: string;
   status: IdentityInvitationStatus;
-  targetAppInstallId?: string;
   targetEmail: string;
   targetOrganizationId?: string;
   targetSurface: IdentityInvitationTargetSurface;
@@ -342,24 +303,6 @@ export type IdentityAccessInvitationRoleGrantOption =
       roleId: IdentityProgramRoleId;
       roleKey: string;
       scopeKind: "program";
-    }
-  | {
-      appInstallId: string;
-      displayLabel: string;
-      roleKey: Extract<
-        IdentityControlPlaneRoleKey,
-        "app.admin" | "app.editor" | "app.user" | "app.viewer"
-      >;
-      scopeKind: Extract<IdentityRoleAssignmentScopeKind, "app-install">;
-    }
-  | {
-      displayLabel: string;
-      roleKey: Extract<
-        IdentityControlPlaneRoleKey,
-        "app.admin" | "app.editor" | "app.user" | "app.viewer"
-      >;
-      scopeKind: Extract<IdentityRoleAssignmentScopeKind, "organization">;
-      scopeOrganizationId: string;
     };
 
 export type IdentityAccessInvitationMembershipGrantOption = {
@@ -376,7 +319,6 @@ export type IdentityAccessInvitationGrantOptions = {
 };
 
 export type IdentityAccessManagementSummary = {
-  appRegistrations: IdentityAccessAppRegistrationSummary[];
   groups: IdentityAccessGroupSummary[];
   invitationGrantOptions: IdentityAccessInvitationGrantOptions;
   invitations: IdentityAccessInvitationSummary[];
@@ -395,22 +337,6 @@ export type IdentityAccessPersonRoleSelection =
   | {
       roleId: IdentityProgramRoleId;
       scopeKind: "program";
-    }
-  | {
-      appInstallId: string;
-      roleKey: Extract<
-        IdentityControlPlaneRoleKey,
-        "app.admin" | "app.editor" | "app.user" | "app.viewer"
-      >;
-      scopeKind: Extract<IdentityRoleAssignmentScopeKind, "app-install">;
-    }
-  | {
-      roleKey: Extract<
-        IdentityControlPlaneRoleKey,
-        "app.admin" | "app.editor" | "app.user" | "app.viewer"
-      >;
-      scopeKind: Extract<IdentityRoleAssignmentScopeKind, "organization">;
-      scopeOrganizationId: string;
     };
 
 export type IdentityAccessPersonRoleReplacementRequest = {

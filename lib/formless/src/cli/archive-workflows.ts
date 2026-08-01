@@ -21,9 +21,11 @@ import {
   type ArchiveDiskWriteResult,
 } from "../program/archive-node.ts";
 import {
-  findAppInstall,
+  validateAppInstallId,
   type AppInstall,
+  type AppInstallId,
   type InstallableAppPackage,
+  type PackageAppKey,
 } from "@dpeek/formless-installed-apps";
 import {
   bundledAppPackageResolver,
@@ -31,7 +33,6 @@ import {
   isRuntimeInstallableAppPackageKey,
   type AppPackageResolver,
 } from "../shared/app-packages.ts";
-import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
 import {
   canonicalizeFormlessProgramStorageSnapshot,
   parseFormlessProgramStorageSnapshot,
@@ -70,6 +71,28 @@ export type { ArchiveDiskMediaFile, ArchiveDiskWriteResult } from "../program/ar
 
 const INSTANCE_ARCHIVE_RESTORE_API_PATH = "/api/formless/archive/restore";
 const ARCHIVE_EXPORT_MEDIA_READ_HEADER = "X-Formless-Archive-Export";
+
+type InstalledArchiveStorageIdentity = {
+  apiRoutePrefix: `/api/app-installs/${PackageAppKey}/${AppInstallId}`;
+  authorityName: `app:${AppInstallId}`;
+  installId: AppInstallId;
+};
+
+function installedAppStorageIdentity(input: {
+  installId: string;
+  packageAppKey: string;
+}): InstalledArchiveStorageIdentity | undefined {
+  const installId = validateAppInstallId(input.installId);
+  const appPackage = findResolvedAppPackage(input.packageAppKey, bundledAppPackageResolver);
+
+  return installId.ok && appPackage
+    ? {
+        apiRoutePrefix: `/api/app-installs/${appPackage.packageAppKey}/${installId.installId}`,
+        authorityName: `app:${installId.installId}`,
+        installId: installId.installId,
+      }
+    : undefined;
+}
 
 export type ArchiveWorkflowDependencies = {
   cwd: string;
@@ -118,28 +141,12 @@ export async function exportInstanceArchive(
   const exportedAt = dependencies.now();
   const auth = { adminToken: input.adminToken, env: dependencies.env };
   const packageResolver = input.packageResolver ?? bundledAppPackageResolver;
-  const registry = await fetchRemoteAppRegistry(target, { ...dependencies, ...auth });
-  const [controlPlane, entries] = await Promise.all([
-    fetchRemoteControlPlaneArchive({
-      auth,
-      fetcher: dependencies.fetch,
-      packageResolver,
-      target,
-    }),
-    Promise.all(
-      registry.installs.map((install) =>
-        buildRemoteAppArchiveEntry({
-          auth,
-          exportedAt,
-          fetcher: dependencies.fetch,
-          install,
-          packageResolver,
-          packages: registry.packages,
-          target,
-        }),
-      ),
-    ),
-  ]);
+  const controlPlane = await fetchRemoteControlPlaneArchive({
+    auth,
+    fetcher: dependencies.fetch,
+    packageResolver,
+    target,
+  });
   const programMedia =
     controlPlane === undefined
       ? { files: [], objects: [] }
@@ -157,13 +164,13 @@ export async function exportInstanceArchive(
     restorePolicy: { dryRun: true, installCollisions: "reject" },
     ...(controlPlane === undefined ? {} : { controlPlane }),
     media: { objects: programMedia.objects },
-    apps: entries.map((entry) => entry.archive),
+    apps: [],
   };
 
   return writePortableArchiveDirectory(
     {
       archive,
-      mediaFiles: [...programMedia.files, ...entries.flatMap((entry) => entry.mediaFiles)],
+      mediaFiles: programMedia.files,
       outDir: input.outDir,
       packageResolver,
     },
@@ -201,7 +208,6 @@ async function exportRemoteProgramMedia(input: {
 
     if (
       !asset ||
-      asset.ownerAppInstallId !== undefined ||
       asset.access !== reference.policy.access ||
       !reference.policy.acceptedMimeTypes.includes(asset.contentType) ||
       asset.byteSize > reference.policy.maxBytes ||
@@ -335,52 +341,9 @@ function instanceArchiveCapabilities(
   controlPlane: InstanceArchiveControlPlane | undefined,
 ): InstanceArchive["capabilities"] {
   return [
-    "installed-app-registry",
     ...(controlPlane === undefined ? [] : ["schema-owned-control-plane" as const]),
-    "app-store-snapshots",
     "core-media-assets",
   ];
-}
-
-export async function exportAppArchive(
-  input: {
-    adminToken?: string | null;
-    installId: string;
-    outDir: string;
-    packageResolver?: AppPackageResolver;
-    target: string;
-  },
-  dependencies: ArchiveWorkflowDependencies,
-): Promise<ArchiveDiskWriteResult> {
-  const target = normalizeTargetUrl(input.target);
-  const auth = { adminToken: input.adminToken, env: dependencies.env };
-  const packageResolver = input.packageResolver ?? bundledAppPackageResolver;
-  const registry = await fetchRemoteAppRegistry(target, { ...dependencies, ...auth });
-  const install = findAppInstall(registry.installs, input.installId);
-
-  if (!install) {
-    throw new Error(`Installed app "${input.installId}" was not found at ${target}.`);
-  }
-
-  const entry = await buildRemoteAppArchiveEntry({
-    auth,
-    exportedAt: dependencies.now(),
-    fetcher: dependencies.fetch,
-    install,
-    packageResolver,
-    packages: registry.packages,
-    target,
-  });
-
-  return writePortableArchiveDirectory(
-    {
-      archive: entry.archive,
-      mediaFiles: entry.mediaFiles,
-      outDir: input.outDir,
-      packageResolver,
-    },
-    dependencies,
-  );
 }
 
 export async function restorePortableArchive(
@@ -477,51 +440,6 @@ export async function restoreWorkspacePushArchive(
   };
 }
 
-export async function restoreAppArchive(
-  input: {
-    adminToken?: string | null;
-    apply: boolean;
-    archiveDir: string;
-    installId: string;
-    replace: boolean;
-    target: string;
-  },
-  dependencies: ArchiveWorkflowDependencies,
-): Promise<RestorePortableArchiveResult> {
-  const archiveInput = await readPortableArchiveInputStatus({
-    archiveDir: input.archiveDir,
-    cwd: dependencies.cwd,
-  });
-  const diskArchive = await readPortableArchiveDirectory(input.archiveDir, {
-    ...dependencies,
-    packageResolver: bundledAppPackageResolver,
-  });
-
-  if (diskArchive.archive.kind !== APP_ARCHIVE_KIND) {
-    throw new Error("App archive restore requires a formless.appArchive archive.");
-  }
-
-  const archive = withRestorePolicy(
-    retargetAppArchive(diskArchive.archive, input.installId),
-    restorePolicy(input),
-  );
-  const remote = await postRemoteArchiveRestore(
-    {
-      adminToken: input.adminToken,
-      archive,
-      mediaFiles: diskArchive.mediaFiles,
-      target: input.target,
-    },
-    dependencies,
-  );
-
-  return {
-    archiveInput,
-    archivePath: diskArchive.archivePath,
-    remote,
-  };
-}
-
 function restorePolicy(input: { apply: boolean; replace: boolean }): ArchiveRestorePolicy {
   return {
     dryRun: !input.apply,
@@ -589,10 +507,6 @@ async function buildRemoteAppArchiveEntry(input: {
       sourceSchemaKey,
       sourceSchemaHash,
       label: input.install.label,
-      registrationPolicy: input.install.registrationPolicy,
-      ...(input.install.registrationOperation === undefined
-        ? {}
-        : { registrationOperation: input.install.registrationOperation }),
       status: input.install.status,
       createdAt: input.install.createdAt,
       updatedAt: input.install.updatedAt,
@@ -694,7 +608,6 @@ async function resolveAppMediaReferences(input: {
 
     if (
       !asset ||
-      asset.ownerAppInstallId !== input.install.installId ||
       asset.access !== reference.policy.access ||
       !reference.policy.acceptedMimeTypes.includes(asset.contentType) ||
       asset.byteSize > reference.policy.maxBytes ||
@@ -993,9 +906,7 @@ function retargetAppArchive(archive: AppArchive, installId: string): AppArchive 
       return object;
     }
 
-    const storageKey = documentMediaStorageKeyForAssetId(object.asset.id, {
-      ownerAppInstallId: nextIdentity.installId,
-    });
+    const storageKey = documentMediaStorageKeyForAssetId(object.asset.id);
 
     if (!storageKey) {
       throw new Error(`Document asset "${object.asset.id}" cannot be retargeted.`);
@@ -1008,7 +919,6 @@ function retargetAppArchive(archive: AppArchive, installId: string): AppArchive 
       asset: {
         ...object.asset,
         deliveryHref,
-        ownerAppInstallId: nextIdentity.installId,
         storageKey,
       },
       deliveryHref,
@@ -1043,6 +953,11 @@ function withRestorePolicy(
 function appApiPath(install: AppInstall, suffix: `/${string}`): string {
   return `/api/app-installs/${install.packageAppKey}/${install.installId}${suffix}`;
 }
+
+// Dormant portable-app archive helpers remain parser-local until archive artifact deletion.
+void buildRemoteAppArchiveEntry;
+void fetchRemoteAppRegistry;
+void retargetAppArchive;
 
 function apiUrl(target: string, pathInput: string): string {
   const pathname = pathInput.startsWith("/") ? pathInput.slice(1) : pathInput;

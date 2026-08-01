@@ -68,7 +68,6 @@ describe("CLI upgrade apply evidence gates", () => {
                   label: "Legacy Tasks",
                   packageAppKey: "tasks",
                   packageRevision: 1,
-                  registrationPolicy: "closed",
                   sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
                   status: "installed",
                   updatedAt: "2026-05-28T00:00:00.000Z",
@@ -80,7 +79,6 @@ describe("CLI upgrade apply evidence gates", () => {
                   label: "Legacy Site",
                   packageAppKey: "site",
                   packageRevision: 1,
-                  registrationPolicy: "closed",
                   sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
                   status: "installed",
                   updatedAt: "2026-05-28T00:00:00.000Z",
@@ -92,7 +90,6 @@ describe("CLI upgrade apply evidence gates", () => {
                   label: "Legacy CRM",
                   packageAppKey: "crm",
                   packageRevision: 1,
-                  registrationPolicy: "closed",
                   sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
                   status: "installed",
                   updatedAt: "2026-05-28T00:00:00.000Z",
@@ -115,7 +112,6 @@ describe("CLI upgrade apply evidence gates", () => {
       },
     );
 
-    expect(result.packageApps).toEqual([]);
     expect(result.planning.status.installedApps).toEqual([]);
     expect(requests).not.toContain(
       "POST /api/formless/app-installs/tasks/legacy-tasks/package-migrations/apply",
@@ -273,7 +269,6 @@ describe("CLI upgrade apply evidence gates", () => {
           },
         ],
       },
-      packageApps: [],
       planning: planningReport([]),
       sql: { storageIdentities: [] },
       verifiedSqlStatus: { storageIdentities: [] },

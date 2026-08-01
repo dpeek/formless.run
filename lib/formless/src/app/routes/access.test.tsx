@@ -7,7 +7,6 @@ import type {
   AccessReadyContract,
 } from "@dpeek/formless-presentation/contract";
 import type { IdentityAccessManagementSummary } from "@dpeek/formless-identity-control-plane";
-import type { AppInstall } from "@dpeek/formless-installed-apps";
 import {
   createApplicationRuntimePublicationCoordinator,
   ApplicationRuntimeContractHostProvider,
@@ -28,16 +27,14 @@ vi.mock("../application-presentation.tsx", () => ({ ApplicationPresentation: () 
 describe("access route runtime", () => {
   it("loads purpose-built summary state and publishes authorization failures", async () => {
     const ready = await mountAccessRoute({
-      fetchInstalls: async () => ({ installs: [siteInstall()], packages: [] }),
       fetchSummary: async () => summary(),
     });
     expect(ready.manifest().state).toBe("ready");
-    expect(ready.readyManifest().invitations[0]?.scope?.value).toBe("Site");
+    expect(ready.readyManifest().invitations[0]?.scope?.value).toBe("Instance");
     expect(JSON.stringify(ready.readyManifest())).not.toContain("Instance Settings");
     await ready.unmount();
 
     const unauthorized = await mountAccessRoute({
-      fetchInstalls: async () => ({ installs: [], packages: [] }),
       fetchSummary: async () => {
         throw new IdentityAccessManagementApiError("Administrator authority is required.", {
           body: { error: "Administrator authority is required." },
@@ -62,7 +59,6 @@ describe("access route runtime", () => {
         calls.push(input);
         await pending.promise;
       },
-      fetchInstalls: async () => ({ installs: [siteInstall()], packages: [] }),
       fetchSummary: async () => {
         fetchCount += 1;
         return summary();
@@ -82,12 +78,12 @@ describe("access route runtime", () => {
       ...runtime.invitationAuthoring().roleSelection.changeIntent,
       selectedOptionIds: [
         "instance-access:role-option:program:program:administrator",
-        "instance-access:role-option:app-install:install_3Asite:app.editor",
+        "instance-access:role-option:instance:instance:instance.owner",
       ],
     });
     await runtime.dispatch({
       ...required(runtime.invitationAuthoring().fields.acceptanceTarget).changeIntent,
-      value: "app-install:install:site",
+      value: "instance",
     });
 
     let submit: Promise<void> | undefined;
@@ -108,20 +104,14 @@ describe("access route runtime", () => {
     });
     expect(fetchCount).toBe(2);
     expect(calls[0]).toMatchObject({
-      appRegistrations: [{ appInstallId: "install:site" }],
       idempotencyKey: "access:invitation:test",
       invitedPrincipal: { displayName: "New Person" },
       roleAssignments: [
+        { roleKey: "instance.owner", scopeKind: "instance" },
         { roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357", scopeKind: "program" },
-        {
-          appInstallId: "install:site",
-          roleKey: "app.editor",
-          scopeKind: "app-install",
-        },
       ],
-      targetAppInstallId: "install:site",
       targetEmail: "new@example.com",
-      targetSurface: "app-install",
+      targetSurface: "instance",
     });
     expect(runtime.readyManifest().feedback).toMatchObject({ title: "Invitation created" });
     expect(runtime.invitationAuthoring().open).toBe(false);
@@ -134,7 +124,6 @@ describe("access route runtime", () => {
       createInvitation: async (input) => {
         invitations.push(input);
       },
-      fetchInstalls: async () => ({ installs: [siteInstall()], packages: [] }),
       fetchSummary: async () => summary(),
     });
 
@@ -165,7 +154,6 @@ describe("access route runtime", () => {
       deleteInvitation: async (input) => {
         deletions.push(input);
       },
-      fetchInstalls: async () => ({ installs: [siteInstall()], packages: [] }),
       fetchSummary: async () => summary(),
       removePerson: async (input) => {
         removals.push(input);
@@ -262,7 +250,6 @@ async function mountAccessRoute(dependencies: AccessRouteDependencies) {
 
 function summary(): IdentityAccessManagementSummary {
   return {
-    appRegistrations: [],
     groups: [],
     invitationGrantOptions: {
       authority: { instanceOwner: true, programAdministrator: false },
@@ -279,12 +266,6 @@ function summary(): IdentityAccessManagementSummary {
           roleKey: "administrator",
           scopeKind: "program",
         },
-        {
-          appInstallId: "install:site",
-          displayLabel: "Site — Editor",
-          roleKey: "app.editor",
-          scopeKind: "app-install",
-        },
       ],
     },
     invitations: [
@@ -293,9 +274,8 @@ function summary(): IdentityAccessManagementSummary {
         expiresAt: "2026-07-30T00:00:00.000Z",
         invitationId: "invitation:lin",
         status: "pending",
-        targetAppInstallId: "install:site",
         targetEmail: "lin@example.com",
-        targetSurface: "app-install",
+        targetSurface: "instance",
         updatedAt: "2026-07-16T00:00:00.000Z",
       },
     ],
@@ -341,21 +321,6 @@ function role(roleAssignmentId: string, targetPrincipalId: string) {
     status: "active" as const,
     targetKind: "principal" as const,
     targetPrincipalId,
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  };
-}
-
-function siteInstall(): AppInstall {
-  return {
-    adminRoute: "/apps/install:site",
-    createdAt: "2026-01-01T00:00:00.000Z",
-    installId: "install:site",
-    label: "Site",
-    packageAppKey: "site",
-    packageRevision: 1,
-    registrationPolicy: "closed",
-    sourceSchemaHash: `sha256:${"a".repeat(64)}`,
-    status: "installed",
     updatedAt: "2026-01-01T00:00:00.000Z",
   };
 }

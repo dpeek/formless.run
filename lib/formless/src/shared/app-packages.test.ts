@@ -187,7 +187,6 @@ describe("app package manifests", () => {
     expect(findResolvedAppPackage("tasks")).toBeUndefined();
     expect(rootKnownPackageFactsResolver().findPackage("tasks")).toEqual(
       expect.objectContaining({
-        adminRouteBase: "/apps",
         defaultInstallId: "tasks",
         label: "Tasks",
         packageAppKey: "tasks",

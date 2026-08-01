@@ -1,7 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { Router } from "wouter";
 import { describe, expect, it } from "vite-plus/test";
-import type { AppInstall, InstallableAppPackage } from "@dpeek/formless-installed-apps";
 import { App, type AppRouteComponents } from "./app.tsx";
 import type { ClientAppTarget } from "./client/app-target.ts";
 import {
@@ -9,7 +8,6 @@ import {
   createPublishedSiteRuntimeProfile,
   type RuntimeProfile,
 } from "./app/runtime-profile.ts";
-import { bundledSourceSchemaHashFixtures } from "./shared/upgrade-migrations.ts";
 
 describe("application route selection", () => {
   it("selects instance and generated app surfaces inside the application shell", () => {
@@ -52,29 +50,11 @@ describe("application route selection", () => {
       'data-surface="application-shell"',
     );
   });
-
-  it("passes installed admin targets without a public launch action", () => {
-    const appPackage = privateSitePackage();
-    const install = privateSiteInstall(appPackage);
-    const admin = renderRoute("/apps/private-site/settings", {
-      installs: [install],
-      packages: [appPackage],
-    });
-    expect(admin).toContain('data-surface="application-shell"');
-    expect(admin).toContain('data-route="home"');
-    expect(admin).toContain('data-schema-key="private-site"');
-    expect(admin).toContain('data-screen-path="/settings"');
-    expect(admin).toContain('data-target-kind="appInstall"');
-    expect(admin).toContain('data-install-id="private-site"');
-    expect(admin).not.toContain("data-workspace-href");
-  });
 });
 
 function renderRoute(
   path: string,
   options: {
-    installs?: readonly AppInstall[];
-    packages?: readonly InstallableAppPackage[];
     localWorkspaceGatewayAvailable?: boolean;
     runtimeProfile?: RuntimeProfile;
   } = {},
@@ -82,8 +62,6 @@ function renderRoute(
   return renderToStaticMarkup(
     <Router ssrPath={path}>
       <App
-        installedAppRouteInstalls={options.installs}
-        installedAppRoutePackages={options.packages}
         localWorkspaceGatewayAvailable={options.localWorkspaceGatewayAvailable}
         routeComponents={routeComponents()}
         runtimeProfile={options.runtimeProfile ?? createDevRuntimeProfile()}
@@ -104,7 +82,6 @@ function routeComponents(): AppRouteComponents {
     CollaboratorInvitationAcceptanceRoute: () => <output data-route="invitation" />,
     HomeRoute: ({ schemaKey, screenPath, target, workspaceActions }) => (
       <output
-        data-install-id={targetInstallId(target)}
         data-route="home"
         data-schema-key={schemaKey}
         data-screen-path={screenPath}
@@ -120,7 +97,6 @@ function routeComponents(): AppRouteComponents {
     AccountSignInRoute: () => <output data-route="account-sign-in" />,
     SitePageRoute: ({ linkMode, routeBase, slug, target }) => (
       <output
-        data-install-id={targetInstallId(target)}
         data-link-mode={linkMode}
         data-route="public-site"
         data-route-base={routeBase}
@@ -133,43 +109,4 @@ function routeComponents(): AppRouteComponents {
 
 function targetKind(target: ClientAppTarget | undefined) {
   return typeof target === "string" ? "schemaKey" : (target?.kind ?? "none");
-}
-
-function targetInstallId(target: ClientAppTarget | undefined) {
-  return typeof target === "object" && target.kind === "appInstall" ? target.installId : undefined;
-}
-
-function privateSiteInstall(appPackage: InstallableAppPackage): AppInstall {
-  return {
-    adminRoute: "/apps/private-site",
-    createdAt: "2026-05-25T00:00:00.000Z",
-    installId: "private-site",
-    label: "Private Site",
-    packageAppKey: appPackage.packageAppKey,
-    packageRevision: appPackage.packageRevision,
-    registrationPolicy: "closed",
-    sourceSchemaHash: appPackage.sourceSchemaHash,
-    status: "installed",
-    updatedAt: "2026-05-25T00:00:00.000Z",
-  };
-}
-
-function privateSitePackage(): InstallableAppPackage {
-  return {
-    adminRouteBase: "/apps",
-    defaultInstallId: "private-site",
-    description: "Workspace-linked package.",
-    label: "Private Site",
-    packageAppKey: "private-site",
-    packageRevision: 7,
-    sourceOrigin: "workspace",
-    sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
-    sourceSchemaKey: "private-site",
-    sourceSchemaLocation: {
-      kind: "workspace",
-      key: "private-site",
-      path: "source/schema.json",
-    },
-    supportsMultipleInstalls: false,
-  };
 }

@@ -30,17 +30,6 @@ export function sameOriginAccountCompletionTargetForRuntimeRouteFacts(input: {
       return undefined;
     }
 
-    if (input.runtimeRoute.target !== undefined) {
-      return {
-        appInstallId: input.runtimeRoute.target.installId,
-        returnTo: input.returnTo,
-        routeId: input.runtimeRoute.id,
-        storageIdentity: input.runtimeRoute.target.authorityName,
-        targetOrigin: input.requestOrigin,
-        targetProfile: input.runtimeRoute.targetProfile,
-      };
-    }
-
     if (input.runtimeRoute.targetProfile !== "instance") {
       return undefined;
     }

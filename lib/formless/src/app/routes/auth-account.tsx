@@ -4,14 +4,11 @@ import { useLocation, useSearch } from "wouter";
 
 import {
   parseAccountCompletionGateResolutionResult,
-  parseAccountCompletionGateTarget,
   parseAuthAccountStatusResult,
   parseInstanceAuthCanonicalOrigin,
   parseAccountRedirectTarget,
   type AccountAuthorizationForbiddenResult,
-  type AccountCompletionAppRegistrationGate,
   type AccountCompletionContinuationResult,
-  type AccountCompletionGate,
   type AccountCompletionGateResolutionResult,
   type AccountCompletionGateResult,
   type AccountCompletionGateTarget,
@@ -53,17 +50,12 @@ import { logoutAccountSession } from "./account-sign-in.tsx";
 const instanceAuthHandoffStartPath = "/formless/auth/handoff";
 const emailVerificationRequestPath = `${runtimeAuthAccountGateRoutes.emailVerification}/request`;
 const emailVerificationVerifyPath = `${runtimeAuthAccountGateRoutes.emailVerification}/verify`;
-const signupStartPath = `${runtimeTopologyRoutes.authAccountRoute}/signup/start`;
-const signupEmailVerifyPath = `${runtimeTopologyRoutes.authAccountRoute}/signup/email/verify`;
-const signupPasskeyRegistrationOptionsPath = `${runtimeTopologyRoutes.authAccountRoute}/signup/passkeys/register/options`;
-const signupPasskeyRegistrationVerifyPath = `${runtimeTopologyRoutes.authAccountRoute}/signup/passkeys/register/verify`;
 const ownerSetupStatusPath = "/api/formless/setup";
 const ownerSetupStartPath = `${runtimeTopologyRoutes.authAccountSetupRoute}/start`;
 const ownerSetupEmailVerifyPath = `${runtimeTopologyRoutes.authAccountSetupRoute}/email/verify`;
 const ownerSetupPasskeyRegistrationOptionsPath = `${runtimeTopologyRoutes.authAccountSetupRoute}/passkeys/register/options`;
 const ownerSetupPasskeyRegistrationVerifyPath = `${runtimeTopologyRoutes.authAccountSetupRoute}/passkeys/register/verify`;
 const ownerSetupCompletePath = `${runtimeTopologyRoutes.authAccountSetupRoute}/complete`;
-const appRegistrationGateCompletePath = `${runtimeAuthAccountGateRoutes.appRegistration}/complete`;
 const profileCompletionGateCompletePath = `${runtimeAuthAccountGateRoutes.profileCompletion}/complete`;
 const termsAcceptanceGateCompletePath = `${runtimeAuthAccountGateRoutes.termsAcceptance}/complete`;
 
@@ -89,15 +81,6 @@ type AuthAccountGateActionState =
 type AuthAccountForbiddenActionState =
   | { kind: "logout-pending" }
   | { kind: "logout-failed"; message: string };
-
-type AuthAccountSignupState = {
-  challengeId?: string;
-  displayName?: string;
-  email?: string;
-  expiresAt?: string;
-  message?: string;
-  target: AccountCompletionGateTarget;
-};
 
 type AuthAccountOwnerSetupChallengeState = {
   challengeId: string;
@@ -182,24 +165,7 @@ export type AuthAccountRouteState =
       message?: string;
       setupToken: string;
       status: "owner-setup-ready";
-    }
-  | (AuthAccountSignupState & { status: "signup-credential-ready" })
-  | (AuthAccountSignupState & { status: "signup-credential-submitting" })
-  | (AuthAccountSignupState & { status: "signup-email-sending" })
-  | (AuthAccountSignupState & { status: "signup-email-sent" })
-  | (AuthAccountSignupState & { status: "signup-email-verifying" })
-  | (AuthAccountSignupState & { status: "signup-passkey-unavailable" })
-  | (AuthAccountSignupState & {
-      continueTo?: `/${string}`;
-      result: AccountCompletionContinuationResult;
-      status: "signup-complete";
-    })
-  | (AuthAccountSignupState & {
-      continueTo: `/${string}`;
-      result: AccountCompletionContinuationResult;
-      status: "signup-continuing";
-    })
-  | (AuthAccountSignupState & { status: "signup-ready" });
+    };
 
 type StartAuthAccountRouteSessionOptions = {
   currentOrigin?: string;
@@ -236,14 +202,7 @@ type EmailVerificationChallengeSummary = {
   challengeId: string;
   displayEmail: string;
   expiresAt: string;
-  purpose: "account-completion" | "invitation-acceptance" | "owner-setup" | "recovery" | "signup";
-};
-
-type SignupChallengeSummary = {
-  challengeId: string;
-  displayEmail: string;
-  expiresAt: string;
-  target: AccountCompletionGateTarget;
+  purpose: "account-completion" | "invitation-acceptance" | "owner-setup" | "recovery";
 };
 
 type OwnerSetupChallengeSummary = {
@@ -317,10 +276,7 @@ export function AuthAccountRoute() {
   );
   const reference = authAccountSurfaceReference(surface);
 
-  function applyGateCompletionResult(
-    result: AuthAccountCompletionApiResult,
-    signupState?: AuthAccountSignupState,
-  ) {
+  function applyGateCompletionResult(result: AuthAccountCompletionApiResult) {
     if (result.accountCompletion.status === "blocked") {
       publishState({ result: result.accountCompletion, status: "blocked" });
       return;
@@ -333,29 +289,12 @@ export function AuthAccountRoute() {
     );
 
     if (continueTo) {
-      publishState(
-        signupState
-          ? {
-              ...signupState,
-              continueTo,
-              result: result.accountCompletion,
-              status: "signup-continuing",
-            }
-          : { continueTo, result: result.accountCompletion, status: "continuing" },
-      );
+      publishState({ continueTo, result: result.accountCompletion, status: "continuing" });
       navigateTo(continueTo);
       return;
     }
 
-    publishState(
-      signupState
-        ? {
-            ...signupState,
-            result: result.accountCompletion,
-            status: "signup-complete",
-          }
-        : { result: result.accountCompletion, status: "complete" },
-    );
+    publishState({ result: result.accountCompletion, status: "complete" });
   }
 
   function applyAccountStatusResult(result: AuthAccountStatusResult) {
@@ -461,32 +400,6 @@ export function AuthAccountRoute() {
           ...action,
           kind: "email-verification-sent",
           message: error instanceof Error ? error.message : "Email verification failed.",
-        },
-        result: state.result,
-        status: "blocked",
-      });
-    }
-  }
-
-  async function submitAppRegistration() {
-    if (state.status !== "blocked" || !isEmailVerifiedAppRegistrationGate(state.result.gate)) {
-      return;
-    }
-
-    publishState({ action: { kind: "gate-submitting" }, result: state.result, status: "blocked" });
-
-    try {
-      applyGateCompletionResult(
-        await completeAuthAccountAppRegistrationGate({
-          locationSearch,
-          target: state.result.target,
-        }),
-      );
-    } catch (error) {
-      publishState({
-        action: {
-          kind: "gate-unavailable",
-          message: error instanceof Error ? error.message : "App registration failed.",
         },
         result: state.result,
         status: "blocked",
@@ -724,107 +637,6 @@ export function AuthAccountRoute() {
     }
   }
 
-  async function submitSignupStart(displayName: string, email: string) {
-    if (state.status !== "signup-ready") {
-      return;
-    }
-
-    publishState({ displayName, email, target: state.target, status: "signup-email-sending" });
-
-    try {
-      const started = await startEmailVerifiedSignup({ email, target: state.target });
-
-      publishState({
-        challengeId: started.signup.challengeId,
-        displayName,
-        email: started.signup.displayEmail,
-        expiresAt: started.signup.expiresAt,
-        target: started.signup.target,
-        status: "signup-email-sent",
-      });
-    } catch (error) {
-      publishState({
-        message: error instanceof Error ? error.message : "Signup email verification failed.",
-        target: state.target,
-        status: "signup-ready",
-      });
-    }
-  }
-
-  async function submitSignupEmailToken(token: string) {
-    if (state.status !== "signup-email-sent" || !state.challengeId || !state.email) {
-      return;
-    }
-
-    publishState({ ...state, status: "signup-email-verifying" });
-
-    try {
-      const verified = await verifyEmailVerifiedSignupEmail({
-        challengeId: state.challengeId,
-        email: state.email,
-        target: state.target,
-        token,
-      });
-
-      publishState({
-        challengeId: verified.signup.challengeId,
-        displayName: state.displayName,
-        email: verified.signup.displayEmail,
-        expiresAt: verified.signup.expiresAt,
-        target: verified.signup.target,
-        status: "signup-credential-ready",
-      });
-    } catch (error) {
-      publishState({
-        ...state,
-        message: error instanceof Error ? error.message : "Signup email verification failed.",
-        status: "signup-email-sent",
-      });
-    }
-  }
-
-  async function submitSignupPasskey() {
-    if (
-      state.status !== "signup-credential-ready" ||
-      !state.challengeId ||
-      !state.email ||
-      !state.displayName
-    ) {
-      return;
-    }
-
-    if (!browserSupportsPasskeys()) {
-      publishState({
-        ...state,
-        message: passkeyUnavailableMessage,
-        status: "signup-passkey-unavailable",
-      });
-      return;
-    }
-
-    publishState({ ...state, status: "signup-credential-submitting" });
-
-    try {
-      const signupState = state;
-      applyGateCompletionResult(
-        await completeEmailVerifiedSignupWithPasskey({
-          challengeId: state.challengeId,
-          displayName: state.displayName,
-          email: state.email,
-          locationSearch,
-          target: state.target,
-        }),
-        signupState,
-      );
-    } catch (error) {
-      publishState({
-        ...state,
-        message: error instanceof Error ? error.message : "Signup passkey setup failed.",
-        status: "signup-credential-ready",
-      });
-    }
-  }
-
   async function submitCurrentAction() {
     const submittedSession = markAuthAccountDraftSessionSubmitted(draftSession);
     const submission = selectAuthAccountDraftSubmission({ session: submittedSession, state });
@@ -845,20 +657,13 @@ export function AuthAccountRoute() {
           await submitEmailVerificationRequest(submission.email);
           return;
         case "verification-token":
-          if (state.status === "blocked") await submitEmailVerificationToken(submission.token);
-          else await submitSignupEmailToken(submission.token);
-          return;
-        case "app-registration":
-          await submitAppRegistration();
+          await submitEmailVerificationToken(submission.token);
           return;
         case "profile-completion":
           await submitProfileCompletion(submission.input);
           return;
         case "terms-acceptance":
           await submitTermsAcceptance(submission.acceptedPolicyIds);
-          return;
-        case "signup-identity":
-          await submitSignupStart(submission.displayName, submission.email);
           return;
       }
     });
@@ -915,9 +720,6 @@ export function AuthAccountRoute() {
       publishState({ result: state.result, status: "blocked" });
       return;
     }
-    if (state.status.startsWith("signup-") && "message" in state && state.message) {
-      publishState({ ...state, message: undefined } as AuthAccountRouteState);
-    }
   }
 
   async function handleIntent(intent: AuthIntent) {
@@ -932,9 +734,7 @@ export function AuthAccountRoute() {
       return;
     }
     if (intent.type === "authPasskey") {
-      await pendingGuard.current.run(
-        state.status.startsWith("owner-setup-") ? submitOwnerSetupPasskey : submitSignupPasskey,
-      );
+      await pendingGuard.current.run(submitOwnerSetupPasskey);
       return;
     }
     if (intent.type === "authAction") {
@@ -1029,16 +829,6 @@ export function startAuthAccountRouteSession({
       onState({ ...(continueTo ? { continueTo } : {}), result, status: "complete" });
     } catch (error) {
       if (!stopped && !controller.signal.aborted) {
-        const signupTarget =
-          error instanceof AuthAccountApiError && error.status === 401
-            ? authAccountSignupTargetFromSearch(locationSearch)
-            : undefined;
-
-        if (signupTarget) {
-          onState({ status: "signup-ready", target: signupTarget });
-          return;
-        }
-
         onState({
           message: error instanceof Error ? error.message : "Account status could not be loaded.",
           status: "failed",
@@ -1399,134 +1189,6 @@ export async function verifyAuthAccountEmailVerification({
   }
 }
 
-export async function startEmailVerifiedSignup({
-  email,
-  fetcher = fetch,
-  signal,
-  target,
-}: AuthAccountApiOptions & {
-  email: string;
-  target: AccountCompletionGateTarget;
-}): Promise<{ signup: SignupChallengeSummary }> {
-  const response = await postAuthAccountJson({
-    body: { email, target },
-    fetcher,
-    path: signupStartPath,
-    signal,
-  });
-
-  if (!response.ok) {
-    throw new AuthAccountApiError(
-      authAccountErrorMessage(response.body, "Signup email verification failed."),
-      { status: response.status },
-    );
-  }
-
-  return parseSignupChallengeResponse(response.body);
-}
-
-export async function verifyEmailVerifiedSignupEmail({
-  challengeId,
-  email,
-  fetcher = fetch,
-  signal,
-  target,
-  token,
-}: AuthAccountApiOptions & {
-  challengeId: string;
-  email: string;
-  target: AccountCompletionGateTarget;
-  token: string;
-}): Promise<{ signup: SignupChallengeSummary }> {
-  const response = await postAuthAccountJson({
-    body: { challengeId, email, target, token },
-    fetcher,
-    path: signupEmailVerifyPath,
-    signal,
-  });
-
-  if (!response.ok) {
-    throw new AuthAccountApiError(
-      authAccountErrorMessage(response.body, "Signup email verification failed."),
-      { status: response.status },
-    );
-  }
-
-  return parseSignupChallengeResponse(response.body);
-}
-
-export async function completeEmailVerifiedSignupWithPasskey({
-  challengeId,
-  createRegistrationResponse = createBrowserPasskeyRegistrationResponse,
-  displayName,
-  email,
-  fetcher = fetch,
-  locationSearch = "",
-  signal,
-  target,
-}: AuthAccountApiOptions & {
-  challengeId: string;
-  createRegistrationResponse?: CreatePasskeyRegistrationResponse;
-  displayName: string;
-  email: string;
-  locationSearch?: string;
-  target: AccountCompletionGateTarget;
-}): Promise<AuthAccountCompletionApiResult> {
-  const optionsResponse = await postAuthAccountJson({
-    body: { challengeId, displayName, email, target },
-    fetcher,
-    path: signupPasskeyRegistrationOptionsPath,
-    signal,
-  });
-
-  if (!optionsResponse.ok) {
-    throw new AuthAccountApiError(
-      authAccountErrorMessage(optionsResponse.body, "Signup passkey options failed."),
-      { status: optionsResponse.status },
-    );
-  }
-
-  const options = parsePasskeyRegistrationOptionsResponse(optionsResponse.body);
-  const registrationResponse = await createRegistrationResponse(options.options);
-  const verifyResponse = await postAuthAccountJson({
-    body: { challengeId, displayName, email, response: registrationResponse, target },
-    fetcher,
-    path: authAccountApiPathWithSearch(signupPasskeyRegistrationVerifyPath, locationSearch),
-    signal,
-  });
-
-  if (!verifyResponse.ok) {
-    throw new AuthAccountApiError(
-      authAccountErrorMessage(verifyResponse.body, "Signup passkey verification failed."),
-      { status: verifyResponse.status },
-    );
-  }
-
-  return parseAuthAccountCompletionApiResult(verifyResponse.body, {
-    completedRequired: false,
-    context: "Signup passkey verification response",
-  });
-}
-
-export async function completeAuthAccountAppRegistrationGate({
-  fetcher = fetch,
-  locationSearch = "",
-  signal,
-  target,
-}: AuthAccountApiOptions & {
-  locationSearch?: string;
-  target: AccountCompletionGateTarget;
-}): Promise<AuthAccountCompletionApiResult> {
-  const response = await postAuthAccountJson({
-    body: { target },
-    fetcher,
-    path: authAccountApiPathWithSearch(appRegistrationGateCompletePath, locationSearch),
-    signal,
-  });
-
-  return parseGateCompletionResponse(response, "App registration completion response");
-}
-
 export async function completeAuthAccountProfileCompletionGate({
   fetcher = fetch,
   idempotencyKey = profileCompletionIdempotencyKey(),
@@ -1629,32 +1291,6 @@ export function authAccountHandoffContinuationTarget(
   return result.continueTo;
 }
 
-export function authAccountSignupTargetFromSearch(
-  locationSearch: string,
-): AccountCompletionGateTarget | undefined {
-  const params = new URLSearchParams(normalizedSearch(locationSearch));
-
-  if (!params.has("targetOrigin") || !params.has("routeId") || !params.has("targetProfile")) {
-    return undefined;
-  }
-
-  try {
-    return parseAccountCompletionGateTarget({
-      access: optionalSearchParam(params, "access"),
-      appInstallId: optionalSearchParam(params, "appInstallId"),
-      requiredRole: optionalSearchParam(params, "requiredRole"),
-      returnTo: params.get("returnTo"),
-      routeId: params.get("routeId"),
-      selectedOrganization: optionalSearchParam(params, "selectedOrganization"),
-      storageIdentity: optionalSearchParam(params, "storageIdentity"),
-      targetOrigin: params.get("targetOrigin"),
-      targetProfile: params.get("targetProfile"),
-    });
-  } catch {
-    return undefined;
-  }
-}
-
 export class AuthAccountApiError extends Error {
   status: number | undefined;
 
@@ -1663,16 +1299,6 @@ export class AuthAccountApiError extends Error {
     this.name = "AuthAccountApiError";
     this.status = options.status;
   }
-}
-
-function isEmailVerifiedAppRegistrationGate(
-  gate: AccountCompletionGate,
-): gate is AccountCompletionAppRegistrationGate {
-  return (
-    gate.kind === "app-registration" &&
-    gate.registrationPolicy === "email-verified" &&
-    gate.operation?.operationKey === "auth.app-registration.complete"
-  );
 }
 
 function authAccountStatusRequestPath(locationSearch: string): string {
@@ -2007,35 +1633,6 @@ function parseEmailVerificationChallengeSummary(value: unknown): EmailVerificati
       "Email verification purpose",
     ) as EmailVerificationChallengeSummary["purpose"],
   };
-}
-
-function parseSignupChallengeResponse(value: unknown): { signup: SignupChallengeSummary } {
-  const object = parseRecord("Signup challenge response", value);
-
-  return { signup: parseSignupChallengeSummary(object.signup) };
-}
-
-function parseSignupChallengeSummary(value: unknown): SignupChallengeSummary {
-  const object = parseRecord("Signup challenge", value);
-
-  return {
-    challengeId: requiredString(object.challengeId, "Signup challenge id"),
-    displayEmail: requiredString(object.displayEmail, "Signup display email"),
-    expiresAt: requiredString(object.expiresAt, "Signup expiry"),
-    target: parseAccountCompletionGateTarget(object.target),
-  };
-}
-
-function parsePasskeyRegistrationOptionsResponse(value: unknown): {
-  options: AuthAccountPasskeyRegistrationOptions;
-} {
-  const object = parseRecord("Signup passkey options response", value);
-
-  if (!isRecord(object.options)) {
-    throw new AuthAccountApiError("Signup passkey options response was invalid.");
-  }
-
-  return { options: object.options as unknown as AuthAccountPasskeyRegistrationOptions };
 }
 
 function parseRecord(context: string, value: unknown): Record<string, unknown> {

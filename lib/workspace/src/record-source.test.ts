@@ -9,40 +9,37 @@ import {
 describe("workspace control-plane record source validation", () => {
   it("formats records by id and values by control-plane field declaration", () => {
     const records = [
-      appInstallRecord("zeta", "2026-06-18T00:00:01.000Z"),
-      appInstallRecord("alpha", "2026-06-18T00:00:02.000Z"),
+      routeRecord("zeta", "2026-06-18T00:00:01.000Z"),
+      routeRecord("alpha", "2026-06-18T00:00:02.000Z"),
     ];
     const formatted = JSON.parse(
       formatInstanceWorkspaceControlPlaneRecordSourceFile({
-        entity: "app-install",
+        entity: "route",
         records,
         schemaUpdatedAt: "2026-06-18T00:00:03.000Z",
       }),
     ) as { records: StoredRecord[] };
 
     expect(formatted.records.map((record) => record.id)).toEqual(["alpha", "zeta"]);
-    expect(formatted.records[0]!.entity).toBe("instance:app-install");
+    expect(formatted.records[0]!.entity).toBe("instance:route");
     expect(Object.keys(formatted.records[0]!.values)).toEqual([
-      "installId",
-      "packageAppKey",
-      "label",
-      "registrationPolicy",
-      "status",
-      "storageIdentity",
+      "enabled",
+      "matchPath",
+      "kind",
+      "targetProfile",
+      "surface",
     ]);
   });
 
-  it("validates Program-native public Site routes without package resolution", () => {
+  it("omits dormant app installs while retaining Program-native public Site routes", () => {
     const records: StoredRecord[] = [
       {
         id: "labs",
-        entity: "app-install",
+        entity: "instance:app-install",
         values: {
           installId: "labs",
           packageAppKey: "private-labs",
           label: "Private Labs",
-          registrationOperation: "profile.register",
-          registrationPolicy: "custom-operation",
           status: "installed",
           storageIdentity: "app:labs",
         },
@@ -51,7 +48,7 @@ describe("workspace control-plane record source validation", () => {
       },
       {
         id: "route:labs:public-site",
-        entity: "route",
+        entity: "instance:route",
         values: {
           enabled: true,
           matchPath: "/pages",
@@ -70,36 +67,21 @@ describe("workspace control-plane record source validation", () => {
         "Workspace source",
         "2026-06-18T00:00:01.000Z",
         records,
-      ).records.find((record) => record.id === "labs")?.values.packageAppKey,
-    ).toBe("private-labs");
-    expect(
-      parseInstanceWorkspaceControlPlaneRecordSourceControlPlane(
-        "Workspace source",
-        "2026-06-18T00:00:01.000Z",
-        records,
-      ).records.find((record) => record.id === "labs")?.values.registrationPolicy,
-    ).toBe("custom-operation");
-    expect(
-      parseInstanceWorkspaceControlPlaneRecordSourceControlPlane(
-        "Workspace source",
-        "2026-06-18T00:00:01.000Z",
-        records,
-      ).records.find((record) => record.id === "labs")?.values.registrationOperation,
-    ).toBe("profile.register");
+      ).records.map((record) => record.id),
+    ).toEqual(["route:labs:public-site"]);
   });
 });
 
-function appInstallRecord(id: string, createdAt: string): StoredRecord {
+function routeRecord(id: string, createdAt: string): StoredRecord {
   return {
     id,
-    entity: "app-install",
+    entity: "route",
     values: {
-      storageIdentity: `app:${id}`,
-      status: "installed",
-      registrationPolicy: "closed",
-      label: id,
-      packageAppKey: id,
-      installId: id,
+      enabled: true,
+      matchPath: `/${id}`,
+      kind: "mount",
+      targetProfile: "public-site",
+      surface: "public-site",
     },
     createdAt,
     updatedAt: createdAt,

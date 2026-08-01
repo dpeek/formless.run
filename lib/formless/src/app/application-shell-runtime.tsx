@@ -9,7 +9,6 @@ import {
   type ReactNode,
 } from "react";
 import type { ShellIntent } from "@dpeek/formless-presentation/contract";
-import type { AppInstall, AppPackageResolver } from "@dpeek/formless-installed-apps";
 import {
   appStorageIdentityForClientTarget,
   clientTargetSourceSchemaKey,
@@ -87,13 +86,11 @@ export type ApplicationShellRuntimeDependencies = {
 };
 
 export type ApplicationShellRuntimeBoundaryProps = {
-  activePackageResolver?: AppPackageResolver | undefined;
   activeScreenPath?: string | undefined;
   applicationTheme?: ApplicationRootThemeRuntime | undefined;
   children: ReactNode;
   currentPath: string;
   dependencies?: ApplicationShellRuntimeDependencies;
-  installedAppRouteInstalls?: readonly AppInstall[] | undefined;
   initialRouteContractContributions?: readonly ApplicationRuntimeContractContribution[];
   accountSession?: AccountSessionStatusResponse | undefined;
   routeWorld: RuntimeWorldMount | undefined;
@@ -113,25 +110,19 @@ export function ApplicationShellRuntimeBoundary(props: ApplicationShellRuntimeBo
   }
 
   return (
-    <SchemaAppProvider
-      activePackageResolver={props.activePackageResolver}
-      schemaKey={props.routeWorld.app.key}
-      target={props.routeWorld.target}
-    >
+    <SchemaAppProvider schemaKey={props.routeWorld.app.key} target={props.routeWorld.target}>
       {runtime}
     </SchemaAppProvider>
   );
 }
 
 function ApplicationShellRuntime({
-  activePackageResolver,
   activeScreenPath,
   applicationTheme,
   children,
   currentPath,
   dependencies = {},
   initialRouteContractContributions,
-  installedAppRouteInstalls = [],
   accountSession: accountSessionProp,
   routeWorld,
   runtimeProfile,
@@ -244,19 +235,13 @@ function ApplicationShellRuntime({
   const [logoutState, setLogoutState] = useState<"error" | "idle" | "pending">("idle");
   const scope = selectGeneratedShellScope({
     currentPath,
-    routeContext: {
-      activePackageResolver,
-      appInstalls: installedAppRouteInstalls,
-    },
     routeWorld,
     runtimeProfile,
   });
   const projection = projectGeneratedApplicationShell({
-    activePackageResolver,
     activeScreenPath: selectedScreenPath,
     authorizedProgramScreenPaths,
     currentPath,
-    installs: installedAppRouteInstalls,
     logoutState,
     accountSession,
     root:
@@ -337,7 +322,6 @@ function ApplicationShellRuntime({
       }
     },
     [
-      activePackageResolver,
       dependencies,
       logoutState,
       accountSession,

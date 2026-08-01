@@ -16,12 +16,7 @@ import type {
   RegistrationResponseJSON,
   UserVerificationRequirement,
 } from "@simplewebauthn/server";
-import {
-  identityControlPlaneRoleKeys,
-  type IdentityControlPlaneRoleKey,
-  type IdentityInvitationTargetSurface,
-} from "@dpeek/formless-identity-control-plane";
-import type { AppInstallRegistrationPolicy } from "@dpeek/formless-installed-apps";
+import { type IdentityInvitationTargetSurface } from "@dpeek/formless-identity-control-plane";
 import type {
   ContactTextFieldFormat,
   PublicSafeOperationInputControl,
@@ -30,10 +25,8 @@ import type {
 
 import {
   parseRuntimeRouteAccess,
-  parseRuntimeRouteRequiredRole,
   runtimeTopologyRoutes,
   type RuntimeRouteAccess,
-  type RuntimeRouteRequiredRole,
 } from "./runtime-topology.ts";
 
 export type InstanceAuthConfigInput = {
@@ -119,7 +112,6 @@ export type CollaboratorInvitationAcceptanceInvitationSummary = {
   invitationId: string;
   invitedPrincipalDisplayName?: string;
   passkeyRegistrationRequired: boolean;
-  targetAppInstallId?: string;
   targetEmail: string;
   targetOrganization?: string;
   targetSurface: IdentityInvitationTargetSurface;
@@ -169,7 +161,7 @@ export type CollaboratorInvitationPasskeyRegistrationVerifyResponse = {
   verified: true;
 };
 
-export const accountCompletionGateTargetProfiles = ["app", "instance", "public-site"] as const;
+export const accountCompletionGateTargetProfiles = ["instance", "public-site"] as const;
 export type AccountCompletionGateTargetProfile =
   (typeof accountCompletionGateTargetProfiles)[number];
 
@@ -177,18 +169,13 @@ export const accountCompletionGateKinds = [
   "email-verification",
   "credential",
   "invitation",
-  "app-registration",
   "profile-completion",
   "terms-acceptance",
-  "role-review",
 ] as const;
 export type AccountCompletionGateKind = (typeof accountCompletionGateKinds)[number];
 
 export const accountCompletionCredentialMethods = ["passkey"] as const;
 export type AccountCompletionCredentialMethod = (typeof accountCompletionCredentialMethods)[number];
-
-export const accountCompletionRoleScopeKinds = ["app-install", "instance", "organization"] as const;
-export type AccountCompletionRoleScopeKind = (typeof accountCompletionRoleScopeKinds)[number];
 
 export const accountCompletionBrowserVisiblePrivateFieldNames = [
   "appPrivateProfile",
@@ -225,8 +212,6 @@ export type AccountCompletionBrowserVisiblePrivateFieldName =
 
 export type AccountCompletionGateTarget = {
   access?: Exclude<RuntimeRouteAccess, "anonymous">;
-  appInstallId?: string;
-  requiredRole?: RuntimeRouteRequiredRole;
   returnTo: AccountRedirectTarget;
   routeId: string;
   selectedOrganization?: string;
@@ -236,7 +221,6 @@ export type AccountCompletionGateTarget = {
 };
 
 export type AccountCompletionGateOperationReference = {
-  appInstallId?: string;
   entityName?: string;
   label?: string;
   operationKey: string;
@@ -278,16 +262,7 @@ export type AccountCompletionInvitationGate = {
   targetSurface?: IdentityInvitationTargetSurface;
 };
 
-export type AccountCompletionAppRegistrationGate = {
-  appInstallId?: string;
-  kind: "app-registration";
-  operation?: AccountCompletionGateOperationReference;
-  registrationPolicy?: AppInstallRegistrationPolicy;
-  selectedOrganization?: string;
-};
-
 export type AccountCompletionProfileCompletionGate = {
-  appInstallId?: string;
   inputContract?: AccountCompletionGateOperationInputContract;
   kind: "profile-completion";
   operation?: AccountCompletionGateOperationReference;
@@ -301,22 +276,12 @@ export type AccountCompletionTermsAcceptanceGate = {
   policies: AccountCompletionGatePolicyReference[];
 };
 
-export type AccountCompletionRoleReviewGate = {
-  kind: "role-review";
-  operation?: AccountCompletionGateOperationReference;
-  roleId?: string;
-  roleKey?: IdentityControlPlaneRoleKey;
-  scopeKind?: AccountCompletionRoleScopeKind;
-};
-
 export type AccountCompletionGate =
   | AccountCompletionEmailVerificationGate
   | AccountCompletionCredentialGate
   | AccountCompletionInvitationGate
-  | AccountCompletionAppRegistrationGate
   | AccountCompletionProfileCompletionGate
-  | AccountCompletionTermsAcceptanceGate
-  | AccountCompletionRoleReviewGate;
+  | AccountCompletionTermsAcceptanceGate;
 
 export type AccountCompletionGateResult = {
   gate: AccountCompletionGate;
@@ -429,7 +394,6 @@ const authenticatorTransports = [
   "usb",
 ] as const;
 const collaboratorInvitationAcceptanceTargetSurfaces = [
-  "app-install",
   "instance",
   "organization",
 ] as const satisfies readonly IdentityInvitationTargetSurface[];
@@ -698,7 +662,7 @@ export function parseAccountCompletionGateTarget(value: unknown): AccountComplet
     "Account completion gate target",
     object,
     ["returnTo", "routeId", "targetOrigin", "targetProfile"],
-    ["access", "appInstallId", "requiredRole", "selectedOrganization", "storageIdentity"],
+    ["access", "selectedOrganization", "storageIdentity"],
   );
 
   const access =
@@ -712,31 +676,13 @@ export function parseAccountCompletionGateTarget(value: unknown): AccountComplet
     throw new Error("Account completion gate target access must be protected.");
   }
 
-  const requiredRole =
-    object.requiredRole === undefined
-      ? undefined
-      : parseRuntimeRouteRequiredRole(
-          parseTrimmedNonEmptyString(
-            "Account completion gate target requiredRole",
-            object.requiredRole,
-          ),
-        );
-
-  if (object.requiredRole !== undefined && requiredRole === undefined) {
-    throw new Error('Account completion gate target requiredRole must be "app.admin".');
-  }
-
-  const appInstallId = parseOptionalTrimmedNonEmptyString(
-    "Account completion gate target appInstallId",
-    object.appInstallId,
-  );
   const storageIdentity = parseOptionalTrimmedNonEmptyString(
     "Account completion gate target storageIdentity",
     object.storageIdentity,
   );
 
-  if (appInstallId === undefined && storageIdentity === undefined) {
-    throw new Error("Account completion gate target requires appInstallId or storageIdentity.");
+  if (storageIdentity === undefined) {
+    throw new Error("Account completion gate target requires storageIdentity.");
   }
 
   const selectedOrganization = parseOptionalTrimmedNonEmptyString(
@@ -746,8 +692,6 @@ export function parseAccountCompletionGateTarget(value: unknown): AccountComplet
 
   return {
     ...(access === undefined ? {} : { access }),
-    ...(appInstallId === undefined ? {} : { appInstallId }),
-    ...(requiredRole === undefined ? {} : { requiredRole }),
     returnTo: parseAccountContinuationTarget(
       "Account completion gate target returnTo",
       object.returnTo,
@@ -850,47 +794,18 @@ export function parseAccountCompletionGate(value: unknown): AccountCompletionGat
             }),
       };
     }
-    case "app-registration": {
-      assertKeys(
-        "Account completion app-registration gate",
-        object,
-        ["kind"],
-        ["appInstallId", "operation", "registrationPolicy", "selectedOrganization"],
-      );
-
-      return {
-        kind,
-        ...parseOptionalGateOperation("Account completion app-registration gate", object),
-        ...parseOptionalStringField(
-          "Account completion app-registration gate appInstallId",
-          "appInstallId",
-          object,
-        ),
-        ...parseOptionalAppRegistrationPolicy(object.registrationPolicy),
-        ...parseOptionalStringField(
-          "Account completion app-registration gate selectedOrganization",
-          "selectedOrganization",
-          object,
-        ),
-      };
-    }
     case "profile-completion": {
       assertKeys(
         "Account completion profile-completion gate",
         object,
         ["kind"],
-        ["appInstallId", "inputContract", "operation", "profileRecordId", "selectedOrganization"],
+        ["inputContract", "operation", "profileRecordId", "selectedOrganization"],
       );
 
       return {
         kind,
         ...parseOptionalGateOperation("Account completion profile-completion gate", object),
         ...parseOptionalGateInputContract("Account completion profile-completion gate", object),
-        ...parseOptionalStringField(
-          "Account completion profile-completion gate appInstallId",
-          "appInstallId",
-          object,
-        ),
         ...parseOptionalStringField(
           "Account completion profile-completion gate profileRecordId",
           "profileRecordId",
@@ -915,38 +830,6 @@ export function parseAccountCompletionGate(value: unknown): AccountCompletionGat
         kind,
         ...parseOptionalGateOperation("Account completion terms-acceptance gate", object),
         policies: parseAccountCompletionGatePolicyReferences(object.policies),
-      };
-    }
-    case "role-review": {
-      assertKeys(
-        "Account completion role-review gate",
-        object,
-        ["kind"],
-        ["operation", "roleId", "roleKey", "scopeKind"],
-      );
-
-      return {
-        kind,
-        ...parseOptionalGateOperation("Account completion role-review gate", object),
-        ...parseOptionalStringField("Account completion role-review gate roleId", "roleId", object),
-        ...(object.roleKey === undefined
-          ? {}
-          : {
-              roleKey: parseStringLiteral(
-                "Account completion role-review gate roleKey",
-                object.roleKey,
-                identityControlPlaneRoleKeys,
-              ),
-            }),
-        ...(object.scopeKind === undefined
-          ? {}
-          : {
-              scopeKind: parseStringLiteral(
-                "Account completion role-review gate scopeKind",
-                object.scopeKind,
-                accountCompletionRoleScopeKinds,
-              ),
-            }),
       };
     }
   }
@@ -1285,7 +1168,7 @@ function parseCollaboratorInvitationAcceptanceInvitationSummary(
     "Collaborator invitation acceptance invitation summary",
     object,
     ["expiresAt", "invitationId", "passkeyRegistrationRequired", "targetEmail", "targetSurface"],
-    ["invitedPrincipalDisplayName", "targetAppInstallId", "targetOrganization"],
+    ["invitedPrincipalDisplayName", "targetOrganization"],
   );
 
   return {
@@ -1319,22 +1202,12 @@ function parseCollaboratorInvitationAcceptanceInvitationSummary(
 
 function parseCollaboratorInvitationAcceptanceTargetFacts(
   object: Record<string, unknown>,
-): Pick<
-  CollaboratorInvitationAcceptanceInvitationSummary,
-  "targetAppInstallId" | "targetOrganization" | "targetSurface"
-> {
+): Pick<CollaboratorInvitationAcceptanceInvitationSummary, "targetOrganization" | "targetSurface"> {
   const targetSurface = parseStringLiteral(
     "Collaborator invitation acceptance targetSurface",
     object.targetSurface,
     collaboratorInvitationAcceptanceTargetSurfaces,
   );
-  const targetAppInstallId =
-    object.targetAppInstallId === undefined
-      ? undefined
-      : parseTrimmedNonEmptyString(
-          "Collaborator invitation acceptance targetAppInstallId",
-          object.targetAppInstallId,
-        );
   const targetOrganization =
     object.targetOrganization === undefined
       ? undefined
@@ -1343,21 +1216,8 @@ function parseCollaboratorInvitationAcceptanceTargetFacts(
           object.targetOrganization,
         );
 
-  if (targetSurface === "app-install") {
-    if (targetAppInstallId === undefined || targetOrganization !== undefined) {
-      throw new Error(
-        "Collaborator invitation acceptance app-install target requires targetAppInstallId only.",
-      );
-    }
-
-    return {
-      targetSurface,
-      targetAppInstallId,
-    };
-  }
-
   if (targetSurface === "organization") {
-    if (targetOrganization === undefined || targetAppInstallId !== undefined) {
+    if (targetOrganization === undefined) {
       throw new Error(
         "Collaborator invitation acceptance organization target requires targetOrganization only.",
       );
@@ -1369,7 +1229,7 @@ function parseCollaboratorInvitationAcceptanceTargetFacts(
     };
   }
 
-  if (targetAppInstallId !== undefined || targetOrganization !== undefined) {
+  if (targetOrganization !== undefined) {
     throw new Error(
       "Collaborator invitation acceptance instance target cannot include target ids.",
     );
@@ -1398,15 +1258,9 @@ function parseAccountCompletionGateOperationReference(
 ): AccountCompletionGateOperationReference {
   const object = parseObject(context, value);
 
-  assertKeys(
-    context,
-    object,
-    ["operationKey"],
-    ["appInstallId", "entityName", "label", "operationName"],
-  );
+  assertKeys(context, object, ["operationKey"], ["entityName", "label", "operationName"]);
 
   return {
-    ...parseOptionalStringField(`${context} appInstallId`, "appInstallId", object),
     ...parseOptionalStringField(`${context} entityName`, "entityName", object),
     ...parseOptionalStringField(`${context} label`, "label", object),
     operationKey: parseTrimmedNonEmptyString(`${context} operationKey`, object.operationKey),
@@ -1518,20 +1372,6 @@ function parseAccountCompletionGateOperationInputOptions(
       value: parseTrimmedNonEmptyString(`${context} options[${index}] value`, option.value),
     };
   });
-}
-
-function parseOptionalAppRegistrationPolicy(value: unknown): {
-  registrationPolicy?: AppInstallRegistrationPolicy;
-} {
-  if (value === undefined) {
-    return {};
-  }
-
-  if (value === "closed" || value === "email-verified" || value === "custom-operation") {
-    return { registrationPolicy: value };
-  }
-
-  throw new Error("Account completion app-registration gate registrationPolicy is unsupported.");
 }
 
 function parseAccountCompletionGatePolicyReferences(

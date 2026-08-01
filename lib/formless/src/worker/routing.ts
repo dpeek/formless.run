@@ -152,19 +152,16 @@ export function mappedRuntimeRoutePolicyFromFacts(input: {
       ? input.runtimeRoute
       : undefined;
   const mappedTargetProfile = mappedRoute?.targetProfile;
-  const blocksAuthOriginRoutes =
-    mappedTargetProfile === "app" || mappedTargetProfile === "public-site";
+  const blocksAuthOriginRoutes = mappedTargetProfile === "public-site";
 
   return {
     blocksAuthOriginRoutes,
     ...(mappedTargetProfile === undefined ? {} : { mappedTargetProfile }),
     ...(mappedTargetProfile === "instance"
       ? { runtimeProfile: "instance" }
-      : mappedTargetProfile === "app"
-        ? { runtimeProfile: "app" }
-        : input.configuredRuntimeProfile === undefined
-          ? {}
-          : { runtimeProfile: input.configuredRuntimeProfile }),
+      : input.configuredRuntimeProfile === undefined
+        ? {}
+        : { runtimeProfile: input.configuredRuntimeProfile }),
   };
 }
 
@@ -401,17 +398,6 @@ export function shouldHandleMappedSiteHostIndexingResource(
   return topology.readMethod && topology.publishedSiteIndexingResourcePath;
 }
 
-export function shouldServeMappedAppHostClientShell(
-  request: Request,
-  input: WorkerRuntimeRouteInput = { profile: "app" },
-): boolean {
-  const topology = resolveWorkerRuntimeRequestTopology(request, input);
-
-  return (
-    topology.readMethod && !topology.apiPath && !topology.staticAssetPath && topology.acceptsHtml
-  );
-}
-
 export function shouldDeferToStaticAssets(
   request: Request,
   input: WorkerRuntimeRouteInput = {},
@@ -522,10 +508,6 @@ export function ownerBrowserRouteAccessFromFacts(
 
   if (mountRoute) {
     return mountRoute.access;
-  }
-
-  if (topology.pathname.startsWith(`${runtimeTopologyRoutes.appRouteBase}/`)) {
-    return "owner";
   }
 
   return "anonymous";

@@ -12,13 +12,6 @@ import {
   type PortableArchive,
 } from "../program/archive.ts";
 import type { ArchiveDiskMediaFile } from "../program/archive-node.ts";
-import {
-  defaultAppInstallRegistrationPolicy,
-  isAppInstallRegistrationPolicy,
-  type AppInstall,
-  type AppInstallRegistrationOperation,
-  type AppInstallRegistrationPolicy,
-} from "@dpeek/formless-installed-apps";
 import { formlessProgramSchema } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
@@ -26,12 +19,7 @@ import {
 } from "../program/target.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
-import {
-  bundledAppPackageResolver,
-  findResolvedAppPackage,
-  isRuntimeInstallableAppPackageKey,
-  type AppPackageResolver,
-} from "../shared/app-packages.ts";
+import { bundledAppPackageResolver, type AppPackageResolver } from "../shared/app-packages.ts";
 export type WorkspaceControlPlaneRecords = StorageSnapshot;
 export type WorkspaceRecordValueSource = {
   values: Record<string, unknown>;
@@ -65,8 +53,6 @@ export type WorkspaceControlPlaneAppInstallRecord = {
   label: string;
   packageAppKey: string;
   packageRevision?: number;
-  registrationOperation?: AppInstallRegistrationOperation;
-  registrationPolicy: AppInstallRegistrationPolicy;
   sourceSchemaHash?: AppArchive["app"]["sourceSchemaHash"];
   status: "installed";
   updatedAt: string;
@@ -117,73 +103,6 @@ export function withoutControlPlaneLifecycleValues(values: RecordValues): Record
   ) as RecordValues;
 }
 
-export function controlPlaneAppInstallRecords(
-  controlPlane: WorkspaceControlPlaneRecords | undefined,
-): WorkspaceControlPlaneAppInstallRecord[] {
-  return (controlPlane?.records ?? [])
-    .filter(
-      (record) =>
-        record.entity === "app-install" &&
-        !record.deletedAt &&
-        stringRecordValue(record, "status") === "installed" &&
-        isRuntimeInstallableAppPackageKey(stringRecordValue(record, "packageAppKey") ?? ""),
-    )
-    .map((record) => ({
-      createdAt: record.createdAt,
-      installId: String(record.values.installId),
-      label: stringRecordValue(record, "label") ?? String(record.values.installId),
-      packageAppKey: String(record.values.packageAppKey),
-      ...(numberRecordValue(record, "packageRevision") === undefined
-        ? {}
-        : { packageRevision: numberRecordValue(record, "packageRevision") }),
-      registrationPolicy:
-        appInstallRegistrationPolicyRecordValue(record) ?? defaultAppInstallRegistrationPolicy(),
-      ...(stringRecordValue(record, "registrationOperation") === undefined
-        ? {}
-        : {
-            registrationOperation: stringRecordValue(
-              record,
-              "registrationOperation",
-            ) as AppInstallRegistrationOperation,
-          }),
-      ...(sourceSchemaHashRecordValue(record) === undefined
-        ? {}
-        : { sourceSchemaHash: sourceSchemaHashRecordValue(record) }),
-      status: "installed" as const,
-      updatedAt: record.updatedAt,
-    }))
-    .sort((left, right) => left.installId.localeCompare(right.installId));
-}
-
-function appInstallRegistrationPolicyRecordValue(
-  record: WorkspaceRecordValueSource,
-): AppInstallRegistrationPolicy | undefined {
-  const value = stringRecordValue(record, "registrationPolicy");
-
-  return isAppInstallRegistrationPolicy(value) ? value : undefined;
-}
-
-export function assertWorkspaceControlPlanePackagesAvailable(input: {
-  controlPlane: WorkspaceControlPlaneRecords | undefined;
-  operation: "check" | "deploy" | "destroy" | "domains run" | "local dev" | "push" | "save";
-  packageResolver: AppPackageResolver;
-}): void {
-  const missing = controlPlaneAppInstallRecords(input.controlPlane).filter(
-    (install) => !findResolvedAppPackage(install.packageAppKey, input.packageResolver),
-  );
-
-  if (missing.length === 0) {
-    return;
-  }
-
-  const labels = missing
-    .map((install) => `${install.installId} (${install.packageAppKey})`)
-    .join(", ");
-
-  throw new Error(
-    `Formless instance ${input.operation} cannot continue because active app installs reference unavailable package apps: ${labels}. Add the packages to formless.ts packages.links or install bundled packages.`,
-  );
-}
 export async function readArchiveDirectoryForCheck(
   archiveRoot: string,
   options: {
@@ -235,64 +154,6 @@ export async function readArchiveDirectoryForCheck(
     mediaFiles,
     missingMediaFiles: missingMediaFiles.sort((left, right) => left.localeCompare(right)),
   };
-}
-
-export function appArchiveControlPlaneRecords(archive: AppArchive): StoredRecord[] {
-  return appInstallControlPlaneRecords({
-    adminRoute: `/apps/${archive.app.installId}` as `/apps/${string}`,
-    createdAt: archive.app.createdAt,
-    installId: archive.app.installId,
-    label: archive.app.label,
-    packageAppKey: archive.app.packageAppKey,
-    packageRevision: archive.app.packageRevision,
-    registrationPolicy: archive.app.registrationPolicy,
-    ...(archive.app.registrationOperation === undefined
-      ? {}
-      : { registrationOperation: archive.app.registrationOperation }),
-    sourceSchemaHash: archive.app.sourceSchemaHash,
-    status: archive.app.status,
-    updatedAt: archive.app.updatedAt,
-  });
-}
-
-export function appInstallControlPlaneRecords(install: AppInstall): StoredRecord[] {
-  const appInstallRecord: StoredRecord = {
-    id: install.installId,
-    entity: "app-install",
-    values: {
-      installId: install.installId,
-      packageAppKey: install.packageAppKey,
-      packageRevision: install.packageRevision,
-      sourceSchemaHash: install.sourceSchemaHash,
-      label: install.label,
-      registrationPolicy: install.registrationPolicy,
-      ...(install.registrationOperation === undefined
-        ? {}
-        : { registrationOperation: install.registrationOperation }),
-      status: install.status,
-      storageIdentity: `app:${install.installId}`,
-    },
-    createdAt: install.createdAt,
-    updatedAt: install.updatedAt,
-  };
-  return [
-    appInstallRecord,
-    {
-      id: `route:${install.installId}:admin`,
-      entity: "route",
-      values: {
-        appInstall: install.installId,
-        enabled: true,
-        kind: "mount",
-        matchPath: install.adminRoute,
-        matchPrefix: `${install.adminRoute}/`,
-        surface: "admin",
-        targetProfile: "app",
-      },
-      createdAt: install.createdAt,
-      updatedAt: install.updatedAt,
-    },
-  ];
 }
 
 export async function readArchiveMediaFiles(

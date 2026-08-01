@@ -192,45 +192,18 @@ export const formlessCrmPresentationSchemaModule = defineAppSchemaModule({
 
 export const formlessInstanceControlPlanePresentationSchemaModule = defineAppSchemaModule({
   ...instanceControlPlanePresentationSchemaModule,
-  screens: instanceControlPlanePresentationSchemaModule.screens
-    .filter((screen) => screen.key !== "apps")
-    .map((screen) => ({ ...screen, access: programAdministratorScreenAccess })),
+  screens: instanceControlPlanePresentationSchemaModule.screens.map((screen) => ({
+    ...screen,
+    access: programAdministratorScreenAccess,
+  })),
 });
 
 export const formlessIdentityControlPlanePresentationSchemaModule = defineAppSchemaModule({
   ...identityControlPlanePresentationSchemaModule,
-  screens: identityControlPlanePresentationSchemaModule.screens
-    .filter((screen) => screen.key !== "apps")
-    .map((screen) => ({ ...screen, access: programAdministratorScreenAccess })),
-});
-
-export const formlessProgramPresentationSchemaModule = defineAppSchemaModule({
-  key: "formless-program-presentation",
-  requires: ["instance-control-plane-presentation", "identity-control-plane-presentation"],
-  screens: [
-    {
-      key: "apps",
-      type: "workspace",
-      label: "Apps",
-      path: "/apps",
-      access: programAdministratorScreenAccess,
-      layout: {
-        type: "stack",
-        sections: [
-          {
-            id: "app-installs",
-            type: "collection",
-            view: "appInstallList",
-          },
-          {
-            id: "app-registrations",
-            type: "collection",
-            view: "appRegistrationList",
-          },
-        ],
-      },
-    },
-  ],
+  screens: identityControlPlanePresentationSchemaModule.screens.map((screen) => ({
+    ...screen,
+    access: programAdministratorScreenAccess,
+  })),
 });
 
 export const formlessProgramBuiltInModules = {
@@ -244,7 +217,6 @@ export const formlessProgramBuiltInModules = {
   tasksPresentation: formlessTasksPresentationSchemaModule,
   sitePresentation: formlessSitePresentationSchemaModule,
   crmPresentation: formlessCrmPresentationSchemaModule,
-  programPresentation: formlessProgramPresentationSchemaModule,
 } as const;
 
 export const formlessProgramSchemaModules = [
@@ -258,7 +230,6 @@ export const formlessProgramSchemaModules = [
   formlessProgramBuiltInModules.tasksPresentation,
   formlessProgramBuiltInModules.sitePresentation,
   formlessProgramBuiltInModules.crmPresentation,
-  formlessProgramBuiltInModules.programPresentation,
 ] as const;
 
 export const formlessProgramDefaultAuthorization: NonNullable<
@@ -290,7 +261,6 @@ export const formlessProgramDefaultNavigation: NonNullable<
     "taskHome",
     "siteEditor",
     "contacts",
-    "apps",
     "routes",
     "deployments",
     "principals",

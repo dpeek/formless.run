@@ -4,6 +4,7 @@ import {
   instanceControlPlaneEntityNames,
   instanceControlPlaneRecordSourceEntityName,
   instanceControlPlaneSchema,
+  isCurrentInstanceControlPlaneRecord,
   isInstanceControlPlaneEntityName,
   parseInstanceControlPlaneBoundaryEntityName,
   parseInstanceControlPlaneRecords,
@@ -16,7 +17,6 @@ import {
   INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_FILE_KIND,
   INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_FILE_VERSION,
 } from "./types.ts";
-import type { AppPackageResolver } from "@dpeek/formless-installed-apps";
 import type {
   InstanceWorkspaceControlPlaneRecordSourceControlPlane,
   InstanceWorkspaceControlPlaneRecordSourceEntity,
@@ -141,41 +141,40 @@ export function parseInstanceWorkspaceControlPlaneRecordSourceControlPlane(
   context: string,
   schemaUpdatedAt: unknown,
   records: unknown,
-  options: { packageResolver?: AppPackageResolver } = {},
 ): InstanceWorkspaceControlPlaneRecordSourceControlPlane {
+  const selectedRecords = Array.isArray(records)
+    ? records.filter(isCurrentInstanceControlPlaneRecord)
+    : records;
+  const parsedRecords = parseInstanceControlPlaneRecords(
+    `${context} records`,
+    selectedRecords,
+  ) as InstanceWorkspaceStoredRecord[];
   const controlPlane: InstanceWorkspaceControlPlaneRecordSourceControlPlane = {
     schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
     schemaUpdatedAt: parseIsoTimestamp(`${context} schemaUpdatedAt`, schemaUpdatedAt),
-    records: parseInstanceControlPlaneRecords(
-      `${context} records`,
-      records,
-    ) as InstanceWorkspaceStoredRecord[],
+    records: instanceWorkspaceControlPlaneRecordSourceRecords(parsedRecords),
   };
 
-  validateInstanceWorkspaceControlPlaneRecordSource(controlPlane, options);
+  validateInstanceWorkspaceControlPlaneRecordSource(controlPlane);
 
   return controlPlane;
 }
 
 export function instanceWorkspaceControlPlaneRecordSourceRecords(
   records: readonly InstanceWorkspaceStoredRecord[],
-  options: { packageResolver?: AppPackageResolver } = {},
 ): InstanceWorkspaceStoredRecord[] {
   return reviewableInstanceControlPlaneRecords(records as readonly StoredRecord[], {
     context: "Workspace control-plane record source records",
-    packageResolver: options.packageResolver,
     sourceLabel: "Workspace control-plane record source",
   }) as InstanceWorkspaceStoredRecord[];
 }
 
 export function validateInstanceWorkspaceControlPlaneRecordSource(
   controlPlane: InstanceWorkspaceControlPlaneRecordSourceControlPlane,
-  options: { packageResolver?: AppPackageResolver } = {},
 ) {
   validateInstanceControlPlaneRecords(
     "Workspace control-plane record source records",
     controlPlane.records as readonly StoredRecord[],
-    { packageResolver: options.packageResolver },
   );
 }
 

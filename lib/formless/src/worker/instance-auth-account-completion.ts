@@ -1,26 +1,5 @@
-import {
-  identityControlPlaneRoleKeys,
-  type IdentityControlPlaneRoleKey,
-  type IdentityInvitationTargetSurface,
-} from "@dpeek/formless-identity-control-plane";
-import {
-  formatEntityOperationKey,
-  isEntityOperationVisibleToBrowser,
-  parseEntityOperationKey,
-  projectPublicSafeOperationInputFields,
-  type AppSchema,
-} from "@dpeek/formless-schema";
-import { instanceControlPlaneEffectiveRouteAccess } from "@dpeek/formless-instance-control-plane";
-import {
-  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
-  FORMLESS_PROGRAM_STORAGE_IDENTITY,
-} from "../program/target.ts";
-import {
-  parseAppInstallRegistrationOperation,
-  parseAppInstallRegistrationPolicy,
-  type AppInstallRegistrationOperation,
-  type AppInstallRegistrationPolicy,
-} from "@dpeek/formless-installed-apps";
+import type { IdentityInvitationTargetSurface } from "@dpeek/formless-identity-control-plane";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 
 import {
@@ -28,19 +7,15 @@ import {
   parseAccountCompletionGateResolutionResult,
   parseAccountCompletionGateTarget,
   parseInstanceAuthCanonicalOrigin,
-  parseAccountRedirectTarget,
   type AccountCompletionGate,
   type AccountCompletionGateOperationInputContract,
   type AccountCompletionGateOperationReference,
   type AccountCompletionGatePolicyReference,
   type AccountCompletionGateResolutionResult,
   type AccountCompletionGateTarget,
-  type AccountCompletionRoleScopeKind,
 } from "../shared/instance-auth.ts";
-import type { SchemaResponse } from "../shared/protocol.ts";
 import { nowIsoString } from "../shared/clock.ts";
 import { validateCentralAuthSessionCookie } from "./central-auth-session.ts";
-import { readControlPlaneRecords } from "./deployment-control-plane-client.ts";
 import { readInternalAccountCompletionIdentityState } from "./identity-owner-internal.ts";
 import type {
   AccountCompletionIdentityState,
@@ -55,22 +30,10 @@ import { accountCompletionContinueToFromRequest } from "./instance-auth-continua
 
 export const INSTANCE_AUTH_ACCOUNT_COMPLETION_RESOLVE_PATH =
   "/_internal/instance-auth/account-completion/resolve";
-export const INSTANCE_AUTH_APP_REGISTRATION_GATE_COMPLETE_PATH =
-  "/formless/auth/app-registration/complete";
-export const INSTANCE_AUTH_PROFILE_COMPLETION_GATE_COMPLETE_PATH =
-  "/formless/auth/profile-completion/complete";
 export const INSTANCE_AUTH_TERMS_ACCEPTANCE_GATE_COMPLETE_PATH =
   "/formless/auth/terms-acceptance/complete";
 
-const internalReadControlPlaneRecordsPath = "/_internal/read-records";
-export const INTERNAL_AUTH_PROFILE_COMPLETION_SCHEMA_PATH =
-  "/_internal/instance-auth/profile-completion-schema";
-export const INTERNAL_AUTH_PROFILE_COMPLETION_OPERATION_PATH =
-  "/_internal/instance-auth/profile-completion-operation";
-const emailVerifiedAppRegistrationCompletionOperationKey = "auth.app-registration.complete";
 const termsAcceptanceCompletionOperationKey = "auth.terms-acceptance.complete";
-const internalEmailVerifiedAppRegistrationCommitPath =
-  "/_internal/identity/email-verified-app-registration-commit";
 const internalTermsAcceptanceCommitPath = "/_internal/identity/terms-acceptance-commit";
 
 type AccountCompletionResolverActorKind = "anonymous" | "authenticated" | "owner";
@@ -87,35 +50,10 @@ export type AccountCompletionProfileCompletionRequirement = {
   satisfied: boolean;
 };
 
-export type AccountCompletionRoleReviewRequirement = {
-  operation?: AccountCompletionGateOperationReference;
-  roleKey: IdentityControlPlaneRoleKey;
-  scopeKind?: AccountCompletionRoleScopeKind;
-};
-
 export type AccountCompletionGateResolverInput = {
   actorKind?: AccountCompletionResolverActorKind;
   principalId?: string;
   profileCompletion?: AccountCompletionProfileCompletionRequirement;
-  requiredRole?: AccountCompletionRoleReviewRequirement;
-  target: AccountCompletionGateTarget;
-};
-
-type AccountCompletionTargetAppRegistrationGate = {
-  inputContract?: AccountCompletionGateOperationInputContract;
-  operation?: AccountCompletionGateOperationReference;
-  registrationPolicy: AppInstallRegistrationPolicy;
-};
-
-type AccountCompletionAppRegistrationCompleteInput = {
-  target: AccountCompletionGateTarget;
-};
-
-type AccountCompletionProfileCompletionCompleteInput = {
-  idempotencyKey?: string;
-  input?: unknown;
-  operation: AccountCompletionGateOperationReference;
-  recordId?: string;
   target: AccountCompletionGateTarget;
 };
 
@@ -128,26 +66,6 @@ type AccountCompletionGateCompletionHandoff = {
   returnTo: `/${string}`;
   targetOrigin: string;
 };
-
-type EmailVerifiedAppRegistrationCommitResult =
-  | {
-      appRegistration: {
-        appInstallId: string;
-        appRegistrationId: string;
-        selectedOrganization?: string;
-        status: "active";
-        targetKind: "principal";
-        targetPrincipal: string;
-      };
-      ok: true;
-      records: StoredRecord[];
-      status: "committed" | "replayed";
-    }
-  | {
-      error: string;
-      ok: false;
-      reason: string;
-    };
 
 type TermsAcceptanceCommitResult =
   | {
@@ -174,11 +92,7 @@ export async function handleInstanceAuthAccountCompletionApiRequest(
 ): Promise<Response | undefined> {
   const url = new URL(request.url);
 
-  if (
-    url.pathname !== INSTANCE_AUTH_APP_REGISTRATION_GATE_COMPLETE_PATH &&
-    url.pathname !== INSTANCE_AUTH_PROFILE_COMPLETION_GATE_COMPLETE_PATH &&
-    url.pathname !== INSTANCE_AUTH_TERMS_ACCEPTANCE_GATE_COMPLETE_PATH
-  ) {
+  if (url.pathname !== INSTANCE_AUTH_TERMS_ACCEPTANCE_GATE_COMPLETE_PATH) {
     return undefined;
   }
 
@@ -193,40 +107,6 @@ export async function handleInstanceAuthAccountCompletionDurableObjectRequest(
   env: AccountCompletionApiEnv,
 ): Promise<Response | undefined> {
   const url = new URL(request.url);
-
-  if (url.pathname === INSTANCE_AUTH_APP_REGISTRATION_GATE_COMPLETE_PATH) {
-    if (request.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
-    }
-
-    try {
-      return await completeAppRegistrationGate({
-        env,
-        input: parseAccountCompletionAppRegistrationCompleteInput(await readJson(request)),
-        request,
-        storage,
-      });
-    } catch (error) {
-      return jsonResponse({ error: errorMessage(error) }, 400);
-    }
-  }
-
-  if (url.pathname === INSTANCE_AUTH_PROFILE_COMPLETION_GATE_COMPLETE_PATH) {
-    if (request.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
-    }
-
-    try {
-      return await completeProfileCompletionGate({
-        env,
-        input: parseAccountCompletionProfileCompletionCompleteInput(await readJson(request)),
-        request,
-        storage,
-      });
-    } catch (error) {
-      return jsonResponse({ error: errorMessage(error) }, 400);
-    }
-  }
 
   if (url.pathname === INSTANCE_AUTH_TERMS_ACCEPTANCE_GATE_COMPLETE_PATH) {
     if (request.method !== "POST") {
@@ -285,11 +165,9 @@ export async function resolveAccountCompletionGate(input: {
   const state =
     (await readInternalAccountCompletionIdentityState(input.env, { principalId, target })) ??
     emptyAccountCompletionIdentityState();
-  const hasSatisfiedAppRegistration =
-    target.appInstallId === undefined || hasActiveAppRegistration(state);
 
   if (!state.principal || state.principal.values.status !== "active") {
-    return blockedResult(target, roleReviewGate(input.input.requiredRole, target, state));
+    return blockedResult(target, { credentialMethod: "passkey", kind: "credential" });
   }
 
   if (!verifiedPrimaryEmail(state.primaryEmail)) {
@@ -306,39 +184,8 @@ export async function resolveAccountCompletionGate(input: {
     return blockedResult(target, invitationGate(pendingInvitation));
   }
 
-  const requiredRoleSatisfied =
-    input.input.requiredRole !== undefined &&
-    hasRequiredRole(state, input.input.requiredRole, target);
-
-  if (input.input.requiredRole && !requiredRoleSatisfied) {
-    return blockedResult(target, roleReviewGate(input.input.requiredRole, target, state));
-  }
-
-  const requiredAppRoleSatisfied =
-    requiredRoleSatisfied &&
-    (input.input.requiredRole?.scopeKind ?? defaultRoleScopeKind(target)) === "app-install";
-
-  if (!hasSatisfiedAppRegistration && !requiredAppRoleSatisfied) {
-    const appRegistrationGate = await readTargetAppInstallRegistrationGate(input.env, target);
-    const operation =
-      appRegistrationGate.registrationPolicy === "email-verified"
-        ? emailVerifiedAppRegistrationCompletionOperation(target.appInstallId!)
-        : appRegistrationGate.operation;
-
-    return blockedResult(target, {
-      appInstallId: target.appInstallId!,
-      kind: "app-registration",
-      ...(operation === undefined ? {} : { operation }),
-      registrationPolicy: appRegistrationGate.registrationPolicy,
-      ...(target.selectedOrganization === undefined
-        ? {}
-        : { selectedOrganization: target.selectedOrganization }),
-    });
-  }
-
   if (input.input.profileCompletion && !input.input.profileCompletion.satisfied) {
     return blockedResult(target, {
-      appInstallId: target.appInstallId,
       kind: "profile-completion",
       ...(input.input.profileCompletion.inputContract === undefined
         ? {}
@@ -366,251 +213,6 @@ export async function resolveAccountCompletionGate(input: {
   }
 
   return completeResult(target);
-}
-
-async function completeAppRegistrationGate(input: {
-  env: AccountCompletionApiEnv;
-  input: AccountCompletionAppRegistrationCompleteInput;
-  request: Request;
-  storage: DurableObjectStorage;
-}): Promise<Response> {
-  const session = await validateCentralAuthSessionCookie(input.request, input.storage, input.env);
-
-  if (!session.ok) {
-    return jsonResponse({ error: "Authenticated account session is required." }, 401);
-  }
-
-  const target = await validatedCurrentAppRegistrationCompletionTarget(
-    input.input.target,
-    input.request,
-    input.env,
-  );
-  const before = await resolveAccountCompletionGate({
-    env: input.env,
-    input: {
-      actorKind: "authenticated",
-      principalId: session.session.principalId,
-      target,
-    },
-    storage: input.storage,
-  });
-
-  if (
-    before.status !== "blocked" ||
-    before.gate.kind !== "app-registration" ||
-    !isCompletableAppRegistrationPolicy(before.gate.registrationPolicy) ||
-    before.gate.appInstallId !== target.appInstallId
-  ) {
-    return jsonResponse(
-      {
-        accountCompletion: parseAccountCompletionGateResolutionResult(before),
-        error: "App-registration gate is not current.",
-      },
-      409,
-    );
-  }
-
-  const customProfileCompletionOperation =
-    before.gate.registrationPolicy === "custom-operation" ? before.gate.operation : undefined;
-  const customProfileCompletionInputContract =
-    before.gate.registrationPolicy === "custom-operation"
-      ? (await readTargetAppInstallRegistrationGate(input.env, target)).inputContract
-      : undefined;
-
-  if (
-    before.gate.registrationPolicy === "custom-operation" &&
-    customProfileCompletionOperation === undefined
-  ) {
-    return jsonResponse(
-      {
-        accountCompletion: parseAccountCompletionGateResolutionResult(before),
-        error: "Custom-operation app-registration gate operation is unavailable.",
-      },
-      409,
-    );
-  }
-
-  const appInstallId = parseNonEmptyString(
-    "Account completion app-registration target app install id",
-    target.appInstallId,
-  );
-  const completedAt = nowIsoString();
-  const committed = await commitEmailVerifiedAppRegistration(input.env, {
-    appInstallId,
-    completedAt,
-    completionId: appRegistrationCompletionId(session.session.principalId, target),
-    principalId: session.session.principalId,
-    ...(target.selectedOrganization === undefined
-      ? {}
-      : { selectedOrganization: target.selectedOrganization }),
-  });
-
-  if (!committed.ok) {
-    return jsonResponse({ error: committed.error }, 409);
-  }
-
-  const accountCompletion = await resolveAccountCompletionGate({
-    env: input.env,
-    input: {
-      actorKind: "authenticated",
-      principalId: session.session.principalId,
-      ...(customProfileCompletionOperation === undefined
-        ? {}
-        : {
-            profileCompletion: {
-              ...(customProfileCompletionInputContract === undefined
-                ? {}
-                : { inputContract: customProfileCompletionInputContract }),
-              operation: customProfileCompletionOperation,
-              satisfied: false,
-            },
-          }),
-      target,
-    },
-    storage: input.storage,
-  });
-  const response = {
-    accountCompletion,
-    appRegistration: committed.appRegistration,
-    completed: true,
-    ...accountCompletionContinueToFromRequest(
-      input.request,
-      accountCompletion,
-      configuredAccountCompletionAuthOrigin(input.storage),
-    ),
-    ...(accountCompletion.status === "complete" &&
-    target.targetOrigin !== configuredAccountCompletionAuthOrigin(input.storage)
-      ? {
-          handoff: {
-            returnTo: target.returnTo,
-            targetOrigin: target.targetOrigin,
-          } satisfies AccountCompletionGateCompletionHandoff,
-        }
-      : {}),
-  };
-
-  return jsonResponse(response, accountCompletion.status === "complete" ? 200 : 409);
-}
-
-async function completeProfileCompletionGate(input: {
-  env: AccountCompletionApiEnv;
-  input: AccountCompletionProfileCompletionCompleteInput;
-  request: Request;
-  storage: DurableObjectStorage;
-}): Promise<Response> {
-  const session = await validateCentralAuthSessionCookie(input.request, input.storage, input.env);
-
-  if (!session.ok) {
-    return jsonResponse({ error: "Authenticated account session is required." }, 401);
-  }
-
-  assertAuthOriginRequest(input.request, input.storage);
-
-  const completionTarget = await validatedCurrentProfileCompletionTarget(
-    input.input.target,
-    input.request,
-    input.env,
-  );
-  const { target } = completionTarget;
-  const registrationGate = await readTargetAppInstallRegistrationGate(input.env, target);
-
-  if (
-    registrationGate.registrationPolicy !== "custom-operation" ||
-    registrationGate.operation === undefined
-  ) {
-    return jsonResponse({ error: "Profile-completion operation is unavailable." }, 409);
-  }
-
-  const before = await resolveAccountCompletionGate({
-    env: input.env,
-    input: {
-      actorKind: "authenticated",
-      principalId: session.session.principalId,
-      profileCompletion: {
-        ...(registrationGate.inputContract === undefined
-          ? {}
-          : { inputContract: registrationGate.inputContract }),
-        operation: registrationGate.operation,
-        satisfied: false,
-      },
-      target,
-    },
-    storage: input.storage,
-  });
-
-  if (
-    before.status !== "blocked" ||
-    before.gate.kind !== "profile-completion" ||
-    !accountCompletionOperationReferencesEqual(before.gate.operation, registrationGate.operation)
-  ) {
-    return jsonResponse(
-      {
-        accountCompletion: parseAccountCompletionGateResolutionResult(before),
-        error: "Profile-completion gate is not current.",
-      },
-      409,
-    );
-  }
-
-  if (
-    !accountCompletionOperationReferencesEqual(input.input.operation, registrationGate.operation)
-  ) {
-    return jsonResponse(
-      {
-        accountCompletion: parseAccountCompletionGateResolutionResult(before),
-        error: "Profile-completion operation does not match the current gate.",
-      },
-      409,
-    );
-  }
-
-  await executeProfileCompletionOperation(input.env, {
-    appInstallId: target.appInstallId,
-    idempotencyKey: input.input.idempotencyKey,
-    input: input.input.input,
-    operation: registrationGate.operation,
-    packageAppKey: completionTarget.packageAppKey,
-    principalId: session.session.principalId,
-    recordId: input.input.recordId,
-    sessionInstanceId: session.session.instanceId,
-    target,
-  });
-
-  const accountCompletion = await resolveAccountCompletionGate({
-    env: input.env,
-    input: {
-      actorKind: "authenticated",
-      principalId: session.session.principalId,
-      target,
-    },
-    storage: input.storage,
-  });
-  const response = {
-    accountCompletion,
-    completed: true,
-    ...accountCompletionContinueToFromRequest(
-      input.request,
-      accountCompletion,
-      configuredAccountCompletionAuthOrigin(input.storage),
-    ),
-    ...(accountCompletion.status === "complete" &&
-    target.targetOrigin !== configuredAccountCompletionAuthOrigin(input.storage)
-      ? {
-          handoff: {
-            returnTo: target.returnTo,
-            targetOrigin: target.targetOrigin,
-          } satisfies AccountCompletionGateCompletionHandoff,
-        }
-      : {}),
-  };
-
-  return jsonResponse(response, accountCompletion.status === "complete" ? 200 : 409);
-}
-
-function isCompletableAppRegistrationPolicy(
-  value: AppInstallRegistrationPolicy | undefined,
-): value is "custom-operation" | "email-verified" {
-  return value === "custom-operation" || value === "email-verified";
 }
 
 async function completeTermsAcceptanceGate(input: {
@@ -737,108 +339,10 @@ function blockedResult(
   };
 }
 
-function emailVerifiedAppRegistrationCompletionOperation(
-  appInstallId: string,
-): AccountCompletionGateOperationReference {
-  return {
-    appInstallId,
-    entityName: "app-registration",
-    label: "Register for app",
-    operationKey: emailVerifiedAppRegistrationCompletionOperationKey,
-    operationName: "completeEmailVerifiedAppRegistration",
-  };
-}
-
-async function readTargetAppInstallSchema(
-  env: IdentityOwnerInternalEnv,
-  appInstall: StoredRecord,
-): Promise<AppSchema> {
-  if (!env.FORMLESS_AUTHORITY) {
-    throw new Error("Account completion app schema lookup requires authority access.");
-  }
-
-  const installId = stringValue(appInstall, "installId");
-  const packageAppKey = stringValue(appInstall, "packageAppKey");
-  const id = env.FORMLESS_AUTHORITY.idFromName(`app:${installId}`);
-  const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
-    new Request(
-      `http://internal/api/app-installs/${packageAppKey}/${installId}${INTERNAL_AUTH_PROFILE_COMPLETION_SCHEMA_PATH}`,
-      {
-        headers: { Accept: "application/json" },
-        method: "GET",
-      },
-    ),
-  );
-  const body = (await response.json()) as Partial<SchemaResponse> & {
-    error?: string;
-  };
-  if (!response.ok || !isSchemaResponseBody(body)) {
-    throw new Error(body.error ?? `App install "${installId}" schema lookup failed.`);
-  }
-
-  return body.schema;
-}
-
-function customOperationAppRegistrationCompletionOperation(input: {
-  appInstallId: string;
-  registrationOperation: AppInstallRegistrationOperation;
-  schema: AppSchema;
-}): {
-  inputContract: AccountCompletionGateOperationInputContract;
-  operation: AccountCompletionGateOperationReference;
-} {
-  const operationKey = parseEntityOperationKey(
-    `App install "${input.appInstallId}" registration operation`,
-    input.registrationOperation,
-  );
-  const entity = input.schema.entities.find(
-    (definition) => definition.key === operationKey.entityKey,
-  )!;
-  const operation = entity?.operations?.find(
-    (definition) => definition.key === operationKey.operationKey,
-  );
-  if (entity === undefined || operation === undefined) {
-    throw new Error(`App install "${input.appInstallId}" registration operation does not resolve.`);
-  }
-
-  if (!isEntityOperationVisibleToBrowser(operation)) {
-    throw new Error(`App install "${input.appInstallId}" registration operation is disabled.`);
-  }
-  const inputContract = projectPublicSafeOperationInputFields({ entity, operation });
-
-  return {
-    inputContract,
-    operation: {
-      appInstallId: input.appInstallId,
-      entityName: operationKey.entityKey,
-      label: operation.label ?? operationKey.operationKey,
-      operationKey: formatEntityOperationKey(operationKey),
-      operationName: operationKey.operationKey,
-    },
-  };
-}
-
-function isSchemaResponseBody(value: unknown): value is SchemaResponse {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-
-  const schema = (value as Partial<SchemaResponse>).schema;
-
-  return (
-    !!schema &&
-    typeof schema === "object" &&
-    !Array.isArray(schema) &&
-    typeof (schema as Partial<AppSchema>).entities === "object" &&
-    (schema as Partial<AppSchema>).entities !== null
-  );
-}
-
 function termsAcceptanceCompletionOperation(
-  target: AccountCompletionGateTarget,
+  _target: AccountCompletionGateTarget,
 ): AccountCompletionGateOperationReference {
   return {
-    ...(target.appInstallId === undefined ? {} : { appInstallId: target.appInstallId }),
     entityName: "principal-policy-acceptance",
     label: "Accept terms",
     operationKey: termsAcceptanceCompletionOperationKey,
@@ -867,192 +371,8 @@ function invitationGate(invitation: StoredRecord): AccountCompletionGate {
   };
 }
 
-function roleReviewGate(
-  requirement: AccountCompletionRoleReviewRequirement | undefined,
-  target: AccountCompletionGateTarget,
-  state: AccountCompletionIdentityState,
-): AccountCompletionGate {
-  const roleKey = requirement?.roleKey;
-  const role = roleKey === undefined ? undefined : activeRoleByKey(state, roleKey);
-
-  return {
-    kind: "role-review",
-    ...(requirement?.operation === undefined ? {} : { operation: requirement.operation }),
-    ...(role === undefined ? {} : { roleId: role.id }),
-    ...(roleKey === undefined ? {} : { roleKey }),
-    scopeKind: requirement?.scopeKind ?? defaultRoleScopeKind(target),
-  };
-}
-
 function verifiedPrimaryEmail(primaryEmail: StoredRecord | null): boolean {
   return primaryEmail !== null && primaryEmail.values.verificationStatus === "verified";
-}
-
-function hasActiveAppRegistration(state: AccountCompletionIdentityState): boolean {
-  return state.appRegistrations.some((record) => record.values.status === "active");
-}
-
-async function readTargetAppInstallRegistrationGate(
-  env: IdentityOwnerInternalEnv,
-  target: AccountCompletionGateTarget,
-): Promise<AccountCompletionTargetAppRegistrationGate> {
-  if (target.appInstallId === undefined) {
-    throw new Error("Account completion app install policy lookup requires an app install id.");
-  }
-
-  if (!env.FORMLESS_AUTHORITY) {
-    throw new Error("Account completion app install policy lookup requires authority access.");
-  }
-
-  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
-  const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
-    new Request(
-      `http://internal${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${internalReadControlPlaneRecordsPath}`,
-      {
-        headers: { Accept: "application/json" },
-        method: "GET",
-      },
-    ),
-  );
-  const body = (await response.json()) as {
-    error?: string;
-    records?: StoredRecord[];
-  };
-  if (!response.ok || !Array.isArray(body.records)) {
-    throw new Error(body.error ?? "Control-plane app install policy lookup failed.");
-  }
-
-  const appInstall = body.records.find(
-    (record) =>
-      record.entity === "app-install" &&
-      !record.deletedAt &&
-      record.values.installId === target.appInstallId,
-  );
-
-  if (!appInstall) {
-    throw new Error(`App install "${target.appInstallId}" is not installed.`);
-  }
-
-  if (appInstall.values.status !== "installed") {
-    throw new Error(`App install "${target.appInstallId}" is disabled.`);
-  }
-
-  const registrationPolicy = appInstallRegistrationPolicyFromValue(
-    appInstall.values.registrationPolicy,
-    target.appInstallId,
-  );
-
-  if (registrationPolicy !== "custom-operation") {
-    return { registrationPolicy };
-  }
-
-  assertCustomOperationAppRegistrationTarget({
-    appInstall,
-    records: body.records,
-    target,
-  });
-
-  const registrationOperation = appInstallRegistrationOperationFromValue(
-    appInstall.values.registrationOperation,
-    target.appInstallId,
-  );
-  const schema = await readTargetAppInstallSchema(env, appInstall);
-
-  return {
-    ...customOperationAppRegistrationCompletionOperation({
-      appInstallId: target.appInstallId,
-      registrationOperation,
-      schema,
-    }),
-    registrationPolicy,
-  };
-}
-
-export async function customOperationProfileCompletionRequirementForTarget(
-  env: IdentityOwnerInternalEnv,
-  target: AccountCompletionGateTarget,
-): Promise<AccountCompletionProfileCompletionRequirement | undefined> {
-  if (target.targetProfile !== "app" || target.appInstallId === undefined) {
-    return undefined;
-  }
-
-  const registrationGate = await readTargetAppInstallRegistrationGate(env, target);
-
-  if (registrationGate.registrationPolicy !== "custom-operation") {
-    return undefined;
-  }
-
-  if (registrationGate.operation === undefined) {
-    throw new Error("Custom-operation app-registration gate operation is unavailable.");
-  }
-
-  return {
-    ...(registrationGate.inputContract === undefined
-      ? {}
-      : { inputContract: registrationGate.inputContract }),
-    operation: registrationGate.operation,
-    satisfied: false,
-  };
-}
-
-function appInstallRegistrationPolicyFromValue(
-  value: unknown,
-  appInstallId: string,
-): AppInstallRegistrationPolicy {
-  try {
-    return parseAppInstallRegistrationPolicy(
-      value,
-      `App install "${appInstallId}" registration policy`,
-    );
-  } catch {
-    throw new Error(`App install "${appInstallId}" has unsupported registration policy.`);
-  }
-}
-
-function appInstallRegistrationOperationFromValue(
-  value: unknown,
-  appInstallId: string,
-): AppInstallRegistrationOperation {
-  try {
-    return parseAppInstallRegistrationOperation(
-      value,
-      `App install "${appInstallId}" registration operation`,
-    );
-  } catch (error) {
-    throw new Error(errorMessage(error));
-  }
-}
-
-function assertCustomOperationAppRegistrationTarget(input: {
-  appInstall: StoredRecord;
-  records: StoredRecord[];
-  target: AccountCompletionGateTarget;
-}) {
-  if (input.target.targetProfile !== "app") {
-    throw new Error("Custom operation app-registration target must be an app route.");
-  }
-
-  const appInstallId = stringValue(input.appInstall, "installId");
-  const storageIdentity = input.target.storageIdentity ?? `app:${appInstallId}`;
-
-  if (storageIdentity !== `app:${appInstallId}`) {
-    throw new Error("Custom operation app-registration target storage does not match app install.");
-  }
-
-  const route = input.records.find(
-    (record) =>
-      record.entity === "route" &&
-      record.id === input.target.routeId &&
-      !record.deletedAt &&
-      record.values.kind === "mount" &&
-      record.values.enabled === true &&
-      record.values.targetProfile === "app" &&
-      record.values.appInstall === appInstallId,
-  );
-
-  if (!route) {
-    throw new Error("Custom operation app-registration target route is not available.");
-  }
 }
 
 function configuredAccountCompletionAuthOrigin(storage: DurableObjectStorage): string | undefined {
@@ -1077,182 +397,10 @@ function assertAuthOriginRequest(request: Request, storage: DurableObjectStorage
 
 async function validatedCurrentTermsAcceptanceTarget(
   value: AccountCompletionGateTarget,
-  request: Request,
-  env: AccountCompletionApiEnv,
+  _request: Request,
+  _env: AccountCompletionApiEnv,
 ): Promise<AccountCompletionGateTarget> {
-  const target = parseAccountCompletionGateTarget(value);
-
-  if (target.targetProfile === "app") {
-    return validatedCurrentAppRegistrationCompletionTarget(target, request, env);
-  }
-
-  return target;
-}
-
-async function validatedCurrentProfileCompletionTarget(
-  value: AccountCompletionGateTarget,
-  request: Request,
-  env: AccountCompletionApiEnv,
-): Promise<{
-  packageAppKey: string;
-  target: AccountCompletionGateTarget & {
-    appInstallId: string;
-    storageIdentity: string;
-  };
-}> {
-  const target = await validatedCurrentAppRegistrationCompletionTarget(value, request, env);
-  const records = await readControlPlaneRecords({ env, requestUrl: request.url });
-  const install = (records ?? []).find(
-    (record) =>
-      record.entity === "app-install" &&
-      !record.deletedAt &&
-      (record.id === target.appInstallId || record.values.installId === target.appInstallId),
-  );
-
-  if (!install) {
-    throw new Error("Profile-completion target app install is missing.");
-  }
-
-  return {
-    packageAppKey: stringValue(install, "packageAppKey"),
-    target,
-  };
-}
-
-async function validatedCurrentAppRegistrationCompletionTarget(
-  value: AccountCompletionGateTarget,
-  request: Request,
-  env: AccountCompletionApiEnv,
-): Promise<
-  AccountCompletionGateTarget & {
-    appInstallId: string;
-    storageIdentity: string;
-  }
-> {
-  const records = await readControlPlaneRecords({ env, requestUrl: request.url });
-  const target = parseAccountCompletionGateTarget(value);
-  if (target.targetProfile !== "app") {
-    throw new Error("App-registration completion target must be an app route.");
-  }
-
-  if (target.appInstallId === undefined) {
-    throw new Error("App-registration completion target requires an app install id.");
-  }
-
-  const storageIdentity = target.storageIdentity ?? `app:${target.appInstallId}`;
-
-  if (storageIdentity !== `app:${target.appInstallId}`) {
-    throw new Error("App-registration completion storage identity does not match the app install.");
-  }
-
-  const install = (records ?? []).find(
-    (record) =>
-      record.entity === "app-install" &&
-      !record.deletedAt &&
-      (record.id === target.appInstallId || record.values.installId === target.appInstallId),
-  );
-
-  if (!install) {
-    throw new Error("App-registration completion target app install is missing.");
-  }
-
-  if (install.values.status !== "installed") {
-    throw new Error("App-registration completion target app install is disabled.");
-  }
-
-  const route = (records ?? []).find(
-    (record) =>
-      record.entity === "route" &&
-      record.id === target.routeId &&
-      !record.deletedAt &&
-      record.values.kind === "mount" &&
-      record.values.enabled === true &&
-      record.values.targetProfile === "app" &&
-      record.values.appInstall === target.appInstallId,
-  );
-
-  if (!route) {
-    throw new Error("App-registration completion target route is not available.");
-  }
-
-  const access = instanceControlPlaneEffectiveRouteAccess({
-    kind: "mount",
-    access:
-      route.values.access === "anonymous" ||
-      route.values.access === "authenticated" ||
-      route.values.access === "owner"
-        ? route.values.access
-        : undefined,
-    surface:
-      route.values.surface === "admin" || route.values.surface === "public-site"
-        ? route.values.surface
-        : undefined,
-    targetProfile: "app",
-  });
-
-  if (access === "anonymous") {
-    throw new Error("App-registration completion target route is public.");
-  }
-
-  assertAppRegistrationCompletionRouteMatchesTarget(
-    route,
-    {
-      ...target,
-      appInstallId: target.appInstallId,
-      storageIdentity,
-    },
-    request,
-  );
-
-  return {
-    ...target,
-    appInstallId: target.appInstallId,
-    storageIdentity,
-  };
-}
-function assertAppRegistrationCompletionRouteMatchesTarget(
-  route: StoredRecord,
-  target: AccountCompletionGateTarget & {
-    appInstallId: string;
-  },
-  request: Request,
-) {
-  const returnTo = parseAccountRedirectTarget(target.returnTo);
-
-  if (!returnTo) {
-    throw new Error("App-registration completion return target must be path-only.");
-  }
-
-  const targetUrl = new URL(returnTo, target.targetOrigin);
-  const routeHost = typeof route.values.matchHost === "string" ? route.values.matchHost : undefined;
-
-  if (routeHost === undefined) {
-    if (target.targetOrigin !== new URL(request.url).origin) {
-      throw new Error(
-        "App-registration completion target origin does not match a same-origin app route.",
-      );
-    }
-  } else if (new URL(target.targetOrigin).hostname.toLowerCase() !== routeHost.toLowerCase()) {
-    throw new Error(
-      "App-registration completion target origin does not match the mapped app route.",
-    );
-  }
-
-  const matchPath = absolutePath(route.values.matchPath);
-  const matchPrefix = optionalAbsolutePath(route.values.matchPrefix);
-
-  if (
-    matchPath === undefined ||
-    (targetUrl.pathname !== matchPath &&
-      (matchPrefix === undefined ||
-        (matchPrefix !== "/" && !targetUrl.pathname.startsWith(matchPrefix))))
-  ) {
-    throw new Error("App-registration completion return target does not match the app route.");
-  }
-}
-
-function appRegistrationCompletionId(principalId: string, target: AccountCompletionGateTarget) {
-  return [principalId, target.appInstallId ?? "", target.selectedOrganization ?? ""].join(":");
+  return parseAccountCompletionGateTarget(value);
 }
 
 function termsAcceptanceCompletionId(
@@ -1263,42 +411,10 @@ function termsAcceptanceCompletionId(
   return [
     principalId,
     target.targetProfile,
-    target.appInstallId ?? "",
     target.storageIdentity ?? "",
     target.selectedOrganization ?? "",
     [...policyIds].sort().join(","),
   ].join(":");
-}
-
-async function commitEmailVerifiedAppRegistration(
-  env: AccountCompletionApiEnv,
-  input: {
-    appInstallId: string;
-    completedAt: string;
-    completionId: string;
-    principalId: string;
-    selectedOrganization?: string;
-  },
-): Promise<EmailVerifiedAppRegistrationCommitResult> {
-  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
-  const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
-    new Request(`http://internal${internalEmailVerifiedAppRegistrationCommitPath}`, {
-      body: JSON.stringify(input),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    }),
-  );
-  const body = (await response.json()) as
-    | EmailVerifiedAppRegistrationCommitResult
-    | {
-        error?: string;
-      };
-
-  if (!response.ok || !isEmailVerifiedAppRegistrationCommitResult(body)) {
-    throw new Error(responseBodyError(body) ?? "Identity app-registration commit failed.");
-  }
-
-  return body;
 }
 
 async function commitTermsAcceptance(
@@ -1330,109 +446,6 @@ async function commitTermsAcceptance(
   }
 
   return body;
-}
-
-async function executeProfileCompletionOperation(
-  env: AccountCompletionApiEnv,
-  input: {
-    appInstallId: string;
-    idempotencyKey?: string;
-    input?: unknown;
-    operation: AccountCompletionGateOperationReference;
-    packageAppKey: string;
-    principalId: string;
-    recordId?: string;
-    sessionInstanceId: string;
-    target: AccountCompletionGateTarget & {
-      appInstallId: string;
-      storageIdentity: string;
-    };
-  },
-): Promise<void> {
-  const entityName = parseNonEmptyString(
-    "Profile-completion operation entity name",
-    input.operation.entityName,
-  );
-  const operationName = parseNonEmptyString(
-    "Profile-completion operation operation name",
-    input.operation.operationName,
-  );
-  const id = env.FORMLESS_AUTHORITY.idFromName(`app:${input.appInstallId}`);
-  const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
-    new Request(
-      `http://internal/api/app-installs/${input.packageAppKey}/${input.appInstallId}${INTERNAL_AUTH_PROFILE_COMPLETION_OPERATION_PATH}`,
-      {
-        body: JSON.stringify({
-          actor: {
-            kind: "authenticated",
-            principalId: input.principalId,
-            sessionTarget: {
-              appInstallId: input.target.appInstallId,
-              instanceId: input.sessionInstanceId,
-              routeId: input.target.routeId,
-              storageIdentity: input.target.storageIdentity,
-              targetOrigin: input.target.targetOrigin,
-              targetProfile: input.target.targetProfile,
-            },
-          },
-          operation: {
-            entityName,
-            operationName,
-          },
-          request: {
-            ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: input.idempotencyKey }),
-            ...(input.input === undefined ? {} : { input: input.input }),
-            ...(input.recordId === undefined ? {} : { recordId: input.recordId }),
-          },
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      },
-    ),
-  );
-  const body = (await response.json()) as {
-    error?: string;
-  };
-  if (!response.ok) {
-    throw new Error(body.error ?? "Profile-completion operation failed.");
-  }
-}
-
-function accountCompletionOperationReferencesEqual(
-  left: AccountCompletionGateOperationReference | undefined,
-  right: AccountCompletionGateOperationReference | undefined,
-): boolean {
-  return (
-    left !== undefined &&
-    right !== undefined &&
-    left.appInstallId === right.appInstallId &&
-    left.entityName === right.entityName &&
-    left.operationKey === right.operationKey &&
-    left.operationName === right.operationName
-  );
-}
-
-function isEmailVerifiedAppRegistrationCommitResult(
-  value: unknown,
-): value is EmailVerifiedAppRegistrationCommitResult {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-
-  const record = value as Record<string, unknown>;
-
-  if (record.ok === true) {
-    return (
-      typeof record.status === "string" &&
-      typeof record.appRegistration === "object" &&
-      record.appRegistration !== null &&
-      Array.isArray(record.records)
-    );
-  }
-
-  return (
-    record.ok === false && typeof record.reason === "string" && typeof record.error === "string"
-  );
 }
 
 function isTermsAcceptanceCommitResult(value: unknown): value is TermsAcceptanceCommitResult {
@@ -1490,83 +503,14 @@ function accountCompletionPolicyReference(
   };
 }
 
-function hasRequiredRole(
-  state: AccountCompletionIdentityState,
-  requirement: AccountCompletionRoleReviewRequirement,
-  target: AccountCompletionGateTarget,
-): boolean {
-  const role = activeRoleByKey(state, requirement.roleKey);
-
-  if (!role) {
-    return false;
-  }
-
-  const scopeKind = requirement.scopeKind ?? defaultRoleScopeKind(target);
-
-  return state.roleAssignments.some(
-    (assignment) =>
-      assignment.values.status === "active" &&
-      assignment.values.role === role.id &&
-      roleAssignmentMatchesRequiredScope(assignment, scopeKind, target),
-  );
-}
-
-function activeRoleByKey(
-  state: AccountCompletionIdentityState,
-  roleKey: IdentityControlPlaneRoleKey,
-): StoredRecord | undefined {
-  return state.roles.find(
-    (record) => record.values.status === "active" && record.values.key === roleKey,
-  );
-}
-
-function roleAssignmentMatchesRequiredScope(
-  assignment: StoredRecord,
-  scopeKind: AccountCompletionRoleScopeKind,
-  target: AccountCompletionGateTarget,
-): boolean {
-  if (scopeKind === "instance") {
-    return assignment.values.scopeKind === "instance";
-  }
-
-  if (scopeKind === "app-install") {
-    return (
-      assignment.values.scopeKind === "app-install" &&
-      target.appInstallId !== undefined &&
-      assignment.values.appInstallId === target.appInstallId
-    );
-  }
-
-  return (
-    assignment.values.scopeKind === "organization" &&
-    target.selectedOrganization !== undefined &&
-    assignment.values.scopeOrganization === target.selectedOrganization
-  );
-}
-
-function defaultRoleScopeKind(target: AccountCompletionGateTarget): AccountCompletionRoleScopeKind {
-  if (target.selectedOrganization !== undefined) {
-    return "organization";
-  }
-
-  if (target.targetProfile === "instance") {
-    return "instance";
-  }
-
-  return "app-install";
-}
-
 function emptyAccountCompletionIdentityState(): AccountCompletionIdentityState {
   return {
     accountPolicies: [],
-    appRegistrations: [],
     invitations: [],
     memberships: [],
     policyAcceptances: [],
     primaryEmail: null,
     principal: null,
-    roleAssignments: [],
-    roles: [],
   };
 }
 
@@ -1579,7 +523,6 @@ function parseAccountCompletionGateResolverInput(
     "actorKind",
     "principalId",
     "profileCompletion",
-    "requiredRole",
     "target",
   ]);
 
@@ -1600,55 +543,6 @@ function parseAccountCompletionGateResolverInput(
           principalId: parseNonEmptyString("Account completion principal id", object.principalId),
         }),
     ...parseOptionalProfileCompletionRequirement(object.profileCompletion),
-    ...parseOptionalRoleReviewRequirement(object.requiredRole),
-    target: parseAccountCompletionGateTarget(object.target),
-  };
-}
-
-function parseAccountCompletionAppRegistrationCompleteInput(
-  value: unknown,
-): AccountCompletionAppRegistrationCompleteInput {
-  const object = parseRecord("Account completion app-registration completion input", value);
-
-  assertAllowedKeys("Account completion app-registration completion input", object, ["target"]);
-
-  return {
-    target: parseAccountCompletionGateTarget(object.target),
-  };
-}
-
-function parseAccountCompletionProfileCompletionCompleteInput(
-  value: unknown,
-): AccountCompletionProfileCompletionCompleteInput {
-  const object = parseRecord("Account completion profile-completion input", value);
-
-  assertAllowedKeys("Account completion profile-completion input", object, [
-    "idempotencyKey",
-    "input",
-    "operation",
-    "recordId",
-    "target",
-  ]);
-
-  return {
-    ...(object.idempotencyKey === undefined
-      ? {}
-      : {
-          idempotencyKey: parseNonEmptyString(
-            "Account completion profile-completion idempotencyKey",
-            object.idempotencyKey,
-          ),
-        }),
-    ...(object.input === undefined ? {} : { input: object.input }),
-    operation: parseRequiredProfileCompletionOperationReference(object.operation),
-    ...(object.recordId === undefined
-      ? {}
-      : {
-          recordId: parseNonEmptyString(
-            "Account completion profile-completion recordId",
-            object.recordId,
-          ),
-        }),
     target: parseAccountCompletionGateTarget(object.target),
   };
 }
@@ -1670,21 +564,6 @@ function parseAccountCompletionTermsAcceptanceCompleteInput(
     ),
     target: parseAccountCompletionGateTarget(object.target),
   };
-}
-
-function parseRequiredProfileCompletionOperationReference(
-  value: unknown,
-): AccountCompletionGateOperationReference {
-  const gate = parseAccountCompletionGate({
-    kind: "profile-completion",
-    ...(value === undefined ? {} : { operation: value }),
-  });
-
-  if (gate.kind !== "profile-completion" || gate.operation === undefined) {
-    throw new Error("Account completion profile-completion operation is required.");
-  }
-
-  return gate.operation;
 }
 
 function parseOptionalProfileCompletionRequirement(value: unknown): {
@@ -1724,45 +603,6 @@ function parseOptionalProfileCompletionRequirement(value: unknown): {
       ...(gate.operation === undefined ? {} : { operation: gate.operation }),
       ...(gate.profileRecordId === undefined ? {} : { profileRecordId: gate.profileRecordId }),
       satisfied: object.satisfied,
-    },
-  };
-}
-
-function parseOptionalRoleReviewRequirement(value: unknown): {
-  requiredRole?: AccountCompletionRoleReviewRequirement;
-} {
-  if (value === undefined) {
-    return {};
-  }
-
-  const object = parseRecord("Account completion role requirement", value);
-
-  assertAllowedKeys("Account completion role requirement", object, [
-    "operation",
-    "roleKey",
-    "scopeKind",
-  ]);
-
-  const gate = parseAccountCompletionGate({
-    kind: "role-review",
-    ...(object.operation === undefined ? {} : { operation: object.operation }),
-    roleKey: parseStringLiteral(
-      "Account completion role requirement roleKey",
-      object.roleKey,
-      identityControlPlaneRoleKeys,
-    ),
-    ...(object.scopeKind === undefined ? {} : { scopeKind: object.scopeKind }),
-  });
-
-  if (gate.kind !== "role-review" || gate.roleKey === undefined) {
-    throw new Error("Account completion role requirement is invalid.");
-  }
-
-  return {
-    requiredRole: {
-      ...(gate.operation === undefined ? {} : { operation: gate.operation }),
-      roleKey: gate.roleKey,
-      ...(gate.scopeKind === undefined ? {} : { scopeKind: gate.scopeKind }),
     },
   };
 }
@@ -1857,14 +697,6 @@ function parseUniqueNonEmptyStringList(context: string, value: unknown): string[
   }
 
   return parsed;
-}
-
-function absolutePath(value: unknown): `/${string}` | undefined {
-  return typeof value === "string" && value.startsWith("/") ? (value as `/${string}`) : undefined;
-}
-
-function optionalAbsolutePath(value: unknown): `/${string}` | undefined {
-  return value === undefined ? undefined : absolutePath(value);
 }
 
 async function readJson(request: Request): Promise<unknown> {

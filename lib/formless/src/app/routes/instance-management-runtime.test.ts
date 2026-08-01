@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vite-plus/test";
 import type {
   ManagementReadyContract,
@@ -6,14 +5,12 @@ import type {
   WorkspaceIntent,
 } from "@dpeek/formless-presentation/contract";
 import { workspaceManifestReference } from "@dpeek/formless-presentation/host";
-import type { InstallableAppPackage } from "@dpeek/formless-installed-apps";
 import type { WorkspaceGatewayOperation } from "@dpeek/formless-gateway/client";
 import { createApplicationRuntimePublicationCoordinator } from "../generated/application-runtime-contract-host.tsx";
 import { prepareGeneratedWorkspaceRuntimePublication } from "../generated/generated-workspace-contract-host.ts";
 import type { GeneratedWorkspaceRuntimeController } from "../generated/generated-workspace-runtime.tsx";
-import type { InstanceShellRouteState, WorkspaceGatewayRouteState } from "./instance-shell.tsx";
+import type { WorkspaceGatewayRouteState } from "./instance-shell.tsx";
 import {
-  instanceManagementInstallDialogReference,
   instanceManagementReference,
   projectInstanceManagement,
   resolveInstanceManagementIntent,
@@ -23,489 +20,90 @@ import {
 import { createInstanceManagementRuntimePublicationController } from "./instance-management-runtime.tsx";
 import { initialInstanceManagementRuntimeContribution } from "./instance-management-contract.ts";
 
-const appsReference = workspaceManifestReference("instance-apps");
 const routesReference = workspaceManifestReference("instance-routes");
-const privateCrmPackage: InstallableAppPackage = {
-  adminRouteBase: "/apps",
-  defaultInstallId: "private-crm",
-  description: "Private CRM package.",
-  label: "CRM",
-  packageAppKey: "private-crm",
-  packageRevision: 1,
-  sourceOrigin: "workspace",
-  sourceSchemaHash: "sha256:8888888888888888888888888888888888888888888888888888888888888888",
-  sourceSchemaKey: "private-crm",
-  sourceSchemaLocation: {
-    key: "private-crm",
-    kind: "workspace",
-    path: "source/schema.json",
-  },
-  supportsMultipleInstalls: false,
-};
 
 describe("instance management projection", () => {
-  it("projects loading and display-safe failure independently from gateway availability", () => {
-    expect(projectInstanceManagement(input({ state: { status: "loading" } })).manifest).toEqual({
-      accessibilityLabel: "Instance management",
-      id: "instance-management",
-      kind: "managementManifest",
-      message: "Loading installed apps...",
+  it("projects loading, failure, and the current routes workspace", () => {
+    expect(projectInstanceManagement(input({ workspaces: undefined })).manifest).toMatchObject({
+      message: "Loading Program routes...",
       state: "loading",
-      title: "Instance Settings",
     });
 
-    const failed = projectInstanceManagement(
-      input({
-        state: {
-          message:
-            'Failed at /Users/ada/formless with CLOUDFLARE_API_TOKEN="secret-provider-token".',
-          status: "failed",
-        },
-      }),
-    ).manifest;
-    expect(failed.state).toBe("failed");
-    expect(JSON.stringify(failed)).toContain("<path>");
-    expect(JSON.stringify(failed)).toContain("[redacted]");
-    expect(JSON.stringify(failed)).not.toContain("secret-provider-token");
-
-    const unavailable = readyProjection({
-      state: readyState({ packages: [] }),
-      workspaceGatewayState: { status: "unavailable" },
-    });
-    const gatewayFailed = readyProjection({
-      workspaceGatewayState: {
-        message: "Gateway failed at /Users/ada/formless with owner-setup-token owner-secret",
-        status: "failed",
-      },
-    });
-
-    expect(unavailable.manifest.state).toBe("ready");
-    expect(unavailable.dialog).toBeUndefined();
-    expect(readyManifest(unavailable).workspaceOperation).toBeUndefined();
-    expect(readyManifest(unavailable).workspaces).toEqual([
-      { reference: appsReference, role: "apps" },
-    ]);
-    expect(readyManifest(readyProjection({ activeWorkspace: "routes" })).workspaces).toEqual([
-      { reference: routesReference, role: "routes" },
-    ]);
-    expect(gatewayFailed.manifest.state).toBe("ready");
-    expect(readyManifest(gatewayFailed).workspaceOperation).toBeUndefined();
-    expect(readyManifest(gatewayFailed).workspaceFeedback).toMatchObject({
-      detail: "Gateway failed at <path> with owner-setup-token [redacted]",
-      intent: "danger",
-      title: "Push unavailable",
-    });
-    expect(JSON.stringify(gatewayFailed.manifest)).not.toContain("owner-secret");
-
-    const controlPlaneFailed = projectInstanceManagement(
-      input({
-        controlPlaneLoadError: "Control-plane bootstrap failed.",
-        state: readyState(),
-      }),
-    );
-    expect(controlPlaneFailed.manifest).toMatchObject({
-      feedback: {
-        detail: "Control-plane bootstrap failed.",
-        title: "Instance management unavailable",
-      },
+    expect(
+      projectInstanceManagement(input({ controlPlaneLoadError: "Control-plane bootstrap failed." }))
+        .manifest,
+    ).toMatchObject({
+      feedback: { detail: "Control-plane bootstrap failed." },
       state: "failed",
     });
+
+    const ready = readyManifest(projectInstanceManagement(input()));
+    expect(ready.workspaces).toEqual([{ reference: routesReference, role: "routes" }]);
   });
 
-  it("projects controlled package fields, validation, pending state, and failed submission feedback", () => {
-    const invalid = readyProjection({
-      installDialogOpen: true,
-      installDrafts: {
-        "private-crm": { installId: "Bad Id", label: "" },
-        tasks: { installId: "tasks", label: "Tasks" },
-      },
-      selectedPackageAppKey: "private-crm",
-    });
-    const invalidDialog = required(invalid.dialog);
+  it("projects and resolves workspace push without install intents", () => {
+    const projection = projectInstanceManagement(input({ workspaceGatewayState: gatewayReady() }));
+    const workspaceOperation = required(readyManifest(projection).workspaceOperation);
+    const intent = {
+      controlId: workspaceOperation.control.id,
+      intent: workspaceOperation.control.trigger.intent,
+      managementId: readyManifest(projection).id,
+      operationId: workspaceOperation.id,
+      type: "managementWorkspaceOperation" as const,
+    };
 
-    expect(invalidDialog.open).toBe(true);
-    expect(invalidDialog.packageOptions.map(({ packageAppKey }) => packageAppKey)).toEqual([
-      "private-crm",
-    ]);
-    expect(invalidDialog.errors).toEqual([
-      "Install label is required.",
-      "Install id must start with a lowercase letter and use lowercase letters, numbers, and single hyphens.",
-    ]);
-    expect(invalidDialog.fields.label.errors).toEqual([
-      { fieldName: "label", message: "Install label is required." },
-    ]);
-    expect(invalidDialog.submit.disabled).toBe(true);
-
-    const pending = readyProjection({
-      state: readyState({ installing: true, installingPackageAppKey: "private-crm" }),
-      selectedPackageAppKey: "private-crm",
-    });
-    const pendingDialog = required(pending.dialog);
-    expect(pendingDialog.pending).toEqual({ isPending: true, label: "Installing app" });
-    expect(pendingDialog.fields.installId.pending).toEqual({
-      isPending: true,
-      label: "Installing app",
-    });
-    expect(pendingDialog.submit).toMatchObject({ disabled: true });
-    expect(pendingDialog.submit.content).toEqual({ kind: "label", label: "Installing..." });
-
-    const failed = readyProjection({
-      state: readyState({
-        installError:
-          'Install failed at /Users/ada/formless with ALCHEMY_API_KEY="secret-alchemy-key".',
-        installErrorPackageAppKey: "private-crm",
-      }),
-      selectedPackageAppKey: "private-crm",
-    });
-    expect(failed.selectedPackageAppKey).toBe("private-crm");
-    expect(required(failed.dialog).feedback?.detail).toContain("<path>");
-    expect(JSON.stringify(failed.dialog)).not.toContain("secret-alchemy-key");
-  });
-
-  it("projects Push lifecycle, progress, authorization, and secret-free host presentation", () => {
-    const idle = readyProjection({ workspaceGatewayState: gatewayReady() });
-    const pending = readyProjection({
-      workspaceGatewayState: gatewayReady({
-        currentOperation: operation({
-          events: [
-            {
-              at: "2026-07-16T00:00:01.000Z",
-              id: "event:authorize",
-              profileLabel: "Local Cloudflare",
-              provider: "cloudflare",
-              status: "waiting",
-              type: "externalAuthorizationUrl",
-              url: "https://dash.cloudflare.com/oauth/authorize?client_id=formless",
-            },
-          ],
-          operation: "push",
-          status: "running",
-          steps: [
-            { id: "plan", label: "Plan", status: "succeeded" },
-            {
-              detail: "Writing /Users/ada/formless with API_TOKEN=secret-step-token",
-              id: "push",
-              label: "Push source",
-              status: "running",
-            },
-          ],
-          summary: { fields: {}, title: "Pushing /Users/ada/formless" },
-        }),
-      }),
-    });
-    const succeeded = readyProjection({
-      workspaceGatewayState: gatewayReady({
-        currentOperation: operation({ operation: "push", status: "succeeded" }),
-      }),
-    });
-    const failed = readyProjection({
-      workspaceGatewayState: gatewayReady({
-        currentOperation: operation({ operation: "push", status: "failed" }),
-        error: "Push failed with CLOUDFLARE_API_TOKEN=secret-failure-token",
-      }),
-    });
-
-    expect(required(readyManifest(idle).workspaceOperation).control.status.status).toBe("idle");
-    expect(required(readyManifest(pending).workspaceOperation).control).toMatchObject({
-      progress: {
-        steps: [
-          { id: "plan", status: "succeeded" },
-          { detail: "Writing <path> with API_TOKEN=[redacted]", id: "push", status: "running" },
-        ],
-        title: "Pushing <path>",
-      },
-      status: { status: "pending" },
-      trigger: { disabled: true },
-    });
-    expect(required(readyManifest(succeeded).workspaceOperation).control.status.status).toBe(
-      "committed",
-    );
-    expect(required(readyManifest(failed).workspaceOperation).control.status).toMatchObject({
-      detail: "Push failed with CLOUDFLARE_API_TOKEN=[redacted]",
-      status: "failed",
-    });
-    expect(readyManifest(pending).workspaceOperation?.authorizationPrompt).toMatchObject({
-      detail: "Local Cloudflare requires external authorization.",
-      title: "Cloudflare authorization",
-    });
-    expect(pending.authorization?.url).toBe(
-      "https://dash.cloudflare.com/oauth/authorize?client_id=formless",
-    );
-    expect(JSON.stringify(pending.manifest)).not.toContain("dash.cloudflare.com");
-    expect(JSON.stringify(pending.manifest)).not.toContain("secret-step-token");
-
-    const operationIntent = managementPushIntent(pending);
-    expect(resolveInstanceManagementIntent(pending, operationIntent)).toEqual({
-      kind: "ignored",
+    expect(resolveInstanceManagementIntent(projection, intent)).toEqual({
+      kind: "workspacePush",
     });
   });
 });
 
 describe("instance management runtime publication", () => {
-  it("receives control-plane load failures without subscribing to global sync feedback", async () => {
-    const source = await readFile(
-      new URL("./instance-management-runtime.tsx", import.meta.url),
-      "utf8",
-    );
-
-    expect(source).toContain("onClientLoadStateChange={updateControlPlaneLoadState}");
-    expect(source).not.toContain("useSyncStatus");
-  });
-
-  it("atomically composes current workspace nodes and dispatches exact latest intents", async () => {
-    const application = createApplicationRuntimePublicationCoordinator();
-    const runtime = createInstanceManagementRuntimePublicationController(application);
-    const calls: Array<{
-      kind: string;
-      value?: unknown;
-    }> = [];
-    const actions = actionsRecording(calls);
-    const appWorkspaceIntents: WorkspaceIntent[] = [];
-    runtime.updateRuntime(input(), actions);
-    expect(required(application.host.read(instanceManagementReference)).state).toBe("loading");
-    runtime.updateWorkspace(
-      "apps",
-      workspaceController("instance-apps", "Apps · empty", (intent) =>
-        appWorkspaceIntents.push(intent),
-      ),
-    );
-    expect(required(application.host.read(instanceManagementReference)).state).toBe("loading");
-
-    runtime.updateWorkspace("routes", workspaceController("instance-routes", "Routes · empty"));
-    const ready = readyManifest({
-      manifest: required(application.host.read(instanceManagementReference)),
-    });
-    const dialog = required(application.host.read(instanceManagementInstallDialogReference));
-    expect(ready.state).toBe("ready");
-    expect(application.host.read(ready.workspaces[0].reference)?.label).toBe("Apps · empty");
-    expect(ready.workspaces).toEqual([{ reference: appsReference, role: "apps" }]);
-
-    runtime.updateWorkspace(
-      "apps",
-      workspaceController("instance-apps", "Apps · 2 installed", (intent) =>
-        appWorkspaceIntents.push(intent),
-      ),
-    );
-    expect(application.host.read(ready.workspaces[0].reference)?.label).toBe("Apps · 2 installed");
-
-    await application.host.dispatch({ ...dialog.closeIntent, open: true });
-    await application.host.dispatch(dialog.packageOptions[0]!.selectionIntent);
-    await application.host.dispatch({
-      dialogId: dialog.id,
-      fieldId: dialog.fields.label.fieldId,
-      intent: {
-        fieldName: "label",
-        fieldValue: { kind: "input", value: "Task Space" },
-        type: "createDraftChange",
-      },
-      managementId: ready.id,
-      type: "managementInstallField",
-    });
-    await application.host.dispatch(dialog.submitIntent);
-    await application.host.dispatch(managementPushIntent({ manifest: ready }));
-    expect(calls).toEqual([
-      { kind: "dialog", value: true },
-      { kind: "package", value: "private-crm" },
-      { kind: "draft", value: ["private-crm", { installId: "private-crm", label: "Task Space" }] },
-      { kind: "submit", value: "private-crm" },
-      { kind: "push" },
-    ]);
-
-    const workspaceIntent = {
-      collectionId: "app-installs",
-      queryId: "all",
-      screenId: "instance-apps",
-      sectionId: "app-installs",
-      type: "workspaceQuerySelection",
-    } as const;
-    await application.host.dispatch(workspaceIntent);
-    expect(appWorkspaceIntents).toEqual([workspaceIntent]);
-
-    runtime.updateRuntime(
-      input({
-        workspaceGatewayState: gatewayReady({
-          currentOperation: operation({
-            events: [
-              {
-                at: "2026-07-16T00:00:01.000Z",
-                id: "event:authorize",
-                profileLabel: "Local Cloudflare",
-                provider: "cloudflare",
-                status: "waiting",
-                type: "externalAuthorizationUrl",
-                url: "https://dash.cloudflare.com/oauth/authorize?client_id=formless",
-              },
-            ],
-            id: "op_push_00000009",
-            operation: "push",
-            status: "running",
-          }),
-        }),
-      }),
-      actions,
-    );
-    const authorized = readyManifest({
-      manifest: required(application.host.read(instanceManagementReference)),
-    });
-    await application.host.dispatch(
-      required(authorized.workspaceOperation?.authorizationPrompt).intent,
-    );
-    expect(calls.slice(-2)).toEqual([
-      {
-        kind: "open",
-        value: "https://dash.cloudflare.com/oauth/authorize?client_id=formless",
-      },
-      { kind: "poll", value: ["op_push_00000009", "push"] },
-    ]);
-
-    await application.host.dispatch(managementPushIntent({ manifest: authorized }));
-    expect(calls.filter(({ kind }) => kind === "push")).toHaveLength(1);
-
-    runtime.dispose();
-    expect(application.host.read(instanceManagementReference)).toBeUndefined();
-    expect(application.host.read(appsReference)).toBeUndefined();
-
-    runtime.activate();
-    expect(required(application.host.read(instanceManagementReference)).state).toBe("ready");
-    expect(application.host.read(appsReference)?.label).toBe("Apps · 2 installed");
-    runtime.dispose();
-  });
-
-  it("replaces the server loading contribution without an absent management snapshot", () => {
+  it("publishes the routes workspace through one management node", () => {
     const application = createApplicationRuntimePublicationCoordinator([
       initialInstanceManagementRuntimeContribution,
     ]);
-    const observedStates: string[] = [
-      required(application.host.read(instanceManagementReference)).state,
-    ];
-    application.host.subscribe(instanceManagementReference, () => {
-      observedStates.push(application.host.read(instanceManagementReference)?.state ?? "absent");
-    });
     const runtime = createInstanceManagementRuntimePublicationController(application);
 
-    runtime.updateRuntime(input(), actionsRecording([]));
-    runtime.updateWorkspace("apps", workspaceController("instance-apps", "Apps"));
-    runtime.updateWorkspace("routes", workspaceController("instance-routes", "Routes"));
+    runtime.updateWorkspace(workspaceController());
+    runtime.updateRuntime(input({ workspaces: undefined }), actions());
+    runtime.activate();
 
-    expect(observedStates[0]).toBe("loading");
-    expect(observedStates.at(-1)).toBe("ready");
-    expect(observedStates).not.toContain("absent");
-  });
-  it("keeps invalid and failed install outcomes current without dispatching disabled submits", async () => {
-    const calls: Array<{
-      kind: string;
-      value?: unknown;
-    }> = [];
-    const application = createApplicationRuntimePublicationCoordinator();
-    const runtime = createInstanceManagementRuntimePublicationController(application);
-    const actions = actionsRecording(calls);
-    runtime.updateWorkspace("apps", workspaceController("instance-apps", "Apps"));
-    runtime.updateWorkspace("routes", workspaceController("instance-routes", "Routes"));
-    runtime.updateRuntime(
-      input({ installDrafts: { "private-crm": { installId: "Bad Id", label: "" } } }),
-      actions,
-    );
+    const manifest = required(application.host.read(instanceManagementReference));
+    expect(manifest.state).toBe("ready");
+    expect(manifest.state === "ready" ? manifest.workspaces : []).toEqual([
+      { reference: routesReference, role: "routes" },
+    ]);
 
-    const invalidDialog = required(application.host.read(instanceManagementInstallDialogReference));
-    await application.host.dispatch(invalidDialog.submitIntent);
-    expect(calls).toEqual([]);
-
-    runtime.updateRuntime(
-      input({
-        state: readyState({
-          installError: "Install failed with API_TOKEN=private-install-token",
-          installErrorPackageAppKey: "private-crm",
-        }),
-      }),
-      actions,
-    );
-    const failedDialog = required(application.host.read(instanceManagementInstallDialogReference));
-    expect(failedDialog.feedback?.detail).toBe("Install failed with API_TOKEN=[redacted]");
-    expect(JSON.stringify(failedDialog)).not.toContain("private-install-token");
+    runtime.dispose();
+    expect(application.host.read(instanceManagementReference)).toBeUndefined();
   });
 });
 
-function input(overrides: Partial<ProjectInstanceManagementOptions> = {}): Omit<
-  ProjectInstanceManagementOptions,
-  "workspaces"
-> & {
-  workspaces?: ProjectInstanceManagementOptions["workspaces"];
-} {
+function input(
+  overrides: Partial<ProjectInstanceManagementOptions> = {},
+): ProjectInstanceManagementOptions {
   return {
-    activeWorkspace: "apps",
-    installDialogOpen: false,
-    installDrafts: {
-      "private-crm": { installId: "private-crm", label: "CRM" },
-      site: { installId: "site", label: "Site" },
-      tasks: { installId: "tasks", label: "Tasks" },
-    },
-    state: readyState(),
     workspaceGatewayState: gatewayReady(),
+    workspaces: { routes: routesReference },
     ...overrides,
   };
 }
 
-function readyProjection(overrides: Partial<ProjectInstanceManagementOptions> = {}) {
-  return projectInstanceManagement(
-    input({ workspaces: { apps: appsReference, routes: routesReference }, ...overrides }),
-  );
-}
-
-function readyManifest(projection: {
-  manifest: ReturnType<typeof projectInstanceManagement>["manifest"];
-}): ManagementReadyContract {
-  if (projection.manifest.state !== "ready") {
-    throw new Error(`Expected ready management, received ${projection.manifest.state}.`);
-  }
-  return projection.manifest;
-}
-function readyState(
-  overrides: Partial<
-    Extract<
-      InstanceShellRouteState,
-      {
-        status: "ready";
-      }
-    >
-  > = {},
-): Extract<
-  InstanceShellRouteState,
-  {
-    status: "ready";
-  }
-> {
-  return {
-    installing: false,
-    installs: [],
-    packages: [privateCrmPackage],
-    status: "ready",
-    ...overrides,
-  };
-}
 function gatewayReady(
-  overrides: Partial<
-    Extract<
-      WorkspaceGatewayRouteState,
-      {
-        status: "ready";
-      }
-    >
-  > = {},
-): Extract<
-  WorkspaceGatewayRouteState,
-  {
-    status: "ready";
-  }
-> {
+  overrides: Partial<Extract<WorkspaceGatewayRouteState, { status: "ready" }>> = {},
+): Extract<WorkspaceGatewayRouteState, { status: "ready" }> {
   return {
     csrfToken: "csrf-token",
-    currentOperation: operation(),
+    currentOperation: statusOperation(),
     status: "ready",
     ...overrides,
   };
 }
 
-function operation(overrides: Partial<WorkspaceGatewayOperation> = {}): WorkspaceGatewayOperation {
+function statusOperation(
+  overrides: Partial<WorkspaceGatewayOperation> = {},
+): WorkspaceGatewayOperation {
   return {
     actor: "browser",
     createdAt: "2026-07-16T00:00:00.000Z",
@@ -526,30 +124,15 @@ function operation(overrides: Partial<WorkspaceGatewayOperation> = {}): Workspac
   };
 }
 
-function managementPushIntent(projection: {
-  manifest: ReturnType<typeof projectInstanceManagement>["manifest"];
-}) {
-  const operation = required(readyManifest(projection).workspaceOperation);
-  return {
-    controlId: operation.control.id,
-    intent: operation.control.trigger.intent,
-    managementId: readyManifest(projection).id,
-    operationId: operation.id,
-    type: "managementWorkspaceOperation" as const,
-  };
-}
-
 function workspaceController(
-  id: string,
-  label: string,
   dispatch: (intent: WorkspaceIntent) => void = () => undefined,
 ): GeneratedWorkspaceRuntimeController {
   const workspace: WorkspaceContract = {
-    accessibilityLabel: `${label} workspace`,
+    accessibilityLabel: "Routes workspace",
     actions: [],
-    id,
+    id: "instance-routes",
     kind: "workspace",
-    label,
+    label: "Routes",
     sections: [],
     width: "standard",
   };
@@ -559,28 +142,22 @@ function workspaceController(
     workspace,
   };
 }
-function actionsRecording(
-  calls: Array<{
-    kind: string;
-    value?: unknown;
-  }>,
-): InstanceManagementIntentActions {
+
+function actions(): InstanceManagementIntentActions {
   return {
-    changeInstallDialogOpen: (open) => calls.push({ kind: "dialog", value: open }),
-    changeInstallDraft: (packageAppKey, draft) =>
-      calls.push({ kind: "draft", value: [packageAppKey, draft] }),
-    openAuthorization: (url) => calls.push({ kind: "open", value: url }),
-    pollWorkspaceOperation: (operationId, operationKind) => {
-      calls.push({ kind: "poll", value: [operationId, operationKind] });
-    },
-    selectInstallPackage: (packageAppKey) => calls.push({ kind: "package", value: packageAppKey }),
-    startWorkspacePush: () => {
-      calls.push({ kind: "push" });
-    },
-    submitInstall: (packageAppKey) => {
-      calls.push({ kind: "submit", value: packageAppKey });
-    },
+    openAuthorization: () => undefined,
+    pollWorkspaceOperation: () => undefined,
+    startWorkspacePush: () => undefined,
   };
+}
+
+function readyManifest(projection: {
+  manifest: ReturnType<typeof projectInstanceManagement>["manifest"];
+}): ManagementReadyContract {
+  if (projection.manifest.state !== "ready") {
+    throw new Error(`Expected ready management, received ${projection.manifest.state}.`);
+  }
+  return projection.manifest;
 }
 
 function required<T>(value: T | null | undefined): T {

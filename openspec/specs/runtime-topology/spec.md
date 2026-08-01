@@ -4,7 +4,7 @@
 
 Runtime topology defines the observable profile, route policy, route access,
 mapped host, and request routing contracts for a Formless instance. It keeps
-product instance, dev workbench, app, and published Site
+product instance, dev workbench, and published Site
 behavior coherent across browser shells, APIs, static assets, SSR documents,
 indexing, icons, public Site routes, cross-domain auth callback routes, and
 local workspace gateway route eligibility.
@@ -14,7 +14,7 @@ local workspace gateway route eligibility.
 ### Requirement: Profile Resolution
 
 The system SHALL resolve each runtime request to one runtime profile kind:
-`instance`, `dev`, `app`, or `publishedSite`.
+`instance`, `dev`, or `publishedSite`.
 
 #### Scenario: Explicit profile wins
 
@@ -26,32 +26,31 @@ The system SHALL resolve each runtime request to one runtime profile kind:
 #### Scenario: Host convention infers profile
 
 - GIVEN no explicit runtime profile is configured
-- WHEN the hostname starts with `app.`, `instance.`, or `published-site.`
-- THEN the request resolves to the matching `app`, `instance`, or
-  `publishedSite` profile
+- WHEN the hostname starts with `instance.` or `published-site.`
+- THEN the request resolves to the matching `instance` or `publishedSite`
+  profile
 - AND a `*.workers.dev` host resolves to `publishedSite`
 
 ### Requirement: Profile Route Policy
 
 The system MUST apply profile route policy before selecting browser shell, API,
-static asset, SSR handling, or local workspace gateway proxy behavior. Program
-and installed-app API routes are the only app-data route families.
+static asset, SSR handling, or local workspace gateway proxy behavior. The
+Program API is the only generic data route family.
 
 #### Scenario: Product instance route policy
 
 - GIVEN the runtime profile is `instance`
 - WHEN a request targets a former schema-key browser or API route
 - THEN that route is not a current runtime surface
-- AND the Program browser and `/api/formless/program` route family, installed
-  app API routes, installed app browser routes, Program-native Site preview and
-  public routes, account auth routes, principal-backed browser session routes,
-  instance browser routes, and the workspace gateway API route family remain
-  route-policy eligible
+- AND the Program browser and `/api/formless/program` route family,
+  Program-native Site preview and public routes, account auth routes,
+  principal-backed browser session routes, instance browser routes, and the
+  workspace gateway API route family remain route-policy eligible
 
 #### Scenario: Dev route policy
 
 - GIVEN the runtime profile is `dev`
-- WHEN a request targets the Program, an installed app, Program public Site,
+- WHEN a request targets the Program, Program public Site,
   instance, account auth, or workspace gateway API routes
 - THEN those route families remain available
 - AND the dev workbench composes Program and product instance surfaces together
@@ -66,15 +65,10 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 
 - GIVEN the runtime profile is `instance`
 - WHEN a browser navigates to `/`, `/tasks`, `/site`, `/site/settings`,
-  `/site/contacts`, `/site/subscribers`, `/pages`, `/pages/*`, `/apps`,
-  `/routes`, `/deployments`,
-  `/organizations`, `/access`, `/invitations`, `/policies`, `/settings`,
-  `/apps/<installId>`, or `/apps/<installId>/*`
+  `/site/contacts`, `/site/subscribers`, `/pages`, `/pages/*`, `/routes`,
+  `/deployments`,
+  `/organizations`, `/access`, `/invitations`, `/policies`, or `/settings`
 - THEN the request is eligible for the client shell
-- AND a default installed-app admin route matches its exact base and generated
-  nested screen paths through `/apps/<installId>/`
-- AND a more-specific exact path or longer nested route outranks that base
-  admin prefix
 - AND former source-app routes are not separately eligible browser routes
 
 #### Scenario: Product instance Program routes
@@ -93,10 +87,8 @@ The system SHALL mount browser surfaces according to the active runtime profile.
   requirements
 - AND `/pages` and nested `/pages/*` paths select the authenticated
   Program-native Site preview
-- AND `/apps` selects the root-owned screen that composes app installs and app
-  registrations
 - AND Program navigation order comes from the materialized Program artifact
-- AND Apps, Routes, Deployments, Principals, Organizations, Access, Invitations,
+- AND Routes, Deployments, Principals, Organizations, Access, Invitations,
   Policies, and Settings each declare the schema-defined Program
   `administrator` role requirement
 - AND Tasks declares the schema-defined Program `member` role requirement
@@ -119,7 +111,7 @@ The system SHALL mount browser surfaces according to the active runtime profile.
   role satisfies the management route while identity summary reads,
   collaborator invitation creation, role grants, and destructive identity
   actions remain authorized by identity-control-plane management rules
-- AND installed app routing, public Site routing, account orchestrator routes,
+- AND public Site routing, account orchestrator routes,
   account gate routes, and raw generated identity-control-plane record editing
   remain separate route families
 
@@ -133,7 +125,7 @@ The system SHALL mount browser surfaces according to the active runtime profile.
   protected owner authority
 - AND deployment operations, provider cleanup, credential handling, and owner
   recovery retain their independently evaluated authorization requirements
-- AND installed app routing, public Site routing, account orchestrator routes,
+- AND public Site routing, account orchestrator routes,
   and account gate routes remain separate route families
 
 #### Scenario: Product instance account gate routes
@@ -157,240 +149,78 @@ The system SHALL mount browser surfaces according to the active runtime profile.
   `/formless/auth/*`
 - THEN the client shell is eligible to render the runtime-owned account
   orchestrator or account gate surface
-- AND the route is reserved runtime auth behavior rather than an installed app,
-  public Site document, source app screen, generated identity-control-plane
+- AND the route is reserved runtime auth behavior rather than a public Site
+  document, source app screen, generated identity-control-plane
   editor, schema-key route, or static asset fallback
 - AND protected target continuations remain governed by route access policy and
   account completion gates before the target surface is served
-- AND mapped app, mapped public Site, and non-auth mapped instance hosts do not
+- AND mapped public Site and non-auth mapped instance hosts do not
   become WebAuthn relying parties by serving the account orchestrator routes
-
-#### Scenario: App profile mounts one app
-
-- GIVEN the runtime profile is `app`
-- WHEN a browser navigates to `/` or an app screen path such as `/schema`
-- THEN the selected installed app is mounted as the app surface
-- AND `/schema` is not reserved for frontend schema editing
 
 ### Requirement: Route Access Policy
 
-The system SHALL evaluate route access after runtime profile route eligibility
-and enabled route-record resolution, and before serving protected browser
-surfaces or protected management API data.
+The system SHALL evaluate current Program route access after profile and
+route-record selection and before protected browser or API behavior.
 
-#### Scenario: Resolve effective Program screen admission
+#### Scenario: Program screen admission
 
-- GIVEN profile and enabled route-record resolution select a Program browser
-  screen
-- WHEN runtime topology resolves effective browser admission
-- THEN it combines the matched route access floor with the selected screen's
-  browser access requirement
-- AND the browser must satisfy both requirements
-- AND an authenticated, management, or owner route floor cannot be weakened by
-  a less restrictive screen
-- AND a stricter screen can narrow a less restrictive route
-- AND on the default instance host, the selected Program screen requirement
-  replaces hard-coded access classification by pathname
-- AND direct entry, mapped-host entry, account continuation, route-target
-  session status, and client navigation identify the same concrete screen
-  target and requirement
+- GIVEN profile and route resolution select a Program browser screen
+- WHEN admission is evaluated
+- THEN the browser satisfies both the matched route access floor and the
+  screen's explicit Program access requirement
+- AND replica membership, path names, package keys, module keys, declaration
+  order, or navigation membership do not infer route authority
 
-#### Scenario: Reject missing Program screen admission
+#### Scenario: Authenticated Program route
 
-- GIVEN a browser path selects the active Program
-- WHEN no declared Program screen and explicit screen access requirement
-  resolves for that path
-- THEN runtime does not infer access from the path, primary navigation,
-  declaration order, module key, schema key, or Program replica membership
-- AND protected Program presentation fails closed before serving the screen or
-  protected data
+- GIVEN a Program route has effective access `authenticated`
+- WHEN the request carries a valid central, local-owner, or matching host-local
+  session for an active principal and Program storage identity
+- THEN the route remains eligible
+- AND authenticated access does not itself grant management, operation, or
+  owner authority
 
-#### Scenario: Anonymous authenticated browser route
+#### Scenario: Management Program route
 
-- GIVEN a runtime browser route has effective access `authenticated`
-- AND the request is a `GET` or `HEAD` request that accepts HTML
-- WHEN the request does not include a valid session for an active principal on
-  the matched host, route, target profile, and target app install or storage
-  identity
-- THEN the runtime redirects to `/formless/auth` on the configured auth origin
-  through safe return-target or target-bound handoff rules
-- AND the authenticated browser shell, generated app surface, public Site
-  document, or app screen is not served before authentication completes
+- GIVEN a Program route has effective access `management`
+- WHEN the active principal has protected-owner authority or the schema-defined
+  Program `administrator` role
+- THEN the route remains eligible
+- AND management access does not grant owner recovery or weaken an operation's
+  independent access requirement
 
-#### Scenario: Authenticated browser route
+#### Scenario: Owner Program route
 
-- GIVEN a runtime browser route has effective access `authenticated`
-- WHEN the request includes a valid central auth session on the configured auth
-  origin, local-dev owner session, or host-local session for an active principal
-  on the matched host, route, target profile, and target app install or storage
-  identity
-- THEN the route remains eligible for the matching browser shell, generated app
-  surface, public Site document, or app screen
-- AND `authenticated` access does not by itself grant owner-only instance
-  management authority
+- GIVEN a Program route has effective access `owner`
+- WHEN the active principal has current `instance.owner` authority
+- THEN the route remains eligible
+- AND stale signed session facts do not retain owner access
 
-#### Scenario: Management browser route
+#### Scenario: Anonymous protected Program route
 
-- GIVEN a runtime browser route has effective access `management`
-- WHEN the request includes a valid central auth session on the configured auth
-  origin, local-dev owner session, or matching host-local session for an active
-  principal with protected owner authority or the schema-defined Program
-  `administrator` role
-- THEN the route remains eligible for the instance settings or access
-  management surface
-- AND `management` remains presentation and route-admission terminology whose
-  authoritative Program check is the shared `{ role: "administrator" }`
-  requirement
-- AND owner recovery, owner-role management, auth-origin policy, browser
-  session signing policy, and admin-bearer recovery remain owner-only
+- GIVEN an authenticated, management, or owner Program route receives an HTML
+  request without current matching authority
+- WHEN the route is evaluated
+- THEN the runtime continues through the configured auth origin and target-bound
+  handoff rules
+- AND it does not serve the protected Program shell or data first
 
-#### Scenario: Anonymous management browser route
+#### Scenario: Protected Program API
 
-- GIVEN a runtime browser route has effective access `management`
-- AND the request is a `GET` or `HEAD` request that accepts HTML
-- WHEN the request does not include a valid session for an active principal
-- THEN the runtime redirects through `/formless/auth` on the configured auth
-  origin
-- AND credential entry uses generic account sign-in without selecting or
-  disclosing the configured owner
-- AND after authentication the account orchestrator evaluates the resolved
-  principal's current management authority before serving the route
+- GIVEN a protected Program API request is received
+- WHEN the current principal, route, Program storage identity, or required
+  Program role does not match
+- THEN the runtime returns an unauthorized response
+- AND route eligibility does not replace operation or owner-only authorization
 
-#### Scenario: Authenticated principal without management authority
+#### Scenario: Anonymous route remains narrow
 
-- GIVEN a runtime browser route has effective access `management`
-- AND the request includes a valid session for an active principal without
-  protected owner authority or the schema-defined Program `administrator` role
-- WHEN the runtime evaluates the route
-- THEN it does not serve the management surface
-- AND the account orchestrator returns a display-safe forbidden outcome instead
-  of restarting account sign-in
-
-#### Scenario: Program replica access does not open management routes
-
-- GIVEN an active principal satisfies the Program `{ role: "member" }` replica
-  requirement but not the `{ role: "administrator" }` management requirement
-- WHEN the principal requests a management browser route
-- THEN the runtime does not serve the management surface
-- AND possession of a complete local Program replica is treated as read access,
-  not route or operation authority
-- AND editor or member role authority does not become administrator or owner
-  authority
-
-#### Scenario: App role browser route
-
-- GIVEN an app route has effective access `authenticated`
-- AND the route requires `app.admin`
-- WHEN the request includes a valid central auth session on the configured auth
-  origin, local-dev owner session, or matching host-local session
-- THEN the route remains eligible only when the principal has active
-  `app.admin` authority at app-install scope for the route's referenced app
-  install or has active `instance.owner` authority
-- AND the schema-defined Program `administrator` role, a role for another app
-  install, or an ordinary authenticated session does not satisfy the route
-  requirement
-
-#### Scenario: Anonymous owner browser route
-
-- GIVEN a runtime browser route has effective access `owner`
-- AND the request is a `GET` or `HEAD` request that accepts HTML
-- WHEN the request does not include a valid central auth session on the
-  configured auth origin, local-dev owner session, or host-local session for an
-  active principal with active `instance.owner` authority
-- THEN the runtime redirects to `/formless/auth` on the configured auth origin,
-  or starts cross-domain auth handoff when the matched host is not the
-  configured auth origin
-- AND the owner-only browser shell, instance dashboard, generated app surface,
-  or app screen is not served
-
-#### Scenario: Anonymous mapped protected browser route
-
-- GIVEN a mapped host runtime browser route has effective access
-  `authenticated`, `management`, or `owner`, including an authenticated route
-  with a required app role
-- AND the mapped host is not the configured auth origin
-- AND the request is a `GET` or `HEAD` request that accepts HTML
-- WHEN the request does not include a valid host-local session for the mapped
-  host, route, target profile, and target app install or storage identity
-- THEN the runtime starts cross-domain auth handoff through a top-level
-  redirect to the configured auth origin
-- AND the handoff records a host-local nonce and a safe path-only return target
-  for the original path and query
-- AND the mapped host does not serve the protected browser shell, generated app
-  surface, public Site document, or app screen before the handoff completes
-
-#### Scenario: Authenticated owner browser route
-
-- GIVEN a runtime browser route has effective access `owner`
-- WHEN the request includes a valid central auth session on the configured auth
-  origin, local-dev owner session, or host-local session for an active principal
-  with active `instance.owner` authority
-- THEN the route remains eligible for the matching instance dashboard,
-  generated app surface, or app screen
-- AND deployed auth-origin owner access may be satisfied by a central auth
-  session whose principal still has active `instance.owner` authority
-
-#### Scenario: Anonymous route remains public
-
-- GIVEN a runtime browser route has effective access `anonymous`
-- WHEN the request is otherwise eligible for the active runtime profile
-- THEN the route can be served without a principal-backed browser session
-- AND account orchestrator routes, account gate routes, Program-native public
-  Site routes, published Site documents, public Site resources, static assets,
-  and public actions remain available according to their existing route
-  policies
-
-#### Scenario: Authenticated app API route
-
-- GIVEN a browser API route is protected by effective access `authenticated`
-- WHEN the request does not include a valid central auth session on the
-  configured auth origin, local-dev owner session, or host-local session for an
-  active principal on the matched host, route, target profile, and target app
-  install or storage identity
-- THEN the runtime returns an unauthorized JSON response
-- AND route access does not replace operation actor policy for generated app
-  reads, writes, or command execution
-
-#### Scenario: Installed app admin API authorization
-
-- GIVEN a generated admin app uses an installed app API for bootstrap, schema
-  read, HTTP sync, push sync, or an entity operation
-- WHEN the request is authorized
-- THEN the app data boundary independently requires active `instance.owner`
-  authority or active `app.admin` authority scoped to that app install
-- AND browser route eligibility does not authorize another app install or make
-  any installed app data available to every authenticated principal
-- AND entity operation actor policy is still evaluated after app data access
-  succeeds
-
-#### Scenario: Owner management API route
-
-- GIVEN a management API route exposes owner-only instance dashboard or
-  generated app administration data
-- WHEN the request does not include a valid central auth session on the
-  configured auth origin, local-dev owner session for an active principal with
-  active `instance.owner` authority, valid host-local session for the matched
-  owner-only route target, or valid admin bearer authorization
-- THEN the runtime returns an unauthorized JSON response
-- AND public Site document reads, public Site indexing resources, public
-  actions, and public route discovery needed for anonymous Site rendering are
-  not made owner-only by that management API guard
-
-#### Scenario: Mapped instance host management API route
-
-- GIVEN an enabled exact-host `route` mounts the instance profile with
-  effective access `management` or `owner`
-- AND a browser has completed cross-domain auth handoff for that mapped
-  instance host route
-- WHEN the browser requests operational Program management API
-  reads or writes through that mapped host
-- THEN the runtime authorizes the request with the host-local session only when
-  the session is valid for the same host, route, target profile, and
-  `instance:control-plane` storage identity
-- AND the runtime still rejects host-local sessions minted for a different
-  mapped host, app install, route, profile, storage identity, or instance
-- AND the request does not require the central auth origin session cookie to be
-  scoped to the mapped instance host
+- GIVEN a current route has effective access `anonymous`
+- WHEN the request is otherwise eligible
+- THEN public Site documents, indexing resources, static assets, auth entry, and
+  declared public operations remain available through their narrow routes
+- AND anonymous route access does not expose Program bootstrap, schema,
+  snapshot, sync, WebSocket, replica, or generic operation access
 
 ### Requirement: Published Site Documents
 
@@ -417,7 +247,9 @@ The system MUST route public Site documents through published Site behavior only
 #### Scenario: Non-document paths stay out of SSR
 
 - GIVEN the runtime profile is `publishedSite`
-- WHEN a request targets `/api/*`, `/formless/*`, `/tasks`, `/crm/audiences`, `/site/schema`, `/schema`, `/apps/<installId>`, static asset-like paths, dynamic root icon paths, or a non-HTML request
+- WHEN a request targets `/api/*`, `/formless/*`, `/tasks`, `/crm/audiences`,
+  `/site/schema`, `/schema`, static asset-like paths, dynamic root icon paths,
+  or a non-HTML request
 - THEN the request is not handled as a published Site document
 
 ### Requirement: Static Assets And Dynamic Public Resources
@@ -488,43 +320,22 @@ profile behavior.
 
 #### Scenario: Mapped host auth callback
 
-- **GIVEN** an enabled exact-host `route` mounts an instance admin, app, or
-  public Site host
+- **GIVEN** an enabled exact-host `route` mounts an instance admin or public
+  Site host
 - **WHEN** the mapped host receives `/formless/auth/callback`
 - **THEN** runtime topology reserves the request for cross-domain auth grant
   consumption
-- **AND** app schemas, generated app routes, public Site SSR, clean redirects,
+- **AND** Program schemas, generated Program routes, public Site SSR, clean redirects,
   static asset fallback, schema-key routes, account gate routes, and passkey
   ceremony routes do not claim the callback path
 - **AND** callback handling may issue only a host-local session for the matched
   route target before redirecting to a path-only return target
 
-#### Scenario: Mapped app host
-
-- **GIVEN** an enabled exact-host `route` mounts an app surface for an installed
-  app
-- **WHEN** the mapped host receives browser requests for `/` or an app screen
-  path such as `/schema`
-- **THEN** the client shell is served with runtime profile, package app key,
-  app install id, and resolved package metadata for that install
-- **AND** the resolved package metadata is sufficient for the browser to build
-  install-scoped storage identity and mount the generated app without bundled
-  source app lookup
-- **AND** schema-key API routes are not exposed on the mapped app host while
-  the matching installed app API route remains available
-- **AND** account setup and sign-in gate browser requests redirect to the
-  configured auth origin when the mapped app host is not that origin
-- **AND** account setup, account sign-in, and passkey ceremony requests do not
-  treat the mapped app host as a WebAuthn relying party
-- **AND** owner-only access on the mapped app host uses cross-domain auth
-  handoff and a host-local session instead of local account sign-in or passkey
-  ceremony routes
-
 #### Scenario: Mapped instance admin host
 
 - **GIVEN** an enabled exact-host `route` mounts the instance admin surface
 - **WHEN** the mapped host receives browser requests for `/`, `/access`,
-  `/deployments`, `/apps/<installId>`, or another instance admin path
+  `/deployments`, or another instance admin path
 - **THEN** the client shell is served only after the matched route access policy
   is satisfied
 - **AND** protected access on the mapped admin host uses cross-domain auth
@@ -533,8 +344,8 @@ profile behavior.
 - **AND** protected Program management API requests may use a
   host-local session bound to that admin route, target profile `instance`, and
   storage identity `instance:control-plane`
-- **AND** schema-key browser routes, source app routes, and unrelated installed
-  app storage identities are not exposed through the mapped admin host
+- **AND** schema-key browser routes, source app routes, and alternate storage
+  identities are not exposed through the mapped admin host
 - **AND** account setup, account sign-in, central auth session, and passkey
   ceremony routes are served on the mapped admin host only when that host is
   also the configured auth origin
@@ -544,16 +355,8 @@ profile behavior.
 
 ### Requirement: Schema-Owned Runtime Route Resolution
 
-The system SHALL resolve installed app browser routes and the Program-native
-public Site from enabled schema-owned `route` records.
-
-#### Scenario: Installed app browser route
-
-- **GIVEN** a browser requests an enabled admin app route
-- **WHEN** runtime topology resolves the route
-- **THEN** the route record resolves through `appInstall` to its referenced
-  `app-install` record
-- **AND** the selected installed app mounts with that app install identity
+The system SHALL resolve Program browser routes and the Program-native public
+Site from enabled schema-owned `route` records.
 
 #### Scenario: Program-native Site public route
 
@@ -572,16 +375,14 @@ public Site from enabled schema-owned `route` records.
 - **THEN** the route is not eligible for runtime mounting
 - **AND** route validation prevents the conflict from becoming active
 
-#### Scenario: Program-native package install route is unavailable
+#### Scenario: Removed app routes are not current routes
 
-- **GIVEN** dormant `app-install` or `route` records refer to package key
-  `tasks`, `site`, or `crm`
-- **WHEN** runtime topology selects installed app routes, mapped hosts, or
-  launch navigation
-- **THEN** those records are ineligible because the package is absent from the
-  runtime-installable package resolver
-- **AND** an unavailable mount is discarded before candidate ranking can
-  shadow a routable Site, CRM, private-package, instance, or redirect route
+- **GIVEN** dormant records contain app target profiles, install references, or
+  package-derived route facts
+- **WHEN** runtime topology selects hostless mounts, exact-host mounts, or
+  navigation
+- **THEN** those records are unselected before candidate ranking
+- **AND** they cannot shadow a Program Site, instance, or redirect route
 
 ### Requirement: Unified Route Resolution
 
@@ -596,23 +397,7 @@ source for hostless mounts, exact-host mounts, and redirects.
 - **AND** more specific exact path matches are evaluated before prefix matches
 - **AND** disabled route records are not eligible for runtime mounting or
   redirect handling
-- **AND** installed mount candidates whose target package is not
-  runtime-installable are not eligible and do not stop selection of the next
-  valid candidate
-- **AND** a Program-native public Site route never selects an app install or
-  checks installed-package availability
-
-#### Scenario: Hostless mount preserves configured profile policy
-
-- **GIVEN** an `instance` or `dev` runtime resolves an enabled hostless mount
-  for an installed app
-- **WHEN** route access or account continuation is evaluated for that mount
-- **THEN** the configured runtime profile remains the active route-policy
-  profile
-- **AND** the mount still supplies its target app install, target profile,
-  storage identity, route access, and surface selection facts
-- **AND** an owner-protected hostless app mount is not reclassified as an
-  anonymous app-profile route
+- **AND** route selection does not inspect package metadata or app install facts
 
 #### Scenario: Redirect route
 
@@ -642,8 +427,8 @@ host-specific request handling.
 
 #### Scenario: Resolve route records from explicit runtime facts
 
-- **GIVEN** active route records, installed app records, package facts, and a
-  request host, path, and query are available
+- **GIVEN** active route records and a request host, path, and query are
+  available
 - **WHEN** runtime topology selects an exact-host mount, hostless mount,
   redirect, or captured-host not-found result
 - **THEN** the route Module consumes those facts directly and returns the
@@ -651,8 +436,8 @@ host-specific request handling.
   not-found result
 - **AND** deterministic route selection does not require Durable Object,
   SQLite, service-binding, asset, or Worker interfaces
-- **AND** exact-host precedence, path specificity, redirect preservation,
-  disabled-route exclusion, and app-install target resolution remain unchanged
+- **AND** exact-host precedence, path specificity, redirect preservation, and
+  disabled-route exclusion remain unchanged
 
 #### Scenario: Keep mounted surface behavior at the Worker boundary
 
@@ -660,11 +445,11 @@ host-specific request handling.
 - **WHEN** the request is served through an exact-host or hostless runtime route
 - **THEN** the real Worker remains responsible for fetching current Program
   records, reserved callback ownership, HTTP redirects, public Site adapters,
-  document rendering, indexing, icons, media, installed app APIs, static assets,
+  document rendering, indexing, icons, media, static assets,
   and response headers
 - **AND** Module-owned route decision coverage does not replace representative
-  complete mapped Site, mapped app, mapped instance, redirect, adapter failure,
-  and desired-route disablement contracts
+  complete mapped Site, mapped instance, redirect, adapter failure, and
+  desired-route disablement contracts
 
 ### Requirement: Local Workspace Gateway Route Policy
 
@@ -677,8 +462,8 @@ runtime profiles that have local gateway sidecar proxy configuration.
   workspace gateway route availability for a request
 - **THEN** shared runtime topology route policy marks the workspace gateway API
   route family eligible only for the `instance` and `dev` runtime profiles
-- **AND** the `app` and `publishedSite` runtime profiles mark
-  the workspace gateway API route family unavailable
+- **AND** the `publishedSite` runtime profile marks the workspace gateway API
+  route family unavailable
 - **AND** Worker and local Node runtime adapters may combine that shared route
   policy fact with adapter-local sidecar target, gateway enabled, proxy token,
   and mapped-host facts before injecting route availability into Gateway proxy
@@ -700,7 +485,7 @@ runtime profiles that have local gateway sidecar proxy configuration.
 
 #### Scenario: Deployed runtime blocks gateway route
 
-- **WHEN** an instance, app, or published Site runtime without
+- **WHEN** an instance or published Site runtime without
   `FORMLESS_WORKSPACE_GATEWAY_SIDECAR_URL` and
   `FORMLESS_WORKSPACE_GATEWAY_PROXY_TOKEN` handles a request for the workspace
   gateway API family
@@ -708,10 +493,10 @@ runtime profiles that have local gateway sidecar proxy configuration.
 - **AND** the runtime does not expose workspace filesystem operation behavior or
   sidecar proxy behavior
 
-#### Scenario: Gateway does not affect app routing
+#### Scenario: Gateway does not affect Program routing
 
-- **WHEN** installed app browser routes, Program public Site routes, schema-key
-  routes, or static assets are resolved
+- **WHEN** Program browser routes, Program public Site routes, schema-key routes,
+  or static assets are resolved
 - **THEN** workspace gateway route policy is evaluated separately
-- **AND** app route resolution continues to use runtime profile and
+- **AND** Program route resolution continues to use runtime profile and
   schema-owned `route` records

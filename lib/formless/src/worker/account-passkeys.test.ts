@@ -170,63 +170,46 @@ describe("account passkey login API routes", () => {
     });
   });
 
-  it("authenticates active Program administrators and app principals without preselecting a role", async () => {
+  it("authenticates an active Program administrator without preselecting a role", async () => {
     await seedOwnerPasskey(new VirtualPasskey(credentialId));
 
-    for (const account of [
-      {
-        displayName: "Program Administrator",
-        role: {
-          kind: "program" as const,
-          roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357" as const,
-        },
-      },
-      {
-        displayName: "Tasks App Admin",
-        role: {
-          appInstallId: "tasks",
-          kind: "app" as const,
-          roleKey: "app.admin" as const,
-        },
-      },
-    ]) {
-      const principal = await createIdentityPrincipal(account.displayName);
-      await assignIdentityRole(principal.principalId, account.role);
-      const accountCredentialId = base64UrlEncode(
-        new TextEncoder().encode(`credential:${account.displayName}`),
-      );
-      const authenticator = new VirtualPasskey(accountCredentialId, principal.principalId);
+    const displayName = "Program Administrator";
+    const principal = await createIdentityPrincipal(displayName);
+    await assignIdentityRole(principal.principalId);
+    const accountCredentialId = base64UrlEncode(
+      new TextEncoder().encode(`credential:${displayName}`),
+    );
+    const authenticator = new VirtualPasskey(accountCredentialId, principal.principalId);
 
-      await createStoredCredential(accountCredentialId, principal.principalId, authenticator);
+    await createStoredCredential(accountCredentialId, principal.principalId, authenticator);
 
-      const options = await loginOptions();
-      const accepted = await verifyLogin(
-        authenticator.authenticationResponse(options.body.options, {
-          counter: 1,
-          origin: canonicalOrigin,
-          rpId: relyingPartyId,
-        }),
-      );
-      const sessionCookie = cookiePair(accepted.response.headers.get("Set-Cookie"));
-      const status = await harness.fetch("/api/formless/session", {
-        headers: { Cookie: sessionCookie },
-      });
+    const options = await loginOptions();
+    const accepted = await verifyLogin(
+      authenticator.authenticationResponse(options.body.options, {
+        counter: 1,
+        origin: canonicalOrigin,
+        rpId: relyingPartyId,
+      }),
+    );
+    const sessionCookie = cookiePair(accepted.response.headers.get("Set-Cookie"));
+    const status = await harness.fetch("/api/formless/session", {
+      headers: { Cookie: sessionCookie },
+    });
 
-      expect(accepted.response.status).toBe(200);
-      expect(accepted.body).toEqual({
-        authenticated: true,
-        continueTo: "/formless/auth",
-        principal,
-        session: { expiresAt: expect.any(String) },
-      });
-      expect(status.status).toBe(200);
-      await expect(status.json()).resolves.toEqual({
-        authenticated: true,
-        principal,
-        session: { expiresAt: expect.any(String) },
-        setupComplete: true,
-      });
-    }
+    expect(accepted.response.status).toBe(200);
+    expect(accepted.body).toEqual({
+      authenticated: true,
+      continueTo: "/formless/auth",
+      principal,
+      session: { expiresAt: expect.any(String) },
+    });
+    expect(status.status).toBe(200);
+    await expect(status.json()).resolves.toEqual({
+      authenticated: true,
+      principal,
+      session: { expiresAt: expect.any(String) },
+      setupComplete: true,
+    });
   });
 
   it("rejects an inactive credential principal without advancing verification state", async () => {
@@ -382,40 +365,16 @@ async function createIdentityPrincipal(displayName: string) {
   };
 }
 
-async function assignIdentityRole(
-  principalId: string,
-  role:
-    | {
-        kind: "program";
-        roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357";
-      }
-    | {
-        appInstallId: string;
-        kind: "app";
-        roleKey: "app.admin";
-      },
-) {
+async function assignIdentityRole(principalId: string) {
   const response = await postJson(
-    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/${
-      role.kind === "program" ? "program-role-assignment" : "role-assignment"
-    }/create`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/operations/program-role-assignment/create`,
     {
       idempotencyKey: `account-passkey-role-${principalId.replace(/\W+/g, "-")}`,
-      input:
-        role.kind === "program"
-          ? {
-              principal: principalId,
-              roleId: role.roleId,
-              status: "active",
-            }
-          : {
-              appInstallId: role.appInstallId,
-              role: `role:${role.roleKey}`,
-              scopeKind: "app-install",
-              status: "active",
-              targetKind: "principal",
-              targetPrincipal: principalId,
-            },
+      input: {
+        principal: principalId,
+        roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+        status: "active",
+      },
     },
     {
       headers: await programOwnerHeaders(),

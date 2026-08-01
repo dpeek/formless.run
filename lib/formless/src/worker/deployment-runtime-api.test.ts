@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
-import type { BootstrapResponse, CreateAppInstallResponse } from "../shared/protocol.ts";
+import type { BootstrapResponse } from "../shared/protocol.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
@@ -117,7 +117,6 @@ describe("instance deployment runtime API routes", () => {
   });
 
   it("projects enabled custom-domain mappings into desired-state resources", async () => {
-    await createAppInstall({ packageAppKey: "test-crm", installId: "work", label: "Work" });
     await createControlPlaneRecord("route", {
       enabled: false,
       kind: "mount",
@@ -135,16 +134,6 @@ describe("instance deployment runtime API routes", () => {
       targetProfile: "instance",
     });
     await createControlPlaneRecord("route", {
-      appInstall: "work",
-      enabled: true,
-      kind: "mount",
-      matchHost: "app.example.com",
-      matchPath: "/",
-      matchPrefix: "/",
-      surface: "admin",
-      targetProfile: "app",
-    });
-    await createControlPlaneRecord("route", {
       enabled: true,
       kind: "mount",
       matchHost: "www.example.com",
@@ -160,8 +149,8 @@ describe("instance deployment runtime API routes", () => {
     const serialized = JSON.stringify(desired.body);
 
     expect(desired.body.desiredState.display).toEqual({
-      resourceCount: 3,
-      resourcesByKind: { "cloudflare-worker-custom-domain": 3 },
+      resourceCount: 2,
+      resourcesByKind: { "cloudflare-worker-custom-domain": 2 },
       title: "Primary instance target",
     });
     expect(
@@ -190,21 +179,6 @@ describe("instance deployment runtime API routes", () => {
       {
         inputs: {
           adopt: false,
-          host: "app.example.com",
-          name: "app.example.com",
-          overrideExistingOrigin: false,
-          profile: "app",
-          targetInstallId: "work",
-          workerName: "formless-primary",
-        },
-        kind: "cloudflare-worker-custom-domain",
-        logicalId: "primary-custom-domain-app-example-com-app-work",
-        providerFamily: "cloudflare",
-        targetId: INSTANCE_DEPLOYMENT_PRIMARY_TARGET_ID,
-      },
-      {
-        inputs: {
-          adopt: false,
           host: "www.example.com",
           name: "www.example.com",
           overrideExistingOrigin: false,
@@ -219,7 +193,7 @@ describe("instance deployment runtime API routes", () => {
     ]);
     expect(desired.body.desiredState.source).toMatchObject({
       fingerprint: expect.stringMatching(/^control-plane:/),
-      intentRevision: 3,
+      intentRevision: 2,
     });
     expect(serialized).not.toContain("disabled.example.com");
     expect(serialized).not.toContain("secret-cloudflare-token");
@@ -305,16 +279,14 @@ describe("instance deployment runtime API routes", () => {
   });
 
   it("does not materialize projected desired resources as control-plane records", async () => {
-    await createAppInstall({ packageAppKey: "test-crm", installId: "work", label: "Work" });
     await createControlPlaneRecord("route", {
-      appInstall: "work",
       enabled: true,
       kind: "mount",
-      matchHost: "app.example.com",
+      matchHost: "admin.example.com",
       matchPath: "/",
       matchPrefix: "/",
       surface: "admin",
-      targetProfile: "app",
+      targetProfile: "instance",
     });
     await createRedirectRoute({
       fromHost: "www.example.com",
@@ -596,14 +568,6 @@ async function postInternalInstanceReset(path: string) {
   );
 
   expect(response.status).toBe(200);
-}
-
-async function createAppInstall(input: {
-  packageAppKey: string;
-  installId: string;
-  label: string;
-}) {
-  return postAdminJson<CreateAppInstallResponse>("/api/formless/app-installs", input);
 }
 
 async function createRedirectRoute(input: {

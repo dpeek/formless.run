@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type {
-  ManagementInstallDialogContract,
   ManagementIntent,
   ManagementReadyContract,
   ManagementWorkspaceOperationContract,
@@ -8,7 +7,6 @@ import type {
 } from "@dpeek/formless-presentation/contract";
 import {
   createMemoryPresentationHost,
-  managementInstallDialogReference,
   managementManifestReference,
   isManagementIntent,
   isWorkspaceIntent,
@@ -17,7 +15,6 @@ import {
 } from "@dpeek/formless-presentation/host";
 import { PresentationHostProvider } from "@dpeek/formless-presentation/host/react";
 import { AstryxApplicationSurfaceFrame } from "./application-surface-frame.tsx";
-import { applyScenarioFieldIntent } from "./fields/fixture-helpers.ts";
 import { FormlessFixtureFrame, FormlessFixtureSelector } from "./fixture-layout.tsx";
 import { AstryxSubscribedManagementRenderer } from "./management-renderer.tsx";
 import {
@@ -26,9 +23,6 @@ import {
 } from "./generated-workspace.tsx";
 import {
   createFormlessInstanceManagementFixtures,
-  instanceManagementAppsReference,
-  instanceManagementInstallActionControlId,
-  instanceManagementInstallActionId,
   instanceManagementWorkspacePushFixture,
   instanceManagementWorkspacePushOperationId,
   type FormlessInstanceManagementFixture,
@@ -168,21 +162,7 @@ export function projectFormlessInstanceManagementFixturePublication(
 
   return {
     managementReference,
-    nodes: [
-      { reference: managementReference, snapshot: state.manifest },
-      ...(state.dialog === null
-        ? []
-        : [
-            {
-              reference: managementInstallDialogReference(
-                state.dialog.managementId,
-                state.dialog.id,
-              ),
-              snapshot: state.dialog,
-            },
-          ]),
-      ...workspaceNodes,
-    ],
+    nodes: [{ reference: managementReference, snapshot: state.manifest }, ...workspaceNodes],
   };
 }
 
@@ -201,39 +181,13 @@ export function applyFormlessInstanceManagementFixtureIntent(
     return applyManagementOperationIntent(state, state.manifest, intent);
   }
 
-  const dialog = state.dialog;
-  if (!dialog || dialog.id !== intent.dialogId || dialog.managementId !== intent.managementId) {
-    return state;
-  }
-
-  switch (intent.type) {
-    case "managementInstallDialogOpenChange":
-      return replaceDialog(state, { ...dialog, open: intent.open });
-    case "managementInstallField":
-      return applyManagementInstallFieldIntent(state, dialog, intent);
-    case "managementInstallPackageSelection":
-      return applyManagementInstallPackageSelectionIntent(state, dialog, intent);
-    case "managementInstallSubmit":
-      return applyManagementInstallSubmitIntent(state, dialog, intent);
-  }
+  return state;
 }
 
 export function applyFormlessInstanceManagementWorkspaceFixtureIntent(
   state: FormlessInstanceManagementFixtureState,
   intent: WorkspaceIntent,
 ): FormlessInstanceManagementFixtureState {
-  if (
-    intent.type === "workspaceExternalAction" &&
-    intent.screenId === instanceManagementAppsReference.workspaceId &&
-    intent.actionId === instanceManagementInstallActionId &&
-    intent.controlId === instanceManagementInstallActionControlId &&
-    intent.intent.controlId === instanceManagementInstallActionControlId
-  ) {
-    return state.dialog && !state.dialog.open
-      ? replaceDialog(state, { ...state.dialog, open: true })
-      : state;
-  }
-
   let changed = false;
   const workspaces = state.workspaces.map((workspace) => {
     const nextWorkspace = applyGeneratedWorkspaceIntent(workspace, intent);
@@ -248,109 +202,6 @@ function createFormlessInstanceManagementFixtureHosts() {
   return createFormlessInstanceManagementFixtures().map(
     createFormlessInstanceManagementFixtureHost,
   );
-}
-
-function applyManagementInstallFieldIntent(
-  state: FormlessInstanceManagementFixtureState,
-  dialog: ManagementInstallDialogContract,
-  intent: Extract<
-    ManagementIntent,
-    {
-      type: "managementInstallField";
-    }
-  >,
-) {
-  const fieldKey = managementDialogFieldKey(dialog, intent.fieldId);
-  if (!fieldKey) {
-    return state;
-  }
-
-  const field = applyScenarioFieldIntent(dialog.fields[fieldKey], intent.intent);
-  if (field.mode !== "editor" || field.surface !== "create") {
-    return state;
-  }
-
-  const fields = { ...dialog.fields, [fieldKey]: field };
-  return replaceDialog(state, withInstallValidation(dialog, fields));
-}
-
-function applyManagementInstallPackageSelectionIntent(
-  state: FormlessInstanceManagementFixtureState,
-  dialog: ManagementInstallDialogContract,
-  intent: Extract<
-    ManagementIntent,
-    {
-      type: "managementInstallPackageSelection";
-    }
-  >,
-) {
-  const selectedOption = dialog.packageOptions.find(
-    (option) => option.id === intent.optionId && option.selectionIntent.fieldId === intent.fieldId,
-  );
-  if (!selectedOption || dialog.fields.package.fieldId !== intent.fieldId) {
-    return state;
-  }
-
-  const packageField = {
-    ...dialog.fields.package,
-    draftInput: { kind: "input" as const, value: selectedOption.packageAppKey },
-    errors: [],
-    value: selectedOption.packageAppKey,
-  };
-  const fields = { ...dialog.fields, package: packageField };
-
-  return replaceDialog(
-    state,
-    withInstallValidation(
-      {
-        ...dialog,
-        packageOptions: dialog.packageOptions.map((option) => ({
-          ...option,
-          selected: option.id === selectedOption.id,
-        })),
-        selectedPackageOptionId: selectedOption.id,
-        submit: {
-          ...dialog.submit,
-          accessibilityLabel: `Install ${selectedOption.label}`,
-          content: { kind: "label", label: `Install ${selectedOption.label}` },
-        },
-      },
-      fields,
-    ),
-  );
-}
-
-function applyManagementInstallSubmitIntent(
-  state: FormlessInstanceManagementFixtureState,
-  dialog: ManagementInstallDialogContract,
-  intent: Extract<
-    ManagementIntent,
-    {
-      type: "managementInstallSubmit";
-    }
-  >,
-) {
-  if (dialog.submit.id !== intent.controlId || dialog.errors.length > 0 || dialog.submit.disabled) {
-    return state;
-  }
-
-  return replaceDialog(state, {
-    ...dialog,
-    feedback: {
-      detail: "The fixture is preparing the app install.",
-      id: "instance-management:feedback:install-pending",
-      intent: "info",
-      kind: "managementFeedback",
-      title: "Installing app",
-    },
-    pending: { isPending: true, label: "Installing app" },
-    submit: {
-      ...dialog.submit,
-      disabled: true,
-      disabledReason: "Installing app",
-      pending: { isPending: true, label: "Installing app" },
-    },
-  });
 }
 
 function applyManagementOperationIntent(
@@ -411,52 +262,6 @@ function pendingOperation(
     authorizationPrompt: undefined,
     control: instanceManagementWorkspacePushFixture.pending,
   };
-}
-
-function withInstallValidation(
-  dialog: ManagementInstallDialogContract,
-  fields: ManagementInstallDialogContract["fields"],
-): ManagementInstallDialogContract {
-  const errors = [fields.label, fields.installId, fields.package].flatMap(
-    (field) => field.errors?.map((error) => error.message) ?? [],
-  );
-  const missingRequiredValue = [fields.label, fields.installId, fields.package].some(
-    (field) => field.required && String(field.draftInput?.value ?? field.value ?? "").trim() === "",
-  );
-  if (missingRequiredValue && errors.length === 0) {
-    errors.push("Complete all required install fields.");
-  }
-  const disabled = errors.length > 0;
-
-  return {
-    ...dialog,
-    errors,
-    fields,
-    feedback: undefined,
-    pending: undefined,
-    submit: {
-      ...dialog.submit,
-      disabled,
-      disabledReason: disabled ? "Resolve the validation errors." : undefined,
-      pending: undefined,
-    },
-  };
-}
-
-function managementDialogFieldKey(
-  dialog: ManagementInstallDialogContract,
-  fieldId: string,
-): keyof ManagementInstallDialogContract["fields"] | undefined {
-  return (Object.keys(dialog.fields) as (keyof typeof dialog.fields)[]).find(
-    (key) => dialog.fields[key].fieldId === fieldId,
-  );
-}
-
-function replaceDialog(
-  state: FormlessInstanceManagementFixtureState,
-  dialog: ManagementInstallDialogContract,
-) {
-  return dialog === state.dialog ? state : { ...state, dialog };
 }
 
 function replaceReadyManifest(

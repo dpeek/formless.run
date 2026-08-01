@@ -48,7 +48,7 @@ export type DocumentMediaFieldIdentity = {
   fieldName: string;
 };
 
-export type AppDocumentMediaTarget = {
+export type ProgramDocumentMediaTarget = {
   documentsPath: `/api/${string}/media/documents`;
   field: DocumentMediaFieldIdentity;
 };
@@ -75,7 +75,7 @@ export type ListCoreImageMediaAssetsOptions = {
   fetcher?: typeof fetch;
 };
 
-export type AppDocumentMediaClientOptions = {
+export type ProgramDocumentMediaClientOptions = {
   fetcher?: typeof fetch;
 };
 
@@ -114,17 +114,17 @@ export async function listCoreImageMediaAssets(
   return body.assets.map(mediaAssetOptionFromAsset);
 }
 
-export async function uploadAppDocumentMediaFile(
+export async function uploadProgramDocumentMediaFile(
   file: File,
-  target: AppDocumentMediaTarget,
-  options: AppDocumentMediaClientOptions = {},
+  target: ProgramDocumentMediaTarget,
+  options: ProgramDocumentMediaClientOptions = {},
 ): Promise<DocumentMediaUploadResponse> {
   const fetcher = options.fetcher ?? fetch;
   const formData = new FormData();
 
   formData.set("file", file);
 
-  const response = await fetcher(appDocumentMediaCollectionHref(target), {
+  const response = await fetcher(programDocumentMediaCollectionHref(target), {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -135,12 +135,12 @@ export async function uploadAppDocumentMediaFile(
   return parseDocumentMediaUploadResponse(response);
 }
 
-export async function listAppDocumentMediaAssets(
-  target: AppDocumentMediaTarget,
-  options: AppDocumentMediaClientOptions = {},
+export async function listProgramDocumentMediaAssets(
+  target: ProgramDocumentMediaTarget,
+  options: ProgramDocumentMediaClientOptions = {},
 ): Promise<DocumentMediaAssetOption[]> {
   const fetcher = options.fetcher ?? fetch;
-  const response = await fetcher(appDocumentMediaCollectionHref(target), {
+  const response = await fetcher(programDocumentMediaCollectionHref(target), {
     headers: {
       Accept: "application/json",
     },
@@ -150,7 +150,7 @@ export async function listAppDocumentMediaAssets(
   return body.assets.map(documentMediaAssetOptionFromAsset);
 }
 
-export function appDocumentMediaCollectionHref(target: AppDocumentMediaTarget): string {
+export function programDocumentMediaCollectionHref(target: ProgramDocumentMediaTarget): string {
   const query = new URLSearchParams({
     entity: target.field.entityName,
     field: target.field.fieldName,

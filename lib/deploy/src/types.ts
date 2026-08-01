@@ -140,13 +140,11 @@ export type DeployDesiredStateResponse = {
 
 export type DeployDesiredStateProjection = {
   resourceGraph: DeployResourceGraph;
-  routeTargets: DeployRouteTargetProjection[];
   sourceFingerprint: string;
   targetId: string;
 };
 
 export type DeployDesiredStateProjectionInput = {
-  appInstalls?: readonly ControlPlaneAppInstallProjectionRecord[];
   emailDomains?: readonly ControlPlaneEmailDomainProjectionRecord[];
   emailSenders?: readonly ControlPlaneEmailSenderProjectionRecord[];
   instanceId: string;
@@ -171,33 +169,13 @@ export type DeployControlPlaneRecordsProjectionInput = {
   workerName?: string;
 };
 
-export type DeployRouteTargetProjection = {
-  appInstallId: string;
-  path: string;
-  packageAppKey?: string;
-  prefix?: string;
-  routeId: string;
-  routeKind: ControlPlaneAppRouteKind;
-  surface: ControlPlaneAppRouteSurface;
-};
-
-export type ControlPlaneAppRouteKind = "admin" | "publicSite" | "schema";
-export type ControlPlaneAppRouteSurface = "admin" | "publicSite" | "schema";
-
-export type ControlPlaneAppInstallProjectionRecord = {
-  id: string;
-  installId: string;
-  packageAppKey: string;
-};
-
-export type ControlPlaneDomainMappingProfile = "app" | "instance" | "publicSite";
+export type ControlPlaneDomainMappingProfile = "instance" | "publicSite";
 
 export type ControlPlaneRouteKind = "mount" | "redirect";
-export type ControlPlaneRouteSurface = "admin" | "public-site" | "schema";
-export type ControlPlaneRouteTargetProfile = "app" | "instance" | "public-site";
+export type ControlPlaneRouteSurface = "admin" | "public-site";
+export type ControlPlaneRouteTargetProfile = "instance" | "public-site";
 
 export type ControlPlaneRouteProjectionRecord = {
-  appInstall?: string;
   enabled: boolean;
   id: string;
   kind: ControlPlaneRouteKind;

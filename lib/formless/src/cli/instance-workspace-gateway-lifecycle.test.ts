@@ -151,9 +151,9 @@ describe("local gateway lifecycle child runtime env", () => {
       FORMLESS_OWNER_SESSION_SECRET: "local-dev-owner-session-secret",
       [LOCAL_SESSION_BOOTSTRAP_TOKEN_ENV]: "local-session-token",
       [FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME]: "/workspace/.formless/local/formless-program.json",
-      [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: "workspace-package-links-payload",
       [FORMLESS_WORKSPACE_RUNTIME_EXTENSIONS_ENV_NAME]: "runtime-extension-payload",
     });
+    expect(env).not.toHaveProperty(FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME);
     expect(env).not.toHaveProperty(WORKSPACE_GATEWAY_PROXY_TOKEN_ENV);
     expect(env).not.toHaveProperty(WORKSPACE_GATEWAY_SIDECAR_URL_ENV);
   });

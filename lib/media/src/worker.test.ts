@@ -31,11 +31,9 @@ const documentCompatibility = {
   acceptedMimeTypes: ["application/pdf"],
   access: "private",
   maxBytes: 1024,
-  ownerAppInstallId: "verifi-prod",
 } satisfies DocumentMediaCompatibility;
 const documentMedia = {
-  documentsPath: "/api/app-installs/verifi/verifi-prod/media/documents",
-  ownerAppInstallId: "verifi-prod",
+  documentsPath: "/api/formless/program/media/documents",
 } as const;
 
 describe("Media Worker adapter", () => {
@@ -362,19 +360,18 @@ describe("Media Worker adapter", () => {
           id: "coa-fixed.pdf",
           kind: "document",
           label: "bad___name.pdf",
-          ownerAppInstallId: "verifi-prod",
           provider: "fake-r2",
           status: "ready",
-          storageKey: "media/app-installs/verifi-prod/documents/coa-fixed.pdf",
+          storageKey: "media/program/documents/coa-fixed.pdf",
         },
         assetId: "coa-fixed.pdf",
         contentType: "application/pdf",
         href: documentHref("coa-fixed.pdf"),
-        key: "media/app-installs/verifi-prod/documents/coa-fixed.pdf",
+        key: "media/program/documents/coa-fixed.pdf",
         size: pdfBytes.byteLength,
       },
     });
-    const stored = memory.objects.get("media/app-installs/verifi-prod/documents/coa-fixed.pdf");
+    const stored = memory.objects.get("media/program/documents/coa-fixed.pdf");
 
     expect(stored?.cacheControl).toBe(MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL);
     expect(stored?.customMetadata).toMatchObject({
@@ -383,9 +380,8 @@ describe("Media Worker adapter", () => {
       "formless-media-document-access": "private",
       "formless-media-filename": "bad___name.pdf",
       "formless-media-kind": "document",
-      "formless-media-owner-app-install-id": "verifi-prod",
       "formless-media-provider": "fake-r2",
-      "formless-media-storage-key": "media/app-installs/verifi-prod/documents/coa-fixed.pdf",
+      "formless-media-storage-key": "media/program/documents/coa-fixed.pdf",
     });
 
     await expect(
@@ -406,7 +402,6 @@ describe("Media Worker adapter", () => {
     const delivery = await deliveryFactsForDocumentMediaObject({
       assetId: "coa-fixed.pdf",
       hrefForAssetId: documentHref,
-      ownerAppInstallId: "verifi-prod",
       store: memory.store,
     });
 
@@ -416,16 +411,6 @@ describe("Media Worker adapter", () => {
     expect(delivery?.headers.get("Content-Type")).toBe("application/pdf");
     expect(delivery?.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(new Uint8Array(await new Response(delivery?.body).arrayBuffer())).toEqual(pdfBytes);
-    await expect(
-      deliveryFactsForDocumentMediaObject({
-        assetId: "coa-fixed.pdf",
-        hrefForAssetId: (assetId) =>
-          `/api/app-installs/verifi/other-install/media/documents/${assetId}`,
-        ownerAppInstallId: "other-install",
-        store: memory.store,
-      }),
-    ).resolves.toBeUndefined();
-
     if (!upload.ok || upload.upload.asset?.kind !== "document") {
       throw new Error("Expected document upload.");
     }
@@ -514,7 +499,7 @@ describe("Media Worker adapter", () => {
       {
         include: ["customMetadata", "httpMetadata"],
         limit: 50,
-        prefix: "media/app-installs/verifi-prod/documents/",
+        prefix: "media/program/documents/",
       },
     ]);
     expect(headKeys).toEqual([key]);
@@ -546,7 +531,7 @@ describe("Media Worker adapter", () => {
 
     const allObjects = await memory.store.listObjects!({
       limit: 50,
-      prefix: "media/app-installs/verifi-prod/documents",
+      prefix: "media/program/documents",
     });
     const cursors: Array<string | undefined> = [];
     const store: MediaObjectStore = {
@@ -644,16 +629,15 @@ describe("Media Worker adapter", () => {
     });
 
     expect(upload.ok).toBe(true);
-    expect(
-      memory.objects.get("media/app-installs/verifi-prod/documents/public-coa.pdf")?.cacheControl,
-    ).toBe(MEDIA_OBJECT_CACHE_CONTROL);
+    expect(memory.objects.get("media/program/documents/public-coa.pdf")?.cacheControl).toBe(
+      MEDIA_OBJECT_CACHE_CONTROL,
+    );
 
     const delivery = await deliveryFactsForDocumentMediaObject({
       assetId: "public-coa.pdf",
       download: true,
       hrefForAssetId: documentHref,
       includeBody: false,
-      ownerAppInstallId: "verifi-prod",
       store: memory.store,
     });
 
@@ -728,7 +712,7 @@ describe("Media Worker adapter", () => {
     const uploaded = (await uploadResponse.json()) as { asset: DocumentMediaAsset };
 
     expect(uploadResponse.status).toBe(200);
-    expect(uploaded.asset.ownerAppInstallId).toBe("verifi-prod");
+    expect(uploaded.asset).not.toHaveProperty("ownerAppInstallId");
 
     const listResponse = await dispatch(documentMedia.documentsPath);
 

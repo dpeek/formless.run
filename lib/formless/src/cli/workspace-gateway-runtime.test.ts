@@ -66,20 +66,18 @@ describe("local workspace gateway", () => {
       ),
     ).resolves.toMatchObject({ response: { status: 404 } });
 
-    for (const profile of ["app", "publishedSite"]) {
-      const blocked = await gatewayJson(
-        new Request(`http://local.test${WORKSPACE_GATEWAY_STATUS_API_PATH}`, {
-          headers: bootstrapHeaders(),
+    const blocked = await gatewayJson(
+      new Request(`http://local.test${WORKSPACE_GATEWAY_STATUS_API_PATH}`, {
+        headers: bootstrapHeaders(),
+      }),
+      {
+        env: gatewayEnv(workspaceRoot, {
+          FORMLESS_RUNTIME_PROFILE: "publishedSite",
         }),
-        {
-          env: gatewayEnv(workspaceRoot, {
-            FORMLESS_RUNTIME_PROFILE: profile,
-          }),
-        },
-      );
+      },
+    );
 
-      expect(blocked.response.status).toBe(404);
-    }
+    expect(blocked.response.status).toBe(404);
   });
 
   it("persists sidecar operation progress and keeps direct sidecar responses display-safe", async () => {

@@ -8,7 +8,6 @@ Read this when editing `lib/instance-control-plane/*`.
 
 - Instance control-plane schema keys, storage identity constants, and API route constants.
 - Control-plane entity names, entity value contracts, schema contract, and route helpers.
-- Runtime-neutral app-install projection helpers.
 - Reviewable control-plane record validation, display-safe canonicalization, and storage snapshot validation.
 - Package-local deterministic instance control-plane contract tests.
 

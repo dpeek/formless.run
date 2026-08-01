@@ -6,10 +6,8 @@ import path from "node:path";
 import {
   INSTANCE_ARCHIVE_KIND,
   PORTABLE_ARCHIVE_MANIFEST_FILE,
-  archiveApps,
   type PortableArchive,
 } from "../program/archive.ts";
-import type { AppInstallsResponse } from "../shared/protocol.ts";
 import { runtimeWorkspaceExtensionsEnvValue } from "../shared/workspace-runtime-extensions.ts";
 import {
   DEFAULT_INSTANCE_WORKSPACE_ARCHIVE_ROOT as DEFAULT_FORMLESS_INSTANCE_WORKSPACE_ARCHIVE_ROOT,
@@ -21,8 +19,6 @@ import {
 import {
   ensureInstanceWorkspaceLocalDevSecretState as ensureFormlessInstanceWorkspaceLocalDevSecretState,
   ensureInstanceWorkspaceSecretStateIgnored as ensureFormlessInstanceWorkspaceSecretStateIgnored,
-  readInstanceWorkspaceControlPlaneStorageSnapshot,
-  replaceInstanceWorkspaceAppStorageSnapshots,
   replaceInstanceWorkspaceMediaFiles,
   writeInstanceWorkspaceControlPlaneStorageSnapshot,
   type InstanceWorkspaceLocalDevSecretState as FormlessInstanceWorkspaceLocalDevSecretState,
@@ -52,15 +48,10 @@ import {
   type ActiveWorkspaceAppPackages,
 } from "./instance-workspace-foundation.ts";
 import {
-  appStorageSnapshotFromArchive,
-  readCompleteWorkspaceAppState,
   workspaceLocalRestoreArchiveSource,
-  workspaceSchemaProvenanceForAppArchive,
   writeWorkspaceLocalDevState,
 } from "./instance-workspace-source-sync.ts";
 import {
-  appArchiveControlPlaneRecords,
-  appInstallControlPlaneRecords,
   readArchiveMediaFiles,
   readWorkspaceArchive,
   workspaceControlPlaneSnapshotFromRecords,
@@ -346,16 +337,6 @@ export async function runFormlessInstanceWorkspaceDev(
 
   const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const activeProgram = await materializeActiveWorkspaceProgramArtifact(workspaceRoot, config);
-  const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest: config,
-    packageResolver: activePackages.resolver,
-    workspaceRoot,
-  });
-
-  if (controlPlane !== undefined) {
-    await readCompleteWorkspaceAppState(workspaceRoot, config, controlPlane, activePackages);
-  }
-
   const candidateOrigins = new Set<string>();
 
   const gatewayLifecycle = await startFormlessInstanceWorkspaceGatewayLifecycle(
@@ -522,10 +503,6 @@ type WorkspaceLocalBootstrapResult =
     }
   | {
       status: "empty";
-    }
-  | {
-      installIds: string[];
-      status: "existing";
     };
 
 async function bootstrapWorkspaceLocalInstance(
@@ -538,22 +515,6 @@ async function bootstrapWorkspaceLocalInstance(
   },
   dependencies: Pick<DevFormlessInstanceWorkspaceDependencies, "cwd" | "env" | "fetch" | "now">,
 ): Promise<WorkspaceLocalBootstrapResult> {
-  const registry = await fetchWorkspaceJson<AppInstallsResponse>(
-    dependencies.fetch,
-    instanceAppInstallsUrl(input.source),
-    { adminToken: input.adminToken },
-  );
-  const installIds = registry.installs
-    .map((install) => install.installId)
-    .sort((left, right) => left.localeCompare(right));
-
-  if (installIds.length > 0) {
-    return {
-      installIds,
-      status: "existing",
-    };
-  }
-
   const tempRoot = await createWorkspaceTempRoot(input.workspaceRoot, "local-dev");
 
   try {
@@ -613,24 +574,18 @@ async function writeInitialInstanceWorkspaceState(input: {
   targetUrl: string | null;
   workspaceRoot: string;
 }) {
-  const records = [
-    ...(input.targetUrl === null
+  const records =
+    input.targetUrl === null
       ? []
       : [
           formlessCliDeploymentConfigRecordFromTarget({
             targetAlias: input.targetAlias,
             targetUrl: input.targetUrl,
           }),
-        ]),
-    ...(input.remoteStatus?.appRegistry.installs.flatMap(appInstallControlPlaneRecords) ?? []),
-  ];
+        ];
   const archiveControlPlane =
     input.archive?.kind === INSTANCE_ARCHIVE_KIND ? input.archive.controlPlane : undefined;
-  const archiveRecords =
-    archiveControlPlane?.records ??
-    (input.archive === undefined
-      ? []
-      : archiveApps(input.archive).flatMap((app) => appArchiveControlPlaneRecords(app)));
+  const archiveRecords = archiveControlPlane?.records ?? [];
   const controlPlaneRecords =
     archiveRecords.length === 0 ? records : [...records, ...archiveRecords];
 
@@ -660,20 +615,15 @@ async function writeInitialInstanceWorkspaceState(input: {
   }
 
   if (input.archive) {
-    await replaceInstanceWorkspaceAppStorageSnapshots({
-      manifest: input.config,
-      snapshots: archiveApps(input.archive).map((app) => ({
-        installId: app.app.installId,
-        schemaProvenance: workspaceSchemaProvenanceForAppArchive(app),
-        snapshot: appStorageSnapshotFromArchive(app),
-      })),
-      workspaceRoot: input.workspaceRoot,
-    });
-
-    if (input.archiveDir) {
+    if (input.archiveDir && input.archive.kind === INSTANCE_ARCHIVE_KIND) {
+      const programPaths = new Set(
+        input.archive.media.objects.map(({ archivePath }) => archivePath),
+      );
       await replaceInstanceWorkspaceMediaFiles({
         manifest: input.config,
-        mediaFiles: await readArchiveMediaFiles(input.archiveDir, input.archive),
+        mediaFiles: (await readArchiveMediaFiles(input.archiveDir, input.archive)).filter((file) =>
+          programPaths.has(file.archivePath),
+        ),
         workspaceRoot: input.workspaceRoot,
       });
     }
@@ -872,7 +822,7 @@ async function isInstanceDevServerReady(
   adminToken: string,
 ): Promise<boolean> {
   try {
-    const response = await fetcher(instanceAppInstallsUrl(origin), {
+    const response = await fetcher(instanceProgramBootstrapUrl(origin), {
       headers: formlessCliTargetFetchHeaders({ accept: "application/json", adminToken }),
     });
 
@@ -925,32 +875,8 @@ function settleChildExit(code: number | null, signal: NodeJS.Signals | null): Pr
   );
 }
 
-async function fetchWorkspaceJson<T>(
-  fetcher: typeof fetch,
-  url: string,
-  options: { adminToken?: string | null } = {},
-): Promise<T> {
-  const response = await fetcher(url, {
-    headers: formlessCliTargetFetchHeaders({
-      accept: "application/json",
-      adminToken: options.adminToken,
-    }),
-  });
-  const text = await response.text();
-
-  if (!response.ok) {
-    throw new Error(`Failed GET ${url}: HTTP ${response.status} ${text}`);
-  }
-
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    throw new Error(`Failed GET ${url}: response was not JSON.`);
-  }
-}
-
-function instanceAppInstallsUrl(origin: string): string {
-  return new URL("/api/formless/app-installs", `${origin}/`).toString();
+function instanceProgramBootstrapUrl(origin: string): string {
+  return new URL("/api/formless/program/bootstrap", `${origin}/`).toString();
 }
 
 function restoreErrors(restore: RestorePortableArchiveResult): string {

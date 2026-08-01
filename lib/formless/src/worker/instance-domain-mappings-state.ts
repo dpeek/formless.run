@@ -256,6 +256,7 @@ function readAppliedStates(storage: DurableObjectStorage): InstanceDomainMapping
         applied_at,
         updated_at
       FROM instance_domain_mapping_applied_state
+      WHERE profile IN ('instance', 'publicSite')
       ORDER BY host ASC, profile ASC
     `,
   )) {
@@ -288,6 +289,7 @@ function readAuditEvents(storage: DurableObjectStorage): InstanceDomainMappingAu
         applied_at,
         updated_at
       FROM instance_domain_mapping_audit_events
+      WHERE profile IN ('instance', 'publicSite')
       ORDER BY event_id ASC
     `,
   )) {
@@ -338,7 +340,7 @@ function writeAppliedState(
     `,
     state.host,
     state.profile,
-    state.targetInstallId ?? null,
+    null,
     state.surface ?? null,
     state.provider,
     state.accountId,
@@ -378,7 +380,7 @@ function writeAuditEvent(storage: DurableObjectStorage, state: InstanceDomainMap
     `,
     state.host,
     state.profile,
-    state.targetInstallId ?? null,
+    null,
     state.surface ?? null,
     state.provider,
     state.accountId,
@@ -432,9 +434,6 @@ function appliedStateFromRow(
     host: row.host,
     profile: row.profile,
     ...(row.surface === null ? {} : { surface: row.surface }),
-    ...(row.target_install_id === null
-      ? {}
-      : { installId: row.target_install_id, targetInstallId: row.target_install_id }),
     provider: row.provider,
     accountId: row.account_id,
     ...(row.alchemy_resource_id === null ? {} : { alchemyResourceId: row.alchemy_resource_id }),

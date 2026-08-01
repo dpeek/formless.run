@@ -659,6 +659,7 @@ export function initializeStorageFromSource(
   source: StorageSource,
   options: {
     refreshActiveSchema?: boolean;
+    selectRecordsForSchemaRefresh?: (records: StoredRecord[]) => StoredRecord[];
   } = {},
 ): StoredSchema {
   return storage.transactionSync(() => {
@@ -669,7 +670,12 @@ export function initializeStorageFromSource(
         return existing;
       }
 
-      return refreshActiveSchemaFromSource(storage, existing, source);
+      return refreshActiveSchemaFromSource(
+        storage,
+        existing,
+        source,
+        options.selectRecordsForSchemaRefresh,
+      );
     }
 
     return writeSourceSchema(storage, source);
@@ -854,6 +860,7 @@ function refreshActiveSchemaFromSource(
   storage: DurableObjectStorage,
   existing: StoredSchema,
   source: StorageSource,
+  selectRecords: ((records: StoredRecord[]) => StoredRecord[]) | undefined,
 ): StoredSchema {
   if (!source.schemaProvenance) {
     return existing;
@@ -879,7 +886,8 @@ function refreshActiveSchemaFromSource(
 
   try {
     assertEntityIdentityContinuity(existing.schema, source.schema);
-    validateActiveRecordsAgainstSchema(source.schema, getBootstrapRecords(storage));
+    const records = getBootstrapRecords(storage);
+    validateActiveRecordsAgainstSchema(source.schema, selectRecords?.(records) ?? records);
   } catch (error) {
     throw activeSchemaRefreshBlocked(storage, existing, source, errorMessage(error));
   }
@@ -1279,7 +1287,7 @@ export function restoreStorageSnapshotOutcome(
 
     return committedWrite({
       schema: storedSchema.schema,
-      ...(storedSchema.schemaProvenance === undefined
+      ...(storedSchema.schemaProvenance?.kind !== "program"
         ? {}
         : { schemaProvenance: storedSchema.schemaProvenance }),
       schemaUpdatedAt: storedSchema.updatedAt,

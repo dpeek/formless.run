@@ -8,9 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import packageJson from "../../package.json";
 import {
-  exportAppArchive as exportAppArchiveCommand,
   exportInstanceArchive as exportInstanceArchiveCommand,
-  restoreAppArchive as restoreAppArchiveCommand,
   restorePortableArchive as restorePortableArchiveCommand,
   type ArchiveDiskWriteResult,
   type RestorePortableArchiveResult,
@@ -255,7 +253,6 @@ export {
   type RotateFormlessInstanceWorkspaceAdminTokenResult,
 } from "./instance-workspace-admin-token.ts";
 export {
-  readFormlessInstanceAppRegistry,
   readFormlessInstanceDeployMetadata,
   readFormlessInstanceOwnerSetupStatus,
   readFormlessInstanceTargetStatus,
@@ -542,16 +539,6 @@ export async function exportInstanceArchive(
   return exportInstanceArchiveCommand(input, dependencies);
 }
 
-export async function exportAppArchive(
-  input: { installId: string; outDir: string; target: string },
-  dependencies: Pick<
-    FormlessCliDependencies,
-    "cwd" | "fetch" | "now"
-  > = nodeFormlessCliDependencies(),
-): Promise<ArchiveDiskWriteResult> {
-  return exportAppArchiveCommand(input, dependencies);
-}
-
 export async function restorePortableArchive(
   input: {
     adminToken?: string | null;
@@ -566,23 +553,6 @@ export async function restorePortableArchive(
   > = nodeFormlessCliDependencies(),
 ): Promise<RestorePortableArchiveResult> {
   return restorePortableArchiveCommand(input, dependencies);
-}
-
-export async function restoreAppArchive(
-  input: {
-    adminToken?: string | null;
-    apply: boolean;
-    archiveDir: string;
-    installId: string;
-    replace: boolean;
-    target: string;
-  },
-  dependencies: Pick<
-    FormlessCliDependencies,
-    "cwd" | "env" | "fetch" | "now"
-  > = nodeFormlessCliDependencies(),
-): Promise<RestorePortableArchiveResult> {
-  return restoreAppArchiveCommand(input, dependencies);
 }
 
 export async function initFormlessInstanceWorkspace(

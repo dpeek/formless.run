@@ -52,12 +52,10 @@ describe("instance domain mapping evidence contracts", () => {
     const mappings: InstanceDomainMapping[] = [
       mapping({ host: "www.example.com", profile: "publicSite" }),
       mapping({ host: "admin.example.com", profile: "instance" }),
-      mapping({ host: "www.example.com", profile: "app", targetInstallId: "tasks" }),
     ];
 
     expect(listInstanceDomainMappings(mappings)).toEqual([
       mapping({ host: "admin.example.com", profile: "instance" }),
-      mapping({ host: "www.example.com", profile: "app", targetInstallId: "tasks" }),
       mapping({ host: "www.example.com", profile: "publicSite" }),
     ]);
   });
@@ -144,7 +142,6 @@ describe("instance domain mapping evidence contracts", () => {
       parseRecordInstanceDomainMappingApplyEvidenceRequest({
         host: "example.com",
         surface: "site",
-        installId: "personal",
         provider: "cloudflare-worker-custom-domain",
         accountId: "account-123",
         zoneId: "zone-1",
@@ -156,7 +153,6 @@ describe("instance domain mapping evidence contracts", () => {
     ).toEqual({
       host: "example.com",
       surface: "site",
-      installId: "personal",
       provider: "cloudflare-worker-custom-domain",
       accountId: "account-123",
       zoneId: "zone-1",
@@ -177,15 +173,11 @@ describe("instance domain mapping evidence contracts", () => {
 function mapping(input: {
   host: string;
   profile: InstanceDomainMapping["profile"];
-  targetInstallId?: string;
 }): InstanceDomainMapping {
   return {
     host: input.host,
     profile: input.profile,
     ...(input.profile === "publicSite" ? { surface: "site" as const } : {}),
-    ...(input.targetInstallId === undefined
-      ? {}
-      : { installId: input.targetInstallId, targetInstallId: input.targetInstallId }),
     enabled: true,
     createdAt: now,
     updatedAt: now,

@@ -1,11 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
-import type {
-  AppInstallsResponse,
-  BootstrapResponse,
-  CreateAppInstallResponse,
-  OwnerSetupStatusResponse,
-} from "../shared/protocol.ts";
+import type { BootstrapResponse, OwnerSetupStatusResponse } from "../shared/protocol.ts";
 import type { AccountSessionStatusResponse } from "../shared/instance-auth.ts";
 import {
   LOCAL_SESSION_BOOTSTRAP_API_PATH,
@@ -35,31 +30,26 @@ afterEach(async () => {
 });
 
 describe("local session bootstrap API routes", () => {
-  it("mints a local owner session that authorizes app install writes without exposing admin tokens", async () => {
-    const rejectedBefore = await createSiteInstall({ cookie: null });
-    const rejectedBeforeBody = await rejectedBefore.json();
+  it("mints a local owner session that authorizes Program access without exposing admin tokens", async () => {
+    const rejectedBefore = await harness.fetch("/api/formless/program/bootstrap");
     const bootstrap = await bootstrapLocalSession({
       init: { headers: { Origin: "http://example.com" } },
-      redirectTo: "/apps/site",
+      redirectTo: "/routes",
       reset: true,
     });
     const cookie = cookiePair(bootstrap.headers.get("Set-Cookie"));
     const session = await getJson<AccountSessionStatusResponse>("/api/formless/session", {
       headers: { Cookie: cookie },
     });
-    const installsBefore = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const controlPlaneBefore = await getJson<BootstrapResponse>("/api/formless/program/bootstrap");
-    const created = await createSiteInstall({ cookie });
-    const installsAfter = await getJson<AppInstallsResponse>("/api/formless/app-installs");
+    const controlPlaneBefore = await harness.fetch("/api/formless/program/bootstrap", {
+      headers: { Cookie: cookie },
+    });
+    const controlPlaneBody = (await controlPlaneBefore.json()) as BootstrapResponse;
 
     expect(rejectedBefore.status).toBe(401);
-    expect(rejectedBeforeBody).toEqual({
-      error:
-        "Owner session, Program administrator session, or admin authorization is required for this write endpoint.",
-    });
     expect(bootstrap.status).toBe(302);
     expect(bootstrap.headers.get("Location")).toBe(
-      "http://example.com/local-session?reset=1&redirectTo=%2Fapps%2Fsite",
+      "http://example.com/local-session?reset=1&redirectTo=%2Froutes",
     );
     expect(bootstrap.headers.get("Location")).not.toContain(localSessionBootstrapToken);
     expect(bootstrap.headers.get("Set-Cookie")).toContain(`${OWNER_SESSION_COOKIE_NAME}=`);
@@ -78,7 +68,8 @@ describe("local session bootstrap API routes", () => {
     });
     expect(JSON.stringify(session.body)).not.toContain(adminToken);
     expect(JSON.stringify(session.body)).not.toContain(localSessionBootstrapToken);
-    expect(controlPlaneBefore.body.records).toEqual(
+    expect(controlPlaneBefore.status).toBe(200);
+    expect(controlPlaneBody.records).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: "local-dev-owner",
@@ -102,29 +93,9 @@ describe("local session bootstrap API routes", () => {
       ]),
     );
     expect(
-      controlPlaneBefore.body.records.filter((record) => record.entity === "principal-email"),
+      controlPlaneBody.records.filter((record) => record.entity === "principal-email"),
     ).toEqual([]);
-    expect(installsBefore.body.installs).toEqual([]);
-    for (const entity of [
-      "app-install",
-      "route",
-      "deploy-target",
-      "provider-config-ref",
-      "deploy-desired-resource",
-    ]) {
-      expect(controlPlaneBefore.body.records.filter((record) => record.entity === entity)).toEqual(
-        [],
-      );
-    }
-    expect(created.status).toBe(201);
-    expect((await created.json()) as CreateAppInstallResponse).toMatchObject({
-      install: {
-        installId: "crm",
-        label: "CRM",
-        packageAppKey: "test-crm",
-      },
-    });
-    expect(installsAfter.body.installs.map((install) => install.installId)).toEqual(["crm"]);
+    expect(controlPlaneBody.records.some((record) => record.entity === "app-install")).toBe(false);
   });
 
   it("redirects same-origin local bootstrap requests back to the original named proxy origin", async () => {
@@ -347,21 +318,6 @@ async function configureProductionIdentity(target: Harness, productionOrigin: st
   });
 
   expect(response.status).toBe(200);
-}
-
-async function createSiteInstall(input: { cookie: string | null }) {
-  return harness.fetch("/api/formless/app-installs", {
-    body: JSON.stringify({
-      packageAppKey: "test-crm",
-      installId: "crm",
-      label: "CRM",
-    }),
-    headers: {
-      "Content-Type": "application/json",
-      ...(input.cookie === null ? {} : { Cookie: input.cookie }),
-    },
-    method: "POST",
-  });
 }
 
 async function getJson<T>(path: string, init?: HarnessFetchInit) {

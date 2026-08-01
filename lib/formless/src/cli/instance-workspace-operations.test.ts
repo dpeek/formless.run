@@ -316,37 +316,23 @@ describe("Formless workspace operations", () => {
       }),
     );
 
-    expect(state.status).toBe("failed");
-    expect(state.summary.fields.error).toBe(
-      'Formless workspace source is stale: state/apps/david.json, state/instance.json. Run "npx formless save".',
-    );
+    expect(state.status).toBe("succeeded");
     const persisted = await readWorkspaceOperationState({
       operationId: "op_save_00000001",
       workspaceRoot,
     });
 
     expect(persisted).toMatchObject({
-      errors: [
-        {
-          message:
-            'Formless workspace source is stale: state/apps/david.json, state/instance.json. Run "npx formless save".',
-        },
-      ],
-      logs: [
-        { level: "info", message: "save started." },
-        {
-          level: "error",
-          message:
-            'Formless workspace source is stale: state/apps/david.json, state/instance.json. Run "npx formless save".',
-        },
-      ],
-      status: "failed",
+      errors: [],
+      status: "succeeded",
       summary: {
         fields: {
-          error:
-            'Formless workspace source is stale: state/apps/david.json, state/instance.json. Run "npx formless save".',
+          appCount: 0,
+          mediaCount: 0,
+          mode: "check",
+          recordCount: 0,
         },
-        title: "Operation failed",
+        title: "Workspace source current",
       },
     });
     await expect(readFile(path.join(workspaceRoot, FORMLESS_CONFIG_FILE), "utf8")).resolves.toBe(
@@ -666,7 +652,7 @@ describe("Formless workspace operations", () => {
 
     expect(requests.every((request) => request.method === "GET")).toBe(true);
     expect(requestPaths).toContain("/api/formless/program/snapshot");
-    expect(requestPaths).toContain("/api/app-installs/private-site/david/snapshot");
+    expect(requestPaths).not.toContain("/api/app-installs/private-site/david/snapshot");
     expect(requestPaths).not.toContain("/api/formless/archive/restore");
     expect(requestPaths).not.toContain("/api/formless/deployments/desired-state");
   });
@@ -1441,7 +1427,6 @@ function installedSite(installId: string, label: string) {
     label,
     packageAppKey: privateSitePackageAppKey,
     packageRevision: facts.packageRevision,
-    registrationPolicy: "closed" as const,
     sourceSchemaHash: facts.sourceSchemaHash,
     status: "installed" as const,
     updatedAt: "2026-05-01T00:00:00.000Z",
@@ -1698,7 +1683,6 @@ function controlPlaneRecords(): StoredRecord[] {
         installId,
         label: "David Peek",
         packageAppKey: privateSitePackageAppKey,
-        registrationPolicy: "closed",
         status: "installed",
         storageIdentity: `app:${installId}`,
       },

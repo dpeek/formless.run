@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Dirent } from "node:fs";
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -8,14 +7,10 @@ import {
   type DeployLatestStatusDisplaySummary,
 } from "@dpeek/formless-deploy";
 import {
-  APP_ARCHIVE_KIND,
   ARCHIVE_VERSION,
   INSTANCE_ARCHIVE_KIND,
   appArchiveMediaReferences,
-  archiveApps,
-  archiveMediaObjects,
   archiveRecordCount,
-  parseAppArchive,
   type AppArchive,
   type AppArchiveMediaObject,
   type AppArchiveMediaReference,
@@ -34,11 +29,7 @@ import {
   validatePdfDocumentMediaFile,
 } from "@dpeek/formless-media";
 import { packageAppFactsForKey } from "@dpeek/formless-installed-apps";
-import {
-  findResolvedAppPackage,
-  isRuntimeInstallableAppPackageKey,
-  type AppPackageResolver,
-} from "../shared/app-packages.ts";
+import type { AppPackageResolver } from "../shared/app-packages.ts";
 import { normalizeInstanceDomainHost } from "../shared/instance-domain-mappings.ts";
 import {
   formatInstanceControlPlaneBoundaryEntityName,
@@ -61,13 +52,11 @@ import {
 import {
   instanceWorkspaceAppStateRelativePath,
   instanceWorkspaceInstanceStateRelativePath,
-  readInstanceWorkspaceAppStorageSnapshot,
   readInstanceWorkspaceAutoSaveState,
   readInstanceWorkspaceControlPlaneStorageSnapshot,
   readInstanceWorkspaceLocalDevSecretState as readFormlessInstanceWorkspaceLocalDevSecretState,
   readInstanceWorkspaceMediaFiles,
   readInstanceWorkspaceSecretState as readFormlessInstanceWorkspaceSecretState,
-  replaceInstanceWorkspaceAppStorageSnapshots,
   replaceInstanceWorkspaceMediaFiles,
   resolveInstanceWorkspaceAdminToken as resolveFormlessInstanceWorkspaceAdminToken,
   writeInstanceWorkspaceAutoSaveState,
@@ -94,14 +83,10 @@ import {
   formlessInstanceWorkspaceLocalStateRoot,
   readWorkspaceConfig,
   resolveFormlessInstanceWorkspaceRoot,
-  workspaceSchemaProvenanceForPackageApp,
-  workspaceSourceSchemaForPackageApp,
   type ActiveWorkspaceAppPackages,
 } from "./instance-workspace-foundation.ts";
 import {
-  assertWorkspaceControlPlanePackagesAvailable,
   booleanRecordValue,
-  controlPlaneAppInstallRecords,
   controlPlaneSnapshotForArchive,
   readArchiveDirectoryForCheck,
   stringRecordValue,
@@ -380,11 +365,6 @@ export async function pullFormlessInstanceWorkspace(
       packageResolver: activePackages.resolver,
       workspaceRoot,
     });
-    assertWorkspaceControlPlanePackagesAvailable({
-      controlPlane: localControlPlane,
-      operation: "check",
-      packageResolver: activePackages.resolver,
-    });
     const localDomainIntents = workspaceDomainIntentsFromSource(localControlPlane);
     const domains = await readLiveWorkspaceDomainIntents(
       { adminToken, target: selectedTarget },
@@ -393,12 +373,7 @@ export async function pullFormlessInstanceWorkspace(
     const domainDesiredDrift = shouldCompareWorkspaceDomainIntents(localDomainIntents, domains)
       ? compareWorkspaceDomainIntentToLive(localDomainIntents, domains)
       : [];
-    const localAppState = await readWorkspaceAppStateMapForCheck(
-      workspaceRoot,
-      config,
-      localControlPlane,
-      activePackages,
-    );
+    const localAppState = new Map<string, WorkspaceAppStateArchive>();
     const localProgramMedia = await workspaceProgramMediaFromSnapshot({
       controlPlane: localControlPlane,
       manifest: config,
@@ -418,11 +393,7 @@ export async function pullFormlessInstanceWorkspace(
       sourceSide: "remote",
       targetLabel: "workspace",
     });
-    const appState = pulledAppStateResults({
-      archive: pulledInstanceArchive.archive,
-      manifest: config,
-      workspaceRoot,
-    });
+    const appState: PullFormlessInstanceWorkspaceAppStateResult[] = [];
     const replacement = await pullWorkspaceReplacementPlan({
       localControlPlane,
       manifest: config,
@@ -431,13 +402,8 @@ export async function pullFormlessInstanceWorkspace(
       workspaceRoot,
     });
     const instanceState: FormlessInstanceWorkspaceStateSummary = {
-      appCount: pulledInstanceArchive.archive.apps.length,
-      mediaCount:
-        pulledInstanceArchive.archive.media.objects.length +
-        pulledInstanceArchive.archive.apps.reduce(
-          (count, app) => count + app.media.objects.length,
-          0,
-        ),
+      appCount: 0,
+      mediaCount: pulledInstanceArchive.archive.media.objects.length,
       recordCount: pulledInstanceArchive.archive.controlPlane?.records.length ?? 0,
       statePath: path.join(workspaceRoot, instanceWorkspaceInstanceStateRelativePath(config)),
     };
@@ -467,20 +433,10 @@ export async function pullFormlessInstanceWorkspace(
       workspaceRoot,
     });
 
-    const appSnapshots = pulledInstanceArchive.archive.apps.map((app) => ({
-      installId: app.app.installId,
-      schemaProvenance: workspaceSchemaProvenanceForAppArchive(app),
-      snapshot: appStorageSnapshotFromArchive(app),
-    }));
-
-    await replaceInstanceWorkspaceAppStorageSnapshots({
-      manifest: config,
-      snapshots: appSnapshots,
-      workspaceRoot,
-    });
+    const programMedia = programMediaFromInstanceArchive(pulledInstanceDirectory);
     await replaceInstanceWorkspaceMediaFiles({
       manifest: config,
-      mediaFiles: workspaceMediaFilesWithObjects(pulledInstanceArchive),
+      mediaFiles: workspaceProgramMediaFiles(programMedia),
       workspaceRoot,
     });
 
@@ -543,11 +499,6 @@ export async function checkFormlessInstanceWorkspace(
       packageResolver: activePackages.resolver,
       workspaceRoot,
     });
-    assertWorkspaceControlPlanePackagesAvailable({
-      controlPlane: localControlPlane,
-      operation: "check",
-      packageResolver: activePackages.resolver,
-    });
     const localDomainIntents = workspaceDomainIntentsFromSource(localControlPlane);
     const liveDomains = await readLiveWorkspaceDomainIntents(
       { adminToken, target: selectedTarget },
@@ -560,12 +511,7 @@ export async function checkFormlessInstanceWorkspace(
     const domainDesiredDrift = shouldCompareWorkspaceDomainIntents(localDomainIntents, liveDomains)
       ? compareWorkspaceDomainIntentToLive(localDomainIntents, liveDomains)
       : [];
-    const localAppState = await readWorkspaceAppStateMapForCheck(
-      workspaceRoot,
-      config,
-      localControlPlane,
-      activePackages,
-    );
+    const localAppState = new Map<string, WorkspaceAppStateArchive>();
     const localProgramMedia = await workspaceProgramMediaFromSnapshot({
       controlPlane: localControlPlane,
       manifest: config,
@@ -605,19 +551,6 @@ export async function checkLocalFormlessWorkspace(
     workspacePath: input.workspacePath,
   });
   const { config, configPath } = await readWorkspaceConfig(workspaceRoot);
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
-  const controlPlane = await readInstanceWorkspaceControlPlaneStorageSnapshot({
-    manifest: config,
-    packageResolver: activePackages.resolver,
-    workspaceRoot,
-  });
-
-  assertWorkspaceControlPlanePackagesAvailable({
-    controlPlane,
-    operation: "check",
-    packageResolver: activePackages.resolver,
-  });
-
   const selectedTarget = await resolveFormlessCliWorkspaceTarget({
     commandName: "check",
     config,
@@ -688,25 +621,18 @@ export async function saveLocalFormlessWorkspace(
       current: currentControlPlane,
       exported: exported.archive.controlPlane,
     });
-    assertWorkspaceControlPlanePackagesAvailable({
-      controlPlane: sourceControlPlane,
-      operation: "save",
-      packageResolver: activePackages.resolver,
-    });
     const instanceStatePath = path.join(
       workspaceRoot,
       instanceWorkspaceInstanceStateRelativePath(config),
     );
-    const appState = savedWorkspaceAppStateSummaries(workspaceRoot, config, exported);
+    const appState: SaveLocalFormlessWorkspaceAppStateSummary[] = [];
     const result: SaveLocalFormlessWorkspaceResult = {
       appState,
       config,
       configPath,
       instanceState: {
-        appCount: exported.archive.apps.length,
-        mediaCount:
-          exported.archive.media.objects.length +
-          exported.archive.apps.reduce((count, app) => count + app.media.objects.length, 0),
+        appCount: 0,
+        mediaCount: exported.archive.media.objects.length,
         recordCount: sourceControlPlane?.records.length ?? 0,
         statePath: instanceStatePath,
       },
@@ -902,12 +828,7 @@ function emptyRemoteInstanceArchiveDirectory(exportedAt: string): WorkspaceArchi
       kind: INSTANCE_ARCHIVE_KIND,
       version: ARCHIVE_VERSION,
       exportedAt,
-      capabilities: [
-        "installed-app-registry",
-        "schema-owned-control-plane",
-        "app-store-snapshots",
-        "core-media-assets",
-      ],
+      capabilities: ["schema-owned-control-plane", "core-media-assets"],
       restorePolicy: { dryRun: true, installCollisions: "reject" },
       controlPlane,
       media: { objects: [] },
@@ -941,18 +862,7 @@ export async function workspaceLocalRestoreArchiveSource(input: {
     packageResolver: input.activePackages.resolver,
   });
 
-  assertWorkspaceControlPlanePackagesAvailable({
-    controlPlane: reviewableControlPlane,
-    operation: "local dev",
-    packageResolver: input.activePackages.resolver,
-  });
-
-  const appState = await readCompleteWorkspaceAppState(
-    input.workspaceRoot,
-    input.config,
-    reviewableControlPlane,
-    input.activePackages,
-  );
+  const appState: WorkspaceAppStateArchive[] = [];
   const programMedia = await workspaceProgramMediaFromSnapshot({
     controlPlane: reviewableControlPlane,
     manifest: input.config,
@@ -1043,83 +953,6 @@ function workspaceLocalDevStatePath(
   );
 }
 
-export async function readCompleteWorkspaceAppState(
-  workspaceRoot: string,
-  manifest: FormlessResolvedConfig,
-  controlPlane: WorkspaceControlPlaneRecords,
-  activePackages: ActiveWorkspaceAppPackages,
-): Promise<WorkspaceAppStateArchive[]> {
-  return readRequiredWorkspaceAppState({
-    activePackages,
-    controlPlane,
-    manifest,
-    operation: "local dev",
-    workspaceRoot,
-  });
-}
-
-async function readWorkspaceAppStateMapForCheck(
-  workspaceRoot: string,
-  manifest: FormlessResolvedConfig,
-  controlPlane: WorkspaceControlPlaneRecords | undefined,
-  activePackages: ActiveWorkspaceAppPackages,
-): Promise<Map<string, WorkspaceAppStateArchive>> {
-  const appState = new Map<string, WorkspaceAppStateArchive>();
-
-  for (const app of controlPlaneAppInstallRecords(controlPlane)) {
-    const state = await readWorkspaceAppStateForCheck({
-      activePackages,
-      install: app,
-      manifest,
-      workspaceRoot,
-    });
-
-    if (state) {
-      appState.set(app.installId, state);
-    }
-  }
-
-  return appState;
-}
-
-async function readWorkspaceAppStateForCheck(input: {
-  activePackages: ActiveWorkspaceAppPackages;
-  install: WorkspaceControlPlaneAppInstallRecord;
-  manifest: FormlessResolvedConfig;
-  workspaceRoot: string;
-}): Promise<WorkspaceAppStateArchive | undefined> {
-  const packageApp = findResolvedAppPackage(
-    input.install.packageAppKey,
-    input.activePackages.resolver,
-  );
-  const sourceSchema = workspaceSourceSchemaForPackageApp({
-    activePackages: input.activePackages,
-    packageAppKey: input.install.packageAppKey,
-  });
-  const schemaProvenance =
-    packageApp === undefined ? undefined : workspaceSchemaProvenanceForPackageApp(packageApp);
-  const snapshot = await readInstanceWorkspaceAppStorageSnapshot({
-    installId: input.install.installId,
-    manifest: input.manifest,
-    schemaKey: packageApp?.sourceSchemaKey,
-    schemaProvenance,
-    sourceSchema,
-    workspaceRoot: input.workspaceRoot,
-  });
-
-  if (snapshot === undefined) {
-    return undefined;
-  }
-
-  return workspaceAppStateArchiveFromSnapshot({
-    activePackages: input.activePackages,
-    install: input.install,
-    manifest: input.manifest,
-    snapshot,
-    workspaceRoot: input.workspaceRoot,
-  });
-}
-
 async function exportWorkspaceSourceFromLocalAuthority(
   input: {
     adminToken?: string | null;
@@ -1153,23 +986,6 @@ async function exportWorkspaceSourceFromLocalAuthority(
     ...directory,
     archive: directory.archive,
   };
-}
-
-function savedWorkspaceAppStateSummaries(
-  workspaceRoot: string,
-  manifest: FormlessResolvedConfig,
-  directory: WorkspaceInstanceArchiveDirectory,
-): SaveLocalFormlessWorkspaceAppStateSummary[] {
-  return directory.archive.apps.map((app) => ({
-    appCount: 1,
-    statePath: path.join(
-      workspaceRoot,
-      instanceWorkspaceAppStateRelativePath(manifest, app.app.installId),
-    ),
-    installId: app.app.installId,
-    mediaCount: app.media.objects.length,
-    recordCount: archiveRecordCount(app),
-  }));
 }
 
 function savedAuthorityControlPlaneForWorkspaceSource(input: {
@@ -1251,34 +1067,6 @@ async function staleSavedWorkspaceSourcePaths(input: {
     }
   }
 
-  for (const exportedApp of input.exported.archive.apps) {
-    const appStatePath = instanceWorkspaceAppStateRelativePath(
-      input.config,
-      exportedApp.app.installId,
-    );
-    const expected = workspaceAppStateArchiveFromInstanceExport(
-      input.exported,
-      exportedApp,
-      appStatePath,
-    );
-    const install = controlPlaneAppInstallRecords(input.sourceControlPlane).find(
-      (candidate) => candidate.installId === exportedApp.app.installId,
-    );
-    const local =
-      install === undefined
-        ? undefined
-        : await readWorkspaceAppStateForCheck({
-            activePackages: input.activePackages,
-            install,
-            manifest: input.config,
-            workspaceRoot: input.workspaceRoot,
-          });
-
-    if (!workspaceAppStateMatches(expected, local)) {
-      stalePaths.add(appStatePath);
-    }
-  }
-
   return [...stalePaths].sort((left, right) => left.localeCompare(right));
 }
 
@@ -1296,18 +1084,10 @@ async function writeSavedWorkspaceSource(input: {
     snapshot: input.sourceControlPlane,
     workspaceRoot: input.workspaceRoot,
   });
-  await replaceInstanceWorkspaceAppStorageSnapshots({
-    manifest: input.config,
-    snapshots: input.exported.archive.apps.map((app) => ({
-      installId: app.app.installId,
-      schemaProvenance: workspaceSchemaProvenanceForAppArchive(app),
-      snapshot: appStorageSnapshotFromArchive(app),
-    })),
-    workspaceRoot: input.workspaceRoot,
-  });
+  const programMedia = programMediaFromInstanceArchive(input.exported);
   await replaceInstanceWorkspaceMediaFiles({
     manifest: input.config,
-    mediaFiles: workspaceMediaFilesWithObjects(input.exported),
+    mediaFiles: workspaceProgramMediaFiles(programMedia),
     workspaceRoot: input.workspaceRoot,
   });
 }
@@ -1331,125 +1111,6 @@ async function markWorkspaceAutoSaveSavedAfterWorkspaceSourceWrite(input: {
     state: nextWorkspaceAutoSaveSavedState(current, { now: input.now }),
     workspaceRoot: input.workspaceRoot,
   });
-}
-
-function workspaceAppStateArchiveFromInstanceExport(
-  directory: WorkspaceInstanceArchiveDirectory,
-  app: AppArchive,
-  statePath: string,
-): WorkspaceAppStateArchive {
-  return {
-    appArchive: app,
-    mediaFiles: workspaceAppArchiveMediaFiles(directory, app),
-    missingMediaFiles: directory.missingMediaFiles.filter((archivePath) =>
-      app.media.objects.some((object) => object.archivePath === archivePath),
-    ),
-    statePath,
-  };
-}
-
-async function workspaceAppStateArchiveFromSnapshot(input: {
-  activePackages: ActiveWorkspaceAppPackages;
-  install: WorkspaceControlPlaneAppInstallRecord;
-  manifest: FormlessResolvedConfig;
-  snapshot: StorageSnapshot;
-  workspaceRoot: string;
-}): Promise<WorkspaceAppStateArchive> {
-  const statePath = instanceWorkspaceAppStateRelativePath(input.manifest, input.install.installId);
-  const appArchive = appArchiveFromWorkspaceSnapshot(input);
-  const media = await workspaceAppArchiveMediaFromSnapshot({
-    archive: appArchive,
-    manifest: input.manifest,
-    workspaceRoot: input.workspaceRoot,
-  });
-
-  return {
-    appArchive: {
-      ...appArchive,
-      media: { objects: media.objects },
-    },
-    mediaFiles: media.mediaFiles,
-    missingMediaFiles: media.missingMediaFiles,
-    statePath,
-  };
-}
-
-function appArchiveFromWorkspaceSnapshot(input: {
-  activePackages: ActiveWorkspaceAppPackages;
-  install: WorkspaceControlPlaneAppInstallRecord;
-  snapshot: StorageSnapshot;
-}): AppArchive {
-  const packageApp = findResolvedAppPackage(
-    input.install.packageAppKey,
-    input.activePackages.resolver,
-  );
-  const packageRevision = input.install.packageRevision ?? packageApp?.packageRevision;
-  const sourceSchemaHash = input.install.sourceSchemaHash ?? packageApp?.sourceSchemaHash;
-
-  if (!packageApp || packageRevision === undefined || sourceSchemaHash === undefined) {
-    throw new Error(
-      `Workspace app state ${input.install.installId} references unavailable package "${input.install.packageAppKey}".`,
-    );
-  }
-
-  return {
-    kind: APP_ARCHIVE_KIND,
-    version: ARCHIVE_VERSION,
-    exportedAt: input.snapshot.exportedAt,
-    capabilities: ["app-store-snapshots", "core-media-assets"],
-    restorePolicy: { dryRun: true, installCollisions: "reject" },
-    app: {
-      installId: input.install.installId,
-      packageAppKey: input.install.packageAppKey,
-      packageRevision,
-      sourceSchemaKey: packageApp.sourceSchemaKey,
-      sourceSchemaHash,
-      label: input.install.label,
-      registrationPolicy: input.install.registrationPolicy,
-      ...(input.install.registrationOperation === undefined
-        ? {}
-        : { registrationOperation: input.install.registrationOperation }),
-      status: input.install.status,
-      createdAt: input.install.createdAt,
-      updatedAt: input.install.updatedAt,
-    },
-    data: input.snapshot,
-    media: { objects: [] },
-  };
-}
-
-async function workspaceAppArchiveMediaFromSnapshot(input: {
-  archive: AppArchive;
-  manifest: FormlessResolvedConfig;
-  workspaceRoot: string;
-}): Promise<{
-  mediaFiles: ArchiveDiskMediaFile[];
-  missingMediaFiles: string[];
-  objects: AppArchive["media"]["objects"];
-}> {
-  const references = appMediaReferences(input.archive);
-  const archivePaths = references.map((reference) => reference.archivePath);
-  const diskMedia = await readInstanceWorkspaceMediaFiles({
-    archivePaths,
-    manifest: input.manifest,
-    workspaceRoot: input.workspaceRoot,
-  });
-  const objects = parseAppArchive({
-    ...input.archive,
-    media: { objects: diskMedia.mediaFiles.map((file) => file.object) },
-  }).media.objects;
-
-  validateWorkspaceMediaObjects({
-    files: diskMedia.mediaFiles,
-    objects,
-    references,
-  });
-
-  return {
-    mediaFiles: diskMedia.mediaFiles.map(({ object: _, ...file }) => file),
-    missingMediaFiles: diskMedia.missingMediaFiles,
-    objects,
-  };
 }
 
 async function workspaceProgramMediaFromSnapshot(input: {
@@ -1496,6 +1157,14 @@ function programMediaFromInstanceArchive(
   };
 }
 
+function workspaceProgramMediaFiles(media: WorkspaceProgramMediaSource) {
+  const objectsByPath = new Map(media.objects.map((object) => [object.archivePath, object]));
+  return media.mediaFiles.map((file) => ({
+    ...file,
+    object: objectsByPath.get(file.archivePath),
+  }));
+}
+
 function assertWorkspaceProgramMediaComplete(
   media: WorkspaceProgramMediaSource,
   operation: "local dev" | "push",
@@ -1526,30 +1195,6 @@ export function workspaceSchemaProvenanceForAppArchive(
   };
 }
 
-function pulledAppStateResults(input: {
-  archive: InstanceArchive;
-  manifest: FormlessResolvedConfig;
-  workspaceRoot: string;
-}): PullFormlessInstanceWorkspaceAppStateResult[] {
-  return archiveApps(input.archive)
-    .map((app) => {
-      const statePath = path.join(
-        input.workspaceRoot,
-        instanceWorkspaceAppStateRelativePath(input.manifest, app.app.installId),
-      );
-
-      return {
-        appCount: 1,
-        installId: app.app.installId,
-        mediaCount: app.media.objects.length,
-        recordCount: archiveRecordCount(app),
-        statePath,
-        stateRoot: path.dirname(statePath),
-      };
-    })
-    .sort((left, right) => left.installId.localeCompare(right.installId));
-}
-
 async function pullWorkspaceReplacementPlan(input: {
   localControlPlane: WorkspaceControlPlaneRecords | undefined;
   manifest: FormlessResolvedConfig;
@@ -1559,67 +1204,18 @@ async function pullWorkspaceReplacementPlan(input: {
 }): Promise<PullFormlessInstanceWorkspaceReplacementPlan> {
   const changedStatePaths = new Set(input.syncPlan.changedStatePaths);
   const prunedStatePaths = new Set<string>();
-  const remoteApps = archiveApps(input.remoteArchive.archive);
-  const remoteAppStatePaths = new Set(
-    remoteApps.map((app) =>
-      instanceWorkspaceAppStateRelativePath(input.manifest, app.app.installId),
-    ),
-  );
-  const localAppStatePaths = await listWorkspaceRelativeFiles(
-    path.join(input.workspaceRoot, input.manifest.state.root, "apps"),
-    path.posix.join(input.manifest.state.root, "apps"),
-  );
-
-  for (const installId of input.syncPlan.extraInstalls) {
-    changedStatePaths.add(instanceWorkspaceAppStateRelativePath(input.manifest, installId));
-  }
-
-  for (const statePath of localAppStatePaths) {
-    if (!remoteAppStatePaths.has(statePath)) {
-      changedStatePaths.add(statePath);
-      prunedStatePaths.add(statePath);
-    }
-  }
-
+  const remoteProgramMedia = programMediaFromInstanceArchive(input.remoteArchive);
   const remoteMediaPaths = new Set(
-    input.remoteArchive.mediaFiles.map((file) =>
+    remoteProgramMedia.mediaFiles.map((file) =>
       path.posix.join(input.manifest.media.root, file.archivePath),
     ),
   );
-  if (input.remoteArchive.mediaFiles.length > 0) {
+  if (remoteProgramMedia.mediaFiles.length > 0) {
     remoteMediaPaths.add(path.posix.join(input.manifest.media.root, WORKSPACE_MEDIA_MANIFEST_FILE));
   }
-  const localMediaPaths = await listWorkspaceRelativeFiles(
-    path.join(input.workspaceRoot, input.manifest.media.root),
-    input.manifest.media.root,
-  );
-  const changedMediaInstalls = new Set([
-    ...input.syncPlan.changedMedia,
-    ...input.syncPlan.extraInstalls,
-  ]);
-
-  for (const app of remoteApps) {
-    if (!changedMediaInstalls.has(app.app.installId)) {
-      continue;
-    }
-
-    for (const file of input.remoteArchive.mediaFiles) {
-      if (app.media.objects.some((object) => object.archivePath === file.archivePath)) {
-        changedStatePaths.add(path.posix.join(input.manifest.media.root, file.archivePath));
-      }
-    }
-  }
-
-  if (changedMediaInstalls.size > 0 && input.remoteArchive.mediaFiles.length > 0) {
-    changedStatePaths.add(
-      path.posix.join(input.manifest.media.root, WORKSPACE_MEDIA_MANIFEST_FILE),
-    );
-  }
-
-  for (const mediaPath of localMediaPaths) {
-    if (!remoteMediaPaths.has(mediaPath)) {
+  if (input.syncPlan.changedMedia.includes("program")) {
+    for (const mediaPath of remoteMediaPaths) {
       changedStatePaths.add(mediaPath);
-      prunedStatePaths.add(mediaPath);
     }
   }
 
@@ -1644,38 +1240,6 @@ async function pullWorkspaceReplacementPlan(input: {
   };
 }
 
-async function listWorkspaceRelativeFiles(root: string, relativeRoot: string): Promise<string[]> {
-  let entries: Dirent[];
-
-  try {
-    entries = await readdir(root, { withFileTypes: true });
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return [];
-    }
-
-    throw error;
-  }
-
-  const files: string[] = [];
-
-  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
-    const entryRoot = path.join(root, entry.name);
-    const entryRelativePath = path.posix.join(relativeRoot, entry.name);
-
-    if (entry.isDirectory()) {
-      files.push(...(await listWorkspaceRelativeFiles(entryRoot, entryRelativePath)));
-      continue;
-    }
-
-    if (entry.isFile()) {
-      files.push(entryRelativePath);
-    }
-  }
-
-  return files;
-}
-
 function workspaceAppArchiveMediaFiles(
   directory: WorkspaceArchiveDirectory,
   app: AppArchive,
@@ -1687,7 +1251,6 @@ function workspaceAppArchiveMediaFiles(
 
 type WorkspaceMediaReference = {
   archivePath: string;
-  ownerAppInstallId?: string;
   reference: AppArchiveMediaReference;
   storageKey: string;
 };
@@ -1713,42 +1276,6 @@ function programMediaReferences(
 
     references.push({
       archivePath: `media/program/${facts.storageKey}`,
-      reference,
-      storageKey: facts.storageKey,
-    });
-  }
-
-  return references.sort(
-    (left, right) =>
-      left.storageKey.localeCompare(right.storageKey) ||
-      left.reference.entity.localeCompare(right.reference.entity) ||
-      left.reference.field.localeCompare(right.reference.field) ||
-      left.reference.recordId.localeCompare(right.reference.recordId),
-  );
-}
-
-function appMediaReferences(archive: AppArchive): WorkspaceMediaReference[] {
-  const references: WorkspaceMediaReference[] = [];
-
-  for (const reference of appArchiveMediaReferences(archive.data.schema, archive.data.records)) {
-    const facts =
-      reference.kind === "image"
-        ? coreImageMediaDeliveryFactsForAssetId(reference.assetId)
-        : documentMediaDeliveryFactsForAssetId(reference.assetId, {
-            hrefForAssetId: (assetId) =>
-              `/api/app-installs/${archive.app.packageAppKey}/${archive.app.installId}/media/documents/${assetId}`,
-            ownerAppInstallId: archive.app.installId,
-          });
-
-    if (!facts) {
-      throw new Error(
-        `Workspace app state ${archive.app.installId} references invalid ${reference.kind} asset "${reference.assetId}".`,
-      );
-    }
-
-    references.push({
-      archivePath: `media/${archive.app.installId}/${facts.storageKey}`,
-      ownerAppInstallId: archive.app.installId,
       reference,
       storageKey: facts.storageKey,
     });
@@ -1802,11 +1329,7 @@ function validateWorkspaceMediaObjects(input: {
         acceptedMimeTypes: reference.reference.policy.acceptedMimeTypes,
         access: reference.reference.policy.access,
         maxBytes: reference.reference.policy.maxBytes,
-        ...(reference.ownerAppInstallId === undefined
-          ? {}
-          : { ownerAppInstallId: reference.ownerAppInstallId }),
-      }) ||
-      asset.ownerAppInstallId !== reference.ownerAppInstallId
+      })
     ) {
       throw new Error(
         `Workspace document metadata for referenced asset "${reference.reference.assetId}" is incompatible with its schema field.`,
@@ -1834,22 +1357,6 @@ function validateWorkspaceMediaObjects(input: {
   }
 }
 
-function workspaceAppStateMatches(
-  expected: WorkspaceAppStateArchive,
-  actual: WorkspaceAppStateArchive | undefined,
-): boolean {
-  if (!actual) {
-    return false;
-  }
-
-  return (
-    comparableAppRecordStateJson(actual.appArchive) ===
-      comparableAppRecordStateJson(expected.appArchive) &&
-    comparableAppMediaJson(actual, actual.appArchive) ===
-      comparableAppMediaJson(expected, expected.appArchive)
-  );
-}
-
 function createWorkspaceSyncPlan(input: {
   domainDesiredDrift: FormlessInstanceWorkspaceDomainDesiredDrift[];
   localControlPlane: WorkspaceControlPlaneRecords | undefined;
@@ -1864,9 +1371,9 @@ function createWorkspaceSyncPlan(input: {
   sourceSide: "local" | "remote";
   targetLabel: string;
 }): FormlessInstanceWorkspaceSyncPlan {
-  const remoteApps = archiveApps(input.remoteArchive.archive);
+  const remoteApps: AppArchive[] = [];
   const remoteAppsByInstall = new Map(remoteApps.map((app) => [app.app.installId, app]));
-  const localApps = controlPlaneAppInstallRecords(input.localControlPlane);
+  const localApps: WorkspaceControlPlaneAppInstallRecord[] = [];
   const localAppsByInstall = new Map(localApps.map((app) => [app.installId, app]));
   const changedStatePaths = new Set<string>();
   const changedControlPlaneRecords = new Set<string>();
@@ -2067,7 +1574,7 @@ function createWorkspaceForcedRecoverySyncPlan(input: {
   packageResolver: AppPackageResolver;
   targetLabel: string;
 }): FormlessInstanceWorkspaceSyncPlan {
-  const localApps = controlPlaneAppInstallRecords(input.localControlPlane);
+  const localApps: WorkspaceControlPlaneAppInstallRecord[] = [];
   const localAppArchivePayloads = [...input.localAppState.values()].map(
     (state) => state.appArchive,
   );
@@ -2338,7 +1845,6 @@ function comparableWorkspaceDomainIntentsJson(
         enabled: domain.enabled,
         host: domain.host,
         profile: domain.profile,
-        targetInstallId: domain.targetInstallId ?? null,
       })),
     ),
   );
@@ -2393,19 +1899,6 @@ function comparableControlPlaneIntentRecords(
 }
 
 function comparableProgramWorkspaceRecords(records: readonly StoredRecord[]): StoredRecord[] {
-  const dormantInstallIds = new Set(
-    records.flatMap((record) => {
-      const packageAppKey =
-        controlPlaneRecordEntity(record) === "app-install"
-          ? stringRecordValue(record, "packageAppKey")
-          : undefined;
-
-      return packageAppKey !== undefined && !isRuntimeInstallableAppPackageKey(packageAppKey)
-        ? [record.id]
-        : [];
-    }),
-  );
-
   return records.filter((record) => {
     const entity = controlPlaneRecordEntity(record);
 
@@ -2418,13 +1911,15 @@ function comparableProgramWorkspaceRecords(records: readonly StoredRecord[]): St
     }
 
     if (entity === "app-install") {
-      return !dormantInstallIds.has(record.id);
+      return false;
     }
 
     return (
       entity !== "route" ||
       (isCurrentProgramPublicSiteRouteRecord(record) &&
-        !dormantInstallIds.has(stringRecordValue(record, "appInstall") ?? ""))
+        stringRecordValue(record, "targetProfile") !== "app" &&
+        stringRecordValue(record, "appInstall") === undefined &&
+        stringRecordValue(record, "requiredRole") === undefined)
     );
   });
 }
@@ -2566,24 +2061,6 @@ function comparableMediaJson(
   return JSON.stringify(stableValue(media));
 }
 
-function workspaceMediaFilesWithObjects(
-  directory: WorkspaceArchiveDirectory,
-): Array<ArchiveDiskMediaFile & { object: AppArchive["media"]["objects"][number] }> {
-  const objectsByArchivePath = new Map(
-    archiveMediaObjects(directory.archive).map((object) => [object.archivePath, object] as const),
-  );
-
-  return directory.mediaFiles.map((file) => {
-    const object = objectsByArchivePath.get(file.archivePath);
-
-    if (!object) {
-      throw new Error(`Workspace media file "${file.archivePath}" is missing object metadata.`);
-    }
-
-    return { ...file, object };
-  });
-}
-
 function normalizeGeneratedArchiveTimestamps<T extends PortableArchive>(archive: T): T {
   const nextArchive = jsonClone(archive);
   const generatedAt = "1970-01-01T00:00:00.000Z";
@@ -2660,12 +2137,6 @@ export async function prepareWorkspacePushSourceSync(
     workspaceRoot: input.workspaceRoot,
   });
 
-  assertWorkspaceControlPlanePackagesAvailable({
-    controlPlane: localControlPlane,
-    operation: "push",
-    packageResolver: activePackages.resolver,
-  });
-
   const localDomainIntents = workspaceDomainIntentsFromSource(localControlPlane);
   const liveDomains =
     input.existingSelectedTarget === undefined
@@ -2680,12 +2151,7 @@ export async function prepareWorkspacePushSourceSync(
   const domainDesiredDrift = shouldCompareWorkspaceDomainIntents(localDomainIntents, liveDomains)
     ? compareWorkspaceDomainIntentToLive(localDomainIntents, liveDomains)
     : [];
-  const localAppState = await readWorkspaceAppStateForPush(
-    input.workspaceRoot,
-    input.manifest,
-    localControlPlane,
-    activePackages,
-  );
+  const localAppState: WorkspaceAppStateArchive[] = [];
   const localProgramMedia = await workspaceProgramMediaFromSnapshot({
     controlPlane: localControlPlane,
     manifest: input.manifest,
@@ -2791,180 +2257,6 @@ export async function restoreWorkspacePushSourceArchive(
   );
 }
 
-async function readWorkspaceAppStateForPush(
-  workspaceRoot: string,
-  manifest: FormlessResolvedConfig,
-  controlPlane: WorkspaceControlPlaneRecords | undefined,
-  activePackages: ActiveWorkspaceAppPackages,
-): Promise<WorkspaceAppStateArchive[]> {
-  return readRequiredWorkspaceAppState({
-    activePackages,
-    controlPlane,
-    manifest,
-    operation: "push",
-    workspaceRoot,
-  });
-}
-
-async function readRequiredWorkspaceAppState(input: {
-  activePackages: ActiveWorkspaceAppPackages;
-  controlPlane: WorkspaceControlPlaneRecords | undefined;
-  manifest: FormlessResolvedConfig;
-  operation: "local dev" | "push";
-  workspaceRoot: string;
-}): Promise<WorkspaceAppStateArchive[]> {
-  const appState: WorkspaceAppStateArchive[] = [];
-
-  for (const app of controlPlaneAppInstallRecords(input.controlPlane)) {
-    const statePath = instanceWorkspaceAppStateRelativePath(input.manifest, app.installId);
-    const state = await readWorkspaceAppStateForCheck({
-      activePackages: input.activePackages,
-      install: app,
-      manifest: input.manifest,
-      workspaceRoot: input.workspaceRoot,
-    });
-
-    validateRequiredWorkspaceAppState({
-      install: app,
-      operation: input.operation,
-      packageResolver: input.activePackages.resolver,
-      state,
-      statePath,
-    });
-
-    appState.push(state as WorkspaceAppStateArchive);
-  }
-
-  return appState.sort((left, right) =>
-    left.appArchive.app.installId.localeCompare(right.appArchive.app.installId),
-  );
-}
-
-function validateRequiredWorkspaceAppState(input: {
-  install: WorkspaceControlPlaneAppInstallRecord;
-  operation: "local dev" | "push";
-  packageResolver: AppPackageResolver;
-  state: WorkspaceAppStateArchive | undefined;
-  statePath: string;
-}): asserts input is {
-  install: WorkspaceControlPlaneAppInstallRecord;
-  operation: "local dev" | "push";
-  packageResolver: AppPackageResolver;
-  state: WorkspaceAppStateArchive;
-  statePath: string;
-} {
-  const prefix = `Formless instance ${input.operation}`;
-
-  if (!input.state) {
-    throw new Error(`${prefix} requires local app state ${input.statePath}.`);
-  }
-
-  const archiveApp = input.state.appArchive.app;
-
-  if (archiveApp.installId !== input.install.installId) {
-    throw new Error(
-      `${prefix} app state ${input.statePath} has install id "${archiveApp.installId}", expected "${input.install.installId}".`,
-    );
-  }
-
-  if (archiveApp.packageAppKey !== input.install.packageAppKey) {
-    throw new Error(
-      `${prefix} app state ${input.statePath} has package "${archiveApp.packageAppKey}", expected "${input.install.packageAppKey}".`,
-    );
-  }
-
-  const packageApp = findResolvedAppPackage(input.install.packageAppKey, input.packageResolver);
-
-  if (!packageApp) {
-    throw new Error(
-      `${prefix} app install "${input.install.installId}" references unsupported package "${input.install.packageAppKey}".`,
-    );
-  }
-
-  if (
-    input.install.packageRevision !== undefined &&
-    input.install.packageRevision !== packageApp.packageRevision
-  ) {
-    throw new Error(
-      `${prefix} app install "${input.install.installId}" has package revision ${input.install.packageRevision}, expected ${packageApp.packageRevision}.`,
-    );
-  }
-
-  if (
-    input.install.sourceSchemaHash !== undefined &&
-    input.install.sourceSchemaHash !== packageApp.sourceSchemaHash
-  ) {
-    throw new Error(
-      `${prefix} app install "${input.install.installId}" has source schema hash "${input.install.sourceSchemaHash}", expected "${packageApp.sourceSchemaHash}".`,
-    );
-  }
-
-  if (archiveApp.packageRevision !== packageApp.packageRevision) {
-    throw new Error(
-      `${prefix} app state ${input.statePath} has package revision ${archiveApp.packageRevision}, expected ${packageApp.packageRevision}.`,
-    );
-  }
-
-  if (archiveApp.sourceSchemaKey !== packageApp.sourceSchemaKey) {
-    throw new Error(
-      `${prefix} app state ${input.statePath} has source schema key "${archiveApp.sourceSchemaKey}", expected "${packageApp.sourceSchemaKey}".`,
-    );
-  }
-
-  if (archiveApp.sourceSchemaHash !== packageApp.sourceSchemaHash) {
-    throw new Error(
-      `${prefix} app state ${input.statePath} has source schema hash "${archiveApp.sourceSchemaHash}", expected "${packageApp.sourceSchemaHash}".`,
-    );
-  }
-
-  validateWorkspaceAppStateMediaReferences({
-    operation: input.operation,
-    state: input.state,
-    statePath: input.statePath,
-  });
-}
-
-function validateWorkspaceAppStateMediaReferences(input: {
-  operation: "local dev" | "push";
-  state: WorkspaceAppStateArchive;
-  statePath: string;
-}) {
-  const prefix = `Formless instance ${input.operation}`;
-
-  if (input.state.missingMediaFiles.length > 0) {
-    throw new Error(
-      `${prefix} app state ${input.statePath} is missing media files: ${input.state.missingMediaFiles.join(", ")}.`,
-    );
-  }
-
-  const mediaFilesByPath = new Map(input.state.mediaFiles.map((file) => [file.archivePath, file]));
-  const seenArchivePaths = new Set<string>();
-
-  for (const object of input.state.appArchive.media.objects) {
-    if (seenArchivePaths.has(object.archivePath)) {
-      throw new Error(
-        `${prefix} app state ${input.statePath} has duplicate media file "${object.archivePath}".`,
-      );
-    }
-
-    seenArchivePaths.add(object.archivePath);
-
-    const file = mediaFilesByPath.get(object.archivePath);
-
-    if (!file) {
-      throw new Error(
-        `${prefix} app state ${input.statePath} is missing media file "${object.archivePath}".`,
-      );
-    }
-
-    if (file.byteSize !== object.byteSize) {
-      throw new Error(
-        `${prefix} app state ${input.statePath} media file "${object.archivePath}" has ${file.byteSize} bytes, expected ${object.byteSize}.`,
-      );
-    }
-  }
-}
-
 async function writeComposedWorkspacePushArchive(input: {
   archiveRoot: string;
   appState: readonly WorkspaceAppStateArchive[];
@@ -2973,15 +2265,12 @@ async function writeComposedWorkspacePushArchive(input: {
   packageResolver: AppPackageResolver;
   programMedia: WorkspaceProgramMediaSource;
 }): Promise<PushFormlessInstanceWorkspaceSource> {
-  const appArchives = input.appState.map((state) => state.appArchive);
   const instanceArchive: InstanceArchive = {
     kind: INSTANCE_ARCHIVE_KIND,
     version: ARCHIVE_VERSION,
     exportedAt: input.exportedAt,
     capabilities: [
-      "installed-app-registry",
       ...(input.controlPlane === undefined ? [] : ["schema-owned-control-plane" as const]),
-      "app-store-snapshots",
       "core-media-assets",
     ],
     restorePolicy: { dryRun: true, installCollisions: "reject" },
@@ -2994,15 +2283,12 @@ async function writeComposedWorkspacePushArchive(input: {
           ),
         }),
     media: { objects: input.programMedia.objects },
-    apps: appArchives,
+    apps: [],
   };
   return writePortableArchiveDirectory(
     {
       archive: instanceArchive,
-      mediaFiles: [
-        ...input.programMedia.mediaFiles,
-        ...input.appState.flatMap((state) => state.mediaFiles),
-      ],
+      mediaFiles: input.programMedia.mediaFiles,
       outDir: input.archiveRoot,
       packageResolver: input.packageResolver,
     },
@@ -3067,21 +2353,14 @@ function workspaceDomainIntentFromRouteRecord(record: {
   const profile = workspaceDomainProfileFromRouteTargetProfile(
     stringRecordValue(record, "targetProfile"),
   );
-  const targetInstallId = stringRecordValue(record, "appInstall");
-
   if (host === undefined) {
     throw new Error(`Workspace route "${record.id}" is missing matchHost.`);
-  }
-
-  if (profile === "app" && targetInstallId === undefined) {
-    throw new Error(`Workspace route "${record.id}" profile "${profile}" is missing appInstall.`);
   }
 
   return {
     enabled: booleanRecordValue(record, "enabled") ?? true,
     host,
     profile,
-    ...(profile !== "app" || targetInstallId === undefined ? {} : { targetInstallId }),
   };
 }
 
@@ -3089,7 +2368,6 @@ function workspaceDomainProfileFromRouteTargetProfile(
   targetProfile: string | undefined,
 ): FormlessInstanceWorkspaceDomainIntent["profile"] {
   switch (targetProfile) {
-    case "app":
     case "instance":
       return targetProfile;
     case "public-site":
@@ -3103,11 +2381,7 @@ function compareWorkspaceDomainIntents(
   left: FormlessInstanceWorkspaceDomainIntent,
   right: FormlessInstanceWorkspaceDomainIntent,
 ): number {
-  return (
-    left.host.localeCompare(right.host) ||
-    left.profile.localeCompare(right.profile) ||
-    (left.targetInstallId ?? "").localeCompare(right.targetInstallId ?? "")
-  );
+  return left.host.localeCompare(right.host) || left.profile.localeCompare(right.profile);
 }
 
 export function selectDomainIntentsForHost(input: {
@@ -3182,10 +2456,7 @@ function workspaceDomainIntentsEqual(
   right: FormlessInstanceWorkspaceDomainIntent,
 ): boolean {
   return (
-    left.enabled === right.enabled &&
-    left.host === right.host &&
-    left.profile === right.profile &&
-    left.targetInstallId === right.targetInstallId
+    left.enabled === right.enabled && left.host === right.host && left.profile === right.profile
   );
 }
 

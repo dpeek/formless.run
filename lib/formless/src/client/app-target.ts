@@ -1,13 +1,12 @@
 import {
   programStorageIdentity,
-  type AppStorageIdentity,
   type ProgramStorageIdentity,
 } from "../shared/app-storage-identity.ts";
 import { findSchemaAppDefinition } from "../shared/schema-apps.ts";
 import { FORMLESS_PROGRAM_SCHEMA_KEY } from "../program/target.ts";
 
 export type ClientAppSchemaKey = string;
-export type ClientAppStorageIdentity = AppStorageIdentity | ProgramStorageIdentity;
+export type ClientAppStorageIdentity = ProgramStorageIdentity;
 export type ClientAppTarget = ClientAppStorageIdentity;
 
 export function appStorageIdentityForClientTarget(
@@ -21,9 +20,7 @@ export function clientTargetStorageName(target: ClientAppTarget): string {
 }
 
 export function clientTargetSourceSchemaKey(target: ClientAppTarget): ClientAppSchemaKey {
-  const identity = appStorageIdentityForClientTarget(target);
-
-  return identity.kind === "program" ? identity.schemaKey : identity.sourceSchemaKey;
+  return appStorageIdentityForClientTarget(target).schemaKey;
 }
 
 export function clientTargetLabel(target: ClientAppTarget): string {

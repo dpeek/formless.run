@@ -110,7 +110,6 @@ import {
   type FormlessInstanceWorkspaceSyncPlan,
 } from "./instance-workspace-source-sync.ts";
 import {
-  assertWorkspaceControlPlanePackagesAvailable,
   stringRecordValue,
   withoutControlPlaneLifecycleValues,
   workspaceControlPlaneSnapshotFromRecords,
@@ -1274,11 +1273,6 @@ export async function planDeployLocalFormlessWorkspace(
     packageResolver: activePackages.resolver,
     workspaceRoot,
   });
-  assertWorkspaceControlPlanePackagesAvailable({
-    controlPlane,
-    operation: "deploy",
-    packageResolver: activePackages.resolver,
-  });
   const deploymentSource = selectLocalWorkspaceDeploymentSource(controlPlane, input.targetAlias, {
     commandName: "push",
   });
@@ -1533,11 +1527,6 @@ export async function planDeployFormlessInstanceWorkspace(
     packageResolver: activePackages.resolver,
     workspaceRoot,
   });
-  assertWorkspaceControlPlanePackagesAvailable({
-    controlPlane,
-    operation: "deploy",
-    packageResolver: activePackages.resolver,
-  });
   const deploymentSource = selectLocalWorkspaceDeploymentSource(controlPlane, input.targetAlias, {
     commandName: "deploy",
   });
@@ -1681,11 +1670,6 @@ export async function resolveFormlessInstanceWorkspaceProviderContext(
     packageResolver: activePackages.resolver,
     workspaceRoot,
   });
-  assertWorkspaceControlPlanePackagesAvailable({
-    controlPlane,
-    operation: input.commandName,
-    packageResolver: activePackages.resolver,
-  });
   const deploymentSource = selectLocalWorkspaceDeploymentSource(controlPlane, input.targetAlias, {
     commandName: input.commandName,
   });
@@ -1779,7 +1763,6 @@ type LocalWorkspaceDeploymentDesiredState = {
   resourceCount: number;
   resourceGraph: DeployResourceGraph;
   resourcesByKind: Record<DeployResourceKind, number>;
-  routeTargetCount: number;
   sourceFingerprint: string;
   targetId: string;
 };
@@ -1895,7 +1878,6 @@ function projectLocalWorkspaceDeploymentDesiredState(input: {
     resourceCount: resourceGraph.resources.length,
     resourceGraph,
     resourcesByKind: deployResourceCountsByKind(resourceGraph),
-    routeTargetCount: routeProjection.routeTargets.length,
     sourceFingerprint: routeProjection.sourceFingerprint,
     targetId: input.targetId,
   };

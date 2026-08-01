@@ -1,7 +1,7 @@
 /**
  * Public Media contract version.
  *
- * Version 1 covers first-party image, Program document, and app-scoped document media assets,
+ * Version 1 covers first-party image and Program document media assets,
  * transfer shapes, delivery facts, storage keys, object metadata, and the
  * provider store seam. App-specific usage metadata remains owned by app schemas
  * and runtimes.
@@ -15,7 +15,7 @@ export const MEDIA_PUBLIC_CONTRACT_VERSION = 1;
 /** Maximum accepted image upload size for the core media API. */
 export const MEDIA_IMAGE_UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
 
-/** Runtime ceiling available to app-scoped document upload policy. */
+/** Runtime ceiling available to Program document upload policy. */
 export const MEDIA_DOCUMENT_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
 
 /** Document content type currently accepted by Media adapters. */
@@ -24,14 +24,11 @@ export const MEDIA_PDF_CONTENT_TYPE = "application/pdf";
 /** Cache policy applied to immutable stored media object responses. */
 export const MEDIA_OBJECT_CACHE_CONTROL = "public, max-age=31536000, immutable";
 
-/** Cache policy applied to private app-scoped document responses. */
+/** Cache policy applied to private Program document responses. */
 export const MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL = "private, no-store";
 
 /** Provider object-key prefix for owned core image media. */
 export const CORE_IMAGE_KEY_PREFIX = "media/images";
-
-/** Provider object-key prefix for app-install-owned document media. */
-export const APP_DOCUMENT_MEDIA_KEY_PREFIX = "media/app-installs";
 
 /** Provider object-key prefix for global Program document media. */
 export const PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX = "media/program/documents";
@@ -53,7 +50,6 @@ export const MEDIA_ASSET_METADATA_KEYS = {
   height: "formless-media-height",
   kind: "formless-media-kind",
   label: "formless-media-label",
-  ownerAppInstallId: "formless-media-owner-app-install-id",
   provider: "formless-media-provider",
   status: "formless-media-status",
   storageKey: "formless-media-storage-key",
@@ -99,7 +95,6 @@ export type DocumentMediaAssetMetadata = MediaObjectMetadata & {
   "formless-media-filename": string;
   "formless-media-kind": "document";
   "formless-media-label": string;
-  "formless-media-owner-app-install-id"?: string;
   "formless-media-provider": string;
   "formless-media-status": "ready";
   "formless-media-storage-key": MediaStorageKey;
@@ -218,7 +213,7 @@ export type ImageMediaAsset = {
   width?: number;
 };
 
-/** Immutable Program-global or app-install-owned document media asset. */
+/** Immutable Program-global document media asset. */
 export type DocumentMediaAsset = {
   access: DocumentMediaAccess;
   byteSize: number;
@@ -228,7 +223,6 @@ export type DocumentMediaAsset = {
   id: string;
   kind: "document";
   label: string;
-  ownerAppInstallId?: string;
   provider: string;
   status: "ready";
   storageKey: MediaStorageKey;
@@ -302,12 +296,11 @@ export type ImageMediaAssetDeliveryFacts = {
   storageKey: MediaStorageKey;
 };
 
-/** Routeable delivery facts derived from a Program or app-scoped document asset id. */
+/** Routeable delivery facts derived from a Program document asset id. */
 export type DocumentMediaAssetDeliveryFacts = {
   assetId: string;
   href: string;
   kind: "document";
-  ownerAppInstallId?: string;
   storageKey: MediaStorageKey;
 };
 
@@ -323,10 +316,9 @@ export type DocumentMediaResponseFacts = {
   xContentTypeOptions: "nosniff";
 };
 
-/** Compatibility facts supplied by a trusted Program or installed-app runtime. */
+/** Compatibility facts supplied by a trusted Program runtime. */
 export type DocumentMediaCompatibility = {
   acceptedMimeTypes: readonly string[];
   access: DocumentMediaAccess;
   maxBytes: number;
-  ownerAppInstallId?: string;
 };

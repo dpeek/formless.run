@@ -2,26 +2,16 @@
 
 ## Purpose
 
-Authority storage owns committed app data, Program records, active schemas,
-operation invocations, write invariants, and server API contracts for each
-storage identity. It is the durable source of truth that browser replicas,
-storage snapshots, portable archive envelopes, workspace state, and installed
-apps read from or write through.
+Authority storage owns committed Program records, the active Program schema,
+operation invocations, write invariants, and the Program API contract. It is
+the durable source of truth that the one browser replica, storage snapshots,
+portable archive envelopes, and workspace state read from or write through.
 
 ## Requirements
 
 ### Requirement: Storage Identity
 
-The system SHALL isolate Authority storage by storage identity.
-
-#### Scenario: Installed app identity
-
-- GIVEN an installed app with an app install id
-- WHEN the app uses the installed app API prefix for its package app key and install id
-- THEN committed records, changes, schema, and operation invocations belong to
-  `app:<installId>` storage
-- AND the installed app storage is separate from Program storage and other
-  installed app storage
+The system SHALL use one Program Authority storage identity.
 
 #### Scenario: Program identity
 
@@ -32,8 +22,8 @@ The system SHALL isolate Authority storage by storage identity.
   `instance:control-plane` storage
 - AND one active `formless-program` schema and one `program` provenance hash
   govern those records
-- AND runtime-installed private app records remain scoped to their app storage
-  identities
+- AND package, module, entity, field, media, or former app-install identity does
+  not select another Authority
 
 #### Scenario: Workspace-composed Program identity
 
@@ -44,8 +34,8 @@ The system SHALL isolate Authority storage by storage identity.
   `instance:control-plane`
 - AND workspace module, package, entity, route, field, and media keys do not
   select an Authority, storage identity, or authorization principal
-- AND runtime-installed private apps retain their existing isolated Authority
-  behavior until they are separately converted or removed
+- AND Worker requests never evaluate workspace TypeScript or resolve a runtime
+  package manifest to select storage
 
 ### Requirement: Authority-Wide Record Identity
 
@@ -71,58 +61,19 @@ identity without deriving record identity from an entity key or entity id.
 - AND stable entity ids do not change record-id uniqueness into a composite
   entity-and-record key
 
-### Requirement: App Storage API
+### Requirement: Program Storage API
 
-The system SHALL expose storage operations through Program and installed-app API
-prefixes.
+The system SHALL expose generic storage operations only through the Program API
+prefix.
 
-#### Scenario: Shared app API paths
+#### Scenario: Program API paths
 
-- GIVEN a valid app storage identity
-- WHEN a client calls app storage API paths for bootstrap, schema, tree reads,
-  sync, operations, or reset schema
-- THEN the system resolves the operation for that app storage identity
-- AND read and write responses use the same durable Authority state for that identity
-
-### Requirement: Installed App Admin Data Authorization
-
-The system SHALL authorize generated installed-app administration separately
-from browser route eligibility and operational instance management.
-
-#### Scenario: Matching app administrator uses generated app data
-
-- GIVEN a request targets an installed app storage identity
-- WHEN the request bootstraps the browser replica, reads the active schema,
-  syncs committed changes over HTTP or push, or invokes an entity operation
-- THEN the request requires an active principal with active `app.admin`
-  authority at app-install scope for that exact install or active
-  `instance.owner` authority
-- AND the schema-defined Program `administrator` role alone, `app.admin` for
-  another install, or an ordinary authenticated session does not authorize the
-  request
-- AND central and host-local sessions are evaluated through the same current
-  instance-auth authority reader
-
-#### Scenario: App admin data authorization does not grant storage control
-
-- GIVEN a principal is authorized only by matching `app.admin` authority
-- WHEN the principal requests schema writes, reset schema, snapshot export or
-  restore, package migration, archive, or another storage-control
-  operation
-- THEN existing owner, operational-management, admin-bearer, CLI, or automation
-  authorization remains required according to that operation
-- AND app admin data authorization does not grant Program reads or writes
-
-#### Scenario: Entity operations keep actor policy
-
-- GIVEN the installed app data boundary accepts a matching app administrator
-- WHEN the principal invokes an entity operation
-- THEN Authority supplies the existing `admin` operation actor candidate for
-  that principal and target app install
-- AND the operation is accepted only when its schema actor policy permits the
-  selected actor
-- AND a matching route or app role does not bypass operation input, field,
-  state, invariant, idempotency, or materialization validation
+- GIVEN a client calls bootstrap, schema, tree, sync, operation, or reset paths
+- WHEN the route is admitted
+- THEN it resolves Authority `instance:control-plane` through
+  `/api/formless/program`
+- AND package app keys, install ids, and former `app:<installId>` names cannot
+  select an API route or Durable Object
 
 ### Requirement: Storage Snapshot Contract Boundary
 
@@ -151,15 +102,8 @@ Storage package while keeping Authority storage execution in runtime modules.
 
 ### Requirement: Instance Management APIs
 
-The system SHALL expose instance-level management APIs separately from app
-storage APIs.
-
-#### Scenario: Instance app installs
-
-- GIVEN the product instance shell reads or writes installed app metadata
-- WHEN it calls `/api/formless/app-installs`
-- THEN the request targets instance metadata storage
-- AND installed app data remains scoped to each app storage identity
+The system SHALL expose instance-level management APIs separately from generic
+Program storage APIs.
 
 #### Scenario: Instance setup and passkey session
 
@@ -167,14 +111,14 @@ storage APIs.
 - WHEN `/api/formless/setup`, `/api/formless/passkeys/*`, or
   `/api/formless/session` is used
 - THEN owner identity, passkey credentials, passkey challenges, and owner
-  session state are established independently from app install metadata
+  session state are established independently from Program domain records
 - AND write operations can be guarded by owner session cookies
 - AND admin bearer authorization remains available for bootstrap, automation,
   and recovery-sensitive write paths
 
 ### Requirement: Media Storage Adapter Boundary
 
-The system SHALL keep Authority app storage separate from instance media storage
+The system SHALL keep Authority Program storage separate from instance media storage
 while consuming Media package Worker adapters through public subpaths.
 
 #### Scenario: App storage avoids media internals
@@ -188,10 +132,10 @@ while consuming Media package Worker adapters through public subpaths.
 
 #### Scenario: Media remains outside Authority records
 
-- GIVEN app records are committed or restored through Authority storage
+- GIVEN Program records are committed or restored through Authority storage
 - WHEN owned media exists for the instance
 - THEN owned media object bytes and provider storage metadata remain outside
-  Authority app records
+  Authority Program records
 
 ### Requirement: Source Schema Bootstrap
 
@@ -200,17 +144,10 @@ without treating package records as source.
 
 #### Scenario: Fresh bootstrap
 
-- GIVEN no active schema is stored for an app storage identity
-- WHEN the app is bootstrapped
+- GIVEN no active schema is stored for the Program storage identity
+- WHEN the Program is bootstrapped
 - THEN the active schema is initialized from the source schema
 - AND no stored records or record changes are created by source bootstrap
-
-#### Scenario: Installed app creation
-
-- GIVEN a bundled package app is installed
-- WHEN the installed app storage identity is initialized
-- THEN storage starts from the package source schema
-- AND the installed app starts with no stored records
 
 #### Scenario: Runtime-owned invariant records
 
@@ -892,8 +829,7 @@ preserve Authority storage invariants.
 
 #### Scenario: Replace populated app state
 
-- GIVEN an owner or operator needs to replace the records of an app storage
-  identity
+- GIVEN an owner or operator needs to replace the records of Program storage
 - WHEN a validated storage snapshot or portable archive restore applies
 - THEN the restored schema and records become the durable app state
 - AND replacement does not read package-owned initial records
@@ -907,8 +843,7 @@ preserve Authority storage invariants.
 - AND the envelope includes version, storage identity, schema key, exported
   timestamp, schema timestamp, source cursor, schema, and records
 - AND storage identity is the compact Authority storage name such as
-  `app:<installId>`, `instance:control-plane`, or a schema key for source
-  schema-key storage
+  `instance:control-plane`
 
 #### Scenario: Storage snapshot restore
 
@@ -972,9 +907,9 @@ The system MUST guard writes when owner or admin protection is configured and SH
 
 ### Requirement: Program Control-Plane Storage
 
-The system SHALL store runtime-owned instance, identity, singleton Tasks,
-singleton Site, and singleton CRM records in one Program Authority storage identity separate from
-remaining installed app data and private authentication state.
+The system SHALL store runtime-owned instance, identity, Tasks, Site, CRM, and
+workspace-owned domain records in one Program Authority storage identity
+separate from private authentication state.
 
 #### Scenario: Program identity
 
@@ -987,10 +922,8 @@ remaining installed app data and private authentication state.
   Program source hash
 - AND instance, identity, Task, Site, and CRM records share one record-id namespace,
   write log, cursor, snapshot boundary, and operation-invocation store
-- AND runtime-installed private app records remain scoped to their app storage
-  identities
-- AND app install and route records remain metadata about installed apps, not
-  the installed apps' own record storage
+- AND package, module, entity, field, media, or former app-install identity does
+  not select another record store
 - AND credentials, sessions, challenge secrets, token hashes, provider state,
   and media blobs remain outside Program Authority records
 
@@ -1089,29 +1022,6 @@ remaining installed app data and private authentication state.
   credential management, and other non-entity storage or security operations
   retain their separate owner or trusted-channel authorization
 
-#### Scenario: Remaining installed-app operations retain their boundary
-
-- GIVEN a runtime-installable private app stores data in
-  `app:<installId>`
-- WHEN its entity operation is invoked
-- THEN the exact installed-app data admission and legacy operation actor policy
-  remain authoritative for that external Authority
-- AND Program member, editor, or administrator roles do not cross that boundary
-- AND no generic role scope or actor translation is introduced for the
-  transitional split
-
-#### Scenario: App install creation transaction
-
-- GIVEN a package app install is created through the Program API
-- WHEN the create operation commits
-- THEN the app install and default route records are committed in the
-  Program storage identity
-- AND the package source schema is validated before install metadata commits
-- AND the install-scoped app storage identity initializes lazily with that
-  schema and no records
-- AND unavailable or invalid package source leaves no usable installed app
-  route
-
 ### Requirement: Program Record Validation
 
 The system SHALL validate mixed Program records through the complete schema and
@@ -1205,6 +1115,19 @@ schema truth.
 - AND committed records, source cursor, operation invocations, and change rows are
   not replaced
 
+#### Scenario: Current Program source excludes removed installed-app state
+
+- GIVEN storage contains dormant records or write-log rows for removed
+  `app-install`, app-target route, `app-registration`, or app-scoped role facts
+- WHEN the complete materialized Program becomes the active source
+- THEN schema refresh, bootstrap, sync, snapshots, workspace source, archives,
+  projections, and browser replicas select only records and fields admitted by
+  the current Program schema and current route policy
+- AND cursors advance across unselected historical changes without delivering
+  them
+- AND the runtime does not import, merge, migrate, rewrite, tombstone, clean up,
+  alias, or expose a legacy rejection surface for the unselected state
+
 #### Scenario: Block incompatible schema refresh
 
 - GIVEN current active records cannot validate against a resolved source schema
@@ -1218,8 +1141,8 @@ schema truth.
 
 ### Requirement: Control-Plane Secret Boundary
 
-Authority storage SHALL keep installed app data, deployment secrets, and
-canonical provider state out of control-plane records and change rows.
+Authority storage SHALL keep deployment secrets and canonical provider state
+out of Program records and change rows.
 
 #### Scenario: Secret values are excluded
 
@@ -1228,21 +1151,6 @@ canonical provider state out of control-plane records and change rows.
 - THEN provider API tokens, Alchemy passwords, Alchemy state tokens, raw lease
   tokens, and runtime secrets are not included
 - AND display-safe secret references may be stored
-
-#### Scenario: Remaining installed app data is excluded
-
-- GIVEN private runtime-installable app metadata or dormant Tasks, Site, or CRM
-  install metadata records are stored, synced, snapshotted, or exported as
-  Program records
-- WHEN installed app data exists for a private runtime-installed app
-- THEN the installed app's records, changes, active schema, and operation
-  handler execution state are not nested into control-plane records
-- AND app data continues to move through storage snapshots scoped to
-  `app:<installId>` identities
-- AND singleton Task, Site, and CRM records are Program records rather than
-  installed app data
-- AND dormant Tasks, Site, and CRM storage is not read or nested into Program
-  output
 
 #### Scenario: Provider truth remains external
 

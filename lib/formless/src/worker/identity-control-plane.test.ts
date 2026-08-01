@@ -41,9 +41,7 @@ import {
 import { recordOperationRequest } from "../test/authority-write.ts";
 import { ensureTestIdentityOwner, resetTestIdentityStorage } from "../test/identity-owner.ts";
 import {
-  INTERNAL_IDENTITY_APP_AUTHORITY_PATH,
   INTERNAL_IDENTITY_PRINCIPAL_AUTHORITY_PATH,
-  type ActiveIdentityAppAuthority,
   type ActiveIdentityAuthority,
 } from "./identity-owner-internal.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
@@ -235,7 +233,6 @@ describe("identity control-plane API routes", () => {
   });
 
   it("creates owner-authorized collaborator invitation record sets and replays by idempotency", async () => {
-    await createInstalledApp("site", "Site");
     const ownerSession = await createOwnerSessionHeaders();
     const ownerHeaders = ownerSession.headers;
     const organization = await postRecordOperation({
@@ -252,8 +249,7 @@ describe("identity control-plane API routes", () => {
       idempotencyKey: "invite-ada-collaborator",
       invitationId: "invitation:ada",
       targetEmail: "Ada.Collab@Example.COM",
-      targetSurface: "organization",
-      targetOrganization: organization.id,
+      targetSurface: "instance",
       now: "2999-01-01T00:00:00.000Z",
       invitedPrincipal: {
         id: "principal:ada",
@@ -273,23 +269,9 @@ describe("identity control-plane API routes", () => {
       ],
       roleAssignments: [
         {
-          id: "role-assignment:ada-app-editor",
-          roleKey: "app.editor",
-          scopeKind: "app-install",
-          appInstallId: "site",
-        },
-        {
-          id: "role-assignment:ada-organization-viewer",
-          roleKey: "app.viewer",
-          scopeKind: "organization",
-          scopeOrganization: organization.id,
-        },
-      ],
-      appRegistrations: [
-        {
-          id: "app-registration:site-ada",
-          appInstallId: "site",
-          selectedOrganization: organization.id,
+          id: "program-role-assignment:ada-member",
+          roleId: "role_de3ae092-31a9-49df-b7f6-9f51f9403ff9",
+          scopeKind: "program",
         },
       ],
     };
@@ -308,9 +290,7 @@ describe("identity control-plane API routes", () => {
       "principal",
       "principal-email",
       "membership",
-      "role-assignment",
-      "role-assignment",
-      "app-registration",
+      "program-role-assignment",
       "invitation",
     ]);
     expect(created.body.invitation).toMatchObject({
@@ -318,8 +298,7 @@ describe("identity control-plane API routes", () => {
       entity: "invitation",
       values: {
         targetEmail: "Ada.Collab@example.com",
-        targetSurface: "organization",
-        targetOrganization: organization.id,
+        targetSurface: "instance",
         invitedPrincipal: "principal:ada",
         inviterPrincipal: ownerSession.owner.id,
         status: "pending",
@@ -356,38 +335,12 @@ describe("identity control-plane API routes", () => {
         status: "invited",
       },
     });
-    expect(recordById(created.body.records, "role-assignment:ada-app-editor")).toMatchObject({
-      entity: "role-assignment",
+    expect(recordById(created.body.records, "program-role-assignment:ada-member")).toMatchObject({
+      entity: "program-role-assignment",
       values: {
-        role: "role:app.editor",
-        targetKind: "principal",
-        targetPrincipal: "principal:ada",
-        scopeKind: "app-install",
-        appInstallId: "site",
+        principal: "principal:ada",
+        roleId: "role_de3ae092-31a9-49df-b7f6-9f51f9403ff9",
         status: "active",
-      },
-    });
-    expect(
-      recordById(created.body.records, "role-assignment:ada-organization-viewer"),
-    ).toMatchObject({
-      entity: "role-assignment",
-      values: {
-        role: "role:app.viewer",
-        targetKind: "principal",
-        targetPrincipal: "principal:ada",
-        scopeKind: "organization",
-        scopeOrganization: organization.id,
-        status: "active",
-      },
-    });
-    expect(recordById(created.body.records, "app-registration:site-ada")).toMatchObject({
-      entity: "app-registration",
-      values: {
-        appInstallId: "site",
-        targetKind: "principal",
-        targetPrincipal: "principal:ada",
-        selectedOrganization: organization.id,
-        status: "pending",
       },
     });
     expect(JSON.stringify(created.body)).not.toContain("token");
@@ -764,128 +717,9 @@ describe("identity control-plane API routes", () => {
     });
   });
 
-  it("creates Program administrator browser collaborator invitations and keeps raw identity writes owner-only", async () => {
-    await createInstalledApp("site", "Site");
-    const adminPrincipal = await createIdentityPrincipal("Invite Program Administrator");
-    await assignIdentityProgramRole(adminPrincipal.id, "administrator");
-
-    const adminSessionHeaders = { Cookie: await ownerCookieForPrincipal(adminPrincipal.id) };
-    const rawWrite = await postRecordOperationResponse(
-      {
-        entity: "principal",
-        idempotencyKey: "Program-administrator-raw-principal-create",
-        operationName: "create",
-        input: {
-          displayName: "Raw Write Should Fail",
-          kind: "human",
-          status: "active",
-        },
-      },
-      adminSessionHeaders,
-    );
-    const created = await postCollaboratorInvitationResponse(
-      {
-        idempotencyKey: "invite-Program-administrator-scoped",
-        invitationId: "invitation:Program-administrator-scoped",
-        targetEmail: "Program-administrator-scoped@example.com",
-        now: "2999-01-01T00:00:00.000Z",
-        invitedPrincipal: {
-          id: "principal:Program-administrator-scoped",
-          displayName: "Scoped Collaborator",
-        },
-        principalEmail: {
-          id: "principal-email:Program-administrator-scoped",
-          primary: true,
-          recovery: false,
-        },
-        roleAssignments: [
-          {
-            id: "role-assignment:Program-administrator-scoped-viewer",
-            roleKey: "app.viewer",
-            scopeKind: "app-install",
-            appInstallId: "site",
-          },
-        ],
-      },
-      adminSessionHeaders,
-    );
-
-    expect(rawWrite.response.status).toBe(401);
-    expect(rawWrite.body).toEqual({
-      error: "Current Program operation access is required for this endpoint.",
-    });
-    expect(created.response.status).toBe(200);
-    expect(created.body.status).toBe("committed");
-    expect(created.body.invitation).toMatchObject({
-      id: "invitation:Program-administrator-scoped",
-      entity: "invitation",
-      values: {
-        targetEmail: "Program-administrator-scoped@example.com",
-        targetSurface: "app-install",
-        targetAppInstallId: "site",
-        invitedPrincipal: "principal:Program-administrator-scoped",
-        inviterPrincipal: adminPrincipal.id,
-        status: "pending",
-      },
-    });
-    const viewerAssignment = recordById(
-      created.body.records,
-      "role-assignment:Program-administrator-scoped-viewer",
-    );
-
-    expect(viewerAssignment).toMatchObject({
-      entity: "role-assignment",
-      values: {
-        role: "role:app.viewer",
-        targetKind: "principal",
-        targetPrincipal: "principal:Program-administrator-scoped",
-        scopeKind: "app-install",
-        appInstallId: "site",
-        status: "active",
-      },
-    });
-    expect(created.body.records).toContainEqual(
-      expect.objectContaining({
-        entity: "app-registration",
-        values: {
-          appInstallId: "site",
-          targetKind: "principal",
-          targetPrincipal: "principal:Program-administrator-scoped",
-          status: "pending",
-        },
-      }),
-    );
-  });
-
   it("atomically replaces owner-authorized person roles and immediately narrows authority", async () => {
     const ownerSession = await createOwnerSessionHeaders();
     const principal = await createIdentityPrincipal("Access Role Replacement");
-    const siteViewer = await postRecordOperation({
-      entity: "role-assignment",
-      idempotencyKey: "assign-access-replacement-site-viewer",
-      operationName: "create",
-      input: {
-        appInstallId: "site",
-        role: "role:app.viewer",
-        scopeKind: "app-install",
-        status: "active",
-        targetKind: "principal",
-        targetPrincipal: principal.id,
-      },
-    });
-    const tasksViewer = await postRecordOperation({
-      entity: "role-assignment",
-      idempotencyKey: "assign-access-replacement-tasks-viewer-disabled",
-      operationName: "create",
-      input: {
-        appInstallId: "tasks",
-        role: "role:app.viewer",
-        scopeKind: "app-install",
-        status: "disabled",
-        targetKind: "principal",
-        targetPrincipal: principal.id,
-      },
-    });
     const replaced = await postIdentityAccessPersonRoleReplacementResponse(
       {
         idempotencyKey: "replace-access-person-roles",
@@ -895,16 +729,6 @@ describe("identity control-plane API routes", () => {
           {
             roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
             scopeKind: "program",
-          },
-          {
-            appInstallId: "site",
-            roleKey: "app.editor",
-            scopeKind: "app-install",
-          },
-          {
-            appInstallId: "tasks",
-            roleKey: "app.viewer",
-            scopeKind: "app-install",
           },
         ],
       },
@@ -922,21 +746,7 @@ describe("identity control-plane API routes", () => {
         scopeKind: "program",
       }),
     ]);
-    expect("roles" in replaced.body ? replaced.body.roles : []).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          appInstallId: "site",
-          roleKey: "app.editor",
-          scopeKind: "app-install",
-        }),
-        expect.objectContaining({
-          appInstallId: "tasks",
-          roleAssignmentId: tasksViewer.id,
-          roleKey: "app.viewer",
-          status: "active",
-        }),
-      ]),
-    );
+    expect("roles" in replaced.body ? replaced.body.roles : []).toEqual([]);
     expect(await readPrincipalAuthority(principal.id)).toEqual({
       callerFacts: {
         active: true,
@@ -946,11 +756,6 @@ describe("identity control-plane API routes", () => {
       },
       id: principal.id,
     });
-
-    const afterReplacement = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
-
-    expect(recordById(afterReplacement.body.records, siteViewer.id).values.status).toBe("disabled");
-    expect(recordById(afterReplacement.body.records, tasksViewer.id).values.status).toBe("active");
 
     const conflicting = await postIdentityAccessPersonRoleReplacementResponse(
       {
@@ -1004,134 +809,6 @@ describe("identity control-plane API routes", () => {
     expect(staleAccess.response.status).toBe(401);
   });
 
-  it("limits Program administrator person mutations to admin and app-install authority", async () => {
-    const ownerSession = await createOwnerSessionHeaders();
-    const actor = await createIdentityPrincipal("Access Mutation Admin");
-    await assignIdentityProgramRole(actor.id, "administrator");
-    const target = await createIdentityPrincipal("Access Mutation Target");
-    await assignIdentityProgramRole(target.id, "administrator");
-    await postRecordOperation({
-      entity: "role-assignment",
-      idempotencyKey: "assign-access-mutation-target-site-viewer",
-      operationName: "create",
-      input: {
-        appInstallId: "site",
-        role: "role:app.viewer",
-        scopeKind: "app-install",
-        status: "active",
-        targetKind: "principal",
-        targetPrincipal: target.id,
-      },
-    });
-    const organization = await postRecordOperation({
-      entity: "organization",
-      idempotencyKey: "create-access-mutation-organization",
-      operationName: "create",
-      input: {
-        displayName: "Protected Organization",
-        status: "active",
-      },
-    });
-    const protectedOrganizationRole = await postRecordOperation({
-      entity: "role-assignment",
-      idempotencyKey: "assign-access-mutation-target-organization-viewer",
-      operationName: "create",
-      input: {
-        role: "role:app.viewer",
-        scopeKind: "organization",
-        scopeOrganization: organization.id,
-        status: "active",
-        targetKind: "principal",
-        targetPrincipal: target.id,
-      },
-    });
-    const actorHeaders = { Cookie: await ownerCookieForPrincipal(actor.id) };
-    const replaced = await postIdentityAccessPersonRoleReplacementResponse(
-      {
-        idempotencyKey: "admin-replace-access-person-roles",
-        principalId: target.id,
-        roles: [
-          {
-            appInstallId: "site",
-            roleKey: "app.editor",
-            scopeKind: "app-install",
-          },
-        ],
-      },
-      actorHeaders,
-    );
-
-    expect(replaced.response.status).toBe(200);
-    expect("roles" in replaced.body ? replaced.body.roles : []).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          appInstallId: "site",
-          roleKey: "app.editor",
-        }),
-        expect.objectContaining({
-          roleAssignmentId: protectedOrganizationRole.id,
-          roleKey: "app.viewer",
-          scopeKind: "organization",
-        }),
-      ]),
-    );
-
-    const ownerGrant = await postIdentityAccessPersonRoleReplacementResponse(
-      {
-        idempotencyKey: "admin-reject-owner-role",
-        principalId: target.id,
-        roles: [{ roleKey: "instance.owner", scopeKind: "instance" }],
-      },
-      actorHeaders,
-    );
-    const protectedRemoval = await postIdentityAccessPersonRemovalResponse(
-      {
-        idempotencyKey: "admin-reject-protected-removal",
-        principalId: target.id,
-      },
-      actorHeaders,
-    );
-    const ownerRemoval = await postIdentityAccessPersonRemovalResponse(
-      {
-        idempotencyKey: "admin-reject-owner-removal",
-        principalId: ownerSession.owner.id,
-      },
-      actorHeaders,
-    );
-
-    for (const rejected of [ownerGrant, protectedRemoval, ownerRemoval]) {
-      expect(rejected.response.status).toBe(403);
-      expect(rejected.body).toMatchObject({ reason: "protected-assignment" });
-    }
-
-    const ordinary = await createIdentityPrincipal("Access Removal Ordinary");
-    const removed = await postIdentityAccessPersonRemovalResponse(
-      {
-        idempotencyKey: "admin-remove-ordinary-person",
-        now: "2999-01-03T00:00:00.000Z",
-        principalId: ordinary.id,
-      },
-      actorHeaders,
-    );
-    const summary = await getAccessSummary(actorHeaders);
-    const afterRemoval = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
-
-    expect(removed.response.status).toBe(200);
-    expect(removed.body).toMatchObject({
-      person: {
-        principalId: ordinary.id,
-        status: "disabled",
-      },
-      removedAt: "2999-01-03T00:00:00.000Z",
-      status: "disabled",
-    });
-    expect(summary.body.people).not.toContainEqual(
-      expect.objectContaining({ principalId: ordinary.id }),
-    );
-    expect(recordById(afterRemoval.body.records, ordinary.id).values.status).toBe("disabled");
-    expect(await readPrincipalAuthority(ordinary.id)).toBeNull();
-  });
-
   it("protects the last active owner and retains reviewable records after owner removal", async () => {
     const firstOwner = await createOwnerSessionHeaders();
     const rejected = await postIdentityAccessPersonRoleReplacementResponse(
@@ -1181,29 +858,22 @@ describe("identity control-plane API routes", () => {
     expect(await readPrincipalAuthority(firstOwner.owner.id)).toBeNull();
   });
 
-  it("returns display-safe access summaries for owners and Program administrators", async () => {
-    await createInstalledApp("site", "Site");
+  it("returns display-safe Program access summaries for owners and administrators", async () => {
     const ownerSession = await createOwnerSessionHeaders();
     const adminPrincipal = await createIdentityPrincipal("Access Summary Admin");
-    await createIdentityPrincipalEmail(adminPrincipal.id, "Access.Admin@Example.COM");
+    await createIdentityPrincipalEmail(adminPrincipal.id, "Access.Admin.COM");
     const adminRole = await assignIdentityProgramRole(adminPrincipal.id, "administrator");
     const organization = await postRecordOperation({
       entity: "organization",
       idempotencyKey: "create-access-summary-organization",
       operationName: "create",
-      input: {
-        displayName: "Access Org",
-        status: "active",
-      },
+      input: { displayName: "Access Org", status: "active" },
     });
     const group = await postRecordOperation({
       entity: "group",
       idempotencyKey: "create-access-summary-group",
       operationName: "create",
-      input: {
-        displayName: "Access Group",
-        status: "active",
-      },
+      input: { displayName: "Access Group", status: "active" },
     });
     const membership = await postRecordOperation({
       entity: "membership",
@@ -1213,31 +883,6 @@ describe("identity control-plane API routes", () => {
         principal: adminPrincipal.id,
         targetKind: "group",
         targetGroup: group.id,
-        status: "active",
-      },
-    });
-    const appRegistration = await postRecordOperation({
-      entity: "app-registration",
-      idempotencyKey: "create-access-summary-registration",
-      operationName: "create",
-      input: {
-        appInstallId: "site",
-        targetKind: "principal",
-        targetPrincipal: adminPrincipal.id,
-        selectedOrganization: organization.id,
-        status: "active",
-      },
-    });
-    const appRole = await postRecordOperation({
-      entity: "role-assignment",
-      idempotencyKey: "create-access-summary-app-role",
-      operationName: "create",
-      input: {
-        role: "role:app.viewer",
-        targetKind: "principal",
-        targetPrincipal: adminPrincipal.id,
-        scopeKind: "app-install",
-        appInstallId: "site",
         status: "active",
       },
     });
@@ -1267,138 +912,28 @@ describe("identity control-plane API routes", () => {
       Cookie: await ownerCookieForPrincipal(adminPrincipal.id),
     });
 
-    expect({
-      ...ownerSummary.body,
-      invitationGrantOptions: adminSummary.body.invitationGrantOptions,
-    }).toEqual(adminSummary.body);
-    expect(ownerSummary.body.invitationGrantOptions).toEqual(
-      expect.objectContaining({
-        authority: {
-          programAdministrator: false,
-          instanceOwner: true,
-        },
-        memberships: expect.arrayContaining([
-          expect.objectContaining({
-            displayLabel: "Access Group",
-            targetGroupId: group.id,
-            targetKind: "group",
-          }),
-          expect.objectContaining({
-            displayLabel: "Access Org",
-            targetKind: "organization",
-            targetOrganizationId: organization.id,
-          }),
-        ]),
-        roles: expect.arrayContaining([
-          expect.objectContaining({
-            displayLabel: "Instance — Owner",
-            roleKey: "instance.owner",
-            scopeKind: "instance",
-          }),
-          expect.objectContaining({
-            displayLabel: "Access Org — Editor",
-            roleKey: "app.editor",
-            scopeKind: "organization",
-            scopeOrganizationId: organization.id,
-          }),
-          expect.objectContaining({
-            appInstallId: "site",
-            displayLabel: "Site — Viewer",
-            roleKey: "app.viewer",
-            scopeKind: "app-install",
-          }),
-        ]),
-      }),
-    );
-    expect(adminSummary.body.invitationGrantOptions).toEqual(
-      expect.objectContaining({
-        authority: {
-          programAdministrator: true,
-          instanceOwner: false,
-        },
-        memberships: [],
-        roles: expect.arrayContaining([
-          expect.objectContaining({
-            displayLabel: "Program — Administrator",
-            roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
-            scopeKind: "program",
-          }),
-          expect.objectContaining({
-            appInstallId: "site",
-            displayLabel: "Site — Editor",
-            roleKey: "app.editor",
-            scopeKind: "app-install",
-          }),
-        ]),
-      }),
+    expect(ownerSummary.body.invitationGrantOptions.authority).toEqual({
+      instanceOwner: true,
+      programAdministrator: false,
+    });
+    expect(adminSummary.body.invitationGrantOptions.authority).toEqual({
+      instanceOwner: false,
+      programAdministrator: true,
+    });
+    expect(ownerSummary.body.invitationGrantOptions.roles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ roleKey: "instance.owner", scopeKind: "instance" }),
+        expect.objectContaining({ roleKey: "administrator", scopeKind: "program" }),
+      ]),
     );
     expect(adminSummary.body.invitationGrantOptions.roles).not.toContainEqual(
+      expect.objectContaining({ roleKey: "instance.owner" }),
+    );
+    expect(ownerSummary.body.programRoles).toContainEqual(
       expect.objectContaining({
-        roleKey: "instance.owner",
-      }),
-    );
-    expect(adminSummary.body.invitationGrantOptions.roles).not.toContainEqual(
-      expect.objectContaining({
-        scopeKind: "organization",
-      }),
-    );
-    expect(ownerSummary.body.people).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          displayName: owner.name,
-          primaryEmail: expect.objectContaining({
-            displayEmail: ownerEmail,
-            normalizedEmail: ownerEmail,
-            verificationStatus: "unverified",
-          }),
-          principalId: ownerSession.owner.id,
-          status: "active",
-        }),
-        expect.objectContaining({
-          displayName: "Access Summary Admin",
-          primaryEmail: expect.objectContaining({
-            displayEmail: "Access.Admin@example.com",
-            normalizedEmail: "access.admin@example.com",
-            verificationStatus: "unverified",
-          }),
-          principalId: adminPrincipal.id,
-          status: "active",
-        }),
-      ]),
-    );
-    expect(ownerSummary.body.programRoles).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          roleAssignmentId: adminRole.id,
-          roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
-          scopeKind: "program",
-          targetPrincipalId: adminPrincipal.id,
-        }),
-      ]),
-    );
-    expect(ownerSummary.body.roles).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          appInstallId: "site",
-          roleAssignmentId: appRole.id,
-          roleKey: "app.viewer",
-          scopeKind: "app-install",
-          targetPrincipalId: adminPrincipal.id,
-        }),
-      ]),
-    );
-    expect(ownerSummary.body.groups).toContainEqual(
-      expect.objectContaining({
-        displayName: "Access Group",
-        groupId: group.id,
-        status: "active",
-      }),
-    );
-    expect(ownerSummary.body.organizations).toContainEqual(
-      expect.objectContaining({
-        displayName: "Access Org",
-        organizationId: organization.id,
-        status: "active",
+        roleAssignmentId: adminRole.id,
+        roleKey: "administrator",
+        targetPrincipalId: adminPrincipal.id,
       }),
     );
     expect(ownerSummary.body.memberships).toContainEqual(
@@ -1406,47 +941,20 @@ describe("identity control-plane API routes", () => {
         membershipId: membership.id,
         principalId: adminPrincipal.id,
         targetGroupId: group.id,
-        targetKind: "group",
-      }),
-    );
-    expect(ownerSummary.body.appRegistrations).toContainEqual(
-      expect.objectContaining({
-        appInstallId: "site",
-        appRegistrationId: appRegistration.id,
-        selectedOrganizationId: organization.id,
-        targetKind: "principal",
-        targetPrincipalId: adminPrincipal.id,
       }),
     );
     expect(ownerSummary.body.invitations).toContainEqual(
       expect.objectContaining({
-        invitedPrincipalId: "principal:access-summary-invited",
         invitationId: invitation.body.invitation.id,
-        inviterPrincipalId: ownerSession.owner.id,
-        status: "pending",
-        targetEmail: "access-summary@example.com",
         targetOrganizationId: organization.id,
         targetSurface: "organization",
       }),
     );
 
     const serialized = JSON.stringify(ownerSummary.body);
-
-    expect(serialized).not.toContain("records");
-    expect(serialized).not.toContain("values");
-    for (const forbidden of [
-      "adminBearer",
-      "challenge",
-      "credential",
-      "provider",
-      "recovery",
-      "secret",
-      "session",
-      "token",
-      "tokenHash",
-    ]) {
-      expect(serialized).not.toContain(forbidden);
-    }
+    expect(serialized).not.toContain("appInstall");
+    expect(serialized).not.toContain("app-registration");
+    expect(serialized).not.toContain("tokenHash");
   });
 
   it("rejects access summaries without current operational authority", async () => {
@@ -1601,167 +1109,6 @@ describe("identity control-plane API routes", () => {
     expect(JSON.stringify(created.body)).not.toContain("token");
   });
 
-  it("rejects invalid collaborator invitation targets without partial identity commits", async () => {
-    const anonymous = await postCollaboratorInvitationResponse(
-      {
-        idempotencyKey: "anonymous-invite",
-        targetEmail: "anonymous@example.com",
-        targetSurface: "instance",
-        now: "2999-01-01T00:00:00.000Z",
-      },
-      {},
-    );
-    const rejected = await postCollaboratorInvitationResponse(
-      {
-        idempotencyKey: "invalid-target-invite",
-        targetEmail: "invalid@example.com",
-        targetSurface: "instance",
-        targetAppInstallId: "site",
-        now: "2999-01-01T00:00:00.000Z",
-      },
-      adminHeaders(),
-    );
-    const bootstrap = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
-
-    expect(anonymous.response.status).toBe(401);
-    expect(anonymous.body).toEqual({
-      error:
-        "Owner session, Program administrator session, or admin authorization is required for this endpoint.",
-    });
-    expect(rejected.response.status).toBe(400);
-    expect(rejected.body).toEqual({
-      error: "Collaborator invitation instance target cannot include target ids.",
-    });
-    expect(bootstrap.body.records.some((record) => record.entity === "invitation")).toBe(false);
-  });
-
-  it("rejects conflicting, unavailable, and incomplete role surfaces without partial writes", async () => {
-    await createInstalledApp("site", "Site");
-    const ownerSession = await createOwnerSessionHeaders();
-    const organization = await postRecordOperation({
-      entity: "organization",
-      idempotencyKey: "create-invitation-target-organization",
-      operationName: "create",
-      input: {
-        displayName: "Invitation Target Org",
-        status: "active",
-      },
-    });
-    const invitedPrincipal = {
-      displayName: "Rejected Surface Invite",
-      id: "principal:rejected-surface-invite",
-    };
-    const duplicateSurface = await postCollaboratorInvitationResponse(
-      {
-        idempotencyKey: "invite-duplicate-role-surface",
-        invitationId: "invitation:duplicate-role-surface",
-        invitedPrincipal,
-        roleAssignments: [
-          {
-            appInstallId: "site",
-            roleKey: "app.editor",
-            scopeKind: "app-install",
-          },
-          {
-            appInstallId: "site",
-            roleKey: "app.viewer",
-            scopeKind: "app-install",
-          },
-        ],
-        targetEmail: "duplicate-role-surface@example.com",
-      },
-      ownerSession.headers,
-    );
-    const missingMultiSurfaceTarget = await postCollaboratorInvitationResponse(
-      {
-        idempotencyKey: "invite-missing-multi-surface-target",
-        invitationId: "invitation:missing-multi-surface-target",
-        invitedPrincipal,
-        roleAssignments: [
-          {
-            roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
-            scopeKind: "program",
-          },
-          {
-            appInstallId: "site",
-            roleKey: "app.viewer",
-            scopeKind: "app-install",
-          },
-        ],
-        targetEmail: "missing-multi-surface-target@example.com",
-      },
-      ownerSession.headers,
-    );
-    const unselectedTarget = await postCollaboratorInvitationResponse(
-      {
-        idempotencyKey: "invite-unselected-role-target",
-        invitationId: "invitation:unselected-role-target",
-        invitedPrincipal,
-        roleAssignments: [
-          {
-            roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
-            scopeKind: "program",
-          },
-          {
-            appInstallId: "site",
-            roleKey: "app.viewer",
-            scopeKind: "app-install",
-          },
-        ],
-        targetEmail: "unselected-role-target@example.com",
-        targetOrganization: organization.id,
-        targetSurface: "organization",
-      },
-      ownerSession.headers,
-    );
-    const unavailableApp = await postCollaboratorInvitationResponse(
-      {
-        idempotencyKey: "invite-unavailable-role-surface",
-        invitationId: "invitation:unavailable-role-surface",
-        invitedPrincipal,
-        roleAssignments: [
-          {
-            appInstallId: "missing",
-            roleKey: "app.viewer",
-            scopeKind: "app-install",
-          },
-        ],
-        targetEmail: "unavailable-role-surface@example.com",
-      },
-      ownerSession.headers,
-    );
-
-    expect(duplicateSurface.response.status).toBe(400);
-    expect(duplicateSurface.body).toEqual({
-      error: "Collaborator invitation may select only one role level for each access surface.",
-    });
-    expect(missingMultiSurfaceTarget.response.status).toBe(400);
-    expect(missingMultiSurfaceTarget.body).toEqual({
-      error:
-        "Collaborator invitation requires an explicit acceptance target for multiple role surfaces.",
-    });
-    expect(unselectedTarget.response.status).toBe(400);
-    expect(unselectedTarget.body).toEqual({
-      error: "Collaborator invitation acceptance target must be one of its selected role surfaces.",
-    });
-    expect(unavailableApp.response.status).toBe(400);
-    expect(unavailableApp.body).toEqual({
-      error: 'Collaborator invitation app install "missing" is unavailable.',
-    });
-
-    const bootstrap = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
-    expect(
-      bootstrap.body.records.some(
-        (record) =>
-          record.id === invitedPrincipal.id ||
-          record.id.startsWith("invitation:duplicate-role-surface") ||
-          record.id.startsWith("invitation:missing-multi-surface-target") ||
-          record.id.startsWith("invitation:unselected-role-target") ||
-          record.id.startsWith("invitation:unavailable-role-surface"),
-      ),
-    ).toBe(false);
-  });
-
   it("rejects owner sessions without current active owner authority", async () => {
     await expectOwnerReadDenied(await ownerReadResponse("missing-principal"));
     const principalOnly = await createIdentityPrincipal("Principal Only");
@@ -1837,91 +1184,10 @@ describe("identity control-plane API routes", () => {
       id: removedAdminPrincipal.id,
     });
   });
-
-  it("resolves app-admin authority by install and reconciles required role records", async () => {
-    const ownerAuthority = await createIdentityOwnerAuthority("App Lookup Owner");
-    const appAdmin = await createIdentityPrincipal("App Lookup Admin");
-    const assignment = await assignIdentityAppRole(appAdmin.id, "tasks");
-    const ordinary = await createIdentityPrincipal("App Lookup Ordinary");
-    const disabled = await createIdentityPrincipal("App Lookup Disabled");
-    await assignIdentityAppRole(disabled.id, "tasks");
-
-    await postRecordOperation({
-      entity: "principal",
-      idempotencyKey: "disable-app-lookup-principal",
-      operationName: "update",
-      recordId: disabled.id,
-      input: { status: "disabled" },
-    });
-
-    expect(await readAppAuthority(ownerAuthority.principal.id, "tasks")).toEqual({
-      appAdmin: false,
-      appInstallId: "tasks",
-      id: ownerAuthority.principal.id,
-      instanceOwner: true,
-    });
-    expect(await readAppAuthority(appAdmin.id, "tasks")).toEqual({
-      appAdmin: true,
-      appInstallId: "tasks",
-      id: appAdmin.id,
-      instanceOwner: false,
-    });
-    expect(await readAppAuthority(appAdmin.id, "crm")).toEqual({
-      appAdmin: false,
-      appInstallId: "crm",
-      id: appAdmin.id,
-      instanceOwner: false,
-    });
-    expect(await readAppAuthority(ordinary.id, "tasks")).toEqual({
-      appAdmin: false,
-      appInstallId: "tasks",
-      id: ordinary.id,
-      instanceOwner: false,
-    });
-    expect(await readAppAuthority(disabled.id, "tasks")).toBeNull();
-
-    await postRecordOperation({
-      entity: "role-assignment",
-      idempotencyKey: "disable-app-lookup-assignment",
-      operationName: "update",
-      recordId: assignment.id,
-      input: { status: "disabled" },
-    });
-    expect(await readAppAuthority(appAdmin.id, "tasks")).toEqual({
-      appAdmin: false,
-      appInstallId: "tasks",
-      id: appAdmin.id,
-      instanceOwner: false,
-    });
-
-    await postRecordOperation({
-      entity: "role",
-      idempotencyKey: "disable-app-admin-role",
-      operationName: "update",
-      recordId: "role:app.admin",
-      input: { status: "disabled" },
-    });
-    const reconciled = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
-    expect(recordById(reconciled.body.records, "role:app.admin").values.status).toBe("active");
-  });
 });
 
 async function resetKnownState() {
   await resetTestIdentityStorage(harness, adminToken);
-}
-
-async function createInstalledApp(installId: string, label: string) {
-  const response = await harness.fetch("/api/formless/app-installs", {
-    body: JSON.stringify({
-      installId,
-      label,
-      packageAppKey: "test-crm",
-    }),
-    headers: adminHeaders({ "Content-Type": "application/json" }),
-    method: "POST",
-  });
-
-  expect(response.status).toBe(201);
 }
 
 async function getJson<T>(path: string) {
@@ -2106,24 +1372,6 @@ async function assignIdentityProgramRole(principalId: string, roleKey: "administ
   });
 }
 
-async function assignIdentityAppRole(principalId: string, appInstallId: string) {
-  return await postRecordOperation({
-    entity: "role-assignment",
-    idempotencyKey: ["assign", principalId.replace(/\W+/g, "-"), "app-admin", appInstallId].join(
-      "-",
-    ),
-    operationName: "create",
-    input: {
-      appInstallId,
-      role: "role:app.admin",
-      scopeKind: "app-install",
-      status: "active",
-      targetKind: "principal",
-      targetPrincipal: principalId,
-    },
-  });
-}
-
 async function readPrincipalAuthority(
   principalId: string,
 ): Promise<ActiveIdentityAuthority | null> {
@@ -2139,31 +1387,6 @@ async function readPrincipalAuthority(
   );
   const body = (await response.json()) as {
     authority?: ActiveIdentityAuthority | null;
-    error?: string;
-  };
-
-  expect(response.status).toBe(200);
-
-  return body.authority ?? null;
-}
-
-async function readAppAuthority(
-  principalId: string,
-  appInstallId: string,
-): Promise<ActiveIdentityAppAuthority | null> {
-  const url = new URL(INTERNAL_IDENTITY_APP_AUTHORITY_PATH, "http://internal");
-
-  url.searchParams.set("principalId", principalId);
-  url.searchParams.set("appInstallId", appInstallId);
-
-  const response = await harness.durableObjectFetch(
-    "FORMLESS_AUTHORITY",
-    FORMLESS_PROGRAM_STORAGE_IDENTITY,
-    `${url.pathname}${url.search}`,
-    { method: "GET" },
-  );
-  const body = (await response.json()) as {
-    authority?: ActiveIdentityAppAuthority | null;
     error?: string;
   };
 

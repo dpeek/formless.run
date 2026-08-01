@@ -1,18 +1,13 @@
 import packageJson from "../../package.json";
-import type { PackageAppKey } from "@dpeek/formless-installed-apps";
 import type {
   InstanceUpgradeApplyResponse,
   InstanceUpgradeStatusResponse,
-  UpgradePackageAppMigrationAppliedState,
   UpgradeStorageIdentity,
-  UpgradeStorageIdentityStatus,
 } from "../shared/upgrade-status.ts";
 import {
-  applyFormlessInstalledAppAutoSafePackageMigrations,
   applyFormlessInstanceAutoSafeSqlMigrations,
   readFormlessInstanceTargetStatus,
   readFormlessInstanceUpgradeStatus,
-  type FormlessInstancePackageMigrationApplyResponse,
   type FormlessInstanceTargetClientDependencies,
 } from "./instance-target-client.ts";
 import {
@@ -50,16 +45,8 @@ export type CliUpgradeApplyGateEvidence = {
   manualApprovals: readonly CliUpgradeManualApprovalEvidenceInput[];
 };
 
-export type CliAutoSafePackageAppApplyEvidence = {
-  installId: string;
-  packageAppKey: PackageAppKey;
-  response: FormlessInstancePackageMigrationApplyResponse;
-  verifiedStatus: InstanceUpgradeStatusResponse;
-};
-
 export type CliAutoSafeUpgradeApplyResult = {
   gateEvidence: CliUpgradeApplyGateEvidence;
-  packageApps: CliAutoSafePackageAppApplyEvidence[];
   planning: CliUpgradePlanningReport;
   sql: InstanceUpgradeApplyResponse;
   verifiedSqlStatus: InstanceUpgradeStatusResponse;
@@ -127,45 +114,10 @@ export async function applyCliAutoSafeUpgradeMigrations(
     },
     dependencies,
   );
-  const packageApps: CliAutoSafePackageAppApplyEvidence[] = [];
-
   verifySqlApplyEvidence(sql, verifiedSqlStatus);
-
-  for (const install of planning.status.installedApps) {
-    const response = await applyFormlessInstalledAppAutoSafePackageMigrations(
-      {
-        adminToken: input.adminToken,
-        installId: install.installId,
-        packageAppKey: install.packageAppKey,
-        targetUrl: input.targetUrl,
-      },
-      dependencies,
-    );
-    const verifiedStatus = await readFormlessInstanceUpgradeStatus(
-      {
-        adminToken: input.adminToken,
-        targetUrl: input.targetUrl,
-      },
-      dependencies,
-    );
-
-    verifyPackageAppApplyEvidence({
-      installId: install.installId,
-      packageAppKey: install.packageAppKey,
-      response,
-      status: verifiedStatus,
-    });
-    packageApps.push({
-      installId: install.installId,
-      packageAppKey: install.packageAppKey,
-      response,
-      verifiedStatus,
-    });
-  }
 
   const result = {
     gateEvidence,
-    packageApps,
     planning,
     sql,
     verifiedSqlStatus,
@@ -232,11 +184,6 @@ export function formatCliAutoSafeUpgradeApplyEvidence(
     ...sqlRows.map(
       ({ identity, migration }) =>
         `SQL migration: ${identity} ${migration.storageFamily}/${migration.migrationId} checksum=${migration.checksum}.`,
-    ),
-    `Package app applies: ${result.packageApps.length}.`,
-    ...result.packageApps.map(
-      (app) =>
-        `Package app: ${app.packageAppKey}/${app.installId} revision=${app.response.packageRevision} sourceSchemaHash=${app.response.sourceSchemaHash} applied=${app.response.applied.length} skipped=${app.response.skipped.length}.`,
     ),
   ];
 
@@ -312,40 +259,6 @@ function formatManualApprovalEvidence(evidence: CliUpgradeManualApprovalEvidence
   ]);
 }
 
-function verifyPackageAppApplyEvidence(input: {
-  installId: string;
-  packageAppKey: PackageAppKey;
-  response: FormlessInstancePackageMigrationApplyResponse;
-  status: InstanceUpgradeStatusResponse;
-}) {
-  const storage = findAppInstallStorageStatus(input.status, input.installId, input.packageAppKey);
-
-  if (!storage?.packageAppMigrations?.state) {
-    throw new Error(
-      `Upgrade apply evidence missing package app state for "${input.packageAppKey}/${input.installId}".`,
-    );
-  }
-
-  const state = storage.packageAppMigrations.state;
-
-  if (
-    state.packageRevision !== input.response.packageRevision ||
-    state.sourceSchemaHash !== input.response.sourceSchemaHash
-  ) {
-    throw new Error(
-      `Upgrade apply evidence for "${input.packageAppKey}/${input.installId}" did not match applied package facts.`,
-    );
-  }
-
-  const appliedById = new Map(
-    storage.packageAppMigrations.applied.map((migration) => [migration.migrationId, migration]),
-  );
-
-  for (const migration of [...input.response.applied, ...input.response.skipped]) {
-    verifyAppliedPackageMigrationEvidence(input, appliedById, migration);
-  }
-}
-
 function verifySqlApplyEvidence(
   response: InstanceUpgradeApplyResponse,
   status: InstanceUpgradeStatusResponse,
@@ -374,46 +287,8 @@ function verifySqlApplyEvidence(
   }
 }
 
-function verifyAppliedPackageMigrationEvidence(
-  input: {
-    installId: string;
-    packageAppKey: PackageAppKey;
-  },
-  appliedById: ReadonlyMap<string, UpgradePackageAppMigrationAppliedState>,
-  migration: UpgradePackageAppMigrationAppliedState,
-) {
-  const applied = appliedById.get(migration.migrationId);
-
-  if (!applied || applied.checksum !== migration.checksum) {
-    throw new Error(
-      `Upgrade apply evidence missing package app migration "${migration.migrationId}" for "${input.packageAppKey}/${input.installId}".`,
-    );
-  }
-}
-
-function findAppInstallStorageStatus(
-  status: InstanceUpgradeStatusResponse,
-  installId: string,
-  packageAppKey: PackageAppKey,
-): UpgradeStorageIdentityStatus | undefined {
-  return status.storageIdentities.find(
-    (storage) =>
-      storage.identity.kind === "appInstall" &&
-      storage.identity.installId === installId &&
-      storage.identity.packageAppKey === packageAppKey,
-  );
-}
-
 function formatUpgradeStorageIdentity(identity: UpgradeStorageIdentity): string {
-  if (identity.kind === "instance") {
-    return identity.authorityName;
-  }
-
-  if (identity.kind === "appInstall") {
-    return `${identity.packageAppKey}/${identity.installId}`;
-  }
-
-  throw new Error("Unsupported upgrade storage identity.");
+  return identity.authorityName;
 }
 
 function compactEvidenceLine(parts: readonly (string | null)[]): string {

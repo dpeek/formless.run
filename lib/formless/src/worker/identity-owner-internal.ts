@@ -10,7 +10,6 @@ export const INTERNAL_IDENTITY_ACTIVE_PRINCIPAL_PATH = "/_internal/identity-owne
 export const INTERNAL_IDENTITY_OWNER_PRINCIPAL_PATH =
   "/_internal/identity-owner/principal-authority";
 export const INTERNAL_IDENTITY_PRINCIPAL_AUTHORITY_PATH = "/_internal/identity-owner/authority";
-export const INTERNAL_IDENTITY_APP_AUTHORITY_PATH = "/_internal/identity-owner/app-authority";
 export const INTERNAL_IDENTITY_ACCOUNT_COMPLETION_STATE_PATH =
   "/_internal/identity-owner/account-completion-state";
 export const INTERNAL_IDENTITY_EMAIL_VERIFICATION_COMMIT_PATH =
@@ -31,23 +30,13 @@ export type ActiveIdentityAuthority = {
   id: string;
 };
 
-export type ActiveIdentityAppAuthority = {
-  appAdmin: boolean;
-  appInstallId: string;
-  id: string;
-  instanceOwner: boolean;
-};
-
 export type AccountCompletionIdentityState = {
   accountPolicies: StoredRecord[];
-  appRegistrations: StoredRecord[];
   invitations: StoredRecord[];
   memberships: StoredRecord[];
   policyAcceptances: StoredRecord[];
   primaryEmail: StoredRecord | null;
   principal: StoredRecord | null;
-  roleAssignments: StoredRecord[];
-  roles: StoredRecord[];
 };
 
 export async function readInternalActiveIdentityPrincipal(
@@ -132,38 +121,6 @@ export async function readInternalIdentityAuthorityForPrincipal(
 
   if (!response.ok) {
     throw new Error(body.error ?? "Identity principal authority lookup failed.");
-  }
-
-  return body.authority ?? null;
-}
-
-export async function readInternalIdentityAppAuthorityForPrincipal(
-  env: IdentityOwnerInternalEnv,
-  principalId: string,
-  appInstallId: string,
-): Promise<ActiveIdentityAppAuthority | null> {
-  if (!env.FORMLESS_AUTHORITY) {
-    return null;
-  }
-
-  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
-  const url = new URL(`http://internal${INTERNAL_IDENTITY_APP_AUTHORITY_PATH}`);
-
-  url.searchParams.set("principalId", principalId);
-  url.searchParams.set("appInstallId", appInstallId);
-
-  const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
-    new Request(url.toString(), {
-      method: "GET",
-    }),
-  );
-  const body = (await response.json()) as {
-    authority?: ActiveIdentityAppAuthority | null;
-    error?: string;
-  };
-
-  if (!response.ok) {
-    throw new Error(body.error ?? "Identity app authority lookup failed.");
   }
 
   return body.authority ?? null;

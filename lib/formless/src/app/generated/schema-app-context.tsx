@@ -1,14 +1,12 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import {
   programClientTarget,
   type ClientAppSchemaKey,
   type ClientAppTarget,
 } from "../../client/app-target.ts";
 import { FORMLESS_PROGRAM_SCHEMA_KEY } from "../../program/target.ts";
-import type { AppPackageResolver } from "@dpeek/formless-installed-apps";
 
 type SchemaAppContextValue = {
-  activePackageResolver?: AppPackageResolver | undefined;
   schemaKey: ClientAppSchemaKey;
   target: ClientAppTarget;
 };
@@ -19,20 +17,16 @@ const SchemaAppContext = createContext<SchemaAppContextValue>({
 });
 
 export function SchemaAppProvider({
-  activePackageResolver,
   children,
   schemaKey,
   target,
 }: {
-  activePackageResolver?: AppPackageResolver | undefined;
   children: ReactNode;
   schemaKey: ClientAppSchemaKey;
   target: ClientAppTarget;
 }) {
   return (
-    <SchemaAppContext.Provider value={{ activePackageResolver, schemaKey, target }}>
-      {children}
-    </SchemaAppContext.Provider>
+    <SchemaAppContext.Provider value={{ schemaKey, target }}>{children}</SchemaAppContext.Provider>
   );
 }
 
@@ -45,10 +39,7 @@ export function useSchemaAppTarget() {
 }
 
 export function useSchemaAppWriteOptions() {
-  const { activePackageResolver } = useContext(SchemaAppContext);
-
-  return useMemo(
-    () => (activePackageResolver ? { activePackageResolver } : {}),
-    [activePackageResolver],
-  );
+  return EMPTY_SCHEMA_APP_WRITE_OPTIONS;
 }
+
+const EMPTY_SCHEMA_APP_WRITE_OPTIONS = {};

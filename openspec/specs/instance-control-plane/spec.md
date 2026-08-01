@@ -3,12 +3,12 @@
 ## Purpose
 
 Instance control plane models Formless instance management data as runtime-owned
-schema records. It keeps app installs, unified route intent, and deployment
-configuration, production identity settings, and email deployment intent in flat
-Authority records. Deployment config records may include a display-safe latest
-deployment observation cache while installed app data, provider secrets, raw
-operation tokens, projected deployment resource graphs, deployment history, and
-provider resource truth stay outside those records.
+schema records. It keeps unified Program route intent, deployment configuration,
+production identity settings, and email deployment intent in flat Authority
+records. Deployment config records may include a display-safe latest deployment
+observation cache while provider secrets, raw operation tokens, projected
+deployment resource graphs, deployment history, and provider resource truth
+stay outside those records.
 
 ## Requirements
 
@@ -24,8 +24,8 @@ outside reviewable control-plane storage snapshots.
 - **WHEN** its declarations are loaded
 - **THEN** the package supplies flat record and presentation declarations
   without selecting a storage identity or API prefix
-- **AND** it defines flat records for app installs, unified routes, and
-  deployment configs, instance settings, email domains, and email senders
+- **AND** it defines flat records for unified routes, deployment configs,
+  instance settings, email domains, and email senders
 - **AND** each deployment config stores the target identity, display-safe
   `targetUrl` origin facts, provider family, provider account, worker name, and
   optional display-safe credential reference used for that deployment target
@@ -39,69 +39,6 @@ outside reviewable control-plane storage snapshots.
 - **AND** deployment attempt history, evidence history, drift history, cleanup
   audit summaries, raw operation tokens, and provider resource truth are not
   schema-owned control-plane record entities
-
-### Requirement: App Install Records
-
-The system SHALL represent installed app metadata as `app-install` control-plane
-records.
-
-#### Scenario: App install identity record
-
-- GIVEN an app install is created
-- WHEN the control-plane write commits
-- THEN the `app-install` record stores stable install identity, package app key,
-  label, status, app registration policy, and optional app registration
-  operation key
-- AND created and updated timestamps come from record system fields rather than
-  app-install value fields
-- AND install identity, package app key, and storage identity are immutable
-  after creation
-- AND the record stores display-safe storage identity such as `app:<installId>`
-  without embedding installed app records
-
-#### Scenario: App registration policy
-
-- GIVEN the instance control-plane schema defines `app-install`
-- WHEN app install records are inspected
-- THEN each app install stores a display-safe `registrationPolicy`
-- AND the supported first-pass registration policies are `closed` and
-  `email-verified`
-- AND the supported app-owned onboarding registration policy is
-  `custom-operation`
-- AND `closed` means app browser access requires an existing active identity
-  `app-registration` for the requested app install and current principal or
-  selected organization context
-- AND invite acceptance, owner/admin access management, or trusted automation
-  may create those `app-registration` records through identity-control-plane
-  writes before the app can be entered
-- AND `email-verified` means app browser access may be self-service completed
-  through the auth-origin account journey after the principal has a verified
-  primary email and accepted credential
-- AND `email-verified` completion creates or reuses an active identity
-  `app-registration` record for the requested app install and principal or
-  selected organization context before the app can be entered
-- AND `custom-operation` means app browser access may be completed only after
-  the account journey creates or reuses an active identity `app-registration`
-  record and the principal completes the app-owned registration operation for
-  the requested app install
-- AND when `registrationPolicy` is `custom-operation`, the `app-install` record
-  stores a required display-safe `registrationOperation` canonical entity
-  operation key that resolves against the installed app schema
-- AND when `registrationPolicy` is `closed` or `email-verified`, the
-  `registrationOperation` field is omitted
-- AND the app install registration policy does not store principal ids,
-  invitation tokens, credential material, session ids, handoff grants, or
-  app-owned profile values, operation input values, or role assignments
-- AND self-service `domain-allowlist` registration policy is not accepted until
-  a later capability defines its account gate completion behavior
-
-#### Scenario: Installed app data boundary
-
-- GIVEN an `app-install` record exists
-- WHEN installed app records, active schema, changes, operation invocations,
-  snapshots, or sync state are read or written
-- THEN those facts remain in that install's app storage identity
-- AND the `app-install` record does not contain the installed app's data records
 
 ### Requirement: Instance Control Plane Package Boundary
 
@@ -141,19 +78,17 @@ through the Instance Control Plane package slice.
 
 #### Scenario: Package consumes related public contracts
 
-- GIVEN the Instance Control Plane package needs app install identity,
-  package app metadata, deployment projection field contracts, App schema
-  behavior, or storage snapshot contracts
+- GIVEN the Instance Control Plane package needs deployment projection field
+  contracts, App schema behavior, or storage snapshot contracts
 - WHEN those dependencies are imported
-- THEN they come from public package exports such as
-  `@dpeek/formless-installed-apps`, `@dpeek/formless-deploy`,
+- THEN they come from public package exports such as `@dpeek/formless-deploy`,
   `@dpeek/formless-schema`, and `@dpeek/formless-storage`
 - AND the package does not redefine compatible local shapes for those
   contracts
 
 #### Scenario: Runtime owns control-plane execution
 
-- GIVEN app install operations, route operations, deployment-config operations,
+- GIVEN route operations, deployment-config operations,
   Authority writes, owner authorization, deployment projection execution,
   provider execution, or runtime observation persistence is needed
 - WHEN those behaviors are implemented
@@ -365,8 +300,7 @@ a deploy package slice.
 
 - GIVEN runtime, CLI, workspace, or tests need route-derived deployment
   projection from control-plane records
-- WHEN app-install, route, and deployment-config records are projected for a
-  target
+- WHEN route and deployment-config records are projected for a target
 - THEN the records are adapted into public Deploy package projection input
 - AND provider resource graphs, route target projections, source fingerprints,
   stable logical ids, and canonical hash inputs derive from the Deploy package
@@ -400,9 +334,8 @@ records.
 - **WHEN** the `route` entity is inspected
 - **THEN** each route record can store camelCase fields for enabled state,
   optional match host, match path, optional match prefix, kind, optional target
-  profile, optional app install reference, optional surface, optional access
-  policy, optional required role, optional deployment config reference,
-  redirect target fields, and redirect policy fields
+  profile, optional surface, optional access policy, optional deployment config
+  reference, redirect target fields, and redirect policy fields
 - **AND** route records remain flat schema records
 - **AND** created and updated timestamps come from record system fields rather
   than route value fields
@@ -412,18 +345,15 @@ records.
 - **GIVEN** an owner or admin creates a mount route
 - **WHEN** the route is accepted
 - **THEN** `kind` is `mount`
-- **AND** app mounts set `appInstall` to reference an `app-install` record
-- **AND** public Site mounts omit `appInstall` and target the Program-native
-  Site
-- **AND** the route records the selected target profile and surface without
-  duplicating installed app data or storage state
+- **AND** the target profile is `instance` or `public-site`
+- **AND** the route records the selected Program surface without selecting a
+  package app key, install id, or alternate storage identity
 
 #### Scenario: Program public Site mount
 
 - **GIVEN** an owner or admin creates a public Site mount route
 - **WHEN** the route is validated
-- **THEN** target profile is `public-site`, surface is `public-site`, and
-  `appInstall` is omitted
+- **THEN** target profile is `public-site` and surface is `public-site`
 - **AND** the route targets Program storage without consulting an app package
   resolver or package capability
 
@@ -441,12 +371,7 @@ records.
 - **AND** `owner` means browser reads require an owner session or host-local
   session for the matched owner route target whose principal has active
   `instance.owner` authority
-- **AND** an app admin mount may combine `authenticated` access with
-  `requiredRole` `app.admin`
-- **AND** `app.admin` is resolved at `app-install` scope from the route's
-  referenced `appInstall`, never from a client-supplied scope
-- **AND** `requiredRole` is rejected on anonymous, management, owner, redirect,
-  non-app, or app routes without one referenced app install
+- **AND** route records do not carry app-scoped `requiredRole` authorization
 - **AND** operational management API reads and writes require a session whose
   principal has protected owner authority or the schema-defined Program
   `administrator` role, a matching host-local session with that current
@@ -454,18 +379,8 @@ records.
 - **AND** owner-only recovery, owner role management, auth origin policy, and
   admin bearer recovery remain outside operational management authorization
 - **AND** omitted access defaults to `management` for instance management
-  mounts and to `owner` for app admin and app schema mounts
+  mounts
 - **AND** omitted access defaults to `anonymous` for public Site mounts
-
-#### Scenario: Default installed app admin route access
-
-- **GIVEN** an owner or admin creates a package app install
-- **WHEN** the runtime creates its default app admin mount route
-- **THEN** the route uses access `authenticated` with required role `app.admin`
-- **AND** active `instance.owner` authority remains an override for local and
-  deployed owner operation of the installed app
-- **AND** the schema-defined Program `administrator` role alone does not satisfy
-  the app role requirement
 
 #### Scenario: Mapped instance route host session authorizes Program operations
 
@@ -481,8 +396,8 @@ records.
   requested path
 - **AND** owner-only Program paths still recheck active `instance.owner`
   authority before privileged reads or writes
-- **AND** host-local sessions minted for installed app storage, another route,
-  another profile, another host, or another instance do
+- **AND** host-local sessions minted for another route, profile, host, storage
+  identity, or instance do
   not authorize Program operations
 
 #### Scenario: Program administrator writes operational control-plane intent
@@ -490,8 +405,8 @@ records.
 - **GIVEN** a browser session or matching mapped-instance host-local session
   resolves to an active principal with the schema-defined Program
   `administrator` role
-- **WHEN** the browser writes operational instance intent such as app install,
-  route, deployment config, email domain, or email sender records
+- **WHEN** the browser writes operational instance intent such as route,
+  deployment config, email domain, or email sender records
 - **THEN** the Program API authorizes the write without requiring admin
   bearer authorization or `instance.owner` authority
 - **AND** the write still commits through normal Program operation
@@ -543,14 +458,14 @@ records.
 - **AND** the write does not accept created or updated timestamp input
 - **AND** Authority materializes route lifecycle timestamps as record system
   metadata
-- **AND** no installed app data, provider resource, runtime secret, provider
+- **AND** no Program domain data, provider resource, runtime secret, provider
   evidence, cleanup history, deployment attempt, or drift report is mutated by
   the route write itself
 
 #### Scenario: Control-plane lifecycle metadata
 
-- **GIVEN** `app-install`, `route`, `deployment-config`,
-  `instance-settings`, `email-domain`, or `email-sender` records are created,
+- **GIVEN** `route`, `deployment-config`, `instance-settings`, `email-domain`,
+  or `email-sender` records are created,
   updated, synced, snapshotted, restored, or projected
 - **WHEN** control-plane lifecycle timestamps are needed
 - **THEN** `createdAt` and `updatedAt` are read from record system fields
@@ -639,32 +554,32 @@ The system SHALL represent deploy target and provider selection as one
 The system SHALL save instance control-plane and reviewable identity records
 through the one Program workspace state boundary.
 
-#### Scenario: Select current Program public Site source
+#### Scenario: Select current Program source
 
-- **GIVEN** Program route records may include public Site-shaped records with
-  package or app install target facts
-- **WHEN** workspace materialization, exact replacement, or runtime route
-  selection derives current public Site intent
-- **THEN** it selects only `public-site` routes that omit `appInstall` and
-  package-derived target facts
-- **AND** unselected records do not create public routes, installed storage
-  reads, package resolution, or deploy targets
+- **GIVEN** stored state may include removed installed-app entities, app-target
+  routes, registration records, or app-scoped authorization facts
+- **WHEN** workspace materialization, exact replacement, runtime routing,
+  deployment projection, archive selection, or replica sync derives current
+  Program state
+- **THEN** it selects only entities, fields, records, and routes admitted by the
+  active complete Program schema
+- **AND** unselected records do not create routes, storage reads, package
+  resolution, auth targets, workspace state, archive content, or deploy targets
 - **AND** current source selection does not import, merge, migrate, rewrite, or
   clean up unselected records
 
 #### Scenario: Save Program records to workspace state
 
 - **WHEN** local Program Authority state is saved to workspace source
-- **THEN** `app-install`, `route`, `deployment-config`,
-  `instance-settings`, `email-domain`, and `email-sender` records are written
+- **THEN** `route`, `deployment-config`, `instance-settings`, `email-domain`,
+  and `email-sender` records are written
   to the schema-owned `state/instance.json` workspace state file
 - **AND** reviewable identity records from the same Program Authority are written
   to that file rather than a separate identity state file
 - **AND** enabled `deployment-config` records include the display-safe
   deployed HTTP origin in `targetUrl`
 - **AND** workspace and archive boundaries identify those records with
-  qualified entity names such as `instance:app-install`, `instance:route`, and
-  `instance:email-domain`
+  qualified entity names such as `instance:route` and `instance:email-domain`
 - **AND** `state/instance.json` declares a workspace state kind, version,
   storage identity `instance:control-plane`, schema key
   `formless-program`, Program schema provenance, source cursor, and
@@ -680,8 +595,7 @@ through the one Program workspace state boundary.
   `deploy-drift-report` records are not written as workspace source
 - **AND** runtime-observed deployment cache fields on `deployment-config`
   records are omitted from reviewable workspace storage state
-- **AND** reviewable public Site route records omit app install and package
-  target facts before they are written or checked as source
+- **AND** route records cannot carry app install or package target facts
 
 #### Scenario: Restore Program records from workspace state
 
@@ -695,22 +609,18 @@ through the one Program workspace state boundary.
   entities before behavior changes
 - **AND** workspace state containing runtime-observed deployment cache fields is
   rejected or stripped before restore
-- **AND** restore admits public Site route records only when they select the
-  Program-native Site without app install or package target facts
+- **AND** restore admits only current Program route records
 
 ### Requirement: Browser-Owned Instance Intent
 
 The system SHALL allow browser owner/admin flows to author instance intent by
 writing schema-owned control-plane records.
 
-#### Scenario: Browser edits app and route intent
+#### Scenario: Browser edits route intent
 
-- **WHEN** a browser owner or admin creates an app install or edits route
-  configuration
-- **THEN** the write invokes a control-plane operation and commits
-  `app-install` and `route` records through Authority validation
-- **AND** app-install creation returns operation-native command output and
-  replays through operation identity
+- **WHEN** a browser owner or admin edits route configuration
+- **THEN** the write invokes a control-plane operation and commits `route`
+  records through Authority validation
 - **AND** saved workspace source is later generated from those records rather
   than from manifest declarations
 

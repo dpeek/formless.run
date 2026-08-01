@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import {
-  installedAppStorageIdentity,
-  programStorageIdentity,
-} from "../shared/app-storage-identity.ts";
+import { programStorageIdentity } from "../shared/app-storage-identity.ts";
 import {
   consumePublicOperationReadRateLimit,
   type PublicOperationReadRateLimitState,
@@ -11,18 +8,9 @@ import {
 } from "./public-operation-read-rate-limit.ts";
 
 describe("public operation read rate limit", () => {
-  it("isolates attempts by target, operation, and trusted client network", async () => {
+  it("isolates attempts by operation and trusted client network", async () => {
     const store = memoryRateLimitStore();
     const schemaIdentity = programStorageIdentity();
-    const installedIdentity = installedAppStorageIdentity({
-      packageAppKey: "crm",
-      installId: "verification",
-    });
-
-    if (!installedIdentity) {
-      throw new Error("Expected installed CRM identity.");
-    }
-
     const base = {
       identity: schemaIdentity,
       nowMs: Date.parse("2026-07-27T03:00:00.000Z"),
@@ -33,12 +21,6 @@ describe("public operation read rate limit", () => {
     };
 
     expect(await consumePublicOperationReadRateLimit(base)).toEqual({ allowed: true });
-    expect(
-      await consumePublicOperationReadRateLimit({
-        ...base,
-        identity: installedIdentity,
-      }),
-    ).toEqual({ allowed: true });
     expect(
       await consumePublicOperationReadRateLimit({
         ...base,
@@ -55,7 +37,7 @@ describe("public operation read rate limit", () => {
       allowed: false,
       retryAfterSeconds: 60,
     });
-    expect(store.state.size).toBe(4);
+    expect(store.state.size).toBe(3);
   });
 
   it("uses only the trusted client-network header and stores hashed scope keys", async () => {

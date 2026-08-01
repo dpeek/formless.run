@@ -34,7 +34,6 @@ import {
   parseAppPackageManifest,
   type AppPackageCapability,
   type AppPackageManifest,
-  type AppPackageResolver,
   type SourceSchemaHash,
 } from "@dpeek/formless-installed-apps";
 import {
@@ -82,7 +81,7 @@ import {
   writeInstanceWorkspaceSecretState,
 } from "./node.ts";
 
-function controlPlaneSnapshotContract(packageResolver?: AppPackageResolver) {
+function controlPlaneSnapshotContract() {
   return {
     canonicalize: (
       snapshot: StorageSnapshot,
@@ -90,7 +89,6 @@ function controlPlaneSnapshotContract(packageResolver?: AppPackageResolver) {
     ) =>
       canonicalizeInstanceControlPlaneStorageSnapshot(snapshot, {
         ...input,
-        packageResolver,
       }),
     formatRecordEntity: (entity: string) => {
       const sourceEntity = instanceControlPlaneRecordSourceEntityName(entity);
@@ -101,7 +99,7 @@ function controlPlaneSnapshotContract(packageResolver?: AppPackageResolver) {
     normalizeRecordEntity: (entity: string) =>
       instanceControlPlaneRecordSourceEntityName(entity) ?? entity,
     parse: (context: string, value: unknown) =>
-      parseInstanceControlPlaneStorageSnapshot(context, value, { packageResolver }),
+      parseInstanceControlPlaneStorageSnapshot(context, value),
     schema: instanceControlPlaneSchema,
     schemaKey: INSTANCE_CONTROL_PLANE_SCHEMA_KEY,
     schemaProvenance: instanceControlPlaneSchemaProvenance,
@@ -117,7 +115,7 @@ function readInstanceWorkspaceControlPlaneStorageSnapshot(
 ) {
   return readWorkspaceControlPlaneSnapshot({
     ...input,
-    controlPlaneSnapshotContract: controlPlaneSnapshotContract(input.packageResolver),
+    controlPlaneSnapshotContract: controlPlaneSnapshotContract(),
   });
 }
 
@@ -129,7 +127,7 @@ function writeInstanceWorkspaceControlPlaneStorageSnapshot(
 ) {
   return writeWorkspaceControlPlaneSnapshot({
     ...input,
-    controlPlaneSnapshotContract: controlPlaneSnapshotContract(input.packageResolver),
+    controlPlaneSnapshotContract: controlPlaneSnapshotContract(),
   });
 }
 
@@ -693,7 +691,6 @@ describe("workspace record state node files", () => {
           installId: "labs",
           packageAppKey: "private-labs",
           label: "Private Labs",
-          registrationPolicy: "closed",
           status: "installed",
           storageIdentity: "app:labs",
         },
@@ -740,10 +737,6 @@ describe("workspace record state node files", () => {
       }),
     ).resolves.toMatchObject({
       records: [
-        {
-          id: "labs",
-          values: { packageAppKey: "private-labs" },
-        },
         {
           id: "route:labs:public-site",
           values: { matchPath: "/pages", matchPrefix: "/pages/" },

@@ -572,7 +572,7 @@ single Formless configuration entrypoint for a workspace.
 The CLI SHALL start the local Formless workspace runtime through `formless dev`
 before any Cloudflare account or deployment mutation, while the CLI owns fresh
 workspace bootstrap and browser onboarding owns local session bootstrap,
-optional first app install, credential setup, and push operations.
+credential setup, and push operations.
 
 #### Scenario: Start local workspace runtime
 
@@ -589,7 +589,7 @@ optional first app install, credential setup, and push operations.
   bootstrap, operation execution, and auto-save scheduling remain outside the
   local gateway lifecycle code
 - **AND** the CLI does not create empty storage snapshot or media directories
-- **AND** no app install, route, deployment config, Cloudflare resource,
+- **AND** no route, deployment config, Cloudflare resource,
   Alchemy resource, provider credential, or remote instance is created
 - **AND** the workspace name defaults from the selected directory unless
   interactive confirmation supplies another valid name
@@ -601,20 +601,15 @@ optional first app install, credential setup, and push operations.
 - **WHEN** `formless dev` runs for a config-only workspace or workspace
   source with storage snapshots and media payloads
 - **THEN** the product instance runtime starts with workspace-local persistence
-- **AND** the CLI builds the active package resolver from bundled packages plus
-  linked packages declared in `formless.ts` `packages.links` when present
-- **AND** installable package lists shown before the workspace has installed
-  apps come from that active resolver
-- **AND** Program-native package keys `tasks`, `site`, and `crm` are excluded
-  from the installable resolver even when their standalone package manifests
-  are bundled or linked
+- **AND** the CLI materializes the complete Program from trusted downstream
+  `formless.ts` composition before the Worker starts
 - **AND** first-run local runtime state starts from workspace storage snapshots
   and media payloads when present
 - **AND** the browser can complete onboarding before any Cloudflare deploy
 - **AND** before a local owner session is established, the browser can only read
   gateway status through bootstrap authorization and exchange a CLI-minted local
   session bootstrap token for an owner session
-- **AND** app install, save, credential setup, push dry-run, and push apply
+- **AND** save, credential setup, push dry-run, and push apply
   entry points are available through browser-owned local runtime flows
   after local session bootstrap
 - **AND** deployed canonical and auth origins preserved in workspace
@@ -630,8 +625,6 @@ optional first app install, credential setup, and push operations.
   bootstrap URL for the running local workspace runtime
 - **AND** successful bootstrap issues an owner session cookie and redirects the
   browser to the instance shell
-- **AND** the instance shell can install the first package app through the
-  normal app install flow without passkey setup
 
 #### Scenario: Print authenticated local session entrypoint
 
@@ -664,27 +657,6 @@ optional first app install, credential setup, and push operations.
   browser-context Formless replica caches are reset before a fully fresh agent
   browser session enters the instance shell
 
-#### Scenario: Install first app locally
-
-- **WHEN** the user installs a package app through the local web UI
-- **THEN** the local Authority records schema-owned `app-install` and `route`
-  records and initializes the install-scoped source schema from the active
-  package resolver
-- **AND** the new app starts with no records
-- **AND** no Cloudflare resource is mutated
-
-#### Scenario: Install linked private app locally
-
-- **GIVEN** `formless.ts` `packages.links` includes a private local app
-  package manifest
-- **WHEN** `formless dev` starts and an owner opens the app install flow
-- **THEN** the linked package appears in the installable package list for that
-  workspace
-- **AND** installing it initializes empty app storage from the linked source
-  schema
-- **AND** the generated `app-install` and `route` records do not store the
-  package link path or package source repository facts
-
 #### Scenario: Reject missing linked package source
 
 - **GIVEN** `formless.ts` `packages.links` points at a missing or invalid
@@ -696,15 +668,13 @@ optional first app install, credential setup, and push operations.
 - **AND** the error identifies the invalid package link path and validation
   reason without exposing secrets
 
-#### Scenario: Push before installing an app
+#### Scenario: Push a Program without optional domain records
 
-- **WHEN** a local owner opens the sync flow before any app install exists
+- **WHEN** a local owner opens the sync flow before optional domain records exist
 - **THEN** credential setup, push dry-run, and push apply remain available
   through the browser-owned local runtime flow
-- **AND** push can publish the instance runtime with zero
-  `app-install` records and no app storage snapshots
-- **AND** app installation remains a separate optional local Authority write
-  before or after the first push
+- **AND** push publishes one complete materialized Program artifact and its
+  current Program snapshot
 
 ### Requirement: Runtime Build Config Boundary
 
@@ -749,28 +719,24 @@ snapshots and media payloads.
 
 - **WHEN** the workspace source save operation runs for a local Formless
   workspace
-- **THEN** active runtime-installable app records, media payloads, and
-  schema-owned Program state are written to deterministic workspace storage
-  snapshots
+- **THEN** media payloads and schema-owned Program state are written to the
+  deterministic Program workspace snapshot
 - **AND** Task, Site, and CRM records are written through the Program snapshot
   in `state/instance.json`
-- **AND** dormant Tasks, Site, or CRM install metadata does not produce
-  `state/apps/<installId>.json`
+- **AND** no package or install identity produces `state/apps/<installId>.json`
 - **AND** browser IndexedDB state is not used as the source of truth
 - **AND** secrets are not written to `formless.ts`, storage snapshots, or
   media files
 
-#### Scenario: Program-native installed-app workflows are absent
+#### Scenario: Runtime-installed app workflows are absent
 
-- **WHEN** CLI archive, workspace, package upgrade, reset, deploy, or source
-  synchronization selects runtime-installed apps
-- **THEN** it does not select package key `tasks`, `site`, or `crm` as an installed app
-  target
-- **AND** it does not read, write, reset, migrate, import, or export a legacy
-  Tasks, Site, or CRM Authority
+- **WHEN** CLI archive, workspace, reset, deploy, or source synchronization
+  selects runtime state
+- **THEN** it does not select any package app key or install id as a target
+- **AND** it does not read, write, reset, migrate, import, or export an
+  `app:<installId>` Authority
 - **AND** Task, Site, and CRM data participates only through the complete Program
   snapshot and Program source hash
-- **AND** workspace-linked private package workflows remain unchanged
 
 #### Scenario: Auto-save local workspace state
 
@@ -1118,16 +1084,16 @@ workspace-controlled deployment intent.
 
 ### Requirement: Schema Control-Plane Protocol
 
-The Formless CLI SHALL use the instance protocol and local workspace operation layer
-to query, write, save, and compare schema-owned `app-install`, `route`, and
-deployment intent records.
+The Formless CLI SHALL use the instance protocol and local workspace operation
+layer to query, write, save, and compare schema-owned `route` and deployment
+intent records.
 
 #### Scenario: CLI reads deployment records
 
 - **WHEN** CLI pull, push, push dry-run, or pull dry-run workflows need instance
   control-plane state
-- **THEN** they read allowed `app-install`, `route`, and
-  `deployment-config` records through the instance control-plane protocol or
+- **THEN** they read allowed `route` and `deployment-config` records through the
+  instance control-plane protocol or
   workspace storage snapshots
 - **AND** deployment config credential references remain display-safe pointers
   to CLI, local gateway, or runner-held Formless credential secret locations
@@ -1157,16 +1123,12 @@ deployment intent records.
 - **THEN** it reports a sync plan without patching deployment config
   observation cache fields
 
-#### Scenario: CLI reads app routes
+#### Scenario: CLI reads Program routes
 
-- **WHEN** an instance workspace needs installed app or public Site route state
-- **THEN** the CLI reads `app-install` and `route` records
-- **AND** route changes are reported by comparing route records rather than
-  hand-derived install route strings or manifest route summaries
-- **AND** a Program-native public Site route omits `appInstall` and does not
-  resolve through installed package metadata
-- **AND** routes that target app installs are not selected as operational public
-  Site routes
+- **WHEN** an instance workspace needs instance or public Site route state
+- **THEN** the CLI reads `route` records
+- **AND** route changes are reported by comparing current Program route records
+- **AND** route selection does not resolve installed package metadata
 
 #### Scenario: CLI reads domain routes
 

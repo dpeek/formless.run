@@ -1,6 +1,5 @@
 import {
   documentMediaAssetIsCompatible,
-  documentMediaAssetMatchesOwner,
   documentMediaDeliveryFactsForAssetId,
   documentMediaKeyPrefix,
   documentMediaResponseFacts,
@@ -42,7 +41,6 @@ import type {
 } from "./types.ts";
 
 export {
-  APP_DOCUMENT_MEDIA_KEY_PREFIX,
   CORE_IMAGE_KEY_PREFIX,
   CORE_IMAGE_UPLOAD_PATH,
   CORE_MEDIA_ROUTE_PREFIX,
@@ -85,7 +83,6 @@ export type DocumentMediaAuthorizationInput = {
 
 export type DocumentMediaStorageIdentity = {
   documentsPath: `/api/${string}/media/documents`;
-  ownerAppInstallId?: string;
 };
 
 export type DocumentMediaRoute = {
@@ -293,11 +290,7 @@ export async function listDocumentMediaAssets({
   limit?: number;
   store: MediaObjectStore;
 }): Promise<DocumentMediaAsset[]> {
-  const keyPrefix = documentMediaKeyPrefix(
-    compatibility.ownerAppInstallId === undefined
-      ? {}
-      : { ownerAppInstallId: compatibility.ownerAppInstallId },
-  );
+  const keyPrefix = documentMediaKeyPrefix();
 
   if (!keyPrefix || !store.listObjects) {
     return [];
@@ -424,12 +417,7 @@ export async function uploadDocumentMedia({
   }
 
   const assetId = `${randomId()}.pdf`;
-  const key = documentMediaStorageKeyForAssetId(
-    assetId,
-    compatibility.ownerAppInstallId === undefined
-      ? {}
-      : { ownerAppInstallId: compatibility.ownerAppInstallId },
-  );
+  const key = documentMediaStorageKeyForAssetId(assetId);
 
   if (!key) {
     return { error: "Document media storage identity is invalid.", ok: false, status: 400 };
@@ -445,9 +433,6 @@ export async function uploadDocumentMedia({
     id: assetId,
     kind: "document",
     label: filename,
-    ...(compatibility.ownerAppInstallId === undefined
-      ? {}
-      : { ownerAppInstallId: compatibility.ownerAppInstallId }),
     provider,
     status: "ready",
     storageKey: key,
@@ -572,12 +557,7 @@ export async function restoreDocumentMedia({
   store: MediaObjectStore;
 }): Promise<MediaWriteResult> {
   const effectiveMaxBytes = effectiveDocumentMediaMaxBytes(compatibility.maxBytes, maxBytes);
-  const expectedKey = documentMediaStorageKeyForAssetId(
-    asset.id,
-    compatibility.ownerAppInstallId === undefined
-      ? {}
-      : { ownerAppInstallId: compatibility.ownerAppInstallId },
-  );
+  const expectedKey = documentMediaStorageKeyForAssetId(asset.id);
   const expectedHref = hrefForAssetId(asset.id);
 
   if (
@@ -668,20 +648,15 @@ export async function deliveryFactsForDocumentMediaObject({
   download = false,
   hrefForAssetId,
   includeBody = true,
-  ownerAppInstallId,
   store,
 }: {
   assetId: string;
   download?: boolean;
   hrefForAssetId: (assetId: string) => string;
   includeBody?: boolean;
-  ownerAppInstallId?: string;
   store: MediaObjectStore;
 }): Promise<DocumentMediaDelivery | undefined> {
-  const routeFacts = documentMediaDeliveryFactsForAssetId(
-    assetId,
-    ownerAppInstallId === undefined ? { hrefForAssetId } : { hrefForAssetId, ownerAppInstallId },
-  );
+  const routeFacts = documentMediaDeliveryFactsForAssetId(assetId, { hrefForAssetId });
 
   if (!routeFacts) {
     return undefined;
@@ -694,7 +669,6 @@ export async function deliveryFactsForDocumentMediaObject({
     !object ||
     !asset ||
     asset.kind !== "document" ||
-    !documentMediaAssetMatchesOwner(asset, ownerAppInstallId) ||
     asset.id !== routeFacts.assetId ||
     asset.storageKey !== routeFacts.storageKey ||
     asset.deliveryHref !== routeFacts.href
@@ -912,9 +886,6 @@ async function serveDocument(
     hrefForAssetId: (deliveredAssetId) =>
       documentMediaHrefForAssetId(deliveredAssetId, options.media),
     includeBody: request.method === "GET",
-    ...(options.media.ownerAppInstallId === undefined
-      ? {}
-      : { ownerAppInstallId: options.media.ownerAppInstallId }),
     store: options.store,
   });
 
@@ -1150,9 +1121,7 @@ function documentMediaValidationError(
 function documentMediaCompatibilityForRoute(
   options: HandleDocumentMediaRequestOptions,
 ): DocumentMediaCompatibility | undefined {
-  return options.compatibility?.ownerAppInstallId === options.media.ownerAppInstallId
-    ? options.compatibility
-    : undefined;
+  return options.compatibility;
 }
 
 function documentMediaHrefForAssetId(assetId: string, media: DocumentMediaStorageIdentity): string {

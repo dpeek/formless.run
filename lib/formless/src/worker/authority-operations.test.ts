@@ -15,7 +15,7 @@ import type {
   OperationInvocationEnvelope,
   OperationInvocationResponse,
 } from "../shared/operation-invocation.ts";
-import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
+import { programStorageIdentity } from "../shared/app-storage-identity.ts";
 import { formlessProgramTarget } from "../program/target.ts";
 import type { SchemaKey } from "../shared/schema-apps.ts";
 import type {
@@ -42,6 +42,8 @@ type ExecuteOperationInput = {
   identity?: OperationInvocationEnvelope["appStorageIdentity"];
   method: string;
   path: string;
+  preserveMissingOperationAccess?: boolean;
+  programOperationAuthorized?: boolean;
   publicOperation?: {
     beforeReplayError?: string;
     idempotencyKey: string;
@@ -109,6 +111,7 @@ describe("authority operation execution", () => {
       identity: formlessProgramTarget,
       method: "POST",
       path: "/operations/task/create",
+      preserveMissingOperationAccess: true,
     });
 
     expect(rejected.response.status).toBe(400);
@@ -674,7 +677,7 @@ describe("authority operation execution", () => {
     expect(JSON.stringify(snapshot.body.result.body)).not.toContain("operation-row-create-task");
   });
 
-  it("stores rejected operation invocations without materializing records", async () => {
+  it("rejects unauthorized Program operations without materializing records", async () => {
     const bootstrap = await executeOperation<BootstrapResponse>({
       method: "GET",
       path: "/bootstrap",
@@ -697,7 +700,7 @@ describe("authority operation execution", () => {
               output: { type: "create" },
               idempotency: { required: true },
               audit: { input: "summary" },
-              policy: { actors: ["runner"] },
+              access: { actor: "owner" },
               key: "create",
             }
           : operation,
@@ -716,28 +719,17 @@ describe("authority operation execution", () => {
         idempotencyKey: "operation-row-policy-reject",
         input: "invalid-values",
       },
+      programOperationAuthorized: false,
     });
     const rows = await readOperationInvocations();
 
     expect(rejected.response.status).toBe(400);
     expect(rejected.body.writes).toEqual([]);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
-      affectedChangeIds: [],
-      auditInput: {
-        kind: "summary",
-        summary: {
-          type: "create",
-          valuesType: "string",
-        },
-      },
-      authDecision: "denied",
-      errorMessage: 'Operation "task.create" is not exposed to actor "owner".',
-      operationKey: "task.create",
-      status: "rejected",
+    expect(rejected.body).toEqual({
+      error: 'Program operation "task.create" is not authorized.',
+      writes: [],
     });
-    expect(rows[0]?.output).toBeUndefined();
-    expect(JSON.stringify(rows[0])).not.toContain("invalid-values");
+    expect(rows).toEqual([]);
   });
 
   it("stores failed operation invocations when validation rejects after acceptance", async () => {
@@ -813,15 +805,8 @@ describe("authority operation execution", () => {
     expect(rows[0]?.output).toBeUndefined();
   });
 
-  it("executes installed public subscribe handlers with normalized membership uniqueness", async () => {
-    const identity = installedAppStorageIdentity({
-      installId: "authority-crm",
-      packageAppKey: "crm",
-    });
-
-    if (!identity) {
-      throw new Error("Expected installed CRM app storage identity.");
-    }
+  it("executes Program public subscribe handlers with normalized membership uniqueness", async () => {
+    const identity = programStorageIdentity();
 
     const route = `${identity.apiRoutePrefix}/public/operations/subscription/subscribe`;
     const invalid = await executeOperationFailure({
@@ -954,13 +939,7 @@ describe("authority operation execution", () => {
     expect(invalidRow).toMatchObject({
       actorKind: "anonymous",
       affectedChangeIds: [],
-      appStorageIdentity: {
-        kind: "appInstall",
-        packageAppKey: "crm",
-        sourceSchemaKey: "crm",
-        installId: "authority-crm",
-        apiRoutePrefix: "/api/app-installs/crm/authority-crm",
-      },
+      appStorageIdentity: identity,
       auditInput: {
         kind: "summary",
         summary: {
@@ -994,11 +973,9 @@ describe("authority operation execution", () => {
     expect(subscriptions[0]?.values).toMatchObject({
       status: "subscribed",
       sourceKind: "publicOperation",
-      sourceTargetKind: "appInstall",
-      sourcePackageAppKey: "crm",
-      sourceSchemaKey: "crm",
-      sourceInstallId: "authority-crm",
-      sourceApiRoutePrefix: "/api/app-installs/crm/authority-crm",
+      sourceTargetKind: "program",
+      sourceSchemaKey: "formless-program",
+      sourceApiRoutePrefix: "/api/formless/program",
       sourceOperationKey: "subscription.subscribe",
       sourceHost: "crm.example.com",
       sourcePath: route,
@@ -1022,6 +999,8 @@ describe("authority operation execution", () => {
       },
       status: "committed",
     });
+    expect(subscriptions[0]?.values).not.toHaveProperty("sourcePackageAppKey");
+    expect(subscriptions[0]?.values).not.toHaveProperty("sourceInstallId");
     expect(rows).toHaveLength(4);
     expect(JSON.stringify(rows)).not.toContain("Ada@Example.com");
     expect(JSON.stringify(rows)).not.toContain("ada@example.com");
@@ -1213,7 +1192,7 @@ describe("authority operation execution", () => {
     ]);
   });
 
-  it("authorizes authenticated operation actors and filters authenticated command output", async () => {
+  it("uses preauthorized authenticated operation actors and filters command output", async () => {
     const bootstrap = await executeOperation<BootstrapResponse>({
       method: "GET",
       path: "/bootstrap",
@@ -1245,12 +1224,6 @@ describe("authority operation execution", () => {
       body: { schema },
     });
 
-    const missingFacts = await executeOperationFailure({
-      actor: { kind: "authenticated" },
-      method: "POST",
-      path: "/operations/task/clearCompletedTasks",
-      body: { idempotencyKey: "authenticated-command-missing-facts" },
-    });
     const committed = await executeOperation<OperationInvocationResponse>({
       actor: authenticatedOperationActor(),
       method: "POST",
@@ -1267,11 +1240,6 @@ describe("authority operation execution", () => {
       (candidate) => candidate.recordId === createdOutput.record.id,
     );
 
-    expect(missingFacts.response.status).toBe(400);
-    expect(missingFacts.body).toEqual({
-      error: 'Operation "task.clearCompletedTasks" requires authenticated actor facts.',
-      writes: [],
-    });
     expect(committed.response.status).toBe(200);
     expect(committed.body.result.body.invocation.actor).toEqual(authenticatedOperationActor());
     expect(change).toMatchObject({
@@ -2742,7 +2710,7 @@ describe("authority operation execution", () => {
     expect(invalidRow?.statusHistory.map((entry) => entry.status)).toEqual(["accepted", "failed"]);
   });
 
-  it("rejects operation policy before field validation or write notification", async () => {
+  it("rejects Program authorization before field validation or write notification", async () => {
     const bootstrap = await executeOperation<BootstrapResponse>({
       method: "GET",
       path: "/bootstrap",
@@ -2765,7 +2733,7 @@ describe("authority operation execution", () => {
               output: { type: "create" },
               idempotency: { required: true },
               audit: { input: "summary" },
-              policy: { actors: ["runner"] },
+              access: { actor: "owner" },
               key: "create",
             }
           : operation,
@@ -2784,11 +2752,12 @@ describe("authority operation execution", () => {
         idempotencyKey: "policy-reject-before-validation",
         input: "invalid-values",
       },
+      programOperationAuthorized: false,
     });
 
     expect(rejected.response.status).toBe(400);
     expect(rejected.body).toEqual({
-      error: 'Operation "task.create" is not exposed to actor "owner".',
+      error: 'Program operation "task.create" is not authorized.',
       writes: [],
     });
   });
@@ -2947,12 +2916,11 @@ function authenticatedOperationActor(): OperationInvocationEnvelope["actor"] {
     kind: "authenticated",
     principalId: "principal-ada",
     sessionTarget: {
-      appInstallId: "tasks",
       instanceId: "instance-1",
-      routeId: "route-tasks",
-      storageIdentity: "app:tasks",
-      targetOrigin: "https://tasks.example.com",
-      targetProfile: "app",
+      routeId: "route-program",
+      storageIdentity: "instance:control-plane",
+      targetOrigin: "https://program.example.com",
+      targetProfile: "instance",
     },
   };
 }
@@ -3875,7 +3843,13 @@ function createOrderForTransition(idempotencyKey: string, values: Record<string,
 
 async function executeOperation<TBody>(input: ExecuteOperationInput) {
   const response = await fetchOperationHarness(input);
-  const body = (await response.json()) as ExecuteOperationSuccess<TBody>;
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`Authority operation harness failed: ${response.status} ${text}`);
+  }
+
+  const body = JSON.parse(text) as ExecuteOperationSuccess<TBody>;
 
   return { response, body };
 }
@@ -3918,7 +3892,7 @@ async function writeAuthorityOperationHarness() {
     harnessPath,
     `
       import { DurableObject } from "cloudflare:workers";
-      import { installedAppStorageIdentity } from "${process.cwd()}/src/shared/app-storage-identity.ts";
+      import { programStorageIdentity } from "${process.cwd()}/src/shared/app-storage-identity.ts";
       import {
         executeAuthorityOperation,
         selectAuthorityOperation,
@@ -3937,10 +3911,8 @@ async function writeAuthorityOperationHarness() {
       } from "${process.cwd()}/src/worker/operation-invocation-envelopes.ts";
       import { executePublicOperationInvocationLifecycle } from "${process.cwd()}/src/worker/operation-invocation-lifecycle.ts";
       import { schemaAppTestRecords } from "${process.cwd()}/src/test/schema-app-records.ts";
-      import {
-        crmSourceSchema,
-        taskSourceSchema,
-      } from "${process.cwd()}/src/test/schema-apps.ts";
+      import { taskSourceSchema } from "${process.cwd()}/src/test/schema-apps.ts";
+      import { formlessProgramSchema } from "${process.cwd()}/src/program/runtime.ts";
       import {
         ensureStorageTables,
         initializeStorageFromSource,
@@ -3967,7 +3939,7 @@ async function writeAuthorityOperationHarness() {
           const app = appKey === "tasks"
             ? { key: "tasks", sourceSchema: taskSourceSchema }
             : appKey === "crm"
-              ? { key: "crm", sourceSchema: crmSourceSchema }
+              ? { key: "formless-program", sourceSchema: formlessProgramSchema }
               : undefined;
           const operation = selectAuthorityOperation({
             method: input.method,
@@ -3979,14 +3951,10 @@ async function writeAuthorityOperationHarness() {
             return Response.json({ error: "Unsupported operation.", writes: [] }, { status: 404 });
           }
 
-          const identity = input.identity ?? installedAppStorageIdentity({
-            installId: appKey,
-            packageAppKey: appKey,
-          });
+          const identity = input.identity ?? programStorageIdentity();
+          const sourceSchema = app.sourceSchema;
           const records = schemaAppTestRecords(appKey);
-          const source = {
-            schema: app.sourceSchema,
-          };
+          const source = { schema: sourceSchema };
           if (!readCurrentStoredSchema(this.ctx.storage)) {
             initializeStorageFromSource(this.ctx.storage, source);
             if (records.length > 0) {
@@ -4000,7 +3968,7 @@ async function writeAuthorityOperationHarness() {
                   exportedAt: "2026-07-29T00:00:00.000Z",
                   schemaUpdatedAt: "2026-07-29T00:00:00.000Z",
                   sourceCursor: records.length,
-                  schema: app.sourceSchema,
+                  schema: sourceSchema,
                   records,
                 },
                 source,
@@ -4087,12 +4055,15 @@ async function writeAuthorityOperationHarness() {
             }
 
             const result = await executeAuthorityOperation({
-              actor: input.actor,
+              actor: input.actor ?? { kind: "owner" },
               actorKind: input.actorKind,
               app,
               body: input.body,
               identity,
               operation,
+              programOperationAuthorized: input.preserveMissingOperationAccess
+                ? undefined
+                : input.programOperationAuthorized ?? true,
               requestHeaders: new Headers(input.headers ?? {}),
               source,
               storage: this.ctx.storage,

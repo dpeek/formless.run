@@ -162,20 +162,6 @@ from reusable package modules.
 - AND instance, identity, and Task entities retain their package-owned stable
   entity ids in the complete source
 
-#### Scenario: Resolve package presentation collisions at the Program root
-
-- GIVEN the reusable instance and identity presentation modules both declare
-  `screens.apps`
-- WHEN the default Program root composes both packages
-- THEN the root supplies deliberate same-key presentation module replacements
-  that omit the conflicting package screens
-- AND a root-owned presentation module contributes one `apps` screen that
-  composes the installed-app and app-registration collection views
-- AND the root explicitly selects unique screen paths and primary navigation
-  order for the complete Program
-- AND generic schema composition continues rejecting declaration collisions
-  rather than merging, overwriting, renaming, or deep-merging them
-
 #### Scenario: Apply Program-specific Tasks policy
 
 - GIVEN the reusable Tasks modules retain standalone package presentation and
@@ -353,18 +339,14 @@ language.
   idempotency, audit, and explicit anonymous public policy remain separate
   contracts
 
-#### Scenario: Isolate legacy operation actors
+#### Scenario: Program access does not derive identity from declarations
 
-- GIVEN installed app data still uses an external installed-app Authority
-- WHEN its existing schema operation is parsed and invoked
-- THEN its existing `policy.actors` declaration remains available for that
-  installed-app boundary
-- AND the shared top-level operation access requirement does not adapt a
-  Program role into `admin`, `app.admin`, or an app-install scope
-- AND migrated Program operations use top-level access requirements instead of
-  legacy actor admission
-- AND the legacy operation actor vocabulary can be deleted with installed-app
-  authorization after no external app Authority depends on it
+- GIVEN a Program operation declares top-level access
+- WHEN runtime authorization resolves the request
+- THEN it uses current principal, protected-owner, and Program role-assignment
+  facts against the complete Program role catalog
+- AND package, module, entity, field, media, adapter, or provenance identity
+  does not become an authorization principal or scope
 
 ### Requirement: Ordered Keyed Definition Registries
 
@@ -1241,8 +1223,7 @@ public forms, automation, audit, and authorization.
 
 #### Scenario: Parse operation actor policy
 
-- GIVEN an entity operation owned by a legacy installed-app boundary declares
-  actor policy
+- GIVEN an entity operation declares actor policy
 - WHEN the schema is parsed
 - THEN operation actors may include `anonymous`, `authenticated`, `owner`,
   `admin`, `cliDeployer`, or `runner`
@@ -1250,11 +1231,8 @@ public forms, automation, audit, and authorization.
   host-local session for the target storage identity can invoke the operation
 - AND `owner` means an active principal with active `instance.owner` authority
   can invoke the operation
-- AND for browser operations against an installed app storage identity,
-  `admin` may be supplied by an active principal with current `app.admin`
-  authority at that app-install scope
-- AND `instance.admin` authority alone and `app.admin` authority for another
-  app install do not supply that installed-app `admin` actor
+- AND browser Program operation authorization comes from the operation's
+  top-level access requirement rather than package or app-install scope
 - AND response field filters may be keyed by each declared actor kind
 - AND response field filters select command output payload field names,
   including fields written by record-plan steps whose entity differs from the
@@ -1653,8 +1631,7 @@ operations, and operation bindings.
 #### Scenario: Control-plane records stay flat
 
 - GIVEN control-plane records are stored or synced
-- WHEN relationships between app install, route, provider, and deployment
-  records exist
+- WHEN relationships between route, provider, and deployment records exist
 - THEN records keep flat field values
 - AND relationships are represented by schema metadata over reference fields
 
@@ -1663,20 +1640,13 @@ operations, and operation bindings.
 The system SHALL let runtime-owned schemas mark identity fields as immutable
 after record creation.
 
-#### Scenario: Immutable install identity
-
-- GIVEN an `app-install` record has been created
-- WHEN a patch targets install identity, package app key, or storage identity
-- THEN generated UI, CLI, sync, and operation writes reject the change
-- AND mutable fields such as label can still be patched when schema policy
-  allows
-
 #### Scenario: Route target integrity
 
-- GIVEN an `app-route` record references an `app-install`
+- GIVEN a Program `route` record selects a runtime target profile
 - WHEN the route is created or patched
-- THEN schema validation prevents the route from pointing at a missing,
-  incompatible, or tombstoned app install record
+- THEN schema and runtime validation admit only current Program target fields
+- AND package app keys, install ids, and alternate storage identities are not
+  route target facts
 
 ### Requirement: Actor-Scoped Command Operations
 

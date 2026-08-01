@@ -4,17 +4,9 @@ import type {
   AppInstall,
   AppInstallInitializationPlan,
   AppInstallLaunchLink,
-  AppInstallRegistrationOperation,
-  AppInstallRegistrationPolicy,
   InstallableAppPackage,
-  PackageAppKey,
 } from "@dpeek/formless-installed-apps";
-import {
-  defaultAppInstallRegistrationPolicy,
-  parseAppInstallRegistrationOperation,
-  parseAppInstallRegistrationPolicy,
-} from "@dpeek/formless-installed-apps";
-import type { PackageAppRevision, SourceSchemaHash } from "./upgrade-migrations.ts";
+import type { SourceSchemaHash } from "./upgrade-migrations.ts";
 
 export type EntityName = string;
 
@@ -162,39 +154,18 @@ export type SyncSocketAttachment = {
 
 export const FORMLESS_CLIENT_RUNTIME_PROTOCOL_HEADER = "x-formless-runtime-protocol-version";
 export const FORMLESS_CLIENT_SCHEMA_UPDATED_AT_HEADER = "x-formless-schema-updated-at";
-export const FORMLESS_CLIENT_PACKAGE_REVISION_HEADER = "x-formless-package-app-revision";
 export const FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER = "x-formless-source-schema-hash";
 export const FORMLESS_RELOAD_REQUIRED_ERROR_CODE = "reload-required";
 
-export type BrowserReplicaSchemaProvenance =
-  | {
-      kind: "package-app";
-      packageAppKey: PackageAppKey;
-      packageRevision: PackageAppRevision;
-      sourceSchemaHash: SourceSchemaHash;
-    }
-  | {
-      kind: "instance-control-plane";
-      sourceSchemaHash: SourceSchemaHash;
-    }
-  | {
-      kind: "identity-control-plane";
-      sourceSchemaHash: SourceSchemaHash;
-    }
-  | {
-      kind: "program";
-      sourceSchemaHash: SourceSchemaHash;
-    };
+export type BrowserReplicaSchemaProvenance = {
+  kind: "program";
+  sourceSchemaHash: SourceSchemaHash;
+};
 
 export type BrowserReplicaUpgradeFacts = {
   runtimeProtocolVersion: number;
   schemaUpdatedAt: string | null;
   schemaProvenance: BrowserReplicaSchemaProvenance | null;
-  packageApp: {
-    packageAppKey: PackageAppKey;
-    packageRevision: PackageAppRevision;
-    sourceSchemaHash: SourceSchemaHash;
-  } | null;
 };
 
 export type ReloadRequiredErrorResponse = {
@@ -236,8 +207,6 @@ export type CreateAppInstallRequest = {
   packageAppKey: string;
   installId: string;
   label: string;
-  registrationOperation?: AppInstallRegistrationOperation;
-  registrationPolicy?: AppInstallRegistrationPolicy;
 };
 
 export type CreateAppInstallResponse = {
@@ -320,17 +289,6 @@ export function parseCreateAppInstallRequest(value: unknown): CreateAppInstallRe
     packageAppKey: parseTrimmedNonEmptyString("App install package app key", value.packageAppKey),
     installId: parseTrimmedNonEmptyString("App install id", value.installId),
     label: parseTrimmedNonEmptyString("App install label", value.label),
-    registrationPolicy:
-      parseOptionalAppInstallRegistrationPolicy(value.registrationPolicy) ??
-      defaultAppInstallRegistrationPolicy(),
-    ...(value.registrationOperation === undefined
-      ? {}
-      : {
-          registrationOperation: parseAppInstallRegistrationOperation(
-            value.registrationOperation,
-            "App install registration operation",
-          ),
-        }),
   };
 }
 
@@ -363,21 +321,7 @@ function isBrowserReplicaSchemaProvenance(value: unknown): value is BrowserRepli
     return false;
   }
 
-  if (
-    value.kind === "instance-control-plane" ||
-    value.kind === "identity-control-plane" ||
-    value.kind === "program"
-  ) {
-    return true;
-  }
-
-  return (
-    value.kind === "package-app" &&
-    typeof value.packageAppKey === "string" &&
-    typeof value.packageRevision === "number" &&
-    Number.isInteger(value.packageRevision) &&
-    value.packageRevision > 0
-  );
+  return value.kind === "program";
 }
 
 function isChangeRow(value: unknown): value is ChangeRow {
@@ -414,7 +358,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function assertCreateAppInstallRequestKeys(value: Record<string, unknown>) {
   const requiredKeys = ["packageAppKey", "installId", "label"];
-  const allowedKeys = new Set([...requiredKeys, "registrationOperation", "registrationPolicy"]);
+  const allowedKeys = new Set(requiredKeys);
 
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -427,16 +371,6 @@ function assertCreateAppInstallRequestKeys(value: Record<string, unknown>) {
       throw new Error(`App install request must include "${key}".`);
     }
   }
-}
-
-function parseOptionalAppInstallRegistrationPolicy(
-  value: unknown,
-): AppInstallRegistrationPolicy | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  return parseAppInstallRegistrationPolicy(value, "App install registration policy");
 }
 
 function parseNonEmptyString(context: string, value: unknown): string {

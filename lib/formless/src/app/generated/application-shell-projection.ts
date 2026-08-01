@@ -9,7 +9,6 @@ import type {
   ShellSyncStatusContract,
 } from "@dpeek/formless-presentation/contract";
 import { shellNavigationSectionReference } from "@dpeek/formless-presentation/host";
-import type { AppInstall, AppPackageResolver } from "@dpeek/formless-installed-apps";
 import {
   createEntityRecordCountReferencingFieldSelector,
   createEntityRecordOptionsMatchingQuerySelector,
@@ -30,12 +29,10 @@ import {
 } from "../../shared/runtime-topology.ts";
 import { formatGeneratedWorkspaceCount } from "./workspace-projection.ts";
 import {
-  installedAppWorldMountFromInstall,
   isRuntimePublicSiteRoute,
   normalizeRuntimeBrowserPath,
   runtimeBrowserRoutePatterns,
   runtimeScreenRoute,
-  type RuntimeInstalledAppRouteContext,
   type RuntimeProfile,
   type RuntimeWorldMount,
 } from "../runtime-profile.ts";
@@ -69,11 +66,9 @@ export type GeneratedApplicationShellProjection = {
 };
 
 export type ProjectGeneratedApplicationShellOptions = {
-  activePackageResolver?: AppPackageResolver | undefined;
   activeScreenPath?: string | undefined;
   authorizedProgramScreenPaths?: readonly string[] | undefined;
   currentPath: string;
-  installs?: readonly AppInstall[] | undefined;
   logoutState?: GeneratedShellLogoutState | undefined;
   accountSession?: AccountSessionStatusResponse | undefined;
   root?: GeneratedShellRootProjectionInput | undefined;
@@ -85,12 +80,10 @@ export type ProjectGeneratedApplicationShellOptions = {
 
 export function selectGeneratedShellScope({
   currentPath,
-  routeContext = {},
   routeWorld,
   runtimeProfile,
 }: {
   currentPath: string;
-  routeContext?: RuntimeInstalledAppRouteContext;
   routeWorld: RuntimeWorldMount | undefined;
   runtimeProfile: RuntimeProfile;
 }): ShellScope | undefined {
@@ -102,7 +95,7 @@ export function selectGeneratedShellScope({
     path === COLLABORATOR_INVITATION_ACCEPT_PATH ||
     path === routes.localSessionRoute ||
     runtimeProfile.shell === "publishedSite" ||
-    isRuntimePublicSiteRoute(runtimeProfile, path, routeContext)
+    isRuntimePublicSiteRoute(runtimeProfile, path)
   ) {
     return undefined;
   }
@@ -131,48 +124,18 @@ export function selectGeneratedShellActiveHref(
 }
 
 export function selectGeneratedShellAppDestinations({
-  activePackageResolver,
   currentPath,
-  installs = [],
-  routeWorld,
   runtimeProfile,
 }: {
-  activePackageResolver?: AppPackageResolver | undefined;
   currentPath: string;
-  installs?: readonly AppInstall[];
-  routeWorld: RuntimeWorldMount | undefined;
   runtimeProfile: RuntimeProfile;
 }): ShellDestinationContract[] {
   const sourceWorlds = runtimeProfile.worlds.filter((world) => world.generatedRoutes);
-  const installedWorlds = installs.flatMap((install) => {
-    const world = installedAppWorldMountFromInstall(runtimeProfile, install, {
-      activePackageResolver,
-    });
-
-    return world ? [{ install, world }] : [];
-  });
-  const currentInstallId = installedAppWorldInstallId(routeWorld);
-  const currentInstalledWorld: {
-    install: AppInstall | undefined;
-    world: RuntimeWorldMount;
-  }[] =
-    currentInstallId &&
-    routeWorld &&
-    !installedWorlds.some(({ world }) => installedAppWorldInstallId(world) === currentInstallId)
-      ? [{ install: undefined, world: routeWorld }]
-      : [];
-  const adminDestinations = [
-    ...sourceWorlds.map((world) => ({
-      href: world.route,
-      id: `app:${world.app.key}`,
-      label: world.app.label,
-    })),
-    ...[...installedWorlds, ...currentInstalledWorld].map(({ install, world }) => ({
-      href: world.route,
-      id: `app-install:${installedAppWorldInstallId(world) ?? world.app.key}:admin`,
-      label: install?.label ?? world.app.label,
-    })),
-  ];
+  const adminDestinations = sourceWorlds.map((world) => ({
+    href: world.route,
+    id: `app:${world.app.key}`,
+    label: world.app.label,
+  }));
   const destinations = dedupeShellLinks([
     ...adminDestinations,
     {
@@ -384,11 +347,9 @@ export function selectGeneratedShellActiveDestination(
 }
 
 export function projectGeneratedApplicationShell({
-  activePackageResolver,
   activeScreenPath,
   authorizedProgramScreenPaths = [],
   currentPath,
-  installs = [],
   logoutState = "idle",
   accountSession,
   root,
@@ -397,10 +358,8 @@ export function projectGeneratedApplicationShell({
   screenModels = [],
   sync,
 }: ProjectGeneratedApplicationShellOptions): GeneratedApplicationShellProjection | undefined {
-  const routeContext = { activePackageResolver, appInstalls: installs };
   const scope = selectGeneratedShellScope({
     currentPath,
-    routeContext,
     routeWorld,
     runtimeProfile,
   });
@@ -416,10 +375,7 @@ export function projectGeneratedApplicationShell({
     sections.push({
       accessibilityLabel: "Applications",
       destinations: selectGeneratedShellAppDestinations({
-        activePackageResolver,
         currentPath,
-        installs,
-        routeWorld,
         runtimeProfile,
       }),
       id: `${GENERATED_APPLICATION_SHELL_ID}:apps`,
@@ -580,8 +536,4 @@ function dedupeShellLinks<T extends { href: string; id: string }>(links: readonl
     seen.add(key);
     return true;
   });
-}
-
-function installedAppWorldInstallId(world: RuntimeWorldMount | undefined): string | undefined {
-  return world?.target?.kind === "appInstall" ? world.target.installId : undefined;
 }

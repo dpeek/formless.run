@@ -1,6 +1,5 @@
 import type { RecordValues, StorageSnapshot } from "@dpeek/formless-storage";
 import {
-  FORMLESS_CLIENT_PACKAGE_REVISION_HEADER,
   FORMLESS_CLIENT_RUNTIME_PROTOCOL_HEADER,
   FORMLESS_CLIENT_SCHEMA_UPDATED_AT_HEADER,
   FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER,
@@ -17,18 +16,11 @@ import type {
   OperationInvocationResponse,
 } from "../shared/operation-invocation.ts";
 import type { AuthorityStorageIdentity } from "../shared/app-storage-identity.ts";
-import type { PackageAppKey } from "@dpeek/formless-installed-apps";
-import { findResolvedAppPackage, type AppPackageResolver } from "../shared/app-packages.ts";
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
 import type { EntityOperationSchema, SchemaOperationActorKind } from "@dpeek/formless-schema";
 import type { IdentityReferenceTargetResolver } from "./identity-reference-targets.ts";
+import { isSourceSchemaHash } from "../shared/upgrade-migrations.ts";
 import {
-  isSourceSchemaHash,
-  type PackageAppRevision,
-  type SourceSchemaHash,
-} from "../shared/upgrade-migrations.ts";
-import {
-  assertOperationInvocationAuthorized,
   executeReadOperationInvocation,
   executeWriteOperationInvocation,
   parseEntityOperationRoute,
@@ -49,27 +41,23 @@ import {
   getCurrentCursor,
   initializeStorageFromSource,
   mapWriteOutcome,
-  applyPackageAppMigrationsOutcome,
   resetStorageSchemaToSourceOutcome,
   restoreStorageSnapshotOutcome,
   readCurrentStoredSchema,
-  readPackageAppMigrationState,
   recordOperationInvocationAccepted,
   recordOperationInvocationFailed,
-  recordOperationInvocationRejected,
   type RecordConstraintValidator,
-  type ApplyPackageAppMigrationsResponse,
-  type PackageAppSchemaProvenance,
   type StoredSchema,
   type StorageSource,
   type WriteOutcome,
   writeActiveSchemaOutcome,
 } from "./storage.ts";
-import {
-  packageAppMigrationRegistry,
-  selectPackageAppMigrationChain,
-} from "./package-app-migrations.ts";
 import { programPublicSiteWorkerAdapter } from "./public-site-worker-runtime.ts";
+import {
+  selectCurrentFormlessProgramChanges,
+  selectCurrentFormlessProgramRecords,
+} from "./program-authority.ts";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 
 export type AuthorityOperationMode = "read" | "write";
 
@@ -82,8 +70,7 @@ export type AuthorityOperationKind =
   | "writeSchema"
   | "restoreSnapshot"
   | "entityOperation"
-  | "resetSchema"
-  | "applyPackageMigrations";
+  | "resetSchema";
 
 export type AuthorityOperationMetadata = {
   kind: AuthorityOperationKind;
@@ -125,8 +112,7 @@ export type WriteAuthorityOperation =
   | WriteOperation<"writeSchema">
   | WriteOperation<"restoreSnapshot">
   | (WriteOperation<"entityOperation"> & EntityOperationRoute)
-  | WriteOperation<"resetSchema">
-  | WriteOperation<"applyPackageMigrations">;
+  | WriteOperation<"resetSchema">;
 
 export type AuthorityOperation = ReadAuthorityOperation | WriteAuthorityOperation;
 
@@ -139,7 +125,6 @@ type AuthorityErrorResponse = {
 };
 
 export type AuthorityOperationResponseBody =
-  | ApplyPackageAppMigrationsResponse
   | AuthorityErrorResponse
   | BootstrapResponse
   | OperationInvocationResponse
@@ -183,7 +168,6 @@ type AuthorityOperationExecutionInput = {
   identity: AuthorityStorageIdentity;
   identityReferenceResolver?: IdentityReferenceTargetResolver;
   operation: AuthorityOperation;
-  packageResolver?: AppPackageResolver;
   programOperationAuthorized?: boolean;
   requestHeaders?: Headers;
   source: StorageSource;
@@ -255,13 +239,6 @@ export function selectAuthorityOperation(
     return { kind: "resetSchema", metadata: metadata("resetSchema", "write") };
   }
 
-  if (input.method === "POST" && input.path === "/package-migrations/apply") {
-    return {
-      kind: "applyPackageMigrations",
-      metadata: metadata("applyPackageMigrations", "write"),
-    };
-  }
-
   return undefined;
 }
 
@@ -275,8 +252,8 @@ export async function executeAuthorityOperation(
       const storedSchema = initializeStorageFromSource(input.storage, input.source);
 
       return {
-        body: bootstrapResponse(input.storage, storedSchema),
-        headers: browserReplicaUpgradeHeaders(input.storage, input.identity, input.packageResolver),
+        body: bootstrapResponse(input.storage, storedSchema, input.source),
+        headers: browserReplicaUpgradeHeaders(input.storage),
       };
     }
 
@@ -291,8 +268,16 @@ export async function executeAuthorityOperation(
     case "exportSnapshot": {
       initializeStorageFromSource(input.storage, input.source);
 
+      const snapshot = exportStorageSnapshot(
+        input.storage,
+        input.identity.authorityName,
+        input.app.key,
+      );
+
       return {
-        body: exportStorageSnapshot(input.storage, input.identity.authorityName, input.app.key),
+        body: isFormlessProgramSource(input.source)
+          ? { ...snapshot, records: selectCurrentFormlessProgramRecords(snapshot.records) }
+          : snapshot,
       };
     }
 
@@ -325,7 +310,10 @@ export async function executeAuthorityOperation(
 
     case "sync": {
       const storedSchema = initializeStorageFromSource(input.storage, input.source);
-      const changes = getChangesAfter(input.storage, operation.after);
+      const storedChanges = getChangesAfter(input.storage, operation.after);
+      const changes = isFormlessProgramSource(input.source)
+        ? selectCurrentFormlessProgramChanges(storedChanges)
+        : storedChanges;
       const schemaFields =
         operation.clientSchemaUpdatedAt === storedSchema.updatedAt
           ? {}
@@ -337,7 +325,7 @@ export async function executeAuthorityOperation(
           cursor: getCurrentCursor(input.storage),
           ...schemaFields,
         },
-        headers: browserReplicaUpgradeHeaders(input.storage, input.identity, input.packageResolver),
+        headers: browserReplicaUpgradeHeaders(input.storage),
       };
     }
 
@@ -347,7 +335,9 @@ export async function executeAuthorityOperation(
       const nextSchema = validateSchemaUpdateRequest(input.body, currentSchema, records);
 
       return writeOperationResult(
-        input.writes.apply(() => writeActiveSchemaOutcome(input.storage, nextSchema)),
+        input.writes.apply(() =>
+          mapWriteOutcome(writeActiveSchemaOutcome(input.storage, nextSchema), schemaResponse),
+        ),
       );
     }
 
@@ -373,17 +363,15 @@ export async function executeAuthorityOperation(
         .find((definition) => definition.key === operation.entityName)
         ?.operations?.find((definition) => definition.key === operation.operationName);
 
-      if (input.identity.kind === "program") {
-        if (operationSchema?.access === undefined) {
-          throw new BadRequestError(
-            `Program operation "${operation.entityName}.${operation.operationName}" is missing access.`,
-          );
-        }
-        if (input.programOperationAuthorized !== true) {
-          throw new BadRequestError(
-            `Program operation "${operation.entityName}.${operation.operationName}" is not authorized.`,
-          );
-        }
+      if (operationSchema?.access === undefined && input.programOperationAuthorized !== true) {
+        throw new BadRequestError(
+          `Program operation "${operation.entityName}.${operation.operationName}" is missing access.`,
+        );
+      }
+      if (input.programOperationAuthorized !== true) {
+        throw new BadRequestError(
+          `Program operation "${operation.entityName}.${operation.operationName}" is not authorized.`,
+        );
       }
 
       const envelope = buildProtocolOperationInvocationEnvelope({
@@ -403,10 +391,6 @@ export async function executeAuthorityOperation(
         schema,
       });
 
-      if (input.identity.kind !== "program") {
-        assertOperationInvocationAllowed(input.storage, envelope);
-      }
-
       if (envelope.operation.kind === "list" || envelope.operation.kind === "get") {
         return {
           body: executeReadOperationInvocation({
@@ -424,7 +408,6 @@ export async function executeAuthorityOperation(
           createRecordId: input.createRecordId,
           envelope,
           identityReferenceResolver: input.identityReferenceResolver,
-          packageResolver: input.packageResolver,
           schema,
           storage: input.storage,
           validateConstraints: input.validateConstraints,
@@ -442,37 +425,8 @@ export async function executeAuthorityOperation(
               input.source,
               validateSourceSchemaReset,
             ),
-            (storedSchema) => bootstrapResponse(input.storage, storedSchema),
+            (storedSchema) => bootstrapResponse(input.storage, storedSchema, input.source),
           ),
-        ),
-      );
-    }
-
-    case "applyPackageMigrations": {
-      initializeStorageFromSource(input.storage, input.source, { refreshActiveSchema: false });
-
-      const packageFacts = parsePackageAppMigrationApplyRequest(
-        input.body,
-        input.app.key,
-        input.packageResolver,
-      );
-      const migrations = selectPackageAppMigrations({
-        currentPackageRevision: packageFacts.currentPackageRevision,
-        packageAppKey: packageFacts.packageAppKey,
-        safety: packageFacts.safety,
-        targetPackageRevision: packageFacts.targetPackageRevision,
-      });
-
-      return writeOperationResult(
-        input.writes.apply(() =>
-          applyPackageAppMigrationsOutcome(input.storage, {
-            currentPackageRevision: packageFacts.currentPackageRevision,
-            currentSourceSchemaHash: packageFacts.currentSourceSchemaHash,
-            migrations,
-            packageAppKey: packageFacts.packageAppKey,
-            targetPackageRevision: packageFacts.targetPackageRevision,
-            targetSourceSchemaHash: packageFacts.targetSourceSchemaHash,
-          }),
         ),
       );
     }
@@ -518,18 +472,6 @@ function writeOperationResult<T extends AuthorityOperationResponseBody>(
   return { body: outcome.response };
 }
 
-function assertOperationInvocationAllowed(
-  storage: DurableObjectStorage,
-  envelope: OperationInvocationEnvelope,
-) {
-  try {
-    assertOperationInvocationAuthorized(envelope);
-  } catch (error) {
-    recordOperationInvocationRejected(storage, envelope, error);
-    throw error;
-  }
-}
-
 function assertBrowserReplicaWriteCompatibleForOperation(
   input: AuthorityOperationExecutionInput,
   envelope: OperationInvocationEnvelope,
@@ -550,7 +492,7 @@ function assertBrowserReplicaWriteCompatible(input: AuthorityOperationExecutionI
     return;
   }
 
-  const upgrade = browserReplicaUpgradeFacts(input.storage, input.identity, input.packageResolver);
+  const upgrade = browserReplicaUpgradeFacts(input.storage);
 
   if (
     clientFacts.runtimeProtocolVersion !== undefined &&
@@ -564,13 +506,6 @@ function assertBrowserReplicaWriteCompatible(input: AuthorityOperationExecutionI
     clientFacts.schemaUpdatedAt !== upgrade.schemaUpdatedAt
   ) {
     throw reloadRequired("App schema changed. Reload required.", upgrade);
-  }
-
-  if (
-    clientFacts.packageRevision !== undefined &&
-    clientFacts.packageRevision !== upgrade.packageApp?.packageRevision
-  ) {
-    throw reloadRequired("Package app revision changed. Reload required.", upgrade);
   }
 
   if (
@@ -591,11 +526,6 @@ function parseBrowserReplicaWriteFacts(headers: Headers | undefined) {
     FORMLESS_CLIENT_RUNTIME_PROTOCOL_HEADER,
     "runtime protocol version",
   );
-  const packageRevision = parseOptionalPositiveIntegerHeader(
-    headers,
-    FORMLESS_CLIENT_PACKAGE_REVISION_HEADER,
-    "package app revision",
-  );
   const schemaUpdatedAt = parseOptionalStringHeader(
     headers,
     FORMLESS_CLIENT_SCHEMA_UPDATED_AT_HEADER,
@@ -606,10 +536,8 @@ function parseBrowserReplicaWriteFacts(headers: Headers | undefined) {
   return {
     hasAnyFact:
       runtimeProtocolVersion !== undefined ||
-      packageRevision !== undefined ||
       schemaUpdatedAt !== undefined ||
       sourceSchemaHash !== undefined,
-    packageRevision,
     runtimeProtocolVersion,
     schemaUpdatedAt,
     sourceSchemaHash,
@@ -665,22 +593,14 @@ function parseOptionalSourceSchemaHashHeader(headers: Headers | undefined) {
   return value;
 }
 
-function browserReplicaUpgradeHeaders(
-  storage: DurableObjectStorage,
-  identity: AuthorityStorageIdentity,
-  packageResolver?: AppPackageResolver,
-): HeadersInit {
-  const facts = browserReplicaUpgradeFacts(storage, identity, packageResolver);
+function browserReplicaUpgradeHeaders(storage: DurableObjectStorage): HeadersInit {
+  const facts = browserReplicaUpgradeFacts(storage);
   const headers: Record<string, string> = {
     [FORMLESS_CLIENT_RUNTIME_PROTOCOL_HEADER]: String(facts.runtimeProtocolVersion),
   };
 
   if (facts.schemaUpdatedAt !== null) {
     headers[FORMLESS_CLIENT_SCHEMA_UPDATED_AT_HEADER] = facts.schemaUpdatedAt;
-  }
-
-  if (facts.packageApp) {
-    headers[FORMLESS_CLIENT_PACKAGE_REVISION_HEADER] = String(facts.packageApp.packageRevision);
   }
 
   if (facts.schemaProvenance) {
@@ -690,80 +610,16 @@ function browserReplicaUpgradeHeaders(
   return headers;
 }
 
-function browserReplicaUpgradeFacts(
-  storage: DurableObjectStorage,
-  identity: AuthorityStorageIdentity,
-  packageResolver?: AppPackageResolver,
-): BrowserReplicaUpgradeFacts {
+function browserReplicaUpgradeFacts(storage: DurableObjectStorage): BrowserReplicaUpgradeFacts {
   const storedSchema = readCurrentStoredSchema(storage);
-
-  if (identity.kind === "program") {
-    const schemaProvenance =
-      storedSchema?.schemaProvenance?.kind === "program" ? storedSchema.schemaProvenance : null;
-
-    return {
-      runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
-      schemaUpdatedAt: storedSchema?.updatedAt ?? null,
-      schemaProvenance,
-      packageApp: null,
-    };
-  }
-
-  const packageProvenance = packageSchemaProvenanceForBrowserReplica(
-    storage,
-    identity.packageAppKey,
-    storedSchema,
-    packageResolver,
-  );
+  const schemaProvenance =
+    storedSchema?.schemaProvenance?.kind === "program" ? storedSchema.schemaProvenance : null;
 
   return {
     runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
     schemaUpdatedAt: storedSchema?.updatedAt ?? null,
-    schemaProvenance: packageProvenance ?? null,
-    packageApp: packageProvenance
-      ? {
-          packageAppKey: packageProvenance.packageAppKey,
-          packageRevision: packageProvenance.packageRevision,
-          sourceSchemaHash: packageProvenance.sourceSchemaHash,
-        }
-      : null,
+    schemaProvenance,
   };
-}
-
-function packageSchemaProvenanceForBrowserReplica(
-  storage: DurableObjectStorage,
-  packageAppKey: PackageAppKey,
-  storedSchema: ReturnType<typeof readCurrentStoredSchema>,
-  packageResolver?: AppPackageResolver,
-): PackageAppSchemaProvenance | undefined {
-  if (
-    storedSchema?.schemaProvenance?.kind === "package-app" &&
-    storedSchema.schemaProvenance.packageAppKey === packageAppKey
-  ) {
-    return storedSchema.schemaProvenance;
-  }
-
-  const packageState = readPackageAppMigrationState(storage, packageAppKey);
-
-  if (packageState) {
-    return {
-      kind: "package-app",
-      packageAppKey: packageState.packageAppKey,
-      packageRevision: packageState.packageRevision,
-      sourceSchemaHash: packageState.sourceSchemaHash,
-    };
-  }
-
-  const packageApp = findResolvedAppPackage(packageAppKey, packageResolver);
-
-  return packageApp
-    ? {
-        kind: "package-app",
-        packageAppKey: packageApp.packageAppKey,
-        packageRevision: packageApp.packageRevision,
-        sourceSchemaHash: packageApp.sourceSchemaHash,
-      }
-    : undefined;
 }
 
 function operationMetadata<
@@ -781,22 +637,31 @@ function operationMetadata<
 function bootstrapResponse(
   storage: DurableObjectStorage,
   storedSchema: StoredSchema,
+  source: StorageSource,
 ): BootstrapResponse {
+  const storedRecords = getBootstrapRecords(storage);
+
   return {
     schema: storedSchema.schema,
-    ...(storedSchema.schemaProvenance === undefined
+    ...(storedSchema.schemaProvenance?.kind !== "program"
       ? {}
       : { schemaProvenance: storedSchema.schemaProvenance }),
     schemaUpdatedAt: storedSchema.updatedAt,
-    records: getBootstrapRecords(storage),
+    records: isFormlessProgramSource(source)
+      ? selectCurrentFormlessProgramRecords(storedRecords)
+      : storedRecords,
     cursor: getCurrentCursor(storage),
   };
+}
+
+function isFormlessProgramSource(source: StorageSource): boolean {
+  return source.storageIdentity === FORMLESS_PROGRAM_STORAGE_IDENTITY;
 }
 
 function schemaResponse(storedSchema: StoredSchema): SchemaResponse {
   return {
     schema: storedSchema.schema,
-    ...(storedSchema.schemaProvenance === undefined
+    ...(storedSchema.schemaProvenance?.kind !== "program"
       ? {}
       : { schemaProvenance: storedSchema.schemaProvenance }),
     updatedAt: storedSchema.updatedAt,
@@ -808,119 +673,11 @@ function syncSchemaFields(
 ): Pick<SyncResponse, "schema" | "schemaProvenance" | "schemaUpdatedAt"> {
   return {
     schema: storedSchema.schema,
-    ...(storedSchema.schemaProvenance === undefined
+    ...(storedSchema.schemaProvenance?.kind !== "program"
       ? {}
       : { schemaProvenance: storedSchema.schemaProvenance }),
     schemaUpdatedAt: storedSchema.updatedAt,
   };
-}
-
-function parsePackageAppMigrationApplyRequest(
-  value: unknown,
-  packageAppKey: string,
-  packageResolver?: AppPackageResolver,
-) {
-  const packageApp = findResolvedAppPackage(packageAppKey, packageResolver);
-
-  if (!packageApp) {
-    throw new BadRequestError(`Package app "${packageAppKey}" is not installable.`);
-  }
-
-  const body = isRecord(value) ? value : {};
-
-  return {
-    packageAppKey: packageApp.packageAppKey,
-    currentPackageRevision: parseOptionalPackageRevision(
-      body.currentPackageRevision,
-      packageApp.packageRevision,
-      "currentPackageRevision",
-    ),
-    currentSourceSchemaHash: parseOptionalSourceSchemaHash(
-      body.currentSourceSchemaHash,
-      packageApp.sourceSchemaHash,
-      "currentSourceSchemaHash",
-    ),
-    targetPackageRevision: packageApp.packageRevision,
-    targetSourceSchemaHash: packageApp.sourceSchemaHash,
-    safety: parseOptionalPackageMigrationSafety(body.safety),
-  };
-}
-
-function selectPackageAppMigrations(input: {
-  currentPackageRevision: PackageAppRevision;
-  packageAppKey: PackageAppKey;
-  safety?: "auto-safe";
-  targetPackageRevision: PackageAppRevision;
-}) {
-  try {
-    const migrations = selectPackageAppMigrationChain(packageAppMigrationRegistry, {
-      fromPackageRevision: input.currentPackageRevision,
-      packageAppKey: input.packageAppKey,
-      toPackageRevision: input.targetPackageRevision,
-    });
-
-    if (input.safety === "auto-safe") {
-      const unsafe = migrations.find((migration) => migration.safety !== "auto-safe");
-
-      if (unsafe) {
-        throw new Error(
-          `Package app migration "${unsafe.id}" requires safety class "${unsafe.safety}".`,
-        );
-      }
-    }
-
-    return migrations;
-  } catch (error) {
-    throw new BadRequestError(
-      error instanceof Error ? error.message : "Package app migration chain is invalid.",
-    );
-  }
-}
-
-function parseOptionalPackageRevision(
-  value: unknown,
-  fallback: PackageAppRevision,
-  fieldName: string,
-): PackageAppRevision {
-  if (value === undefined) {
-    return fallback;
-  }
-
-  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
-    throw new BadRequestError(`Package migration ${fieldName} must be a positive integer.`);
-  }
-
-  return value;
-}
-
-function parseOptionalSourceSchemaHash(
-  value: unknown,
-  fallback: SourceSchemaHash,
-  fieldName: string,
-): SourceSchemaHash {
-  if (value === undefined) {
-    return fallback;
-  }
-
-  if (!isSourceSchemaHash(value)) {
-    throw new BadRequestError(
-      `Package migration ${fieldName} must be a sha256 source schema hash.`,
-    );
-  }
-
-  return value;
-}
-
-function parseOptionalPackageMigrationSafety(value: unknown): "auto-safe" | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value !== "auto-safe") {
-    throw new BadRequestError('Package migration safety must be "auto-safe".');
-  }
-
-  return value;
 }
 
 function parseCursor(value: string | null) {
@@ -960,8 +717,4 @@ function parseSiteTreeSlug(path: string): string {
 
     throw new BadRequestError("Site tree slug must be valid URL path text.");
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

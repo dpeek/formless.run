@@ -9,10 +9,7 @@ import {
   type InstanceArchive,
 } from "../program/archive.ts";
 import type { AppInstall, InstallableAppPackage } from "@dpeek/formless-installed-apps";
-import {
-  installedAppStorageIdentity,
-  programStorageIdentity,
-} from "../shared/app-storage-identity.ts";
+import { programStorageIdentity } from "../shared/app-storage-identity.ts";
 import { bundledSourceSchemaHashFixtures } from "../shared/upgrade-migrations.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
@@ -27,6 +24,7 @@ import { mediaObjectMetadataForAsset } from "@dpeek/formless-media";
 import {
   applyPortableArchiveRestore,
   dryRunPortableArchiveRestore,
+  installedArchiveStorageIdentity,
   restoreArchiveMediaObjectToStore,
   type ArchiveRestoreApplyTarget,
   type ArchiveRestoreMediaRead,
@@ -36,7 +34,6 @@ const now = "2026-05-23T00:00:00.000Z";
 const pngBytes = new Uint8Array([1, 2, 3, 4]);
 const documentBytes = new TextEncoder().encode("%PDF-1.7\nprivate report");
 const privateSitePackage: InstallableAppPackage = {
-  adminRouteBase: "/apps",
   defaultInstallId: "personal",
   description: "Private Site archive fixture.",
   label: "Private Site",
@@ -323,22 +320,21 @@ describe("archive restore execution", () => {
 
     expect(result.ok).toBe(true);
     expect(events).toEqual([
-      "media:app:personal-copy:media/app-installs/personal-copy/documents/report.pdf",
+      "media:instance:control-plane:media/program/documents/report.pdf",
       "app-data:app:personal-copy:personal-copy:formless.storageSnapshot",
       "install:create:personal-copy",
     ]);
     expect(restoredDataIdentities).toEqual(["app:personal-copy"]);
     expect(restoredMedia).toEqual([
       {
-        authorityName: "app:personal-copy",
+        authorityName: "instance:control-plane",
         object: expect.objectContaining({
           asset: expect.objectContaining({
-            deliveryHref: "/api/app-installs/private-site/personal-copy/media/documents/report.pdf",
-            ownerAppInstallId: "personal-copy",
-            storageKey: "media/app-installs/personal-copy/documents/report.pdf",
+            deliveryHref: "/api/formless/program/media/documents/report.pdf",
+            storageKey: "media/program/documents/report.pdf",
           }),
-          deliveryHref: "/api/app-installs/private-site/personal-copy/media/documents/report.pdf",
-          storageKey: "media/app-installs/personal-copy/documents/report.pdf",
+          deliveryHref: "/api/formless/program/media/documents/report.pdf",
+          storageKey: "media/program/documents/report.pdf",
         }),
       },
     ]);
@@ -411,7 +407,7 @@ describe("archive restore execution", () => {
   });
 
   it("restores core media archive objects through the media core", async () => {
-    const identity = installedAppStorageIdentity(
+    const identity = installedArchiveStorageIdentity(
       {
         installId: "personal",
         packageAppKey: "private-site",
@@ -451,19 +447,13 @@ describe("archive restore execution", () => {
     ]);
   });
 
-  it("restores immutable documents and rejects incompatible target collisions", async () => {
-    const identity = installedAppStorageIdentity(
-      {
-        installId: "personal",
-        packageAppKey: "private-site",
-      },
-      privateSitePackageResolver,
-    );
+  it("restores immutable Program documents and rejects incompatible collisions", async () => {
+    const identity = programStorageIdentity();
     const object = documentMediaObject("report", "private");
     const writes: unknown[] = [];
 
-    if (!identity || object.asset?.kind !== "document") {
-      throw new Error("Expected installed app document fixture.");
+    if (object.asset?.kind !== "document") {
+      throw new Error("Expected Program document fixture.");
     }
     const asset = object.asset;
 
@@ -481,16 +471,15 @@ describe("archive restore execution", () => {
 
     expect(response).toMatchObject({
       assetId: "report.pdf",
-      href: "/api/app-installs/private-site/personal/media/documents/report.pdf",
-      key: "media/app-installs/personal/documents/report.pdf",
+      href: "/api/formless/program/media/documents/report.pdf",
+      key: "media/program/documents/report.pdf",
     });
     expect(writes).toEqual([
       expect.objectContaining({
         contentType: "application/pdf",
-        key: "media/app-installs/personal/documents/report.pdf",
+        key: "media/program/documents/report.pdf",
         customMetadata: expect.objectContaining({
           "formless-media-document-access": "private",
-          "formless-media-owner-app-install-id": "personal",
         }),
       }),
     ]);
@@ -513,7 +502,7 @@ describe("archive restore execution", () => {
         documentBytes,
       ),
     ).rejects.toThrow(
-      'Archive document "media/app-installs/personal/documents/report.pdf" collides with incompatible immutable media.',
+      'Archive document "media/program/documents/report.pdf" collides with incompatible immutable media.',
     );
   });
 
@@ -727,7 +716,6 @@ function archivedInstall(installId: string, label: string): AppArchive["app"] {
     sourceSchemaKey: "private-site",
     sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
     label,
-    registrationPolicy: "closed",
     status: "installed",
     createdAt: "2026-05-23T00:00:00.000Z",
     updatedAt: "2026-05-23T00:01:00.000Z",
@@ -840,14 +828,14 @@ function coreMediaFile(name: string): ArchiveRestoreMediaRead {
 function documentMediaObject(
   name: string,
   access: "public" | "private",
-  installId = "personal",
+  _installId = "personal",
 ): AppArchiveMediaObject {
   const id = `${name}.pdf`;
-  const storageKey = `media/app-installs/${installId}/documents/${id}`;
-  const deliveryHref = `/api/app-installs/private-site/${installId}/media/documents/${id}`;
+  const storageKey = `media/program/documents/${id}`;
+  const deliveryHref = `/api/formless/program/media/documents/${id}`;
 
   return {
-    archivePath: `media/personal/media/app-installs/personal/documents/${id}`,
+    archivePath: `media/personal/media/program/documents/${id}`,
     asset: {
       access,
       byteSize: documentBytes.byteLength,
@@ -857,7 +845,6 @@ function documentMediaObject(
       id,
       kind: "document",
       label: id,
-      ownerAppInstallId: installId,
       provider: "r2",
       status: "ready",
       storageKey,
@@ -926,7 +913,6 @@ function siteInstall(installId: string): AppInstall {
     label: "Personal",
     packageAppKey: "private-site",
     packageRevision: 1,
-    registrationPolicy: "closed",
     sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
     status: "installed",
     updatedAt: now,

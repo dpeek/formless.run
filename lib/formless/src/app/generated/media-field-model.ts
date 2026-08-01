@@ -1,4 +1,4 @@
-import type { AppDocumentMediaTarget, MediaAssetOption } from "@dpeek/formless-media/client";
+import type { MediaAssetOption, ProgramDocumentMediaTarget } from "@dpeek/formless-media/client";
 import type { TextFieldSchema } from "@dpeek/formless-schema";
 import type {
   CreateFieldConfig,
@@ -34,7 +34,7 @@ export function generatedDocumentMediaTarget(
   appTarget: ClientAppTarget,
   entityName: string,
   fieldName: string,
-): AppDocumentMediaTarget | undefined {
+): ProgramDocumentMediaTarget | undefined {
   if (typeof appTarget === "string") {
     return undefined;
   }

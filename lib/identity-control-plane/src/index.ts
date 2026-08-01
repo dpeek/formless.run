@@ -33,7 +33,7 @@ export * from "./types.ts";
 export { identityControlPlaneSourceSchema } from "./schema.ts";
 
 export const IDENTITY_CONTROL_PLANE_SOURCE_SCHEMA_HASH =
-  "sha256:c55c951ba1cc3978e66350de8f8e74071a1dbcdbe3dbea7489bf7be6b2422cae" satisfies SourceSchemaHash;
+  "sha256:43522c59dea539970cb0acf590c06dab675b1244fe264a9d1ced3046bf5a708b" satisfies SourceSchemaHash;
 
 export const identityControlPlaneSchemaProvenance = {
   kind: "identity-control-plane",
@@ -274,7 +274,6 @@ export function validateIdentityControlPlaneRecords(
   validateUniqueActiveMemberships(context, records);
   validateUniqueActiveProgramRoleAssignments(context, records);
   validateUniqueActiveRoleAssignments(context, records);
-  validateUniqueActiveAppRegistrations(context, records);
   validateUniqueAcceptedPolicyAcceptances(context, records);
 }
 
@@ -446,10 +445,6 @@ function validateIdentityControlPlaneRecord(
     validateProgramRoleAssignmentRecord(context, record, options.authorizationRoles);
   }
 
-  if (entity === "app-registration") {
-    validateAppRegistrationRecord(context, record);
-  }
-
   if (entity === "invitation") {
     validateInvitationRecord(context, record);
   }
@@ -588,26 +583,6 @@ function validateUniqueActiveProgramRoleAssignments(
   }
 }
 
-function validateUniqueActiveAppRegistrations(context: string, records: readonly StoredRecord[]) {
-  const seen = new Set<string>();
-
-  for (const record of activeStatusRecordsForEntity(records, "app-registration")) {
-    const key = identityUniqueKey([
-      requiredStringValue(context, record, "appInstallId"),
-      requiredStringValue(context, record, "targetKind"),
-      selectedAppRegistrationTargetValue(context, record),
-    ]);
-
-    if (seen.has(key)) {
-      throw new Error(
-        `${context} violates identity uniqueness "${formatIdentityControlPlaneBoundaryEntityName("app-registration")}.uniqueActiveRegistration".`,
-      );
-    }
-
-    seen.add(key);
-  }
-}
-
 function validateUniqueAcceptedPolicyAcceptances(
   context: string,
   records: readonly StoredRecord[],
@@ -687,11 +662,6 @@ function validateProgramAdministratorIdentityCollaboratorInvitationGrants(
       );
     }
 
-    if (entity === "app-registration") {
-      validateProgramAdministratorCollaboratorInvitationAppRegistration(context, grantRecord);
-      continue;
-    }
-
     if (entity === "principal-email") {
       validateProgramAdministratorCollaboratorInvitationPrincipalEmail(context, grantRecord);
       continue;
@@ -718,17 +688,10 @@ function validateProgramAdministratorIdentityCollaboratorInvitationGrants(
 function parseIdentityCollaboratorInvitationGrantEntity(
   context: string,
   record: IdentityCollaboratorInvitationGrantRecord,
-):
-  | "app-registration"
-  | "membership"
-  | "principal"
-  | "principal-email"
-  | "program-role-assignment"
-  | "role-assignment" {
+): "membership" | "principal" | "principal-email" | "program-role-assignment" | "role-assignment" {
   const entity = identityControlPlaneRecordSourceEntityName(record.entity);
 
   if (
-    entity === "app-registration" ||
     entity === "membership" ||
     entity === "principal" ||
     entity === "principal-email" ||
@@ -741,19 +704,6 @@ function parseIdentityCollaboratorInvitationGrantEntity(
   throw new Error(
     `${context} record "${record.id}" entity "${identityEntityLabel(record.entity)}" is not a supported collaborator invitation grant.`,
   );
-}
-
-function validateProgramAdministratorCollaboratorInvitationAppRegistration(
-  context: string,
-  record: IdentityCollaboratorInvitationGrantRecord,
-) {
-  if (record.values.targetKind !== "principal") {
-    throw new Error(
-      `${context} record "${record.id}" cannot grant organization app registrations with Program administrator authority.`,
-    );
-  }
-
-  requiredStringValue(context, storedGrantRecord(record, "app-registration"), "appInstallId");
 }
 
 function validateProgramAdministratorCollaboratorInvitationPrincipalEmail(
@@ -798,22 +748,6 @@ function validateProgramAdministratorCollaboratorInvitationRoleAssignment(
   if (scopeKind === "instance") {
     throw new Error(
       `${context} record "${record.id}" cannot grant legacy instance roles with Program administrator authority.`,
-    );
-  }
-
-  if (scopeKind === "app-install") {
-    if (
-      roleKey === "app.admin" ||
-      roleKey === "app.editor" ||
-      roleKey === "app.viewer" ||
-      roleKey === "app.user"
-    ) {
-      requiredStringValue(context, grantRecord, "appInstallId");
-      return;
-    }
-
-    throw new Error(
-      `${context} record "${record.id}" can only grant app roles at app-install scope with Program administrator authority.`,
     );
   }
 
@@ -938,12 +872,11 @@ function validateRoleAssignmentRecord(context: string, record: StoredRecord) {
     principal: "targetPrincipal",
   });
   assertSelectedTargetField(context, record, "scopeKind", scopeKind, {
-    "app-install": "appInstallId",
     organization: "scopeOrganization",
   });
 
   if (scopeKind === "instance") {
-    assertUnsetFields(context, record, "scopeKind", ["appInstallId", "scopeOrganization"]);
+    assertUnsetFields(context, record, "scopeKind", ["scopeOrganization"]);
   }
 }
 
@@ -961,47 +894,29 @@ function validateProgramRoleAssignmentRecord(
   }
 }
 
-function validateAppRegistrationRecord(context: string, record: StoredRecord) {
-  const targetKind = requiredStringValue(context, record, "targetKind");
-
-  assertSelectedTargetField(context, record, "targetKind", targetKind, {
-    organization: "targetOrganization",
-    principal: "targetPrincipal",
-  });
-}
-
 function validateInvitationRecord(context: string, record: StoredRecord) {
   const targetSurface = requiredStringValue(context, record, "targetSurface");
 
   assertSelectedTargetField(context, record, "targetSurface", targetSurface, {
-    "app-install": "targetAppInstallId",
     organization: "targetOrganization",
   });
 
   if (targetSurface === "instance") {
-    assertUnsetFields(context, record, "targetSurface", [
-      "targetAppInstallId",
-      "targetOrganization",
-    ]);
+    assertUnsetFields(context, record, "targetSurface", ["targetOrganization"]);
   }
 }
 
 function validateAccountPolicyRecord(context: string, record: StoredRecord) {
   const scopeKind = requiredStringValue(context, record, "scopeKind");
 
-  assertKnownFieldStringValue(context, record, "scopeKind", [
-    "app-install",
-    "instance",
-    "organization",
-  ]);
+  assertKnownFieldStringValue(context, record, "scopeKind", ["instance", "organization"]);
   assertKnownFieldStringValue(context, record, "status", ["active", "retired"]);
   assertSelectedTargetField(context, record, "scopeKind", scopeKind, {
-    "app-install": "appInstallId",
     organization: "scopeOrganization",
   });
 
   if (scopeKind === "instance") {
-    assertUnsetFields(context, record, "scopeKind", ["appInstallId", "scopeOrganization"]);
+    assertUnsetFields(context, record, "scopeKind", ["scopeOrganization"]);
   }
 }
 
@@ -1036,25 +951,11 @@ function selectedRoleAssignmentTargetValue(context: string, record: StoredRecord
 function selectedRoleAssignmentScopeValue(context: string, record: StoredRecord): string {
   const scopeKind = requiredStringValue(context, record, "scopeKind");
 
-  if (scopeKind === "app-install") {
-    return requiredStringValue(context, record, "appInstallId");
-  }
-
   if (scopeKind === "organization") {
     return requiredStringValue(context, record, "scopeOrganization");
   }
 
   return "";
-}
-
-function selectedAppRegistrationTargetValue(context: string, record: StoredRecord): string {
-  const targetKind = requiredStringValue(context, record, "targetKind");
-
-  if (targetKind === "organization") {
-    return requiredStringValue(context, record, "targetOrganization");
-  }
-
-  return requiredStringValue(context, record, "targetPrincipal");
 }
 
 function identityUniqueKey(values: readonly string[]) {

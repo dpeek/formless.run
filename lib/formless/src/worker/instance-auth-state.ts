@@ -17,10 +17,8 @@ import {
 } from "../shared/instance-auth.ts";
 import {
   parseRuntimeRouteAccess,
-  parseRuntimeRouteRequiredRole,
   runtimeAuthAccountGateRoutes,
   type RuntimeRouteAccess,
-  type RuntimeRouteRequiredRole,
 } from "../shared/runtime-topology.ts";
 import { normalizeEmailDeliveryAddress } from "../shared/email-runtime.ts";
 import { nowIsoString } from "../shared/clock.ts";
@@ -32,19 +30,16 @@ import {
 } from "./sql-migrations.ts";
 
 const base64UrlPattern = /^[A-Za-z0-9_-]+$/;
-const signupPasskeyChallengeScopeHash = "c2lnbnVwLWVtYWlsLWNoYWxsZW5nZQ";
 const credentialDeviceTypes = ["multiDevice", "singleDevice"] as const;
 const passkeyChallengeKinds = ["login", "registration"] as const;
-const instanceAuthHandoffTargetProfiles = ["instance", "app", "public-site"] as const;
+const instanceAuthHandoffTargetProfiles = ["instance", "public-site"] as const;
 const emailVerificationChallengePurposes = [
   "account-completion",
   "invitation-acceptance",
   "owner-setup",
   "recovery",
-  "signup",
 ] as const;
 const collaboratorInvitationTargetSurfaces = [
-  "app-install",
   "instance",
   "organization",
 ] as const satisfies readonly IdentityInvitationTargetSurface[];
@@ -263,22 +258,8 @@ export type StoredCollaboratorInvitationPasskeyRegistrationChallenge = {
   relyingPartyId: string;
 };
 
-export type StoredEmailVerifiedSignupPasskeyRegistrationChallenge = {
-  canonicalOrigin: string;
-  challenge: string;
-  consumedAt?: string;
-  createdAt: string;
-  expiresAt: string;
-  id: string;
-  kind: "registration";
-  principalId: string;
-  relyingPartyId: string;
-  signupEmailChallengeId: string;
-};
-
 export type StoredPasskeyRegistrationChallenge =
-  | StoredCollaboratorInvitationPasskeyRegistrationChallenge
-  | StoredEmailVerifiedSignupPasskeyRegistrationChallenge;
+  StoredCollaboratorInvitationPasskeyRegistrationChallenge;
 
 export type StoredPasskeyLoginChallenge = {
   id: string;
@@ -305,17 +286,6 @@ export type CreatePasskeyChallengeInput =
       kind: "registration";
       principalId: string;
       relyingPartyId: string;
-    }
-  | {
-      canonicalOrigin: string;
-      challenge: string;
-      createdAt?: string;
-      expiresAt: string;
-      id?: string;
-      kind: "registration";
-      principalId: string;
-      relyingPartyId: string;
-      signupEmailChallengeId: string;
     }
   | {
       id?: string;
@@ -406,8 +376,6 @@ export type InstanceAuthHandoffTargetProfile = (typeof instanceAuthHandoffTarget
 
 export type InstanceAuthSessionTargetBinding = {
   access: Exclude<RuntimeRouteAccess, "anonymous">;
-  appInstallId?: string;
-  requiredRole?: RuntimeRouteRequiredRole;
   routeId: string;
   storageIdentity?: string;
   targetOrigin: string;
@@ -530,7 +498,6 @@ type HandoffGrantMismatchReason =
 
 export type CollaboratorInvitationTargetFacts = {
   targetSurface: IdentityInvitationTargetSurface;
-  targetAppInstallId?: string;
   targetOrganization?: string;
 };
 
@@ -848,8 +815,7 @@ export function ensureInstanceAuthTables(storage: DurableObjectStorage) {
           'account-completion',
           'invitation-acceptance',
           'owner-setup',
-          'recovery',
-          'signup'
+          'recovery'
         )
       ),
       principal_id TEXT NOT NULL,
@@ -1000,16 +966,8 @@ export function createPasskeyChallenge(
       normalizedChallenge.id,
       normalizedChallenge.kind,
       normalizedChallenge.challenge,
-      "signupEmailChallengeId" in normalizedChallenge
-        ? normalizedChallenge.signupEmailChallengeId
-        : "invitationId" in normalizedChallenge
-          ? normalizedChallenge.invitationId
-          : null,
-      "signupEmailChallengeId" in normalizedChallenge
-        ? signupPasskeyChallengeScopeHash
-        : "invitationTokenHash" in normalizedChallenge
-          ? normalizedChallenge.invitationTokenHash
-          : null,
+      "invitationId" in normalizedChallenge ? normalizedChallenge.invitationId : null,
+      "invitationTokenHash" in normalizedChallenge ? normalizedChallenge.invitationTokenHash : null,
       "principalId" in normalizedChallenge ? normalizedChallenge.principalId : null,
       "canonicalOrigin" in normalizedChallenge ? normalizedChallenge.canonicalOrigin : null,
       "relyingPartyId" in normalizedChallenge ? normalizedChallenge.relyingPartyId : null,
@@ -1495,8 +1453,8 @@ export function bumpHostSessionRevocationVersion(
       scope.routeId,
       scope.targetProfile,
       scope.access,
-      scope.requiredRole ?? null,
-      scope.appInstallId ?? null,
+      null,
+      null,
       scope.storageIdentity ?? null,
       sessionVersion,
       updatedAt,
@@ -1569,8 +1527,8 @@ export function createHandoffGrant(
       grant.routeId,
       grant.targetProfile,
       grant.access,
-      grant.requiredRole ?? null,
-      grant.appInstallId ?? null,
+      null,
+      null,
       grant.storageIdentity ?? null,
       grant.returnTo,
       grant.nonceHash,
@@ -1689,7 +1647,7 @@ export function createCollaboratorInvitationToken(
       token.tokenHash,
       token.normalizedTargetEmail,
       token.targetSurface,
-      token.targetAppInstallId ?? null,
+      null,
       token.targetOrganization ?? null,
       token.createdAt,
       token.expiresAt,
@@ -1888,7 +1846,7 @@ export function createEmailVerificationChallenge(
       challenge.targetOrigin,
       challenge.routeId,
       challenge.targetProfile,
-      challenge.appInstallId ?? null,
+      null,
       challenge.storageIdentity ?? null,
       challenge.selectedOrganization ?? null,
       challenge.returnTo,
@@ -2204,25 +2162,6 @@ function normalizePasskeyChallengeInput(
 
     const canonicalOrigin = parseInstanceAuthCanonicalOrigin(input.canonicalOrigin);
 
-    if ("signupEmailChallengeId" in input) {
-      return {
-        id,
-        kind,
-        challenge,
-        canonicalOrigin,
-        principalId: parseNonEmptyString("Passkey challenge principal id", input.principalId),
-        relyingPartyId: parseInstanceAuthRelyingPartyId(input.relyingPartyId, {
-          canonicalOrigin,
-        }),
-        signupEmailChallengeId: parseNonEmptyString(
-          "Passkey challenge signup email challenge id",
-          input.signupEmailChallengeId,
-        ),
-        createdAt,
-        expiresAt,
-      };
-    }
-
     return {
       id,
       kind,
@@ -2297,23 +2236,6 @@ function passkeyChallengeFromRow(row: PasskeyChallengeRow): StoredPasskeyChallen
   };
 
   if (row.kind === "registration") {
-    if (
-      row.invitation_id !== null &&
-      row.invitation_token_hash === signupPasskeyChallengeScopeHash &&
-      row.principal_id !== null &&
-      row.registration_origin !== null &&
-      row.registration_relying_party_id !== null
-    ) {
-      return {
-        ...base,
-        kind: "registration",
-        canonicalOrigin: row.registration_origin,
-        principalId: row.principal_id,
-        relyingPartyId: row.registration_relying_party_id,
-        signupEmailChallengeId: row.invitation_id,
-      };
-    }
-
     if (
       row.invitation_id === null ||
       row.invitation_token_hash === null ||
@@ -2649,10 +2571,6 @@ function hostSessionRevocationVersionFromRow(
     routeId: row.route_id,
     targetProfile: parseInstanceAuthHandoffTargetProfile(row.target_profile),
     access: parseProtectedRuntimeRouteAccess(row.access),
-    ...(row.required_role === null
-      ? {}
-      : { requiredRole: parseRequiredRuntimeRouteRole(row.required_role) }),
-    ...(row.app_install_id === null ? {} : { appInstallId: row.app_install_id }),
     ...(row.storage_identity === null ? {} : { storageIdentity: row.storage_identity }),
     sessionVersion: parseNonNegativeInteger("Host session revocation version", row.session_version),
     updatedAt: row.updated_at,
@@ -2667,8 +2585,6 @@ function hostSessionScopeKey(input: HostSessionRevocationVersionInput): string {
     input.routeId,
     input.targetProfile,
     input.access,
-    input.requiredRole ?? null,
-    input.appInstallId ?? null,
     input.storageIdentity ?? null,
   ]);
 }
@@ -2844,10 +2760,6 @@ function handoffGrantFromRow(row: HandoffGrantRow): StoredHandoffGrant {
     routeId: row.route_id,
     targetProfile: parseInstanceAuthHandoffTargetProfile(row.target_profile),
     access: parseProtectedRuntimeRouteAccess(row.access),
-    ...(row.required_role === null
-      ? {}
-      : { requiredRole: parseRequiredRuntimeRouteRole(row.required_role) }),
-    ...(row.app_install_id === null ? {} : { appInstallId: row.app_install_id }),
     ...(row.storage_identity === null ? {} : { storageIdentity: row.storage_identity }),
     returnTo: parsePathOnlyReturnTarget("Stored handoff grant return target", row.return_to),
     nonceHash: row.nonce_hash,
@@ -2990,9 +2902,6 @@ function collaboratorInvitationTokenFromRow(
     tokenHash: row.token_hash,
     normalizedTargetEmail: row.normalized_target_email,
     targetSurface: parseCollaboratorInvitationTargetSurface(row.target_surface),
-    ...(row.target_app_install_id === null
-      ? {}
-      : { targetAppInstallId: row.target_app_install_id }),
     ...(row.target_organization === null ? {} : { targetOrganization: row.target_organization }),
     createdAt: row.created_at,
     expiresAt: row.expires_at,
@@ -3242,7 +3151,6 @@ function emailVerificationChallengeFromRow(
     targetOrigin: row.target_origin,
     targetProfile: parseAccountCompletionGateTargetProfile(row.target_profile),
     tokenHash: row.token_hash,
-    ...(row.app_install_id === null ? {} : { appInstallId: row.app_install_id }),
     ...(row.consumed_at === null ? {} : { consumedAt: row.consumed_at }),
     ...(row.revoked_at === null ? {} : { revokedAt: row.revoked_at }),
     ...(row.selected_organization === null
@@ -3261,7 +3169,6 @@ function accountCompletionGateTargetsEqual(
     left.routeId === right.routeId &&
     left.targetOrigin === right.targetOrigin &&
     left.targetProfile === right.targetProfile &&
-    (left.appInstallId ?? undefined) === (right.appInstallId ?? undefined) &&
     (left.selectedOrganization ?? undefined) === (right.selectedOrganization ?? undefined) &&
     (left.storageIdentity ?? undefined) === (right.storageIdentity ?? undefined)
   );
@@ -3279,9 +3186,9 @@ function parseAccountCompletionGateTargetProfile(
   value: unknown,
 ): AccountCompletionGateTarget["targetProfile"] {
   return parseAccountCompletionGateTarget({
-    appInstallId: "parse-target-profile",
     returnTo: "/formless/auth",
     routeId: "parse-target-profile",
+    storageIdentity: "instance:control-plane",
     targetOrigin: "https://parse-target-profile.example.com",
     targetProfile: value,
   }).targetProfile;
@@ -3291,29 +3198,14 @@ function normalizeCollaboratorInvitationTargetFacts(
   input: CollaboratorInvitationTargetFacts,
 ): CollaboratorInvitationTargetFacts {
   const targetSurface = parseCollaboratorInvitationTargetSurface(input.targetSurface);
-  const targetAppInstallId = parseOptionalNonEmptyString(
-    "Collaborator invitation target app install id",
-    input.targetAppInstallId,
-  );
   const targetOrganization = parseOptionalNonEmptyString(
     "Collaborator invitation target organization",
     input.targetOrganization,
   );
 
   switch (targetSurface) {
-    case "app-install":
-      if (targetAppInstallId === undefined || targetOrganization !== undefined) {
-        throw new Error(
-          "Collaborator invitation app-install target requires target app install id only.",
-        );
-      }
-
-      return {
-        targetSurface,
-        targetAppInstallId,
-      };
     case "organization":
-      if (targetOrganization === undefined || targetAppInstallId !== undefined) {
+      if (targetOrganization === undefined) {
         throw new Error(
           "Collaborator invitation organization target requires target organization only.",
         );
@@ -3324,7 +3216,7 @@ function normalizeCollaboratorInvitationTargetFacts(
         targetOrganization,
       };
     case "instance":
-      if (targetAppInstallId !== undefined || targetOrganization !== undefined) {
+      if (targetOrganization !== undefined) {
         throw new Error("Collaborator invitation instance target cannot include target ids.");
       }
 
@@ -3338,7 +3230,6 @@ function collaboratorInvitationTargetFactsEqual(
 ): boolean {
   return (
     left.targetSurface === right.targetSurface &&
-    (left.targetAppInstallId ?? undefined) === (right.targetAppInstallId ?? undefined) &&
     (left.targetOrganization ?? undefined) === (right.targetOrganization ?? undefined)
   );
 }
@@ -3359,42 +3250,22 @@ function normalizeInstanceAuthTargetBinding(
   input: InstanceAuthSessionTargetBinding,
 ): InstanceAuthSessionTargetBinding {
   const access = parseProtectedRuntimeRouteAccess(input.access);
-  const appInstallId = parseOptionalNonEmptyString(
-    "Instance auth target app install id",
-    input.appInstallId,
-  );
   const storageIdentity = parseOptionalNonEmptyString(
     "Instance auth target storage identity",
     input.storageIdentity,
   );
 
-  if (appInstallId === undefined && storageIdentity === undefined) {
-    throw new Error("Instance auth target requires app install id or storage identity.");
+  if (storageIdentity === undefined) {
+    throw new Error("Instance auth target requires a storage identity.");
   }
-
-  const requiredRole =
-    input.requiredRole === undefined
-      ? undefined
-      : parseRequiredRuntimeRouteRole(input.requiredRole);
   const targetProfile = parseInstanceAuthHandoffTargetProfile(input.targetProfile);
-
-  if (
-    requiredRole !== undefined &&
-    (access !== "authenticated" || targetProfile !== "app" || appInstallId === undefined)
-  ) {
-    throw new Error(
-      "Instance auth target role requires an authenticated app target with one app install.",
-    );
-  }
 
   return {
     access,
     targetOrigin: parseInstanceAuthCanonicalOrigin(input.targetOrigin),
     routeId: parseNonEmptyString("Instance auth target route id", input.routeId),
     targetProfile,
-    ...(requiredRole === undefined ? {} : { requiredRole }),
-    ...(appInstallId === undefined ? {} : { appInstallId }),
-    ...(storageIdentity === undefined ? {} : { storageIdentity }),
+    storageIdentity,
   };
 }
 
@@ -3407,8 +3278,6 @@ function instanceAuthTargetBindingsEqual(
     left.routeId === right.routeId &&
     left.targetProfile === right.targetProfile &&
     left.access === right.access &&
-    (left.requiredRole ?? undefined) === (right.requiredRole ?? undefined) &&
-    (left.appInstallId ?? undefined) === (right.appInstallId ?? undefined) &&
     (left.storageIdentity ?? undefined) === (right.storageIdentity ?? undefined)
   );
 }
@@ -3423,16 +3292,6 @@ function parseProtectedRuntimeRouteAccess(
   }
 
   return access;
-}
-
-function parseRequiredRuntimeRouteRole(value: unknown): RuntimeRouteRequiredRole {
-  const requiredRole = typeof value === "string" ? parseRuntimeRouteRequiredRole(value) : undefined;
-
-  if (requiredRole === undefined) {
-    throw new Error("Instance auth target required role is invalid.");
-  }
-
-  return requiredRole;
 }
 
 function parseInstanceAuthHandoffTargetProfile(value: unknown): InstanceAuthHandoffTargetProfile {

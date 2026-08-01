@@ -153,35 +153,6 @@ describe("app install protocol", () => {
       packageAppKey: "site",
       installId: "personal",
       label: "Personal Site",
-      registrationPolicy: "closed",
-    });
-    expect(
-      parseCreateAppInstallRequest({
-        packageAppKey: "site",
-        installId: "members",
-        label: "Members",
-        registrationOperation: "profile.register",
-        registrationPolicy: "custom-operation",
-      }),
-    ).toEqual({
-      packageAppKey: "site",
-      installId: "members",
-      label: "Members",
-      registrationOperation: "profile.register",
-      registrationPolicy: "custom-operation",
-    });
-    expect(
-      parseCreateAppInstallRequest({
-        packageAppKey: "site",
-        installId: "members",
-        label: "Members",
-        registrationPolicy: "email-verified",
-      }),
-    ).toEqual({
-      packageAppKey: "site",
-      installId: "members",
-      label: "Members",
-      registrationPolicy: "email-verified",
     });
   });
 
@@ -202,10 +173,9 @@ describe("app install protocol", () => {
         packageAppKey: "site",
         installId: "personal",
         label: "Site",
-        registrationOperation: "profile/register",
-        registrationPolicy: "custom-operation",
+        registrationOperation: "profile.register",
       }),
-    ).toThrow('App install registration operation must use "<entity-key>.<operation-key>" format.');
+    ).toThrow('App install request has unsupported key "registrationOperation".');
     expect(() =>
       parseCreateAppInstallRequest({
         packageAppKey: "site",
@@ -213,9 +183,7 @@ describe("app install protocol", () => {
         label: "Site",
         registrationPolicy: "domain-allowlist",
       }),
-    ).toThrow(
-      'App install registration policy must be "closed", "email-verified", or "custom-operation".',
-    );
+    ).toThrow('App install request has unsupported key "registrationPolicy".');
   });
 });
 

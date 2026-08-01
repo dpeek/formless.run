@@ -16,7 +16,7 @@ import {
   sitePresentationSchemaModule,
   siteRecordSchemaModule,
 } from "@dpeek/formless-site-app/schema";
-import { composeAppSchema, parseAppSchema, type AppSchemaSource } from "@dpeek/formless-schema";
+import { parseAppSchema, type AppSchemaSource } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 import {
   formlessCrmPresentationSchemaModule,
@@ -32,22 +32,7 @@ import {
 } from "./schema.ts";
 
 describe("Formless Program schema", () => {
-  it("deliberately replaces colliding package presentation modules", () => {
-    expect(() =>
-      composeAppSchema({
-        version: 1,
-        modules: [
-          instanceControlPlaneRecordSchemaModule,
-          identityControlPlaneRecordSchemaModule,
-          instanceControlPlanePresentationSchemaModule,
-          identityControlPlanePresentationSchemaModule,
-        ],
-        runtime: { owner: "runtime" },
-      }),
-    ).toThrow(
-      'Schema declaration "screens.apps" is contributed by both modules "instance-control-plane-presentation" and "identity-control-plane-presentation".',
-    );
-
+  it("specializes control-plane presentation modules", () => {
     expect(formlessProgramSchemaModules.slice(0, 5)).toEqual([
       instanceControlPlaneRecordSchemaModule,
       identityControlPlaneRecordSchemaModule,
@@ -259,18 +244,8 @@ describe("Formless Program schema", () => {
       { access: { role: "member" }, key: "audiences" },
       { access: { role: "member" }, key: "campaigns" },
       { access: { role: "member" }, key: "broadcasts" },
-      { access: { role: "administrator" }, key: "apps" },
     ]);
     expect(screens.principals?.path).toBe("/");
-    expect(screens.apps).toMatchObject({
-      path: "/apps",
-      layout: {
-        sections: [
-          { id: "app-installs", type: "collection", view: "appInstallList" },
-          { id: "app-registrations", type: "collection", view: "appRegistrationList" },
-        ],
-      },
-    });
     expect(screens.taskHome?.path).toBe("/tasks");
     expect(screens.siteEditor?.path).toBe("/site");
     expect(screens.siteSettings?.path).toBe("/site/settings");
@@ -284,7 +259,6 @@ describe("Formless Program schema", () => {
       "taskHome",
       "siteEditor",
       "contacts",
-      "apps",
       "routes",
       "deployments",
       "principals",

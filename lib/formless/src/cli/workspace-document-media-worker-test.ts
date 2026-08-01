@@ -3,7 +3,7 @@ import {
   mediaObjectStoreFromR2Bucket,
 } from "@dpeek/formless-media/worker";
 
-const documentsPath = "/api/app-installs/private-site/reports/media/documents";
+const documentsPath = "/api/formless/program/media/documents";
 
 export default {
   async fetch(request: Request, env: { FORMLESS_MEDIA: R2Bucket }) {
@@ -14,11 +14,9 @@ export default {
           acceptedMimeTypes: ["application/pdf"],
           access: "private",
           maxBytes: 1024 * 1024,
-          ownerAppInstallId: "reports",
         },
         media: {
           documentsPath,
-          ownerAppInstallId: "reports",
         },
         provider: "r2",
         store: mediaObjectStoreFromR2Bucket(env.FORMLESS_MEDIA),

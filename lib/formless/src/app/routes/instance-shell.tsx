@@ -1,15 +1,4 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { useLocation } from "wouter";
-import {
-  AppInstallApiError,
-  createInstanceAppInstall,
-  fetchInstanceAppInstalls,
-} from "../../client/app-installs.ts";
-import {
-  type AppInstall,
-  type InstallableAppPackage,
-  type PackageAppKey,
-} from "@dpeek/formless-installed-apps";
 import {
   WorkspaceGatewayApiError,
   fetchWorkspaceGatewayAutoSaveStatus,
@@ -34,29 +23,8 @@ import {
   type WorkspaceOperationMode,
   type WorkspaceOperationRequiredCapability,
 } from "@dpeek/formless-workspace";
-import type { AppInstallsResponse } from "../../shared/protocol.ts";
 import { InstanceManagementRuntime } from "./instance-management-runtime.tsx";
 import { displaySafeText } from "./instance-management-display-safety.ts";
-
-export type PackageInstallDraft = {
-  installId: string;
-  label: string;
-};
-
-export type PackageInstallDrafts = Partial<Record<PackageAppKey, PackageInstallDraft>>;
-
-export type InstanceShellRouteState =
-  | { status: "failed"; message: string }
-  | { status: "loading" }
-  | {
-      installError?: string;
-      installErrorPackageAppKey?: PackageAppKey;
-      installing: boolean;
-      installingPackageAppKey?: PackageAppKey;
-      installs: AppInstall[];
-      packages: InstallableAppPackage[];
-      status: "ready";
-    };
 
 export type WorkspaceGatewayRouteState =
   | { status: "unavailable" }
@@ -177,12 +145,6 @@ export function InstanceShellRoute({
 }: {
   localWorkspaceGatewayAvailable?: boolean | undefined;
 }) {
-  const [, setLocation] = useLocation();
-  const [state, setState] = useState<InstanceShellRouteState>({ status: "loading" });
-  const [installDrafts, setInstallDrafts] = useState<PackageInstallDrafts>({});
-  const [installDialogOpen, setInstallDialogOpen] = useState(false);
-  const [selectedPackageAppKey, setSelectedPackageAppKey] = useState<PackageAppKey>();
-  const installRequestPending = useRef(false);
   const workspaceOperationStartPending = useRef(false);
   const workspaceGatewayConfig = useMemo(() => workspaceGatewayBrowserConfig(), []);
   const localWorkspaceGatewayAvailable =
@@ -195,7 +157,7 @@ export function InstanceShellRoute({
     const controller = new AbortController();
     let stopped = false;
 
-    async function loadInstalls() {
+    async function loadWorkspaceGateway() {
       let workspaceGatewayFailed = false;
       let workspaceGatewayResponse: WorkspaceGatewayResponse | undefined;
 
@@ -238,38 +200,9 @@ export function InstanceShellRoute({
       } else if (!workspaceGatewayFailed) {
         setWorkspaceGatewayState({ status: "unavailable" });
       }
-
-      try {
-        const appResponse = await fetchInstanceAppInstalls({ signal: controller.signal });
-
-        if (stopped) {
-          return;
-        }
-
-        setState({
-          installing: false,
-          installs: appResponse.installs,
-          packages: appResponse.packages,
-          status: "ready",
-        });
-        setInstallDrafts((current) =>
-          initializePackageInstallDrafts({
-            currentDrafts: current,
-            installs: appResponse.installs,
-            packages: appResponse.packages,
-          }),
-        );
-      } catch (error) {
-        if (!stopped && !controller.signal.aborted) {
-          setState({
-            status: "failed",
-            message: error instanceof Error ? error.message : "Installed apps could not load.",
-          });
-        }
-      }
     }
 
-    void loadInstalls();
+    void loadWorkspaceGateway();
 
     return () => {
       stopped = true;
@@ -322,72 +255,6 @@ export function InstanceShellRoute({
 
     return () => window.clearInterval(intervalId);
   }, [autoSaveDisplayState, workspaceGatewayConfig]);
-
-  async function installPackage(packageAppKey: PackageAppKey) {
-    if (state.status !== "ready" || state.installing || installRequestPending.current) {
-      return;
-    }
-
-    const appPackage = state.packages.find(
-      (candidate) => candidate.packageAppKey === packageAppKey,
-    );
-    const draft = installDrafts[packageAppKey];
-
-    if (!appPackage || !draft) {
-      return;
-    }
-
-    installRequestPending.current = true;
-    setState({
-      ...state,
-      installing: true,
-      installingPackageAppKey: packageAppKey,
-      installError: undefined,
-      installErrorPackageAppKey: undefined,
-    });
-
-    try {
-      const response = await createInstanceAppInstall({
-        packageAppKey: appPackage.packageAppKey,
-        installId: draft.installId,
-        label: draft.label,
-      });
-
-      setState({
-        installing: false,
-        installs: response.installs,
-        packages: state.packages,
-        status: "ready",
-      });
-      setInstallDrafts((current) =>
-        initializePackageInstallDrafts({
-          currentDrafts: {
-            ...current,
-            [packageAppKey]: { installId: "", label: "" },
-          },
-          installs: response.installs,
-          packages: state.packages,
-        }),
-      );
-      setInstallDialogOpen(false);
-      setLocation(response.install.adminRoute);
-    } catch (error) {
-      const message =
-        error instanceof AppInstallApiError || error instanceof Error
-          ? error.message
-          : `${appPackage.label} install failed.`;
-
-      setState({
-        ...state,
-        installing: false,
-        installingPackageAppKey: undefined,
-        installError: message,
-        installErrorPackageAppKey: packageAppKey,
-      });
-    } finally {
-      installRequestPending.current = false;
-    }
-  }
 
   async function startWorkspaceOperation(input: WorkspaceGatewayStartInput) {
     if (
@@ -454,10 +321,6 @@ export function InstanceShellRoute({
     });
   }
 
-  function changeInstallDraft(packageAppKey: PackageAppKey, draft: PackageInstallDraft) {
-    setInstallDrafts((current) => ({ ...current, [packageAppKey]: draft }));
-  }
-
   async function startWorkspacePush() {
     const push = selectWorkspaceGatewayOperationControls({ operationGroup: "workspace" }).find(
       ({ kind }) => kind === "push",
@@ -469,17 +332,9 @@ export function InstanceShellRoute({
 
   return (
     <InstanceManagementRuntime
-      installDialogOpen={installDialogOpen}
-      installDrafts={installDrafts}
-      onInstallDialogOpenChange={setInstallDialogOpen}
-      onInstallDraftChange={changeInstallDraft}
-      onInstallPackageSelection={setSelectedPackageAppKey}
-      onInstallSubmit={installPackage}
       onOpenWorkspaceAuthorization={(url) => window.open(url, "_blank", "noopener,noreferrer")}
       onPollWorkspaceOperation={pollWorkspaceOperation}
       onStartWorkspacePush={startWorkspacePush}
-      selectedPackageAppKey={selectedPackageAppKey}
-      state={state}
       workspaceGatewayState={workspaceGatewayState}
     />
   );
@@ -620,19 +475,6 @@ async function refreshWorkspaceGatewayOperation({
   }
 }
 
-export function instanceShellUninitializedWorkspaceInstallState(appResponse: AppInstallsResponse): {
-  state: Extract<InstanceShellRouteState, { status: "ready" }>;
-} {
-  return {
-    state: {
-      installing: false,
-      installs: appResponse.installs,
-      packages: appResponse.packages,
-      status: "ready",
-    },
-  };
-}
-
 function workspaceGatewayReadyStateFromResponse(
   response: WorkspaceGatewayResponse,
   current: WorkspaceGatewayRouteState,
@@ -657,50 +499,4 @@ function workspaceGatewayReadyStateFromResponse(
 
 export function operationPollsAutomatically(operation: WorkspaceGatewayOperation): boolean {
   return operation.status === "queued" || operation.status === "running";
-}
-
-function initializePackageInstallDrafts({
-  currentDrafts,
-  installs,
-  packages,
-}: {
-  currentDrafts: PackageInstallDrafts;
-  installs: readonly AppInstall[];
-  packages: readonly InstallableAppPackage[];
-}): PackageInstallDrafts {
-  const nextDrafts: PackageInstallDrafts = {};
-
-  for (const appPackage of packages) {
-    const current = currentDrafts[appPackage.packageAppKey];
-
-    nextDrafts[appPackage.packageAppKey] = {
-      label: current?.label.trim() ? current.label : appPackage.label,
-      installId: current?.installId.trim()
-        ? current.installId
-        : availableDefaultInstallId(appPackage, installs),
-    };
-  }
-
-  return nextDrafts;
-}
-
-function availableDefaultInstallId(
-  appPackage: InstallableAppPackage,
-  installs: readonly AppInstall[],
-) {
-  const installedIds = new Set(installs.map((install) => install.installId));
-
-  if (!installedIds.has(appPackage.defaultInstallId)) {
-    return appPackage.defaultInstallId;
-  }
-
-  for (let index = 2; index < 100; index += 1) {
-    const candidate = `${appPackage.defaultInstallId}-${index}`;
-
-    if (!installedIds.has(candidate)) {
-      return candidate;
-    }
-  }
-
-  return appPackage.defaultInstallId;
 }

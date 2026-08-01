@@ -2,18 +2,13 @@ import { FormlessAuthority } from "./authority.ts";
 import { handleWorkspaceGatewayProxyRequest } from "@dpeek/formless-gateway/worker";
 import { parseAuthorityApiRoute, parseProgramApiRoute } from "../shared/app-storage-identity.ts";
 import { handleInstanceArchiveApiRequest } from "./archive-api.ts";
-import {
-  authorizeInstanceWrite,
-  authorizeOwnerManagementRead,
-  authorizeProgramAccess,
-} from "./authority-admin-guard.ts";
+import { authorizeInstanceWrite, authorizeProgramAccess } from "./authority-admin-guard.ts";
 import { handleClientAssetRequest, handleClientShellDocumentRequest } from "./client-shell.ts";
 import { handleDeployMetadataRequest } from "./deploy-metadata.ts";
 import {
   handleMediaRequest as handleMediaPackageRequest,
   mediaObjectStoreFromR2Bucket,
 } from "@dpeek/formless-media/worker";
-import { handleAppDocumentMediaRequest } from "./app-document-media.ts";
 import { handleProgramDocumentMediaRequest } from "./program-document-media.ts";
 import { handleInstanceDomainProviderApiRequest } from "./domain-provider-api.ts";
 import { handleInstanceDeploymentRuntimeApiRequest } from "./deployment-runtime-api.ts";
@@ -23,15 +18,10 @@ import {
   type EmailDeliveryQueueBinding,
   type CloudflareSendEmailBinding,
 } from "./email-runtime.ts";
-import {
-  handleInstanceAppInstallsApiRequest,
-  isInstanceAppInstallsApiPath,
-} from "./instance-app-installs.ts";
 import { handleInstanceControlPlaneApiRequest } from "./instance-control-plane.ts";
 import { handleInstanceDomainMappingsApiRequest } from "./instance-domain-mappings.ts";
 import { handleIdentityControlPlaneApiRequest } from "./identity-control-plane.ts";
 import { resolveInstanceRuntimeRouteForRequest } from "./instance-runtime-routes.ts";
-import { mappedAppHostFromRuntimeRoute } from "./mapped-app-host.ts";
 import {
   HOST_AUTH_SESSION_COOKIE_NAME,
   accountAuthorizationForbiddenResponse,
@@ -41,7 +31,6 @@ import {
   handleAuthAccountHandoffBrowserContinuation,
   handleInstanceAuthHandoffRequest,
   hostAuthSessionTargetForRuntimeRoute,
-  installedAppApiRouteAccessFromFacts,
   mappedInstanceManagementTargetFromFacts,
   requestOriginForAuth,
   resolveAuthAccountHandoffContinuation,
@@ -55,7 +44,6 @@ import {
 } from "./collaborator-invitation-acceptance.ts";
 import { handleInstanceAuthEmailVerificationApiRequest } from "./instance-auth-email-verification.ts";
 import { handleInstanceAuthOwnerSetupApiRequest } from "./instance-auth-owner-setup.ts";
-import { handleInstanceAuthSignupApiRequest } from "./instance-auth-signup.ts";
 import { handleInstanceAuthAccountCompletionApiRequest } from "./instance-auth-account-completion.ts";
 import { sameOriginAccountCompletionTargetForRuntimeRouteFacts } from "./instance-auth-account-target.ts";
 import { handleAccountPasskeyApiRequest } from "./account-passkeys.ts";
@@ -101,7 +89,6 @@ import {
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { validateOwnerSessionCookie } from "./owner-session.ts";
 import type { TurnstileRuntimeEnv } from "../shared/turnstile-config.ts";
-import { activeAppPackageResolver } from "./runtime-app-packages.ts";
 import { WORKSPACE_OPERATION_CAPABILITIES } from "@dpeek/formless-workspace";
 import {
   FORMLESS_PROGRAM_EDITOR_ACCESS_REQUIREMENT,
@@ -134,11 +121,8 @@ export type Env = TurnstileRuntimeEnv & {
   FORMLESS_LOCAL_SESSION_BOOTSTRAP_TOKEN?: string;
   FORMLESS_MEDIA: R2Bucket;
   FORMLESS_OWNER_SESSION_SECRET?: string;
-  FORMLESS_RUNTIME_APP_INSTALL_ID?: string;
-  FORMLESS_RUNTIME_PACKAGE_APP_KEY?: string;
   FORMLESS_RUNTIME_PROFILE?: string;
   FORMLESS_TURNSTILE_SITEVERIFY?: Fetcher;
-  FORMLESS_WORKSPACE_APP_PACKAGES?: string;
   FORMLESS_WORKSPACE_GATEWAY_BOOTSTRAP_TOKEN?: string;
   FORMLESS_WORKSPACE_GATEWAY_CSRF_TOKEN?: string;
   FORMLESS_WORKSPACE_GATEWAY_PROXY_TOKEN?: string;
@@ -148,8 +132,7 @@ export type Env = TurnstileRuntimeEnv & {
 export default {
   async fetch(request, env) {
     const requestUrl = new URL(request.url);
-    const packageResolver = activeAppPackageResolver(env);
-    const authorityRoute = parseAuthorityApiRoute(requestUrl.pathname, packageResolver);
+    const authorityRoute = parseAuthorityApiRoute(requestUrl.pathname);
     const authorityForwardRequest: Request | undefined = authorityRoute
       ? (request.clone() as Request)
       : undefined;
@@ -164,7 +147,6 @@ export default {
       domainProvider: request.clone() as Request,
       email: request.clone() as Request,
       identity: request.clone() as Request,
-      installs: request.clone() as Request,
       localSession: request.clone() as Request,
     };
 
@@ -203,7 +185,6 @@ export default {
       return new Response(null, { status: 404 });
     }
 
-    const mappedAppHost = mappedAppHostFromRuntimeRoute(runtimeRoute);
     const mappedSiteHost = mappedPublicSiteHostFromRuntimeRoute(runtimeRoute);
     const mappedRoutePolicy = mappedRuntimeRoutePolicyFromFacts({
       configuredRuntimeProfile: env.FORMLESS_RUNTIME_PROFILE,
@@ -259,34 +240,12 @@ export default {
       return mediaResponse;
     }
 
-    const appDocumentMediaResponse = await handleAppDocumentMediaRequest(
-      request,
-      env,
-      authorityRoute,
-      {
-        pathname: requestTopology.pathname,
-        target:
-          authorityRoute?.identity.kind === "appInstall"
-            ? installedAppApiRouteAccessFromFacts({
-                requestOrigin: requestOriginForAuth(request),
-                runtimeRoute,
-                storageIdentity: authorityRoute.identity.authorityName,
-              }).target
-            : undefined,
-      },
-    );
-
-    if (appDocumentMediaResponse) {
-      return appDocumentMediaResponse;
-    }
-
     const programHostSessionTarget = requestHasCookie(request, HOST_AUTH_SESSION_COOKIE_NAME)
       ? hostAuthSessionTargetForRuntimeRoute(request, runtimeRoute)
       : undefined;
     const programDocumentMediaResponse = await handleProgramDocumentMediaRequest(request, env, {
       pathname: requestTopology.pathname,
       target:
-        programHostSessionTarget?.appInstallId === undefined &&
         programHostSessionTarget?.storageIdentity === FORMLESS_PROGRAM_STORAGE_IDENTITY
           ? programHostSessionTarget
           : undefined,
@@ -322,9 +281,7 @@ export default {
       return publishedSiteIndexingResponse;
     }
 
-    const deployMetadataResponse = handleDeployMetadataRequest(request, env, {
-      packageResolver,
-    });
+    const deployMetadataResponse = handleDeployMetadataRequest(request, env);
 
     if (deployMetadataResponse) {
       return deployMetadataResponse;
@@ -393,12 +350,6 @@ export default {
       return authOwnerSetupApiResponse;
     }
 
-    const authSignupApiResponse = await handleInstanceAuthSignupApiRequest(request, env);
-
-    if (authSignupApiResponse) {
-      return authSignupApiResponse;
-    }
-
     const authAccountStatusResponse = await handleAuthAccountStatusRequest(
       request,
       env,
@@ -459,21 +410,6 @@ export default {
 
     if (instanceUpgradeStatusResponse) {
       return instanceUpgradeStatusResponse;
-    }
-
-    const instanceAppInstallsResponse = isInstanceAppInstallsApiPath(requestUrl.pathname)
-      ? await handleInstanceAppInstallsApiRequest(
-          authorityRequestWithOriginalUrlFacts(capabilityForwardRequests.installs, {
-            hostSessionTarget: requestHasCookie(request, HOST_AUTH_SESSION_COOKIE_NAME)
-              ? hostAuthSessionTargetForRuntimeRoute(request, runtimeRoute)
-              : undefined,
-          }),
-          env,
-        )
-      : undefined;
-
-    if (instanceAppInstallsResponse) {
-      return instanceAppInstallsResponse;
     }
 
     const instanceControlPlaneResponse = programRoute
@@ -543,58 +479,12 @@ export default {
     }
 
     if (authorityRoute) {
-      const installedAppRouteAccess = installedAppApiRouteAccessFromFacts({
-        requestOrigin: requestOriginForAuth(request),
-        runtimeRoute,
-        storageIdentity: authorityRoute.identity.authorityName,
-      });
-      const hostSessionTarget = installedAppRouteAccess.target;
-
-      const routeAccessAuthorization = await authorizeInstalledAppRouteAccess(
-        request,
-        env,
-        installedAppRouteAccess.access,
-        hostSessionTarget,
-      );
-
-      if (routeAccessAuthorization) {
-        return routeAccessAuthorization;
-      }
-
-      const routeAccess = installedAppRouteAccess.access;
-
-      if (
-        authorityRoute.identity.kind === "appInstall" &&
-        (routeAccess === undefined || routeAccess === "owner") &&
-        isInstalledAppManagementApiRead(request, authorityRoute.path)
-      ) {
-        const managementHostSessionTarget =
-          hostSessionTarget ??
-          mappedInstanceManagementTargetFromFacts({
-            requestOrigin: requestOriginForAuth(request),
-            runtimeRoute,
-          });
-        const authorization = await authorizeOwnerManagementRead(request, env, {
-          hostSessionTarget: managementHostSessionTarget,
-        });
-
-        if (!authorization.authorized) {
-          return Response.json(
-            { error: authorization.error },
-            {
-              headers: authorization.headers,
-              status: authorization.status,
-            },
-          );
-        }
-      }
-
       const authorityId = env.FORMLESS_AUTHORITY.idFromName(authorityRoute.identity.authorityName);
       const authority = env.FORMLESS_AUTHORITY.get(authorityId);
 
       return authority.fetch(
         authorityRequestWithOriginalUrlFacts(authorityForwardRequest ?? request, {
-          hostSessionTarget,
+          hostSessionTarget: programHostSessionTarget,
         }),
       );
     }
@@ -621,7 +511,6 @@ export default {
 
     if (env.ASSETS && shouldDeferToStaticAssets(request, requestTopology)) {
       const clientAssetResponse = await handleClientAssetRequest(request, env, {
-        mappedAppHost,
         runtimeTopology: requestTopology,
       });
 
@@ -973,47 +862,6 @@ function authOriginLocationForRequest(authOrigin: string, request: Request): str
   location.search = sourceUrl.search;
 
   return location.toString();
-}
-
-function isInstalledAppManagementApiRead(request: Request, path: `/${string}`): boolean {
-  return request.method === "GET" && path === "/snapshot";
-}
-
-async function authorizeInstalledAppRouteAccess(
-  request: Request,
-  env: Env,
-  access: ReturnType<typeof installedAppApiRouteAccessFromFacts>["access"],
-  hostSessionTarget: ReturnType<typeof hostAuthSessionTargetForRuntimeRoute>,
-): Promise<Response | undefined> {
-  if (access === undefined || access === "anonymous") {
-    return undefined;
-  }
-
-  const authorization = await validateRouteAccessSession(request, env, {
-    requiredAccess: access,
-    target: hostSessionTarget,
-  });
-
-  if (authorization.ok) {
-    return undefined;
-  }
-
-  if (
-    authorization.reason === "account-completion-required" &&
-    authorization.accountCompletion !== undefined
-  ) {
-    return accountCompletionBlockedResponse(authorization.accountCompletion);
-  }
-
-  return Response.json(
-    { error: "Authenticated session is required for this route." },
-    {
-      headers: {
-        "WWW-Authenticate": 'Bearer realm="formless-authenticated"',
-      },
-      status: 401,
-    },
-  );
 }
 
 function workerWorkspaceGatewayRouteAvailable(

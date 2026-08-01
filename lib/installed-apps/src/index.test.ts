@@ -16,8 +16,6 @@ import {
   listInstallableAppPackages,
   listResolvedAppPackages,
   packageAppFactsForKey,
-  parseAppInstallRegistrationOperation,
-  parseAppInstallRegistrationPolicy,
   parseAppPackageManifest,
   sourceSchemaCanonicalJson,
   validateAppInstallId,
@@ -126,7 +124,6 @@ describe("app package manifests", () => {
 
     expect(listResolvedAppPackages(resolver)).toEqual([
       expect.objectContaining({
-        adminRouteBase: "/apps",
         defaultInstallId: "site",
         label: "Site",
         packageAppKey: "site",
@@ -136,7 +133,6 @@ describe("app package manifests", () => {
         sourceSchemaHash: siteSourceSchemaHash,
       }),
       expect.objectContaining({
-        adminRouteBase: "/apps",
         defaultInstallId: "tasks",
         label: "Tasks",
         packageAppKey: "tasks",
@@ -146,7 +142,6 @@ describe("app package manifests", () => {
         sourceSchemaHash: tasksSourceSchemaHash,
       }),
       expect.objectContaining({
-        adminRouteBase: "/apps",
         defaultInstallId: "crm",
         label: "CRM",
         packageAppKey: "crm",
@@ -203,46 +198,6 @@ describe("app install registry", () => {
       { label: "Tasks", packageAppKey: "tasks" },
       { label: "CRM", packageAppKey: "crm" },
     ]);
-  });
-
-  it("parses supported app install registration policies", () => {
-    expect(parseAppInstallRegistrationPolicy("closed", "App install registration policy")).toBe(
-      "closed",
-    );
-    expect(
-      parseAppInstallRegistrationPolicy("email-verified", "App install registration policy"),
-    ).toBe("email-verified");
-    expect(
-      parseAppInstallRegistrationPolicy("custom-operation", "App install registration policy"),
-    ).toBe("custom-operation");
-    expect(() =>
-      parseAppInstallRegistrationPolicy("domain-allowlist", "App install registration policy"),
-    ).toThrow(
-      'App install registration policy must be "closed", "email-verified", or "custom-operation".',
-    );
-  });
-
-  it("parses canonical app install registration operation keys", () => {
-    expect(parseAppInstallRegistrationOperation("member-profile.completeRegistration")).toBe(
-      "member-profile.completeRegistration",
-    );
-
-    const invalidCases: [string, unknown, RegExp][] = [
-      ["missing entity", ".completeRegistration", /entity/],
-      ["missing operation", "member-profile.", /operation/],
-      ["missing dot", "completeRegistration", /format/],
-      ["too many parts", "member.profile.completeRegistration", /format/],
-      ["qualified entity", "auth:principal.completeRegistration", /entity/],
-      ["unsafe operation", "member-profile.complete/registration", /operation/],
-      ["spaced operation", "member-profile.complete registration", /operation/],
-    ];
-
-    for (const [label, value, message] of invalidCases) {
-      expect(
-        () => parseAppInstallRegistrationOperation(value, "App install registration operation"),
-        label,
-      ).toThrow(message);
-    }
   });
 
   it("validates route-safe install ids", () => {
@@ -303,18 +258,6 @@ describe("app install registry", () => {
         packageResolver: resolver,
       }),
     );
-    const members = expectSuccess(
-      createAppInstall({
-        existingInstalls: [],
-        installId: "members",
-        label: " Members ",
-        now,
-        packageAppKey: "site",
-        packageResolver: resolver,
-        registrationPolicy: "email-verified",
-      }),
-    );
-
     expect(site.install).toEqual({
       adminRoute: "/apps/personal",
       createdAt: now,
@@ -322,7 +265,6 @@ describe("app install registry", () => {
       label: "Personal Site",
       packageAppKey: "site",
       packageRevision: 1,
-      registrationPolicy: "closed",
       sourceSchemaHash: siteSourceSchemaHash,
       status: "installed",
       updatedAt: now,
@@ -339,39 +281,11 @@ describe("app install registry", () => {
       label: "Tasks",
       packageAppKey: "tasks",
       packageRevision: 1,
-      registrationPolicy: "closed",
       sourceSchemaHash: tasksSourceSchemaHash,
       status: "installed",
       updatedAt: now,
     });
-    expect(members.install).toMatchObject({
-      installId: "members",
-      label: "Members",
-      registrationPolicy: "email-verified",
-    });
     expect(appInstallInitializationPlan(site.install, resolver)).toEqual(site.initialization);
-  });
-
-  it("creates custom-operation installs with a declared registration operation", () => {
-    const result = expectSuccess(
-      createAppInstall({
-        existingInstalls: [],
-        installId: "members",
-        label: " Members ",
-        now,
-        packageAppKey: "site",
-        packageResolver: bundledFixtureResolver(),
-        registrationOperation: "member-profile.completeRegistration",
-        registrationPolicy: "custom-operation",
-      }),
-    );
-
-    expect(result.install).toMatchObject({
-      installId: "members",
-      label: "Members",
-      registrationOperation: "member-profile.completeRegistration",
-      registrationPolicy: "custom-operation",
-    });
   });
 
   it("creates a private package install only through the active resolver", () => {
@@ -423,7 +337,6 @@ describe("app install registry", () => {
       label: "Private Labs",
       packageAppKey: "private-labs",
       packageRevision: 7,
-      registrationPolicy: "closed",
       sourceSchemaHash: privateSourceSchemaHash,
       status: "installed",
       updatedAt: now,
@@ -487,64 +400,12 @@ describe("app install registry", () => {
         packageResolver: resolver,
       }),
     );
-    const unsupportedPolicy = expectFailure(
-      createAppInstall({
-        existingInstalls: existing,
-        installId: "members",
-        label: "Members",
-        now,
-        packageAppKey: "site",
-        packageResolver: resolver,
-        registrationPolicy: "domain-allowlist" as never,
-      }),
-    );
-    const missingRegistrationOperation = expectFailure(
-      createAppInstall({
-        existingInstalls: existing,
-        installId: "members",
-        label: "Members",
-        now,
-        packageAppKey: "site",
-        packageResolver: resolver,
-        registrationPolicy: "custom-operation",
-      }),
-    );
-    const extraRegistrationOperation = expectFailure(
-      createAppInstall({
-        existingInstalls: existing,
-        installId: "subscribers",
-        label: "Subscribers",
-        now,
-        packageAppKey: "site",
-        packageResolver: resolver,
-        registrationOperation: "member-profile.completeRegistration",
-        registrationPolicy: "email-verified",
-      }),
-    );
-
     expect(unsupportedPackage.error.code).toBe("unsupported-package");
     expect(invalidLabel.error.code).toBe("invalid-label");
     expect(duplicateInstallId.error.code).toBe("duplicate-install-id");
-    expect(unsupportedPolicy.error.code).toBe("invalid-registration-policy");
-    expect(unsupportedPolicy.error.field).toBe("registrationPolicy");
-    expect(missingRegistrationOperation.error).toEqual({
-      code: "invalid-registration-operation",
-      field: "registrationOperation",
-      message:
-        'Install registration operation is required when registration policy is "custom-operation".',
-    });
-    expect(extraRegistrationOperation.error).toEqual({
-      code: "invalid-registration-operation",
-      field: "registrationOperation",
-      message:
-        'Install registration operation must be omitted unless registration policy is "custom-operation".',
-    });
     expect(unsupportedPackage.installs).toBe(existing);
     expect(invalidLabel.installs).toBe(existing);
     expect(duplicateInstallId.installs).toBe(existing);
-    expect(unsupportedPolicy.installs).toBe(existing);
-    expect(missingRegistrationOperation.installs).toBe(existing);
-    expect(extraRegistrationOperation.installs).toBe(existing);
   });
 
   it("keeps existing installs unchanged when initial source validation fails", () => {
@@ -753,7 +614,6 @@ function siteInstallFixture(input: {
     label: input.label,
     packageAppKey: "site",
     packageRevision: 1,
-    registrationPolicy: "closed",
     sourceSchemaHash: siteSourceSchemaHash,
     status: "installed",
     updatedAt: createdAt,

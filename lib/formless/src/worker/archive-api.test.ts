@@ -1,87 +1,45 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import {
-  APP_ARCHIVE_KIND,
   ARCHIVE_VERSION,
   INSTANCE_ARCHIVE_KIND,
-  type AppArchive,
   type InstanceArchive,
 } from "../program/archive.ts";
-import type { AppInstall } from "@dpeek/formless-installed-apps";
-import { instanceControlPlaneRecordsForAppInstall } from "@dpeek/formless-instance-control-plane";
 import { formlessProgramSchema } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
 } from "../program/target.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
-import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
-import type { AppInstallsResponse, BootstrapResponse } from "../shared/protocol.ts";
-import { bundledSourceSchemaHashFixtures } from "../shared/upgrade-migrations.ts";
+import type { StoredRecord } from "@dpeek/formless-storage";
+import type { BootstrapResponse } from "../shared/protocol.ts";
 import {
-  crmTestRecords,
-  crmSourceSchema,
-  siteSourceSchema,
-  taskSourceSchema,
-} from "../test/schema-apps.ts";
-import {
-  commandOperationRequest,
   instanceControlPlaneTestStorageSnapshot,
   restoreTestStorageSnapshot,
 } from "../test/authority-write.ts";
-import { testSiteRecords } from "../test/site-records.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
-import {
-  FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
-  formatRuntimeWorkspaceAppPackages,
-} from "../shared/workspace-runtime-packages.ts";
-import {
-  runtimeWorkspaceCrmAppPackageFixture,
-  runtimeWorkspaceTaskAppPackageFixture,
-} from "../test/workspace-app-package.ts";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
 const adminToken = "test-admin-token";
-const internalResetAppStoragePath = "/_internal/reset-app-storage";
-const taskPackageAppKey = "test-tasks";
-const privateSitePackageAppKey = "private-site";
-
+const now = "2026-05-12T00:00:00.000Z";
 let harness: Harness;
 
 beforeAll(async () => {
-  const taskPackage = await runtimeWorkspaceTaskAppPackageFixture({
-    packageAppKey: taskPackageAppKey,
-  });
-  const crmPackage = await runtimeWorkspaceCrmAppPackageFixture();
-  const privateSitePackage = await runtimeWorkspaceTaskAppPackageFixture({
-    capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],
-    defaultInstallId: "personal",
-    label: "Private Site",
-    packageAppKey: privateSitePackageAppKey,
-    sourceSchema: siteSourceSchema,
-  });
   harness = await createWorkerHarness(
     "src/worker/index.ts",
-    {
-      FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true },
-    },
-    {
-      bindings: {
-        FORMLESS_ADMIN_TOKEN: adminToken,
-        [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: formatRuntimeWorkspaceAppPackages([
-          taskPackage,
-          privateSitePackage,
-          crmPackage,
-        ]),
-      },
-      r2Buckets: ["FORMLESS_MEDIA"],
-    },
+    { FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true } },
+    { bindings: { FORMLESS_ADMIN_TOKEN: adminToken } },
   );
 });
 
 beforeEach(async () => {
-  await resetWorkerState();
+  await restoreTestStorageSnapshot(
+    harness,
+    "/api/formless/program/snapshot/restore",
+    instanceControlPlaneTestStorageSnapshot(),
+    adminHeaders(),
+  );
 });
 
 afterAll(async () => {
@@ -89,435 +47,33 @@ afterAll(async () => {
 });
 
 describe("instance archive restore API", () => {
-  it("dry-runs and applies app archive restore through installed app storage", async () => {
-    const dryRun = await postArchiveRestore(appArchive({ dryRun: true }));
-    const before = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const applied = await postArchiveRestore(appArchive({ dryRun: false }));
-    const after = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const bootstrap = await getJson<BootstrapResponse>(
-      `/api/app-installs/${privateSitePackageAppKey}/personal/bootstrap`,
-    );
+  it("restores current Program records without dormant app installs or app routes", async () => {
+    const archive = programInstanceArchive();
+    const restored = await harness.fetch("/api/formless/archive/restore", {
+      body: JSON.stringify({ archive }),
+      headers: { ...adminHeaders(), "Content-Type": "application/json" },
+      method: "POST",
+    });
+    const bootstrap = await harness.fetch("/api/formless/program/bootstrap?actorKind=owner", {
+      headers: adminHeaders(),
+    });
+    const body = (await bootstrap.json()) as BootstrapResponse;
 
-    expect(dryRun.response.status).toBe(200);
-    expect(dryRun.body).toMatchObject({
-      ok: true,
-      report: {
-        applied: false,
-        summary: {
-          appCount: 1,
-          createdInstalls: ["personal"],
-        },
-      },
-    });
-    expect(before.body.installs).toEqual([]);
-    expect(applied.response.status).toBe(200);
-    expect(applied.body).toMatchObject({
-      ok: true,
-      report: {
-        applied: true,
-        summary: {
-          appCount: 1,
-          createdInstalls: ["personal"],
-        },
-      },
-    });
-    expect(after.body.installs.map((install) => install.installId)).toEqual(["personal"]);
-    expect(bootstrap.body.records).toContainEqual(siteRecord());
-  });
-
-  it("restores installed Tasks app archives without Site media", async () => {
-    const dryRun = await postArchiveRestore(tasksAppArchive({ dryRun: true }));
-    const applied = await postArchiveRestore(tasksAppArchive({ dryRun: false }));
-    const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const bootstrap = await getJson<BootstrapResponse>(
-      `/api/app-installs/${taskPackageAppKey}/work/bootstrap`,
-    );
-
-    expect(dryRun.response.status).toBe(200);
-    expect(dryRun.body).toMatchObject({
-      ok: true,
-      report: {
-        applied: false,
-        summary: {
-          appCount: 1,
-          createdInstalls: ["work"],
-          mediaCountsByApp: { work: 0 },
-        },
-      },
-    });
-    expect(applied.response.status).toBe(200);
-    expect(applied.body).toMatchObject({
-      ok: true,
-      report: {
-        applied: true,
-        summary: {
-          appCount: 1,
-          createdInstalls: ["work"],
-          mediaCountsByApp: { work: 0 },
-        },
-      },
-    });
-    expect(installs.body.installs).toEqual([
-      expect.objectContaining({
-        adminRoute: "/apps/work",
-        installId: "work",
-        packageAppKey: taskPackageAppKey,
-      }),
-    ]);
-    expect(bootstrap.body.schema).toEqual(taskSourceSchema);
-    expect(bootstrap.body.records).toEqual([taskRecord()]);
-  });
-
-  it("replaces installed app archive data with monotonic cursors and cleared operation replay", async () => {
-    const initial = await postArchiveRestore(
-      tasksAppArchive({
-        dryRun: false,
-        records: [taskRecord({ done: true, id: "task-before-replace", title: "Before replace" })],
-      }),
-    );
-    const before = await getJson<BootstrapResponse>(
-      `/api/app-installs/${taskPackageAppKey}/work/bootstrap`,
-    );
-    const firstAction = await postInstalledAppAction(taskPackageAppKey, "work", {
-      idempotencyKey: "command-archive-clear",
-      entity: "task",
-      operationName: "clearCompletedTasks",
-    });
-    const replacementRecord = taskRecord({
-      done: true,
-      id: "task-after-replace",
-      title: "After replace",
-    });
-    const replaced = await postArchiveRestore(
-      tasksAppArchive({
-        dryRun: false,
-        installCollisions: "replace",
-        records: [replacementRecord],
-      }),
-    );
-    const after = await getJson<BootstrapResponse>(
-      `/api/app-installs/${taskPackageAppKey}/work/bootstrap`,
-    );
-    const secondAction = await postInstalledAppAction(taskPackageAppKey, "work", {
-      idempotencyKey: "command-archive-clear",
-      entity: "task",
-      operationName: "clearCompletedTasks",
-    });
-
-    expect(initial.response.status).toBe(200);
-    expect(before.body.cursor).toBe(1);
-    expect(firstAction.cursor).toBe(2);
-    expect(firstAction.changes).toHaveLength(1);
-    expect(replaced.response.status).toBe(200);
-    expect(replaced.body).toMatchObject({
-      ok: true,
-      report: {
-        applied: true,
-        summary: { replacedInstalls: ["work"] },
-      },
-    });
-    expect(after.body.cursor).toBeGreaterThan(firstAction.cursor);
-    expect(after.body.records).toHaveLength(2);
-    expect(after.body.records).toEqual(
+    expect(restored.status).toBe(200);
+    expect(bootstrap.status).toBe(200);
+    expect(body.records.map((record) => `${record.entity}:${record.id}`)).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          id: "task-before-replace",
-          deletedAt: expect.any(String),
-        }),
-        replacementRecord,
-      ]),
-    );
-    expect(secondAction.cursor).toBeGreaterThan(after.body.cursor);
-    expect(secondAction.changes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          writeId: "operation:task.clearCompletedTasks:command-archive-clear",
-          operationKind: "command",
-          recordId: replacementRecord.id,
-          payload: expect.objectContaining({
-            id: replacementRecord.id,
-            deletedAt: expect.any(String),
-          }),
-        }),
-      ]),
-    );
-  });
-
-  it("restores installed CRM app archives without Site media", async () => {
-    const dryRun = await postArchiveRestore(crmAppArchive({ dryRun: true }));
-    const applied = await postArchiveRestore(crmAppArchive({ dryRun: false }));
-    const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const bootstrap = await getJson<BootstrapResponse>(
-      "/api/app-installs/test-crm/rates/bootstrap",
-    );
-
-    expect(dryRun.response.status).toBe(200);
-    expect(dryRun.body).toMatchObject({
-      ok: true,
-      report: {
-        applied: false,
-        summary: {
-          appCount: 1,
-          createdInstalls: ["rates"],
-          mediaCountsByApp: { rates: 0 },
-        },
-      },
-    });
-    expect(applied.response.status).toBe(200);
-    expect(applied.body).toMatchObject({
-      ok: true,
-      report: {
-        applied: true,
-        summary: {
-          appCount: 1,
-          createdInstalls: ["rates"],
-          mediaCountsByApp: { rates: 0 },
-        },
-      },
-    });
-    expect(installs.body.installs).toEqual([
-      expect.objectContaining({
-        adminRoute: "/apps/rates",
-        installId: "rates",
-        packageAppKey: "test-crm",
-      }),
-    ]);
-    expect(bootstrap.body.schema).toEqual(crmSourceSchema);
-    expect(bootstrap.body.records).toEqual(crmTestRecords);
-  });
-
-  it("restores mixed Site, Tasks, and CRM instance archives without non-Site media", async () => {
-    const dryRun = await postArchiveRestore(mixedInstanceArchive({ dryRun: true }));
-    const applied = await postArchiveRestore(mixedInstanceArchive({ dryRun: false }));
-    const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const site = await getJson<BootstrapResponse>(
-      `/api/app-installs/${privateSitePackageAppKey}/personal/bootstrap`,
-    );
-    const tasks = await getJson<BootstrapResponse>(
-      `/api/app-installs/${taskPackageAppKey}/work/bootstrap`,
-    );
-    const crm = await getJson<BootstrapResponse>("/api/app-installs/test-crm/rates/bootstrap");
-
-    expect(dryRun.response.status).toBe(200);
-    expect(dryRun.body).toMatchObject({
-      ok: true,
-      report: {
-        applied: false,
-        summary: {
-          appCount: 3,
-          createdInstalls: ["personal", "rates", "work"],
-          mediaCountsByApp: { personal: 0, rates: 0, work: 0 },
-        },
-      },
-    });
-    expect(applied.response.status).toBe(200);
-    expect(applied.body).toMatchObject({
-      ok: true,
-      report: {
-        applied: true,
-        summary: {
-          appCount: 3,
-          createdInstalls: ["personal", "rates", "work"],
-          mediaCountsByApp: { personal: 0, rates: 0, work: 0 },
-        },
-      },
-    });
-    expect(installs.body.installs.map((install) => install.packageAppKey)).toEqual([
-      privateSitePackageAppKey,
-      "test-crm",
-      taskPackageAppKey,
-    ]);
-    expect(site.body.schema).toEqual(siteSourceSchema);
-    expect(site.body.records).toEqual([siteRecord()]);
-    expect(tasks.body.schema).toEqual(taskSourceSchema);
-    expect(tasks.body.records).toEqual([taskRecord()]);
-    expect(crm.body.schema).toEqual(crmSourceSchema);
-    expect(crm.body.records).toEqual(crmTestRecords);
-  });
-
-  it("restores Program Task and CRM records while dormant metadata stays non-authoritative", async () => {
-    const restored = await postArchiveRestore(controlPlaneInstanceArchive({ dryRun: false }));
-    const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const installedApp = await getJson<BootstrapResponse>(
-      `/api/app-installs/${privateSitePackageAppKey}/personal/bootstrap`,
-    );
-    const controlPlane = await getJson<BootstrapResponse>(
-      "/api/formless/program/bootstrap?actorKind=owner",
-    );
-    const serializedControlPlane = JSON.stringify(controlPlane.body);
-
-    expect(restored.response.status).toBe(200);
-    expect(restored.body).toMatchObject({
-      ok: true,
-      report: {
-        applied: true,
-        summary: {
-          appCount: 1,
-          createdInstalls: ["personal"],
-        },
-      },
-    });
-    expect(installs.response.status).toBe(200);
-    expect(installs.body.installs).toEqual([
-      expect.objectContaining({
-        adminRoute: "/apps/personal-dashboard",
-        installId: "personal",
-        label: "Archived Personal",
-        packageAppKey: privateSitePackageAppKey,
-      }),
-    ]);
-    expect(
-      installs.body.installs[0]?.routes?.map((route) => [route.routeKind, route.path]),
-    ).toEqual([["admin", "/apps/personal-dashboard"]]);
-    expect(installedApp.body.records).toContainEqual(siteRecord());
-    expect(controlPlane.body.records.map((record) => `${record.entity}:${record.id}`)).toEqual(
-      expect.arrayContaining([
-        "app-install:legacy-tasks",
-        "app-install:legacy-crm",
-        "app-install:personal",
-        "company:company-program-restored",
         "task:task-program-restored",
         "route:route:host:publicSite:archive.example.com",
-        "route:route:redirect:old.archive.example.com",
-        "deployment-config:instance.primary",
       ]),
     );
-    expect(installs.body.installs.some((install) => install.installId === "legacy-tasks")).toBe(
-      false,
-    );
-    expect(installs.body.installs.some((install) => install.installId === "legacy-crm")).toBe(
-      false,
-    );
-    expect(serializedControlPlane).not.toContain("site-main");
-    expect(serializedControlPlane).not.toContain("CF_API_TOKEN");
-    expect(serializedControlPlane).not.toContain("ALCHEMY_PASSWORD");
-    expect(serializedControlPlane).not.toContain("raw-lease-token");
-  });
-
-  it("rejects legacy Tasks app archives without adopting their records", async () => {
-    const restored = await postArchiveRestore(legacyTasksAppArchive({ dryRun: false }));
-    const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const program = await getJson<BootstrapResponse>(
-      "/api/formless/program/bootstrap?actorKind=owner",
-    );
-
-    expect(restored.response.status).toBe(400);
-    expect(installs.body.installs).toEqual([]);
-    expect(program.body.records.some((record) => record.entity === "task")).toBe(false);
-  });
-
-  it("rejects legacy built-in Site app archives without importing or cleaning Program Site", async () => {
-    const bucket = await harness.mf.getR2Bucket("FORMLESS_MEDIA");
-
-    await bucket.put("media/images/legacy-site.png", new Uint8Array([9, 8, 7]));
-
-    const restored = await postArchiveRestore(legacySiteAppArchive({ dryRun: false }));
-    const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const program = await getJson<BootstrapResponse>(
-      "/api/formless/program/bootstrap?actorKind=owner",
-    );
-    const media = await bucket.get("media/images/legacy-site.png");
-
-    expect(restored.response.status).toBe(400);
-    expect(installs.body.installs).toEqual([]);
-    expect(program.body.records.some((record) => record.entity === "site")).toBe(false);
-    expect(media).not.toBeNull();
-  });
-
-  it("rejects legacy CRM app archives without adopting their records", async () => {
-    const restored = await postArchiveRestore(legacyCrmAppArchive({ dryRun: false }));
-    const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const program = await getJson<BootstrapResponse>(
-      "/api/formless/program/bootstrap?actorKind=owner",
-    );
-
-    expect(restored.response.status).toBe(400);
-    expect(installs.body.installs).toEqual([]);
-    expect(program.body.records.some((record) => record.entity === "company")).toBe(false);
-  });
-
-  it("exact instance replacement replaces matching installs and prunes absent installs and media", async () => {
-    const beforeTaskRecord = taskRecord({
-      id: "task-before-exact",
-      title: "Before exact replacement",
-    });
-    const afterTaskRecord = taskRecord({
-      id: "task-after-exact",
-      title: "After exact replacement",
-    });
-    const bucket = await harness.mf.getR2Bucket("FORMLESS_MEDIA");
-
-    await postArchiveRestore(appArchiveWithMedia({ dryRun: false }), [mediaFile()]);
-    await postArchiveRestore(
-      tasksAppArchive({
-        dryRun: false,
-        records: [beforeTaskRecord],
-      }),
-    );
-    await bucket.put("media/images/orphan.png", new Uint8Array([1, 2, 3]));
-    await bucket.put(
-      "media/app-installs/personal/documents/orphan.pdf",
-      new TextEncoder().encode("%PDF-1.7\norphan"),
-    );
-
-    const applied = await postArchiveRestore(
-      exactTasksInstanceArchive({
-        dryRun: false,
-        records: [afterTaskRecord],
-      }),
-      [],
-      { exactInstanceReplacement: true },
-    );
-    const installs = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-    const tasks = await getJson<BootstrapResponse>(
-      `/api/app-installs/${taskPackageAppKey}/work/bootstrap`,
-    );
-    const personal = await getJson<BootstrapResponse>(
-      `/api/app-installs/${privateSitePackageAppKey}/personal/bootstrap`,
-    );
-    const media = await bucket.list({ prefix: "media/images/" });
-    const documents = await bucket.list({ prefix: "media/app-installs/" });
-
-    expect(applied.response.status).toBe(200);
-    expect(applied.body).toMatchObject({
-      ok: true,
-      report: {
-        applied: true,
-        summary: {
-          appCount: 1,
-          replacedInstalls: ["work"],
-        },
-      },
-    });
-    expect(installs.body.installs.map((install) => install.installId)).toEqual(["work"]);
-    expect(tasks.body.records).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: beforeTaskRecord.id,
-          deletedAt: expect.any(String),
-        }),
-        afterTaskRecord,
-      ]),
-    );
-    expect(personal.body.records).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "rec_site_media_avatar",
-          deletedAt: expect.any(String),
-        }),
-      ]),
-    );
-    expect(personal.body.records.every((record) => record.deletedAt !== undefined)).toBe(true);
-    expect(media.objects.map((object) => object.key)).toEqual([
-      "media/images/installed.png",
-      "media/images/orphan.png",
-    ]);
-    expect(documents.objects.map((object) => object.key)).toEqual([]);
+    expect(body.records.some((record) => record.entity === "app-install")).toBe(false);
+    expect(body.records.some((record) => record.id === "route:personal:admin")).toBe(false);
   });
 
   it("requires write authorization", async () => {
     const response = await harness.fetch("/api/formless/archive/restore", {
-      body: JSON.stringify({ archive: appArchive({ dryRun: true }) }),
+      body: JSON.stringify({ archive: programInstanceArchive() }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
@@ -529,176 +85,17 @@ describe("instance archive restore API", () => {
   });
 });
 
-async function resetWorkerState() {
-  await restoreTestStorageSnapshot(
-    harness,
-    "/api/formless/program/snapshot/restore",
-    instanceControlPlaneTestStorageSnapshot(),
-    { Authorization: `Bearer ${adminToken}` },
-  );
-  await Promise.all([
-    postInternalAppStorageReset("personal"),
-    postInternalAppStorageReset("work"),
-    postInternalAppStorageReset("rates"),
-    clearMediaBucket(),
-  ]);
-}
-
-async function postInternalAppStorageReset(installId: string) {
-  const response = await harness.durableObjectFetch(
-    "FORMLESS_AUTHORITY",
-    `app:${installId}`,
-    internalResetAppStoragePath,
-    {
-      method: "POST",
-    },
-  );
-
-  expect(response.status).toBe(200);
-}
-
-async function clearMediaBucket() {
-  const bucket = await harness.mf.getR2Bucket("FORMLESS_MEDIA");
-  const objects = await bucket.list();
-
-  if (objects.objects.length > 0) {
-    await bucket.delete(objects.objects.map((object) => object.key));
-  }
-}
-
-async function postArchiveRestore(
-  archive: AppArchive | InstanceArchive,
-  mediaFiles: Array<{
-    archivePath: string;
-    byteSize: number;
-    bytesBase64: string;
-    contentType: string;
-  }> = [],
-  options: {
-    exactInstanceReplacement?: boolean;
-  } = {},
-) {
-  const response = await harness.fetch("/api/formless/archive/restore", {
-    body: JSON.stringify({
-      archive,
-      ...(options.exactInstanceReplacement === undefined
-        ? {}
-        : { exactInstanceReplacement: options.exactInstanceReplacement }),
-      mediaFiles,
-    }),
-    headers: {
-      Authorization: `Bearer ${adminToken}`,
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
-
-  return {
-    body: (await response.json()) as unknown,
-    response,
-  };
-}
-
-async function getJson<T>(path: string) {
-  const response = await harness.fetch(path, {
-    headers: { Authorization: `Bearer ${adminToken}` },
-  });
-  const body = await response.json();
-  expect(response.status, JSON.stringify(body)).toBe(200);
-
-  return {
-    body: body as T,
-    response,
-  };
-}
-
-async function postInstalledAppAction(
-  packageAppKey: string,
-  installId: string,
-  body: Parameters<typeof commandOperationRequest>[0],
-) {
-  const request = commandOperationRequest(body);
-  const response = await harness.fetch(
-    `/api/app-installs/${packageAppKey}/${installId}${request.path.slice("/api".length)}`,
-    {
-      body: JSON.stringify(request.body),
-      headers: {
-        Authorization: `Bearer ${adminToken}`,
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-    },
-  );
-
-  expect(response.status).toBe(200);
-
-  return request.response(await response.json());
-}
-
-function mixedInstanceArchive(input: { dryRun: boolean }): InstanceArchive {
-  return {
-    kind: INSTANCE_ARCHIVE_KIND,
-    version: ARCHIVE_VERSION,
-    exportedAt: "2026-05-12T00:00:00.000Z",
-    capabilities: ["installed-app-registry", "app-store-snapshots", "core-media-assets"],
-    restorePolicy: { dryRun: input.dryRun, installCollisions: "reject" },
-    media: { objects: [] },
-    apps: [appArchive(input), tasksAppArchive(input), crmAppArchive(input)],
-  };
-}
-
-function controlPlaneInstanceArchive(input: { dryRun: boolean }): InstanceArchive {
-  return {
-    kind: INSTANCE_ARCHIVE_KIND,
-    version: ARCHIVE_VERSION,
-    exportedAt: "2026-05-12T00:00:00.000Z",
-    capabilities: [
-      "installed-app-registry",
-      "schema-owned-control-plane",
-      "app-store-snapshots",
-      "core-media-assets",
-    ],
-    restorePolicy: { dryRun: input.dryRun, installCollisions: "reject" },
-    media: { objects: [] },
-    apps: [appArchive(input)],
-    controlPlane: {
-      kind: STORAGE_SNAPSHOT_KIND,
-      version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
-      schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
-      exportedAt: "2026-05-12T00:00:00.000Z",
-      schemaUpdatedAt: "2026-05-12T00:00:00.000Z",
-      sourceCursor: controlPlaneArchiveRecords().length,
-      schema: formlessProgramSchema,
-      records: controlPlaneArchiveRecords(),
-    },
-  };
-}
-
-function exactTasksInstanceArchive(input: {
-  dryRun: boolean;
-  records?: StoredRecord[];
-}): InstanceArchive {
-  const app = tasksAppArchive({
-    dryRun: input.dryRun,
-    installCollisions: "replace",
-    records: input.records,
-  });
-  const now = "2026-05-12T00:00:00.000Z";
+function programInstanceArchive(): InstanceArchive {
+  const records = archiveRecords();
 
   return {
     kind: INSTANCE_ARCHIVE_KIND,
     version: ARCHIVE_VERSION,
     exportedAt: now,
-    capabilities: [
-      "installed-app-registry",
-      "schema-owned-control-plane",
-      "app-store-snapshots",
-      "core-media-assets",
-    ],
-    restorePolicy: { dryRun: input.dryRun, installCollisions: "replace" },
+    capabilities: ["schema-owned-control-plane"],
+    restorePolicy: { dryRun: false, installCollisions: "reject" },
     media: { objects: [] },
-    apps: [app],
+    apps: [],
     controlPlane: {
       kind: STORAGE_SNAPSHOT_KIND,
       version: STORAGE_SNAPSHOT_VERSION,
@@ -706,437 +103,51 @@ function exactTasksInstanceArchive(input: {
       schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
       exportedAt: now,
       schemaUpdatedAt: now,
-      sourceCursor: 1,
+      sourceCursor: records.length,
       schema: formlessProgramSchema,
-      records: instanceControlPlaneRecordsForAppInstall({
-        install: tasksInstall(),
-        now,
-      }).map(storedControlPlaneRecord),
+      records,
     },
   };
 }
 
-function tasksInstall(): AppInstall {
-  return {
-    installId: "work",
-    packageAppKey: taskPackageAppKey,
-    packageRevision: 7,
-    sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
-    label: "Work Tasks",
-    registrationPolicy: "closed",
-    status: "installed",
-    createdAt: "2026-05-12T00:00:00.000Z",
-    updatedAt: "2026-05-12T00:00:00.000Z",
-    adminRoute: "/apps/work",
-  };
-}
-
-function controlPlaneArchiveRecords(): StoredRecord[] {
-  const now = "2026-05-12T00:00:00.000Z";
-  const install: AppInstall = {
-    installId: "personal",
-    packageAppKey: privateSitePackageAppKey,
-    packageRevision: 1,
-    sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
-    label: "Archived Personal",
-    registrationPolicy: "closed",
-    status: "installed",
-    createdAt: now,
-    updatedAt: now,
-    adminRoute: "/apps/personal",
-  };
-  const records = instanceControlPlaneRecordsForAppInstall({ install, now }).map(
-    storedControlPlaneRecord,
-  );
-  const adminRoute = records.find((record) => record.id === "route:personal:admin");
-
-  if (!adminRoute) {
-    throw new Error("Expected default admin app route.");
-  }
-
-  adminRoute.values = {
-    ...adminRoute.values,
-    matchPath: "/apps/personal-dashboard",
-    matchPrefix: "/apps/personal-dashboard/",
-  };
-
+function archiveRecords(): StoredRecord[] {
   return [
-    ...records,
-    ...instanceControlPlaneRecordsForAppInstall({
-      install: {
-        adminRoute: "/apps/legacy-tasks",
-        createdAt: now,
-        installId: "legacy-tasks",
-        label: "Legacy Tasks",
-        packageAppKey: "tasks",
-        packageRevision: 1,
-        registrationPolicy: "closed",
-        sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
-        status: "installed",
-        updatedAt: now,
-      },
-      now,
-    }).map(storedControlPlaneRecord),
-    ...instanceControlPlaneRecordsForAppInstall({
-      install: {
-        adminRoute: "/apps/legacy-crm",
-        createdAt: now,
-        installId: "legacy-crm",
-        label: "Legacy CRM",
-        packageAppKey: "crm",
-        packageRevision: 1,
-        registrationPolicy: "closed",
-        sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
-        status: "installed",
-        updatedAt: now,
-      },
-      now,
-    }).map(storedControlPlaneRecord),
-    taskRecord({
-      id: "task-program-restored",
+    storedRecord("task", "task-program-restored", {
       title: "Program archive task",
+      done: false,
+      priority: "normal",
     }),
-    {
-      id: "company-program-restored",
-      entity: "company",
-      createdAt: now,
-      updatedAt: now,
-      values: {
-        name: "Program archive company",
-        status: "prospect",
-      },
-    },
-    {
-      id: "instance.primary",
-      entity: "deployment-config",
-      createdAt: now,
-      updatedAt: now,
-      values: {
-        targetId: "instance.primary",
-        targetKind: "instance",
-        label: "Primary instance target",
-        enabled: true,
-        targetUrl: "https://personal.dpeek.workers.dev",
-        providerFamily: "cloudflare",
-        accountId: "account-123",
-        workerName: "personal-worker",
-      },
-    },
-    {
-      id: "route:host:publicSite:archive.example.com",
-      entity: "route",
-      createdAt: now,
-      updatedAt: now,
-      values: {
-        enabled: true,
-        matchHost: "archive.example.com",
-        matchPath: "/",
-        matchPrefix: "/",
-        kind: "mount",
-        targetProfile: "public-site",
-        surface: "public-site",
-        deploymentConfig: "instance.primary",
-      },
-    },
-    {
-      id: "route:redirect:old.archive.example.com",
-      entity: "route",
-      createdAt: now,
-      updatedAt: now,
-      values: {
-        enabled: true,
-        matchHost: "old.archive.example.com",
-        matchPath: "/",
-        matchPrefix: "/",
-        kind: "redirect",
-        toHost: "archive.example.com",
-        statusCode: "308",
-        preservePath: true,
-        preserveQueryString: true,
-      },
-    },
+    storedRecord("app-install", "personal", {
+      installId: "personal",
+      packageAppKey: "site",
+      label: "Dormant Site install",
+      status: "installed",
+    }),
+    storedRecord("route", "route:personal:admin", {
+      enabled: true,
+      matchPath: "/apps/personal",
+      matchPrefix: "/apps/personal/",
+      kind: "mount",
+      targetProfile: "app",
+      surface: "admin",
+      appInstall: "personal",
+    }),
+    storedRecord("route", "route:host:publicSite:archive.example.com", {
+      enabled: true,
+      matchHost: "archive.example.com",
+      matchPath: "/",
+      matchPrefix: "/",
+      kind: "mount",
+      targetProfile: "public-site",
+      surface: "public-site",
+    }),
   ];
 }
 
-function storedControlPlaneRecord(record: {
-  createdAt: string;
-  deletedAt?: string;
-  entity: string;
-  id: string;
-  updatedAt?: string;
-  values: RecordValues;
-}): StoredRecord {
-  return {
-    id: record.id,
-    entity: record.entity,
-    values: record.values,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt ?? record.createdAt,
-    ...(record.deletedAt === undefined ? {} : { deletedAt: record.deletedAt }),
-  };
+function storedRecord(entity: string, id: string, values: StoredRecord["values"]): StoredRecord {
+  return { id, entity, values, createdAt: now, updatedAt: now };
 }
 
-function appArchive(input: { dryRun: boolean }): AppArchive {
-  return {
-    kind: APP_ARCHIVE_KIND,
-    version: ARCHIVE_VERSION,
-    exportedAt: "2026-05-12T00:00:00.000Z",
-    capabilities: ["app-store-snapshots", "core-media-assets"],
-    restorePolicy: { dryRun: input.dryRun, installCollisions: "reject" },
-    app: {
-      installId: "personal",
-      packageAppKey: privateSitePackageAppKey,
-      packageRevision: 1,
-      sourceSchemaKey: privateSitePackageAppKey,
-      sourceSchemaHash: bundledSourceSchemaHashFixtures.site,
-      label: "Personal",
-      registrationPolicy: "closed",
-      status: "installed",
-      createdAt: "2026-05-12T00:00:00.000Z",
-      updatedAt: "2026-05-12T00:00:00.000Z",
-    },
-    data: {
-      kind: STORAGE_SNAPSHOT_KIND,
-      version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: "app:personal",
-      schemaKey: privateSitePackageAppKey,
-      exportedAt: "2026-05-12T00:00:00.000Z",
-      schemaUpdatedAt: "2026-05-12T00:00:00.000Z",
-      sourceCursor: 1,
-      schema: siteSourceSchema,
-      records: [siteRecord()],
-    },
-    media: { objects: [] },
-  };
-}
-
-function tasksAppArchive(input: {
-  dryRun: boolean;
-  installCollisions?: "reject" | "replace";
-  records?: StoredRecord[];
-}): AppArchive {
-  return {
-    kind: APP_ARCHIVE_KIND,
-    version: ARCHIVE_VERSION,
-    exportedAt: "2026-05-12T00:00:00.000Z",
-    capabilities: ["app-store-snapshots", "core-media-assets"],
-    restorePolicy: { dryRun: input.dryRun, installCollisions: input.installCollisions ?? "reject" },
-    app: {
-      installId: "work",
-      packageAppKey: taskPackageAppKey,
-      packageRevision: 7,
-      sourceSchemaKey: taskPackageAppKey,
-      sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
-      label: "Work Tasks",
-      registrationPolicy: "closed",
-      status: "installed",
-      createdAt: "2026-05-12T00:00:00.000Z",
-      updatedAt: "2026-05-12T00:00:00.000Z",
-    },
-    data: {
-      kind: STORAGE_SNAPSHOT_KIND,
-      version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: "app:work",
-      schemaKey: taskPackageAppKey,
-      exportedAt: "2026-05-12T00:00:00.000Z",
-      schemaUpdatedAt: "2026-05-12T00:00:00.000Z",
-      sourceCursor: 1,
-      schema: taskSourceSchema,
-      records: input.records ?? [taskRecord()],
-    },
-    media: { objects: [] },
-  };
-}
-
-function legacyTasksAppArchive(input: { dryRun: boolean }): AppArchive {
-  const archive = tasksAppArchive(input);
-
-  return {
-    ...archive,
-    app: {
-      ...archive.app,
-      installId: "legacy-tasks",
-      packageAppKey: "tasks",
-      packageRevision: 1,
-      sourceSchemaKey: "tasks",
-      sourceSchemaHash: bundledSourceSchemaHashFixtures.tasks,
-    },
-    data: {
-      ...archive.data,
-      storageIdentity: "app:legacy-tasks",
-      schemaKey: "tasks",
-    },
-  };
-}
-
-function legacySiteAppArchive(input: { dryRun: boolean }): AppArchive {
-  const archive = appArchive(input);
-
-  return {
-    ...archive,
-    app: {
-      ...archive.app,
-      installId: "legacy-site",
-      packageAppKey: "site",
-      sourceSchemaKey: "site",
-    },
-    data: {
-      ...archive.data,
-      storageIdentity: "app:legacy-site",
-      schemaKey: "site",
-    },
-  };
-}
-
-function legacyCrmAppArchive(input: { dryRun: boolean }): AppArchive {
-  const archive = crmAppArchive(input);
-
-  return {
-    ...archive,
-    app: {
-      ...archive.app,
-      installId: "legacy-crm",
-      packageAppKey: "crm",
-      sourceSchemaKey: "crm",
-    },
-    data: {
-      ...archive.data,
-      storageIdentity: "app:legacy-crm",
-      schemaKey: "crm",
-    },
-  };
-}
-
-function crmAppArchive(input: { dryRun: boolean }): AppArchive {
-  return {
-    kind: APP_ARCHIVE_KIND,
-    version: ARCHIVE_VERSION,
-    exportedAt: "2026-05-12T00:00:00.000Z",
-    capabilities: ["app-store-snapshots", "core-media-assets"],
-    restorePolicy: { dryRun: input.dryRun, installCollisions: "reject" },
-    app: {
-      installId: "rates",
-      packageAppKey: "test-crm",
-      packageRevision: 1,
-      sourceSchemaKey: "test-crm",
-      sourceSchemaHash: bundledSourceSchemaHashFixtures.crm,
-      label: "Rates",
-      registrationPolicy: "closed",
-      status: "installed",
-      createdAt: "2026-05-12T00:00:00.000Z",
-      updatedAt: "2026-05-12T00:00:00.000Z",
-    },
-    data: {
-      kind: STORAGE_SNAPSHOT_KIND,
-      version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: "app:rates",
-      schemaKey: "test-crm",
-      exportedAt: "2026-05-12T00:00:00.000Z",
-      schemaUpdatedAt: "2026-05-12T00:00:00.000Z",
-      sourceCursor: crmTestRecords.length,
-      schema: crmSourceSchema,
-      records: crmTestRecords,
-    },
-    media: { objects: [] },
-  };
-}
-
-const mediaBytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
-const coreMediaStorageKey = "media/images/installed.png";
-const coreMediaHref = `/api/formless/media/${coreMediaStorageKey}`;
-
-function appArchiveWithMedia(input: { dryRun: boolean }): AppArchive {
-  return {
-    ...appArchive(input),
-    data: {
-      kind: STORAGE_SNAPSHOT_KIND,
-      version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity: "app:personal",
-      schemaKey: privateSitePackageAppKey,
-      exportedAt: "2026-05-12T00:00:00.000Z",
-      schemaUpdatedAt: "2026-05-12T00:00:00.000Z",
-      sourceCursor: testSiteRecords.length,
-      schema: siteSourceSchema,
-      records: testSiteRecords.map((record) =>
-        record.id === "rec_site_media_avatar" ? imageAssetRecord(record) : record,
-      ),
-    },
-    media: {
-      objects: [
-        {
-          archivePath: "media/personal/installed.png",
-          asset: {
-            byteSize: mediaBytes.byteLength,
-            contentType: "image/png",
-            deliveryHref: coreMediaHref,
-            id: "installed.png",
-            kind: "image",
-            label: "installed.png",
-            provider: "r2",
-            status: "ready",
-            storageKey: coreMediaStorageKey,
-          },
-          byteSize: mediaBytes.byteLength,
-          contentType: "image/png",
-          deliveryHref: coreMediaHref,
-          storageKey: coreMediaStorageKey,
-        },
-      ],
-    },
-  };
-}
-
-function imageAssetRecord(record: StoredRecord): StoredRecord {
-  const values = { ...record.values };
-
-  delete values.href;
-
-  return {
-    ...record,
-    values: {
-      ...values,
-      mediaAssetId: "installed.png",
-    },
-  };
-}
-
-function mediaFile() {
-  return {
-    archivePath: "media/personal/installed.png",
-    byteSize: mediaBytes.byteLength,
-    bytesBase64: Buffer.from(mediaBytes).toString("base64"),
-    contentType: "image/png",
-  };
-}
-
-function siteRecord(): StoredRecord {
-  return {
-    id: "site-main",
-    createdAt: "2026-05-12T00:00:00.000Z",
-    updatedAt: "2026-05-12T00:00:00.000Z",
-    entity: "site",
-    values: {
-      key: "personal",
-      label: "Personal",
-    },
-  };
-}
-function taskRecord(
-  overrides: {
-    done?: boolean;
-    id?: string;
-    title?: string;
-  } = {},
-): StoredRecord {
-  return {
-    id: overrides.id ?? "task-restored",
-    createdAt: "2026-05-12T00:00:00.000Z",
-    updatedAt: "2026-05-12T00:00:00.000Z",
-    entity: "task",
-    values: {
-      title: overrides.title ?? "Restored task",
-      done: overrides.done ?? false,
-      priority: "normal",
-    },
-  };
+function adminHeaders() {
+  return { Authorization: `Bearer ${adminToken}` };
 }

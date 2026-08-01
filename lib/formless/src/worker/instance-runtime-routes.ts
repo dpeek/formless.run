@@ -1,8 +1,3 @@
-import { findAppInstall, type AppInstall } from "@dpeek/formless-installed-apps";
-import {
-  installedAppStorageIdentity,
-  type InstalledAppStorageIdentity,
-} from "../shared/app-storage-identity.ts";
 import { normalizeInstanceDomainHost } from "../shared/instance-domain-mappings.ts";
 import {
   instanceControlPlaneEffectiveRouteAccess,
@@ -15,14 +10,8 @@ import {
   FORMLESS_PROGRAM_API_ROUTE_PREFIX,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
 } from "../program/target.ts";
-import {
-  parseRuntimeRouteAccess,
-  parseRuntimeRouteRequiredRole,
-  type RuntimeRouteAccess,
-  type RuntimeRouteRequiredRole,
-} from "../shared/runtime-topology.ts";
+import { parseRuntimeRouteAccess, type RuntimeRouteAccess } from "../shared/runtime-topology.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
-import type { AppPackageResolver } from "../shared/app-packages.ts";
 
 export const INTERNAL_RESOLVE_INSTANCE_RUNTIME_ROUTE_PATH = "/_internal/resolve-runtime-route";
 
@@ -35,9 +24,7 @@ export type InstanceRuntimeMountRouteResolution = {
   matchHost?: string;
   matchPath: `/${string}`;
   matchPrefix?: `/${string}`;
-  requiredRole?: RuntimeRouteRequiredRole;
   surface?: InstanceControlPlaneRouteSurface;
-  target?: InstalledAppStorageIdentity;
   targetProfile: InstanceControlPlaneRouteTargetProfile;
 };
 
@@ -124,15 +111,11 @@ export async function resolveInstanceRuntimeRouteForRequest(
 }
 
 export function resolveInstanceRuntimeRouteFromRecords(input: {
-  appInstalls: readonly AppInstall[];
   records: readonly StoredRecord[];
   request: InstanceRuntimeRouteRequest;
   options?: InstanceRuntimeRouteResolutionOptions;
-  packageResolver?: AppPackageResolver;
 }): InstanceRuntimeRouteResolution | undefined {
   const candidate = selectInstanceRuntimeRouteCandidate({
-    appInstalls: input.appInstalls,
-    packageResolver: input.packageResolver,
     records: input.records,
     request: input.request,
     options: input.options,
@@ -142,17 +125,10 @@ export function resolveInstanceRuntimeRouteFromRecords(input: {
     return undefined;
   }
 
-  return runtimeRouteResolutionFromCandidate(
-    candidate,
-    input.appInstalls,
-    input.request,
-    input.packageResolver,
-  );
+  return runtimeRouteResolutionFromCandidate(candidate, input.request);
 }
 
 function selectInstanceRuntimeRouteCandidate(input: {
-  appInstalls: readonly AppInstall[];
-  packageResolver?: AppPackageResolver;
   records: readonly StoredRecord[];
   request: InstanceRuntimeRouteRequest;
   options?: InstanceRuntimeRouteResolutionOptions;
@@ -166,10 +142,7 @@ function selectInstanceRuntimeRouteCandidate(input: {
         pathname: input.request.pathname,
       });
 
-      return candidate &&
-        routeCandidateHasAvailableRuntimeTarget(candidate, input.appInstalls, input.packageResolver)
-        ? [candidate]
-        : [];
+      return candidate && routeCandidateHasAvailableRuntimeTarget(candidate) ? [candidate] : [];
     })
     .sort(compareRouteCandidates);
 
@@ -193,22 +166,14 @@ function selectInstanceRuntimeRouteCandidate(input: {
   return candidates[0];
 }
 
-function routeCandidateHasAvailableRuntimeTarget(
-  candidate: RouteCandidate,
-  appInstalls: readonly AppInstall[],
-  packageResolver?: AppPackageResolver,
-): boolean {
+function routeCandidateHasAvailableRuntimeTarget(candidate: RouteCandidate): boolean {
   const targetProfile = candidate.values.targetProfile;
 
-  if (targetProfile !== "app" && targetProfile !== "public-site") {
+  if (targetProfile !== "public-site") {
     return true;
   }
 
-  if (targetProfile === "public-site") {
-    return candidate.values.surface === "public-site" && candidate.values.appInstall === undefined;
-  }
-
-  return installTarget(candidate.values, appInstalls, packageResolver) !== undefined;
+  return candidate.values.surface === "public-site";
 }
 
 function routeCandidateFromRecord(
@@ -257,9 +222,14 @@ function routeValues(values: StoredRecord["values"]): InstanceControlPlaneRouteV
   const matchPath = optionalAbsolutePath(values.matchPath);
   const matchPrefix = optionalAbsolutePath(values.matchPrefix);
   const access = parseRuntimeRouteAccess(optionalString(values.access));
-  const requiredRole = parseRuntimeRouteRequiredRole(optionalString(values.requiredRole));
 
-  if ((kind !== "mount" && kind !== "redirect") || !matchPath) {
+  if (
+    (kind !== "mount" && kind !== "redirect") ||
+    !matchPath ||
+    values.targetProfile === "app" ||
+    values.appInstall !== undefined ||
+    values.requiredRole !== undefined
+  ) {
     return undefined;
   }
 
@@ -269,17 +239,13 @@ function routeValues(values: StoredRecord["values"]): InstanceControlPlaneRouteV
     matchPath,
     ...(matchPrefix === undefined ? {} : { matchPrefix }),
     kind,
-    ...(values.targetProfile === "app" ||
-    values.targetProfile === "instance" ||
-    values.targetProfile === "public-site"
+    ...(values.targetProfile === "instance" || values.targetProfile === "public-site"
       ? { targetProfile: values.targetProfile }
       : {}),
-    ...(typeof values.appInstall === "string" ? { appInstall: values.appInstall } : {}),
     ...(values.surface === "admin" || values.surface === "public-site"
       ? { surface: values.surface }
       : {}),
     ...(access === undefined ? {} : { access }),
-    ...(requiredRole === undefined ? {} : { requiredRole }),
     ...(typeof values.deploymentConfig === "string"
       ? { deploymentConfig: values.deploymentConfig }
       : {}),
@@ -330,9 +296,7 @@ function hostRank(candidate: RouteCandidate): number {
 
 function runtimeRouteResolutionFromCandidate(
   candidate: RouteCandidate | InstanceRuntimeNotFoundRouteResolution,
-  appInstalls: readonly AppInstall[],
   request: InstanceRuntimeRouteRequest,
-  packageResolver?: AppPackageResolver,
 ): InstanceRuntimeRouteResolution | undefined {
   if (!("values" in candidate)) {
     return candidate;
@@ -362,13 +326,6 @@ function runtimeRouteResolutionFromCandidate(
     return undefined;
   }
 
-  const target =
-    targetProfile === "app" ? installTarget(values, appInstalls, packageResolver) : undefined;
-
-  if (targetProfile === "app" && !target) {
-    return undefined;
-  }
-
   return {
     access: instanceControlPlaneEffectiveRouteAccess(values),
     id: candidate.id,
@@ -376,35 +333,9 @@ function runtimeRouteResolutionFromCandidate(
     ...(candidate.matchHost === undefined ? {} : { matchHost: candidate.matchHost }),
     matchPath: values.matchPath,
     ...(values.matchPrefix === undefined ? {} : { matchPrefix: values.matchPrefix }),
-    ...(values.requiredRole === undefined ? {} : { requiredRole: values.requiredRole }),
     ...(values.surface === undefined ? {} : { surface: values.surface }),
-    ...(target === undefined ? {} : { target }),
     targetProfile,
   };
-}
-
-function installTarget(
-  values: InstanceControlPlaneRouteValues,
-  appInstalls: readonly AppInstall[],
-  packageResolver?: AppPackageResolver,
-): InstalledAppStorageIdentity | undefined {
-  const installId = values.appInstall;
-
-  if (!installId) {
-    return undefined;
-  }
-
-  const install = findAppInstall(appInstalls, installId);
-
-  return install
-    ? installedAppStorageIdentity(
-        {
-          installId: install.installId,
-          packageAppKey: install.packageAppKey,
-        },
-        packageResolver,
-      )
-    : undefined;
 }
 
 function redirectRouteCapturesHost(

@@ -1,10 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 import type { WebSocketEventMap } from "miniflare";
 import {
-  type InstanceControlPlaneAppInstallValues,
-  type InstanceControlPlaneRouteValues,
-} from "@dpeek/formless-instance-control-plane";
-import {
   IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH,
   IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX,
 } from "@dpeek/formless-identity-control-plane";
@@ -19,19 +15,12 @@ import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import { FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER } from "../shared/protocol.ts";
 import type {
-  AppInstallsResponse,
   BootstrapResponse,
-  CreateAppInstallResponse,
   OwnerIdentity,
   SchemaResponse,
-  SyncResponse,
   SyncSocketServerMessage,
 } from "../shared/protocol.ts";
-import type {
-  OperationCommandOutput,
-  OperationInvocationResponse,
-} from "../shared/operation-invocation.ts";
-import { crmSourceSchema } from "../test/schema-apps.ts";
+import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import { ensureTestIdentityOwner } from "../test/identity-owner.ts";
 import {
   instanceControlPlaneTestStorageSnapshot,
@@ -40,9 +29,7 @@ import {
   restoreTestStorageSnapshot,
 } from "../test/authority-write.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
-import { INTERNAL_READ_OPERATION_INVOCATIONS_PATH } from "./instance-control-plane.ts";
 import { createOwnerSessionCookie } from "./owner-session.ts";
-import type { StoredOperationInvocation } from "./storage.ts";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 
@@ -54,7 +41,6 @@ type FailureResponse = {
 
 const adminToken = "test-admin-token";
 const controlPlaneApi = "/api/formless/program";
-const createAppInstallOperation = `${controlPlaneApi}/operations/app-install/createAppInstall`;
 const owner: OwnerIdentity = {
   id: "owner-1",
   name: "Ada Owner",
@@ -102,15 +88,7 @@ describe("instance control-plane API routes", () => {
         "Current Program member, owner, or admin authorization is required for this read endpoint.",
     });
     expect(ownerRead.body.records).toEqual(expect.arrayContaining(admin.body.records));
-    expect(admin.body.records.map((record) => record.id).sort()).toEqual(
-      [
-        "role:app.admin",
-        "role:app.editor",
-        "role:app.user",
-        "role:app.viewer",
-        "role:instance.owner",
-      ].sort(),
-    );
+    expect(admin.body.records.map((record) => record.id)).toEqual(["role:instance.owner"]);
   });
 
   it("grants the complete replica by ordered Program role while separating management and operations", async () => {
@@ -311,15 +289,6 @@ describe("instance control-plane API routes", () => {
     const removedAdminSession = await principalSessionHeaders(removedAdminPrincipal.id);
     const disabledAdminSession = await principalSessionHeaders(disabledAdminPrincipal.id);
 
-    const appInstall = await postJson<CreateAppInstallResponse>(
-      "/api/formless/app-installs",
-      {
-        packageAppKey: "test-crm",
-        installId: "admin-crm",
-        label: "Admin CRM",
-      },
-      adminSession,
-    );
     const deploymentConfig = await postJson<OperationInvocationResponse>(
       `${controlPlaneApi}/operations/deployment-config/create`,
       {
@@ -429,7 +398,7 @@ describe("instance control-plane API routes", () => {
       input: { status: "disabled" },
     });
 
-    const removedAdminRead = await harness.fetch("/api/formless/app-installs", {
+    const removedAdminRead = await harness.fetch(`${controlPlaneApi}/bootstrap`, {
       headers: removedAdminSession,
     });
     const disabledAdminWrite = await postJson<FailureResponse>(
@@ -445,8 +414,6 @@ describe("instance control-plane API routes", () => {
       disabledAdminSession,
     );
 
-    expect(appInstall.response.status).toBe(201);
-    expect(appInstall.body.install.installId).toBe("admin-crm");
     expect(deploymentConfig.response.status).toBe(200);
     expect(route.response.status).toBe(200);
     expect(emailDomain.response.status).toBe(200);
@@ -466,11 +433,10 @@ describe("instance control-plane API routes", () => {
     expect(ordinaryWrite.body.error).toBe(
       "Current Program operation access is required for this endpoint.",
     );
-    expect(removedAdminRead.status).toBe(200);
+    expect(removedAdminRead.status).toBe(401);
     expect(await removedAdminRead.json()).toEqual({
-      installs: [],
-      launchLinks: [],
-      packages: [],
+      error:
+        "Current Program member, owner, or admin authorization is required for this read endpoint.",
     });
     expect(disabledAdminWrite.response.status).toBe(401);
     expect(disabledAdminWrite.body.error).toBe(
@@ -490,9 +456,9 @@ describe("instance control-plane API routes", () => {
       formlessProgramSchemaProvenance.sourceSchemaHash,
     );
     expect(runnerBootstrap.body.records.filter((record) => record.entity === "role")).toHaveLength(
-      5,
+      1,
     );
-    expect(runnerBootstrap.body.cursor).toBeGreaterThanOrEqual(6);
+    expect(runnerBootstrap.body.cursor).toBeGreaterThanOrEqual(2);
     expect(runnerBootstrap.response.headers.get(FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER)).toBe(
       runnerBootstrap.body.schemaProvenance?.sourceSchemaHash,
     );
@@ -502,12 +468,14 @@ describe("instance control-plane API routes", () => {
   });
 
   it("exports control-plane storage snapshots with the control-plane identity", async () => {
-    const created = await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
+    await postAdminJson<OperationInvocationResponse>(`${controlPlaneApi}/operations/route/create`, {
       idempotencyKey: "create-snapshot-export",
       input: {
-        packageAppKey: "test-crm",
-        installId: "snapshot-export",
-        label: "Snapshot Export CRM",
+        access: "owner",
+        enabled: true,
+        kind: "mount",
+        matchPath: "/snapshot-export",
+        targetProfile: "instance",
       },
     });
     const bootstrap = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
@@ -520,276 +488,11 @@ describe("instance control-plane API routes", () => {
       schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
       exportedAt: expect.any(String),
       schemaUpdatedAt: bootstrap.body.schemaUpdatedAt,
-      sourceCursor: operationCommandResponse(created).cursor,
+      sourceCursor: bootstrap.body.cursor,
       schema: formlessProgramSchema,
     });
     expect([...snapshot.body.records].sort(byRecordId)).toEqual(
       [...bootstrap.body.records].sort(byRecordId),
-    );
-  });
-
-  it("creates app install and default route records as one idempotent control-plane operation", async () => {
-    const created = await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
-      idempotencyKey: "create-personal",
-      input: {
-        packageAppKey: "test-crm",
-        installId: "personal",
-        label: "Personal CRM",
-      },
-    });
-    const replay = await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
-      idempotencyKey: "create-personal",
-      input: {
-        packageAppKey: "test-crm",
-        installId: "personal",
-        label: "Personal CRM",
-      },
-    });
-    const controlPlane = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
-    const installedCrm = await getJson<BootstrapResponse>(
-      "/api/app-installs/test-crm/personal/bootstrap",
-    );
-    const sync = await getJson<SyncResponse>(`${controlPlaneApi}/sync?after=0`);
-    const createdOutput = operationCommandResponse(created);
-    const replayOutput = operationCommandResponse(replay);
-    const invocations = await readControlPlaneOperationInvocations();
-
-    expect(created.response.status).toBe(200);
-    expect(created.body.status).toBe("committed");
-    expect(createdOutput.affectedChangeIds).toHaveLength(2);
-    expect(createdOutput.cursor).toBe(createdOutput.changes.at(-1)?.seq);
-    expect(createdOutput.affectedChangeIds).toEqual(
-      createdOutput.changes.map((change) => String(change.seq)),
-    );
-    expect(createdOutput.changes.map((change) => change.payload.id)).toEqual([
-      "personal",
-      "route:personal:admin",
-    ]);
-    expect(createdOutput.changes.map((change) => change.writeId)).toEqual([
-      created.body.invocation.invocationId,
-      created.body.invocation.invocationId,
-    ]);
-    expect(created.body.output).not.toHaveProperty("actionId");
-    expect(created.body.output).not.toHaveProperty("response");
-    expect(replay.response.status).toBe(200);
-    expect(replay.body.status).toBe("replayed");
-    expect(replayOutput).toEqual(createdOutput);
-    expect(sync.body.changes).toEqual(expect.arrayContaining(createdOutput.changes));
-    expect(sync.body.cursor).toBe(createdOutput.cursor);
-    expect(invocations).toHaveLength(1);
-    expect(invocations[0]).toMatchObject({
-      invocationId: created.body.invocation.invocationId,
-      operationKey: "app-install.createAppInstall",
-      status: "replayed",
-      affectedChangeIds: createdOutput.affectedChangeIds,
-      output: createdOutput,
-    });
-    expect(invocations[0]?.statusHistory.map((entry) => entry.status)).toEqual([
-      "accepted",
-      "committed",
-      "replayed",
-    ]);
-    expect(installedCrm.body.schema).toEqual(crmSourceSchema);
-    expect(installedCrm.body.records).toEqual([]);
-    expect(
-      controlPlane.body.records.filter(
-        (record) => record.entity === "app-install" || record.entity === "route",
-      ),
-    ).toHaveLength(2);
-    expect(appInstallValues(controlPlane.body, "personal")).toMatchObject({
-      installId: "personal",
-      packageAppKey: "test-crm",
-      label: "Personal CRM",
-      storageIdentity: "app:personal",
-    });
-    expect(routeValues(controlPlane.body).map((route) => route["matchPath"])).toEqual([
-      "/apps/personal",
-    ]);
-    expect(JSON.stringify(controlPlane.body.records)).not.toContain("block-placement");
-  });
-
-  it("keeps control-plane records isolated from installed app storage writes", async () => {
-    await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
-      idempotencyKey: "create-work",
-      input: {
-        packageAppKey: "test-crm",
-        installId: "work",
-        label: "Work CRM",
-      },
-    });
-    const appRecordWrite = await postInstalledAppRecordOperation("test-crm", "work", {
-      idempotencyKey: "write-installed-crm-contact",
-      entity: "contact",
-      operationName: "create",
-      input: {
-        label: "Installed only",
-      },
-    });
-    const controlPlane = await getJson<BootstrapResponse>(`${controlPlaneApi}/bootstrap`);
-    const installedCrm = await getJson<BootstrapResponse>(
-      "/api/app-installs/test-crm/work/bootstrap",
-    );
-    const sync = await getJson<SyncResponse>(`${controlPlaneApi}/sync?after=0`);
-
-    expect(appRecordWrite.body.record.entity).toBe("contact");
-    expect(
-      installedCrm.body.records.some((record) => record.id === appRecordWrite.body.record.id),
-    ).toBe(true);
-    expect(
-      controlPlane.body.records
-        .filter((record) => record.entity === "app-install" || record.entity === "route")
-        .map((record) => record.entity),
-    ).toEqual(["app-install", "route"]);
-    expect(JSON.stringify(controlPlane.body.records)).not.toContain("Installed only");
-    expect(JSON.stringify(sync.body)).not.toContain(appRecordWrite.body.record.id);
-  });
-
-  it("derives installed app API summaries from real control-plane route records", async () => {
-    await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
-      idempotencyKey: "create-route-validation",
-      input: {
-        packageAppKey: "test-crm",
-        installId: "personal",
-        label: "Personal CRM",
-      },
-    });
-    const before = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-
-    const routeEdit = await postAdminJson<OperationInvocationResponse>(
-      `${controlPlaneApi}/operations/route/update`,
-      {
-        idempotencyKey: "route-edit",
-        recordId: "route:personal:admin",
-        input: {
-          matchPath: "/apps/personal-admin",
-          matchPrefix: "/apps/personal-admin/",
-        },
-      },
-    );
-    const after = await getJson<AppInstallsResponse>("/api/formless/app-installs");
-
-    expect(before.body.installs[0]).toMatchObject({
-      adminRoute: "/apps/personal",
-      installId: "personal",
-    });
-    expect(routeEdit.response.status).toBe(200);
-    expect(after.body.installs[0]).toMatchObject({
-      adminRoute: "/apps/personal-admin",
-      installId: "personal",
-    });
-  });
-
-  it("validates app install package keys against resolved packages", async () => {
-    const missingPackage = await postAdminJson<FailureResponse>(
-      `${controlPlaneApi}/operations/app-install/create`,
-      {
-        idempotencyKey: "missing-package-install",
-        input: {
-          installId: "missing",
-          packageAppKey: "missing-package",
-          label: "Missing",
-          registrationPolicy: "closed",
-          status: "installed",
-          storageIdentity: "app:missing",
-        },
-      },
-    );
-
-    expect(missingPackage.response.status).toBe(400);
-    expect(missingPackage.body.error).toContain('references unsupported package "missing-package"');
-  });
-
-  it("validates management and app-role route authorization on writes", async () => {
-    await postAdminJson<OperationInvocationResponse>(createAppInstallOperation, {
-      idempotencyKey: "create-route-authorization",
-      input: {
-        packageAppKey: "test-crm",
-        installId: "personal",
-        label: "Personal CRM",
-      },
-    });
-
-    const managementRoute = await postAdminJson<OperationInvocationResponse>(
-      `${controlPlaneApi}/operations/route/create`,
-      {
-        idempotencyKey: "management-route",
-        input: {
-          access: "management",
-          enabled: true,
-          kind: "mount",
-          matchPath: "/settings",
-          surface: "admin",
-          targetProfile: "instance",
-        },
-      },
-    );
-    const appRoleRoute = await postAdminJson<OperationInvocationResponse>(
-      `${controlPlaneApi}/operations/route/create`,
-      {
-        idempotencyKey: "app-role-route",
-        input: {
-          access: "authenticated",
-          appInstall: "personal",
-          enabled: true,
-          kind: "mount",
-          matchPath: "/apps/personal-alt",
-          requiredRole: "app.admin",
-          surface: "admin",
-          targetProfile: "app",
-        },
-      },
-    );
-    const ownerRoleRoute = await postAdminJson<FailureResponse>(
-      `${controlPlaneApi}/operations/route/create`,
-      {
-        idempotencyKey: "owner-role-route",
-        input: {
-          access: "owner",
-          appInstall: "personal",
-          enabled: true,
-          kind: "mount",
-          matchPath: "/apps/personal-owner",
-          requiredRole: "app.admin",
-          surface: "admin",
-          targetProfile: "app",
-        },
-      },
-    );
-    const managementAppRoute = await postAdminJson<FailureResponse>(
-      `${controlPlaneApi}/operations/route/create`,
-      {
-        idempotencyKey: "management-app-route",
-        input: {
-          access: "management",
-          appInstall: "personal",
-          enabled: true,
-          kind: "mount",
-          matchPath: "/apps/personal-management",
-          surface: "admin",
-          targetProfile: "app",
-        },
-      },
-    );
-
-    expect(managementRoute.response.status).toBe(200);
-    expect(operationRecord(managementRoute).values).toMatchObject({
-      access: "management",
-      targetProfile: "instance",
-    });
-    expect(appRoleRoute.response.status).toBe(200);
-    expect(operationRecord(appRoleRoute).values).toMatchObject({
-      access: "authenticated",
-      appInstall: "personal",
-      requiredRole: "app.admin",
-      targetProfile: "app",
-    });
-    expect(ownerRoleRoute.response.status).toBe(400);
-    expect(ownerRoleRoute.body.error).toBe(
-      'Field "requiredRole" requires an authenticated app admin mount with one app install.',
-    );
-    expect(managementAppRoute.response.status).toBe(400);
-    expect(managementAppRoute.body.error).toBe(
-      'Field "access" can only be "management" for instance mount routes.',
     );
   });
 
@@ -1106,57 +809,6 @@ describe("instance control-plane API routes", () => {
     );
   });
 
-  it("enforces operational management writes and rejects runner-only access to install creation", async () => {
-    const unauthenticated = await postJson<FailureResponse>(createAppInstallOperation, {
-      idempotencyKey: "create-private",
-      input: {
-        packageAppKey: "test-crm",
-        installId: "private",
-        label: "Private",
-      },
-    });
-    const runner = await postAdminJson<FailureResponse>(
-      createAppInstallOperation,
-      {
-        idempotencyKey: "create-runner",
-        input: {
-          packageAppKey: "test-crm",
-          installId: "runner",
-          label: "Runner",
-        },
-      },
-      { actorKind: "runner" },
-    );
-    const runnerMutation = await postAdminJson<FailureResponse>(
-      `${controlPlaneApi}/operations/app-install/create`,
-      {
-        idempotencyKey: "runner-install",
-        input: {
-          installId: "runner",
-          packageAppKey: "test-crm",
-          label: "Runner",
-          registrationPolicy: "closed",
-          status: "installed",
-          storageIdentity: "app:runner",
-        },
-      },
-      { actorKind: "runner" },
-    );
-
-    expect(unauthenticated.response.status).toBe(401);
-    expect(unauthenticated.body.error).toBe(
-      "Owner session, Program administrator session, or admin authorization is required for this write endpoint.",
-    );
-    expect(runner.response.status).toBe(400);
-    expect(runner.body.error).toBe(
-      'Operation "app-install.createAppInstall" is not exposed to actor "runner".',
-    );
-    expect(runnerMutation.response.status).toBe(400);
-    expect(runnerMutation.body.error).toBe(
-      'Control-plane entityOperation writes are not exposed to actor "runner".',
-    );
-  });
-
   it("allows secret references but rejects secret values in records and snapshot restore", async () => {
     const now = "2026-05-28T00:00:00.000Z";
     const deploymentConfig = await postAdminJson<OperationInvocationResponse>(
@@ -1264,31 +916,6 @@ async function postJson<T>(path: string, body: unknown, headers: Record<string, 
   };
 }
 
-async function postInstalledAppRecordOperation(
-  packageAppKey: string,
-  installId: string,
-  body: Parameters<typeof recordOperationRequest>[0],
-) {
-  const request = recordOperationRequest(body);
-  const response = await harness.fetch(
-    `/api/app-installs/${packageAppKey}/${installId}${request.path.slice("/api".length)}`,
-    {
-      body: JSON.stringify(request.body),
-      headers: {
-        ...adminHeaders(),
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-    },
-  );
-  const bodyJson = await response.json();
-
-  return {
-    body: request.response(bodyJson),
-    response,
-  };
-}
-
 async function resetWorkerState() {
   try {
     await resetKnownState();
@@ -1308,20 +935,6 @@ async function resetKnownState() {
   );
 }
 
-async function readControlPlaneOperationInvocations(): Promise<StoredOperationInvocation[]> {
-  const response = await harness.durableObjectFetch(
-    "FORMLESS_AUTHORITY",
-    FORMLESS_PROGRAM_STORAGE_IDENTITY,
-    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${INTERNAL_READ_OPERATION_INVOCATIONS_PATH}`,
-    { method: "GET" },
-  );
-  const body = (await response.json()) as {
-    invocations?: StoredOperationInvocation[];
-  };
-  expect(response.status).toBe(200);
-  expect(Array.isArray(body.invocations)).toBe(true);
-  return body.invocations ?? [];
-}
 function adminHeaders(headers: Record<string, string> = {}) {
   return {
     ...headers,
@@ -1508,21 +1121,6 @@ function expectProgramSyncSocketClosedWithoutMessage(
   });
 }
 
-function appInstallValues(
-  bootstrap: BootstrapResponse,
-  installId: string,
-): InstanceControlPlaneAppInstallValues | undefined {
-  return bootstrap.records.find(
-    (record) => record.id === installId && record.entity === "app-install",
-  )?.values as InstanceControlPlaneAppInstallValues | undefined;
-}
-
-function routeValues(bootstrap: BootstrapResponse): InstanceControlPlaneRouteValues[] {
-  return bootstrap.records
-    .filter((record) => record.entity === "route")
-    .map((record) => record.values as InstanceControlPlaneRouteValues);
-}
-
 function operationRecord(response: { body: OperationInvocationResponse }) {
   const output = response.body.output;
 
@@ -1537,18 +1135,6 @@ function operationRecord(response: { body: OperationInvocationResponse }) {
   return output.record;
 }
 
-function operationCommandResponse(response: {
-  body: OperationInvocationResponse;
-}): OperationCommandOutput {
-  const output = response.body.output;
-
-  if (output.type !== "command") {
-    throw new Error(`Expected command operation output, received "${output.type}".`);
-  }
-
-  return output;
-}
-
 function secretSnapshot(now: string): StorageSnapshot {
   return {
     kind: STORAGE_SNAPSHOT_KIND,
@@ -1561,17 +1147,18 @@ function secretSnapshot(now: string): StorageSnapshot {
     schema: formlessProgramSchema,
     records: [
       {
-        id: "secret",
-        entity: "app-install",
+        id: "instance.secret",
+        entity: "deployment-config",
         createdAt: now,
         updatedAt: now,
         values: {
-          installId: "secret",
-          packageAppKey: "test-crm",
-          label: "CF_API_TOKEN=hidden",
-          registrationPolicy: "closed",
-          status: "installed",
-          storageIdentity: "app:secret",
+          targetId: "instance.secret",
+          targetKind: "instance",
+          label: "Secret",
+          enabled: true,
+          targetUrl: "https://secret.example.workers.dev",
+          providerFamily: "cloudflare",
+          accountId: "CF_API_TOKEN=hidden",
         },
       },
     ],

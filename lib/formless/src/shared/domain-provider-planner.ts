@@ -83,18 +83,11 @@ function enabledProfileMappings(
   mappings: readonly DomainProviderProfileMappingIntent[],
 ): DomainProviderProfileMappingIntent[] {
   return mappings
-    .filter(
-      (mapping) =>
-        mapping.enabled &&
-        !(mapping.profile === "publicSite" && mapping.targetInstallId !== undefined),
-    )
+    .filter((mapping) => mapping.enabled)
     .map((mapping) => ({
       enabled: true,
       host: normalizeHostOrThrow(mapping.host),
       profile: mapping.profile,
-      ...(mapping.targetInstallId === undefined
-        ? {}
-        : { targetInstallId: mapping.targetInstallId }),
     }))
     .sort((left, right) => compareText(profileMappingSortKey(left), profileMappingSortKey(right)));
 }
@@ -205,7 +198,6 @@ function customDomainResource(input: {
     "custom-domain",
     input.mapping.host,
     input.mapping.profile,
-    input.mapping.targetInstallId,
   );
 
   return {
@@ -213,9 +205,6 @@ function customDomainResource(input: {
     logicalId,
     host: input.mapping.host,
     profile: input.mapping.profile,
-    ...(input.mapping.targetInstallId === undefined
-      ? {}
-      : { targetInstallId: input.mapping.targetInstallId }),
     zone: input.zone,
     props: {
       adopt: input.policy === "adopt" || input.policy === "override",
@@ -400,7 +389,7 @@ export function normalizeDomainProviderLogicalIdPart(value: string, fallback: st
 }
 
 function profileMappingSortKey(mapping: DomainProviderProfileMappingIntent): string {
-  return [mapping.host, mapping.profile, mapping.targetInstallId ?? ""].join("\u0000");
+  return [mapping.host, mapping.profile].join("\u0000");
 }
 
 function compareResources(left: DomainProviderResource, right: DomainProviderResource): number {

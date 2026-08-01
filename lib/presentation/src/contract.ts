@@ -2400,7 +2400,7 @@ export type AccessRoleContract = {
   scope?: AccessDisplayFactContract;
 };
 
-export type AccessSurfaceKind = "app-install" | "instance" | "organization" | "program";
+export type AccessSurfaceKind = "instance" | "organization" | "program";
 
 export type AccessRoleOptionContract = {
   disabledReason?: string;
@@ -2821,36 +2821,6 @@ export type ManagementFeedbackContract = {
   title: string;
 };
 
-export type ManagementInstallDialogOpenChangeIntent = {
-  dialogId: string;
-  managementId: string;
-  open: boolean;
-  type: "managementInstallDialogOpenChange";
-};
-
-export type ManagementInstallFieldIntent = {
-  dialogId: string;
-  fieldId: string;
-  intent: FieldIntent;
-  managementId: string;
-  type: "managementInstallField";
-};
-
-export type ManagementInstallPackageSelectionIntent = {
-  dialogId: string;
-  fieldId: string;
-  managementId: string;
-  optionId: string;
-  type: "managementInstallPackageSelection";
-};
-
-export type ManagementInstallSubmitIntent = {
-  controlId: string;
-  dialogId: string;
-  managementId: string;
-  type: "managementInstallSubmit";
-};
-
 export type ManagementWorkspaceOperationIntent = {
   controlId: string;
   intent: OperationPresentationIntent;
@@ -2869,29 +2839,9 @@ export type ManagementAuthorizationOpenIntent = {
 
 export type ManagementIntent =
   | ManagementAuthorizationOpenIntent
-  | ManagementInstallDialogOpenChangeIntent
-  | ManagementInstallFieldIntent
-  | ManagementInstallPackageSelectionIntent
-  | ManagementInstallSubmitIntent
   | ManagementWorkspaceOperationIntent;
 
 export type ManagementIntentHandler = (intent: ManagementIntent) => Promise<void> | void;
-
-export type ManagementPackageOptionContract = {
-  description: string;
-  id: string;
-  kind: "managementPackageOption";
-  label: string;
-  packageAppKey: string;
-  selected: boolean;
-  selectionIntent: ManagementInstallPackageSelectionIntent;
-};
-
-export type ManagementInstallFieldsContract = {
-  installId: CreateFieldContract;
-  label: CreateFieldContract;
-  package: CreateFieldContract;
-};
 
 export type ManagementAuthorizationPromptContract = {
   action: ButtonContract;
@@ -2915,41 +2865,10 @@ export type ManagementManifestReference = {
   role: "management";
 };
 
-export type ManagementInstallDialogReference = {
-  dialogId: string;
-  kind: "managementInstallDialogReference";
-  managementId: string;
-  role: "managementInstallDialog";
+export type ManagementWorkspaceReferenceContract = {
+  reference: WorkspaceManifestReference;
+  role: "routes";
 };
-
-export type ManagementInstallDialogContract = {
-  cancel: ButtonContract;
-  closeIntent: ManagementInstallDialogOpenChangeIntent;
-  description: string;
-  errors: readonly string[];
-  feedback?: ManagementFeedbackContract;
-  fields: ManagementInstallFieldsContract;
-  id: string;
-  kind: "managementInstallDialog";
-  managementId: string;
-  open: boolean;
-  packageOptions: readonly ManagementPackageOptionContract[];
-  pending?: FieldPending;
-  selectedPackageOptionId: string;
-  submit: ButtonContract;
-  submitIntent: ManagementInstallSubmitIntent;
-  title: string;
-};
-
-export type ManagementWorkspaceReferenceContract =
-  | {
-      reference: WorkspaceManifestReference;
-      role: "apps";
-    }
-  | {
-      reference: WorkspaceManifestReference;
-      role: "routes";
-    };
 
 type ManagementManifestBaseContract = {
   accessibilityLabel: string;
@@ -2969,7 +2888,6 @@ export type ManagementFailureContract = ManagementManifestBaseContract & {
 };
 
 export type ManagementReadyContract = ManagementManifestBaseContract & {
-  installDialog: ManagementInstallDialogReference;
   state: "ready";
   workspaceFeedback?: ManagementFeedbackContract;
   workspaceOperation?: ManagementWorkspaceOperationContract;
@@ -3170,7 +3088,6 @@ export type PresentationReference =
   | AuthSurfaceReference
   | DocumentThemeReference
   | ListResultReference
-  | ManagementInstallDialogReference
   | ManagementManifestReference
   | RecordResultReference
   | ShellManifestReference

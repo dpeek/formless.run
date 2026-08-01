@@ -31,10 +31,6 @@ export const IDENTITY_COLLABORATOR_INVITATION_REVOKE_API_ROUTE =
   `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}${IDENTITY_COLLABORATOR_INVITATION_REVOKE_API_PATH}` as const;
 
 export type CreateIdentityAccessManagementInvitationInput = {
-  appRegistrations?: Array<{
-    appInstallId: string;
-    selectedOrganization?: string;
-  }>;
   idempotencyKey: string;
   invitedPrincipal?: {
     displayName: string;
@@ -55,14 +51,6 @@ export type CreateIdentityAccessManagementInvitationInput = {
   };
   roleAssignments?: Array<
     | {
-        appInstallId: string;
-        roleKey: Extract<
-          IdentityControlPlaneRoleKey,
-          "app.admin" | "app.editor" | "app.user" | "app.viewer"
-        >;
-        scopeKind: Extract<IdentityRoleAssignmentScopeKind, "app-install">;
-      }
-    | {
         roleKey: Extract<IdentityControlPlaneRoleKey, "instance.owner">;
         scopeKind: Extract<IdentityRoleAssignmentScopeKind, "instance">;
       }
@@ -70,16 +58,7 @@ export type CreateIdentityAccessManagementInvitationInput = {
         roleId: IdentityProgramRoleId;
         scopeKind: "program";
       }
-    | {
-        roleKey: Extract<
-          IdentityControlPlaneRoleKey,
-          "app.admin" | "app.editor" | "app.user" | "app.viewer"
-        >;
-        scopeKind: Extract<IdentityRoleAssignmentScopeKind, "organization">;
-        scopeOrganization: string;
-      }
   >;
-  targetAppInstallId?: string;
   targetEmail: string;
   targetOrganization?: string;
   targetSurface?: IdentityInvitationTargetSurface;
@@ -147,7 +126,6 @@ export async function createIdentityAccessManagementInvitation(
 ): Promise<IdentityAccessManagementInvitationResponse> {
   const response = await fetcher(IDENTITY_COLLABORATOR_INVITATIONS_API_ROUTE, {
     body: JSON.stringify({
-      appRegistrations: [],
       memberships: [],
       roleAssignments: [],
       ...input,

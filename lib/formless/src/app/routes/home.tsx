@@ -27,7 +27,6 @@ import {
   type GeneratedWorkspaceSectionExternalAction,
 } from "../generated/generated-workspace-runtime.tsx";
 import { NotFoundRoute } from "./not-found.tsx";
-import type { AppPackageResolver } from "@dpeek/formless-installed-apps";
 import type { WorkspaceLinkActionContract } from "@dpeek/formless-presentation/contract";
 import {
   createHomeRouteSelectionState,
@@ -56,7 +55,6 @@ export type HomeRouteClientLoadState =
   | { state: "ready" };
 
 export function HomeRoute({
-  activePackageResolver,
   clientSync = true,
   onClientLoadStateChange,
   onGeneratedWorkspaceController,
@@ -66,7 +64,6 @@ export function HomeRoute({
   screenPath,
   workspaceActions,
 }: {
-  activePackageResolver?: AppPackageResolver | undefined;
   clientSync?: boolean | undefined;
   onClientLoadStateChange?: ((state: HomeRouteClientLoadState) => void) | undefined;
   onGeneratedWorkspaceController?: (
@@ -187,11 +184,7 @@ export function HomeRoute({
   }
 
   const workspace = (
-    <SchemaAppProvider
-      activePackageResolver={activePackageResolver}
-      schemaKey={schemaKey}
-      target={target}
-    >
+    <SchemaAppProvider schemaKey={schemaKey} target={target}>
       <HomeRouteGeneratedWorkspace
         getSectionSelection={(section) => ({
           selectedContextRecordId: selectHomeRouteSectionContextRecordId(

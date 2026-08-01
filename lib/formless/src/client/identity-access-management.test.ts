@@ -19,7 +19,6 @@ describe("identity access management client", () => {
       init?: RequestInit;
     }> = [];
     const summary = {
-      appRegistrations: [],
       groups: [],
       invitationGrantOptions: {
         authority: { instanceOwner: true, programAdministrator: false },
@@ -83,8 +82,7 @@ describe("identity access management client", () => {
         entity: "invitation",
         values: {
           targetEmail: "ada@example.com",
-          targetSurface: "app-install",
-          targetAppInstallId: "site",
+          targetSurface: "instance",
           status: "pending",
         },
       },
@@ -99,9 +97,8 @@ describe("identity access management client", () => {
         principalEmail: { primary: true, recovery: false },
         roleAssignments: [
           {
-            appInstallId: "site",
-            roleKey: "app.viewer",
-            scopeKind: "app-install",
+            roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+            scopeKind: "program",
           },
         ],
         targetEmail: "ada@example.com",
@@ -132,16 +129,14 @@ describe("identity access management client", () => {
     });
     expect(typeof requests[0]?.init?.body).toBe("string");
     expect(JSON.parse(requests[0]?.init?.body as string)).toEqual({
-      appRegistrations: [],
       idempotencyKey: "access-invite-ada",
       invitedPrincipal: { displayName: "Ada Collaborator" },
       memberships: [],
       principalEmail: { primary: true, recovery: false },
       roleAssignments: [
         {
-          appInstallId: "site",
-          roleKey: "app.viewer",
-          scopeKind: "app-install",
+          roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+          scopeKind: "program",
         },
       ],
       targetEmail: "ada@example.com",
@@ -162,9 +157,8 @@ describe("identity access management client", () => {
         invitationId: "invitation:ada",
         inviterPrincipalId: "principal:owner",
         status: "revoked",
-        targetAppInstallId: "site",
         targetEmail: "ada@example.com",
-        targetSurface: "app-install",
+        targetSurface: "instance",
         updatedAt: "2026-07-01T00:00:01.000Z",
       },
       revokedAt: "2026-07-01T00:00:01.000Z",
@@ -214,11 +208,6 @@ describe("identity access management client", () => {
       now: "2026-07-23T00:00:00.000Z",
       principalId: "principal:ada",
       roles: [
-        {
-          appInstallId: "site",
-          roleKey: "app.editor" as const,
-          scopeKind: "app-install" as const,
-        },
         {
           roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357" as const,
           scopeKind: "program" as const,

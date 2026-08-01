@@ -31,9 +31,11 @@ export const INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_FILE_KIND =
   "formless.instanceControlPlaneRecordSource";
 export const INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_FILE_VERSION = 1;
 export const INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_ENTITIES = [
-  "app-install",
   "route",
   "deployment-config",
+  "instance-settings",
+  "email-domain",
+  "email-sender",
 ] as const;
 export const INSTANCE_WORKSPACE_CONTROL_PLANE_RECORD_SOURCE_EXCLUDED_ENTITIES = [
   "deploy-desired-resource",
@@ -812,7 +814,7 @@ export type UpdateWorkspaceOperationStateInput = {
   workspaceRoot: string;
 };
 
-export type InstanceWorkspaceDomainProfile = "app" | "instance" | "publicSite";
+export type InstanceWorkspaceDomainProfile = "instance" | "publicSite";
 
 export type InstanceWorkspaceTarget = {
   alias: string;
@@ -906,5 +908,4 @@ export type InstanceWorkspaceDomainIntent = {
   enabled: boolean;
   host: string;
   profile: InstanceWorkspaceDomainProfile;
-  targetInstallId?: string;
 };

@@ -127,7 +127,7 @@ describe("Astryx access renderer", () => {
           id: "target:site",
           label: "Site",
           selected: false,
-          value: "app-install:site",
+          value: "program",
         },
       ],
       purpose: "acceptance-target" as const,
@@ -194,7 +194,7 @@ describe("Astryx access renderer", () => {
 
     const invitationQueries = within(invitationRender.container);
     fireEvent.click(invitationQueries.getByRole("combobox", { name: /^Roles/ }));
-    fireEvent.click(invitationQueries.getByRole("option", { name: "Site — Administrator" }));
+    fireEvent.click(invitationQueries.getByRole("option", { name: "Program — Editor" }));
     fireEvent.submit(required(invitationRender.container.querySelector("form")));
 
     fireEvent.submit(required(personRender.container.querySelector("form")));
@@ -208,7 +208,7 @@ describe("Astryx access renderer", () => {
     expect(intents).toEqual([
       {
         ...authoring.roleSelection.changeIntent,
-        selectedOptionIds: ["role:instance-owner", "role:site-admin"],
+        selectedOptionIds: ["role:instance-owner", "role:program-editor"],
       },
       authoring.submit.intent,
       personAuthoring.save.intent,

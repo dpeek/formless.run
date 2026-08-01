@@ -37,7 +37,6 @@ describe("Worker workspace gateway proxy routes", () => {
     for (const testCase of [
       { expectedStatus: 502, host: "instance.example.com" },
       { expectedStatus: 502, host: "example.com" },
-      { expectedStatus: 404, host: "app.example.com" },
       { expectedStatus: 502, host: "site-authoring.example.com" },
       { expectedStatus: 404, host: "published-site.example.com" },
     ]) {

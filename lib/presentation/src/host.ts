@@ -22,8 +22,6 @@ import type {
   DocumentThemeReference,
   ListContract,
   ListResultReference,
-  ManagementInstallDialogContract,
-  ManagementInstallDialogReference,
   ManagementIntent,
   ManagementManifestContract,
   ManagementManifestReference,
@@ -61,25 +59,23 @@ export type PresentationSnapshot<Reference extends PresentationReference> =
               ? DocumentThemeContract
               : Reference extends ManagementManifestReference
                 ? ManagementManifestContract
-                : Reference extends ManagementInstallDialogReference
-                  ? ManagementInstallDialogContract
-                  : Reference extends WorkspaceManifestReference
-                    ? WorkspaceManifestContract
-                    : Reference extends WorkspaceSectionShellReference
-                      ? WorkspaceSectionShellContract
-                      : Reference extends ShellManifestReference
-                        ? ShellManifestContract
-                        : Reference extends ShellNavigationSectionReference
-                          ? ShellNavigationSectionContract
-                          : Reference extends ListResultReference
-                            ? ListContract
-                            : Reference extends TableResultReference
-                              ? TableContract
-                              : Reference extends TreeResultReference
-                                ? TreeResultContract
-                                : Reference extends RecordResultReference
-                                  ? RecordResultContract
-                                  : never;
+                : Reference extends WorkspaceManifestReference
+                  ? WorkspaceManifestContract
+                  : Reference extends WorkspaceSectionShellReference
+                    ? WorkspaceSectionShellContract
+                    : Reference extends ShellManifestReference
+                      ? ShellManifestContract
+                      : Reference extends ShellNavigationSectionReference
+                        ? ShellNavigationSectionContract
+                        : Reference extends ListResultReference
+                          ? ListContract
+                          : Reference extends TableResultReference
+                            ? TableContract
+                            : Reference extends TreeResultReference
+                              ? TreeResultContract
+                              : Reference extends RecordResultReference
+                                ? RecordResultContract
+                                : never;
 
 export type PresentationHostListener = () => void;
 
@@ -169,11 +165,6 @@ export type ManagementManifestNode = {
   snapshot: ManagementManifestContract;
 };
 
-export type ManagementInstallDialogNode = {
-  reference: ManagementInstallDialogReference;
-  snapshot: ManagementInstallDialogContract;
-};
-
 export type PresentationNode =
   | AccessInvitationAuthoringNode
   | AccessManifestNode
@@ -182,7 +173,6 @@ export type PresentationNode =
   | AuthSurfaceNode
   | DocumentThemeNode
   | ListResultNode
-  | ManagementInstallDialogNode
   | ManagementManifestNode
   | RecordResultNode
   | ShellManifestNode
@@ -342,18 +332,6 @@ export function managementManifestReference(managementId: string): ManagementMan
   };
 }
 
-export function managementInstallDialogReference(
-  managementId: string,
-  dialogId: string,
-): ManagementInstallDialogReference {
-  return {
-    dialogId,
-    kind: "managementInstallDialogReference",
-    managementId,
-    role: "managementInstallDialog",
-  };
-}
-
 export function documentThemeReference(themeId: string): DocumentThemeReference {
   return {
     kind: "documentThemeReference",
@@ -475,8 +453,6 @@ export function presentationReferenceKey(reference: PresentationReference): stri
       return JSON.stringify([reference.role, reference.themeId]);
     case "managementManifestReference":
       return JSON.stringify([reference.role, reference.managementId]);
-    case "managementInstallDialogReference":
-      return JSON.stringify([reference.role, reference.managementId, reference.dialogId]);
     case "shellManifestReference":
       return JSON.stringify([reference.role, reference.shellId]);
     case "shellNavigationSectionReference":
@@ -521,10 +497,6 @@ export function isWorkspaceIntent(intent: PresentationIntent): intent is Workspa
     case "authPolicySelection":
     case "documentThemeModeSelection":
     case "managementAuthorizationOpen":
-    case "managementInstallDialogOpenChange":
-    case "managementInstallField":
-    case "managementInstallPackageSelection":
-    case "managementInstallSubmit":
     case "managementWorkspaceOperation":
     case "shellCreate":
     case "shellLogout":
@@ -577,10 +549,6 @@ export function isAuthIntent(intent: PresentationIntent): intent is AuthIntent {
 export function isManagementIntent(intent: PresentationIntent): intent is ManagementIntent {
   switch (intent.type) {
     case "managementAuthorizationOpen":
-    case "managementInstallDialogOpenChange":
-    case "managementInstallField":
-    case "managementInstallPackageSelection":
-    case "managementInstallSubmit":
     case "managementWorkspaceOperation":
       return true;
     default:
@@ -697,16 +665,6 @@ function assertNodeMatchesReference(node: PresentationNode) {
       if (snapshot.kind !== "managementManifest" || snapshot.id !== reference.managementId) {
         throw mismatchedNodeError(reference);
       }
-      return;
-    case "managementInstallDialogReference":
-      if (
-        snapshot.kind !== "managementInstallDialog" ||
-        snapshot.id !== reference.dialogId ||
-        snapshot.managementId !== reference.managementId
-      ) {
-        throw mismatchedNodeError(reference);
-      }
-      assertManagementInstallDialogContract(snapshot);
       return;
     case "shellManifestReference":
       if (snapshot.kind !== "shellManifest" || snapshot.id !== reference.shellId) {
@@ -1194,73 +1152,6 @@ function assertAuthSurfaceContract(snapshot: AuthSurfaceContract) {
   }
 }
 
-function assertManagementInstallDialogContract(snapshot: ManagementInstallDialogContract) {
-  const { closeIntent, fields, packageOptions, selectedPackageOptionId, submitIntent } = snapshot;
-
-  if (
-    closeIntent.managementId !== snapshot.managementId ||
-    closeIntent.dialogId !== snapshot.id ||
-    closeIntent.open
-  ) {
-    throw new Error(
-      `Formless UI management install dialog ${JSON.stringify(snapshot.id)} has an invalid close intent.`,
-    );
-  }
-
-  if (
-    submitIntent.managementId !== snapshot.managementId ||
-    submitIntent.dialogId !== snapshot.id ||
-    submitIntent.controlId !== snapshot.submit.id
-  ) {
-    throw new Error(
-      `Formless UI management install dialog ${JSON.stringify(snapshot.id)} has an invalid submit intent.`,
-    );
-  }
-
-  const fieldIds = new Set(Object.values(fields).map(({ fieldId }) => fieldId));
-  if (fieldIds.size !== 3) {
-    throw new Error(
-      `Formless UI management install dialog ${JSON.stringify(snapshot.id)} requires distinct field identities.`,
-    );
-  }
-
-  const optionIds = new Set<string>();
-  for (const option of packageOptions) {
-    if (optionIds.has(option.id)) {
-      throw new Error(
-        `Formless UI management install dialog ${JSON.stringify(snapshot.id)} has duplicate package options.`,
-      );
-    }
-    optionIds.add(option.id);
-
-    const intent = option.selectionIntent;
-    if (
-      intent.managementId !== snapshot.managementId ||
-      intent.dialogId !== snapshot.id ||
-      intent.fieldId !== fields.package.fieldId ||
-      intent.optionId !== option.id
-    ) {
-      throw new Error(
-        `Formless UI management install dialog ${JSON.stringify(snapshot.id)} has an invalid package-selection intent.`,
-      );
-    }
-  }
-
-  if (!optionIds.has(selectedPackageOptionId)) {
-    throw new Error(
-      `Formless UI management install dialog ${JSON.stringify(snapshot.id)} has no selected package option.`,
-    );
-  }
-
-  for (const option of packageOptions) {
-    if (option.selected !== (option.id === selectedPackageOptionId)) {
-      throw new Error(
-        `Formless UI management install dialog ${JSON.stringify(snapshot.id)} has inconsistent package selection.`,
-      );
-    }
-  }
-}
-
 function assertDocumentThemeContract(snapshot: DocumentThemeContract) {
   if (snapshot.policy.kind === "fixed") {
     if (snapshot.activeMode !== snapshot.policy.mode || snapshot.selectionControl !== undefined) {
@@ -1335,11 +1226,6 @@ function assertReferencesResolve(nodes: StoredPresentationNodes) {
       }
 
       const manifest = node.snapshot;
-      if (manifest.installDialog.managementId !== manifest.id) {
-        throw invalidScopedReferenceError(manifest.installDialog);
-      }
-      assertReferenceResolves(nodes, manifest.installDialog);
-
       const roleOrder = { apps: 0, routes: 1 } as const;
       const seenRoles = new Set<string>();
       let previousRoleOrder = -1;

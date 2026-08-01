@@ -4,8 +4,6 @@ export type PackageAppRevision = number;
 export type PackageAppKey = string;
 export type AppPackageKey = PackageAppKey;
 export type AppInstallId = string;
-export type AppInstallRegistrationPolicy = "closed" | "email-verified" | "custom-operation";
-export type AppInstallRegistrationOperation = `${string}.${string}`;
 export type AppInstallStatus = "installed";
 export type AppInstallRouteAccess = "anonymous" | "authenticated" | "management" | "owner";
 export type AppInstallRouteKind = "admin";
@@ -38,8 +36,6 @@ export type AppInstall = {
   packageRevision: PackageAppRevision;
   sourceSchemaHash: SourceSchemaHash;
   label: string;
-  registrationPolicy: AppInstallRegistrationPolicy;
-  registrationOperation?: AppInstallRegistrationOperation;
   status: AppInstallStatus;
   createdAt: string;
   updatedAt: string;
@@ -90,7 +86,6 @@ export type ResolvedAppPackage = {
   sourceOrigin: AppPackageSourceOrigin;
   sourceSchemaKey: string;
   sourceSchemaLocation: AppPackageSourceLocation;
-  adminRouteBase: "/apps";
 };
 
 export type AppPackageResolver = {
@@ -108,8 +103,6 @@ export type AppInstallInitializationPlan = {
 
 export type AppInstallRegistryErrorCode =
   | "duplicate-install-id"
-  | "invalid-registration-operation"
-  | "invalid-registration-policy"
   | "invalid-install-id"
   | "invalid-label"
   | "source-validation-failed"
@@ -117,13 +110,7 @@ export type AppInstallRegistryErrorCode =
 
 export type AppInstallRegistryError = {
   code: AppInstallRegistryErrorCode;
-  field?:
-    | "installId"
-    | "label"
-    | "packageAppKey"
-    | "registrationOperation"
-    | "registrationPolicy"
-    | "source";
+  field?: "installId" | "label" | "packageAppKey" | "source";
   message: string;
 };
 
@@ -150,8 +137,6 @@ export type CreateAppInstallInput = {
   now: string;
   packageAppKey: string;
   packageResolver: AppPackageResolver;
-  registrationOperation?: AppInstallRegistrationOperation;
-  registrationPolicy?: AppInstallRegistrationPolicy;
   validateInitialSource?: (
     context: AppInstallSourceValidationContext,
   ) => AppInstallRegistryError | undefined;

@@ -41,7 +41,6 @@ const updatedAt = "2026-05-21T00:05:00.000Z";
 const expiresAt = "2026-05-21T01:00:00.000Z";
 const expiredAt = "2026-05-21T00:00:30.000Z";
 const invitationRegistrationChallenge = "aW52aXRhdGlvbi1yZWdpc3RyYXRpb24tY2hhbGxlbmdl";
-const signupRegistrationChallenge = "c2lnbnVwLXJlZ2lzdHJhdGlvbi1jaGFsbGVuZ2U";
 const loginChallenge = "bG9naW4tY2hhbGxlbmdl";
 const migratedLoginChallenge = "bWlncmF0ZWQtbG9naW4tY2hhbGxlbmdl";
 const legacyOwnerSetupChallenge = "bGVnYWN5LW93bmVyLXNldHVwLWNoYWxsZW5nZQ";
@@ -57,10 +56,9 @@ const nonceHash = "bm9uY2UtaGFzaA";
 const state = "c3RhdGU";
 const instanceId = "instance.example.com";
 const principalId = "principal-1";
-const targetOrigin = "https://app.example.com";
-const routeId = "route:personal:admin";
-const appInstallId = "personal";
-const storageIdentity = "app:personal";
+const targetOrigin = canonicalOrigin;
+const routeId = "route:instance:admin";
+const storageIdentity = "instance:control-plane";
 const returnTo = "/settings?panel=routes";
 const invitationId = "invitation:ada";
 const revokedInvitationId = "invitation:grace";
@@ -70,7 +68,6 @@ const revokedInvitationRawToken = "aW52aXRlLXJhdy10b2tlbi0y";
 const emailVerificationRawToken = "ZW1haWwtdmVyaWZpY2F0aW9uLXJhdy10b2tlbi0x";
 const revokedEmailVerificationRawToken = "ZW1haWwtdmVyaWZpY2F0aW9uLXJhdy10b2tlbi0y";
 const emailVerificationChallengeId = "email-verification:ada";
-const signupEmailChallengeId = "email-verification:signup";
 const revokedEmailVerificationChallengeId = "email-verification:grace";
 const expiredEmailVerificationChallengeId = "email-verification:expired";
 const credentialId = "Y3JlZGVudGlhbC0x";
@@ -247,29 +244,12 @@ describe("instance auth state", () => {
       createdAt,
       expiresAt,
     });
-    const signupRegistration = await createChallenge({
-      kind: "registration",
-      challenge: signupRegistrationChallenge,
-      signupEmailChallengeId,
-      principalId,
-      canonicalOrigin,
-      relyingPartyId,
-      createdAt,
-      expiresAt,
-    });
     const storedInvitationRegistration = await readChallenge(invitationRegistrationChallenge);
-    const storedSignupRegistration = await readChallenge(signupRegistrationChallenge);
     const consumedInvitationRegistration = await consumeChallenge({
       kind: "registration",
       challenge: invitationRegistrationChallenge,
       now: updatedAt,
     });
-    const consumedSignupRegistration = await consumeChallenge({
-      kind: "registration",
-      challenge: signupRegistrationChallenge,
-      now: updatedAt,
-    });
-
     const replay = await consumeChallenge({
       kind: "registration",
       challenge: invitationRegistrationChallenge,
@@ -294,34 +274,10 @@ describe("instance auth state", () => {
     expect(storedInvitationRegistration).toEqual({
       challenge: invitationRegistration.ok ? invitationRegistration.challenge : undefined,
     });
-    expect(signupRegistration).toEqual({
-      ok: true,
-      challenge: {
-        id: expect.any(String),
-        kind: "registration",
-        challenge: signupRegistrationChallenge,
-        signupEmailChallengeId,
-        principalId,
-        canonicalOrigin,
-        relyingPartyId,
-        createdAt,
-        expiresAt,
-      },
-    });
-    expect(storedSignupRegistration).toEqual({
-      challenge: signupRegistration.ok ? signupRegistration.challenge : undefined,
-    });
     expect(consumedInvitationRegistration).toEqual({
       ok: true,
       challenge: {
         ...(invitationRegistration.ok ? invitationRegistration.challenge : undefined),
-        consumedAt: updatedAt,
-      },
-    });
-    expect(consumedSignupRegistration).toEqual({
-      ok: true,
-      challenge: {
-        ...(signupRegistration.ok ? signupRegistration.challenge : undefined),
         consumedAt: updatedAt,
       },
     });
@@ -499,9 +455,7 @@ describe("instance auth state", () => {
       principalId,
       targetOrigin,
       routeId,
-      targetProfile: "app",
-      requiredRole: "app.admin",
-      appInstallId,
+      targetProfile: "instance",
       storageIdentity,
       sessionVersion: 1,
       updatedAt: createdAt,
@@ -551,9 +505,7 @@ describe("instance auth state", () => {
         principalId,
         targetOrigin,
         routeId,
-        targetProfile: "app",
-        requiredRole: "app.admin",
-        appInstallId,
+        targetProfile: "instance",
         storageIdentity,
         returnTo,
         nonceHash,
@@ -603,8 +555,7 @@ describe("instance auth state", () => {
       invitationId,
       tokenHash,
       targetEmail: "Ada@Example.COM",
-      targetSurface: "app-install",
-      targetAppInstallId: appInstallId,
+      targetSurface: "instance",
     });
     const duplicateByInvitation = await createInvitationToken({
       invitationId,
@@ -647,8 +598,7 @@ describe("instance auth state", () => {
       invitationId,
       tokenHash,
       target: {
-        targetSurface: "app-install",
-        targetAppInstallId: appInstallId,
+        targetSurface: "instance",
       },
       targetEmail: "ada@example.com",
       now: updatedAt,
@@ -682,8 +632,7 @@ describe("instance auth state", () => {
         invitationId,
         tokenHash,
         normalizedTargetEmail: "ada@example.com",
-        targetSurface: "app-install",
-        targetAppInstallId: appInstallId,
+        targetSurface: "instance",
         createdAt,
         expiresAt,
       },
@@ -813,7 +762,7 @@ describe("instance auth state", () => {
       now: updatedAt,
       principalId,
       purpose: "account-completion",
-      target: { ...accountCompletionTarget(), appInstallId: "crm" },
+      target: { ...accountCompletionTarget(), storageIdentity: "instance:other" },
       tokenHash,
     });
     const validated = await validateEmailVerificationChallenge({
@@ -1171,9 +1120,7 @@ function handoffGrantInput() {
     principalId,
     targetOrigin,
     routeId,
-    targetProfile: "app",
-    requiredRole: "app.admin",
-    appInstallId,
+    targetProfile: "instance",
     storageIdentity,
     returnTo,
     nonceHash,
@@ -1185,12 +1132,11 @@ function handoffGrantInput() {
 
 function accountCompletionTarget() {
   return {
-    appInstallId,
     returnTo: "/formless/auth",
     routeId,
     storageIdentity,
     targetOrigin,
-    targetProfile: "app",
+    targetProfile: "instance",
   };
 }
 
@@ -1201,9 +1147,7 @@ function hostSessionTarget() {
     principalId,
     targetOrigin,
     routeId,
-    targetProfile: "app",
-    requiredRole: "app.admin",
-    appInstallId,
+    targetProfile: "instance",
     storageIdentity,
   };
 }
@@ -1697,13 +1641,11 @@ async function writeInstanceAuthHarness() {
       function targetBindingFromSearch(url) {
         return {
           access: url.searchParams.get("access") ?? undefined,
-          requiredRole: url.searchParams.get("requiredRole") ?? undefined,
           instanceId: url.searchParams.get("instanceId") ?? undefined,
           principalId: url.searchParams.get("principalId") ?? undefined,
           targetOrigin: url.searchParams.get("targetOrigin") ?? undefined,
           routeId: url.searchParams.get("routeId") ?? undefined,
           targetProfile: url.searchParams.get("targetProfile") ?? undefined,
-          appInstallId: url.searchParams.get("appInstallId") ?? undefined,
           storageIdentity: url.searchParams.get("storageIdentity") ?? undefined,
         };
       }

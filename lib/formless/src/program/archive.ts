@@ -88,7 +88,6 @@ function archiveOptions(
   return {
     ...archiveValidationOptions,
     controlPlaneSnapshotContract: formlessProgramArchiveSnapshotContract({
-      packageResolver: options.packageResolver,
       schema: programSchema ?? archiveSchema,
     }),
   };
@@ -103,7 +102,6 @@ function restoreTarget(
     controlPlaneSnapshotContract:
       target.controlPlaneSnapshotContract ??
       formlessProgramArchiveSnapshotContract({
-        packageResolver: target.packageResolver,
         schema: archiveSchema,
       }),
   };

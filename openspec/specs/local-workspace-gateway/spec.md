@@ -92,10 +92,10 @@ reviewable workspace source when a local workspace gateway is available.
 
 #### Scenario: Enqueue auto-save after committed browser writes
 
-- **WHEN** a browser-originated app operation, schema save, app install,
+- **WHEN** a browser-originated Program operation, schema save,
   control-plane write, reset schema, storage snapshot restore, or deployment
   intent write commits through local Authority
-- **OR** a core media upload is accepted and then referenced by a committed app
+- **OR** a core media upload is accepted and then referenced by a committed Program
   record
 - **THEN** the browser or runtime enqueues workspace auto-save through the
   same-origin local gateway
@@ -583,14 +583,6 @@ workspace bootstrap.
 - **THEN** the workspace already has layout source and ignored local state
   prepared by the CLI before the runtime starts
 - **AND** the browser is not offered a workspace initialization action
-
-#### Scenario: Install first app from browser
-
-- **WHEN** a browser installs the first package app in a fresh local workspace
-- **THEN** the runtime creates schema-owned `app-install` and `route` records
-  through Authority validation
-- **AND** installed app data is initialized in the install-scoped app storage
-  identity
 
 ### Requirement: Gateway Secret Boundary
 

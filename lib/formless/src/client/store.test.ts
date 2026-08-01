@@ -6,11 +6,9 @@ import {
   applySchemaSave,
   getClientStoreSnapshot,
   resetClientStore,
-  selectClientStoreTarget,
   subscribeToClientStoreSelector,
 } from "./store.ts";
 import { programClientTarget } from "./app-target.ts";
-import { installedAppStorageIdentity } from "../shared/app-storage-identity.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { BootstrapResponse } from "../shared/protocol.ts";
 import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
@@ -91,24 +89,6 @@ describe("client store", () => {
     expect(after.schema).toBe(before.schema);
     expect(after.recordsById).toBe(before.recordsById);
     expect(after.recordIdsByEntity).toBe(before.recordIdsByEntity);
-  });
-
-  it("ignores stale responses for an inactive installed app", () => {
-    const installed = installedAppStorageIdentity({ installId: "private", packageAppKey: "crm" });
-
-    if (!installed) {
-      throw new Error("Expected installed app identity.");
-    }
-
-    selectClientStoreTarget(installed);
-    applyBootstrapResponse(bootstrap([record("record-1", "First")]), programClientTarget());
-
-    expect(getClientStoreSnapshot().activeSchemaKey).toBe("crm");
-    expect(getClientStoreSnapshot().recordsById).toEqual({});
-
-    applyBootstrapResponse(bootstrap([record("record-2", "Private")]), installed);
-
-    expect(getClientStoreSnapshot().recordsById["record-2"]).toEqual(record("record-2", "Private"));
   });
 
   it("tracks the runtime-owned control-plane schema key for its client target", () => {

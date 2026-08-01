@@ -101,8 +101,7 @@ describe("collaborator invitation acceptance protocol", () => {
         invitation: {
           invitationId: "invitation:ada",
           targetEmail: "Ada.Collab@example.com",
-          targetSurface: "app-install",
-          targetAppInstallId: "site",
+          targetSurface: "instance",
           expiresAt: "2999-02-01T00:00:00.000Z",
           invitedPrincipalDisplayName: "Ada Collaborator",
           passkeyRegistrationRequired: true,
@@ -113,8 +112,7 @@ describe("collaborator invitation acceptance protocol", () => {
       invitation: {
         invitationId: "invitation:ada",
         targetEmail: "Ada.Collab@example.com",
-        targetSurface: "app-install",
-        targetAppInstallId: "site",
+        targetSurface: "instance",
         expiresAt: "2999-02-01T00:00:00.000Z",
         invitedPrincipalDisplayName: "Ada Collaborator",
         passkeyRegistrationRequired: true,
@@ -177,8 +175,7 @@ describe("collaborator invitation acceptance protocol", () => {
         invitation: {
           invitationId: "invitation:ada",
           targetEmail: "Ada.Collab@example.com",
-          targetSurface: "app-install",
-          targetAppInstallId: "site",
+          targetSurface: "instance",
           expiresAt: "2999-02-01T00:00:00.000Z",
           passkeyRegistrationRequired: true,
         },
@@ -203,8 +200,7 @@ describe("collaborator invitation acceptance protocol", () => {
       invitation: {
         invitationId: "invitation:ada",
         targetEmail: "Ada.Collab@example.com",
-        targetSurface: "app-install",
-        targetAppInstallId: "site",
+        targetSurface: "instance",
         expiresAt: "2999-02-01T00:00:00.000Z",
         passkeyRegistrationRequired: true,
       },
@@ -225,8 +221,7 @@ describe("collaborator invitation acceptance protocol", () => {
         invitation: {
           invitationId: "invitation:ada",
           targetEmail: "Ada.Collab@example.com",
-          targetSurface: "app-install",
-          targetAppInstallId: "site",
+          targetSurface: "instance",
           expiresAt: "2999-02-01T00:00:00.000Z",
           passkeyRegistrationRequired: true,
         },
@@ -246,8 +241,7 @@ describe("collaborator invitation acceptance protocol", () => {
       invitation: {
         invitationId: "invitation:ada",
         targetEmail: "Ada.Collab@example.com",
-        targetSurface: "app-install",
-        targetAppInstallId: "site",
+        targetSurface: "instance",
         expiresAt: "2999-02-01T00:00:00.000Z",
         passkeyRegistrationRequired: true,
       },
@@ -275,7 +269,9 @@ describe("collaborator invitation acceptance protocol", () => {
           passkeyRegistrationRequired: true,
         },
       }),
-    ).toThrow("Collaborator invitation acceptance instance target cannot include target ids.");
+    ).toThrow(
+      'Collaborator invitation acceptance invitation summary has unsupported key "targetAppInstallId".',
+    );
     expect(() =>
       parseCollaboratorInvitationAcceptanceStatusResponse({
         eligible: false,
@@ -303,8 +299,7 @@ describe("collaborator invitation acceptance protocol", () => {
         invitation: {
           invitationId: "invitation:ada",
           targetEmail: "Ada.Collab@example.com",
-          targetSurface: "app-install",
-          targetAppInstallId: "site",
+          targetSurface: "instance",
           expiresAt: "2999-02-01T00:00:00.000Z",
           passkeyRegistrationRequired: true,
         },
@@ -326,7 +321,7 @@ describe("collaborator invitation acceptance protocol", () => {
 });
 
 describe("account completion gate protocol", () => {
-  it("parses all first-pass gate kinds with display-safe target facts", () => {
+  it("parses current Program gate kinds with display-safe target facts", () => {
     const target = accountCompletionTarget();
     const gates = [
       {
@@ -346,50 +341,13 @@ describe("account completion gate protocol", () => {
         kind: "invitation",
         invitationId: "invitation:ada",
         targetEmail: "ada@example.com",
-        targetSurface: "app-install",
-      },
-      {
-        kind: "app-registration",
-        appInstallId: "site",
-        registrationPolicy: "closed",
-        selectedOrganization: "organization:acme",
-        operation: {
-          appInstallId: "site",
-          entityName: "app-registration",
-          operationKey: "app.registration.accept",
-        },
-      },
-      {
-        kind: "app-registration",
-        appInstallId: "site",
-        registrationPolicy: "email-verified",
-        operation: {
-          appInstallId: "site",
-          entityName: "app-registration",
-          label: "Register for app",
-          operationKey: "auth.app-registration.complete",
-          operationName: "completeEmailVerifiedAppRegistration",
-        },
-      },
-      {
-        kind: "app-registration",
-        appInstallId: "members",
-        registrationPolicy: "custom-operation",
-        operation: {
-          appInstallId: "members",
-          entityName: "profile",
-          label: "Complete profile",
-          operationKey: "profile.completeRegistration",
-          operationName: "completeRegistration",
-        },
+        targetSurface: "instance",
       },
       {
         kind: "profile-completion",
-        appInstallId: "crm",
         profileRecordId: "profile:ada",
         selectedOrganization: "organization:acme",
         operation: {
-          appInstallId: "crm",
           entityName: "profile",
           operationKey: "profile.complete",
           operationName: "complete",
@@ -408,15 +366,6 @@ describe("account completion gate protocol", () => {
           },
         ],
       },
-      {
-        kind: "role-review",
-        roleId: "role:app-admin",
-        roleKey: "app.admin",
-        scopeKind: "app-install",
-        operation: {
-          operationKey: "role-review.request",
-        },
-      },
     ] as const;
 
     for (const gate of gates) {
@@ -428,35 +377,33 @@ describe("account completion gate protocol", () => {
     }
   });
 
-  it("parses target binding fields and requires a selected app install or storage identity", () => {
+  it("parses Program target binding fields and requires a storage identity", () => {
     expect(
       parseAccountCompletionGateTarget({
-        appInstallId: " site ",
         returnTo: "/records?view=mine",
-        routeId: " route:site ",
+        routeId: " route:access ",
         selectedOrganization: " organization:acme ",
-        storageIdentity: " app:site ",
-        targetOrigin: "https://App.Example.com/",
-        targetProfile: "app",
+        storageIdentity: " instance:control-plane ",
+        targetOrigin: "https://Instance.Example.com/",
+        targetProfile: "instance",
       }),
     ).toEqual({
-      appInstallId: "site",
       returnTo: "/records?view=mine",
-      routeId: "route:site",
+      routeId: "route:access",
       selectedOrganization: "organization:acme",
-      storageIdentity: "app:site",
-      targetOrigin: "https://app.example.com",
-      targetProfile: "app",
+      storageIdentity: "instance:control-plane",
+      targetOrigin: "https://instance.example.com",
+      targetProfile: "instance",
     });
 
     expect(() =>
       parseAccountCompletionGateTarget({
         returnTo: "/",
         routeId: "route:site",
-        targetOrigin: "https://app.example.com",
-        targetProfile: "app",
+        targetOrigin: "https://instance.example.com",
+        targetProfile: "instance",
       }),
-    ).toThrow("Account completion gate target requires appInstallId or storageIdentity.");
+    ).toThrow("Account completion gate target requires storageIdentity.");
   });
 
   it("keeps continuation targets path-only", () => {
@@ -514,12 +461,9 @@ describe("account completion gate protocol", () => {
         credentialMethod: "oauth",
       }),
     ).toThrow("Account completion credential gate credentialMethod is unsupported.");
-    expect(() =>
-      parseAccountCompletionGate({
-        kind: "app-registration",
-        registrationPolicy: "domain-allowlist",
-      }),
-    ).toThrow("Account completion app-registration gate registrationPolicy is unsupported.");
+    expect(() => parseAccountCompletionGate({ kind: "app-registration" })).toThrow(
+      "Account completion gate kind is unsupported.",
+    );
     expect(() =>
       parseAccountCompletionGateResolutionResult({
         status: "waiting",
@@ -560,7 +504,6 @@ describe("account completion gate protocol", () => {
       },
       {
         gate: {
-          appInstallId: "crm",
           kind: "profile-completion",
           profileValues: { firstName: "Ada" },
         },
@@ -728,13 +671,12 @@ describe("account redirects", () => {
 
 function accountCompletionTarget() {
   return {
-    appInstallId: "site",
-    returnTo: "/apps/site?screen=home",
-    routeId: "route:site",
+    returnTo: "/access",
+    routeId: "route:access",
     selectedOrganization: "organization:acme",
-    storageIdentity: "app:site",
-    targetOrigin: "https://app.example.com",
-    targetProfile: "app",
+    storageIdentity: "instance:control-plane",
+    targetOrigin: "https://instance.example.com",
+    targetProfile: "instance",
   } as const;
 }
 

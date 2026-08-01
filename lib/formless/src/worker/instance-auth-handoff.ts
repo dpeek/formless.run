@@ -1,7 +1,4 @@
-import {
-  instanceControlPlaneAppInstallsFromRecords,
-  instanceControlPlaneProductionIdentityFromRecords,
-} from "@dpeek/formless-instance-control-plane";
+import { instanceControlPlaneProductionIdentityFromRecords } from "@dpeek/formless-instance-control-plane";
 import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 
 import { nowIsoString } from "../shared/clock.ts";
@@ -20,10 +17,8 @@ import {
 import {
   acceptsRuntimeHtml,
   parseRuntimeRouteAccess,
-  parseRuntimeRouteRequiredRole,
   runtimeTopologyRoutes,
   type RuntimeRouteAccess,
-  type RuntimeRouteRequiredRole,
 } from "../shared/runtime-topology.ts";
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import {
@@ -56,7 +51,6 @@ import {
 } from "./instance-auth-state.ts";
 import { readControlPlaneRecords } from "./deployment-control-plane-client.ts";
 import {
-  readInternalIdentityAppAuthorityForPrincipal,
   readInternalIdentityAuthorityForPrincipal,
   readInternalActiveIdentityPrincipal,
   readInternalIdentityOwnerForPrincipal,
@@ -79,10 +73,7 @@ import {
   type InstanceRuntimeMountRouteResolution,
   type InstanceRuntimeRouteResolution,
 } from "./instance-runtime-routes.ts";
-import {
-  activeAppPackageResolver,
-  type ActiveRuntimeAppPackageEnv,
-} from "./runtime-app-packages.ts";
+import type { ActiveRuntimeAppPackageEnv } from "./runtime-app-packages.ts";
 import {
   evaluateAccessRequirement,
   type AccessRequirement,
@@ -114,11 +105,9 @@ const hostSessionMaxAgeSeconds = 12 * 60 * 60;
 const hostSessionPurpose = "host-session";
 const hostSessionVersion = 1;
 const base64UrlPattern = /^[A-Za-z0-9_-]+$/;
-const handoffTargetProfiles = ["instance", "app", "public-site"] as const;
+const handoffTargetProfiles = ["instance", "public-site"] as const;
 const handoffTargetHeaders = {
   access: "x-formless-auth-handoff-access",
-  appInstallId: "x-formless-auth-handoff-app-install-id",
-  requiredRole: "x-formless-auth-handoff-required-role",
   routeId: "x-formless-auth-handoff-route-id",
   storageIdentity: "x-formless-auth-handoff-storage-identity",
   targetOrigin: "x-formless-auth-handoff-target-origin",
@@ -330,12 +319,6 @@ async function startProtectedRouteAuthRedirect(
   location.searchParams.set("targetOrigin", plan.target.targetOrigin);
   location.searchParams.set("routeId", plan.target.routeId);
   location.searchParams.set("targetProfile", plan.target.targetProfile);
-  if (plan.target.appInstallId !== undefined) {
-    location.searchParams.set("appInstallId", plan.target.appInstallId);
-  }
-  if (plan.target.requiredRole !== undefined) {
-    location.searchParams.set("requiredRole", plan.target.requiredRole);
-  }
   if (plan.target.storageIdentity !== undefined) {
     location.searchParams.set("storageIdentity", plan.target.storageIdentity);
   }
@@ -525,7 +508,6 @@ export async function resolveAuthAccountHandoffContinuation(
           env,
           session.session.principalId,
           accountCompletionTarget,
-          target.requiredRole,
         )
       : completeAccountContinuationResult(accountCompletionTarget);
 
@@ -621,14 +603,6 @@ export async function handleInstanceAuthHandoffDurableObjectRequest(
         input: {
           actorKind: "authenticated",
           principalId: session.session.principalId,
-          ...(target.requiredRole === undefined
-            ? {}
-            : {
-                requiredRole: {
-                  roleKey: target.requiredRole,
-                  scopeKind: "app-install",
-                } as const,
-              }),
           target: accountCompletionTargetForHandoffTarget(target),
         },
         storage,
@@ -725,28 +699,15 @@ export function routeAccessTargetForRuntimeRoute(
     return undefined;
   }
 
-  const common = {
-    access: effectiveAccess,
-    ...(mountRoute.requiredRole === undefined ? {} : { requiredRole: mountRoute.requiredRole }),
-    routeId: mountRoute.id,
-    targetOrigin: requestOriginForAuth(request),
-    targetProfile: mountRoute.targetProfile,
-  };
-
-  if (mountRoute.target !== undefined) {
-    return {
-      ...common,
-      appInstallId: mountRoute.target.installId,
-      storageIdentity: mountRoute.target.authorityName,
-    };
-  }
-
   if (mountRoute.targetProfile !== "instance" && mountRoute.targetProfile !== "public-site") {
     return undefined;
   }
 
   return {
-    ...common,
+    access: effectiveAccess,
+    routeId: mountRoute.id,
+    targetOrigin: requestOriginForAuth(request),
+    targetProfile: mountRoute.targetProfile,
     storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
   };
 }
@@ -775,18 +736,6 @@ export function hostAuthSessionTargetForRuntimeRouteFacts(input: {
 
   const targetOrigin = input.requestOrigin;
 
-  if (mountRoute.target !== undefined) {
-    return {
-      access: effectiveAccess,
-      appInstallId: mountRoute.target.installId,
-      ...(mountRoute.requiredRole === undefined ? {} : { requiredRole: mountRoute.requiredRole }),
-      routeId: mountRoute.id,
-      storageIdentity: mountRoute.target.authorityName,
-      targetOrigin,
-      targetProfile: mountRoute.targetProfile,
-    };
-  }
-
   if (mountRoute.targetProfile !== "instance" && mountRoute.targetProfile !== "public-site") {
     return undefined;
   }
@@ -794,7 +743,6 @@ export function hostAuthSessionTargetForRuntimeRouteFacts(input: {
   return {
     access: effectiveAccess,
     routeId: mountRoute.id,
-    ...(mountRoute.requiredRole === undefined ? {} : { requiredRole: mountRoute.requiredRole }),
     storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     targetOrigin,
     targetProfile: mountRoute.targetProfile,
@@ -825,22 +773,8 @@ export function installedAppApiRouteAccessFromFacts(input: {
   runtimeRoute?: InstanceRuntimeRouteResolution;
   storageIdentity: string;
 }): InstalledAppApiRouteAccess {
-  const route = input.runtimeRoute?.kind === "mount" ? input.runtimeRoute : undefined;
-
-  if (route?.target?.authorityName !== input.storageIdentity) {
-    return {};
-  }
-
-  const target = hostAuthSessionTargetForRuntimeRouteFacts({
-    minimumAccess: "authenticated",
-    requestOrigin: input.requestOrigin,
-    runtimeRoute: route,
-  });
-
-  return {
-    access: route.access,
-    ...(target === undefined ? {} : { target }),
-  };
+  void input;
+  return {};
 }
 
 export function mappedInstanceManagementTargetFromFacts(input: {
@@ -855,7 +789,6 @@ export function mappedInstanceManagementTargetFromFacts(input: {
 
   if (
     !target ||
-    target.appInstallId !== undefined ||
     target.targetProfile !== "instance" ||
     target.storageIdentity !== FORMLESS_PROGRAM_STORAGE_IDENTITY
   ) {
@@ -880,8 +813,6 @@ export function setHostAuthSessionTargetHeaders(
     headers.delete(handoffTargetHeaders.targetOrigin);
     headers.delete(handoffTargetHeaders.routeId);
     headers.delete(handoffTargetHeaders.targetProfile);
-    headers.delete(handoffTargetHeaders.appInstallId);
-    headers.delete(handoffTargetHeaders.requiredRole);
     headers.delete(handoffTargetHeaders.storageIdentity);
 
     return;
@@ -891,18 +822,6 @@ export function setHostAuthSessionTargetHeaders(
   headers.set(handoffTargetHeaders.targetOrigin, target.targetOrigin);
   headers.set(handoffTargetHeaders.routeId, target.routeId);
   headers.set(handoffTargetHeaders.targetProfile, target.targetProfile);
-
-  if (target.appInstallId === undefined) {
-    headers.delete(handoffTargetHeaders.appInstallId);
-  } else {
-    headers.set(handoffTargetHeaders.appInstallId, target.appInstallId);
-  }
-
-  if (target.requiredRole === undefined) {
-    headers.delete(handoffTargetHeaders.requiredRole);
-  } else {
-    headers.set(handoffTargetHeaders.requiredRole, target.requiredRole);
-  }
 
   if (target.storageIdentity === undefined) {
     headers.delete(handoffTargetHeaders.storageIdentity);
@@ -1073,7 +992,7 @@ async function validateAuthOriginSession(
       ...(options.programScreenAccess === undefined
         ? {}
         : { programScreenAccess: options.programScreenAccess }),
-      requiredAuthority: options.target?.requiredRole ?? requiredAccess,
+      requiredAuthority: requiredAccess,
       ...(options.target === undefined ? {} : { target: options.target }),
     },
     instanceAuthAccessReaders(request, env, { now: options.now }),
@@ -1104,10 +1023,10 @@ async function validateHostAuthSessionRequirement(
     return { ok: false, reason: "missing-target" };
   }
 
-  const requiredAuthority = target.requiredRole ?? requiredAccess;
+  const requiredAuthority = requiredAccess;
   const result = await validateHostInstanceAuthAccess(
     {
-      ...(requiredAuthority === "authenticated" || requiredAuthority === "app.admin"
+      ...(requiredAuthority === "authenticated"
         ? { accountCompletionTarget: accountCompletionTargetForRouteRequest(request, target) }
         : {}),
       requiredAuthority,
@@ -1132,10 +1051,7 @@ async function validateHostAuthSessionRequirement(
 export type InstanceAuthAccessReaderOverrides = Partial<
   Pick<
     InstanceAuthAccessReaders,
-    | "readActivePrincipal"
-    | "readAppAdminAuthority"
-    | "readManagementAuthority"
-    | "readOwnerAuthority"
+    "readActivePrincipal" | "readManagementAuthority" | "readOwnerAuthority"
   >
 >;
 
@@ -1144,7 +1060,6 @@ export async function validateInstanceAuthAccessSession(
   env: InstanceAuthAccessEnv,
   options: {
     accountCompletionTarget?: AccountCompletionGateTarget;
-    appInstallId?: string;
     now?: string;
     programScreenAccess?: ScreenAccessRequirement;
     readers?: InstanceAuthAccessReaderOverrides;
@@ -1158,7 +1073,6 @@ export async function validateInstanceAuthAccessSession(
       ...(options.accountCompletionTarget === undefined
         ? {}
         : { accountCompletionTarget: options.accountCompletionTarget }),
-      ...(options.appInstallId === undefined ? {} : { appInstallId: options.appInstallId }),
       localOwnerSessionFallbackAllowed: isLocalOwnerSessionRuntime(request, env),
       ...(options.programScreenAccess === undefined
         ? {}
@@ -1194,15 +1108,13 @@ export async function validateBoundInstanceAuthAccessSession(
   value: unknown,
   env: InstanceAuthAccessEnv,
   options: {
-    appInstallId: string;
     now?: string;
     storageIdentity: string;
   },
 ): Promise<boolean> {
   return validateBoundInstanceAuthAuthoritySession(value, env, {
-    appInstallId: options.appInstallId,
     now: options.now,
-    requiredAuthority: "app.admin",
+    requiredAuthority: "owner",
     storageIdentity: options.storageIdentity,
   });
 }
@@ -1257,9 +1169,8 @@ async function validateBoundInstanceAuthAuthoritySession(
   value: unknown,
   env: InstanceAuthAccessEnv,
   options: {
-    appInstallId?: string;
     now?: string;
-    requiredAuthority: "app.admin" | "authenticated" | "management";
+    requiredAuthority: "authenticated" | "management" | "owner";
     storageIdentity: string;
   },
 ): Promise<boolean> {
@@ -1277,7 +1188,7 @@ async function validateBoundInstanceAuthAuthoritySession(
   if (
     target !== undefined &&
     (target.storageIdentity !== options.storageIdentity ||
-      !boundTargetMatchesAuthority(target, options.requiredAuthority, options.appInstallId))
+      !boundTargetMatchesAuthority(target, options.requiredAuthority))
   ) {
     return false;
   }
@@ -1286,8 +1197,6 @@ async function validateBoundInstanceAuthAuthoritySession(
     readAccountCompletion: () =>
       Promise.reject(new Error("Bound push sessions do not resolve account completion.")),
     readActivePrincipal: (session) => readInternalActiveIdentityPrincipal(env, session.principalId),
-    readAppAdminAuthority: (session, appInstallId) =>
-      readInternalIdentityAppAuthorityForPrincipal(env, session.principalId, appInstallId),
     readCentralSession: async () => {
       if (binding.via !== "central-session") {
         return {
@@ -1342,7 +1251,6 @@ async function validateBoundInstanceAuthAuthoritySession(
   };
   const result = await resolveInstanceAuthAccess(
     {
-      ...(options.appInstallId === undefined ? {} : { appInstallId: options.appInstallId }),
       localOwnerSessionFallbackAllowed: binding.via === "owner-session",
       requiredAuthority: options.requiredAuthority,
       ...(target === undefined ? {} : { target }),
@@ -1355,19 +1263,9 @@ async function validateBoundInstanceAuthAuthoritySession(
 
 function boundTargetMatchesAuthority(
   target: InstanceAuthSessionTargetBinding,
-  requiredAuthority: "app.admin" | "authenticated" | "management",
-  appInstallId: string | undefined,
+  requiredAuthority: "authenticated" | "management" | "owner",
 ): boolean {
-  if (requiredAuthority === "app.admin") {
-    return (
-      target.access === "authenticated" &&
-      target.requiredRole === "app.admin" &&
-      target.targetProfile === "app" &&
-      target.appInstallId === appInstallId
-    );
-  }
-
-  if (target.targetProfile !== "instance" || target.appInstallId !== undefined) {
+  if (target.targetProfile !== "instance") {
     return false;
   }
 
@@ -1399,11 +1297,10 @@ export async function validateRouteAccessSession(
             : { effectiveAccess: options.requiredAccess }),
           minimumAccess: options.requiredAccess,
         }));
-  const requiredAuthority = target?.requiredRole ?? options.requiredAccess;
+  const requiredAuthority = options.requiredAccess;
 
   return validateInstanceAuthAccessSession(request, env, {
-    ...((requiredAuthority === "authenticated" || requiredAuthority === "app.admin") &&
-    target !== undefined
+    ...(requiredAuthority === "authenticated" && target !== undefined
       ? { accountCompletionTarget: accountCompletionTargetForRouteRequest(request, target) }
       : {}),
     now: options.now,
@@ -1462,16 +1359,13 @@ function instanceAuthAccessReaders(
   } = {},
 ): InstanceAuthAccessReaders {
   const readers: InstanceAuthAccessReaders = {
-    readAccountCompletion: async (session, target, requiredRole) =>
+    readAccountCompletion: async (session, target) =>
       options.storage !== undefined
         ? resolveAccountCompletionGate({
             env,
             input: {
               actorKind: "authenticated",
               principalId: session.principalId,
-              ...(requiredRole === undefined
-                ? {}
-                : { requiredRole: { roleKey: requiredRole, scopeKind: "app-install" } }),
               target,
             },
             storage: options.storage,
@@ -1483,10 +1377,7 @@ function instanceAuthAccessReaders(
               env as InstanceAuthHandoffEnv,
               session.principalId,
               target,
-              requiredRole,
             ),
-    readAppAdminAuthority: (session, appInstallId) =>
-      readInternalIdentityAppAuthorityForPrincipal(env, session.principalId, appInstallId),
     readActivePrincipal: (session) => readInternalActiveIdentityPrincipal(env, session.principalId),
     readCentralSession: async () => {
       if (options.storage === undefined) {
@@ -1603,19 +1494,11 @@ async function resolveAccountCompletionForTarget(
   env: InstanceAuthHandoffEnv,
   principalId: string,
   target: AccountCompletionGateTarget,
-  requiredRole?: RuntimeRouteRequiredRole,
 ): Promise<AccountCompletionGateResolutionResult> {
   const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_INSTANCE_AUTHORITY_NAME);
   const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
     new Request(new URL(INSTANCE_AUTH_ACCOUNT_COMPLETION_RESOLVE_PATH, request.url), {
-      body: JSON.stringify({
-        actorKind: "authenticated",
-        principalId,
-        ...(requiredRole === undefined
-          ? {}
-          : { requiredRole: { roleKey: requiredRole, scopeKind: "app-install" } }),
-        target,
-      }),
+      body: JSON.stringify({ actorKind: "authenticated", principalId, target }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
     }),
@@ -1643,8 +1526,6 @@ function accountCompletionTargetForHandoffTarget(
 
   return {
     access: target.access,
-    ...(target.appInstallId === undefined ? {} : { appInstallId: target.appInstallId }),
-    ...(target.requiredRole === undefined ? {} : { requiredRole: target.requiredRole }),
     returnTo,
     routeId: target.routeId,
     ...(target.storageIdentity === undefined ? {} : { storageIdentity: target.storageIdentity }),
@@ -1666,8 +1547,6 @@ function accountCompletionTargetForRouteRequest(
 
   return {
     access: target.access,
-    ...(target.appInstallId === undefined ? {} : { appInstallId: target.appInstallId }),
-    ...(target.requiredRole === undefined ? {} : { requiredRole: target.requiredRole }),
     returnTo,
     routeId: target.routeId,
     ...(target.storageIdentity === undefined ? {} : { storageIdentity: target.storageIdentity }),
@@ -1917,12 +1796,10 @@ async function validateHostAuthSessionCookie(
       instanceId: payload.instanceId,
       issuedAt: payload.issuedAt,
       principalId: payload.principalId,
-      ...(payload.requiredRole === undefined ? {} : { requiredRole: payload.requiredRole }),
       routeId: payload.routeId,
       sessionVersion: payload.sessionVersion,
       targetOrigin: payload.targetOrigin,
       targetProfile: payload.targetProfile,
-      ...(payload.appInstallId === undefined ? {} : { appInstallId: payload.appInstallId }),
       ...(payload.storageIdentity === undefined
         ? {}
         : { storageIdentity: payload.storageIdentity }),
@@ -1939,22 +1816,19 @@ function handoffStartTargetFromSearch(
     throw new Error("Handoff return target must be path-only.");
   }
 
-  const appInstallId = optionalSearchParam(url, "appInstallId");
   const storageIdentity = optionalSearchParam(url, "storageIdentity");
 
-  if (appInstallId === undefined && storageIdentity === undefined) {
-    throw new Error("Handoff target requires app install id or storage identity.");
+  if (storageIdentity === undefined) {
+    throw new Error("Handoff target requires a storage identity.");
   }
 
   return {
     access: handoffTargetAccessValue(requiredSearchParam(url, "access")),
-    ...(appInstallId === undefined ? {} : { appInstallId }),
     nonceHash: base64UrlSearchParam(url, "nonceHash"),
     returnTo,
     routeId: requiredSearchParam(url, "routeId"),
-    ...optionalHandoffRequiredRole(optionalSearchParam(url, "requiredRole")),
     state: base64UrlSearchParam(url, "state"),
-    ...(storageIdentity === undefined ? {} : { storageIdentity }),
+    storageIdentity,
     targetOrigin: parseInstanceAuthCanonicalOrigin(requiredSearchParam(url, "targetOrigin")),
     targetProfile: handoffTargetProfileSearchParam(url),
   };
@@ -1982,7 +1856,7 @@ async function verifiedHandoffStartTargetFromSearch(
     runtimeRoute: route,
     topology: {
       pathname: targetUrl.pathname,
-      profileKind: route.targetProfile === "instance" ? "instance" : "app",
+      profileKind: route.targetProfile === "instance" ? "instance" : "publishedSite",
     },
   });
   const requiredAccess = programScreen?.requiredAccess ?? route.access;
@@ -2017,10 +1891,8 @@ async function runtimeRouteForHandoffTarget(
   target: InstanceAuthSessionTargetBinding & { returnTo: string },
 ): Promise<InstanceRuntimeMountRouteResolution | undefined> {
   const records = (await readControlPlaneRecords({ env, requestUrl: request.url })) ?? [];
-  const packageResolver = activeAppPackageResolver(env);
   const targetUrl = new URL(target.returnTo, target.targetOrigin);
   const route = resolveInstanceRuntimeRouteFromRecords({
-    appInstalls: instanceControlPlaneAppInstallsFromRecords(records, packageResolver),
     records,
     request: {
       host: targetUrl.hostname,
@@ -2028,7 +1900,6 @@ async function runtimeRouteForHandoffTarget(
       search: targetUrl.search,
     },
     options: { includeHostless: false },
-    packageResolver,
   });
 
   return route?.kind === "mount" && route.id === target.routeId ? route : undefined;
@@ -2089,11 +1960,9 @@ async function createHostAuthSessionCookie(
     access: grant.access,
     instanceId: grant.instanceId,
     principalId: grant.principalId,
-    ...(grant.requiredRole === undefined ? {} : { requiredRole: grant.requiredRole }),
     routeId: grant.routeId,
     targetOrigin: grant.targetOrigin,
     targetProfile: grant.targetProfile,
-    ...(grant.appInstallId === undefined ? {} : { appInstallId: grant.appInstallId }),
     ...(grant.storageIdentity === undefined ? {} : { storageIdentity: grant.storageIdentity }),
   });
   const session: HostAuthSession = {
@@ -2102,12 +1971,10 @@ async function createHostAuthSessionCookie(
     instanceId: grant.instanceId,
     issuedAt,
     principalId: grant.principalId,
-    ...(grant.requiredRole === undefined ? {} : { requiredRole: grant.requiredRole }),
     routeId: grant.routeId,
     sessionVersion: revocationVersion?.sessionVersion ?? 0,
     targetOrigin: grant.targetOrigin,
     targetProfile: grant.targetProfile,
-    ...(grant.appInstallId === undefined ? {} : { appInstallId: grant.appInstallId }),
     ...(grant.storageIdentity === undefined ? {} : { storageIdentity: grant.storageIdentity }),
   };
   const payload: HostAuthSessionPayload = {
@@ -2207,19 +2074,16 @@ function requestWithHandoffTargetHeaders(
 }
 
 function handoffTargetBindingFromHeaders(headers: Headers): InstanceAuthSessionTargetBinding {
-  const appInstallId = optionalHeader(headers, handoffTargetHeaders.appInstallId);
   const storageIdentity = optionalHeader(headers, handoffTargetHeaders.storageIdentity);
 
-  if (appInstallId === undefined && storageIdentity === undefined) {
-    throw new Error("Handoff callback target requires app install id or storage identity.");
+  if (storageIdentity === undefined) {
+    throw new Error("Handoff callback target requires a storage identity.");
   }
 
   return {
     access: handoffTargetAccessValue(requiredHeader(headers, handoffTargetHeaders.access)),
-    ...(appInstallId === undefined ? {} : { appInstallId }),
     routeId: requiredHeader(headers, handoffTargetHeaders.routeId),
-    ...optionalHandoffRequiredRole(optionalHeader(headers, handoffTargetHeaders.requiredRole)),
-    ...(storageIdentity === undefined ? {} : { storageIdentity }),
+    storageIdentity,
     targetOrigin: parseInstanceAuthCanonicalOrigin(
       requiredHeader(headers, handoffTargetHeaders.targetOrigin),
     ),
@@ -2271,12 +2135,7 @@ function parseHostAuthSession(value: unknown): HostAuthSession | undefined {
   const access = typeof value.access === "string" ? handoffTargetAccessValue(value.access) : null;
   const targetProfile =
     typeof value.targetProfile === "string" ? handoffTargetProfileValue(value.targetProfile) : null;
-  const appInstallId = optionalRecordString(value.appInstallId);
   const storageIdentity = optionalRecordString(value.storageIdentity);
-  const requiredRole =
-    typeof value.requiredRole === "string"
-      ? optionalHandoffRequiredRole(value.requiredRole).requiredRole
-      : undefined;
 
   if (
     typeof value.instanceId !== "string" ||
@@ -2296,7 +2155,9 @@ function parseHostAuthSession(value: unknown): HostAuthSession | undefined {
     sessionVersion === undefined ||
     access === null ||
     targetProfile === null ||
-    (appInstallId === undefined && storageIdentity === undefined)
+    storageIdentity === undefined ||
+    value.appInstallId !== undefined ||
+    value.requiredRole !== undefined
   ) {
     return undefined;
   }
@@ -2308,12 +2169,10 @@ function parseHostAuthSession(value: unknown): HostAuthSession | undefined {
     issuedAt: value.issuedAt,
     principalId: value.principalId.trim(),
     routeId: value.routeId.trim(),
-    ...(requiredRole === undefined ? {} : { requiredRole }),
     sessionVersion,
     targetOrigin: parseInstanceAuthCanonicalOrigin(value.targetOrigin),
     targetProfile,
-    ...(appInstallId === undefined ? {} : { appInstallId }),
-    ...(storageIdentity === undefined ? {} : { storageIdentity }),
+    storageIdentity,
   };
 }
 
@@ -2407,8 +2266,6 @@ function hostAuthSessionTargetFromSession(
 ): InstanceAuthSessionTargetBinding {
   return {
     access: session.access,
-    ...(session.appInstallId === undefined ? {} : { appInstallId: session.appInstallId }),
-    ...(session.requiredRole === undefined ? {} : { requiredRole: session.requiredRole }),
     routeId: session.routeId,
     ...(session.storageIdentity === undefined ? {} : { storageIdentity: session.storageIdentity }),
     targetOrigin: session.targetOrigin,
@@ -2461,8 +2318,6 @@ function hostAuthSessionTargetBindingsEqual(
     left.routeId === right.routeId &&
     left.targetProfile === right.targetProfile &&
     left.access === right.access &&
-    left.requiredRole === right.requiredRole &&
-    left.appInstallId === right.appInstallId &&
     left.storageIdentity === right.storageIdentity
   );
 }
@@ -2535,22 +2390,6 @@ function protectedRouteAccessSearchParam(url: URL, name: string): ProtectedRoute
   const access = value === undefined ? undefined : parseRuntimeRouteAccess(value);
 
   return access === undefined || access === "anonymous" ? undefined : access;
-}
-
-function optionalHandoffRequiredRole(value: string | undefined): {
-  requiredRole?: RuntimeRouteRequiredRole;
-} {
-  if (value === undefined) {
-    return {};
-  }
-
-  const requiredRole = parseRuntimeRouteRequiredRole(value);
-
-  if (requiredRole === undefined) {
-    throw new Error("Handoff target required role is invalid.");
-  }
-
-  return { requiredRole };
 }
 
 function requiredSearchParam(url: URL, name: string): string {

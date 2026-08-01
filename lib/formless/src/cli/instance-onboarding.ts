@@ -23,7 +23,6 @@ import {
   FORMLESS_TURNSTILE_SITE_KEY_ENV_NAME,
 } from "../shared/turnstile-config.ts";
 import { runtimeTopologyRoutes } from "../shared/runtime-topology.ts";
-import { FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME } from "../shared/workspace-runtime-packages.ts";
 import {
   FORMLESS_SITE_PROJECT_ROOT_ENV_NAME,
   FORMLESS_WORKSPACE_RUNTIME_EXTENSIONS_ENV_NAME,
@@ -334,7 +333,6 @@ export type AlchemyFormlessInstanceDeploymentWorkerProps = {
     command: typeof FORMLESS_INSTANCE_WORKER_BUILD_COMMAND;
     env: FormlessInstanceDeploymentPlan["runtimeVars"] & {
       [FORMLESS_SITE_PROJECT_ROOT_ENV_NAME]?: string;
-      [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]?: string;
       [FORMLESS_WORKSPACE_RUNTIME_EXTENSIONS_ENV_NAME]?: string;
       [FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME]?: string;
     };
@@ -342,7 +340,6 @@ export type AlchemyFormlessInstanceDeploymentWorkerProps = {
   bundle: {
     define: {
       [FORMLESS_PROGRAM_ARTIFACT_DEFINE_NAME]: string;
-      __FORMLESS_WORKSPACE_APP_PACKAGES_JSON__: string;
     };
     plugins: EsbuildPlugin[];
   };
@@ -967,9 +964,6 @@ async function declareFormlessInstanceAlchemyResourceTree(
         ...(input.workspaceRoot === undefined
           ? {}
           : { [FORMLESS_SITE_PROJECT_ROOT_ENV_NAME]: input.workspaceRoot }),
-        ...(input.workspaceAppPackages === undefined
-          ? {}
-          : { [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: input.workspaceAppPackages }),
         ...(input.workspaceProgramArtifactPath === undefined
           ? {}
           : {
@@ -987,7 +981,6 @@ async function declareFormlessInstanceAlchemyResourceTree(
         [FORMLESS_PROGRAM_ARTIFACT_DEFINE_NAME]: JSON.stringify(
           input.workspaceProgramArtifact ?? "",
         ),
-        __FORMLESS_WORKSPACE_APP_PACKAGES_JSON__: JSON.stringify(input.workspaceAppPackages ?? ""),
       },
       plugins: [
         astryxStylexWorkerBundlePlugin(path.resolve(input.packageRoot, "../renderer")),
@@ -2339,7 +2332,6 @@ function parseFormlessDeployMetadata(text: string, url: string): FormlessDeployM
   const version = parsed.version as string | null;
 
   return {
-    packageApps: Array.isArray(parsed.packageApps) ? (parsed.packageApps as never[]) : [],
     packageVersion:
       "packageVersion" in parsed && parsed.packageVersion !== undefined
         ? (parsed.packageVersion as string | null)

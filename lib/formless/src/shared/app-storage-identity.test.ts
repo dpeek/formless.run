@@ -1,46 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
-  installedAppStorageIdentity,
   parseAuthorityApiRoute,
   parseProgramApiRoute,
   programStorageIdentity,
 } from "./app-storage-identity.ts";
 
 describe("app storage identity", () => {
-  it("canonicalizes dormant Program-native package identities without activating routes", () => {
-    expect(
-      installedAppStorageIdentity({
-        installId: "personal",
-        packageAppKey: "site",
-      }),
-    ).toMatchObject({
-      authorityName: "app:personal",
-      installId: "personal",
-      packageAppKey: "site",
-    });
-    expect(
-      installedAppStorageIdentity({
-        installId: "tasks",
-        packageAppKey: "tasks",
-      }),
-    ).toMatchObject({ authorityName: "app:tasks", packageAppKey: "tasks" });
-    expect(
-      installedAppStorageIdentity({
-        installId: "crm",
-        packageAppKey: "crm",
-      }),
-    ).toMatchObject({ authorityName: "app:crm", packageAppKey: "crm" });
-  });
-
-  it("rejects invalid installed identities", () => {
-    expect(installedAppStorageIdentity({ installId: "Docs", packageAppKey: "site" })).toBe(
-      undefined,
-    );
-    expect(installedAppStorageIdentity({ installId: "rates", packageAppKey: "missing" })).toBe(
-      undefined,
-    );
-  });
-
   it("maps the root-owned Program storage identity", () => {
     expect(programStorageIdentity()).toEqual({
       apiRoutePrefix: "/api/formless/program",

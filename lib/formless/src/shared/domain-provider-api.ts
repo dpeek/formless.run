@@ -128,7 +128,6 @@ export type InstanceDomainProviderDeleteTarget = {
   resourceId: string;
   resourceJson: string;
   runnerId?: string;
-  targetInstallId?: string;
   workerName?: string;
   zoneId: string;
   zoneName: string;
