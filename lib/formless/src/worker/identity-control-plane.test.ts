@@ -952,8 +952,6 @@ describe("identity control-plane API routes", () => {
     );
 
     const serialized = JSON.stringify(ownerSummary.body);
-    expect(serialized).not.toContain("appInstall");
-    expect(serialized).not.toContain("app-registration");
     expect(serialized).not.toContain("tokenHash");
   });
 

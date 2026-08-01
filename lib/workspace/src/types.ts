@@ -62,14 +62,6 @@ export const WORKSPACE_AUTO_SAVE_STATE_FILE_VERSION = 1;
 
 export type WorkspaceOperationActor = "automation" | "browser" | "cli" | "system";
 
-export type WorkspacePackageLink = {
-  manifest: string;
-};
-
-export type InstanceWorkspacePackages = {
-  links: WorkspacePackageLink[];
-};
-
 export type WorkspaceOperationActorPolicy = {
   allowedActors: readonly WorkspaceOperationActor[];
 };
@@ -581,7 +573,6 @@ export type WorkspaceOperationState = {
 
 export const WORKSPACE_AUTO_SAVE_WRITE_SOURCES = [
   "app-operation",
-  "app-install",
   "control-plane-write",
   "deployment-intent",
   "media-reference",
@@ -822,7 +813,6 @@ export type FormlessConfigBase = {
   state?: FormlessConfigState;
   media?: FormlessConfigMedia;
   local?: FormlessConfigLocalState;
-  packages?: FormlessConfigPackages;
   runtime?: FormlessConfigRuntime;
 };
 
@@ -839,10 +829,6 @@ export type FormlessConfigLocalState = {
   secretStateRoot?: string;
 };
 
-export type FormlessConfigPackages = {
-  links?: readonly WorkspacePackageLink[];
-};
-
 export type FormlessConfigRuntime = {
   extensions?: InstanceWorkspaceRuntimeExtensions;
 };
@@ -854,7 +840,6 @@ export type ResolvedFormlessConfigBase = {
   state: InstanceWorkspaceState;
   media: InstanceWorkspaceMedia;
   local: InstanceWorkspaceLocalState;
-  packages: InstanceWorkspacePackages;
   runtime: ResolvedFormlessConfigRuntime;
 };
 

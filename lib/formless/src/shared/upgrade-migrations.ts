@@ -1,19 +1,3 @@
-import {
-  isPackageAppRevision,
-  type PackageAppKey,
-  type PackageAppRevision,
-  type SourceSchemaHash,
-} from "@dpeek/formless-installed-apps";
-import type { SchemaKey } from "./schema-apps.ts";
-
-export {
-  computeSourceSchemaHash,
-  isSourceSchemaHash,
-  sourceSchemaCanonicalJson,
-  type PackageAppRevision,
-  type SourceSchemaHash,
-} from "@dpeek/formless-installed-apps";
-
 export type UpgradeMigrationId = string;
 export type UpgradeMigrationOwner = string;
 export type UpgradeMigrationChecksum = `sha256:${string}`;
@@ -29,11 +13,6 @@ export type UpgradeMigrationSafetyClass = (typeof upgradeMigrationSafetyClasses)
 export type StorageUpgradeMigrationFamily = {
   kind: "storage";
   storageFamily: string;
-};
-
-export type PackageAppUpgradeMigrationFamily = {
-  kind: "package-app";
-  packageAppKey: PackageAppKey;
 };
 
 export type RuntimeUpgradeMigrationFamily = {
@@ -53,7 +32,6 @@ export type ArchiveUpgradeMigrationFamily = {
 
 export type UpgradeMigrationFamily =
   | StorageUpgradeMigrationFamily
-  | PackageAppUpgradeMigrationFamily
   | RuntimeUpgradeMigrationFamily
   | BrowserReplicaUpgradeMigrationFamily
   | ArchiveUpgradeMigrationFamily;
@@ -67,8 +45,6 @@ export type UpgradeMigrationApplyEvidence = {
   summary: string;
   appliedAt: string;
   packageVersion?: string;
-  fromPackageRevision?: PackageAppRevision;
-  toPackageRevision?: PackageAppRevision;
 };
 
 export type UpgradeMigrationApplyContext = {
@@ -94,23 +70,7 @@ export type UpgradeMigrationBase = {
   apply: UpgradeMigrationApply;
 };
 
-export type PackageAppUpgradeMigration = Omit<UpgradeMigrationBase, "family"> & {
-  family: PackageAppUpgradeMigrationFamily;
-  fromPackageRevision: PackageAppRevision;
-  toPackageRevision: PackageAppRevision;
-};
-
-export type NonPackageAppUpgradeMigration = Omit<UpgradeMigrationBase, "family"> & {
-  family:
-    | StorageUpgradeMigrationFamily
-    | RuntimeUpgradeMigrationFamily
-    | BrowserReplicaUpgradeMigrationFamily
-    | ArchiveUpgradeMigrationFamily;
-  fromPackageRevision?: never;
-  toPackageRevision?: never;
-};
-
-export type UpgradeMigrationDefinition = NonPackageAppUpgradeMigration | PackageAppUpgradeMigration;
+export type UpgradeMigrationDefinition = UpgradeMigrationBase;
 
 export type UpgradeMigrationRegistry = {
   migrations: readonly UpgradeMigrationDefinition[];
@@ -119,14 +79,13 @@ export type UpgradeMigrationRegistry = {
 export type UpgradeMigrationRegistryErrorCode =
   | "duplicate-migration-id"
   | "invalid-checksum"
-  | "invalid-package-revision-range"
   | "invalid-safety-class";
 
 export type UpgradeMigrationRegistryError = {
   code: UpgradeMigrationRegistryErrorCode;
   migrationId: UpgradeMigrationId;
   familyKey: string;
-  field?: "checksum" | "fromPackageRevision" | "safety" | "toPackageRevision";
+  field?: "checksum" | "safety";
   message: string;
 };
 
@@ -141,12 +100,6 @@ export type UpgradeMigrationRegistryValidationResult =
     };
 
 const sha256DigestPattern = /^sha256:[a-f0-9]{64}$/;
-
-export const bundledSourceSchemaHashFixtures = {
-  tasks: "sha256:4261e0b3e35273fa5fb55749ec297afbb3f48c35efda272958aef5b180630cd8",
-  site: "sha256:e75f60a6707337fb5589f5bc0efab60d543b5ee93565e3bedba791145a4871fd",
-  crm: "sha256:8a5914424993729bbf24d08284fcbb56341a87cbc8b079da642ac86b9024730f",
-} as const satisfies Record<SchemaKey, SourceSchemaHash>;
 
 export function isUpgradeMigrationChecksum(value: unknown): value is UpgradeMigrationChecksum {
   return typeof value === "string" && sha256DigestPattern.test(value);
@@ -217,10 +170,6 @@ export function validateUpgradeMigrationRegistry(
         message: `Migration "${migration.id}" safety class is invalid.`,
       });
     }
-
-    if (isPackageAppUpgradeMigration(migration)) {
-      addPackageRevisionRangeErrors(migration, familyKey, errors);
-    }
   }
 
   return errors.length === 0
@@ -257,57 +206,9 @@ export function upgradeMigrationFamilyKey(family: UpgradeMigrationFamily): strin
       return `archive:${family.archiveFamily}`;
     case "browser-replica":
       return `browser-replica:${family.replicaFamily}`;
-    case "package-app":
-      return `package-app:${family.packageAppKey}`;
     case "runtime":
       return `runtime:${family.runtimeFamily}`;
     case "storage":
       return `storage:${family.storageFamily}`;
   }
-}
-
-function addPackageRevisionRangeErrors(
-  migration: PackageAppUpgradeMigration,
-  familyKey: string,
-  errors: UpgradeMigrationRegistryError[],
-) {
-  if (!isPackageAppRevision(migration.fromPackageRevision)) {
-    errors.push({
-      code: "invalid-package-revision-range",
-      field: "fromPackageRevision",
-      migrationId: migration.id,
-      familyKey,
-      message: `Migration "${migration.id}" fromPackageRevision must be a positive integer.`,
-    });
-  }
-
-  if (!isPackageAppRevision(migration.toPackageRevision)) {
-    errors.push({
-      code: "invalid-package-revision-range",
-      field: "toPackageRevision",
-      migrationId: migration.id,
-      familyKey,
-      message: `Migration "${migration.id}" toPackageRevision must be a positive integer.`,
-    });
-  }
-
-  if (
-    isPackageAppRevision(migration.fromPackageRevision) &&
-    isPackageAppRevision(migration.toPackageRevision) &&
-    migration.fromPackageRevision >= migration.toPackageRevision
-  ) {
-    errors.push({
-      code: "invalid-package-revision-range",
-      field: "toPackageRevision",
-      migrationId: migration.id,
-      familyKey,
-      message: `Migration "${migration.id}" toPackageRevision must be greater than fromPackageRevision.`,
-    });
-  }
-}
-
-function isPackageAppUpgradeMigration(
-  migration: UpgradeMigrationDefinition,
-): migration is PackageAppUpgradeMigration {
-  return migration.family.kind === "package-app";
 }

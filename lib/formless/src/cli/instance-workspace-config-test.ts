@@ -6,7 +6,6 @@ export function formatTestFormlessConfigModule(config: FormlessConfig): string {
     ...(config.state === undefined ? {} : { state: config.state }),
     ...(config.media === undefined ? {} : { media: config.media }),
     ...(config.local === undefined ? {} : { local: config.local }),
-    ...(config.packages === undefined ? {} : { packages: config.packages }),
     ...(config.program === undefined ? {} : { program: config.program }),
     ...(config.runtime === undefined ? {} : { runtime: config.runtime }),
   };

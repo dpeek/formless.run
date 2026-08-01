@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "files": [
     "dist",
-    "formless.app.json",
     "schema.json",
     "src",
     "!src/**/*.test.*",
@@ -18,7 +17,6 @@
     "./public/react": "./src/public-react.tsx",
     "./worker": "./src/worker.ts",
     "./node": "./src/node.ts",
-    "./formless.app.json": "./formless.app.json",
     "./schema.json": "./schema.json"
   },
   "publishConfig": {
@@ -47,7 +45,6 @@
         "types": "./dist/node.d.mts",
         "import": "./dist/node.mjs"
       },
-      "./formless.app.json": "./formless.app.json",
       "./schema.json": "./schema.json"
     },
     "access": "public"
@@ -68,7 +65,6 @@
     "react-dom": "19.2.6"
   },
   "devDependencies": {
-    "@dpeek/formless-installed-apps": "workspace:*",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "jsdom": "^29.1.1"

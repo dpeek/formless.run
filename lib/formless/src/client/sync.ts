@@ -1,5 +1,8 @@
 import { listenForClientEvents, publishClientEvent } from "./broadcast.ts";
-import { appStorageIdentityForClientTarget, type ClientAppTarget } from "./app-target.ts";
+import {
+  programStorageIdentityForClientTarget,
+  type ProgramClientTarget,
+} from "./program-target.ts";
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
 import {
   deleteFormlessReplicaDatabases,
@@ -71,8 +74,8 @@ export type SubmitOperationOptions = BrowserWriteOptions & {
   autoSaveSource?: LocalWorkspaceAutoSaveWriteSource;
 };
 
-export async function bootstrapClient(target: ClientAppTarget, fetcher: typeof fetch = fetch) {
-  const identity = appStorageIdentityForClientTarget(target);
+export async function bootstrapClient(target: ProgramClientTarget, fetcher: typeof fetch = fetch) {
+  const identity = programStorageIdentityForClientTarget(target);
   const response = await fetchJson<BootstrapResponse>(fetcher, apiPath(identity, "bootstrap"));
 
   await saveBootstrapResponse(identity, response);
@@ -90,8 +93,8 @@ export async function resetLocalBrowserReplicaState(): Promise<FormlessReplicaDa
   return result;
 }
 
-export async function syncClient(target: ClientAppTarget, fetcher: typeof fetch = fetch) {
-  const identity = appStorageIdentityForClientTarget(target);
+export async function syncClient(target: ProgramClientTarget, fetcher: typeof fetch = fetch) {
+  const identity = programStorageIdentityForClientTarget(target);
   const cursor = await readCursor(identity);
   const schemaUpdatedAt = await readSchemaUpdatedAt(identity);
   const url = syncUrl(identity, cursor, schemaUpdatedAt);
@@ -103,11 +106,11 @@ export async function syncClient(target: ClientAppTarget, fetcher: typeof fetch 
 }
 
 export async function applySyncResponse(
-  target: ClientAppTarget,
+  target: ProgramClientTarget,
   response: SyncResponse,
   options: { currentCursor?: number } = {},
 ) {
-  const identity = appStorageIdentityForClientTarget(target);
+  const identity = programStorageIdentityForClientTarget(target);
   const cursor = options.currentCursor ?? (await readCursor(identity));
   const schemaChanged = Boolean(response.schema && response.schemaUpdatedAt);
 
@@ -133,8 +136,11 @@ export async function applySyncResponse(
   return response;
 }
 
-export async function fetchActiveSchema(target: ClientAppTarget, fetcher: typeof fetch = fetch) {
-  const identity = appStorageIdentityForClientTarget(target);
+export async function fetchActiveSchema(
+  target: ProgramClientTarget,
+  fetcher: typeof fetch = fetch,
+) {
+  const identity = programStorageIdentityForClientTarget(target);
   const response = await fetchJson<SchemaResponse>(fetcher, apiPath(identity, "schema"));
 
   await saveSchema(identity, response.schema, response.updatedAt, response.schemaProvenance);
@@ -145,12 +151,12 @@ export async function fetchActiveSchema(target: ClientAppTarget, fetcher: typeof
 }
 
 export async function saveActiveSchema(
-  target: ClientAppTarget,
+  target: ProgramClientTarget,
   schema: AppSchema,
   fetcher: typeof fetch = fetch,
   options: BrowserWriteOptions = {},
 ) {
-  const identity = appStorageIdentityForClientTarget(target);
+  const identity = programStorageIdentityForClientTarget(target);
   const response = await postJson<SchemaUpdateResponse>(
     fetcher,
     apiPath(identity, "schema"),
@@ -172,21 +178,21 @@ export async function saveActiveSchema(
 }
 
 export async function exportStorageSnapshot(
-  target: ClientAppTarget,
+  target: ProgramClientTarget,
   fetcher: typeof fetch = fetch,
 ) {
-  const identity = appStorageIdentityForClientTarget(target);
+  const identity = programStorageIdentityForClientTarget(target);
 
   return fetchJson<StorageSnapshot>(fetcher, apiPath(identity, "snapshot"));
 }
 
 export async function restoreStorageSnapshot(
-  target: ClientAppTarget,
+  target: ProgramClientTarget,
   snapshot: unknown,
   fetcher: typeof fetch = fetch,
   options: BrowserWriteOptions = {},
 ) {
-  const identity = appStorageIdentityForClientTarget(target);
+  const identity = programStorageIdentityForClientTarget(target);
   const response = await postJson<BootstrapResponse>(
     fetcher,
     apiPath(identity, "snapshot/restore"),
@@ -206,14 +212,14 @@ export async function restoreStorageSnapshot(
 }
 
 export async function submitOperation(
-  target: ClientAppTarget,
+  target: ProgramClientTarget,
   entity: EntityName,
   operationName: string,
   request: OperationInvocationRequest = {},
   fetcher: typeof fetch = fetch,
   options: SubmitOperationOptions = {},
 ) {
-  const identity = appStorageIdentityForClientTarget(target);
+  const identity = programStorageIdentityForClientTarget(target);
   const response = await postJson<OperationInvocationResponse>(
     fetcher,
     apiPath(
@@ -252,11 +258,11 @@ export async function submitOperation(
 }
 
 export async function resetSourceSchema(
-  target: ClientAppTarget,
+  target: ProgramClientTarget,
   fetcher: typeof fetch = fetch,
   options: BrowserWriteOptions = {},
 ) {
-  const identity = appStorageIdentityForClientTarget(target);
+  const identity = programStorageIdentityForClientTarget(target);
   const response = await postJson<BootstrapResponse>(
     fetcher,
     apiPath(identity, "reset/schema"),
@@ -275,8 +281,8 @@ export async function resetSourceSchema(
   return response;
 }
 
-export function startPushSync(target: ClientAppTarget, options: StartPushSyncOptions = {}) {
-  const identity = appStorageIdentityForClientTarget(target);
+export function startPushSync(target: ProgramClientTarget, options: StartPushSyncOptions = {}) {
+  const identity = programStorageIdentityForClientTarget(target);
   const onSynced = options.onSynced;
   const reconnectInitialDelayMs =
     options.reconnectInitialDelayMs ?? DEFAULT_RECONNECT_INITIAL_DELAY_MS;
@@ -421,8 +427,8 @@ export function startPushSync(target: ClientAppTarget, options: StartPushSyncOpt
   }
 }
 
-export function requestSync(target: ClientAppTarget) {
-  const identity = appStorageIdentityForClientTarget(target);
+export function requestSync(target: ProgramClientTarget) {
+  const identity = programStorageIdentityForClientTarget(target);
 
   publishClientEvent(identity, "sync-requested");
 }
@@ -432,11 +438,11 @@ function createWebSocket(url: string): SyncWebSocket {
 }
 
 async function sendSyncSocketClientMessage(
-  target: ClientAppTarget,
+  target: ProgramClientTarget,
   socket: SyncWebSocket,
   type: SyncSocketClientMessage["type"],
 ) {
-  const identity = appStorageIdentityForClientTarget(target);
+  const identity = programStorageIdentityForClientTarget(target);
   const message = {
     type,
     cursor: await readCursor(identity),
@@ -446,7 +452,7 @@ async function sendSyncSocketClientMessage(
   socket.send(JSON.stringify(message));
 }
 
-async function handleSyncSocketMessage(target: ClientAppTarget, event: MessageEvent) {
+async function handleSyncSocketMessage(target: ProgramClientTarget, event: MessageEvent) {
   const message = parseSyncSocketServerMessage(event.data);
 
   if (!message) {
@@ -493,7 +499,7 @@ async function postJson<T>(
   url: string,
   body: unknown,
   options: {
-    writeCompatibilityTarget?: ClientAppTarget;
+    writeCompatibilityTarget?: ProgramClientTarget;
   } = {},
 ): Promise<T> {
   const headers = new Headers({
@@ -528,8 +534,8 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-async function addBrowserReplicaWriteHeaders(headers: Headers, target: ClientAppTarget) {
-  const identity = appStorageIdentityForClientTarget(target);
+async function addBrowserReplicaWriteHeaders(headers: Headers, target: ProgramClientTarget) {
+  const identity = programStorageIdentityForClientTarget(target);
   const [schemaUpdatedAt, schemaProvenance] = await Promise.all([
     readSchemaUpdatedAt(identity),
     readSchemaProvenance(identity),
@@ -546,7 +552,7 @@ async function addBrowserReplicaWriteHeaders(headers: Headers, target: ClientApp
 }
 
 function notifyLocalDataChanged(
-  target: ClientAppTarget,
+  target: ProgramClientTarget,
   options: { schemaChanged?: boolean } = {},
 ) {
   publishClientEvent(target, "records-updated");
@@ -556,12 +562,12 @@ function notifyLocalDataChanged(
   }
 }
 
-function notifySchemaChanged(target: ClientAppTarget) {
+function notifySchemaChanged(target: ProgramClientTarget) {
   publishClientEvent(target, "schema-updated");
 }
 
 function autoSaveSourceForOperation(
-  _identity: ReturnType<typeof appStorageIdentityForClientTarget>,
+  _identity: ReturnType<typeof programStorageIdentityForClientTarget>,
   entity: EntityName,
 ): LocalWorkspaceAutoSaveWriteSource {
   return entity === "deployment-config" ? "deployment-intent" : "control-plane-write";
@@ -597,13 +603,13 @@ function isErrorResponse(value: unknown): value is { error: string } {
   );
 }
 
-function apiPath(target: ClientAppTarget, path: string) {
-  const identity = appStorageIdentityForClientTarget(target);
+function apiPath(target: ProgramClientTarget, path: string) {
+  const identity = programStorageIdentityForClientTarget(target);
 
   return `${identity.apiRoutePrefix}/${path}`;
 }
 
-function syncUrl(target: ClientAppTarget, cursor: number, schemaUpdatedAt: string | null) {
+function syncUrl(target: ProgramClientTarget, cursor: number, schemaUpdatedAt: string | null) {
   const params = new URLSearchParams({ after: String(cursor) });
 
   if (schemaUpdatedAt) {
@@ -613,7 +619,7 @@ function syncUrl(target: ClientAppTarget, cursor: number, schemaUpdatedAt: strin
   return `${apiPath(target, "sync")}?${params.toString()}`;
 }
 
-function syncWebSocketUrl(target: ClientAppTarget) {
+function syncWebSocketUrl(target: ProgramClientTarget) {
   const baseUrl =
     typeof globalThis.location === "undefined" ? "http://localhost/" : globalThis.location.href;
   const url = new URL(apiPath(target, "sync/ws"), baseUrl);

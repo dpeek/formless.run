@@ -11,7 +11,7 @@ import type {
   OperationInvocationResponse,
 } from "../../shared/operation-invocation.ts";
 import type { ChangeRow } from "../../shared/protocol.ts";
-import { programClientTarget } from "../../client/app-target.ts";
+import { programClientTarget } from "../../client/program-target.ts";
 import {
   executeGeneratedTableRuntimeOperation,
   selectGeneratedWorkspaceTableFoundation,

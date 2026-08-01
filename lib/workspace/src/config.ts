@@ -15,7 +15,6 @@ import type {
   FormlessConfigBase,
   InstanceWorkspaceRuntimeExtensions,
   ResolvedFormlessConfigBase,
-  WorkspacePackageLink,
 } from "./types.ts";
 
 const resourceSlugPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
@@ -63,9 +62,6 @@ export function resolveFormlessConfig(config: FormlessConfig): ResolvedFormlessC
         `${FORMLESS_CONFIG_FILE} local.secretStateRoot`,
         config.local?.secretStateRoot ?? DEFAULT_INSTANCE_WORKSPACE_SECRET_STATE_ROOT,
       ),
-    },
-    packages: {
-      links: resolvePackageLinks(config.packages?.links ?? []),
     },
     runtime: {
       extensions: resolveRuntimeExtensions(config.runtime?.extensions),
@@ -134,51 +130,6 @@ function parseWorkspaceRelativePath(context: string, value: string): string {
   return parseInstanceWorkspaceRelativePath(context, value);
 }
 
-function resolvePackageLinks(links: readonly WorkspacePackageLink[]): WorkspacePackageLink[] {
-  const resolved = links.map((link, index) => ({
-    manifest: parsePackageManifestLinkPath(
-      `${FORMLESS_CONFIG_FILE} packages.links[${index}].manifest`,
-      link.manifest,
-    ),
-  }));
-  const seen = new Set<string>();
-
-  for (const link of resolved) {
-    if (seen.has(link.manifest)) {
-      throw new Error(
-        `${FORMLESS_CONFIG_FILE} packages.links has duplicate manifest "${link.manifest}".`,
-      );
-    }
-
-    seen.add(link.manifest);
-  }
-
-  return resolved;
-}
-
-export function parseWorkspacePackageManifestLinkPath(context: string, value: unknown): string {
-  const filePath = parseRequiredString(context, value);
-  const parts = filePath.split("/");
-
-  if (
-    filePath.startsWith("/") ||
-    filePath.startsWith("~") ||
-    filePath.includes("\\") ||
-    urlLikePathPattern.test(filePath) ||
-    parts.some((part) => part === "" || part === ".") ||
-    parts.at(-1) !== "formless.app.json" ||
-    hasNonLeadingParentSegment(parts)
-  ) {
-    throw new Error(`${context} must be a local relative formless.app.json path.`);
-  }
-
-  return filePath;
-}
-
-function parsePackageManifestLinkPath(context: string, value: string): string {
-  return parseWorkspacePackageManifestLinkPath(context, value);
-}
-
 function resolveRuntimeExtensions(
   extensions: InstanceWorkspaceRuntimeExtensions | undefined,
 ): InstanceWorkspaceRuntimeExtensions {
@@ -216,22 +167,6 @@ function parseRuntimeExtensionEntrypointPath(context: string, value: string): st
   }
 
   return filePath;
-}
-
-function hasNonLeadingParentSegment(parts: string[]) {
-  let seenPackagePathSegment = false;
-
-  for (const part of parts) {
-    if (part === "..") {
-      if (seenPackagePathSegment) {
-        return true;
-      }
-    } else {
-      seenPackagePathSegment = true;
-    }
-  }
-
-  return false;
 }
 
 function parseRequiredString(context: string, value: unknown): string {

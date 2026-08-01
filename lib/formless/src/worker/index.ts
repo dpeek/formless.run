@@ -1,6 +1,9 @@
 import { FormlessAuthority } from "./authority.ts";
 import { handleWorkspaceGatewayProxyRequest } from "@dpeek/formless-gateway/worker";
-import { parseAuthorityApiRoute, parseProgramApiRoute } from "../shared/app-storage-identity.ts";
+import {
+  parseAuthorityApiRoute,
+  parseProgramApiRoute,
+} from "../shared/program-storage-identity.ts";
 import { handleInstanceArchiveApiRequest } from "./archive-api.ts";
 import { authorizeInstanceWrite, authorizeProgramAccess } from "./authority-admin-guard.ts";
 import { handleClientAssetRequest, handleClientShellDocumentRequest } from "./client-shell.ts";

@@ -8,7 +8,7 @@ import {
   parseInstanceArchive,
 } from "@dpeek/formless-archive";
 import { crmOwnedProgramEntityIds } from "@dpeek/formless-crm-app";
-import { computeSourceSchemaHash } from "@dpeek/formless-installed-apps";
+import { computeSourceSchemaHash } from "@dpeek/formless-schema";
 import { defineAppSchemaModule } from "@dpeek/formless-schema";
 import { identityControlPlaneEntityIds } from "@dpeek/formless-identity-control-plane";
 import { instanceControlPlaneEntityIds } from "@dpeek/formless-instance-control-plane";
@@ -26,10 +26,10 @@ import {
 } from "@dpeek/formless-workspace/node";
 import { resolveFormlessConfig } from "@dpeek/formless-workspace";
 import { describe, expect, it } from "vite-plus/test";
-import { programClientTarget } from "../client/app-target.ts";
+import { programClientTarget } from "../client/program-target.ts";
 import { testSiteRecords } from "../test/site-records.ts";
 import rawFormlessProgramSchema from "./schema.json";
-import { materializeFormlessProgramArtifact } from "./artifact.ts";
+import { formatFormlessProgramArtifact, materializeFormlessProgramArtifact } from "./artifact.ts";
 import { formlessProgramDefaultComposition, formlessProgramSchemaModules } from "./schema.ts";
 import {
   FORMLESS_PROGRAM_API_ROUTE_PREFIX,
@@ -43,6 +43,7 @@ import {
   formlessProgramSchemaProvenance,
   formlessProgramWorkspaceSnapshotContract,
   parseFormlessProgramSchemaArtifact,
+  parseRuntimeFormlessProgramArtifactJson,
   resolveFormlessProgramScreenRouteTarget,
   validateFormlessProgramRecords,
 } from "./runtime.ts";
@@ -299,7 +300,7 @@ describe("Formless Program runtime contracts", () => {
     expect(canonicalizeFormlessProgramStorageSnapshot(canonical)).toEqual(canonical);
   });
 
-  it("keeps workspace module records in the one Program workspace and archive contracts", async () => {
+  it("loads workspace module records from data-only runtime artifact JSON", async () => {
     const workspaceRecords = defineAppSchemaModule({
       key: "workspace-verification-records",
       entities: [
@@ -311,10 +312,14 @@ describe("Formless Program runtime contracts", () => {
         },
       ],
     });
-    const artifact = await materializeFormlessProgramArtifact({
-      ...formlessProgramDefaultComposition,
-      modules: [...formlessProgramSchemaModules, workspaceRecords],
-    });
+    const artifact = parseRuntimeFormlessProgramArtifactJson(
+      formatFormlessProgramArtifact(
+        await materializeFormlessProgramArtifact({
+          ...formlessProgramDefaultComposition,
+          modules: [...formlessProgramSchemaModules, workspaceRecords],
+        }),
+      ),
+    );
     const schema = parseFormlessProgramSchemaArtifact(artifact.sourceSchema);
     const verification = storedRecord("verification:one", "verification", {
       reference: "VER-001",

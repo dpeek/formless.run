@@ -55,17 +55,17 @@ describe("public Site page route data loading", () => {
     ]);
   });
 
-  it("fetches installed Site trees through the selected install endpoint", async () => {
+  it("fetches Site trees through the selected Program endpoint", async () => {
     const tree = sitePageTree("home");
     const fetcher: typeof fetch = async (input) => {
-      expect(input).toBe("/api/app-installs/site/personal/tree/home");
+      expect(input).toBe("/api/formless/program/tree/home");
 
       return Response.json(tree);
     };
 
     await expect(
       fetchSitePageTree("home", {
-        apiRoutePrefix: "/api/app-installs/site/personal",
+        apiRoutePrefix: "/api/formless/program",
         fetcher,
       }),
     ).resolves.toEqual(tree);

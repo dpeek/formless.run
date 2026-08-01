@@ -613,13 +613,7 @@ function routeProjectionRecordFromControlPlaneRecord(
   const kind = stringRecordValue(record, "kind");
   const matchPath = stringRecordValue(record, "matchPath");
 
-  if (
-    (kind !== "mount" && kind !== "redirect") ||
-    matchPath === undefined ||
-    record.values.targetProfile === "app" ||
-    record.values.appInstall !== undefined ||
-    record.values.requiredRole !== undefined
-  ) {
+  if ((kind !== "mount" && kind !== "redirect") || matchPath === undefined) {
     return undefined;
   }
 
@@ -633,6 +627,10 @@ function routeProjectionRecordFromControlPlaneRecord(
   const targetProfile = routeTargetProfileRecordValue(record, "targetProfile");
   const toHost = stringRecordValue(record, "toHost");
   const toUrl = stringRecordValue(record, "toUrl");
+
+  if (kind === "mount" && targetProfile === undefined) {
+    return undefined;
+  }
 
   return {
     enabled: true,

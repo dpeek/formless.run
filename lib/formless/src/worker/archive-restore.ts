@@ -12,8 +12,8 @@ import type { FormlessProgramArtifact } from "../program/artifact.ts";
 import { formlessProgramArchiveSnapshotContract } from "../program/runtime.ts";
 import {
   programStorageIdentity,
-  type AuthorityStorageIdentity,
-} from "../shared/app-storage-identity.ts";
+  type ProgramStorageIdentity,
+} from "../shared/program-storage-identity.ts";
 import {
   CORE_IMAGE_KEY_PREFIX,
   MEDIA_DOCUMENT_UPLOAD_MAX_BYTES,
@@ -40,12 +40,12 @@ export type ArchiveRestoreMediaAdapter = {
   readFile: (archivePath: string) => Promise<ArchiveRestoreMediaRead | undefined>;
   restoreObject: (input: {
     bytes: Uint8Array;
-    identity: AuthorityStorageIdentity;
+    identity: ProgramStorageIdentity;
     object: ArchiveMediaObject;
   }) => Promise<MediaWriteResponse>;
   validateObject?: (input: {
     bytes: Uint8Array;
-    identity: AuthorityStorageIdentity;
+    identity: ProgramStorageIdentity;
     object: ArchiveMediaObject;
   }) => Promise<void>;
 };
@@ -259,7 +259,7 @@ export async function applyPortableArchiveRestore(
 
 export async function restoreArchiveMediaObjectToStore(
   store: MediaObjectStore,
-  identity: AuthorityStorageIdentity,
+  identity: ProgramStorageIdentity,
   object: ArchiveMediaObject,
   bytes: Uint8Array,
 ): Promise<MediaWriteResponse> {
@@ -581,7 +581,7 @@ async function compatibleExistingArchiveDocument(
   return true;
 }
 
-function documentArchiveDeliveryHref(identity: AuthorityStorageIdentity, assetId: string): string {
+function documentArchiveDeliveryHref(identity: ProgramStorageIdentity, assetId: string): string {
   return `${identity.apiRoutePrefix}/media/documents/${assetId}`;
 }
 

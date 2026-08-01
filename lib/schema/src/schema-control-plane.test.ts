@@ -9,7 +9,7 @@ import {
 } from "./index.ts";
 
 describe("control-plane schema runtime metadata", () => {
-  it("parses runtime-owned metadata, secret references, route validation, and operation policy", () => {
+  it("parses runtime-owned metadata, secret references, and operation policy", () => {
     const schema = parseAppSchema(controlPlaneTaskSchema());
     const operation = schema.entities
       .find((definition) => definition.key === "task")!
@@ -18,21 +18,6 @@ describe("control-plane schema runtime metadata", () => {
       owner: "runtime",
       controlPlane: {
         entities: {
-          route: {
-            immutableFields: ["target"],
-            routeValidation: {
-              pathField: "path",
-              prefixField: "prefix",
-              enabledField: "enabled",
-              routeKindField: "routeKind",
-              packageCapabilityField: "packageCapability",
-              reservedPaths: ["/api"],
-              routeKindCapabilities: {
-                admin: "generatedApp",
-                publicSite: "publicSite",
-              },
-            },
-          },
           task: {
             immutableFields: ["title"],
             observedFields: ["done"],
@@ -162,35 +147,6 @@ function controlPlaneTaskSchema() {
           },
         ],
       },
-      {
-        id: "entity_504ff45e-a169-4c9d-b3fb-ce23b15375c7",
-        key: "route",
-        label: "Route",
-        fields: [
-          { key: "target", type: "text", required: true },
-          { key: "path", type: "text", required: true },
-          { key: "prefix", type: "text", required: false },
-          { key: "enabled", type: "boolean", required: true, default: true },
-          {
-            key: "routeKind",
-            type: "enum",
-            required: true,
-            values: [
-              { key: "admin", label: "Admin" },
-              { key: "publicSite", label: "Public Site" },
-            ],
-          },
-          {
-            key: "packageCapability",
-            type: "enum",
-            required: true,
-            values: [
-              { key: "generatedApp", label: "Generated app" },
-              { key: "publicSite", label: "Public Site" },
-            ],
-          },
-        ],
-      },
     ],
     queries: [
       {
@@ -246,21 +202,6 @@ function controlPlaneTaskSchema() {
             immutableFields: ["title"],
             observedFields: ["done"],
             secretReferenceFields: ["secretRef"],
-          },
-          route: {
-            immutableFields: ["target"],
-            routeValidation: {
-              pathField: "path",
-              prefixField: "prefix",
-              enabledField: "enabled",
-              routeKindField: "routeKind",
-              packageCapabilityField: "packageCapability",
-              reservedPaths: ["/api"],
-              routeKindCapabilities: {
-                admin: "generatedApp",
-                publicSite: "publicSite",
-              },
-            },
           },
         },
       },

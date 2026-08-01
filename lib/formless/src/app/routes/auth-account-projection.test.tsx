@@ -40,7 +40,6 @@ describe("auth account projection", () => {
         state,
         surfaceKind: "account-gate",
       });
-      expect(JSON.stringify(surface)).not.toContain("appInstallId");
       expect(JSON.stringify(surface)).not.toContain("role-review");
     }
   });

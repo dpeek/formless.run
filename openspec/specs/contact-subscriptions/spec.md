@@ -77,7 +77,7 @@ The system SHALL provide a public subscribe operation that upserts reusable cont
   once in Program storage
 - AND Site subscriber and CRM audience generated screens project the same
   records for their respective workflows
-- AND no Site block targets a CRM install or a second Authority
+- AND the Site block invokes the narrow Program public operation route
 
 ### Requirement: Subscription Consent Source
 
@@ -87,8 +87,11 @@ The system SHALL preserve source context for public subscription consent.
 
 - GIVEN a public subscribe operation commits a subscription
 - WHEN the subscription is stored
-- THEN the subscription records Program target identity, canonical operation
+- THEN the subscription records source target kind `program`, schema key
+  `formless-program`, API prefix `/api/formless/program`, canonical operation
   key, request host, request path, and Site block id when available
+- AND the source context is consent audit data rather than generic Program
+  access or an alternate authorization identity
 
 #### Scenario: Raw visitor network data is not required
 

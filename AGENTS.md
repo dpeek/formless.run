@@ -34,7 +34,6 @@ Data stays flat. Compose in query, view, projection, action layer.
 - `openspec/specs/generated-ui/spec.md`: React generated surfaces, fields, screens, actions.
 - `openspec/specs/site-runtime/spec.md`: Site records, public tree, SSR, metadata, icons.
 - `openspec/specs/formless-cli/spec.md`: Formless CLI workspace, save, publish, deploy commands.
-- `openspec/specs/installed-apps/spec.md`: product app installs, routes, install storage.
 - `openspec/specs/instance-control-plane/spec.md`: schema-owned instance management records.
 - `openspec/specs/instance-auth/spec.md`: owner passkeys, sessions, admin bearer boundary.
 - `openspec/specs/runtime-topology/spec.md`: profiles, route policy, mapped hosts.
@@ -52,15 +51,15 @@ Data stays flat. Compose in query, view, projection, action layer.
 ## Repo Map
 
 - `lib/formless/`: published Formless runtime and CLI workspace package.
-- `lib/formless/src/shared/`: schema, protocol, read models, field behavior, app identities.
+- `lib/formless/src/shared/`: schema, protocol, read models, field behavior, Program identity.
 - `lib/formless/src/client/`: browser replica, projections, generated view models.
 - `lib/formless/src/app/`: React routes, generated runtime and projections, renderer composition.
-- `lib/formless/src/worker/`: Worker routes, Authority, storage, installed apps, public SSR.
+- `lib/formless/src/worker/`: Worker routes, Authority, storage, Program runtime, public SSR.
 - `lib/formless/src/cli/`: Formless CLI implementation, project files, publish, archives, domains.
 - `lib/formless/src/media/`: core media model and providers.
 - `lib/formless/src/test/`: shared test fixtures.
 - `schema/apps/`: bundled Tasks and CRM app schemas.
-- `lib/site-app/`: bundled Site app manifest, schema, and adapters.
+- `lib/site-app/`: bundled Site schema modules, standalone artifact, and adapters.
 - `lib/presentation/`: renderer-neutral Formless UI contracts, hosts, and React adapters.
 - `lib/renderer/`: Formless Renderer application and Site presentation backed by Astryx.
 - `lib/media/`: reusable media contracts and adapters package.
@@ -86,14 +85,10 @@ Data stays flat. Compose in query, view, projection, action layer.
 
 ## Runtime Terms
 
-- Formless instance: installed apps, app data, media, auth, deploy config.
-- Product instance profile: installed app and instance management runtime.
+- Formless instance: Program data, media, auth, and deploy config.
+- Product instance profile: Program and instance management runtime.
 - Dev workbench profile: bundled source app development runtime.
-- Package app key: bundled schema package identity.
-- App install id: stable instance-local identity for one installed app.
-- App install: flat metadata with install id, package app key, label, status, routes.
-- App storage identity: route, Authority, browser replica, broadcast, media scope.
-- Browser replica: IndexedDB copy keyed by app storage identity.
+- Browser replica: IndexedDB copy of the Program keyed by Program storage identity.
 - Authority: Durable Object that owns committed storage and invariants.
 - Storage: records, changes, schema, action executions.
 - Sync cursor: timestamp cursor for HTTP sync and push catch-up.
@@ -103,7 +98,7 @@ Data stays flat. Compose in query, view, projection, action layer.
 - Core media: instance-owned media assets referenced by flat app records.
 - Media package: reusable core media contracts, helpers, and adapters under `lib/media`.
 - Custom domain mapping: exact-host profile route intent stored on the instance.
-- Instance control plane: schema records for installs, routes, domain intent, deploy intent.
+- Instance control plane: schema records for routes, domain intent, and deploy intent.
 - Deployment runtime: versioned desired deploy state, attempt history, leases, and status.
 - Instance auth: owner passkey setup, sessions, logout, and admin bearer boundary.
 - Public action: schema-declared action opened through target-scoped public routes.
@@ -118,7 +113,7 @@ Data stays flat. Compose in query, view, projection, action layer.
 - Site app: blocks and block placements. Public pages render from tree projection.
 - Block: Site content, media, group, or page record.
 - Block placement: flat parent-child composition edge.
-- Default product Site install: installed Site app with install id `site`.
+- Default product Site: singleton Site domain composed into the Program.
 
 ## Test Rules
 

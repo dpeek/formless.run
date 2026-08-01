@@ -7,7 +7,7 @@ import {
 } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import { describe, expect, it } from "vite-plus/test";
-import { programStorageIdentity } from "../shared/app-storage-identity.ts";
+import { programStorageIdentity } from "../shared/program-storage-identity.ts";
 import type { OperationInvocationEnvelope } from "../shared/operation-invocation.ts";
 import { sourceLikeTaskSchema } from "../test/schema-builders.ts";
 import { BadRequestError } from "./errors.ts";
@@ -562,7 +562,7 @@ function operationInputEnvelope(input: {
 
   return {
     invocationId: `operation:${canonicalKey}:test`,
-    appStorageIdentity: programStorageIdentity(),
+    programStorageIdentity: programStorageIdentity(),
     actor: { kind: "owner" },
     source: { protocol: "protocol" },
     input: operationInvocationInput(input.operation),

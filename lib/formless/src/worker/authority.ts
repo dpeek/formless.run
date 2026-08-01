@@ -7,8 +7,8 @@ import type {
 import { isSyncSocketAttachment, isSyncSocketClientMessage } from "../shared/protocol.ts";
 import {
   parseAuthorityApiRoute,
-  type AuthorityStorageIdentity,
-} from "../shared/app-storage-identity.ts";
+  type ProgramStorageIdentity,
+} from "../shared/program-storage-identity.ts";
 import { handleInstanceArchiveDurableObjectRequest } from "./archive-api.ts";
 import {
   ensureStorageTables,
@@ -84,7 +84,6 @@ import {
 } from "./site-operation-input-notifications.ts";
 import { turnstileSiteKeyFromEnv } from "../shared/turnstile-config.ts";
 import { handleInstanceUpgradeStatusDurableObjectRequest } from "./upgrade-status-api.ts";
-import type { WorkerAppDefinition } from "./runtime-app-packages.ts";
 import { INTERNAL_PUBLIC_SITE_BOOTSTRAP_PATH } from "./public-site-worker-runtime.ts";
 import { IDENTITY_CONTROL_PLANE_STORAGE_IDENTITY } from "@dpeek/formless-identity-control-plane";
 import {
@@ -101,6 +100,7 @@ import {
   formlessProgramSource,
   INTERNAL_PROGRAM_CONVERGENCE_SOURCE_PATH,
   selectCurrentFormlessProgramChanges,
+  type WorkerProgramDefinition,
   validateFormlessProgramRecordConstraint,
 } from "./program-authority.ts";
 
@@ -586,8 +586,8 @@ export class FormlessAuthority extends DurableObject<Env> {
 
   private async handleSyncWebSocketRequest(
     request: Request,
-    identity: AuthorityStorageIdentity,
-    app: WorkerAppDefinition,
+    identity: ProgramStorageIdentity,
+    app: WorkerProgramDefinition,
   ) {
     if (request.method !== "GET") {
       return jsonResponse({ error: "WebSocket sync requires GET." }, 405, { Allow: "GET" });
@@ -627,7 +627,7 @@ export class FormlessAuthority extends DurableObject<Env> {
 
   private async programSyncSocketAuthorization(
     request: Request,
-    identity: Extract<AuthorityStorageIdentity, { kind: "program" }>,
+    identity: Extract<ProgramStorageIdentity, { kind: "program" }>,
   ): Promise<ProgramSyncSocketAuthorization | undefined> {
     const target = hostAuthSessionTargetForAuthorityRoute(request, identity);
     const authorization = await authorizeProgramAccess(
@@ -747,7 +747,7 @@ async function readLegacyIdentityStorageState(env: Env) {
 
 function hostAuthSessionTargetForAuthorityRoute(
   request: Request,
-  identity: AuthorityStorageIdentity,
+  identity: ProgramStorageIdentity,
 ) {
   const target = hostAuthSessionTargetFromRequestHeaders(request.headers);
 
@@ -931,8 +931,8 @@ class AuthorityWriteModule {
 }
 
 function storageSourceFromRoute(_route: {
-  app: WorkerAppDefinition;
-  identity: AuthorityStorageIdentity;
+  app: WorkerProgramDefinition;
+  identity: ProgramStorageIdentity;
 }): StorageSource {
   return formlessProgramSource();
 }
@@ -1109,7 +1109,7 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
 function parseAuthorityRoute(
   pathname: string,
   _env: Env,
-): { app: WorkerAppDefinition; identity: AuthorityStorageIdentity; path: string } | undefined {
+): { app: WorkerProgramDefinition; identity: ProgramStorageIdentity; path: string } | undefined {
   const route = parseAuthorityApiRoute(pathname);
 
   if (!route) {

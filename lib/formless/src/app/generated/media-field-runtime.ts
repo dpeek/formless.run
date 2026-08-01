@@ -8,7 +8,7 @@ import {
   type MediaAssetOption,
   type UploadedImageMedia,
 } from "@dpeek/formless-media/client";
-import type { ClientAppTarget } from "../../client/app-target.ts";
+import type { ProgramClientTarget } from "../../client/program-target.ts";
 import { imageMediaAssetOptionFromUpload } from "./record-field-authoring.ts";
 import {
   generatedDocumentMediaTarget,
@@ -23,7 +23,7 @@ export type GeneratedMediaFileUpload = {
 
 export async function loadGeneratedMediaAssetOptions(
   fields: readonly GeneratedMediaField[],
-  appTarget: ClientAppTarget,
+  programTarget: ProgramClientTarget,
 ): Promise<Record<string, MediaAssetOption[]>> {
   const imageFields = fields.filter((field) => field.field.asset === undefined);
   const imageOptions =
@@ -34,9 +34,8 @@ export async function loadGeneratedMediaAssetOptions(
       if (field.field.asset?.kind !== "document") {
         return [key, imageOptions] as const;
       }
-      const target = generatedDocumentMediaTarget(appTarget, field.entityName, field.fieldName);
-      const options =
-        target === undefined ? [] : await listProgramDocumentMediaAssets(target).catch(() => []);
+      const target = generatedDocumentMediaTarget(programTarget, field.entityName, field.fieldName);
+      const options = await listProgramDocumentMediaAssets(target).catch(() => []);
       return [key, options] as const;
     }),
   );
@@ -45,20 +44,17 @@ export async function loadGeneratedMediaAssetOptions(
 }
 
 export async function uploadGeneratedMediaFile({
-  appTarget,
+  programTarget,
   entityName,
   field,
   fieldName,
   file,
 }: GeneratedMediaField & {
-  appTarget: ClientAppTarget;
+  programTarget: ProgramClientTarget;
   file: File;
 }): Promise<GeneratedMediaFileUpload> {
   if (field.asset?.kind === "document") {
-    const target = generatedDocumentMediaTarget(appTarget, entityName, fieldName);
-    if (!target) {
-      throw new Error("Document media is unavailable for this app target.");
-    }
+    const target = generatedDocumentMediaTarget(programTarget, entityName, fieldName);
     const upload = await uploadProgramDocumentMediaFile(file, target);
     if (!upload.asset) {
       throw new Error("Document upload did not return a media asset.");

@@ -32,7 +32,7 @@ import {
   FORMLESS_CLIENT_SCHEMA_UPDATED_AT_HEADER,
   FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER,
 } from "../shared/protocol.ts";
-import { programClientTarget } from "./app-target.ts";
+import { programClientTarget } from "./program-target.ts";
 import type {
   BootstrapResponse,
   ChangeRow,

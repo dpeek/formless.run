@@ -20,7 +20,7 @@ import {
   parseInstanceControlPlaneStorageSnapshot,
   reviewableInstanceControlPlaneStorageSnapshot,
 } from "./index.ts";
-import { computeSourceSchemaHash } from "@dpeek/formless-installed-apps";
+import { computeSourceSchemaHash } from "@dpeek/formless-schema";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import type { AppSchema } from "@dpeek/formless-schema";
@@ -671,10 +671,7 @@ describe("instance control-plane schema contracts", () => {
       parseInstanceControlPlaneBoundaryEntityName("Archive record entity", "instance:route"),
     ).toBe("route");
     expect(() =>
-      parseInstanceControlPlaneBoundaryEntityName(
-        "Archive record entity",
-        "instance-control-plane:app-install",
-      ),
+      parseInstanceControlPlaneBoundaryEntityName("Archive record entity", "other:route"),
     ).toThrow('Archive record entity schema key must be "instance".');
     expect(instanceControlPlaneImmutableFields["deployment-config"]).toEqual([
       "targetId",
@@ -685,7 +682,7 @@ describe("instance control-plane schema contracts", () => {
     expect(instanceControlPlaneImmutableFields["email-domain"]).toEqual(["providerFamily"]);
     expect(instanceControlPlaneImmutableFields["email-sender"]).toEqual(["emailDomain"]);
     expect(instanceControlPlaneImmutableFields.route).toEqual(["kind"]);
-    expect(isInstanceControlPlaneEntityName("app-install")).toBe(false);
+    expect(isInstanceControlPlaneEntityName("unknown")).toBe(false);
     expect(isInstanceControlPlaneEntityName("deployment-config")).toBe(true);
     expect(isInstanceControlPlaneEntityName("instance-settings")).toBe(true);
     expect(isInstanceControlPlaneEntityName("email-domain")).toBe(true);

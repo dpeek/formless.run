@@ -10,7 +10,6 @@ import {
 } from "@dpeek/formless-crm-app";
 import {
   instanceControlPlaneEntityIds,
-  isCurrentInstanceControlPlaneRecord,
   parseInstanceControlPlaneEntityName,
   reviewableInstanceControlPlaneRecordValues,
   reviewableInstanceControlPlaneRecords,
@@ -323,6 +322,13 @@ export function validateFormlessProgramRecords(
   }
 }
 
+export function isFormlessProgramSchemaRecord(
+  record: StoredRecord,
+  schema: AppSchema = formlessProgramSchema,
+): boolean {
+  return schema.entities.some((entity) => entity.key === record.entity);
+}
+
 export function parseFormlessProgramStorageSnapshot(
   context: string,
   value: unknown,
@@ -333,7 +339,9 @@ export function parseFormlessProgramStorageSnapshot(
     schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
     storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
   });
-  const records = snapshot.records.filter(isCurrentInstanceControlPlaneRecord);
+  const records = snapshot.records.filter((record) =>
+    isFormlessProgramSchemaRecord(record, schema),
+  );
 
   assertFormlessProgramSchema(context, snapshot.schema, schema);
   validateFormlessProgramRecords(`${context} records`, records, options);

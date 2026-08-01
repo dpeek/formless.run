@@ -5,17 +5,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
-
-import {
-  computeSourceSchemaHash,
-  createAppPackageResolver,
-  parseAppPackageManifest,
-  type AppPackageManifest,
-  type AppPackageResolver,
-  type ResolvedAppPackage,
-  type SourceSchemaHash,
-} from "@dpeek/formless-installed-apps";
+import type { AppSchema } from "@dpeek/formless-schema";
 import {
   STORAGE_SNAPSHOT_KIND,
   STORAGE_SNAPSHOT_VERSION,
@@ -46,7 +36,6 @@ import type {
   InitialWorkspaceOperationStateInput,
   ResolvedFormlessConfig,
   UpdateWorkspaceOperationStateInput,
-  WorkspacePackageLink,
   WorkspaceAutoSaveState,
   WorkspaceOperationState,
   WorkspaceRecordStateFile,
@@ -96,28 +85,6 @@ export type CreateWorkspaceOperationStateInput = Omit<
 > & {
   id?: string;
   workspaceLabel?: string;
-};
-
-export type WorkspaceAppPackageSource = {
-  appPackage: ResolvedAppPackage;
-  manifest: AppPackageManifest;
-  manifestPath: string;
-  packageRoot: string;
-  sourceSchema: AppSchema;
-  sourceSchemaHash: SourceSchemaHash;
-  sourceSchemaPath: string;
-};
-
-export type CreateWorkspaceAppPackageResolverInput = {
-  bundledManifests: readonly unknown[];
-  manifest: Pick<ResolvedFormlessConfig, "packages">;
-  workspaceRoot: string;
-};
-
-export type WorkspaceAppPackageResolverResult = {
-  linkedPackages: WorkspaceAppPackageSource[];
-  packageLinks: WorkspacePackageLink[];
-  resolver: AppPackageResolver;
 };
 
 export type InstanceWorkspaceMediaFile = {
@@ -396,32 +363,6 @@ export async function replaceInstanceWorkspaceMediaFiles(input: {
       formatWorkspaceMediaManifest(mediaFiles.map((file) => file.object)),
     );
   }
-}
-
-export async function createWorkspaceAppPackageResolver(
-  input: CreateWorkspaceAppPackageResolverInput,
-): Promise<WorkspaceAppPackageResolverResult> {
-  const packageLinks = input.manifest.packages.links;
-  const linkedPackages: WorkspaceAppPackageSource[] = [];
-
-  for (const link of packageLinks) {
-    linkedPackages.push(
-      await readLinkedWorkspaceAppPackage({
-        context: `Workspace package link "${link.manifest}"`,
-        link,
-        workspaceRoot: input.workspaceRoot,
-      }),
-    );
-  }
-
-  return {
-    linkedPackages,
-    packageLinks,
-    resolver: createAppPackageResolver([
-      ...input.bundledManifests,
-      ...linkedPackages.map((appPackage) => appPackage.manifest),
-    ]),
-  };
 }
 
 export function parseWorkspaceDotEnv(contents: string): Record<string, string> {
@@ -840,71 +781,6 @@ function stableJsonValue(value: unknown): unknown {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, child]) => [key, stableJsonValue(child)]),
   );
-}
-
-async function readLinkedWorkspaceAppPackage(input: {
-  context: string;
-  link: WorkspacePackageLink;
-  workspaceRoot: string;
-}): Promise<WorkspaceAppPackageSource> {
-  const manifestPath = path.resolve(input.workspaceRoot, input.link.manifest);
-  const packageRoot = path.dirname(manifestPath);
-  const manifestValue = await readJsonFile(manifestPath, `${input.context} manifest`);
-  const manifest = parseAppPackageManifest(manifestValue, `${input.context} manifest`);
-
-  assertWorkspaceLinkedPackageManifest(manifest, input.context);
-
-  const sourceSchemaPath = path.resolve(packageRoot, manifest.sourceSchema.path);
-  const rawSourceSchema = await readJsonFile(
-    sourceSchemaPath,
-    `${input.context} source schema "${manifest.sourceSchema.path}"`,
-  );
-  const sourceSchema = parseAppSchema(rawSourceSchema);
-  const sourceSchemaHash = await computeSourceSchemaHash(rawSourceSchema);
-
-  if (sourceSchemaHash !== manifest.sourceSchemaHash) {
-    throw new Error(
-      `${input.context} source schema hash "${sourceSchemaHash}" does not match manifest sourceSchemaHash "${manifest.sourceSchemaHash}".`,
-    );
-  }
-
-  const appPackage = createAppPackageResolver([manifest]).findPackage(manifest.packageAppKey);
-
-  if (!appPackage) {
-    throw new Error(`${input.context} package "${manifest.packageAppKey}" did not resolve.`);
-  }
-
-  return {
-    appPackage,
-    manifest,
-    manifestPath,
-    packageRoot,
-    sourceSchema,
-    sourceSchemaHash,
-    sourceSchemaPath,
-  };
-}
-
-async function readJsonFile(filePath: string, context: string): Promise<unknown> {
-  try {
-    return JSON.parse(await readFile(filePath, "utf8")) as unknown;
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      throw new Error(`${context} must be valid JSON.`);
-    }
-
-    if (isNodeError(error) && error.code === "ENOENT") {
-      throw new Error(`${context} file is missing.`);
-    }
-
-    throw error;
-  }
-}
-
-function assertWorkspaceLinkedPackageManifest(manifest: AppPackageManifest, context: string) {
-  if (manifest.sourceSchema.kind !== "workspace") {
-    throw new Error(`${context} manifest sourceSchema kind must be "workspace".`);
-  }
 }
 
 function parseWorkspaceMediaArchivePath(value: string): string {

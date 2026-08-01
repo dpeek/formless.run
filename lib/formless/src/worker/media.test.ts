@@ -27,11 +27,6 @@ import {
 import { CENTRAL_AUTH_SESSION_COOKIE_NAME } from "./central-auth-session.ts";
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { createOwnerSessionCookie } from "./owner-session.ts";
-import {
-  FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME,
-  formatRuntimeWorkspaceAppPackages,
-} from "../shared/workspace-runtime-packages.ts";
-import { runtimeWorkspaceTaskAppPackageFixture } from "../test/workspace-app-package.ts";
 
 type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 type HarnessResponse = Awaited<ReturnType<Harness["fetch"]>>;
@@ -44,7 +39,6 @@ const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
 const pdfBytes = new TextEncoder().encode("%PDF-1.7\nFormless document media test\n%%EOF");
 const privateDocumentField = "privateReport";
 const publicDocumentField = "publicReport";
-const taskPackageAppKey = "test-tasks";
 const programMediaSchema = programDocumentSchema(formlessProgramSchema);
 const owner: OwnerIdentity = {
   id: "owner-1",
@@ -64,22 +58,13 @@ let guardedHarness: Harness;
 let guardedHarnessDir: string;
 
 beforeAll(async () => {
-  const taskPackages = formatRuntimeWorkspaceAppPackages([
-    await runtimeWorkspaceTaskAppPackageFixture({ packageAppKey: taskPackageAppKey }),
-  ]);
   const programArtifact = await materializeFormlessProgramSourceArtifact(programMediaSchema);
   harness = await createWorkerHarness(
     "src/worker/index.ts",
     {
       FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true },
     },
-    {
-      bindings: {
-        [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: taskPackages,
-      },
-      compatibilityDate: FORMLESS_WORKER_COMPATIBILITY_DATE,
-      r2Buckets: mediaBuckets,
-    },
+    { compatibilityDate: FORMLESS_WORKER_COMPATIBILITY_DATE, r2Buckets: mediaBuckets },
   );
   guardedHarnessDir = await mkdtemp(join(tmpdir(), "formless-media-worker-harness-"));
   const guardedHarnessPath = await writeMediaWorkerHarness(guardedHarnessDir);
@@ -92,7 +77,6 @@ beforeAll(async () => {
       bindings: {
         FORMLESS_ADMIN_TOKEN: adminToken,
         FORMLESS_OWNER_SESSION_SECRET: sessionSecret,
-        [FORMLESS_WORKSPACE_APP_PACKAGES_ENV_NAME]: taskPackages,
       },
       compatibilityDate: FORMLESS_WORKER_COMPATIBILITY_DATE,
       define: {

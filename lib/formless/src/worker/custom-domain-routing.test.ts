@@ -494,7 +494,6 @@ describe("instance custom-domain Worker routing", () => {
     expect(startUrl.searchParams.get("routeId")).toBe(mappedInstanceRouteId);
     expect(startUrl.searchParams.get("targetProfile")).toBe("instance");
     expect(startUrl.searchParams.get("storageIdentity")).toBe(FORMLESS_PROGRAM_STORAGE_IDENTITY);
-    expect(startUrl.searchParams.get("appInstallId")).toBeNull();
     expect(startUrl.searchParams.get("returnTo")).toBe("/deployments");
 
     expect(accountContinuation.status).toBe(302);
@@ -504,7 +503,6 @@ describe("instance custom-domain Worker routing", () => {
     expect(handoffUrl.searchParams.get("routeId")).toBe(mappedInstanceRouteId);
     expect(handoffUrl.searchParams.get("targetProfile")).toBe("instance");
     expect(handoffUrl.searchParams.get("storageIdentity")).toBe(FORMLESS_PROGRAM_STORAGE_IDENTITY);
-    expect(handoffUrl.searchParams.get("appInstallId")).toBeNull();
     expect(handoffUrl.searchParams.get("returnTo")).toBe("/deployments");
 
     expect(grant.status).toBe(302);
@@ -558,7 +556,6 @@ describe("instance custom-domain Worker routing", () => {
         version: 1,
       }),
     );
-    expect(hostSessionPayload).not.toHaveProperty("appInstallId");
 
     expect(sessionStatus.status).toBe(200);
     expect(sessionStatusBody).toMatchObject({

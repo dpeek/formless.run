@@ -8,12 +8,10 @@ import type {
   AppSchema,
   EntityOperationKind,
   EntitySchema,
-  FieldSchema,
   RuntimeSchemaControlPlaneEntitySchema,
   RuntimeSchemaControlPlaneSchema,
   RuntimeSchemaHistorySchema,
   RuntimeSchemaMetadata,
-  RuntimeSchemaRouteValidationSchema,
 } from "./types.ts";
 
 const runtimeSchemaHistoryKinds = [
@@ -142,7 +140,7 @@ function parseControlPlaneEntityMetadata(
     context,
     value,
     [],
-    ["history", "immutableFields", "observedFields", "routeValidation", "secretReferenceFields"],
+    ["history", "immutableFields", "observedFields", "secretReferenceFields"],
   );
 
   const immutableFields = parseKnownFieldNames(
@@ -160,18 +158,12 @@ function parseControlPlaneEntityMetadata(
     value.secretReferenceFields,
     entity,
   );
-  const routeValidation = parseRouteValidation(
-    `${context} routeValidation`,
-    value.routeValidation,
-    entity,
-  );
   const history = parseHistory(`${context} history`, value.history, entity);
 
   if (
     immutableFields === undefined &&
     observedFields === undefined &&
     secretReferenceFields === undefined &&
-    routeValidation === undefined &&
     history === undefined
   ) {
     throw new Error(`${context} must declare at least one runtime policy.`);
@@ -181,7 +173,6 @@ function parseControlPlaneEntityMetadata(
     ...(immutableFields === undefined ? {} : { immutableFields }),
     ...(observedFields === undefined ? {} : { observedFields }),
     ...(secretReferenceFields === undefined ? {} : { secretReferenceFields }),
-    ...(routeValidation === undefined ? {} : { routeValidation }),
     ...(history === undefined ? {} : { history }),
   };
 }
@@ -230,94 +221,6 @@ function parseSecretReferenceFieldNames(
   return names;
 }
 
-function parseRouteValidation(
-  context: string,
-  value: unknown,
-  entity: EntitySchema,
-): RuntimeSchemaRouteValidationSchema | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (!isRecord(value)) {
-    throw new Error(`${context} must be an object.`);
-  }
-
-  assertExactKeys(
-    context,
-    value,
-    [
-      "enabledField",
-      "packageCapabilityField",
-      "pathField",
-      "routeKindCapabilities",
-      "routeKindField",
-    ],
-    ["appInstallField", "prefixField", "reservedPaths"],
-  );
-
-  const pathField = parseKnownFieldName(context, "pathField", value.pathField, entity);
-  assertFieldType(context, entity, pathField, "text");
-
-  const prefixField = parseOptionalKnownFieldName(
-    context,
-    "prefixField",
-    value.prefixField,
-    entity,
-  );
-  if (prefixField !== undefined) {
-    assertFieldType(context, entity, prefixField, "text");
-  }
-
-  const enabledField = parseKnownFieldName(context, "enabledField", value.enabledField, entity);
-  assertFieldType(context, entity, enabledField, "boolean");
-
-  const routeKindField = parseKnownFieldName(
-    context,
-    "routeKindField",
-    value.routeKindField,
-    entity,
-  );
-  const routeKindSchema = assertFieldType(context, entity, routeKindField, "enum");
-
-  const packageCapabilityField = parseKnownFieldName(
-    context,
-    "packageCapabilityField",
-    value.packageCapabilityField,
-    entity,
-  );
-  const packageCapabilitySchema = assertFieldType(context, entity, packageCapabilityField, "enum");
-
-  const appInstallField = parseOptionalKnownFieldName(
-    context,
-    "appInstallField",
-    value.appInstallField,
-    entity,
-  );
-  if (appInstallField !== undefined) {
-    assertFieldType(context, entity, appInstallField, "reference");
-  }
-
-  const reservedPaths = parseReservedPaths(`${context} reservedPaths`, value.reservedPaths);
-  const routeKindCapabilities = parseRouteKindCapabilities(
-    `${context} routeKindCapabilities`,
-    value.routeKindCapabilities,
-    routeKindSchema,
-    packageCapabilitySchema,
-  );
-
-  return {
-    pathField,
-    ...(prefixField === undefined ? {} : { prefixField }),
-    enabledField,
-    routeKindField,
-    packageCapabilityField,
-    ...(appInstallField === undefined ? {} : { appInstallField }),
-    ...(reservedPaths === undefined ? {} : { reservedPaths }),
-    routeKindCapabilities,
-  };
-}
-
 function parseHistory(
   context: string,
   value: unknown,
@@ -353,118 +256,10 @@ function parseHistory(
 function entityHasOperationKind(entity: EntitySchema, ...kinds: EntityOperationKind[]): boolean {
   return (entity.operations ?? []).some((operation) => kinds.includes(operation.kind));
 }
-function parseKnownFieldName(context: string, key: string, value: unknown, entity: EntitySchema) {
-  const fieldName = parseRequiredNonEmptyString(`${context} ${key}`, value);
-  assertKnownField(context, entity, fieldName);
-  return fieldName;
-}
-
-function parseOptionalKnownFieldName(
-  context: string,
-  key: string,
-  value: unknown,
-  entity: EntitySchema,
-) {
-  if (value === undefined) {
-    return undefined;
-  }
-  return parseKnownFieldName(context, key, value, entity);
-}
 function assertKnownField(context: string, entity: EntitySchema, fieldName: string) {
   if (!definitionsToRecord(entity.fields)[fieldName]) {
     throw new Error(`${context} references unknown field "${fieldName}".`);
   }
-}
-
-function assertFieldType<Type extends FieldSchema["type"]>(
-  context: string,
-  entity: EntitySchema,
-  fieldName: string,
-  type: Type,
-): Extract<
-  FieldSchema,
-  {
-    type: Type;
-  }
-> {
-  const field = definitionsToRecord(entity.fields)[fieldName];
-  if (!field || field.type !== type) {
-    throw new Error(`${context} field "${fieldName}" must be ${type}.`);
-  }
-  return field as unknown as Extract<
-    FieldSchema,
-    {
-      type: Type;
-    }
-  >;
-}
-function parseReservedPaths(context: string, value: unknown): string[] | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new Error(`${context} must be a non-empty array.`);
-  }
-
-  const paths = value.map((path, index) => {
-    const parsed = parseRequiredNonEmptyString(`${context}[${index}]`, path);
-
-    if (!parsed.startsWith("/")) {
-      throw new Error(`${context}[${index}] must start with "/".`);
-    }
-
-    return parsed;
-  });
-
-  assertUniqueStrings(context, paths);
-
-  return paths;
-}
-
-function parseRouteKindCapabilities(
-  context: string,
-  value: unknown,
-  routeKindField: Extract<
-    FieldSchema,
-    {
-      type: "enum";
-    }
-  >,
-  packageCapabilityField: Extract<
-    FieldSchema,
-    {
-      type: "enum";
-    }
-  >,
-): Record<string, string> {
-  if (!isRecord(value)) {
-    throw new Error(`${context} must be an object.`);
-  }
-
-  const entries = Object.entries(value);
-  if (entries.length === 0) {
-    throw new Error(`${context} must not be empty.`);
-  }
-  const capabilities = Object.fromEntries(
-    entries.map(([routeKind, packageCapability]) => {
-      if (!definitionsToRecord(routeKindField.values)[routeKind]) {
-        throw new Error(`${context} references unknown route kind "${routeKind}".`);
-      }
-      const capability = parseRequiredNonEmptyString(`${context}.${routeKind}`, packageCapability);
-      if (!definitionsToRecord(packageCapabilityField.values)[capability]) {
-        throw new Error(`${context}.${routeKind} references unknown package capability.`);
-      }
-      return [routeKind, capability];
-    }),
-  );
-  for (const routeKind of routeKindField.values.map((definition) => definition.key)) {
-    if (!Object.hasOwn(capabilities, routeKind)) {
-      throw new Error(`${context} must include route kind "${routeKind}".`);
-    }
-  }
-
-  return capabilities;
 }
 
 function assertUniqueStrings(context: string, values: string[]) {

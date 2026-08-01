@@ -1097,19 +1097,19 @@ into the surviving Program Authority without changing permanent record identity.
 
 ### Requirement: Active Schema Source Refresh
 
-Authority storage SHALL keep the active schema aligned with resolved source
-schema provenance without treating records or workspace state as the source of
-schema truth.
+Authority storage SHALL keep the active schema aligned with the complete
+materialized Program provenance without treating records or workspace state as
+the source of schema truth.
 
 #### Scenario: Refresh compatible source schema
 
 - GIVEN an Authority storage identity already has committed records and an
   active schema
-- WHEN the resolved source schema hash for that storage identity differs from
-  the stored source schema hash or runtime schema hash
-- AND current active records validate against the resolved source schema without
+- WHEN the complete Program source hash differs from the stored source schema
+  hash or runtime schema hash
+- AND current active records validate against the complete Program schema without
   creates, patches, tombstones, or value pruning
-- THEN Authority writes the resolved source schema as the active schema
+- THEN Authority writes the complete Program schema as the active schema
 - AND Authority records a new schema timestamp for sync, browser reload, and
   workspace state provenance
 - AND committed records, source cursor, operation invocations, and change rows are
@@ -1128,16 +1128,14 @@ schema truth.
 - AND the runtime does not import, merge, migrate, rewrite, tombstone, clean up,
   alias, or expose a legacy rejection surface for the unselected state
 
-#### Scenario: Block incompatible schema refresh
+#### Scenario: Block incompatible Program refresh
 
-- GIVEN current active records cannot validate against a resolved source schema
-  without record materialization
-- WHEN the package revision has not advanced to a matching package app migration
-  or explicit reset path
+- GIVEN current active records admitted by the current Program cannot validate
+  against a newly materialized Program without record materialization
+- WHEN no explicit current Program reset or restore path is selected
 - THEN Authority keeps the existing active schema and records unchanged
-- AND the caller receives a schema refresh blocker that identifies the storage
-  identity, package app key or control-plane schema key, current schema
-  provenance, and target schema provenance
+- AND the caller receives a schema refresh blocker that identifies current and
+  target Program provenance without package or module identity
 
 ### Requirement: Control-Plane Secret Boundary
 
@@ -1178,22 +1176,3 @@ code depends on migrated table shape.
   are already recorded as applied
 - THEN the migration runner skips that migration
 - AND storage initialization continues without duplicate table rewrites
-
-### Requirement: Authority Record Migrations
-
-The system SHALL execute package app record migrations through Authority storage
-semantics.
-
-#### Scenario: Migrate records
-
-- WHEN a package app migration creates, patches, or tombstones records
-- THEN Authority validation, flat record materialization, write-log append,
-  idempotency, and monotonic cursor behavior are preserved
-- AND browser replicas can catch up through existing sync changes
-
-#### Scenario: Reject invalid migrated data
-
-- WHEN a record migration would produce records that fail schema field,
-  reference, unique constraint, or delete-blocker validation
-- THEN the migration fails before commit
-- AND existing stored records remain unchanged

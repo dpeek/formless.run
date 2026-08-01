@@ -3,7 +3,7 @@ import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import type { AppSchema } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 
-import { programStorageIdentity } from "../shared/app-storage-identity.ts";
+import { programStorageIdentity } from "../shared/program-storage-identity.ts";
 import type {
   OperationInvocationEnvelope,
   OperationInvocationOutput,

@@ -510,9 +510,9 @@ single Formless configuration entrypoint for a workspace.
 - **AND** `name` is required, explicit, and stable when the workspace directory
   moves
 - **AND** current workspace configuration keeps the existing `state`, `media`,
-  `local`, `packages`, and `runtime` nesting
+  `local`, and `runtime` nesting
 - **AND** configuration kind and version, workspace state root, media root, ignored
-  local state root, ignored secret state root, empty package links, and bundled
+  local state root, ignored secret state root, and bundled
   runtime behavior have defaults
 - **AND** the author specifies only `name` and values that differ from those
   defaults
@@ -548,10 +548,10 @@ single Formless configuration entrypoint for a workspace.
 
 #### Scenario: Keep operational configuration invariants
 
-- **WHEN** resolved configuration selects workspace write roots, linked package
-  manifests, or runtime extension entrypoints
+- **WHEN** resolved configuration selects workspace write roots or runtime
+  extension entrypoints
 - **THEN** those operational consumers reject unsafe or invalid filesystem
-  paths and duplicate package links before mutation or build execution
+  paths before mutation or build execution
 - **AND** App and Program schemas still pass through their semantic parsers and
   validators
 - **AND** trusted TypeScript configuration is not parsed as JSON or recursively
@@ -566,6 +566,15 @@ single Formless configuration entrypoint for a workspace.
   provenance, and media payloads they own
 - **AND** configuration never derives from Authority state or portable archive
   data
+
+#### Scenario: Select current workspace configuration
+
+- **WHEN** CLI build, dev, save, pull, push, deploy, or workspace operations
+  consume `formless.ts`
+- **THEN** only the current name, Program composition, layout, local-state, and
+  runtime-extension configuration participates in the operation
+- **AND** filesystem manifests, package links, or package payloads outside that
+  contract are not discovered, loaded, injected, rewritten, or cleaned up
 
 ### Requirement: Local First Onboarding
 
@@ -585,7 +594,7 @@ credential setup, and push operations.
 - **AND** local gateway lifecycle code owns sidecar creation, process token
   minting, child runtime gateway environment assembly, browser session
   entrypoint creation, and sidecar shutdown
-- **AND** workspace configuration bootstrap, package resolution, local Authority
+- **AND** workspace configuration bootstrap, Program materialization, local Authority
   bootstrap, operation execution, and auto-save scheduling remain outside the
   local gateway lifecycle code
 - **AND** the CLI does not create empty storage snapshot or media directories
@@ -648,7 +657,7 @@ credential setup, and push operations.
 - **THEN** before serving the local runtime it removes and recreates only the
   ignored local runtime state root used for dev server persistence, local dev
   secrets, local dev metadata, and local Wrangler state
-- **AND** it preserves reviewable workspace source, package links, storage
+- **AND** it preserves reviewable workspace source, storage
   snapshots, media payloads, deployment secret state, provider credentials, and
   remote instance state
 - **AND** the same `formless dev --reset` start can rebuild local Authority
@@ -656,17 +665,6 @@ credential setup, and push operations.
 - **AND** the printed local session bootstrap URL includes a reset request so
   browser-context Formless replica caches are reset before a fully fresh agent
   browser session enters the instance shell
-
-#### Scenario: Reject missing linked package source
-
-- **GIVEN** `formless.ts` `packages.links` points at a missing or invalid
-  package manifest or source schema
-- **WHEN** `formless dev`, `formless push`, or a workspace
-  operation builds the active package resolver
-- **THEN** the command fails before starting local runtime mutation, remote
-  mutation, sync planning, or provider mutation
-- **AND** the error identifies the invalid package link path and validation
-  reason without exposing secrets
 
 #### Scenario: Push a Program without optional domain records
 
@@ -698,8 +696,8 @@ bundled Worker and browser runtime build setup used by local dev and push.
 - **AND** the public Site client manifest remains emitted and served as
   `/assets/formless-client-manifest.json`
 - **AND** workspace-relative runtime extension paths are resolved during build
-  setup rather than stored as app data, deployment intent, package app source,
-  or Worker runtime bindings
+  setup rather than stored as Program data, deployment intent, domain schema
+  source, or Worker runtime bindings
 - **AND** browser runtime extensions share singleton React and React DOM modules
   with the browser runtime even when their workspace source resolves through a
   different physical package installation
@@ -776,8 +774,8 @@ workspace and target state rather than running upgrade or migration policy.
 - WHEN `formless push` or `formless push --dry-run` runs
 - THEN it does not build a CLI upgrade plan, require migration policy input,
   require backup evidence for migrations, require manual migration approval, or
-  apply package app or storage migrations
-- AND unsupported schema, package, runtime, or archive facts fail through the
+  apply storage migrations
+- AND unsupported schema, runtime, or archive facts fail through the
   ordinary sync validation path
 - AND migration and upgrade policy can be reintroduced later as a new explicit
   capability without preserving the removed push/deploy flags
@@ -832,15 +830,13 @@ without storing executable code configuration in app data.
 - **THEN** the `formless.ts` `runtime.extensions` section is treated as
   reviewable deploy-code configuration for resolving trusted workspace runtime
   extension modules
-- **AND** runtime extension config is not app install intent, route intent, app
-  data, Site record data, media payload, package app source data, provider
+- **AND** runtime extension config is not route intent, Program data, Site record
+  data, media payload, domain schema source, provider
   credential state, deployment observation state, or runtime secret state
 - **AND** `formless.ts` declares runtime extension module paths only inside the
   configuration-owned `runtime.extensions` section
-- **AND** `formless.ts` declares package app source links only inside the
-  configuration-owned `packages.links` section
-- **AND** app-install, route, deployment-config, app records, package manifests,
-  and runtime package payloads do not store local renderer module paths
+- **AND** route, deployment-config, Program records, Program artifacts, and
+  runtime extension payloads do not store local renderer module paths
 
 #### Scenario: Local dev uses runtime extensions
 

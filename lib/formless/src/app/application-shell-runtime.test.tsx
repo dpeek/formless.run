@@ -16,7 +16,7 @@ import { resetSyncStatus } from "../client/sync-status.ts";
 import type { HomeScreenModel } from "../client/views.ts";
 import { bootstrapResponse } from "../test/protocol-builders.ts";
 import { taskSourceSchema } from "../test/schema-apps.ts";
-import { programStorageIdentity } from "../shared/app-storage-identity.ts";
+import { programStorageIdentity } from "../shared/program-storage-identity.ts";
 import { getSchemaAppDefinition } from "../shared/schema-apps.ts";
 import { ApplicationShellRuntimeBoundary } from "./application-shell-runtime.tsx";
 import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";

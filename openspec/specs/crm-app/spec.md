@@ -20,11 +20,13 @@ record, presentation, and complete standalone schema modules.
 - **THEN** it exposes a documented `./schema` subpath with CRM record,
   presentation, and complete standalone source modules
 - **AND** `schema.json` is deterministically materialized portable schema data
-  with a matching manifest source hash
-- **AND** runtime code can consume the data artifact without evaluating the
-  TypeScript authoring module
-- **AND** the package does not own Program storage, routes, replicas, or app
-  install identity
+- **AND** trusted Program composition imports the schema modules at
+  build/materialization time while Worker request handling consumes only the
+  complete Program artifact
+- **AND** the standalone data artifact is retained for package checks and
+  publication rather than runtime package resolution
+- **AND** the package does not own Program storage, routes, replicas, archive,
+  workspace, deployment, or authorization identity
 
 ### Requirement: Program-Native CRM Domain
 
@@ -41,8 +43,8 @@ first use.
   snapshot, archive, workspace, replica, broadcast channel, and WebSocket
 - **AND** no CRM install-scoped Authority, API, browser database, broadcast
   channel, archive, workspace snapshot, or source-schema route exists
-- **AND** legacy CRM install metadata may remain dormant but is never selected
-  for routing, storage, archive, reset, migration, or synchronization
+- **AND** current Program schema and route policy select runtime state without
+  consulting package or install metadata
 
 #### Scenario: CRM Program screens and ordinary access
 

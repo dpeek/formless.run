@@ -2,7 +2,6 @@ import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import type { AppSchema } from "@dpeek/formless-schema";
 import {
   FORMLESS_CONFIG_FILE,
   resolveFormlessConfig,
@@ -10,23 +9,12 @@ import {
   type ResolvedFormlessConfig,
 } from "@dpeek/formless-workspace";
 import {
-  createWorkspaceAppPackageResolver,
-  type WorkspaceAppPackageResolverResult,
-} from "@dpeek/formless-workspace/node";
-import {
-  bundledAppPackageManifests,
-  runtimeInstallableAppPackageResolver,
-} from "../shared/app-packages.ts";
-import { formatRuntimeWorkspaceAppPackages } from "../shared/workspace-runtime-packages.ts";
-import {
   FORMLESS_PROGRAM_ARTIFACT_FILE,
   formatFormlessProgramArtifact,
   materializeFormlessProgramSourceArtifact,
   type FormlessProgramArtifact,
 } from "../program/artifact.ts";
 import { formlessProgramSourceSchema } from "../program/schema.ts";
-
-export type ActiveWorkspaceAppPackages = WorkspaceAppPackageResolverResult;
 
 export type ActiveWorkspaceProgramArtifact = {
   artifact: FormlessProgramArtifact;
@@ -77,7 +65,6 @@ export function formatFormlessConfigModule(config: Omit<FormlessConfig, "program
     ...(config.state === undefined ? {} : { state: config.state }),
     ...(config.media === undefined ? {} : { media: config.media }),
     ...(config.local === undefined ? {} : { local: config.local }),
-    ...(config.packages === undefined ? {} : { packages: config.packages }),
     ...(config.runtime === undefined ? {} : { runtime: config.runtime }),
   };
   const resolved = resolveFormlessConfig(authorConfig);
@@ -187,58 +174,6 @@ export async function materializeActiveWorkspaceProgramArtifact(
 export function activeWorkspaceProgramArtifact(config: ResolvedFormlessConfig) {
   return materializeFormlessProgramSourceArtifact(
     config.programSource ?? formlessProgramSourceSchema,
-  );
-}
-
-export async function createActiveWorkspaceAppPackages(
-  workspaceRoot: string,
-  config?: ResolvedFormlessConfig,
-): Promise<ActiveWorkspaceAppPackages> {
-  const workspaceConfig = config ?? (await readWorkspaceConfig(workspaceRoot)).config;
-
-  const activePackages = await createWorkspaceAppPackageResolver({
-    bundledManifests: bundledAppPackageManifests,
-    manifest: workspaceConfig,
-    workspaceRoot,
-  });
-  const resolver = runtimeInstallableAppPackageResolver(activePackages.resolver);
-
-  return {
-    ...activePackages,
-    linkedPackages: activePackages.linkedPackages.filter(
-      (appPackage) => resolver.findPackage(appPackage.appPackage.packageAppKey) !== undefined,
-    ),
-    resolver,
-  };
-}
-
-export function workspaceSourceSchemaForPackageApp(input: {
-  activePackages: ActiveWorkspaceAppPackages;
-  packageAppKey: string;
-}): AppSchema | undefined {
-  const linked = input.activePackages.linkedPackages.find(
-    (appPackage) => appPackage.appPackage.packageAppKey === input.packageAppKey,
-  );
-
-  if (linked) {
-    return linked.sourceSchema;
-  }
-
-  return undefined;
-}
-
-export function runtimeWorkspaceAppPackagesEnvValue(
-  activePackages: ActiveWorkspaceAppPackages,
-): string | undefined {
-  if (activePackages.linkedPackages.length === 0) {
-    return undefined;
-  }
-
-  return formatRuntimeWorkspaceAppPackages(
-    activePackages.linkedPackages.map((appPackage) => ({
-      manifest: appPackage.manifest,
-      sourceSchema: appPackage.sourceSchema,
-    })),
   );
 }
 

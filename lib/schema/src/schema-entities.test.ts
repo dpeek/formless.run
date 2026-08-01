@@ -26,24 +26,24 @@ describe("schema entities", () => {
             }),
           },
           {
-            key: "app-install",
+            key: "deployment-config",
             ...taskEntity({
               id: "entity_3576cc01-d469-4c23-a3af-68c4ed979bed",
-              label: "App install",
+              label: "Deployment config",
             }),
           },
         ],
       }),
     );
     expect(schema.entities.map(({ key }) => key)).toEqual(
-      expect.arrayContaining(["task", "project-note", "app-install"]),
+      expect.arrayContaining(["task", "project-note", "deployment-config"]),
     );
-    expect(parseQualifiedEntityName("Archive entity", "instance:app-install")).toEqual({
+    expect(parseQualifiedEntityName("Archive entity", "instance:route")).toEqual({
       schemaKey: "instance",
-      entityKey: "app-install",
+      entityKey: "route",
     });
-    expect(formatQualifiedEntityName({ schemaKey: "instance", entityKey: "app-install" })).toBe(
-      "instance:app-install",
+    expect(formatQualifiedEntityName({ schemaKey: "instance", entityKey: "route" })).toBe(
+      "instance:route",
     );
   });
 

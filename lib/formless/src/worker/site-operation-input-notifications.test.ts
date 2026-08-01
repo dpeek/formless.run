@@ -3,7 +3,10 @@ import type { AppSchema, EntityOperationSchema } from "@dpeek/formless-schema";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import { describe, expect, it } from "vite-plus/test";
 
-import { programStorageIdentity, type AppStorageIdentity } from "../shared/app-storage-identity.ts";
+import {
+  programStorageIdentity,
+  type ProgramStorageIdentity,
+} from "../shared/program-storage-identity.ts";
 import type { EmailDeliveryScheduleRequest } from "../shared/email-runtime.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import {
@@ -472,7 +475,7 @@ function recordPlanRequestOperation(): EntityOperationSchema {
 
 function operationInputResponse(
   input: {
-    identity?: AppStorageIdentity;
+    identity?: ProgramStorageIdentity;
     input?: RecordValues;
   } = {},
 ): OperationInvocationResponse {
@@ -489,7 +492,7 @@ function operationInputResponse(
     invocation: {
       invocationId: "operation:request.submit:operation-input-notify",
       actor: { kind: "anonymous" },
-      appStorageIdentity: identity,
+      programStorageIdentity: identity,
       idempotency: {
         required: true,
         key: "operation-input-notify",
@@ -535,7 +538,7 @@ function operationInputResponse(
 }
 
 function operationInputCommandResponse(input: {
-  identity?: AppStorageIdentity;
+  identity?: ProgramStorageIdentity;
   input: RecordValues;
   operation: EntityOperationSchema;
   outputValues?: RecordValues;
@@ -546,7 +549,7 @@ function operationInputCommandResponse(input: {
     invocation: {
       invocationId: "operation:request.submit:operation-input-notify",
       actor: { kind: "anonymous" },
-      appStorageIdentity: identity,
+      programStorageIdentity: identity,
       idempotency: {
         required: true,
         key: "operation-input-notify",

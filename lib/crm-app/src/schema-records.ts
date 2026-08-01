@@ -688,32 +688,16 @@ export const crmRecordSchemaModule = defineAppSchemaModule({
           label: "Target kind",
           values: [
             {
-              key: "schemaKey",
-              label: "Schema key",
-            },
-            {
-              key: "appInstall",
-              label: "App install",
+              key: "program",
+              label: "Program",
             },
           ],
-        },
-        {
-          key: "sourcePackageAppKey",
-          type: "text",
-          required: false,
-          label: "Package app key",
         },
         {
           key: "sourceSchemaKey",
           type: "text",
           required: false,
           label: "Source schema key",
-        },
-        {
-          key: "sourceInstallId",
-          type: "text",
-          required: false,
-          label: "Install id",
         },
         {
           key: "sourceApiRoutePrefix",
@@ -790,16 +774,8 @@ export const crmRecordSchemaModule = defineAppSchemaModule({
                 field: "sourceTargetKind",
               },
               {
-                key: "sourcePackageAppKey",
-                field: "sourcePackageAppKey",
-              },
-              {
                 key: "sourceSchemaKey",
                 field: "sourceSchemaKey",
-              },
-              {
-                key: "sourceInstallId",
-                field: "sourceInstallId",
               },
               {
                 key: "sourceApiRoutePrefix",
@@ -872,16 +848,8 @@ export const crmRecordSchemaModule = defineAppSchemaModule({
                 field: "sourceTargetKind",
               },
               {
-                key: "sourcePackageAppKey",
-                field: "sourcePackageAppKey",
-              },
-              {
                 key: "sourceSchemaKey",
                 field: "sourceSchemaKey",
-              },
-              {
-                key: "sourceInstallId",
-                field: "sourceInstallId",
               },
               {
                 key: "sourceApiRoutePrefix",

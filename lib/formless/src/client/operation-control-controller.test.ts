@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { programClientTarget, type ClientAppTarget } from "./app-target.ts";
+import { programClientTarget, type ProgramClientTarget } from "./program-target.ts";
 import {
   buildGeneratedOperationInvocationRequest,
   createGeneratedOperationController,
@@ -582,7 +582,7 @@ type AuthoritySubmitCall = {
   operationName: string;
   options: SubmitOperationOptions;
   request: OperationInvocationRequest;
-  target: ClientAppTarget;
+  target: ProgramClientTarget;
 };
 function captureAuthoritySubmitter(
   response: OperationInvocationResponse | Promise<OperationInvocationResponse>,

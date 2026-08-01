@@ -6,7 +6,10 @@ import type {
   ChangeRow,
 } from "../shared/protocol.ts";
 import { nowIsoString } from "../shared/clock.ts";
-import { appStorageIdentityForClientTarget, type ClientAppTarget } from "./app-target.ts";
+import {
+  programStorageIdentityForClientTarget,
+  type ProgramClientTarget,
+} from "./program-target.ts";
 
 const DB_VERSION = 2;
 
@@ -48,7 +51,7 @@ export class FormlessReplicaDatabaseDeleteBlockedError extends Error {
   }
 }
 
-export async function readLocalSnapshot(target: ClientAppTarget): Promise<LocalSnapshot> {
+export async function readLocalSnapshot(target: ProgramClientTarget): Promise<LocalSnapshot> {
   const db = await openClientDb(target);
 
   try {
@@ -104,7 +107,10 @@ function emptyLocalSnapshot(): LocalSnapshot {
   };
 }
 
-export async function saveBootstrapResponse(target: ClientAppTarget, response: BootstrapResponse) {
+export async function saveBootstrapResponse(
+  target: ProgramClientTarget,
+  response: BootstrapResponse,
+) {
   const db = await openClientDb(target);
 
   try {
@@ -130,7 +136,7 @@ export async function saveBootstrapResponse(target: ClientAppTarget, response: B
 }
 
 export async function saveSchema(
-  target: ClientAppTarget,
+  target: ProgramClientTarget,
   schema: AppSchema,
   updatedAt: string,
   schemaProvenance?: BrowserReplicaSchemaProvenance,
@@ -152,7 +158,11 @@ export async function saveSchema(
   }
 }
 
-export async function mergeChanges(target: ClientAppTarget, changes: ChangeRow[], cursor: number) {
+export async function mergeChanges(
+  target: ProgramClientTarget,
+  changes: ChangeRow[],
+  cursor: number,
+) {
   await mergeRecords(
     target,
     changes.map((change) => change.payload),
@@ -161,7 +171,7 @@ export async function mergeChanges(target: ClientAppTarget, changes: ChangeRow[]
 }
 
 export async function mergeRecords(
-  target: ClientAppTarget,
+  target: ProgramClientTarget,
   recordsToMerge: StoredRecord[],
   cursor?: number,
 ) {
@@ -188,7 +198,7 @@ export async function mergeRecords(
 }
 
 export async function readSchemaProvenance(
-  target: ClientAppTarget,
+  target: ProgramClientTarget,
 ): Promise<BrowserReplicaSchemaProvenance | null> {
   const db = await openClientDb(target);
 
@@ -205,7 +215,7 @@ export async function readSchemaProvenance(
   }
 }
 
-export async function readSchemaUpdatedAt(target: ClientAppTarget) {
+export async function readSchemaUpdatedAt(target: ProgramClientTarget) {
   const db = await openClientDb(target);
 
   try {
@@ -221,7 +231,7 @@ export async function readSchemaUpdatedAt(target: ClientAppTarget) {
   }
 }
 
-export async function readCursor(target: ClientAppTarget) {
+export async function readCursor(target: ProgramClientTarget) {
   const db = await openClientDb(target);
 
   try {
@@ -237,7 +247,7 @@ export async function readCursor(target: ClientAppTarget) {
   }
 }
 
-export function deleteClientDb(target: ClientAppTarget) {
+export function deleteClientDb(target: ProgramClientTarget) {
   return new Promise<void>((resolve, reject) => {
     const request = indexedDB.deleteDatabase(clientDbName(target));
 
@@ -277,11 +287,11 @@ export function isFormlessReplicaDatabaseName(name: string): boolean {
   return name === FORMLESS_INSTANCE_CONTROL_PLANE_REPLICA_DB;
 }
 
-export function clientDbName(target: ClientAppTarget) {
-  return appStorageIdentityForClientTarget(target).browserDatabaseName;
+export function clientDbName(target: ProgramClientTarget) {
+  return programStorageIdentityForClientTarget(target).browserDatabaseName;
 }
 
-async function openClientDb(target: ClientAppTarget) {
+async function openClientDb(target: ProgramClientTarget) {
   try {
     return await openClientDbOnce(target);
   } catch {
@@ -290,7 +300,7 @@ async function openClientDb(target: ClientAppTarget) {
   }
 }
 
-function openClientDbOnce(target: ClientAppTarget) {
+function openClientDbOnce(target: ProgramClientTarget) {
   return new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(clientDbName(target), DB_VERSION);
 

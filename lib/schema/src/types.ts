@@ -3,14 +3,15 @@
  *
  * Version 1 covers the Schema package public contract surface for App schema
  * language declarations, entity-name boundaries, query expressions, read-model
- * expressions, and runtime-neutral helper contracts. Bundled app revisions,
- * source schema hashes, app records, and runtime storage stay outside this
- * package contract.
+ * expressions, canonical source schema hashes, and runtime-neutral helper
+ * contracts. App records and runtime storage stay outside this package contract.
  *
  * This file is intentionally import-free so runtime-neutral schema entrypoints
  * can share declarations without adapter dependencies.
  */
 export const SCHEMA_PUBLIC_CONTRACT_VERSION = 1;
+/** Canonical SHA-256 digest of one complete portable App schema source. */
+export type SourceSchemaHash = `sha256:${string}`;
 /** One portable keyed definition used by an ordered schema registry. */
 export type KeyedDefinition<Definition extends object> = Definition & {
   key: string;
@@ -1392,17 +1393,6 @@ export type EntitySchema = {
 export type EntitySchemaSource = Omit<EntitySchema, "operations"> & {
   operations?: KeyedDefinition<EntityOperationSchemaSource>[];
 };
-export type RuntimeSchemaRouteValidationSchema = {
-  pathField: string;
-  prefixField?: string;
-  enabledField: string;
-  routeKindField: string;
-  packageCapabilityField: string;
-  appInstallField?: string;
-  reservedPaths?: string[];
-  routeKindCapabilities: Record<string, string>;
-};
-
 export type RuntimeSchemaHistorySchema = {
   kind: "operationCreated" | "appendOnly";
 };
@@ -1411,7 +1401,6 @@ export type RuntimeSchemaControlPlaneEntitySchema = {
   immutableFields?: string[];
   observedFields?: string[];
   secretReferenceFields?: string[];
-  routeValidation?: RuntimeSchemaRouteValidationSchema;
   history?: RuntimeSchemaHistorySchema;
 };
 

@@ -65,11 +65,11 @@ describe("public operation route package", () => {
 
     expect(
       buildPublicOperationTargetRoute({
-        targetApiRoutePrefix: "/api/app-installs/site/site",
+        targetApiRoutePrefix: "/api/formless/program",
         entityKey: "contact-message",
         operationKey: "submit",
       }),
-    ).toBe("/api/app-installs/site/site/public/operations/contact-message/submit");
+    ).toBe("/api/formless/program/public/operations/contact-message/submit");
   });
 
   it("rejects invalid suffix shape and extra segments", () => {

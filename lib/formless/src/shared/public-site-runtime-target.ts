@@ -1,4 +1,4 @@
-import { programStorageIdentity, type ProgramStorageIdentity } from "./app-storage-identity.ts";
+import { programStorageIdentity, type ProgramStorageIdentity } from "./program-storage-identity.ts";
 export type ProgramPublicSiteRuntimeTarget = {
   storageIdentity: ProgramStorageIdentity;
 };

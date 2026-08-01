@@ -215,7 +215,7 @@ export type AccountCompletionGateTarget = {
   returnTo: AccountRedirectTarget;
   routeId: string;
   selectedOrganization?: string;
-  storageIdentity?: string;
+  storageIdentity: string;
   targetOrigin: string;
   targetProfile: AccountCompletionGateTargetProfile;
 };
@@ -661,8 +661,8 @@ export function parseAccountCompletionGateTarget(value: unknown): AccountComplet
   assertKeys(
     "Account completion gate target",
     object,
-    ["returnTo", "routeId", "targetOrigin", "targetProfile"],
-    ["access", "selectedOrganization", "storageIdentity"],
+    ["returnTo", "routeId", "storageIdentity", "targetOrigin", "targetProfile"],
+    ["access", "selectedOrganization"],
   );
 
   const access =
@@ -676,14 +676,10 @@ export function parseAccountCompletionGateTarget(value: unknown): AccountComplet
     throw new Error("Account completion gate target access must be protected.");
   }
 
-  const storageIdentity = parseOptionalTrimmedNonEmptyString(
+  const storageIdentity = parseTrimmedNonEmptyString(
     "Account completion gate target storageIdentity",
     object.storageIdentity,
   );
-
-  if (storageIdentity === undefined) {
-    throw new Error("Account completion gate target requires storageIdentity.");
-  }
 
   const selectedOrganization = parseOptionalTrimmedNonEmptyString(
     "Account completion gate target selectedOrganization",
@@ -698,7 +694,7 @@ export function parseAccountCompletionGateTarget(value: unknown): AccountComplet
     ),
     routeId: parseTrimmedNonEmptyString("Account completion gate target routeId", object.routeId),
     ...(selectedOrganization === undefined ? {} : { selectedOrganization }),
-    ...(storageIdentity === undefined ? {} : { storageIdentity }),
+    storageIdentity,
     targetOrigin: parseInstanceAuthCanonicalOrigin(object.targetOrigin),
     targetProfile: parseStringLiteral(
       "Account completion gate target profile",

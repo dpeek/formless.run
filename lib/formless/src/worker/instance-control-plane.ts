@@ -1,4 +1,4 @@
-import { parseProgramApiRoute } from "../shared/app-storage-identity.ts";
+import { parseProgramApiRoute } from "../shared/program-storage-identity.ts";
 import { nowIsoString } from "../shared/clock.ts";
 import {
   INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID,
@@ -911,15 +911,10 @@ function syncDomainIntentRecords(
   if (input.mappings !== undefined) {
     const nextDomainRouteIds = new Set(domainRouteCandidates.map((candidate) => candidate.id));
 
-    for (const record of activeControlPlaneRecords(storage)) {
-      if (unselectedPublicSiteDomainRoute(record)) {
-        nextDomainRouteIds.add(record.id);
-      }
-    }
-
     removeMissingControlPlaneIntentRecords(storage, nextDomainRouteIds, {
       action: "removeDomainMappingIntent",
       idPrefix: "route:host:",
+      selected: isCurrentDomainMappingRoute,
     });
   }
 
@@ -1044,24 +1039,14 @@ function domainMappingRouteRecordValues(mapping: InstanceDomainMapping): RecordV
   };
 }
 
-function unselectedPublicSiteDomainRoute(record: StoredRecord): boolean {
-  if (
-    record.entity !== "route" ||
-    !record.id.startsWith("route:host:") ||
-    stringRecordValue(record.values.matchHost) === undefined
-  ) {
-    return false;
-  }
-
+function isCurrentDomainMappingRoute(record: StoredRecord): boolean {
   const targetProfile = stringRecordValue(record.values.targetProfile);
-  const surface = stringRecordValue(record.values.surface);
-  const publicSiteShaped = targetProfile === "public-site" || surface === "public-site";
 
   return (
-    publicSiteShaped &&
-    (targetProfile !== "public-site" ||
-      surface !== "public-site" ||
-      stringRecordValue(record.values.appInstall) !== undefined)
+    record.entity === "route" &&
+    record.values.kind === "mount" &&
+    stringRecordValue(record.values.matchHost) !== undefined &&
+    (targetProfile === "instance" || targetProfile === "public-site")
   );
 }
 
@@ -1096,12 +1081,14 @@ function removeMissingControlPlaneIntentRecords(
   input: {
     action: string;
     idPrefix: string;
+    selected?: (record: StoredRecord) => boolean;
   },
 ) {
   const recordsToRemove = activeControlPlaneRecords(storage).filter(
     (record) =>
       record.entity === "route" &&
       record.id.startsWith(input.idPrefix) &&
+      (input.selected === undefined || input.selected(record)) &&
       !nextRecordIds.has(record.id),
   );
 
@@ -1193,12 +1180,7 @@ function parseInternalDomainMappings(value: unknown): InstanceDomainMapping[] {
     throw new BadRequestError("Domain intent sync mappings must be an array.");
   }
 
-  return value.flatMap((item) =>
-    isRecord(item) &&
-    (item.profile === "app" || item.targetInstallId !== undefined || item.installId !== undefined)
-      ? []
-      : [parseInternalDomainMapping(item)],
-  );
+  return value.map(parseInternalDomainMapping);
 }
 
 function parseInternalDomainMapping(value: unknown): InstanceDomainMapping {

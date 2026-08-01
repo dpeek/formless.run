@@ -5,7 +5,6 @@ import path from "node:path";
 import {
   DEFAULT_INSTANCE_WORKSPACE_MEDIA_ROOT,
   DEFAULT_INSTANCE_WORKSPACE_SECRET_STATE_ROOT,
-  resolveFormlessConfig,
 } from "@dpeek/formless-workspace";
 import { defineAppSchemaModule } from "@dpeek/formless-schema";
 import { afterEach, describe, expect, it } from "vite-plus/test";
@@ -13,11 +12,6 @@ import {
   FORMLESS_PROGRAM_ARTIFACT_FILE,
   parseFormlessProgramArtifact,
 } from "../program/artifact.ts";
-import {
-  formlessProgramDefaultComposition,
-  formlessProgramSchemaModules,
-} from "../program/schema.ts";
-
 import {
   discoverFormlessInstanceWorkspaceRoot,
   formatFormlessConfigModule,
@@ -103,7 +97,7 @@ describe("TypeScript workspace configuration", () => {
     );
   });
 
-  it("materializes one data-only active Program artifact under local workspace state", async () => {
+  it("materializes trusted formless.ts Program composition as one data-only artifact", async () => {
     const workspaceRoot = await makeTempDir();
     const extension = defineAppSchemaModule({
       key: "workspace-verification-records",
@@ -115,14 +109,68 @@ describe("TypeScript workspace configuration", () => {
           fields: [{ key: "reference", type: "text", required: true }],
         },
       ],
+      queries: [
+        {
+          key: "verificationAll",
+          label: "All verifications",
+          entity: "verification",
+          expression: { kind: "all" },
+        },
+      ],
+      itemViews: [
+        {
+          key: "verificationItem",
+          entity: "verification",
+          fields: [{ field: "reference", editor: "text", commit: "field-commit" }],
+        },
+      ],
+      views: [
+        {
+          key: "verificationHome",
+          type: "collection",
+          label: "Verifications",
+          entity: "verification",
+          queries: [{ query: "verificationAll" }],
+          defaultQuery: "verificationAll",
+          result: { type: "list", itemView: "verificationItem" },
+        },
+      ],
+      screens: [
+        {
+          key: "verificationHome",
+          type: "workspace",
+          label: "Verifications",
+          path: "/verifications",
+          access: { actor: "owner" },
+          layout: {
+            type: "stack",
+            sections: [{ id: "verifications", type: "collection", view: "verificationHome" }],
+          },
+        },
+      ],
     });
-    const config = resolveFormlessConfig({
-      name: "workspace-program",
-      program: {
-        ...formlessProgramDefaultComposition,
-        modules: [...formlessProgramSchemaModules, extension],
-      },
-    });
+    await writeFile(
+      path.join(workspaceRoot, "program.ts"),
+      `export const extension = ${JSON.stringify(extension, null, 2)} as const;\n`,
+    );
+    await writeFile(
+      path.join(workspaceRoot, "formless.ts"),
+      [
+        `import { extension } from ${JSON.stringify("./program.ts")};`,
+        "",
+        "export default {",
+        '  name: "workspace-program",',
+        "  program: {",
+        "    version: 1,",
+        "    modules: [extension],",
+        '    runtime: { owner: "runtime" },',
+        "  },",
+        "};",
+        "",
+      ].join("\n"),
+    );
+
+    const { config } = await readWorkspaceConfig(workspaceRoot);
     const active = await materializeActiveWorkspaceProgramArtifact(workspaceRoot, config);
     const parsed = await parseFormlessProgramArtifact(
       JSON.parse(await readFile(active.path, "utf8")) as unknown,

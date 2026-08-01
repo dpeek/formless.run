@@ -24,7 +24,7 @@ import { applyBootstrapResponse, resetClientStore } from "../client/store.ts";
 import { resetSyncStatus } from "../client/sync-status.ts";
 import { bootstrapResponse } from "../test/protocol-builders.ts";
 import { taskSourceSchema } from "../test/schema-apps.ts";
-import { programStorageIdentity } from "../shared/app-storage-identity.ts";
+import { programStorageIdentity } from "../shared/program-storage-identity.ts";
 import { getSchemaAppDefinition } from "../shared/schema-apps.ts";
 import { createInstanceRuntimeProfile } from "./runtime-profile.ts";
 (

@@ -3,11 +3,11 @@ import {
   identityControlPlaneSchema,
   type IdentityControlPlaneRoleKey,
 } from "@dpeek/formless-identity-control-plane";
-import { isCurrentInstanceControlPlaneRecord } from "@dpeek/formless-instance-control-plane";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import {
   formlessProgramSchema,
   formlessProgramSchemaProvenance,
+  isFormlessProgramSchemaRecord,
   validateFormlessProgramRecords,
 } from "../program/runtime.ts";
 import {
@@ -24,7 +24,6 @@ import {
   type RecordConstraintValidator,
   type StorageSource,
 } from "./storage.ts";
-import type { WorkerAppDefinition } from "./runtime-app-packages.ts";
 
 export const INTERNAL_PROGRAM_CONVERGENCE_SOURCE_PATH = "/_internal/program-convergence/source";
 
@@ -33,12 +32,19 @@ const identityEntityNames = new Set(
   identityControlPlaneSchema.entities.map((entity) => entity.key),
 );
 
+export type WorkerProgramDefinition = {
+  key: string;
+  label: string;
+  route: `/${string}`;
+  sourceSchema: typeof formlessProgramSchema;
+};
+
 export const formlessProgramApp = {
   key: FORMLESS_PROGRAM_SCHEMA_KEY,
   label: "Formless Program",
   route: "/",
   sourceSchema: formlessProgramSchema,
-} satisfies WorkerAppDefinition;
+} satisfies WorkerProgramDefinition;
 
 export function formlessProgramSource(): StorageSource {
   return {
@@ -118,52 +124,7 @@ export function isIdentityProgramRecord(record: StoredRecord): boolean {
 }
 
 export function isCurrentFormlessProgramRecord(record: StoredRecord): boolean {
-  if (!isCurrentInstanceControlPlaneRecord(record)) {
-    return false;
-  }
-
-  if (record.entity === "app-registration") {
-    return false;
-  }
-
-  if (!isIdentityProgramRecord(record)) {
-    return true;
-  }
-
-  if (record.entity === "role") {
-    return (
-      record.values.key !== "app.admin" &&
-      record.values.key !== "app.editor" &&
-      record.values.key !== "app.viewer" &&
-      record.values.key !== "app.user"
-    );
-  }
-
-  if (record.entity === "role-assignment") {
-    return (
-      record.values.scopeKind !== "app-install" &&
-      record.values.scopeAppInstall === undefined &&
-      !(typeof record.values.role === "string" && record.values.role.startsWith("role:app."))
-    );
-  }
-
-  if (record.entity === "invitation") {
-    return (
-      record.values.targetSurface !== "app-install" &&
-      record.values.targetAppInstall === undefined &&
-      record.values.targetAppInstallId === undefined
-    );
-  }
-
-  if (record.entity === "account-policy") {
-    return (
-      record.values.scopeKind !== "app-install" &&
-      record.values.scopeAppInstall === undefined &&
-      record.values.appInstallId === undefined
-    );
-  }
-
-  return true;
+  return isFormlessProgramSchemaRecord(record);
 }
 
 export function selectCurrentFormlessProgramRecords(

@@ -148,15 +148,10 @@ describe("crm source schema", () => {
     ).toMatchObject({
       type: "enum",
       required: false,
-      values: [
-        { key: "schemaKey", label: "Schema key" },
-        { key: "appInstall", label: "App install" },
-      ],
+      values: [{ key: "program", label: "Program" }],
     });
     for (const fieldName of [
-      "sourcePackageAppKey",
       "sourceSchemaKey",
-      "sourceInstallId",
       "sourceApiRoutePrefix",
       "sourceOperationKey",
       "sourceHost",

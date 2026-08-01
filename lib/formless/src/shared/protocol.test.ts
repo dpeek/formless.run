@@ -3,7 +3,6 @@ import {
   isSyncSocketAttachment,
   isSyncSocketClientMessage,
   isSyncSocketServerMessage,
-  parseCreateAppInstallRequest,
   parseOwnerSetupToken,
   type ChangeRow,
   type SyncResponse,
@@ -138,52 +137,6 @@ describe("owner setup protocol", () => {
     expect(() => parseOwnerSetupToken("abcDEF0123456789_-abcDEF0123456789_~")).toThrow(
       "Owner setup token must be URL-safe.",
     );
-  });
-});
-
-describe("app install protocol", () => {
-  it("parses create app install requests", () => {
-    expect(
-      parseCreateAppInstallRequest({
-        packageAppKey: " site ",
-        installId: " personal ",
-        label: " Personal Site ",
-      }),
-    ).toEqual({
-      packageAppKey: "site",
-      installId: "personal",
-      label: "Personal Site",
-    });
-  });
-
-  it("rejects unsupported create install request shapes", () => {
-    expect(() => parseCreateAppInstallRequest({ installId: "personal", label: "Site" })).toThrow(
-      'App install request must include "packageAppKey".',
-    );
-    expect(() =>
-      parseCreateAppInstallRequest({
-        packageAppKey: "site",
-        installId: "personal",
-        label: "Site",
-        route: "/apps/personal",
-      }),
-    ).toThrow('App install request has unsupported key "route".');
-    expect(() =>
-      parseCreateAppInstallRequest({
-        packageAppKey: "site",
-        installId: "personal",
-        label: "Site",
-        registrationOperation: "profile.register",
-      }),
-    ).toThrow('App install request has unsupported key "registrationOperation".');
-    expect(() =>
-      parseCreateAppInstallRequest({
-        packageAppKey: "site",
-        installId: "personal",
-        label: "Site",
-        registrationPolicy: "domain-allowlist",
-      }),
-    ).toThrow('App install request has unsupported key "registrationPolicy".');
   });
 });
 

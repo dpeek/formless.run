@@ -247,10 +247,10 @@ describe("Astryx media field conformance", () => {
     expect(selectedMarkup).toContain("Quarterly report.pdf");
     expect(selectedMarkup).toContain("application/pdf · 41 KiB");
     expect(selectedMarkup).toContain(
-      'href="/api/app-installs/reports/private/media/documents/report-quarterly"',
+      'href="/api/formless/program/media/documents/report-quarterly"',
     );
     expect(selectedMarkup).toContain(
-      'href="/api/app-installs/reports/private/media/documents/report-quarterly?download=1"',
+      'href="/api/formless/program/media/documents/report-quarterly?download=1"',
     );
     expect(selectedMarkup).toContain('target="_blank"');
     expect(selectedMarkup).toContain('rel="noopener noreferrer"');

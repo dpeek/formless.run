@@ -11,7 +11,6 @@ import {
   type TransitionSideEffectRecordPlanSchema,
 } from "@dpeek/formless-schema";
 import type { FieldValue, RecordValues, StoredRecord } from "@dpeek/formless-storage";
-import type { AppPackageResolver } from "../shared/app-packages.ts";
 import { createRecordId } from "../shared/ids.ts";
 import type {
   OperationCommandOutput,
@@ -71,7 +70,6 @@ export type RecordPlanMaterializerInput = {
   identityReferenceResolver?: IdentityReferenceTargetResolver;
   inputValues: RecordPlanInputValues;
   operationId: string;
-  packageResolver?: AppPackageResolver;
   plannedRecords?: Iterable<StoredRecord>;
   schema: AppSchema;
   storage: DurableObjectStorage;
@@ -82,7 +80,6 @@ type RecordPlanPlanningState = {
   operationId: string;
   envelope: OperationInvocationEnvelope;
   inputValues: RecordPlanInputValues;
-  packageResolver?: AppPackageResolver;
   plannedRecordsById: Map<string, StoredRecord>;
   schema: AppSchema;
   stepOutputs: Map<string, StoredRecord>;
@@ -130,7 +127,6 @@ export function materializeRecordPlan(
     operationId: input.operationId,
     envelope: input.envelope,
     inputValues: input.inputValues,
-    packageResolver: input.packageResolver,
     plannedRecordsById: initialRecordPlanRecords(input.plannedRecords),
     schema: input.schema,
     stepOutputs: new Map(),
@@ -159,7 +155,6 @@ export async function materializeRecordPlanAsync(
     operationId: input.operationId,
     envelope: input.envelope,
     inputValues: input.inputValues,
-    packageResolver: input.packageResolver,
     plannedRecordsById: initialRecordPlanRecords(input.plannedRecords),
     schema: input.schema,
     stepOutputs: new Map(),
@@ -477,7 +472,6 @@ function validateRecordPlanStepWrite(
     {
       additionalRecords: [...state.plannedRecordsById.values()],
       enforceGenericRecordWritePolicy: false,
-      packageResolver: state.packageResolver,
     },
   );
 
@@ -538,7 +532,6 @@ async function validateRecordPlanStepWriteAsync(
       additionalRecords: [...state.plannedRecordsById.values()],
       enforceGenericRecordWritePolicy: false,
       identityReferenceResolver: options.identityReferenceResolver,
-      packageResolver: state.packageResolver,
     },
   );
 

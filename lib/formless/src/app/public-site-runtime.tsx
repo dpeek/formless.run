@@ -5,10 +5,10 @@ import {
   type SitePageLinkMode,
 } from "@dpeek/formless-site-app/public/react";
 import {
-  appStorageIdentityForClientTarget,
+  programStorageIdentityForClientTarget,
   programClientTarget,
-  type ClientAppTarget,
-} from "../client/app-target.ts";
+  type ProgramClientTarget,
+} from "../client/program-target.ts";
 import { listenForClientEvents } from "../client/broadcast.ts";
 import { startPushSync } from "../client/sync.ts";
 
@@ -16,7 +16,7 @@ export type PublicSiteRouteInputProps = {
   linkMode?: SitePageLinkMode;
   routeBase?: `/${string}`;
   slug: string;
-  target?: ClientAppTarget;
+  target?: ProgramClientTarget;
   workspaceRenderer?: SitePublicRendererComponent;
 };
 
@@ -34,7 +34,7 @@ export function CoreSitePageRoute({
   target = programClientTarget(),
   workspaceRenderer,
 }: PublicSiteRouteProps) {
-  const identity = appStorageIdentityForClientTarget(target);
+  const identity = programStorageIdentityForClientTarget(target);
 
   return (
     <PackageSitePageRoute
@@ -51,11 +51,11 @@ export function CoreSitePageRoute({
   );
 }
 
-function startSitePreviewSync(target: ClientAppTarget, onSynced: () => void) {
+function startSitePreviewSync(target: ProgramClientTarget, onSynced: () => void) {
   return startPushSync(target, { onSynced });
 }
 
-function listenForSitePreviewChanges(target: ClientAppTarget, onChanged: () => void) {
+function listenForSitePreviewChanges(target: ProgramClientTarget, onChanged: () => void) {
   return listenForClientEvents(target, (event) => {
     if (event.type === "records-updated" || event.type === "schema-updated") {
       onChanged();

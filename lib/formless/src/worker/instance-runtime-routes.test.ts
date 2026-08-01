@@ -290,43 +290,6 @@ describe("instance runtime route resolution", () => {
       kind: "mount",
     });
   });
-
-  it("omits dormant app-target routes before ranking current Program routes", () => {
-    const records = [
-      routeRecord("dormant-app", {
-        appInstall: "crm",
-        enabled: true,
-        matchHost: "app.example.com",
-        matchPath: "/",
-        matchPrefix: "/",
-        kind: "mount",
-        requiredRole: "app.admin",
-        surface: "admin",
-        targetProfile: "app",
-      }),
-      routeRecord("program-site", {
-        enabled: true,
-        matchHost: "app.example.com",
-        matchPath: "/",
-        matchPrefix: "/",
-        kind: "mount",
-        surface: "public-site",
-        targetProfile: "public-site",
-      }),
-    ];
-
-    expect(
-      resolveInstanceRuntimeRouteFromRecords({
-        records,
-        request: { host: "app.example.com", pathname: "/dashboard" },
-      }),
-    ).toMatchObject({
-      access: "anonymous",
-      id: "program-site",
-      surface: "public-site",
-      targetProfile: "public-site",
-    });
-  });
 });
 
 function routeRecord(id: string, values: StoredRecord["values"]): StoredRecord {

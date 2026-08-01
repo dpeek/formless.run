@@ -37,7 +37,7 @@ import {
   type RuntimeProfile,
   type RuntimeWorldMount,
 } from "./app/runtime-profile.ts";
-import type { ClientAppSchemaKey, ClientAppTarget } from "./client/app-target.ts";
+import type { ProgramClientSchemaKey, ProgramClientTarget } from "./client/program-target.ts";
 import {
   authAccountContinuationLocationForReturnTarget,
   COLLABORATOR_INVITATION_ACCEPT_PATH,
@@ -61,8 +61,8 @@ type HomeRouteProps = {
   sectionExternalActions?: Readonly<
     Record<string, readonly GeneratedWorkspaceSectionExternalAction[] | undefined>
   >;
-  target: ClientAppTarget;
-  schemaKey: ClientAppSchemaKey;
+  target: ProgramClientTarget;
+  schemaKey: ProgramClientSchemaKey;
   screenPath: string;
   workspaceActions?: readonly WorkspaceLinkActionContract[];
 };
@@ -375,7 +375,7 @@ function AppRoutes({
         <Route key={world.route} path={world.route}>
           <ProtectedRouteGuard access={world.access ?? "anonymous"}>
             <HomeRoute
-              schemaKey={world.app.key}
+              schemaKey={world.target.schemaKey}
               screenPath="/"
               target={world.target}
               workspaceActions={siteWorkspaceLinkActionsForWorld(world, publicSitePreview)}
@@ -388,7 +388,7 @@ function AppRoutes({
           {(params) => (
             <ProtectedRouteGuard access={world.access ?? "anonymous"}>
               <HomeRoute
-                schemaKey={world.app.key}
+                schemaKey={world.target.schemaKey}
                 screenPath={runtimeWildcardScreenPath(params)}
                 target={world.target}
                 workspaceActions={siteWorkspaceLinkActionsForWorld(world, publicSitePreview)}

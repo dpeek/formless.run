@@ -189,22 +189,6 @@ describe("Alchemy domain provider adapter", () => {
           providerFamily: "cloudflare",
           targetId: "instance.primary",
         },
-        {
-          dependencies: [],
-          inputs: {
-            adopt: false,
-            host: "app.example.com",
-            name: "app.example.com",
-            overrideExistingOrigin: false,
-            profile: "publicSite",
-            targetInstallId: "site",
-            workerName: "formless-prod",
-          },
-          kind: "cloudflare-worker-custom-domain",
-          logicalId: "primary-custom-domain-app-example-com-publicsite-site",
-          providerFamily: "cloudflare",
-          targetId: "instance.primary",
-        },
       ],
     };
 
@@ -237,17 +221,11 @@ describe("Alchemy domain provider adapter", () => {
     expect(calls.map((call) => [call.kind, call.id])).toEqual([
       ["DnsRecords", "primary-dns-dns-example-com"],
       ["CustomDomain", "primary-redirect-custom-domain-www-example-com"],
-      ["CustomDomain", "primary-custom-domain-app-example-com-publicsite-site"],
     ]);
     expect(calls[0]?.props).toMatchObject({ zoneId: "zone-example" });
     expect(calls[1]?.props).toMatchObject({
       adopt: true,
       name: "www.example.com",
-      workerName: "formless-prod",
-    });
-    expect(calls[2]?.props).toMatchObject({
-      adopt: true,
-      name: "app.example.com",
       workerName: "formless-prod",
     });
     expect(result.evidence).toEqual([
@@ -267,16 +245,6 @@ describe("Alchemy domain provider adapter", () => {
         displayName: "www.example.com",
         kind: "cloudflare-worker-custom-domain",
         logicalId: "primary-redirect-custom-domain-www-example-com",
-        providerFamily: "cloudflare",
-        providerResourceIds: ["custom-domain-output"],
-        targetId: "instance.primary",
-      },
-      {
-        action: "updated",
-        alchemyResourceId: "primary-custom-domain-app-example-com-publicsite-site",
-        displayName: "app.example.com",
-        kind: "cloudflare-worker-custom-domain",
-        logicalId: "primary-custom-domain-app-example-com-publicsite-site",
         providerFamily: "cloudflare",
         providerResourceIds: ["custom-domain-output"],
         targetId: "instance.primary",

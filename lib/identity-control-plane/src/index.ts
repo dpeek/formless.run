@@ -1,4 +1,4 @@
-import type { SourceSchemaHash } from "@dpeek/formless-installed-apps";
+import type { SourceSchemaHash } from "@dpeek/formless-schema";
 import {
   formatQualifiedEntityName,
   isValidStoredFieldValue,

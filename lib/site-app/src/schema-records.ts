@@ -1128,29 +1128,13 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
               key: "program",
               label: "Program",
             },
-            {
-              key: "appInstall",
-              label: "App install",
-            },
           ],
-        },
-        {
-          key: "sourcePackageAppKey",
-          type: "text",
-          required: true,
-          label: "Package app key",
         },
         {
           key: "sourceSchemaKey",
           type: "text",
           required: true,
           label: "Source schema key",
-        },
-        {
-          key: "sourceInstallId",
-          type: "text",
-          required: false,
-          label: "Install id",
         },
         {
           key: "sourceApiRoutePrefix",
@@ -1223,16 +1207,8 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
                 field: "sourceTargetKind",
               },
               {
-                key: "sourcePackageAppKey",
-                field: "sourcePackageAppKey",
-              },
-              {
                 key: "sourceSchemaKey",
                 field: "sourceSchemaKey",
-              },
-              {
-                key: "sourceInstallId",
-                field: "sourceInstallId",
               },
               {
                 key: "sourceApiRoutePrefix",

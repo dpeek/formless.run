@@ -23,7 +23,7 @@ import {
   resolveGeneratedApplicationShellIntent,
 } from "./generated-application-shell-contract-host.ts";
 import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../../program/runtime.ts";
-import { programStorageIdentity } from "../../shared/app-storage-identity.ts";
+import { programStorageIdentity } from "../../shared/program-storage-identity.ts";
 import { getSchemaAppDefinition } from "../../shared/schema-apps.ts";
 
 describe("generated application shell projection", () => {

@@ -295,10 +295,6 @@ function accountGateFixtures(): FormlessAuthFixture[] {
     accountGateFixture("invitation", "blocked", {
       message: authMessage("invitation", "An accepted invitation is required.", "warning"),
     }),
-    accountGateFixture("app-registration", "ready", {
-      actions: [authAction("account-gate:app-registration:ready", "submit", "Register for CRM")],
-      facts: [authFact("app", "App install", "CRM")],
-    }),
     accountGateFixture("profile-completion", "ready", {
       actions: [authAction("account-gate:profile-completion:ready", "submit", "Complete profile")],
       fields: [
@@ -317,9 +313,6 @@ function accountGateFixtures(): FormlessAuthFixture[] {
     accountGateFixture("role-review", "blocked", {
       facts: [authFact("role", "Required role", "Editor")],
       message: authMessage("role-review", "Role approval is required.", "warning"),
-    }),
-    accountGateFixture("app-registration", "unavailable", {
-      message: authMessage("unavailable", "App registration is unavailable.", "warning"),
     }),
     accountTerminalFixture("failed", {
       actions: [authAction("account-gate:failed", "retry", "Try again")],

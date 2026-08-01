@@ -1,12 +1,6 @@
 import type { AppSchema } from "@dpeek/formless-schema";
 import { isStoredRecord, type RecordValues, type StoredRecord } from "@dpeek/formless-storage";
-import type {
-  AppInstall,
-  AppInstallInitializationPlan,
-  AppInstallLaunchLink,
-  InstallableAppPackage,
-} from "@dpeek/formless-installed-apps";
-import type { SourceSchemaHash } from "./upgrade-migrations.ts";
+import type { SourceSchemaHash } from "@dpeek/formless-schema";
 
 export type EntityName = string;
 
@@ -197,24 +191,6 @@ export type OwnerSetupStatusResponse = {
   owner?: OwnerIdentity;
 };
 
-export type AppInstallsResponse = {
-  packages: InstallableAppPackage[];
-  installs: AppInstall[];
-  launchLinks?: AppInstallLaunchLink[];
-};
-
-export type CreateAppInstallRequest = {
-  packageAppKey: string;
-  installId: string;
-  label: string;
-};
-
-export type CreateAppInstallResponse = {
-  initialization: AppInstallInitializationPlan;
-  install: AppInstall;
-  installs: AppInstall[];
-};
-
 export type SchemaResponse = {
   schema: AppSchema;
   schemaProvenance?: BrowserReplicaSchemaProvenance;
@@ -276,20 +252,6 @@ export function parseOwnerSetupToken(value: unknown): string {
   }
 
   return token;
-}
-
-export function parseCreateAppInstallRequest(value: unknown): CreateAppInstallRequest {
-  if (!isRecord(value)) {
-    throw new Error("App install request must be an object.");
-  }
-
-  assertCreateAppInstallRequestKeys(value);
-
-  return {
-    packageAppKey: parseTrimmedNonEmptyString("App install package app key", value.packageAppKey),
-    installId: parseTrimmedNonEmptyString("App install id", value.installId),
-    label: parseTrimmedNonEmptyString("App install label", value.label),
-  };
 }
 
 function isSyncResponse(value: unknown): value is SyncResponse {
@@ -354,33 +316,4 @@ function isSha256SourceSchemaHash(value: unknown): value is SourceSchemaHash {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function assertCreateAppInstallRequestKeys(value: Record<string, unknown>) {
-  const requiredKeys = ["packageAppKey", "installId", "label"];
-  const allowedKeys = new Set(requiredKeys);
-
-  for (const key of Object.keys(value)) {
-    if (!allowedKeys.has(key)) {
-      throw new Error(`App install request has unsupported key "${key}".`);
-    }
-  }
-
-  for (const key of requiredKeys) {
-    if (!(key in value)) {
-      throw new Error(`App install request must include "${key}".`);
-    }
-  }
-}
-
-function parseNonEmptyString(context: string, value: unknown): string {
-  if (typeof value !== "string" || value.trim() === "") {
-    throw new Error(`${context} must be a non-empty string.`);
-  }
-
-  return value;
-}
-
-function parseTrimmedNonEmptyString(context: string, value: unknown): string {
-  return parseNonEmptyString(context, value).trim();
 }

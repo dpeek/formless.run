@@ -6,7 +6,6 @@ Read this when editing `lib/crm-app/*`.
 
 ## Owns
 
-- CRM app package manifest in `formless.app.json`.
 - CRM schema authoring modules composed in `src/schema.ts`.
 - Materialized CRM source schema in `schema.json`.
 - Runtime-neutral CRM package contracts in `src/`.
@@ -21,7 +20,6 @@ Read this when editing `lib/crm-app/*`.
 
 - `package.json`: package metadata and exported root and source JSON subpaths.
 - `tsconfig.json`: package-local TypeScript project extending the repo config.
-- `formless.app.json`: runtime-neutral CRM app package manifest.
 - `schema.json`: materialized flat CRM app schema source.
 - `scripts/materialize-schema.ts`: package-local schema materialization command.
 - `src/schema-records.ts`: CRM record and query declarations.

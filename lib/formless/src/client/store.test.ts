@@ -8,7 +8,7 @@ import {
   resetClientStore,
   subscribeToClientStoreSelector,
 } from "./store.ts";
-import { programClientTarget } from "./app-target.ts";
+import { programClientTarget } from "./program-target.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { BootstrapResponse } from "../shared/protocol.ts";
 import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";

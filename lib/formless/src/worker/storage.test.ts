@@ -6,14 +6,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus
 import { createWorkerHarness } from "./miniflare-test.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
-import type { BootstrapResponse, ChangeRow, SyncResponse } from "../shared/protocol.ts";
+import type { BootstrapResponse, ChangeRow } from "../shared/protocol.ts";
 import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
 import type {
-  AppliedPackageAppMigration,
-  ApplyPackageAppMigrationsResponse,
   CommandWriteResponse,
   RecordWriteResponse,
-  PackageAppMigrationState,
   StoredSchema,
   WriteOutcome,
 } from "./storage.ts";
@@ -325,12 +322,8 @@ describe("storage", () => {
       schemaKind: "view-label",
       sourceSchemaHash: refreshedHash,
     });
-    const state = await getJson<PackageAppMigrationState>("/package-migration-state");
-
     expect(initial.schemaProvenance).toEqual({
-      kind: "package-app",
-      packageAppKey: "tasks",
-      packageRevision: 1,
+      kind: "program",
       sourceSchemaHash: initialHash,
     });
     expect(refreshed.updatedAt).not.toBe(initial.updatedAt);
@@ -338,19 +331,12 @@ describe("storage", () => {
       refreshed.schema.views.find((definition) => definition.key === "taskHome")!,
     ).toMatchObject({ label: "Refreshed" });
     expect(refreshed.schemaProvenance).toEqual({
-      kind: "package-app",
-      packageAppKey: "tasks",
-      packageRevision: 1,
+      kind: "program",
       sourceSchemaHash: refreshedHash,
     });
     expect(await getJson<StoredRecord[]>("/records")).toEqual([created.record]);
     expect(await getJson<ChangeRow[]>("/changes?after=0")).toEqual(beforeChanges);
     expect(await getJson<number>("/cursor")).toBe(beforeCursor);
-    expect(state).toMatchObject({
-      packageAppKey: "tasks",
-      packageRevision: 1,
-      sourceSchemaHash: refreshedHash,
-    });
   });
 
   it("initializes empty control-plane source and refreshes compatible schema provenance", async () => {
@@ -410,7 +396,6 @@ describe("storage", () => {
 
     const beforeSchema = await getJson<StoredSchema>("/current-schema");
     const beforeChanges = await getJson<ChangeRow[]>("/changes?after=0");
-    const beforeState = await getJson<PackageAppMigrationState>("/package-migration-state");
     const response = await fetchStorage("/source-bootstrap", {
       body: JSON.stringify({
         schemaKind: "required-field",
@@ -424,25 +409,18 @@ describe("storage", () => {
       error: expect.stringContaining("Active schema refresh blocked"),
       blocker: {
         currentSchemaProvenance: {
-          kind: "package-app",
-          packageAppKey: "tasks",
-          packageRevision: 1,
+          kind: "program",
           sourceSchemaHash: initialHash,
         },
-        storageIdentity: "app:tasks",
+        storageIdentity: "instance:control-plane",
         targetSchemaProvenance: {
-          kind: "package-app",
-          packageAppKey: "tasks",
-          packageRevision: 1,
+          kind: "program",
           sourceSchemaHash: refreshedHash,
         },
       },
     });
     expect(await getJson<StoredSchema>("/current-schema")).toEqual(beforeSchema);
     expect(await getJson<ChangeRow[]>("/changes?after=0")).toEqual(beforeChanges);
-    expect(await getJson<PackageAppMigrationState>("/package-migration-state")).toEqual(
-      beforeState,
-    );
   });
 
   it("refreshes selected current records without mutating dormant stored records", async () => {
@@ -490,46 +468,16 @@ describe("storage", () => {
       ),
       blocker: {
         currentSchemaProvenance: {
-          kind: "package-app",
+          kind: "program",
           sourceSchemaHash: initialHash,
         },
         targetSchemaProvenance: {
-          kind: "package-app",
+          kind: "program",
           sourceSchemaHash: refreshedHash,
         },
       },
     });
     expect(await getJson<StoredSchema>("/current-schema")).toEqual(beforeSchema);
-  });
-
-  it("blocks schema-only refresh when the package revision changed", async () => {
-    await postJson<StoredSchema>("/source-bootstrap", {
-      sourceSchemaHash: sourceHash("1"),
-    });
-
-    const response = await fetchStorage("/source-bootstrap", {
-      body: JSON.stringify({
-        packageRevision: 2,
-        schemaKind: "view-label",
-        sourceSchemaHash: sourceHash("2"),
-      }),
-      method: "POST",
-    });
-
-    expect(response.status).toBe(409);
-    expect(await response.json()).toMatchObject({
-      error: expect.stringContaining("package app revision 1 targets 2"),
-      blocker: {
-        currentSchemaProvenance: {
-          kind: "package-app",
-          packageRevision: 1,
-        },
-        targetSchemaProvenance: {
-          kind: "package-app",
-          packageRevision: 2,
-        },
-      },
-    });
   });
 
   it("classifies committed and replayed record write outcomes without duplicate changes", async () => {
@@ -1064,182 +1012,6 @@ describe("storage", () => {
       await getJson<CommandWriteResponse | null>("/command-write-response?writeId=command-1"),
     ).toBeNull();
   });
-
-  it("applies package app record migrations as sync-visible Authority changes", async () => {
-    await seedPackageMigrationRecords();
-    const beforeCursor = await getJson<number>("/cursor");
-
-    const first = await postJson<WriteOutcome<ApplyPackageAppMigrationsResponse>>(
-      "/package-migrations/apply",
-      { kind: "success" },
-    );
-    const records = await getJson<StoredRecord[]>("/records");
-    const sync = await getJson<SyncResponse>(`/sync?after=${beforeCursor}`);
-    const applied = await getJson<AppliedPackageAppMigration[]>("/applied-package-migrations");
-    const state = await getJson<PackageAppMigrationState>("/package-migration-state");
-
-    expect(first.kind).toBe("committed");
-    expect(first.response.applied).toEqual([
-      expect.objectContaining({
-        migrationId: "2026-05-28-test-package-app-success",
-        packageAppKey: "tasks",
-        fromPackageRevision: 1,
-        toPackageRevision: 2,
-        sourceSchemaHash: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-      }),
-    ]);
-    expect(first.response.changes.map((change) => change.operationKind)).toEqual([
-      "create",
-      "update",
-      "delete",
-    ]);
-    expect(first.response.cursor).toBe(beforeCursor + 3);
-    expect(records).toContainEqual(
-      expect.objectContaining({
-        id: "migration-created",
-        values: expect.objectContaining({ migrationTag: "created" }),
-      }),
-    );
-    expect(records).toContainEqual(
-      expect.objectContaining({
-        id: "migration-open",
-        values: expect.objectContaining({ title: "Migrated open", migrationTag: "patched" }),
-      }),
-    );
-    expect(records).toContainEqual(
-      expect.objectContaining({ id: "migration-done", deletedAt: expect.any(String) }),
-    );
-    expect(sync.changes).toEqual(first.response.changes);
-    expect(sync.cursor).toBe(first.response.cursor);
-    expect(
-      sync.schema?.entities.find((definition) => definition.key === "task")!.fields,
-    ).toContainEqual(expect.objectContaining({ key: "migrationTag" }));
-    expect(applied).toEqual(first.response.applied);
-    expect(state).toMatchObject({
-      packageAppKey: "tasks",
-      packageRevision: 2,
-      sourceSchemaHash: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-    });
-  });
-  it("keeps migrated references flat while rejecting record id reuse across entities", async () => {
-    await seedPackageMigrationRecords();
-
-    const flatReference = await postJson<WriteOutcome<ApplyPackageAppMigrationsResponse>>(
-      "/package-migrations/apply",
-      { kind: "flat-reference" },
-    );
-    const records = await getJson<StoredRecord[]>("/records");
-
-    expect(flatReference.kind).toBe("committed");
-    expect(records).toContainEqual(
-      expect.objectContaining({
-        id: "migration-note",
-        entity: "note",
-        values: {
-          body: "Flat task reference",
-          task: "migration-open",
-        },
-      }),
-    );
-
-    storageHarnessName = randomUUID();
-    await seedPackageMigrationRecords();
-    const beforeRecords = await getJson<StoredRecord[]>("/records");
-    const response = await fetchStorage("/package-migrations/apply", {
-      body: JSON.stringify({ kind: "duplicate-cross-entity" }),
-      method: "POST",
-    });
-
-    expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({
-      error:
-        'Package app migration "2026-05-28-test-package-app-duplicate-cross-entity" creates duplicate record "migration-open".',
-    });
-    expect(await getJson<StoredRecord[]>("/records")).toEqual(beforeRecords);
-    expect(await getJson<AppliedPackageAppMigration[]>("/applied-package-migrations")).toEqual([]);
-  });
-  it("rejects entity id changes from package app migrations", async () => {
-    await seedPackageMigrationRecords();
-    const beforeSchema = await getJson<StoredSchema>("/schema");
-    const beforeRecords = await getJson<StoredRecord[]>("/records");
-    const response = await fetchStorage("/package-migrations/apply", {
-      body: JSON.stringify({ kind: "invalid-entity-id" }),
-      method: "POST",
-    });
-
-    expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({
-      error: `Cannot change entity id for continuing entity "task" from "${sourceTaskEntityId}" to "${replacementTaskEntityId}".`,
-    });
-    expect(await getJson<StoredSchema>("/schema")).toEqual(beforeSchema);
-    expect(await getJson<StoredRecord[]>("/records")).toEqual(beforeRecords);
-    expect(await getJson<AppliedPackageAppMigration[]>("/applied-package-migrations")).toEqual([]);
-  });
-
-  it("replays applied package app migrations without duplicate changes", async () => {
-    await seedPackageMigrationRecords();
-
-    const first = await postJson<WriteOutcome<ApplyPackageAppMigrationsResponse>>(
-      "/package-migrations/apply",
-      { kind: "success" },
-    );
-    const replay = await postJson<WriteOutcome<ApplyPackageAppMigrationsResponse>>(
-      "/package-migrations/apply",
-      { kind: "success" },
-    );
-
-    expect(replay.kind).toBe("committed");
-    expect(replay.response.applied).toEqual([]);
-    expect(replay.response.skipped).toEqual(first.response.applied);
-    expect(replay.response.changes).toEqual([]);
-    expect(await getJson<ChangeRow[]>("/changes?after=0")).toHaveLength(
-      packageMigrationRecords().length + first.response.changes.length,
-    );
-  });
-
-  it("rolls back invalid package app migration field, reference, unique, and delete plans", async () => {
-    for (const [kind, message] of [
-      ["invalid-field", "unknownMigrationField"],
-      ["invalid-reference", 'references unknown task record "missing-task"'],
-      ["invalid-unique", 'Unique constraint "task.uniqueTitle" would be violated.'],
-      ["invalid-delete", 'Cannot delete record "migration-open"'],
-    ]) {
-      storageHarnessName = randomUUID();
-      await seedPackageMigrationRecords();
-      const beforeSchema = await getJson<{
-        schema: AppSchema;
-        updatedAt: string;
-      }>("/schema");
-      const beforeRecords = await getJson<StoredRecord[]>("/records");
-      const beforeChanges = await getJson<ChangeRow[]>("/changes?after=0");
-      const beforeState = await getJson<PackageAppMigrationState | null>(
-        "/package-migration-state",
-      );
-      const response = await fetchStorage("/package-migrations/apply", {
-        body: JSON.stringify({ kind }),
-        method: "POST",
-      });
-
-      expect(response.status).toBe(500);
-      expect(await response.json()).toEqual({
-        error: expect.stringContaining(message),
-      });
-      expect(
-        await getJson<{
-          schema: AppSchema;
-          updatedAt: string;
-        }>("/schema"),
-      ).toEqual(beforeSchema);
-      expect(await getJson<StoredRecord[]>("/records")).toEqual(beforeRecords);
-      expect(await getJson<ChangeRow[]>("/changes?after=0")).toEqual(beforeChanges);
-      expect(await getJson<PackageAppMigrationState | null>("/package-migration-state")).toEqual(
-        beforeState,
-      );
-      expect(await getJson<AppliedPackageAppMigration[]>("/applied-package-migrations")).toEqual(
-        [],
-      );
-    }
-  });
 });
 
 async function createRecord(writeId: string, text: string, done = false) {
@@ -1249,27 +1021,6 @@ async function createRecord(writeId: string, text: string, done = false) {
     kind: "create",
     values: { title: text, done },
   });
-}
-
-async function seedPackageMigrationRecords() {
-  await postJson("/snapshot/restore", snapshot({ records: packageMigrationRecords() }));
-}
-
-function packageMigrationRecords(): StoredRecord[] {
-  return [
-    record("migration-open", "Open", {
-      createdAt: "2026-05-28T00:00:01.000Z",
-      values: { title: "Open", done: false, priority: "normal" },
-    }),
-    record("migration-done", "Done", {
-      createdAt: "2026-05-28T00:00:02.000Z",
-      values: { title: "Done", done: true, priority: "normal" },
-    }),
-    record("migration-child", "Child", {
-      createdAt: "2026-05-28T00:00:03.000Z",
-      values: { title: "Child", done: false, priority: "normal" },
-    }),
-  ];
 }
 
 function sourceHash(digit: string) {
@@ -1492,11 +1243,8 @@ async function writeStorageHarness() {
         getStoredRecord,
         initializeStorageFromSource,
         patchStoredRecord,
-        applyPackageAppMigrationsOutcome,
-        readAppliedPackageAppMigrations,
         readCurrentStoredSchema,
         readInitializedStorageState,
-        readPackageAppMigrationState,
         readProgramConvergenceSourceState,
         readProgramConvergenceEvidence,
         resetStorageSchemaToSource,
@@ -1507,236 +1255,10 @@ async function writeStorageHarness() {
         tombstoneRecordsForOperationOutcome,
         writeActiveSchema,
       } from "${process.cwd()}/src/worker/storage.ts";
-      import { packageAppMigrationFamily } from "${process.cwd()}/src/worker/package-app-migrations.ts";
 
       const seedSchema = parseAppSchema(rawSeedSchema);
       const controlPlaneSchema = parseAppSchema(instanceControlPlaneSchema);
       const sourceSchemaHash = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
-      const targetSchemaHash = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
-      const packageFamily = packageAppMigrationFamily("tasks");
-
-      function packageMigration(kind) {
-        return {
-          id: \`2026-05-28-test-package-app-\${kind}\`,
-          owner: "formless-test",
-          family: packageFamily,
-          checksum: checksumForPackageMigration(kind),
-          safety: "auto-with-backup",
-          summary: \`Test package app migration \${kind}.\`,
-          fromPackageRevision: 1,
-          toPackageRevision: 2,
-          migrate: () => packageMigrationPlan(kind),
-        };
-      }
-
-      function checksumForPackageMigration(kind) {
-        if (kind === "invalid-field") {
-          return "sha256:4444444444444444444444444444444444444444444444444444444444444444";
-        }
-
-        if (kind === "invalid-reference") {
-          return "sha256:5555555555555555555555555555555555555555555555555555555555555555";
-        }
-
-        if (kind === "invalid-unique") {
-          return "sha256:6666666666666666666666666666666666666666666666666666666666666666";
-        }
-
-        if (kind === "invalid-delete") {
-          return "sha256:7777777777777777777777777777777777777777777777777777777777777777";
-        }
-
-        if (kind === "invalid-entity-id") {
-          return "sha256:8888888888888888888888888888888888888888888888888888888888888888";
-        }
-
-        if (kind === "flat-reference") {
-          return "sha256:9999999999999999999999999999999999999999999999999999999999999999";
-        }
-
-        if (kind === "duplicate-cross-entity") {
-          return "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        }
-
-        return "sha256:3333333333333333333333333333333333333333333333333333333333333333";
-      }
-
-      function packageMigrationPlan(kind) {
-        if (kind === "invalid-entity-id") {
-          const schema = structuredClone(seedSchema);
-          schema.entities.find((definition) => definition.key === "task").id = "${replacementTaskEntityId}";
-          return { schema };
-        }
-
-        if (kind === "flat-reference") {
-          return {
-            schema: schemaWithNoteReference(),
-            creates: [
-              {
-                entity: "note",
-                recordId: "migration-note",
-                values: {
-                  body: "Flat task reference",
-                  task: "migration-open",
-                },
-              },
-            ],
-          };
-        }
-
-        if (kind === "duplicate-cross-entity") {
-          return {
-            schema: schemaWithNoteReference(),
-            creates: [
-              {
-                entity: "note",
-                recordId: "migration-open",
-                values: {
-                  body: "Duplicate across entities",
-                  task: "migration-child",
-                },
-              },
-            ],
-          };
-        }
-
-        if (kind === "invalid-field") {
-          return {
-            schema: schemaWithMigrationTag(),
-            patches: [
-              {
-                entity: "task",
-                recordId: "migration-open",
-                values: { unknownMigrationField: "bad" },
-              },
-            ],
-          };
-        }
-
-        if (kind === "invalid-reference") {
-          return {
-            schema: schemaWithParentReference(),
-            patches: [
-              {
-                entity: "task",
-                recordId: "migration-open",
-                values: { parent: "missing-task" },
-              },
-            ],
-          };
-        }
-
-        if (kind === "invalid-unique") {
-          return {
-            schema: schemaWithUniqueTitle(),
-            creates: [
-              {
-                entity: "task",
-                recordId: "migration-duplicate-title",
-                values: { title: "Open", done: false, priority: "normal" },
-              },
-            ],
-          };
-        }
-
-        if (kind === "invalid-delete") {
-          return {
-            schema: schemaWithParentReference(),
-            patches: [
-              {
-                entity: "task",
-                recordId: "migration-child",
-                values: { parent: "migration-open" },
-              },
-            ],
-            tombstones: [{ entity: "task", recordId: "migration-open" }],
-          };
-        }
-
-        return {
-          schema: schemaWithMigrationTag(),
-          creates: [
-            {
-              entity: "task",
-              recordId: "migration-created",
-              values: {
-                title: "Created by migration",
-                done: false,
-                priority: "normal",
-                migrationTag: "created",
-              },
-            },
-          ],
-          patches: [
-            {
-              entity: "task",
-              recordId: "migration-open",
-              values: { title: "Migrated open", migrationTag: "patched" },
-            },
-          ],
-          tombstones: [{ entity: "task", recordId: "migration-done" }],
-        };
-      }
-
-      function schemaWithMigrationTag() {
-        const schema = structuredClone(seedSchema);
-        schema.entities.find((definition) => definition.key === "task").fields.push({
-          key: "migrationTag",
-          type: "text",
-          required: false,
-          label: "Migration tag",
-        });
-        return schema;
-      }
-
-      function schemaWithParentReference() {
-        const schema = schemaWithMigrationTag();
-        schema.entities.find((definition) => definition.key === "task").fields.push({
-          key: "parent",
-          type: "reference",
-          required: false,
-          label: "Parent",
-          to: "task",
-        });
-        return schema;
-      }
-
-      function schemaWithUniqueTitle() {
-        const schema = schemaWithMigrationTag();
-        schema.entities.find((definition) => definition.key === "task").constraints = [
-          {
-            key: "uniqueTitle",
-            kind: "unique",
-            fields: ["title"],
-          },
-        ];
-        return schema;
-      }
-
-      function schemaWithNoteReference() {
-        const schema = structuredClone(seedSchema);
-        schema.entities.push({
-          id: "${noteEntityId}",
-          key: "note",
-          label: "Note",
-          fields: [
-            {
-              key: "body",
-              type: "text",
-              required: true,
-              label: "Body",
-            },
-            {
-              key: "task",
-              type: "reference",
-              required: true,
-              label: "Task",
-              to: "task",
-            },
-          ],
-        });
-        return schema;
-      }
 
       function schemaForSourceRefresh(kind) {
         const schema = structuredClone(seedSchema);
@@ -1795,14 +1317,12 @@ async function writeStorageHarness() {
 
         return {
           schema: schemaForSourceRefresh(body.schemaKind),
-          schemaKey: "tasks",
+          schemaKey: "formless-program",
           schemaProvenance: {
-            kind: "package-app",
-            packageAppKey: "tasks",
-            packageRevision: body.packageRevision ?? 1,
+            kind: "program",
             sourceSchemaHash: nextSourceSchemaHash,
           },
-          storageIdentity: "app:tasks",
+          storageIdentity: "instance:control-plane",
         };
       }
 
@@ -1864,14 +1384,6 @@ async function writeStorageHarness() {
 
           if (request.method === "GET" && url.pathname === "/command-write-response") {
             return Response.json(getCommandWriteResponseById(this.ctx.storage, url.searchParams.get("writeId") ?? "") ?? null);
-          }
-
-          if (request.method === "GET" && url.pathname === "/applied-package-migrations") {
-            return Response.json(readAppliedPackageAppMigrations(this.ctx.storage, "tasks"));
-          }
-
-          if (request.method === "GET" && url.pathname === "/package-migration-state") {
-            return Response.json(readPackageAppMigrationState(this.ctx.storage, "tasks") ?? null);
           }
 
           if (request.method === "POST" && url.pathname === "/create") {
@@ -2089,29 +1601,6 @@ async function writeStorageHarness() {
             );
 
             return Response.json(readProgramConvergenceSourceState(this.ctx.storage));
-          }
-
-          if (request.method === "POST" && url.pathname === "/package-migrations/apply") {
-            const body = await request.json();
-
-            try {
-              const result = applyPackageAppMigrationsOutcome(this.ctx.storage, {
-                currentPackageRevision: 1,
-                currentSourceSchemaHash: sourceSchemaHash,
-                migrations: [packageMigration(body.kind ?? "success")],
-                now: "2026-05-28T00:00:00.000Z",
-                packageAppKey: "tasks",
-                targetPackageRevision: 2,
-                targetSourceSchemaHash: targetSchemaHash,
-              });
-
-              return Response.json(result);
-            } catch (error) {
-              return Response.json(
-                { error: error instanceof Error ? error.message : "Unknown error." },
-                { status: 500 },
-              );
-            }
           }
 
           if (request.method === "POST" && url.pathname === "/schema") {

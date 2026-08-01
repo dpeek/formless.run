@@ -4,7 +4,6 @@ import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 import type { InstanceRuntimeMountRouteResolution } from "./instance-runtime-routes.ts";
 import {
   configuredInstanceAuthOriginFromFacts,
-  installedAppApiRouteAccessFromFacts,
   instanceAuthCallbackReservationFromFacts,
   INSTANCE_AUTH_HANDOFF_CALLBACK_PATH,
   INSTANCE_AUTH_HANDOFF_START_PATH,
@@ -140,16 +139,6 @@ describe("instance auth origin and protected-route handoff decisions", () => {
         requestOrigin: "https://unmapped.example.com",
       }),
     ).toEqual({ kind: "reserved" });
-  });
-
-  it("does not derive installed API access without installed routes", () => {
-    expect(
-      installedAppApiRouteAccessFromFacts({
-        requestOrigin: "https://tasks.example.com",
-        runtimeRoute: undefined,
-        storageIdentity: "app:tasks",
-      }),
-    ).toEqual({});
   });
 
   it("binds mapped management only to management-capable Program routes", () => {

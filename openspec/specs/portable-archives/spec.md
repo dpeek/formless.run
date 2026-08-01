@@ -78,7 +78,8 @@ envelope.
 - WHEN a Program instance archive is exported
 - THEN the archive uses the latest supported archive version
 - AND it records one canonical Program provenance and source schema hash
-- AND no package app revision or installed-app provenance is written
+- AND provenance identifies the complete Program rather than an individual
+  domain module or package artifact
 
 ### Requirement: Archive Export
 
@@ -361,51 +362,6 @@ payloads, not portable archive directories or duplicated schema source bodies.
 - **AND** workspace result fields, sync summaries, logs, and package-local
   instructions do not call `state/instance.json` an instance archive
 
-### Requirement: Workspace App Package Links
-
-The system SHALL allow a local Formless workspace to link private filesystem app
-package manifests through reviewable workspace configuration
-without storing package links in instance control-plane records.
-
-#### Scenario: Workspace package link source
-
-- **GIVEN** a workspace contains optional `formless.ts` `packages.links`
-- **WHEN** the package link source is read
-- **THEN** the workspace configuration declares an ordered list of app package
-  manifest links in `packages.links`
-- **AND** each link points to a local relative `formless.app.json` path such as
-  `../app/formless.app.json`
-- **AND** absolute paths, URL-like values, home-relative paths, empty paths,
-  duplicate links, and secret-looking fields are rejected
-- **AND** omitting `packages.links` means the active resolver contains only
-  bundled app packages
-
-#### Scenario: Resolve linked package source
-
-- **GIVEN** a workspace package link points at a local app package manifest
-- **WHEN** the workspace package resolver is built
-- **THEN** the linked package manifest is parsed
-- **AND** the linked package source schema is read relative to the package
-  manifest directory
-- **AND** the source schema parses as an app schema
-- **AND** the computed source schema hash matches the package manifest
-  `sourceSchemaHash`
-- **AND** the resolved package is added to the active workspace resolver
-  without writing package source paths to `app-install`, `route`, or
-  `deployment-config` records
-
-#### Scenario: Package link source is dependency config
-
-- **WHEN** workspace source is saved, checked, pushed, exported, or
-  restored
-- **THEN** `formless.ts` `packages.links` is treated as reviewable
-  dependency configuration for resolving package app source
-- **AND** package links are not app install intent, route intent, app data,
-  media payloads, provider config, deployment observation, or runtime secret
-  state
-- **AND** `formless.ts` declares package app source links only inside
-  configuration-owned package configuration
-
 ### Requirement: Workspace Runtime Extension Archive Boundary
 
 The system SHALL keep trusted workspace runtime extension code and renderer
@@ -450,7 +406,7 @@ semantic operation contracts through the Workspace package slice.
 
 - **WHEN** CLI runtime, Gateway runtime adapters, archive workflows,
   tests, or local agent workflows need `formless.ts` configuration contracts,
-  default resolution, package link validation, workspace path defaults,
+  default resolution, workspace path validation and defaults,
   workspace target URL normalization, workspace storage snapshot contracts,
   ignored local state
   contracts, ignored secret state contracts, semantic workspace operation input
@@ -466,10 +422,9 @@ semantic operation contracts through the Workspace package slice.
 
 - **WHEN** the Workspace package local Node adapter or package-local tests need
   Program storage snapshot contracts, source schema parsing, field value
-  validation, or package-link resolution
+  validation, or canonical source-schema hashing
 - **THEN** those dependencies come from public package exports such as
-  `@dpeek/formless-storage`, `@dpeek/formless-installed-apps`, and
-  `@dpeek/formless-schema`
+  `@dpeek/formless-storage` and `@dpeek/formless-schema`
 - **AND** the Workspace package does not import `lib/formless/src/shared/*` or
   `lib/formless/src/test/*` modules
 
@@ -498,9 +453,9 @@ instance state without storing instance intent or secrets in configuration.
 - **WHEN** a Formless workspace configuration is loaded
 - **THEN** `formless.ts` default-exports trusted typed configuration with a
   required explicit name and optional workspace state root, media root, ignored
-  local state root, ignored secret state root, package links, and runtime
+  local state root, ignored secret state root, and runtime
   extension declarations
-- **AND** kind, version, layout roots, empty package links, and bundled runtime
+- **AND** kind, version, layout roots, and bundled runtime
   extensions resolve from defaults when omitted
 - **AND** unified `route`, `deployment-config` intent, remote
   target facts, deployment observation cache, deployment execution history, and

@@ -10,16 +10,9 @@ import {
   type InstanceDomainMappingSurface,
   type RecordInstanceDomainMappingApplyEvidenceRequest,
 } from "../shared/instance-domain-mappings.ts";
-import {
-  createSqlStorageMigrationRegistry,
-  runSqlStorageMigrations,
-  storageSqlMigrationFamily,
-} from "./sql-migrations.ts";
-
 type InstanceDomainMappingAppliedStateRow = {
   host: string;
   profile: InstanceDomainMappingProfile;
-  target_install_id: string | null;
   surface: InstanceDomainMappingSurface | null;
   provider: InstanceDomainMappingAppliedProvider;
   account_id: string;
@@ -37,10 +30,6 @@ type InstanceDomainMappingAppliedStateRow = {
 type InstanceDomainMappingAuditEventRow = InstanceDomainMappingAppliedStateRow & {
   event_id: number;
 };
-
-type DomainMappingTableName =
-  | "instance_domain_mapping_applied_state"
-  | "instance_domain_mapping_audit_events";
 
 export type RecordInstanceDomainMappingApplyEvidenceResult =
   | {
@@ -61,8 +50,7 @@ export type DeleteInstanceDomainMappingAppliedStateResult = {
 const appliedStateTableSql = `
   CREATE TABLE IF NOT EXISTS instance_domain_mapping_applied_state (
     host TEXT NOT NULL,
-    profile TEXT NOT NULL CHECK (profile IN ('instance', 'app', 'publicSite')),
-    target_install_id TEXT,
+    profile TEXT NOT NULL CHECK (profile IN ('instance', 'publicSite')),
     surface TEXT CHECK (surface IS NULL OR surface = 'site'),
     provider TEXT NOT NULL CHECK (provider = 'cloudflare-worker-custom-domain'),
     account_id TEXT NOT NULL,
@@ -83,8 +71,7 @@ const auditEventsTableSql = `
   CREATE TABLE IF NOT EXISTS instance_domain_mapping_audit_events (
     event_id INTEGER PRIMARY KEY AUTOINCREMENT,
     host TEXT NOT NULL,
-    profile TEXT NOT NULL CHECK (profile IN ('instance', 'app', 'publicSite')),
-    target_install_id TEXT,
+    profile TEXT NOT NULL CHECK (profile IN ('instance', 'publicSite')),
     surface TEXT CHECK (surface IS NULL OR surface = 'site'),
     provider TEXT NOT NULL CHECK (provider = 'cloudflare-worker-custom-domain'),
     account_id TEXT NOT NULL,
@@ -100,35 +87,11 @@ const auditEventsTableSql = `
   )
 `;
 
-const instanceDomainMappingsSqlMigrationFamily = storageSqlMigrationFamily(
-  "instance-domain-mappings",
-);
-const instanceDomainMappingsSqlMigrations = createSqlStorageMigrationRegistry([
-  {
-    id: "2026-05-28-instance-domain-mappings-legacy-shape",
-    owner: "formless",
-    family: instanceDomainMappingsSqlMigrationFamily,
-    checksum: "sha256:8a591d823d01a311ed46153c902666b559a107523162bee816cebb8aba4f113b",
-    safety: "auto-safe",
-    summary:
-      "Rewrite legacy domain mapping surface tables and action checks into the current table shape.",
-    apply: (storage) => {
-      migrateLegacySurfaceTables(storage);
-      migrateProviderEvidenceColumns(storage);
-      migrateAppliedActionChecks(storage);
-    },
-  },
-]);
-
 export function ensureInstanceDomainMappingTables(storage: DurableObjectStorage) {
   storage.sql.exec(`
     ${appliedStateTableSql};
     ${auditEventsTableSql};
   `);
-  runSqlStorageMigrations(storage, {
-    family: instanceDomainMappingsSqlMigrationFamily,
-    migrations: instanceDomainMappingsSqlMigrations,
-  });
 }
 
 export function resetInstanceDomainMappingTables(storage: DurableObjectStorage) {
@@ -242,7 +205,6 @@ function readAppliedStates(storage: DurableObjectStorage): InstanceDomainMapping
       SELECT
         host,
         profile,
-        target_install_id,
         surface,
         provider,
         account_id,
@@ -256,7 +218,6 @@ function readAppliedStates(storage: DurableObjectStorage): InstanceDomainMapping
         applied_at,
         updated_at
       FROM instance_domain_mapping_applied_state
-      WHERE profile IN ('instance', 'publicSite')
       ORDER BY host ASC, profile ASC
     `,
   )) {
@@ -275,7 +236,6 @@ function readAuditEvents(storage: DurableObjectStorage): InstanceDomainMappingAu
         event_id,
         host,
         profile,
-        target_install_id,
         surface,
         provider,
         account_id,
@@ -289,7 +249,6 @@ function readAuditEvents(storage: DurableObjectStorage): InstanceDomainMappingAu
         applied_at,
         updated_at
       FROM instance_domain_mapping_audit_events
-      WHERE profile IN ('instance', 'publicSite')
       ORDER BY event_id ASC
     `,
   )) {
@@ -308,7 +267,6 @@ function writeAppliedState(
       INSERT INTO instance_domain_mapping_applied_state (
         host,
         profile,
-        target_install_id,
         surface,
         provider,
         account_id,
@@ -322,9 +280,8 @@ function writeAppliedState(
         applied_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(host, profile) DO UPDATE SET
-        target_install_id = excluded.target_install_id,
         surface = excluded.surface,
         provider = excluded.provider,
         account_id = excluded.account_id,
@@ -340,7 +297,6 @@ function writeAppliedState(
     `,
     state.host,
     state.profile,
-    null,
     state.surface ?? null,
     state.provider,
     state.accountId,
@@ -362,7 +318,6 @@ function writeAuditEvent(storage: DurableObjectStorage, state: InstanceDomainMap
       INSERT INTO instance_domain_mapping_audit_events (
         host,
         profile,
-        target_install_id,
         surface,
         provider,
         account_id,
@@ -376,11 +331,10 @@ function writeAuditEvent(storage: DurableObjectStorage, state: InstanceDomainMap
         applied_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     state.host,
     state.profile,
-    null,
     state.surface ?? null,
     state.provider,
     state.accountId,
@@ -403,7 +357,6 @@ function readLastAuditEvent(storage: DurableObjectStorage): InstanceDomainMappin
         event_id,
         host,
         profile,
-        target_install_id,
         surface,
         provider,
         account_id,
@@ -455,231 +408,4 @@ function auditEventFromRow(
     eventId: row.event_id,
     ...appliedStateFromRow(row),
   };
-}
-
-function migrateLegacySurfaceTables(storage: DurableObjectStorage) {
-  if (
-    tableExists(storage, "instance_domain_mapping_applied_state") &&
-    !tableHasColumn(storage, "instance_domain_mapping_applied_state", "profile")
-  ) {
-    migrateLegacyAppliedStateTable(storage);
-  }
-
-  if (
-    tableExists(storage, "instance_domain_mapping_audit_events") &&
-    !tableHasColumn(storage, "instance_domain_mapping_audit_events", "profile")
-  ) {
-    migrateLegacyAuditEventsTable(storage);
-  }
-}
-
-function migrateProviderEvidenceColumns(storage: DurableObjectStorage) {
-  for (const table of [
-    "instance_domain_mapping_applied_state",
-    "instance_domain_mapping_audit_events",
-  ] as const) {
-    if (!tableHasColumn(storage, table, "alchemy_resource_id")) {
-      storage.sql.exec(`ALTER TABLE ${table} ADD COLUMN alchemy_resource_id TEXT`);
-    }
-
-    if (!tableHasColumn(storage, table, "runner_id")) {
-      storage.sql.exec(`ALTER TABLE ${table} ADD COLUMN runner_id TEXT`);
-    }
-  }
-}
-
-function migrateAppliedActionChecks(storage: DurableObjectStorage) {
-  for (const table of [
-    "instance_domain_mapping_applied_state",
-    "instance_domain_mapping_audit_events",
-  ] as const) {
-    const sql = tableDefinition(storage, table);
-
-    if (sql !== undefined && !sql.includes("'manually-removed'")) {
-      migrateAppliedActionCheckTable(storage, table);
-    }
-  }
-}
-
-function migrateAppliedActionCheckTable(
-  storage: DurableObjectStorage,
-  table: "instance_domain_mapping_applied_state" | "instance_domain_mapping_audit_events",
-) {
-  const legacyTable = `${table}_action_legacy`;
-  const createSql =
-    table === "instance_domain_mapping_applied_state" ? appliedStateTableSql : auditEventsTableSql;
-  const eventIdColumns =
-    table === "instance_domain_mapping_audit_events" ? "event_id,\n      " : "";
-  const eventIdSelect = table === "instance_domain_mapping_audit_events" ? "event_id,\n      " : "";
-
-  storage.sql.exec(`DROP TABLE IF EXISTS ${legacyTable}`);
-  storage.sql.exec(`ALTER TABLE ${table} RENAME TO ${legacyTable}`);
-  storage.sql.exec(createSql);
-  storage.sql.exec(`
-    INSERT INTO ${table} (
-      ${eventIdColumns}host,
-      profile,
-      target_install_id,
-      surface,
-      provider,
-      account_id,
-      alchemy_resource_id,
-      runner_id,
-      zone_id,
-      zone_name,
-      worker_name,
-      worker_domain_id,
-      action,
-      applied_at,
-      updated_at
-    )
-    SELECT
-      ${eventIdSelect}host,
-      profile,
-      target_install_id,
-      surface,
-      provider,
-      account_id,
-      alchemy_resource_id,
-      runner_id,
-      zone_id,
-      zone_name,
-      worker_name,
-      worker_domain_id,
-      action,
-      applied_at,
-      updated_at
-    FROM ${legacyTable}
-  `);
-  storage.sql.exec(`DROP TABLE ${legacyTable}`);
-}
-
-function migrateLegacyAppliedStateTable(storage: DurableObjectStorage) {
-  storage.sql.exec("DROP TABLE IF EXISTS instance_domain_mapping_applied_state_surface_legacy");
-  storage.sql.exec(`
-    ALTER TABLE instance_domain_mapping_applied_state
-    RENAME TO instance_domain_mapping_applied_state_surface_legacy
-  `);
-  storage.sql.exec(appliedStateTableSql);
-  storage.sql.exec(`
-    INSERT INTO instance_domain_mapping_applied_state (
-      host,
-      profile,
-      target_install_id,
-      surface,
-      provider,
-      account_id,
-      alchemy_resource_id,
-      runner_id,
-      zone_id,
-      zone_name,
-      worker_name,
-      worker_domain_id,
-      action,
-      applied_at,
-      updated_at
-    )
-    SELECT
-      host,
-      'publicSite',
-      install_id,
-      surface,
-      provider,
-      account_id,
-      NULL,
-      NULL,
-      zone_id,
-      zone_name,
-      worker_name,
-      worker_domain_id,
-      action,
-      applied_at,
-      updated_at
-    FROM instance_domain_mapping_applied_state_surface_legacy
-  `);
-  storage.sql.exec("DROP TABLE instance_domain_mapping_applied_state_surface_legacy");
-}
-
-function migrateLegacyAuditEventsTable(storage: DurableObjectStorage) {
-  storage.sql.exec("DROP TABLE IF EXISTS instance_domain_mapping_audit_events_surface_legacy");
-  storage.sql.exec(`
-    ALTER TABLE instance_domain_mapping_audit_events
-    RENAME TO instance_domain_mapping_audit_events_surface_legacy
-  `);
-  storage.sql.exec(auditEventsTableSql);
-  storage.sql.exec(`
-    INSERT INTO instance_domain_mapping_audit_events (
-      event_id,
-      host,
-      profile,
-      target_install_id,
-      surface,
-      provider,
-      account_id,
-      alchemy_resource_id,
-      runner_id,
-      zone_id,
-      zone_name,
-      worker_name,
-      worker_domain_id,
-      action,
-      applied_at,
-      updated_at
-    )
-    SELECT
-      event_id,
-      host,
-      'publicSite',
-      install_id,
-      surface,
-      provider,
-      account_id,
-      NULL,
-      NULL,
-      zone_id,
-      zone_name,
-      worker_name,
-      worker_domain_id,
-      action,
-      applied_at,
-      updated_at
-    FROM instance_domain_mapping_audit_events_surface_legacy
-  `);
-  storage.sql.exec("DROP TABLE instance_domain_mapping_audit_events_surface_legacy");
-}
-
-function tableExists(storage: DurableObjectStorage, table: DomainMappingTableName): boolean {
-  return (
-    storage.sql
-      .exec<{ name: string }>(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-        table,
-      )
-      .toArray().length > 0
-  );
-}
-
-function tableHasColumn(
-  storage: DurableObjectStorage,
-  table: DomainMappingTableName,
-  columnName: string,
-): boolean {
-  return storage.sql
-    .exec<{ name: string }>(`PRAGMA table_info(${table})`)
-    .toArray()
-    .some((row) => row.name === columnName);
-}
-
-function tableDefinition(
-  storage: DurableObjectStorage,
-  table: DomainMappingTableName,
-): string | undefined {
-  return (
-    storage.sql
-      .exec<{ sql: string | null }>(
-        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
-        table,
-      )
-      .toArray()[0]?.sql ?? undefined
-  );
 }

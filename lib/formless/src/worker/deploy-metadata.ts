@@ -4,6 +4,7 @@ import {
   FORMLESS_STORAGE_MIGRATION_SET_ID,
   type FormlessDeployMetadata,
 } from "../shared/deploy-metadata.ts";
+import { formlessProgramSchemaProvenance } from "../program/runtime.ts";
 
 export type DeployMetadataEnv = {
   FORMLESS_DEPLOY_VERSION?: string;
@@ -31,6 +32,7 @@ export function handleDeployMetadataRequest(
   const metadata: FormlessDeployMetadata = {
     packageVersion: stringConfigValue(env.FORMLESS_DEPLOY_VERSION) ?? null,
     runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
+    schemaProvenance: formlessProgramSchemaProvenance,
     storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
     version: stringConfigValue(env.FORMLESS_DEPLOY_VERSION) ?? null,
   };

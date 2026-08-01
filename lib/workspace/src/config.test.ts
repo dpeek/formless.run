@@ -33,9 +33,6 @@ describe("Formless configuration", () => {
         stateRoot: DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT,
         secretStateRoot: DEFAULT_INSTANCE_WORKSPACE_SECRET_STATE_ROOT,
       },
-      packages: {
-        links: [],
-      },
       runtime: {
         extensions: {},
       },
@@ -53,12 +50,6 @@ describe("Formless configuration", () => {
       },
       local: {
         stateRoot: ".cache/formless",
-      },
-      packages: {
-        links: [
-          { manifest: "../private-site/formless.app.json" },
-          { manifest: "packages/crm/formless.app.json" },
-        ],
       },
       runtime: {
         extensions: {
@@ -83,12 +74,6 @@ describe("Formless configuration", () => {
       local: {
         stateRoot: ".cache/formless",
         secretStateRoot: DEFAULT_INSTANCE_WORKSPACE_SECRET_STATE_ROOT,
-      },
-      packages: {
-        links: [
-          { manifest: "../private-site/formless.app.json" },
-          { manifest: "packages/crm/formless.app.json" },
-        ],
       },
       runtime: {
         extensions: {
@@ -189,38 +174,13 @@ describe("Formless configuration", () => {
     ).toThrow('Schema module key "workspace-notes-records" is listed more than once.');
   });
 
-  it("rejects unsafe operational paths and duplicate package links during resolution", () => {
+  it("rejects unsafe operational paths during resolution", () => {
     expect(() =>
       resolveFormlessConfig({
         name: "private-sites",
         state: { root: "../records" },
       }),
     ).toThrow("formless.ts state.root must be a relative workspace path.");
-
-    expect(() =>
-      resolveFormlessConfig({
-        name: "private-sites",
-        packages: {
-          links: [{ manifest: "https://example.com/formless.app.json" }],
-        },
-      }),
-    ).toThrow(
-      "formless.ts packages.links[0].manifest must be a local relative formless.app.json path.",
-    );
-
-    expect(() =>
-      resolveFormlessConfig({
-        name: "private-sites",
-        packages: {
-          links: [
-            { manifest: "../private-site/formless.app.json" },
-            { manifest: " ../private-site/formless.app.json " },
-          ],
-        },
-      }),
-    ).toThrow(
-      'formless.ts packages.links has duplicate manifest "../private-site/formless.app.json".',
-    );
 
     expect(() =>
       resolveFormlessConfig({

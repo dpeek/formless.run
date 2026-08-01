@@ -255,10 +255,7 @@ function domainMappingFromControlPlaneRecord(
     record.entity !== "route" ||
     record.values.enabled !== true ||
     record.values.kind !== "mount" ||
-    typeof record.values.matchHost !== "string" ||
-    record.values.targetProfile === "app" ||
-    record.values.appInstall !== undefined ||
-    record.values.requiredRole !== undefined
+    typeof record.values.matchHost !== "string"
   ) {
     return undefined;
   }

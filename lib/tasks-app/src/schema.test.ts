@@ -1,5 +1,4 @@
-import { computeSourceSchemaHash, parseAppPackageManifest } from "@dpeek/formless-installed-apps";
-import { parseAppSchema } from "@dpeek/formless-schema";
+import { computeSourceSchemaHash, parseAppSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import { describe, expect, it } from "vite-plus/test";
 import {
@@ -8,7 +7,6 @@ import {
   tasksEntityIds,
   validateTaskRecords,
 } from "@dpeek/formless-tasks-app";
-import rawAppPackageManifest from "@dpeek/formless-tasks-app/formless.app.json";
 import {
   tasksPresentationSchemaModule,
   tasksRecordSchemaModule,
@@ -49,17 +47,12 @@ describe("Tasks schema authoring", () => {
     });
   });
 
-  it("keeps authored, materialized, parsed, and manifest schema data aligned", async () => {
-    const manifest = parseAppPackageManifest(rawAppPackageManifest);
-
+  it("keeps authored, materialized, and parsed schema data aligned", async () => {
     expect(tasksSchemaSource).toEqual(rawSourceSchema);
     expect(parseAppSchema(tasksSchemaSource)).toEqual(parseAppSchema(rawSourceSchema));
-    expect(manifest.sourceSchema).toEqual({
-      kind: "bundled",
-      key: "tasks",
-      path: "schema.json",
-    });
-    expect(await computeSourceSchemaHash(tasksSchemaSource)).toBe(manifest.sourceSchemaHash);
+    expect(await computeSourceSchemaHash(tasksSchemaSource)).toBe(
+      await computeSourceSchemaHash(rawSourceSchema),
+    );
   });
 
   it("owns Task stable identity and preserves active and tombstoned reviewable records", () => {
@@ -97,9 +90,9 @@ describe("Tasks schema authoring", () => {
         },
       },
     ]);
-    expect(() =>
-      validateTaskRecords("Tasks records", [{ ...active, entity: "app-install" }]),
-    ).toThrow('Tasks records does not support entity "app-install" for record "task:active".');
+    expect(() => validateTaskRecords("Tasks records", [{ ...active, entity: "unknown" }])).toThrow(
+      'Tasks records does not support entity "unknown" for record "task:active".',
+    );
   });
 });
 

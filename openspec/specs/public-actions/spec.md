@@ -305,8 +305,10 @@ invocation envelope before validating input or committing effects.
 - WHEN source context is recorded
 - THEN its source target kind is `program`, schema key is `formless-program`,
   and API prefix is `/api/formless/program`
-- AND no source install id or legacy Site or CRM install provenance is recorded
-- AND no package app key or installed-app source identity is recorded
+- AND source context identifies the canonical operation, host, path, and Site
+  block when those facts apply
+- AND this audit context does not become generic Program access or an alternate
+  storage, route, replica, media, or authorization identity
 
 #### Scenario: Public operation contracts are operation-named
 

@@ -1,5 +1,5 @@
 import { getSchemaAppDefinition, type SchemaAppDefinition } from "../shared/schema-apps.ts";
-import type { AuthorityStorageIdentity } from "../shared/app-storage-identity.ts";
+import type { ProgramStorageIdentity } from "../shared/program-storage-identity.ts";
 import {
   programPublicSiteRuntimeTarget,
   type PublicSiteRuntimeTarget,
@@ -26,7 +26,7 @@ export type RuntimeWorldMount = {
   app: RuntimeAppDefinition;
   generatedRoutes: boolean;
   route: `/${string}`;
-  target: AuthorityStorageIdentity;
+  target: ProgramStorageIdentity;
 };
 
 export type RuntimePublicSitePreviewLinkMode = "preview" | "authoring";

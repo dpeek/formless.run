@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "files": [
     "dist",
-    "formless.app.json",
     "schema.json",
     "src",
     "!src/**/*.test.*",
@@ -14,7 +13,6 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema.ts",
-    "./formless.app.json": "./formless.app.json",
     "./schema.json": "./schema.json"
   },
   "publishConfig": {
@@ -27,7 +25,6 @@
         "types": "./dist/schema.d.mts",
         "import": "./dist/schema.mjs"
       },
-      "./formless.app.json": "./formless.app.json",
       "./schema.json": "./schema.json"
     },
     "access": "public"
@@ -40,8 +37,5 @@
   "dependencies": {
     "@dpeek/formless-schema": "workspace:*",
     "@dpeek/formless-storage": "workspace:*"
-  },
-  "devDependencies": {
-    "@dpeek/formless-installed-apps": "workspace:*"
   }
 }

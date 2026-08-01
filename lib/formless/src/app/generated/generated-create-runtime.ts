@@ -114,7 +114,7 @@ export function useGeneratedCreateRuntime({
     Record<string, MediaAssetOption[] | undefined>
   >({});
   const [draftSessionState, setDraftSessionState] = useState(() => initialCreateState(operation));
-  const appTarget = useSchemaAppTarget();
+  const programTarget = useSchemaAppTarget();
   const mediaFields = useMemo(() => collectGeneratedCreateMediaFields(operation), [operation]);
   const draftSession = selectGeneratedCreateDraftSession({
     defaults: operation.defaults,
@@ -166,7 +166,7 @@ export function useGeneratedCreateRuntime({
   useEffect(() => {
     let cancelled = false;
 
-    void loadGeneratedMediaAssetOptions(mediaFields, appTarget).then((options) => {
+    void loadGeneratedMediaAssetOptions(mediaFields, programTarget).then((options) => {
       if (!cancelled) {
         setMediaAssetOptionsByFieldKey(options);
       }
@@ -175,7 +175,7 @@ export function useGeneratedCreateRuntime({
     return () => {
       cancelled = true;
     };
-  }, [appTarget, mediaFields]);
+  }, [programTarget, mediaFields]);
 
   useEffect(() => {
     if (!open && closeOnSuccess) {
@@ -212,7 +212,7 @@ export function useGeneratedCreateRuntime({
 
       try {
         const result = await uploadGeneratedMediaFile({
-          appTarget,
+          programTarget,
           entityName: operation.entityName,
           field: mediaField,
           fieldName: fieldConfig.fieldName,

@@ -50,7 +50,6 @@ describe("Worker document routing", () => {
     expect(preview.profileKind).toBe("publishedSite");
     expect(preview.routePolicy).toEqual({
       instanceBrowserRoutes: false,
-      installedAppApiRoutes: true,
       workspaceGatewayApiRoutes: false,
     });
     expect(preview.clientShellRoute).toBe(true);
@@ -457,7 +456,6 @@ describe("Worker document routing", () => {
 
       expect(workerRuntimeRoutePolicy({ profile: profileKind })).toEqual({
         instanceBrowserRoutes: sharedPolicy.instanceBrowserRoutes,
-        installedAppApiRoutes: sharedPolicy.installedAppApiRoutes,
         workspaceGatewayApiRoutes: sharedPolicy.workspaceGatewayApiRoutes,
       });
     }

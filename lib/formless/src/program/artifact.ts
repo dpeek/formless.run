@@ -1,10 +1,10 @@
 import {
+  canonicalJsonStringify,
   computeSourceSchemaHash,
   isSourceSchemaHash,
   type SourceSchemaHash,
-} from "@dpeek/formless-installed-apps";
+} from "@dpeek/formless-schema";
 import {
-  canonicalJsonStringify,
   composeAppSchema,
   formatAppSchemaSource,
   parseAppSchema,

@@ -2249,7 +2249,6 @@ export type AccountSignInAuthSurfaceState =
   | "submitting";
 
 export type AccountGateKind =
-  | "app-registration"
   | "credential"
   | "email-verification"
   | "invitation"

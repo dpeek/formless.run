@@ -10,12 +10,12 @@ import {
 import { setSyncStatus, useSyncStatus } from "../../client/sync-status.ts";
 import { bootstrapClient, startPushSync } from "../../client/sync.ts";
 import {
-  appStorageIdentityForClientTarget,
+  programStorageIdentityForClientTarget,
   clientTargetLabel,
   clientTargetSourceSchemaKey,
-  type ClientAppSchemaKey,
-  type ClientAppTarget,
-} from "../../client/app-target.ts";
+  type ProgramClientSchemaKey,
+  type ProgramClientTarget,
+} from "../../client/program-target.ts";
 import { selectScreenModelByPath } from "../../client/views.ts";
 import { todayDateString } from "../../shared/date.ts";
 import { SchemaAppProvider } from "../generated/schema-app-context.tsx";
@@ -69,15 +69,15 @@ export function HomeRoute({
   onGeneratedWorkspaceController?: (
     controller: GeneratedWorkspaceRuntimeController | undefined,
   ) => void;
-  target: ClientAppTarget;
-  schemaKey: ClientAppSchemaKey;
+  target: ProgramClientTarget;
+  schemaKey: ProgramClientSchemaKey;
   sectionExternalActions?: Readonly<
     Record<string, readonly GeneratedWorkspaceSectionExternalAction[] | undefined>
   >;
   screenPath: string;
   workspaceActions?: readonly WorkspaceLinkActionContract[];
 }) {
-  const appTargetIdentity = appStorageIdentityForClientTarget(target);
+  const appTargetIdentity = programStorageIdentityForClientTarget(target);
   const appLabel = clientTargetLabel(target);
   const appSchemaKey = clientTargetSourceSchemaKey(target);
   const activeClientStorageName = useActiveClientStorageName();

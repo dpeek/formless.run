@@ -321,7 +321,7 @@ export function useGeneratedWorkspaceRuntimeController({
     mediaAssetOptionsByFieldKey,
     workspaceActions,
   });
-  const appTarget = useSchemaAppTarget();
+  const programTarget = useSchemaAppTarget();
   const writeOptions = useSchemaAppWriteOptions();
 
   useEffect(() => {
@@ -332,7 +332,7 @@ export function useGeneratedWorkspaceRuntimeController({
       return;
     }
 
-    void loadGeneratedMediaAssetOptions(mediaFields, appTarget)
+    void loadGeneratedMediaAssetOptions(mediaFields, programTarget)
       .then((optionsByFieldKey) => {
         if (!cancelled) {
           setMediaAssetOptionsByFieldKey(optionsByFieldKey);
@@ -347,7 +347,7 @@ export function useGeneratedWorkspaceRuntimeController({
     return () => {
       cancelled = true;
     };
-  }, [appTarget, mediaFields]);
+  }, [programTarget, mediaFields]);
 
   async function uploadAndStoreGeneratedMediaFile(
     entityName: string,
@@ -361,7 +361,7 @@ export function useGeneratedWorkspaceRuntimeController({
     }
 
     const result = await uploadGeneratedMediaFile({
-      appTarget,
+      programTarget,
       entityName,
       field,
       fieldName: fieldConfig.fieldName,
@@ -1334,7 +1334,7 @@ export function useGeneratedWorkspaceRuntimeController({
     setSyncStatus({ state: "syncing", message: `Updating ${fieldName}...` });
     try {
       await submitOperation(
-        appTarget,
+        programTarget,
         record.entity,
         updateOperation.operationName,
         { input: patchValues, recordId: record.id },
@@ -1451,7 +1451,7 @@ export function useGeneratedWorkspaceRuntimeController({
           uploadPatchFields: mediaAuthoring.uploadPatchFields,
         });
         await submitOperation(
-          appTarget,
+          programTarget,
           record.entity,
           model.updateOperation.operationName,
           { input: resolution.patchValues, recordId },
@@ -1546,7 +1546,7 @@ export function useGeneratedWorkspaceRuntimeController({
     }));
     try {
       await submitOperation(
-        appTarget,
+        programTarget,
         record.entity,
         model.updateOperation.operationName,
         { input: committedPatch.patchValues, recordId },
@@ -1684,7 +1684,7 @@ export function useGeneratedWorkspaceRuntimeController({
           uploadPatchFields: mediaAuthoring.uploadPatchFields,
         });
         await submitOperation(
-          appTarget,
+          programTarget,
           context.entityName,
           context.updateOperation.operationName,
           { input: resolution.patchValues, recordId: context.recordId },
@@ -1760,7 +1760,7 @@ export function useGeneratedWorkspaceRuntimeController({
     }));
     try {
       await submitOperation(
-        appTarget,
+        programTarget,
         context.entityName,
         context.updateOperation.operationName,
         { input: committedPatch.patchValues, recordId: context.recordId },

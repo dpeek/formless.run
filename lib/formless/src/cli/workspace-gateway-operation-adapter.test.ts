@@ -21,6 +21,7 @@ import {
   type WorkspaceGatewayOperationAdapterDependencies,
 } from "./workspace-gateway-operation-adapter.ts";
 import type { WorkspaceGatewayOperationAutoSaveScheduler } from "./workspace-gateway-auto-save.ts";
+import { formlessProgramSchemaProvenance } from "../program/runtime.ts";
 
 const tempDirs: string[] = [];
 
@@ -316,6 +317,7 @@ function adapterDeps(
         metadataUrl: new URL("/api/formless/deploy", `${input.url}/`).toString(),
         packageVersion: input.expectedVersion,
         runtimeProtocolVersion: 1,
+        schemaProvenance: formlessProgramSchemaProvenance,
         storageMigrationSet: "formless-storage-migrations:v1",
         url: input.url,
         version: input.expectedVersion,

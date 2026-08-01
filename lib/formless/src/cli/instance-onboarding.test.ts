@@ -8,6 +8,7 @@ import {
   FORMLESS_RUNTIME_PROTOCOL_VERSION,
   FORMLESS_STORAGE_MIGRATION_SET_ID,
 } from "../shared/deploy-metadata.ts";
+import { formlessProgramSchemaProvenance } from "../program/runtime.ts";
 import { planDomainProviderResources } from "../shared/domain-provider-planner.ts";
 import {
   FORMLESS_SITE_PROJECT_ROOT_ENV_NAME,
@@ -857,7 +858,13 @@ describe("Formless instance deploy metadata health check", () => {
 
           requests.push(`${init?.method ?? "GET"} ${requestUrl}`);
           return Response.json(
-            { version: "0.1.8" },
+            {
+              packageVersion: "0.1.8",
+              runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
+              schemaProvenance: formlessProgramSchemaProvenance,
+              storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
+              version: "0.1.8",
+            },
             {
               headers: {
                 "Cache-Control": "no-store",
@@ -876,6 +883,7 @@ describe("Formless instance deploy metadata health check", () => {
       metadataUrl: "https://brother-instance.dpeek.workers.dev/api/formless/deploy",
       packageVersion: "0.1.8",
       runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
+      schemaProvenance: formlessProgramSchemaProvenance,
       storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
       url: "https://brother-instance.dpeek.workers.dev",
       version: "0.1.8",
@@ -904,7 +912,13 @@ describe("Formless instance deploy metadata health check", () => {
         {
           fetch: async () =>
             Response.json(
-              { version: "0.1.7" },
+              {
+                packageVersion: "0.1.7",
+                runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
+                schemaProvenance: formlessProgramSchemaProvenance,
+                storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
+                version: "0.1.7",
+              },
               {
                 headers: {
                   "Cache-Control": "no-store",
@@ -922,7 +936,14 @@ describe("Formless instance deploy metadata health check", () => {
           url: "https://brother-instance.dpeek.workers.dev",
         },
         {
-          fetch: async () => Response.json({ version: "0.1.8" }),
+          fetch: async () =>
+            Response.json({
+              packageVersion: "0.1.8",
+              runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
+              schemaProvenance: formlessProgramSchemaProvenance,
+              storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
+              version: "0.1.8",
+            }),
         },
       ),
     ).rejects.toThrow("deploy metadata must send Cache-Control: no-store");
@@ -1032,7 +1053,6 @@ describe("Alchemy Formless instance deployment", () => {
           FORMLESS_ADMIN_TOKEN: "admin-secret",
         },
         stateRoot: "/state",
-        workspaceAppPackages: "runtime-package-payload",
         workspaceProgramArtifact: "program-artifact-payload",
         workspaceProgramArtifactPath: "/workspace/.formless/local/formless-program.json",
         workspaceRoot: "/workspace",
@@ -2802,6 +2822,7 @@ function fakeHealthyDeployment(input: CheckFormlessInstanceDeployMetadataInput):
   metadataUrl: string;
   packageVersion: string;
   runtimeProtocolVersion: number;
+  schemaProvenance: typeof formlessProgramSchemaProvenance;
   storageMigrationSet: string;
   url: string;
   version: string;
@@ -2811,6 +2832,7 @@ function fakeHealthyDeployment(input: CheckFormlessInstanceDeployMetadataInput):
     metadataUrl: new URL("/api/formless/deploy", `${input.url}/`).toString(),
     packageVersion: input.expectedVersion,
     runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
+    schemaProvenance: formlessProgramSchemaProvenance,
     storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
     url: input.url,
     version: input.expectedVersion,

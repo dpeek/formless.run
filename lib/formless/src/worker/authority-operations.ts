@@ -15,11 +15,11 @@ import type {
   OperationInvocationEnvelope,
   OperationInvocationResponse,
 } from "../shared/operation-invocation.ts";
-import type { AuthorityStorageIdentity } from "../shared/app-storage-identity.ts";
+import type { ProgramStorageIdentity } from "../shared/program-storage-identity.ts";
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
 import type { EntityOperationSchema, SchemaOperationActorKind } from "@dpeek/formless-schema";
 import type { IdentityReferenceTargetResolver } from "./identity-reference-targets.ts";
-import { isSourceSchemaHash } from "../shared/upgrade-migrations.ts";
+import { isSourceSchemaHash } from "@dpeek/formless-schema";
 import {
   executeReadOperationInvocation,
   executeWriteOperationInvocation,
@@ -32,7 +32,6 @@ import {
   validateStorageSnapshotRestore,
 } from "./authority-validation.ts";
 import { BadRequestError, ReloadRequiredError } from "./errors.ts";
-import type { WorkerAppDefinition } from "./runtime-app-packages.ts";
 import { PUBLIC_SITE_TREE_CACHE_CONTROL } from "@dpeek/formless-site-app/worker";
 import {
   exportStorageSnapshot,
@@ -56,6 +55,7 @@ import { programPublicSiteWorkerAdapter } from "./public-site-worker-runtime.ts"
 import {
   selectCurrentFormlessProgramChanges,
   selectCurrentFormlessProgramRecords,
+  type WorkerProgramDefinition,
 } from "./program-authority.ts";
 import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 
@@ -162,10 +162,10 @@ type AuthorityOperationExecutionInput = {
   actor?: OperationInvocationActor;
   actorCandidates?: OperationInvocationActorCandidates;
   actorKind?: SchemaOperationActorKind;
-  app: WorkerAppDefinition;
+  app: WorkerProgramDefinition;
   body?: unknown;
   createRecordId?: (entity: string, values: RecordValues) => string | undefined;
-  identity: AuthorityStorageIdentity;
+  identity: ProgramStorageIdentity;
   identityReferenceResolver?: IdentityReferenceTargetResolver;
   operation: AuthorityOperation;
   programOperationAuthorized?: boolean;

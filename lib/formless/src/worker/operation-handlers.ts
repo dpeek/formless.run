@@ -11,7 +11,6 @@ import type {
   ToManyRelationshipSchema,
 } from "@dpeek/formless-schema";
 import { fieldCreateDefaultValue, matchesQuery } from "@dpeek/formless-schema";
-import type { AppPackageResolver } from "../shared/app-packages.ts";
 import { nowIsoString } from "../shared/clock.ts";
 import { createRecordId } from "../shared/ids.ts";
 import type {
@@ -127,7 +126,6 @@ export async function prepareTransitionStateSideEffectHandlerOutcome(
   context: OperationHandlerExecutionContext,
   options: {
     identityReferenceResolver?: IdentityReferenceTargetResolver;
-    packageResolver?: AppPackageResolver;
   } = {},
 ): Promise<() => WriteOutcome<OperationCommandOutput>> {
   const effect = requireHandlerEffect(context, "transition-state");
@@ -153,7 +151,6 @@ export async function prepareTransitionStateSideEffectHandlerOutcome(
       storage: context.storage,
     }),
     operationId,
-    packageResolver: options.packageResolver,
     plannedRecords: transition.plannedRecords,
     schema: context.schema,
     storage: context.storage,
@@ -1342,7 +1339,7 @@ function findActiveRecordByField(
 function subscribeSourceValues(envelope: OperationInvocationEnvelope): RecordValues {
   const host = parseNonEmptyString("Public operation source host", envelope.source.host);
   const path = parseNonEmptyString("Public operation source path", envelope.source.path);
-  const identity = envelope.appStorageIdentity;
+  const identity = envelope.programStorageIdentity;
   const values: RecordValues = {
     sourceKind: "publicOperation",
     sourceTargetKind: identity.kind,

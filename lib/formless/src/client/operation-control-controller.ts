@@ -1,4 +1,4 @@
-import type { ClientAppTarget } from "./app-target.ts";
+import type { ProgramClientTarget } from "./program-target.ts";
 import type {
   GeneratedOperationCallerInput,
   GeneratedOperationControlBinding,
@@ -16,7 +16,7 @@ import type {
 } from "../shared/operation-invocation.ts";
 
 export type GeneratedOperationAuthoritySubmitter = (
-  target: ClientAppTarget,
+  target: ProgramClientTarget,
   entityName: string,
   operationName: string,
   request: OperationInvocationRequest,
@@ -72,7 +72,7 @@ export type GeneratedOperationControllerOptions = {
     Record<GeneratedOperationRuntimeAdapterKind, GeneratedOperationRuntimeAdapter>
   >;
   submitAuthorityOperation?: GeneratedOperationAuthoritySubmitter;
-  target?: ClientAppTarget;
+  target?: ProgramClientTarget;
   writeOptions?: SubmitOperationOptions;
 };
 

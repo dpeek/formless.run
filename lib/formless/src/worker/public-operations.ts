@@ -1,4 +1,4 @@
-import type { AuthorityStorageIdentity } from "../shared/app-storage-identity.ts";
+import type { ProgramStorageIdentity } from "../shared/program-storage-identity.ts";
 import {
   PublicOperationRouteError,
   parsePublicOperationRouteSuffix,
@@ -54,7 +54,7 @@ type PublicOperationExecutionInput = {
   afterCommit?: (response: OperationInvocationResponse) => Promise<void> | void;
   body: unknown;
   env: PublicOperationEnv;
-  identity: AuthorityStorageIdentity;
+  identity: ProgramStorageIdentity;
   identityReferenceResolver?: IdentityReferenceTargetResolver;
   request: Request;
   route: PublicOperationRoute;

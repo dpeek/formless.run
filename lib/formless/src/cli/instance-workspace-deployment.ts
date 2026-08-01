@@ -92,14 +92,11 @@ import {
   type LocalWorkspaceDeploymentCredential,
 } from "./instance-provider-credentials.ts";
 import {
-  createActiveWorkspaceAppPackages,
   createWorkspaceTempRoot,
   materializeActiveWorkspaceProgramArtifact,
   readWorkspaceConfig,
   resolveFormlessInstanceWorkspaceRoot,
-  runtimeWorkspaceAppPackagesEnvValue,
   workspaceRootForInput,
-  type ActiveWorkspaceAppPackages,
 } from "./instance-workspace-foundation.ts";
 import {
   checkFormlessInstanceWorkspace,
@@ -278,7 +275,6 @@ export type PlanDeployLocalFormlessWorkspaceResult = LocalWorkspaceDeploymentPla
   existingSelectedTarget?: FormlessInstanceWorkspaceTarget;
   configPath: string;
   preflight?: CheckFormlessInstanceWorkspaceResult;
-  workspaceAppPackages?: string;
   workspaceProgramArtifact: string;
   workspaceProgramArtifactPath: string;
   workspaceRuntimeExtensions?: string;
@@ -296,7 +292,6 @@ export type PlanDeployFormlessInstanceWorkspaceResult = {
   plan: FormlessInstanceDeploymentPlan;
   providerBearer?: FormlessCliProviderBearerMaterial;
   selectedTarget: FormlessInstanceWorkspaceTarget;
-  workspaceAppPackages?: string;
   workspaceProgramArtifact: string;
   workspaceProgramArtifactPath: string;
   workspaceRuntimeExtensions?: string;
@@ -409,7 +404,6 @@ export type DestroyFormlessInstanceWorkspaceResult = {
 };
 
 export type FormlessInstanceWorkspaceProviderContext = {
-  activePackages: ActiveWorkspaceAppPackages;
   config: FormlessResolvedConfig;
   credential: LocalWorkspaceDeploymentCredential;
   credentialProfile: string | null;
@@ -779,9 +773,6 @@ async function applyWorkspacePushProviderReconciliation(
       workspaceRoot,
       workspaceProgramArtifact: planned.workspaceProgramArtifact,
       workspaceProgramArtifactPath: planned.workspaceProgramArtifactPath,
-      ...(planned.workspaceAppPackages === undefined
-        ? {}
-        : { workspaceAppPackages: planned.workspaceAppPackages }),
       ...(planned.workspaceRuntimeExtensions === undefined
         ? {}
         : { workspaceRuntimeExtensions: planned.workspaceRuntimeExtensions }),
@@ -972,9 +963,6 @@ export async function deployLocalFormlessWorkspace(
       workspaceRoot,
       workspaceProgramArtifact: planned.workspaceProgramArtifact,
       workspaceProgramArtifactPath: planned.workspaceProgramArtifactPath,
-      ...(planned.workspaceAppPackages === undefined
-        ? {}
-        : { workspaceAppPackages: planned.workspaceAppPackages }),
       ...(planned.workspaceRuntimeExtensions === undefined
         ? {}
         : { workspaceRuntimeExtensions: planned.workspaceRuntimeExtensions }),
@@ -1263,7 +1251,6 @@ export async function planDeployLocalFormlessWorkspace(
     workspacePath: input.workspacePath,
   });
   const { config, configPath } = await readWorkspaceConfig(workspaceRoot);
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const controlPlane = await readInstanceWorkspaceProgramStorageSnapshot({
     manifest: config,
     workspaceRoot,
@@ -1330,7 +1317,6 @@ export async function planDeployLocalFormlessWorkspace(
     plan: planned.plan,
     targetId: planned.selectedTarget.alias,
   });
-  const workspaceAppPackages = runtimeWorkspaceAppPackagesEnvValue(activePackages);
   const activeProgram = await materializeActiveWorkspaceProgramArtifact(workspaceRoot, config);
   const workspaceRuntimeExtensions = runtimeWorkspaceExtensionsEnvValue(config);
 
@@ -1340,7 +1326,6 @@ export async function planDeployLocalFormlessWorkspace(
     ...(existingSelectedTarget === undefined ? {} : { existingSelectedTarget }),
     configPath,
     ...(preflight === undefined ? {} : { preflight }),
-    ...(workspaceAppPackages === undefined ? {} : { workspaceAppPackages }),
     workspaceProgramArtifact: activeProgram.contents,
     workspaceProgramArtifactPath: activeProgram.path,
     ...(workspaceRuntimeExtensions === undefined ? {} : { workspaceRuntimeExtensions }),
@@ -1473,9 +1458,6 @@ export async function deployFormlessInstanceWorkspace(
     workspaceRoot,
     workspaceProgramArtifact: planned.workspaceProgramArtifact,
     workspaceProgramArtifactPath: planned.workspaceProgramArtifactPath,
-    ...(planned.workspaceAppPackages === undefined
-      ? {}
-      : { workspaceAppPackages: planned.workspaceAppPackages }),
     ...(planned.workspaceRuntimeExtensions === undefined
       ? {}
       : { workspaceRuntimeExtensions: planned.workspaceRuntimeExtensions }),
@@ -1514,7 +1496,6 @@ export async function planDeployFormlessInstanceWorkspace(
 ): Promise<PlanDeployFormlessInstanceWorkspaceResult> {
   const workspaceRoot = workspaceRootForInput(dependencies.cwd, input.workspacePath);
   const { config } = await readWorkspaceConfig(workspaceRoot);
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const controlPlane = await readInstanceWorkspaceProgramStorageSnapshot({
     manifest: config,
     workspaceRoot,
@@ -1539,7 +1520,6 @@ export async function planDeployFormlessInstanceWorkspace(
     packageVersion: dependencies.packageVersion,
     selectedTarget,
   });
-  const workspaceAppPackages = runtimeWorkspaceAppPackagesEnvValue(activePackages);
   const activeProgram = await materializeActiveWorkspaceProgramArtifact(workspaceRoot, config);
   const workspaceRuntimeExtensions = runtimeWorkspaceExtensionsEnvValue(config);
   const credentialContext = await resolveLocalWorkspaceDeploymentCredentialContext({
@@ -1558,7 +1538,6 @@ export async function planDeployFormlessInstanceWorkspace(
       ? {}
       : { providerBearer: credentialContext.providerBearer }),
     selectedTarget,
-    ...(workspaceAppPackages === undefined ? {} : { workspaceAppPackages }),
     workspaceProgramArtifact: activeProgram.contents,
     workspaceProgramArtifactPath: activeProgram.path,
     ...(workspaceRuntimeExtensions === undefined ? {} : { workspaceRuntimeExtensions }),
@@ -1656,7 +1635,6 @@ export async function resolveFormlessInstanceWorkspaceProviderContext(
 ): Promise<FormlessInstanceWorkspaceProviderContext> {
   const workspaceRoot = workspaceRootForInput(dependencies.cwd, input.workspacePath);
   const { config } = await readWorkspaceConfig(workspaceRoot);
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const controlPlane = await readInstanceWorkspaceProgramStorageSnapshot({
     manifest: config,
     workspaceRoot,
@@ -1705,7 +1683,6 @@ export async function resolveFormlessInstanceWorkspaceProviderContext(
   const cloudflareApiToken = providerBearerCloudflareApiToken(credentialContext.providerBearer);
 
   return {
-    activePackages,
     config,
     credential: credentialContext.credential,
     credentialProfile: credentialContext.credentialProfile,

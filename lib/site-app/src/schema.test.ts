@@ -1,5 +1,4 @@
-import { computeSourceSchemaHash, parseAppPackageManifest } from "@dpeek/formless-installed-apps";
-import { parseAppSchema } from "@dpeek/formless-schema";
+import { computeSourceSchemaHash, parseAppSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import { describe, expect, it } from "vite-plus/test";
 import {
@@ -7,7 +6,6 @@ import {
   siteEntityIds,
   validateSiteRecords,
 } from "@dpeek/formless-site-app";
-import rawAppPackageManifest from "@dpeek/formless-site-app/formless.app.json";
 import {
   sitePresentationSchemaModule,
   siteRecordSchemaModule,
@@ -137,17 +135,12 @@ describe("Site schema authoring", () => {
     expect(sitePresentationSchemaModule).not.toHaveProperty("queries");
   });
 
-  it("keeps authored, materialized, parsed, and manifest schema data aligned", async () => {
-    const manifest = parseAppPackageManifest(rawAppPackageManifest);
-
+  it("keeps authored, materialized, and parsed schema data aligned", async () => {
     expect(siteSchemaSource).toEqual(rawSourceSchema);
     expect(parseAppSchema(siteSchemaSource)).toEqual(parseAppSchema(rawSourceSchema));
-    expect(manifest.sourceSchema).toEqual({
-      kind: "bundled",
-      key: "site",
-      path: "schema.json",
-    });
-    expect(await computeSourceSchemaHash(siteSchemaSource)).toBe(manifest.sourceSchemaHash);
+    expect(await computeSourceSchemaHash(siteSchemaSource)).toBe(
+      await computeSourceSchemaHash(rawSourceSchema),
+    );
   });
 
   it("owns all Site stable identities and preserves active and tombstoned records", () => {
@@ -160,10 +153,8 @@ describe("Site schema authoring", () => {
     expect(() => validateSiteRecords("Site records", records)).not.toThrow();
     expect(reviewableSiteRecords([...records].reverse())).toEqual(records);
     expect(() =>
-      validateSiteRecords("Site records", [storedRecord("site-record:foreign", "app-install", {})]),
-    ).toThrow(
-      'Site records does not support entity "app-install" for record "site-record:foreign".',
-    );
+      validateSiteRecords("Site records", [storedRecord("site-record:foreign", "unknown", {})]),
+    ).toThrow('Site records does not support entity "unknown" for record "site-record:foreign".');
   });
 });
 

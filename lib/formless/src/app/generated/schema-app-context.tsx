@@ -1,14 +1,14 @@
 import { createContext, useContext, type ReactNode } from "react";
 import {
   programClientTarget,
-  type ClientAppSchemaKey,
-  type ClientAppTarget,
-} from "../../client/app-target.ts";
+  type ProgramClientSchemaKey,
+  type ProgramClientTarget,
+} from "../../client/program-target.ts";
 import { FORMLESS_PROGRAM_SCHEMA_KEY } from "../../program/target.ts";
 
 type SchemaAppContextValue = {
-  schemaKey: ClientAppSchemaKey;
-  target: ClientAppTarget;
+  schemaKey: ProgramClientSchemaKey;
+  target: ProgramClientTarget;
 };
 
 const SchemaAppContext = createContext<SchemaAppContextValue>({
@@ -22,8 +22,8 @@ export function SchemaAppProvider({
   target,
 }: {
   children: ReactNode;
-  schemaKey: ClientAppSchemaKey;
-  target: ClientAppTarget;
+  schemaKey: ProgramClientSchemaKey;
+  target: ProgramClientTarget;
 }) {
   return (
     <SchemaAppContext.Provider value={{ schemaKey, target }}>{children}</SchemaAppContext.Provider>

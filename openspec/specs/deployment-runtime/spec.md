@@ -135,7 +135,8 @@ diagnostics without making push an upgrade-planning workflow.
 
 - WHEN a client reads deploy metadata for a Formless instance
 - THEN the response includes package version, runtime protocol version, storage
-  migration set identity, and bundled package app revision/hash facts
+  migration set identity, and current storage migration facts
+- AND Program provenance is read from the complete Program artifact contract
 - AND the response does not expose provider credentials, admin tokens, Alchemy
   state, raw lease tokens, or runtime secrets
 - AND the response is not cached
@@ -152,7 +153,7 @@ diagnostics without making push an upgrade-planning workflow.
 - WHEN a client reads deployment desired state
 - THEN desired-state hash and revision still describe deployment-facing resource
   intent
-- AND runtime package version, migration set, and package app revisions do not
+- AND runtime package version, migration set, and Program schema provenance do not
   change the desired-state hash unless they change resource intent
 
 ### Requirement: Deployment Resource Graph

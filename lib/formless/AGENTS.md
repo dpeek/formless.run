@@ -8,8 +8,8 @@ Package scope: `lib/formless`.
 - `bin/formless.ts`: Bun-native package executable.
 - `src/app/`: React application routes and generated runtime composition.
 - `src/client/`: browser replica, projections, and generated view models.
-- `src/shared/`: runtime protocols, read models, field behavior, and app identities.
-- `src/worker/`: Worker routes, Authority, storage, installed apps, and public SSR.
+- `src/shared/`: runtime protocols, read models, field behavior, and Program identity.
+- `src/worker/`: Worker routes, Authority, Program storage, and public SSR.
 - `src/cli/`: CLI command parsing, workspace workflows, publishing, and deployment.
 - `src/test/`: package-local shared runtime fixtures.
 

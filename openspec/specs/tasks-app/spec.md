@@ -8,32 +8,30 @@ singleton domain whose records live in Program Authority.
 
 ## Requirements
 
-### Requirement: Tasks App Package Source
+### Requirement: Tasks Domain Package Source
 
-The system SHALL provide Tasks as a bundled in-repo app package that owns its
+The system SHALL provide Tasks as a bundled in-repo domain package that owns its
 standalone artifact, reusable schema modules, and domain adapters.
 
-#### Scenario: Tasks package scaffold
+#### Scenario: Tasks domain package scaffold
 
-- **GIVEN** the bundled Tasks app package is present
+- **GIVEN** the bundled Tasks domain package is present
 - **WHEN** package source files are inspected
 - **THEN** Tasks source data lives under `lib/tasks-app/`
-- **AND** the package contains `formless.app.json`, `schema.json`, package-local
-  `AGENTS.md`, `package.json`, `tsconfig.json`, and root `src/` exports
+- **AND** the package contains `schema.json`, package-local `AGENTS.md`,
+  `package.json`, `tsconfig.json`, and root and schema `src/` exports
 - **AND** root runtime does not keep a duplicate Tasks source schema under
   `schema/apps/tasks`
 
-#### Scenario: Tasks package manifest
+#### Scenario: Tasks package runtime boundary
 
-- **GIVEN** bundled app package manifests are composed
-- **WHEN** the Tasks package manifest is parsed
-- **THEN** it declares package app key `tasks`, label `Tasks`, default install
-  id `tasks`, bundled source schema key `tasks`, and generated admin capability
-- **AND** it does not declare public Site capability
-- **AND** package metadata comes from the Tasks package manifest rather than
-  synthetic root runtime metadata
-- **AND** retaining the manifest and standalone schema artifact does not make
-  Tasks available to the default runtime install resolver or route admission
+- **GIVEN** the Tasks package publishes schema modules and standalone
+  `schema.json`
+- **WHEN** the default Program is materialized and served
+- **THEN** trusted build-time composition imports the schema modules
+- **AND** Worker request handling consumes only the complete Program artifact
+- **AND** the standalone artifact is not an install, route, Authority, replica,
+  archive, workspace, upgrade, deploy, or authorization identity
 
 ### Requirement: Reusable Tasks Schema Modules
 
@@ -62,9 +60,8 @@ standalone artifact.
 - **THEN** the root and `./schema` entrypoints have executable ESM,
   declarations, and source maps
 - **AND** `schema.json` remains the deterministic portable schema artifact
-- **AND** `formless.app.json` continues to identify and hash that artifact
 - **AND** package exports do not select Program storage, routing,
-  authorization, archive, workspace, or runtime package availability
+  authorization, archive, workspace, or runtime availability
 
 ### Requirement: Program-Native Singleton Tasks
 

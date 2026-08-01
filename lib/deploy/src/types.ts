@@ -12,8 +12,6 @@
 export const DEPLOY_PUBLIC_CONTRACT_VERSION = 1;
 
 export const DEPLOY_CONTROL_PLANE_ACTION_IDS = {
-  createAppInstall: "createAppInstall",
-  createAppRoute: "createAppRoute",
   materializeDesiredState: "materializeDesiredState",
   recordDeploymentDrift: "recordDeploymentDrift",
   recordDeploymentFailure: "recordDeploymentFailure",

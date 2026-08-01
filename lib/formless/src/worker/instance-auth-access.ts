@@ -345,11 +345,9 @@ export function authenticatedOperationActorForAccess(
     sessionTarget: {
       instanceId: access.session.instanceId,
       routeId: access.target.routeId,
+      storageIdentity: access.target.storageIdentity,
       targetOrigin: access.target.targetOrigin,
       targetProfile: access.target.targetProfile,
-      ...(access.target.storageIdentity === undefined
-        ? {}
-        : { storageIdentity: access.target.storageIdentity }),
     },
   };
 }

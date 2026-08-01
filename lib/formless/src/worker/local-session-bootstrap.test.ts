@@ -95,7 +95,6 @@ describe("local session bootstrap API routes", () => {
     expect(
       controlPlaneBody.records.filter((record) => record.entity === "principal-email"),
     ).toEqual([]);
-    expect(controlPlaneBody.records.some((record) => record.entity === "app-install")).toBe(false);
   });
 
   it("redirects same-origin local bootstrap requests back to the original named proxy origin", async () => {

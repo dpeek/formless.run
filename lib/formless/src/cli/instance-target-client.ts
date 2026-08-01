@@ -19,10 +19,9 @@ import {
 } from "@dpeek/formless-deploy/client";
 import {
   FORMLESS_DEPLOY_METADATA_PATH,
-  FORMLESS_RUNTIME_PROTOCOL_VERSION,
-  FORMLESS_STORAGE_MIGRATION_SET_ID,
   type FormlessDeployMetadata,
 } from "../shared/deploy-metadata.ts";
+import { parseSourceSchemaHash } from "@dpeek/formless-schema";
 import {
   INSTANCE_DEPLOYMENT_ATTEMPT_FAILURE_API_PATH,
   INSTANCE_DEPLOYMENT_ATTEMPT_HEARTBEAT_API_PATH,
@@ -59,43 +58,21 @@ import {
 import { type InstanceControlPlaneRouteTargetProfile } from "@dpeek/formless-instance-control-plane";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import type { DomainProviderPlanPolicy } from "../shared/domain-provider-protocol.ts";
-import {
-  packageAppFactsForKey,
-  type AppInstall,
-  type InstallableAppPackage,
-  type PackageAppKey,
-} from "@dpeek/formless-installed-apps";
-import {
-  bundledAppPackageResolver,
-  findResolvedAppPackage,
-  isRuntimeInstallableAppPackageKey,
-  listResolvedAppPackages,
-  type AppPackageResolver,
-  type ResolvedAppPackage,
-} from "../shared/app-packages.ts";
 import type {
   InstanceDomainMappingProfile,
   RecordInstanceDomainMappingApplyEvidenceRequest,
   RecordInstanceDomainMappingApplyEvidenceResponse,
 } from "../shared/instance-domain-mappings.ts";
 import { normalizeInstanceDomainHost } from "../shared/instance-domain-mappings.ts";
-import type { AppInstallsResponse, OwnerSetupStatusResponse } from "../shared/protocol.ts";
+import type { OwnerSetupStatusResponse } from "../shared/protocol.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import { createOperationId } from "../shared/ids.ts";
-import {
-  isSourceSchemaHash,
-  isUpgradeMigrationChecksum,
-  type PackageAppRevision,
-  type SourceSchemaHash,
-} from "../shared/upgrade-migrations.ts";
 import {
   INSTANCE_UPGRADE_APPLY_API_PATH,
   INSTANCE_UPGRADE_STATUS_API_PATH,
   type InstanceUpgradeApplyResponse,
   type InstanceUpgradeStatusResponse,
-  type UpgradePackageAppMigrationAppliedState,
 } from "../shared/upgrade-status.ts";
-import type { PortableArchiveInputStatus } from "./archive-input-status.ts";
 import { normalizeInstanceWorkspaceTargetUrl } from "@dpeek/formless-workspace";
 import {
   formlessCliTargetAcceptHeaders,
@@ -114,13 +91,10 @@ export type FormlessInstanceTargetStatus = {
   deployment?: InstanceDeploymentStatusResponse;
   ownerSetup: OwnerSetupStatusResponse;
   targetUrl: string;
-  upgradeStatus: FormlessInstanceTargetUpgradeStatus;
 };
 
 export type FormlessInstanceControlPlaneRecords = {
   actorKind: DeployControlPlaneProtocolActorKind;
-  appInstalls: DeployControlPlaneRecord[];
-  appRoutes: DeployControlPlaneRecord[];
   deploymentConfigs: DeployControlPlaneRecord[];
   domainMappings: DeployControlPlaneRecord[];
   records: DeployControlPlaneRecord[];
@@ -136,56 +110,9 @@ export type FormlessInstanceDeploymentCommandContext = {
 
 export type FormlessInstanceDeploymentObservationPatch = DeployDeploymentObservationPatch;
 
-export type FormlessInstanceTargetDeployMetadata = {
+export type FormlessInstanceTargetDeployMetadata = FormlessDeployMetadata & {
   cacheControl: string;
   metadataUrl: string;
-  packageApps: FormlessInstanceTargetLocalPackageUpgradeFacts[];
-  packageVersion: string | null;
-  runtimeProtocolVersion: number;
-  storageMigrationSet: string;
-  version: string | null;
-};
-
-export type FormlessInstanceTargetUpgradeStatus = {
-  archiveInput: PortableArchiveInputStatus;
-  deployedMetadata: FormlessInstanceTargetDeployMetadata;
-  deployment?: InstanceDeploymentStatusResponse;
-  installedApps: FormlessInstanceTargetInstalledAppUpgradeFacts[];
-  localPackages: FormlessInstanceTargetLocalPackageUpgradeFacts[];
-  verificationFailures: FormlessInstanceTargetUpgradeVerificationFailure[];
-};
-
-export type FormlessInstanceTargetLocalPackageUpgradeFacts = {
-  packageAppKey: PackageAppKey;
-  packageRevision: PackageAppRevision;
-  sourceSchemaHash: SourceSchemaHash;
-};
-
-export type FormlessInstanceTargetInstalledAppUpgradeFacts = {
-  installId: string;
-  packageAppKey: PackageAppKey;
-  packageRevision: PackageAppRevision;
-  sourceSchemaHash: SourceSchemaHash;
-};
-
-export type FormlessInstanceTargetUpgradeVerificationFailureCode =
-  | "deploy-metadata-cacheable"
-  | "deploy-metadata-package-app-facts-missing"
-  | "deploy-metadata-package-app-missing"
-  | "deploy-metadata-package-apps-missing"
-  | "deploy-metadata-package-version-missing"
-  | "deploy-metadata-runtime-protocol-version-missing"
-  | "deploy-metadata-storage-migration-set-missing"
-  | "deployment-status-unavailable"
-  | "installed-app-package-facts-missing"
-  | "local-package-facts-missing";
-
-export type FormlessInstanceTargetUpgradeVerificationFailure = {
-  code: FormlessInstanceTargetUpgradeVerificationFailureCode;
-  installId?: string;
-  message: string;
-  packageAppKey?: PackageAppKey;
-  source: "deployed-metadata" | "deployment-status" | "installed-app" | "local-package";
 };
 
 export type FormlessInstanceTargetClientDependencies = {
@@ -199,17 +126,6 @@ export type DisableFormlessInstanceDomainRouteRequest = {
 
 export type DisableFormlessInstanceDomainRedirectRequest = {
   fromHost: string;
-};
-
-export type FormlessInstancePackageMigrationApplyResponse = {
-  applied: UpgradePackageAppMigrationAppliedState[];
-  changes: unknown[];
-  cursor: number;
-  packageAppKey: PackageAppKey;
-  packageRevision: PackageAppRevision;
-  schemaUpdatedAt: string;
-  skipped: UpgradePackageAppMigrationAppliedState[];
-  sourceSchemaHash: SourceSchemaHash;
 };
 
 export class FormlessInstanceTargetRequestError extends Error {
@@ -229,44 +145,17 @@ export class FormlessInstanceTargetRequestError extends Error {
   }
 }
 
-type FormlessInstanceDeployMetadataReadResult = {
-  deployMetadata: FormlessInstanceTargetDeployMetadata;
-  factPresence: FormlessInstanceDeployMetadataFactPresence;
-};
-
-type FormlessInstanceDeployMetadataFactPresence = {
-  packageVersion: boolean;
-  runtimeProtocolVersion: boolean;
-  storageMigrationSet: boolean;
-};
-
-type FormlessInstanceAppRegistryFactPresence = {
-  installs: FormlessInstanceAppInstallFactPresence[];
-};
-
-type FormlessInstanceAppInstallFactPresence = {
-  installId: string;
-  packageAppKey: PackageAppKey;
-  packageRevision: boolean;
-  sourceSchemaHash: boolean;
-};
-
 export async function readFormlessInstanceTargetStatus(
   input: {
     adminToken?: string | null;
-    archiveInput?: PortableArchiveInputStatus;
     includeDeploymentStatus?: boolean;
-    packageResolver?: AppPackageResolver;
     targetUrl: string;
   },
   dependencies: FormlessInstanceTargetClientDependencies,
 ): Promise<FormlessInstanceTargetStatus> {
   const targetUrl = normalizeInstanceWorkspaceTargetUrl(input.targetUrl);
-  const [deployMetadataResult, ownerSetup, deployment] = await Promise.all([
-    readFormlessInstanceDeployMetadataResult(
-      { packageResolver: input.packageResolver, targetUrl },
-      dependencies,
-    ),
+  const [deployMetadata, ownerSetup, deployment] = await Promise.all([
+    readFormlessInstanceDeployMetadata({ targetUrl }, dependencies),
     readFormlessInstanceOwnerSetupStatus({ targetUrl }, dependencies),
     input.includeDeploymentStatus
       ? readOptionalFormlessInstanceDeploymentStatus(
@@ -275,180 +164,19 @@ export async function readFormlessInstanceTargetStatus(
         )
       : undefined,
   ]);
-  const upgradeStatus = targetUpgradeStatus({
-    archiveInput: input.archiveInput ?? { present: false },
-    deployMetadata: deployMetadataResult.deployMetadata,
-    deployMetadataFactPresence: deployMetadataResult.factPresence,
-    deploymentStatusRequested: input.includeDeploymentStatus === true,
-    packageResolver: input.packageResolver,
-    ...(deployment === undefined ? {} : { deployment }),
-  });
-
   return {
-    deployMetadata: deployMetadataResult.deployMetadata,
+    deployMetadata,
     ...(deployment === undefined ? {} : { deployment }),
     ownerSetup,
     targetUrl,
-    upgradeStatus,
   };
-}
-
-function targetUpgradeStatus(input: {
-  archiveInput: PortableArchiveInputStatus;
-  deployMetadata: FormlessInstanceTargetDeployMetadata;
-  deployMetadataFactPresence: FormlessInstanceDeployMetadataFactPresence;
-  deployment?: InstanceDeploymentStatusResponse;
-  deploymentStatusRequested: boolean;
-  packageResolver?: AppPackageResolver;
-}): FormlessInstanceTargetUpgradeStatus {
-  const localPackages = listResolvedAppPackages(input.packageResolver).map(packageUpgradeFacts);
-  const installedApps: FormlessInstanceTargetInstalledAppUpgradeFacts[] = [];
-  const verificationFailures = upgradeVerificationFailures({
-    deployMetadata: input.deployMetadata,
-    deployMetadataFactPresence: input.deployMetadataFactPresence,
-    deploymentStatusRequested: input.deploymentStatusRequested,
-    installedApps,
-    localPackages,
-    ...(input.deployment === undefined ? {} : { deployment: input.deployment }),
-  });
-
-  return {
-    archiveInput: input.archiveInput,
-    deployedMetadata: input.deployMetadata,
-    ...(input.deployment === undefined ? {} : { deployment: input.deployment }),
-    installedApps,
-    localPackages,
-    verificationFailures,
-  };
-}
-
-function packageUpgradeFacts(
-  appPackage: Pick<ResolvedAppPackage, "packageAppKey" | "packageRevision" | "sourceSchemaHash">,
-): FormlessInstanceTargetLocalPackageUpgradeFacts {
-  return {
-    packageAppKey: appPackage.packageAppKey,
-    packageRevision: appPackage.packageRevision,
-    sourceSchemaHash: appPackage.sourceSchemaHash,
-  };
-}
-
-function upgradeVerificationFailures(input: {
-  deployMetadata: FormlessInstanceTargetDeployMetadata;
-  deployMetadataFactPresence: FormlessInstanceDeployMetadataFactPresence;
-  deployment?: InstanceDeploymentStatusResponse;
-  deploymentStatusRequested: boolean;
-  installedApps: FormlessInstanceTargetInstalledAppUpgradeFacts[];
-  localPackages: FormlessInstanceTargetLocalPackageUpgradeFacts[];
-}): FormlessInstanceTargetUpgradeVerificationFailure[] {
-  const failures: FormlessInstanceTargetUpgradeVerificationFailure[] = [];
-
-  if (input.localPackages.length === 0 && input.installedApps.length > 0) {
-    failures.push({
-      code: "local-package-facts-missing",
-      message: "Local package metadata is missing package facts.",
-      source: "local-package",
-    });
-  }
-
-  if (!cacheControlIncludesNoStore(input.deployMetadata.cacheControl)) {
-    failures.push({
-      code: "deploy-metadata-cacheable",
-      message: "Deployed metadata must be served with Cache-Control: no-store.",
-      source: "deployed-metadata",
-    });
-  }
-
-  if (
-    !input.deployMetadataFactPresence.packageVersion ||
-    input.deployMetadata.packageVersion === null
-  ) {
-    failures.push({
-      code: "deploy-metadata-package-version-missing",
-      message: "Deployed metadata is missing packageVersion.",
-      source: "deployed-metadata",
-    });
-  }
-
-  if (!input.deployMetadataFactPresence.runtimeProtocolVersion) {
-    failures.push({
-      code: "deploy-metadata-runtime-protocol-version-missing",
-      message: "Deployed metadata is missing runtimeProtocolVersion.",
-      source: "deployed-metadata",
-    });
-  }
-
-  if (!input.deployMetadataFactPresence.storageMigrationSet) {
-    failures.push({
-      code: "deploy-metadata-storage-migration-set-missing",
-      message: "Deployed metadata is missing storageMigrationSet.",
-      source: "deployed-metadata",
-    });
-  }
-
-  if (input.deploymentStatusRequested && input.deployment === undefined) {
-    failures.push({
-      code: "deployment-status-unavailable",
-      message: "Deployment status is unavailable for this target.",
-      source: "deployment-status",
-    });
-  }
-
-  return failures;
-}
-
-function deployMetadataFactPresence(value: unknown): FormlessInstanceDeployMetadataFactPresence {
-  const object = isRecord(value) ? value : {};
-  return {
-    packageVersion: "packageVersion" in object,
-    runtimeProtocolVersion: "runtimeProtocolVersion" in object,
-    storageMigrationSet: "storageMigrationSet" in object,
-  };
-}
-
-function appRegistryFactPresence(
-  value: unknown,
-  appRegistry: AppInstallsResponse,
-): FormlessInstanceAppRegistryFactPresence {
-  const object = isRecord(value) ? value : {};
-  const rawInstalls = Array.isArray(object.installs) ? object.installs : [];
-
-  return {
-    installs: appRegistry.installs.map((install, index) => {
-      const rawInstall = rawInstalls[index];
-      const rawInstallObject = isRecord(rawInstall) ? rawInstall : {};
-
-      return {
-        installId: install.installId,
-        packageAppKey: install.packageAppKey,
-        packageRevision: "packageRevision" in rawInstallObject,
-        sourceSchemaHash: "sourceSchemaHash" in rawInstallObject,
-      };
-    }),
-  };
-}
-
-function cacheControlIncludesNoStore(value: string): boolean {
-  return value
-    .split(",")
-    .map((directive) => directive.trim().toLowerCase())
-    .includes("no-store");
 }
 export async function readFormlessInstanceDeployMetadata(
   input: {
-    packageResolver?: AppPackageResolver;
     targetUrl: string;
   },
   dependencies: FormlessInstanceTargetClientDependencies,
 ): Promise<FormlessInstanceTargetDeployMetadata> {
-  return (await readFormlessInstanceDeployMetadataResult(input, dependencies)).deployMetadata;
-}
-async function readFormlessInstanceDeployMetadataResult(
-  input: {
-    packageResolver?: AppPackageResolver;
-    targetUrl: string;
-  },
-  dependencies: FormlessInstanceTargetClientDependencies,
-): Promise<FormlessInstanceDeployMetadataReadResult> {
   const targetUrl = normalizeInstanceWorkspaceTargetUrl(input.targetUrl);
   const metadataUrl = apiUrl(targetUrl, FORMLESS_DEPLOY_METADATA_PATH);
   const response = await dependencies.fetch(metadataUrl, {
@@ -456,19 +184,10 @@ async function readFormlessInstanceDeployMetadataResult(
   });
   const value = await readJsonResponse(response, `GET ${metadataUrl}`);
   const metadata = parseDeployMetadata(value, metadataUrl);
-  const deployMetadata = {
+  return {
     cacheControl: response.headers.get("Cache-Control") ?? "",
     metadataUrl,
-    packageApps: [],
-    packageVersion: metadata.packageVersion,
-    runtimeProtocolVersion: metadata.runtimeProtocolVersion,
-    storageMigrationSet: metadata.storageMigrationSet,
-    version: metadata.version,
-  };
-
-  return {
-    deployMetadata,
-    factPresence: deployMetadataFactPresence(value),
+    ...metadata,
   };
 }
 export async function readFormlessInstanceOwnerSetupStatus(
@@ -1079,32 +798,37 @@ function parseDeployMetadata(value: unknown, context: string): FormlessDeployMet
     throw new Error(`${context} failed: deploy metadata version must be a string or null.`);
   }
 
-  if (
-    "packageVersion" in value &&
-    value.packageVersion !== null &&
-    typeof value.packageVersion !== "string"
-  ) {
+  if (value.packageVersion !== null && typeof value.packageVersion !== "string") {
     throw new Error(`${context} failed: deploy metadata packageVersion must be a string or null.`);
   }
 
-  const version = value.version as string | null;
+  if (
+    !Number.isInteger(value.runtimeProtocolVersion) ||
+    Number(value.runtimeProtocolVersion) <= 0
+  ) {
+    throw new Error(`${context} failed: deploy metadata runtimeProtocolVersion must be positive.`);
+  }
+
+  if (typeof value.storageMigrationSet !== "string" || value.storageMigrationSet.trim() === "") {
+    throw new Error(`${context} failed: deploy metadata storageMigrationSet must be a string.`);
+  }
+
+  if (!isRecord(value.schemaProvenance) || value.schemaProvenance.kind !== "program") {
+    throw new Error(`${context} failed: deploy metadata schemaProvenance must identify Program.`);
+  }
 
   return {
-    packageVersion:
-      "packageVersion" in value && value.packageVersion !== undefined
-        ? (value.packageVersion as string | null)
-        : version,
-    runtimeProtocolVersion: parseOptionalPositiveInteger(
-      value.runtimeProtocolVersion,
-      FORMLESS_RUNTIME_PROTOCOL_VERSION,
-      `${context} deploy metadata runtimeProtocolVersion`,
-    ),
-    storageMigrationSet: parseOptionalString(
-      value.storageMigrationSet,
-      FORMLESS_STORAGE_MIGRATION_SET_ID,
-      `${context} deploy metadata storageMigrationSet`,
-    ),
-    version,
+    packageVersion: value.packageVersion as string | null,
+    runtimeProtocolVersion: value.runtimeProtocolVersion as number,
+    schemaProvenance: {
+      kind: "program",
+      sourceSchemaHash: parseSourceSchemaHash(
+        value.schemaProvenance.sourceSchemaHash,
+        `${context} deploy metadata schemaProvenance sourceSchemaHash`,
+      ),
+    },
+    storageMigrationSet: value.storageMigrationSet,
+    version: value.version as string | null,
   };
 }
 
@@ -1121,42 +845,6 @@ function parseOwnerSetupStatus(value: unknown, context: string): OwnerSetupStatu
   };
 }
 
-function parseAppRegistry(
-  value: unknown,
-  context: string,
-  packageResolver?: AppPackageResolver,
-): AppInstallsResponse {
-  if (!isRecord(value) || !Array.isArray(value.packages) || !Array.isArray(value.installs)) {
-    throw new Error(`${context} failed: app registry must include packages and installs arrays.`);
-  }
-
-  const packages = value.packages
-    .filter(isRuntimeInstallablePackageMetadata)
-    .map((appPackage, index) =>
-      parseInstallablePackageApp(appPackage, `${context} packages[${index}]`, packageResolver),
-    );
-  const packagesByKey = new Map(
-    packages.map((appPackage) => [appPackage.packageAppKey, appPackage]),
-  );
-
-  return {
-    installs: value.installs
-      .filter(isRuntimeInstallablePackageMetadata)
-      .map((install, index) =>
-        parseAppInstall(install, packagesByKey, `${context} installs[${index}]`, packageResolver),
-      ),
-    packages,
-  };
-}
-
-function isRuntimeInstallablePackageMetadata(value: unknown): boolean {
-  return (
-    !isRecord(value) ||
-    typeof value.packageAppKey !== "string" ||
-    isRuntimeInstallableAppPackageKey(value.packageAppKey)
-  );
-}
-
 function parseInstanceUpgradeStatusResponse(
   value: unknown,
   context: string,
@@ -1166,361 +854,6 @@ function parseInstanceUpgradeStatusResponse(
   }
 
   return value as InstanceUpgradeStatusResponse;
-}
-
-function parsePackageMigrationApplyResponse(
-  value: unknown,
-  context: string,
-  packageResolver?: AppPackageResolver,
-): FormlessInstancePackageMigrationApplyResponse {
-  if (!isRecord(value)) {
-    throw new Error(`${context} failed: package migration apply response must be an object.`);
-  }
-
-  const packageAppKey = parsePackageAppKey(
-    value.packageAppKey,
-    `${context} packageAppKey`,
-    packageResolver,
-  );
-  const packageRevision = parseOptionalPositiveInteger(
-    value.packageRevision,
-    1 as PackageAppRevision,
-    `${context} packageRevision`,
-  );
-  const sourceSchemaHash = parseOptionalSourceSchemaHash(
-    value.sourceSchemaHash,
-    packageAppFactsForKey(packageAppKey, packageResolver ?? bundledAppPackageResolver)
-      ?.sourceSchemaHash ?? undefined,
-    `${context} sourceSchemaHash`,
-  );
-
-  if (
-    !Array.isArray(value.applied) ||
-    !Array.isArray(value.changes) ||
-    typeof value.cursor !== "number" ||
-    typeof value.schemaUpdatedAt !== "string" ||
-    !Array.isArray(value.skipped)
-  ) {
-    throw new Error(`${context} failed: package migration apply response is invalid.`);
-  }
-
-  return {
-    applied: value.applied.map((migration, index) =>
-      parsePackageAppMigrationAppliedState(
-        migration,
-        `${context} applied[${index}]`,
-        packageResolver,
-      ),
-    ),
-    changes: value.changes,
-    cursor: value.cursor,
-    packageAppKey,
-    packageRevision,
-    schemaUpdatedAt: value.schemaUpdatedAt,
-    skipped: value.skipped.map((migration, index) =>
-      parsePackageAppMigrationAppliedState(
-        migration,
-        `${context} skipped[${index}]`,
-        packageResolver,
-      ),
-    ),
-    sourceSchemaHash,
-  };
-}
-
-// Portable app and package-migration parsers remain local artifacts without request dispatch.
-void appRegistryFactPresence;
-void parseAppRegistry;
-void parsePackageMigrationApplyResponse;
-
-function parsePackageAppMigrationAppliedState(
-  value: unknown,
-  context: string,
-  packageResolver?: AppPackageResolver,
-): UpgradePackageAppMigrationAppliedState {
-  if (!isRecord(value)) {
-    throw new Error(`${context} failed: package migration evidence must be an object.`);
-  }
-
-  const packageAppKey = parsePackageAppKey(
-    value.packageAppKey,
-    `${context} packageAppKey`,
-    packageResolver,
-  );
-  const sourceSchemaHash = parseOptionalSourceSchemaHash(
-    value.sourceSchemaHash,
-    packageAppFactsForKey(packageAppKey, packageResolver ?? bundledAppPackageResolver)
-      ?.sourceSchemaHash ?? undefined,
-    `${context} sourceSchemaHash`,
-  );
-
-  if (
-    typeof value.appliedAt !== "string" ||
-    !isUpgradeMigrationChecksum(value.checksum) ||
-    typeof value.migrationId !== "string"
-  ) {
-    throw new Error(`${context} failed: package migration evidence is invalid.`);
-  }
-
-  return {
-    appliedAt: value.appliedAt,
-    checksum: value.checksum,
-    fromPackageRevision: parseOptionalPositiveInteger(
-      value.fromPackageRevision,
-      1 as PackageAppRevision,
-      `${context} fromPackageRevision`,
-    ),
-    migrationId: value.migrationId,
-    packageAppKey,
-    sourceSchemaHash,
-    toPackageRevision: parseOptionalPositiveInteger(
-      value.toPackageRevision,
-      1 as PackageAppRevision,
-      `${context} toPackageRevision`,
-    ),
-  };
-}
-
-function parseDeployPackageApps(
-  value: unknown,
-  context: string,
-  packageResolver?: AppPackageResolver,
-): FormlessInstanceTargetLocalPackageUpgradeFacts[] {
-  const packageApps = Array.isArray(value) ? value : [];
-
-  return packageApps
-    .filter(isRuntimeInstallablePackageMetadata)
-    .map((appPackage, index) =>
-      parseDeployPackageApp(appPackage, `${context} packageApps[${index}]`, packageResolver),
-    );
-}
-
-// Package upgrade artifact parsing remains local until planner deletion.
-void parseDeployPackageApps;
-
-function parseDeployPackageApp(
-  value: unknown,
-  context: string,
-  packageResolver?: AppPackageResolver,
-): FormlessInstanceTargetLocalPackageUpgradeFacts {
-  if (!isRecord(value)) {
-    throw new Error(`${context} failed: deploy package app metadata must be an object.`);
-  }
-
-  const packageAppKey = parsePackageAppKey(
-    value.packageAppKey,
-    `${context} packageAppKey`,
-    packageResolver,
-  );
-  const facts = packageAppFactsForKey(packageAppKey, packageResolver ?? bundledAppPackageResolver);
-
-  if (!facts) {
-    throw new Error(`${context} failed: package app "${packageAppKey}" is unsupported.`);
-  }
-
-  return {
-    packageAppKey,
-    packageRevision: parseOptionalPositiveInteger(
-      value.packageRevision,
-      facts.packageRevision,
-      `${context} packageRevision`,
-    ),
-    sourceSchemaHash: parseOptionalSourceSchemaHash(
-      value.sourceSchemaHash,
-      facts.sourceSchemaHash,
-      `${context} sourceSchemaHash`,
-    ),
-  };
-}
-
-function parseInstallablePackageApp(
-  value: unknown,
-  context: string,
-  packageResolver?: AppPackageResolver,
-): InstallableAppPackage {
-  if (!isRecord(value)) {
-    throw new Error(`${context} failed: package metadata must be an object.`);
-  }
-
-  const packageAppKey = parsePackageAppKey(
-    value.packageAppKey,
-    `${context} packageAppKey`,
-    packageResolver,
-  );
-  const localPackage = findResolvedAppPackage(packageAppKey, packageResolver);
-
-  if (!localPackage) {
-    throw new Error(`${context} failed: package app "${packageAppKey}" is unsupported.`);
-  }
-
-  const sourceSchemaKey = parseRequiredString(
-    value.sourceSchemaKey,
-    localPackage.sourceSchemaKey,
-    `${context} sourceSchemaKey`,
-  );
-
-  return {
-    packageAppKey: localPackage.packageAppKey,
-    packageRevision: parseOptionalPositiveInteger(
-      value.packageRevision,
-      localPackage.packageRevision,
-      `${context} packageRevision`,
-    ),
-    sourceSchemaHash: parseOptionalSourceSchemaHash(
-      value.sourceSchemaHash,
-      localPackage.sourceSchemaHash,
-      `${context} sourceSchemaHash`,
-    ),
-    label: parseRequiredString(value.label, localPackage.label, `${context} label`),
-    description: parseRequiredString(
-      value.description,
-      localPackage.description,
-      `${context} description`,
-    ),
-    defaultInstallId: parseRequiredString(
-      value.defaultInstallId,
-      localPackage.defaultInstallId,
-      `${context} defaultInstallId`,
-    ),
-    supportsMultipleInstalls:
-      typeof value.supportsMultipleInstalls === "boolean"
-        ? value.supportsMultipleInstalls
-        : localPackage.supportsMultipleInstalls,
-    sourceOrigin: localPackage.sourceOrigin,
-    sourceSchemaKey,
-    sourceSchemaLocation: {
-      ...localPackage.sourceSchemaLocation,
-      key: sourceSchemaKey,
-    },
-  };
-}
-
-function parseAppInstall(
-  value: unknown,
-  packagesByKey: ReadonlyMap<PackageAppKey, InstallableAppPackage>,
-  context: string,
-  packageResolver?: AppPackageResolver,
-): AppInstall {
-  if (!isRecord(value)) {
-    throw new Error(`${context} failed: app install metadata must be an object.`);
-  }
-
-  const packageAppKey = parsePackageAppKey(value.packageAppKey, `${context} packageAppKey`);
-  const packageApp =
-    packagesByKey.get(packageAppKey) ?? findResolvedAppPackage(packageAppKey, packageResolver);
-
-  if (!packageApp) {
-    throw new Error(`${context} failed: package app "${packageAppKey}" is unsupported.`);
-  }
-
-  if (value.status !== "installed") {
-    throw new Error(`${context} failed: app install status must be "installed".`);
-  }
-
-  const installId = parseRequiredString(value.installId, undefined, `${context} installId`);
-
-  return {
-    installId,
-    packageAppKey,
-    packageRevision: parseOptionalPositiveInteger(
-      value.packageRevision,
-      packageApp.packageRevision,
-      `${context} packageRevision`,
-    ),
-    sourceSchemaHash: parseOptionalSourceSchemaHash(
-      value.sourceSchemaHash,
-      packageApp.sourceSchemaHash,
-      `${context} sourceSchemaHash`,
-    ),
-    label: parseRequiredString(value.label, undefined, `${context} label`),
-    status: "installed",
-    createdAt: parseRequiredString(value.createdAt, undefined, `${context} createdAt`),
-    updatedAt: parseRequiredString(value.updatedAt, undefined, `${context} updatedAt`),
-    adminRoute: parseRequiredString(
-      value.adminRoute,
-      `/apps/${installId}`,
-      `${context} adminRoute`,
-    ) as `/apps/${string}`,
-  };
-}
-
-function parsePackageAppKey(
-  value: unknown,
-  context: string,
-  packageResolver?: AppPackageResolver,
-): PackageAppKey {
-  if (
-    typeof value !== "string" ||
-    !packageAppFactsForKey(value, packageResolver ?? bundledAppPackageResolver)
-  ) {
-    throw new Error(`${context} failed: package app key is unsupported.`);
-  }
-
-  return value as PackageAppKey;
-}
-
-function parseOptionalPositiveInteger(
-  value: unknown,
-  fallback: PackageAppRevision,
-  context: string,
-): PackageAppRevision {
-  if (value === undefined) {
-    return fallback;
-  }
-
-  if (!Number.isInteger(value) || typeof value !== "number" || value <= 0) {
-    throw new Error(`${context} failed: value must be a positive integer.`);
-  }
-
-  return value;
-}
-
-function parseOptionalSourceSchemaHash(
-  value: unknown,
-  fallback: SourceSchemaHash | undefined,
-  context: string,
-): SourceSchemaHash {
-  if (value === undefined) {
-    if (fallback === undefined) {
-      throw new Error(`${context} failed: source schema hash is required.`);
-    }
-
-    return fallback;
-  }
-
-  if (!isSourceSchemaHash(value)) {
-    throw new Error(`${context} failed: source schema hash must be a sha256 digest.`);
-  }
-
-  return value;
-}
-
-function parseRequiredString(
-  value: unknown,
-  fallback: string | undefined,
-  context: string,
-): string {
-  if (value === undefined && fallback !== undefined) {
-    return fallback;
-  }
-
-  if (typeof value !== "string" || value.trim() === "") {
-    throw new Error(`${context} failed: value must be a string.`);
-  }
-
-  return value;
-}
-
-function parseOptionalString(value: unknown, fallback: string, context: string): string {
-  if (value === undefined) {
-    return fallback;
-  }
-
-  if (typeof value !== "string" || value.trim() === "") {
-    throw new Error(`${context} failed: value must be a string.`);
-  }
-
-  return value;
 }
 
 function adminJsonHeaders(adminToken: string | null | undefined): Record<string, string> {
@@ -1597,24 +930,11 @@ function controlPlaneRecordsByEntity(
 ): FormlessInstanceControlPlaneRecords {
   return {
     actorKind,
-    appInstalls: deployControlPlaneRecordsByEntity(records, "app-install"),
-    appRoutes: controlPlaneAppRouteRecords(records),
     deploymentConfigs: deployControlPlaneRecordsByEntity(records, "deployment-config"),
     domainMappings: controlPlaneDomainRouteRecords(records),
     records,
     redirectIntents: controlPlaneRedirectRouteRecords(records),
   };
-}
-
-function controlPlaneAppRouteRecords(
-  records: DeployControlPlaneRecord[],
-): DeployControlPlaneRecord[] {
-  return deployControlPlaneRecordsByEntity(records, "route").filter(
-    (record) =>
-      record.values.kind === "mount" &&
-      record.values.matchHost === undefined &&
-      typeof record.values.appInstall === "string",
-  );
 }
 
 function controlPlaneDomainRouteRecords(
@@ -1629,14 +949,9 @@ function controlPlaneDomainRouteRecords(
 }
 
 function isCurrentProgramPublicSiteDomainRoute(record: DeployControlPlaneRecord): boolean {
-  const publicSiteShaped =
-    record.values.targetProfile === "public-site" || record.values.surface === "public-site";
-
   return (
-    !publicSiteShaped ||
-    (record.values.targetProfile === "public-site" &&
-      record.values.surface === "public-site" &&
-      record.values.appInstall === undefined)
+    record.values.targetProfile === "instance" ||
+    (record.values.targetProfile === "public-site" && record.values.surface === "public-site")
   );
 }
 

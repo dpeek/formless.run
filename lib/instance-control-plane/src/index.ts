@@ -1,4 +1,4 @@
-import type { SourceSchemaHash } from "@dpeek/formless-installed-apps";
+import type { SourceSchemaHash } from "@dpeek/formless-schema";
 import {
   CONTROL_PLANE_DEPLOYMENT_CONFIG_OBSERVED_FIELDS,
   type ControlPlaneDeploymentConfigObservedStatus,
@@ -1505,7 +1505,6 @@ export function instanceControlPlanePreferredAdminOriginFromRecords(input: {
 }
 
 export const instanceControlPlaneRecordSourceExcludedEntityNames = [
-  "app-install",
   "deploy-desired-resource",
   "deploy-target",
   "deploy-attempt",
@@ -1598,10 +1597,6 @@ export function reviewableInstanceControlPlaneRecords(
   const sourceRecords: StoredRecord[] = [];
 
   for (const record of records) {
-    if (isDormantRemovedInstanceControlPlaneRecord(record)) {
-      continue;
-    }
-
     const entity = instanceControlPlaneRecordSourceEntityName(record.entity);
 
     if (entity !== undefined) {
@@ -1630,23 +1625,11 @@ export function reviewableInstanceControlPlaneRecords(
 }
 
 export function isCurrentInstanceControlPlaneRecord(record: unknown): boolean {
-  return !isDormantRemovedInstanceControlPlaneRecord(record);
-}
-
-function isDormantRemovedInstanceControlPlaneRecord(record: unknown): boolean {
   if (!isPlainRecord(record) || typeof record.entity !== "string") {
     return false;
   }
 
-  const values = isPlainRecord(record.values) ? record.values : {};
-
-  return (
-    excludedInstanceControlPlaneRecordSourceEntityName(record.entity) === "app-install" ||
-    (instanceControlPlaneRecordSourceEntityName(record.entity) === "route" &&
-      (values.targetProfile === "app" ||
-        values.appInstall !== undefined ||
-        values.requiredRole !== undefined))
-  );
+  return instanceControlPlaneRecordSourceEntityName(record.entity) !== undefined;
 }
 
 export function validateInstanceControlPlaneRecords(

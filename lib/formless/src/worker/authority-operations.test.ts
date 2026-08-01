@@ -15,7 +15,7 @@ import type {
   OperationInvocationEnvelope,
   OperationInvocationResponse,
 } from "../shared/operation-invocation.ts";
-import { programStorageIdentity } from "../shared/app-storage-identity.ts";
+import { programStorageIdentity } from "../shared/program-storage-identity.ts";
 import { formlessProgramTarget } from "../program/target.ts";
 import type { SchemaKey } from "../shared/schema-apps.ts";
 import type {
@@ -39,7 +39,7 @@ type ExecuteOperationInput = {
     values: Record<string, unknown>;
   };
   headers?: Record<string, string>;
-  identity?: OperationInvocationEnvelope["appStorageIdentity"];
+  identity?: OperationInvocationEnvelope["programStorageIdentity"];
   method: string;
   path: string;
   preserveMissingOperationAccess?: boolean;
@@ -939,7 +939,7 @@ describe("authority operation execution", () => {
     expect(invalidRow).toMatchObject({
       actorKind: "anonymous",
       affectedChangeIds: [],
-      appStorageIdentity: identity,
+      programStorageIdentity: identity,
       auditInput: {
         kind: "summary",
         summary: {
@@ -982,7 +982,7 @@ describe("authority operation execution", () => {
       sourceSiteBlockId: "rec_site_subscribe_resubscribe",
     });
     expect(resubscribedRow).toMatchObject({
-      appStorageIdentity: identity,
+      programStorageIdentity: identity,
       auditInput: {
         kind: "summary",
         summary: {
@@ -999,8 +999,6 @@ describe("authority operation execution", () => {
       },
       status: "committed",
     });
-    expect(subscriptions[0]?.values).not.toHaveProperty("sourcePackageAppKey");
-    expect(subscriptions[0]?.values).not.toHaveProperty("sourceInstallId");
     expect(rows).toHaveLength(4);
     expect(JSON.stringify(rows)).not.toContain("Ada@Example.com");
     expect(JSON.stringify(rows)).not.toContain("ada@example.com");
@@ -3892,7 +3890,7 @@ async function writeAuthorityOperationHarness() {
     harnessPath,
     `
       import { DurableObject } from "cloudflare:workers";
-      import { programStorageIdentity } from "${process.cwd()}/src/shared/app-storage-identity.ts";
+      import { programStorageIdentity } from "${process.cwd()}/src/shared/program-storage-identity.ts";
       import {
         executeAuthorityOperation,
         selectAuthorityOperation,

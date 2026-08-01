@@ -51,8 +51,10 @@ data-only contracts.
 - THEN the output is a deterministic plain JSON `schema.json` package artifact
 - AND the materialized artifact parses through the same App schema parser as a
   hand-authored JSON schema
-- AND Worker, workspace, package, upgrade, and deploy runtime paths
-  consume the data artifact without evaluating the TypeScript authoring module
+- AND package checks and publication consume the standalone data artifact
+  without evaluating the TypeScript authoring module
+- AND Worker request handling consumes only the trusted complete Program
+  artifact rather than a standalone domain artifact or workspace TypeScript
 - AND the artifact contains no executable callback, import reference,
   credential, provider object, or runtime implementation
 
@@ -65,8 +67,8 @@ data-only contracts.
   artifact
 - AND `sourceSchemaHash` is computed from that complete materialized source
   data rather than from the parser-defaulted runtime model
-- AND package checks reject canonical drift between the TypeScript declaration,
-  the materialized artifact, and the manifest source-schema hash
+- AND package checks reject canonical drift between the TypeScript declaration
+  and the materialized artifact
 
 ### Requirement: TypeScript Schema Module Composition
 
@@ -204,8 +206,8 @@ from reusable package modules.
   route, navigation, and complete schema provenance
 - AND the standalone Tasks schema remains a reusable package artifact rather
   than a separate runtime storage mount
-- AND Task records use Program storage while Site, CRM, and other installed app
-  data remain outside the Program schema until their own domain-data cutovers
+- AND Task, Site, CRM, and other explicitly composed domain records use Program
+  storage while standalone domain schemas remain build-time composition inputs
 
 #### Scenario: Materialize an explicit workspace Program extension
 
@@ -493,132 +495,33 @@ comparison.
 - THEN both authoring forms produce equivalent canonical schema data and
   `sourceSchemaHash`
 
-### Requirement: App Package Source Manifests
+### Requirement: Canonical Source Schema Hash
 
-The system SHALL represent installable app package source metadata as app
-package manifest facts before exposing package metadata to install, upgrade,
-archive, or deploy workflows.
-
-#### Scenario: Parse app package manifest
-
-- GIVEN an app package manifest declares kind `formless.appPackage` and version
-  `1`
-- WHEN the package source is resolved
-- THEN the manifest declares a route-safe package app key, label, optional
-  description, default install id, multiple-install policy, package revision,
-  source schema location, and generated-admin runtime capability
-- AND the manifest does not contain app install records, route records,
-  deployment config, app records, media payloads, provider credentials, or
-  workspace-local secrets
-- AND the referenced source schema parses as an app schema
-
-#### Scenario: Declare package runtime capabilities
-
-- GIVEN an app package manifest declares runtime capabilities
-- WHEN the package source is resolved
-- THEN the resolved package metadata exposes generated-admin capability facts
-- AND capability facts are data declarations used by package, upgrade, deploy,
-  and runtime validation
-- AND the manifest does not embed executable handler paths, JavaScript module
-  references, React component names, Worker functions, filesystem adapter
-  functions, or other runtime implementation details
-- AND installed package capabilities do not select public Site runtime behavior
-
-#### Scenario: Verify resolved package source hash
-
-- GIVEN an app package manifest declares a source schema hash
-- WHEN package source is resolved from local filesystem source
-- THEN the resolver computes the deterministic source schema hash from the
-  referenced source schema
-- AND resolution fails when the computed hash differs from the manifest
-  `sourceSchemaHash`
-- AND the package is not exposed to upgrade, deploy, or runtime workflows until
-  the manifest and source schema agree
+The Schema package SHALL expose one deterministic source-schema hash contract
+for complete portable App schema data without attaching package, module,
+entity, field, media, route, or authorization identity.
 
 #### Scenario: Hash complete schema source
 
-- GIVEN an app package source schema changes entities, fields, relationships,
-  queries, read models, views, table views, item views, screens, operations,
-  state machines, labels, or runtime metadata
+- GIVEN a complete App schema changes entities, fields, relationships, queries,
+  read models, views, table views, item views, screens, operations, state
+  machines, labels, or runtime metadata
 - WHEN the deterministic source schema hash is computed
 - THEN the hash input is the complete canonical App schema object
 - AND keyed registry array order is part of the hash input
 - AND object property insertion order is not part of the hash input
-- AND generated UI-only changes such as view, table view, item view, or screen
-  changes produce a different source schema hash
-- AND the hash is independent of record data, workspace state, or
-  active storage timestamps
+- AND generated UI-only changes produce a different source schema hash
+- AND the hash is independent of record data, workspace state, runtime
+  timestamps, package metadata, and module metadata
 
-#### Scenario: Import app package manifest contracts
+#### Scenario: Use the complete Program hash at runtime
 
-- GIVEN app, client, Worker, archive, workspace, upgrade, Site runtime, or tests
-  need app package manifest types, manifest parsing, package resolver behavior,
-  package revision contracts, source schema hash parsing, or deterministic
-  source schema hash computation
-- WHEN those contracts are imported
-- THEN they come from `@dpeek/formless-installed-apps`
-- AND bundled source app facts are supplied by runtime code rather than imported
-  by package slices
-
-#### Scenario: Resolve bundled app packages from manifests
-
-- GIVEN the current bundled package app keys `site`, `tasks`, and `crm`
-- WHEN package metadata is listed or read
-- THEN each package is exposed as a resolved app package derived from app
-  package manifest facts
-- AND existing package app keys, labels, default install ids, package
-  revisions, source schema hashes, and source schema keys remain stable unless
-  the package source changes
-
-### Requirement: Package App Revision Facts
-
-The system SHALL distinguish app schema language version from app package
-revision and source schema hash.
-
-#### Scenario: Parse schema language version
-
-- **WHEN** an app schema is parsed
-- **THEN** `schema.version` continues to represent the schema language version
-- **AND** package app revision is not read from `schema.version`
-
-#### Scenario: Describe resolved package app revision
-
-- **WHEN** resolved app package metadata is read
-- **THEN** the package declares a monotonic package revision, deterministic
-  source schema hash, package app key, source origin, and source schema key
-- **AND** current bundled packages can remain at package revision `1`
-
-### Requirement: Package App Schema Migrations
-
-The system SHALL support code-backed package app migrations between package app
-revisions.
-
-#### Scenario: Migrate package app schema
-
-- WHEN an installed package app is behind the current package revision
-- THEN matching package app migrations can update the active schema and package
-  revision facts
-- AND the schema remains a valid parsed app schema before it is stored
-
-#### Scenario: Preserve schema hash provenance
-
-- WHEN a package app migration completes
-- THEN stored package facts identify the applied package revision and source
-  schema hash
-- AND the hash is used for drift/provenance checks, not migration ordering
-
-#### Scenario: Refresh schema-only source changes
-
-- GIVEN an installed package app has the same package revision as the active
-  resolver and a different source schema hash
-- WHEN the resolved source schema parses and validates against current active
-  records without a record materialization plan
-- THEN the runtime can refresh the stored active schema and package source
-  schema hash without applying a package app migration
-- AND the refresh updates the schema timestamp used by browser replicas and
-  workspace state
-- AND package app migrations remain required when the package revision advances
-  or when current records need creates, patches, tombstones, or value pruning
+- GIVEN trusted build-time composition produces one complete Program artifact
+- WHEN Worker storage, browser bootstrap, replicas, workspaces, archives, or
+  diagnostics identify its schema provenance
+- THEN they use the source-schema hash of that complete Program artifact
+- AND no package revision, package source hash, module key, entity key, field
+  key, media scope, or install identity becomes alternate runtime provenance
 
 ### Requirement: Schema Parsing
 
@@ -706,15 +609,14 @@ pure helpers through the Schema package slice.
 - **AND** they do not import package-owned schema behavior from unexported
   package internals
 
-#### Scenario: Package does not own runtime app records
+#### Scenario: Package does not own runtime Program records
 
-- **WHEN** App schema behavior is used to load bundled or resolved package
-  source schemas, render generated React surfaces, validate Authority writes,
+- **WHEN** App schema behavior is used to compose or load a complete Program
+  schema, render generated React surfaces, validate Authority writes,
   store active schemas, sync browser replicas, plan or apply archives, compose
-  Workspace storage snapshots, build instance control-plane records, or apply
-  package app migrations
+  Workspace storage snapshots, or build instance control-plane records
 - **THEN** those runtime behaviors remain owned by app, client, Worker,
-  archive, Workspace, instance control-plane, migration, or generated UI modules
+  archive, Workspace, instance control-plane, or generated UI modules
 - **AND** the Schema package only owns runtime-neutral schema language
   contracts, parser/formatter behavior, field/query/read-model helpers, and
   package-local deterministic tests
@@ -1682,15 +1584,16 @@ or provider secrets without storing secret values.
 
 ### Requirement: Route Field Validation
 
-The system SHALL let runtime-owned schemas validate route path and route prefix
-fields against runtime topology constraints.
+The system SHALL validate current Program route records against runtime topology
+constraints.
 
-#### Scenario: Validate app route path
+#### Scenario: Validate Program route intent
 
-- GIVEN an app route record is created or patched
+- GIVEN a Program route record is created or patched
 - WHEN route validation runs
 - THEN the route path or prefix is checked for route-safe shape, reserved path
-  conflicts, package capability, route kind, and enabled-route uniqueness
+  conflicts, current target profile, route kind, access, and enabled-route
+  uniqueness
 - AND invalid route values are rejected before runtime route behavior changes
 
 ### Requirement: Append-Only Control-Plane History

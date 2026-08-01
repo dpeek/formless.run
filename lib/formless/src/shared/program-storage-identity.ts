@@ -5,11 +5,9 @@ import {
 } from "../program/target.ts";
 
 export type ProgramStorageIdentity = FormlessProgramTarget;
-export type AppStorageIdentity = ProgramStorageIdentity;
-export type AuthorityStorageIdentity = ProgramStorageIdentity;
 
 export type AuthorityApiRoute = {
-  identity: AuthorityStorageIdentity;
+  identity: ProgramStorageIdentity;
   path: `/${string}`;
 };
 

@@ -6,7 +6,7 @@ import {
 } from "./program-authority.ts";
 
 describe("current Formless Program selection", () => {
-  it("omits removed app identity and install facts without changing Program records", () => {
+  it("selects records owned by the complete Program schema", () => {
     const owner = record("owner-role", "role", { key: "instance.owner", status: "active" });
     const programAssignment = record("program-role", "program-role-assignment", {
       principal: "principal-1",
@@ -23,35 +23,7 @@ describe("current Formless Program selection", () => {
       owner,
       programAssignment,
       programRoute,
-      record("crm", "app-install", { installId: "crm", status: "installed" }),
-      record("crm-route", "route", {
-        appInstall: "crm",
-        enabled: true,
-        kind: "mount",
-        matchPath: "/apps/crm",
-        requiredRole: "app.admin",
-        targetProfile: "app",
-      }),
-      record("registration", "app-registration", { appInstall: "crm" }),
-      record("app-role", "role", { key: "app.admin", status: "active" }),
-      record("app-assignment", "role-assignment", {
-        role: "role:app.admin",
-        scopeKind: "app-install",
-        scopeAppInstall: "crm",
-        status: "active",
-      }),
-      record("app-invitation", "invitation", {
-        targetEmail: "person@example.com",
-        targetSurface: "app-install",
-        targetAppInstall: "crm",
-        status: "pending",
-      }),
-      record("app-policy", "account-policy", {
-        policyKey: "crm-terms",
-        scopeKind: "app-install",
-        scopeAppInstall: "crm",
-        status: "active",
-      }),
+      record("unknown", "unknown-entity", {}),
     ];
 
     expect(selectCurrentFormlessProgramRecords(records)).toEqual([
@@ -61,10 +33,10 @@ describe("current Formless Program selection", () => {
     ]);
   });
 
-  it("filters removed changes while preserving the source cursor boundary", () => {
+  it("filters changes by complete Program schema membership", () => {
     const changes = [
       { id: 20, payload: record("owner-role", "role", { key: "instance.owner" }) },
-      { id: 21, payload: record("app-role", "role", { key: "app.viewer" }) },
+      { id: 21, payload: record("unknown", "unknown-entity", {}) },
     ];
 
     expect(selectCurrentFormlessProgramChanges(changes)).toEqual([changes[0]]);

@@ -259,21 +259,6 @@ describe("collaborator invitation acceptance protocol", () => {
     ).toThrow("Collaborator invitation acceptance token must be base64url.");
     expect(() =>
       parseCollaboratorInvitationAcceptanceStatusResponse({
-        eligible: true,
-        invitation: {
-          invitationId: "invitation:ada",
-          targetEmail: "Ada.Collab@example.com",
-          targetSurface: "instance",
-          targetAppInstallId: "site",
-          expiresAt: "2999-02-01T00:00:00.000Z",
-          passkeyRegistrationRequired: true,
-        },
-      }),
-    ).toThrow(
-      'Collaborator invitation acceptance invitation summary has unsupported key "targetAppInstallId".',
-    );
-    expect(() =>
-      parseCollaboratorInvitationAcceptanceStatusResponse({
         eligible: false,
         error: "Invitation link is invalid.",
         reason: "wrong-token",
@@ -403,7 +388,7 @@ describe("account completion gate protocol", () => {
         targetOrigin: "https://instance.example.com",
         targetProfile: "instance",
       }),
-    ).toThrow("Account completion gate target requires storageIdentity.");
+    ).toThrow('Account completion gate target must include "storageIdentity".');
   });
 
   it("keeps continuation targets path-only", () => {
@@ -461,9 +446,6 @@ describe("account completion gate protocol", () => {
         credentialMethod: "oauth",
       }),
     ).toThrow("Account completion credential gate credentialMethod is unsupported.");
-    expect(() => parseAccountCompletionGate({ kind: "app-registration" })).toThrow(
-      "Account completion gate kind is unsupported.",
-    );
     expect(() =>
       parseAccountCompletionGateResolutionResult({
         status: "waiting",

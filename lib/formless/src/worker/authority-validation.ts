@@ -7,15 +7,9 @@ import {
   shouldValidateExistingFieldValue,
   validateAuthorityFieldValue,
 } from "@dpeek/formless-schema";
-import type { AppPackageResolver } from "../shared/app-packages.ts";
 import { instanceControlPlaneReservedRoutePaths } from "@dpeek/formless-instance-control-plane";
 import { normalizeInstanceDomainHost } from "../shared/instance-domain-mappings.ts";
-import type {
-  AppSchema,
-  EntityOperationKind,
-  EntitySchema,
-  RuntimeSchemaRouteValidationSchema,
-} from "@dpeek/formless-schema";
+import type { AppSchema, EntityOperationKind, EntitySchema } from "@dpeek/formless-schema";
 import { parseStorageSnapshot } from "@dpeek/formless-storage";
 import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import type {
@@ -55,7 +49,6 @@ type RecordWriteValidationOptions = {
   allowStoredReplay?: boolean;
   enforceGenericRecordWritePolicy?: boolean;
   identityReferenceResolver?: IdentityReferenceTargetResolver;
-  packageResolver?: AppPackageResolver;
 };
 
 export function validateRecordWriteRequest(
@@ -308,7 +301,6 @@ function recordValueValidationOptions(
     entityName: prepared.entityName,
     ...(prepared.kind === "patch" ? { existingRecordId: prepared.recordId } : {}),
     identityReferenceResolver: options.identityReferenceResolver,
-    packageResolver: options.packageResolver,
     schema,
   };
 }
@@ -626,7 +618,6 @@ type RuntimeRecordValueValidationOptions = {
   entityName: string;
   existingRecordId?: string;
   identityReferenceResolver?: IdentityReferenceTargetResolver;
-  packageResolver?: AppPackageResolver;
   schema: AppSchema;
 };
 
@@ -1059,107 +1050,8 @@ function validateRuntimeControlPlaneValues(
   existingRecordId: string | undefined,
   additionalRecords: StoredRecord[] | undefined,
 ) {
-  const metadata = runtimeControlPlaneEntityMetadata(schema, entityName);
-  const routeValidation = metadata?.routeValidation;
-
-  if (routeValidation) {
-    validateRuntimeRouteValues(
-      values,
-      routeValidation,
-      entityName,
-      reader,
-      existingRecordId,
-      additionalRecords,
-    );
-  }
-
   if (isInstanceControlPlaneRouteValidationEntity(schema, entityName)) {
     validateInstanceControlPlaneRouteValues(values, reader, existingRecordId, additionalRecords);
-  }
-}
-
-function validateRuntimeRouteValues(
-  values: RecordValues,
-  routeValidation: RuntimeSchemaRouteValidationSchema,
-  entityName: string,
-  reader: AuthorityRecordValidationReader,
-  existingRecordId: string | undefined,
-  additionalRecords: StoredRecord[] | undefined,
-) {
-  const path = stringRecordValue(values, routeValidation.pathField);
-  const prefix =
-    routeValidation.prefixField === undefined
-      ? undefined
-      : optionalStringRecordValue(values, routeValidation.prefixField);
-  const routeKind = stringRecordValue(values, routeValidation.routeKindField);
-  const packageCapability = stringRecordValue(values, routeValidation.packageCapabilityField);
-  const expectedCapability = routeValidation.routeKindCapabilities[routeKind];
-  const reservedPaths = routeValidation.reservedPaths ?? [];
-
-  if (!isRuntimeRouteSafePath(path, reservedPaths)) {
-    throw new BadRequestError(`Field "${routeValidation.pathField}" must be a route-safe path.`);
-  }
-
-  if (prefix !== undefined && !isRuntimeRouteSafePrefix(prefix, reservedPaths)) {
-    throw new BadRequestError(
-      `Field "${routeValidation.prefixField}" must be a route-safe prefix.`,
-    );
-  }
-
-  if (expectedCapability === undefined || packageCapability !== expectedCapability) {
-    throw new BadRequestError(
-      `Field "${routeValidation.packageCapabilityField}" is incompatible with route kind "${routeKind}".`,
-    );
-  }
-
-  if (values[routeValidation.enabledField] === true) {
-    assertEnabledRouteIsUnique(
-      reader,
-      entityName,
-      values,
-      routeValidation.pathField,
-      routeValidation.prefixField,
-      routeValidation.enabledField,
-      existingRecordId,
-      additionalRecords,
-    );
-  }
-}
-
-function assertEnabledRouteIsUnique(
-  reader: AuthorityRecordValidationReader,
-  entityName: string,
-  values: RecordValues,
-  pathField: string,
-  prefixField: string | undefined,
-  enabledField: string,
-  existingRecordId: string | undefined,
-  additionalRecords: StoredRecord[] | undefined,
-) {
-  const path = values[pathField];
-  const prefix = prefixField === undefined ? undefined : values[prefixField];
-
-  for (const record of getActiveRecordsForValidation(reader, additionalRecords)) {
-    if (
-      record.id === existingRecordId ||
-      record.entity !== entityName ||
-      record.deletedAt ||
-      record.values[enabledField] !== true
-    ) {
-      continue;
-    }
-
-    if (record.values[pathField] === path) {
-      throw new BadRequestError(`Enabled route path "${String(path)}" is already in use.`);
-    }
-
-    if (
-      prefixField !== undefined &&
-      prefix !== undefined &&
-      record.values[prefixField] === prefix
-    ) {
-      throw new BadRequestError(`Enabled route prefix "${String(prefix)}" is already in use.`);
-    }
   }
 }
 
@@ -1529,24 +1421,6 @@ function optionalStringRecordValue(values: RecordValues, fieldName: string): str
   }
 
   return value;
-}
-
-function isRuntimeRouteSafePath(path: string, reservedPaths: readonly string[]) {
-  if (!/^\/[a-z0-9._~-]+(?:\/[a-z0-9._~-]+)*$/.test(path)) {
-    return false;
-  }
-
-  return !reservedPaths.some(
-    (reservedPath) => path === reservedPath || path.startsWith(`${reservedPath}/`),
-  );
-}
-
-function isRuntimeRouteSafePrefix(prefix: string, reservedPaths: readonly string[]) {
-  if (!prefix.endsWith("/")) {
-    return false;
-  }
-
-  return isRuntimeRouteSafePath(prefix.slice(0, -1), reservedPaths);
 }
 
 function assertNoActiveInboundReferences(

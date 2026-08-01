@@ -689,30 +689,14 @@
           "type": "enum",
           "values": [
             {
-              "key": "schemaKey",
-              "label": "Schema key"
-            },
-            {
-              "key": "appInstall",
-              "label": "App install"
+              "key": "program",
+              "label": "Program"
             }
           ]
         },
         {
-          "key": "sourcePackageAppKey",
-          "label": "Package app key",
-          "required": false,
-          "type": "text"
-        },
-        {
           "key": "sourceSchemaKey",
           "label": "Source schema key",
-          "required": false,
-          "type": "text"
-        },
-        {
-          "key": "sourceInstallId",
-          "label": "Install id",
           "required": false,
           "type": "text"
         },
@@ -792,16 +776,8 @@
                 "key": "sourceTargetKind"
               },
               {
-                "field": "sourcePackageAppKey",
-                "key": "sourcePackageAppKey"
-              },
-              {
                 "field": "sourceSchemaKey",
                 "key": "sourceSchemaKey"
-              },
-              {
-                "field": "sourceInstallId",
-                "key": "sourceInstallId"
               },
               {
                 "field": "sourceApiRoutePrefix",
@@ -874,16 +850,8 @@
                 "key": "sourceTargetKind"
               },
               {
-                "field": "sourcePackageAppKey",
-                "key": "sourcePackageAppKey"
-              },
-              {
                 "field": "sourceSchemaKey",
                 "key": "sourceSchemaKey"
-              },
-              {
-                "field": "sourceInstallId",
-                "key": "sourceInstallId"
               },
               {
                 "field": "sourceApiRoutePrefix",

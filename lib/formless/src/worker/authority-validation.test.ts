@@ -224,7 +224,7 @@ describe("Authority storage snapshot validation", () => {
   it("validates expected storage and schema identities", async () => {
     await expect(
       validateStorageSnapshotRestore(
-        taskSnapshot({ storageIdentity: "app:work" }),
+        taskSnapshot({ storageIdentity: "other-program" }),
         expectedSnapshotIdentity,
       ),
     ).rejects.toThrow(new BadRequestError('Storage snapshot storageIdentity must be "tasks".'));

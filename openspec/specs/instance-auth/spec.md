@@ -302,6 +302,8 @@ instance auth state bound to reviewable identity invitation records.
 - THEN private auth state stores only a token hash, invitation id, normalized
   target email, target surface facts, created timestamp, expiry, and consumed or
   revoked status
+- AND target surface is `instance` or `organization`, with an organization
+  identifier present only for the organization surface
 - AND the token expiry matches the pending identity `invitation` record expiry
 - AND the raw invite token is only available to the delivery path that renders
   the invitation link

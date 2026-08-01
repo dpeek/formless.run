@@ -5,6 +5,7 @@ import path from "node:path";
 import type { Plugin as EsbuildPlugin } from "esbuild";
 import type { Queue as CloudflareQueue } from "alchemy/cloudflare";
 import type { DeployEvidenceSummary, DeployResourceGraph } from "@dpeek/formless-deploy";
+import { parseSourceSchemaHash } from "@dpeek/formless-schema";
 
 import {
   FORMLESS_PROGRAM_ARTIFACT_DEFINE_NAME,
@@ -12,8 +13,6 @@ import {
 } from "../program/artifact.ts";
 import {
   FORMLESS_DEPLOY_METADATA_PATH,
-  FORMLESS_RUNTIME_PROTOCOL_VERSION,
-  FORMLESS_STORAGE_MIGRATION_SET_ID,
   type FormlessDeployMetadata,
 } from "../shared/deploy-metadata.ts";
 import type { DomainProviderPlan } from "../shared/domain-provider-protocol.ts";
@@ -195,7 +194,6 @@ export type DeployFormlessInstanceInput = {
   providerBearer?: FormlessInstanceProviderBearerMaterial;
   secrets: FormlessInstanceDeploymentSecrets;
   stateRoot: string;
-  workspaceAppPackages?: string;
   workspaceProgramArtifact?: string;
   workspaceProgramArtifactPath?: string;
   workspaceRoot?: string;
@@ -252,6 +250,7 @@ export type CheckFormlessInstanceDeployMetadataResult = {
   metadataUrl: string;
   packageVersion: string | null;
   runtimeProtocolVersion: number;
+  schemaProvenance: FormlessDeployMetadata["schemaProvenance"];
   storageMigrationSet: string;
   url: string;
   version: string;
@@ -427,7 +426,6 @@ type DeclareFormlessInstanceAlchemyResourceTreeInput = {
   packageRoot: string;
   plan: FormlessInstanceDeploymentPlan;
   resourceGraph?: DeployResourceGraph;
-  workspaceAppPackages?: string;
   workspaceProgramArtifact?: string;
   workspaceProgramArtifactPath?: string;
   workspaceRoot?: string;
@@ -877,6 +875,7 @@ export async function checkFormlessInstanceDeployMetadata(
     metadataUrl,
     packageVersion: metadata.packageVersion,
     runtimeProtocolVersion: metadata.runtimeProtocolVersion,
+    schemaProvenance: metadata.schemaProvenance,
     storageMigrationSet: metadata.storageMigrationSet,
     url,
     version: packageVersion,
@@ -1076,9 +1075,6 @@ export async function deployFormlessInstanceWithAlchemy(
     ...(input.deploymentResourceGraph === undefined
       ? {}
       : { resourceGraph: input.deploymentResourceGraph }),
-    ...(input.workspaceAppPackages === undefined
-      ? {}
-      : { workspaceAppPackages: input.workspaceAppPackages }),
     ...(input.workspaceProgramArtifact === undefined
       ? {}
       : { workspaceProgramArtifact: input.workspaceProgramArtifact }),
@@ -2299,52 +2295,46 @@ function parseFormlessDeployMetadata(text: string, url: string): FormlessDeployM
     );
   }
 
-  if (
-    "packageVersion" in parsed &&
-    parsed.packageVersion !== null &&
-    typeof parsed.packageVersion !== "string"
-  ) {
+  if (parsed.packageVersion !== null && typeof parsed.packageVersion !== "string") {
     throw new Error(
       `Formless instance health check failed for ${url}: deploy metadata packageVersion must be a string or null.`,
     );
   }
 
   if (
-    "runtimeProtocolVersion" in parsed &&
-    (!Number.isInteger(parsed.runtimeProtocolVersion) ||
-      typeof parsed.runtimeProtocolVersion !== "number" ||
-      parsed.runtimeProtocolVersion <= 0)
+    !Number.isInteger(parsed.runtimeProtocolVersion) ||
+    typeof parsed.runtimeProtocolVersion !== "number" ||
+    parsed.runtimeProtocolVersion <= 0
   ) {
     throw new Error(
       `Formless instance health check failed for ${url}: deploy metadata runtimeProtocolVersion must be a positive integer.`,
     );
   }
 
-  if (
-    "storageMigrationSet" in parsed &&
-    (typeof parsed.storageMigrationSet !== "string" || parsed.storageMigrationSet.trim() === "")
-  ) {
+  if (typeof parsed.storageMigrationSet !== "string" || parsed.storageMigrationSet.trim() === "") {
     throw new Error(
       `Formless instance health check failed for ${url}: deploy metadata storageMigrationSet must be a string.`,
     );
   }
 
-  const version = parsed.version as string | null;
+  if (!isRecord(parsed.schemaProvenance) || parsed.schemaProvenance.kind !== "program") {
+    throw new Error(
+      `Formless instance health check failed for ${url}: deploy metadata schemaProvenance must identify Program.`,
+    );
+  }
 
   return {
-    packageVersion:
-      "packageVersion" in parsed && parsed.packageVersion !== undefined
-        ? (parsed.packageVersion as string | null)
-        : version,
-    runtimeProtocolVersion:
-      "runtimeProtocolVersion" in parsed && parsed.runtimeProtocolVersion !== undefined
-        ? (parsed.runtimeProtocolVersion as number)
-        : FORMLESS_RUNTIME_PROTOCOL_VERSION,
-    storageMigrationSet:
-      "storageMigrationSet" in parsed && parsed.storageMigrationSet !== undefined
-        ? (parsed.storageMigrationSet as string)
-        : FORMLESS_STORAGE_MIGRATION_SET_ID,
-    version,
+    packageVersion: parsed.packageVersion as string | null,
+    runtimeProtocolVersion: parsed.runtimeProtocolVersion as number,
+    schemaProvenance: {
+      kind: "program",
+      sourceSchemaHash: parseSourceSchemaHash(
+        parsed.schemaProvenance.sourceSchemaHash,
+        `Formless instance health check failed for ${url}: deploy metadata schemaProvenance sourceSchemaHash`,
+      ),
+    },
+    storageMigrationSet: parsed.storageMigrationSet,
+    version: parsed.version as string | null,
   };
 }
 

@@ -36,13 +36,11 @@ import {
 import { restorePortableArchive, type RestorePortableArchiveResult } from "./archive-workflows.ts";
 import type { StartWorkspaceGatewaySidecarDependencies } from "./workspace-gateway-runtime.ts";
 import {
-  createActiveWorkspaceAppPackages,
   createWorkspaceTempRoot,
   formatFormlessConfigModule,
   formlessInstanceWorkspaceLocalStateRoot,
   materializeActiveWorkspaceProgramArtifact,
   readWorkspaceConfig,
-  runtimeWorkspaceAppPackagesEnvValue,
   workspaceConfigPath,
   workspaceRootForInput,
 } from "./instance-workspace-foundation.ts";
@@ -232,7 +230,6 @@ export async function initFormlessInstanceWorkspace(
 
     remoteStatus = await readFormlessInstanceTargetStatus(
       {
-        packageResolver: (await createActiveWorkspaceAppPackages(workspaceRoot, config)).resolver,
         targetUrl,
       },
       dependencies,
@@ -302,15 +299,11 @@ export async function getFormlessInstanceWorkspaceStatus(
     },
     { env: dependencies.env },
   );
-  const activePackages = context.selectedTarget
-    ? await createActiveWorkspaceAppPackages(context.workspaceRoot)
-    : undefined;
   const remoteStatus = context.selectedTarget
     ? await readFormlessInstanceTargetStatus(
         {
           adminToken: context.adminToken,
           includeDeploymentStatus: input.includeDeploymentStatus,
-          packageResolver: activePackages?.resolver,
           targetUrl: context.selectedTarget.url,
         },
         dependencies,
@@ -334,7 +327,6 @@ export async function runFormlessInstanceWorkspaceDev(
   const devBootstrap = await ensureFormlessInstanceWorkspaceDevBootstrap(input, dependencies);
   const { config, localDevSecrets, workspaceRoot } = devBootstrap;
 
-  const activePackages = await createActiveWorkspaceAppPackages(workspaceRoot, config);
   const activeProgram = await materializeActiveWorkspaceProgramArtifact(workspaceRoot, config);
   const candidateOrigins = new Set<string>();
 
@@ -352,7 +344,6 @@ export async function runFormlessInstanceWorkspaceDev(
         env: dependencies.env,
         localDevSecrets,
         workspaceRoot,
-        workspaceAppPackages: runtimeWorkspaceAppPackagesEnvValue(activePackages),
         workspaceProgramArtifactPath: activeProgram.path,
         workspaceRuntimeExtensions: runtimeWorkspaceExtensionsEnvValue(config),
       }),

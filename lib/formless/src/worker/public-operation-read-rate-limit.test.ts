@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { programStorageIdentity } from "../shared/app-storage-identity.ts";
+import { programStorageIdentity } from "../shared/program-storage-identity.ts";
 import {
   consumePublicOperationReadRateLimit,
   type PublicOperationReadRateLimitState,

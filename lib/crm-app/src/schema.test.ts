@@ -1,5 +1,4 @@
-import { computeSourceSchemaHash, parseAppPackageManifest } from "@dpeek/formless-installed-apps";
-import { parseAppSchema } from "@dpeek/formless-schema";
+import { computeSourceSchemaHash, parseAppSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import { describe, expect, it } from "vite-plus/test";
 import {
@@ -8,7 +7,6 @@ import {
   reviewableCrmRecords,
   validateCrmRecords,
 } from "@dpeek/formless-crm-app";
-import rawAppPackageManifest from "@dpeek/formless-crm-app/formless.app.json";
 import {
   crmPresentationSchemaModule,
   crmRecordSchemaModule,
@@ -37,12 +35,12 @@ describe("CRM schema authoring", () => {
     ]);
   });
 
-  it("materializes the standalone source and matching manifest hash", async () => {
-    const manifest = parseAppPackageManifest(rawAppPackageManifest, "CRM package manifest");
-
+  it("materializes the deterministic standalone source", async () => {
     expect(crmSchemaSource).toEqual(rawSourceSchema);
     expect(parseAppSchema(crmSchemaSource)).toEqual(parseAppSchema(rawSourceSchema));
-    expect(await computeSourceSchemaHash(crmSchemaSource)).toBe(manifest.sourceSchemaHash);
+    expect(await computeSourceSchemaHash(crmSchemaSource)).toBe(
+      await computeSourceSchemaHash(rawSourceSchema),
+    );
   });
 
   it("owns non-overlapping Program identities and preserves reviewable CRM records", () => {
@@ -59,8 +57,8 @@ describe("CRM schema authoring", () => {
     expect(() => validateCrmRecords("CRM records", records)).not.toThrow();
     expect(reviewableCrmRecords([...records].reverse())).toEqual(records);
     expect(() =>
-      validateCrmRecords("CRM records", [storedRecord("crm-record:foreign", "app-install", {})]),
-    ).toThrow('CRM records does not support entity "app-install" for record "crm-record:foreign".');
+      validateCrmRecords("CRM records", [storedRecord("crm-record:foreign", "unknown", {})]),
+    ).toThrow('CRM records does not support entity "unknown" for record "crm-record:foreign".');
   });
 });
 

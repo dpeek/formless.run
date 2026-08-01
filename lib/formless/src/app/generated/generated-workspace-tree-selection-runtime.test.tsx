@@ -23,7 +23,7 @@ import {
   type GeneratedWorkspaceRuntimeController,
 } from "./generated-workspace-runtime.tsx";
 import { SchemaAppProvider } from "./schema-app-context.tsx";
-import { programStorageIdentity } from "../../shared/app-storage-identity.ts";
+import { programStorageIdentity } from "../../shared/program-storage-identity.ts";
 
 const submitOperationMock = vi.hoisted(() => vi.fn());
 const listProgramDocumentMediaAssetsMock = vi.hoisted(() => vi.fn());
@@ -88,7 +88,7 @@ describe("generated workspace tree selection runtime", () => {
 
     await act(async () => {
       renderer = render(
-        <SchemaAppProvider schemaKey="site" target={programStorageIdentity()}>
+        <SchemaAppProvider schemaKey="formless-program" target={programStorageIdentity()}>
           <RuntimeProbe />
         </SchemaAppProvider>,
       );
@@ -236,7 +236,7 @@ describe("generated workspace tree selection runtime", () => {
 
     await act(async () => {
       renderer = render(
-        <SchemaAppProvider schemaKey="site" target={programStorageIdentity()}>
+        <SchemaAppProvider schemaKey="formless-program" target={programStorageIdentity()}>
           <RuntimeProbe />
         </SchemaAppProvider>,
       );
@@ -322,7 +322,7 @@ describe("generated workspace tree selection runtime", () => {
 
     await act(async () => {
       renderer = render(
-        <SchemaAppProvider schemaKey="site" target={programStorageIdentity()}>
+        <SchemaAppProvider schemaKey="formless-program" target={programStorageIdentity()}>
           <RuntimeProbe />
         </SchemaAppProvider>,
       );
@@ -453,7 +453,7 @@ describe("generated workspace tree selection runtime", () => {
 
     await act(async () => {
       renderer = render(
-        <SchemaAppProvider schemaKey="site" target={programStorageIdentity()}>
+        <SchemaAppProvider schemaKey="formless-program" target={programStorageIdentity()}>
           <RuntimeProbe />
         </SchemaAppProvider>,
       );
@@ -760,7 +760,7 @@ describe("generated workspace tree selection runtime", () => {
 
     await act(async () => {
       renderer = render(
-        <SchemaAppProvider schemaKey="site" target={programStorageIdentity()}>
+        <SchemaAppProvider schemaKey="formless-program" target={programStorageIdentity()}>
           <RuntimeProbe />
         </SchemaAppProvider>,
       );
@@ -999,7 +999,7 @@ describe("generated workspace tree selection runtime", () => {
 
     await act(async () => {
       renderer = render(
-        <SchemaAppProvider schemaKey="site" target={programStorageIdentity()}>
+        <SchemaAppProvider schemaKey="formless-program" target={programStorageIdentity()}>
           <RuntimeProbe />
         </SchemaAppProvider>,
       );
@@ -1130,7 +1130,7 @@ describe("generated workspace tree selection runtime", () => {
 
     await act(async () => {
       renderer = render(
-        <SchemaAppProvider schemaKey="site" target={programStorageIdentity()}>
+        <SchemaAppProvider schemaKey="formless-program" target={programStorageIdentity()}>
           <RuntimeProbe />
         </SchemaAppProvider>,
       );

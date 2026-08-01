@@ -6,7 +6,6 @@ import {
   type OperationHandlerEntityOperationEffectSchema,
   type RecordPlanEntityOperationEffectSchema,
 } from "@dpeek/formless-schema";
-import type { AppPackageResolver } from "../shared/app-packages.ts";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import type { PublicOperationProof } from "../shared/protocol.ts";
 import type {
@@ -149,11 +148,8 @@ function assertAuthenticatedOperationActor(envelope: OperationInvocationEnvelope
     target.targetOrigin.trim() === "" ||
     typeof target.targetProfile !== "string" ||
     target.targetProfile.trim() === "" ||
-    (target.appInstallId === undefined && target.storageIdentity === undefined) ||
-    (target.appInstallId !== undefined &&
-      (typeof target.appInstallId !== "string" || target.appInstallId.trim() === "")) ||
-    (target.storageIdentity !== undefined &&
-      (typeof target.storageIdentity !== "string" || target.storageIdentity.trim() === ""))
+    typeof target.storageIdentity !== "string" ||
+    target.storageIdentity.trim() === ""
   ) {
     throw new BadRequestError(
       `Operation "${envelope.operation.canonicalKey}" requires authenticated actor facts.`,
@@ -281,7 +277,6 @@ export async function executeWriteOperationInvocation(input: {
   createRecordId?: (entity: string, values: RecordValues) => string | undefined;
   envelope: OperationInvocationEnvelope;
   identityReferenceResolver?: IdentityReferenceTargetResolver;
-  packageResolver?: AppPackageResolver;
   schema: AppSchema;
   storage: DurableObjectStorage;
   validateConstraints?: RecordConstraintValidator;
@@ -296,7 +291,6 @@ export async function executeWriteOperationInvocation(input: {
         input.schema,
         input.createRecordId,
         input.identityReferenceResolver,
-        input.packageResolver,
         input.validateConstraints,
       ),
     storage: input.storage,
@@ -310,7 +304,6 @@ async function prepareWriteOperationInvocationOutcome(
   schema: AppSchema,
   createRecordId?: (entity: string, values: RecordValues) => string | undefined,
   identityReferenceResolver?: IdentityReferenceTargetResolver,
-  packageResolver?: AppPackageResolver,
   validateConstraints?: RecordConstraintValidator,
 ): Promise<() => WriteOutcome<OperationInvocationOutput>> {
   if (!isEntityOperationWriteKind(envelope.operation.kind)) {
@@ -325,7 +318,6 @@ async function prepareWriteOperationInvocationOutcome(
       envelope,
       schema,
       identityReferenceResolver,
-      packageResolver,
       validateConstraints,
     );
   }
@@ -337,7 +329,6 @@ async function prepareWriteOperationInvocationOutcome(
       schema,
       createRecordId,
       identityReferenceResolver,
-      packageResolver,
       validateConstraints,
     );
   }
@@ -348,12 +339,11 @@ async function prepareWriteOperationInvocationOutcome(
       envelope,
       schema,
       identityReferenceResolver,
-      packageResolver,
       validateConstraints,
     );
   }
 
-  return prepareDeleteOperationInvocationOutcome(storage, envelope, schema, packageResolver);
+  return prepareDeleteOperationInvocationOutcome(storage, envelope, schema);
 }
 
 async function prepareCreateOperationInvocationOutcome(
@@ -362,7 +352,6 @@ async function prepareCreateOperationInvocationOutcome(
   schema: AppSchema,
   createRecordId?: (entity: string, values: RecordValues) => string | undefined,
   identityReferenceResolver?: IdentityReferenceTargetResolver,
-  packageResolver?: AppPackageResolver,
   validateConstraints?: RecordConstraintValidator,
 ): Promise<() => WriteOutcome<OperationInvocationOutput>> {
   const validateRecordConstraints = operationRecordConstraintValidator(
@@ -374,7 +363,7 @@ async function prepareCreateOperationInvocationOutcome(
     operationCreateRecordWriteRequest(envelope, schema, storage, createRecordId),
     schema,
     storage,
-    { identityReferenceResolver, packageResolver },
+    { identityReferenceResolver },
   );
 
   if ("outcome" in validatedRecordWrite) {
@@ -415,7 +404,6 @@ async function prepareUpdateOperationInvocationOutcome(
   envelope: OperationInvocationEnvelope,
   schema: AppSchema,
   identityReferenceResolver?: IdentityReferenceTargetResolver,
-  packageResolver?: AppPackageResolver,
   validateConstraints?: RecordConstraintValidator,
 ): Promise<() => WriteOutcome<OperationInvocationOutput>> {
   const validateRecordConstraints = operationRecordConstraintValidator(
@@ -427,7 +415,7 @@ async function prepareUpdateOperationInvocationOutcome(
     operationPatchRecordWriteRequest(envelope, schema, storage),
     schema,
     storage,
-    { identityReferenceResolver, packageResolver },
+    { identityReferenceResolver },
   );
 
   if ("outcome" in validatedRecordWrite) {
@@ -463,13 +451,11 @@ async function prepareDeleteOperationInvocationOutcome(
   storage: DurableObjectStorage,
   envelope: OperationInvocationEnvelope,
   schema: AppSchema,
-  packageResolver?: AppPackageResolver,
 ): Promise<() => WriteOutcome<OperationInvocationOutput>> {
   const validatedRecordWrite = await validateOperationRecordWriteRequest(
     operationDeleteRecordWriteRequest(envelope),
     schema,
     storage,
-    { packageResolver },
   );
 
   if ("outcome" in validatedRecordWrite) {
@@ -501,7 +487,6 @@ function validateOperationRecordWriteRequest(
   storage: DurableObjectStorage,
   options: {
     identityReferenceResolver?: IdentityReferenceTargetResolver;
-    packageResolver?: AppPackageResolver;
   } = {},
 ) {
   return validateRecordWriteRequestAsync(
@@ -512,7 +497,6 @@ function validateOperationRecordWriteRequest(
       allowStoredReplay: false,
       enforceGenericRecordWritePolicy: false,
       identityReferenceResolver: options.identityReferenceResolver,
-      packageResolver: options.packageResolver,
     },
   );
 }
@@ -522,7 +506,6 @@ async function prepareCommandOperationInvocationOutcome(
   envelope: OperationInvocationEnvelope,
   schema: AppSchema,
   identityReferenceResolver?: IdentityReferenceTargetResolver,
-  packageResolver?: AppPackageResolver,
   validateConstraints?: RecordConstraintValidator,
 ): Promise<() => WriteOutcome<OperationInvocationOutput>> {
   if (envelope.operation.effect?.type === "recordPlan") {
@@ -532,7 +515,6 @@ async function prepareCommandOperationInvocationOutcome(
       schema,
       envelope.operation.effect,
       identityReferenceResolver,
-      packageResolver,
       validateConstraints,
     );
   }
@@ -563,10 +545,7 @@ async function prepareCommandOperationInvocationOutcome(
         ...(commandInput === undefined ? {} : { input: commandInput }),
         ...(validateConstraints === undefined ? {} : { validateConstraints }),
       },
-      {
-        ...(identityReferenceResolver === undefined ? {} : { identityReferenceResolver }),
-        ...(packageResolver === undefined ? {} : { packageResolver }),
-      },
+      identityReferenceResolver === undefined ? {} : { identityReferenceResolver },
     );
 
     return () =>
@@ -603,7 +582,6 @@ async function prepareRecordPlanOperationInvocationOutcome(
   schema: AppSchema,
   effect: RecordPlanEntityOperationEffectSchema,
   identityReferenceResolver?: IdentityReferenceTargetResolver,
-  packageResolver?: AppPackageResolver,
   validateConstraints?: RecordConstraintValidator,
 ): Promise<() => WriteOutcome<OperationInvocationOutput>> {
   const operationId = requiredWriteIdentity(envelope);
@@ -620,7 +598,6 @@ async function prepareRecordPlanOperationInvocationOutcome(
     identityReferenceResolver,
     inputValues,
     operationId,
-    packageResolver,
     plannedRecords: [],
     ...(targetRecord === undefined ? {} : { targetRecord }),
   });

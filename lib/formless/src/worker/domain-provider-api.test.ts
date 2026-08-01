@@ -240,8 +240,8 @@ describe("instance domain provider API routes", () => {
           status: "succeeded",
         });
         expect(cleanupDeployed.body.status).toMatchObject({ state: "no-target" });
-        expect(routeAndAppIntentSnapshot(intentAfterCleanup.body)).toEqual(
-          routeAndAppIntentSnapshot(intentBeforeCleanup.body),
+        expect(routeIntentSnapshot(intentAfterCleanup.body)).toEqual(
+          routeIntentSnapshot(intentBeforeCleanup.body),
         );
       },
     );
@@ -306,8 +306,8 @@ describe("instance domain provider API routes", () => {
             logicalId,
           }),
         });
-        expect(routeAndAppIntentSnapshot(intentAfterCleanup.body)).toEqual(
-          routeAndAppIntentSnapshot(intentBeforeCleanup.body),
+        expect(routeIntentSnapshot(intentAfterCleanup.body)).toEqual(
+          routeIntentSnapshot(intentBeforeCleanup.body),
         );
       },
     );
@@ -543,9 +543,9 @@ function operationRecord(response: OperationInvocationResponse) {
   return response.output.record;
 }
 
-function routeAndAppIntentSnapshot(body: BootstrapResponse) {
+function routeIntentSnapshot(body: BootstrapResponse) {
   return body.records
-    .filter((record) => record.entity === "app-install" || record.entity === "route")
+    .filter((record) => record.entity === "route")
     .map((record) => ({
       deletedAt: record.deletedAt,
       entity: record.entity,

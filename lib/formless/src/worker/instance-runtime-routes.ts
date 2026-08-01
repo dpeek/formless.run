@@ -222,13 +222,15 @@ function routeValues(values: StoredRecord["values"]): InstanceControlPlaneRouteV
   const matchPath = optionalAbsolutePath(values.matchPath);
   const matchPrefix = optionalAbsolutePath(values.matchPrefix);
   const access = parseRuntimeRouteAccess(optionalString(values.access));
+  const targetProfile =
+    values.targetProfile === "instance" || values.targetProfile === "public-site"
+      ? values.targetProfile
+      : undefined;
 
   if (
     (kind !== "mount" && kind !== "redirect") ||
     !matchPath ||
-    values.targetProfile === "app" ||
-    values.appInstall !== undefined ||
-    values.requiredRole !== undefined
+    (kind === "mount" && targetProfile === undefined)
   ) {
     return undefined;
   }
@@ -239,9 +241,7 @@ function routeValues(values: StoredRecord["values"]): InstanceControlPlaneRouteV
     matchPath,
     ...(matchPrefix === undefined ? {} : { matchPrefix }),
     kind,
-    ...(values.targetProfile === "instance" || values.targetProfile === "public-site"
-      ? { targetProfile: values.targetProfile }
-      : {}),
+    ...(targetProfile === undefined ? {} : { targetProfile }),
     ...(values.surface === "admin" || values.surface === "public-site"
       ? { surface: values.surface }
       : {}),

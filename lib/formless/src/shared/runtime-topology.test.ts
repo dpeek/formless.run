@@ -97,13 +97,11 @@ describe("runtime topology", () => {
   it("answers shared route policy by profile kind", () => {
     expect(runtimeRoutePolicyForProfileKind("instance")).toEqual({
       instanceBrowserRoutes: true,
-      installedAppApiRoutes: true,
       accountSessionBrowserRoutes: true,
       workspaceGatewayApiRoutes: true,
     });
     expect(runtimeRoutePolicyForProfileKind("dev")).toEqual({
       instanceBrowserRoutes: true,
-      installedAppApiRoutes: true,
       accountSessionBrowserRoutes: true,
       workspaceGatewayApiRoutes: true,
     });

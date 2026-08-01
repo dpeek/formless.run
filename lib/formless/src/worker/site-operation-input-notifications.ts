@@ -4,7 +4,7 @@ import {
 } from "@dpeek/formless-instance-control-plane";
 import type { AppSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
-import type { AuthorityStorageIdentity } from "../shared/app-storage-identity.ts";
+import type { ProgramStorageIdentity } from "../shared/program-storage-identity.ts";
 import {
   parseEmailDeliveryAddress,
   type EmailDeliveryAddress,
@@ -74,7 +74,7 @@ export function createSiteOperationInputNotificationAdapters(
 
 export async function scheduleSiteOperationInputNotificationAfterPublicOperation(input: {
   adapters: SiteOperationInputNotificationAdapters;
-  identity: AuthorityStorageIdentity;
+  identity: ProgramStorageIdentity;
   records?: readonly StoredRecord[];
   requestUrl: string;
   response: OperationInvocationResponse;

@@ -63,6 +63,12 @@ const conventionalPackages = readdirSync(path.resolve(repoRoot, "lib"), {
   .filter(({ manifest }) => manifest.scripts.pack?.startsWith("vp pack "))
   .sort((left, right) => left.manifest.name.localeCompare(right.manifest.name));
 
+const domainSchemaPackageNames = [
+  "@dpeek/formless-crm-app",
+  "@dpeek/formless-site-app",
+  "@dpeek/formless-tasks-app",
+] as const;
+
 describe("release package development exports", () => {
   it("loads package-dependent Vite config before compiled output exists", async () => {
     const fixtureRoot = mkdtempSync(path.join(tmpdir(), "formless-vite-config-source-"));
@@ -305,6 +311,32 @@ describe("packed conventional packages", () => {
       }
     } finally {
       rmSync(sandbox.root, { force: true, recursive: true });
+    }
+  });
+});
+
+describe("published domain schema artifacts", () => {
+  it("packs domain schema authoring entrypoints and standalone data artifacts", () => {
+    for (const packageName of domainSchemaPackageNames) {
+      const domainPackage = conventionalPackages.find(
+        ({ manifest }) => manifest.name === packageName,
+      );
+
+      expect(domainPackage, packageName).toBeDefined();
+
+      if (!domainPackage) {
+        continue;
+      }
+
+      const packedFiles = packedFileNames(
+        runBun(["pm", "pack", "--dry-run", "--ignore-scripts"], domainPackage.root),
+      );
+
+      expect(domainPackage.manifest.exports["./schema"]).toBe("./src/schema.ts");
+      expect(domainPackage.manifest.exports["./schema.json"]).toBe("./schema.json");
+      expect(packedFiles).toEqual(
+        expect.arrayContaining(["package.json", "schema.json", "src/schema.ts"]),
+      );
     }
   });
 });

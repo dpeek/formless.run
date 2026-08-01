@@ -38,7 +38,6 @@ export type PublishedSiteRedirect = {
 
 export type WorkerRuntimeRoutePolicy = {
   instanceBrowserRoutes: boolean;
-  installedAppApiRoutes: boolean;
   workspaceGatewayApiRoutes: boolean;
 };
 
@@ -63,7 +62,7 @@ export type WorkerRuntimeRouteInput = WorkerRuntimeProfileInput | WorkerRuntimeR
 
 export type MappedRuntimeRoutePolicy = {
   blocksAuthOriginRoutes: boolean;
-  mappedTargetProfile?: "app" | "instance" | "public-site";
+  mappedTargetProfile?: "instance" | "public-site";
   runtimeProfile?: string;
 };
 
@@ -572,7 +571,6 @@ function workerRuntimeRoutePolicyFromKind(
 
   return {
     instanceBrowserRoutes: policy.instanceBrowserRoutes,
-    installedAppApiRoutes: policy.installedAppApiRoutes,
     workspaceGatewayApiRoutes: policy.workspaceGatewayApiRoutes,
   };
 }

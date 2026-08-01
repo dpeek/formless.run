@@ -888,29 +888,6 @@ const emailSenders = [
 
 const sourceRecords = [
   {
-    id: "app-install:site",
-    entity: "app-install",
-    createdAt: "2026-06-14T00:00:00.000Z",
-    values: {
-      installId: "site",
-      packageAppKey: "site",
-      registrationPolicy: "closed",
-      status: "installed",
-    },
-  },
-  {
-    id: "app-install:deleted",
-    entity: "app-install",
-    createdAt: "2026-06-14T00:00:00.000Z",
-    deletedAt: "2026-06-14T00:00:01.000Z",
-    values: {
-      installId: "deleted",
-      packageAppKey: "site",
-      registrationPolicy: "closed",
-      status: "installed",
-    },
-  },
-  {
     id: "cloudflare-primary",
     entity: "deployment-config",
     createdAt: "2026-06-14T00:00:00.000Z",
@@ -959,21 +936,6 @@ const sourceRecords = [
       enabled: true,
       kind: "mount",
       matchHost: "secondary.example.com",
-      matchPath: "/",
-      surface: "public-site",
-      targetProfile: "public-site",
-    },
-  },
-  {
-    id: "route:legacy-installed-public-site",
-    entity: "route",
-    createdAt: "2026-06-14T00:00:00.000Z",
-    values: {
-      appInstall: "site",
-      deploymentConfig: "cloudflare-primary",
-      enabled: true,
-      kind: "mount",
-      matchHost: "legacy.example.com",
       matchPath: "/",
       surface: "public-site",
       targetProfile: "public-site",

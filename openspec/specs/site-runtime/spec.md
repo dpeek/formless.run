@@ -57,9 +57,8 @@ declarations through a documented schema authoring subpath.
 - AND materialization produces the deterministic data-only `schema.json`
   source
 - AND authored and materialized source parse to the same App schema
-- AND the manifest `sourceSchemaHash` matches the materialized source
-- AND package build and upgrade paths may continue loading `schema.json`
-  without evaluating the TypeScript authoring entrypoint
+- AND package checks compare the TypeScript source and `schema.json` through
+  canonical App schema data
 - AND public Site runtime consumes the complete data-only Program artifact
   rather than the standalone Site schema or workspace TypeScript
 
@@ -160,8 +159,8 @@ package-owned Site adapter and the one Program storage target.
 - THEN the runtime dispatches to the built-in Site public runtime adapter
 - AND the adapter builds the public tree from flat app records and placement
   edges in Program storage identity `instance:control-plane`
-- AND package app key, app install id, and installed-app storage identity are
-  not public Site target inputs
+- AND schema key `formless-program` and the complete Program source hash are the
+  public Site target provenance
 
 #### Scenario: Adapter owns public document behavior
 
@@ -1084,8 +1083,7 @@ rendering.
 - GIVEN an enabled exact-host mapping uses profile `publicSite`
 - WHEN a visitor opens the mapped host
 - THEN the mapping renders top-level routes from the Program-native Site
-- AND the mapping does not select an app install or package-derived runtime
-  target
+- AND the mapping selects the one Program public Site target
 - AND generated admin and app shell routes are blocked on that host
 
 #### Scenario: Published Site target selection
@@ -1093,8 +1091,8 @@ rendering.
 - GIVEN a published Site runtime starts
 - WHEN it selects its public Site target
 - THEN it renders the Program-native Site from Program storage
-- AND package app key and install id environment metadata are not public Site
-  target inputs
+- AND the complete Program artifact and canonical Program provenance select the
+  target
 
 #### Scenario: Published SSR response policy
 

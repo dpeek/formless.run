@@ -114,7 +114,6 @@ describe("public operation runtime", () => {
       sourceOperationKey: "subscription.subscribe",
       sourcePath: `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/public/operations/subscription/subscribe`,
     });
-    expect(records.subscriptions[0]?.values).not.toHaveProperty("sourceInstallId");
     expect(protectedResponses.map((response) => response.status)).toEqual([
       401, 401, 401, 401, 401, 401,
     ]);
@@ -224,7 +223,6 @@ describe("public operation runtime", () => {
       sourceOperationKey: "subscription.subscribe",
       sourceSiteBlockId: "rec_site_subscribe_form",
     });
-    expect(records.subscriptions[0]?.values).not.toHaveProperty("sourceInstallId");
     expectTurnstileRequests(turnstileRequests, [
       {
         secret: turnstileSecret,

@@ -31,12 +31,9 @@
     "pack": "vp pack src/index.ts src/node.ts"
   },
   "dependencies": {
-    "@dpeek/formless-installed-apps": "workspace:*",
     "@dpeek/formless-instance-control-plane": "workspace:*",
     "@dpeek/formless-schema": "workspace:*",
     "@dpeek/formless-storage": "workspace:*"
   },
-  "devDependencies": {
-    "@dpeek/formless-crm-app": "workspace:*"
-  }
+  "devDependencies": {}
 }

@@ -17,11 +17,9 @@ import {
   FORMLESS_RUNTIME_PROTOCOL_VERSION,
   FORMLESS_STORAGE_MIGRATION_SET_ID,
 } from "../shared/deploy-metadata.ts";
-import { listInstallableAppPackages, packageAppFactsForKey } from "@dpeek/formless-installed-apps";
-import { rootKnownPackageFactsResolver } from "../shared/app-packages.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
-import { formlessProgramSchema } from "../program/runtime.ts";
+import { formlessProgramSchema, formlessProgramSchemaProvenance } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
@@ -34,7 +32,6 @@ import {
   workspaceOperationStatePath,
   writeInstanceWorkspaceProgramStorageSnapshot,
 } from "../program/workspace.ts";
-import { siteSourceSchema } from "../test/schema-apps.ts";
 import {
   ALCHEMY_PASSWORD_ENV_NAME,
   FORMLESS_INSTANCE_LOCAL_ENV_FILE,
@@ -56,32 +53,6 @@ import {
 } from "./instance-workspace-operations.ts";
 
 const tempDirs: string[] = [];
-const privateSitePackageAppKey = "private-site";
-const rootKnownSitePackage = rootKnownPackageFactsResolver().findPackage("site")!;
-const privateSiteSourceSchemaHash =
-  "sha256:06789270061b43a2a0e4709f96e8aac35514e0f61bf15a29f234ca253d021c25" as typeof rootKnownSitePackage.sourceSchemaHash;
-const privateSitePackageResolver = {
-  findPackage: (packageAppKey: string) =>
-    packageAppKey === privateSitePackageAppKey
-      ? {
-          ...rootKnownSitePackage,
-          defaultInstallId: "personal",
-          packageAppKey: privateSitePackageAppKey,
-          sourceOrigin: "workspace" as const,
-          sourceSchemaHash: privateSiteSourceSchemaHash,
-          sourceSchemaKey: privateSitePackageAppKey,
-          sourceSchemaLocation: {
-            kind: "workspace" as const,
-            key: privateSitePackageAppKey,
-            path: "packages/private-site/schema.json",
-          },
-        }
-      : undefined,
-  listPackages() {
-    return [this.findPackage(privateSitePackageAppKey)!];
-  },
-};
-
 afterEach(async () => {
   await Promise.all(
     tempDirs.splice(0).map((tempDir) => rm(tempDir, { force: true, recursive: true })),
@@ -301,9 +272,7 @@ describe("Formless workspace operations", () => {
         workspacePath: workspaceRoot,
       },
       operationDeps(tempDir, {
-        fetch: authorityExportFetch([installedSite("david", "David Peek")], {
-          david: { records: [] },
-        }),
+        fetch: authorityExportFetch(),
         operationIds: ["op_save_00000001"],
         timestamps: [
           "2026-06-02T00:01:00.000Z",
@@ -313,22 +282,24 @@ describe("Formless workspace operations", () => {
       }),
     );
 
-    expect(state.status).toBe("succeeded");
+    expect(state.status).toBe("failed");
     const persisted = await readWorkspaceOperationState({
       operationId: "op_save_00000001",
       workspaceRoot,
     });
 
     expect(persisted).toMatchObject({
-      errors: [],
-      status: "succeeded",
+      errors: [
+        {
+          message: expect.stringContaining("Formless workspace source is stale"),
+        },
+      ],
+      status: "failed",
       summary: {
         fields: {
-          mediaCount: 0,
-          mode: "check",
-          recordCount: 0,
+          error: expect.stringContaining("Formless workspace source is stale"),
         },
-        title: "Workspace source current",
+        title: "Operation failed",
       },
     });
     await expect(readFile(path.join(workspaceRoot, FORMLESS_CONFIG_FILE), "utf8")).resolves.toBe(
@@ -647,7 +618,6 @@ describe("Formless workspace operations", () => {
 
     expect(requests.every((request) => request.method === "GET")).toBe(true);
     expect(requestPaths).toContain("/api/formless/program/snapshot");
-    expect(requestPaths).not.toContain("/api/app-installs/private-site/david/snapshot");
     expect(requestPaths).not.toContain("/api/formless/archive/restore");
     expect(requestPaths).not.toContain("/api/formless/deployments/desired-state");
   });
@@ -1158,6 +1128,7 @@ function deployMetadata(url: string) {
     metadataUrl: `${url}/api/formless/deploy`,
     packageVersion: packageJson.version,
     runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
+    schemaProvenance: formlessProgramSchemaProvenance,
     storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
     url,
     version: packageJson.version,
@@ -1232,42 +1203,12 @@ async function writeWorkspaceConfig(
     runtime?: ResolvedFormlessConfig["runtime"];
   } = {},
 ) {
-  await writePrivateSitePackage(workspaceRoot);
+  await mkdir(workspaceRoot, { recursive: true });
   await writeFile(
     path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
     formatTestFormlessConfigModule({
       name: "personal-sites",
-      packages: {
-        links: [{ manifest: "packages/private-site/formless.app.json" }],
-      },
       ...(options.runtime === undefined ? {} : { runtime: options.runtime }),
-    }),
-  );
-}
-
-async function writePrivateSitePackage(workspaceRoot: string) {
-  const packageRoot = path.join(workspaceRoot, "packages/private-site");
-
-  await mkdir(packageRoot, { recursive: true });
-  await writeFile(path.join(packageRoot, "schema.json"), JSON.stringify(siteSourceSchema));
-  await writeFile(
-    path.join(packageRoot, "formless.app.json"),
-    JSON.stringify({
-      kind: "formless.appPackage",
-      version: 1,
-      packageAppKey: privateSitePackageAppKey,
-      label: "Private Site",
-      description: "Private Site test package.",
-      defaultInstallId: "personal",
-      supportsMultipleInstalls: true,
-      packageRevision: rootKnownSitePackage.packageRevision,
-      sourceSchema: {
-        kind: "workspace",
-        key: privateSitePackageAppKey,
-        path: "schema.json",
-      },
-      sourceSchemaHash: privateSiteSourceSchemaHash,
-      capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],
     }),
   );
 }
@@ -1290,18 +1231,7 @@ async function writeDeployStorageSnapshot(
   });
 }
 
-function authorityExportFetch(
-  installs: ReturnType<typeof installedSite>[],
-  dataByInstall: Record<
-    string,
-    {
-      records: StoredRecord[];
-    }
-  >,
-  options: {
-    controlPlaneRecords?: StoredRecord[];
-  } = {},
-): typeof fetch {
+function authorityExportFetch(): typeof fetch {
   return async (url) => {
     const requestUrl =
       typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
@@ -1310,13 +1240,9 @@ function authorityExportFetch(
     if (parsedUrl.pathname === "/api/formless/deploy") {
       return Response.json(
         {
-          packageApps: listInstallableAppPackages(privateSitePackageResolver).map((appPackage) => ({
-            packageAppKey: appPackage.packageAppKey,
-            packageRevision: appPackage.packageRevision,
-            sourceSchemaHash: appPackage.sourceSchemaHash,
-          })),
           packageVersion: packageJson.version,
           runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
+          schemaProvenance: formlessProgramSchemaProvenance,
           storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
           version: packageJson.version,
         },
@@ -1324,25 +1250,16 @@ function authorityExportFetch(
       );
     }
 
-    if (parsedUrl.pathname === "/api/formless/app-installs") {
-      return Response.json({
-        installs,
-        packages: listInstallableAppPackages(privateSitePackageResolver),
-      });
-    }
-
     if (parsedUrl.pathname === "/api/formless/program/bootstrap") {
       return Response.json({
         cursor: 1,
-        records: options.controlPlaneRecords ?? controlPlaneRecords(),
+        records: controlPlaneRecords(),
         schema: {},
       });
     }
 
     if (parsedUrl.pathname === "/api/formless/program/snapshot") {
-      return Response.json(
-        controlPlaneSnapshot(options.controlPlaneRecords ?? controlPlaneRecords()),
-      );
+      return Response.json(controlPlaneSnapshot(controlPlaneRecords()));
     }
 
     if (parsedUrl.pathname === "/api/formless/domain-mappings") {
@@ -1366,54 +1283,7 @@ function authorityExportFetch(
       });
     }
 
-    const snapshotMatch = parsedUrl.pathname.match(
-      /^\/api\/app-installs\/([^/]+)\/([^/]+)\/snapshot$/,
-    );
-
-    if (snapshotMatch) {
-      const installId = snapshotMatch[2] ?? "";
-
-      return Response.json(snapshot(dataByInstall[installId]?.records ?? [], `app:${installId}`));
-    }
-
     return Response.json({ error: "not found" }, { status: 404 });
-  };
-}
-
-function installedSite(installId: string, label: string) {
-  const facts = packageAppFactsForKey(privateSitePackageAppKey, privateSitePackageResolver);
-
-  if (!facts) {
-    throw new Error("Missing bundled package facts for site.");
-  }
-
-  return {
-    adminRoute: `/apps/${installId}` as `/apps/${string}`,
-    createdAt: "2026-05-01T00:00:00.000Z",
-    installId,
-    label,
-    packageAppKey: privateSitePackageAppKey,
-    packageRevision: facts.packageRevision,
-    sourceSchemaHash: facts.sourceSchemaHash,
-    status: "installed" as const,
-    updatedAt: "2026-05-01T00:00:00.000Z",
-  };
-}
-
-function snapshot(
-  records: StoredRecord[],
-  storageIdentity: `app:${string}` = "app:david",
-): StorageSnapshot {
-  return {
-    exportedAt: "2026-05-12T02:00:00.000Z",
-    kind: STORAGE_SNAPSHOT_KIND,
-    records,
-    schema: siteSourceSchema,
-    schemaKey: privateSitePackageAppKey,
-    schemaUpdatedAt: "2026-05-01T00:00:00.000Z",
-    sourceCursor: 1,
-    storageIdentity,
-    version: STORAGE_SNAPSHOT_VERSION,
   };
 }
 
@@ -1458,22 +1328,11 @@ function deployApplyFetch(
 
     if (parsedUrl.pathname === "/api/formless/deploy") {
       return Response.json({
-        packageApps: listInstallableAppPackages(privateSitePackageResolver).map((appPackage) => ({
-          packageAppKey: appPackage.packageAppKey,
-          packageRevision: appPackage.packageRevision,
-          sourceSchemaHash: appPackage.sourceSchemaHash,
-        })),
         packageVersion: packageJson.version,
         runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
+        schemaProvenance: formlessProgramSchemaProvenance,
         storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
         version: packageJson.version,
-      });
-    }
-
-    if (parsedUrl.pathname === "/api/formless/app-installs") {
-      return Response.json({
-        installs: [installedSite("david", "David Peek")],
-        packages: listInstallableAppPackages(privateSitePackageResolver),
       });
     }
 
@@ -1489,10 +1348,6 @@ function deployApplyFetch(
       return Response.json(
         controlPlaneSnapshot(options.controlPlaneRecords ?? deployControlPlaneRecords()),
       );
-    }
-
-    if (parsedUrl.pathname === "/api/app-installs/private-site/david/snapshot") {
-      return Response.json(snapshot([]));
     }
 
     if (parsedUrl.pathname === "/api/formless/domain-mappings") {
@@ -1634,35 +1489,20 @@ function parseCapturedBody<T>(init: RequestInit | undefined): T {
 }
 
 function controlPlaneRecords(): StoredRecord[] {
-  const installId = "david";
   const now = "2026-05-26T00:00:00.000Z";
 
   return [
     {
       createdAt: now,
       updatedAt: now,
-      entity: "app-install",
-      id: installId,
-      values: {
-        installId,
-        label: "David Peek",
-        packageAppKey: privateSitePackageAppKey,
-        status: "installed",
-        storageIdentity: `app:${installId}`,
-      },
-    },
-    {
-      createdAt: now,
-      updatedAt: now,
       entity: "route",
-      id: `route:${installId}:admin`,
+      id: "route:instance:admin",
       values: {
-        appInstall: installId,
         enabled: true,
         kind: "mount",
-        matchPath: `/apps/${installId}`,
+        matchPath: "/",
         surface: "admin",
-        targetProfile: "app",
+        targetProfile: "instance",
       },
     },
   ];

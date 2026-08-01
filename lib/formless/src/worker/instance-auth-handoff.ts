@@ -73,7 +73,6 @@ import {
   type InstanceRuntimeMountRouteResolution,
   type InstanceRuntimeRouteResolution,
 } from "./instance-runtime-routes.ts";
-import type { ActiveRuntimeAppPackageEnv } from "./runtime-app-packages.ts";
 import {
   evaluateAccessRequirement,
   type AccessRequirement,
@@ -118,7 +117,7 @@ export type InstanceAuthHandoffEnv = OwnerSessionEnv & {
   [FORMLESS_INSTANCE_AUTH_ORIGIN_ENV_NAME]?: string;
   FORMLESS_AUTHORITY: DurableObjectNamespace;
   FORMLESS_RUNTIME_PROFILE?: string;
-} & ActiveRuntimeAppPackageEnv;
+};
 
 export type InstanceAuthAccessEnv = Omit<InstanceAuthHandoffEnv, "FORMLESS_AUTHORITY"> & {
   FORMLESS_AUTHORITY?: DurableObjectNamespace;
@@ -146,7 +145,6 @@ type CentralSessionAuthorityRequirement = ProtectedRouteAccess | "management";
 type CentralAuthSessionAuthorityValidationFailureReason =
   | CentralAuthSessionValidationFailureReason
   | "account-completion-required"
-  | "missing-app-admin-authority"
   | "missing-management-authority"
   | "missing-owner-authority";
 
@@ -168,11 +166,6 @@ export type RouteAccessSessionValidationResult = InstanceAuthAccessResult;
 export type InstanceAuthCallbackReservation =
   | { kind: "not-callback" }
   | { kind: "reserved"; target?: InstanceAuthSessionTargetBinding };
-
-export type InstalledAppApiRouteAccess = {
-  access?: RuntimeRouteAccess;
-  target?: InstanceAuthSessionTargetBinding;
-};
 
 export type ProtectedRouteAuthRedirectPlan =
   | {
@@ -768,15 +761,6 @@ export function instanceAuthCallbackReservationFromFacts(input: {
   return target === undefined ? { kind: "reserved" } : { kind: "reserved", target };
 }
 
-export function installedAppApiRouteAccessFromFacts(input: {
-  requestOrigin: string;
-  runtimeRoute?: InstanceRuntimeRouteResolution;
-  storageIdentity: string;
-}): InstalledAppApiRouteAccess {
-  void input;
-  return {};
-}
-
 export function mappedInstanceManagementTargetFromFacts(input: {
   requestOrigin: string;
   runtimeRoute?: InstanceRuntimeRouteResolution;
@@ -823,11 +807,7 @@ export function setHostAuthSessionTargetHeaders(
   headers.set(handoffTargetHeaders.routeId, target.routeId);
   headers.set(handoffTargetHeaders.targetProfile, target.targetProfile);
 
-  if (target.storageIdentity === undefined) {
-    headers.delete(handoffTargetHeaders.storageIdentity);
-  } else {
-    headers.set(handoffTargetHeaders.storageIdentity, target.storageIdentity);
-  }
+  headers.set(handoffTargetHeaders.storageIdentity, target.storageIdentity);
 }
 
 export async function validateHostAuthSessionAuthority(
@@ -1528,7 +1508,7 @@ function accountCompletionTargetForHandoffTarget(
     access: target.access,
     returnTo,
     routeId: target.routeId,
-    ...(target.storageIdentity === undefined ? {} : { storageIdentity: target.storageIdentity }),
+    storageIdentity: target.storageIdentity,
     targetOrigin: target.targetOrigin,
     targetProfile: target.targetProfile,
   };
@@ -1549,7 +1529,7 @@ function accountCompletionTargetForRouteRequest(
     access: target.access,
     returnTo,
     routeId: target.routeId,
-    ...(target.storageIdentity === undefined ? {} : { storageIdentity: target.storageIdentity }),
+    storageIdentity: target.storageIdentity,
     targetOrigin: target.targetOrigin,
     targetProfile: target.targetProfile,
   };
@@ -1798,11 +1778,9 @@ async function validateHostAuthSessionCookie(
       principalId: payload.principalId,
       routeId: payload.routeId,
       sessionVersion: payload.sessionVersion,
+      storageIdentity: payload.storageIdentity,
       targetOrigin: payload.targetOrigin,
       targetProfile: payload.targetProfile,
-      ...(payload.storageIdentity === undefined
-        ? {}
-        : { storageIdentity: payload.storageIdentity }),
     },
   };
 }
@@ -1961,9 +1939,9 @@ async function createHostAuthSessionCookie(
     instanceId: grant.instanceId,
     principalId: grant.principalId,
     routeId: grant.routeId,
+    storageIdentity: grant.storageIdentity,
     targetOrigin: grant.targetOrigin,
     targetProfile: grant.targetProfile,
-    ...(grant.storageIdentity === undefined ? {} : { storageIdentity: grant.storageIdentity }),
   });
   const session: HostAuthSession = {
     access: grant.access,
@@ -1973,9 +1951,9 @@ async function createHostAuthSessionCookie(
     principalId: grant.principalId,
     routeId: grant.routeId,
     sessionVersion: revocationVersion?.sessionVersion ?? 0,
+    storageIdentity: grant.storageIdentity,
     targetOrigin: grant.targetOrigin,
     targetProfile: grant.targetProfile,
-    ...(grant.storageIdentity === undefined ? {} : { storageIdentity: grant.storageIdentity }),
   };
   const payload: HostAuthSessionPayload = {
     ...session,
@@ -2155,9 +2133,7 @@ function parseHostAuthSession(value: unknown): HostAuthSession | undefined {
     sessionVersion === undefined ||
     access === null ||
     targetProfile === null ||
-    storageIdentity === undefined ||
-    value.appInstallId !== undefined ||
-    value.requiredRole !== undefined
+    storageIdentity === undefined
   ) {
     return undefined;
   }
@@ -2267,7 +2243,7 @@ function hostAuthSessionTargetFromSession(
   return {
     access: session.access,
     routeId: session.routeId,
-    ...(session.storageIdentity === undefined ? {} : { storageIdentity: session.storageIdentity }),
+    storageIdentity: session.storageIdentity,
     targetOrigin: session.targetOrigin,
     targetProfile: session.targetProfile,
   };

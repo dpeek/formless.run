@@ -4,7 +4,6 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import rawCrmAppPackageManifest from "@dpeek/formless-crm-app/formless.app.json";
 import {
   INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID,
   INSTANCE_CONTROL_PLANE_STORAGE_IDENTITY,
@@ -20,17 +19,6 @@ import {
 } from "@dpeek/formless-storage";
 
 import {
-  appPackageManifestKind,
-  appPackageManifestVersion,
-  computeSourceSchemaHash,
-  createAppPackageResolver,
-  findResolvedAppPackage,
-  parseAppPackageManifest,
-  type AppPackageCapability,
-  type AppPackageManifest,
-  type SourceSchemaHash,
-} from "@dpeek/formless-installed-apps";
-import {
   INSTANCE_WORKSPACE_ADMIN_TOKEN_ENV_NAME,
   INSTANCE_WORKSPACE_AUTO_SAVE_STATE_PATH,
   INSTANCE_WORKSPACE_GITIGNORE_ENTRY,
@@ -39,7 +27,6 @@ import {
   INSTANCE_WORKSPACE_SECRET_STATE_PATH,
   WORKSPACE_MEDIA_MANIFEST_FILE,
   WORKSPACE_RECORD_STATE_FILE_KIND,
-  createWorkspaceAppPackageResolver,
   createWorkspaceOperationState,
   resolveFormlessConfig,
   ensureInstanceWorkspaceLocalDevSecretState,
@@ -109,114 +96,6 @@ function writeInstanceWorkspaceProgramStorageSnapshot(
 }
 
 const tempDirs: string[] = [];
-const workspaceTestBundledManifests = [
-  workspaceTestPackageManifest({
-    label: "Site",
-    packageAppKey: "site",
-    sourceSchemaHash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-  }),
-  workspaceTestPackageManifest({
-    label: "Tasks",
-    packageAppKey: "tasks",
-    sourceSchemaHash: "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-  }),
-  parseAppPackageManifest(rawCrmAppPackageManifest, "CRM package manifest"),
-];
-const workspaceFixtureTaskSourceSchema = {
-  version: 1,
-  entities: [
-    {
-      id: "entity_2021e1ef-3373-419d-8804-af380d03928a",
-      key: "task",
-      label: "Task",
-      fields: [
-        { key: "title", type: "text", required: true, label: "Title" },
-        { key: "done", type: "boolean", required: true, label: "Done" },
-      ],
-      operations: writeOperations("Task", ["title", "done"], { delete: true }),
-    },
-  ],
-  queries: [{ key: "taskAll", label: "Tasks", entity: "task", expression: { kind: "all" } }],
-  itemViews: [
-    {
-      key: "taskItem",
-      entity: "task",
-      fields: [{ field: "title", editor: "text", commit: "field-commit" }],
-    },
-  ],
-  tableViews: [],
-  views: [
-    {
-      key: "taskList",
-      type: "collection",
-      label: "Tasks",
-      entity: "task",
-      queries: [{ query: "taskAll" }],
-      defaultQuery: "taskAll",
-      result: { type: "list", itemView: "taskItem" },
-    },
-  ],
-  screens: [
-    {
-      key: "home",
-      type: "workspace",
-      label: "Home",
-      layout: {
-        type: "stack",
-        sections: [{ id: "tasks", type: "collection", view: "taskList" }],
-      },
-    },
-  ],
-};
-function writeOperations(
-  label: string,
-  fields: string[],
-  options: {
-    delete?: boolean;
-  } = {},
-) {
-  const input = {
-    fields: fields.map((field) => ({ key: field, field })),
-  };
-  return [
-    {
-      key: "create",
-      label: `Create ${label}`,
-      kind: "create",
-      scope: "collection",
-      input,
-      effect: { type: "createRecord" },
-      output: { type: "create" },
-      idempotency: { required: true },
-      audit: { input: "summary" },
-    },
-    {
-      key: "update",
-      label: `Update ${label}`,
-      kind: "update",
-      scope: "record",
-      input,
-      effect: { type: "patchRecord" },
-      output: { type: "update" },
-      idempotency: { required: true },
-      audit: { input: "summary" },
-    },
-    ...(options.delete
-      ? [
-          {
-            key: "delete",
-            label: `Delete ${label}`,
-            kind: "delete",
-            scope: "record",
-            effect: { type: "tombstoneRecord" },
-            output: { type: "delete" },
-            idempotency: { required: true },
-            audit: { input: "summary" },
-          },
-        ]
-      : []),
-  ];
-}
 afterEach(async () => {
   await Promise.all(
     tempDirs.splice(0).map((tempDir) => rm(tempDir, { force: true, recursive: true })),
@@ -370,166 +249,6 @@ describe("Formless instance workspace secret state", () => {
     await expect(readFile(path.join(existingRoot, ".gitignore"), "utf8")).resolves.toBe(
       ".formless\nnode_modules\n",
     );
-  });
-});
-
-describe("workspace app package source resolver", () => {
-  it("defaults to bundled packages when package links are omitted", async () => {
-    const workspaceRoot = await makeTempDir();
-    const manifest = resolveFormlessConfig({ name: "personal-sites" });
-    const result = await createWorkspaceAppPackageResolver({
-      bundledManifests: workspaceTestBundledManifests,
-      manifest,
-      workspaceRoot,
-    });
-
-    expect(result.packageLinks).toEqual([]);
-    expect(result.linkedPackages).toEqual([]);
-    expect(result.resolver.findPackage("site")).toMatchObject({
-      packageAppKey: "site",
-      sourceOrigin: "bundled",
-    });
-    expect(result.resolver.findPackage("private-labs")).toBeUndefined();
-  });
-
-  it("reads sibling linked package manifests and source schemas", async () => {
-    const root = await makeTempDir();
-    const workspaceRoot = path.join(root, "instance");
-    const packageRoot = path.join(root, "app");
-    const manifest = workspaceManifestWithPackageLink("../app/formless.app.json");
-
-    const fixture = await writeWorkspaceAppPackageFixture(packageRoot);
-
-    const result = await createWorkspaceAppPackageResolver({
-      bundledManifests: workspaceTestBundledManifests,
-      manifest,
-      workspaceRoot,
-    });
-    const linkedPackage = result.linkedPackages[0];
-
-    expect(
-      findResolvedAppPackage(
-        "private-labs",
-        createAppPackageResolver(workspaceTestBundledManifests),
-      ),
-    ).toBeUndefined();
-    expect(result.resolver.findPackage("private-labs")).toMatchObject({
-      defaultInstallId: "labs",
-      label: "Private Labs",
-      packageAppKey: "private-labs",
-      packageRevision: 7,
-      sourceOrigin: "workspace",
-      sourceSchemaHash: fixture.sourceSchemaHash,
-      sourceSchemaKey: "private-labs",
-    });
-    expect(result.resolver.listPackages().map((appPackage) => appPackage.packageAppKey)).toEqual([
-      "site",
-      "tasks",
-      "crm",
-      "private-labs",
-    ]);
-    expect(linkedPackage).toMatchObject({
-      appPackage: expect.objectContaining({ packageAppKey: "private-labs" }),
-      manifest: expect.objectContaining({ packageAppKey: "private-labs" }),
-      manifestPath: path.join(packageRoot, "formless.app.json"),
-      packageRoot,
-      sourceSchemaHash: fixture.sourceSchemaHash,
-      sourceSchemaPath: path.join(packageRoot, "source/schema.json"),
-    });
-    expect(
-      linkedPackage?.sourceSchema.entities.find((definition) => definition.key === "task"),
-    ).toBeDefined();
-  });
-
-  it("links a package outside the workspace root through workspace package links", async () => {
-    const root = await makeTempDir();
-    const workspaceRoot = path.join(root, "instance");
-    const packageRoot = path.join(root, "packages/client-orders");
-    const fixture = await writeWorkspaceAppPackageFixture(packageRoot, {
-      defaultInstallId: "orders",
-      label: "Client Orders",
-      packageAppKey: "client-orders",
-      packageRevision: 3,
-    });
-    const manifestLink = path.relative(workspaceRoot, fixture.manifestPath);
-    const manifest = workspaceManifestWithPackageLink(manifestLink);
-
-    const result = await createWorkspaceAppPackageResolver({
-      bundledManifests: workspaceTestBundledManifests,
-      manifest,
-      workspaceRoot,
-    });
-    const linkedPackage = result.linkedPackages[0];
-
-    expect(
-      findResolvedAppPackage(
-        "client-orders",
-        createAppPackageResolver(workspaceTestBundledManifests),
-      ),
-    ).toBeUndefined();
-    expect(result.resolver.findPackage("client-orders")).toMatchObject({
-      defaultInstallId: "orders",
-      label: "Client Orders",
-      packageAppKey: "client-orders",
-      packageRevision: 3,
-      sourceOrigin: "workspace",
-      sourceSchemaHash: fixture.sourceSchemaHash,
-      sourceSchemaKey: "client-orders",
-    });
-    expect(result.resolver.listPackages().map((appPackage) => appPackage.packageAppKey)).toEqual([
-      "site",
-      "tasks",
-      "crm",
-      "client-orders",
-    ]);
-    expect(linkedPackage).toMatchObject({
-      appPackage: expect.objectContaining({ packageAppKey: "client-orders" }),
-      manifest: expect.objectContaining({ packageAppKey: "client-orders" }),
-      manifestPath: fixture.manifestPath,
-      packageRoot,
-      sourceSchemaHash: fixture.sourceSchemaHash,
-      sourceSchemaPath: fixture.sourceSchemaPath,
-    });
-    expect(
-      linkedPackage?.sourceSchema.entities.find((definition) => definition.key === "task"),
-    ).toBeDefined();
-  });
-
-  it("rejects linked source schemas that do not parse as app schemas", async () => {
-    const root = await makeTempDir();
-    const workspaceRoot = path.join(root, "instance");
-    const packageRoot = path.join(root, "app");
-    const invalidSchema = { version: 1 };
-    const manifest = workspaceManifestWithPackageLink("../app/formless.app.json");
-
-    await writeWorkspaceAppPackageFixture(packageRoot, { sourceSchema: invalidSchema });
-
-    await expect(
-      createWorkspaceAppPackageResolver({
-        bundledManifests: workspaceTestBundledManifests,
-        manifest,
-        workspaceRoot,
-      }),
-    ).rejects.toThrow('Schema must include "entities".');
-  });
-
-  it("rejects linked source schema hash mismatches", async () => {
-    const root = await makeTempDir();
-    const workspaceRoot = path.join(root, "instance");
-    const packageRoot = path.join(root, "app");
-    const manifest = workspaceManifestWithPackageLink("../app/formless.app.json");
-
-    await writeWorkspaceAppPackageFixture(packageRoot, {
-      sourceSchemaHash: `sha256:${"2".repeat(64)}`,
-    });
-
-    await expect(
-      createWorkspaceAppPackageResolver({
-        bundledManifests: workspaceTestBundledManifests,
-        manifest,
-        workspaceRoot,
-      }),
-    ).rejects.toThrow(/does not match manifest sourceSchemaHash/);
   });
 });
 
@@ -917,99 +636,6 @@ async function makeTempDir(): Promise<string> {
   return tempDir;
 }
 
-function workspaceManifestWithPackageLink(manifest: string) {
-  return {
-    ...resolveFormlessConfig({ name: "personal-sites" }),
-    packages: {
-      links: [{ manifest }],
-    },
-  };
-}
-
-type WorkspaceAppPackageFixture = {
-  manifest: AppPackageManifest;
-  manifestPath: string;
-  packageRoot: string;
-  sourceSchema: unknown;
-  sourceSchemaHash: SourceSchemaHash;
-  sourceSchemaPath: string;
-};
-
-type WorkspaceAppPackageFixtureOptions = {
-  capabilities?: AppPackageCapability[];
-  defaultInstallId?: string;
-  description?: string;
-  label?: string;
-  packageAppKey?: string;
-  packageRevision?: number;
-  sourceSchema?: unknown;
-  sourceSchemaHash?: SourceSchemaHash;
-  sourceSchemaPath?: string;
-  supportsMultipleInstalls?: boolean;
-};
-
-async function writeWorkspaceAppPackageFixture(
-  packageRoot: string,
-  options: WorkspaceAppPackageFixtureOptions = {},
-): Promise<WorkspaceAppPackageFixture> {
-  const sourceSchema = options.sourceSchema ?? workspaceFixtureTaskSourceSchema;
-  const sourceSchemaHash =
-    options.sourceSchemaHash ?? (await computeSourceSchemaHash(sourceSchema));
-  const sourceSchemaPath = options.sourceSchemaPath ?? "source/schema.json";
-  const manifest = workspaceAppPackageManifestFixture({
-    ...options,
-    sourceSchemaHash,
-    sourceSchemaPath,
-  });
-  const manifestPath = path.join(packageRoot, "formless.app.json");
-  const resolvedSourceSchemaPath = path.join(packageRoot, sourceSchemaPath);
-
-  await writeJsonFile(resolvedSourceSchemaPath, sourceSchema);
-  await writeJsonFile(manifestPath, manifest);
-
-  return {
-    manifest,
-    manifestPath,
-    packageRoot,
-    sourceSchema,
-    sourceSchemaHash,
-    sourceSchemaPath: resolvedSourceSchemaPath,
-  };
-}
-function workspaceAppPackageManifestFixture(
-  options: WorkspaceAppPackageFixtureOptions & {
-    sourceSchemaHash: SourceSchemaHash;
-  },
-): AppPackageManifest {
-  const packageAppKey = options.packageAppKey ?? "private-labs";
-  const label = options.label ?? "Private Labs";
-  const defaultInstallId = options.defaultInstallId ?? "labs";
-  const sourceSchemaPath = options.sourceSchemaPath ?? "source/schema.json";
-
-  return parseAppPackageManifest({
-    kind: appPackageManifestKind,
-    version: appPackageManifestVersion,
-    packageAppKey,
-    label,
-    description: options.description ?? "Private lab package fixture.",
-    defaultInstallId,
-    supportsMultipleInstalls: options.supportsMultipleInstalls ?? false,
-    packageRevision: options.packageRevision ?? 7,
-    sourceSchema: {
-      kind: "workspace",
-      key: packageAppKey,
-      path: sourceSchemaPath,
-    },
-    sourceSchemaHash: options.sourceSchemaHash,
-    capabilities: options.capabilities ?? [{ kind: "generatedAdmin", routeBase: "/apps" }],
-  });
-}
-
-async function writeJsonFile(filePath: string, value: unknown): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
-}
-
 function timestampSequence(...timestamps: string[]): () => string {
   let index = 0;
 
@@ -1017,36 +643,12 @@ function timestampSequence(...timestamps: string[]): () => string {
     timestamps[index++ % timestamps.length] ?? timestamps.at(-1) ?? new Date(0).toISOString();
 }
 
-function workspaceTestPackageManifest(input: {
-  label: string;
-  packageAppKey: string;
-  sourceSchemaHash: string;
-}): Record<string, unknown> {
-  return {
-    kind: appPackageManifestKind,
-    version: appPackageManifestVersion,
-    packageAppKey: input.packageAppKey,
-    label: input.label,
-    description: `${input.label} package fixture.`,
-    defaultInstallId: input.packageAppKey,
-    supportsMultipleInstalls: true,
-    packageRevision: 1,
-    sourceSchema: {
-      kind: "bundled",
-      key: input.packageAppKey,
-      path: "schema.json",
-    },
-    sourceSchemaHash: input.sourceSchemaHash,
-    capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],
-  };
-}
-
 function workspaceDocumentObject(assetId: string, access: "private" | "public", byteSize: number) {
-  const storageKey = `media/app-installs/reports/documents/${assetId}`;
-  const deliveryHref = `/api/app-installs/reports/reports/media/documents/${assetId}`;
+  const storageKey = `media/program/documents/${assetId}`;
+  const deliveryHref = `/api/formless/program/media/documents/${assetId}`;
 
   return {
-    archivePath: `media/reports/${storageKey}`,
+    archivePath: `media/program/${storageKey}`,
     asset: {
       access,
       byteSize,

@@ -8,7 +8,7 @@ import {
   type EntitySchema,
   type SchemaOperationActorKind,
 } from "@dpeek/formless-schema";
-import type { AuthorityStorageIdentity } from "../shared/app-storage-identity.ts";
+import type { ProgramStorageIdentity } from "../shared/program-storage-identity.ts";
 import { nowIsoString } from "../shared/clock.ts";
 import type {
   PublicOperationChallengeVerification,
@@ -24,7 +24,7 @@ import type {
 } from "../shared/operation-invocation.ts";
 import { BadRequestError } from "./errors.ts";
 
-type OperationStorageIdentity = AuthorityStorageIdentity;
+type OperationStorageIdentity = ProgramStorageIdentity;
 
 type EntityOperationRoute = {
   entityName: string;
@@ -147,7 +147,7 @@ function operationInvocationEnvelope(input: {
 }): OperationInvocationEnvelope {
   return {
     invocationId: input.invocationId,
-    appStorageIdentity: input.identity,
+    programStorageIdentity: input.identity,
     actor: input.actor,
     source: input.source,
     input: input.input,

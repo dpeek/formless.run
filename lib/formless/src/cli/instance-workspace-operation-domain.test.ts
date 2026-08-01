@@ -1,13 +1,15 @@
-import { setKeyedDefinition } from "../test/schema-definition-test-helpers.ts";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { listInstallableAppPackages, packageAppFactsForKey } from "@dpeek/formless-installed-apps";
 import type { DocumentMediaAsset } from "@dpeek/formless-media";
 import { defineAppSchemaModule, type AppSchema } from "@dpeek/formless-schema";
-import { formlessProgramSchema, parseFormlessProgramSchemaArtifact } from "../program/runtime.ts";
+import {
+  formlessProgramSchema,
+  formlessProgramSchemaProvenance,
+  parseFormlessProgramSchemaArtifact,
+} from "../program/runtime.ts";
 import {
   formlessProgramDefaultComposition,
   formlessProgramSchemaModules,
@@ -40,9 +42,7 @@ import {
   FORMLESS_RUNTIME_PROTOCOL_VERSION,
   FORMLESS_STORAGE_MIGRATION_SET_ID,
 } from "../shared/deploy-metadata.ts";
-import { rootKnownPackageFactsResolver } from "../shared/app-packages.ts";
 import { SITE_PUBLIC_RENDERER_RUNTIME_EXTENSION_KEY } from "../shared/workspace-runtime-extensions.ts";
-import { siteSourceSchema } from "../test/schema-apps.ts";
 import {
   ALCHEMY_PASSWORD_ENV_NAME,
   FORMLESS_INSTANCE_LOCAL_ENV_FILE,
@@ -70,7 +70,6 @@ import {
 } from "./instance-workspace-source-sync-operation.ts";
 
 const tempDirs: string[] = [];
-const privateSitePackageAppKey = "private-site";
 const programDocumentBytes = new TextEncoder().encode("%PDF-1.7\nProgram private document");
 const programDocumentSchemaModule = defineAppSchemaModule({
   key: "program-document-records",
@@ -96,28 +95,6 @@ const programDocumentSchemaModule = defineAppSchemaModule({
     },
   ],
 });
-const rootKnownSitePackage = rootKnownPackageFactsResolver().findPackage("site")!;
-const privateSiteSourceSchemaHash =
-  "sha256:06789270061b43a2a0e4709f96e8aac35514e0f61bf15a29f234ca253d021c25" as typeof rootKnownSitePackage.sourceSchemaHash;
-const privateSitePackage = {
-  ...rootKnownSitePackage,
-  defaultInstallId: "personal",
-  packageAppKey: privateSitePackageAppKey,
-  sourceOrigin: "workspace" as const,
-  sourceSchemaHash: privateSiteSourceSchemaHash,
-  sourceSchemaKey: privateSitePackageAppKey,
-  sourceSchemaLocation: {
-    kind: "workspace" as const,
-    key: privateSitePackageAppKey,
-    path: "packages/private-site/schema.json",
-  },
-};
-const privateSitePackageResolver = {
-  findPackage: (packageAppKey: string) =>
-    packageAppKey === privateSitePackageAppKey ? privateSitePackage : undefined,
-  listPackages: () => [privateSitePackage],
-};
-
 afterEach(async () => {
   await Promise.all(
     tempDirs.splice(0).map((tempDir) => rm(tempDir, { force: true, recursive: true })),
@@ -142,20 +119,13 @@ describe("workspace source sync operation domain", () => {
     const programDocument = programDocumentAsset();
     const programRecords = [
       ...deployControlPlaneRecords({ targetUrl }),
-      ...dormantBuiltInProgramRecords(),
+      ...programNativeRecords(),
       ...programSiteMediaRecords(),
       programDocumentRecord(programDocument.id),
     ];
     const pullFetch = sourceSyncFetch(pullRequests, {
-      appData: { david: { records: [] } },
       controlPlaneRecords: programRecords,
       controlPlaneSchema: programSchema,
-      installs: [
-        installedSite("david", "David Peek"),
-        installedDormantPackage("legacy-tasks", "tasks"),
-        installedDormantPackage("legacy-site", "site"),
-        installedDormantPackage("legacy-crm", "crm"),
-      ],
       programDocument: {
         asset: programDocument,
         bytes: programDocumentBytes,
@@ -203,7 +173,6 @@ describe("workspace source sync operation domain", () => {
         }),
       ]),
     );
-    expect(instanceState.records.map((record) => record.entity)).not.toContain("app-install");
     expect(instanceState).not.toHaveProperty("media");
     await expect(
       readFile(
@@ -221,11 +190,9 @@ describe("workspace source sync operation domain", () => {
 
     const pushRequests: CapturedRequest[] = [];
     const pushFetch = sourceSyncFetch(pushRequests, {
-      appData: { david: { records: [] } },
       controlPlaneRecords: deployControlPlaneRecords({ targetUrl }),
       controlPlaneSchema: programSchema,
-      installs: [installedSite("david", "David Peek")],
-      restoreResponses: [restorePlan({ replacedInstalls: ["david"] })],
+      restoreResponses: [restorePlan()],
     });
 
     await runPushWorkspaceSourceOperation(
@@ -274,9 +241,6 @@ describe("workspace source sync operation domain", () => {
         }),
       ]),
     );
-    expect(
-      restoreBody.archive.program.snapshot.records.map((record) => record.entity),
-    ).not.toContain("app-install");
     expect(restoreBody.archive.media.objects).toEqual([
       expect.objectContaining({
         archivePath: "media/program/media/images/program-cover.png",
@@ -284,9 +248,6 @@ describe("workspace source sync operation domain", () => {
       }),
       expect.objectContaining({
         archivePath: "media/program/media/program/documents/program-private.pdf",
-        asset: expect.not.objectContaining({
-          ownerAppInstallId: expect.anything(),
-        }),
         storageKey: "media/program/documents/program-private.pdf",
       }),
     ]);
@@ -298,13 +259,6 @@ describe("workspace source sync operation domain", () => {
         archivePath: "media/program/media/program/documents/program-private.pdf",
       }),
     ]);
-    expect(pushRequests.map((request) => new URL(request.url).pathname)).not.toEqual(
-      expect.arrayContaining([
-        "/api/app-installs/tasks/legacy-tasks/snapshot",
-        "/api/app-installs/site/legacy-site/snapshot",
-        "/api/app-installs/crm/legacy-crm/snapshot",
-      ]),
-    );
   });
 
   it("plans CRM-only Program record drift through the Program snapshot", async () => {
@@ -313,10 +267,8 @@ describe("workspace source sync operation domain", () => {
     const requests: CapturedRequest[] = [];
     const localProgramRecords = [...deployControlPlaneRecords(), ...programCrmRecords()];
     const fetcher = sourceSyncFetch(requests, {
-      appData: { david: { records: [] } },
       controlPlaneRecords: deployControlPlaneRecords(),
-      installs: [installedSite("david", "David Peek")],
-      restoreResponses: [restorePlan({ replacedInstalls: ["david"] })],
+      restoreResponses: [restorePlan()],
     });
 
     await writeWorkspaceConfig(workspaceRoot);
@@ -376,9 +328,6 @@ describe("workspace source sync operation domain", () => {
         expect.objectContaining({ entity: "company", id: "company:program-native" }),
         expect.objectContaining({ entity: "company", id: "company:program-native-deleted" }),
       ]),
-    );
-    expect(requests.map(({ url }) => new URL(url).pathname)).not.toContain(
-      "/api/app-installs/crm/legacy-crm/snapshot",
     );
   });
 
@@ -445,7 +394,7 @@ describe("workspace source sync operation domain", () => {
           mediaCount: 0,
           mode: "apply",
           noop: true,
-          recordCount: 3,
+          recordCount: 4,
         },
         title: "Workspace pulled",
       },
@@ -620,7 +569,7 @@ describe("workspace source sync operation domain", () => {
         fields: {
           mode: "dry-run",
           noop: true,
-          sourceRecords: 3,
+          sourceRecords: 4,
           sync: "up-to-date",
         },
         title: "Workspace push planned",
@@ -691,7 +640,7 @@ describe("workspace source sync operation domain", () => {
           mode: "dry-run",
           noop: true,
           sourceMedia: 0,
-          sourceRecords: 3,
+          sourceRecords: 4,
           sync: "up-to-date",
         },
         title: "Workspace push planned",
@@ -710,17 +659,7 @@ describe("workspace source sync operation domain", () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const requests: CapturedRequest[] = [];
-    const changedRemoteSchema = JSON.parse(
-      JSON.stringify(siteSourceSchema),
-    ) as typeof siteSourceSchema;
-    setKeyedDefinition(changedRemoteSchema.entities, "site", {
-      ...changedRemoteSchema.entities.find((definition) => definition.key === "site")!,
-      label: "Changed remote schema body",
-    });
-    const fetcher = sourceSyncFetch(requests, {
-      appData: { david: { records: [], schema: changedRemoteSchema } },
-      installs: [installedSite("david", "David Peek")],
-    });
+    const fetcher = sourceSyncFetch(requests);
 
     await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot);
@@ -847,7 +786,7 @@ describe("deployment refresh operation domain", () => {
 });
 
 describe("deployment runtime domain", () => {
-  it("does not deploy when only dormant installed-app source differs", async () => {
+  it("does not deploy when Program source is unchanged", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const requests: CapturedRequest[] = [];
@@ -855,7 +794,7 @@ describe("deployment runtime domain", () => {
 
     await writeWorkspaceConfig(workspaceRoot);
     await writeDeployStorageSnapshot(workspaceRoot);
-    await writeWorkspaceMediaFile(workspaceRoot, "david", Buffer.from([4, 5, 6]));
+    await writeWorkspaceMediaFile(workspaceRoot, Buffer.from([4, 5, 6]));
     await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
     await writeFile(
       path.join(workspaceRoot, ".formless/instance.env"),
@@ -898,94 +837,6 @@ describe("deployment runtime domain", () => {
     );
     expect(JSON.stringify(result)).not.toContain("manual-provider-token");
     expect(JSON.stringify(result)).not.toContain("local-token");
-  });
-
-  it("ignores dormant installed package fact drift", async () => {
-    const tempDir = await makeTempDir();
-    const workspaceRoot = path.join(tempDir, "personal-sites");
-    const requests: CapturedRequest[] = [];
-    const deployInputs: DeployFormlessInstanceInput[] = [];
-    const restoreEvents: string[] = [];
-    const localPackageFacts = packageAppFactsForKey(
-      privateSitePackageAppKey,
-      privateSitePackageResolver,
-    );
-
-    if (!localPackageFacts) {
-      throw new Error("Missing bundled package facts for site.");
-    }
-
-    const staleRemoteInstall = {
-      ...installedSite("david", "David Peek"),
-      packageRevision: localPackageFacts.packageRevision + 1,
-      sourceSchemaHash: `sha256:${"a".repeat(64)}` as `sha256:${string}`,
-    };
-
-    await writeWorkspaceConfig(workspaceRoot);
-    await writeDeployStorageSnapshot(workspaceRoot);
-    await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
-    await writeFile(
-      path.join(workspaceRoot, ".formless/instance.env"),
-      "FORMLESS_ADMIN_TOKEN=local-token\n",
-    );
-
-    const result = await runPushWorkspaceSourceOperation(
-      {
-        dryRun: false,
-        force: false,
-        kind: "push",
-        workspacePath: workspaceRoot,
-      },
-      deploymentApplyOperationDeps(tempDir, {
-        deployInputs,
-        env: { CLOUDFLARE_API_TOKEN: "manual-provider-token" },
-        fetch: deployFetch(requests, {
-          installs: [staleRemoteInstall],
-          restoreResponse: ({ dryRun }) => {
-            if (deployInputs.length === 0) {
-              restoreEvents.push(dryRun ? "predeploy:dry-run" : "predeploy:apply");
-
-              return {
-                ok: false,
-                errors: [{ message: "stale runtime rejected source schema facts" }],
-              };
-            }
-
-            restoreEvents.push(dryRun ? "postdeploy:dry-run" : "postdeploy:apply");
-
-            return dryRun
-              ? restorePlan({ replacedInstalls: ["david"] })
-              : { ok: true, report: { applied: true, summary: restoreSummary() } };
-          },
-        }),
-      }),
-    );
-    const restoreRequests = requests.filter(
-      (request) =>
-        request.method === "POST" &&
-        new URL(request.url).pathname === "/api/formless/archive/restore",
-    );
-    expect(deployInputs).toEqual([]);
-    expect(restoreEvents).toEqual([]);
-    expect(result).toMatchObject({
-      details: {
-        applyRestore: null,
-        dryRunRestore: null,
-        syncPlan: {
-          changedAreas: [],
-          status: "up-to-date",
-        },
-      },
-      summary: {
-        fields: {
-          mode: "apply",
-          noop: true,
-          sync: "up-to-date",
-        },
-        title: "Workspace push applied",
-      },
-    });
-    expect(restoreRequests).toEqual([]);
   });
 
   it("rebuilds runtime extensions on repeat push apply without restoring archive data", async () => {
@@ -1107,60 +958,6 @@ describe("deployment runtime domain", () => {
     });
   });
 
-  it("forces unreadable target replacement and omits invalid remote control-plane records", async () => {
-    const tempDir = await makeTempDir();
-    const workspaceRoot = path.join(tempDir, "personal-sites");
-    const requests: CapturedRequest[] = [];
-    const deployInputs: DeployFormlessInstanceInput[] = [];
-
-    await writeWorkspaceConfig(workspaceRoot);
-    await writeDeployStorageSnapshot(workspaceRoot);
-    await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
-    await writeFile(
-      path.join(workspaceRoot, ".formless/instance.env"),
-      "FORMLESS_ADMIN_TOKEN=local-token\n",
-    );
-
-    const result = await pushFormlessInstanceWorkspace(
-      {
-        apply: true,
-        force: true,
-        workspacePath: workspaceRoot,
-      },
-      deploymentApplyOperationDeps(tempDir, {
-        deployInputs,
-        env: { CLOUDFLARE_API_TOKEN: "manual-provider-token" },
-        fetch: deployFetch(requests, {
-          controlPlaneRecords: invalidRemoteControlPlaneRecords(),
-        }),
-      }),
-    );
-    const restoreRequests = requests.filter(
-      (request) =>
-        request.method === "POST" &&
-        new URL(request.url).pathname === "/api/formless/archive/restore",
-    );
-    const restoreBody = capturedRequestJson<{
-      archive: {
-        program: { snapshot: { records: StoredRecord[] } };
-        restorePolicy: unknown;
-      };
-    }>(restoreRequests[0]!);
-    expect(deployInputs).toHaveLength(1);
-    expect(result.forcedRecovery).toMatchObject({
-      action: "replace-unreadable-target",
-      status: "applied",
-    });
-    expect(restoreRequests).toHaveLength(1);
-    expect(restoreBody.archive.restorePolicy).toEqual({
-      dryRun: false,
-    });
-    expect(restoreBody.archive.program.snapshot.records.map((record) => record.id)).not.toContain(
-      "remote-invalid-control-plane-record",
-    );
-    expect(JSON.stringify(restoreBody.archive)).not.toContain("legacy-control-plane-record");
-  });
-
   it("accepts current Program-only workspace source", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
@@ -1191,7 +988,7 @@ describe("deployment runtime domain", () => {
       noop: true,
       source: {
         mediaCount: 0,
-        recordCount: 3,
+        recordCount: 4,
       },
       syncPlan: {
         status: "up-to-date",
@@ -1683,6 +1480,7 @@ function deploymentApplyOperationDeps(
         metadataUrl: new URL("/api/formless/deploy", `${input.url}/`).toString(),
         packageVersion: input.expectedVersion,
         runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
+        schemaProvenance: formlessProgramSchemaProvenance,
         storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
         url: input.url,
         version: input.expectedVersion,
@@ -1721,44 +1519,14 @@ async function writeWorkspaceConfig(
     kind: "formless-instance-workspace" as const,
     name: "personal-sites",
     local: { stateRoot: ".formless/local", secretStateRoot: ".formless" },
-    packages: {
-      links: [{ manifest: "packages/private-site/formless.app.json" }],
-    },
     ...(options.program === undefined ? {} : { program: options.program }),
     ...(options.runtime === undefined ? {} : { runtime: options.runtime }),
   };
 
-  await writePrivateSitePackage(workspaceRoot);
+  await mkdir(workspaceRoot, { recursive: true });
   await writeFile(
     path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
     formatTestFormlessConfigModule(manifest),
-  );
-}
-
-async function writePrivateSitePackage(workspaceRoot: string) {
-  const packageRoot = path.join(workspaceRoot, "packages/private-site");
-
-  await mkdir(packageRoot, { recursive: true });
-  await writeFile(path.join(packageRoot, "schema.json"), JSON.stringify(siteSourceSchema));
-  await writeFile(
-    path.join(packageRoot, "formless.app.json"),
-    JSON.stringify({
-      kind: "formless.appPackage",
-      version: 1,
-      packageAppKey: privateSitePackageAppKey,
-      label: "Private Site",
-      description: "Private Site test package.",
-      defaultInstallId: "personal",
-      supportsMultipleInstalls: true,
-      packageRevision: rootKnownSitePackage.packageRevision,
-      sourceSchema: {
-        kind: "workspace",
-        key: privateSitePackageAppKey,
-        path: "schema.json",
-      },
-      sourceSchemaHash: privateSiteSourceSchemaHash,
-      capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],
-    }),
   );
 }
 
@@ -1787,14 +1555,10 @@ async function writeDeployStorageSnapshot(
   });
 }
 
-async function writeWorkspaceMediaFile(
-  workspaceRoot: string,
-  installId: string,
-  bytes: Uint8Array,
-) {
+async function writeWorkspaceMediaFile(workspaceRoot: string, bytes: Uint8Array) {
   const manifest = resolveFormlessConfig({ name: "personal-sites" });
   const storageKey = "media/images/cover.png";
-  const archivePath = `media/${installId}/${storageKey}`;
+  const archivePath = `media/program/${storageKey}`;
   const deliveryHref = "/api/formless/media/media/images/cover.png";
   const object = {
     archivePath,
@@ -1840,17 +1604,8 @@ type CapturedRequest = {
 function sourceSyncFetch(
   requests: CapturedRequest[],
   options: {
-    appData?: Record<
-      string,
-      {
-        mediaBytes?: Uint8Array;
-        records?: StoredRecord[];
-        schema?: typeof siteSourceSchema;
-      }
-    >;
     controlPlaneRecords?: StoredRecord[];
     controlPlaneSchema?: AppSchema;
-    installs?: Array<ReturnType<typeof installedSite> | ReturnType<typeof installedDormantPackage>>;
     programDocument?: {
       asset: DocumentMediaAsset;
       bytes: Uint8Array;
@@ -1876,22 +1631,11 @@ function sourceSyncFetch(
 
     if (parsedUrl.pathname === "/api/formless/deploy") {
       return Response.json({
-        packageApps: listInstallableAppPackages(privateSitePackageResolver).map((appPackage) => ({
-          packageAppKey: appPackage.packageAppKey,
-          packageRevision: appPackage.packageRevision,
-          sourceSchemaHash: appPackage.sourceSchemaHash,
-        })),
         packageVersion: packageJson.version,
         runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
+        schemaProvenance: formlessProgramSchemaProvenance,
         storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
         version: packageJson.version,
-      });
-    }
-
-    if (parsedUrl.pathname === "/api/formless/app-installs") {
-      return Response.json({
-        installs: options.installs ?? [installedSite("david", "David Peek")],
-        packages: listInstallableAppPackages(privateSitePackageResolver),
       });
     }
 
@@ -1927,43 +1671,11 @@ function sourceSyncFetch(
       });
     }
 
-    const snapshotMatch = parsedUrl.pathname.match(
-      /^\/api\/app-installs\/private-site\/([^/]+)\/snapshot$/,
-    );
-
-    if (snapshotMatch) {
-      const installId = snapshotMatch[1] ?? "";
-      const data = options.appData?.[installId] ?? { records: [] };
-
-      return Response.json({
-        ...snapshot(data.records ?? [], `app:${installId}`),
-        ...(data.schema === undefined ? {} : { schema: data.schema }),
-      });
-    }
-
-    const mediaMatch = parsedUrl.pathname.match(
-      /^\/api\/app-installs\/private-site\/([^/]+)\/media\/media\/images\/cover\.png$/,
-    );
-
-    if (mediaMatch) {
-      const installId = mediaMatch[1] ?? "";
-      const mediaBytes = options.appData?.[installId]?.mediaBytes;
-
-      if (mediaBytes) {
-        return new Response(Buffer.from(mediaBytes), {
-          headers: { "content-type": "image/png" },
-        });
-      }
-    }
-
     if (
       parsedUrl.pathname === "/api/formless/media/media/images/cover.png" ||
       parsedUrl.pathname === "/api/formless/media/media/images/program-cover.png"
     ) {
-      const mediaBytes =
-        options.programMediaBytes ??
-        Object.values(options.appData ?? {}).find((data) => data.mediaBytes !== undefined)
-          ?.mediaBytes;
+      const mediaBytes = options.programMediaBytes;
 
       if (mediaBytes) {
         return new Response(Buffer.from(mediaBytes), {
@@ -2023,16 +1735,7 @@ function sourceSyncFetch(
 function deployFetch(
   requests: CapturedRequest[],
   options: {
-    appData?: Record<
-      string,
-      {
-        mediaBytes?: Uint8Array;
-        records?: StoredRecord[];
-        schema?: typeof siteSourceSchema;
-      }
-    >;
     controlPlaneRecords?: StoredRecord[];
-    installs?: ReturnType<typeof installedSite>[];
     restoreResponse?: (input: { dryRun: boolean; request: CapturedRequest }) => unknown;
   } = {},
 ): typeof fetch {
@@ -2051,22 +1754,11 @@ function deployFetch(
 
     if (parsedUrl.pathname === "/api/formless/deploy") {
       return Response.json({
-        packageApps: listInstallableAppPackages(privateSitePackageResolver).map((appPackage) => ({
-          packageAppKey: appPackage.packageAppKey,
-          packageRevision: appPackage.packageRevision,
-          sourceSchemaHash: appPackage.sourceSchemaHash,
-        })),
         packageVersion: packageJson.version,
         runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
+        schemaProvenance: formlessProgramSchemaProvenance,
         storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
         version: packageJson.version,
-      });
-    }
-
-    if (parsedUrl.pathname === "/api/formless/app-installs") {
-      return Response.json({
-        installs: options.installs ?? [installedSite("david", "David Peek")],
-        packages: listInstallableAppPackages(privateSitePackageResolver),
       });
     }
 
@@ -2082,20 +1774,6 @@ function deployFetch(
       return Response.json(
         controlPlaneSnapshot(options.controlPlaneRecords ?? deployControlPlaneRecords()),
       );
-    }
-
-    const snapshotMatch = parsedUrl.pathname.match(
-      /^\/api\/app-installs\/private-site\/([^/]+)\/snapshot$/,
-    );
-
-    if (snapshotMatch) {
-      const installId = snapshotMatch[1] ?? "";
-      const data = options.appData?.[installId] ?? { records: [] };
-
-      return Response.json({
-        ...snapshot(data.records ?? [], `app:${installId}`),
-        ...(data.schema === undefined ? {} : { schema: data.schema }),
-      });
     }
 
     if (parsedUrl.pathname === "/api/formless/domain-mappings") {
@@ -2200,63 +1878,6 @@ function deployFetch(
   };
 }
 
-function installedSite(installId: string, label: string) {
-  const facts = packageAppFactsForKey(privateSitePackageAppKey, privateSitePackageResolver);
-
-  if (!facts) {
-    throw new Error("Missing bundled package facts for site.");
-  }
-
-  return {
-    adminRoute: `/apps/${installId}` as `/apps/${string}`,
-    createdAt: "2026-05-01T00:00:00.000Z",
-    installId,
-    label,
-    packageAppKey: privateSitePackageAppKey,
-    packageRevision: facts.packageRevision,
-    sourceSchemaHash: facts.sourceSchemaHash,
-    status: "installed" as const,
-    updatedAt: "2026-05-01T00:00:00.000Z",
-  };
-}
-
-function installedDormantPackage(installId: string, packageAppKey: "crm" | "site" | "tasks") {
-  const facts = packageAppFactsForKey(packageAppKey, rootKnownPackageFactsResolver());
-
-  if (!facts) {
-    throw new Error(`Missing root-known package facts for ${packageAppKey}.`);
-  }
-
-  return {
-    adminRoute: `/apps/${installId}` as `/apps/${string}`,
-    createdAt: "2026-05-01T00:00:00.000Z",
-    installId,
-    label: `Legacy ${packageAppKey === "site" ? "Site" : packageAppKey === "crm" ? "CRM" : "Tasks"}`,
-    packageAppKey,
-    packageRevision: facts.packageRevision,
-    sourceSchemaHash: facts.sourceSchemaHash,
-    status: "installed" as const,
-    updatedAt: "2026-05-01T00:00:00.000Z",
-  };
-}
-
-function snapshot(
-  records: StoredRecord[],
-  storageIdentity: `app:${string}` = "app:david",
-): StorageSnapshot {
-  return {
-    exportedAt: "2026-05-12T02:00:00.000Z",
-    kind: STORAGE_SNAPSHOT_KIND,
-    records,
-    schema: siteSourceSchema,
-    schemaKey: privateSitePackageAppKey,
-    schemaUpdatedAt: "2026-05-01T00:00:00.000Z",
-    sourceCursor: 1,
-    storageIdentity,
-    version: STORAGE_SNAPSHOT_VERSION,
-  };
-}
-
 function controlPlaneSnapshot(
   records: StoredRecord[],
   schema: AppSchema = formlessProgramSchema,
@@ -2275,35 +1896,20 @@ function controlPlaneSnapshot(
 }
 
 function controlPlaneRecords(): StoredRecord[] {
-  const installId = "david";
   const now = "2026-05-26T00:00:00.000Z";
 
   return [
     {
       createdAt: now,
       updatedAt: now,
-      entity: "app-install",
-      id: installId,
-      values: {
-        installId,
-        label: "David Peek",
-        packageAppKey: privateSitePackageAppKey,
-        status: "installed",
-        storageIdentity: `app:${installId}`,
-      },
-    },
-    {
-      createdAt: now,
-      updatedAt: now,
       entity: "route",
-      id: `route:${installId}:admin`,
+      id: "route:instance:admin",
       values: {
-        appInstall: installId,
         enabled: true,
         kind: "mount",
-        matchPath: `/apps/${installId}`,
+        matchPath: "/",
         surface: "admin",
-        targetProfile: "app",
+        targetProfile: "instance",
       },
     },
   ];
@@ -2371,52 +1977,13 @@ function deployControlPlaneRecords(
   ];
 }
 
-function dormantBuiltInProgramRecords(): StoredRecord[] {
-  const installs = [
-    installedDormantPackage("legacy-tasks", "tasks"),
-    installedDormantPackage("legacy-site", "site"),
-    installedDormantPackage("legacy-crm", "crm"),
-  ];
-  const records: StoredRecord[] = [];
-
-  for (const install of installs) {
-    records.push({
-      createdAt: install.createdAt,
-      updatedAt: install.updatedAt,
-      entity: "app-install",
-      id: install.installId,
-      values: {
-        installId: install.installId,
-        label: install.label,
-        packageAppKey: install.packageAppKey,
-        packageRevision: install.packageRevision,
-        sourceSchemaHash: install.sourceSchemaHash,
-        status: install.status,
-        storageIdentity: `app:${install.installId}`,
-      },
-    });
-    records.push({
-      createdAt: install.createdAt,
-      updatedAt: install.updatedAt,
-      entity: "route",
-      id: `route:${install.installId}:admin`,
-      values: {
-        appInstall: install.installId,
-        enabled: true,
-        kind: "mount",
-        matchPath: install.adminRoute,
-        matchPrefix: `${install.adminRoute}/`,
-        surface: "admin",
-        targetProfile: "app",
-      },
-    });
-  }
+function programNativeRecords(): StoredRecord[] {
+  const createdAt = "2026-05-01T00:00:00.000Z";
 
   return [
-    ...records,
     {
-      createdAt: installs[0]!.createdAt,
-      updatedAt: installs[0]!.updatedAt,
+      createdAt,
+      updatedAt: createdAt,
       entity: "task",
       id: "task:program-native",
       values: {
@@ -2463,23 +2030,6 @@ function deployControlPlaneRecordsWithProviderObservation(
   return deployControlPlaneRecords(options);
 }
 
-function invalidRemoteControlPlaneRecords(
-  options: Parameters<typeof deployControlPlaneRecords>[0] = {},
-): StoredRecord[] {
-  const now = "2026-05-26T00:00:00.000Z";
-
-  return [
-    ...deployControlPlaneRecords(options),
-    {
-      createdAt: now,
-      entity: "legacy-control-plane-record",
-      id: "remote-invalid-control-plane-record",
-      updatedAt: now,
-      values: {},
-    },
-  ];
-}
-
 function deploymentDesiredStateRef() {
   return {
     hash: `sha256:${"b".repeat(64)}`,
@@ -2496,12 +2046,7 @@ function restoreSummary() {
   };
 }
 
-function restorePlan(
-  _summary: Partial<{
-    createdInstalls: string[];
-    replacedInstalls: string[];
-  }> = {},
-) {
+function restorePlan() {
   return {
     ok: true,
     plan: {

@@ -35,9 +35,6 @@
         "@dpeek/formless-schema": "workspace:*",
         "@dpeek/formless-storage": "workspace:*",
       },
-      "devDependencies": {
-        "@dpeek/formless-installed-apps": "workspace:*",
-      },
     },
     "lib/deploy": {
       "name": "@dpeek/formless-deploy",
@@ -58,7 +55,6 @@
         "@dpeek/formless-deploy": "workspace:*",
         "@dpeek/formless-gateway": "workspace:*",
         "@dpeek/formless-identity-control-plane": "workspace:*",
-        "@dpeek/formless-installed-apps": "workspace:*",
         "@dpeek/formless-instance-control-plane": "workspace:*",
         "@dpeek/formless-media": "workspace:*",
         "@dpeek/formless-presentation": "workspace:*",
@@ -110,16 +106,8 @@
       "name": "@dpeek/formless-identity-control-plane",
       "version": "0.1.0",
       "dependencies": {
-        "@dpeek/formless-installed-apps": "workspace:*",
         "@dpeek/formless-schema": "workspace:*",
         "@dpeek/formless-storage": "workspace:*",
-      },
-    },
-    "lib/installed-apps": {
-      "name": "@dpeek/formless-installed-apps",
-      "version": "0.1.0",
-      "dependencies": {
-        "@dpeek/formless-schema": "workspace:*",
       },
     },
     "lib/instance-control-plane": {
@@ -127,7 +115,6 @@
       "version": "0.1.0",
       "dependencies": {
         "@dpeek/formless-deploy": "workspace:*",
-        "@dpeek/formless-installed-apps": "workspace:*",
         "@dpeek/formless-schema": "workspace:*",
         "@dpeek/formless-storage": "workspace:*",
       },
@@ -204,7 +191,6 @@
         "react-dom": "19.2.6",
       },
       "devDependencies": {
-        "@dpeek/formless-installed-apps": "workspace:*",
         "@testing-library/dom": "^10.4.1",
         "@testing-library/react": "^16.3.2",
         "jsdom": "^29.1.1",
@@ -228,21 +214,14 @@
         "@dpeek/formless-schema": "workspace:*",
         "@dpeek/formless-storage": "workspace:*",
       },
-      "devDependencies": {
-        "@dpeek/formless-installed-apps": "workspace:*",
-      },
     },
     "lib/workspace": {
       "name": "@dpeek/formless-workspace",
       "version": "0.1.0",
       "dependencies": {
-        "@dpeek/formless-installed-apps": "workspace:*",
         "@dpeek/formless-instance-control-plane": "workspace:*",
         "@dpeek/formless-schema": "workspace:*",
         "@dpeek/formless-storage": "workspace:*",
-      },
-      "devDependencies": {
-        "@dpeek/formless-crm-app": "workspace:*",
       },
     },
   },
@@ -444,8 +423,6 @@
     "@dpeek/formless-gateway": ["@dpeek/formless-gateway@workspace:lib/gateway"],
 
     "@dpeek/formless-identity-control-plane": ["@dpeek/formless-identity-control-plane@workspace:lib/identity-control-plane"],
-
-    "@dpeek/formless-installed-apps": ["@dpeek/formless-installed-apps@workspace:lib/installed-apps"],
 
     "@dpeek/formless-instance-control-plane": ["@dpeek/formless-instance-control-plane@workspace:lib/instance-control-plane"],
 

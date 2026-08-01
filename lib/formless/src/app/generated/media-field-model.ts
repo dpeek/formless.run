@@ -6,7 +6,7 @@ import type {
   RecordFieldConfig,
   RecordUnionPresentationConfig,
 } from "../../client/views.ts";
-import type { ClientAppTarget } from "../../client/app-target.ts";
+import type { ProgramClientTarget } from "../../client/program-target.ts";
 
 export type GeneratedMediaField = {
   entityName: string;
@@ -31,16 +31,12 @@ export function generatedMediaAssetOptionsForField(
 }
 
 export function generatedDocumentMediaTarget(
-  appTarget: ClientAppTarget,
+  programTarget: ProgramClientTarget,
   entityName: string,
   fieldName: string,
-): ProgramDocumentMediaTarget | undefined {
-  if (typeof appTarget === "string") {
-    return undefined;
-  }
-
+): ProgramDocumentMediaTarget {
   return {
-    documentsPath: `${appTarget.apiRoutePrefix}/media/documents`,
+    documentsPath: `${programTarget.apiRoutePrefix}/media/documents`,
     field: { entityName, fieldName },
   };
 }

@@ -10,11 +10,11 @@ import {
 } from "react";
 import type { ShellIntent } from "@dpeek/formless-presentation/contract";
 import {
-  appStorageIdentityForClientTarget,
+  programStorageIdentityForClientTarget,
   clientTargetSourceSchemaKey,
   programClientTarget,
-  type ClientAppTarget,
-} from "../client/app-target.ts";
+  type ProgramClientTarget,
+} from "../client/program-target.ts";
 import { getClientStoreSnapshot, subscribeToClientStore } from "../client/store.ts";
 import { useSyncStatus } from "../client/sync-status.ts";
 import { selectGeneratedRootNavigationFacts } from "../client/generated-authoring.ts";
@@ -110,7 +110,10 @@ export function ApplicationShellRuntimeBoundary(props: ApplicationShellRuntimeBo
   }
 
   return (
-    <SchemaAppProvider schemaKey={props.routeWorld.app.key} target={props.routeWorld.target}>
+    <SchemaAppProvider
+      schemaKey={props.routeWorld.target.schemaKey}
+      target={props.routeWorld.target}
+    >
       {runtime}
     </SchemaAppProvider>
   );
@@ -147,7 +150,9 @@ function ApplicationShellRuntime({
     : programRoute
       ? programClientTarget()
       : undefined;
-  const routeIdentity = routeTarget ? appStorageIdentityForClientTarget(routeTarget) : undefined;
+  const routeIdentity = routeTarget
+    ? programStorageIdentityForClientTarget(routeTarget)
+    : undefined;
   const routeSchemaKey = routeTarget ? clientTargetSourceSchemaKey(routeTarget) : undefined;
   const storeMatchesRoute =
     snapshot.activeClientStorageName === null ||
@@ -566,7 +571,7 @@ function RegisteredRootCreateRuntime({
   return null;
 }
 
-function runtimeWorldClientTarget(world: RuntimeWorldMount): ClientAppTarget {
+function runtimeWorldClientTarget(world: RuntimeWorldMount): ProgramClientTarget {
   return world.target;
 }
 

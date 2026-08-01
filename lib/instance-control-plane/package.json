@@ -32,7 +32,6 @@
   },
   "dependencies": {
     "@dpeek/formless-deploy": "workspace:*",
-    "@dpeek/formless-installed-apps": "workspace:*",
     "@dpeek/formless-schema": "workspace:*",
     "@dpeek/formless-storage": "workspace:*"
   }

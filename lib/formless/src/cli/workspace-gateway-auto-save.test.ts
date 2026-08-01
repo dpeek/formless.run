@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import packageJson from "../../package.json";
-import { formlessProgramSchema } from "../program/runtime.ts";
+import { formlessProgramSchema, formlessProgramSchemaProvenance } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
@@ -27,8 +27,6 @@ import {
 } from "@dpeek/formless-workspace/node";
 
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
-import { rootKnownPackageFactsResolver } from "../shared/app-packages.ts";
-import { siteSourceSchema } from "../test/schema-apps.ts";
 import {
   createDefaultWorkspaceAutoSaveScheduler,
   createWorkspaceAutoSaveScheduler,
@@ -38,10 +36,6 @@ import {
 import { createWorkspaceGatewayOperationHandlers } from "./workspace-gateway-operation-adapter.ts";
 
 const tempDirs: string[] = [];
-const privateSitePackageAppKey = "private-site";
-const rootKnownSitePackage = rootKnownPackageFactsResolver().findPackage("site")!;
-const privateSiteSourceSchemaHash =
-  "sha256:06789270061b43a2a0e4709f96e8aac35514e0f61bf15a29f234ca253d021c25" as typeof rootKnownSitePackage.sourceSchemaHash;
 afterEach(async () => {
   await Promise.all(
     tempDirs
@@ -472,6 +466,7 @@ function autoSaveDeps(
         metadataUrl: new URL("/api/formless/deploy", `${input.url}/`).toString(),
         packageVersion: input.expectedVersion,
         runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
+        schemaProvenance: formlessProgramSchemaProvenance,
         storageMigrationSet: "formless-storage-migrations:v1",
         url: input.url,
         version: input.expectedVersion,
@@ -495,43 +490,12 @@ async function writeWorkspaceConfig(
 ) {
   const config = resolveFormlessConfig({
     name: "personal-sites",
-    packages: {
-      links: [{ manifest: "packages/private-site/formless.app.json" }],
-    },
     ...(extensions === undefined ? {} : { runtime: { extensions } }),
   });
 
-  await writePrivateSitePackage(workspaceRoot);
   await writeFile(
     path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
     formatTestFormlessConfigModule(config),
-  );
-}
-
-async function writePrivateSitePackage(workspaceRoot: string) {
-  const packageRoot = path.join(workspaceRoot, "packages/private-site");
-
-  await mkdir(packageRoot, { recursive: true });
-  await writeFile(path.join(packageRoot, "schema.json"), JSON.stringify(siteSourceSchema));
-  await writeFile(
-    path.join(packageRoot, "formless.app.json"),
-    JSON.stringify({
-      kind: "formless.appPackage",
-      version: 1,
-      packageAppKey: privateSitePackageAppKey,
-      label: "Private Site",
-      description: "Private Site test package.",
-      defaultInstallId: "personal",
-      supportsMultipleInstalls: true,
-      packageRevision: rootKnownSitePackage.packageRevision,
-      sourceSchema: {
-        kind: "workspace",
-        key: privateSitePackageAppKey,
-        path: "schema.json",
-      },
-      sourceSchemaHash: privateSiteSourceSchemaHash,
-      capabilities: [{ kind: "generatedAdmin", routeBase: "/apps" }],
-    }),
   );
 }
 

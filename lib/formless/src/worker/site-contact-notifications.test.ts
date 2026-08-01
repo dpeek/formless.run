@@ -2,7 +2,7 @@ import { INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID } from "@dpeek/formless-ins
 import type { StoredRecord } from "@dpeek/formless-storage";
 import { describe, expect, it } from "vite-plus/test";
 
-import { programStorageIdentity } from "../shared/app-storage-identity.ts";
+import { programStorageIdentity } from "../shared/program-storage-identity.ts";
 import type { EmailDeliveryScheduleRequest } from "../shared/email-runtime.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import {
@@ -209,7 +209,7 @@ function contactMessageResponse(): OperationInvocationResponse {
     invocation: {
       invocationId: "operation:contact-message.submit:contact-create-email-notify",
       actor: { kind: "anonymous" },
-      appStorageIdentity: identity,
+      programStorageIdentity: identity,
       idempotency: {
         required: true,
         key: "contact-create-email-notify",

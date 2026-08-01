@@ -69,7 +69,7 @@ describe("Media runtime-neutral contract helpers", () => {
     expect(isValidDocumentMediaAssetId("../coa-fixed.pdf")).toBe(false);
   });
 
-  it("derives global Program document keys without app-install ownership", () => {
+  it("derives global Program document keys", () => {
     expect(documentMediaStorageKeyForAssetId("program-report.pdf")).toBe(
       `${PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX}/program-report.pdf`,
     );
@@ -167,11 +167,10 @@ describe("Media runtime-neutral contract helpers", () => {
     ).toBeUndefined();
   });
 
-  it("round-trips global Program document metadata without owner metadata", () => {
+  it("round-trips global Program document metadata", () => {
     const asset = programDocumentMediaAsset();
     const metadata = mediaObjectMetadataForAsset(asset);
 
-    expect(metadata).not.toHaveProperty("formless-media-owner-app-install-id");
     expect(mediaAssetFromObjectMetadata(metadata)).toEqual(asset);
     expect(isDocumentMediaAsset(asset)).toBe(true);
     expect(

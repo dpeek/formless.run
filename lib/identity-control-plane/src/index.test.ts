@@ -1,4 +1,4 @@
-import { computeSourceSchemaHash } from "@dpeek/formless-installed-apps";
+import { computeSourceSchemaHash } from "@dpeek/formless-schema";
 import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import { describe, expect, it } from "vite-plus/test";

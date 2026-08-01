@@ -6,6 +6,7 @@ import {
   FORMLESS_STORAGE_MIGRATION_SET_ID,
 } from "../shared/deploy-metadata.ts";
 import { handleDeployMetadataRequest } from "./deploy-metadata.ts";
+import { formlessProgramSchemaProvenance } from "../program/runtime.ts";
 
 describe("Worker deploy metadata", () => {
   it("exposes the configured deploy version as no-store JSON", async () => {
@@ -25,6 +26,7 @@ describe("Worker deploy metadata", () => {
     await expect(response?.json()).resolves.toEqual({
       packageVersion: "0.1.7",
       runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
+      schemaProvenance: formlessProgramSchemaProvenance,
       storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
       version: "0.1.7",
     });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { programClientTarget } from "../../client/app-target.ts";
+import { programClientTarget } from "../../client/program-target.ts";
 import { generatedDocumentMediaTarget } from "./media-field-model.ts";
 
 describe("generated document media targeting", () => {

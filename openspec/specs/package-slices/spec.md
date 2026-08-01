@@ -2,11 +2,10 @@
 
 ## Purpose
 
-Package slices and in-repo app packages define package boundaries under
+Package slices and in-repo domain packages define package boundaries under
 `lib/<package>/`. Capability slices own reusable contracts and adapters without
-owning app records. App packages own schema authoring source when present,
-portable schema artifacts, manifests, and any package-specific adapters for a
-bundled app.
+owning Program records. Domain packages own schema authoring source when
+present, optional portable schema artifacts, and domain-specific adapters.
 
 ## Requirements
 
@@ -43,25 +42,26 @@ with a minimal package-local contract and adapter layout.
   `tsconfig.json`, and `src/` files for public contract and supported adapters
 - AND the package does not require a bundled app schema
 
-### Requirement: In-Repo App Package Structure
+### Requirement: In-Repo Domain Package Structure
 
-The system SHALL allow in-repo app packages under `lib/<package>/` when the
-package owns source schema and package-specific runtime adapters.
+The system SHALL allow in-repo domain packages under `lib/<package>/` when the
+package owns schema declarations and domain-specific runtime adapters.
 
-#### Scenario: App package scaffold
+#### Scenario: Domain package scaffold
 
-- GIVEN an app package such as Site, Tasks, or CRM is extracted into an in-repo
+- GIVEN a domain package such as Site, Tasks, or CRM is extracted into an in-repo
   package
 - WHEN the package is scaffolded
 - THEN the package contains package-local `AGENTS.md`, `package.json`,
-  `tsconfig.json`, `formless.app.json`, `schema.json`, and `src/` entrypoints
-  for public contracts and supported runtime adapters
+  `tsconfig.json`, and `src/` entrypoints for schema declarations, public
+  contracts, and supported runtime adapters
 - AND a package that uses TypeScript schema authoring owns its declaration
   under `src/` and a package-local schema materialization command
-- AND the app package is published as a workspace package with documented root,
+- AND the domain package is published as a workspace package with documented root,
   React, Worker, and Node subpaths when those adapters exist
-- AND `schema.json` remains the package's portable schema data artifact
-- AND app packages without package-specific executable adapters do not need to
+- AND `schema.json` may remain a deterministic standalone schema artifact for
+  package checks and publication without becoming runtime package metadata
+- AND domain packages without package-specific executable adapters do not need to
   expose unused adapter subpaths
 
 #### Scenario: App package adapter ownership
@@ -75,21 +75,21 @@ package owns source schema and package-specific runtime adapters.
   indexing
 - AND public Site adapter selection is bound to the Program-native Site at
   build time rather than selected from installed package metadata
-- AND core runtime owns app install identity, route records, Authority storage,
-  browser replicas, sync, media storage, and generic archive execution
+- AND the Program owns route policy, Authority storage, browser replicas, sync,
+  media storage, and generic archive execution
 - AND code outside the package does not deep-import package internals
-- AND installed package manifests do not select a public Site adapter
+- AND package metadata does not select a public Site adapter
 
-#### Scenario: App package source replaces root app files
+#### Scenario: Domain package source replaces root app files
 
-- GIVEN an app package such as Site, Tasks, or CRM owns `formless.app.json`,
-  `schema.json`, and any package-local schema authoring source
-- WHEN runtime code composes bundled package metadata or source schemas
-- THEN it imports the package root or documented source JSON subpaths
+- GIVEN a domain package such as Site, Tasks, or CRM owns package-local schema
+  authoring source and an optional `schema.json` artifact
+- WHEN a trusted downstream Program composition root selects its declarations
+- THEN it imports the documented schema authoring subpath
 - AND root runtime does not keep duplicate source schema files for that app
   package
 - AND root `schema/apps/<packageAppKey>` source files are removed for extracted
-  app packages
+  domain packages
 
 ### Requirement: Package-Owned Schema Authoring Modules
 
@@ -140,10 +140,10 @@ domain declarations into the Schema package.
   views, views, and screens
 - AND the package publishes the schema subpath with executable ESM,
   declarations, and source maps
-- AND the complete standalone source materializes the deterministic data-only
-  Site `schema.json` artifact and matching manifest source-schema hash
-- AND runtime package resolution continues to consume `schema.json` without
-  evaluating the TypeScript authoring entrypoint
+- AND the complete standalone source may materialize the deterministic
+  data-only Site `schema.json` artifact for package checks and publication
+- AND Worker request handling consumes only the complete Program artifact
+  without evaluating this TypeScript authoring entrypoint
 - AND publishing the schema boundary alone does not select Program ownership,
   Authority storage, routing, or runtime availability
 
@@ -153,8 +153,8 @@ domain declarations into the Schema package.
 - WHEN trusted Program composition needs CRM declarations
 - THEN it imports documented CRM record, presentation, and complete standalone
   modules through `@dpeek/formless-crm-app/schema`
-- AND the package materializes deterministic `schema.json` and the matching
-  source hash from its TypeScript source
+- AND the package may materialize deterministic `schema.json` from its
+  TypeScript source for package checks and publication
 - AND CRM keeps ownership of its non-overlapping entity, relationship, query,
   view, screen, and constraint declarations
 - AND publication alone does not select CRM install identity, Authority storage,
@@ -273,15 +273,15 @@ domain declarations.
 - AND authoring module keys do not become storage, replica, route, archive,
   provenance, or authorization identities
 
-### Requirement: App Package Schema Materialization
+### Requirement: Domain Package Schema Materialization
 
-An app package that uses TypeScript schema authoring SHALL materialize a
-data-only `schema.json` artifact without making TypeScript evaluation part of
-runtime package resolution.
+A domain package that publishes a standalone schema artifact SHALL materialize
+data-only `schema.json` without making it an independently selectable runtime
+source.
 
 #### Scenario: Materialize an authored package schema
 
-- GIVEN an app package declares its schema in package-local TypeScript
+- GIVEN a domain package declares its schema in package-local TypeScript
 - WHEN the package schema materialization command runs
 - THEN it validates the declaration through the public Schema package contract
 - AND it writes the complete deterministic `schema.json` artifact owned by that
@@ -291,21 +291,18 @@ runtime package resolution.
 
 #### Scenario: Detect materialized schema drift
 
-- GIVEN an app package has TypeScript source, a materialized `schema.json`, and
-  a manifest `sourceSchemaHash`
+- GIVEN a domain package has TypeScript source and a materialized `schema.json`
 - WHEN package checks run
 - THEN they compare canonical schema data rather than source formatting
 - AND they fail when the declaration and JSON artifact differ
-- AND they fail when the JSON artifact and manifest source-schema hash differ
 
-#### Scenario: Keep authoring code outside runtime resolution
+#### Scenario: Keep package artifacts outside runtime selection
 
-- GIVEN Worker, workspace, package, upgrade, or deploy code resolves an
-  app package schema
-- WHEN it loads the package source
-- THEN it consumes the exported `schema.json` artifact
-- AND it does not import or evaluate the TypeScript authoring module or its
-  materialization command
+- GIVEN a domain package publishes TypeScript schema modules and `schema.json`
+- WHEN Worker runtime, workspace persistence, deploy, or upgrade behavior runs
+- THEN it consumes the one complete materialized Program artifact
+- AND it does not resolve the package artifact, evaluate the TypeScript
+  authoring module, or treat either as an independently selectable schema
 
 ### Requirement: Minimal Package Documentation
 
@@ -455,8 +452,7 @@ workspace package exports, npm dependencies, or Node built-ins.
 #### Scenario: Package tests stay package-local
 
 - GIVEN tests live under `lib/<package>/src/`
-- WHEN they need schemas, records, package manifests, storage snapshots, or
-  media examples
+- WHEN they need schemas, records, storage snapshots, or media examples
 - THEN they use package-local fixtures or public package exports
 - AND they do not import `lib/formless/src/test/*` fixtures or Formless runtime-only
   modules
@@ -553,8 +549,8 @@ resolves the same public imports directly to current package source.
   artifacts without repository source export targets
 - AND package export, ESM, and TypeScript declaration contracts pass package
   publication validation
-- AND an in-repo app package continues to publish its declared app manifest and
-  source schema JSON as uncompiled package artifacts
+- AND an in-repo domain package may publish its standalone schema JSON as an
+  explicitly declared uncompiled package artifact
 
 ### Requirement: Formless Presentation Package Slice
 
@@ -772,62 +768,6 @@ without owning Authority execution or runtime protocol routes.
 - AND the Storage package supplies only snapshot contracts, pure parsing, and
   package-local deterministic tests
 
-### Requirement: Installed Apps Package Slice
-
-The system SHALL provide an Installed Apps package slice under
-`lib/installed-apps/` for app install identity, package app manifest, package
-resolver, package revision, and source schema hash contracts.
-
-#### Scenario: Installed Apps package scaffold
-
-- GIVEN the Installed Apps package slice is introduced
-- WHEN the package is scaffolded
-- THEN it contains package-local `AGENTS.md`, `package.json`, `tsconfig.json`,
-  and `src/` entrypoints for public contracts and runtime-neutral helpers
-- AND the package is published as `@dpeek/formless-installed-apps` with a root
-  public subpath
-- AND it follows package slice import and documentation boundaries
-- AND it does not expose client, React, Worker, Node, or sidecar subpaths
-
-#### Scenario: Installed Apps package exports
-
-- GIVEN app, client, Worker, archive, workspace, upgrade, Site runtime, or tests
-  need app install id validation, app install contracts, app package manifest
-  parsing, package resolver behavior, package revision contracts, or source
-  schema hash helpers
-- WHEN they import installed-app or app-package behavior
-- THEN they import from `@dpeek/formless-installed-apps`
-- AND they do not import those contracts from root runtime modules
-
-### Requirement: Installed Apps Package Non-Ownership
-
-The Installed Apps package SHALL own reusable install and package metadata
-contracts without owning bundled app sources, app install storage mutation, or
-runtime adapter execution.
-
-#### Scenario: Package owns install and package metadata contracts
-
-- GIVEN app install id validation, app install metadata shapes, package app
-  manifest parsing, active resolver helpers, package revision contracts, source
-  schema hash parsing, or deterministic source schema hash computation are
-  needed
-- WHEN runtime-neutral code consumes installed-app behavior
-- THEN they come from `lib/installed-apps`
-- AND source schema parsing comes from the Schema package
-
-#### Scenario: Package does not own bundled defaults
-
-- GIVEN the default runtime resolver needs bundled CRM package manifests and
-  Program composition needs the Site and Tasks package artifacts
-- WHEN bundled package metadata is composed
-- THEN root runtime code supplies runtime-installable manifests to the Installed
-  Apps package resolver
-- AND root Program code may retain Site and Tasks package facts for artifact or
-  dormant metadata validation without making either package
-  runtime-installable
-- AND package source does not import bundled schema JSON or root-only bundled
-  package lists
-
 ### Requirement: Instance Control Plane Package Slice
 
 The system SHALL provide an Instance Control Plane package slice under
@@ -861,25 +801,24 @@ reviewable control-plane record validation.
 ### Requirement: Instance Control Plane Package Non-Ownership
 
 The Instance Control Plane package SHALL own reusable schema-owned instance
-management contracts without owning Authority writes, app records, deployment
-execution, or provider state.
+management contracts without owning Authority writes, Program records,
+deployment execution, or provider state.
 
 #### Scenario: Package owns schema-owned control-plane contracts
 
-- GIVEN app-install, route, or deployment-config entity contracts,
-  control-plane schema modules, reviewable record validation, or display-safe
-  canonicalization are needed
+- GIVEN route or deployment-config entity contracts, control-plane schema
+  modules, reviewable record validation, or display-safe canonicalization are
+  needed
 - WHEN runtime-neutral code consumes instance control-plane behavior
 - THEN they come from `lib/instance-control-plane`
-- AND app install metadata contracts come from the Installed Apps package
 - AND deployment projection contracts come from the Deploy package
 - AND storage snapshot contracts come from the Storage package
 
 #### Scenario: Package does not own control-plane execution
 
-- GIVEN app install mutation, route mutation, deployment-config mutation,
-  Authority storage, owner authorization, deployment projection execution,
-  provider execution, or runtime observation persistence is needed
+- GIVEN route mutation, deployment-config mutation, Authority storage, owner
+  authorization, deployment projection execution, provider execution, or
+  runtime observation persistence is needed
 - WHEN those behaviors are implemented
 - THEN Worker runtime, Site runtime, Deploy runtime, Gateway runtime adapters,
   or provider adapters own the execution
@@ -931,8 +870,8 @@ execution, workspace operation execution, or CLI command policy.
 - AND app schema language behavior comes from the Schema package
 - AND core media contracts come from the Media package
 - AND local workspace source/state behavior comes from the Workspace package
-- AND no installed-app metadata or package resolver contract is required to
-  parse or plan the current Program archive
+- AND the complete Program provenance is sufficient to parse and plan the
+  current Program archive
 
 #### Scenario: Package does not own archive execution
 
@@ -1137,9 +1076,9 @@ runtime-neutral App schema language contracts, parsers, and pure helpers.
 
 ### Requirement: Schema Package Non-Ownership
 
-The Schema package SHALL own reusable App schema language contracts and pure
-helpers without owning bundled app packages, runtime storage, generated React
-surfaces, archive execution, or workspace source.
+The Schema package SHALL own reusable App schema language contracts, canonical
+schema hashing, and pure helpers without owning domain packages, runtime
+storage, generated React surfaces, archive execution, or workspace source.
 
 #### Scenario: Package owns schema language contracts
 
@@ -1147,7 +1086,8 @@ surfaces, archive execution, or workspace source.
   key parsing, qualified entity name parsing, field type behavior, field value
   validation helpers, query expression helpers, read model numeric and aggregate
   helpers, create-default parsing helpers, runtime schema metadata helpers,
-  action capability helpers, or schema section parsers are needed
+  action capability helpers, canonical source-schema hash helpers, or schema
+  section parsers are needed
 - WHEN runtime-neutral code consumes schema capability behavior
 - THEN they come from `lib/schema`
 - AND callers consume the package root rather than knowing the internal parser
@@ -1155,11 +1095,11 @@ surfaces, archive execution, or workspace source.
 
 #### Scenario: Package does not own runtime surfaces
 
-- GIVEN bundled source app package metadata, source schema JSON loading, source
-  schema Builder UI state, generated React rendering, Authority table mutation,
+- GIVEN domain schema modules, source schema JSON loading, source schema Builder
+  UI state, generated React rendering, Authority table mutation,
   Durable Object storage, browser replica persistence, archive restore
   execution, Workspace storage snapshots, instance control-plane schema
-  construction, package app migrations, or provider execution is needed
+  construction, or provider execution is needed
 - WHEN those behaviors are implemented
 - THEN they remain owned by their existing app, client, Worker, archive,
   Workspace, Deploy, migration, or runtime modules

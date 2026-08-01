@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import type { AppSchema } from "@dpeek/formless-schema";
-import { programStorageIdentity } from "../shared/app-storage-identity.ts";
+import { programStorageIdentity } from "../shared/program-storage-identity.ts";
 import type { PublicOperationProof } from "../shared/protocol.ts";
 import { sourceLikeTaskSchema } from "../test/schema-builders.ts";
 import { BadRequestError } from "./errors.ts";
@@ -557,12 +557,11 @@ function anonymousTurnstilePolicy() {
 
 function authenticatedSessionTarget() {
   return {
-    appInstallId: "tasks",
     instanceId: "instance-1",
-    routeId: "route-tasks",
-    storageIdentity: "app:tasks",
+    routeId: "route:instance:admin",
+    storageIdentity: programStorageIdentity().authorityName,
     targetOrigin: "https://tasks.example.com",
-    targetProfile: "app" as const,
+    targetProfile: "instance" as const,
   };
 }
 

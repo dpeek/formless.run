@@ -15,7 +15,6 @@ export type RuntimeRouteAccess = (typeof runtimeRouteAccessKinds)[number];
 
 export type RuntimeTopologyRoutePolicy = {
   instanceBrowserRoutes: boolean;
-  installedAppApiRoutes: boolean;
   accountSessionBrowserRoutes: boolean;
   workspaceGatewayApiRoutes: boolean;
 };
@@ -184,7 +183,6 @@ export function runtimeRoutePolicyForProfileKind(
 
   return {
     instanceBrowserRoutes,
-    installedAppApiRoutes: true,
     accountSessionBrowserRoutes: instanceBrowserRoutes || profileKind === "publishedSite",
     workspaceGatewayApiRoutes,
   };

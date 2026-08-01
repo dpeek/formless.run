@@ -18,7 +18,7 @@ import {
 import { selectTreeResultModel } from "../../client/tree-result-model.ts";
 import type { SubmitOperationOptions } from "../../client/sync.ts";
 import type { SyncStatus } from "../../client/sync-status.ts";
-import { programClientTarget } from "../../client/app-target.ts";
+import { programClientTarget } from "../../client/program-target.ts";
 import type {
   OperationInvocationRequest,
   OperationInvocationResponse,

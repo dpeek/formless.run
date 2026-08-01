@@ -435,7 +435,7 @@ describe("instance auth access readers and decisions", () => {
     ).toBeUndefined();
   });
 
-  it("matches host sessions only to the current instance, host, route, profile, app, and storage", () => {
+  it("matches host sessions only to the current instance, host, route, profile, and storage", () => {
     expect(
       validateHostSessionScope(hostSession, {
         instanceId: hostSession.instanceId,
@@ -457,7 +457,7 @@ describe("instance auth access readers and decisions", () => {
       { requestOrigin: target.targetOrigin, target: { ...target, targetProfile: "public-site" } },
       {
         requestOrigin: target.targetOrigin,
-        target: { ...target, storageIdentity: "app:other" },
+        target: { ...target, storageIdentity: "other:program" },
       },
     ] satisfies Array<{
       requestOrigin: string;

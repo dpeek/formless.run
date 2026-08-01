@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Router } from "wouter";
 import { describe, expect, it } from "vite-plus/test";
 import { App, type AppRouteComponents } from "./app.tsx";
-import type { ClientAppTarget } from "./client/app-target.ts";
+import type { ProgramClientTarget } from "./client/program-target.ts";
 import {
   createDevRuntimeProfile,
   createPublishedSiteRuntimeProfile,
@@ -107,6 +107,6 @@ function routeComponents(): AppRouteComponents {
   };
 }
 
-function targetKind(target: ClientAppTarget | undefined) {
+function targetKind(target: ProgramClientTarget | undefined) {
   return typeof target === "string" ? "schemaKey" : (target?.kind ?? "none");
 }

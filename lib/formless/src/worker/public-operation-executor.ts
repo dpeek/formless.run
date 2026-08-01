@@ -1,4 +1,4 @@
-import type { AuthorityStorageIdentity } from "../shared/app-storage-identity.ts";
+import type { ProgramStorageIdentity } from "../shared/program-storage-identity.ts";
 import type {
   PublicOperationChallengeVerification,
   PublicOperationRequestSource,
@@ -119,7 +119,7 @@ export type PublicOperationExecutorResult = {
 export type PublicOperationExecutorInput = {
   adapters: PublicOperationExecutorAdapters;
   body: unknown;
-  identity: AuthorityStorageIdentity;
+  identity: ProgramStorageIdentity;
   request: Request;
   route: PublicOperationExecutorRoute;
   schema: AppSchema;
@@ -407,7 +407,7 @@ function assertPublicOperationOrigin(request: Request, operation: EntityOperatio
 
 async function consumePublicOperationRateLimit(input: {
   adapters: PublicOperationExecutorAdapters;
-  identity: AuthorityStorageIdentity;
+  identity: ProgramStorageIdentity;
   operation: EntityOperationSchema;
   operationKey: string;
   receivedAt: string;

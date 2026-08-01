@@ -2,12 +2,12 @@ import { useMemo, useSyncExternalStore } from "react";
 import { listenForClientEvents } from "./broadcast.ts";
 import { readLocalSnapshot, type LocalSnapshot } from "./db.ts";
 import {
-  appStorageIdentityForClientTarget,
+  programStorageIdentityForClientTarget,
   clientTargetSourceSchemaKey,
   clientTargetStorageName,
-  type ClientAppSchemaKey,
-  type ClientAppTarget,
-} from "./app-target.ts";
+  type ProgramClientSchemaKey,
+  type ProgramClientTarget,
+} from "./program-target.ts";
 import {
   createAggregateValueMatchingQuerySelector,
   createEntityRecordCountMatchingQuerySelector,
@@ -28,7 +28,7 @@ import type { AggregateSchema, AppSchema, ComputedValueSchema } from "@dpeek/for
 
 export type NormalizedClientState = {
   activeClientStorageName: string | null;
-  activeSchemaKey: ClientAppSchemaKey | null;
+  activeSchemaKey: ProgramClientSchemaKey | null;
   hydrated: boolean;
   schema: AppSchema | null;
   schemaUpdatedAt: string | null;
@@ -81,8 +81,8 @@ export function resetClientStore() {
   setState(emptyClientState(null));
 }
 
-export function selectClientStoreTarget(target: ClientAppTarget) {
-  const identity = appStorageIdentityForClientTarget(target);
+export function selectClientStoreTarget(target: ProgramClientTarget) {
+  const identity = programStorageIdentityForClientTarget(target);
 
   if (state.activeClientStorageName === identity.browserDatabaseName) {
     return;
@@ -91,15 +91,15 @@ export function selectClientStoreTarget(target: ClientAppTarget) {
   setState(emptyClientState(clientTargetSourceSchemaKey(identity), identity.browserDatabaseName));
 }
 
-export async function hydrateClientStore(target: ClientAppTarget) {
+export async function hydrateClientStore(target: ProgramClientTarget) {
   applyLocalSnapshot(target, await readLocalSnapshot(target));
 }
 
-export async function refreshClientStoreFromDb(target: ClientAppTarget) {
+export async function refreshClientStoreFromDb(target: ProgramClientTarget) {
   applyLocalSnapshot(target, await readLocalSnapshot(target));
 }
 
-export function applyBootstrapResponse(response: BootstrapResponse, target?: ClientAppTarget) {
+export function applyBootstrapResponse(response: BootstrapResponse, target?: ProgramClientTarget) {
   if (!shouldApplyClientTarget(target)) {
     return;
   }
@@ -122,7 +122,7 @@ export function applyBootstrapResponse(response: BootstrapResponse, target?: Cli
 export function applySchemaSave(
   schema: AppSchema,
   schemaUpdatedAt: string,
-  target?: ClientAppTarget,
+  target?: ProgramClientTarget,
 ) {
   if (!shouldApplyClientTarget(target)) {
     return;
@@ -140,7 +140,7 @@ export function applySchemaSave(
   }));
 }
 
-export function applyChanges(changes: ChangeRow[], cursor: number, target?: ClientAppTarget) {
+export function applyChanges(changes: ChangeRow[], cursor: number, target?: ProgramClientTarget) {
   applyRecordMerge(
     changes.map((change) => change.payload),
     cursor,
@@ -151,7 +151,7 @@ export function applyChanges(changes: ChangeRow[], cursor: number, target?: Clie
 export function applyRecordMerge(
   recordsToMerge: StoredRecord[],
   cursor?: number,
-  target?: ClientAppTarget,
+  target?: ProgramClientTarget,
 ) {
   if (!shouldApplyClientTarget(target)) {
     return;
@@ -352,7 +352,7 @@ export function useLastSyncedAt() {
   return useClientStoreSelector((snapshot) => snapshot.lastSyncedAt);
 }
 
-export function connectBroadcastToClientStore(target: ClientAppTarget) {
+export function connectBroadcastToClientStore(target: ProgramClientTarget) {
   return listenForClientEvents(target, (event) => {
     if (
       event.type === "records-updated" ||
@@ -372,7 +372,7 @@ function useClientStoreSelector<T>(selector: (snapshot: NormalizedClientState) =
   );
 }
 
-function applyLocalSnapshot(target: ClientAppTarget, snapshot: LocalSnapshot) {
+function applyLocalSnapshot(target: ProgramClientTarget, snapshot: LocalSnapshot) {
   if (!shouldApplyClientTarget(target)) {
     return;
   }
@@ -391,7 +391,7 @@ function applyLocalSnapshot(target: ClientAppTarget, snapshot: LocalSnapshot) {
 }
 
 function emptyClientState(
-  activeSchemaKey: ClientAppSchemaKey | null,
+  activeSchemaKey: ProgramClientSchemaKey | null,
   activeClientStorageName: string | null = null,
 ): NormalizedClientState {
   return {
@@ -407,7 +407,7 @@ function emptyClientState(
   };
 }
 
-function shouldApplyClientTarget(target: ClientAppTarget | undefined) {
+function shouldApplyClientTarget(target: ProgramClientTarget | undefined) {
   if (target === undefined) {
     return true;
   }

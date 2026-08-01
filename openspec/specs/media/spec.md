@@ -77,14 +77,13 @@ document media.
 - THEN it imports the adapter from the Media client subpath
 - AND the adapter returns the public upload and asset option shapes
 
-#### Scenario: Client uses app-scoped documents
+#### Scenario: Client uses Program documents
 
-- GIVEN browser code lists, uploads, opens, or downloads a document for an
-  installed app
+- GIVEN browser code lists, uploads, opens, or downloads a Program document
 - WHEN it needs the HTTP adapter
 - THEN it imports the adapter from the Media client subpath
-- AND the caller supplies the target installed-app media route and
-  schema-resolved field identity
+- AND the caller supplies the Program media route and schema-resolved field
+  identity
 - AND the adapter does not accept caller-invented access, MIME, size, or owner
   policy as authoritative
 
@@ -106,15 +105,15 @@ provider store adapters.
 - WHEN it handles core media
 - THEN it uses the Media Worker adapter through the public package subpath
 
-#### Scenario: Worker handles app-scoped document routes
+#### Scenario: Worker handles Program document routes
 
 - GIVEN a Worker handles document upload, list, restore, `GET`, or `HEAD`
-  requests under an installed-app API prefix
+  requests under the Program API prefix
 - WHEN it delegates reusable document parsing, validation, metadata, storage,
   listing, or delivery behavior
 - THEN it uses the Media Worker adapter through the public package subpath
-- AND Formless runtime supplies trusted owner, field policy, authorization
-  result, and target route facts
+- AND Formless runtime supplies Program-global ownership, field policy,
+  authorization result, and Program route facts
 - AND the Media package does not read App schemas, principals, roles, sessions,
   Authority records, or route registries directly
 
@@ -189,13 +188,13 @@ generated form layout, generic UI primitives, or Site usage metadata.
 - WHEN parsing runs
 - THEN parsing remains outside the Media package
 
-#### Scenario: App authorization remains runtime behavior
+#### Scenario: Program authorization remains runtime behavior
 
-- GIVEN app-scoped document list, upload, restore, or delivery requires an
+- GIVEN Program document list, upload, restore, or delivery requires an
   authorization decision
 - WHEN the route is handled
-- THEN current app-install role, owner, session, public access, and target facts
-  are resolved by Formless runtime
+- THEN current Program route, role, field policy, owner session, and public
+  operation facts are resolved by Formless runtime
 - AND the Media package consumes an explicit decision without owning instance
   auth policy
 

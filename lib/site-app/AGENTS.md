@@ -6,7 +6,6 @@ Read this when editing `lib/site-app/*`.
 
 ## Owns
 
-- Site app package manifest in `formless.app.json`.
 - Site schema authoring modules composed in `src/schema.ts`.
 - Materialized Site source schema in `schema.json`.
 - Site-specific public runtime contracts and root, React, Worker, and Node adapters in `src/`.
@@ -20,7 +19,6 @@ Read this when editing `lib/site-app/*`.
 
 - `package.json`: package metadata and exported app, schema, React, Worker, Node, and source JSON subpaths.
 - `tsconfig.json`: package-local TypeScript project extending the repo config.
-- `formless.app.json`: runtime-neutral app package manifest.
 - `schema.json`: materialized flat Site app schema source.
 - `scripts/materialize-schema.ts`: package-local schema materialization command.
 - `src/schema-records.ts`: Site record and query declarations.
