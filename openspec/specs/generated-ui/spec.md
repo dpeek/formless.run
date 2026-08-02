@@ -1190,7 +1190,7 @@ code owns record selection, authoring state, operation execution, and effects.
 ### Requirement: Table Surfaces
 
 The system SHALL render generated table results with field, reference-field,
-computed, operation-control, and ordering-handle columns.
+computed, record-link-control, operation-control, and ordering-handle columns.
 
 #### Scenario: Table operation dialog
 
@@ -1205,6 +1205,57 @@ computed, operation-control, and ordering-handle columns.
 - WHEN the table renders and the user moves rows
 - THEN aggregate footers display read-model values
 - AND move menus or drag drops patch sparse numeric ranks
+
+### Requirement: Record Link Presentation
+
+The system SHALL project schema-declared record links through a reusable
+renderer-neutral native-link contract while generated runtime owns record reads,
+reference resolution, structured URL construction, and availability.
+
+#### Scenario: Project a record link contract
+
+- GIVEN a supported generated record surface places a parsed record link
+- WHEN generated runtime prepares the link for the Formless Renderer
+- THEN it resolves the destination from the current record and current browser
+  replica record map before crossing the presentation boundary
+- AND the projected link carries stable occurrence identity, visible and
+  accessible labels, semantic prominence, `sameTab` or `newTab` target, and
+  available or unavailable destination state
+- AND an available destination carries only its resolved native href while an
+  unavailable destination carries a display-safe reason and no href
+- AND the link contract contains no App schema definitions, raw records,
+  record maps, reference paths, URL value-source expressions, browser replica
+  hooks, operation controls, callbacks, React nodes, or renderer-specific props
+
+#### Scenario: Render native record link semantics
+
+- GIVEN the Formless Renderer receives an available record link
+- WHEN it renders and the user follows the destination
+- THEN it renders a native anchor rather than a button click that dispatches an
+  operation or presentation intent
+- AND a same-tab link retains ordinary native same-tab behavior
+- AND a new-tab link uses target `_blank` with `rel="noopener noreferrer"`
+- AND modified activation, copying the destination, browser context menus, and
+  other native link behavior remain available
+- AND an unavailable destination renders as a disabled control with its
+  display-safe reason and without an href
+
+#### Scenario: Keep initial record link placement bounded
+
+- GIVEN the current schema placement for record links is a table
+  `linkControl` column
+- WHEN generated UI selects row controls
+- THEN each `linkControl` renders its one referenced link as a visible primary
+  row action in its own table column
+- AND operation-control columns continue to place edit, command, destructive,
+  transition, delete, or ordering operations independently
+- AND a row may contain both link-control and operation-control columns in
+  declared column order
+- AND current record links are not placed in secondary action overflow menus,
+  list items, record results, item views, collection toolbars, workspace
+  actions, or external section actions
+- AND the reusable record-link contract and resolution semantics do not depend
+  on the table renderer or introduce a COA- or builder-specific abstraction
 
 ### Requirement: Generated Table Renderer Contract
 
@@ -1223,31 +1274,36 @@ record reads, authoring state, operation execution, and ordering effects.
   semantic width, alignment, row-header status, and content role without
   renderer component props, presentation classes, or React components
 - AND cell content composes projected field contracts, display-safe computed or
-  referenced values, operation action groups, state transitions, delete
-  controls, and ordering controls as applicable
+  referenced values, record-link and operation action groups, state
+  transitions, delete controls, and ordering controls as applicable
 - AND an inline field occurrence is scoped by its table cell while a dialog
   field occurrence is scoped by its edit field set, and table draft context ids
   remain separate from field occurrence ids
 - AND ordinary and specialized table fields cross their applicable Presentation
   field contract boundaries before entering the table renderer
 - AND generated runtime retains query evaluation, record and system-field
-  reads, reference resolution, computed and aggregate evaluation, readiness
-  selection, draft sessions, media effects, operation controllers, ordering
-  plans, sync feedback, and local auto-save behavior
+  reads, reference resolution, structured record-link URL resolution, computed
+  and aggregate evaluation, readiness selection, draft sessions, media effects,
+  operation controllers, ordering plans, sync feedback, and local auto-save
+  behavior
 - AND the table contract does not expose `StoredRecord`, `TableColumnConfig`,
   `GeneratedOperationControlBinding`, ordering patch plans, drag events, browser
   replica hooks, app targets, sync setters, presentation class names, React
   nodes, or renderer-specific component props
 
-#### Scenario: Project table actions dialogs and ordering intents
+#### Scenario: Project table actions dialogs links and ordering intents
 
-- GIVEN a table row exposes edit, command, destructive, transition, delete, or
-  ordering controls
+- GIVEN a table row exposes a native record link, edit, command, destructive,
+  transition, delete, or ordering control
 - WHEN generated runtime prepares row interaction data
 - THEN the table contract carries explicit primary and secondary action groups,
   availability and disabled reasons, controlled confirmation or edit-dialog
   state, projected edit fields, empty or unavailable target state, and semantic
   invocation and open-change intents
+- AND a record-link action carries its resolved href and native target when
+  available, or its display-safe unavailable reason without an href
+- AND record-link actions do not carry invocation, open-change, or operation
+  intents
 - AND referenced-record and row-record edit dialogs use the same projected
   record-field and operation-control contracts as other existing-record surfaces
 - AND ordering data carries display-safe move labels, availability, pending
@@ -1264,15 +1320,16 @@ record reads, authoring state, operation execution, and ordering effects.
 - GIVEN production generated tables publish complete renderer-neutral contracts
 - WHEN generated runtime projects a complete table result
 - THEN the Formless Renderer table entrypoint renders only the projected table,
-  nested field, operation, dialog, warning, and footer contracts and dispatches
-  their intents
+  native link, nested field, operation, dialog, warning, and footer contracts
+  and dispatches only their applicable intents
 - AND production table paths for field, reference-field, computed,
-  operation-control, state-transition, ordering-handle, delete, edit-dialog,
-  readiness-warning, empty-state, and aggregate-footer behavior cross that
-  adapter boundary
-- AND the presentation adapter does not read records, resolve references, evaluate
-  computed values, own draft sessions, build operation input, calculate rank
-  patches, execute operations, or update sync state
+  link-control, operation-control, state-transition, ordering-handle, delete,
+  edit-dialog, readiness-warning, empty-state, and aggregate-footer behavior
+  cross that adapter boundary
+- AND the presentation adapter does not read records, resolve references,
+  construct link URLs, evaluate computed values, own draft sessions, build
+  operation input, calculate rank patches, execute operations, or update sync
+  state
 - AND production table rendering does not use raw model callbacks or React-node
   slots to bypass the renderer-neutral table contract
 - AND production mounts table presentation through the root Formless Renderer
@@ -1287,6 +1344,9 @@ record reads, authoring state, operation execution, and ordering effects.
 - AND table columns use explicit renderer-owned widths, spacious default table
   density, top-aligned cells, wrapping content appropriate for mixed display
   and controlled editor cells, and non-wrapping value and suffix pairs
+- AND an available primary record-link action renders as a native link with its
+  projected target and security relationship while an unavailable link renders
+  disabled without an href
 - AND primary row actions stay visible where projected while secondary and
   ordering actions use an accessible overflow interaction
 - AND secondary-action overflow triggers retain their projected accessible name
@@ -1310,10 +1370,10 @@ record reads, authoring state, operation execution, and ordering effects.
 - GIVEN runtime publishes complete production table contracts
 - WHEN table UX is evaluated with package-local renderer fixtures
 - THEN data-only fixtures use the same contract shapes to cover editable and
-  read-only fields, references, computed values, state transitions, row actions,
-  destructive confirmation, record editing, ordering, readiness warnings,
-  aggregate footers, empty state, editing-disabled state, and pending or invalid
-  cells
+  read-only fields, references, computed values, available and unavailable
+  native record links, state transitions, row actions, destructive confirmation,
+  record editing, ordering, readiness warnings, aggregate footers, empty state,
+  editing-disabled state, and pending or invalid cells
 - AND a dedicated table layout renders the subscribed table renderer with its
   production contract shape
 - AND package-local fixture state may simulate field, action, dialog, and
@@ -2110,6 +2170,21 @@ entity operations and view operation bindings.
 - AND edit dialogs, disabled reasons, destructive presentation, ordering menus,
   and reference-target editing remain presentation facts on the operation
   binding
+
+#### Scenario: Table record links do not bind operations
+
+- GIVEN a generated table renders a schema-declared `linkControl` for each row
+- WHEN the table model and runtime projection select that control
+- THEN the link comes from the containing table view's record-link registry
+  rather than its operation bindings or the entity operation registry
+- AND destination availability is derived from the current row, current
+  referenced-record facts, and the structured record-link definition
+- AND following the link does not call an operation controller, create shared
+  execution state, report operation feedback, enqueue local auto-save, or send
+  a write to Authority
+- AND operation controls in the same row retain their existing operation keys,
+  placement, availability, invocation, confirmation, progress, and feedback
+  behavior
 
 #### Scenario: State transitions read operation handler facts
 

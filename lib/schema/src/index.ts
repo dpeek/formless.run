@@ -26,6 +26,7 @@ export * from "./schema-parse-helpers.ts";
 export * from "./schema-modules.ts";
 export * from "./schema-public-operations.ts";
 export * from "./schema-read-models.ts";
+export * from "./schema-record-links.ts";
 export * from "./schema-relationships.ts";
 export * from "./schema-runtime.ts";
 export * from "./schema-screens.ts";

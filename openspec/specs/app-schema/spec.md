@@ -424,7 +424,8 @@ an ordered array whose definitions carry their existing portable `key`.
   relationships, queries, computed values, aggregates, unions, item views,
   table views, views, or screens
 - OR it declares nested entity fields, enum values, constraints, state
-  machines, transitions, operations, operation input fields, or union variants
+  machines, transitions, operations, operation input fields, table record
+  links, or union variants
 - WHEN the source is parsed
 - THEN each addressable registry is an array of keyed definitions
 - AND array declaration order is preserved in the portable parsed schema
@@ -655,6 +656,114 @@ projections, operations, bindings, and adapters.
   operations or operation bindings rather than to a separate peer interaction
   model
 
+#### Scenario: Keep native record links outside operation invocation
+
+- GIVEN a presentation surface offers record-scoped navigation to a native URL
+- WHEN the App schema describes that destination without a write, command, or
+  operation effect
+- THEN the destination is a projection binding rather than an entity operation
+- AND following the destination does not invoke an operation, create operation
+  execution state, or dispatch an operation intent
+- AND navigation labels, targets, value sources, URL construction, and surface
+  placement do not redefine operation input, output, effect, access,
+  idempotency, audit, or storage semantics
+
+### Requirement: Schema-Declared Record Links
+
+The system SHALL let presentation surfaces declare renderer-neutral record
+links whose native URL destinations are derived from structured schema data and
+the current flat record snapshot without storing or authoring interpolated URL
+strings.
+
+#### Scenario: Parse table record link definitions and placements
+
+- GIVEN a table view declares an ordered `links` registry
+- WHEN the table view is parsed
+- THEN each link definition has a unique stable key, non-empty visible label,
+  target `sameTab` or `newTab`, and a structured URL destination
+- AND a structured URL destination declares one absolute base URL and an
+  ordered array of query parameter definitions
+- AND each query parameter has a unique non-empty name, one value source, and
+  optional missing behavior `disable` or `omit`
+- AND omitted missing behavior resolves to `disable`
+- AND a `linkControl` column references exactly one link definition from the
+  containing table view and supplies its row placement
+- AND link definitions remain separate from column placements and
+  renderer-facing occurrence ids
+
+#### Scenario: Validate record link value sources
+
+- GIVEN a table record link query parameter derives a value from schema data
+- WHEN the containing table view is parsed
+- THEN a `literal` source accepts a string, finite number, or boolean
+- AND a `field` source references a declared non-reference scalar value field
+  on the table entity
+- AND a `referenceField` source names a declared reference field on the table
+  entity plus a declared non-reference scalar value field on that reference's
+  local target entity
+- AND the referenced terminal field does not need to appear as a visible table
+  column
+- AND unknown fields, system fields, non-scalar terminal fields, incompatible
+  reference targets, cross-schema reference targets, and traversal beyond one
+  reference hop are rejected before the schema reaches generated UI
+
+#### Scenario: Validate record link URL destinations
+
+- GIVEN a record link declares a structured URL destination
+- WHEN the schema is parsed
+- THEN the base is a valid absolute `https:` or `http:` URL without embedded
+  credentials
+- AND malformed URLs, protocol-relative URLs, and destinations using
+  `javascript:`, `data:`, `file:`, `blob:`, or another undeclared scheme are
+  rejected
+- AND authored query parameter names do not collide with one another or with
+  query parameter names already present in the base URL
+- AND URL validation does not fetch the destination, inspect DNS, authorize an
+  external service, or make the destination an operation or runtime adapter
+
+#### Scenario: Resolve a deterministic record link URL
+
+- GIVEN a parsed record link, one current table row record, and the current
+  record map are available
+- WHEN the runtime-neutral Schema package resolver evaluates the destination
+- THEN literal values, direct field values, and one-hop referenced-record field
+  values are converted to deterministic scalar query values
+- AND string, finite number, and boolean values are encoded through standard
+  URL query semantics while preserving `0`, `false`, and the empty string
+- AND existing base query parameters retain their order before authored query
+  parameters, whose declaration order is preserved
+- AND reserved characters, whitespace, parameter names, existing query data,
+  and fragments are handled by structured URL construction rather than string
+  interpolation
+- AND equal schema, row, and record-map inputs produce the same resolved href
+
+#### Scenario: Resolve missing record link inputs
+
+- GIVEN a record link source has no current field value or its reference id is
+  absent, resolves to the wrong entity, resolves to a tombstoned record, or
+  resolves to no record
+- WHEN the structured destination is evaluated
+- THEN a parameter with missing behavior `omit` is absent from the resolved URL
+- AND a parameter with missing behavior `disable` makes the link destination
+  unavailable with a display-safe reason
+- AND an unexpected non-scalar runtime value also makes the destination
+  unavailable rather than being stringified as an object or throwing through
+  presentation
+- AND link evaluation does not patch a record, persist a denormalized URL,
+  fetch the destination, or change browser replica state
+
+#### Scenario: Keep record link definitions reusable across surfaces
+
+- GIVEN the initial generated placement is a table `linkControl` column
+- WHEN record-link contracts and resolution helpers are exposed by the Schema
+  package
+- THEN their definition, value-source, target, missing-value, and URL-resolution
+  semantics remain independent from table rendering
+- AND a later list, record-result, item-view, or other record-scoped placement
+  can reuse those contracts without introducing an app-specific link language
+- AND the initial table placement does not synthesize list, record-result,
+  workspace, screen, or collection-toolbar links
+
 ### Requirement: Schema Package Boundary
 
 The system SHALL expose reusable App schema language contracts, parsers, and
@@ -667,8 +776,8 @@ pure helpers through the Schema package slice.
   slices need App schema types, parse behavior, stringify behavior,
   schema-local entity key helpers, qualified entity name helpers, field
   behavior, query helpers, read model helpers, create-default helpers, runtime
-  metadata helpers, operation capability facts, or derived command capability
-  facts
+  metadata helpers, record-link helpers, operation capability facts, or derived
+  command capability facts
 - **THEN** they import those contracts and helpers from
   `@dpeek/formless-schema`
 - **AND** they do not import package-owned schema behavior from unexported

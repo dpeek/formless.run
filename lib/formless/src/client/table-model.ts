@@ -280,6 +280,28 @@ function selectTableColumns(
       ];
     }
 
+    if (column.type === "linkControl") {
+      const link = view.links?.find((definition) => definition.key === column.link);
+      if (!link) {
+        throw new Error(`Missing table link "${column.link}".`);
+      }
+
+      return [
+        {
+          type: "linkControl",
+          key: `linkControl:${link.key}`,
+          linkName: link.key,
+          link,
+          label: column.label ?? "",
+          headerLabel: column.label ?? link.label,
+          ...(column.align === undefined ? { align: "end" as const } : { align: column.align }),
+          ...(column.width === undefined ? { width: "xs" as const } : { width: column.width }),
+          display: "readOnly",
+          format: "plain",
+        },
+      ];
+    }
+
     const selectedField = selectAddressableRecordFieldConfig(entity, column.field);
     const stateMachine =
       selectedField.fieldRef.kind === "value"
@@ -355,7 +377,11 @@ function tableFooterColumnName(column: TableColumnConfig) {
     return column.computedValueName;
   }
 
-  if (column.type === "operationControl" || column.type === "orderingHandle") {
+  if (
+    column.type === "linkControl" ||
+    column.type === "operationControl" ||
+    column.type === "orderingHandle"
+  ) {
     return "";
   }
 

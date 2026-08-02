@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import type { FieldSchema } from "@dpeek/formless-schema";
 import type {
   ButtonContract,
+  NativeLinkActionContract,
   TableActionContract,
   TableActionGroupContract,
   TableColumnContract,
@@ -146,6 +147,76 @@ describe("Astryx table renderer", () => {
     expect(trigger).toBeDefined();
     expect(trigger).toMatch(/disabled|aria-disabled/);
     expect(html).toContain("Editing is unavailable");
+  });
+
+  it("renders available and unavailable native record links without link intents", () => {
+    const newTabLink = nativeLinkAction({
+      availability: "available",
+      href: "https://example.test/open?task=task-1",
+      target: "newTab",
+    });
+    const newTabHtml = renderTable(withTableLinkAction(tableFixture(), newTabLink));
+    const newTabAnchor = newTabHtml.match(
+      /<a[^>]*aria-label="Open external details for Prepare launch"[^>]*>/,
+    )?.[0];
+
+    expect(newTabAnchor).toBeDefined();
+    expect(newTabAnchor).toContain('href="https://example.test/open?task=task-1"');
+    expect(newTabAnchor).toContain('target="_blank"');
+    expect(newTabAnchor).toContain('rel="noopener noreferrer"');
+    expect(newTabHtml).toContain("Open external");
+    expect(newTabHtml).toContain("Open task");
+    expect(newTabHtml).toContain("Edit task");
+
+    const sameTabHtml = renderTable(
+      withTableLinkAction(
+        tableFixture(),
+        nativeLinkAction({
+          availability: "available",
+          href: "https://example.test/open?task=task-1",
+          target: "sameTab",
+        }),
+      ),
+    );
+    const sameTabAnchor = sameTabHtml.match(
+      /<a[^>]*aria-label="Open external details for Prepare launch"[^>]*>/,
+    )?.[0];
+
+    expect(sameTabAnchor).toBeDefined();
+    expect(sameTabAnchor).not.toContain("target=");
+    expect(sameTabAnchor).not.toContain("rel=");
+
+    const unavailableLink = nativeLinkAction({ availability: "unavailable", target: "newTab" });
+    const unavailableHtml = renderTable(withTableLinkAction(tableFixture(), unavailableLink));
+    const unavailableControl = unavailableHtml.match(
+      /<button[^>]*aria-label="Open external details for Prepare launch"[^>]*>/,
+    )?.[0];
+
+    expect(unavailableControl).toBeDefined();
+    expect(unavailableControl).toMatch(/disabled|aria-disabled/);
+    expect(unavailableControl).not.toContain("href=");
+    expect(unavailableHtml).toContain("Link destination is unavailable.");
+    expect(
+      astryxTableSecondaryActionItems(
+        [newTabLink],
+        () => undefined,
+        () => undefined,
+      ),
+    ).toEqual([]);
+
+    const tableIntents: TableIntent[] = [];
+    const operationIntents: unknown[] = [];
+    dispatchAstryxTableAction(
+      newTabLink,
+      (_action, intent) => {
+        operationIntents.push(intent);
+      },
+      (intent) => {
+        tableIntents.push(intent);
+      },
+    );
+    expect(tableIntents).toEqual([]);
+    expect(operationIntents).toEqual([]);
   });
 
   it("keeps table-cell field validation compact and exposes the message through a tooltip", () => {
@@ -620,6 +691,89 @@ function withTableActionGroup(
       },
     ],
   };
+}
+
+function withTableLinkAction(
+  table: TableContract,
+  action: NativeLinkActionContract,
+): TableContract {
+  const linkColumn = {
+    accessibilityLabel: "External destination",
+    alignment: "end",
+    contentRole: "actions",
+    id: "record-link",
+    isRowHeader: false,
+    kind: "tableColumn",
+    label: "External",
+    labelVisibility: "visible",
+    width: "sm",
+  } as const;
+
+  return {
+    ...table,
+    columns: [...table.columns.slice(0, -1), linkColumn, table.columns.at(-1)!],
+    footer: table.footer
+      ? {
+          ...table.footer,
+          cells: [
+            ...table.footer.cells.slice(0, -1),
+            { columnId: linkColumn.id, id: "footer:record-link", kind: "emptyFooterCell" },
+            table.footer.cells.at(-1)!,
+          ],
+        }
+      : undefined,
+    rows: table.rows.map((row) => ({
+      ...row,
+      cells: [
+        ...row.cells.slice(0, -1),
+        {
+          columnId: linkColumn.id,
+          contents: [
+            {
+              id: `${row.id}:record-link-actions`,
+              kind: "actionGroup",
+              primary: [action],
+              secondary: [],
+              secondaryAccessibilityLabel: `More links for ${row.accessibilityLabel}`,
+            },
+          ],
+          id: `${row.id}:record-link`,
+          kind: "tableCell",
+        },
+        row.cells.at(-1)!,
+      ],
+    })),
+  };
+}
+
+function nativeLinkAction(
+  options:
+    | {
+        availability: "available";
+        href: string;
+        target: NativeLinkActionContract["target"];
+      }
+    | {
+        availability: "unavailable";
+        target: NativeLinkActionContract["target"];
+      },
+): NativeLinkActionContract {
+  const base = {
+    accessibilityLabel: "Open external details for Prepare launch",
+    id: "task-1:record-link",
+    kind: "nativeLinkAction" as const,
+    label: "Open external",
+    prominence: "primary" as const,
+    target: options.target,
+  };
+
+  return options.availability === "available"
+    ? { ...base, availability: "available", href: options.href }
+    : {
+        ...base,
+        availability: "unavailable",
+        unavailableReason: "Link destination is unavailable.",
+      };
 }
 
 function withTableTitleField(table: TableContract, field: typeof editableTitle): TableContract {

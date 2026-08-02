@@ -1,6 +1,7 @@
 import type {
   ButtonContract,
   FieldContract,
+  NativeLinkActionContract,
   OperationControlContract,
   SemanticIconId,
   TableActionContract,
@@ -70,6 +71,23 @@ export type ProjectGeneratedTableInvokeActionOptions = {
   role: TableInvokeActionContract["role"];
   rowId: string;
   tableId: string;
+};
+
+export type ProjectGeneratedNativeLinkActionOptions = {
+  accessibilityLabel: string;
+  id: string;
+  label: string;
+  prominence?: NativeLinkActionContract["prominence"];
+  resolution:
+    | {
+        href: string;
+        kind: "available";
+      }
+    | {
+        kind: "unavailable";
+        reason: string;
+      };
+  target: NativeLinkActionContract["target"];
 };
 
 export type ProjectGeneratedTableEditActionOptions = {
@@ -239,6 +257,32 @@ export function projectGeneratedTableOperationAction(
     kind: "operationAction",
     role,
   };
+}
+
+export function projectGeneratedNativeLinkAction({
+  accessibilityLabel,
+  id,
+  label,
+  prominence = "primary",
+  resolution,
+  target,
+}: ProjectGeneratedNativeLinkActionOptions): NativeLinkActionContract {
+  const base = {
+    accessibilityLabel,
+    id,
+    kind: "nativeLinkAction" as const,
+    label,
+    prominence,
+    target,
+  };
+
+  return resolution.kind === "available"
+    ? { ...base, availability: "available", href: resolution.href }
+    : {
+        ...base,
+        availability: "unavailable",
+        unavailableReason: resolution.reason,
+      };
 }
 
 export function projectGeneratedTableInvokeAction({
@@ -439,6 +483,10 @@ function tableColumnContentRole(column: GeneratedTableColumnPresentation): Table
   }
 
   if (column.column.type === "operationControl") {
+    return "actions";
+  }
+
+  if (column.column.type === "linkControl") {
     return "actions";
   }
 

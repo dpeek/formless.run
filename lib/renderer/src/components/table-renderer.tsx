@@ -40,6 +40,7 @@ import {
 import type {
   ButtonContract,
   FieldIntent,
+  NativeLinkActionContract,
   OperationButtonContract,
   OperationPresentationIntent,
   TableActionContract,
@@ -515,6 +516,10 @@ function AstryxTablePrimaryAction({
   onOperationIntent: AstryxTableOperationIntentHandler;
   onTableIntent: TableIntentHandler;
 }) {
+  if (action.kind === "nativeLinkAction") {
+    return <AstryxNativeLinkAction action={action} />;
+  }
+
   if (action.kind === "operationAction") {
     const onIntent = (intent: OperationPresentationIntent) => onOperationIntent(action, intent);
 
@@ -548,6 +553,25 @@ function AstryxTablePrimaryAction({
       variant={astryxTableButtonVariant(button.prominence)}
     >
       {button.content.kind === "iconOnly" ? undefined : astryxTableButtonLabel(button)}
+    </Button>
+  );
+}
+
+function AstryxNativeLinkAction({ action }: { action: NativeLinkActionContract }) {
+  const opensInNewTab = action.target === "newTab";
+
+  return (
+    <Button
+      href={action.availability === "available" ? action.href : undefined}
+      isDisabled={action.availability === "unavailable"}
+      label={action.accessibilityLabel}
+      rel={opensInNewTab && action.availability === "available" ? "noopener noreferrer" : undefined}
+      size="sm"
+      target={opensInNewTab && action.availability === "available" ? "_blank" : undefined}
+      tooltip={action.availability === "unavailable" ? action.unavailableReason : undefined}
+      variant={action.prominence}
+    >
+      {action.label}
     </Button>
   );
 }
@@ -765,15 +789,21 @@ export function astryxTableSecondaryActionItems(
   onOperationIntent: AstryxTableOperationIntentHandler,
   onTableIntent: TableIntentHandler,
 ): DropdownMenuOption[] {
-  return actions.map((action) => {
+  return actions.flatMap((action): DropdownMenuOption[] => {
+    if (action.kind === "nativeLinkAction") {
+      return [];
+    }
+
     const button = astryxTableActionButton(action);
 
-    return {
-      icon: astryxTableButtonIcon(button),
-      isDisabled: astryxTableButtonDisabled(button),
-      label: astryxTableMenuItemLabel(button),
-      onClick: () => dispatchAstryxTableAction(action, onOperationIntent, onTableIntent),
-    };
+    return [
+      {
+        icon: astryxTableButtonIcon(button),
+        isDisabled: astryxTableButtonDisabled(button),
+        label: astryxTableMenuItemLabel(button),
+        onClick: () => dispatchAstryxTableAction(action, onOperationIntent, onTableIntent),
+      },
+    ];
   });
 }
 
@@ -821,6 +851,10 @@ export function dispatchAstryxTableAction(
   onOperationIntent: AstryxTableOperationIntentHandler,
   onTableIntent: TableIntentHandler,
 ) {
+  if (action.kind === "nativeLinkAction") {
+    return;
+  }
+
   const button = astryxTableActionButton(action);
 
   if (astryxTableButtonDisabled(button)) {
@@ -868,6 +902,10 @@ function astryxTableCellStyle(
 }
 
 function astryxTableActionButton(action: TableActionContract) {
+  if (action.kind === "nativeLinkAction") {
+    throw new Error("Native links do not expose table action buttons.");
+  }
+
   return action.kind === "operationAction" ? action.control.trigger : action.trigger;
 }
 
@@ -900,6 +938,10 @@ function astryxTableOrderingActionDisabled(action: TableOrderingContract["action
 }
 
 function astryxTableActionId(action: TableActionContract) {
+  if (action.kind === "nativeLinkAction") {
+    return action.id;
+  }
+
   return action.kind === "operationAction" ? action.control.id : action.trigger.id;
 }
 

@@ -651,6 +651,29 @@ export type ActionTriggerContract = ActionControlBase & {
   operationName?: string;
 };
 
+type NativeLinkActionBaseContract = {
+  accessibilityLabel: string;
+  id: string;
+  kind: "nativeLinkAction";
+  label: string;
+  prominence: "primary" | "secondary";
+  target: "newTab" | "sameTab";
+};
+
+export type NativeLinkActionContract = NativeLinkActionBaseContract &
+  (
+    | {
+        availability: "available";
+        href: string;
+        unavailableReason?: never;
+      }
+    | {
+        availability: "unavailable";
+        href?: never;
+        unavailableReason: string;
+      }
+  );
+
 export type MenuItemContract = ActionControlBase & {
   invoke: ActionTriggerIntent;
   invocationSource: Extract<OperationInvocationSource, "menuItem">;
@@ -1235,6 +1258,7 @@ export type TableEditActionContract = {
 export type TableActionContract =
   | TableEditActionContract
   | TableInvokeActionContract
+  | NativeLinkActionContract
   | TableOperationActionContract;
 
 export type TableActionGroupContract = {

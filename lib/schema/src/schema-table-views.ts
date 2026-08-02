@@ -7,6 +7,7 @@ import {
   parseRequiredNonEmptyString,
 } from "./schema-parse-helpers.ts";
 import { parseOptionalResultOrdering } from "./schema-ordering.ts";
+import { parseRecordLinks } from "./schema-record-links.ts";
 import { isSystemFieldName } from "./fields.ts";
 import { isFieldCommitPolicy, isFieldEditor } from "./field-types.ts";
 import { formatEntityOperationKey, parseEntityOperationKey } from "./schema-operations.ts";
@@ -16,6 +17,8 @@ import type {
   FieldSchema,
   ItemViewSchema,
   KeyedDefinition,
+  LinkControlTableColumnSchema,
+  RecordLinkSchema,
   ReadModelSchema,
   TableColumnAlign,
   TableColumnDisplay,
@@ -65,7 +68,7 @@ function parseTableView(
     `Table view "${tableViewName}"`,
     value,
     ["key", "entity", "columns"],
-    ["operations", "ordering"],
+    ["links", "operations", "ordering"],
   );
   const entityName = parseRequiredNonEmptyString(
     `Table view "${tableViewName}" entity`,
@@ -84,6 +87,13 @@ function parseTableView(
     entity,
     entities,
   );
+  const links = parseRecordLinks(
+    `Table view "${tableViewName}" links`,
+    value.links,
+    entityName,
+    entity,
+    entities,
+  );
   const ordering = parseOptionalResultOrdering(
     `Table view "${tableViewName}" ordering`,
     value.ordering,
@@ -98,12 +108,14 @@ function parseTableView(
     itemViews,
     entities,
     definitionsToRecord(readModels?.computedValues),
+    links,
     operations,
     ordering,
   );
 
   return {
     entity: entityName,
+    ...(links === undefined ? {} : { links }),
     ...(operations === undefined ? {} : { operations }),
     ...(ordering === undefined ? {} : { ordering }),
     columns,
@@ -259,6 +271,7 @@ function parseTableColumns(
   itemViews: Record<string, ItemViewSchema>,
   entities: Record<string, EntitySchema>,
   computedValues: Record<string, ComputedValueSchema>,
+  links: KeyedDefinition<RecordLinkSchema>[] | undefined,
   operations: TableOperationBindingSchema[] | undefined,
   ordering: ResultOrderingSchema | undefined,
 ): TableColumnSchema[] {
@@ -276,6 +289,7 @@ function parseTableColumns(
       itemViews,
       entities,
       computedValues,
+      links,
       operations,
       ordering,
     ),
@@ -291,6 +305,7 @@ function parseTableColumn(
   itemViews: Record<string, ItemViewSchema>,
   entities: Record<string, EntitySchema>,
   computedValues: Record<string, ComputedValueSchema>,
+  links: KeyedDefinition<RecordLinkSchema>[] | undefined,
   operations: TableOperationBindingSchema[] | undefined,
   ordering: ResultOrderingSchema | undefined,
 ): TableColumnSchema {
@@ -312,17 +327,45 @@ function parseTableColumn(
     return parseOperationControlTableColumn(context, value, operations, ordering);
   }
 
+  if (value.type === "linkControl") {
+    return parseLinkControlTableColumn(context, value, links);
+  }
+
   if (value.type === "orderingHandle") {
     return parseOrderingHandleTableColumn(context, value, ordering);
   }
 
   if (value.type !== undefined && value.type !== "field") {
     throw new Error(
-      `${context} type must be "field", "referenceField", "computed", "operationControl", or "orderingHandle".`,
+      `${context} type must be "field", "referenceField", "computed", "linkControl", "operationControl", or "orderingHandle".`,
     );
   }
 
   return parseFieldTableColumn(context, value, entityName, entity, itemViews);
+}
+
+function parseLinkControlTableColumn(
+  context: string,
+  value: Record<string, unknown>,
+  links: KeyedDefinition<RecordLinkSchema>[] | undefined,
+): LinkControlTableColumnSchema {
+  assertExactKeys(context, value, ["type", "link"], ["label", "align", "width"]);
+  const link = parseRequiredNonEmptyString(`${context} link`, value.link);
+  if (!links?.some((definition) => definition.key === link)) {
+    throw new Error(`${context} references unknown table link "${link}".`);
+  }
+
+  const label = parseOptionalNonEmptyString(`${context} label`, value.label);
+  const align = parseOptionalTableColumnAlign(`${context} align`, value.align);
+  const width = parseOptionalTableColumnWidth(`${context} width`, value.width);
+
+  return {
+    type: "linkControl",
+    link,
+    ...(label === undefined ? {} : { label }),
+    ...(align === undefined ? {} : { align }),
+    ...(width === undefined ? {} : { width }),
+  };
 }
 
 function parseFieldTableColumn(
@@ -1026,7 +1069,11 @@ export function tableFooterColumnName(column: TableColumnSchema) {
     return column.computedValue;
   }
 
-  if (column.type === "operationControl" || column.type === "orderingHandle") {
+  if (
+    column.type === "linkControl" ||
+    column.type === "operationControl" ||
+    column.type === "orderingHandle"
+  ) {
     return undefined;
   }
 

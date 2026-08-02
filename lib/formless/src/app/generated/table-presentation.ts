@@ -339,7 +339,9 @@ function emptyFooterCell(
 
 function tableHeaderPresentation(column: TableColumnConfig): GeneratedTableHeaderPresentation {
   const accessibleLabel =
-    column.type === "operationControl" || column.type === "orderingHandle"
+    column.type === "linkControl" ||
+    column.type === "operationControl" ||
+    column.type === "orderingHandle"
       ? column.headerLabel
       : column.label;
 
@@ -397,7 +399,11 @@ function selectRowHeaderColumnIndex(columns: TableColumnConfig[]) {
 }
 
 function isUtilityColumn(column: TableColumnConfig) {
-  return column.type === "operationControl" || column.type === "orderingHandle";
+  return (
+    column.type === "linkControl" ||
+    column.type === "operationControl" ||
+    column.type === "orderingHandle"
+  );
 }
 
 function labelFieldsForTableColumns(columns: TableColumnConfig[]): RecordLabelFieldConfig[] {

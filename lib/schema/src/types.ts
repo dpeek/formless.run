@@ -450,6 +450,63 @@ export type TableOperationControlAvailabilityState = "visible" | "hidden" | "dis
 export type TableOperationControlPresentation = "button" | "dropdown";
 export type ResultOrderingPresentation = "moveMenu" | "dragHandle";
 
+export type RecordLinkTarget = "sameTab" | "newTab";
+export type RecordLinkMissingBehavior = "disable" | "omit";
+
+export type RecordLinkValueSourceSchema =
+  | {
+      kind: "literal";
+      value: FieldValue;
+    }
+  | {
+      kind: "field";
+      field: string;
+    }
+  | {
+      kind: "referenceField";
+      referenceField: string;
+      targetEntity: string;
+      field: string;
+    };
+
+export type RecordLinkValueSourceSchemaSource =
+  | Exclude<RecordLinkValueSourceSchema, { kind: "referenceField" }>
+  | Omit<Extract<RecordLinkValueSourceSchema, { kind: "referenceField" }>, "targetEntity">;
+
+export type RecordLinkQueryParameterSchema = {
+  name: string;
+  source: RecordLinkValueSourceSchema;
+  missing: RecordLinkMissingBehavior;
+};
+
+export type RecordLinkQueryParameterSchemaSource = Omit<
+  RecordLinkQueryParameterSchema,
+  "missing" | "source"
+> & {
+  source: RecordLinkValueSourceSchemaSource;
+  missing?: RecordLinkMissingBehavior;
+};
+
+export type RecordLinkUrlDestinationSchema = {
+  type: "url";
+  base: string;
+  query: RecordLinkQueryParameterSchema[];
+};
+
+export type RecordLinkUrlDestinationSchemaSource = Omit<RecordLinkUrlDestinationSchema, "query"> & {
+  query: RecordLinkQueryParameterSchemaSource[];
+};
+
+export type RecordLinkSchema = {
+  label: string;
+  target: RecordLinkTarget;
+  destination: RecordLinkUrlDestinationSchema;
+};
+
+export type RecordLinkSchemaSource = Omit<RecordLinkSchema, "destination"> & {
+  destination: RecordLinkUrlDestinationSchemaSource;
+};
+
 export type TableOperationControlAvailabilitySchema = {
   state: TableOperationControlAvailabilityState;
   reason?: string;
@@ -541,10 +598,20 @@ export type OrderingHandleTableColumnSchema = {
   display?: TableColumnDisplay;
 };
 
+export type LinkControlTableColumnSchema = {
+  type: "linkControl";
+  link: string;
+  label?: string;
+  align?: TableColumnAlign;
+  width?: TableColumnWidth;
+  display?: undefined;
+};
+
 export type TableColumnSchema =
   | FieldTableColumnSchema
   | ReferenceFieldTableColumnSchema
   | ComputedTableColumnSchema
+  | LinkControlTableColumnSchema
   | OperationControlTableColumnSchema
   | OrderingHandleTableColumnSchema;
 
@@ -559,9 +626,14 @@ export type TableOperationBindingSchema = {
 
 export type TableViewSchema = {
   entity: string;
+  links?: KeyedDefinition<RecordLinkSchema>[];
   operations?: TableOperationBindingSchema[];
   ordering?: ResultOrderingSchema;
   columns: TableColumnSchema[];
+};
+
+export type TableViewSchemaSource = Omit<TableViewSchema, "links"> & {
+  links?: KeyedDefinition<RecordLinkSchemaSource>[];
 };
 
 export type CreateDefaultValueSchema =
@@ -1509,13 +1581,14 @@ export type AppSchemaDefinitionIndex = {
  */
 export type AppSchemaSource = Omit<
   AppSchema,
-  "authorization" | "entities" | "navigation" | "screens" | "version" | "views"
+  "authorization" | "entities" | "navigation" | "screens" | "tableViews" | "version" | "views"
 > & {
   version: 1;
   authorization?: AppAuthorizationSchemaSource;
   entities: KeyedDefinition<EntitySchemaSource>[];
   navigation?: AppNavigationSchemaSource;
   screens: KeyedDefinition<ScreenSchemaSource>[];
+  tableViews: KeyedDefinition<TableViewSchemaSource>[];
   views: KeyedDefinition<ViewSchemaSource>[];
 };
 

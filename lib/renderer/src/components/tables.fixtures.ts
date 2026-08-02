@@ -2,6 +2,7 @@ import type { FieldSchema, StateMachineSchema } from "@dpeek/formless-schema";
 import type {
   ButtonContract,
   FieldContract,
+  NativeLinkActionContract,
   TableActionContract,
   TableActionGroupContract,
   TableColumnContract,
@@ -138,6 +139,24 @@ const tableColumns = [
   },
 ] satisfies readonly TableColumnContract[];
 
+const recordLinkColumn = {
+  accessibilityLabel: "External destination",
+  alignment: "end",
+  contentRole: "actions",
+  id: "record-link",
+  isRowHeader: false,
+  kind: "tableColumn",
+  label: "External",
+  labelVisibility: "visible",
+  width: "sm",
+} satisfies TableColumnContract;
+
+const tableColumnsWithRecordLink = [
+  ...tableColumns.slice(0, -1),
+  recordLinkColumn,
+  tableColumns.at(-1)!,
+] satisfies readonly TableColumnContract[];
+
 export function createTableFixtures(): TableFixture[] {
   return [
     {
@@ -204,7 +223,7 @@ function activeTableFixture(): TableContract {
 
   return {
     accessibilityLabel: "Tasks",
-    columns: tableColumns,
+    columns: tableColumnsWithRecordLink,
     density: "default",
     editing: { enabled: true },
     footer: taskFooter("18"),
@@ -217,7 +236,7 @@ function activeTableFixture(): TableContract {
 function emptyTableFixture(): TableContract {
   return {
     accessibilityLabel: "Empty tasks",
-    columns: tableColumns,
+    columns: tableColumnsWithRecordLink,
     density: "default",
     editing: { enabled: true },
     emptyState: {
@@ -235,7 +254,7 @@ function emptyTableFixture(): TableContract {
 function editingDisabledTableFixture(): TableContract {
   return {
     accessibilityLabel: "Read-only tasks",
-    columns: tableColumns,
+    columns: tableColumnsWithRecordLink,
     density: "default",
     editing: {
       disabledReason: "Editing requires an owner session.",
@@ -339,6 +358,20 @@ function taskRow(input: TaskRowInput): TableRowContract {
         columnId: "score",
         contents: [taskScore(input)],
         id: `${input.rowId}:score`,
+        kind: "tableCell",
+      },
+      {
+        columnId: recordLinkColumn.id,
+        contents: [
+          {
+            id: `${input.rowId}:record-link-actions`,
+            kind: "actionGroup",
+            primary: [taskRecordLink(input)],
+            secondary: [],
+            secondaryAccessibilityLabel: `More links for ${input.title}`,
+          },
+        ],
+        id: `${input.rowId}:record-link`,
         kind: "tableCell",
       },
       {
@@ -465,6 +498,31 @@ function taskScore(input: Pick<TaskRowInput, "score" | "title">) {
     suffix: "points",
     valueKind: "computed",
   } as const;
+}
+
+function taskRecordLink(
+  input: Pick<TaskRowInput, "index" | "rowId" | "title">,
+): NativeLinkActionContract {
+  const base = {
+    accessibilityLabel: `Open external details for ${input.title}`,
+    id: `${input.rowId}:record-link`,
+    kind: "nativeLinkAction" as const,
+    label: "Open details",
+    prominence: "primary" as const,
+    target: input.index === 2 ? ("sameTab" as const) : ("newTab" as const),
+  };
+
+  return input.index === 1
+    ? {
+        ...base,
+        availability: "unavailable",
+        unavailableReason: "Link destination is unavailable.",
+      }
+    : {
+        ...base,
+        availability: "available",
+        href: `https://example.test/tasks/${input.rowId}`,
+      };
 }
 
 function taskOrdering(input: TaskRowInput): TableOrderingContract {
@@ -613,7 +671,7 @@ function tableButton({
 function taskFooter(total: string): NonNullable<TableContract["footer"]> {
   return {
     accessibilityLabel: "Task aggregates",
-    cells: tableColumns.map((column) =>
+    cells: tableColumnsWithRecordLink.map((column) =>
       column.id === "score"
         ? {
             accessibilityLabel: `Total available score: ${total} points`,

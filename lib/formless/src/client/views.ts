@@ -15,6 +15,8 @@ import type {
   FieldVisibilityConditionSchema,
   FieldVisibilityValue,
   FieldSchema,
+  KeyedDefinition,
+  RecordLinkSchema,
   ScreenAccessRequirement,
   ScreenLayoutWidthSchema,
   ScreenSchema,
@@ -197,6 +199,13 @@ export type ComputedTableColumnConfig = TableColumnBaseConfig & {
   computedValue: ComputedValueSchema;
 };
 
+export type LinkControlTableColumnConfig = TableColumnBaseConfig & {
+  type: "linkControl";
+  headerLabel: string;
+  linkName: string;
+  link: KeyedDefinition<RecordLinkSchema>;
+};
+
 export type TableOperationControlBaseConfig = {
   bindingName: string;
   operation?: EntityOperationPresentationConfig;
@@ -269,6 +278,7 @@ export type TableColumnConfig =
   | FieldTableColumnConfig
   | ReferenceFieldTableColumnConfig
   | ComputedTableColumnConfig
+  | LinkControlTableColumnConfig
   | OperationControlTableColumnConfig
   | OrderingHandleTableColumnConfig;
 

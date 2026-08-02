@@ -81,7 +81,7 @@ describe("schema table views", () => {
         ),
       }),
     ).toThrow(
-      'Table view "rateTable" column 0 type must be "field", "referenceField", "computed", "operationControl", or "orderingHandle".',
+      'Table view "rateTable" column 0 type must be "field", "referenceField", "computed", "linkControl", "operationControl", or "orderingHandle".',
     );
   });
   it("parses system field display columns without requiring value fields", () => {

@@ -10,6 +10,7 @@ import type {
 } from "@dpeek/formless-presentation/contract";
 import {
   evaluateNumericExpression,
+  resolveRecordLink,
   resolveRecordFieldValue,
   type AppSchema,
   type EntitySchema,
@@ -53,6 +54,7 @@ import {
   projectGeneratedTableFieldContent,
   projectGeneratedTableContract,
   projectGeneratedTableInvokeAction,
+  projectGeneratedNativeLinkAction,
   projectGeneratedTableOperationAction,
   projectGeneratedTableOrdering,
   type GeneratedTablePlacedAction,
@@ -678,6 +680,24 @@ function projectGeneratedTableCell({
       ),
     );
     return contents;
+  }
+
+  if (column.type === "linkControl") {
+    const action = projectGeneratedNativeLinkAction({
+      accessibilityLabel: `${column.link.label} for ${recordLabel(record, entityName, record.id)}`,
+      id: `${cell.id}:link`,
+      label: column.link.label,
+      resolution: resolveRecordLink(column.link, record, recordsById),
+      target: column.link.target,
+    });
+
+    return [
+      projectGeneratedTableActionGroup({
+        actions: [{ action, placement: "primary" }],
+        id: `${cell.id}:actions`,
+        secondaryAccessibilityLabel: `More links for ${recordLabel(record, entityName, record.id)}`,
+      }),
+    ];
   }
 
   if (column.type === "referenceField") {
