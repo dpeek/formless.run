@@ -85,8 +85,9 @@ describe("Astryx application shell renderer", () => {
     expect(document.activeElement).toBe(statusTrigger);
     expect(statusDetails.textContent).toContain("Sync issue");
     expect(statusDetails.textContent).toContain("Sync failed. Try again.");
-    expect(statusDetails.textContent).toContain("ProgramFormless Program");
+    expect(statusDetails.textContent).toContain("Schemav8");
     expect(statusDetails.textContent).toContain("Cursor27");
+    expect(statusDetails.querySelector('time[datetime="2026-07-16T01:00:00.000Z"]')).not.toBeNull();
     expect(statusDetails.textContent).toContain("Queued");
     expect(statusDetails.textContent).toContain("Workspace changes are queued.");
     expect(requiredByProps(container, { "aria-label": "Ada Lovelace", role: "img" })).toBeDefined();
@@ -372,8 +373,13 @@ function shellSections(
         kind: "shellStatus",
         sync: {
           details: [
-            { label: "Program", value: "Formless Program" },
-            { label: "Cursor", value: "27" },
+            { label: "Schema", presentation: "text", value: "v8" },
+            { label: "Cursor", presentation: "text", value: "27" },
+            {
+              label: "Last sync",
+              presentation: "timestamp",
+              value: "2026-07-16T01:00:00.000Z",
+            },
           ],
           id: "sync:tasks",
           kind: "shellSyncStatus",

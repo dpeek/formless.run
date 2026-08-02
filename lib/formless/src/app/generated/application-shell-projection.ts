@@ -201,10 +201,15 @@ export function selectGeneratedShellSyncStatus({
 }: GeneratedShellSyncFacts): ShellSyncStatusContract {
   return {
     details: [
-      { label: "Program", value: "Formless Program" },
-      { label: "Schema", value: schemaVersion === null ? "Loading" : `v${schemaVersion}` },
-      { label: "Cursor", value: String(cursor) },
-      { label: "Last sync", value: lastSyncedAt ?? "None yet" },
+      {
+        label: "Schema",
+        presentation: "text",
+        value: schemaVersion === null ? "Loading" : `v${schemaVersion}`,
+      },
+      { label: "Cursor", presentation: "text", value: String(cursor) },
+      lastSyncedAt === null
+        ? { label: "Last sync", presentation: "text", value: "None yet" }
+        : { label: "Last sync", presentation: "timestamp", value: lastSyncedAt },
     ],
     id: `${GENERATED_APPLICATION_SHELL_ID}:sync`,
     kind: "shellSyncStatus",

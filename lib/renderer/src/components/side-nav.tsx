@@ -9,9 +9,9 @@ import { NavHeadingMenu, NavHeadingMenuItem } from "@astryxdesign/core/NavMenu";
 import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
 import { StatusDot, type StatusDotVariant } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
-import { colorVars, radiusVars } from "@astryxdesign/core/theme/tokens.stylex";
+import { Timestamp } from "@astryxdesign/core/Timestamp";
+import { radiusVars, spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
-import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import * as stylex from "@stylexjs/stylex";
 import { memo, type ReactNode } from "react";
 import type {
@@ -45,21 +45,8 @@ const shellStyles = stylex.create({
     maxWidth: 320,
     minWidth: 280,
   },
-  statusDot: {
-    insetBlockEnd: -2,
-    insetInlineEnd: -2,
-    position: "absolute",
-  },
-  statusIcon: {
-    alignItems: "center",
-    display: "inline-flex",
-    height: 16,
-    justifyContent: "center",
-    position: "relative",
-    width: 16,
-  },
-  statusIconError: {
-    color: colorVars["--color-error"],
+  statusMessage: {
+    paddingInlineStart: spacingVars["--spacing-4"],
   },
   statusTrigger: {
     display: "inline-flex",
@@ -410,20 +397,11 @@ function AstryxShellStatus({ status }: { status: ShellStatusContract }) {
       <span {...stylex.props(shellStyles.statusTrigger)}>
         <IconButton
           icon={
-            <span
-              {...stylex.props(
-                shellStyles.statusIcon,
-                sync.state === "error" && shellStyles.statusIconError,
-              )}
-            >
-              <ArrowPathIcon aria-hidden="true" />
-              <StatusDot
-                isPulsing={sync.state === "syncing"}
-                label={sync.label}
-                variant={dotVariant}
-                xstyle={shellStyles.statusDot}
-              />
-            </span>
+            <StatusDot
+              isPulsing={sync.state === "syncing"}
+              label={sync.label}
+              variant={dotVariant}
+            />
           }
           label={`Sync status: ${sync.label}`}
           size="sm"
@@ -444,26 +422,37 @@ function AstryxShellStatusDetails({ status }: { status: ShellStatusContract }) {
           role={status.sync.state === "error" ? "alert" : "status"}
           width="100%"
         >
-          <HStack align="start" gap={2} width="100%">
-            <StatusDot
-              isPulsing={status.sync.state === "syncing"}
-              label={status.sync.label}
-              variant={syncStatusDotVariant(status.sync.state)}
-            />
-            <VStack gap={0.5}>
+          <VStack gap={0.5} width="100%">
+            <HStack align="center" gap={2} width="100%">
+              <StatusDot
+                isPulsing={status.sync.state === "syncing"}
+                label={status.sync.label}
+                variant={syncStatusDotVariant(status.sync.state)}
+              />
               <Text type="label" weight="medium">
                 {status.sync.label}
               </Text>
-              <Text color="secondary" type="supporting">
-                {status.sync.message}
-              </Text>
-            </VStack>
-          </HStack>
+            </HStack>
+            <Text color="secondary" type="supporting" xstyle={shellStyles.statusMessage}>
+              {status.sync.message}
+            </Text>
+          </VStack>
           {status.sync.details ? (
             <MetadataList columns="single">
               {status.sync.details.map((detail) => (
                 <MetadataListItem key={detail.label} label={detail.label}>
-                  {detail.value}
+                  {detail.presentation === "timestamp" ? (
+                    <Timestamp
+                      color="primary"
+                      format="auto"
+                      hasTooltip={false}
+                      isLive
+                      type="body"
+                      value={detail.value}
+                    />
+                  ) : (
+                    detail.value
+                  )}
                 </MetadataListItem>
               ))}
             </MetadataList>

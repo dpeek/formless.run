@@ -187,6 +187,15 @@ describe("generated application shell projection", () => {
         state: "saved",
       },
     });
+    expect(statusSection.status?.sync?.details).toEqual([
+      { label: "Schema", presentation: "text", value: `v${siteSourceSchema.version}` },
+      { label: "Cursor", presentation: "text", value: "27" },
+      {
+        label: "Last sync",
+        presentation: "timestamp",
+        value: "2026-07-16T01:00:00.000Z",
+      },
+    ]);
     expect(sessionSection.session).toMatchObject({
       identity: { displayName: "Ada Lovelace", secondaryLabel: "ada@example.com" },
       state: "authenticated",

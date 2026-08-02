@@ -1920,11 +1920,14 @@ export type ShellDestinationContract =
   | ShellLinkDestinationContract
   | ShellRootRecordDestinationContract;
 
+export type ShellSyncStatusDetailContract = {
+  label: string;
+  presentation: "text" | "timestamp";
+  value: string;
+};
+
 export type ShellSyncStatusContract = {
-  details?: readonly {
-    label: string;
-    value: string;
-  }[];
+  details?: readonly ShellSyncStatusDetailContract[];
   id: string;
   kind: "shellSyncStatus";
   label: string;

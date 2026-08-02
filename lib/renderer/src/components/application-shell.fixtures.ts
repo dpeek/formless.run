@@ -7,6 +7,7 @@ import type {
   DocumentThemeMode,
   ShellManifestContract,
   ShellNavigationSectionContract,
+  ShellSyncStatusContract,
 } from "@dpeek/formless-presentation/contract";
 import { shellNavigationSectionReference } from "@dpeek/formless-presentation/host";
 
@@ -132,10 +133,13 @@ function devWorkbenchShell(): FormlessApplicationShellFixtureState {
     statusSection("tasks", {
       sync: {
         details: [
-          { label: "Program", value: "Formless Program" },
-          { label: "Schema", value: "v8" },
-          { label: "Cursor", value: "42" },
-          { label: "Last sync", value: "Just now" },
+          { label: "Schema", presentation: "text", value: "v8" },
+          { label: "Cursor", presentation: "text", value: "42" },
+          {
+            label: "Last sync",
+            presentation: "timestamp",
+            value: "2026-08-03T00:00:00.000Z",
+          },
         ],
         label: "Synced",
         message: "All local changes are synced.",
@@ -325,10 +329,7 @@ function statusSection(
   contextKey: string,
   options: {
     sync?: {
-      details?: readonly {
-        label: string;
-        value: string;
-      }[];
+      details?: ShellSyncStatusContract["details"];
       label: string;
       message: string;
       state: "error" | "idle" | "syncing";
