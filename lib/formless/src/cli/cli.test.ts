@@ -26,13 +26,22 @@ import type {
   CloudflareZone,
 } from "./cloudflare-domain-client.ts";
 import {
+  FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME,
+  parseFormlessProgramArtifact,
+} from "../program/artifact.ts";
+import { formlessProgramDefaultComposition } from "../program/schema.ts";
+import {
   FORMLESS_RUNTIME_PROTOCOL_VERSION,
   FORMLESS_STORAGE_MIGRATION_SET_ID,
 } from "../shared/deploy-metadata.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import { formatInstanceControlPlaneBoundaryEntityName } from "@dpeek/formless-instance-control-plane";
-import { formlessProgramSchema, formlessProgramSchemaProvenance } from "../program/runtime.ts";
+import {
+  formlessProgramSchema,
+  formlessProgramSchemaProvenance,
+  parseFormlessProgramSchemaArtifact,
+} from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
@@ -45,12 +54,16 @@ import {
   WORKSPACE_GATEWAY_SIDECAR_URL_ENV,
 } from "@dpeek/formless-gateway";
 import {
+  DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE,
+  DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
+  DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
   FORMLESS_CONFIG_FILE,
   WORKSPACE_OPERATION_KINDS,
   resolveFormlessConfig,
   workspaceOperationDefinitionForKind,
 } from "@dpeek/formless-workspace";
 import {
+  activeWorkspaceProgramArtifact,
   formatFormlessConfigModule,
   readWorkspaceConfig,
 } from "./instance-workspace-foundation.ts";
@@ -2962,12 +2975,112 @@ describe("Formless CLI", () => {
       "Bearer generated-token",
       "Bearer generated-token",
     ]);
+    expect(
+      capturedRequestJson<{ archive: InstanceArchive }>(requests.at(-1)).archive.program
+        .schemaProvenance,
+    ).toEqual(formlessProgramSchemaProvenance);
     await expect(
       stat(path.join(workspaceRoot, ".formless/local/wrangler/state.txt")),
     ).rejects.toMatchObject({ code: "ENOENT" });
     await expect(
       readFile(path.join(workspaceRoot, ".formless/local/dev.json"), "utf8"),
     ).resolves.toContain('"sourceUrl": "http://localhost:4450"');
+    expect(child.killed).toBe(false);
+  });
+
+  it("rebuilds custom Program local Authority state through dev --reset", async () => {
+    const tempDir = await makeTempDir();
+    const workspaceRoot = path.join(tempDir, "custom-program");
+    const customProgram = {
+      ...formlessProgramDefaultComposition,
+      navigation: {
+        primaryScreens: [
+          ...(formlessProgramDefaultComposition.navigation?.primaryScreens ?? []),
+        ].reverse(),
+      },
+    };
+    const child = new FakeCliDevChild();
+    const logs: string[] = [];
+    const requests: CapturedFetchRequest[] = [];
+    let childEnv: NodeJS.ProcessEnv | undefined;
+    let runFailure: unknown;
+
+    await writeWorkspaceConfig(workspaceRoot, {
+      program: customProgram,
+      runtime: {
+        composition: {
+          browser: DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE,
+          shared: DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
+          worker: DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
+        },
+      },
+    });
+    const { config } = await readWorkspaceConfig(workspaceRoot);
+    const customProgramArtifact = await activeWorkspaceProgramArtifact(config);
+    await writeWorkspaceControlPlaneStorageSnapshot(
+      workspaceRoot,
+      localOnlyControlPlaneRecords(),
+      parseFormlessProgramSchemaArtifact(customProgramArtifact.sourceSchema),
+    );
+    const savedState = JSON.parse(
+      await readFile(instanceWorkspaceInstanceStatePath(workspaceRoot, config), "utf8"),
+    ) as { schemaProvenance: InstanceArchive["program"]["schemaProvenance"] };
+
+    expect(savedState.schemaProvenance).toEqual(customProgramArtifact.schemaProvenance);
+
+    const run = runFormlessCli(
+      ["dev", "--workspace", workspaceRoot, "--reset"],
+      cliDeps(tempDir, {
+        deploy: async () => {
+          throw new Error("deploy should not run");
+        },
+        env: { PORT: "4452" },
+        fetch: localInstanceDevFetch(requests, []),
+        logs,
+        spawn: ((_command: string, _args: string[], options: CapturedSpawnOptions) => {
+          childEnv = options.env;
+          announceFakeCliDevServer(child, options.env);
+
+          return child as unknown as ReturnType<typeof spawn>;
+        }) as typeof spawn,
+      }),
+    );
+    void run.catch((error: unknown) => {
+      runFailure = error;
+    });
+
+    await waitUntil(
+      () => logs.some((line) => line.includes(LOCAL_SESSION_BOOTSTRAP_API_PATH)) || !!runFailure,
+    );
+    if (runFailure) {
+      throw runFailure;
+    }
+    child.close(0);
+    await run;
+
+    const runtimeArtifactPath = childEnv?.[FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME];
+    if (!runtimeArtifactPath) {
+      throw new Error("Expected custom Program runtime artifact path.");
+    }
+    const runtimeArtifact = await parseFormlessProgramArtifact(
+      JSON.parse(await readFile(runtimeArtifactPath, "utf8")) as unknown,
+    );
+    const restoreRequest = requests.find(
+      (request) =>
+        request.method === "POST" &&
+        new URL(request.url).pathname === "/api/formless/archive/restore",
+    );
+    const restoreArchive = capturedRequestJson<{ archive: InstanceArchive }>(
+      restoreRequest,
+    ).archive;
+
+    expect(customProgramArtifact.schemaProvenance).not.toEqual(formlessProgramSchemaProvenance);
+    expect(runtimeArtifact.schemaProvenance).toEqual(customProgramArtifact.schemaProvenance);
+    expect(restoreArchive.program.schemaProvenance).toEqual(customProgramArtifact.schemaProvenance);
+    expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
+      "GET http://localhost:4452/api/formless/program/bootstrap",
+      "POST http://localhost:4452/api/formless/archive/restore",
+    ]);
     expect(child.killed).toBe(false);
   });
 
@@ -3371,6 +3484,7 @@ function readDevSessionBootstrapUrl(logs: readonly string[]): URL {
 async function writeWorkspaceConfig(
   workspaceRoot: string,
   options: {
+    program?: Parameters<typeof resolveFormlessConfig>[0]["program"];
     runtime?: Parameters<typeof resolveFormlessConfig>[0]["runtime"];
   } = {},
 ) {
@@ -3379,6 +3493,7 @@ async function writeWorkspaceConfig(
     path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
     formatTestFormlessConfigModule({
       name: "personal-sites",
+      ...(options.program === undefined ? {} : { program: options.program }),
       ...(options.runtime === undefined ? {} : { runtime: options.runtime }),
     }),
   );
@@ -3387,12 +3502,13 @@ async function writeWorkspaceConfig(
 async function writeWorkspaceControlPlaneStorageSnapshot(
   workspaceRoot: string,
   records: StoredRecord[] = controlPlaneRecords(),
+  schema: StorageSnapshot["schema"] = formlessProgramSchema,
 ) {
   const manifest = (await readWorkspaceConfig(workspaceRoot)).config;
 
   await writeInstanceWorkspaceProgramStorageSnapshot({
     manifest,
-    snapshot: controlPlaneSnapshot(records),
+    snapshot: controlPlaneSnapshot(records, schema),
     workspaceRoot,
   });
 }
@@ -4319,7 +4435,10 @@ function responseQueue() {
   };
 }
 
-function controlPlaneSnapshot(records: StoredRecord[]): StorageSnapshot {
+function controlPlaneSnapshot(
+  records: StoredRecord[],
+  schema: StorageSnapshot["schema"] = formlessProgramSchema,
+): StorageSnapshot {
   return {
     kind: STORAGE_SNAPSHOT_KIND,
     version: STORAGE_SNAPSHOT_VERSION,
@@ -4328,7 +4447,7 @@ function controlPlaneSnapshot(records: StoredRecord[]): StorageSnapshot {
     exportedAt: "2026-05-12T00:00:00.000Z",
     schemaUpdatedAt: "2026-05-26T00:00:00.000Z",
     sourceCursor: records.length,
-    schema: formlessProgramSchema,
+    schema,
     records,
   };
 }

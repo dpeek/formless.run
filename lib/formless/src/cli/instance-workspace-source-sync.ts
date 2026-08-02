@@ -761,6 +761,7 @@ function emptyRemoteInstanceArchiveDirectory(exportedAt: string): WorkspaceArchi
 export async function workspaceLocalRestoreArchiveSource(input: {
   config: FormlessResolvedConfig;
   exportedAt: string;
+  programArtifact: FormlessProgramArtifact;
   tempRoot: string;
   workspaceRoot: string;
 }): Promise<WorkspaceLocalRestoreArchiveSource | undefined> {
@@ -773,9 +774,8 @@ export async function workspaceLocalRestoreArchiveSource(input: {
     return undefined;
   }
 
-  const programArtifact = await activeWorkspaceProgramArtifact(input.config);
   const reviewableControlPlane = canonicalizeFormlessProgramStorageSnapshot(controlPlane, {
-    artifact: programArtifact,
+    artifact: input.programArtifact,
   });
   const programMedia = await workspaceProgramMediaFromSnapshot({
     controlPlane: reviewableControlPlane,
@@ -786,7 +786,7 @@ export async function workspaceLocalRestoreArchiveSource(input: {
   const write = await writeComposedWorkspacePushArchive({
     archiveRoot: path.join(input.tempRoot, "archive"),
     exportedAt: input.exportedAt,
-    programArtifact,
+    programArtifact: input.programArtifact,
     programMedia,
     programSnapshot: reviewableControlPlane,
   });

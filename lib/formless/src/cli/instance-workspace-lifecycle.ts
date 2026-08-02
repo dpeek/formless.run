@@ -8,6 +8,7 @@ import {
   INSTANCE_ARCHIVE_MANIFEST_FILE,
   type InstanceArchive,
 } from "../program/archive.ts";
+import type { FormlessProgramArtifact } from "../program/artifact.ts";
 import { runtimeWorkspaceExtensionsEnvValue } from "../shared/workspace-runtime-extensions.ts";
 import { runtimeWorkspaceProgramRuntimeEnvValue } from "./program-runtime-bundler.ts";
 import {
@@ -367,6 +368,7 @@ export async function runFormlessInstanceWorkspaceDev(
       {
         adminToken: localDevSecrets.adminToken,
         config,
+        programArtifact: activeProgram.artifact,
         source,
         workspaceRoot,
       },
@@ -502,6 +504,7 @@ async function bootstrapWorkspaceLocalInstance(
   input: {
     adminToken: string;
     config: FormlessResolvedConfig;
+    programArtifact: FormlessProgramArtifact;
     source: string;
     workspaceRoot: string;
   },
@@ -513,6 +516,7 @@ async function bootstrapWorkspaceLocalInstance(
     const sourceArchive = await workspaceLocalRestoreArchiveSource({
       exportedAt: dependencies.now(),
       config: input.config,
+      programArtifact: input.programArtifact,
       tempRoot,
       workspaceRoot: input.workspaceRoot,
     });
@@ -526,6 +530,7 @@ async function bootstrapWorkspaceLocalInstance(
         adminToken: input.adminToken,
         apply: true,
         archiveDir: sourceArchive.archiveRoot,
+        programArtifact: input.programArtifact,
         target: input.source,
       },
       {
