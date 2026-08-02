@@ -14,7 +14,7 @@ import { formlessProgramSchema } from "./program/runtime.ts";
 
 describe("application route selection", () => {
   it("selects Program surfaces inside the application shell", () => {
-    const instance = renderRoute("/");
+    const instance = renderRoute("/principals");
     const crmProgramScreen = renderRoute("/crm/audiences");
 
     expect(instance).toContain('data-surface="application-shell"');

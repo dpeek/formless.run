@@ -267,7 +267,7 @@ describe("Formless Program schema", () => {
       { access: { role: "member" }, key: "campaigns" },
       { access: { role: "member" }, key: "broadcasts" },
     ]);
-    expect(screens.principals?.path).toBe("/");
+    expect(screens.principals?.path).toBe("/principals");
     expect(screens.routes?.path).toBe("/settings/routes");
     expect(screens.access?.path).toBe("/settings/access");
     expect(screens.taskHome?.path).toBe("/tasks");

@@ -32,7 +32,9 @@ describe("generated application shell projection", () => {
       shouldRenderGeneratedShell({ currentPath: "/settings/routes", runtimeProfile: dev }),
     ).toBe(true);
     expect(shouldRenderGeneratedShell({ currentPath: "/unknown", runtimeProfile: dev })).toBe(true);
-    expect(shouldRenderGeneratedShell({ currentPath: "/", runtimeProfile: instance })).toBe(true);
+    expect(
+      shouldRenderGeneratedShell({ currentPath: "/principals", runtimeProfile: instance }),
+    ).toBe(true);
     expect(
       shouldRenderGeneratedShell({ currentPath: "/settings/access", runtimeProfile: instance }),
     ).toBe(true);
@@ -244,7 +246,7 @@ describe("generated application shell projection", () => {
     const principalsProjection = required(
       projectGeneratedApplicationShell({
         authorizedProgramScreenPaths: FORMLESS_PROGRAM_SCREEN_PATHS,
-        currentPath: "/",
+        currentPath: "/principals",
         runtimeProfile,
       }),
     );
@@ -311,7 +313,7 @@ describe("generated application shell projection", () => {
     ).toEqual([
       { href: "/settings/routes", label: "Routes", selected: false },
       { href: "/deployments", label: "Deployments", selected: false },
-      { href: "/", label: "Principals", selected: true },
+      { href: "/principals", label: "Principals", selected: true },
       { href: "/organizations", label: "Organizations", selected: false },
       { href: "/settings/access", label: "Access", selected: false },
       { href: "/invitations", label: "Invitations", selected: false },

@@ -99,7 +99,7 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 
 - GIVEN the runtime profile is `instance`
 - WHEN a management browser opens the default Program
-- THEN `/` selects the root-owned principals screen and `/settings` selects
+- THEN `/principals` selects the root-owned principals screen and `/settings` selects
   Instance Settings
 - AND `/settings/routes` selects the route-management screen and
   `/settings/access` selects the dedicated access-management screen

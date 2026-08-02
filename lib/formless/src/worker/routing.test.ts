@@ -378,9 +378,9 @@ describe("Worker document routing", () => {
   it("keeps product instance browser fallback to instance route roots", () => {
     const instanceProfile = { profile: "instance" };
 
-    expect(shouldDeferToStaticAssets(documentRequest("http://example.com/"), instanceProfile)).toBe(
-      true,
-    );
+    expect(
+      shouldDeferToStaticAssets(documentRequest("http://example.com/principals"), instanceProfile),
+    ).toBe(true);
     expect(
       shouldDeferToStaticAssets(
         documentRequest(`http://example.com${runtimeTopologyRoutes.authAccountSetupRoute}`),

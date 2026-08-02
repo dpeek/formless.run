@@ -185,7 +185,7 @@ describe("runtime topology", () => {
     expect(isRuntimePublishedProfileClientShellRoute("/pages/home")).toBe(false);
     expect(isRuntimePublishedProfileClientShellRoute("/site")).toBe(false);
 
-    expect(isRuntimeInstanceProfileClientShellRoute("/")).toBe(true);
+    expect(isRuntimeInstanceProfileClientShellRoute("/principals")).toBe(true);
     expect(isRuntimeInstanceProfileClientShellRoute("/settings/routes")).toBe(true);
     expect(isRuntimeInstanceProfileClientShellRoute("/settings/access")).toBe(true);
     expect(isRuntimeInstanceProfileClientShellRoute("/routes")).toBe(false);

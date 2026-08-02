@@ -213,6 +213,7 @@ export const formlessIdentityControlPlanePresentationSchemaModule = defineAppSch
   ...identityControlPlanePresentationSchemaModule,
   screens: identityControlPlanePresentationSchemaModule.screens.map((screen) => ({
     ...screen,
+    path: screen.key === "principals" ? "/principals" : screen.path,
     access: programAdministratorScreenAccess,
   })),
 });

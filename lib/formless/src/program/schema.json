@@ -8822,7 +8822,7 @@
         ],
         "type": "stack"
       },
-      "path": "/",
+      "path": "/principals",
       "type": "workspace"
     },
     {

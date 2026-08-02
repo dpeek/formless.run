@@ -372,7 +372,7 @@ describe("application shell runtime boundary", () => {
     expect(programDestinationPaths(initialHost)).toEqual([
       "/settings/routes",
       "/deployments",
-      "/",
+      "/principals",
       "/organizations",
       "/settings/access",
       "/invitations",
