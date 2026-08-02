@@ -60,4 +60,27 @@ describe("source schema hash", () => {
       }),
     ).resolves.not.toBe(baseHash);
   });
+
+  it("includes runtime-owned screen facts in the source schema hash", async () => {
+    const screen = {
+      key: "access",
+      type: "runtime",
+      label: "Access",
+      path: "/settings/access",
+      access: { actor: "owner" },
+    };
+    const source = { screens: [screen] };
+    const baseHash = await computeSourceSchemaHash(source);
+
+    await expect(
+      computeSourceSchemaHash({
+        screens: [{ ...screen, path: "/people/access" }],
+      }),
+    ).resolves.not.toBe(baseHash);
+    await expect(
+      computeSourceSchemaHash({
+        screens: [{ ...screen, label: "People" }],
+      }),
+    ).resolves.not.toBe(baseHash);
+  });
 });

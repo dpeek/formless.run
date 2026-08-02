@@ -22,7 +22,7 @@ outside reviewable control-plane storage snapshots.
 
 - **GIVEN** the instance control-plane record module is composed into a Program
 - **WHEN** its declarations are loaded
-- **THEN** the package supplies flat record and presentation declarations
+- **THEN** the package supplies flat record and route-presentation declarations
   without selecting a storage identity or API prefix
 - **AND** it defines flat records for unified routes, deployment configs,
   instance settings, email domains, and email senders
@@ -74,14 +74,16 @@ through the Instance Control Plane package slice.
 - THEN the package exports one record module that owns the instance
   control-plane entities, relationships, queries, and runtime control-plane
   entity policies
-- AND it exports one presentation module that depends on the record module key
-  and owns item views, table views, views, and the ordinary instance screens
-  other than route management
+- AND it exports one route-presentation module that depends on the record
+  module key and owns only the route table, create, edit, and collection views
 - AND it exports an independently replaceable route-management screen module
-  that depends on the presentation module and contributes the `routes` screen
-- AND a downstream Program composes the record module before the presentation
-  and route-management screen modules and supplies runtime ownership at the
-  composition root
+  that depends on the route-presentation module and contributes the `routes`
+  screen
+- AND it does not publish item views or generated deployment-config,
+  instance-settings, email-domain, or email-sender views and screens
+- AND a downstream Program composes the record module before the
+  route-presentation and route-management screen modules and supplies runtime
+  ownership at the composition root
 - AND the modules remain runtime-neutral when a downstream Program selects
   Authority, storage, API, cursor, snapshot, or browser replica behavior
 

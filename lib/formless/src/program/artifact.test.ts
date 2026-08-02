@@ -109,7 +109,7 @@ describe("workspace Program artifact", () => {
     ).rejects.toThrow('Schema module key "tasks-presentation" is listed more than once.');
   });
 
-  it("materializes same-key product screen replacements with presentation views", async () => {
+  it("materializes same-key product screen replacements by presentation kind", async () => {
     const routesReplacement = defineAppSchemaModule({
       ...formlessProgramBuiltInModules.instanceControlPlaneRoutesScreen,
       screens: formlessProgramBuiltInModules.instanceControlPlaneRoutesScreen.screens.map(
@@ -155,11 +155,16 @@ describe("workspace Program artifact", () => {
     });
     expect(access).toMatchObject({
       key: "access",
+      type: "runtime",
       path: "/people/access",
       access: { role: "administrator" },
     });
-    expect(routes?.layout.sections.every(({ view }) => viewKeys.has(view))).toBe(true);
-    expect(access?.layout.sections.every(({ view }) => viewKeys.has(view))).toBe(true);
+    expect(
+      routes?.type === "workspace"
+        ? routes.layout.sections.every(({ view }) => viewKeys.has(view))
+        : false,
+    ).toBe(true);
+    expect(access === undefined || "layout" in access).toBe(false);
     await expect(parseFormlessProgramArtifact(artifact)).resolves.toEqual(artifact);
   });
 

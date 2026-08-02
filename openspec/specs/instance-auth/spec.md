@@ -1209,9 +1209,7 @@ owner-only recovery authority.
 
 - GIVEN a browser session resolves to an active principal with active
   `administrator` Program role
-- WHEN the principal opens Routes, Deployments, Principals,
-  Organizations, Access, Invitations, Policies, or Settings in the current
-  Program
+- WHEN the principal opens Routes or Access in the current Program
 - THEN the selected screen's explicit `{ role: "administrator" }` requirement
   accepts the request
 - AND backing operational management APIs apply their Program-administrator

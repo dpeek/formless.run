@@ -13,11 +13,13 @@ import type {
   AppNavigationSchema,
   CollectionScreenSectionSchema,
   ScreenAccessRequirement,
+  RuntimeScreenSchema,
   ScreenLayoutSchema,
   ScreenLayoutWidthSchema,
   ScreenSchema,
   ScreenSectionSchema,
   ViewSchema,
+  WorkspaceScreenSchema,
   KeyedDefinition,
 } from "./types.ts";
 export function parseScreens(
@@ -134,16 +136,47 @@ function parseScreen(
     throw new Error(`Screen "${screenName}" must be an object.`);
   }
 
+  if (value.type === "runtime") {
+    return parseRuntimeScreen(screenName, value, authorization);
+  }
+
+  if (value.type !== "workspace") {
+    throw new Error(`Screen "${screenName}" type must be "workspace" or "runtime".`);
+  }
+
+  return parseWorkspaceScreen(screenName, value, views, authorization);
+}
+
+function parseRuntimeScreen(
+  screenName: string,
+  value: Record<string, unknown>,
+  authorization: AppAuthorizationSchema | undefined,
+): RuntimeScreenSchema {
+  assertExactKeys(`Screen "${screenName}"`, value, ["key", "type", "label"], ["access", "path"]);
+  const label = parseRequiredNonEmptyString(`Screen "${screenName}" label`, value.label);
+  const path = parseScreenPath(screenName, value.path);
+  const access = parseScreenAccess(screenName, value.access, authorization);
+
+  return {
+    type: "runtime",
+    label,
+    ...(path === undefined ? {} : { path }),
+    ...(access === undefined ? {} : { access }),
+  };
+}
+
+function parseWorkspaceScreen(
+  screenName: string,
+  value: Record<string, unknown>,
+  views: Record<string, ViewSchema>,
+  authorization: AppAuthorizationSchema | undefined,
+): WorkspaceScreenSchema {
   assertExactKeys(
     `Screen "${screenName}"`,
     value,
     ["key", "type", "label", "layout"],
     ["access", "path"],
   );
-  if (value.type !== "workspace") {
-    throw new Error(`Screen "${screenName}" type must be "workspace".`);
-  }
-
   const label = parseRequiredNonEmptyString(`Screen "${screenName}" label`, value.label);
   const path = parseScreenPath(screenName, value.path);
   const access = parseScreenAccess(screenName, value.access, authorization);

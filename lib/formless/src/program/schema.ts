@@ -1,6 +1,5 @@
 import {
   identityControlPlaneAccessScreenSchemaModule,
-  identityControlPlanePresentationSchemaModule,
   identityControlPlaneRecordSchemaModule,
 } from "@dpeek/formless-identity-control-plane/schema";
 import {
@@ -192,28 +191,14 @@ export const formlessCrmPresentationSchemaModule = defineAppSchemaModule({
   })),
 });
 
-export const formlessInstanceControlPlanePresentationSchemaModule = defineAppSchemaModule({
-  ...instanceControlPlanePresentationSchemaModule,
-  screens: instanceControlPlanePresentationSchemaModule.screens.map((screen) => ({
-    ...screen,
-    access: programAdministratorScreenAccess,
-  })),
-});
+export const formlessInstanceControlPlanePresentationSchemaModule =
+  instanceControlPlanePresentationSchemaModule;
 
 export const formlessInstanceControlPlaneRoutesScreenSchemaModule = defineAppSchemaModule({
   ...instanceControlPlaneRoutesScreenSchemaModule,
   screens: instanceControlPlaneRoutesScreenSchemaModule.screens.map((screen) => ({
     ...screen,
     path: "/settings/routes",
-    access: programAdministratorScreenAccess,
-  })),
-});
-
-export const formlessIdentityControlPlanePresentationSchemaModule = defineAppSchemaModule({
-  ...identityControlPlanePresentationSchemaModule,
-  screens: identityControlPlanePresentationSchemaModule.screens.map((screen) => ({
-    ...screen,
-    path: screen.key === "principals" ? "/principals" : screen.path,
     access: programAdministratorScreenAccess,
   })),
 });
@@ -235,7 +220,6 @@ export const formlessProgramBuiltInModules = {
   crmRecords: formlessCrmRecordSchemaModule,
   instanceControlPlanePresentation: formlessInstanceControlPlanePresentationSchemaModule,
   instanceControlPlaneRoutesScreen: formlessInstanceControlPlaneRoutesScreenSchemaModule,
-  identityControlPlanePresentation: formlessIdentityControlPlanePresentationSchemaModule,
   identityControlPlaneAccessScreen: formlessIdentityControlPlaneAccessScreenSchemaModule,
   tasksPresentation: formlessTasksPresentationSchemaModule,
   sitePresentation: formlessSitePresentationSchemaModule,
@@ -250,7 +234,6 @@ export const formlessProgramSchemaModules = [
   formlessProgramBuiltInModules.crmRecords,
   formlessProgramBuiltInModules.instanceControlPlanePresentation,
   formlessProgramBuiltInModules.instanceControlPlaneRoutesScreen,
-  formlessProgramBuiltInModules.identityControlPlanePresentation,
   formlessProgramBuiltInModules.identityControlPlaneAccessScreen,
   formlessProgramBuiltInModules.tasksPresentation,
   formlessProgramBuiltInModules.sitePresentation,
@@ -289,16 +272,7 @@ export const formlessProgramDefaultNavigation: NonNullable<
     {
       key: "instance",
       label: "Instance",
-      screens: [
-        "routes",
-        "deployments",
-        "principals",
-        "organizations",
-        "access",
-        "invitations",
-        "policies",
-        "settings",
-      ],
+      screens: ["routes", "access"],
     },
   ],
 };

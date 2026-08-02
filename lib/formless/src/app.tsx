@@ -66,6 +66,24 @@ type InstanceShellRouteProps = {
   screenPath: `/${string}`;
 };
 
+export type ProgramScreenRouteChildKind = "runtime" | "unavailable" | "workspace";
+
+const registeredProgramRuntimeScreenKeys: ReadonlySet<string> = new Set(["access"]);
+
+export function selectProgramScreenRouteChildKind({
+  registeredRuntimeScreenKeys,
+  screen,
+}: {
+  registeredRuntimeScreenKeys: ReadonlySet<string>;
+  screen: Pick<ReturnType<typeof formlessProgramScreenRouteTargets>[number], "key" | "type">;
+}): ProgramScreenRouteChildKind {
+  if (registeredRuntimeScreenKeys.has(screen.key)) {
+    return "runtime";
+  }
+
+  return screen.type === "workspace" ? "workspace" : "unavailable";
+}
+
 export type AppRouteComponents = {
   AccessRoute: ElementType;
   ApplicationShellRuntimeBoundary: ElementType<ApplicationShellRuntimeBoundaryProps>;
@@ -448,20 +466,29 @@ function AppRoutes({
         </Route>
       ) : null}
       {browserRoutes.instanceShellRoute
-        ? programScreens.map((screen) => (
-            <Route key={screen.key} path={screen.path}>
-              {screen.key === "access" ? (
-                <AccessRoute />
-              ) : (
-                <InstanceShellRoute
-                  localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
-                  routesScreenPath={routesScreenPath}
-                  screenKey={screen.key}
-                  screenPath={screen.path}
-                />
-              )}
-            </Route>
-          ))
+        ? programScreens.map((screen) => {
+            const childKind = selectProgramScreenRouteChildKind({
+              registeredRuntimeScreenKeys: registeredProgramRuntimeScreenKeys,
+              screen,
+            });
+
+            return (
+              <Route key={screen.key} path={screen.path}>
+                {childKind === "runtime" ? (
+                  <AccessRoute />
+                ) : childKind === "workspace" ? (
+                  <InstanceShellRoute
+                    localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
+                    routesScreenPath={routesScreenPath}
+                    screenKey={screen.key}
+                    screenPath={screen.path}
+                  />
+                ) : (
+                  <NotFoundRoute />
+                )}
+              </Route>
+            );
+          })
         : null}
       {publishedSite ? (
         <Route path={publishedSite.rootRoute}>

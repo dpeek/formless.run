@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 import {
   identityControlPlaneAccessScreenSchemaModule,
-  identityControlPlanePresentationSchemaModule,
   identityControlPlaneRecordSchemaModule,
 } from "@dpeek/formless-identity-control-plane/schema";
 import { crmPresentationSchemaModule, crmRecordSchemaModule } from "@dpeek/formless-crm-app/schema";
@@ -24,7 +23,6 @@ import {
   formlessCrmPresentationSchemaModule,
   formlessCrmRecordSchemaModule,
   formlessIdentityControlPlaneAccessScreenSchemaModule,
-  formlessIdentityControlPlanePresentationSchemaModule,
   formlessInstanceControlPlanePresentationSchemaModule,
   formlessInstanceControlPlaneRoutesScreenSchemaModule,
   formlessProgramSchemaModules,
@@ -47,9 +45,6 @@ describe("Formless Program schema", () => {
     expect(formlessInstanceControlPlanePresentationSchemaModule.key).toBe(
       instanceControlPlanePresentationSchemaModule.key,
     );
-    expect(formlessIdentityControlPlanePresentationSchemaModule.key).toBe(
-      identityControlPlanePresentationSchemaModule.key,
-    );
     expect(formlessInstanceControlPlaneRoutesScreenSchemaModule.key).toBe(
       instanceControlPlaneRoutesScreenSchemaModule.key,
     );
@@ -57,8 +52,12 @@ describe("Formless Program schema", () => {
       identityControlPlaneAccessScreenSchemaModule.key,
     );
     expect(
-      formlessInstanceControlPlanePresentationSchemaModule.screens.map(({ key }) => key),
-    ).toEqual(["deployments", "settings"]);
+      formlessInstanceControlPlanePresentationSchemaModule.tableViews.map(({ key }) => key),
+    ).toEqual(["routeTable"]);
+    expect(
+      formlessInstanceControlPlanePresentationSchemaModule.views.map(({ key }) => key),
+    ).toEqual(["routeCreate", "routeEdit", "routeList"]);
+    expect(formlessInstanceControlPlanePresentationSchemaModule).not.toHaveProperty("screens");
     expect(
       formlessInstanceControlPlaneRoutesScreenSchemaModule.screens.map(({ access, key, path }) => ({
         access,
@@ -67,15 +66,22 @@ describe("Formless Program schema", () => {
       })),
     ).toEqual([{ access: { role: "administrator" }, key: "routes", path: "/settings/routes" }]);
     expect(
-      formlessIdentityControlPlanePresentationSchemaModule.screens.map(({ key }) => key),
-    ).toEqual(["principals", "organizations", "invitations", "policies"]);
-    expect(
-      formlessIdentityControlPlaneAccessScreenSchemaModule.screens.map(({ access, key, path }) => ({
-        access,
-        key,
-        path,
-      })),
-    ).toEqual([{ access: { role: "administrator" }, key: "access", path: "/settings/access" }]);
+      formlessIdentityControlPlaneAccessScreenSchemaModule.screens.map(
+        ({ access, key, path, type }) => ({
+          access,
+          key,
+          path,
+          type,
+        }),
+      ),
+    ).toEqual([
+      {
+        access: { role: "administrator" },
+        key: "access",
+        path: "/settings/access",
+        type: "runtime",
+      },
+    ]);
   });
 
   it("specializes Tasks through same-key Program replacements", () => {
@@ -249,13 +255,7 @@ describe("Formless Program schema", () => {
     ]);
     expect(formlessProgramSchemaModules.every((module) => !("authorization" in module))).toBe(true);
     expect(parsed.screens.map(({ access, key }) => ({ access, key }))).toEqual([
-      { access: { role: "administrator" }, key: "deployments" },
-      { access: { role: "administrator" }, key: "settings" },
       { access: { role: "administrator" }, key: "routes" },
-      { access: { role: "administrator" }, key: "principals" },
-      { access: { role: "administrator" }, key: "organizations" },
-      { access: { role: "administrator" }, key: "invitations" },
-      { access: { role: "administrator" }, key: "policies" },
       { access: { role: "administrator" }, key: "access" },
       { access: { role: "member" }, key: "taskHome" },
       { access: { role: "member" }, key: "siteSettings" },
@@ -267,9 +267,11 @@ describe("Formless Program schema", () => {
       { access: { role: "member" }, key: "campaigns" },
       { access: { role: "member" }, key: "broadcasts" },
     ]);
-    expect(screens.principals?.path).toBe("/principals");
     expect(screens.routes?.path).toBe("/settings/routes");
-    expect(screens.access?.path).toBe("/settings/access");
+    expect(screens.access).toMatchObject({
+      type: "runtime",
+      path: "/settings/access",
+    });
     expect(screens.taskHome?.path).toBe("/tasks");
     expect(screens.siteEditor?.path).toBe("/site");
     expect(screens.siteSettings?.path).toBe("/site/settings");
@@ -286,16 +288,7 @@ describe("Formless Program schema", () => {
       {
         key: "instance",
         label: "Instance",
-        screens: [
-          "routes",
-          "deployments",
-          "principals",
-          "organizations",
-          "access",
-          "invitations",
-          "policies",
-          "settings",
-        ],
+        screens: ["routes", "access"],
       },
     ]);
 

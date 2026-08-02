@@ -9,8 +9,10 @@ import {
   type AppNavigationSchemaSource,
   type AppAuthorizationSchemaSource,
   type AppSchemaSource,
+  type KeyedDefinition,
   type ScreenAccessRequirementSource,
   type ScreenSchemaSource,
+  type WorkspaceScreenSchema,
 } from "./index.ts";
 import { taskSchema, taskScreen } from "./schema-test-fixtures.ts";
 
@@ -230,6 +232,75 @@ describe("schema screens", () => {
     ).toThrow('Screen "home" layout section 0 must reference a collection view.');
   });
 
+  it("parses runtime-owned screens without projecting workspace data", () => {
+    const runtimeScreen = {
+      key: "access",
+      type: "runtime",
+      label: "Access",
+      path: "/settings/access",
+      access: { actor: "owner" },
+    } satisfies AppSchemaSource["screens"][number];
+    const schema = parseAppSchema({
+      ...taskSchema(),
+      navigation: { primaryScreens: ["home", "access"] },
+      screens: [{ key: "home", ...taskScreen() }, runtimeScreen],
+    });
+
+    expect(schema.screens.find((screen) => screen.key === "access")).toEqual(runtimeScreen);
+    expect(JSON.parse(stringifySchema(schema)).screens[1]).toEqual(runtimeScreen);
+  });
+
+  it("parses a runtime-only presentation without generated views", () => {
+    const schema = parseAppSchema({
+      ...taskSchema(),
+      itemViews: [],
+      tableViews: [],
+      views: [],
+      screens: [
+        {
+          key: "access",
+          type: "runtime",
+          label: "Access",
+          path: "/settings/access",
+          access: { actor: "owner" },
+        },
+      ],
+    });
+
+    expect(schema.itemViews).toEqual([]);
+    expect(schema.tableViews).toEqual([]);
+    expect(schema.views).toEqual([]);
+    expect(schema.screens).toEqual([
+      {
+        key: "access",
+        type: "runtime",
+        label: "Access",
+        path: "/settings/access",
+        access: { actor: "owner" },
+      },
+    ]);
+  });
+
+  it.each([
+    ["layout", { type: "stack", sections: [] }],
+    ["view", "taskHome"],
+    ["views", ["taskHome"]],
+  ])("rejects runtime-owned screen %s data", (key, value) => {
+    expect(() =>
+      parseAppSchema({
+        ...taskSchema(),
+        screens: [
+          {
+            key: "access",
+            type: "runtime",
+            label: "Access",
+            [key]: value,
+          },
+        ],
+      }),
+    ).toThrow(`Screen "access" has unsupported key "${key}".`);
+  });
+
   it("parses semantic layout widths with a standard default", () => {
     for (const width of ["narrow", "standard", "wide"] as const) {
       const schema = parseAppSchema({
@@ -247,13 +318,18 @@ describe("schema screens", () => {
           },
         ],
       });
-      expect(schema.screens.find((definition) => definition.key === "home")?.layout.width).toBe(
-        width,
-      );
+      expect(
+        schema.screens.find(
+          (definition): definition is KeyedDefinition<WorkspaceScreenSchema> =>
+            definition.key === "home" && definition.type === "workspace",
+        )?.layout.width,
+      ).toBe(width);
     }
     expect(
-      parseAppSchema(taskSchema()).screens.find((definition) => definition.key === "home")?.layout
-        .width,
+      parseAppSchema(taskSchema()).screens.find(
+        (definition): definition is KeyedDefinition<WorkspaceScreenSchema> =>
+          definition.key === "home" && definition.type === "workspace",
+      )?.layout.width,
     ).toBe("standard");
     expect(() =>
       parseAppSchema({

@@ -67,8 +67,8 @@ shell.
 - **AND** only screens in the selected group appear in its screen navigation
 - **AND** custom domain management shows desired route state and provider applied
   evidence separately
-- **AND** deployment navigation comes only from the schema-owned Program screen
-  while provider and workspace sync do not become standalone destinations
+- **AND** deployment records, provider state, and workspace sync do not become
+  standalone destinations
 - **AND** deployed instance profiles or profiles without an available local
   workspace gateway proxy do not show workspace operation controls
 - **AND** Cloudflare API tokens and Alchemy secret values are not exposed to the
@@ -328,14 +328,26 @@ The system SHALL render generated screens from screen models and collection sect
   screens
 - THEN the default Program exposes them at `/settings/routes` and
   `/settings/access`
+- AND Routes renders its schema-owned generated workspace while Access selects
+  its runtime-owned purpose-built presentation without generated identity views
 - AND a downstream Program replacement may expose either screen at another
-  valid declared path without changing its renderer-neutral workspace or
-  management behavior
+  valid declared path without changing its presentation or management behavior
 - AND navigation and selected state use the final materialized screen path
 - AND product runtime contributions select the stable screen key rather than
   comparing the browser location to a built-in path
 - AND the previous `/routes` and `/access` paths are not inferred, redirected,
   or reserved unless the active Program declares screens at those paths
+
+#### Scenario: Runtime-owned Program screen
+
+- GIVEN the materialized Program declares a runtime-owned screen with a stable
+  key, path, label, and explicit access requirement
+- WHEN generated runtime admits and selects that screen
+- THEN shell navigation and selected state use its portable screen facts
+- AND the registered stable-key runtime contribution renders the route child
+  without projecting a generated workspace or requiring collection views
+- AND an unavailable runtime contribution fails closed instead of rendering an
+  empty or fabricated generated workspace
 
 #### Scenario: Program Tasks workspace
 
@@ -2290,8 +2302,8 @@ navigation, and external effects.
 
 #### Scenario: Project complete instance management presentation
 
-- GIVEN an owner or instance admin opens `/` on an eligible product instance
-  shell
+- GIVEN an owner or instance admin opens `/settings/routes` on an eligible
+  product instance shell
 - WHEN generated runtime projects instance management presentation
 - THEN a typed management manifest reference resolves one loading, failed, or
   ready management snapshot
@@ -2309,9 +2321,9 @@ navigation, and external effects.
 
 #### Scenario: Instance admin management navigation
 
-- GIVEN an active principal has active `instance.admin` authority
-- WHEN the browser opens Instance Settings or the active Program `access`
-  screen
+- GIVEN an active principal has protected owner authority or the schema-defined
+  Program `administrator` role
+- WHEN the browser opens the active Program `routes` or `access` screen
 - THEN the client management guard accepts the management route
 - AND Routes and access-management presentation render through their
   existing operational API authorization
@@ -2416,7 +2428,8 @@ evidence, view, screen, read model, and operation models.
 
 #### Scenario: Instance overview surface
 
-- **GIVEN** an owner or instance admin opens `/` on the product instance shell
+- **GIVEN** an owner or instance admin opens `/settings/routes` on the product
+  instance shell
 - **WHEN** route, workspace gateway, deployment config,
   deployment observation, desired-state projection, and provider evidence data
   are available
@@ -2544,26 +2557,24 @@ that covers instance paths, host mappings, public Site routes, and redirects.
 - **AND** browser UI does not expose multiple deployment targets, target ids,
   enabled target counts, or route-to-target assignment controls
 
-### Requirement: Schema-Owned Program Deployment Surface
+### Requirement: Default Instance Control-Plane Surface
 
-The product instance shell SHALL expose deployment presentation only through
-the schema-owned Program screen and its independently authorized operations.
+The product instance shell SHALL expose only the current purpose-built instance
+management destinations while retaining control-plane records as Program data.
 
-#### Scenario: Program deployment route
+#### Scenario: Default instance destinations
 
-- **GIVEN** the active Program schema declares the `deployments` screen and
-  includes it in primary navigation
-- **WHEN** a Program administrator or protected owner opens `/deployments`
-- **THEN** React routing selects the generated Program deployment workspace
-- **AND** the destination is omitted for a principal that cannot satisfy the
-  screen's explicit administrator requirement
-- **AND** direct route admission uses the same current server decision as
-  client navigation
-- **AND** deployment operations, provider cleanup, credential handling, and
-  recovery behavior retain their own operation and private-runtime
-  authorization boundaries
-- **AND** the shell does not maintain a second bespoke deployment destination
-  outside Program schema navigation
+- **GIVEN** the active default Program schema is materialized
+- **WHEN** a Program administrator or protected owner opens the Instance group
+- **THEN** the group contains Routes followed by Access
+- **AND** Routes renders the schema-owned route editor and Access renders the
+  runtime-owned purpose-built access-management surface
+- **AND** deployment, principal, organization, invitation, policy, and instance
+  settings records do not produce generated screens or navigation destinations
+- **AND** `/deployments`, `/principals`, `/organizations`, `/invitations`,
+  `/policies`, and `/settings` are not claimed as default Program screen paths
+- **AND** those records remain available to their owning runtime behavior,
+  archive, workspace, sync, projection, and purpose-built capability boundaries
 
 #### Scenario: Sync controls stay local to workspace operations
 

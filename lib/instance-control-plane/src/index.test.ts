@@ -23,6 +23,8 @@ import {
   defineAppSchemaModule,
   parseAppSchema,
   type AppSchema,
+  type KeyedDefinition,
+  type WorkspaceScreenSchema,
 } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import {
@@ -40,7 +42,7 @@ import {
 } from "@dpeek/formless-instance-control-plane/records";
 
 describe("instance control-plane schema contracts", () => {
-  it("publishes record declarations before dependent presentation declarations", () => {
+  it("publishes records and route-only presentation declarations", () => {
     expect(instanceControlPlaneRecordSchemaModule).toMatchObject({
       key: "instance-control-plane-records",
       runtimeRequirements: {
@@ -63,10 +65,11 @@ describe("instance control-plane schema contracts", () => {
     expect(instanceControlPlanePresentationSchemaModule).toMatchObject({
       key: "instance-control-plane-presentation",
       requires: ["instance-control-plane-records"],
-      views: expect.arrayContaining([expect.objectContaining({ key: "emailSenderList" })]),
-      screens: [
-        expect.objectContaining({ key: "deployments" }),
-        expect.objectContaining({ key: "settings" }),
+      tableViews: [expect.objectContaining({ key: "routeTable" })],
+      views: [
+        expect.objectContaining({ key: "routeCreate" }),
+        expect.objectContaining({ key: "routeEdit" }),
+        expect.objectContaining({ key: "routeList" }),
       ],
     });
     expect(instanceControlPlaneRoutesScreenSchemaModule).toMatchObject({
@@ -81,6 +84,14 @@ describe("instance control-plane schema contracts", () => {
     expect(instanceControlPlaneRecordAdapter.entityIds).toEqual(
       instanceControlPlaneSchema.entities.map(({ id }) => id),
     );
+    expect(instanceControlPlaneSchema.itemViews).toEqual([]);
+    expect(instanceControlPlaneSchema.tableViews.map(({ key }) => key)).toEqual(["routeTable"]);
+    expect(instanceControlPlaneSchema.views.map(({ key }) => key)).toEqual([
+      "routeCreate",
+      "routeEdit",
+      "routeList",
+    ]);
+    expect(instanceControlPlaneSchema.screens.map(({ key }) => key)).toEqual(["routes"]);
     expect(
       instanceControlPlaneCreateIdContribution.createId("deployment-config", {
         targetId: "deployment:one",
@@ -122,7 +133,10 @@ describe("instance control-plane schema contracts", () => {
         runtime: { owner: "runtime" },
       }),
     );
-    const routesScreen = schema.screens.find(({ key }) => key === "routes");
+    const routesScreen = schema.screens.find(
+      (screen): screen is KeyedDefinition<WorkspaceScreenSchema> =>
+        screen.key === "routes" && screen.type === "workspace",
+    );
 
     expect(replacement.key).toBe(instanceControlPlaneRoutesScreenSchemaModule.key);
     expect(routesScreen).toMatchObject({
@@ -210,12 +224,6 @@ describe("instance control-plane schema contracts", () => {
       expect.arrayContaining(["deploy-target", "provider-config-ref", "deploy-desired-resource"]),
     );
     expect(schema.screens.find((definition) => definition.key === "routes")!.path).toBe("/routes");
-    expect(schema.screens.find((definition) => definition.key === "deployments")!.path).toBe(
-      "/deployments",
-    );
-    expect(schema.screens.find((definition) => definition.key === "settings")!.path).toBe(
-      "/settings",
-    );
     expect(schema.runtime?.owner).toBe("runtime");
     expect(schema.runtime).not.toHaveProperty("builder");
   });
@@ -751,7 +759,10 @@ describe("instance control-plane schema contracts", () => {
   it("marks generated route editor fields by ownership", () => {
     const schema = instanceControlPlaneSchema;
     const routeTable = schema.tableViews.find((definition) => definition.key === "routeTable")!;
-    const routesScreen = schema.screens.find((definition) => definition.key === "routes")!;
+    const routesScreen = schema.screens.find(
+      (screen): screen is KeyedDefinition<WorkspaceScreenSchema> =>
+        screen.key === "routes" && screen.type === "workspace",
+    )!;
     const routeCreate = schema.views.find((definition) => definition.key === "routeCreate")!;
     const routeEdit = schema.views.find((definition) => definition.key === "routeEdit")!;
     const routeList = schema.views.find((definition) => definition.key === "routeList")!;
@@ -791,8 +802,8 @@ describe("instance control-plane schema contracts", () => {
       { field: "statusCode", display: "readOnly" },
       { type: "operationControl", operations: ["route.update"] },
     ]);
-    expect(routeCreateFields).toContain("deploymentConfig");
-    expect(routeEditFields).toContain("deploymentConfig");
+    expect(routeCreateFields).not.toContain("deploymentConfig");
+    expect(routeEditFields).not.toContain("deploymentConfig");
     expect(
       routeEdit.type === "edit" ? definitionRecord(routeEdit.fields, "field") : undefined,
     ).toMatchObject({
@@ -802,150 +813,6 @@ describe("instance control-plane schema contracts", () => {
       statusCode: { visibleWhen: { field: "kind", values: ["redirect"] } },
     });
   });
-  it("renders deployment intent as generated sections without execution history", () => {
-    const schema = instanceControlPlaneSchema;
-    const deployments = schema.screens.find((definition) => definition.key === "deployments")!;
-    const deploymentConfigTable = schema.tableViews.find(
-      (definition) => definition.key === "deploymentConfigTable",
-    )!;
-    const deploymentConfigEdit = schema.views.find(
-      (definition) => definition.key === "deploymentConfigEdit",
-    )!;
-    const deploymentConfigList = schema.views.find(
-      (definition) => definition.key === "deploymentConfigList",
-    )!;
-    const deploymentConfigEditFields =
-      deploymentConfigEdit.type === "edit"
-        ? deploymentConfigEdit.fields.map(({ field }) => field)
-        : [];
-    expect(deployments?.layout.sections.map((section) => section.view)).toEqual([
-      "deploymentConfigList",
-    ]);
-    expect(deploymentConfigList.type).toBe("collection");
-    expect(
-      deploymentConfigList.type === "collection" ? deploymentConfigList.operations : undefined,
-    ).toEqual([{ operation: "deployment-config.create", createView: "deploymentConfigCreate" }]);
-    expect(deploymentConfigTable.operations?.[0]).toMatchObject({
-      operation: "deployment-config.update",
-      label: "Edit deployment config",
-      editView: "deploymentConfigEdit",
-    });
-    expect(deploymentConfigEditFields).toEqual([
-      "label",
-      "enabled",
-      "targetUrl",
-      "accountId",
-      "workerName",
-      "credentialRef",
-    ]);
-    expect(
-      deploymentConfigEditFields.filter((field) =>
-        instanceControlPlaneDeploymentConfigObservedFields.includes(
-          field as (typeof instanceControlPlaneDeploymentConfigObservedFields)[number],
-        ),
-      ),
-    ).toEqual([]);
-    expect(
-      schema.views.find((definition) => definition.key === "deployAttemptList")!,
-    ).toBeUndefined();
-    expect(
-      schema.views.find((definition) => definition.key === "deployEvidenceSummaryList")!,
-    ).toBeUndefined();
-    expect(
-      schema.views.find((definition) => definition.key === "deployDriftReportList")!,
-    ).toBeUndefined();
-    expect(deploymentConfigTable?.columns).toMatchObject([
-      { field: "label", display: "readOnly" },
-      { field: "targetId", display: "readOnly" },
-      { field: "providerFamily", display: "readOnly" },
-      { field: "accountId", display: "readOnly" },
-      { field: "workerName", display: "readOnly" },
-      { field: "targetUrl", display: "readOnly" },
-      { field: "enabled", display: "readOnly" },
-      { field: "observedStatus", display: "readOnly" },
-      { field: "observedAt", display: "readOnly" },
-      { field: "observedDesiredStateHash", display: "readOnly" },
-      { field: "observedSummary", display: "readOnly" },
-      { field: "observedError", display: "readOnly" },
-      { field: "observedRunnerId", display: "readOnly" },
-      { type: "operationControl", operations: ["deployment-config.update"] },
-    ]);
-    expect(
-      schema.tableViews.find((definition) => definition.key === "deployDesiredResourceTable")!,
-    ).toBeUndefined();
-    expect(
-      schema.tableViews.find((definition) => definition.key === "deployEvidenceSummaryTable")!,
-    ).toBeUndefined();
-    expect(
-      schema.tableViews.find((definition) => definition.key === "deployDriftReportTable")!,
-    ).toBeUndefined();
-  });
-  it("renders email defaults in generated settings management surfaces", () => {
-    const schema = instanceControlPlaneSchema;
-    const settingsTable = schema.tableViews.find(
-      (definition) => definition.key === "instanceSettingsTable",
-    )!;
-    const settingsCreate = schema.views.find(
-      (definition) => definition.key === "instanceSettingsCreate",
-    )!;
-    const settingsEdit = schema.views.find(
-      (definition) => definition.key === "instanceSettingsEdit",
-    )!;
-    const settingsCreateFields =
-      settingsCreate.type === "create" ? settingsCreate.fields.map(({ field }) => field) : [];
-    const settingsEditFields =
-      settingsEdit.type === "edit" ? settingsEdit.fields.map(({ field }) => field) : [];
-    const expectedEditableDefaults = [
-      "canonicalOrigin",
-      "primaryRoute",
-      "adminRoute",
-      "authRoute",
-      "authOrigin",
-      "authRelyingPartyId",
-      "authRelyingPartyName",
-      "defaultEmailDomain",
-      "defaultContactSender",
-      "defaultAuthSender",
-      "contactNotificationRecipient",
-      "productionIdentityStatus",
-    ];
-
-    expect(settingsTable?.columns).toMatchObject([
-      { field: "settingsId", display: "readOnly" },
-      { field: "canonicalOrigin", display: "readOnly" },
-      { field: "primaryRoute", display: "readOnly" },
-      { field: "adminRoute", display: "readOnly" },
-      { field: "authRoute", display: "readOnly" },
-      { field: "authOrigin", display: "readOnly" },
-      { field: "authRelyingPartyId", display: "readOnly" },
-      { field: "authRelyingPartyName", display: "readOnly" },
-      { field: "defaultEmailDomain", display: "readOnly" },
-      { field: "defaultContactSender", display: "readOnly" },
-      { field: "defaultAuthSender", display: "readOnly" },
-      { field: "contactNotificationRecipient", display: "readOnly" },
-      { field: "productionIdentityStatus", display: "readOnly" },
-      { type: "operationControl", operations: ["instance-settings.update"] },
-    ]);
-    expect(settingsCreateFields).toEqual(["settingsId", ...expectedEditableDefaults]);
-    expect(settingsEditFields).toEqual(expectedEditableDefaults);
-    expect(
-      schema.relationships?.find((definition) => definition.key === "settingsAdminRoute"),
-    ).toMatchObject({
-      kind: "toOne",
-      label: "Settings admin route",
-      from: { entity: "instance-settings", field: "adminRoute" },
-      to: { entity: "route" },
-    });
-    expect(
-      schema.relationships?.find((definition) => definition.key === "settingsDefaultAuthSender"),
-    ).toMatchObject({
-      kind: "toOne",
-      label: "Settings default auth sender",
-      from: { entity: "instance-settings", field: "defaultAuthSender" },
-      to: { entity: "email-sender" },
-    });
-  });
-
   it("derives Program route access without app install scope", () => {
     expect(
       instanceControlPlaneEffectiveRouteAccess({

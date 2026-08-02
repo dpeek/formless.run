@@ -88,7 +88,10 @@ describe("portable Program archive protocol", () => {
     const archive = instanceArchive();
     const parsed = parseInstanceArchive(archive, { programSnapshotContract: contract });
 
-    expect(parsed.program.snapshot.schema.screens[0]?.layout).toMatchObject({ width: "standard" });
+    expect(parsed.program.snapshot.schema.screens[0]).toMatchObject({
+      type: "workspace",
+      layout: { width: "standard" },
+    });
     expect(archiveRecordCount(archive)).toBe(2);
     expect(archiveMediaObjects(archive)).toEqual([]);
     expect(() =>

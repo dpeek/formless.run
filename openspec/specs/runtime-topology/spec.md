@@ -62,10 +62,9 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 #### Scenario: Product instance browser routes
 
 - GIVEN the runtime profile is `instance`
-- WHEN a browser navigates to `/`, `/tasks`, `/site`, `/site/settings`,
+- WHEN a browser navigates to `/tasks`, `/site`, `/site/settings`,
   `/site/contacts`, `/site/subscribers`, `/pages`, `/pages/*`,
-  `/settings/routes`, `/deployments`, `/organizations`, `/settings/access`,
-  `/invitations`, `/policies`, or `/settings`
+  `/settings/routes`, or `/settings/access`
 - THEN the request is eligible for the client shell
 - AND route selection uses the Program route table
 
@@ -99,9 +98,7 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 
 - GIVEN the runtime profile is `instance`
 - WHEN a management browser opens the default Program
-- THEN `/principals` selects the root-owned principals screen and `/settings` selects
-  Instance Settings
-- AND `/settings/routes` selects the route-management screen and
+- THEN `/settings/routes` selects the route-management screen and
   `/settings/access` selects the dedicated access-management screen
 - AND `/tasks` selects the package-owned Tasks workspace through its
   Program-owned path and `member` access requirement
@@ -114,9 +111,10 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 - AND `/pages` and nested `/pages/*` paths select the authenticated
   Program-native Site preview
 - AND Program navigation order comes from the materialized Program artifact
-- AND Routes, Deployments, Principals, Organizations, Access, Invitations,
-  Policies, and Settings each declare the schema-defined Program
+- AND Routes and Access each declare the schema-defined Program
   `administrator` role requirement
+- AND the default Program does not claim raw deployment, principal,
+  organization, invitation, policy, or instance-settings screen paths
 - AND Tasks declares the schema-defined Program `member` role requirement
 - AND Site screens declare the schema-defined Program `member` role requirement
 - AND the client shell is eligible to render each selected screen for an active
@@ -154,19 +152,6 @@ The system SHALL mount browser surfaces according to the active runtime profile.
   active Program screen declares it
 - AND account auth, Program API, local session, asset, public Site, and other
   intrinsic runtime route families remain fixed outside screen composition
-
-#### Scenario: Product instance deployment route
-
-- GIVEN the runtime profile is `instance`
-- WHEN a browser navigates to `/deployments`
-- THEN the client shell is eligible to render the schema-owned Program
-  deployment screen
-- AND the screen requires the schema-defined Program `administrator` role or
-  protected owner authority
-- AND deployment operations, provider cleanup, credential handling, and owner
-  recovery retain their independently evaluated authorization requirements
-- AND public Site routing, account orchestrator routes,
-  and account gate routes remain separate route families
 
 #### Scenario: Product instance account gate routes
 
@@ -368,8 +353,8 @@ profile behavior.
 #### Scenario: Mapped instance admin host
 
 - **GIVEN** an enabled exact-host `route` mounts the instance admin surface
-- **WHEN** the mapped host receives browser requests for `/`,
-  `/settings/access`, `/deployments`, or another active Program admin path
+- **WHEN** the mapped host receives browser requests for `/settings/routes`,
+  `/settings/access`, or another active Program admin path
 - **THEN** the client shell is served only after the matched route access policy
   is satisfied
 - **AND** protected access on the mapped admin host uses cross-domain auth

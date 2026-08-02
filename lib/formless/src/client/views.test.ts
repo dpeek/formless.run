@@ -2578,6 +2578,49 @@ describe("home view model collections", () => {
     ]);
   });
 
+  it("keeps runtime-owned screens out of generated workspace models", () => {
+    const runtimeSchema: AppSchema = {
+      ...rateCardSchema,
+      navigation: { primaryScreens: ["rateHome", "access"] },
+      screens: [
+        rateCardSchema.screens.find((screen) => screen.key === "rateHome")!,
+        {
+          key: "access",
+          type: "runtime",
+          label: "Access",
+          path: "/settings/access",
+          access: { actor: "owner" },
+        },
+      ],
+    };
+
+    expect(selectScreenModels(runtimeSchema).map((screen) => screen.screenName)).toEqual([
+      "rateHome",
+    ]);
+    expect(selectPrimaryScreenModels(runtimeSchema).map((screen) => screen.screenName)).toEqual([
+      "rateHome",
+    ]);
+    expect(selectScreenModelByPath(runtimeSchema, "/settings/access")).toBeUndefined();
+  });
+
+  it("does not transfer a runtime-owned implicit root to a generated workspace", () => {
+    const { path: _path, ...pathlessSetup } = rateCardSchema.screens.find(
+      (screen) => screen.key === "rateSetup",
+    )!;
+    const runtimeRootSchema: AppSchema = {
+      ...rateCardSchema,
+      navigation: { primaryScreens: ["access", "rateSetup"] },
+      screens: [
+        { key: "access", type: "runtime", label: "Access", access: { actor: "owner" } },
+        pathlessSetup,
+      ],
+    };
+
+    expect(
+      selectScreenModels(runtimeRootSchema).map(({ path, screenName }) => ({ path, screenName })),
+    ).toEqual([{ path: undefined, screenName: "rateSetup" }]);
+  });
+
   it("exposes route-ready screen paths and selects models by path", () => {
     const accessSchema: AppSchema = {
       ...rateCardSchema,
@@ -2791,97 +2834,12 @@ describe("home view model collections", () => {
       routeEditControl?.type === "editRecord"
         ? routeEditControl.editView.fields.map((field) => field.fieldName)
         : [],
-    ).toContain("deploymentConfig");
+    ).not.toContain("deploymentConfig");
     expect(
       routeColumns
         .filter((column): column is FieldTableColumnConfig => column.type === "field")
         .map((column) => column.fieldName),
     ).not.toContain("deploymentConfig");
-  });
-
-  it("selects deployment control-plane intent collections as generated UI sections", () => {
-    const schema = parseAppSchema(instanceControlPlaneSchema);
-    const deployments = selectScreenModelByPath(schema, "/deployments");
-
-    if (!deployments) {
-      throw new Error("Missing deployments control-plane screen.");
-    }
-
-    expect(summarizeScreenModel(deployments)).toEqual({
-      screenName: "deployments",
-      label: "Deployments",
-      primary: true,
-      layoutType: "stack",
-      sections: [
-        {
-          id: "deployment-configs",
-          label: "Deployment configs",
-          viewName: "deploymentConfigList",
-          entityName: "deployment-config",
-        },
-      ],
-    });
-    const deploymentSection = deployments.layout.sections[0];
-    const deploymentColumns =
-      deploymentSection?.collection.result.type === "table"
-        ? deploymentSection.collection.result.columns
-        : [];
-    const deploymentOperationColumn = deploymentColumns.find(
-      (column) => column.type === "operationControl",
-    );
-    const deploymentEditControl =
-      deploymentOperationColumn?.type === "operationControl"
-        ? deploymentOperationColumn.controls.find((control) => control.type === "editRecord")
-        : undefined;
-
-    expect(
-      deploymentSection?.collection.operations.map((operation) => ({
-        type: operation.type,
-        operationKey: operation.operation.canonicalKey,
-      })),
-    ).toEqual([{ type: "create", operationKey: "deployment-config.create" }]);
-    expect(deploymentSection?.collection.updateOperation?.canonicalKey).toBe(
-      "deployment-config.update",
-    );
-    expect(deploymentEditControl?.type).toBe("editRecord");
-    expect(
-      deploymentEditControl?.type === "editRecord"
-        ? deploymentEditControl.operation?.canonicalKey
-        : undefined,
-    ).toBe("deployment-config.update");
-    expect(
-      deploymentEditControl?.type === "editRecord"
-        ? deploymentEditControl.editView.updateOperation?.canonicalKey
-        : undefined,
-    ).toBe("deployment-config.update");
-    expect(
-      deploymentEditControl?.type === "editRecord"
-        ? deploymentEditControl.editView.fields.map((field) => field.fieldName)
-        : [],
-    ).toEqual(["label", "enabled", "targetUrl", "accountId", "workerName", "credentialRef"]);
-
-    expect(
-      deploymentColumns
-        .filter((column): column is FieldTableColumnConfig => column.type === "field")
-        .map((column) => ({ fieldName: column.fieldName, display: column.display })),
-    ).toEqual([
-      { fieldName: "label", display: "readOnly" },
-      { fieldName: "targetId", display: "readOnly" },
-      { fieldName: "providerFamily", display: "readOnly" },
-      { fieldName: "accountId", display: "readOnly" },
-      { fieldName: "workerName", display: "readOnly" },
-      { fieldName: "targetUrl", display: "readOnly" },
-      { fieldName: "enabled", display: "readOnly" },
-      { fieldName: "observedStatus", display: "readOnly" },
-      { fieldName: "observedAt", display: "readOnly" },
-      { fieldName: "observedDesiredStateHash", display: "readOnly" },
-      { fieldName: "observedSummary", display: "readOnly" },
-      { fieldName: "observedError", display: "readOnly" },
-      { fieldName: "observedRunnerId", display: "readOnly" },
-    ]);
-    expect(deployments.layout.sections.map((section) => section.id)).not.toContain("attempts");
-    expect(deployments.layout.sections.map((section) => section.id)).not.toContain("evidence");
-    expect(deployments.layout.sections.map((section) => section.id)).not.toContain("drift");
   });
 
   it("selects site editor and settings as primary screen models", () => {

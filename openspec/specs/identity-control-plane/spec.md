@@ -81,14 +81,16 @@ schema declarations composed into the downstream Program.
 - THEN the package exports one record module that owns the identity
   control-plane entities, relationships, queries, and runtime control-plane
   entity policies
-- AND it exports one presentation module that depends on the record module key
-  and owns item views, table views, views, and the ordinary identity screens
-  other than dedicated access management
 - AND it exports an independently replaceable access-management screen module
-  that depends on the presentation module and contributes the `access` screen
+  that depends on the record module and contributes the runtime-owned `access`
+  screen
+- AND it does not publish generated item views, table views, create, edit, or
+  collection views for raw identity records
+- AND it does not publish raw `principals`, `organizations`, `invitations`, or
+  `policies` screens
 - AND the package's complete source schema explicitly composes the record
-  module before the presentation and access-management screen modules and
-  supplies runtime ownership at the composition root
+  module before the access-management screen module and supplies runtime
+  ownership at the composition root
 - AND the recomposed source preserves the current schema data and normal
   source-schema hash
 - AND the modules remain runtime-neutral when a downstream Program selects
@@ -98,8 +100,9 @@ schema declarations composed into the downstream Program.
 
 - GIVEN a Program includes dedicated access management
 - WHEN it composes the access-management screen module
-- THEN the module contributes an ordinary workspace screen with stable key
-  `access`
+- THEN the module contributes a runtime-owned screen with stable key `access`
+- AND the screen carries no generated workspace layout or identity-record view
+  references
 - AND the default Program supplies a same-key replacement that selects
   `/settings/access` and the Program `administrator` access requirement
 - AND a downstream Program may omit that default replacement and supply its

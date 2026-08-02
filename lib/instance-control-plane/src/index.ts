@@ -901,41 +901,6 @@ export const instanceControlPlaneRecordSchemaModule = defineAppSchemaModule({
 export const instanceControlPlanePresentationSchemaModule = defineAppSchemaModule({
   key: "instance-control-plane-presentation",
   requires: ["instance-control-plane-records"],
-  itemViews: [
-    {
-      key: "routeItem",
-      ...itemView("route", ["matchHost", "matchPath", "kind", "enabled"]),
-    },
-    {
-      key: "deploymentConfigItem",
-      ...itemView("deployment-config", [
-        "label",
-        "targetId",
-        "providerFamily",
-        "enabled",
-        "observedStatus",
-        "observedAt",
-      ]),
-    },
-    {
-      key: "instanceSettingsItem",
-      ...itemView("instance-settings", [
-        "settingsId",
-        "primaryRoute",
-        "adminRoute",
-        "canonicalOrigin",
-        "productionIdentityStatus",
-      ]),
-    },
-    {
-      key: "emailDomainItem",
-      ...itemView("email-domain", ["domain", "providerFamily", "enabled", "dnsStatus"]),
-    },
-    {
-      key: "emailSenderItem",
-      ...itemView("email-sender", ["address", "purpose", "enabled", "emailDomain"]),
-    },
-  ],
   tableViews: [
     {
       key: "routeTable",
@@ -967,120 +932,6 @@ export const instanceControlPlanePresentationSchemaModule = defineAppSchemaModul
         },
       ),
     },
-    {
-      key: "deploymentConfigTable",
-      ...tableView(
-        "deployment-config",
-        [
-          "label",
-          "targetId",
-          "providerFamily",
-          "accountId",
-          "workerName",
-          "targetUrl",
-          "enabled",
-          "observedStatus",
-          "observedAt",
-          "observedDesiredStateHash",
-          "observedSummary",
-          "observedError",
-          "observedRunnerId",
-        ],
-        {
-          operations: [
-            {
-              operation: "deployment-config.update",
-              label: "Edit deployment config",
-              target: { kind: "row" },
-              editView: "deploymentConfigEdit",
-            },
-          ],
-          operationLabel: "Deployment config operations",
-        },
-      ),
-    },
-    {
-      key: "instanceSettingsTable",
-      ...tableView(
-        "instance-settings",
-        [
-          { field: "settingsId", display: "readOnly" },
-          "canonicalOrigin",
-          "primaryRoute",
-          "adminRoute",
-          "authRoute",
-          "authOrigin",
-          "authRelyingPartyId",
-          "authRelyingPartyName",
-          "defaultEmailDomain",
-          "defaultContactSender",
-          "defaultAuthSender",
-          "contactNotificationRecipient",
-          "productionIdentityStatus",
-        ],
-        {
-          operations: [
-            {
-              operation: "instance-settings.update",
-              label: "Edit settings",
-              target: { kind: "row" },
-              editView: "instanceSettingsEdit",
-            },
-          ],
-          operationLabel: "Settings operations",
-        },
-      ),
-    },
-    {
-      key: "emailDomainTable",
-      ...tableView(
-        "email-domain",
-        [
-          { field: "enabled", display: "editor" },
-          "domain",
-          "providerFamily",
-          "primaryRoute",
-          "deploymentConfig",
-          "dnsStatus",
-          "latestError",
-        ],
-        {
-          operations: [
-            {
-              operation: "email-domain.update",
-              label: "Edit email domain",
-              target: { kind: "row" },
-              editView: "emailDomainEdit",
-            },
-          ],
-          operationLabel: "Email domain operations",
-        },
-      ),
-    },
-    {
-      key: "emailSenderTable",
-      ...tableView(
-        "email-sender",
-        [
-          { field: "enabled", display: "editor" },
-          "address",
-          "displayName",
-          "purpose",
-          "emailDomain",
-        ],
-        {
-          operations: [
-            {
-              operation: "email-sender.update",
-              label: "Edit email sender",
-              target: { kind: "row" },
-              editView: "emailSenderEdit",
-            },
-          ],
-          operationLabel: "Email sender operations",
-        },
-      ),
-    },
   ],
   views: [
     {
@@ -1097,7 +948,6 @@ export const instanceControlPlanePresentationSchemaModule = defineAppSchemaModul
           visibleWhen: { field: "targetProfile", values: ["instance", "public-site"] },
         },
         { field: "access", visibleWhen: { field: "kind", values: ["mount"] } },
-        "deploymentConfig",
         { field: "toHost", visibleWhen: { field: "kind", values: ["redirect"] } },
         { field: "toUrl", visibleWhen: { field: "kind", values: ["redirect"] } },
         { field: "statusCode", visibleWhen: { field: "kind", values: ["redirect"] } },
@@ -1118,7 +968,6 @@ export const instanceControlPlanePresentationSchemaModule = defineAppSchemaModul
           visibleWhen: { field: "targetProfile", values: ["instance", "public-site"] },
         },
         { field: "access", visibleWhen: { field: "kind", values: ["mount"] } },
-        "deploymentConfig",
         { field: "toHost", visibleWhen: { field: "kind", values: ["redirect"] } },
         { field: "toUrl", visibleWhen: { field: "kind", values: ["redirect"] } },
         { field: "statusCode", visibleWhen: { field: "kind", values: ["redirect"] } },
@@ -1132,167 +981,6 @@ export const instanceControlPlanePresentationSchemaModule = defineAppSchemaModul
         createView: "routeCreate",
         navigation: true,
       }),
-    },
-    {
-      key: "deploymentConfigCreate",
-      ...createView("deployment-config", [
-        "targetId",
-        "label",
-        "enabled",
-        "targetUrl",
-        "providerFamily",
-        "accountId",
-        "workerName",
-        "credentialRef",
-      ]),
-    },
-    {
-      key: "deploymentConfigEdit",
-      ...editView("deployment-config", [
-        "label",
-        "enabled",
-        "targetUrl",
-        "accountId",
-        "workerName",
-        "credentialRef",
-      ]),
-    },
-    {
-      key: "deploymentConfigList",
-      ...collectionView(
-        "Deployment configs",
-        "deployment-config",
-        "deploymentConfigAll",
-        "deploymentConfigTable",
-        {
-          createView: "deploymentConfigCreate",
-          extraQueries: ["deploymentConfigEnabled"],
-        },
-      ),
-    },
-    {
-      key: "instanceSettingsCreate",
-      ...createView("instance-settings", [
-        "settingsId",
-        "canonicalOrigin",
-        "primaryRoute",
-        "adminRoute",
-        "authRoute",
-        "authOrigin",
-        "authRelyingPartyId",
-        "authRelyingPartyName",
-        "defaultEmailDomain",
-        "defaultContactSender",
-        "defaultAuthSender",
-        "contactNotificationRecipient",
-        "productionIdentityStatus",
-      ]),
-    },
-    {
-      key: "instanceSettingsEdit",
-      ...editView("instance-settings", [
-        "canonicalOrigin",
-        "primaryRoute",
-        "adminRoute",
-        "authRoute",
-        "authOrigin",
-        "authRelyingPartyId",
-        "authRelyingPartyName",
-        "defaultEmailDomain",
-        "defaultContactSender",
-        "defaultAuthSender",
-        "contactNotificationRecipient",
-        "productionIdentityStatus",
-      ]),
-    },
-    {
-      key: "instanceSettingsList",
-      ...collectionView(
-        "Instance settings",
-        "instance-settings",
-        "instanceSettingsAll",
-        "instanceSettingsTable",
-        {
-          createView: "instanceSettingsCreate",
-        },
-      ),
-    },
-    {
-      key: "emailDomainCreate",
-      ...createView("email-domain", [
-        "enabled",
-        "providerFamily",
-        "domain",
-        "primaryRoute",
-        "deploymentConfig",
-        "dnsStatus",
-        "latestError",
-      ]),
-    },
-    {
-      key: "emailDomainEdit",
-      ...editView("email-domain", [
-        "enabled",
-        "domain",
-        "primaryRoute",
-        "deploymentConfig",
-        "dnsStatus",
-        "latestError",
-      ]),
-    },
-    {
-      key: "emailDomainList",
-      ...collectionView("Email domains", "email-domain", "emailDomainAll", "emailDomainTable", {
-        createView: "emailDomainCreate",
-        extraQueries: ["emailDomainEnabled"],
-      }),
-    },
-    {
-      key: "emailSenderCreate",
-      ...createView("email-sender", [
-        "enabled",
-        "address",
-        "displayName",
-        "purpose",
-        "emailDomain",
-      ]),
-    },
-    {
-      key: "emailSenderEdit",
-      ...editView("email-sender", ["enabled", "address", "displayName", "purpose"]),
-    },
-    {
-      key: "emailSenderList",
-      ...collectionView("Email senders", "email-sender", "emailSenderAll", "emailSenderTable", {
-        createView: "emailSenderCreate",
-        extraQueries: ["emailSenderEnabled"],
-      }),
-    },
-  ],
-  screens: [
-    {
-      key: "deployments",
-      type: "workspace",
-      label: "Deployments",
-      path: "/deployments",
-      layout: {
-        type: "stack",
-        sections: [{ id: "deployment-configs", type: "collection", view: "deploymentConfigList" }],
-      },
-    },
-    {
-      key: "settings",
-      type: "workspace",
-      label: "Settings",
-      path: "/settings",
-      layout: {
-        type: "stack",
-        sections: [
-          { id: "instance-settings", type: "collection", view: "instanceSettingsList" },
-          { id: "email-domains", type: "collection", view: "emailDomainList" },
-          { id: "email-senders", type: "collection", view: "emailSenderList" },
-        ],
-      },
     },
   ],
 });
@@ -3162,12 +2850,6 @@ function andWhereQuery(
       })),
     },
   } satisfies Omit<AppSchema["queries"][number], "key">;
-}
-function itemView(entity: InstanceControlPlaneEntityName, fields: string[]) {
-  return {
-    entity,
-    fields: fields.map((field) => ({ field, ...viewField(editorForField(field)) })),
-  } satisfies Omit<AppSchema["itemViews"][number], "key">;
 }
 function tableView(
   entity: InstanceControlPlaneEntityName,

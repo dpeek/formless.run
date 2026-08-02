@@ -34,7 +34,7 @@ describe("generated application shell projection", () => {
     expect(shouldRenderGeneratedShell({ currentPath: "/unknown", runtimeProfile: dev })).toBe(true);
     expect(
       shouldRenderGeneratedShell({ currentPath: "/principals", runtimeProfile: instance }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       shouldRenderGeneratedShell({ currentPath: "/settings/access", runtimeProfile: instance }),
     ).toBe(true);
@@ -107,6 +107,9 @@ describe("generated application shell projection", () => {
       }),
       expect.objectContaining({ href: "/people/access", id: "program:access", selected: true }),
     ]);
+    expect(
+      selectPrimaryScreenModels(programSchema).some((screen) => screen.screenName === "access"),
+    ).toBe(false);
   });
 
   it("projects Program destinations, roots, create, status, and display-safe session state", () => {
@@ -223,8 +226,8 @@ describe("generated application shell projection", () => {
     for (const { expectedLabel, status } of cases) {
       const projection = required(
         projectGeneratedApplicationShell({
-          authorizedProgramScreenPaths: ["/settings"],
-          currentPath: "/settings",
+          authorizedProgramScreenPaths: ["/settings/routes"],
+          currentPath: "/settings/routes",
           runtimeProfile: createDevRuntimeProfile(),
           sync: {
             cursor: 27,
@@ -240,7 +243,7 @@ describe("generated application shell projection", () => {
       );
 
       expect(program.destinations).toEqual([
-        expect.objectContaining({ href: "/settings", label: "Settings", selected: true }),
+        expect.objectContaining({ href: "/settings/routes", label: "Routes", selected: true }),
       ]);
       expect(shellStatus).toMatchObject({ destinations: [], role: "status" });
       expect(shellStatus.status?.sync).toMatchObject({ label: expectedLabel, state: status.state });
@@ -252,10 +255,10 @@ describe("generated application shell projection", () => {
 
   it("presents the default Program workspaces and active Instance screens", () => {
     const runtimeProfile = createDevRuntimeProfile();
-    const principalsProjection = required(
+    const routesProjection = required(
       projectGeneratedApplicationShell({
         authorizedProgramScreenPaths: FORMLESS_PROGRAM_SCREEN_PATHS,
-        currentPath: "/principals",
+        currentPath: "/settings/routes",
         runtimeProfile,
       }),
     );
@@ -267,9 +270,9 @@ describe("generated application shell projection", () => {
       }),
     );
 
-    expect(principalsProjection.manifest).toMatchObject({
+    expect(routesProjection.manifest).toMatchObject({
       activeDestination: {
-        destinationId: "program:principals",
+        destinationId: "program:routes",
         sectionId: "application-shell:program",
       },
       title: "Instance",
@@ -278,15 +281,14 @@ describe("generated application shell projection", () => {
         shellId: "application-shell",
       },
     });
-    expect(principalsProjection.sections.map((section) => section.role)).toEqual([
+    expect(routesProjection.sections.map((section) => section.role)).toEqual([
       "workspaceSwitcher",
       "program",
       "session",
     ]);
     expect(
-      required(
-        principalsProjection.sections.find((section) => section.role === "workspaceSwitcher"),
-      ).destinations,
+      required(routesProjection.sections.find((section) => section.role === "workspaceSwitcher"))
+        .destinations,
     ).toEqual([
       expect.objectContaining({ href: "/tasks", label: "Tasks", selected: false }),
       expect.objectContaining({ href: "/site", label: "Site", selected: false }),
@@ -306,7 +308,7 @@ describe("generated application shell projection", () => {
       ]),
     );
     const programSection = required(
-      principalsProjection.sections.find((section) => section.role === "program"),
+      routesProjection.sections.find((section) => section.role === "program"),
     );
     expect(
       programSection.destinations.map((destination) => {
@@ -320,14 +322,8 @@ describe("generated application shell projection", () => {
         };
       }),
     ).toEqual([
-      { href: "/settings/routes", label: "Routes", selected: false },
-      { href: "/deployments", label: "Deployments", selected: false },
-      { href: "/principals", label: "Principals", selected: true },
-      { href: "/organizations", label: "Organizations", selected: false },
+      { href: "/settings/routes", label: "Routes", selected: true },
       { href: "/settings/access", label: "Access", selected: false },
-      { href: "/invitations", label: "Invitations", selected: false },
-      { href: "/policies", label: "Policies", selected: false },
-      { href: "/settings", label: "Settings", selected: false },
     ]);
   });
 
@@ -335,8 +331,8 @@ describe("generated application shell projection", () => {
     const runtimeProfile = createDevRuntimeProfile();
     const filtered = required(
       projectGeneratedApplicationShell({
-        authorizedProgramScreenPaths: ["/settings", "/deployments"],
-        currentPath: "/deployments",
+        authorizedProgramScreenPaths: ["/settings/access"],
+        currentPath: "/settings/access",
         runtimeProfile,
       }),
     );
@@ -350,10 +346,7 @@ describe("generated application shell projection", () => {
         label: destination.label,
         selected: destination.selected,
       })),
-    ).toEqual([
-      { href: "/deployments", label: "Deployments", selected: true },
-      { href: "/settings", label: "Settings", selected: false },
-    ]);
+    ).toEqual([{ href: "/settings/access", label: "Access", selected: true }]);
   });
 
   it("projects ordered authorized workspaces from the resolved stable screen key", () => {
@@ -364,7 +357,7 @@ describe("generated application shell projection", () => {
       "/site",
       "/settings/routes",
       "/tasks/settings",
-      "/settings",
+      "/site/settings",
     ];
     const grouped = required(
       projectGeneratedApplicationShell({
@@ -406,7 +399,7 @@ describe("generated application shell projection", () => {
     const ungrouped = required(
       projectGeneratedApplicationShell({
         authorizedProgramScreenPaths,
-        currentPath: "/settings",
+        currentPath: "/site/settings",
         programSchema,
         runtimeProfile,
       }),
@@ -417,7 +410,7 @@ describe("generated application shell projection", () => {
 
     expect(ungrouped.manifest).toMatchObject({
       activeDestination: {
-        destinationId: "program:settings",
+        destinationId: "program:siteSettings",
         sectionId: "application-shell:program",
       },
       title: "Formless Program",
@@ -425,7 +418,9 @@ describe("generated application shell projection", () => {
     expect(ungroupedSwitcher.destinations.every((destination) => !destination.selected)).toBe(true);
     expect(
       required(ungrouped.sections.find((section) => section.role === "program")).destinations,
-    ).toEqual([expect.objectContaining({ href: "/settings", label: "Settings", selected: true })]);
+    ).toEqual([
+      expect.objectContaining({ href: "/site/settings", label: "Settings", selected: true }),
+    ]);
   });
 
   it("projects anonymous session state", () => {
@@ -638,7 +633,13 @@ function relocatedProductScreenSchema(): AppSchema {
       screen.key === "routes"
         ? { ...screen, path: "/infrastructure/routes" }
         : screen.key === "access"
-          ? { ...screen, path: "/people/access" }
+          ? {
+              key: screen.key,
+              type: "runtime",
+              label: screen.label,
+              path: "/people/access",
+              access: screen.access,
+            }
           : screen,
     ),
   };
@@ -653,7 +654,7 @@ function groupedProgramScreenSchema(): AppSchema {
         {
           key: "instance",
           label: "Instance",
-          screens: ["deployments", "routes", "access"],
+          screens: ["routes", "access"],
         },
         { key: "crm", label: "CRM", screens: ["contacts"] },
       ],

@@ -166,16 +166,16 @@ from reusable package modules.
 #### Scenario: Compose the default Program schema
 
 - GIVEN the Instance Control Plane, Identity Control Plane, Tasks, Site, and CRM
-  packages expose record and presentation modules through their public
-  `./schema` subpaths
+  packages expose their current record, presentation, and screen modules
+  through public `./schema` subpaths
 - WHEN the Formless product composition root builds its default Program schema
-- THEN it explicitly lists the package record modules before their dependent
-  presentation modules
+- THEN it explicitly lists package record modules before any dependent
+  presentation or screen modules
 - AND it supplies complete runtime ownership, navigation, and any
   project-owned modules at the composition root
-- AND product-supplied route-management and access-management screens are
-  ordinary screen declarations contributed through independently replaceable
-  modules
+- AND the product-supplied route-management workspace and runtime-owned
+  access-management screen are portable screen declarations contributed through
+  independently replaceable modules
 - AND the result is one valid `AppSchemaSource` rather than a second Program
   schema language or wrapper contract
 - AND instance, identity, and Task entities retain their package-owned stable
@@ -188,11 +188,13 @@ from reusable package modules.
 - WHEN the default Program composes those modules
 - THEN the `routes` screen uses path `/settings/routes` and the `access` screen
   uses path `/settings/access`
-- AND their keys, labels, layouts, paths, and access requirements remain
-  ordinary portable screen data
-- AND a downstream Program may eject either screen module and supply a
-  same-key module whose screen keeps the stable screen key and selects another
-  valid path
+- AND their keys, labels, paths, and access requirements remain ordinary
+  portable screen data
+- AND Routes retains its schema-owned workspace layout while Access declares a
+  runtime-owned screen without collection sections or generated view references
+- AND a downstream Program may eject either screen module and supply a same-key
+  module whose screen keeps the stable screen key, presentation kind, and a
+  valid selected path
 - AND composition uses the existing screen registry, module dependency,
   collision, parsing, navigation, and hashing rules rather than a product-route
   registry, path override map, or second schema concept
@@ -278,9 +280,7 @@ from reusable package modules.
   groups
 - AND the default Tasks, Site, and CRM groups select `taskHome`, `siteEditor`,
   and `contacts` respectively
-- AND the default Instance group selects `routes`, `deployments`, `principals`,
-  `organizations`, `access`, `invitations`, `policies`, and `settings` in that
-  order
+- AND the default Instance group selects `routes` and `access` in that order
 - AND group and nested screen order remain portable, source-hash-significant
   root-owned navigation data
 - AND package module identity, declaration provenance, screen path prefixes,
@@ -1007,10 +1007,11 @@ The system SHALL let collection views select records through schema-declared que
 
 ### Requirement: Screens And Navigation
 
-The system SHALL require app schemas to define one or more workspace screens
-that compose collection views and own app-relative navigation, and SHALL let a
-composition root present selected screens through either flat or grouped
-navigation.
+The system SHALL require app schemas to define one or more screens that own
+app-relative navigation, SHALL let generated workspace screens compose
+collection views, SHALL let runtime-owned screens bind custom presentation by
+stable screen key, and SHALL let a composition root present selected screens
+through either flat or grouped navigation.
 
 #### Scenario: Root screen fallback
 
@@ -1079,6 +1080,20 @@ navigation.
 - THEN each section references an existing collection view
 - AND valid sections are available in schema order
 
+#### Scenario: Declare runtime-owned screen presentation
+
+- GIVEN a screen declares `type: "runtime"`
+- WHEN the schema is parsed
+- THEN the screen carries its stable key, label, optional path, and access
+  requirement without declaring a workspace layout or referencing views
+- AND the screen remains eligible for ordinary flat or grouped navigation,
+  path selection, source hashing, and Program screen authorization
+- AND a trusted runtime may bind custom presentation to the stable screen key
+  without placing callbacks, module paths, component names, or executable code
+  in portable schema data
+- AND a runtime-owned screen that declares workspace layout or view data is
+  rejected
+
 #### Scenario: Screen layout width
 
 - GIVEN a workspace screen layout declares a semantic width
@@ -1091,7 +1106,7 @@ navigation.
 
 #### Scenario: Screen access policy
 
-- GIVEN a workspace screen declares access policy
+- GIVEN a screen declares access policy
 - WHEN the schema is parsed
 - THEN `access` is parsed as the shared access requirement against the complete
   schema's root-owned role catalog
@@ -1119,7 +1134,7 @@ navigation.
 
 #### Scenario: Reject invalid screen access
 
-- GIVEN a workspace screen declares an unsupported access value, an unresolved
+- GIVEN a screen declares an unsupported access value, an unresolved
   role key, `runner`, `deployer`, `adminBearer`, an empty alternative list, a
   nested alternative list, or more than one requirement form
 - WHEN the schema is parsed

@@ -122,7 +122,7 @@ describe("Program navigation runtime", () => {
     );
 
     await waitFor(() => expect(selectedWorkspace(renderer)).toBe("taskHome"));
-    fireEvent.click(renderer.getByTestId("intent-settings"));
+    fireEvent.click(renderer.getByTestId("intent-routes"));
     await waitFor(() =>
       expect(
         renderer.container.querySelector(
@@ -140,6 +140,87 @@ describe("Program navigation runtime", () => {
       "push:start",
     ]);
 
+    renderer.unmount();
+  });
+
+  it("renders a runtime-owned screen through its registered stable key", async () => {
+    window.history.replaceState(null, "", "/settings/access");
+    const workspaceMounts: string[] = [];
+    const renderer = render(
+      <BrowserHarness>
+        <App
+          localWorkspaceGatewayAvailable={false}
+          programRuntimeDependencies={runtimeDependencies(
+            [],
+            readySession("administrator", "management"),
+          )}
+          programSchema={runtimeAccessProgramSchema()}
+          routeComponents={programRouteComponents({ workspaceMounts })}
+          runtimeProfile={createInstanceRuntimeProfile()}
+        />
+      </BrowserHarness>,
+    );
+
+    await waitFor(() => expect(selectedWorkspace(renderer)).toBe("access"));
+    expect(workspaceMounts).toEqual(["access"]);
+    renderer.unmount();
+  });
+
+  it("applies Program screen authorization before rendering a runtime-owned child", async () => {
+    window.history.replaceState(null, "", "/settings/access");
+    const workspaceMounts: string[] = [];
+    const renderer = render(
+      <BrowserHarness>
+        <App
+          localWorkspaceGatewayAvailable={false}
+          programRuntimeDependencies={runtimeDependencies(
+            [],
+            readySession("member", "authenticated"),
+          )}
+          programSchema={runtimeAccessProgramSchema()}
+          routeComponents={programRouteComponents({ workspaceMounts })}
+          runtimeProfile={createInstanceRuntimeProfile()}
+        />
+      </BrowserHarness>,
+    );
+
+    await waitFor(() =>
+      expect(
+        renderer.container.querySelector(
+          '[data-system-state="application-system-state:route-forbidden"]',
+        ),
+      ).not.toBeNull(),
+    );
+    expect(workspaceMounts).toEqual([]);
+    renderer.unmount();
+  });
+
+  it("fails closed when a runtime-owned screen has no registered route child", async () => {
+    window.history.replaceState(null, "", "/runtime-unavailable");
+    const workspaceMounts: string[] = [];
+    const renderer = render(
+      <BrowserHarness>
+        <App
+          localWorkspaceGatewayAvailable={false}
+          programRuntimeDependencies={runtimeDependencies(
+            [],
+            readySession("administrator", "management"),
+          )}
+          programSchema={unavailableRuntimeScreenProgramSchema()}
+          routeComponents={programRouteComponents({ workspaceMounts })}
+          runtimeProfile={createInstanceRuntimeProfile()}
+        />
+      </BrowserHarness>,
+    );
+
+    await waitFor(() =>
+      expect(
+        renderer.container.querySelector(
+          '[data-system-state="application-system-state:not-found"]',
+        ),
+      ).not.toBeNull(),
+    );
+    expect(workspaceMounts).toEqual([]);
     renderer.unmount();
   });
 });
@@ -176,8 +257,12 @@ function programRouteComponents(
         <button data-testid="intent-crm" onClick={() => navigate("/crm")} type="button">
           CRM intent
         </button>
-        <button data-testid="intent-settings" onClick={() => navigate("/settings")} type="button">
-          Settings intent
+        <button
+          data-testid="intent-routes"
+          onClick={() => navigate("/settings/routes")}
+          type="button"
+        >
+          Routes intent
         </button>
         {children}
       </section>
@@ -267,6 +352,39 @@ function readySession(
       targetOrigin: window.location.origin,
       targetProfile: "instance",
     },
+  };
+}
+
+function runtimeAccessProgramSchema() {
+  return {
+    ...formlessProgramSchema,
+    screens: formlessProgramSchema.screens.map((screen) =>
+      screen.key === "access"
+        ? {
+            key: screen.key,
+            type: "runtime" as const,
+            label: screen.label,
+            path: screen.path,
+            access: screen.access,
+          }
+        : screen,
+    ),
+  };
+}
+
+function unavailableRuntimeScreenProgramSchema() {
+  return {
+    ...formlessProgramSchema,
+    screens: [
+      ...formlessProgramSchema.screens,
+      {
+        key: "runtimeUnavailable",
+        type: "runtime" as const,
+        label: "Runtime unavailable",
+        path: "/runtime-unavailable",
+        access: { role: "administrator" as const },
+      },
+    ],
   };
 }
 

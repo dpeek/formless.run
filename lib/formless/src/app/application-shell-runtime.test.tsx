@@ -359,7 +359,7 @@ describe("application shell runtime boundary", () => {
     renderer.rerender(
       <ApplicationShellRuntimeBoundary
         accountSession={accountSession}
-        currentPath="/deployments"
+        currentPath="/settings/routes"
         programSession={readyProgramSession("administrator", "management")}
         runtimeProfile={runtimeProfile}
         screenModels={[]}
@@ -369,21 +369,12 @@ describe("application shell runtime boundary", () => {
     );
 
     expect(host).toBe(initialHost);
-    expect(programDestinationPaths(initialHost)).toEqual([
-      "/settings/routes",
-      "/deployments",
-      "/principals",
-      "/organizations",
-      "/settings/access",
-      "/invitations",
-      "/policies",
-      "/settings",
-    ]);
+    expect(programDestinationPaths(initialHost)).toEqual(["/settings/routes", "/settings/access"]);
 
     renderer.rerender(
       <ApplicationShellRuntimeBoundary
         accountSession={accountSession}
-        currentPath="/deployments"
+        currentPath="/settings/routes"
         programSession={readyProgramSession("administrator", "owner")}
         runtimeProfile={runtimeProfile}
         screenModels={[]}

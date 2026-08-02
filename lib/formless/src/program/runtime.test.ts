@@ -12,6 +12,7 @@ import {
   computeSourceSchemaHash,
   defineAppSchemaModule,
   parseAppSchema,
+  type AppSchema,
 } from "@dpeek/formless-schema";
 import {
   STORAGE_SNAPSHOT_KIND,
@@ -53,6 +54,7 @@ import {
   parseFormlessProgramSchemaArtifact,
   parseRuntimeFormlessProgramArtifactJson,
   resolveFormlessProgramScreenRouteTarget,
+  resolveFormlessProgramScreenRouteTargetByKey,
   validateFormlessProgramRecords,
 } from "./runtime.ts";
 import { formlessProgramTarget } from "./target.ts";
@@ -157,53 +159,96 @@ describe("Formless Program runtime contracts", () => {
       key: "routes",
       label: "Routes",
       path: "/settings/routes",
+      type: "workspace",
     });
     expect(resolveFormlessProgramScreenRouteTarget("/settings/access")).toEqual({
       access: { role: "administrator" },
       key: "access",
       label: "Access",
       path: "/settings/access",
-    });
-    expect(resolveFormlessProgramScreenRouteTarget("/deployments")).toEqual({
-      access: { role: "administrator" },
-      key: "deployments",
-      label: "Deployments",
-      path: "/deployments",
+      type: "runtime",
     });
     expect(resolveFormlessProgramScreenRouteTarget("/tasks")).toEqual({
       access: { role: "member" },
       key: "taskHome",
       label: "Tasks",
       path: "/tasks",
+      type: "workspace",
     });
     expect(resolveFormlessProgramScreenRouteTarget("/site")).toEqual({
       access: { role: "member" },
       key: "siteEditor",
       label: "Blocks",
       path: "/site",
+      type: "workspace",
     });
     expect(resolveFormlessProgramScreenRouteTarget("/site/settings")).toEqual({
       access: { role: "member" },
       key: "siteSettings",
       label: "Settings",
       path: "/site/settings",
+      type: "workspace",
     });
     expect(resolveFormlessProgramScreenRouteTarget("/crm")).toEqual({
       access: { role: "member" },
       key: "contacts",
       label: "Contacts",
       path: "/crm",
+      type: "workspace",
     });
     expect(resolveFormlessProgramScreenRouteTarget("/crm/broadcasts")).toEqual({
       access: { role: "member" },
       key: "broadcasts",
       label: "Broadcasts",
       path: "/crm/broadcasts",
+      type: "workspace",
     });
     expect(resolveFormlessProgramScreenRouteTarget("/routes")).toBeUndefined();
     expect(resolveFormlessProgramScreenRouteTarget("/access")).toBeUndefined();
+    expect(resolveFormlessProgramScreenRouteTarget("/principals")).toBeUndefined();
+    expect(resolveFormlessProgramScreenRouteTarget("/deployments")).toBeUndefined();
+    expect(resolveFormlessProgramScreenRouteTarget("/settings")).toBeUndefined();
+    expect(resolveFormlessProgramScreenRouteTarget("/organizations")).toBeUndefined();
+    expect(resolveFormlessProgramScreenRouteTarget("/invitations")).toBeUndefined();
+    expect(resolveFormlessProgramScreenRouteTarget("/policies")).toBeUndefined();
     expect(resolveFormlessProgramScreenRouteTarget("/pages")).toBeUndefined();
     expect(resolveFormlessProgramScreenRouteTarget("/unknown")).toBeUndefined();
+
+    const runtimeAccessSchema = {
+      ...formlessProgramSchema,
+      screens: formlessProgramSchema.screens.map((screen) =>
+        screen.key === "access" ? { ...screen, path: "/people/access" } : screen,
+      ),
+    };
+    expect(resolveFormlessProgramScreenRouteTarget("/people/access", runtimeAccessSchema)).toEqual({
+      access: { role: "administrator" },
+      key: "access",
+      label: "Access",
+      path: "/people/access",
+      type: "runtime",
+    });
+
+    const runtimeRootSchema: AppSchema = {
+      ...formlessProgramSchema,
+      navigation: { primaryScreens: ["access"] },
+      screens: formlessProgramSchema.screens.map((screen) =>
+        screen.key === "access"
+          ? {
+              key: screen.key,
+              type: "runtime",
+              label: screen.label,
+              access: screen.access,
+            }
+          : screen,
+      ),
+    };
+    expect(resolveFormlessProgramScreenRouteTargetByKey("access", runtimeRootSchema)).toEqual({
+      access: { role: "administrator" },
+      key: "access",
+      label: "Access",
+      path: "/",
+      type: "runtime",
+    });
 
     const missingAccess: unknown = structuredClone(rawFormlessProgramSchema);
     const [firstScreen] = (missingAccess as { screens: Array<{ access?: unknown }> }).screens;
@@ -211,7 +256,7 @@ describe("Formless Program runtime contracts", () => {
     delete firstScreen?.access;
 
     expect(() => parseFormlessProgramSchemaArtifact(missingAccess)).toThrow(
-      'Formless Program schema screen "deployments" must declare explicit access.',
+      'Formless Program schema screen "routes" must declare explicit access.',
     );
   });
 

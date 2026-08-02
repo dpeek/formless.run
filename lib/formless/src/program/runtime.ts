@@ -5,6 +5,7 @@ import {
   type AppSchema,
   type EntitySchema,
   type ScreenAccessRequirement,
+  type ScreenSchema,
 } from "@dpeek/formless-schema";
 import {
   formatStoredRecordsForArtifact,
@@ -42,6 +43,7 @@ export type FormlessProgramScreenRouteTarget = {
   key: string;
   label: string;
   path: `/${string}`;
+  type: ScreenSchema["type"];
 };
 
 export const formlessProgramArtifact = activeFormlessProgramArtifact();
@@ -99,13 +101,16 @@ export function resolveFormlessProgramScreenRouteTarget(
   pathname: string,
   schema: AppSchema = formlessProgramSchema,
 ): FormlessProgramScreenRouteTarget | undefined {
-  const screen = schema.screens.find((candidate) => candidate.path === pathname);
+  const screen = schema.screens.find(
+    (candidate) => resolveFormlessProgramScreenPath(candidate.key, schema) === pathname,
+  );
 
   if (screen === undefined) {
     return undefined;
   }
 
-  if (screen.access === undefined || screen.path === undefined) {
+  const path = resolveFormlessProgramScreenPath(screen.key, schema);
+  if (screen.access === undefined || path === undefined) {
     throw new Error(`Formless Program schema screen "${screen.key}" is unavailable.`);
   }
 
@@ -113,7 +118,8 @@ export function resolveFormlessProgramScreenRouteTarget(
     access: screen.access,
     key: screen.key,
     label: screen.label,
-    path: screen.path as `/${string}`,
+    path,
+    type: screen.type,
   };
 }
 
@@ -121,24 +127,47 @@ export function resolveFormlessProgramScreenRouteTargetByKey(
   screenKey: string,
   schema: AppSchema = formlessProgramSchema,
 ): FormlessProgramScreenRouteTarget | undefined {
-  const screen = schema.screens.find((candidate) => candidate.key === screenKey);
+  const path = resolveFormlessProgramScreenPath(screenKey, schema);
 
-  return screen?.path === undefined
-    ? undefined
-    : resolveFormlessProgramScreenRouteTarget(screen.path, schema);
+  return path === undefined ? undefined : resolveFormlessProgramScreenRouteTarget(path, schema);
 }
 
 export function formlessProgramScreenRouteTargets(
   schema: AppSchema = formlessProgramSchema,
 ): readonly FormlessProgramScreenRouteTarget[] {
   return schema.screens.flatMap((screen) => {
-    if (screen.path === undefined) {
+    const path = resolveFormlessProgramScreenPath(screen.key, schema);
+    if (path === undefined) {
       return [];
     }
 
-    const target = resolveFormlessProgramScreenRouteTarget(screen.path, schema);
+    const target = resolveFormlessProgramScreenRouteTarget(path, schema);
     return target === undefined ? [] : [target];
   });
+}
+
+function resolveFormlessProgramScreenPath(
+  screenKey: string,
+  schema: AppSchema,
+): `/${string}` | undefined {
+  const screen = schema.screens.find((candidate) => candidate.key === screenKey);
+  if (screen?.path !== undefined) {
+    return screen.path as `/${string}`;
+  }
+  if (screen === undefined || schema.screens.some((candidate) => candidate.path === "/")) {
+    return undefined;
+  }
+
+  const primaryScreenKeys =
+    schema.navigation?.groups?.flatMap((group) => group.screens) ??
+    schema.navigation?.primaryScreens ??
+    schema.screens.map((candidate) => candidate.key);
+  const firstPathlessScreenKey = primaryScreenKeys.find(
+    (candidateKey) =>
+      schema.screens.find((candidate) => candidate.key === candidateKey)?.path === undefined,
+  );
+
+  return firstPathlessScreenKey === screenKey ? "/" : undefined;
 }
 
 export type FormlessProgramValidationOptions = {

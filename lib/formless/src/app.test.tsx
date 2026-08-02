@@ -14,11 +14,11 @@ import { formlessProgramSchema } from "./program/runtime.ts";
 
 describe("application route selection", () => {
   it("selects Program surfaces inside the application shell", () => {
-    const instance = renderRoute("/principals");
+    const instance = renderRoute("/settings/access");
     const crmProgramScreen = renderRoute("/crm/audiences");
 
     expect(instance).toContain('data-surface="application-shell"');
-    expect(instance).toContain('data-route="instance"');
+    expect(instance).toContain('data-route="access"');
     expect(crmProgramScreen).toContain('data-surface="application-shell"');
     expect(crmProgramScreen).toContain('data-route="instance"');
     expect(crmProgramScreen).not.toContain('data-schema-key="crm"');
@@ -93,13 +93,15 @@ describe("application route selection", () => {
     const access = renderRoute("/settings/access", { runtimeProfile });
     const previousRoutesPath = renderRoute("/routes", { runtimeProfile });
     const previousAccessPath = renderRoute("/access", { runtimeProfile });
+    const rawDeploymentPath = renderRoute("/deployments", { runtimeProfile });
+    const rawSettingsPath = renderRoute("/settings", { runtimeProfile });
 
     expect(routes).toContain('data-screen-key="routes"');
     expect(routes).toContain('data-routes-screen-path="/settings/routes"');
     expect(access).toContain('data-route="access"');
-    expect(`${previousRoutesPath}${previousAccessPath}`).not.toContain(
-      'data-surface="application-shell"',
-    );
+    expect(
+      `${previousRoutesPath}${previousAccessPath}${rawDeploymentPath}${rawSettingsPath}`,
+    ).not.toContain('data-surface="application-shell"');
     expect(previousAccessPath).not.toContain('data-route="access"');
   });
 });

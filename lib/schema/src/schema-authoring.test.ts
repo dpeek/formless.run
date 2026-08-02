@@ -6,6 +6,8 @@ import {
   formatAppSchemaSource,
   parseAppSchema,
   type AppSchemaSource,
+  type KeyedDefinition,
+  type WorkspaceScreenSchema,
 } from "./index.ts";
 
 describe("App schema source authoring", () => {
@@ -42,9 +44,12 @@ describe("App schema source authoring", () => {
     expect(parsed.views.find((definition) => definition.key === "taskHome")!).toMatchObject({
       context: { presentation: "tabs" },
     });
-    expect(parsed.screens.find((definition) => definition.key === "home")!.layout.width).toBe(
-      "standard",
-    );
+    expect(
+      parsed.screens.find(
+        (definition): definition is KeyedDefinition<WorkspaceScreenSchema> =>
+          definition.key === "home" && definition.type === "workspace",
+      )!.layout.width,
+    ).toBe("standard");
   });
   it("rejects invalid cross-references at the definition boundary", () => {
     const source = taskSource();

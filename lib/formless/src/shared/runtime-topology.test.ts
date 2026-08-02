@@ -185,7 +185,7 @@ describe("runtime topology", () => {
     expect(isRuntimePublishedProfileClientShellRoute("/pages/home")).toBe(false);
     expect(isRuntimePublishedProfileClientShellRoute("/site")).toBe(false);
 
-    expect(isRuntimeInstanceProfileClientShellRoute("/principals")).toBe(true);
+    expect(isRuntimeInstanceProfileClientShellRoute("/principals")).toBe(false);
     expect(isRuntimeInstanceProfileClientShellRoute("/settings/routes")).toBe(true);
     expect(isRuntimeInstanceProfileClientShellRoute("/settings/access")).toBe(true);
     expect(isRuntimeInstanceProfileClientShellRoute("/routes")).toBe(false);
@@ -197,7 +197,8 @@ describe("runtime topology", () => {
     );
     expect(isRuntimeInstanceProfileClientShellRoute("/formless/auth/sign-in")).toBe(true);
     expect(isRuntimeInstanceProfileClientShellRoute("/formless/auth/setup")).toBe(true);
-    expect(isRuntimeInstanceProfileClientShellRoute("/deployments")).toBe(true);
+    expect(isRuntimeInstanceProfileClientShellRoute("/deployments")).toBe(false);
+    expect(isRuntimeInstanceProfileClientShellRoute("/settings")).toBe(false);
     expect(isRuntimeInstanceProfileClientShellRoute("/tasks")).toBe(true);
     expect(isRuntimeInstanceProfileClientShellRoute("/pages/home")).toBe(false);
     expect(isRuntimeAuthAccountRoutePath("/formless/auth")).toBe(true);

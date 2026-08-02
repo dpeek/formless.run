@@ -9,7 +9,6 @@ import type { StoredRecord } from "@dpeek/formless-storage";
 import { describe, expect, it } from "vite-plus/test";
 import {
   identityControlPlaneAccessScreenSchemaModule,
-  identityControlPlanePresentationSchemaModule,
   identityControlPlaneRecordSchemaModule,
 } from "@dpeek/formless-identity-control-plane/schema";
 import {
@@ -51,7 +50,7 @@ const testAuthorizationRoles = [
 ] as const;
 
 describe("identity control-plane schema contracts", () => {
-  it("publishes the remaining identity records and presentation", () => {
+  it("publishes identity records and the runtime-owned Access screen", () => {
     expect(identityControlPlaneRoleKeys).toEqual(["instance.owner"]);
     expect(identityControlPlaneRecordSchemaModule).toMatchObject({
       key: "identity-control-plane-records",
@@ -89,21 +88,24 @@ describe("identity control-plane schema contracts", () => {
         updatedAt: "2026-06-26T00:00:00.000Z",
       },
     ]);
-    expect(identityControlPlanePresentationSchemaModule).toMatchObject({
-      key: "identity-control-plane-presentation",
-      requires: ["identity-control-plane-records"],
-      screens: [
-        expect.objectContaining({ key: "principals" }),
-        expect.objectContaining({ key: "organizations" }),
-        expect.objectContaining({ key: "invitations" }),
-        expect.objectContaining({ key: "policies" }),
-      ],
-    });
     expect(identityControlPlaneAccessScreenSchemaModule).toMatchObject({
       key: "identity-control-plane-access-screen",
-      requires: ["identity-control-plane-presentation"],
-      screens: [expect.objectContaining({ key: "access", path: "/access" })],
+      requires: ["identity-control-plane-records"],
+      screens: [
+        {
+          key: "access",
+          type: "runtime",
+          label: "Access",
+          path: "/access",
+        },
+      ],
     });
+    expect(identityControlPlaneSchema.itemViews).toEqual([]);
+    expect(identityControlPlaneSchema.tableViews).toEqual([]);
+    expect(identityControlPlaneSchema.views).toEqual([]);
+    expect(identityControlPlaneSchema.screens).toEqual([
+      { key: "access", type: "runtime", label: "Access", path: "/access" },
+    ]);
   });
 
   it("composes a same-key downstream access screen replacement", () => {
@@ -119,32 +121,23 @@ describe("identity control-plane schema contracts", () => {
       composeAppSchema({
         version: 1,
         authorization: { roles: [...testAuthorizationRoles] },
-        modules: [
-          identityControlPlaneRecordSchemaModule,
-          identityControlPlanePresentationSchemaModule,
-          replacement,
-        ],
+        modules: [identityControlPlaneRecordSchemaModule, replacement],
         runtime: { owner: "runtime" },
       }),
     );
-    const accessScreen = schema.screens.find(({ key }) => key === "access");
+    const accessScreen = schema.screens.find((screen) => screen.key === "access");
 
     expect(replacement.key).toBe(identityControlPlaneAccessScreenSchemaModule.key);
     expect(accessScreen).toMatchObject({
       key: "access",
+      type: "runtime",
       path: "/people/access",
       access: { role: "administrator" },
     });
-    expect(accessScreen?.layout.sections.map(({ view }) => view)).toEqual([
-      "programRoleAssignmentList",
-      "roleList",
-      "roleAssignmentList",
-    ]);
-    expect(
-      accessScreen?.layout.sections.every(({ view }) =>
-        schema.views.some(({ key }) => key === view),
-      ),
-    ).toBe(true);
+    expect(accessScreen === undefined || "layout" in accessScreen).toBe(false);
+    expect(schema.itemViews).toEqual([]);
+    expect(schema.tableViews).toEqual([]);
+    expect(schema.views).toEqual([]);
   });
 
   it("uses normal App schema source hashing", async () => {

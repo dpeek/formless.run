@@ -173,12 +173,11 @@ export function parseViews(
       unions,
     ),
   );
-  if (views.length === 0) {
-    throw new Error("Schema must define at least one view.");
+  if (views.length > 0) {
+    const viewsByKey = definitionsToRecord(views);
+    assertCollectionViews(viewsByKey, entities, relationships);
+    assertTableOperationEditViews(viewsByKey, tableViews, entities);
   }
-  const viewsByKey = definitionsToRecord(views);
-  assertCollectionViews(viewsByKey, entities, relationships);
-  assertTableOperationEditViews(viewsByKey, tableViews, entities);
   return views;
 }
 function assertCollectionViews(

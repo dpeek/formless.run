@@ -19,7 +19,7 @@ import type {
   RecordLinkSchema,
   ScreenAccessRequirement,
   ScreenLayoutWidthSchema,
-  ScreenSchema,
+  WorkspaceScreenSchema,
   ToManyRelationshipSchema,
   TableColumnAlign,
   TableColumnDisplay,
@@ -526,12 +526,9 @@ export function selectPrimaryScreenModels(schema: AppSchema): HomeScreenModel[] 
   const modelsByScreenName = new Map(
     selectScreenModels(schema).map((model) => [model.screenName, model]),
   );
-  return selectPrimaryScreenNames(schema).map((screenName) => {
+  return selectPrimaryScreenNames(schema).flatMap((screenName) => {
     const model = modelsByScreenName.get(screenName);
-    if (!model) {
-      throw new Error(`Missing primary screen model "${screenName}".`);
-    }
-    return model;
+    return model === undefined ? [] : [model];
   });
 }
 
@@ -548,15 +545,19 @@ export function selectScreenModels(schema: AppSchema): HomeScreenModel[] {
   const orderedPrimaryScreenNames = selectPrimaryScreenNames(schema);
   const primaryScreenNames = new Set(orderedPrimaryScreenNames);
   return assignScreenModelPaths(
-    schema.screens.map((screen) =>
-      selectScreenModel(
-        screen.key,
-        screen,
-        primaryScreenNames.has(screen.key),
-        collectionModelsByViewName,
-      ),
+    schema.screens.flatMap((screen) =>
+      screen.type === "workspace"
+        ? [
+            selectScreenModel(
+              screen.key,
+              screen,
+              primaryScreenNames.has(screen.key),
+              collectionModelsByViewName,
+            ),
+          ]
+        : [],
     ),
-    orderedPrimaryScreenNames,
+    selectImplicitRootScreenName(schema, orderedPrimaryScreenNames),
   );
 }
 
@@ -599,7 +600,7 @@ export function selectCollectionModels(schema: AppSchema): HomeViewModel[] {
 
 function selectScreenModel(
   screenName: string,
-  screen: ScreenSchema,
+  screen: WorkspaceScreenSchema,
   primary: boolean,
   collectionModelsByViewName: Map<string, HomeViewModel>,
 ): HomeScreenModel {
@@ -636,17 +637,27 @@ function selectScreenModel(
 
 function assignScreenModelPaths(
   models: HomeScreenModel[],
-  orderedPrimaryScreenNames: string[],
+  rootScreenName: string | undefined,
 ): HomeScreenModel[] {
   if (models.some((model) => model.path === "/")) {
     return models;
   }
-  const modelsByScreenName = new Map(models.map((model) => [model.screenName, model]));
-  const rootScreenName = orderedPrimaryScreenNames.find(
-    (screenName) => modelsByScreenName.get(screenName)?.path === undefined,
-  );
   return models.map((model) =>
     model.screenName === rootScreenName ? { ...model, path: "/" } : model,
+  );
+}
+
+function selectImplicitRootScreenName(
+  schema: AppSchema,
+  orderedPrimaryScreenNames: string[],
+): string | undefined {
+  if (schema.screens.some((screen) => screen.path === "/")) {
+    return undefined;
+  }
+
+  const screensByName = new Map(schema.screens.map((screen) => [screen.key, screen]));
+  return orderedPrimaryScreenNames.find(
+    (screenName) => screensByName.get(screenName)?.path === undefined,
   );
 }
 

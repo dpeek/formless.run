@@ -238,6 +238,7 @@ describe("Worker document routing", () => {
         path: "/settings/access",
         requiredAccess: "authenticated",
         routeAccess: "anonymous",
+        type: "runtime",
       },
       requiredAccess: "authenticated",
     });
@@ -301,7 +302,7 @@ describe("Worker document routing", () => {
       path: "/infrastructure/routes",
     });
     expect(resolveProtectedBrowserRouteTargetFromFacts({ topology: access })).toMatchObject({
-      programScreen: { key: "access", path: "/people/access" },
+      programScreen: { key: "access", path: "/people/access", type: "runtime" },
       requiredAccess: "authenticated",
     });
     expect(previousAccessPath.instanceProfileClientShellRoute).toBe(false);
@@ -380,7 +381,7 @@ describe("Worker document routing", () => {
 
     expect(
       shouldDeferToStaticAssets(documentRequest("http://example.com/principals"), instanceProfile),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       shouldDeferToStaticAssets(
         documentRequest(`http://example.com${runtimeTopologyRoutes.authAccountSetupRoute}`),
@@ -412,6 +413,12 @@ describe("Worker document routing", () => {
       ),
     ).toBe(true);
     expect(
+      shouldDeferToStaticAssets(
+        documentRequest("http://example.com/settings/routes"),
+        instanceProfile,
+      ),
+    ).toBe(true);
+    expect(
       shouldDeferToStaticAssets(documentRequest("http://example.com/routes"), instanceProfile),
     ).toBe(false);
     expect(
@@ -419,7 +426,10 @@ describe("Worker document routing", () => {
     ).toBe(false);
     expect(
       shouldDeferToStaticAssets(documentRequest("http://example.com/deployments"), instanceProfile),
-    ).toBe(true);
+    ).toBe(false);
+    expect(
+      shouldDeferToStaticAssets(documentRequest("http://example.com/settings"), instanceProfile),
+    ).toBe(false);
     expect(
       shouldDeferToStaticAssets(
         documentRequest("http://example.com/assets/index.js"),
@@ -879,7 +889,13 @@ function relocatedProductScreenSchema(): AppSchema {
       screen.key === "routes"
         ? { ...screen, path: "/infrastructure/routes" }
         : screen.key === "access"
-          ? { ...screen, path: "/people/access" }
+          ? {
+              key: screen.key,
+              type: "runtime",
+              label: screen.label,
+              path: "/people/access",
+              access: screen.access,
+            }
           : screen,
     ),
   };

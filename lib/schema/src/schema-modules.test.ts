@@ -54,6 +54,29 @@ describe("App schema module authoring", () => {
     expect(source).not.toHaveProperty("runtime");
   });
 
+  it("composes runtime-owned screens as portable module declarations", () => {
+    const runtimeScreen = defineAppSchemaModule({
+      key: "access-screen",
+      requires: ["task-records"],
+      screens: [
+        {
+          key: "access",
+          type: "runtime",
+          label: "Access",
+          path: "/settings/access",
+        },
+      ],
+    });
+    const source = composeAppSchema({
+      version: 1,
+      navigation: { primaryScreens: ["access"] },
+      modules: [taskRecordsModule(), taskPresentationModule(), runtimeScreen],
+    });
+
+    expect(source.screens.at(-1)).toEqual(runtimeScreen.screens[0]);
+    expect(parseAppSchema(source).screens.at(-1)).toEqual(runtimeScreen.screens[0]);
+  });
+
   it("preserves optional root authorization and runtime metadata", () => {
     const records = taskRecordsModule();
     const source = composeAppSchema({

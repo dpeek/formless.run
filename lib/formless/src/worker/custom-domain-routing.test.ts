@@ -165,9 +165,11 @@ describe("instance custom-domain Worker routing", () => {
         owner.id,
         deploymentOrigin,
       );
-      const accountPath = `${runtimeTopologyRoutes.authAccountRoute}?returnTo=%2Fprincipals`;
+      const accountPath = `${runtimeTopologyRoutes.authAccountRoute}?returnTo=%2Fsettings%2Faccess`;
 
-      expect(accountPath).toBe(`${runtimeTopologyRoutes.authAccountRoute}?returnTo=%2Fprincipals`);
+      expect(accountPath).toBe(
+        `${runtimeTopologyRoutes.authAccountRoute}?returnTo=%2Fsettings%2Faccess`,
+      );
 
       const unauthenticated = await harness.mf.dispatchFetch(`${deploymentOrigin}${accountPath}`, {
         headers: { Accept: "text/html" },
@@ -183,7 +185,7 @@ describe("instance custom-domain Worker routing", () => {
         accountRedirectLocationForRoute(accountPath),
       );
       expect(authenticated.status).toBe(302);
-      expect(authenticated.headers.get("Location")).toBe("/principals");
+      expect(authenticated.headers.get("Location")).toBe("/settings/access");
     });
   });
 
@@ -517,7 +519,7 @@ describe("instance custom-domain Worker routing", () => {
       targetSurface: "instance",
       testKey: "program-administrator-journey",
     });
-    const settings = await fetchAuth("/principals", {
+    const settings = await fetchAuth("/settings/access", {
       headers: { Accept: "text/html", Cookie: accepted.cookie },
       redirect: "manual",
     });
@@ -552,13 +554,13 @@ describe("instance custom-domain Worker routing", () => {
     assetRequests = [];
 
     const mappedInstanceRouteId = routeRecordIds.get(`route:host:instance:${mappedInstanceHost}`);
-    const protectedRoute = await fetchHost(mappedInstanceHost, "/deployments", {
+    const protectedRoute = await fetchHost(mappedInstanceHost, "/settings/routes", {
       headers: { Accept: "text/html" },
       redirect: "manual",
     });
     const signIn = await fetchHost(
       mappedInstanceHost,
-      `${runtimeTopologyRoutes.authAccountSignInRoute}?redirectTo=%2Fdeployments`,
+      `${runtimeTopologyRoutes.authAccountSignInRoute}?redirectTo=%2Fsettings%2Froutes`,
       {
         headers: { Accept: "text/html" },
         redirect: "manual",
@@ -575,7 +577,7 @@ describe("instance custom-domain Worker routing", () => {
     );
     expect(protectedRouteUrl.searchParams.get("routeId")).toBe(mappedInstanceRouteId);
     expect(protectedRouteUrl.searchParams.get("targetProfile")).toBe("instance");
-    expect(protectedRouteUrl.searchParams.get("returnTo")).toBe("/deployments");
+    expect(protectedRouteUrl.searchParams.get("returnTo")).toBe("/settings/routes");
     expect(protectedRouteUrl.searchParams.get("nonceHash")).toMatch(/^[A-Za-z0-9_-]+$/);
     expect(protectedRouteUrl.searchParams.get("state")).toMatch(/^[A-Za-z0-9_-]+$/);
     expect(protectedRouteSetCookie).toContain(`${HOST_AUTH_NONCE_COOKIE_NAME}=`);
@@ -584,7 +586,7 @@ describe("instance custom-domain Worker routing", () => {
 
     expect(signIn.status).toBe(302);
     expect(signIn.headers.get("Location")).toBe(
-      `https://www.example.com${runtimeTopologyRoutes.authAccountSignInRoute}?redirectTo=%2Fdeployments`,
+      `https://www.example.com${runtimeTopologyRoutes.authAccountSignInRoute}?redirectTo=%2Fsettings%2Froutes`,
     );
     expect(signIn.headers.get("Set-Cookie")).toBeNull();
     expect(assetRequests).toEqual([]);
@@ -602,7 +604,7 @@ describe("instance custom-domain Worker routing", () => {
     await createPrivateCredentialForPrincipal(owner.id, "Mapped Admin Callback Owner");
 
     const sessionCookie = await createCentralAuthSessionCookieForPrincipal(owner.id);
-    const start = await fetchHost(mappedInstanceHost, "/deployments", {
+    const start = await fetchHost(mappedInstanceHost, "/settings/routes", {
       headers: { Accept: "text/html" },
       redirect: "manual",
     });
@@ -627,7 +629,7 @@ describe("instance custom-domain Worker routing", () => {
     expect(startUrl.searchParams.get("targetOrigin")).toBe(`https://${mappedInstanceHost}`);
     expect(startUrl.searchParams.get("routeId")).toBe(mappedInstanceRouteId);
     expect(startUrl.searchParams.get("targetProfile")).toBe("instance");
-    expect(startUrl.searchParams.get("returnTo")).toBe("/deployments");
+    expect(startUrl.searchParams.get("returnTo")).toBe("/settings/routes");
 
     expect(accountContinuation.status).toBe(302);
     expect(handoffUrl.origin).toBe("https://www.example.com");
@@ -635,7 +637,7 @@ describe("instance custom-domain Worker routing", () => {
     expect(handoffUrl.searchParams.get("targetOrigin")).toBe(`https://${mappedInstanceHost}`);
     expect(handoffUrl.searchParams.get("routeId")).toBe(mappedInstanceRouteId);
     expect(handoffUrl.searchParams.get("targetProfile")).toBe("instance");
-    expect(handoffUrl.searchParams.get("returnTo")).toBe("/deployments");
+    expect(handoffUrl.searchParams.get("returnTo")).toBe("/settings/routes");
 
     expect(grant.status).toBe(302);
     expect(callbackUrl.origin).toBe(`https://${mappedInstanceHost}`);
@@ -646,7 +648,7 @@ describe("instance custom-domain Worker routing", () => {
     expect(requiredHeader(grant, "Location")).not.toContain("nonceHash=");
 
     expect(callback.status).toBe(302);
-    expect(callback.headers.get("Location")).toBe("/deployments");
+    expect(callback.headers.get("Location")).toBe("/settings/routes");
     const setCookie = requiredHeader(callback, "Set-Cookie");
     const hostSessionPayload = signedCookiePayload(setCookie, HOST_AUTH_SESSION_COOKIE_NAME);
     const hostSessionCookie = cookiePair(setCookie);
@@ -747,7 +749,7 @@ describe("instance custom-domain Worker routing", () => {
     });
     const accountReturn = await fetchHost(
       mappedInstanceHost,
-      `${runtimeTopologyRoutes.authAccountRoute}?returnTo=%2Fdeployments`,
+      `${runtimeTopologyRoutes.authAccountRoute}?returnTo=%2Fsettings%2Froutes`,
       {
         headers: { Accept: "text/html" },
         redirect: "manual",
@@ -755,7 +757,7 @@ describe("instance custom-domain Worker routing", () => {
     );
     const unsafeAccountReturn = await fetchHost(
       mappedInstanceHost,
-      `${runtimeTopologyRoutes.authAccountRoute}?returnTo=${encodeURIComponent("https://evil.example.com/deployments")}`,
+      `${runtimeTopologyRoutes.authAccountRoute}?returnTo=${encodeURIComponent("https://evil.example.com/settings/routes")}`,
       {
         headers: { Accept: "application/json" },
         redirect: "manual",
@@ -779,7 +781,7 @@ describe("instance custom-domain Worker routing", () => {
     );
     const authenticatedAccountReturn = await fetchHost(
       mappedInstanceHost,
-      `${runtimeTopologyRoutes.authAccountRoute}?returnTo=%2Fdeployments`,
+      `${runtimeTopologyRoutes.authAccountRoute}?returnTo=%2Fsettings%2Froutes`,
       {
         headers: {
           Accept: "text/html",
@@ -796,13 +798,13 @@ describe("instance custom-domain Worker routing", () => {
     expect(accountReturn.status).toBe(302);
     expect(accountReturn.headers.get("Location")).toBe(
       accountRedirectLocationForRoute(
-        `${runtimeTopologyRoutes.authAccountRoute}?returnTo=%2Fdeployments`,
+        `${runtimeTopologyRoutes.authAccountRoute}?returnTo=%2Fsettings%2Froutes`,
       ),
     );
     expect(unsafeAccountReturn.status).toBe(400);
     expect(unsafeAccountReturnBody.error).toBe("Account return target must be path-only.");
     expect(authenticatedAccountReturn.status).toBe(302);
-    expect(authenticatedAccountReturn.headers.get("Location")).toBe("/deployments");
+    expect(authenticatedAccountReturn.headers.get("Location")).toBe("/settings/routes");
     expect(setupCapability.status).toBe(200);
     expect(sessionStatus.status).toBe(200);
     expect(assetRequests).toEqual(["/index.html", "/index.html", "/index.html"]);
@@ -819,7 +821,7 @@ describe("instance custom-domain Worker routing", () => {
     });
     assetRequests = [];
 
-    const shell = await fetchHost(mappedInstanceHost, "/principals", {
+    const shell = await fetchHost(mappedInstanceHost, "/settings/access", {
       headers: {
         Accept: "text/html",
         Cookie: cookie,
@@ -870,7 +872,7 @@ describe("instance custom-domain Worker routing", () => {
       targetProfile: "instance",
     });
     expect(staleVersionBootstrap.status).toBe(401);
-    expect(assetRequests).toEqual(["/principals"]);
+    expect(assetRequests).toEqual(["/index.html"]);
   });
 
   it("binds a ready Program session to its mapped host runtime target", async () => {
@@ -1101,7 +1103,7 @@ describe("instance custom-domain Worker routing", () => {
     });
     assetRequests = [];
 
-    const home = await fetchMappedHost("/principals", {
+    const home = await fetchMappedHost("/settings/access", {
       headers: { Accept: "text/html" },
       redirect: "manual",
     });
@@ -1110,7 +1112,7 @@ describe("instance custom-domain Worker routing", () => {
     });
 
     expect(home.status).toBe(302);
-    expect(home.headers.get("Location")).toBe(accountRedirectLocationForRoute("/principals"));
+    expect(home.headers.get("Location")).toBe(accountRedirectLocationForRoute("/settings/access"));
     expect(nested.status).toBe(404);
     expect(assetRequests).toEqual([]);
   });
@@ -1646,7 +1648,7 @@ async function createMappedInstanceHostSession(ownerName: string) {
     name: ownerName,
   });
   const centralCookie = await createCentralAuthSessionCookieForPrincipal(owner.id);
-  const start = await fetchHost(mappedInstanceHost, "/principals", {
+  const start = await fetchHost(mappedInstanceHost, "/settings/access", {
     headers: { Accept: "text/html" },
     redirect: "manual",
   });

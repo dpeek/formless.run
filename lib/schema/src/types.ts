@@ -972,11 +972,20 @@ export type WorkspaceScreenSchema = {
   access?: ScreenAccessRequirement;
   layout: ScreenLayoutSchema;
 };
-export type ScreenSchema = WorkspaceScreenSchema;
+export type RuntimeScreenSchema = {
+  type: "runtime";
+  label: string;
+  path?: string;
+  access?: ScreenAccessRequirement;
+};
+export type ScreenSchema = WorkspaceScreenSchema | RuntimeScreenSchema;
 export type WorkspaceScreenSchemaSource = Omit<WorkspaceScreenSchema, "access"> & {
   access?: ScreenAccessRequirementSource;
 };
-export type ScreenSchemaSource = WorkspaceScreenSchemaSource;
+export type RuntimeScreenSchemaSource = Omit<RuntimeScreenSchema, "access"> & {
+  access?: ScreenAccessRequirementSource;
+};
+export type ScreenSchemaSource = WorkspaceScreenSchemaSource | RuntimeScreenSchemaSource;
 export type ToOneRelationshipSchema = {
   kind: "toOne";
   label?: string;
