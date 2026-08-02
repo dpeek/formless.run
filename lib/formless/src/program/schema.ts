@@ -281,18 +281,24 @@ export const formlessProgramDefaultAuthorization: NonNullable<
 export const formlessProgramDefaultNavigation: NonNullable<
   AppSchemaCompositionSource["navigation"]
 > = {
-  primaryScreens: [
-    "taskHome",
-    "siteEditor",
-    "contacts",
-    "routes",
-    "deployments",
-    "principals",
-    "organizations",
-    "access",
-    "invitations",
-    "policies",
-    "settings",
+  groups: [
+    { key: "tasks", label: "Tasks", screens: ["taskHome"] },
+    { key: "site", label: "Site", screens: ["siteEditor"] },
+    { key: "crm", label: "CRM", screens: ["contacts"] },
+    {
+      key: "instance",
+      label: "Instance",
+      screens: [
+        "routes",
+        "deployments",
+        "principals",
+        "organizations",
+        "access",
+        "invitations",
+        "policies",
+        "settings",
+      ],
+    },
   ],
 };
 

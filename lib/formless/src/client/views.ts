@@ -513,7 +513,16 @@ export function selectPrimaryCollectionModels(schema: AppSchema): HomeViewModel[
 }
 
 export function selectPrimaryScreenModels(schema: AppSchema): HomeScreenModel[] {
-  return selectScreenModels(schema).filter((model) => model.navigation.primary);
+  const modelsByScreenName = new Map(
+    selectScreenModels(schema).map((model) => [model.screenName, model]),
+  );
+  return selectPrimaryScreenNames(schema).map((screenName) => {
+    const model = modelsByScreenName.get(screenName);
+    if (!model) {
+      throw new Error(`Missing primary screen model "${screenName}".`);
+    }
+    return model;
+  });
 }
 
 export function selectScreenModelByPath(
@@ -526,9 +535,8 @@ export function selectScreenModels(schema: AppSchema): HomeScreenModel[] {
   const collectionModelsByViewName = new Map(
     selectCollectionModels(schema).map((model) => [model.viewName, model]),
   );
-  const primaryScreenNames = new Set(
-    schema.navigation?.primaryScreens ?? schema.screens.map(({ key }) => key),
-  );
+  const orderedPrimaryScreenNames = selectPrimaryScreenNames(schema);
+  const primaryScreenNames = new Set(orderedPrimaryScreenNames);
   return assignScreenModelPaths(
     schema.screens.map((screen) =>
       selectScreenModel(
@@ -538,7 +546,15 @@ export function selectScreenModels(schema: AppSchema): HomeScreenModel[] {
         collectionModelsByViewName,
       ),
     ),
+    orderedPrimaryScreenNames,
   );
+}
+
+function selectPrimaryScreenNames(schema: AppSchema): string[] {
+  if (schema.navigation?.groups !== undefined) {
+    return schema.navigation.groups.flatMap((group) => group.screens);
+  }
+  return schema.navigation?.primaryScreens ?? schema.screens.map(({ key }) => key);
 }
 export function selectCollectionModels(schema: AppSchema): HomeViewModel[] {
   const viewEntries: Array<[string, ViewSchema]> = schema.views.map((view) => [view.key, view]);
@@ -608,17 +624,20 @@ function selectScreenModel(
   };
 }
 
-function assignScreenModelPaths(models: HomeScreenModel[]): HomeScreenModel[] {
-  let hasRootPath = models.some((model) => model.path === "/");
-
-  return models.map((model) => {
-    if (model.path !== undefined || !model.navigation.primary || hasRootPath) {
-      return model;
-    }
-
-    hasRootPath = true;
-    return { ...model, path: "/" };
-  });
+function assignScreenModelPaths(
+  models: HomeScreenModel[],
+  orderedPrimaryScreenNames: string[],
+): HomeScreenModel[] {
+  if (models.some((model) => model.path === "/")) {
+    return models;
+  }
+  const modelsByScreenName = new Map(models.map((model) => [model.screenName, model]));
+  const rootScreenName = orderedPrimaryScreenNames.find(
+    (screenName) => modelsByScreenName.get(screenName)?.path === undefined,
+  );
+  return models.map((model) =>
+    model.screenName === rootScreenName ? { ...model, path: "/" } : model,
+  );
 }
 
 function selectHomeCollection(

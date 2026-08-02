@@ -86,8 +86,10 @@ describe("workspace Program artifact", () => {
         ...formlessProgramDefaultComposition,
         modules: replacedModules,
         navigation: {
-          ...formlessProgramDefaultComposition.navigation,
-          primaryScreens: [...(formlessProgramDefaultComposition.navigation?.primaryScreens ?? [])],
+          groups: (formlessProgramDefaultComposition.navigation?.groups ?? []).map((group) => ({
+            ...group,
+            screens: [...group.screens],
+          })),
         },
       },
       { runtime: formlessProgramDefaultRuntimeComposition },
@@ -170,7 +172,7 @@ describe("workspace Program artifact", () => {
       sourceSchema: {
         ...artifact.sourceSchema,
         navigation: {
-          primaryScreens: [...(artifact.sourceSchema.navigation?.primaryScreens ?? [])].reverse(),
+          groups: [...(artifact.sourceSchema.navigation?.groups ?? [])].reverse(),
         },
       },
     };

@@ -266,6 +266,29 @@ from reusable package modules.
 - AND the extension does not create a second Program, package-scoped schema,
   qualified record identity, or package-derived authorization identity
 
+#### Scenario: Compose top-level Program navigation groups
+
+- GIVEN a Program composition root includes product-supplied and
+  workspace-owned screens in one complete schema
+- WHEN the root declares grouped navigation
+- THEN `navigation.groups` is an ordered array of stable group keys, human
+  labels, and ordered screen-key references
+- AND the default Program declares Tasks, Site, CRM, and Instance groups while
+  a downstream Program may replace that complete grouping and add its own
+  groups
+- AND the default Tasks, Site, and CRM groups select `taskHome`, `siteEditor`,
+  and `contacts` respectively
+- AND the default Instance group selects `routes`, `deployments`, `principals`,
+  `organizations`, `access`, `invitations`, `policies`, and `settings` in that
+  order
+- AND group and nested screen order remain portable, source-hash-significant
+  root-owned navigation data
+- AND package module identity, declaration provenance, screen path prefixes,
+  entity ownership, or runtime adapters do not infer group membership
+- AND a navigation group does not create another Program, storage target, API
+  prefix, browser replica, sync lineage, route mount, role catalog, or
+  authorization scope
+
 ### Requirement: Program Authorization Definitions
 
 The system SHALL let a Program composition root declare one ordered catalog of
@@ -876,7 +899,9 @@ The system SHALL let collection views select records through schema-declared que
 ### Requirement: Screens And Navigation
 
 The system SHALL require app schemas to define one or more workspace screens
-that compose collection views and own app-relative navigation.
+that compose collection views and own app-relative navigation, and SHALL let a
+composition root present selected screens through either flat or grouped
+navigation.
 
 #### Scenario: Root screen fallback
 
@@ -886,8 +911,35 @@ that compose collection views and own app-relative navigation.
   order
 - AND a declared `navigation.primaryScreens` array selects and orders its
   referenced screen subset
+- AND declared `navigation.groups` selects screens in group order and nested
+  screen order
 - AND the first selected pathless screen receives the app-relative `/` path
 - AND every navigation reference resolves to a declared screen
+
+#### Scenario: Parse grouped screen navigation
+
+- GIVEN an app schema declares `navigation.groups`
+- WHEN the complete schema is parsed
+- THEN every group has a unique non-empty key, a non-empty label, and a
+  non-empty ordered array of declared screen keys
+- AND a screen may appear in at most one navigation group
+- AND screens omitted from every group remain outside primary navigation
+- AND an omitted screen with an explicit path remains directly routeable under
+  its existing screen access and runtime-profile rules
+- AND group order and nested screen order select the flattened primary screen
+  order for root fallback and route-path uniqueness
+- AND `navigation.groups` and `navigation.primaryScreens` are mutually
+  exclusive so membership and order have one source
+
+#### Scenario: Reject invalid grouped navigation
+
+- GIVEN grouped navigation contains a duplicate group key, empty label, empty
+  screen array, undeclared screen key, duplicate screen within or across
+  groups, or a simultaneous `primaryScreens` declaration
+- WHEN the schema is parsed
+- THEN parsing fails
+- AND invalid grouped navigation is not materialized, hashed, or exposed to
+  generated UI
 
 #### Scenario: Reject missing screens
 

@@ -15,6 +15,7 @@ export type FormlessApplicationShellFixtureId =
   | "no-shell"
   | "program-roots"
   | "program-settings"
+  | "program-workspaces"
   | "site-authoring";
 
 export type FormlessApplicationShellFixtureState = {
@@ -34,6 +35,13 @@ const shellId = "shell:application";
 
 export function createFormlessApplicationShellFixtures(): FormlessApplicationShellFixture[] {
   return [
+    {
+      documentTheme: fixedDocumentTheme("light"),
+      id: "program-workspaces",
+      label: "Program workspaces",
+      routeLabel: "Tasks workspace",
+      shell: programWorkspacesShell(),
+    },
     {
       documentTheme: fixedDocumentTheme("light"),
       id: "program-settings",
@@ -151,6 +159,22 @@ function programSettingsShell(): FormlessApplicationShellFixtureState {
   return shell(sections);
 }
 
+function programWorkspacesShell(): FormlessApplicationShellFixtureState {
+  const sections = [
+    workspaceSwitcherSection("tasks"),
+    section("program", "program", {
+      accessibilityLabel: "Tasks screens",
+      destinations: [
+        shellLink("program:tasks", "Tasks", "/tasks", true),
+        shellLink("program:overdue", "Overdue", "/tasks/overdue"),
+      ],
+    }),
+    sessionSection(),
+  ];
+
+  return shell(sections, "Tasks");
+}
+
 function programRootsShell(): FormlessApplicationShellFixtureState {
   const sections = [
     programSection("/tasks"),
@@ -199,6 +223,7 @@ function siteAuthoringShell(): FormlessApplicationShellFixtureState {
 
 function shell(
   sections: readonly ShellNavigationSectionContract[],
+  title = "Formless Program",
 ): FormlessApplicationShellFixtureState {
   const selectedSection = [...sections]
     .reverse()
@@ -206,6 +231,7 @@ function shell(
   const selectedDestination = selectedSection?.destinations.find(
     (destination) => destination.selected,
   );
+  const workspaceSwitcher = sections.find((section) => section.role === "workspaceSwitcher");
 
   return {
     manifest: {
@@ -219,10 +245,26 @@ function shell(
       navigationSections: sections.map((section) =>
         shellNavigationSectionReference(shellId, section.id),
       ),
-      title: "Formless Program",
+      title,
+      workspaceSwitcher: workspaceSwitcher
+        ? shellNavigationSectionReference(shellId, workspaceSwitcher.id)
+        : null,
     },
     sections,
   };
+}
+
+function workspaceSwitcherSection(selectedKey: string): ShellNavigationSectionContract {
+  return section("workspaces", "workspaceSwitcher", {
+    accessibilityLabel: "Program workspaces",
+    destinations: [
+      shellLink("workspace:tasks", "Tasks", "/tasks", selectedKey === "tasks"),
+      shellLink("workspace:site", "Site", "/site", selectedKey === "site"),
+      shellLink("workspace:crm", "CRM", "/crm", selectedKey === "crm"),
+      shellLink("workspace:instance", "Instance", "/settings/routes", selectedKey === "instance"),
+    ],
+    label: "Workspaces",
+  });
 }
 
 function programSection(selectedHref: string): ShellNavigationSectionContract {

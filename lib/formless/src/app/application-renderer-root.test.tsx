@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, render } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { StrictMode } from "react";
 import {
@@ -52,6 +52,7 @@ describe("application root runtime", () => {
 
     let currentNestedHost: PresentationHost | undefined;
     let selectionCount = 0;
+    const authorizeProgramRoute = async () => ({ kind: "authorized" as const });
     const firstController = createApplicationThemeController(browserApplicationTheme());
     const observedController = {
       ...firstController,
@@ -72,6 +73,7 @@ describe("application root runtime", () => {
         <ApplicationShellRuntimeBoundary
           applicationTheme={applicationTheme}
           currentPath="/site"
+          dependencies={{ resolveRouteAccess: authorizeProgramRoute }}
           accountSession={{ authenticated: false, setupComplete: true }}
           runtimeProfile={runtimeProfile}
           screenModels={[]}
@@ -94,6 +96,23 @@ describe("application root runtime", () => {
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(document.documentElement.dataset.formlessApplicationTheme).toBe("dark");
     expect(document.documentElement.style.getPropertyValue("color-scheme")).toBe("dark");
+    fireEvent.click(
+      await waitFor(() =>
+        required(mounted.container.querySelector<HTMLButtonElement>('[aria-label="Open menu"]')),
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        new Set(
+          Array.from(document.body.querySelectorAll<HTMLAnchorElement>('a[role="menuitem"]')).map(
+            (link) => `${link.textContent}:${link.getAttribute("href")}`,
+          ),
+        ),
+      ).toEqual(new Set(["Tasks:/tasks", "Site:/site", "CRM:/crm", "Instance:/settings/routes"])),
+    );
+    expect(
+      required(document.body.querySelector('[role="menuitem"] [aria-current="page"]')).textContent,
+    ).toBe("Site");
 
     await act(async () => {
       required(

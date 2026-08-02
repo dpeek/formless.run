@@ -172,6 +172,7 @@ function shellPublication(
           kind: "shellManifest",
           navigationSections: [],
           title,
+          workspaceSwitcher: null,
         },
       },
     ],

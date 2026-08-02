@@ -5,6 +5,8 @@ import {
   parseAppSchema,
   stringifySchema,
   type AccessCallerFacts,
+  type AppNavigationSchema,
+  type AppNavigationSchemaSource,
   type AppAuthorizationSchemaSource,
   type AppSchemaSource,
   type ScreenAccessRequirementSource,
@@ -31,6 +33,124 @@ const roleDefinitions = [
 ] satisfies AppAuthorizationSchemaSource["roles"];
 
 describe("schema screens", () => {
+  it("parses ordered grouped navigation and preserves omitted direct screens", () => {
+    const navigation = {
+      groups: [
+        { key: "operations", label: "Operations", screens: ["reports", "home"] },
+        { key: "settings", label: "Settings", screens: ["settings"] },
+      ],
+    } satisfies AppNavigationSchemaSource;
+    const schema = parseAppSchema({
+      ...taskSchema(),
+      navigation,
+      screens: [
+        { key: "home", ...taskScreen() },
+        { key: "reports", ...taskScreen({ label: "Reports" }) },
+        { key: "settings", ...taskScreen({ label: "Settings", path: "/settings" }) },
+        { key: "direct", ...taskScreen({ label: "Direct", path: "/direct" }) },
+      ],
+    });
+    const parsedNavigation: AppNavigationSchema = schema.navigation!;
+
+    expect(parsedNavigation).toEqual(navigation);
+    expect(schema.screens.find((screen) => screen.key === "direct")?.path).toBe("/direct");
+    expect(JSON.parse(stringifySchema(schema)).navigation).toEqual(navigation);
+  });
+
+  it("keeps flat primary screen navigation valid", () => {
+    const navigation = { primaryScreens: ["settings", "home"] } satisfies AppNavigationSchemaSource;
+    const schema = parseAppSchema({
+      ...taskSchema(),
+      navigation,
+      screens: [
+        { key: "home", ...taskScreen() },
+        { key: "settings", ...taskScreen({ label: "Settings" }) },
+      ],
+    });
+
+    expect(schema.navigation).toEqual(navigation);
+  });
+
+  it("rejects invalid grouped navigation", () => {
+    const validGroup = { key: "work", label: "Work", screens: ["home"] };
+    const invalidNavigations: { navigation: unknown; message: string }[] = [
+      {
+        navigation: { groups: "work" },
+        message: "Schema navigation groups must be an array.",
+      },
+      {
+        navigation: { groups: [{ ...validGroup, key: "" }] },
+        message: "Schema navigation groups[0] key must be a non-empty string.",
+      },
+      {
+        navigation: {
+          groups: [validGroup, { key: "work", label: "Other", screens: ["settings"] }],
+        },
+        message: 'Schema navigation groups contains duplicate key "work".',
+      },
+      {
+        navigation: { groups: [{ ...validGroup, label: " " }] },
+        message: 'Schema navigation group "work" label must be a non-empty string.',
+      },
+      {
+        navigation: { groups: [{ ...validGroup, screens: [] }] },
+        message: 'Schema navigation group "work" screens must be a non-empty array.',
+      },
+      {
+        navigation: { groups: [{ ...validGroup, screens: [""] }] },
+        message: 'Schema navigation group "work" screens[0] must be a non-empty string.',
+      },
+      {
+        navigation: { groups: [{ ...validGroup, screens: ["missing"] }] },
+        message: 'Schema navigation group "work" references unknown screen "missing".',
+      },
+      {
+        navigation: { groups: [{ ...validGroup, screens: ["home", "home"] }] },
+        message: 'Schema navigation groups must not reference screen "home" more than once.',
+      },
+      {
+        navigation: {
+          groups: [validGroup, { key: "settings", label: "Settings", screens: ["home"] }],
+        },
+        message: 'Schema navigation groups must not reference screen "home" more than once.',
+      },
+      {
+        navigation: { groups: [validGroup], primaryScreens: ["home"] },
+        message: "Schema navigation must declare at most one of groups or primaryScreens.",
+      },
+    ];
+
+    for (const { navigation, message } of invalidNavigations) {
+      expect(() =>
+        parseAppSchema({
+          ...taskSchema(),
+          navigation,
+          screens: [
+            { key: "home", ...taskScreen() },
+            { key: "settings", ...taskScreen({ label: "Settings" }) },
+          ],
+        }),
+      ).toThrow(message);
+    }
+  });
+
+  it("uses flattened group order when validating an implicit root path", () => {
+    expect(() =>
+      parseAppSchema({
+        ...taskSchema(),
+        navigation: {
+          groups: [{ key: "work", label: "Work", screens: ["grouped"] }],
+        },
+        screens: [
+          { key: "directRoot", ...taskScreen({ label: "Direct root", path: "/" }) },
+          { key: "grouped", ...taskScreen({ label: "Grouped" }) },
+        ],
+      }),
+    ).toThrow(
+      'Screen path "/" must be unique. It is implied by "grouped" and declared by "directRoot".',
+    );
+  });
+
   it("parses static app-relative paths and rejects duplicate routes", () => {
     const schema = parseAppSchema({
       ...taskSchema(),

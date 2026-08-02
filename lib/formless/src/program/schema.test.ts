@@ -279,18 +279,24 @@ describe("Formless Program schema", () => {
     expect(screens.audiences?.path).toBe("/crm/audiences");
     expect(screens.campaigns?.path).toBe("/crm/campaigns");
     expect(screens.broadcasts?.path).toBe("/crm/broadcasts");
-    expect(parsed.navigation?.primaryScreens).toEqual([
-      "taskHome",
-      "siteEditor",
-      "contacts",
-      "routes",
-      "deployments",
-      "principals",
-      "organizations",
-      "access",
-      "invitations",
-      "policies",
-      "settings",
+    expect(parsed.navigation?.groups).toEqual([
+      { key: "tasks", label: "Tasks", screens: ["taskHome"] },
+      { key: "site", label: "Site", screens: ["siteEditor"] },
+      { key: "crm", label: "CRM", screens: ["contacts"] },
+      {
+        key: "instance",
+        label: "Instance",
+        screens: [
+          "routes",
+          "deployments",
+          "principals",
+          "organizations",
+          "access",
+          "invitations",
+          "policies",
+          "settings",
+        ],
+      },
     ]);
 
     const packageEntityIds = Object.fromEntries(

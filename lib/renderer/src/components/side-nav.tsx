@@ -4,6 +4,7 @@ import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
 import { HStack } from "@astryxdesign/core/HStack";
 import { HoverCard } from "@astryxdesign/core/HoverCard";
 import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList";
+import { NavHeadingMenu, NavHeadingMenuItem } from "@astryxdesign/core/NavMenu";
 import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
 import { Text } from "@astryxdesign/core/Text";
 import { radiusVars } from "@astryxdesign/core/theme/tokens.stylex";
@@ -28,7 +29,7 @@ import {
 } from "@dpeek/formless-presentation/host/react";
 import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
 
-type AstryxShellSectionSlot = "navigation" | "session";
+type AstryxShellSectionSlot = "navigation" | "session" | "workspaceSwitcher";
 
 const shellSessionStyles = stylex.create({
   avatarTrigger: {
@@ -47,6 +48,8 @@ export function AstryxApplicationSideNav({
   sections: readonly ShellNavigationSectionContract[];
   themeControl?: ReactNode;
 }) {
+  const workspaceSwitcher = sections.find((section) => section.role === "workspaceSwitcher");
+
   return (
     <AstryxApplicationSideNavFrame
       manifest={manifest}
@@ -66,6 +69,15 @@ export function AstryxApplicationSideNav({
           slot="session"
         />
       ))}
+      workspaceSwitcher={
+        workspaceSwitcher ? (
+          <AstryxApplicationShellSectionSlot
+            onIntent={onIntent}
+            section={workspaceSwitcher}
+            slot="workspaceSwitcher"
+          />
+        ) : undefined
+      }
       themeControl={themeControl}
     />
   );
@@ -81,11 +93,15 @@ export function AstryxSubscribedApplicationSideNav({
   themeControl?: ReactNode;
 }) {
   const onIntent = useShellIntentHandler();
+  const workspaceSwitcherReference = manifest.workspaceSwitcher;
+  const bodyReferences = workspaceSwitcherReference
+    ? references.filter((reference) => reference.sectionId !== workspaceSwitcherReference.sectionId)
+    : references;
 
   return (
     <AstryxApplicationSideNavFrame
       manifest={manifest}
-      navigation={references.map((reference) => (
+      navigation={bodyReferences.map((reference) => (
         <AstryxSubscribedApplicationShellSectionSlot
           key={`${reference.shellId}:${reference.sectionId}`}
           onIntent={onIntent}
@@ -93,7 +109,7 @@ export function AstryxSubscribedApplicationSideNav({
           slot="navigation"
         />
       ))}
-      session={references.map((reference) => (
+      session={bodyReferences.map((reference) => (
         <AstryxSubscribedApplicationShellSectionSlot
           key={`${reference.shellId}:${reference.sectionId}`}
           onIntent={onIntent}
@@ -101,6 +117,15 @@ export function AstryxSubscribedApplicationSideNav({
           slot="session"
         />
       ))}
+      workspaceSwitcher={
+        workspaceSwitcherReference ? (
+          <AstryxSubscribedApplicationShellSectionSlot
+            onIntent={onIntent}
+            reference={workspaceSwitcherReference}
+            slot="workspaceSwitcher"
+          />
+        ) : undefined
+      }
       themeControl={themeControl}
     />
   );
@@ -111,11 +136,13 @@ function AstryxApplicationSideNavFrame({
   navigation,
   session,
   themeControl,
+  workspaceSwitcher,
 }: {
   manifest: ShellManifestContract;
   navigation: ReactNode;
   session: ReactNode;
   themeControl?: ReactNode;
+  workspaceSwitcher?: ReactNode;
 }) {
   return (
     <SideNav
@@ -131,7 +158,16 @@ function AstryxApplicationSideNavFrame({
           {themeControl}
         </HStack>
       }
-      header={<SideNavHeading heading={manifest.title} />}
+      header={
+        <SideNavHeading
+          heading={manifest.title}
+          menu={
+            workspaceSwitcher ? (
+              <NavHeadingMenu size="lg">{workspaceSwitcher}</NavHeadingMenu>
+            ) : undefined
+          }
+        />
+      }
     >
       {navigation}
     </SideNav>
@@ -170,17 +206,50 @@ function AstryxApplicationShellSectionSlot({
   section: ShellNavigationSectionContract;
   slot: AstryxShellSectionSlot;
 }) {
+  if (slot === "workspaceSwitcher") {
+    return section.role === "workspaceSwitcher" ? (
+      <AstryxWorkspaceSwitcherSection section={section} />
+    ) : null;
+  }
+
   if (slot === "session") {
     return section.role === "session" && section.session ? (
       <AstryxShellSession onIntent={onIntent} section={section} session={section.session} />
     ) : null;
   }
 
-  if (section.role === "session") {
+  if (section.role === "session" || section.role === "workspaceSwitcher") {
     return null;
   }
 
   return <AstryxShellNavigationSection onIntent={onIntent} section={section} />;
+}
+
+function AstryxWorkspaceSwitcherSection({ section }: { section: ShellNavigationSectionContract }) {
+  return section.destinations.map((destination) => (
+    <NavHeadingMenuItem
+      description={destinationSupportingText(destination)}
+      href={destination.kind === "shellLinkDestination" ? destination.href : undefined}
+      isDisabled={!destination.availability.available}
+      key={destination.id}
+      label={
+        <HStack align="center" gap={2} justify="between" width="100%">
+          <Text type="label" weight={destination.selected ? "semibold" : undefined}>
+            <span aria-current={destination.selected ? "page" : undefined}>
+              {destination.label}
+            </span>
+          </Text>
+          {destination.countText ? (
+            <Badge
+              aria-label={`${destination.accessibilityLabel} count`}
+              label={destination.countText}
+              variant="neutral"
+            />
+          ) : null}
+        </HStack>
+      }
+    />
+  ));
 }
 
 function AstryxShellNavigationSection({

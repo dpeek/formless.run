@@ -62,8 +62,9 @@ shell.
 
 - **GIVEN** the product instance shell renders
 - **WHEN** Program screens and custom domains are available
-- **THEN** Tasks, Site, CRM, and downstream workspace modules appear as Program
-  destinations
+- **THEN** Tasks, Site, CRM, Instance, and downstream Program navigation groups
+  appear as top-level workspace destinations
+- **AND** only screens in the selected group appear in its screen navigation
 - **AND** custom domain management shows desired route state and provider applied
   evidence separately
 - **AND** deployment navigation comes only from the schema-owned Program screen
@@ -79,12 +80,16 @@ shell.
 - **WHEN** runtime profile, route, Program schema, sync, and session
   facts are available
 - **THEN** runtime projects one shell manifest with stable identity, title,
-  scope, active destination, and ordered navigation-section references
+  active destination, and ordered navigation-section references
 - **AND** navigation presents product-supplied and workspace-owned Program
   screens from the complete materialized Program artifact through the same
   destination contract
-- **AND** navigation sections can contain generated Program screens, root
-  record navigation, app settings, and display-safe session controls
+- **AND** grouped navigation projects a top-level workspace switcher and the
+  selected group's generated Program screens while flat navigation retains one
+  Program screen section
+- **AND** navigation sections can contain the workspace switcher, generated
+  Program screens, root record navigation, app settings, and display-safe
+  session controls
 - **AND** public Site routes are excluded from the top-level switcher and are
   exposed from Site admin workspaces as prominent links that open a new tab
 - **AND** destination hrefs derive from active Program route data and selected
@@ -94,6 +99,35 @@ shell.
 - **AND** the shell contract does not expose runtime profiles, route policy,
   schemas, queries, raw records, browser replica APIs, React nodes,
   presentation class names, or renderer-specific component props
+
+#### Scenario: Select grouped Program navigation
+
+- **GIVEN** the active Program schema declares ordered `navigation.groups`
+- **WHEN** an authorized Program screen route is selected
+- **THEN** runtime resolves the active group from the selected stable screen key
+  rather than a route prefix, module key, or entity declaration
+- **AND** the shell title is the active group's label and its screen section
+  contains only authorized screens from that group in declared order
+- **AND** the workspace switcher contains each group with at least one
+  authorized screen in declared order
+- **AND** each workspace destination links to that group's first authorized
+  screen and is selected exactly when the current screen belongs to the group
+- **AND** a directly opened screen omitted from every group retains the Program
+  shell and workspace switcher, uses the Program title, and does not select a
+  group or synthesize group membership
+- **AND** the selected screen destination remains the shell's active
+  destination rather than the containing workspace destination
+
+#### Scenario: Keep navigation grouping presentation-only
+
+- **GIVEN** a grouped Program shell is selected
+- **WHEN** runtime admits routes, authorizes screens or operations, reads or
+  writes records, syncs the replica, or resolves public Site behavior
+- **THEN** those behaviors continue to use the one complete Program and the
+  selected screen's existing path and access requirement
+- **AND** group keys and workspace destinations do not become route mounts,
+  access grants, API identities, storage identities, replica identities, or
+  runtime adapter selectors
 
 #### Scenario: Root record navigation
 
@@ -231,18 +265,23 @@ The system SHALL render generated screens from screen models and collection sect
   declaration order
 - AND a declared `navigation.primaryScreens` array selects and orders the
   sidebar screen subset
-- AND the sidebar title is the app label
+- AND declared `navigation.groups` selects ordered workspace and nested screen
+  navigation without also consulting `primaryScreens`
+- AND flat navigation uses the app label as the sidebar title while grouped
+  navigation uses the selected group's label
 
 #### Scenario: Authorized Program navigation
 
-- GIVEN the active Program schema declares ordered primary screens with
-  explicit access requirements
+- GIVEN the active Program schema declares flat or grouped ordered navigation
+  screens with explicit access requirements
 - WHEN generated runtime projects Program navigation for the current browser
   session
 - THEN it includes only destinations whose concrete route target is currently
   authorized by the server
-- AND destination order and paths remain owned by the materialized Program
-  schema
+- AND flat screen order, group order, nested screen order, and destination paths
+  remain owned by the materialized Program schema
+- AND a navigation group with no authorized screen is omitted without exposing
+  the labels or paths of its unavailable screens
 - AND omitted destinations remain unavailable through client-side navigation
   while direct navigation returns the same forbidden outcome
 - AND navigation filtering is a usability boundary rather than a record-secrecy
@@ -809,9 +848,9 @@ data reads, session behavior, operations, and effects.
 - **THEN** the host exposes typed references for one shell manifest and its
   ordered navigation-section nodes through the same generic contract-node
   boundary used by generated workspace contracts
-- **AND** shell nodes carry complete renderer-neutral destinations, selection,
-  counts, statuses, controlled create surfaces, and session presentation needed
-  by the shell
+- **AND** shell nodes carry complete renderer-neutral workspace-switcher and
+  screen destinations, selection, counts, statuses, controlled create
+  surfaces, and session presentation needed by the shell
 - **AND** workspace references retain their existing roles and contract shapes
 - **AND** shell references and snapshots are serializable data without route
   objects, schemas, records, queries, runtime callbacks, React nodes, storage
@@ -871,10 +910,13 @@ data reads, session behavior, operations, and effects.
 - **GIVEN** runtime publishes complete production shell contracts
 - **WHEN** the selected renderer implements the contracts in
   `lib/renderer`
-- **THEN** pure and subscribed renderer entrypoints render Program navigation,
-  root records and create controls, Program settings, sync state, session
-  identity, logout, and the route child
-  without importing generated runtime
+- **THEN** pure and subscribed renderer entrypoints render the active workspace
+  title, an accessible heading-menu workspace switcher when grouped navigation
+  is present, active-group Program screen navigation, root records and create
+  controls, Program settings, sync state, session identity, logout, and the
+  route child without importing generated runtime
+- **AND** the workspace-switcher section renders only in the heading menu while
+  ordinary screen sections remain in the navigation body
 - **AND** app settings render as one navigation item whose hover and focus
   overlay contains sync and workspace-save status
 - **AND** projected sync detail rows render through the package `MetadataList`
@@ -893,9 +935,11 @@ data reads, session behavior, operations, and effects.
 
 - **GIVEN** runtime publishes complete production shell contracts
 - **WHEN** shell UX is evaluated with package-local renderer fixtures
-- **THEN** data-only memory-host fixtures cover Program destinations, current
-  route selection, Site authoring, root records and counts, controlled create,
-  sync state, authenticated session state, and no-shell selection
+- **THEN** data-only memory-host fixtures cover flat Program destinations,
+  grouped workspace destinations, active-group screens, authorization-filtered
+  and ungrouped screen selection, Site authoring, root records and counts,
+  controlled create, sync state, authenticated session state, and no-shell
+  selection
 - **AND** fixture reducers may simulate root selection, create, and logout
   intents without importing generated runtime, schemas, routing, browser
   replica, storage, operation controllers, or session clients

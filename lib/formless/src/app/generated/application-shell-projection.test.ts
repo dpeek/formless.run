@@ -126,9 +126,10 @@ describe("generated application shell projection", () => {
       accessibilityLabel: "Formless Program application shell",
       id: "application-shell",
       kind: "shellManifest",
-      title: "Formless Program",
+      title: "Site",
     });
     expect(roles).toEqual([
+      "workspaceSwitcher",
       "program",
       "rootRecords",
       "rootRecords",
@@ -181,7 +182,7 @@ describe("generated application shell projection", () => {
     expect(JSON.stringify(projection)).not.toContain("session-token");
   });
 
-  it("presents current Program navigation", () => {
+  it("presents the default Program workspaces and active Instance screens", () => {
     const runtimeProfile = createDevRuntimeProfile();
     const principalsProjection = required(
       projectGeneratedApplicationShell({
@@ -203,11 +204,30 @@ describe("generated application shell projection", () => {
         destinationId: "program:principals",
         sectionId: "application-shell:program",
       },
-      title: "Formless Program",
+      title: "Instance",
+      workspaceSwitcher: {
+        sectionId: "application-shell:workspaces",
+        shellId: "application-shell",
+      },
     });
     expect(principalsProjection.sections.map((section) => section.role)).toEqual([
+      "workspaceSwitcher",
       "program",
       "session",
+    ]);
+    expect(
+      required(
+        principalsProjection.sections.find((section) => section.role === "workspaceSwitcher"),
+      ).destinations,
+    ).toEqual([
+      expect.objectContaining({ href: "/tasks", label: "Tasks", selected: false }),
+      expect.objectContaining({ href: "/site", label: "Site", selected: false }),
+      expect.objectContaining({ href: "/crm", label: "CRM", selected: false }),
+      expect.objectContaining({
+        href: "/settings/routes",
+        label: "Instance",
+        selected: true,
+      }),
     ]);
     expect(
       required(accessProjection.sections.find((section) => section.role === "program"))
@@ -232,9 +252,6 @@ describe("generated application shell projection", () => {
         };
       }),
     ).toEqual([
-      { href: "/tasks", label: "Tasks", selected: false },
-      { href: "/site", label: "Blocks", selected: false },
-      { href: "/crm", label: "Contacts", selected: false },
       { href: "/settings/routes", label: "Routes", selected: false },
       { href: "/deployments", label: "Deployments", selected: false },
       { href: "/", label: "Principals", selected: true },
@@ -269,6 +286,78 @@ describe("generated application shell projection", () => {
       { href: "/deployments", label: "Deployments", selected: true },
       { href: "/settings", label: "Settings", selected: false },
     ]);
+  });
+
+  it("projects ordered authorized workspaces from the resolved stable screen key", () => {
+    const programSchema = groupedProgramScreenSchema();
+    const runtimeProfile = createDevRuntimeProfile();
+    const authorizedProgramScreenPaths = [
+      "/tasks",
+      "/site",
+      "/settings/routes",
+      "/tasks/settings",
+      "/settings",
+    ];
+    const grouped = required(
+      projectGeneratedApplicationShell({
+        authorizedProgramScreenPaths,
+        currentPath: "/tasks/settings",
+        programSchema,
+        runtimeProfile,
+      }),
+    );
+    const workspaceSwitcher = required(
+      grouped.sections.find((section) => section.role === "workspaceSwitcher"),
+    );
+    const programSection = required(grouped.sections.find((section) => section.role === "program"));
+
+    expect(grouped.manifest).toMatchObject({
+      activeDestination: {
+        destinationId: "program:access",
+        sectionId: "application-shell:program",
+      },
+      title: "Instance",
+      workspaceSwitcher: {
+        sectionId: "application-shell:workspaces",
+        shellId: "application-shell",
+      },
+    });
+    expect(workspaceSwitcher.destinations).toEqual([
+      expect.objectContaining({ href: "/tasks", label: "Work", selected: false }),
+      expect.objectContaining({
+        href: "/settings/routes",
+        label: "Instance",
+        selected: true,
+      }),
+    ]);
+    expect(programSection.destinations).toEqual([
+      expect.objectContaining({ href: "/settings/routes", label: "Routes", selected: false }),
+      expect.objectContaining({ href: "/tasks/settings", label: "Access", selected: true }),
+    ]);
+
+    const ungrouped = required(
+      projectGeneratedApplicationShell({
+        authorizedProgramScreenPaths,
+        currentPath: "/settings",
+        programSchema,
+        runtimeProfile,
+      }),
+    );
+    const ungroupedSwitcher = required(
+      ungrouped.sections.find((section) => section.role === "workspaceSwitcher"),
+    );
+
+    expect(ungrouped.manifest).toMatchObject({
+      activeDestination: {
+        destinationId: "program:settings",
+        sectionId: "application-shell:program",
+      },
+      title: "Formless Program",
+    });
+    expect(ungroupedSwitcher.destinations.every((destination) => !destination.selected)).toBe(true);
+    expect(
+      required(ungrouped.sections.find((section) => section.role === "program")).destinations,
+    ).toEqual([expect.objectContaining({ href: "/settings", label: "Settings", selected: true })]);
   });
 
   it("projects anonymous session state", () => {
@@ -476,6 +565,26 @@ function relocatedProductScreenSchema(): AppSchema {
         : screen.key === "access"
           ? { ...screen, path: "/people/access" }
           : screen,
+    ),
+  };
+}
+
+function groupedProgramScreenSchema(): AppSchema {
+  return {
+    ...formlessProgramSchema,
+    navigation: {
+      groups: [
+        { key: "work", label: "Work", screens: ["taskHome", "siteEditor"] },
+        {
+          key: "instance",
+          label: "Instance",
+          screens: ["deployments", "routes", "access"],
+        },
+        { key: "crm", label: "CRM", screens: ["contacts"] },
+      ],
+    },
+    screens: formlessProgramSchema.screens.map((screen) =>
+      screen.key === "access" ? { ...screen, path: "/tasks/settings" } : screen,
     ),
   };
 }

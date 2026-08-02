@@ -274,9 +274,20 @@ export function projectGeneratedApplicationShell({
   }
 
   const sections: ShellNavigationSectionContract[] = [];
+  let title = "Formless Program";
+  const selectedProgramScreen = resolveFormlessProgramScreenRouteTarget(
+    normalizeRuntimeBrowserPath(currentPath),
+    programSchema,
+  );
 
-  if (isGeneratedShellProgramPath(currentPath, programSchema)) {
-    sections.push(programSection(currentPath, authorizedProgramScreenPaths, programSchema));
+  if (selectedProgramScreen) {
+    const programNavigation = programNavigationSections(
+      selectedProgramScreen.key,
+      authorizedProgramScreenPaths,
+      programSchema,
+    );
+    sections.push(...programNavigation.sections);
+    title = programNavigation.title;
   }
 
   if (root) {
@@ -309,6 +320,7 @@ export function projectGeneratedApplicationShell({
     session: selectGeneratedShellSession(accountSession, logoutState),
     shellId: GENERATED_APPLICATION_SHELL_ID,
   });
+  const workspaceSwitcher = sections.find((section) => section.role === "workspaceSwitcher");
 
   return {
     manifest: {
@@ -319,16 +331,13 @@ export function projectGeneratedApplicationShell({
       navigationSections: sections.map((section) =>
         shellNavigationSectionReference(GENERATED_APPLICATION_SHELL_ID, section.id),
       ),
-      title: "Formless Program",
+      title,
+      workspaceSwitcher: workspaceSwitcher
+        ? shellNavigationSectionReference(GENERATED_APPLICATION_SHELL_ID, workspaceSwitcher.id)
+        : null,
     },
     sections,
   };
-}
-
-function isGeneratedShellProgramPath(currentPath: string, programSchema: AppSchema): boolean {
-  const path = normalizeRuntimeBrowserPath(currentPath);
-
-  return resolveFormlessProgramScreenRouteTarget(path, programSchema) !== undefined;
 }
 
 export function generatedShellRootSectionId(
@@ -339,46 +348,144 @@ export function generatedShellRootSectionId(
   return `${GENERATED_APPLICATION_SHELL_ID}:roots:${screenName}:${sectionId}:${queryName}`;
 }
 
+function programNavigationSections(
+  selectedScreenKey: string,
+  authorizedProgramScreenPaths: readonly string[],
+  programSchema: AppSchema,
+): {
+  sections: ShellNavigationSectionContract[];
+  title: string;
+} {
+  const groups = programSchema.navigation?.groups;
+
+  if (groups === undefined) {
+    return {
+      sections: [
+        programSection(
+          programSchema.navigation?.primaryScreens ??
+            programSchema.screens.map((screen) => screen.key),
+          selectedScreenKey,
+          authorizedProgramScreenPaths,
+          programSchema,
+        ),
+      ],
+      title: "Formless Program",
+    };
+  }
+
+  const activeGroup = groups.find((group) => group.screens.includes(selectedScreenKey));
+  const sections = [
+    workspaceSwitcherSection(
+      groups.map((group) => ({
+        key: group.key,
+        label: group.label,
+        screens: authorizedProgramScreens(
+          group.screens,
+          authorizedProgramScreenPaths,
+          programSchema,
+        ),
+        selected: group.key === activeGroup?.key,
+      })),
+    ),
+    programSection(
+      activeGroup?.screens ?? [selectedScreenKey],
+      selectedScreenKey,
+      authorizedProgramScreenPaths,
+      programSchema,
+    ),
+  ];
+
+  return {
+    sections,
+    title: activeGroup?.label ?? "Formless Program",
+  };
+}
+
+function workspaceSwitcherSection(
+  groups: readonly {
+    key: string;
+    label: string;
+    screens: readonly { path: `/${string}` }[];
+    selected: boolean;
+  }[],
+): ShellNavigationSectionContract {
+  return {
+    accessibilityLabel: "Program workspaces",
+    destinations: groups.flatMap((group) => {
+      const landingScreen = group.screens[0];
+
+      return landingScreen
+        ? [
+            {
+              accessibilityLabel: group.label,
+              availability: { available: true } as const,
+              href: landingScreen.path,
+              id: `workspace:${group.key}`,
+              kind: "shellLinkDestination" as const,
+              label: group.label,
+              selected: group.selected,
+            },
+          ]
+        : [];
+    }),
+    id: `${GENERATED_APPLICATION_SHELL_ID}:workspaces`,
+    kind: "shellNavigationSection",
+    label: "Workspaces",
+    role: "workspaceSwitcher",
+    shellId: GENERATED_APPLICATION_SHELL_ID,
+  };
+}
+
 function programSection(
-  currentPath: string,
+  screenKeys: readonly string[],
+  selectedScreenKey: string,
   authorizedProgramScreenPaths: readonly string[],
   programSchema: AppSchema,
 ): ShellNavigationSectionContract {
-  const path = normalizeRuntimeBrowserPath(currentPath);
-  const authorizedPaths = new Set(authorizedProgramScreenPaths);
-  const screens = new Map(programSchema.screens.map((screen) => [screen.key, screen]));
-  const destinations = (programSchema.navigation?.primaryScreens ?? [])
-    .map((screenKey) => screens.get(screenKey))
-    .filter(
-      (screen): screen is NonNullable<typeof screen> & { path: `/${string}` } =>
-        screen?.path !== undefined && authorizedPaths.has(screen.path),
-    )
-    .map((screen) => ({
-      href: screen.path,
-      id: `program:${screen.key}`,
-      label: screen.label,
-    }));
-  const activeHref = selectGeneratedShellActiveHref(
-    path,
-    destinations.map(({ href }) => href),
-  );
+  const destinations = authorizedProgramScreens(
+    screenKeys,
+    authorizedProgramScreenPaths,
+    programSchema,
+  ).map((screen) => ({
+    href: screen.path,
+    id: `program:${screen.key}`,
+    label: screen.label,
+    selected: screen.key === selectedScreenKey,
+  }));
 
   return {
     accessibilityLabel: "Program navigation",
-    destinations: destinations.map(({ href, id, label }) => ({
+    destinations: destinations.map(({ href, id, label, selected }) => ({
       accessibilityLabel: label,
       availability: { available: true },
       href,
       id,
       kind: "shellLinkDestination",
       label,
-      selected: href === activeHref,
+      selected,
     })),
     id: `${GENERATED_APPLICATION_SHELL_ID}:program`,
     kind: "shellNavigationSection",
     role: "program",
     shellId: GENERATED_APPLICATION_SHELL_ID,
   };
+}
+
+function authorizedProgramScreens(
+  screenKeys: readonly string[],
+  authorizedProgramScreenPaths: readonly string[],
+  programSchema: AppSchema,
+) {
+  const authorizedPaths = new Set(authorizedProgramScreenPaths);
+  const screens = new Map(programSchema.screens.map((screen) => [screen.key, screen]));
+
+  return screenKeys.flatMap((screenKey) => {
+    const screen = screens.get(screenKey);
+
+    return screen?.path !== undefined && authorizedPaths.has(screen.path)
+      ? [{ ...screen, path: screen.path as `/${string}` }]
+      : [];
+  });
 }
 
 function shellButton(id: string, label: string, prominence: "primary" | "secondary" | "quiet") {

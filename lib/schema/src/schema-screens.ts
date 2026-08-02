@@ -8,8 +8,9 @@ import {
   parseRequiredNonEmptyString,
 } from "./schema-parse-helpers.ts";
 import type {
-  AppNavigationSchema,
   AppAuthorizationSchema,
+  AppNavigationGroupSchema,
+  AppNavigationSchema,
   CollectionScreenSectionSchema,
   ScreenAccessRequirement,
   ScreenLayoutSchema,
@@ -49,7 +50,18 @@ export function parseAppNavigation(
   if (!isRecord(value)) {
     throw new Error("Schema navigation must be an object.");
   }
-  assertExactKeys("Schema navigation", value, [], ["primaryScreens"]);
+  assertExactKeys("Schema navigation", value, [], ["groups", "primaryScreens"]);
+  if (value.groups !== undefined && value.primaryScreens !== undefined) {
+    throw new Error("Schema navigation must declare at most one of groups or primaryScreens.");
+  }
+  if (value.groups !== undefined) {
+    const groups = parseAppNavigationGroups(value.groups, screens);
+    assertUniqueScreenPaths(
+      screens,
+      groups.flatMap((group) => group.screens),
+    );
+    return { groups };
+  }
   if (value.primaryScreens === undefined) {
     assertUniqueScreenPaths(
       screens,
@@ -76,6 +88,37 @@ export function parseAppNavigation(
   }
   assertUniqueScreenPaths(screens, primaryScreens);
   return { primaryScreens };
+}
+
+function parseAppNavigationGroups(
+  value: unknown,
+  screens: KeyedDefinition<ScreenSchema>[],
+): KeyedDefinition<AppNavigationGroupSchema>[] {
+  const screensByKey = definitionsToRecord(screens);
+  const referencedScreenKeys = new Set<string>();
+
+  return parseKeyedDefinitionArray("Schema navigation groups", value, (groupKey, group) => {
+    const context = `Schema navigation group "${groupKey}"`;
+    assertExactKeys(context, group, ["key", "label", "screens"]);
+    const label = parseRequiredNonEmptyString(`${context} label`, group.label);
+    if (!Array.isArray(group.screens) || group.screens.length === 0) {
+      throw new Error(`${context} screens must be a non-empty array.`);
+    }
+    const groupScreens = group.screens.map((screenKey, index) => {
+      const key = parseRequiredNonEmptyString(`${context} screens[${index}]`, screenKey);
+      if (!screensByKey[key]) {
+        throw new Error(`${context} references unknown screen "${key}".`);
+      }
+      if (referencedScreenKeys.has(key)) {
+        throw new Error(
+          `Schema navigation groups must not reference screen "${key}" more than once.`,
+        );
+      }
+      referencedScreenKeys.add(key);
+      return key;
+    });
+    return { label, screens: groupScreens };
+  });
 }
 function parseScreen(
   screenName: string,

@@ -851,9 +851,29 @@ export type CollectionViewSchemaSource = Omit<CollectionViewSchema, "context"> &
   context?: CollectionContextSchemaSource;
 };
 export type ViewSchemaSource = CollectionViewSchemaSource | CreateViewSchema | EditViewSchema;
-export type AppNavigationSchema = {
-  primaryScreens?: string[];
+export type AppNavigationGroupSchema = {
+  label: string;
+  screens: string[];
 };
+export type AppNavigationSchema =
+  | {
+      primaryScreens?: string[];
+      groups?: never;
+    }
+  | {
+      primaryScreens?: never;
+      groups: KeyedDefinition<AppNavigationGroupSchema>[];
+    };
+export type AppNavigationGroupSchemaSource = AppNavigationGroupSchema;
+export type AppNavigationSchemaSource =
+  | {
+      primaryScreens?: string[];
+      groups?: never;
+    }
+  | {
+      primaryScreens?: never;
+      groups: KeyedDefinition<AppNavigationGroupSchemaSource>[];
+    };
 export type CollectionScreenSectionSchema = {
   id: string;
   type: "collection";
@@ -1489,11 +1509,12 @@ export type AppSchemaDefinitionIndex = {
  */
 export type AppSchemaSource = Omit<
   AppSchema,
-  "authorization" | "entities" | "screens" | "version" | "views"
+  "authorization" | "entities" | "navigation" | "screens" | "version" | "views"
 > & {
   version: 1;
   authorization?: AppAuthorizationSchemaSource;
   entities: KeyedDefinition<EntitySchemaSource>[];
+  navigation?: AppNavigationSchemaSource;
   screens: KeyedDefinition<ScreenSchemaSource>[];
   views: KeyedDefinition<ViewSchemaSource>[];
 };

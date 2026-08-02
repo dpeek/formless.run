@@ -2994,9 +2994,7 @@ describe("Formless CLI", () => {
     const customProgram = {
       ...formlessProgramDefaultComposition,
       navigation: {
-        primaryScreens: [
-          ...(formlessProgramDefaultComposition.navigation?.primaryScreens ?? []),
-        ].reverse(),
+        groups: [...(formlessProgramDefaultComposition.navigation?.groups ?? [])].reverse(),
       },
     };
     const child = new FakeCliDevChild();

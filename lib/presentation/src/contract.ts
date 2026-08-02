@@ -1870,7 +1870,12 @@ export type WorkspaceContract = {
   width: WorkspaceWidth;
 };
 
-export type ShellNavigationSectionRole = "program" | "rootRecords" | "settings" | "session";
+export type ShellNavigationSectionRole =
+  | "program"
+  | "rootRecords"
+  | "settings"
+  | "session"
+  | "workspaceSwitcher";
 
 export type ShellDestinationAvailability =
   | {
@@ -1986,6 +1991,7 @@ export type ShellManifestContract = {
   kind: "shellManifest";
   navigationSections: readonly ShellNavigationSectionReference[];
   title: string;
+  workspaceSwitcher: ShellNavigationSectionReference | null;
 };
 
 export type DocumentThemeMode = "system" | "light" | "dark";

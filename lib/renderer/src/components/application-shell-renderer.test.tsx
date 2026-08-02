@@ -31,6 +31,7 @@ import {
 const shellReference = shellManifestReference("shell:application");
 const themeReference = documentThemeReference("theme:application");
 const sectionReferences = {
+  workspaces: shellNavigationSectionReference(shellReference.shellId, "section:workspaces"),
   program: shellNavigationSectionReference(shellReference.shellId, "section:program"),
   roots: shellNavigationSectionReference(shellReference.shellId, "section:roots"),
   settings: shellNavigationSectionReference(shellReference.shellId, "section:settings"),
@@ -59,7 +60,7 @@ describe("Astryx application shell renderer", () => {
       </AstryxApplicationShellRenderer>,
     );
     const { container } = mountedRenderer;
-    expect(new Set(sideNavSectionLabels(container))).toEqual(new Set(["Program", "Pages"]));
+    expect(new Set(sideNavSectionLabels(container))).toEqual(new Set(["Tasks screens", "Pages"]));
     const pages = required(
       container.querySelector<HTMLButtonElement>('button[aria-current="page"]'),
     );
@@ -72,6 +73,26 @@ describe("Astryx application shell renderer", () => {
     expect(requiredByProps(container, { "aria-label": "Ada Lovelace", role: "img" })).toBeDefined();
     expect(interactiveByLabel(container, "Ada Lovelace")).toBeDefined();
     expect(rendererText(mountedRenderer)).toContain("Route workspace");
+
+    fireEvent.click(requiredByProps(container, { "aria-label": "Open menu" }));
+    const workspaceLinks = await waitFor(() => {
+      const links = Array.from(
+        document.body.querySelectorAll<HTMLAnchorElement>('a[role="menuitem"]'),
+      );
+      expect(links).toHaveLength(6);
+      return links;
+    });
+    expect(workspaceLinks.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["Tasks", "/tasks"],
+      ["Site", "/site"],
+      ["CRM", "/crm"],
+      ["Tasks", "/tasks"],
+      ["Site", "/site"],
+      ["CRM", "/crm"],
+    ]);
+    expect(
+      required(document.body.querySelector('[role="menuitem"] [aria-current="page"]')).textContent,
+    ).toBe("Tasks");
 
     const mobileNav = required(
       container.querySelector<HTMLDialogElement>('dialog[aria-label="Navigation"]'),
@@ -160,19 +181,23 @@ describe("Astryx application shell renderer", () => {
     ]);
 
     const updatedSections = shellSections().map((section) =>
-      section.id === sectionReferences.program.sectionId
-        ? { ...section, label: "Updated Program navigation" }
+      section.id === sectionReferences.workspaces.sectionId
+        ? {
+            ...section,
+            destinations: section.destinations.map((destination) =>
+              destination.id === "workspace:crm"
+                ? { ...destination, label: "Customers" }
+                : destination,
+            ),
+          }
         : section,
     );
     await act(async () => {
       host.publish(shellNodes(updatedSections));
     });
 
-    await waitFor(() =>
-      expect(sideNavSectionLabels(mountedRenderer.container)).toContain(
-        "Updated Program navigation",
-      ),
-    );
+    fireEvent.click(requiredByProps(mountedRenderer.container, { "aria-label": "Open menu" }));
+    await waitFor(() => expect(document.body.textContent).toContain("Customers"));
 
     mountedRenderer.unmount();
   });
@@ -231,12 +256,14 @@ function shellManifest(): ShellManifestContract {
     id: shellReference.shellId,
     kind: "shellManifest",
     navigationSections: [
+      sectionReferences.workspaces,
       sectionReferences.program,
       sectionReferences.roots,
       sectionReferences.settings,
       sectionReferences.session,
     ],
-    title: "Formless Program",
+    title: "Tasks",
+    workspaceSwitcher: sectionReferences.workspaces,
   };
 }
 
@@ -250,14 +277,22 @@ function shellSections(): ShellNavigationSectionContract[] {
   };
 
   return [
+    shellSection(sectionReferences.workspaces.sectionId, "workspaceSwitcher", {
+      accessibilityLabel: "Program workspaces",
+      destinations: [
+        { ...shellLink("workspace:tasks", "Tasks", "/tasks"), selected: true },
+        shellLink("workspace:site", "Site", "/site"),
+        shellLink("workspace:crm", "CRM", "/crm"),
+      ],
+      label: "Workspaces",
+    }),
     shellSection(sectionReferences.program.sectionId, "program", {
       accessibilityLabel: "Program navigation",
       destinations: [
         { ...shellLink("program:tasks", "Tasks", "/tasks"), selected: true },
-        shellLink("program:site", "Site", "/site"),
-        shellLink("program:settings", "Settings", "/settings"),
+        shellLink("program:overdue", "Overdue", "/tasks/overdue"),
       ],
-      label: "Program",
+      label: "Tasks screens",
     }),
     shellSection(sectionReferences.roots.sectionId, "rootRecords", {
       createSurface: createSurface(),

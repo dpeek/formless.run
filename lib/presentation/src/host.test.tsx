@@ -67,6 +67,10 @@ const programSectionReference = shellNavigationSectionReference(
   "shell:program",
   "shell-section:program",
 );
+const workspaceSwitcherSectionReference = shellNavigationSectionReference(
+  "shell:program",
+  "shell-section:workspaces",
+);
 const settingsSectionReference = shellNavigationSectionReference(
   "shell:program",
   "shell-section:settings",
@@ -208,6 +212,7 @@ describe("memory Presentation Host", () => {
           kind: "shellManifest",
           navigationSections: [crossShellSectionReference],
           title: "Formless Program",
+          workspaceSwitcher: null,
         },
       },
       {
@@ -248,6 +253,39 @@ describe("memory Presentation Host", () => {
         ),
       }),
     ).toThrow("has no snapshot");
+  });
+
+  it("validates the manifest workspace-switcher reference and section role", () => {
+    const manifest: ShellManifestContract = {
+      accessibilityLabel: "Formless Program application shell",
+      activeDestination: null,
+      id: shellReference.shellId,
+      kind: "shellManifest",
+      navigationSections: [workspaceSwitcherSectionReference],
+      title: "Tasks",
+      workspaceSwitcher: workspaceSwitcherSectionReference,
+    };
+    const section = shellSection({
+      id: workspaceSwitcherSectionReference.sectionId,
+      role: "workspaceSwitcher",
+      shellId: shellReference.shellId,
+    });
+    const host = createMemoryPresentationHost({
+      nodes: [
+        { reference: shellReference, snapshot: manifest },
+        { reference: workspaceSwitcherSectionReference, snapshot: section },
+      ],
+    });
+
+    expect(host.read(workspaceSwitcherSectionReference)?.role).toBe("workspaceSwitcher");
+    expect(() =>
+      createMemoryPresentationHost({
+        nodes: [
+          { reference: shellReference, snapshot: { ...manifest, workspaceSwitcher: null } },
+          { reference: workspaceSwitcherSectionReference, snapshot: section },
+        ],
+      }),
+    ).toThrow("invalid workspace switcher");
   });
 
   it("publishes complete node sets transactionally and notifies only changed scopes", () => {
@@ -452,6 +490,7 @@ function shellNodes({
         kind: "shellManifest",
         navigationSections,
         title,
+        workspaceSwitcher: null,
       },
     },
     {

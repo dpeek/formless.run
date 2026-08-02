@@ -2639,6 +2639,62 @@ describe("home view model collections", () => {
     expect(selectScreenModelByPath(pathlessRateSchema, "/")?.screenName).toBe("rateHome");
   });
 
+  it("uses flat or grouped navigation order for primary screens and root fallback", () => {
+    const { path: _homePath, ...rateHomeWithoutPath } = rateCardSchema.screens.find(
+      (definition) => definition.key === "rateHome",
+    )!;
+    const { path: _setupPath, ...rateSetupWithoutPath } = rateCardSchema.screens.find(
+      (definition) => definition.key === "rateSetup",
+    )!;
+    const screens: AppSchema["screens"] = [
+      { ...rateHomeWithoutPath, key: "rateHome" },
+      { ...rateSetupWithoutPath, key: "rateSetup" },
+      { ...rateHomeWithoutPath, key: "direct", label: "Direct", path: "/direct" },
+    ];
+    const groupedSchema: AppSchema = {
+      ...rateCardSchema,
+      navigation: {
+        groups: [
+          { key: "setup", label: "Setup", screens: ["rateSetup"] },
+          { key: "rates", label: "Rates", screens: ["rateHome"] },
+        ],
+      },
+      screens,
+    };
+
+    expect(
+      selectPrimaryScreenModels(groupedSchema).map(({ screenName, path }) => ({
+        screenName,
+        path,
+      })),
+    ).toEqual([
+      { screenName: "rateSetup", path: "/" },
+      { screenName: "rateHome", path: undefined },
+    ]);
+    expect(
+      selectScreenModels(groupedSchema).map(({ screenName, navigation, path }) => ({
+        screenName,
+        primary: navigation.primary,
+        path,
+      })),
+    ).toEqual([
+      { screenName: "rateHome", primary: true, path: undefined },
+      { screenName: "rateSetup", primary: true, path: "/" },
+      { screenName: "direct", primary: false, path: "/direct" },
+    ]);
+    expect(selectScreenModelByPath(groupedSchema, "/direct")?.screenName).toBe("direct");
+
+    const flatSchema: AppSchema = {
+      ...groupedSchema,
+      navigation: { primaryScreens: ["rateSetup", "rateHome"] },
+    };
+    expect(selectPrimaryScreenModels(flatSchema).map(({ screenName }) => screenName)).toEqual([
+      "rateSetup",
+      "rateHome",
+    ]);
+    expect(selectScreenModelByPath(flatSchema, "/")?.screenName).toBe("rateSetup");
+  });
+
   it("exposes render-ready collection facts on screen sections", () => {
     const setupScreen = selectScreenModels(rateCardSchema).find(
       (model) => model.screenName === "rateSetup",

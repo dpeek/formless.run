@@ -1267,6 +1267,25 @@ function assertReferencesResolve(nodes: StoredPresentationNodes) {
         assertReferenceResolves(nodes, sectionReference);
       }
 
+      const workspaceSwitcher = manifest.workspaceSwitcher;
+      const workspaceSwitcherSections = manifest.navigationSections.filter((reference) => {
+        return snapshotForReference(nodes, reference)?.role === "workspaceSwitcher";
+      });
+      if (
+        workspaceSwitcher === null
+          ? workspaceSwitcherSections.length !== 0
+          : workspaceSwitcher.shellId !== manifest.id ||
+            !manifest.navigationSections.some(
+              (reference) => reference.sectionId === workspaceSwitcher.sectionId,
+            ) ||
+            snapshotForReference(nodes, workspaceSwitcher)?.role !== "workspaceSwitcher" ||
+            workspaceSwitcherSections.length !== 1
+      ) {
+        throw new Error(
+          `Formless UI shell ${JSON.stringify(manifest.id)} has an invalid workspace switcher.`,
+        );
+      }
+
       const activeDestination = manifest.activeDestination;
       if (activeDestination) {
         const sectionReference = manifest.navigationSections.find(

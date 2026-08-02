@@ -387,6 +387,7 @@ function shellNode(): ShellManifestNode {
       kind: "shellManifest",
       navigationSections: [],
       title: "Formless Program",
+      workspaceSwitcher: null,
     },
   };
 }
