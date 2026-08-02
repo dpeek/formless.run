@@ -87,9 +87,9 @@ shell.
 - **AND** grouped navigation projects a top-level workspace switcher and the
   selected group's generated Program screens while flat navigation retains one
   Program screen section
-- **AND** navigation sections can contain the workspace switcher, generated
-  Program screens, root record navigation, app settings, and display-safe
-  session controls
+- **AND** shell sections can contain the workspace switcher, generated Program
+  screens, root record navigation, footer status, and display-safe session
+  controls
 - **AND** public Site routes are excluded from the top-level switcher and are
   exposed from Site admin workspaces as prominent links that open a new tab
 - **AND** destination hrefs derive from active Program route data and selected
@@ -145,19 +145,23 @@ shell.
 - **AND** renderer-local responsive and collapsed presentation state does not
   become canonical runtime state
 
-#### Scenario: Shell settings and session state
+#### Scenario: Shell status and session state
 
-- **GIVEN** shell-eligible app settings or owner session state is available
+- **GIVEN** shell-eligible sync, workspace-save, or owner session state is
+  available
 - **WHEN** runtime projects shell controls
-- **THEN** app sync status, display-safe authenticated identity, and logout
-  availability are explicit presentation facts
+- **THEN** sync status, workspace-save status where supported, display-safe
+  authenticated identity, and logout availability are explicit presentation
+  facts
+- **AND** shell status remains separate from schema-declared Program Settings
+  destinations and does not synthesize a settings navigation item
 - **AND** logout interactions dispatch canonical shell intents while runtime
   owns session, navigation, and error effects
 - **AND** the shell does not expose session tokens, challenge material, provider
   credentials, raw runtime errors, profile or account settings destinations,
   or a synthesized sign-in destination
 - **AND** any theme control is supplied only through the separate
-  document-theme contract rather than inferred from shell settings or session
+  document-theme contract rather than inferred from shell status or session
   state
 
 #### Scenario: Local workspace save status
@@ -175,7 +179,8 @@ shell.
 
 - **GIVEN** app settings are opened for the active app
 - **WHEN** settings render
-- **THEN** sync status is available where supported
+- **THEN** sync status remains available through the shell footer where
+  supported
 - **AND** schema-declared app screen navigation remains available through the
   shell
 - **AND** frontend Schema links and schema editor controls are not shown
@@ -913,12 +918,19 @@ data reads, session behavior, operations, and effects.
 - **THEN** pure and subscribed renderer entrypoints render the active workspace
   title, an accessible heading-menu workspace switcher when grouped navigation
   is present, active-group Program screen navigation, root records and create
-  controls, Program settings, sync state, session identity, logout, and the
-  route child without importing generated runtime
+  controls, Program Settings destinations, footer sync state, session identity,
+  logout, and the route child without importing generated runtime
 - **AND** the workspace-switcher section renders only in the heading menu while
   ordinary screen sections remain in the navigation body
-- **AND** app settings render as one navigation item whose hover and focus
-  overlay contains sync and workspace-save status
+- **AND** shell status renders as a compact ghost icon-button utility in the
+  sidebar footer alongside session and document-theme controls rather than as a
+  navigation item
+- **AND** the status trigger's accessible name includes the projected sync
+  label, and its hover and focus overlay contains the projected sync message,
+  detail rows, and workspace-save status where present
+- **AND** the status utility visually distinguishes static synced, active
+  syncing, and error states, limits motion to the active syncing indication,
+  and respects reduced-motion preferences
 - **AND** projected sync detail rows render through the package `MetadataList`
   component
 - **AND** root create actions render as compact ghost package `IconButton`
@@ -938,8 +950,8 @@ data reads, session behavior, operations, and effects.
 - **THEN** data-only memory-host fixtures cover flat Program destinations,
   grouped workspace destinations, active-group screens, authorization-filtered
   and ungrouped screen selection, Site authoring, root records and counts,
-  controlled create, sync state, authenticated session state, and no-shell
-  selection
+  controlled create, synced, syncing, and error status, authenticated session
+  state, and no-shell selection
 - **AND** fixture reducers may simulate root selection, create, and logout
   intents without importing generated runtime, schemas, routing, browser
   replica, storage, operation controllers, or session clients

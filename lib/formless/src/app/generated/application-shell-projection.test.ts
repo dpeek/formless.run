@@ -107,15 +107,15 @@ describe("generated application shell projection", () => {
     ]);
   });
 
-  it("projects Program destinations, roots, create, settings, and display-safe session state", () => {
+  it("projects Program destinations, roots, create, status, and display-safe session state", () => {
     const projection = completeProjection();
     const roles = projection.sections.map((section) => section.role);
     const programSection = required(
       projection.sections.find((section) => section.role === "program"),
     );
     const rootSections = projection.sections.filter((section) => section.role === "rootRecords");
-    const settingsSection = required(
-      projection.sections.find((section) => section.role === "settings"),
+    const statusSection = required(
+      projection.sections.find((section) => section.role === "status"),
     );
     const sessionSection = required(
       projection.sections.find((section) => section.role === "session"),
@@ -135,7 +135,7 @@ describe("generated application shell projection", () => {
       "rootRecords",
       "rootRecords",
       "rootRecords",
-      "settings",
+      "status",
       "session",
     ]);
     expect(programSection.destinations).toEqual(
@@ -167,11 +167,22 @@ describe("generated application shell projection", () => {
         .flatMap((section) => section.destinations)
         .some((destination) => destination.countText !== undefined),
     ).toBe(true);
-    expect(settingsSection.settings).toMatchObject({
+    expect(statusSection).toMatchObject({
+      accessibilityLabel: "Formless Program status",
+      destinations: [],
+    });
+    expect(statusSection.label).toBeUndefined();
+    expect(statusSection.status).toMatchObject({
       sync: {
         label: "Sync issue",
         message: "Sync failed. Check the Program and try again.",
         state: "error",
+      },
+      workspaceSave: {
+        id: "application-shell:workspace-save:formless-program",
+        label: "Saved",
+        message: "Workspace source is saved.",
+        state: "saved",
       },
     });
     expect(sessionSection.session).toMatchObject({
@@ -180,6 +191,52 @@ describe("generated application shell projection", () => {
     });
     expect(JSON.stringify(projection)).not.toContain("alchemy-secret-value");
     expect(JSON.stringify(projection)).not.toContain("session-token");
+  });
+
+  it("keeps synced, syncing, and error status separate from Program Settings navigation", () => {
+    const cases = [
+      {
+        expectedLabel: "Synced",
+        status: { message: "All changes are synced.", state: "idle" as const },
+      },
+      {
+        expectedLabel: "Syncing",
+        status: { message: "Syncing local changes.", state: "syncing" as const },
+      },
+      {
+        expectedLabel: "Sync issue",
+        status: { message: "raw-provider-error", state: "error" as const },
+      },
+    ];
+
+    for (const { expectedLabel, status } of cases) {
+      const projection = required(
+        projectGeneratedApplicationShell({
+          authorizedProgramScreenPaths: ["/settings"],
+          currentPath: "/settings",
+          runtimeProfile: createDevRuntimeProfile(),
+          sync: {
+            cursor: 27,
+            lastSyncedAt: "2026-07-16T01:00:00.000Z",
+            schemaVersion: 8,
+            status,
+          },
+        }),
+      );
+      const program = required(projection.sections.find((section) => section.role === "program"));
+      const shellStatus = required(
+        projection.sections.find((section) => section.role === "status"),
+      );
+
+      expect(program.destinations).toEqual([
+        expect.objectContaining({ href: "/settings", label: "Settings", selected: true }),
+      ]);
+      expect(shellStatus).toMatchObject({ destinations: [], role: "status" });
+      expect(shellStatus.status?.sync).toMatchObject({ label: expectedLabel, state: status.state });
+      expect(shellStatus.status?.sync?.message).toBe(
+        status.state === "error" ? "Sync failed. Check the Program and try again." : status.message,
+      );
+    }
   });
 
   it("presents the default Program workspaces and active Instance screens", () => {
@@ -537,6 +594,13 @@ function completeProjection(): GeneratedApplicationShellProjection {
         lastSyncedAt: "2026-07-16T01:00:00.000Z",
         schemaVersion: siteSourceSchema.version,
         status: { state: "error", message: "alchemy-secret-value" },
+      },
+      workspaceSave: {
+        id: "application-shell:workspace-save:formless-program",
+        kind: "shellWorkspaceSaveStatus",
+        label: "Saved",
+        message: "Workspace source is saved.",
+        state: "saved",
       },
     }),
   );

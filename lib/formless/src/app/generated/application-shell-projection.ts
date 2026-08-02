@@ -5,6 +5,7 @@ import type {
   ShellNavigationSectionContract,
   ShellSessionContract,
   ShellSyncStatusContract,
+  ShellWorkspaceSaveStatusContract,
 } from "@dpeek/formless-presentation/contract";
 import type { AppSchema } from "@dpeek/formless-schema";
 import { shellNavigationSectionReference } from "@dpeek/formless-presentation/host";
@@ -67,6 +68,7 @@ export type ProjectGeneratedApplicationShellOptions = {
   root?: GeneratedShellRootProjectionInput | undefined;
   runtimeProfile: RuntimeProfile;
   sync?: GeneratedShellSyncFacts | undefined;
+  workspaceSave?: ShellWorkspaceSaveStatusContract | undefined;
 };
 
 export function shouldRenderGeneratedShell({
@@ -268,6 +270,7 @@ export function projectGeneratedApplicationShell({
   root,
   runtimeProfile,
   sync,
+  workspaceSave,
 }: ProjectGeneratedApplicationShellOptions): GeneratedApplicationShellProjection | undefined {
   if (!shouldRenderGeneratedShell({ currentPath, programSchema, runtimeProfile })) {
     return undefined;
@@ -296,16 +299,16 @@ export function projectGeneratedApplicationShell({
 
   if (sync) {
     sections.push({
-      accessibilityLabel: "Formless Program settings",
+      accessibilityLabel: "Formless Program status",
       destinations: [],
-      id: `${GENERATED_APPLICATION_SHELL_ID}:settings:formless-program`,
+      id: `${GENERATED_APPLICATION_SHELL_ID}:status:formless-program`,
       kind: "shellNavigationSection",
-      label: "Settings",
-      role: "settings",
-      settings: {
-        id: `${GENERATED_APPLICATION_SHELL_ID}:settings:formless-program:controls`,
-        kind: "shellSettings",
+      role: "status",
+      status: {
+        id: `${GENERATED_APPLICATION_SHELL_ID}:status:formless-program:controls`,
+        kind: "shellStatus",
         sync: selectGeneratedShellSyncStatus(sync),
+        ...(workspaceSave ? { workspaceSave } : {}),
       },
       shellId: GENERATED_APPLICATION_SHELL_ID,
     });

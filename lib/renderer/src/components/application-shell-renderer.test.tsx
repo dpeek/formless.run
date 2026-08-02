@@ -34,7 +34,7 @@ const sectionReferences = {
   workspaces: shellNavigationSectionReference(shellReference.shellId, "section:workspaces"),
   program: shellNavigationSectionReference(shellReference.shellId, "section:program"),
   roots: shellNavigationSectionReference(shellReference.shellId, "section:roots"),
-  settings: shellNavigationSectionReference(shellReference.shellId, "section:settings"),
+  status: shellNavigationSectionReference(shellReference.shellId, "section:status"),
   session: shellNavigationSectionReference(shellReference.shellId, "section:session"),
 } as const;
 
@@ -67,9 +67,28 @@ describe("Astryx application shell renderer", () => {
     expect(pages.getAttribute("aria-current")).toBe("page");
     expect((pages as HTMLButtonElement).disabled).toBe(false);
     expect(container.querySelector('a[href="/tasks"]')).not.toBeNull();
-    expect(rendererText(mountedRenderer)).toContain("Settings");
-    expect(rendererText(mountedRenderer)).toContain("Sync failed. Try again.");
-    expect(rendererText(mountedRenderer)).toContain("Workspace changes are queued.");
+    const settingsLinks = container.querySelectorAll('a[href="/settings"]');
+    expect(settingsLinks).toHaveLength(1);
+    expect(settingsLinks[0]?.textContent).toContain("Settings");
+    const footer = required(
+      container.querySelector<HTMLElement>("[data-formless-astryx-side-nav-footer]"),
+    );
+    const statusTrigger = interactiveByLabel(footer, "Sync status: Sync issue");
+    expect(footer.contains(statusTrigger)).toBe(true);
+    expect(statusTrigger.getAttribute("title")).toBeNull();
+    const statusDetails = required(
+      Array.from(footer.querySelectorAll<HTMLElement>('[role="dialog"][popover]')).find((dialog) =>
+        dialog.textContent?.includes("Sync failed. Try again."),
+      ),
+    );
+    statusTrigger.focus();
+    expect(document.activeElement).toBe(statusTrigger);
+    expect(statusDetails.textContent).toContain("Sync issue");
+    expect(statusDetails.textContent).toContain("Sync failed. Try again.");
+    expect(statusDetails.textContent).toContain("ProgramFormless Program");
+    expect(statusDetails.textContent).toContain("Cursor27");
+    expect(statusDetails.textContent).toContain("Queued");
+    expect(statusDetails.textContent).toContain("Workspace changes are queued.");
     expect(requiredByProps(container, { "aria-label": "Ada Lovelace", role: "img" })).toBeDefined();
     expect(interactiveByLabel(container, "Ada Lovelace")).toBeDefined();
     expect(rendererText(mountedRenderer)).toContain("Route workspace");
@@ -202,6 +221,35 @@ describe("Astryx application shell renderer", () => {
     mountedRenderer.unmount();
   });
 
+  it("renders synced, syncing, and error status through accessible footer triggers", () => {
+    const cases = [
+      { label: "Synced", message: "All changes are synced.", state: "idle" as const },
+      { label: "Syncing", message: "Syncing local changes.", state: "syncing" as const },
+      { label: "Sync issue", message: "Sync failed. Try again.", state: "error" as const },
+    ];
+
+    for (const sync of cases) {
+      const mountedRenderer = render(
+        <AstryxApplicationShellRenderer
+          manifest={shellManifest()}
+          onIntent={() => undefined}
+          sections={shellSections(sync)}
+        >
+          <article>Status workspace</article>
+        </AstryxApplicationShellRenderer>,
+      );
+      const trigger = interactiveByLabel(mountedRenderer.container, `Sync status: ${sync.label}`);
+
+      expect(
+        requiredByProps(mountedRenderer.container, { "aria-label": sync.label, role: "img" }),
+      ).toBeDefined();
+      expect(trigger.getAttribute("title")).toBeNull();
+      expect(rendererText(mountedRenderer)).toContain(sync.message);
+
+      mountedRenderer.unmount();
+    }
+  });
+
   it("composes the separate subscribed theme node without changing shell sections", async () => {
     const intents: DocumentThemeIntent[] = [];
     const sections = shellSections();
@@ -259,7 +307,7 @@ function shellManifest(): ShellManifestContract {
       sectionReferences.workspaces,
       sectionReferences.program,
       sectionReferences.roots,
-      sectionReferences.settings,
+      sectionReferences.status,
       sectionReferences.session,
     ],
     title: "Tasks",
@@ -267,7 +315,13 @@ function shellManifest(): ShellManifestContract {
   };
 }
 
-function shellSections(): ShellNavigationSectionContract[] {
+function shellSections(
+  sync: {
+    label: string;
+    message: string;
+    state: "error" | "idle" | "syncing";
+  } = { label: "Sync issue", message: "Sync failed. Try again.", state: "error" },
+): ShellNavigationSectionContract[] {
   const rootSelectionIntent = {
     destinationId: "root:pages",
     recordId: "pages",
@@ -291,6 +345,7 @@ function shellSections(): ShellNavigationSectionContract[] {
       destinations: [
         { ...shellLink("program:tasks", "Tasks", "/tasks"), selected: true },
         shellLink("program:overdue", "Overdue", "/tasks/overdue"),
+        shellLink("program:settings", "Settings", "/settings"),
       ],
       label: "Tasks screens",
     }),
@@ -311,11 +366,10 @@ function shellSections(): ShellNavigationSectionContract[] {
       ],
       label: "Pages",
     }),
-    shellSection(sectionReferences.settings.sectionId, "settings", {
-      label: "Settings",
-      settings: {
-        id: "settings:tasks",
-        kind: "shellSettings",
+    shellSection(sectionReferences.status.sectionId, "status", {
+      status: {
+        id: "status:tasks",
+        kind: "shellStatus",
         sync: {
           details: [
             { label: "Program", value: "Formless Program" },
@@ -323,9 +377,7 @@ function shellSections(): ShellNavigationSectionContract[] {
           ],
           id: "sync:tasks",
           kind: "shellSyncStatus",
-          label: "Sync issue",
-          message: "Sync failed. Try again.",
-          state: "error",
+          ...sync,
         },
         workspaceSave: {
           id: "workspace:save",
@@ -354,7 +406,7 @@ function shellSection(
   options: Partial<
     Pick<
       ShellNavigationSectionContract,
-      "accessibilityLabel" | "createSurface" | "destinations" | "label" | "session" | "settings"
+      "accessibilityLabel" | "createSurface" | "destinations" | "label" | "session" | "status"
     >
   > = {},
 ): ShellNavigationSectionContract {
@@ -368,7 +420,7 @@ function shellSection(
     ...(options.createSurface ? { createSurface: options.createSurface } : {}),
     ...(options.label ? { label: options.label } : {}),
     ...(options.session ? { session: options.session } : {}),
-    ...(options.settings ? { settings: options.settings } : {}),
+    ...(options.status ? { status: options.status } : {}),
   };
 }
 

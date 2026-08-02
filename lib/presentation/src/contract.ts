@@ -1873,8 +1873,8 @@ export type WorkspaceContract = {
 export type ShellNavigationSectionRole =
   | "program"
   | "rootRecords"
-  | "settings"
   | "session"
+  | "status"
   | "workspaceSwitcher";
 
 export type ShellDestinationAvailability =
@@ -1940,9 +1940,9 @@ export type ShellWorkspaceSaveStatusContract = {
   state: "clean" | "dirty" | "failed" | "queued" | "saved" | "saving";
 };
 
-export type ShellSettingsContract = {
+export type ShellStatusContract = {
   id: string;
-  kind: "shellSettings";
+  kind: "shellStatus";
   sync?: ShellSyncStatusContract;
   workspaceSave?: ShellWorkspaceSaveStatusContract;
 };
@@ -1975,7 +1975,7 @@ export type ShellNavigationSectionContract = {
   label?: string;
   role: ShellNavigationSectionRole;
   session?: ShellSessionContract;
-  settings?: ShellSettingsContract;
+  status?: ShellStatusContract;
   shellId: string;
 };
 

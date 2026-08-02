@@ -129,7 +129,7 @@ function devWorkbenchShell(): FormlessApplicationShellFixtureState {
       ["website", "Website", "7"],
       ["operations", "Operations", "3"],
     ]),
-    settingsSection("tasks", {
+    statusSection("tasks", {
       sync: {
         details: [
           { label: "Program", value: "Formless Program" },
@@ -187,11 +187,11 @@ function programRootsShell(): FormlessApplicationShellFixtureState {
       ],
       false,
     ),
-    settingsSection("tasks", {
+    statusSection("tasks", {
       sync: {
-        label: "Synced",
-        message: "All changes are synced.",
-        state: "idle",
+        label: "Syncing",
+        message: "Syncing local changes.",
+        state: "syncing",
       },
     }),
     sessionSection(),
@@ -208,7 +208,7 @@ function siteAuthoringShell(): FormlessApplicationShellFixtureState {
       ["about", "About", "4"],
       ["contact", "Contact", "2"],
     ]),
-    settingsSection("site", {
+    statusSection("site", {
       sync: {
         label: "Sync issue",
         message: "Sync failed. Check the Program and try again.",
@@ -321,7 +321,7 @@ function rootSection(
   });
 }
 
-function settingsSection(
+function statusSection(
   contextKey: string,
   options: {
     sync?: {
@@ -340,11 +340,10 @@ function settingsSection(
     };
   },
 ): ShellNavigationSectionContract {
-  return section(`settings:${contextKey}`, "settings", {
-    label: "Settings",
-    settings: {
-      id: `${shellId}:settings:${contextKey}:controls`,
-      kind: "shellSettings",
+  return section(`status:${contextKey}`, "status", {
+    status: {
+      id: `${shellId}:status:${contextKey}:controls`,
+      kind: "shellStatus",
       ...(options.sync
         ? {
             sync: {
@@ -388,7 +387,7 @@ function section(
   options: Partial<
     Pick<
       ShellNavigationSectionContract,
-      "accessibilityLabel" | "createSurface" | "destinations" | "label" | "session" | "settings"
+      "accessibilityLabel" | "createSurface" | "destinations" | "label" | "session" | "status"
     >
   > = {},
 ): ShellNavigationSectionContract {
@@ -404,7 +403,7 @@ function section(
     ...(options.createSurface ? { createSurface: options.createSurface } : {}),
     ...(options.label ? { label: options.label } : {}),
     ...(options.session ? { session: options.session } : {}),
-    ...(options.settings ? { settings: options.settings } : {}),
+    ...(options.status ? { status: options.status } : {}),
   };
 }
 

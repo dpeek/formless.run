@@ -1,14 +1,17 @@
 import { Avatar } from "@astryxdesign/core/Avatar";
-import { Badge, type BadgeVariant } from "@astryxdesign/core/Badge";
+import { Badge } from "@astryxdesign/core/Badge";
 import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
 import { HStack } from "@astryxdesign/core/HStack";
 import { HoverCard } from "@astryxdesign/core/HoverCard";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList";
 import { NavHeadingMenu, NavHeadingMenuItem } from "@astryxdesign/core/NavMenu";
 import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
+import { StatusDot, type StatusDotVariant } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
-import { radiusVars } from "@astryxdesign/core/theme/tokens.stylex";
+import { colorVars, radiusVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { VStack } from "@astryxdesign/core/VStack";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import * as stylex from "@stylexjs/stylex";
 import { memo, type ReactNode } from "react";
 import type {
@@ -21,7 +24,7 @@ import type {
   ShellNavigationSectionContract,
   ShellNavigationSectionReference,
   ShellSessionContract,
-  ShellSettingsContract,
+  ShellStatusContract,
 } from "@dpeek/formless-presentation/contract";
 import {
   useShellIntentHandler,
@@ -29,11 +32,37 @@ import {
 } from "@dpeek/formless-presentation/host/react";
 import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
 
-type AstryxShellSectionSlot = "navigation" | "session" | "workspaceSwitcher";
+type AstryxShellSectionSlot = "navigation" | "session" | "status" | "workspaceSwitcher";
 
-const shellSessionStyles = stylex.create({
+const shellStyles = stylex.create({
   avatarTrigger: {
     borderRadius: radiusVars["--radius-full"],
+  },
+  footerUtilities: {
+    marginInlineStart: "auto",
+  },
+  statusDetails: {
+    maxWidth: 320,
+    minWidth: 280,
+  },
+  statusDot: {
+    insetBlockEnd: -2,
+    insetInlineEnd: -2,
+    position: "absolute",
+  },
+  statusIcon: {
+    alignItems: "center",
+    display: "inline-flex",
+    height: 16,
+    justifyContent: "center",
+    position: "relative",
+    width: 16,
+  },
+  statusIconError: {
+    color: colorVars["--color-error"],
+  },
+  statusTrigger: {
+    display: "inline-flex",
   },
 });
 
@@ -67,6 +96,14 @@ export function AstryxApplicationSideNav({
           onIntent={onIntent}
           section={section}
           slot="session"
+        />
+      ))}
+      status={sections.map((section) => (
+        <AstryxApplicationShellSectionSlot
+          key={section.id}
+          onIntent={onIntent}
+          section={section}
+          slot="status"
         />
       ))}
       workspaceSwitcher={
@@ -117,6 +154,14 @@ export function AstryxSubscribedApplicationSideNav({
           slot="session"
         />
       ))}
+      status={bodyReferences.map((reference) => (
+        <AstryxSubscribedApplicationShellSectionSlot
+          key={`${reference.shellId}:${reference.sectionId}`}
+          onIntent={onIntent}
+          reference={reference}
+          slot="status"
+        />
+      ))}
       workspaceSwitcher={
         workspaceSwitcherReference ? (
           <AstryxSubscribedApplicationShellSectionSlot
@@ -135,12 +180,14 @@ function AstryxApplicationSideNavFrame({
   manifest,
   navigation,
   session,
+  status,
   themeControl,
   workspaceSwitcher,
 }: {
   manifest: ShellManifestContract;
   navigation: ReactNode;
   session: ReactNode;
+  status: ReactNode;
   themeControl?: ReactNode;
   workspaceSwitcher?: ReactNode;
 }) {
@@ -155,7 +202,10 @@ function AstryxApplicationSideNavFrame({
           width="100%"
         >
           {session}
-          {themeControl}
+          <HStack align="center" gap={1} xstyle={shellStyles.footerUtilities}>
+            {status}
+            {themeControl}
+          </HStack>
         </HStack>
       }
       header={
@@ -218,7 +268,17 @@ function AstryxApplicationShellSectionSlot({
     ) : null;
   }
 
-  if (section.role === "session" || section.role === "workspaceSwitcher") {
+  if (slot === "status") {
+    return section.role === "status" && section.status ? (
+      <AstryxShellStatus status={section.status} />
+    ) : null;
+  }
+
+  if (
+    section.role === "session" ||
+    section.role === "status" ||
+    section.role === "workspaceSwitcher"
+  ) {
     return null;
   }
 
@@ -259,10 +319,6 @@ function AstryxShellNavigationSection({
   onIntent: ShellIntentHandler;
   section: ShellNavigationSectionContract;
 }) {
-  if (section.role === "settings" && section.settings) {
-    return <AstryxShellSettingsNavigationItem section={section} settings={section.settings} />;
-  }
-
   return (
     <SideNavSection
       endContent={
@@ -287,26 +343,6 @@ function AstryxShellNavigationSection({
         />
       ))}
     </SideNavSection>
-  );
-}
-
-function AstryxShellSettingsNavigationItem({
-  section,
-  settings,
-}: {
-  section: ShellNavigationSectionContract;
-  settings: ShellSettingsContract;
-}) {
-  return (
-    <HoverCard
-      alignment="start"
-      content={<AstryxShellSettings settings={settings} />}
-      focusTrigger="always"
-      hasHoverIndication={false}
-      placement="end"
-    >
-      <SideNavItem label={section.label ?? section.accessibilityLabel} />
-    </HoverCard>
   );
 }
 
@@ -354,20 +390,78 @@ function AstryxShellDestination({
   );
 }
 
-function AstryxShellSettings({ settings }: { settings: ShellSettingsContract }) {
+function AstryxShellStatus({ status }: { status: ShellStatusContract }) {
+  const sync = status.sync;
+
+  if (!sync) {
+    return null;
+  }
+
+  const dotVariant = syncStatusDotVariant(sync.state);
+
   return (
-    <VStack gap={3} width="100%">
-      {settings.sync ? (
-        <VStack aria-label={settings.sync.label} gap={1} role="status" width="100%">
-          <HStack align="center" gap={2} justify="between" width="100%">
-            <Text type="supporting" weight="medium">
-              {settings.sync.message}
-            </Text>
-            <Badge label={settings.sync.label} variant={syncStatusVariant(settings.sync.state)} />
+    <HoverCard
+      alignment="end"
+      content={<AstryxShellStatusDetails status={status} />}
+      focusTrigger="always"
+      hasHoverIndication={false}
+      placement="above"
+    >
+      <span {...stylex.props(shellStyles.statusTrigger)}>
+        <IconButton
+          icon={
+            <span
+              {...stylex.props(
+                shellStyles.statusIcon,
+                sync.state === "error" && shellStyles.statusIconError,
+              )}
+            >
+              <ArrowPathIcon aria-hidden="true" />
+              <StatusDot
+                isPulsing={sync.state === "syncing"}
+                label={sync.label}
+                variant={dotVariant}
+                xstyle={shellStyles.statusDot}
+              />
+            </span>
+          }
+          label={`Sync status: ${sync.label}`}
+          size="sm"
+          variant="ghost"
+        />
+      </span>
+    </HoverCard>
+  );
+}
+
+function AstryxShellStatusDetails({ status }: { status: ShellStatusContract }) {
+  return (
+    <VStack gap={3} width="100%" xstyle={shellStyles.statusDetails}>
+      {status.sync ? (
+        <VStack
+          aria-label={`Sync status details: ${status.sync.label}`}
+          gap={2}
+          role={status.sync.state === "error" ? "alert" : "status"}
+          width="100%"
+        >
+          <HStack align="start" gap={2} width="100%">
+            <StatusDot
+              isPulsing={status.sync.state === "syncing"}
+              label={status.sync.label}
+              variant={syncStatusDotVariant(status.sync.state)}
+            />
+            <VStack gap={0.5}>
+              <Text type="label" weight="medium">
+                {status.sync.label}
+              </Text>
+              <Text color="secondary" type="supporting">
+                {status.sync.message}
+              </Text>
+            </VStack>
           </HStack>
-          {settings.sync.details ? (
+          {status.sync.details ? (
             <MetadataList columns="single">
-              {settings.sync.details.map((detail) => (
+              {status.sync.details.map((detail) => (
                 <MetadataListItem key={detail.label} label={detail.label}>
                   {detail.value}
                 </MetadataListItem>
@@ -376,13 +470,26 @@ function AstryxShellSettings({ settings }: { settings: ShellSettingsContract }) 
           ) : null}
         </VStack>
       ) : null}
-      {settings.workspaceSave ? (
-        <HStack align="center" gap={2} justify="between" role="status" width="100%">
-          <Text type="supporting">{settings.workspaceSave.message}</Text>
-          <Badge
-            label={settings.workspaceSave.label}
-            variant={workspaceSaveStatusVariant(settings.workspaceSave.state)}
+      {status.workspaceSave ? (
+        <HStack
+          align="start"
+          aria-label={`Workspace save status: ${status.workspaceSave.label}`}
+          gap={2}
+          role={status.workspaceSave.state === "failed" ? "alert" : "status"}
+          width="100%"
+        >
+          <StatusDot
+            label={status.workspaceSave.label}
+            variant={workspaceSaveStatusDotVariant(status.workspaceSave.state)}
           />
+          <VStack gap={0.5}>
+            <Text type="label" weight="medium">
+              {status.workspaceSave.label}
+            </Text>
+            <Text color="secondary" type="supporting">
+              {status.workspaceSave.message}
+            </Text>
+          </VStack>
         </HStack>
       ) : null}
     </VStack>
@@ -413,7 +520,7 @@ function AstryxShellSession({
           label: session.identity.displayName,
           size: "sm",
           variant: "ghost",
-          xstyle: shellSessionStyles.avatarTrigger,
+          xstyle: shellStyles.avatarTrigger,
         }}
         hasChevron={false}
         items={[
@@ -440,22 +547,22 @@ function destinationSupportingText(destination: ShellDestinationContract) {
     : destination.availability.message;
 }
 
-function syncStatusVariant(
-  state: NonNullable<ShellSettingsContract["sync"]>["state"],
-): BadgeVariant {
-  return state === "error" ? "error" : state === "syncing" ? "info" : "success";
+function syncStatusDotVariant(
+  state: NonNullable<ShellStatusContract["sync"]>["state"],
+): StatusDotVariant {
+  return state === "error" ? "error" : state === "syncing" ? "accent" : "success";
 }
 
-function workspaceSaveStatusVariant(
-  state: NonNullable<ShellSettingsContract["workspaceSave"]>["state"],
-): BadgeVariant {
+function workspaceSaveStatusDotVariant(
+  state: NonNullable<ShellStatusContract["workspaceSave"]>["state"],
+): StatusDotVariant {
   return state === "failed"
     ? "error"
     : state === "clean" || state === "saved"
       ? "success"
       : state === "dirty"
         ? "warning"
-        : "info";
+        : "accent";
 }
 
 export function astryxApplicationShellCreateIntent(

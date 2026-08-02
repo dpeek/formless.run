@@ -71,9 +71,9 @@ const workspaceSwitcherSectionReference = shellNavigationSectionReference(
   "shell:program",
   "shell-section:workspaces",
 );
-const settingsSectionReference = shellNavigationSectionReference(
+const statusSectionReference = shellNavigationSectionReference(
   "shell:program",
-  "shell-section:settings",
+  "shell-section:status",
 );
 const sessionSectionReference = shellNavigationSectionReference(
   "shell:program",
@@ -105,6 +105,9 @@ describe("memory Presentation Host", () => {
     const shellSection: ShellNavigationSectionContract | undefined = host.read({
       ...programSectionReference,
     });
+    const statusSection: ShellNavigationSectionContract | undefined = host.read({
+      ...statusSectionReference,
+    });
 
     expect(workspace?.label).toBe("Work");
     expect(list?.accessibilityLabel).toBe("Tasks");
@@ -112,6 +115,7 @@ describe("memory Presentation Host", () => {
     expect(record?.kind).toBe("recordResult");
     expect(shell?.title).toBe("Formless Program");
     expect(shellSection?.destinations[0]?.label).toBe("Tasks");
+    expect(statusSection?.status?.workspaceSave?.id).toBe("workspace-save:tasks");
   });
 
   it("hosts fixed and user-controlled theme snapshots beside shell nodes", () => {
@@ -465,17 +469,17 @@ function userThemeNodes(
 
 function shellNodes({
   destinationLabel = "Tasks",
-  includeSettings = true,
+  includeStatus = true,
   syncMessage = "Local cache ready.",
   title = "Formless Program",
 }: {
   destinationLabel?: string;
-  includeSettings?: boolean;
+  includeStatus?: boolean;
   syncMessage?: string;
   title?: string;
 } = {}): PresentationNodeSet {
-  const navigationSections = includeSettings
-    ? [programSectionReference, settingsSectionReference, sessionSectionReference]
+  const navigationSections = includeStatus
+    ? [programSectionReference, statusSectionReference, sessionSectionReference]
     : [programSectionReference, sessionSectionReference];
   const nodes: PresentationNodeSet = [
     {
@@ -528,17 +532,17 @@ function shellNodes({
     },
   ];
 
-  return includeSettings
+  return includeStatus
     ? [
         ...nodes.slice(0, 2),
         {
-          reference: settingsSectionReference,
+          reference: statusSectionReference,
           snapshot: shellSection({
-            id: settingsSectionReference.sectionId,
-            role: "settings",
-            settings: {
-              id: "settings:tasks",
-              kind: "shellSettings",
+            id: statusSectionReference.sectionId,
+            role: "status",
+            status: {
+              id: "status:tasks",
+              kind: "shellStatus",
               sync: {
                 id: "sync:tasks",
                 kind: "shellSyncStatus",
@@ -567,14 +571,14 @@ function shellSection({
   id,
   role = "program",
   session,
-  settings,
+  status,
   shellId,
 }: {
   destinations?: ShellNavigationSectionContract["destinations"];
   id: string;
   role?: ShellNavigationSectionContract["role"];
   session?: ShellNavigationSectionContract["session"];
-  settings?: ShellNavigationSectionContract["settings"];
+  status?: ShellNavigationSectionContract["status"];
   shellId: string;
 }): ShellNavigationSectionContract {
   return {
@@ -584,7 +588,7 @@ function shellSection({
     kind: "shellNavigationSection",
     role,
     ...(session === undefined ? {} : { session }),
-    ...(settings === undefined ? {} : { settings }),
+    ...(status === undefined ? {} : { status }),
     shellId,
   };
 }
