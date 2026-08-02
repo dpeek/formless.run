@@ -1,4 +1,5 @@
 import { listenForClientEvents, publishClientEvent } from "./broadcast.ts";
+import { invalidateProgramAuthorityForProtectedResponse } from "./program-authority.ts";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
 import {
@@ -58,6 +59,8 @@ type SyncWebSocket = {
 };
 
 type StartPushSyncOptions = {
+  canPublish?: () => boolean;
+  onAuthorityInvalidated?: () => void;
   onSynced?: () => void;
   reconnectInitialDelayMs?: number;
   reconnectMaxDelayMs?: number;
@@ -70,10 +73,25 @@ export type SubmitOperationOptions = BrowserWriteOptions & {
   autoSaveSource?: LocalWorkspaceAutoSaveWriteSource;
 };
 
-export async function bootstrapClient(fetcher: typeof fetch = fetch) {
-  const response = await fetchJson<BootstrapResponse>(fetcher, apiPath("bootstrap"));
+type ClientRuntimePublicationBoundary = {
+  canPublish?: (() => boolean) | undefined;
+  principalId?: string | undefined;
+  signal?: AbortSignal | undefined;
+};
 
-  await saveBootstrapResponse(response);
+export async function bootstrapClient(
+  fetcher: typeof fetch = fetch,
+  options: ClientRuntimePublicationBoundary = {},
+) {
+  const response = await fetchJson<BootstrapResponse>(
+    fetcher,
+    apiPath("bootstrap"),
+    options.signal,
+  );
+
+  assertClientRuntimePublicationCurrent(options);
+  await saveBootstrapResponse(response, { principalId: options.principalId });
+  assertClientRuntimePublicationCurrent(options);
   applyBootstrapResponse(response);
   notifyLocalDataChanged({ schemaChanged: true });
 
@@ -99,22 +117,26 @@ export async function syncClient(fetcher: typeof fetch = fetch) {
 
 export async function applySyncResponse(
   response: SyncResponse,
-  options: { currentCursor?: number } = {},
+  options: { canPublish?: () => boolean; currentCursor?: number } = {},
 ) {
+  assertClientRuntimePublicationCurrent(options);
   const cursor = options.currentCursor ?? (await readCursor());
   const schemaChanged = Boolean(response.schema && response.schemaUpdatedAt);
 
   if (response.schema && response.schemaUpdatedAt) {
     await saveSchema(response.schema, response.schemaUpdatedAt, response.schemaProvenance);
+    assertClientRuntimePublicationCurrent(options);
     applySchemaSave(response.schema, response.schemaUpdatedAt);
   }
 
   if (response.changes.length > 0 || response.cursor !== cursor) {
     await mergeChanges(response.changes, response.cursor);
+    assertClientRuntimePublicationCurrent(options);
     applyChanges(response.changes, response.cursor);
   }
 
   if (response.changes.length > 0 || response.cursor !== cursor || schemaChanged) {
+    assertClientRuntimePublicationCurrent(options);
     notifyLocalDataChanged({ schemaChanged });
   }
 
@@ -287,17 +309,21 @@ export function startPushSync(options: StartPushSyncOptions = {}) {
         return;
       }
 
-      void handleSyncSocketMessage(event)
+      void handleSyncSocketMessage(event, {
+        canPublish: () => !stopped && socket === nextSocket && (options.canPublish?.() ?? true),
+      })
         .then((didApplySync) => {
           if (didApplySync && !stopped && socket === nextSocket) {
             onSynced?.();
           }
         })
         .catch((error: unknown) => {
-          setSyncStatus({
-            state: "error",
-            message: error instanceof Error ? error.message : "Push sync failed.",
-          });
+          if (!stopped && socket === nextSocket && (options.canPublish?.() ?? true)) {
+            setSyncStatus({
+              state: "error",
+              message: error instanceof Error ? error.message : "Push sync failed.",
+            });
+          }
         });
     };
 
@@ -315,12 +341,21 @@ export function startPushSync(options: StartPushSyncOptions = {}) {
       setSyncStatus({ state: "syncing", message: "Push sync connection issue." });
     };
 
-    nextSocket.onclose = () => {
+    nextSocket.onclose = (event) => {
       if (stopped || socket !== nextSocket) {
         return;
       }
 
       socket = undefined;
+
+      if (event.code === 1008) {
+        stopped = true;
+        stopListening();
+        clearReconnectTimer();
+        setSyncStatus({ state: "error", message: "Push sync authorization changed." });
+        options.onAuthorityInvalidated?.();
+        return;
+      }
 
       if (!opened) {
         setSyncStatus({ state: "error", message: "Push sync connection failed." });
@@ -402,7 +437,10 @@ async function sendSyncSocketClientMessage(
   socket.send(JSON.stringify(message));
 }
 
-async function handleSyncSocketMessage(event: MessageEvent) {
+async function handleSyncSocketMessage(
+  event: MessageEvent,
+  options: { canPublish?: () => boolean } = {},
+) {
   const message = parseSyncSocketServerMessage(event.data);
 
   if (!message) {
@@ -414,7 +452,8 @@ async function handleSyncSocketMessage(event: MessageEvent) {
     return false;
   }
 
-  await applySyncResponse(message.payload);
+  await applySyncResponse(message.payload, options);
+  assertClientRuntimePublicationCurrent(options);
   setSyncStatus({ state: "idle", message: "Pushed sync received." });
   return true;
 }
@@ -433,12 +472,13 @@ function parseSyncSocketServerMessage(data: unknown): SyncSocketServerMessage | 
   }
 }
 
-async function fetchJson<T>(fetcher: typeof fetch, url: string): Promise<T> {
+async function fetchJson<T>(fetcher: typeof fetch, url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetcher(url, {
     credentials: "same-origin",
     headers: {
       Accept: "application/json",
     },
+    signal,
   });
 
   return parseJsonResponse<T>(response);
@@ -472,6 +512,7 @@ async function postJson<T>(
 }
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
+  invalidateProgramAuthorityForProtectedResponse(response);
   const body = (await response.json()) as unknown;
 
   if (!response.ok) {
@@ -544,6 +585,15 @@ function isErrorResponse(value: unknown): value is { error: string } {
     "error" in value &&
     typeof value.error === "string"
   );
+}
+
+function assertClientRuntimePublicationCurrent(options: {
+  canPublish?: (() => boolean) | undefined;
+  signal?: AbortSignal | undefined;
+}): void {
+  if (options.signal?.aborted || options.canPublish?.() === false) {
+    throw new Error("Program client runtime ended before publication.");
+  }
 }
 
 function apiPath(path: string) {

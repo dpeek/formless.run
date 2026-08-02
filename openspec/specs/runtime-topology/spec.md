@@ -69,6 +69,32 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 - THEN the request is eligible for the client shell
 - AND route selection uses the Program route table
 
+#### Scenario: Authorize a direct Program deep link
+
+- GIVEN a document request targets an active Program screen on the default
+  instance host or an enabled mapped instance route
+- WHEN runtime topology selects the browser surface
+- THEN server admission evaluates the current session, account completion,
+  matched runtime-route access floor, and selected screen access requirement
+  before serving the protected client shell
+- AND an unauthenticated, incomplete, or unauthorized request receives its
+  current continuation or forbidden outcome without relying on browser-cached
+  session, schema, route, or replica facts
+
+#### Scenario: Keep client Program routing within one runtime target
+
+- GIVEN a ready Program client runtime is bound to one route id, target profile,
+  target origin, and Program storage identity
+- WHEN same-origin client routing selects another active Program screen within
+  that target
+- THEN the browser resolves the screen from the active Program route table and
+  applies the server-resolved runtime-route access floor before its screen access
+  requirement
+- AND the route change does not issue a replacement document request or weaken,
+  replace, or cross the bound runtime target
+- AND history traversal selects the corresponding Program workspace through the
+  same client route decision
+
 #### Scenario: Product instance Program routes
 
 - GIVEN the runtime profile is `instance`

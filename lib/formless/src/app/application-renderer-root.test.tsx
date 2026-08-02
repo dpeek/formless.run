@@ -52,7 +52,6 @@ describe("application root runtime", () => {
 
     let currentNestedHost: PresentationHost | undefined;
     let selectionCount = 0;
-    const authorizeProgramRoute = async () => ({ kind: "authorized" as const });
     const firstController = createApplicationThemeController(browserApplicationTheme());
     const observedController = {
       ...firstController,
@@ -73,8 +72,20 @@ describe("application root runtime", () => {
         <ApplicationShellRuntimeBoundary
           applicationTheme={applicationTheme}
           currentPath="/site"
-          dependencies={{ resolveRouteAccess: authorizeProgramRoute }}
           accountSession={{ authenticated: false, setupComplete: true }}
+          programSession={{
+            callerFacts: { active: true, kind: "principal", owner: true },
+            principal: { displayName: "Program owner", principalId: "principal:owner" },
+            session: { expiresAt: "2026-08-02T12:00:00.000Z" },
+            status: "ready",
+            target: {
+              routeAccess: "management",
+              routeId: "route:instance",
+              storageIdentity: "instance:control-plane",
+              targetOrigin: window.location.origin,
+              targetProfile: "instance",
+            },
+          }}
           runtimeProfile={runtimeProfile}
           screenModels={[]}
         >

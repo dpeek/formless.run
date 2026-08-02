@@ -18,6 +18,7 @@ import {
   type IdentityProgramRoleId,
   type IdentityRoleAssignmentScopeKind,
 } from "@dpeek/formless-identity-control-plane";
+import { invalidateProgramAuthorityForProtectedResponse } from "./program-authority.ts";
 
 export const IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_ROUTE =
   `${IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX}${IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH}` as const;
@@ -225,6 +226,7 @@ async function postIdentityAccessManagementRequest<T>(
 }
 
 async function readJsonResponse<T>(response: Response): Promise<T> {
+  invalidateProgramAuthorityForProtectedResponse(response);
   const body = (await response.json()) as unknown;
 
   if (!response.ok) {

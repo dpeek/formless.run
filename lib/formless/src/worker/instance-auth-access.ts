@@ -2,7 +2,7 @@ import type {
   AccountCompletionGateResolutionResult,
   AccountCompletionGateTarget,
 } from "../shared/instance-auth.ts";
-import type { ScreenAccessRequirement } from "@dpeek/formless-schema";
+import type { AppSchema, ScreenAccessRequirement } from "@dpeek/formless-schema";
 import type { OperationInvocationActor } from "../shared/operation-invocation.ts";
 import type { OwnerIdentity } from "../shared/protocol.ts";
 import type {
@@ -120,6 +120,7 @@ export type InstanceAuthAccessResult =
 export type InstanceAuthAccessInput = {
   accountCompletionTarget?: AccountCompletionGateTarget;
   localOwnerSessionFallbackAllowed: boolean;
+  programSchema?: AppSchema;
   programScreenAccess?: ScreenAccessRequirement;
   requiredAuthority: InstanceAuthAuthorityRequirement;
   target?: InstanceAuthSessionTargetBinding;
@@ -389,7 +390,7 @@ async function validateCurrentSession(
       !evaluateAccessRequirement(
         input.programScreenAccess,
         programAuthority.callerFacts,
-        formlessProgramSchema,
+        input.programSchema ?? formlessProgramSchema,
       )
     ) {
       const authenticated = await readAuthenticatedSessionFacts(session, via, input, readers);

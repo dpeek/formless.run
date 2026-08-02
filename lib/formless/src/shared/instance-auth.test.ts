@@ -23,10 +23,13 @@ import {
   parseAccountPasskeyLoginVerifyRequest,
   parseAccountPasskeyLoginVerifyResponse,
   parseAccountSessionStatusResponse,
+  parseProgramSessionRequest,
+  parseProgramSessionResponse,
   accountRedirectLocationForRoute,
   accountRedirectTargetFromSearch,
   parseAccountRedirectTarget,
 } from "./instance-auth.ts";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 
 const setupToken = "abcDEF0123456789_-abcDEF0123456789_-";
 const invitationToken = "aW52aXRlLXJhdy10b2tlbi0x";
@@ -497,6 +500,113 @@ describe("account completion gate protocol", () => {
   });
 });
 
+describe("Program session protocol", () => {
+  it("parses safe requests and every display-safe response state", () => {
+    const target = programSessionTarget();
+    const session = { expiresAt: "2026-08-02T12:00:00.000Z" };
+    const accountCompletion = {
+      gate: { credentialMethod: "passkey", kind: "credential" },
+      status: "blocked",
+      target: {
+        access: "authenticated",
+        returnTo: "/tasks?view=active",
+        routeId: target.routeId,
+        targetOrigin: target.targetOrigin,
+        targetProfile: "instance",
+      },
+    } as const;
+    const responses = [
+      { setupComplete: true, status: "anonymous" },
+      {
+        accountCompletion,
+        principal,
+        session,
+        status: "blocked",
+        target,
+      },
+      { principal, session, status: "forbidden" },
+      {
+        callerFacts: {
+          active: true,
+          kind: "principal",
+          owner: false,
+          roleId: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+        },
+        principal,
+        session,
+        status: "ready",
+        target,
+      },
+    ] as const;
+
+    expect(parseProgramSessionRequest({ returnTo: "/tasks?view=active" })).toEqual({
+      returnTo: "/tasks?view=active",
+    });
+
+    for (const response of responses) {
+      expect(parseProgramSessionResponse(response)).toEqual(response);
+    }
+  });
+
+  it("rejects unsafe targets, unsupported state fields, and private auth facts", () => {
+    expect(() =>
+      parseProgramSessionRequest({ returnTo: "https://evil.example.com/tasks" }),
+    ).toThrow("Program session request returnTo must be path-only.");
+    expect(() =>
+      parseProgramSessionRequest({ returnTo: "/tasks", targetOrigin: "https://example.com" }),
+    ).toThrow('Program session request has unsupported key "targetOrigin".');
+    expect(() =>
+      parseProgramSessionResponse({
+        setupComplete: true,
+        sessionId: "private-session",
+        status: "anonymous",
+      }),
+    ).toThrow('Anonymous Program session response has unsupported key "sessionId".');
+    expect(() =>
+      parseProgramSessionResponse({
+        principal,
+        session: { expiresAt: "2026-08-02T12:00:00.000Z", sessionVersion: 7 },
+        status: "forbidden",
+      }),
+    ).toThrow('Forbidden Program session has unsupported key "sessionVersion".');
+    expect(() =>
+      parseProgramSessionResponse({
+        callerFacts: { active: true, kind: "principal", owner: true },
+        cookie: "private-cookie",
+        principal,
+        session: { expiresAt: "2026-08-02T12:00:00.000Z" },
+        status: "ready",
+        target: programSessionTarget(),
+      }),
+    ).toThrow('Ready Program session response has unsupported key "cookie".');
+    expect(() =>
+      parseProgramSessionResponse({
+        accountCompletion: {
+          gate: { kind: "credential", credentialId: "private-credential" },
+          status: "blocked",
+          target: accountCompletionTarget(),
+        },
+        principal,
+        session: { expiresAt: "2026-08-02T12:00:00.000Z" },
+        status: "blocked",
+        target: programSessionTarget(),
+      }),
+    ).toThrow("private browser-visible field");
+  });
+
+  it("keeps the general account session response unchanged", () => {
+    expect(() =>
+      parseAccountSessionStatusResponse({
+        authenticated: true,
+        callerFacts: { active: true, kind: "principal", owner: true },
+        principal,
+        session: { expiresAt: "2026-08-02T12:00:00.000Z" },
+        setupComplete: true,
+      }),
+    ).toThrow('Account session status response has unsupported key "callerFacts".');
+  });
+});
+
 describe("account passkey protocol", () => {
   it("parses login options, login verify, session status, and logout responses", () => {
     expect(parseAccountPasskeyLoginOptionsRequest({})).toEqual({});
@@ -643,6 +753,16 @@ function accountCompletionTarget() {
     returnTo: "/settings/access",
     routeId: "route:access",
     selectedOrganization: "organization:acme",
+    targetOrigin: "https://instance.example.com",
+    targetProfile: "instance",
+  } as const;
+}
+
+function programSessionTarget() {
+  return {
+    routeAccess: "authenticated",
+    routeId: "route:program",
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     targetOrigin: "https://instance.example.com",
     targetProfile: "instance",
   } as const;

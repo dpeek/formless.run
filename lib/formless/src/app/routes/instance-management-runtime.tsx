@@ -189,7 +189,6 @@ export function InstanceManagementRuntime({
     <>
       {screenSelection.routesWorkspacePath === undefined ? null : (
         <HomeRoute
-          clientSync
           onClientLoadStateChange={updateControlPlaneLoadState}
           onGeneratedWorkspaceController={registerRoutes}
           screenPath={screenSelection.routesWorkspacePath}
@@ -203,7 +202,7 @@ export function InstanceManagementRuntime({
           }}
         />
       ) : (
-        <HomeRoute clientSync={false} screenPath={screenSelection.activeWorkspacePath} />
+        <HomeRoute screenPath={screenSelection.activeWorkspacePath} />
       )}
     </>
   );

@@ -10,6 +10,7 @@ import {
   type InstanceDomainProviderManualCleanupResponse,
   type InstanceDomainProviderPlanResponse,
 } from "../shared/domain-provider-api.ts";
+import { invalidateProgramAuthorityForProtectedResponse } from "./program-authority.ts";
 
 export type DomainProviderApiErrorBody = {
   code?: string;
@@ -116,6 +117,7 @@ export async function fetchInstanceDomainProviderDeleteJob(
 }
 
 async function readJsonResponse<T>(response: Response): Promise<T> {
+  invalidateProgramAuthorityForProtectedResponse(response);
   const body = (await response.json()) as unknown;
 
   if (!response.ok) {

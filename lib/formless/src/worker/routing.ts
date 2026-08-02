@@ -49,8 +49,8 @@ export type WorkerRuntimeRequestTopology = {
   dynamicSiteIconPath: boolean;
   instanceProfileClientShellRoute: boolean;
   pathname: string;
-  programScreenAllowsAnonymous?: boolean | undefined;
-  programScreenRouteTarget?: FormlessProgramScreenRouteTarget | undefined;
+  programScreenAllowsAnonymous: boolean | undefined;
+  programScreenRouteTarget: FormlessProgramScreenRouteTarget | undefined;
   profileKind: RuntimeProfileKind;
   publishedProfileClientShellRoute: boolean;
   publishedSiteIndexingResourcePath: boolean;
@@ -143,9 +143,8 @@ export function resolveWorkerRuntimeRequestTopology(
       programSchema,
     ),
     pathname: url.pathname,
-    ...(programScreenRouteTarget === undefined
-      ? {}
-      : { programScreenAllowsAnonymous, programScreenRouteTarget }),
+    programScreenAllowsAnonymous,
+    programScreenRouteTarget,
     profileKind,
     publishedProfileClientShellRoute: isRuntimePublishedProfileClientShellRoute(url.pathname),
     publishedSiteIndexingResourcePath: isRuntimePublishedSiteIndexingResourcePath(url.pathname),
@@ -297,9 +296,9 @@ export function resolveProgramScreenRouteTargetFromFacts(input: {
     return undefined;
   }
 
-  const screen =
-    input.topology.programScreenRouteTarget ??
-    resolveFormlessProgramScreenRouteTarget(input.topology.pathname);
+  const screen = Object.hasOwn(input.topology, "programScreenRouteTarget")
+    ? input.topology.programScreenRouteTarget
+    : resolveFormlessProgramScreenRouteTarget(input.topology.pathname);
 
   if (screen === undefined) {
     return undefined;

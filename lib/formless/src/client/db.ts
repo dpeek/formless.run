@@ -6,6 +6,7 @@ import type {
   ChangeRow,
 } from "../shared/protocol.ts";
 import { nowIsoString } from "../shared/clock.ts";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 
 const DB_VERSION = 2;
 
@@ -18,9 +19,13 @@ const SCHEMA_UPDATED_AT_KEY = "schemaUpdatedAt";
 const CURSOR_KEY = "cursor";
 const LAST_SYNCED_AT_KEY = "lastSyncedAt";
 const REPLICA_VERSION_KEY = "replicaVersion";
+const PRINCIPAL_ID_KEY = "principalId";
 export const FORMLESS_PROGRAM_REPLICA_DATABASE_NAME = "formless:instance:control-plane";
 
+type FormlessProgramStorageIdentity = typeof FORMLESS_PROGRAM_STORAGE_IDENTITY;
+
 export type LocalSnapshot = {
+  principalId: string | null;
   schema: AppSchema | null;
   schemaProvenance: BrowserReplicaSchemaProvenance | null;
   schemaUpdatedAt: string | null;
@@ -38,6 +43,15 @@ export class FormlessProgramReplicaDeleteBlockedError extends Error {
   }
 }
 
+export class FormlessProgramReplicaPrincipalBindingError extends Error {
+  constructor() {
+    super("Local Program browser replica principal binding changed.");
+    this.name = "FormlessProgramReplicaPrincipalBindingError";
+  }
+}
+
+let replicaBoundaryQueue: Promise<void> = Promise.resolve();
+
 export async function readLocalSnapshot(): Promise<LocalSnapshot> {
   const db = await openClientDb();
 
@@ -46,18 +60,24 @@ export async function readLocalSnapshot(): Promise<LocalSnapshot> {
     const meta = transaction.objectStore(META_STORE);
     const records = transaction.objectStore(RECORDS_STORE);
 
-    const [storedSchema, schemaProvenance, schemaUpdatedAt, cursor, lastSyncedAt, storedRecords] =
-      await Promise.all([
-        requestToPromise<unknown>(meta.get(SCHEMA_KEY)),
-        requestToPromise<BrowserReplicaSchemaProvenance | undefined>(
-          meta.get(SCHEMA_PROVENANCE_KEY),
-        ),
-        requestToPromise<string | undefined>(meta.get(SCHEMA_UPDATED_AT_KEY)),
-        requestToPromise<number | undefined>(meta.get(CURSOR_KEY)),
-        requestToPromise<string | undefined>(meta.get(LAST_SYNCED_AT_KEY)),
-        requestToPromise<StoredRecord[]>(records.getAll()),
-        transactionDone(transaction),
-      ]);
+    const [
+      principalId,
+      storedSchema,
+      schemaProvenance,
+      schemaUpdatedAt,
+      cursor,
+      lastSyncedAt,
+      storedRecords,
+    ] = await Promise.all([
+      requestToPromise<string | undefined>(meta.get(PRINCIPAL_ID_KEY)),
+      requestToPromise<unknown>(meta.get(SCHEMA_KEY)),
+      requestToPromise<BrowserReplicaSchemaProvenance | undefined>(meta.get(SCHEMA_PROVENANCE_KEY)),
+      requestToPromise<string | undefined>(meta.get(SCHEMA_UPDATED_AT_KEY)),
+      requestToPromise<number | undefined>(meta.get(CURSOR_KEY)),
+      requestToPromise<string | undefined>(meta.get(LAST_SYNCED_AT_KEY)),
+      requestToPromise<StoredRecord[]>(records.getAll()),
+      transactionDone(transaction),
+    ]);
 
     let schema: AppSchema | null = null;
     if (storedSchema !== undefined) {
@@ -71,6 +91,7 @@ export async function readLocalSnapshot(): Promise<LocalSnapshot> {
     }
 
     return {
+      principalId: principalId ?? null,
       schema,
       schemaProvenance: schemaProvenance ?? null,
       schemaUpdatedAt: schemaUpdatedAt ?? null,
@@ -85,6 +106,7 @@ export async function readLocalSnapshot(): Promise<LocalSnapshot> {
 
 function emptyLocalSnapshot(): LocalSnapshot {
   return {
+    principalId: null,
     schema: null,
     schemaProvenance: null,
     schemaUpdatedAt: null,
@@ -94,13 +116,25 @@ function emptyLocalSnapshot(): LocalSnapshot {
   };
 }
 
-export async function saveBootstrapResponse(response: BootstrapResponse) {
+export async function saveBootstrapResponse(
+  response: BootstrapResponse,
+  options: { principalId?: string } = {},
+) {
   const db = await openClientDb();
 
   try {
     const transaction = db.transaction([META_STORE, RECORDS_STORE], "readwrite");
     const meta = transaction.objectStore(META_STORE);
     const records = transaction.objectStore(RECORDS_STORE);
+
+    if (options.principalId !== undefined) {
+      const principalId = await requestToPromise<string | undefined>(meta.get(PRINCIPAL_ID_KEY));
+
+      if (principalId !== options.principalId) {
+        await transactionDone(transaction);
+        throw new FormlessProgramReplicaPrincipalBindingError();
+      }
+    }
 
     records.clear();
     for (const record of response.records) {
@@ -219,9 +253,11 @@ export async function readCursor() {
   }
 }
 
-export function deleteClientDb() {
+export function deleteClientDb(
+  storageIdentity: FormlessProgramStorageIdentity = FORMLESS_PROGRAM_STORAGE_IDENTITY,
+) {
   return new Promise<void>((resolve, reject) => {
-    const request = indexedDB.deleteDatabase(clientDbName());
+    const request = indexedDB.deleteDatabase(clientDbName(storageIdentity));
 
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error ?? new Error("Could not delete IndexedDB."));
@@ -229,30 +265,61 @@ export function deleteClientDb() {
   });
 }
 
-export async function deleteProgramReplicaDatabase(): Promise<void> {
-  const result = await deleteIndexedDbDatabase(FORMLESS_PROGRAM_REPLICA_DATABASE_NAME);
+export async function deleteProgramReplicaDatabase(
+  storageIdentity: FormlessProgramStorageIdentity = FORMLESS_PROGRAM_STORAGE_IDENTITY,
+): Promise<void> {
+  const result = await deleteIndexedDbDatabase(clientDbName(storageIdentity));
 
   if (result === "blocked") {
     throw new FormlessProgramReplicaDeleteBlockedError();
   }
 }
 
-export function clientDbName() {
-  return FORMLESS_PROGRAM_REPLICA_DATABASE_NAME;
+export function clearProgramReplicaPrincipalBoundary(
+  storageIdentity: FormlessProgramStorageIdentity,
+): Promise<void> {
+  return queueReplicaBoundary(async () => {
+    await deleteProgramReplicaDatabase(storageIdentity);
+  });
 }
 
-async function openClientDb() {
+export function prepareProgramReplicaPrincipalBoundary(
+  principalId: string,
+  storageIdentity: FormlessProgramStorageIdentity,
+): Promise<"reset" | "reused"> {
+  return queueReplicaBoundary(async () => {
+    const currentPrincipalId = await readProgramReplicaPrincipalId(storageIdentity);
+
+    if (currentPrincipalId === principalId) {
+      return "reused" as const;
+    }
+
+    await deleteProgramReplicaDatabase(storageIdentity);
+    await writeProgramReplicaPrincipalId(principalId, storageIdentity);
+    return "reset" as const;
+  });
+}
+
+export function clientDbName(
+  storageIdentity: FormlessProgramStorageIdentity = FORMLESS_PROGRAM_STORAGE_IDENTITY,
+) {
+  return `formless:${storageIdentity}`;
+}
+
+async function openClientDb(
+  storageIdentity: FormlessProgramStorageIdentity = FORMLESS_PROGRAM_STORAGE_IDENTITY,
+) {
   try {
-    return await openClientDbOnce();
+    return await openClientDbOnce(storageIdentity);
   } catch {
-    await deleteClientDb();
-    return openClientDbOnce();
+    await deleteClientDb(storageIdentity);
+    return openClientDbOnce(storageIdentity);
   }
 }
 
-function openClientDbOnce() {
+function openClientDbOnce(storageIdentity: FormlessProgramStorageIdentity) {
   return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(clientDbName(), DB_VERSION);
+    const request = indexedDB.open(clientDbName(storageIdentity), DB_VERSION);
 
     request.onupgradeneeded = () => {
       try {
@@ -326,4 +393,45 @@ function transactionDone(transaction: IDBTransaction) {
 
 function sortRecords(records: StoredRecord[]) {
   return records.toSorted((left, right) => left.createdAt.localeCompare(right.createdAt));
+}
+
+async function readProgramReplicaPrincipalId(
+  storageIdentity: FormlessProgramStorageIdentity,
+): Promise<string | undefined> {
+  const db = await openClientDb(storageIdentity);
+
+  try {
+    const transaction = db.transaction(META_STORE, "readonly");
+    const principalId = await requestToPromise<string | undefined>(
+      transaction.objectStore(META_STORE).get(PRINCIPAL_ID_KEY),
+    );
+    await transactionDone(transaction);
+    return principalId;
+  } finally {
+    db.close();
+  }
+}
+
+async function writeProgramReplicaPrincipalId(
+  principalId: string,
+  storageIdentity: FormlessProgramStorageIdentity,
+): Promise<void> {
+  const db = await openClientDb(storageIdentity);
+
+  try {
+    const transaction = db.transaction(META_STORE, "readwrite");
+    transaction.objectStore(META_STORE).put(principalId, PRINCIPAL_ID_KEY);
+    await transactionDone(transaction);
+  } finally {
+    db.close();
+  }
+}
+
+function queueReplicaBoundary<T>(operation: () => Promise<T>): Promise<T> {
+  const result = replicaBoundaryQueue.then(operation, operation);
+  replicaBoundaryQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
 }

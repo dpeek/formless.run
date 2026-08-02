@@ -45,6 +45,22 @@ The system SHALL persist browser replica metadata and records locally.
 - THEN sync metadata is stored in the local `meta` store
 - AND records are stored in the local `records` store
 
+#### Scenario: Bind cached Program data to the current principal
+
+- GIVEN an IndexedDB replica exists for a Program storage identity
+- WHEN a persistent Program runtime obtains a ready Program session snapshot
+- THEN replica metadata binds the cached Program data to that snapshot's
+  principal id before hydration can publish records to client projections
+- AND hydration reuses the cache only when the principal binding and Program
+  storage identity both match
+- AND a missing or different principal binding clears the affected Formless
+  Program cache before the new principal bootstraps it
+- AND logout, anonymous, blocked, forbidden, and principal-change transitions
+  clear in-memory Program state and make the prior persistent cache unavailable
+  before another principal can render from it
+- AND cross-tab invalidation coordinates that boundary without deleting
+  non-Formless IndexedDB databases
+
 #### Scenario: Storage snapshot restore into local replica
 
 - GIVEN a storage snapshot restore returns a bootstrap-shaped response
@@ -200,6 +216,17 @@ Program identity.
   receives no later Program changes
 - AND an unauthorized socket is closed or suppressed
 
+#### Scenario: Recover from unauthorized Program push closure
+
+- GIVEN a persistent Program runtime has one active push-sync connection
+- WHEN the server closes it with WebSocket policy-violation code `1008` because
+  its session or Program authority is no longer current
+- THEN the client invalidates its Program session snapshot and stops reconnecting
+  with the rejected authority
+- AND it opens at most one replacement socket only after a new ready snapshot is
+  resolved for the same principal and runtime target
+- AND repeated unauthorized closure does not create a reconnect loop
+
 #### Scenario: Public Site visitors do not receive Program push sync
 
 - GIVEN a visitor opens a Program-native Site document on a mapped or published
@@ -209,6 +236,44 @@ Program identity.
 - AND it does not open `/api/formless/program/sync/ws`
 - AND authenticated `/pages` preview may use the existing Program socket
   because it is a Program member surface
+
+### Requirement: Persistent Program Client Runtime
+
+The system SHALL own Program session, replica, and synchronization effects at a
+client runtime lifetime that persists across ordinary Program screen routes.
+
+#### Scenario: Initialize one Program client runtime
+
+- GIVEN a direct document request has admitted an eligible Program shell
+- WHEN the client runtime starts
+- THEN it resolves one Program session snapshot before publishing cached Program
+  data
+- AND a ready snapshot starts one principal-bound IndexedDB hydration, one
+  Program bootstrap, one broadcast subscription, and one push-sync connection
+- AND loading, blocked, forbidden, and failed states retain the runtime boundary
+  while withholding the protected route workspace as applicable
+
+#### Scenario: Navigate within one Program client runtime
+
+- GIVEN the persistent Program runtime is ready and a Program workspace is
+  mounted
+- WHEN client routing selects another Program screen on the same runtime target
+- THEN the session snapshot, hydrated replica, broadcast subscription, bootstrap
+  state, and push-sync connection remain mounted
+- AND no session or per-screen authorization request, IndexedDB rehydration,
+  Program bootstrap, broadcast resubscription, or push reconnection is caused by
+  that route change
+- AND only the selected route workspace and its route-local state may change
+
+#### Scenario: End a Program client runtime safely
+
+- GIVEN a persistent Program runtime is mounted
+- WHEN navigation leaves its Program shell scope, logout completes, the principal
+  changes, or its bound runtime target changes
+- THEN it aborts pending client work, closes its broadcast subscription and push
+  connection, and clears protected in-memory projections
+- AND cleanup from the ended lifetime cannot publish session, bootstrap, sync, or
+  route state into a later lifetime
 
 ### Requirement: Push Sync Messages
 

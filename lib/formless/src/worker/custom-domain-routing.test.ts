@@ -4,7 +4,10 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { INSTANCE_CONTROL_PLANE_INSTANCE_SETTINGS_ID } from "@dpeek/formless-instance-control-plane";
-import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
+import {
+  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import {
   IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH,
   IDENTITY_COLLABORATOR_INVITATIONS_API_PATH,
@@ -22,6 +25,7 @@ import { createWorkerHarness } from "./miniflare-test.ts";
 import { INTERNAL_RESET_OWNER_SETUP_PATH } from "./owner-setup.ts";
 import { createOwnerSessionCookie, OWNER_SESSION_COOKIE_NAME } from "./owner-session.ts";
 import { CENTRAL_AUTH_SESSION_COOKIE_NAME } from "./central-auth-session.ts";
+import { PROGRAM_SESSION_API_PATH } from "./program-session.ts";
 import {
   HOST_AUTH_NONCE_COOKIE_NAME,
   HOST_AUTH_SESSION_COOKIE_NAME,
@@ -331,6 +335,142 @@ describe("instance custom-domain Worker routing", () => {
       setupComplete: true,
     });
     expect(afterLogoutBody).not.toHaveProperty("principal");
+  });
+
+  it("returns strict Program session states while direct deep links remain server-authorized", async () => {
+    await resetWorkerState(harness, ["controlPlane", "auth"]);
+    await setupPrimaryProductionIdentity();
+    await patchRouteRecord("route:primary-production", { access: "authenticated" });
+
+    const owner = await ensureTestIdentityOwner(harness, adminToken, {
+      name: "Program Session Owner",
+    });
+    const ownerCookie = await createCentralAuthSessionCookieForPrincipal(owner.id);
+    const incompleteAdministrator = await createInstanceAdminPrincipalSessionCookie(
+      "Program Session Incomplete Administrator",
+    );
+    const ordinary = await createActivePrincipalSessionCookie("Program Session Ordinary User");
+    const path = `${PROGRAM_SESSION_API_PATH}?returnTo=%2Ftasks`;
+    const anonymous = await fetchHost("www.example.com", path);
+    const blocked = await fetchHost("www.example.com", path, {
+      headers: { Cookie: incompleteAdministrator.cookie },
+    });
+    const forbidden = await fetchHost("www.example.com", path, {
+      headers: { Cookie: ordinary.cookie },
+    });
+    const ready = await fetchHost("www.example.com", path, {
+      headers: { Cookie: ownerCookie },
+    });
+    const unsafe = await fetchHost(
+      "www.example.com",
+      `${PROGRAM_SESSION_API_PATH}?returnTo=${encodeURIComponent("https://evil.example.com/tasks")}`,
+    );
+    const directForbidden = await fetchHost("www.example.com", "/tasks", {
+      headers: { Accept: "text/html", Cookie: ordinary.cookie },
+      redirect: "manual",
+    });
+    const directReady = await fetchHost("www.example.com", "/tasks", {
+      headers: { Accept: "text/html", Cookie: ownerCookie },
+      redirect: "manual",
+    });
+    const anonymousBody = (await anonymous.json()) as Record<string, unknown>;
+    const blockedBody = (await blocked.json()) as Record<string, unknown>;
+    const forbiddenBody = (await forbidden.json()) as Record<string, unknown>;
+    const readyBody = (await ready.json()) as Record<string, unknown>;
+    const routeId = routeRecordIds.get("route:primary-production");
+
+    expect(anonymous.status).toBe(200);
+    expect(anonymousBody).toEqual({ setupComplete: true, status: "anonymous" });
+    expect(blocked.status).toBe(200);
+    expect(blockedBody).toMatchObject({
+      accountCompletion: {
+        status: "blocked",
+        target: {
+          access: "authenticated",
+          returnTo: "/tasks",
+          routeId,
+          targetOrigin: "https://www.example.com",
+          targetProfile: "instance",
+        },
+      },
+      principal: { principalId: incompleteAdministrator.principalId },
+      status: "blocked",
+      target: {
+        routeAccess: "authenticated",
+        routeId,
+        storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+        targetOrigin: "https://www.example.com",
+        targetProfile: "instance",
+      },
+    });
+    expect(forbidden.status).toBe(200);
+    expect(forbiddenBody).toMatchObject({
+      principal: { principalId: ordinary.principalId },
+      status: "forbidden",
+    });
+    expect(forbiddenBody).not.toHaveProperty("callerFacts");
+    expect(forbiddenBody).not.toHaveProperty("target");
+    expect(ready.status).toBe(200);
+    expect(ready.headers.get("Cache-Control")).toBe("no-store");
+    expect(readyBody).toMatchObject({
+      callerFacts: { active: true, kind: "principal", owner: true },
+      principal: { principalId: owner.id },
+      status: "ready",
+      target: {
+        routeAccess: "authenticated",
+        routeId,
+        storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+        targetOrigin: "https://www.example.com",
+        targetProfile: "instance",
+      },
+    });
+    expect(JSON.stringify(readyBody)).not.toContain("sessionId");
+    expect(JSON.stringify(readyBody)).not.toContain("sessionVersion");
+    expect(unsafe.status).toBe(400);
+    expect(directForbidden.status).toBe(403);
+    expect(directReady.status).toBe(200);
+  });
+
+  it("returns a ready Program session through the local owner-session reader", async () => {
+    await withHarness(
+      await createCustomDomainHarness("dev", {
+        FORMLESS_LOCAL_SESSION_BOOTSTRAP_TOKEN: "local-bootstrap-token",
+        FORMLESS_WORKSPACE_GATEWAY_CSRF_TOKEN: "local-csrf-token",
+        FORMLESS_WORKSPACE_GATEWAY_PROXY_TOKEN: "local-proxy-token",
+        FORMLESS_WORKSPACE_GATEWAY_SIDECAR_URL: "http://127.0.0.1:4010",
+      }),
+      async () => {
+        await resetWorkerState(harness, ["controlPlane", "auth"]);
+        const owner = await ensureTestIdentityOwner(harness, adminToken, {
+          name: "Local Program Session Owner",
+        });
+        const ownerSession = await createOwnerSessionCookie({
+          env: { FORMLESS_ADMIN_TOKEN: adminToken },
+          owner,
+          request: new Request("http://localhost/"),
+        });
+        const response = await fetchHost(
+          "localhost",
+          `${PROGRAM_SESSION_API_PATH}?returnTo=%2Ftasks`,
+          { headers: { Cookie: cookiePair(ownerSession.cookie) } },
+        );
+        const body = (await response.json()) as Record<string, unknown>;
+
+        expect(response.status).toBe(200);
+        expect(body).toMatchObject({
+          callerFacts: { active: true, kind: "principal", owner: true },
+          principal: { principalId: owner.id },
+          status: "ready",
+          target: {
+            routeAccess: "anonymous",
+            routeId: "runtime:instance",
+            storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+            targetOrigin: "http://localhost",
+            targetProfile: "instance",
+          },
+        });
+      },
+    );
   });
 
   it("accepts central auth-origin Program administrator sessions for management APIs", async () => {
@@ -731,6 +871,34 @@ describe("instance custom-domain Worker routing", () => {
     });
     expect(staleVersionBootstrap.status).toBe(401);
     expect(assetRequests).toEqual(["/"]);
+  });
+
+  it("binds a ready Program session to its mapped host runtime target", async () => {
+    await resetWorkerState(harness, ["controlPlane", "auth"]);
+    await setupPrimaryProductionIdentity();
+    await setupMappedInstance();
+
+    const { cookie, owner } = await createMappedInstanceHostSession("Mapped Program Session Owner");
+    const response = await fetchHost(
+      mappedInstanceHost,
+      `${PROGRAM_SESSION_API_PATH}?returnTo=%2Ftasks`,
+      { headers: { Cookie: cookie } },
+    );
+    const body = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      callerFacts: { active: true, kind: "principal", owner: true },
+      principal: { principalId: owner.id },
+      status: "ready",
+      target: {
+        routeAccess: "owner",
+        routeId: routeRecordIds.get(`route:host:instance:${mappedInstanceHost}`),
+        storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+        targetOrigin: `https://${mappedInstanceHost}`,
+        targetProfile: "instance",
+      },
+    });
   });
 
   it("accepts mapped instance host-local sessions with current operational management authority", async () => {
@@ -1927,7 +2095,7 @@ async function withWorkersDevAuthHarness(run: (deploymentOrigin: string) => Prom
 }
 
 async function createCustomDomainHarness(
-  runtimeProfile?: "instance" | "publishedSite",
+  runtimeProfile?: "dev" | "instance" | "publishedSite",
   bindings: Record<string, string> = {},
 ) {
   return createWorkerHarness(

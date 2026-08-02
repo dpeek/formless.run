@@ -4,6 +4,7 @@ import {
   type InstanceDeploymentDesiredStateResponse,
   type InstanceDeploymentStatusResponse,
 } from "../shared/deployment-runtime.ts";
+import { invalidateProgramAuthorityForProtectedResponse } from "./program-authority.ts";
 
 export type DeploymentRuntimeApiErrorBody = {
   code?: string;
@@ -56,6 +57,7 @@ export async function fetchInstanceDeploymentDesiredState({
 }
 
 async function readJsonResponse<T>(response: Response): Promise<T> {
+  invalidateProgramAuthorityForProtectedResponse(response);
   const body = (await response.json()) as unknown;
 
   if (!response.ok) {

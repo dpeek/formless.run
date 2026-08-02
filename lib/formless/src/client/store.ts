@@ -1,6 +1,10 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { listenForClientEvents } from "./broadcast.ts";
-import { readLocalSnapshot, type LocalSnapshot } from "./db.ts";
+import {
+  FormlessProgramReplicaPrincipalBindingError,
+  readLocalSnapshot,
+  type LocalSnapshot,
+} from "./db.ts";
 import {
   createAggregateValueMatchingQuerySelector,
   createEntityRecordCountMatchingQuerySelector,
@@ -68,16 +72,63 @@ export function subscribeToClientStoreSelector<T>(
   });
 }
 
+export function subscribeToProgramAuthorityChanges(
+  principalId: string,
+  listener: () => void,
+): () => void {
+  let signature = programAuthoritySignature(state, principalId);
+
+  return subscribeToClientStore(() => {
+    const nextSignature = programAuthoritySignature(state, principalId);
+
+    if (nextSignature === signature) {
+      return;
+    }
+
+    signature = nextSignature;
+    listener();
+  });
+}
+
 export function resetClientStore() {
   setState(emptyClientState());
 }
 
-export async function hydrateClientStore() {
-  applyLocalSnapshot(await readLocalSnapshot());
+type ClientStorePublicationBoundary = {
+  canPublish?: (() => boolean) | undefined;
+  onReplicaReset?: (() => void) | undefined;
+  principalId?: string | undefined;
+  signal?: AbortSignal | undefined;
+};
+
+export async function hydrateClientStore(options: ClientStorePublicationBoundary = {}) {
+  const snapshot = await readLocalSnapshot();
+
+  if (options.principalId !== undefined && snapshot.principalId !== options.principalId) {
+    throw new FormlessProgramReplicaPrincipalBindingError();
+  }
+
+  if (!clientStorePublicationIsCurrent(options)) {
+    return false;
+  }
+
+  applyLocalSnapshot(snapshot);
+  return true;
 }
 
-export async function refreshClientStoreFromDb() {
-  applyLocalSnapshot(await readLocalSnapshot());
+export async function refreshClientStoreFromDb(options: ClientStorePublicationBoundary = {}) {
+  const snapshot = await readLocalSnapshot();
+
+  if (options.principalId !== undefined && snapshot.principalId !== options.principalId) {
+    throw new FormlessProgramReplicaPrincipalBindingError();
+  }
+
+  if (!clientStorePublicationIsCurrent(options)) {
+    return false;
+  }
+
+  applyLocalSnapshot(snapshot);
+  return true;
 }
 
 export function applyBootstrapResponse(response: BootstrapResponse) {
@@ -292,14 +343,28 @@ export function useLastSyncedAt() {
   return useClientStoreSelector((snapshot) => snapshot.lastSyncedAt);
 }
 
-export function connectBroadcastToClientStore() {
+export function connectBroadcastToClientStore(options: ClientStorePublicationBoundary = {}) {
   return listenForClientEvents((event) => {
+    if (!clientStorePublicationIsCurrent(options)) {
+      return;
+    }
+
+    if (event.type === "replica-reset") {
+      resetClientStore();
+      options.onReplicaReset?.();
+      return;
+    }
+
     if (
       event.type === "records-updated" ||
       event.type === "cursor-updated" ||
       event.type === "schema-updated"
     ) {
-      void refreshClientStoreFromDb();
+      void refreshClientStoreFromDb(options).catch(() => {
+        if (clientStorePublicationIsCurrent(options)) {
+          resetClientStore();
+        }
+      });
     }
   });
 }
@@ -353,6 +418,10 @@ function emit() {
   for (const listener of listeners) {
     listener();
   }
+}
+
+function clientStorePublicationIsCurrent(options: ClientStorePublicationBoundary): boolean {
+  return options.signal?.aborted !== true && options.canPublish?.() !== false;
 }
 
 function recordsById(records: StoredRecord[]) {
@@ -440,6 +509,43 @@ function reuseSchema(existingSchema: AppSchema | null, nextSchema: AppSchema | n
   return JSON.stringify(existingSchema) === JSON.stringify(nextSchema)
     ? existingSchema
     : nextSchema;
+}
+
+function programAuthoritySignature(snapshot: NormalizedClientState, principalId: string): string {
+  const records = Object.values(snapshot.recordsById);
+  const assignments = records.filter(
+    (record) =>
+      (record.entity === "program-role-assignment" && record.values.principal === principalId) ||
+      (record.entity === "role-assignment" &&
+        record.values.targetKind === "principal" &&
+        record.values.targetPrincipal === principalId),
+  );
+  const roleIds = new Set(
+    assignments
+      .filter((record) => record.entity === "role-assignment")
+      .map((record) => record.values.role)
+      .filter((value): value is string => typeof value === "string"),
+  );
+  const authorityRecords = records.filter(
+    (record) =>
+      (record.entity === "principal" && record.id === principalId) ||
+      assignments.includes(record) ||
+      (record.entity === "role" && roleIds.has(record.id)),
+  );
+
+  return JSON.stringify(
+    authorityRecords
+      .toSorted((left, right) => left.id.localeCompare(right.id))
+      .map((record) => ({
+        deletedAt: record.deletedAt,
+        entity: record.entity,
+        id: record.id,
+        updatedAt: record.updatedAt,
+        values: Object.entries(record.values).toSorted(([left], [right]) =>
+          left.localeCompare(right),
+        ),
+      })),
+  );
 }
 
 function sameKeys(left: Record<string, unknown>, right: Record<string, unknown>) {

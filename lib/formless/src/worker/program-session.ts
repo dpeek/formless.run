@@ -1,0 +1,295 @@
+import type { AppSchema } from "@dpeek/formless-schema";
+
+import {
+  parseProgramSessionRequest,
+  parseProgramSessionResponse,
+  PROGRAM_SESSION_API_PATH,
+  type AccountPrincipalIdentity,
+  type ProgramSessionResponse,
+  type ProgramSessionTargetBinding,
+} from "../shared/instance-auth.ts";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
+import { formlessProgramSchema } from "../program/runtime.ts";
+import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
+import {
+  requestOriginForAuth,
+  routeAccessTargetForRuntimeRoute,
+  validateInstanceAuthAccessSession,
+  type InstanceAuthHandoffEnv,
+  type ProtectedRouteAccess,
+} from "./instance-auth-handoff.ts";
+import { sameOriginAccountCompletionTargetForRuntimeRouteFacts } from "./instance-auth-account-target.ts";
+import {
+  readInternalActiveIdentityPrincipal,
+  readInternalIdentityAuthorityForPrincipal,
+  type ActiveIdentityAuthority,
+  type ActiveIdentityPrincipal,
+} from "./identity-owner-internal.ts";
+import {
+  resolveInstanceRuntimeRouteForRequest,
+  type InstanceRuntimeRouteResolution,
+} from "./instance-runtime-routes.ts";
+import {
+  resolveProgramScreenRouteTargetFromFacts,
+  resolveWorkerRuntimeRequestTopology,
+  workerRuntimeProfileInput,
+  type ProgramScreenRouteTarget,
+} from "./routing.ts";
+import type { InstanceAuthSessionTargetBinding } from "./instance-auth-state.ts";
+
+export { PROGRAM_SESSION_API_PATH };
+
+type ProgramSessionRouteResolution = {
+  programScreen: ProgramScreenRouteTarget;
+  requiredAccess: ProtectedRouteAccess;
+  sessionTarget: InstanceAuthSessionTargetBinding;
+  target: ProgramSessionTargetBinding;
+};
+
+type ProgramSessionHandlerOptions = {
+  programSchema?: AppSchema;
+};
+
+export async function handleProgramSessionRequest(
+  request: Request,
+  env: InstanceAuthHandoffEnv,
+  options: ProgramSessionHandlerOptions = {},
+): Promise<Response | undefined> {
+  const url = new URL(request.url);
+
+  if (url.pathname !== PROGRAM_SESSION_API_PATH) {
+    return undefined;
+  }
+
+  if (request.method !== "GET") {
+    return new Response(null, {
+      headers: { Allow: "GET", "Cache-Control": "no-store" },
+      status: 405,
+    });
+  }
+
+  try {
+    const input = parseProgramSessionQuery(url.searchParams);
+    const targetRequest = new Request(new URL(input.returnTo, request.url), {
+      headers: request.headers,
+      method: "GET",
+    });
+    const runtimeRoute = await resolveInstanceRuntimeRouteForRequest(targetRequest, env);
+    const runtimeProfile =
+      runtimeRoute?.kind === "mount" &&
+      runtimeRoute.matchHost !== undefined &&
+      runtimeRoute.targetProfile === "instance"
+        ? "instance"
+        : env.FORMLESS_RUNTIME_PROFILE;
+    const programSchema = options.programSchema ?? formlessProgramSchema;
+    const route = resolveProgramSessionRouteFromFacts({
+      programSchema,
+      request: targetRequest,
+      runtimeProfile,
+      runtimeRoute,
+    });
+
+    if (!route) {
+      return programSessionErrorResponse(
+        "Program session return target must select a protected Program screen.",
+        400,
+      );
+    }
+
+    const current: {
+      authority: ActiveIdentityAuthority | null;
+      principal: ActiveIdentityPrincipal | null;
+    } = { authority: null, principal: null };
+    const access = await validateInstanceAuthAccessSession(targetRequest, env, {
+      accountCompletionTarget: {
+        ...route.sessionTarget,
+        returnTo: input.returnTo,
+      },
+      programSchema,
+      programScreenAccess: route.programScreen.access,
+      readers: {
+        readActivePrincipal: async (session) => {
+          current.principal = await readInternalActiveIdentityPrincipal(env, session.principalId);
+          return current.principal;
+        },
+        readManagementAuthority: async (session) => {
+          current.authority = await readInternalIdentityAuthorityForPrincipal(
+            env,
+            session.principalId,
+          );
+          return current.authority;
+        },
+      },
+      requiredAuthority: route.requiredAccess,
+      target: route.sessionTarget,
+    });
+
+    if (!access.ok) {
+      if (access.authenticated === undefined) {
+        return programSessionResponse({
+          setupComplete: await readOwnerSetupComplete(request, env),
+          status: "anonymous",
+        });
+      }
+
+      const authenticatedPrincipal = accountPrincipalIdentity(access.authenticated.principal);
+      const session = { expiresAt: access.authenticated.session.expiresAt };
+
+      if (
+        access.reason === "account-completion-required" &&
+        access.accountCompletion?.status === "blocked"
+      ) {
+        return programSessionResponse({
+          accountCompletion: access.accountCompletion,
+          principal: authenticatedPrincipal,
+          session,
+          status: "blocked",
+          target: route.target,
+        });
+      }
+
+      return programSessionResponse({
+        principal: authenticatedPrincipal,
+        session,
+        status: "forbidden",
+      });
+    }
+
+    const principal =
+      current.principal ?? (await readInternalActiveIdentityPrincipal(env, access.principalId));
+    const authority = current.authority;
+
+    if (!principal || principal.id !== access.principalId || authority?.id !== access.principalId) {
+      return programSessionErrorResponse(
+        "Program session authority changed during resolution.",
+        401,
+      );
+    }
+
+    return programSessionResponse({
+      callerFacts: authority.callerFacts,
+      principal: accountPrincipalIdentity(principal),
+      session: { expiresAt: access.session.expiresAt },
+      status: "ready",
+      target: route.target,
+    });
+  } catch (error) {
+    return programSessionErrorResponse(errorMessage(error), 400);
+  }
+}
+
+export function resolveProgramSessionRouteFromFacts(input: {
+  programSchema: AppSchema;
+  request: Request;
+  runtimeProfile?: string;
+  runtimeRoute?: InstanceRuntimeRouteResolution;
+}): ProgramSessionRouteResolution | undefined {
+  const requestOrigin = requestOriginForAuth(input.request);
+  const topology = resolveWorkerRuntimeRequestTopology(input.request, {
+    ...workerRuntimeProfileInput(input.runtimeProfile),
+    programSchema: input.programSchema,
+  });
+  const programScreen = resolveProgramScreenRouteTargetFromFacts({
+    runtimeRoute: input.runtimeRoute,
+    topology,
+  });
+
+  if (!programScreen || programScreen.requiredAccess === "anonymous") {
+    return undefined;
+  }
+
+  const returnTo = `${topology.url.pathname}${topology.url.search}` as `/${string}`;
+  const accountTarget = sameOriginAccountCompletionTargetForRuntimeRouteFacts({
+    accountOrigin: requestOrigin,
+    requestOrigin,
+    returnTo,
+    runtimeProfile: topology.profileKind,
+    runtimeRoute: input.runtimeRoute,
+  });
+
+  if (!accountTarget || accountTarget.targetProfile !== "instance") {
+    return undefined;
+  }
+
+  const sessionTarget = routeAccessTargetForRuntimeRoute(input.request, input.runtimeRoute, {
+    effectiveAccess: programScreen.requiredAccess,
+    minimumAccess: programScreen.requiredAccess,
+  }) ?? {
+    access: programScreen.requiredAccess,
+    routeId: accountTarget.routeId,
+    targetOrigin: accountTarget.targetOrigin,
+    targetProfile: accountTarget.targetProfile,
+  };
+
+  return {
+    programScreen,
+    requiredAccess: programScreen.requiredAccess,
+    sessionTarget,
+    target: {
+      routeAccess: programScreen.routeAccess,
+      routeId: accountTarget.routeId,
+      storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      targetOrigin: accountTarget.targetOrigin,
+      targetProfile: "instance",
+    },
+  };
+}
+
+function parseProgramSessionQuery(search: URLSearchParams) {
+  const entries = [...search.entries()];
+
+  if (entries.length !== 1) {
+    throw new Error("Program session request must include exactly one returnTo query parameter.");
+  }
+
+  return parseProgramSessionRequest(Object.fromEntries(entries));
+}
+
+async function readOwnerSetupComplete(
+  request: Request,
+  env: InstanceAuthHandoffEnv,
+): Promise<boolean> {
+  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_INSTANCE_AUTHORITY_NAME);
+  const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
+    new Request(new URL("/api/formless/setup", request.url), {
+      headers: { Accept: "application/json" },
+      method: "GET",
+    }),
+  );
+
+  if (!response.ok) {
+    return false;
+  }
+
+  const body = (await response.json()) as { setupComplete?: unknown };
+
+  return body.setupComplete === true;
+}
+
+function accountPrincipalIdentity(principal: ActiveIdentityPrincipal): AccountPrincipalIdentity {
+  return {
+    displayName: principal.displayName,
+    ...(principal.email === undefined ? {} : { email: principal.email }),
+    principalId: principal.id,
+  };
+}
+
+function programSessionResponse(result: ProgramSessionResponse): Response {
+  return Response.json(parseProgramSessionResponse(result), {
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+
+function programSessionErrorResponse(error: string, status: number): Response {
+  return Response.json(
+    { error },
+    {
+      headers: { "Cache-Control": "no-store" },
+      status,
+    },
+  );
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown error.";
+}

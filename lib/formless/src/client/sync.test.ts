@@ -3,13 +3,17 @@ import { beforeEach, describe, expect, it } from "vite-plus/test";
 import { publishClientEvent } from "./broadcast.ts";
 import { deleteClientDb, mergeRecords, readLocalSnapshot, saveBootstrapResponse } from "./db.ts";
 import {
+  applyBootstrapResponse,
+  applyRecordMerge,
   connectBroadcastToClientStore,
   getClientStoreSnapshot,
   refreshClientStoreFromDb,
   resetClientStore,
   subscribeToClientStore,
   subscribeToClientStoreSelector,
+  subscribeToProgramAuthorityChanges,
 } from "./store.ts";
+import { listenForProgramAuthorityInvalidation } from "./program-authority.ts";
 import {
   applySyncResponse,
   bootstrapClient,
@@ -645,6 +649,31 @@ describe("client sync", () => {
       expect(new URL(sockets.instances[1]?.url ?? "").pathname).toBe(
         "/api/formless/program/sync/ws",
       );
+    } finally {
+      stop();
+    }
+  });
+
+  it("invalidates authority and suppresses reconnect after push policy violation", async () => {
+    const sockets = fakeSocketFactory();
+    let invalidations = 0;
+    const stop = startPushSync({
+      onAuthorityInvalidated: () => {
+        invalidations += 1;
+      },
+      reconnectInitialDelayMs: 1,
+      reconnectMaxDelayMs: 2,
+      socketFactory: sockets.create,
+    });
+
+    try {
+      sockets.instances[0]?.open();
+      await waitFor(() => sockets.instances[0]?.sentMessages.length === 1);
+      sockets.instances[0]?.closeFromServer(1008);
+
+      await waitFor(() => invalidations === 1);
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 10));
+      expect(sockets.instances).toHaveLength(1);
     } finally {
       stop();
     }
@@ -1596,6 +1625,97 @@ describe("client sync", () => {
     }
   });
 
+  it("detects current-principal role upgrade, downgrade, and owner removal only", () => {
+    const principalId = "principal:one";
+    const ownerRole = authorityRecord("role:owner", "role", {
+      key: "instance.owner",
+      status: "active",
+    });
+    const ownerAssignment = authorityRecord("role-assignment:owner", "role-assignment", {
+      role: ownerRole.id,
+      scopeKind: "instance",
+      status: "active",
+      targetKind: "principal",
+      targetPrincipal: principalId,
+    });
+    const programAssignment = authorityRecord(
+      "program-role-assignment:one",
+      "program-role-assignment",
+      {
+        principal: principalId,
+        roleId: "role:member",
+        status: "active",
+      },
+    );
+    applyBootstrapResponse({
+      cursor: 1,
+      records: [
+        authorityRecord(principalId, "principal", { status: "active" }),
+        ownerRole,
+        ownerAssignment,
+        programAssignment,
+      ],
+      schema: appSchema,
+      schemaUpdatedAt: "2026-08-02T00:00:00.000Z",
+    });
+    let invalidations = 0;
+    const stop = subscribeToProgramAuthorityChanges(principalId, () => {
+      invalidations += 1;
+    });
+
+    try {
+      applyRecordMerge([
+        {
+          ...programAssignment,
+          updatedAt: "2026-08-02T00:01:00.000Z",
+          values: { ...programAssignment.values, roleId: "role:administrator" },
+        },
+      ]);
+      applyRecordMerge([
+        {
+          ...programAssignment,
+          updatedAt: "2026-08-02T00:02:00.000Z",
+          values: { ...programAssignment.values, status: "inactive" },
+        },
+      ]);
+      applyRecordMerge([
+        {
+          ...ownerAssignment,
+          deletedAt: "2026-08-02T00:03:00.000Z",
+          updatedAt: "2026-08-02T00:03:00.000Z",
+        },
+      ]);
+      applyRecordMerge([record("record:unrelated", "Unrelated")]);
+
+      expect(invalidations).toBe(3);
+    } finally {
+      stop();
+    }
+  });
+
+  it.each([401, 403])(
+    "invalidates a rejected protected write with status %s without replay",
+    async (status) => {
+      const reasons: string[] = [];
+      let attempts = 0;
+      const stop = listenForProgramAuthorityInvalidation((reason) => reasons.push(reason));
+
+      try {
+        await expect(
+          submitOperation("task", "create", { input: { title: "Denied" } }, async () => {
+            attempts += 1;
+            return Response.json({ error: "Current authority changed." }, { status });
+          }),
+        ).rejects.toThrow("Current authority changed.");
+
+        expect(attempts).toBe(1);
+        expect(reasons).toEqual(["protected-rejection"]);
+      } finally {
+        stop();
+      }
+    },
+  );
+
   it("preserves selector identities when refreshing unchanged data from IndexedDB", async () => {
     const notifications: unknown[] = [];
 
@@ -1670,13 +1790,13 @@ class FakeSyncSocket {
     this.sentMessages.push(data);
   }
 
-  close() {
+  close(code = 1000) {
     if (this.readyState === 3) {
       return;
     }
 
     this.readyState = 3;
-    this.onclose?.(new Event("close") as CloseEvent);
+    this.onclose?.({ code } as CloseEvent);
   }
 
   open() {
@@ -1688,8 +1808,8 @@ class FakeSyncSocket {
     this.onmessage?.({ data: JSON.stringify(message) } as MessageEvent);
   }
 
-  closeFromServer() {
-    this.close();
+  closeFromServer(code = 1000) {
+    this.close(code);
   }
 }
 
@@ -1877,6 +1997,16 @@ function record(id: string, title: string, done = false): StoredRecord {
     values: { title, done },
     createdAt: timestamp,
     updatedAt: timestamp,
+  };
+}
+
+function authorityRecord(id: string, entity: string, values: StoredRecord["values"]): StoredRecord {
+  return {
+    createdAt: "2026-08-02T00:00:00.000Z",
+    entity,
+    id,
+    updatedAt: "2026-08-02T00:00:00.000Z",
+    values,
   };
 }
 

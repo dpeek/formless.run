@@ -938,6 +938,7 @@ async function validateAuthOriginSession(
   options: {
     accountCompletionTarget?: AccountCompletionGateTarget;
     now?: string;
+    programSchema?: AppSchema;
     programScreenAccess?: ScreenAccessRequirement;
     target?: InstanceAuthSessionTargetBinding;
   } = {},
@@ -955,6 +956,7 @@ async function validateAuthOriginSession(
         ? {}
         : { accountCompletionTarget: options.accountCompletionTarget }),
       localOwnerSessionFallbackAllowed: isLocalOwnerSessionRuntime(request, env),
+      ...(options.programSchema === undefined ? {} : { programSchema: options.programSchema }),
       ...(options.programScreenAccess === undefined
         ? {}
         : { programScreenAccess: options.programScreenAccess }),
@@ -1027,6 +1029,7 @@ export async function validateInstanceAuthAccessSession(
   options: {
     accountCompletionTarget?: AccountCompletionGateTarget;
     now?: string;
+    programSchema?: AppSchema;
     programScreenAccess?: ScreenAccessRequirement;
     readers?: InstanceAuthAccessReaderOverrides;
     requiredAuthority: InstanceAuthAuthorityRequirement;
@@ -1040,6 +1043,7 @@ export async function validateInstanceAuthAccessSession(
         ? {}
         : { accountCompletionTarget: options.accountCompletionTarget }),
       localOwnerSessionFallbackAllowed: isLocalOwnerSessionRuntime(request, env),
+      ...(options.programSchema === undefined ? {} : { programSchema: options.programSchema }),
       ...(options.programScreenAccess === undefined
         ? {}
         : { programScreenAccess: options.programScreenAccess }),
@@ -1236,6 +1240,7 @@ export async function validateRouteAccessSession(
   env: InstanceAuthHandoffEnv,
   options: {
     now?: string;
+    programSchema?: AppSchema;
     programScreenAccess?: ScreenAccessRequirement;
     requiredAccess: ProtectedRouteAccess;
     runtimeRoute?: InstanceRuntimeRouteResolution | undefined;
@@ -1259,6 +1264,7 @@ export async function validateRouteAccessSession(
       ? { accountCompletionTarget: accountCompletionTargetForRouteRequest(request, target) }
       : {}),
     now: options.now,
+    ...(options.programSchema === undefined ? {} : { programSchema: options.programSchema }),
     ...(options.programScreenAccess === undefined
       ? {}
       : { programScreenAccess: options.programScreenAccess }),

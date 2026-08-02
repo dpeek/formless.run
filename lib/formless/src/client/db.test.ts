@@ -2,8 +2,11 @@ import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 import {
   clientDbName,
+  clearProgramReplicaPrincipalBoundary,
   deleteClientDb,
   deleteProgramReplicaDatabase,
+  FormlessProgramReplicaDeleteBlockedError,
+  prepareProgramReplicaPrincipalBoundary,
   saveBootstrapResponse,
   saveSchema,
   mergeChanges,
@@ -16,6 +19,7 @@ import type { BootstrapResponse, ChangeRow } from "../shared/protocol.ts";
 import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
 import { taskSourceSchema as appSchema } from "../test/schema-apps.ts";
 import { testSiteRecords } from "../test/site-records.ts";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 
 beforeEach(async () => {
   await deleteClientDb();
@@ -98,6 +102,74 @@ describe("client db", () => {
 
     expect(databaseNames).not.toContain("formless:instance:control-plane");
     expect(databaseNames).toContain("notes");
+  });
+
+  it("binds cached Program data to one principal and resets missing or changed bindings", async () => {
+    await saveBootstrapResponse({
+      schema: appSchema,
+      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
+      records: [record("record-1", "Unbound")],
+      cursor: 1,
+    });
+
+    expect(
+      await prepareProgramReplicaPrincipalBoundary(
+        "principal:first",
+        FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      ),
+    ).toBe("reset");
+    expect(await readLocalSnapshot()).toMatchObject({
+      principalId: "principal:first",
+      records: [],
+    });
+
+    await saveBootstrapResponse(
+      {
+        schema: appSchema,
+        schemaUpdatedAt: "2026-04-28T00:01:00.000Z",
+        records: [record("record-2", "First principal")],
+        cursor: 2,
+      },
+      { principalId: "principal:first" },
+    );
+    expect(
+      await prepareProgramReplicaPrincipalBoundary(
+        "principal:first",
+        FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      ),
+    ).toBe("reused");
+    expect((await readLocalSnapshot()).records).toEqual([record("record-2", "First principal")]);
+
+    expect(
+      await prepareProgramReplicaPrincipalBoundary(
+        "principal:second",
+        FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      ),
+    ).toBe("reset");
+    expect(await readLocalSnapshot()).toMatchObject({
+      principalId: "principal:second",
+      records: [],
+    });
+  });
+
+  it("fails closed when another IndexedDB client blocks a principal reset", async () => {
+    await prepareProgramReplicaPrincipalBoundary(
+      "principal:first",
+      FORMLESS_PROGRAM_STORAGE_IDENTITY,
+    );
+    const blockingConnection = await openRawDatabase(clientDbName(), 2);
+
+    try {
+      await expect(
+        prepareProgramReplicaPrincipalBoundary(
+          "principal:second",
+          FORMLESS_PROGRAM_STORAGE_IDENTITY,
+        ),
+      ).rejects.toBeInstanceOf(FormlessProgramReplicaDeleteBlockedError);
+    } finally {
+      blockingConnection.close();
+      await clearProgramReplicaPrincipalBoundary(FORMLESS_PROGRAM_STORAGE_IDENTITY);
+    }
   });
 
   it("merges records and advances the cursor", async () => {
@@ -209,9 +281,9 @@ function createRawDatabase(name: string) {
   return openRawDatabase(name).then((db) => db.close());
 }
 
-function openRawDatabase(name: string) {
+function openRawDatabase(name: string, version = 1) {
   return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(name, 1);
+    const request = indexedDB.open(name, version);
 
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error(`Could not open ${name}.`));

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import { act, render, waitFor } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type {
   DocumentThemeContract,
   ShellNavigationSectionReference,
@@ -17,12 +17,16 @@ import type { HomeScreenModel } from "../client/views.ts";
 import { bootstrapResponse } from "../test/protocol-builders.ts";
 import { taskSourceSchema } from "../test/schema-apps.ts";
 import { ApplicationShellRuntimeBoundary } from "./application-shell-runtime.tsx";
-import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
+import { formlessProgramSchema } from "../program/runtime.ts";
 import {
   selectHomeRouteSectionContextRecordId,
   useHomeRouteSelectionStore,
 } from "./routes/home-selection.tsx";
 import { createInstanceRuntimeProfile } from "./runtime-profile.ts";
+import type {
+  AccountSessionStatusResponse,
+  ProgramSessionResponse,
+} from "../shared/instance-auth.ts";
 
 vi.mock("./application-presentation.tsx", () => ({
   ApplicationPresentation: ({
@@ -244,12 +248,9 @@ describe("application shell runtime boundary", () => {
     let host: PresentationHost | undefined;
     let logoutCount = 0;
     const navigations: string[] = [];
-    const dependencies = {
-      logout: async () => {
-        logoutCount += 1;
-        return { authenticated: false as const, continueTo: "/formless/auth" as const };
-      },
-      navigate: (path: `/${string}`) => navigations.push(path),
+    const logout = async () => {
+      logoutCount += 1;
+      return { authenticated: false as const, continueTo: "/formless/auth" as const };
     };
 
     function HostProbe({ children }: { children: ReactNode }) {
@@ -257,27 +258,43 @@ describe("application shell runtime boundary", () => {
       return children;
     }
 
-    const renderer = render(
-      <ApplicationShellRuntimeBoundary
-        currentPath="/site"
-        dependencies={dependencies}
-        accountSession={{
-          authenticated: true,
-          principal: {
-            displayName: "Instance Admin",
-            email: "owner@example.com",
-            principalId: "principal:instance-admin",
-          },
-          session: { expiresAt: "private-session-value" },
-          setupComplete: true,
-        }}
-        runtimeProfile={runtimeProfile}
-      >
-        <HostProbe>
-          <div>Workspace</div>
-        </HostProbe>
-      </ApplicationShellRuntimeBoundary>,
-    );
+    function RuntimeHarness() {
+      const [accountSession, setAccountSession] = useState<AccountSessionStatusResponse>({
+        authenticated: true as const,
+        principal: {
+          displayName: "Instance Admin",
+          email: "owner@example.com",
+          principalId: "principal:instance-admin",
+        },
+        session: { expiresAt: "private-session-value" },
+        setupComplete: true as const,
+      });
+      const [logoutState, setLogoutState] = useState<"idle" | "pending">("idle");
+
+      return (
+        <ApplicationShellRuntimeBoundary
+          currentPath="/site"
+          accountSession={accountSession}
+          logoutState={logoutState}
+          onLogout={async () => {
+            setLogoutState("pending");
+            const response = await logout();
+            setAccountSession({ authenticated: false, setupComplete: true });
+            setLogoutState("idle");
+            if (response.continueTo) {
+              navigations.push(response.continueTo);
+            }
+          }}
+          runtimeProfile={runtimeProfile}
+        >
+          <HostProbe>
+            <div>Workspace</div>
+          </HostProbe>
+        </ApplicationShellRuntimeBoundary>
+      );
+    }
+
+    const renderer = render(<RuntimeHarness />);
 
     const currentHost = required(host);
     const sessionSection = required(
@@ -306,19 +323,9 @@ describe("application shell runtime boundary", () => {
     renderer.unmount();
   });
 
-  it("projects Program navigation only from current exact route decisions", async () => {
+  it("projects Program navigation from ready caller facts and the bound route floor", () => {
     const runtimeProfile = createInstanceRuntimeProfile();
     let host: PresentationHost | undefined;
-    let allowedPaths = new Set(["/apps", "/deployments"]);
-    const routeChecks: string[] = [];
-    const dependencies = {
-      resolveRouteAccess: async (path: `/${string}`) => {
-        routeChecks.push(path);
-        return allowedPaths.has(path)
-          ? ({ kind: "authorized" } as const)
-          : ({ kind: "forbidden" } as const);
-      },
-    };
     const accountSession = {
       authenticated: true as const,
       principal: {
@@ -337,8 +344,8 @@ describe("application shell runtime boundary", () => {
     const renderer = render(
       <ApplicationShellRuntimeBoundary
         accountSession={accountSession}
-        currentPath="/deployments"
-        dependencies={dependencies}
+        currentPath="/tasks"
+        programSession={readyProgramSession("member", "authenticated")}
         runtimeProfile={runtimeProfile}
         screenModels={[]}
       >
@@ -346,15 +353,14 @@ describe("application shell runtime boundary", () => {
       </ApplicationShellRuntimeBoundary>,
     );
 
-    await waitFor(() => expect(routeChecks).toHaveLength(FORMLESS_PROGRAM_SCREEN_PATHS.length));
-    await waitFor(() => expect(programDestinationPaths(required(host))).toEqual(["/deployments"]));
+    const initialHost = required(host);
+    expect(programDestinationPaths(initialHost)).toEqual(["/tasks"]);
 
-    allowedPaths = new Set(["/settings"]);
     renderer.rerender(
       <ApplicationShellRuntimeBoundary
         accountSession={accountSession}
-        currentPath="/settings"
-        dependencies={dependencies}
+        currentPath="/deployments"
+        programSession={readyProgramSession("administrator", "management")}
         runtimeProfile={runtimeProfile}
         screenModels={[]}
       >
@@ -362,8 +368,31 @@ describe("application shell runtime boundary", () => {
       </ApplicationShellRuntimeBoundary>,
     );
 
-    await waitFor(() => expect(routeChecks).toHaveLength(FORMLESS_PROGRAM_SCREEN_PATHS.length * 2));
-    await waitFor(() => expect(programDestinationPaths(required(host))).toEqual(["/settings"]));
+    expect(host).toBe(initialHost);
+    expect(programDestinationPaths(initialHost)).toEqual([
+      "/settings/routes",
+      "/deployments",
+      "/",
+      "/organizations",
+      "/settings/access",
+      "/invitations",
+      "/policies",
+      "/settings",
+    ]);
+
+    renderer.rerender(
+      <ApplicationShellRuntimeBoundary
+        accountSession={accountSession}
+        currentPath="/deployments"
+        programSession={readyProgramSession("administrator", "owner")}
+        runtimeProfile={runtimeProfile}
+        screenModels={[]}
+      >
+        <HostProbe />
+      </ApplicationShellRuntimeBoundary>,
+    );
+
+    expect(programDestinationPaths(initialHost)).toEqual([]);
 
     renderer.unmount();
   });
@@ -472,6 +501,32 @@ function projectRecord(id: string): StoredRecord {
     id,
     updatedAt: "2026-07-16T00:00:00.000Z",
     values: { label: id === "project-1" ? "Project one" : "Project two" },
+  };
+}
+
+function readyProgramSession(
+  roleKey: "administrator" | "member",
+  routeAccess: "authenticated" | "management" | "owner",
+): Extract<ProgramSessionResponse, { status: "ready" }> {
+  const role = required(
+    formlessProgramSchema.authorization?.roles.find((candidate) => candidate.key === roleKey),
+  );
+
+  return {
+    callerFacts: { active: true, kind: "principal", owner: false, roleId: role.id },
+    principal: {
+      displayName: "Program principal",
+      principalId: "principal:program",
+    },
+    session: { expiresAt: "2026-08-02T12:00:00.000Z" },
+    status: "ready",
+    target: {
+      routeAccess,
+      routeId: "route:program",
+      storageIdentity: "instance:control-plane",
+      targetOrigin: window.location.origin,
+      targetProfile: "instance",
+    },
   };
 }
 

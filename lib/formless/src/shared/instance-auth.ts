@@ -18,10 +18,14 @@ import type {
 } from "@simplewebauthn/server";
 import { type IdentityInvitationTargetSurface } from "@dpeek/formless-identity-control-plane";
 import type {
+  AccessCallerFacts,
   ContactTextFieldFormat,
   PublicSafeOperationInputControl,
   PublicSafeOperationInputField,
 } from "@dpeek/formless-schema";
+import { parseAuthorizationRoleId } from "@dpeek/formless-schema";
+
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 
 import {
   parseRuntimeRouteAccess,
@@ -41,6 +45,7 @@ export const FORMLESS_INSTANCE_AUTH_RELYING_PARTY_ID_ENV_NAME =
 export const FORMLESS_INSTANCE_AUTH_RELYING_PARTY_NAME_ENV_NAME =
   "FORMLESS_INSTANCE_AUTH_RELYING_PARTY_NAME";
 export const COLLABORATOR_INVITATION_ACCEPT_PATH = "/formless/auth/invitations/accept";
+export const PROGRAM_SESSION_API_PATH = "/api/formless/session/program";
 
 export type AccountSessionSummary = {
   expiresAt: string;
@@ -80,6 +85,53 @@ export type AccountSessionStatusResponse =
       session: AccountSessionSummary;
       setupComplete: true;
     };
+
+export type ProgramSessionRequest = {
+  returnTo: AccountRedirectTarget;
+};
+
+export type ProgramSessionPrincipalCallerFacts = Extract<AccessCallerFacts, { kind: "principal" }>;
+
+export type ProgramSessionTargetBinding = {
+  routeAccess: RuntimeRouteAccess;
+  routeId: string;
+  storageIdentity: typeof FORMLESS_PROGRAM_STORAGE_IDENTITY;
+  targetOrigin: string;
+  targetProfile: "instance";
+};
+
+export type ProgramSessionAnonymousResponse = {
+  setupComplete: boolean;
+  status: "anonymous";
+};
+
+export type ProgramSessionBlockedResponse = {
+  accountCompletion: AccountCompletionGateResult;
+  principal: AccountPrincipalIdentity;
+  session: AccountSessionSummary;
+  status: "blocked";
+  target: ProgramSessionTargetBinding;
+};
+
+export type ProgramSessionForbiddenResponse = {
+  principal: AccountPrincipalIdentity;
+  session: AccountSessionSummary;
+  status: "forbidden";
+};
+
+export type ProgramSessionReadyResponse = {
+  callerFacts: ProgramSessionPrincipalCallerFacts;
+  principal: AccountPrincipalIdentity;
+  session: AccountSessionSummary;
+  status: "ready";
+  target: ProgramSessionTargetBinding;
+};
+
+export type ProgramSessionResponse =
+  | ProgramSessionAnonymousResponse
+  | ProgramSessionBlockedResponse
+  | ProgramSessionForbiddenResponse
+  | ProgramSessionReadyResponse;
 
 export type AccountLogoutResponse = {
   authenticated: false;
@@ -617,6 +669,84 @@ export function parseAccountSessionStatusResponse(value: unknown): AccountSessio
     authenticated: false,
     setupComplete: object.setupComplete,
   };
+}
+
+export function parseProgramSessionRequest(value: unknown): ProgramSessionRequest {
+  const object = parseObject("Program session request", value);
+
+  assertKeys("Program session request", object, ["returnTo"]);
+
+  return {
+    returnTo: parseAccountContinuationTarget("Program session request returnTo", object.returnTo),
+  };
+}
+
+export function parseProgramSessionResponse(value: unknown): ProgramSessionResponse {
+  const object = parseObject("Program session response", value);
+
+  switch (object.status) {
+    case "anonymous":
+      assertKeys("Anonymous Program session response", object, ["setupComplete", "status"]);
+
+      return {
+        setupComplete: parseBoolean(
+          "Anonymous Program session response setupComplete",
+          object.setupComplete,
+        ),
+        status: "anonymous",
+      };
+    case "blocked":
+      assertKeys("Blocked Program session response", object, [
+        "accountCompletion",
+        "principal",
+        "session",
+        "status",
+        "target",
+      ]);
+
+      return {
+        accountCompletion: parseAccountCompletionGateResult(object.accountCompletion),
+        principal: parseAccountPrincipalIdentity(
+          "Blocked Program session principal",
+          object.principal,
+        ),
+        session: parseAccountSessionSummary("Blocked Program session", object.session),
+        status: "blocked",
+        target: parseProgramSessionTargetBinding(object.target),
+      };
+    case "forbidden":
+      assertKeys("Forbidden Program session response", object, ["principal", "session", "status"]);
+
+      return {
+        principal: parseAccountPrincipalIdentity(
+          "Forbidden Program session principal",
+          object.principal,
+        ),
+        session: parseAccountSessionSummary("Forbidden Program session", object.session),
+        status: "forbidden",
+      };
+    case "ready":
+      assertKeys("Ready Program session response", object, [
+        "callerFacts",
+        "principal",
+        "session",
+        "status",
+        "target",
+      ]);
+
+      return {
+        callerFacts: parseProgramSessionPrincipalCallerFacts(object.callerFacts),
+        principal: parseAccountPrincipalIdentity(
+          "Ready Program session principal",
+          object.principal,
+        ),
+        session: parseAccountSessionSummary("Ready Program session", object.session),
+        status: "ready",
+        target: parseProgramSessionTargetBinding(object.target),
+      };
+    default:
+      throw new Error("Program session response status is unsupported.");
+  }
 }
 
 export function parseAccountLogoutResponse(value: unknown): AccountLogoutResponse {
@@ -1911,6 +2041,75 @@ function parseAccountPrincipalIdentity(context: string, value: unknown): Account
     displayName: parseTrimmedNonEmptyString(`${context} displayName`, object.displayName),
     ...(email === undefined ? {} : { email }),
     principalId: parseTrimmedNonEmptyString(`${context} principalId`, object.principalId),
+  };
+}
+
+function parseProgramSessionPrincipalCallerFacts(
+  value: unknown,
+): ProgramSessionPrincipalCallerFacts {
+  const object = parseObject("Program session principal caller facts", value);
+
+  assertKeys(
+    "Program session principal caller facts",
+    object,
+    ["active", "kind", "owner"],
+    ["roleId"],
+  );
+
+  if (object.kind !== "principal") {
+    throw new Error('Program session principal caller facts kind must be "principal".');
+  }
+
+  return {
+    active: parseBoolean("Program session principal caller facts active", object.active),
+    kind: "principal",
+    owner: parseBoolean("Program session principal caller facts owner", object.owner),
+    ...(object.roleId === undefined
+      ? {}
+      : {
+          roleId: parseAuthorizationRoleId(
+            "Program session principal caller facts roleId",
+            object.roleId,
+          ),
+        }),
+  };
+}
+
+function parseProgramSessionTargetBinding(value: unknown): ProgramSessionTargetBinding {
+  const object = parseObject("Program session target", value);
+
+  assertKeys("Program session target", object, [
+    "routeAccess",
+    "routeId",
+    "storageIdentity",
+    "targetOrigin",
+    "targetProfile",
+  ]);
+
+  const routeAccess = parseRuntimeRouteAccess(
+    parseTrimmedNonEmptyString("Program session target routeAccess", object.routeAccess),
+  );
+
+  if (routeAccess === undefined) {
+    throw new Error("Program session target routeAccess is unsupported.");
+  }
+
+  if (object.storageIdentity !== FORMLESS_PROGRAM_STORAGE_IDENTITY) {
+    throw new Error(
+      `Program session target storageIdentity must be "${FORMLESS_PROGRAM_STORAGE_IDENTITY}".`,
+    );
+  }
+
+  if (object.targetProfile !== "instance") {
+    throw new Error('Program session target targetProfile must be "instance".');
+  }
+
+  return {
+    routeAccess,
+    routeId: parseTrimmedNonEmptyString("Program session target routeId", object.routeId),
+    storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+    targetOrigin: parseInstanceAuthCanonicalOrigin(object.targetOrigin),
+    targetProfile: "instance",
   };
 }
 

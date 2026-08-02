@@ -100,6 +100,24 @@ shell.
   schemas, queries, raw records, browser replica APIs, React nodes,
   presentation class names, or renderer-specific component props
 
+#### Scenario: Preserve Program runtime across client navigation
+
+- **GIVEN** an eligible Program shell has resolved its Program session and
+  initialized its browser replica
+- **WHEN** an ordinary same-origin anchor activation, browser back or forward
+  action, or runtime navigation intent selects another authorized Program screen
+- **THEN** client routing changes only the selected route workspace
+- **AND** the Program session, shell, hydrated replica, broadcast subscription,
+  bootstrap state, and push-sync connection retain their mounted lifetime
+- **AND** the transition sends no document, session-status, route-authorization,
+  bootstrap, or IndexedDB hydration request and opens no replacement push socket
+- **AND** loading or forbidden presentation replaces the selected workspace
+  outlet without tearing down the persistent Program runtime or shell
+- **AND** semantic anchor hrefs, modified activation, explicit targets, downloads,
+  same-page fragments, browser history, and new-tab behavior retain native
+  browser semantics
+- **AND** leaving the Program shell scope may end the persistent runtime lifetime
+
 #### Scenario: Select grouped Program navigation
 
 - **GIVEN** the active Program schema declares ordered `navigation.groups`
@@ -281,20 +299,26 @@ The system SHALL render generated screens from screen models and collection sect
   screens with explicit access requirements
 - WHEN generated runtime projects Program navigation for the current browser
   session
-- THEN it includes only destinations whose concrete route target is currently
-  authorized by the server
+- THEN it evaluates each declared screen access requirement with the shared pure
+  access evaluator, the active Program schema, and the current browser-safe
+  principal caller facts
+- AND it includes only destinations that satisfy both that screen requirement
+  and the server-resolved runtime-route access floor
 - AND flat screen order, group order, nested screen order, and destination paths
   remain owned by the materialized Program schema
 - AND a navigation group with no authorized screen is omitted without exposing
   the labels or paths of its unavailable screens
 - AND omitted destinations remain unavailable through client-side navigation
   while direct navigation returns the same forbidden outcome
+- AND local client route admission uses the same evaluation as navigation
+  projection and fails closed while session facts are loading, blocked, expired,
+  forbidden, or invalidated
 - AND navigation filtering is a usability boundary rather than a record-secrecy
   boundary because every authenticated `member`, `editor`, `administrator`, or
   protected owner admitted to Program sync receives the complete reviewable
   Program replica
-- AND screen keys, module keys, schema keys, paths, and cached client role facts
-  are not treated as authorization grants
+- AND screen keys, module keys, schema keys, paths, locally projected visibility,
+  and cached client caller facts are not treated as server authorization grants
 
 #### Scenario: Product screen route placement
 

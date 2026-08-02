@@ -51,6 +51,13 @@ import { projectApplicationSystemState } from "./app/routes/application-system-s
 import { ApplicationSystemStateRuntime } from "./app/routes/application-system-state-runtime.tsx";
 import { useApplicationRootThemeRuntime } from "./app/application-root-context.tsx";
 import { resolveProtectedRouteAccess } from "./app/protected-route-access.ts";
+import {
+  ProgramRuntimeBoundary,
+  programRuntimeAccountSession,
+  type ProgramRuntimeDependencies,
+  type ProgramRuntimeSnapshot,
+} from "./app/program-runtime-boundary.tsx";
+import { programScreenIsLocallyAuthorized } from "./app/program-screen-access.ts";
 
 type InstanceShellRouteProps = {
   localWorkspaceGatewayAvailable?: boolean | undefined;
@@ -111,6 +118,7 @@ export type AppProps = {
   browserRuntime?: ProgramBrowserRuntimeDefinition;
   localWorkspaceGatewayAvailable?: boolean;
   programSchema?: AppSchema;
+  programRuntimeDependencies?: Partial<ProgramRuntimeDependencies>;
   routeComponents?: Partial<AppRouteComponents>;
   runtimeProfile?: RuntimeProfile;
 };
@@ -119,6 +127,7 @@ export function App({
   browserRuntime = programBrowserRuntime,
   localWorkspaceGatewayAvailable: localWorkspaceGatewayAvailableProp,
   programSchema = formlessProgramSchema,
+  programRuntimeDependencies,
   routeComponents: routeComponentOverrides,
   runtimeProfile: runtimeProfileProp,
 }: AppProps = {}) {
@@ -130,21 +139,27 @@ export function App({
   const normalizedLocation = normalizeRuntimeBrowserPath(location);
   const programScreen = resolveFormlessProgramScreenRouteTarget(normalizedLocation, programSchema);
   const browserRoutes = runtimeBrowserRoutePatterns(runtimeProfile);
-  const runtime = (
+  const runtime = (programRuntime?: ProgramRuntimeSnapshot) => (
     <AppRuntime
       browserRuntime={browserRuntime}
       localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailableProp}
       location={location}
       programSchema={programSchema}
+      programRuntime={programRuntime}
       routeComponents={routeComponentOverrides}
       runtimeProfile={runtimeProfile}
     />
   );
 
   return browserRoutes.instanceShellRoute && programScreen !== undefined ? (
-    <ProtectedRouteGuard access="management">{runtime}</ProtectedRouteGuard>
+    <ProgramRuntimeBoundary
+      currentPath={protectedRouteTarget(location)}
+      dependencies={programRuntimeDependencies}
+    >
+      {runtime}
+    </ProgramRuntimeBoundary>
   ) : (
-    runtime
+    runtime()
   );
 }
 
@@ -153,9 +168,14 @@ function AppRuntime({
   localWorkspaceGatewayAvailable: localWorkspaceGatewayAvailableProp,
   location,
   programSchema = formlessProgramSchema,
+  programRuntime,
   routeComponents: routeComponentOverrides,
   runtimeProfile,
-}: AppProps & { location: string; runtimeProfile: RuntimeProfile }) {
+}: AppProps & {
+  location: string;
+  programRuntime?: ProgramRuntimeSnapshot | undefined;
+  runtimeProfile: RuntimeProfile;
+}) {
   const rootThemeRuntime = useApplicationRootThemeRuntime();
   const routeComponents = resolveAppRouteComponents(routeComponentOverrides);
   const browserRoutes = useMemo(
@@ -197,6 +217,15 @@ function AppRuntime({
   }
 
   const ApplicationShellRuntimeBoundary = routeComponents.ApplicationShellRuntimeBoundary;
+  const routeOutlet = (
+    <AppRoutes
+      browserRuntime={browserRuntime}
+      localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
+      programSchema={programSchema}
+      routeComponents={routeComponents}
+      runtimeProfile={runtimeProfile}
+    />
+  );
 
   return (
     <Suspense fallback={<RouteLoading />}>
@@ -204,18 +233,93 @@ function AppRuntime({
         applicationTheme={rootThemeRuntime}
         currentPath={location}
         initialRouteContractContributions={initialRouteContractContributions}
+        accountSession={programRuntimeAccountSession(programRuntime)}
+        logoutState={programRuntime?.logoutState}
+        onLogout={programRuntime?.logout}
         programSchema={programSchema}
+        programSession={programRuntime?.session}
         runtimeProfile={runtimeProfile}
       >
-        <AppRoutes
-          browserRuntime={browserRuntime}
-          localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
-          programSchema={programSchema}
-          routeComponents={routeComponents}
-          runtimeProfile={runtimeProfile}
-        />
+        {programRuntime ? (
+          <ProgramRuntimeOutlet
+            currentPath={protectedRouteTarget(location)}
+            programSchema={programSchema}
+            runtime={programRuntime}
+          >
+            {routeOutlet}
+          </ProgramRuntimeOutlet>
+        ) : (
+          routeOutlet
+        )}
       </ApplicationShellRuntimeBoundary>
     </Suspense>
+  );
+}
+
+function ProgramRuntimeOutlet({
+  children,
+  currentPath,
+  programSchema,
+  runtime,
+}: {
+  children: ReactNode;
+  currentPath: AccountRedirectTarget;
+  programSchema: AppSchema;
+  runtime: ProgramRuntimeSnapshot;
+}) {
+  switch (runtime.status) {
+    case "server":
+      return <>{children}</>;
+    case "ready":
+      return programScreenIsLocallyAuthorized({
+        path: normalizeRuntimeBrowserPath(currentPath),
+        programSchema,
+        session: runtime.session,
+      }) ? (
+        <>{children}</>
+      ) : (
+        <ProtectedRouteForbidden />
+      );
+    case "anonymous":
+    case "blocked":
+      return <Redirect replace to={authAccountContinuationLocationForReturnTarget(currentPath)} />;
+    case "forbidden":
+      return <ProtectedRouteForbidden />;
+    case "failed":
+      return <ProgramRuntimeFailed message={runtime.message} />;
+    case "loading":
+      return <ProgramRuntimeLoading />;
+  }
+}
+
+function ProgramRuntimeLoading() {
+  return (
+    <ApplicationSystemStateRuntime
+      snapshot={projectApplicationSystemState({
+        heading: "Loading Program",
+        id: "application-system-state:program-runtime-loading",
+        message: "Loading Program...",
+        state: "loading",
+      })}
+    />
+  );
+}
+
+function ProgramRuntimeFailed({ message }: { message?: string | undefined }) {
+  return (
+    <ApplicationSystemStateRuntime
+      snapshot={projectApplicationSystemState({
+        feedback: {
+          id: "feedback:program-runtime",
+          intent: "danger",
+          title: "Program unavailable",
+        },
+        heading: "Program unavailable",
+        id: "application-system-state:program-runtime-failed",
+        message: message ?? "Program runtime could not be started.",
+        state: "failure",
+      })}
+    />
   );
 }
 

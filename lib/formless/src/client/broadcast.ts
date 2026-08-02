@@ -3,6 +3,7 @@ import { FORMLESS_PROGRAM_BROWSER_STORAGE_NAME } from "../program/target.ts";
 export type BroadcastEventType =
   | "records-updated"
   | "cursor-updated"
+  | "replica-reset"
   | "schema-updated"
   | "sync-requested";
 
@@ -59,6 +60,7 @@ function isBroadcastEvent(value: unknown): value is BroadcastEvent {
     "type" in value &&
     (value.type === "records-updated" ||
       value.type === "cursor-updated" ||
+      value.type === "replica-reset" ||
       value.type === "schema-updated" ||
       value.type === "sync-requested")
   );

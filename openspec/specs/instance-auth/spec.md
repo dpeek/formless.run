@@ -547,10 +547,10 @@ sessions, local-dev owner sessions, and mapped host-local sessions.
 - AND the response includes the display-safe owner identity from the principal
   records and session expiry
 
-#### Scenario: Session status evaluates a protected route target
+#### Scenario: Session status evaluates a protected entry target
 
-- GIVEN client-side navigation selects a Program screen or an instance
-  management route
+- GIVEN direct browser entry, account continuation, or a non-Program management
+  transition selects a Program screen or an instance management route
 - WHEN the browser requests session status for that resolved route target
 - THEN instance auth evaluates the current principal, protected owner
   authority, Program role assignment, session version, route, selected Program
@@ -562,6 +562,42 @@ sessions, local-dev owner sessions, and mapped host-local sessions.
 - AND an unauthenticated target returns account-continuation facts while an
   authenticated principal with insufficient authority receives a display-safe
   forbidden result without a repeated sign-in continuation
+
+#### Scenario: Resolve one Program runtime session snapshot
+
+- GIVEN the browser is entering an eligible Program shell through a central,
+  local-dev owner, or matching host-local session boundary
+- WHEN it requests `/api/formless/session/program` with a safe path-only
+  `returnTo` target
+- THEN instance auth returns one strict `anonymous`, `blocked`, `forbidden`, or
+  `ready` Program session result for the matched runtime route
+- AND an anonymous result exposes only setup-completion state needed to select
+  the account continuation
+- AND a blocked result exposes the display-safe principal and session summary,
+  the next target-scoped account-completion gate, and its bound runtime target
+- AND a forbidden result exposes the display-safe principal and session summary
+  without authorizing Program replica hydration
+- AND a ready result exposes the display-safe principal and session summary plus
+  principal caller facts shaped as `{ kind: "principal", active, owner, roleId? }`
+- AND the ready target binds route id, target profile, target origin, Program
+  storage identity, and the server-resolved runtime-route access floor
+- AND the response contains no session id, cookie, session version, credential,
+  challenge, token, private auth state, admin-bearer fact, authorized screen key,
+  or authorized path set
+
+#### Scenario: Keep a Program session snapshot current
+
+- GIVEN a persistent Program runtime holds a ready session snapshot
+- WHEN its session expires, logout completes, current principal or authority
+  changes, an authority-staleness `401` or `403` is received, the Program push
+  socket closes as unauthorized, a suspended tab regains focus after its
+  freshness boundary, or another same-origin tab announces invalidation
+- THEN the client invalidates the snapshot, fails closed for later Program route
+  projection, and coalesces concurrent causes into one current snapshot refresh
+- AND replica hydration, screen admission, and push reconnection resume only from
+  a new ready snapshot bound to the same principal and runtime target
+- AND a failed read or write is not treated as authorized and a failed write is
+  not replayed automatically after refresh
 
 #### Scenario: Logout clears auth-origin session
 
@@ -1220,10 +1256,17 @@ identity, or module identity into route authority.
 - WHEN the principal is disabled, its Program role assignment changes, owner
   authority is removed, the session is revoked, or the host target no longer
   matches
-- THEN later direct entry, client navigation, route-target session status, and
-  protected screen loading re-evaluate current authority
-- AND signed cookie facts, cached client role assignments, schema screen keys,
-  module keys, and navigation membership do not retain authorization
+- THEN later direct entry and protected server requests re-evaluate current
+  authority through instance-auth readers
+- AND client navigation evaluates the current Program schema against only a
+  ready browser-safe Program session snapshot within its bound runtime-route
+  floor
+- AND relevant replica authority changes, session expiry, logout, protected
+  request rejection, unauthorized push closure, focus recovery, and cross-tab
+  notices invalidate that snapshot before later client route admission
+- AND signed cookie facts, cached Program caller facts, schema screen keys,
+  module keys, navigation membership, and prior presentation do not retain
+  server authorization
 
 #### Scenario: Keep operation and owner recovery authorization separate
 

@@ -92,6 +92,7 @@ import {
 } from "./owner-setup.ts";
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { validateOwnerSessionCookie } from "./owner-session.ts";
+import { handleProgramSessionRequest } from "./program-session.ts";
 import type { TurnstileRuntimeEnv } from "../shared/turnstile-config.ts";
 import { WORKSPACE_OPERATION_CAPABILITIES } from "@dpeek/formless-workspace";
 import {
@@ -298,6 +299,14 @@ export default {
 
     if (instanceAuthHandoffResponse) {
       return instanceAuthHandoffResponse;
+    }
+
+    const programSessionResponse = mappedRoutePolicy.blocksAuthOriginRoutes
+      ? undefined
+      : await handleProgramSessionRequest(request, env);
+
+    if (programSessionResponse) {
+      return programSessionResponse;
     }
 
     let mappedAuthRouteDecision = mappedAuthOriginRouteDecisionFromFacts({

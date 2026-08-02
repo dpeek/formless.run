@@ -1,11 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  connectBroadcastToClientStore,
-  hydrateClientStore,
-  useSchema,
-} from "../../client/store.ts";
-import { setSyncStatus, useSyncStatus } from "../../client/sync-status.ts";
-import { bootstrapClient, startPushSync } from "../../client/sync.ts";
+import { useHydrated, useSchema } from "../../client/store.ts";
+import { useSyncStatus } from "../../client/sync-status.ts";
 import { selectScreenModelByPath } from "../../client/views.ts";
 import { todayDateString } from "../../shared/date.ts";
 import { FORMLESS_PROGRAM_SCHEMA_KEY } from "../../program/target.ts";
@@ -45,14 +40,12 @@ export type HomeRouteClientLoadState =
   | { state: "ready" };
 
 export function HomeRoute({
-  clientSync = true,
   onClientLoadStateChange,
   onGeneratedWorkspaceController,
   sectionExternalActions,
   screenPath,
   workspaceActions,
 }: {
-  clientSync?: boolean | undefined;
   onClientLoadStateChange?: ((state: HomeRouteClientLoadState) => void) | undefined;
   onGeneratedWorkspaceController?: (
     controller: GeneratedWorkspaceRuntimeController | undefined,
@@ -64,6 +57,8 @@ export function HomeRoute({
   workspaceActions?: readonly WorkspaceLinkActionContract[];
 }) {
   const schema = useSchema();
+  const hydrated = useHydrated();
+  const syncStatus = useSyncStatus();
   const homeScreen = useMemo(
     () => (schema ? selectScreenModelByPath(schema, screenPath) : undefined),
     [schema, screenPath],
@@ -79,48 +74,18 @@ export function HomeRoute({
   }, [setSelectionState]);
 
   useEffect(() => {
-    if (!clientSync) {
+    if (!onClientLoadStateChange) {
       return;
     }
 
-    const stopBroadcast = connectBroadcastToClientStore();
-    let stopPushSync = () => {};
-    let cancelled = false;
-
-    async function startSync() {
-      onClientLoadStateChange?.({ state: "loading" });
-      setSyncStatus({ state: "syncing", message: "Syncing Formless Program..." });
-
-      try {
-        await hydrateClientStore();
-        await bootstrapClient();
-
-        if (cancelled) {
-          return;
-        }
-
-        setSyncStatus({ state: "idle", message: "Synced." });
-        onClientLoadStateChange?.({ state: "ready" });
-        stopPushSync = startPushSync();
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
-        const message = error instanceof Error ? error.message : "Sync failed.";
-        setSyncStatus({ state: "error", message });
-        onClientLoadStateChange?.({ message, state: "failed" });
-      }
-    }
-
-    void startSync();
-
-    return () => {
-      cancelled = true;
-      stopBroadcast();
-      stopPushSync();
-    };
-  }, [clientSync, onClientLoadStateChange]);
+    onClientLoadStateChange(
+      syncStatus.state === "error"
+        ? { message: syncStatus.message, state: "failed" }
+        : hydrated
+          ? { state: "ready" }
+          : { state: "loading" },
+    );
+  }, [hydrated, onClientLoadStateChange, syncStatus]);
 
   if (!schema) {
     if (onGeneratedWorkspaceController) {

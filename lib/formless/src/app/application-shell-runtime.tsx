@@ -16,9 +16,8 @@ import { selectGeneratedRootNavigationFacts } from "../client/generated-authorin
 import { selectPrimaryScreenModels, type HomeScreenModel } from "../client/views.ts";
 import { todayDateString } from "../shared/date.ts";
 import type {
-  AccountLogoutResponse,
-  AccountRedirectTarget,
   AccountSessionStatusResponse,
+  ProgramSessionResponse,
 } from "../shared/instance-auth.ts";
 import type { RecordValues } from "@dpeek/formless-storage";
 import {
@@ -38,7 +37,6 @@ import {
 import {
   generatedShellRootSectionId,
   projectGeneratedApplicationShell,
-  shouldRenderGeneratedShell,
 } from "./generated/application-shell-projection.ts";
 import { ApplicationPresentation } from "./application-presentation.tsx";
 import type { ApplicationRootThemeRuntime } from "./application-root-context.tsx";
@@ -48,17 +46,12 @@ import {
   useHomeRouteSelectionStore,
   withHomeRouteSelectedSectionContextRecordId,
 } from "./routes/home-selection.tsx";
-import { fetchAccountSessionStatus, logoutAccountSession } from "./routes/account-sign-in.tsx";
 import { normalizeRuntimeBrowserPath, type RuntimeProfile } from "./runtime-profile.ts";
 import {
   formlessProgramSchema,
-  formlessProgramScreenRouteTargets,
   resolveFormlessProgramScreenRouteTarget,
 } from "../program/runtime.ts";
-import {
-  resolveProtectedRouteAccess,
-  type ProtectedRouteAccessDecision,
-} from "./protected-route-access.ts";
+import { projectAuthorizedProgramScreenPaths } from "./program-screen-access.ts";
 
 const ROOT_CREATE_TRIGGER: GeneratedCreateTriggerPresentation = {
   content: { icon: "add", kind: "iconOnly" },
@@ -67,13 +60,6 @@ const ROOT_CREATE_TRIGGER: GeneratedCreateTriggerPresentation = {
 };
 
 export type ApplicationShellRuntimeDependencies = {
-  fetchAccountSession?: () => Promise<AccountSessionStatusResponse>;
-  logout?: () => Promise<AccountLogoutResponse>;
-  navigate?: (path: `/${string}`) => void;
-  resolveRouteAccess?: (
-    path: AccountRedirectTarget,
-    signal: AbortSignal,
-  ) => Promise<ProtectedRouteAccessDecision>;
   submitCreate?: (surfaceId: string, values: RecordValues) => Promise<{ recordId: string }>;
 };
 
@@ -84,7 +70,10 @@ export type ApplicationShellRuntimeBoundaryProps = {
   dependencies?: ApplicationShellRuntimeDependencies;
   initialRouteContractContributions?: readonly ApplicationRuntimeContractContribution[];
   accountSession?: AccountSessionStatusResponse | undefined;
+  logoutState?: "error" | "idle" | "pending" | undefined;
+  onLogout?: (() => Promise<void> | void) | undefined;
   programSchema?: AppSchema | undefined;
+  programSession?: ProgramSessionResponse | undefined;
   runtimeProfile: RuntimeProfile;
   screenModels?: readonly HomeScreenModel[] | undefined;
 };
@@ -103,8 +92,11 @@ function ApplicationShellRuntime({
   currentPath,
   dependencies = {},
   initialRouteContractContributions,
-  accountSession: accountSessionProp,
+  accountSession,
+  logoutState = "idle",
+  onLogout,
   programSchema = formlessProgramSchema,
+  programSession,
   runtimeProfile,
   screenModels: screenModelsProp,
 }: ApplicationShellRuntimeBoundaryProps) {
@@ -116,18 +108,12 @@ function ApplicationShellRuntime({
   const syncStatus = useSyncStatus();
   const selectionStore = useHomeRouteSelectionStore();
   const normalizedCurrentPath = normalizeRuntimeBrowserPath(currentPath);
-  const programScreenPaths = useMemo(
-    () => formlessProgramScreenRouteTargets(programSchema).map((screen) => screen.path),
-    [programSchema],
-  );
   const programRoute =
     resolveFormlessProgramScreenRouteTarget(normalizedCurrentPath, programSchema) !== undefined;
-  const authorizedProgramScreenPaths = useAuthorizedProgramScreenPaths({
-    active: programRoute,
-    currentPath: normalizedCurrentPath,
-    programScreenPaths,
-    resolveRouteAccess: dependencies.resolveRouteAccess,
-  });
+  const authorizedProgramScreenPaths = useMemo(
+    () => (programRoute ? projectAuthorizedProgramScreenPaths(programSession, programSchema) : []),
+    [programRoute, programSchema, programSession],
+  );
   const routeSchema = programRoute ? snapshot.schema : null;
   const projectedScreenModels = useMemo(
     () => (routeSchema ? selectPrimaryScreenModels(routeSchema) : []),
@@ -194,11 +180,6 @@ function ApplicationShellRuntime({
       ),
     [createDescriptors, initialCreateSurfaces, registeredCreateRuntimes],
   );
-  const [accountSession, setAccountSession] = useState<AccountSessionStatusResponse | undefined>(
-    accountSessionProp,
-  );
-  const [logoutState, setLogoutState] = useState<"error" | "idle" | "pending">("idle");
-  const renderShell = shouldRenderGeneratedShell({ currentPath, programSchema, runtimeProfile });
   const projection = projectGeneratedApplicationShell({
     authorizedProgramScreenPaths,
     currentPath,
@@ -273,17 +254,10 @@ function ApplicationShellRuntime({
         case "create":
           return registeredCreateRuntimes[resolved.intent.sectionId]?.dispatch(resolved.intent);
         case "logout":
-          return await executeLogout();
+          return await onLogout?.();
       }
     },
-    [
-      dependencies,
-      logoutState,
-      accountSession,
-      registeredCreateRuntimes,
-      rootFacts,
-      selectionStore,
-    ],
+    [onLogout, registeredCreateRuntimes, rootFacts, selectionStore],
   );
   const { coordinator, shellReference } = useGeneratedApplicationShellContractHost({
     dispatch,
@@ -305,58 +279,6 @@ function ApplicationShellRuntime({
     },
     [coordinator],
   );
-
-  useEffect(() => {
-    if (accountSessionProp !== undefined) {
-      setAccountSession(accountSessionProp);
-      return;
-    }
-
-    if (!renderShell) {
-      setAccountSession(undefined);
-      return;
-    }
-
-    let stopped = false;
-    const load = dependencies.fetchAccountSession ?? (() => fetchAccountSessionStatus());
-
-    void load()
-      .then((session) => {
-        if (!stopped) {
-          setAccountSession(session);
-        }
-      })
-      .catch(() => {
-        if (!stopped) {
-          setAccountSession(undefined);
-        }
-      });
-
-    return () => {
-      stopped = true;
-    };
-  }, [dependencies.fetchAccountSession, accountSessionProp, renderShell]);
-
-  async function executeLogout() {
-    if (logoutState === "pending" || accountSession?.authenticated !== true) {
-      return;
-    }
-
-    setLogoutState("pending");
-
-    try {
-      const logout = dependencies.logout ?? (() => logoutAccountSession());
-      const response = await logout();
-      setAccountSession({ authenticated: false, setupComplete: true });
-      setLogoutState("idle");
-
-      if (response.continueTo) {
-        navigateTo(response.continueTo, dependencies.navigate);
-      }
-    } catch {
-      setLogoutState("error");
-    }
-  }
 
   const routeWorkspace = shellReference ? (
     <ApplicationPresentation
@@ -402,62 +324,6 @@ function ApplicationShellRuntime({
       {routeWorkspace}
     </ApplicationRuntimeContractHostProvider>
   );
-}
-
-function useAuthorizedProgramScreenPaths({
-  active,
-  currentPath,
-  programScreenPaths,
-  resolveRouteAccess: resolveRouteAccessOverride,
-}: {
-  active: boolean;
-  currentPath: string;
-  programScreenPaths: readonly string[];
-  resolveRouteAccess?: ApplicationShellRuntimeDependencies["resolveRouteAccess"];
-}): readonly string[] {
-  const [authorizedPaths, setAuthorizedPaths] = useState<readonly string[]>([]);
-
-  useEffect(() => {
-    if (!active) {
-      setAuthorizedPaths([]);
-      return;
-    }
-
-    const controller = new AbortController();
-    let stopped = false;
-    const resolveRouteAccessForPath =
-      resolveRouteAccessOverride ??
-      ((path: AccountRedirectTarget, signal: AbortSignal) =>
-        resolveProtectedRouteAccess(path, { signal }));
-
-    setAuthorizedPaths([]);
-
-    void Promise.all(
-      programScreenPaths.map(async (path) => {
-        try {
-          const decision = await resolveRouteAccessForPath(
-            path as AccountRedirectTarget,
-            controller.signal,
-          );
-
-          return decision.kind === "authorized" ? path : undefined;
-        } catch {
-          return undefined;
-        }
-      }),
-    ).then((paths) => {
-      if (!stopped) {
-        setAuthorizedPaths(paths.filter((path): path is string => path !== undefined));
-      }
-    });
-
-    return () => {
-      stopped = true;
-      controller.abort();
-    };
-  }, [active, currentPath, programScreenPaths, resolveRouteAccessOverride]);
-
-  return authorizedPaths;
 }
 
 type RootCreateDescriptor = {
@@ -521,15 +387,4 @@ function RegisteredRootCreateRuntime({
   );
 
   return null;
-}
-
-function navigateTo(path: `/${string}`, navigate: ((path: `/${string}`) => void) | undefined) {
-  if (navigate) {
-    navigate(path);
-    return;
-  }
-
-  if (typeof window !== "undefined") {
-    window.location.assign(path);
-  }
 }
