@@ -17,9 +17,14 @@ import {
   parseInstanceControlPlaneBoundaryEntityName,
   validateInstanceControlPlaneRecords,
 } from "./index.ts";
-import { computeSourceSchemaHash } from "@dpeek/formless-schema";
+import {
+  composeAppSchema,
+  computeSourceSchemaHash,
+  defineAppSchemaModule,
+  parseAppSchema,
+  type AppSchema,
+} from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
-import type { AppSchema } from "@dpeek/formless-schema";
 import {
   isRuntimeControlPlaneObservedField,
   isRuntimeControlPlaneSecretReferenceField,
@@ -27,6 +32,7 @@ import {
 import {
   instanceControlPlanePresentationSchemaModule,
   instanceControlPlaneRecordSchemaModule,
+  instanceControlPlaneRoutesScreenSchemaModule,
 } from "@dpeek/formless-instance-control-plane/schema";
 import {
   instanceControlPlaneCreateIdContribution,
@@ -58,11 +64,15 @@ describe("instance control-plane schema contracts", () => {
       key: "instance-control-plane-presentation",
       requires: ["instance-control-plane-records"],
       views: expect.arrayContaining([expect.objectContaining({ key: "emailSenderList" })]),
-      screens: expect.arrayContaining([
-        expect.objectContaining({ key: "routes" }),
+      screens: [
         expect.objectContaining({ key: "deployments" }),
         expect.objectContaining({ key: "settings" }),
-      ]),
+      ],
+    });
+    expect(instanceControlPlaneRoutesScreenSchemaModule).toMatchObject({
+      key: "instance-control-plane-routes-screen",
+      requires: ["instance-control-plane-presentation"],
+      screens: [expect.objectContaining({ key: "routes", path: "/routes" })],
     });
     expect(instanceControlPlaneSourceSchema.runtime?.owner).toBe("runtime");
     expect(instanceControlPlaneRecordSchemaModule.runtime.controlPlane.entities).toEqual(
@@ -81,6 +91,47 @@ describe("instance control-plane schema contracts", () => {
         targetId: "deployment:one",
       }),
     ).toBeUndefined();
+  });
+
+  it("composes a same-key downstream routes screen replacement", () => {
+    const replacement = defineAppSchemaModule({
+      ...instanceControlPlaneRoutesScreenSchemaModule,
+      screens: instanceControlPlaneRoutesScreenSchemaModule.screens.map((screen) => ({
+        ...screen,
+        path: "/infrastructure/routes",
+        access: { role: "administrator" },
+      })),
+    });
+    const schema = parseAppSchema(
+      composeAppSchema({
+        version: 1,
+        authorization: {
+          roles: [
+            {
+              id: "role_04144de6-7927-49f2-826a-cdcc70c47357",
+              key: "administrator",
+              label: "Administrator",
+            },
+          ],
+        },
+        modules: [
+          instanceControlPlaneRecordSchemaModule,
+          instanceControlPlanePresentationSchemaModule,
+          replacement,
+        ],
+        runtime: { owner: "runtime" },
+      }),
+    );
+    const routesScreen = schema.screens.find(({ key }) => key === "routes");
+
+    expect(replacement.key).toBe(instanceControlPlaneRoutesScreenSchemaModule.key);
+    expect(routesScreen).toMatchObject({
+      key: "routes",
+      path: "/infrastructure/routes",
+      access: { role: "administrator" },
+    });
+    expect(routesScreen?.layout.sections.map(({ view }) => view)).toEqual(["routeList"]);
+    expect(schema.views.some(({ key }) => key === "routeList")).toBe(true);
   });
 
   it("owns its administrator role and materializes exact operation access", () => {

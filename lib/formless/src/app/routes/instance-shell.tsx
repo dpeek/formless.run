@@ -142,8 +142,14 @@ function workspaceGatewayControlDefaultValue(
 
 export function InstanceShellRoute({
   localWorkspaceGatewayAvailable: localWorkspaceGatewayAvailableProp,
+  routesScreenPath,
+  screenKey,
+  screenPath,
 }: {
   localWorkspaceGatewayAvailable?: boolean | undefined;
+  routesScreenPath?: `/${string}` | undefined;
+  screenKey: string;
+  screenPath: `/${string}`;
 }) {
   const workspaceOperationStartPending = useRef(false);
   const workspaceGatewayConfig = useMemo(() => workspaceGatewayBrowserConfig(), []);
@@ -335,6 +341,9 @@ export function InstanceShellRoute({
       onOpenWorkspaceAuthorization={(url) => window.open(url, "_blank", "noopener,noreferrer")}
       onPollWorkspaceOperation={pollWorkspaceOperation}
       onStartWorkspacePush={startWorkspacePush}
+      routesScreenPath={routesScreenPath}
+      screenKey={screenKey}
+      screenPath={screenPath}
       workspaceGatewayState={workspaceGatewayState}
     />
   );

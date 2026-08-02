@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
+import type { AppSchema } from "@dpeek/formless-schema";
 
 import {
   runtimeTopologyRoutes,
@@ -24,6 +25,7 @@ import {
   shouldRedirectAnonymousOwnerBrowserRoute,
   workerRuntimeRoutePolicy,
 } from "./routing.ts";
+import { formlessProgramSchema } from "../program/runtime.ts";
 
 describe("Worker document routing", () => {
   it("classifies Worker request topology from shared runtime policy", () => {
@@ -173,7 +175,7 @@ describe("Worker document routing", () => {
       targetProfile: "instance",
     } as const;
     const topology = resolveWorkerRuntimeRequestTopology(
-      documentRequest("https://admin.example.com/access?view=board"),
+      documentRequest("https://admin.example.com/settings/access?view=board"),
       { profile: "instance" },
     );
 
@@ -210,7 +212,7 @@ describe("Worker document routing", () => {
         runtimeRoute: mappedRoute,
         session: "unread",
         topology: resolveWorkerRuntimeRequestTopology(
-          new Request("https://admin.example.com/access", {
+          new Request("https://admin.example.com/settings/access", {
             headers: { Accept: "application/json" },
           }),
           { profile: "instance" },
@@ -218,7 +220,7 @@ describe("Worker document routing", () => {
       }),
     ).toEqual({ kind: "continue" });
     const programTopology = resolveWorkerRuntimeRequestTopology(
-      documentRequest("https://admin.example.com/access"),
+      documentRequest("https://admin.example.com/settings/access"),
       { profile: "instance" },
     );
 
@@ -233,7 +235,7 @@ describe("Worker document routing", () => {
         access: { role: "administrator" },
         key: "access",
         label: "Access",
-        path: "/access",
+        path: "/settings/access",
         requiredAccess: "authenticated",
         routeAccess: "anonymous",
       },
@@ -263,7 +265,7 @@ describe("Worker document routing", () => {
     expect(
       resolveProtectedBrowserRouteTargetFromFacts({
         topology: resolveWorkerRuntimeRequestTopology(
-          new Request("https://admin.example.com/access", {
+          new Request("https://admin.example.com/settings/access", {
             headers: { Accept: "application/json" },
           }),
           { profile: "instance" },
@@ -276,6 +278,34 @@ describe("Worker document routing", () => {
       },
       requiredAccess: "authenticated",
     });
+  });
+
+  it("admits relocated product screens by the active Program registry", () => {
+    const programSchema = relocatedProductScreenSchema();
+    const routes = resolveWorkerRuntimeRequestTopology(
+      documentRequest("https://admin.example.com/infrastructure/routes"),
+      { profile: "instance", programSchema },
+    );
+    const access = resolveWorkerRuntimeRequestTopology(
+      documentRequest("https://admin.example.com/people/access"),
+      { profile: "instance", programSchema },
+    );
+    const previousAccessPath = resolveWorkerRuntimeRequestTopology(
+      documentRequest("https://admin.example.com/access"),
+      { profile: "instance", programSchema },
+    );
+
+    expect(routes.instanceProfileClientShellRoute).toBe(true);
+    expect(routes.programScreenRouteTarget).toMatchObject({
+      key: "routes",
+      path: "/infrastructure/routes",
+    });
+    expect(resolveProtectedBrowserRouteTargetFromFacts({ topology: access })).toMatchObject({
+      programScreen: { key: "access", path: "/people/access" },
+      requiredAccess: "authenticated",
+    });
+    expect(previousAccessPath.instanceProfileClientShellRoute).toBe(false);
+    expect(previousAccessPath.programScreenRouteTarget).toBeUndefined();
   });
 
   it("routes published Site documents to the Worker SSR path only in the published profile", () => {
@@ -376,8 +406,17 @@ describe("Worker document routing", () => {
       ),
     ).toBe(true);
     expect(
-      shouldDeferToStaticAssets(documentRequest("http://example.com/access"), instanceProfile),
+      shouldDeferToStaticAssets(
+        documentRequest("http://example.com/settings/access"),
+        instanceProfile,
+      ),
     ).toBe(true);
+    expect(
+      shouldDeferToStaticAssets(documentRequest("http://example.com/routes"), instanceProfile),
+    ).toBe(false);
+    expect(
+      shouldDeferToStaticAssets(documentRequest("http://example.com/access"), instanceProfile),
+    ).toBe(false);
     expect(
       shouldDeferToStaticAssets(documentRequest("http://example.com/deployments"), instanceProfile),
     ).toBe(true);
@@ -419,13 +458,13 @@ describe("Worker document routing", () => {
 
     expect(
       shouldRedirectAnonymousProtectedBrowserRoute(
-        documentRequest("http://example.com/access"),
+        documentRequest("http://example.com/settings/access"),
         instanceProfile,
       ),
     ).toBe(true);
     expect(
       shouldRedirectAnonymousOwnerBrowserRoute(
-        documentRequest("http://example.com/access"),
+        documentRequest("http://example.com/settings/access"),
         instanceProfile,
       ),
     ).toBe(false);
@@ -445,10 +484,16 @@ describe("Worker document routing", () => {
     ).toBe(false);
     expect(
       ownerBrowserRouteAccessForRequest(
-        documentRequest("http://example.com/access"),
+        documentRequest("http://example.com/settings/access"),
         instanceProfile,
       ),
     ).toBe("authenticated");
+    expect(
+      ownerBrowserRouteAccessForRequest(
+        documentRequest("http://example.com/access"),
+        instanceProfile,
+      ),
+    ).toBe("anonymous");
   });
   it("projects shared route policy by runtime profile", () => {
     for (const profileKind of runtimeProfileKinds) {
@@ -825,4 +870,17 @@ describe("Worker document routing", () => {
 
 function documentRequest(url: string): Request {
   return new Request(url, { headers: { Accept: "text/html" } });
+}
+
+function relocatedProductScreenSchema(): AppSchema {
+  return {
+    ...formlessProgramSchema,
+    screens: formlessProgramSchema.screens.map((screen) =>
+      screen.key === "routes"
+        ? { ...screen, path: "/infrastructure/routes" }
+        : screen.key === "access"
+          ? { ...screen, path: "/people/access" }
+          : screen,
+    ),
+  };
 }

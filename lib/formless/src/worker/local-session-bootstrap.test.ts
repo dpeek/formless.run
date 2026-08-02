@@ -34,7 +34,7 @@ describe("local session bootstrap API routes", () => {
     const rejectedBefore = await harness.fetch("/api/formless/program/bootstrap");
     const bootstrap = await bootstrapLocalSession({
       init: { headers: { Origin: "http://example.com" } },
-      redirectTo: "/routes",
+      redirectTo: "/settings/routes",
       reset: true,
     });
     const cookie = cookiePair(bootstrap.headers.get("Set-Cookie"));
@@ -49,7 +49,7 @@ describe("local session bootstrap API routes", () => {
     expect(rejectedBefore.status).toBe(401);
     expect(bootstrap.status).toBe(302);
     expect(bootstrap.headers.get("Location")).toBe(
-      "http://example.com/local-session?reset=1&redirectTo=%2Froutes",
+      "http://example.com/local-session?reset=1&redirectTo=%2Fsettings%2Froutes",
     );
     expect(bootstrap.headers.get("Location")).not.toContain(localSessionBootstrapToken);
     expect(bootstrap.headers.get("Set-Cookie")).toContain(`${OWNER_SESSION_COOKIE_NAME}=`);

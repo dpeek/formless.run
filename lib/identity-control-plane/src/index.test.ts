@@ -1,8 +1,14 @@
-import { computeSourceSchemaHash } from "@dpeek/formless-schema";
-import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
+import {
+  composeAppSchema,
+  computeSourceSchemaHash,
+  defineAppSchemaModule,
+  parseAppSchema,
+  type AppSchema,
+} from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import { describe, expect, it } from "vite-plus/test";
 import {
+  identityControlPlaneAccessScreenSchemaModule,
   identityControlPlanePresentationSchemaModule,
   identityControlPlaneRecordSchemaModule,
 } from "@dpeek/formless-identity-control-plane/schema";
@@ -89,11 +95,56 @@ describe("identity control-plane schema contracts", () => {
       screens: [
         expect.objectContaining({ key: "principals" }),
         expect.objectContaining({ key: "organizations" }),
-        expect.objectContaining({ key: "access" }),
         expect.objectContaining({ key: "invitations" }),
         expect.objectContaining({ key: "policies" }),
       ],
     });
+    expect(identityControlPlaneAccessScreenSchemaModule).toMatchObject({
+      key: "identity-control-plane-access-screen",
+      requires: ["identity-control-plane-presentation"],
+      screens: [expect.objectContaining({ key: "access", path: "/access" })],
+    });
+  });
+
+  it("composes a same-key downstream access screen replacement", () => {
+    const replacement = defineAppSchemaModule({
+      ...identityControlPlaneAccessScreenSchemaModule,
+      screens: identityControlPlaneAccessScreenSchemaModule.screens.map((screen) => ({
+        ...screen,
+        path: "/people/access",
+        access: { role: "administrator" },
+      })),
+    });
+    const schema = parseAppSchema(
+      composeAppSchema({
+        version: 1,
+        authorization: { roles: [...testAuthorizationRoles] },
+        modules: [
+          identityControlPlaneRecordSchemaModule,
+          identityControlPlanePresentationSchemaModule,
+          replacement,
+        ],
+        runtime: { owner: "runtime" },
+      }),
+    );
+    const accessScreen = schema.screens.find(({ key }) => key === "access");
+
+    expect(replacement.key).toBe(identityControlPlaneAccessScreenSchemaModule.key);
+    expect(accessScreen).toMatchObject({
+      key: "access",
+      path: "/people/access",
+      access: { role: "administrator" },
+    });
+    expect(accessScreen?.layout.sections.map(({ view }) => view)).toEqual([
+      "programRoleAssignmentList",
+      "roleList",
+      "roleAssignmentList",
+    ]);
+    expect(
+      accessScreen?.layout.sections.every(({ view }) =>
+        schema.views.some(({ key }) => key === view),
+      ),
+    ).toBe(true);
   });
 
   it("uses normal App schema source hashing", async () => {

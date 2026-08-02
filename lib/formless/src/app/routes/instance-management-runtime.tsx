@@ -1,8 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useState } from "react";
-import { useLocation } from "wouter";
 import type { PresentationIntent } from "@dpeek/formless-presentation/contract";
 import { isManagementIntent, type PresentationNodeSet } from "@dpeek/formless-presentation/host";
-import { normalizeRuntimeBrowserPath } from "../runtime-profile.ts";
 import type { GeneratedWorkspaceRuntimeController } from "../generated/generated-workspace-runtime.tsx";
 import {
   type ApplicationRuntimeContractPublication,
@@ -132,16 +130,25 @@ export function InstanceManagementRuntime({
   onOpenWorkspaceAuthorization,
   onPollWorkspaceOperation,
   onStartWorkspacePush,
+  routesScreenPath,
+  screenKey,
+  screenPath,
   workspaceGatewayState,
 }: {
   onOpenWorkspaceAuthorization: (url: string) => void;
   onPollWorkspaceOperation: (operationId: string, operationKind: "push") => Promise<void> | void;
   onStartWorkspacePush: () => Promise<void> | void;
+  routesScreenPath?: `/${string}` | undefined;
+  screenKey: string;
+  screenPath: `/${string}`;
   workspaceGatewayState: WorkspaceGatewayRouteState;
 }) {
   const application = useApplicationRuntimePublicationCoordinatorContext();
-  const [location] = useLocation();
-  const screenPath = normalizeRuntimeBrowserPath(location);
+  const screenSelection = selectInstanceManagementScreen({
+    routesScreenPath,
+    screenKey,
+    screenPath,
+  });
   const [publicationController] = useState(() =>
     createInstanceManagementRuntimePublicationController(application),
   );
@@ -180,13 +187,15 @@ export function InstanceManagementRuntime({
 
   return (
     <>
-      <HomeRoute
-        clientSync
-        onClientLoadStateChange={updateControlPlaneLoadState}
-        onGeneratedWorkspaceController={registerRoutes}
-        screenPath="/routes"
-      />
-      {screenPath === "/routes" ? (
+      {screenSelection.routesWorkspacePath === undefined ? null : (
+        <HomeRoute
+          clientSync
+          onClientLoadStateChange={updateControlPlaneLoadState}
+          onGeneratedWorkspaceController={registerRoutes}
+          screenPath={screenSelection.routesWorkspacePath}
+        />
+      )}
+      {screenSelection.managementSelected ? (
         <ApplicationPresentation
           presentation={{
             kind: "management",
@@ -194,8 +203,28 @@ export function InstanceManagementRuntime({
           }}
         />
       ) : (
-        <HomeRoute clientSync={false} screenPath={screenPath} />
+        <HomeRoute clientSync={false} screenPath={screenSelection.activeWorkspacePath} />
       )}
     </>
   );
+}
+
+export function selectInstanceManagementScreen({
+  routesScreenPath,
+  screenKey,
+  screenPath,
+}: {
+  routesScreenPath?: `/${string}` | undefined;
+  screenKey: string;
+  screenPath: `/${string}`;
+}): {
+  activeWorkspacePath: `/${string}`;
+  managementSelected: boolean;
+  routesWorkspacePath?: `/${string}` | undefined;
+} {
+  return {
+    activeWorkspacePath: screenPath,
+    managementSelected: screenKey === "routes",
+    ...(routesScreenPath === undefined ? {} : { routesWorkspacePath: routesScreenPath }),
+  };
 }

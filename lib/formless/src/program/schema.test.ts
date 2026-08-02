@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import {
+  identityControlPlaneAccessScreenSchemaModule,
   identityControlPlanePresentationSchemaModule,
   identityControlPlaneRecordSchemaModule,
 } from "@dpeek/formless-identity-control-plane/schema";
@@ -7,6 +8,7 @@ import { crmPresentationSchemaModule, crmRecordSchemaModule } from "@dpeek/forml
 import {
   instanceControlPlanePresentationSchemaModule,
   instanceControlPlaneRecordSchemaModule,
+  instanceControlPlaneRoutesScreenSchemaModule,
 } from "@dpeek/formless-instance-control-plane/schema";
 import {
   tasksPresentationSchemaModule,
@@ -21,8 +23,10 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   formlessCrmPresentationSchemaModule,
   formlessCrmRecordSchemaModule,
+  formlessIdentityControlPlaneAccessScreenSchemaModule,
   formlessIdentityControlPlanePresentationSchemaModule,
   formlessInstanceControlPlanePresentationSchemaModule,
+  formlessInstanceControlPlaneRoutesScreenSchemaModule,
   formlessProgramSchemaModules,
   formlessProgramSourceSchema,
   formlessSitePresentationSchemaModule,
@@ -46,12 +50,32 @@ describe("Formless Program schema", () => {
     expect(formlessIdentityControlPlanePresentationSchemaModule.key).toBe(
       identityControlPlanePresentationSchemaModule.key,
     );
+    expect(formlessInstanceControlPlaneRoutesScreenSchemaModule.key).toBe(
+      instanceControlPlaneRoutesScreenSchemaModule.key,
+    );
+    expect(formlessIdentityControlPlaneAccessScreenSchemaModule.key).toBe(
+      identityControlPlaneAccessScreenSchemaModule.key,
+    );
     expect(
       formlessInstanceControlPlanePresentationSchemaModule.screens.map(({ key }) => key),
-    ).toEqual(["routes", "deployments", "settings"]);
+    ).toEqual(["deployments", "settings"]);
+    expect(
+      formlessInstanceControlPlaneRoutesScreenSchemaModule.screens.map(({ access, key, path }) => ({
+        access,
+        key,
+        path,
+      })),
+    ).toEqual([{ access: { role: "administrator" }, key: "routes", path: "/settings/routes" }]);
     expect(
       formlessIdentityControlPlanePresentationSchemaModule.screens.map(({ key }) => key),
-    ).toEqual(["principals", "organizations", "access", "invitations", "policies"]);
+    ).toEqual(["principals", "organizations", "invitations", "policies"]);
+    expect(
+      formlessIdentityControlPlaneAccessScreenSchemaModule.screens.map(({ access, key, path }) => ({
+        access,
+        key,
+        path,
+      })),
+    ).toEqual([{ access: { role: "administrator" }, key: "access", path: "/settings/access" }]);
   });
 
   it("specializes Tasks through same-key Program replacements", () => {
@@ -225,14 +249,14 @@ describe("Formless Program schema", () => {
     ]);
     expect(formlessProgramSchemaModules.every((module) => !("authorization" in module))).toBe(true);
     expect(parsed.screens.map(({ access, key }) => ({ access, key }))).toEqual([
-      { access: { role: "administrator" }, key: "routes" },
       { access: { role: "administrator" }, key: "deployments" },
       { access: { role: "administrator" }, key: "settings" },
+      { access: { role: "administrator" }, key: "routes" },
       { access: { role: "administrator" }, key: "principals" },
       { access: { role: "administrator" }, key: "organizations" },
-      { access: { role: "administrator" }, key: "access" },
       { access: { role: "administrator" }, key: "invitations" },
       { access: { role: "administrator" }, key: "policies" },
+      { access: { role: "administrator" }, key: "access" },
       { access: { role: "member" }, key: "taskHome" },
       { access: { role: "member" }, key: "siteSettings" },
       { access: { role: "member" }, key: "siteEditor" },
@@ -244,6 +268,8 @@ describe("Formless Program schema", () => {
       { access: { role: "member" }, key: "broadcasts" },
     ]);
     expect(screens.principals?.path).toBe("/");
+    expect(screens.routes?.path).toBe("/settings/routes");
+    expect(screens.access?.path).toBe("/settings/access");
     expect(screens.taskHome?.path).toBe("/tasks");
     expect(screens.siteEditor?.path).toBe("/site");
     expect(screens.siteSettings?.path).toBe("/site/settings");

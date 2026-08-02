@@ -17,7 +17,10 @@ import {
   type InstanceManagementIntentActions,
   type ProjectInstanceManagementOptions,
 } from "./instance-management-projection.ts";
-import { createInstanceManagementRuntimePublicationController } from "./instance-management-runtime.tsx";
+import {
+  createInstanceManagementRuntimePublicationController,
+  selectInstanceManagementScreen,
+} from "./instance-management-runtime.tsx";
 import { initialInstanceManagementRuntimeContribution } from "./instance-management-contract.ts";
 
 const routesReference = workspaceManifestReference("instance-routes");
@@ -59,6 +62,31 @@ describe("instance management projection", () => {
 });
 
 describe("instance management runtime publication", () => {
+  it("selects route management by stable screen key at a relocated path", () => {
+    expect(
+      selectInstanceManagementScreen({
+        routesScreenPath: "/infrastructure/routes",
+        screenKey: "routes",
+        screenPath: "/infrastructure/routes",
+      }),
+    ).toEqual({
+      activeWorkspacePath: "/infrastructure/routes",
+      managementSelected: true,
+      routesWorkspacePath: "/infrastructure/routes",
+    });
+    expect(
+      selectInstanceManagementScreen({
+        routesScreenPath: "/infrastructure/routes",
+        screenKey: "deployments",
+        screenPath: "/deployments",
+      }),
+    ).toEqual({
+      activeWorkspacePath: "/deployments",
+      managementSelected: false,
+      routesWorkspacePath: "/infrastructure/routes",
+    });
+  });
+
   it("publishes the routes workspace through one management node", () => {
     const application = createApplicationRuntimePublicationCoordinator([
       initialInstanceManagementRuntimeContribution,

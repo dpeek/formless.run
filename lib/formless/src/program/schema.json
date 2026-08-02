@@ -8720,25 +8720,6 @@
       "access": {
         "role": "administrator"
       },
-      "key": "routes",
-      "label": "Routes",
-      "layout": {
-        "sections": [
-          {
-            "id": "routes",
-            "type": "collection",
-            "view": "routeList"
-          }
-        ],
-        "type": "stack"
-      },
-      "path": "/routes",
-      "type": "workspace"
-    },
-    {
-      "access": {
-        "role": "administrator"
-      },
       "key": "deployments",
       "label": "Deployments",
       "layout": {
@@ -8781,6 +8762,25 @@
         "type": "stack"
       },
       "path": "/settings",
+      "type": "workspace"
+    },
+    {
+      "access": {
+        "role": "administrator"
+      },
+      "key": "routes",
+      "label": "Routes",
+      "layout": {
+        "sections": [
+          {
+            "id": "routes",
+            "type": "collection",
+            "view": "routeList"
+          }
+        ],
+        "type": "stack"
+      },
+      "path": "/settings/routes",
       "type": "workspace"
     },
     {
@@ -8840,35 +8840,6 @@
       "access": {
         "role": "administrator"
       },
-      "key": "access",
-      "label": "Access",
-      "layout": {
-        "sections": [
-          {
-            "id": "program-role-assignments",
-            "type": "collection",
-            "view": "programRoleAssignmentList"
-          },
-          {
-            "id": "roles",
-            "type": "collection",
-            "view": "roleList"
-          },
-          {
-            "id": "role-assignments",
-            "type": "collection",
-            "view": "roleAssignmentList"
-          }
-        ],
-        "type": "stack"
-      },
-      "path": "/access",
-      "type": "workspace"
-    },
-    {
-      "access": {
-        "role": "administrator"
-      },
       "key": "invitations",
       "label": "Invitations",
       "layout": {
@@ -8906,6 +8877,35 @@
         "type": "stack"
       },
       "path": "/policies",
+      "type": "workspace"
+    },
+    {
+      "access": {
+        "role": "administrator"
+      },
+      "key": "access",
+      "label": "Access",
+      "layout": {
+        "sections": [
+          {
+            "id": "program-role-assignments",
+            "type": "collection",
+            "view": "programRoleAssignmentList"
+          },
+          {
+            "id": "roles",
+            "type": "collection",
+            "view": "roleList"
+          },
+          {
+            "id": "role-assignments",
+            "type": "collection",
+            "view": "roleAssignmentList"
+          }
+        ],
+        "type": "stack"
+      },
+      "path": "/settings/access",
       "type": "workspace"
     },
     {

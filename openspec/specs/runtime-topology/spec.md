@@ -63,9 +63,9 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 
 - GIVEN the runtime profile is `instance`
 - WHEN a browser navigates to `/`, `/tasks`, `/site`, `/site/settings`,
-  `/site/contacts`, `/site/subscribers`, `/pages`, `/pages/*`, `/routes`,
-  `/deployments`,
-  `/organizations`, `/access`, `/invitations`, `/policies`, or `/settings`
+  `/site/contacts`, `/site/subscribers`, `/pages`, `/pages/*`,
+  `/settings/routes`, `/deployments`, `/organizations`, `/settings/access`,
+  `/invitations`, `/policies`, or `/settings`
 - THEN the request is eligible for the client shell
 - AND route selection uses the Program route table
 
@@ -75,6 +75,8 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 - WHEN a management browser opens the default Program
 - THEN `/` selects the root-owned principals screen and `/settings` selects
   Instance Settings
+- AND `/settings/routes` selects the route-management screen and
+  `/settings/access` selects the dedicated access-management screen
 - AND `/tasks` selects the package-owned Tasks workspace through its
   Program-owned path and `member` access requirement
 - AND `/site`, `/site/settings`, `/site/contacts`, and `/site/subscribers`
@@ -100,7 +102,8 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 #### Scenario: Product instance access management route
 
 - GIVEN the runtime profile is `instance`
-- WHEN a browser navigates to `/access`
+- WHEN a browser navigates to the active Program path for the `access` screen,
+  `/settings/access` in the default Program
 - THEN the client shell is eligible to render the dedicated access management
   surface
 - AND the route is treated as a management instance browser surface unless an
@@ -112,6 +115,19 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 - AND public Site routing, account orchestrator routes,
   account gate routes, and raw generated identity-control-plane record editing
   remain separate route families
+
+#### Scenario: Replaced product screen path
+
+- GIVEN a downstream Program replaces the `routes` or `access` screen module
+  while preserving the stable screen key and selecting another valid path
+- WHEN browser shell eligibility, screen admission, navigation, or product
+  runtime behavior is resolved
+- THEN the final materialized screen path selects that screen and its
+  screen-key-bound runtime behavior
+- AND the default path is not claimed, redirected, or reserved unless another
+  active Program screen declares it
+- AND account auth, Program API, local session, asset, public Site, and other
+  intrinsic runtime route families remain fixed outside screen composition
 
 #### Scenario: Product instance deployment route
 
@@ -326,8 +342,8 @@ profile behavior.
 #### Scenario: Mapped instance admin host
 
 - **GIVEN** an enabled exact-host `route` mounts the instance admin surface
-- **WHEN** the mapped host receives browser requests for `/`, `/access`,
-  `/deployments`, or another instance admin path
+- **WHEN** the mapped host receives browser requests for `/`,
+  `/settings/access`, `/deployments`, or another active Program admin path
 - **THEN** the client shell is served only after the matched route access policy
   is satisfied
 - **AND** protected access on the mapped admin host uses cross-domain auth

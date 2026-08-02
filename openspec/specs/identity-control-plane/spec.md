@@ -82,14 +82,31 @@ schema declarations composed into the downstream Program.
   control-plane entities, relationships, queries, and runtime control-plane
   entity policies
 - AND it exports one presentation module that depends on the record module key
-  and owns item views, table views, views, and screens
+  and owns item views, table views, views, and the ordinary identity screens
+  other than dedicated access management
+- AND it exports an independently replaceable access-management screen module
+  that depends on the presentation module and contributes the `access` screen
 - AND the package's complete source schema explicitly composes the record
-  module before the presentation module and supplies runtime ownership at the
-  composition root
+  module before the presentation and access-management screen modules and
+  supplies runtime ownership at the composition root
 - AND the recomposed source preserves the current schema data and normal
   source-schema hash
 - AND the modules remain runtime-neutral when a downstream Program selects
   Authority, storage, API, cursor, snapshot, or browser replica behavior
+
+#### Scenario: Compose access-management screen placement
+
+- GIVEN a Program includes dedicated access management
+- WHEN it composes the access-management screen module
+- THEN the module contributes an ordinary workspace screen with stable key
+  `access`
+- AND the default Program supplies a same-key replacement that selects
+  `/settings/access` and the Program `administrator` access requirement
+- AND a downstream Program may omit that default replacement and supply its
+  own same-key screen module at another valid path
+- AND dedicated access summary, invitation, role, removal, presentation, and
+  authorization behavior remains runtime-owned and is selected by the stable
+  screen key rather than a literal browser path
 
 ### Requirement: Program Identity Storage
 
@@ -598,7 +615,8 @@ revocation, refresh, validation, and private auth state.
 
 #### Scenario: Project complete access management presentation
 
-- GIVEN an authenticated principal opens `/access`
+- GIVEN an authenticated principal opens the active Program path for the
+  `access` screen, `/settings/access` in the default Program
 - WHEN runtime prepares the current access management presentation
 - THEN one typed `AccessManifestReference` resolves one loading, unauthorized,
   failed, or ready access snapshot
@@ -633,14 +651,15 @@ revocation, refresh, validation, and private auth state.
 
 #### Scenario: Compose access presentation on the application host
 
-- GIVEN the application shell host is active and `/access` is the selected
-  React route child
+- GIVEN the application shell host is active and the active Program `access`
+  screen is the selected React route child
 - WHEN shell, access summary, invitation authoring, person-role authoring,
   feedback, or confirmation presentation changes
 - THEN the access runtime contributes its renderer-neutral nodes and current
   intent handler through the existing application-host publication coordinator
   without creating a nested host or replacing the stable host context
-- AND server rendering seeds `/access` with its loading access-manifest node
+- AND server rendering seeds the selected `access` screen path with its loading
+  access-manifest node
   before route-child effects run, and hydration replaces that contribution
   atomically with current runtime state
 - AND controlled invitation or person-role draft changes replace only their
@@ -680,8 +699,8 @@ revocation, refresh, validation, and private auth state.
 
 #### Scenario: Formless Renderer consumes access contracts
 
-- GIVEN production `/access` publishes complete renderer-neutral access
-  contracts while runtime retains invitation effects
+- GIVEN the production `access` screen publishes complete renderer-neutral
+  access contracts while runtime retains invitation effects
 - WHEN runtime publishes the complete access contract graph
 - THEN one subscribed Formless Renderer access entrypoint reads only access
   references and snapshots, renders people, roles, invitations, controlled

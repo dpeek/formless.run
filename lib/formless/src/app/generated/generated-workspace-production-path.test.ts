@@ -36,9 +36,9 @@ describe("generated workspace production path", () => {
         { results: ["table", "table", "table"], screen: "broadcasts", width: "wide" },
       ],
       instance: [
-        { results: ["table"], screen: "routes", width: "standard" },
         { results: ["table"], screen: "deployments", width: "standard" },
         { results: ["table", "table", "table"], screen: "settings", width: "standard" },
+        { results: ["table"], screen: "routes", width: "standard" },
       ],
       rate: [
         { results: ["table"], screen: "rateHome", width: "standard" },

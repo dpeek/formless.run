@@ -1,4 +1,8 @@
-import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
+import type { AppSchema } from "@dpeek/formless-schema";
+import {
+  formlessProgramSchema,
+  resolveFormlessProgramScreenRouteTarget,
+} from "../program/runtime.ts";
 
 export const runtimeProfileKinds = ["instance", "dev", "publishedSite"] as const;
 
@@ -38,7 +42,6 @@ export const runtimeAuthAccountGateRoutes = {
 export const FORMLESS_RUNTIME_PROFILE_META_NAME = "formless-runtime-profile";
 
 export const runtimeTopologyRoutes = {
-  accessRoute: "/access",
   authAccountRoute: runtimeAuthAccountRoute,
   authAccountGateRoutePattern: `${runtimeAuthAccountRoute}/*`,
   authAccountSetupRoute: `${runtimeAuthAccountRoute}/setup`,
@@ -78,11 +81,6 @@ const clientRoutePrefixes = [
   "/schema",
 ] as const;
 const publishedProfileClientRoutePrefixes = [runtimeTopologyRoutes.formlessRouteBase] as const;
-const instanceProfileClientRoutePaths = [
-  ...FORMLESS_PROGRAM_SCREEN_PATHS,
-  runtimeTopologyRoutes.localSessionRoute,
-] as const;
-
 export function resolveRuntimeProfileKind(
   input: RuntimeProfileKindResolverInput = {},
 ): RuntimeProfileKind {
@@ -206,11 +204,14 @@ export function isRuntimePublishedProfileClientShellRoute(pathname: string): boo
   );
 }
 
-export function isRuntimeInstanceProfileClientShellRoute(pathname: string): boolean {
+export function isRuntimeInstanceProfileClientShellRoute(
+  pathname: string,
+  programSchema: AppSchema = formlessProgramSchema,
+): boolean {
   return (
-    instanceProfileClientRoutePaths.includes(
-      pathname as (typeof instanceProfileClientRoutePaths)[number],
-    ) || publishedProfileClientRoutePrefixes.some((prefix) => routeMatchesPrefix(pathname, prefix))
+    pathname === runtimeTopologyRoutes.localSessionRoute ||
+    resolveFormlessProgramScreenRouteTarget(pathname, programSchema) !== undefined ||
+    publishedProfileClientRoutePrefixes.some((prefix) => routeMatchesPrefix(pathname, prefix))
   );
 }
 

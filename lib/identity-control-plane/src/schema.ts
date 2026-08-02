@@ -986,14 +986,6 @@ export const identityControlPlanePresentationSchemaModule = defineAppSchemaModul
       ]),
     },
     {
-      key: "access",
-      ...screen("Access", "/access", [
-        ["program-role-assignments", "programRoleAssignmentList"],
-        ["roles", "roleList"],
-        ["role-assignments", "roleAssignmentList"],
-      ]),
-    },
-    {
       key: "invitations",
       ...screen("Invitations", "/invitations", [["invitations", "invitationList"]]),
     },
@@ -1007,9 +999,28 @@ export const identityControlPlanePresentationSchemaModule = defineAppSchemaModul
   ],
 });
 
+export const identityControlPlaneAccessScreenSchemaModule = defineAppSchemaModule({
+  key: "identity-control-plane-access-screen",
+  requires: [identityControlPlanePresentationSchemaModule.key],
+  screens: [
+    {
+      key: "access",
+      ...screen("Access", "/access", [
+        ["program-role-assignments", "programRoleAssignmentList"],
+        ["roles", "roleList"],
+        ["role-assignments", "roleAssignmentList"],
+      ]),
+    },
+  ],
+});
+
 export const identityControlPlaneSourceSchema = composeAppSchema({
   version: 1,
-  modules: [identityControlPlaneRecordSchemaModule, identityControlPlanePresentationSchemaModule],
+  modules: [
+    identityControlPlaneRecordSchemaModule,
+    identityControlPlanePresentationSchemaModule,
+    identityControlPlaneAccessScreenSchemaModule,
+  ],
   runtime: {
     owner: "runtime",
   },

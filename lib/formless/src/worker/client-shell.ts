@@ -55,7 +55,7 @@ function shouldServeRuntimeClientShellDocument(
     runtimeTopology.acceptsHtml &&
     !runtimeTopology.apiPath &&
     !runtimeTopology.staticAssetPath &&
-    runtimeTopology.pathname === runtimeTopologyRoutes.accessRoute,
+    runtimeTopology.programScreenRouteTarget?.key === "access",
   );
 }
 

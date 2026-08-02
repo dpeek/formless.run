@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
+import type { AppSchema } from "@dpeek/formless-schema";
 import { createMemoryPresentationHost } from "@dpeek/formless-presentation/host";
 import { selectGeneratedRootNavigationFacts } from "../../client/generated-authoring.ts";
 import { selectPrimaryScreenModels } from "../../client/views.ts";
-import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../../program/runtime.ts";
+import { FORMLESS_PROGRAM_SCREEN_PATHS, formlessProgramSchema } from "../../program/runtime.ts";
 import { testSiteRecords } from "../../test/site-records.ts";
 import { siteSourceSchema } from "../../test/schema-apps.ts";
 import {
@@ -27,11 +28,19 @@ describe("generated application shell projection", () => {
     const dev = createDevRuntimeProfile();
     const instance = createInstanceRuntimeProfile();
 
-    expect(shouldRenderGeneratedShell({ currentPath: "/routes", runtimeProfile: dev })).toBe(true);
+    expect(
+      shouldRenderGeneratedShell({ currentPath: "/settings/routes", runtimeProfile: dev }),
+    ).toBe(true);
     expect(shouldRenderGeneratedShell({ currentPath: "/unknown", runtimeProfile: dev })).toBe(true);
     expect(shouldRenderGeneratedShell({ currentPath: "/", runtimeProfile: instance })).toBe(true);
+    expect(
+      shouldRenderGeneratedShell({ currentPath: "/settings/access", runtimeProfile: instance }),
+    ).toBe(true);
+    expect(shouldRenderGeneratedShell({ currentPath: "/routes", runtimeProfile: instance })).toBe(
+      false,
+    );
     expect(shouldRenderGeneratedShell({ currentPath: "/access", runtimeProfile: instance })).toBe(
-      true,
+      false,
     );
     expect(shouldRenderGeneratedShell({ currentPath: "/unknown", runtimeProfile: instance })).toBe(
       false,
@@ -59,6 +68,43 @@ describe("generated application shell projection", () => {
     ).toBe("/site/settings");
     expect(selectGeneratedShellActiveHref("/unknown", ["/", "/tasks"])).toBeNull();
     expect(selectGeneratedShellActiveHref("/tasks-extra", ["/tasks"])).toBeNull();
+  });
+
+  it("selects and projects relocated product screens from the materialized Program", () => {
+    const programSchema = relocatedProductScreenSchema();
+    const runtimeProfile = createInstanceRuntimeProfile();
+
+    expect(
+      shouldRenderGeneratedShell({
+        currentPath: "/people/access",
+        programSchema,
+        runtimeProfile,
+      }),
+    ).toBe(true);
+    expect(
+      shouldRenderGeneratedShell({ currentPath: "/access", programSchema, runtimeProfile }),
+    ).toBe(false);
+
+    const projection = required(
+      projectGeneratedApplicationShell({
+        authorizedProgramScreenPaths: ["/infrastructure/routes", "/people/access"],
+        currentPath: "/people/access",
+        programSchema,
+        runtimeProfile,
+      }),
+    );
+    const destinations = required(
+      projection.sections.find((section) => section.role === "program"),
+    ).destinations;
+
+    expect(destinations).toEqual([
+      expect.objectContaining({
+        href: "/infrastructure/routes",
+        id: "program:routes",
+        selected: false,
+      }),
+      expect.objectContaining({ href: "/people/access", id: "program:access", selected: true }),
+    ]);
   });
 
   it("projects Program destinations, roots, create, settings, and display-safe session state", () => {
@@ -147,7 +193,7 @@ describe("generated application shell projection", () => {
     const accessProjection = required(
       projectGeneratedApplicationShell({
         authorizedProgramScreenPaths: FORMLESS_PROGRAM_SCREEN_PATHS,
-        currentPath: "/access",
+        currentPath: "/settings/access",
         runtimeProfile,
       }),
     );
@@ -168,7 +214,7 @@ describe("generated application shell projection", () => {
         .destinations,
     ).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ href: "/access", label: "Access", selected: true }),
+        expect.objectContaining({ href: "/settings/access", label: "Access", selected: true }),
       ]),
     );
     const programSection = required(
@@ -189,11 +235,11 @@ describe("generated application shell projection", () => {
       { href: "/tasks", label: "Tasks", selected: false },
       { href: "/site", label: "Blocks", selected: false },
       { href: "/crm", label: "Contacts", selected: false },
-      { href: "/routes", label: "Routes", selected: false },
+      { href: "/settings/routes", label: "Routes", selected: false },
       { href: "/deployments", label: "Deployments", selected: false },
       { href: "/", label: "Principals", selected: true },
       { href: "/organizations", label: "Organizations", selected: false },
-      { href: "/access", label: "Access", selected: false },
+      { href: "/settings/access", label: "Access", selected: false },
       { href: "/invitations", label: "Invitations", selected: false },
       { href: "/policies", label: "Policies", selected: false },
       { href: "/settings", label: "Settings", selected: false },
@@ -418,6 +464,19 @@ function siteSnapshot() {
       ]),
     ),
     recordsById: Object.fromEntries(testSiteRecords.map((record) => [record.id, record])),
+  };
+}
+
+function relocatedProductScreenSchema(): AppSchema {
+  return {
+    ...formlessProgramSchema,
+    screens: formlessProgramSchema.screens.map((screen) =>
+      screen.key === "routes"
+        ? { ...screen, path: "/infrastructure/routes" }
+        : screen.key === "access"
+          ? { ...screen, path: "/people/access" }
+          : screen,
+    ),
   };
 }
 

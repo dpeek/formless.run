@@ -28,8 +28,8 @@ Read this when editing `lib/identity-control-plane/*`.
 - `tsconfig.json`: package-local TypeScript project extending the repo config.
 - `src/types.ts`: public contract version, boundary and capability constants,
   entity names, and role key declarations.
-- `src/schema.ts`: reusable identity control-plane record and presentation
-  schema modules plus the complete App schema source.
+- `src/schema.ts`: reusable record, presentation, and access screen schema
+  modules plus the complete App schema source.
 - `src/index.ts`: runtime-neutral package root entrypoint.
 - `src/records.ts`: shared record adapter and identity bootstrap contribution.
 - `src/*.test.ts`: package-local contract and helper coverage.

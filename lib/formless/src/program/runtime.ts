@@ -63,9 +63,8 @@ export const FORMLESS_PROGRAM_EDITOR_ACCESS_REQUIREMENT = {
 export const FORMLESS_PROGRAM_MANAGEMENT_ACCESS_REQUIREMENT = {
   anyOf: [{ role: "administrator" }, { actor: "adminBearer" }],
 } as const satisfies AccessRequirement;
-export const FORMLESS_PROGRAM_SCREEN_PATHS: readonly string[] = formlessProgramSchema.screens
-  .map((screen) => screen.path)
-  .filter((path): path is `/${string}` => path !== undefined);
+export const FORMLESS_PROGRAM_SCREEN_PATHS: readonly string[] =
+  formlessProgramScreenRouteTargets().map((screen) => screen.path);
 
 export function parseFormlessProgramSchemaArtifact(value: unknown): AppSchema {
   return parseFormlessProgramSourceSchema(value);
@@ -116,6 +115,30 @@ export function resolveFormlessProgramScreenRouteTarget(
     label: screen.label,
     path: screen.path as `/${string}`,
   };
+}
+
+export function resolveFormlessProgramScreenRouteTargetByKey(
+  screenKey: string,
+  schema: AppSchema = formlessProgramSchema,
+): FormlessProgramScreenRouteTarget | undefined {
+  const screen = schema.screens.find((candidate) => candidate.key === screenKey);
+
+  return screen?.path === undefined
+    ? undefined
+    : resolveFormlessProgramScreenRouteTarget(screen.path, schema);
+}
+
+export function formlessProgramScreenRouteTargets(
+  schema: AppSchema = formlessProgramSchema,
+): readonly FormlessProgramScreenRouteTarget[] {
+  return schema.screens.flatMap((screen) => {
+    if (screen.path === undefined) {
+      return [];
+    }
+
+    const target = resolveFormlessProgramScreenRouteTarget(screen.path, schema);
+    return target === undefined ? [] : [target];
+  });
 }
 
 export type FormlessProgramValidationOptions = {

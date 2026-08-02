@@ -80,12 +80,10 @@ shell.
   facts are available
 - **THEN** runtime projects one shell manifest with stable identity, title,
   scope, active destination, and ordered navigation-section references
-- **AND** navigation presents Program screens from the complete materialized
-  Program artifact
-- **AND** instance settings and access are projected as local navigation only
-  while an instance route is selected
-- **AND** navigation sections can contain instance settings and access,
-  generated Program screens, root
+- **AND** navigation presents product-supplied and workspace-owned Program
+  screens from the complete materialized Program artifact through the same
+  destination contract
+- **AND** navigation sections can contain generated Program screens, root
   record navigation, app settings, and display-safe session controls
 - **AND** public Site routes are excluded from the top-level switcher and are
   exposed from Site admin workspaces as prominent links that open a new tab
@@ -253,6 +251,23 @@ The system SHALL render generated screens from screen models and collection sect
   Program replica
 - AND screen keys, module keys, schema keys, paths, and cached client role facts
   are not treated as authorization grants
+
+#### Scenario: Product screen route placement
+
+- GIVEN the materialized Program declares stable `routes` and `access` screen
+  keys
+- WHEN generated runtime projects, selects, or renders those product-supplied
+  screens
+- THEN the default Program exposes them at `/settings/routes` and
+  `/settings/access`
+- AND a downstream Program replacement may expose either screen at another
+  valid declared path without changing its renderer-neutral workspace or
+  management behavior
+- AND navigation and selected state use the final materialized screen path
+- AND product runtime contributions select the stable screen key rather than
+  comparing the browser location to a built-in path
+- AND the previous `/routes` and `/access` paths are not inferred, redirected,
+  or reserved unless the active Program declares screens at those paths
 
 #### Scenario: Program Tasks workspace
 
@@ -2140,7 +2155,8 @@ navigation, and external effects.
 #### Scenario: Instance admin management navigation
 
 - GIVEN an active principal has active `instance.admin` authority
-- WHEN the browser opens Instance Settings or `/access`
+- WHEN the browser opens Instance Settings or the active Program `access`
+  screen
 - THEN the client management guard accepts the management route
 - AND Routes and access-management presentation render through their
   existing operational API authorization
@@ -2195,8 +2211,8 @@ navigation, and external effects.
 - AND application source consumes contracts and host behavior through
   documented `@dpeek/formless-presentation` exports and concrete rendering
   through documented `@dpeek/formless-renderer` exports
-- AND production mounts management and `/access` through the same root Formless
-  Renderer application assembly
+- AND production mounts management and the active Program `access` screen
+  through the same root Formless Renderer application assembly
 
 #### Scenario: Formless management renderer
 

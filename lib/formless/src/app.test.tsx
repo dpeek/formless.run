@@ -1,13 +1,16 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { Router } from "wouter";
 import { describe, expect, it } from "vite-plus/test";
+import type { AppSchema } from "@dpeek/formless-schema";
 import { App, type AppRouteComponents } from "./app.tsx";
 import type { ProgramBrowserRuntimeDefinition } from "./program/composition.ts";
 import {
   createDevRuntimeProfile,
+  createInstanceRuntimeProfile,
   createPublishedSiteRuntimeProfile,
   type RuntimeProfile,
 } from "./app/runtime-profile.ts";
+import { formlessProgramSchema } from "./program/runtime.ts";
 
 describe("application route selection", () => {
   it("selects Program surfaces inside the application shell", () => {
@@ -65,6 +68,40 @@ describe("application route selection", () => {
     expect(preview).not.toContain('data-route="public-site"');
     expect(published).not.toContain('data-route="public-site"');
   });
+
+  it("mounts product behavior and loading contributions by relocated screen key", () => {
+    const programSchema = relocatedProductScreenSchema();
+    const runtimeProfile = createInstanceRuntimeProfile();
+    const routes = renderRoute("/infrastructure/routes", { programSchema, runtimeProfile });
+    const access = renderRoute("/people/access", { programSchema, runtimeProfile });
+    const previousAccessPath = renderRoute("/access", { programSchema, runtimeProfile });
+
+    expect(routes).toContain('data-route="instance"');
+    expect(routes).toContain('data-screen-key="routes"');
+    expect(routes).toContain('data-screen-path="/infrastructure/routes"');
+    expect(routes).toContain('data-routes-screen-path="/infrastructure/routes"');
+    expect(routes).toContain('data-initial-contributions="instance-management"');
+    expect(access).toContain('data-route="access"');
+    expect(access).toContain('data-initial-contributions="instance-access"');
+    expect(previousAccessPath).not.toContain('data-surface="application-shell"');
+    expect(previousAccessPath).not.toContain('data-route="access"');
+  });
+
+  it("mounts default product screens under settings and leaves top-level paths unclaimed", () => {
+    const runtimeProfile = createInstanceRuntimeProfile();
+    const routes = renderRoute("/settings/routes", { runtimeProfile });
+    const access = renderRoute("/settings/access", { runtimeProfile });
+    const previousRoutesPath = renderRoute("/routes", { runtimeProfile });
+    const previousAccessPath = renderRoute("/access", { runtimeProfile });
+
+    expect(routes).toContain('data-screen-key="routes"');
+    expect(routes).toContain('data-routes-screen-path="/settings/routes"');
+    expect(access).toContain('data-route="access"');
+    expect(`${previousRoutesPath}${previousAccessPath}`).not.toContain(
+      'data-surface="application-shell"',
+    );
+    expect(previousAccessPath).not.toContain('data-route="access"');
+  });
 });
 
 function renderRoute(
@@ -72,6 +109,7 @@ function renderRoute(
   options: {
     browserRuntime?: ProgramBrowserRuntimeDefinition;
     localWorkspaceGatewayAvailable?: boolean;
+    programSchema?: AppSchema;
     runtimeProfile?: RuntimeProfile;
   } = {},
 ) {
@@ -80,6 +118,7 @@ function renderRoute(
       <App
         browserRuntime={options.browserRuntime}
         localWorkspaceGatewayAvailable={options.localWorkspaceGatewayAvailable}
+        programSchema={options.programSchema}
         routeComponents={routeComponents()}
         runtimeProfile={options.runtimeProfile ?? createDevRuntimeProfile()}
       />
@@ -90,12 +129,26 @@ function renderRoute(
 function routeComponents(): AppRouteComponents {
   return {
     AccessRoute: () => <output data-route="access" />,
-    ApplicationShellRuntimeBoundary: ({ children }) => (
-      <section data-surface="application-shell">{children}</section>
+    ApplicationShellRuntimeBoundary: ({ children, initialRouteContractContributions }) => (
+      <section
+        data-initial-contributions={initialRouteContractContributions
+          ?.map(([contributorId]) => contributorId)
+          .join(",")}
+        data-surface="application-shell"
+      >
+        {children}
+      </section>
     ),
     AuthAccountRoute: () => <output data-route="auth-account" />,
     CollaboratorInvitationAcceptanceRoute: () => <output data-route="invitation" />,
-    InstanceShellRoute: () => <output data-route="instance" />,
+    InstanceShellRoute: ({ routesScreenPath, screenKey, screenPath }) => (
+      <output
+        data-route="instance"
+        data-routes-screen-path={routesScreenPath}
+        data-screen-key={screenKey}
+        data-screen-path={screenPath}
+      />
+    ),
     LocalSessionRoute: () => <output data-route="local-session" />,
     AccountSignInRoute: () => <output data-route="account-sign-in" />,
     SitePageRoute: ({ linkMode, routeBase, slug }) => (
@@ -105,6 +158,19 @@ function routeComponents(): AppRouteComponents {
         data-route-base={routeBase}
         data-slug={slug}
       />
+    ),
+  };
+}
+
+function relocatedProductScreenSchema(): AppSchema {
+  return {
+    ...formlessProgramSchema,
+    screens: formlessProgramSchema.screens.map((screen) =>
+      screen.key === "routes"
+        ? { ...screen, path: "/infrastructure/routes" }
+        : screen.key === "access"
+          ? { ...screen, path: "/people/access" }
+          : screen,
     ),
   };
 }

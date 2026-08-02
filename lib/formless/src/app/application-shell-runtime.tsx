@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { ShellIntent } from "@dpeek/formless-presentation/contract";
+import type { AppSchema } from "@dpeek/formless-schema";
 import { getClientStoreSnapshot, subscribeToClientStore } from "../client/store.ts";
 import { useSyncStatus } from "../client/sync-status.ts";
 import { selectGeneratedRootNavigationFacts } from "../client/generated-authoring.ts";
@@ -49,7 +50,11 @@ import {
 } from "./routes/home-selection.tsx";
 import { fetchAccountSessionStatus, logoutAccountSession } from "./routes/account-sign-in.tsx";
 import { normalizeRuntimeBrowserPath, type RuntimeProfile } from "./runtime-profile.ts";
-import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
+import {
+  formlessProgramSchema,
+  formlessProgramScreenRouteTargets,
+  resolveFormlessProgramScreenRouteTarget,
+} from "../program/runtime.ts";
 import {
   resolveProtectedRouteAccess,
   type ProtectedRouteAccessDecision,
@@ -79,6 +84,7 @@ export type ApplicationShellRuntimeBoundaryProps = {
   dependencies?: ApplicationShellRuntimeDependencies;
   initialRouteContractContributions?: readonly ApplicationRuntimeContractContribution[];
   accountSession?: AccountSessionStatusResponse | undefined;
+  programSchema?: AppSchema | undefined;
   runtimeProfile: RuntimeProfile;
   screenModels?: readonly HomeScreenModel[] | undefined;
 };
@@ -98,6 +104,7 @@ function ApplicationShellRuntime({
   dependencies = {},
   initialRouteContractContributions,
   accountSession: accountSessionProp,
+  programSchema = formlessProgramSchema,
   runtimeProfile,
   screenModels: screenModelsProp,
 }: ApplicationShellRuntimeBoundaryProps) {
@@ -109,10 +116,16 @@ function ApplicationShellRuntime({
   const syncStatus = useSyncStatus();
   const selectionStore = useHomeRouteSelectionStore();
   const normalizedCurrentPath = normalizeRuntimeBrowserPath(currentPath);
-  const programRoute = FORMLESS_PROGRAM_SCREEN_PATHS.includes(normalizedCurrentPath);
+  const programScreenPaths = useMemo(
+    () => formlessProgramScreenRouteTargets(programSchema).map((screen) => screen.path),
+    [programSchema],
+  );
+  const programRoute =
+    resolveFormlessProgramScreenRouteTarget(normalizedCurrentPath, programSchema) !== undefined;
   const authorizedProgramScreenPaths = useAuthorizedProgramScreenPaths({
     active: programRoute,
     currentPath: normalizedCurrentPath,
+    programScreenPaths,
     resolveRouteAccess: dependencies.resolveRouteAccess,
   });
   const routeSchema = programRoute ? snapshot.schema : null;
@@ -185,12 +198,13 @@ function ApplicationShellRuntime({
     accountSessionProp,
   );
   const [logoutState, setLogoutState] = useState<"error" | "idle" | "pending">("idle");
-  const renderShell = shouldRenderGeneratedShell({ currentPath, runtimeProfile });
+  const renderShell = shouldRenderGeneratedShell({ currentPath, programSchema, runtimeProfile });
   const projection = projectGeneratedApplicationShell({
     authorizedProgramScreenPaths,
     currentPath,
     logoutState,
     accountSession,
+    programSchema,
     root:
       rootFacts === undefined
         ? undefined
@@ -393,10 +407,12 @@ function ApplicationShellRuntime({
 function useAuthorizedProgramScreenPaths({
   active,
   currentPath,
+  programScreenPaths,
   resolveRouteAccess: resolveRouteAccessOverride,
 }: {
   active: boolean;
   currentPath: string;
+  programScreenPaths: readonly string[];
   resolveRouteAccess?: ApplicationShellRuntimeDependencies["resolveRouteAccess"];
 }): readonly string[] {
   const [authorizedPaths, setAuthorizedPaths] = useState<readonly string[]>([]);
@@ -417,7 +433,7 @@ function useAuthorizedProgramScreenPaths({
     setAuthorizedPaths([]);
 
     void Promise.all(
-      FORMLESS_PROGRAM_SCREEN_PATHS.map(async (path) => {
+      programScreenPaths.map(async (path) => {
         try {
           const decision = await resolveRouteAccessForPath(
             path as AccountRedirectTarget,
@@ -439,7 +455,7 @@ function useAuthorizedProgramScreenPaths({
       stopped = true;
       controller.abort();
     };
-  }, [active, currentPath, resolveRouteAccessOverride]);
+  }, [active, currentPath, programScreenPaths, resolveRouteAccessOverride]);
 
   return authorizedPaths;
 }

@@ -27,7 +27,7 @@ Read this when editing `lib/instance-control-plane/*`.
 - `src/types.ts`: public contract version declaration.
 - `src/index.ts`: runtime-neutral package root entrypoint and pure helpers.
 - `src/records.ts`: shared record adapter and create-id contribution.
-- `src/schema.ts`: reusable instance control-plane record and presentation schema modules.
+- `src/schema.ts`: reusable record, presentation, and routes screen schema module exports.
 - `src/*.test.ts`: package-local contract and helper coverage.
 
 ## Read Path

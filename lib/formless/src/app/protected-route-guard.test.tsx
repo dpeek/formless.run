@@ -28,8 +28,8 @@ vi.mock("./routes/application-system-state-runtime.tsx", () => ({
 describe("protected route guard", () => {
   it("accepts management navigation only after the protected control-plane boundary accepts it", async () => {
     const accepted = await runGuard("management", {
-      response: completeRouteResponse("/access"),
-      route: "/access",
+      response: completeRouteResponse("/settings/access"),
+      route: "/settings/access",
     });
     const rejected = await runGuard("management", {
       response: Response.json(
@@ -39,7 +39,7 @@ describe("protected route guard", () => {
       route: "/",
     });
 
-    expect(accepted.calls).toEqual(["/formless/auth?returnTo=%2Faccess"]);
+    expect(accepted.calls).toEqual(["/formless/auth?returnTo=%2Fsettings%2Faccess"]);
     expect(accepted.states).toEqual(["checking", "authorized"]);
     expect(rejected.calls).toEqual(["/formless/auth?returnTo=%2F"]);
     expect(rejected.states).toEqual(["checking", "redirect"]);
@@ -69,7 +69,7 @@ describe("protected route guard", () => {
   });
 
   it("stops rendering and protected loading while current Program authority is rechecked", async () => {
-    window.history.replaceState(null, "", "/access");
+    window.history.replaceState(null, "", "/settings/access");
     let renderer!: ReturnType<typeof render>;
     const protectedLoads: string[] = [];
 
@@ -83,10 +83,10 @@ describe("protected route guard", () => {
 
     await act(async () => {
       renderer = render(
-        <Router ssrPath="/access">
+        <Router ssrPath="/settings/access">
           <ProtectedRouteGuard
             access="management"
-            fetcher={async () => completeRouteResponse("/access")}
+            fetcher={async () => completeRouteResponse("/settings/access")}
           >
             <ProtectedLoad route="access" />
           </ProtectedRouteGuard>

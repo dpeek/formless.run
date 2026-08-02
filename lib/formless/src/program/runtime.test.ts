@@ -149,6 +149,18 @@ describe("Formless Program runtime contracts", () => {
   });
 
   it("loads only concrete Program screens with explicit access", () => {
+    expect(resolveFormlessProgramScreenRouteTarget("/settings/routes")).toEqual({
+      access: { role: "administrator" },
+      key: "routes",
+      label: "Routes",
+      path: "/settings/routes",
+    });
+    expect(resolveFormlessProgramScreenRouteTarget("/settings/access")).toEqual({
+      access: { role: "administrator" },
+      key: "access",
+      label: "Access",
+      path: "/settings/access",
+    });
     expect(resolveFormlessProgramScreenRouteTarget("/deployments")).toEqual({
       access: { role: "administrator" },
       key: "deployments",
@@ -185,6 +197,8 @@ describe("Formless Program runtime contracts", () => {
       label: "Broadcasts",
       path: "/crm/broadcasts",
     });
+    expect(resolveFormlessProgramScreenRouteTarget("/routes")).toBeUndefined();
+    expect(resolveFormlessProgramScreenRouteTarget("/access")).toBeUndefined();
     expect(resolveFormlessProgramScreenRouteTarget("/pages")).toBeUndefined();
     expect(resolveFormlessProgramScreenRouteTarget("/unknown")).toBeUndefined();
 
@@ -194,7 +208,7 @@ describe("Formless Program runtime contracts", () => {
     delete firstScreen?.access;
 
     expect(() => parseFormlessProgramSchemaArtifact(missingAccess)).toThrow(
-      'Formless Program schema screen "routes" must declare explicit access.',
+      'Formless Program schema screen "deployments" must declare explicit access.',
     );
   });
 

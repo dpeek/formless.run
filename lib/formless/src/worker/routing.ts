@@ -18,7 +18,7 @@ import {
   type RuntimeRouteAccess,
   type RuntimeProfileKind,
 } from "../shared/runtime-topology.ts";
-import { evaluateAccessRequirement } from "@dpeek/formless-schema";
+import { evaluateAccessRequirement, type AppSchema } from "@dpeek/formless-schema";
 import {
   formlessProgramSchema,
   resolveFormlessProgramScreenRouteTarget,
@@ -29,6 +29,7 @@ import type { InstanceRuntimeRouteResolution } from "./instance-runtime-routes.t
 export type WorkerRuntimeProfileInput = {
   hostname?: string | undefined;
   profile?: string | undefined;
+  programSchema?: AppSchema | undefined;
 };
 
 export type PublishedSiteRedirect = {
@@ -48,6 +49,8 @@ export type WorkerRuntimeRequestTopology = {
   dynamicSiteIconPath: boolean;
   instanceProfileClientShellRoute: boolean;
   pathname: string;
+  programScreenAllowsAnonymous?: boolean | undefined;
+  programScreenRouteTarget?: FormlessProgramScreenRouteTarget | undefined;
   profileKind: RuntimeProfileKind;
   publishedProfileClientShellRoute: boolean;
   publishedSiteIndexingResourcePath: boolean;
@@ -120,14 +123,29 @@ export function resolveWorkerRuntimeRequestTopology(
   const readMethod = isRuntimeReadRequestMethod(request.method);
   const apiPath = isRuntimeApiPath(url.pathname);
   const staticAssetPath = looksLikeRuntimeStaticAssetPath(url.pathname);
+  const programSchema = input.programSchema ?? formlessProgramSchema;
+  const programScreenRouteTarget = resolveFormlessProgramScreenRouteTarget(
+    url.pathname,
+    programSchema,
+  );
+  const programScreenAllowsAnonymous =
+    programScreenRouteTarget === undefined
+      ? undefined
+      : evaluateProgramScreenAccessForAnonymous(programScreenRouteTarget, programSchema);
 
   return {
     acceptsHtml: acceptsRuntimeHtml(request.headers.get("Accept")),
     apiPath,
     clientShellRoute: isRuntimeClientShellRoute(url.pathname),
     dynamicSiteIconPath: isRuntimeDynamicSiteIconPath(url.pathname),
-    instanceProfileClientShellRoute: isRuntimeInstanceProfileClientShellRoute(url.pathname),
+    instanceProfileClientShellRoute: isRuntimeInstanceProfileClientShellRoute(
+      url.pathname,
+      programSchema,
+    ),
     pathname: url.pathname,
+    ...(programScreenRouteTarget === undefined
+      ? {}
+      : { programScreenAllowsAnonymous, programScreenRouteTarget }),
     profileKind,
     publishedProfileClientShellRoute: isRuntimePublishedProfileClientShellRoute(url.pathname),
     publishedSiteIndexingResourcePath: isRuntimePublishedSiteIndexingResourcePath(url.pathname),
@@ -253,7 +271,13 @@ export function resolveProtectedBrowserRouteTargetFromFacts(input: {
 
 export function resolveProgramScreenRouteTargetFromFacts(input: {
   runtimeRoute?: InstanceRuntimeRouteResolution;
-  topology: Pick<WorkerRuntimeRequestTopology, "pathname" | "profileKind">;
+  topology: Pick<WorkerRuntimeRequestTopology, "pathname" | "profileKind"> &
+    Partial<
+      Pick<
+        WorkerRuntimeRequestTopology,
+        "programScreenAllowsAnonymous" | "programScreenRouteTarget"
+      >
+    >;
 }): ProgramScreenRouteTarget | undefined {
   const mountRoute = input.runtimeRoute?.kind === "mount" ? input.runtimeRoute : undefined;
 
@@ -273,7 +297,9 @@ export function resolveProgramScreenRouteTargetFromFacts(input: {
     return undefined;
   }
 
-  const screen = resolveFormlessProgramScreenRouteTarget(input.topology.pathname);
+  const screen =
+    input.topology.programScreenRouteTarget ??
+    resolveFormlessProgramScreenRouteTarget(input.topology.pathname);
 
   if (screen === undefined) {
     return undefined;
@@ -281,7 +307,10 @@ export function resolveProgramScreenRouteTargetFromFacts(input: {
 
   const routeAccess = mountRoute?.access ?? "anonymous";
   const screenAccess =
-    evaluateProgramScreenAccessForAnonymous(screen) === true ? "anonymous" : "authenticated";
+    (input.topology.programScreenAllowsAnonymous ??
+      evaluateProgramScreenAccessForAnonymous(screen, formlessProgramSchema)) === true
+      ? "anonymous"
+      : "authenticated";
 
   return {
     ...screen,
@@ -514,8 +543,9 @@ export function ownerBrowserRouteAccessFromFacts(
 
 function evaluateProgramScreenAccessForAnonymous(
   screen: FormlessProgramScreenRouteTarget,
+  programSchema: AppSchema,
 ): boolean {
-  return evaluateAccessRequirement(screen.access, { kind: "anonymous" }, formlessProgramSchema);
+  return evaluateAccessRequirement(screen.access, { kind: "anonymous" }, programSchema);
 }
 
 export function publishedSiteRedirectForRequest(

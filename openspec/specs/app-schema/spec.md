@@ -173,10 +173,29 @@ from reusable package modules.
   presentation modules
 - AND it supplies complete runtime ownership, navigation, and any
   project-owned modules at the composition root
+- AND product-supplied route-management and access-management screens are
+  ordinary screen declarations contributed through independently replaceable
+  modules
 - AND the result is one valid `AppSchemaSource` rather than a second Program
   schema language or wrapper contract
 - AND instance, identity, and Task entities retain their package-owned stable
   entity ids in the complete source
+
+#### Scenario: Place product screens through ordinary schema composition
+
+- GIVEN reusable control-plane packages expose product screen declarations
+  through independently replaceable schema modules
+- WHEN the default Program composes those modules
+- THEN the `routes` screen uses path `/settings/routes` and the `access` screen
+  uses path `/settings/access`
+- AND their keys, labels, layouts, paths, and access requirements remain
+  ordinary portable screen data
+- AND a downstream Program may eject either screen module and supply a
+  same-key module whose screen keeps the stable screen key and selects another
+  valid path
+- AND composition uses the existing screen registry, module dependency,
+  collision, parsing, navigation, and hashing rules rather than a product-route
+  registry, path override map, or second schema concept
 
 #### Scenario: Apply Program-specific Tasks policy
 
@@ -232,6 +251,8 @@ from reusable package modules.
   canonical source-schema hash
 - AND the workspace root owns its final authorization catalog, navigation,
   screen paths, and deliberate module replacements
+- AND product-supplied and workspace-owned screens use the same declaration and
+  replacement rules
 - AND module and declaration collision rules remain the normal schema-composer
   rules without automatic prefixes, discovery, registries, or deep merges
 - AND the trusted workspace configuration explicitly selects shared, browser,

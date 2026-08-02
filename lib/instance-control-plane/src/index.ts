@@ -1271,16 +1271,6 @@ export const instanceControlPlanePresentationSchemaModule = defineAppSchemaModul
   ],
   screens: [
     {
-      key: "routes",
-      type: "workspace",
-      label: "Routes",
-      path: "/routes",
-      layout: {
-        type: "stack",
-        sections: [{ id: "routes", type: "collection", view: "routeList" }],
-      },
-    },
-    {
       key: "deployments",
       type: "workspace",
       label: "Deployments",
@@ -1307,6 +1297,23 @@ export const instanceControlPlanePresentationSchemaModule = defineAppSchemaModul
   ],
 });
 
+export const instanceControlPlaneRoutesScreenSchemaModule = defineAppSchemaModule({
+  key: "instance-control-plane-routes-screen",
+  requires: [instanceControlPlanePresentationSchemaModule.key],
+  screens: [
+    {
+      key: "routes",
+      type: "workspace",
+      label: "Routes",
+      path: "/routes",
+      layout: {
+        type: "stack",
+        sections: [{ id: "routes", type: "collection", view: "routeList" }],
+      },
+    },
+  ],
+});
+
 export const instanceControlPlaneSourceSchema = composeAppSchema({
   version: 1,
   authorization: {
@@ -1318,7 +1325,11 @@ export const instanceControlPlaneSourceSchema = composeAppSchema({
       },
     ],
   },
-  modules: [instanceControlPlaneRecordSchemaModule, instanceControlPlanePresentationSchemaModule],
+  modules: [
+    instanceControlPlaneRecordSchemaModule,
+    instanceControlPlanePresentationSchemaModule,
+    instanceControlPlaneRoutesScreenSchemaModule,
+  ],
   runtime: {
     owner: "runtime",
   },

@@ -107,6 +107,60 @@ describe("workspace Program artifact", () => {
     ).rejects.toThrow('Schema module key "tasks-presentation" is listed more than once.');
   });
 
+  it("materializes same-key product screen replacements with presentation views", async () => {
+    const routesReplacement = defineAppSchemaModule({
+      ...formlessProgramBuiltInModules.instanceControlPlaneRoutesScreen,
+      screens: formlessProgramBuiltInModules.instanceControlPlaneRoutesScreen.screens.map(
+        (screen) => ({
+          ...screen,
+          path: "/infrastructure/routes",
+          access: { role: "administrator" },
+        }),
+      ),
+    });
+    const accessReplacement = defineAppSchemaModule({
+      ...formlessProgramBuiltInModules.identityControlPlaneAccessScreen,
+      screens: formlessProgramBuiltInModules.identityControlPlaneAccessScreen.screens.map(
+        (screen) => ({
+          ...screen,
+          path: "/people/access",
+          access: { role: "administrator" },
+        }),
+      ),
+    });
+    const artifact = await materializeFormlessProgramArtifact(
+      {
+        ...formlessProgramDefaultComposition,
+        modules: formlessProgramSchemaModules.map((module) =>
+          module.key === routesReplacement.key
+            ? routesReplacement
+            : module.key === accessReplacement.key
+              ? accessReplacement
+              : module,
+        ),
+      },
+      { runtime: formlessProgramDefaultRuntimeComposition },
+    );
+    const screens = new Map(artifact.sourceSchema.screens.map((screen) => [screen.key, screen]));
+    const viewKeys = new Set(artifact.sourceSchema.views.map(({ key }) => key));
+    const routes = screens.get("routes");
+    const access = screens.get("access");
+
+    expect(routes).toMatchObject({
+      key: "routes",
+      path: "/infrastructure/routes",
+      access: { role: "administrator" },
+    });
+    expect(access).toMatchObject({
+      key: "access",
+      path: "/people/access",
+      access: { role: "administrator" },
+    });
+    expect(routes?.layout.sections.every(({ view }) => viewKeys.has(view))).toBe(true);
+    expect(access?.layout.sections.every(({ view }) => viewKeys.has(view))).toBe(true);
+    await expect(parseFormlessProgramArtifact(artifact)).resolves.toEqual(artifact);
+  });
+
   it("rejects artifacts whose schema no longer matches provenance", async () => {
     const artifact = await materializeFormlessProgramArtifact(formlessProgramDefaultComposition, {
       runtime: formlessProgramDefaultRuntimeComposition,

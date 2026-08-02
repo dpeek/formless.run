@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { Redirect, Route, Switch, useLocation } from "wouter";
+import type { AppSchema } from "@dpeek/formless-schema";
 import { NotFoundRoute } from "./app/routes/not-found.tsx";
 import { normalizeSitePageSlug } from "@dpeek/formless-site-app/public/react";
 import {
@@ -37,7 +38,13 @@ import {
 } from "./shared/instance-auth.ts";
 import { runtimeTopologyRoutes, type RuntimeRouteAccess } from "./shared/runtime-topology.ts";
 import { initialInstanceManagementRuntimeContribution } from "./app/routes/instance-management-contract.ts";
-import { FORMLESS_PROGRAM_SCREEN_PATHS } from "./program/runtime.ts";
+import { initialInstanceAccessRuntimeContribution } from "./app/routes/access-contract.ts";
+import {
+  formlessProgramSchema,
+  formlessProgramScreenRouteTargets,
+  resolveFormlessProgramScreenRouteTarget,
+  resolveFormlessProgramScreenRouteTargetByKey,
+} from "./program/runtime.ts";
 import type { ProgramBrowserRuntimeDefinition } from "./program/composition.ts";
 import { programBrowserRuntime } from "./program/compiled/browser.ts";
 import { projectApplicationSystemState } from "./app/routes/application-system-state-projection.ts";
@@ -47,6 +54,9 @@ import { resolveProtectedRouteAccess } from "./app/protected-route-access.ts";
 
 type InstanceShellRouteProps = {
   localWorkspaceGatewayAvailable?: boolean | undefined;
+  routesScreenPath?: `/${string}` | undefined;
+  screenKey: string;
+  screenPath: `/${string}`;
 };
 
 export type AppRouteComponents = {
@@ -100,6 +110,7 @@ const defaultRouteComponents: AppRouteComponents = {
 export type AppProps = {
   browserRuntime?: ProgramBrowserRuntimeDefinition;
   localWorkspaceGatewayAvailable?: boolean;
+  programSchema?: AppSchema;
   routeComponents?: Partial<AppRouteComponents>;
   runtimeProfile?: RuntimeProfile;
 };
@@ -107,6 +118,7 @@ export type AppProps = {
 export function App({
   browserRuntime = programBrowserRuntime,
   localWorkspaceGatewayAvailable: localWorkspaceGatewayAvailableProp,
+  programSchema = formlessProgramSchema,
   routeComponents: routeComponentOverrides,
   runtimeProfile: runtimeProfileProp,
 }: AppProps = {}) {
@@ -116,19 +128,20 @@ export function App({
     [runtimeProfileProp],
   );
   const normalizedLocation = normalizeRuntimeBrowserPath(location);
+  const programScreen = resolveFormlessProgramScreenRouteTarget(normalizedLocation, programSchema);
   const browserRoutes = runtimeBrowserRoutePatterns(runtimeProfile);
   const runtime = (
     <AppRuntime
       browserRuntime={browserRuntime}
       localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailableProp}
       location={location}
+      programSchema={programSchema}
       routeComponents={routeComponentOverrides}
       runtimeProfile={runtimeProfile}
     />
   );
 
-  return browserRoutes.instanceShellRoute &&
-    FORMLESS_PROGRAM_SCREEN_PATHS.includes(normalizedLocation) ? (
+  return browserRoutes.instanceShellRoute && programScreen !== undefined ? (
     <ProtectedRouteGuard access="management">{runtime}</ProtectedRouteGuard>
   ) : (
     runtime
@@ -139,6 +152,7 @@ function AppRuntime({
   browserRuntime = programBrowserRuntime,
   localWorkspaceGatewayAvailable: localWorkspaceGatewayAvailableProp,
   location,
+  programSchema = formlessProgramSchema,
   routeComponents: routeComponentOverrides,
   runtimeProfile,
 }: AppProps & { location: string; runtimeProfile: RuntimeProfile }) {
@@ -149,18 +163,24 @@ function AppRuntime({
     [runtimeProfile],
   );
   const normalizedLocation = normalizeRuntimeBrowserPath(location);
+  const programScreen = resolveFormlessProgramScreenRouteTarget(normalizedLocation, programSchema);
   const initialRouteContractContributions = useMemo(() => {
-    if (normalizedLocation === "/routes") {
-      return [initialInstanceManagementRuntimeContribution];
+    switch (programScreen?.key) {
+      case "routes":
+        return [initialInstanceManagementRuntimeContribution];
+      case "access":
+        return [initialInstanceAccessRuntimeContribution];
+      default:
+        return [];
     }
-    return [];
-  }, [normalizedLocation]);
+  }, [programScreen?.key]);
   const localWorkspaceGatewayAvailable = useLocalWorkspaceGatewayAvailable(
     localWorkspaceGatewayAvailableProp,
-    routeMayNeedLocalWorkspaceGateway(browserRoutes, normalizedLocation),
+    routeMayNeedLocalWorkspaceGateway(browserRoutes, normalizedLocation, programSchema),
   );
   const renderShell = shouldRenderGeneratedShell({
     currentPath: location,
+    programSchema,
     runtimeProfile,
   });
 
@@ -169,6 +189,7 @@ function AppRuntime({
       <AppRoutes
         browserRuntime={browserRuntime}
         localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
+        programSchema={programSchema}
         routeComponents={routeComponents}
         runtimeProfile={runtimeProfile}
       />
@@ -183,11 +204,13 @@ function AppRuntime({
         applicationTheme={rootThemeRuntime}
         currentPath={location}
         initialRouteContractContributions={initialRouteContractContributions}
+        programSchema={programSchema}
         runtimeProfile={runtimeProfile}
       >
         <AppRoutes
           browserRuntime={browserRuntime}
           localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
+          programSchema={programSchema}
           routeComponents={routeComponents}
           runtimeProfile={runtimeProfile}
         />
@@ -249,25 +272,30 @@ function useLocalWorkspaceGatewayAvailable(
 function routeMayNeedLocalWorkspaceGateway(
   routes: ReturnType<typeof runtimeBrowserRoutePatterns>,
   path: string,
+  programSchema: AppSchema,
 ): boolean {
   return (
     path === routes.localSessionRoute ||
-    (routes.instanceShellRoute !== undefined && FORMLESS_PROGRAM_SCREEN_PATHS.includes(path))
+    (routes.instanceShellRoute !== undefined &&
+      resolveFormlessProgramScreenRouteTarget(path, programSchema) !== undefined)
   );
 }
 
 function AppRoutes({
   browserRuntime,
   localWorkspaceGatewayAvailable,
+  programSchema,
   routeComponents,
   runtimeProfile,
 }: {
   browserRuntime: ProgramBrowserRuntimeDefinition;
   localWorkspaceGatewayAvailable: boolean;
+  programSchema: AppSchema;
   routeComponents: AppRouteComponents;
   runtimeProfile: RuntimeProfile;
 }) {
   const {
+    AccessRoute,
     AuthAccountRoute,
     CollaboratorInvitationAcceptanceRoute,
     InstanceShellRoute,
@@ -279,6 +307,11 @@ function AppRoutes({
   const siteSurfaceSelected = resolveSitePublicBrowserRuntimeSurface(browserRuntime) !== undefined;
   const publishedSite = siteSurfaceSelected ? runtimeProfile.publishedSite : undefined;
   const publicSitePreview = siteSurfaceSelected ? runtimeProfile.publicSitePreview : undefined;
+  const programScreens = formlessProgramScreenRouteTargets(programSchema);
+  const routesScreenPath = resolveFormlessProgramScreenRouteTargetByKey(
+    "routes",
+    programSchema,
+  )?.path;
   const routes = (
     <Switch>
       {runtimeProfile.defaultRedirect ? (
@@ -310,15 +343,19 @@ function AppRoutes({
           <LocalSessionRoute />
         </Route>
       ) : null}
-      {browserRoutes.instanceShellRoute ? (
-        <Route path={browserRoutes.instanceShellRoute}>
-          <InstanceShellRoute localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable} />
-        </Route>
-      ) : null}
       {browserRoutes.instanceShellRoute
-        ? FORMLESS_PROGRAM_SCREEN_PATHS.filter((path) => path !== "/").map((path) => (
-            <Route key={path} path={path}>
-              <InstanceShellRoute localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable} />
+        ? programScreens.map((screen) => (
+            <Route key={screen.key} path={screen.path}>
+              {screen.key === "access" ? (
+                <AccessRoute />
+              ) : (
+                <InstanceShellRoute
+                  localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
+                  routesScreenPath={routesScreenPath}
+                  screenKey={screen.key}
+                  screenPath={screen.path}
+                />
+              )}
             </Route>
           ))
         : null}

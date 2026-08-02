@@ -196,7 +196,7 @@ describe("instance custom-domain Worker routing", () => {
       "Management Journey Admin",
     );
     const ordinary = await createActivePrincipalSessionCookie("Management Journey App User");
-    const accountPath = `${runtimeTopologyRoutes.authAccountRoute}?returnTo=%2Faccess`;
+    const accountPath = `${runtimeTopologyRoutes.authAccountRoute}?returnTo=%2Fsettings%2Faccess`;
 
     for (const cookie of [ownerCookie, programAdministrator.cookie]) {
       const status = await fetchAuth(accountPath, {
@@ -214,11 +214,11 @@ describe("instance custom-domain Worker routing", () => {
 
       expect(status.status, JSON.stringify(statusBody)).toBe(200);
       expect(statusBody).toMatchObject({
-        continueTo: "/access",
+        continueTo: "/settings/access",
         status: "complete",
       });
       expect(browser.status).toBe(302);
-      expect(browser.headers.get("Location")).toBe("/access");
+      expect(browser.headers.get("Location")).toBe("/settings/access");
     }
 
     const forbiddenStatus = await fetchAuth(accountPath, {
@@ -247,7 +247,7 @@ describe("instance custom-domain Worker routing", () => {
     });
     expect(forbiddenBrowser.status).toBe(200);
     expect(forbiddenBrowser.headers.get("Location")).toBeNull();
-    expect(JSON.stringify(forbiddenBody)).not.toContain("/access");
+    expect(JSON.stringify(forbiddenBody)).not.toContain("/settings/access");
     expect(JSON.stringify(forbiddenBody)).not.toContain("routeId");
   });
 
@@ -381,7 +381,7 @@ describe("instance custom-domain Worker routing", () => {
       headers: { Accept: "text/html", Cookie: accepted.cookie },
       redirect: "manual",
     });
-    const access = await fetchAuth("/access", {
+    const access = await fetchAuth("/settings/access", {
       headers: { Accept: "text/html", Cookie: accepted.cookie },
       redirect: "manual",
     });

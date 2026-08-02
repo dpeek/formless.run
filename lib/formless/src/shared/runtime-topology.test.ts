@@ -111,8 +111,7 @@ describe("runtime topology", () => {
     });
   });
 
-  it("owns Program and public Site route constants", () => {
-    expect(runtimeTopologyRoutes.accessRoute).toBe("/access");
+  it("owns intrinsic runtime and public Site route constants", () => {
     expect(runtimeTopologyRoutes.authAccountRoute).toBe("/formless/auth");
     expect(runtimeTopologyRoutes.authAccountGateRoutePattern).toBe("/formless/auth/*");
     expect(runtimeTopologyRoutes.authAccountSetupRoute).toBe("/formless/auth/setup");
@@ -187,7 +186,10 @@ describe("runtime topology", () => {
     expect(isRuntimePublishedProfileClientShellRoute("/site")).toBe(false);
 
     expect(isRuntimeInstanceProfileClientShellRoute("/")).toBe(true);
-    expect(isRuntimeInstanceProfileClientShellRoute("/access")).toBe(true);
+    expect(isRuntimeInstanceProfileClientShellRoute("/settings/routes")).toBe(true);
+    expect(isRuntimeInstanceProfileClientShellRoute("/settings/access")).toBe(true);
+    expect(isRuntimeInstanceProfileClientShellRoute("/routes")).toBe(false);
+    expect(isRuntimeInstanceProfileClientShellRoute("/access")).toBe(false);
     expect(isRuntimeInstanceProfileClientShellRoute("/local-session")).toBe(true);
     expect(isRuntimeInstanceProfileClientShellRoute("/formless/auth")).toBe(true);
     expect(isRuntimeInstanceProfileClientShellRoute("/formless/auth/profile-completion")).toBe(

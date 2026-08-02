@@ -6,6 +6,7 @@ import type {
   ShellSessionContract,
   ShellSyncStatusContract,
 } from "@dpeek/formless-presentation/contract";
+import type { AppSchema } from "@dpeek/formless-schema";
 import { shellNavigationSectionReference } from "@dpeek/formless-presentation/host";
 import {
   createEntityRecordCountReferencingFieldSelector,
@@ -28,7 +29,10 @@ import {
   runtimeBrowserRoutePatterns,
   type RuntimeProfile,
 } from "../runtime-profile.ts";
-import { FORMLESS_PROGRAM_SCREEN_PATHS, formlessProgramSchema } from "../../program/runtime.ts";
+import {
+  formlessProgramSchema,
+  resolveFormlessProgramScreenRouteTarget,
+} from "../../program/runtime.ts";
 
 export const GENERATED_APPLICATION_SHELL_ID = "application-shell";
 
@@ -59,6 +63,7 @@ export type ProjectGeneratedApplicationShellOptions = {
   currentPath: string;
   logoutState?: GeneratedShellLogoutState | undefined;
   accountSession?: AccountSessionStatusResponse | undefined;
+  programSchema?: AppSchema | undefined;
   root?: GeneratedShellRootProjectionInput | undefined;
   runtimeProfile: RuntimeProfile;
   sync?: GeneratedShellSyncFacts | undefined;
@@ -66,9 +71,11 @@ export type ProjectGeneratedApplicationShellOptions = {
 
 export function shouldRenderGeneratedShell({
   currentPath,
+  programSchema = formlessProgramSchema,
   runtimeProfile,
 }: {
   currentPath: string;
+  programSchema?: AppSchema | undefined;
   runtimeProfile: RuntimeProfile;
 }): boolean {
   const path = normalizeRuntimeBrowserPath(currentPath);
@@ -89,7 +96,7 @@ export function shouldRenderGeneratedShell({
   }
 
   if (runtimeProfile.shell === "instance") {
-    return FORMLESS_PROGRAM_SCREEN_PATHS.includes(path);
+    return resolveFormlessProgramScreenRouteTarget(path, programSchema) !== undefined;
   }
 
   return false;
@@ -257,18 +264,19 @@ export function projectGeneratedApplicationShell({
   currentPath,
   logoutState = "idle",
   accountSession,
+  programSchema = formlessProgramSchema,
   root,
   runtimeProfile,
   sync,
 }: ProjectGeneratedApplicationShellOptions): GeneratedApplicationShellProjection | undefined {
-  if (!shouldRenderGeneratedShell({ currentPath, runtimeProfile })) {
+  if (!shouldRenderGeneratedShell({ currentPath, programSchema, runtimeProfile })) {
     return undefined;
   }
 
   const sections: ShellNavigationSectionContract[] = [];
 
-  if (isGeneratedShellProgramPath(currentPath)) {
-    sections.push(programSection(currentPath, authorizedProgramScreenPaths));
+  if (isGeneratedShellProgramPath(currentPath, programSchema)) {
+    sections.push(programSection(currentPath, authorizedProgramScreenPaths, programSchema));
   }
 
   if (root) {
@@ -317,10 +325,10 @@ export function projectGeneratedApplicationShell({
   };
 }
 
-function isGeneratedShellProgramPath(currentPath: string): boolean {
+function isGeneratedShellProgramPath(currentPath: string, programSchema: AppSchema): boolean {
   const path = normalizeRuntimeBrowserPath(currentPath);
 
-  return FORMLESS_PROGRAM_SCREEN_PATHS.includes(path);
+  return resolveFormlessProgramScreenRouteTarget(path, programSchema) !== undefined;
 }
 
 export function generatedShellRootSectionId(
@@ -334,11 +342,12 @@ export function generatedShellRootSectionId(
 function programSection(
   currentPath: string,
   authorizedProgramScreenPaths: readonly string[],
+  programSchema: AppSchema,
 ): ShellNavigationSectionContract {
   const path = normalizeRuntimeBrowserPath(currentPath);
   const authorizedPaths = new Set(authorizedProgramScreenPaths);
-  const screens = new Map(formlessProgramSchema.screens.map((screen) => [screen.key, screen]));
-  const destinations = (formlessProgramSchema.navigation?.primaryScreens ?? [])
+  const screens = new Map(programSchema.screens.map((screen) => [screen.key, screen]));
+  const destinations = (programSchema.navigation?.primaryScreens ?? [])
     .map((screenKey) => screens.get(screenKey))
     .filter(
       (screen): screen is NonNullable<typeof screen> & { path: `/${string}` } =>

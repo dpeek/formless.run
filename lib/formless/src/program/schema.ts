@@ -1,10 +1,12 @@
 import {
+  identityControlPlaneAccessScreenSchemaModule,
   identityControlPlanePresentationSchemaModule,
   identityControlPlaneRecordSchemaModule,
 } from "@dpeek/formless-identity-control-plane/schema";
 import {
   instanceControlPlanePresentationSchemaModule,
   instanceControlPlaneRecordSchemaModule,
+  instanceControlPlaneRoutesScreenSchemaModule,
 } from "@dpeek/formless-instance-control-plane/schema";
 import {
   tasksPresentationSchemaModule,
@@ -198,10 +200,28 @@ export const formlessInstanceControlPlanePresentationSchemaModule = defineAppSch
   })),
 });
 
+export const formlessInstanceControlPlaneRoutesScreenSchemaModule = defineAppSchemaModule({
+  ...instanceControlPlaneRoutesScreenSchemaModule,
+  screens: instanceControlPlaneRoutesScreenSchemaModule.screens.map((screen) => ({
+    ...screen,
+    path: "/settings/routes",
+    access: programAdministratorScreenAccess,
+  })),
+});
+
 export const formlessIdentityControlPlanePresentationSchemaModule = defineAppSchemaModule({
   ...identityControlPlanePresentationSchemaModule,
   screens: identityControlPlanePresentationSchemaModule.screens.map((screen) => ({
     ...screen,
+    access: programAdministratorScreenAccess,
+  })),
+});
+
+export const formlessIdentityControlPlaneAccessScreenSchemaModule = defineAppSchemaModule({
+  ...identityControlPlaneAccessScreenSchemaModule,
+  screens: identityControlPlaneAccessScreenSchemaModule.screens.map((screen) => ({
+    ...screen,
+    path: "/settings/access",
     access: programAdministratorScreenAccess,
   })),
 });
@@ -213,7 +233,9 @@ export const formlessProgramBuiltInModules = {
   siteRecords: formlessSiteRecordSchemaModule,
   crmRecords: formlessCrmRecordSchemaModule,
   instanceControlPlanePresentation: formlessInstanceControlPlanePresentationSchemaModule,
+  instanceControlPlaneRoutesScreen: formlessInstanceControlPlaneRoutesScreenSchemaModule,
   identityControlPlanePresentation: formlessIdentityControlPlanePresentationSchemaModule,
+  identityControlPlaneAccessScreen: formlessIdentityControlPlaneAccessScreenSchemaModule,
   tasksPresentation: formlessTasksPresentationSchemaModule,
   sitePresentation: formlessSitePresentationSchemaModule,
   crmPresentation: formlessCrmPresentationSchemaModule,
@@ -226,7 +248,9 @@ export const formlessProgramSchemaModules = [
   formlessProgramBuiltInModules.siteRecords,
   formlessProgramBuiltInModules.crmRecords,
   formlessProgramBuiltInModules.instanceControlPlanePresentation,
+  formlessProgramBuiltInModules.instanceControlPlaneRoutesScreen,
   formlessProgramBuiltInModules.identityControlPlanePresentation,
+  formlessProgramBuiltInModules.identityControlPlaneAccessScreen,
   formlessProgramBuiltInModules.tasksPresentation,
   formlessProgramBuiltInModules.sitePresentation,
   formlessProgramBuiltInModules.crmPresentation,

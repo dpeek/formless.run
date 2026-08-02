@@ -75,11 +75,28 @@ through the Instance Control Plane package slice.
   control-plane entities, relationships, queries, and runtime control-plane
   entity policies
 - AND it exports one presentation module that depends on the record module key
-  and owns item views, table views, views, and screens
+  and owns item views, table views, views, and the ordinary instance screens
+  other than route management
+- AND it exports an independently replaceable route-management screen module
+  that depends on the presentation module and contributes the `routes` screen
 - AND a downstream Program composes the record module before the presentation
-  module and supplies runtime ownership at the composition root
+  and route-management screen modules and supplies runtime ownership at the
+  composition root
 - AND the modules remain runtime-neutral when a downstream Program selects
   Authority, storage, API, cursor, snapshot, or browser replica behavior
+
+#### Scenario: Compose route-management screen placement
+
+- GIVEN a Program includes instance route management
+- WHEN it composes the route-management screen module
+- THEN the module contributes an ordinary workspace screen with stable key
+  `routes` and the package-owned route editor layout
+- AND the default Program supplies a same-key replacement that selects
+  `/settings/routes` and the Program `administrator` access requirement
+- AND a downstream Program may omit that default replacement and supply its
+  own same-key screen module at another valid path
+- AND instance route records, operations, views, runtime adapters, and protocol
+  routes remain unchanged by screen placement
 
 #### Scenario: Package consumes related public contracts
 

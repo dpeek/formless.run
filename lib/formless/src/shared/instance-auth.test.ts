@@ -640,7 +640,7 @@ describe("account redirects", () => {
 
 function accountCompletionTarget() {
   return {
-    returnTo: "/access",
+    returnTo: "/settings/access",
     routeId: "route:access",
     selectedOrganization: "organization:acme",
     targetOrigin: "https://instance.example.com",
