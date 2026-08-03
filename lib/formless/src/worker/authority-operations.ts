@@ -39,12 +39,14 @@ import {
 import { BadRequestError, ReloadRequiredError } from "./errors.ts";
 import { PUBLIC_SITE_TREE_CACHE_CONTROL } from "@dpeek/formless-site-app/worker";
 import {
-  exportStorageSnapshot,
+  beginArchiveRestoreGuard,
+  exportStorageSnapshotSource,
   getBootstrapRecords,
   getChangesAfter,
   getCurrentCursor,
   initializeStorageFromSource,
   mapWriteOutcome,
+  releaseArchiveRestoreGuard,
   resetStorageSchemaToSourceOutcome,
   restoreStorageSnapshotOutcome,
   readCurrentStoredSchema,
@@ -56,6 +58,15 @@ import {
   type WriteOutcome,
   writeActiveSchemaOutcome,
 } from "./storage.ts";
+import {
+  ARCHIVE_RESTORE_GUARD_PATH,
+  ARCHIVE_RESTORE_GUARD_RELEASE_PATH,
+  type ArchiveRestoreGuardedSnapshotRequest,
+  type ArchiveRestoreGuardReleaseRequest,
+  type ArchiveRestoreGuardReleaseResponse,
+  type ArchiveRestoreGuardRequest,
+  type ArchiveRestoreGuardResponse,
+} from "./archive-restore-protocol.ts";
 import { readProgramPublicSiteTree } from "./public-site-worker-runtime.ts";
 import {
   selectCurrentFormlessProgramChanges,
@@ -71,6 +82,8 @@ export type AuthorityOperationMode = "read" | "write";
 
 export type AuthorityOperationKind =
   | "bootstrap"
+  | "beginArchiveRestore"
+  | "completeArchiveRestore"
   | "readSchema"
   | "exportSnapshot"
   | "siteTree"
@@ -117,6 +130,8 @@ export type ReadAuthorityOperation =
     });
 
 export type WriteAuthorityOperation =
+  | WriteOperation<"beginArchiveRestore">
+  | WriteOperation<"completeArchiveRestore">
   | WriteOperation<"writeSchema">
   | WriteOperation<"restoreSnapshot">
   | (WriteOperation<"entityOperation"> & EntityOperationRoute)
@@ -126,6 +141,7 @@ export type AuthorityOperation = ReadAuthorityOperation | WriteAuthorityOperatio
 
 export type AuthorityWriteNotifier = {
   apply<T>(write: () => WriteOutcome<T>): WriteOutcome<T>;
+  applyGuarded<T>(guardToken: string, write: () => WriteOutcome<T>): WriteOutcome<T>;
 };
 
 type AuthorityErrorResponse = {
@@ -133,6 +149,8 @@ type AuthorityErrorResponse = {
 };
 
 export type AuthorityOperationResponseBody =
+  | ArchiveRestoreGuardResponse
+  | ArchiveRestoreGuardReleaseResponse
   | AuthorityErrorResponse
   | BootstrapResponse
   | OperationInvocationResponse
@@ -224,6 +242,17 @@ export function selectAuthorityOperation(
     return { kind: "writeSchema", metadata: metadata("writeSchema", "write") };
   }
 
+  if (input.method === "POST" && input.path === ARCHIVE_RESTORE_GUARD_PATH) {
+    return { kind: "beginArchiveRestore", metadata: metadata("beginArchiveRestore", "write") };
+  }
+
+  if (input.method === "POST" && input.path === ARCHIVE_RESTORE_GUARD_RELEASE_PATH) {
+    return {
+      kind: "completeArchiveRestore",
+      metadata: metadata("completeArchiveRestore", "write"),
+    };
+  }
+
   if (input.method === "POST" && input.path === "/snapshot/restore") {
     return { kind: "restoreSnapshot", metadata: metadata("restoreSnapshot", "write") };
   }
@@ -258,6 +287,26 @@ export async function executeAuthorityOperation(
   const operation = input.operation;
 
   switch (operation.kind) {
+    case "beginArchiveRestore": {
+      initializeStorageFromSource(input.storage, input.source);
+      const request = parseArchiveRestoreGuardRequest(input.body);
+
+      return {
+        body: beginArchiveRestoreGuard(input.storage, {
+          ...request,
+          schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
+          storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+        }),
+      };
+    }
+
+    case "completeArchiveRestore": {
+      const request = parseArchiveRestoreGuardReleaseRequest(input.body);
+
+      releaseArchiveRestoreGuard(input.storage, request.guardToken);
+      return { body: { released: true } };
+    }
+
     case "bootstrap": {
       const storedSchema = initializeStorageFromSource(input.storage, input.source);
 
@@ -278,7 +327,7 @@ export async function executeAuthorityOperation(
     case "exportSnapshot": {
       initializeStorageFromSource(input.storage, input.source);
 
-      const snapshot = exportStorageSnapshot(
+      const source = exportStorageSnapshotSource(
         input.storage,
         FORMLESS_PROGRAM_STORAGE_IDENTITY,
         FORMLESS_PROGRAM_SCHEMA_KEY,
@@ -286,9 +335,17 @@ export async function executeAuthorityOperation(
 
       return {
         body: {
-          ...snapshot,
-          records: selectCurrentFormlessProgramRecords(snapshot.records),
+          ...source.snapshot,
+          records: selectCurrentFormlessProgramRecords(source.snapshot.records),
         },
+        ...(source.schemaProvenance === undefined
+          ? {}
+          : {
+              headers: {
+                [FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER]:
+                  source.schemaProvenance.sourceSchemaHash,
+              },
+            }),
       };
     }
 
@@ -353,8 +410,9 @@ export async function executeAuthorityOperation(
     }
 
     case "restoreSnapshot": {
+      const guardedRestore = parseArchiveRestoreGuardedSnapshotRequest(input.body);
       const snapshot = await validateStorageSnapshotRestore(
-        input.body,
+        guardedRestore === undefined ? input.body : guardedRestore.snapshot,
         {
           schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
           storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
@@ -375,10 +433,12 @@ export async function executeAuthorityOperation(
         }
       }
 
+      const outcome = () => restoreStorageSnapshotOutcome(input.storage, snapshot, input.source);
+
       return writeOperationResult(
-        input.writes.apply(() =>
-          restoreStorageSnapshotOutcome(input.storage, snapshot, input.source),
-        ),
+        guardedRestore === undefined
+          ? input.writes.apply(outcome)
+          : input.writes.applyGuarded(guardedRestore.guardToken, outcome),
       );
     }
     case "entityOperation": {
@@ -708,6 +768,100 @@ function parseCursor(value: string | null) {
   }
 
   return cursor;
+}
+
+function parseArchiveRestoreGuardRequest(value: unknown): ArchiveRestoreGuardRequest {
+  const object = parseArchiveRestoreRequestObject(
+    "Archive restore guard request",
+    value,
+    ["guardToken"],
+    ["expectedSourceCursor"],
+  );
+  const expectedSourceCursor = object.expectedSourceCursor;
+
+  if (
+    expectedSourceCursor !== undefined &&
+    (!Number.isInteger(expectedSourceCursor) || (expectedSourceCursor as number) < 0)
+  ) {
+    throw new BadRequestError(
+      "Archive restore guard request expectedSourceCursor must be a non-negative integer.",
+    );
+  }
+
+  return {
+    ...(expectedSourceCursor === undefined
+      ? {}
+      : { expectedSourceCursor: expectedSourceCursor as number }),
+    guardToken: parseArchiveRestoreGuardToken(object.guardToken),
+  };
+}
+
+function parseArchiveRestoreGuardReleaseRequest(value: unknown): ArchiveRestoreGuardReleaseRequest {
+  const object = parseArchiveRestoreRequestObject("Archive restore guard release request", value, [
+    "guardToken",
+  ]);
+
+  return { guardToken: parseArchiveRestoreGuardToken(object.guardToken) };
+}
+
+function parseArchiveRestoreGuardedSnapshotRequest(
+  value: unknown,
+): ArchiveRestoreGuardedSnapshotRequest | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const object = value as Record<string, unknown>;
+  if (!("guardToken" in object) && !("snapshot" in object)) {
+    return undefined;
+  }
+
+  const parsed = parseArchiveRestoreRequestObject(
+    "Guarded storage snapshot restore request",
+    value,
+    ["guardToken", "snapshot"],
+  );
+
+  return {
+    guardToken: parseArchiveRestoreGuardToken(parsed.guardToken),
+    snapshot: parsed.snapshot,
+  };
+}
+
+function parseArchiveRestoreRequestObject(
+  context: string,
+  value: unknown,
+  requiredKeys: readonly string[],
+  optionalKeys: readonly string[] = [],
+): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new BadRequestError(`${context} must be an object.`);
+  }
+
+  const object = value as Record<string, unknown>;
+  const allowedKeys = new Set([...requiredKeys, ...optionalKeys]);
+
+  for (const key of Object.keys(object)) {
+    if (!allowedKeys.has(key)) {
+      throw new BadRequestError(`${context} has unsupported key "${key}".`);
+    }
+  }
+
+  for (const key of requiredKeys) {
+    if (!(key in object)) {
+      throw new BadRequestError(`${context} must include "${key}".`);
+    }
+  }
+
+  return object;
+}
+
+function parseArchiveRestoreGuardToken(value: unknown): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new BadRequestError("Archive restore guard token must be a non-empty string.");
+  }
+
+  return value;
 }
 
 function isSiteTreePath(path: string): boolean {

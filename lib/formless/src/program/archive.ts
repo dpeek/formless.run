@@ -16,6 +16,7 @@ export * from "@dpeek/formless-archive";
 type ProgramArchiveOptions = {
   programArtifact?: FormlessProgramArtifact;
   programSchema?: AppSchema;
+  programSchemaProvenance?: FormlessProgramArtifact["schemaProvenance"];
   programSharedRuntime?: ProgramSharedRuntimeDefinition;
 };
 
@@ -47,13 +48,20 @@ function archiveOptions(options: ProgramArchiveOptions): ArchiveProgramValidatio
     programSnapshotContract: formlessProgramArchiveSnapshotContract({
       artifact: options.programArtifact,
       schema: options.programSchema,
+      schemaProvenance: options.programSchemaProvenance,
       sharedRuntime: options.programSharedRuntime,
     }),
   };
 }
 
 function restoreTarget(target: ProgramArchiveRestoreTargetState): ArchiveRestoreTargetState {
-  const { programArtifact, programSchema, programSharedRuntime, ...archiveTarget } = target;
+  const {
+    programArtifact,
+    programSchema,
+    programSchemaProvenance,
+    programSharedRuntime,
+    ...archiveTarget
+  } = target;
 
   return {
     ...archiveTarget,
@@ -62,6 +70,7 @@ function restoreTarget(target: ProgramArchiveRestoreTargetState): ArchiveRestore
       formlessProgramArchiveSnapshotContract({
         artifact: programArtifact,
         schema: programSchema,
+        schemaProvenance: programSchemaProvenance,
         sharedRuntime: programSharedRuntime,
       }),
   };

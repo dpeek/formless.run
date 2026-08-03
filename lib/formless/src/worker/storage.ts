@@ -61,6 +61,7 @@ import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
 } from "../program/target.ts";
+import { ArchiveRestoreGuardConflictError } from "./errors.ts";
 
 type RecordRow = {
   id: string;
@@ -79,6 +80,12 @@ type SchemaRow = {
 
 type TableInfoRow = {
   name: string;
+};
+
+type ArchiveRestoreGuardRow = {
+  acquired_at: string;
+  source_cursor: number;
+  token: string;
 };
 
 type OperationInvocationRow = {
@@ -105,6 +112,7 @@ type OperationInvocationRow = {
 };
 
 const authoritySqlMigrationFamily = storageSqlMigrationFamily("authority-storage");
+const archiveRestoreGuardTableName = "archive_restore_guard";
 const operationInvocationsTableName = "operation_invocations";
 const authoritySqlMigrations = createSqlStorageMigrationRegistry([
   {
@@ -130,6 +138,11 @@ export type ProgramSchemaProvenance = {
   sourceSchemaHash: SourceSchemaHash;
 };
 
+export type StorageSnapshotSource = {
+  schemaProvenance?: ProgramSchemaProvenance;
+  snapshot: StorageSnapshot;
+};
+
 export type ActiveSchemaRefreshBlocker = {
   currentSchemaProvenance?: ProgramSchemaProvenance;
   reason: string;
@@ -147,6 +160,11 @@ export class ActiveSchemaRefreshBlockedError extends Error {
     this.blocker = blocker;
   }
 }
+
+export type ArchiveRestoreGuardBeginResult = {
+  guardToken: string;
+  snapshot: StorageSnapshot;
+};
 
 export type WriteOutcome<T> =
   | {
@@ -361,6 +379,13 @@ export function ensureStorageTables(storage: DurableObjectStorage) {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS ${archiveRestoreGuardTableName} (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      token TEXT NOT NULL,
+      source_cursor INTEGER NOT NULL,
+      acquired_at TEXT NOT NULL
+    );
+
   `);
   ensureRecordUpdatedAtColumn(storage);
   ensureAppSchemaProvenanceColumn(storage);
@@ -437,6 +462,108 @@ export function getActiveSchema(
 
 export function readCurrentStoredSchema(storage: DurableObjectStorage): StoredSchema | undefined {
   return readStoredSchema(storage);
+}
+
+export function isArchiveRestoreGuardHeld(storage: DurableObjectStorage): boolean {
+  return readArchiveRestoreGuard(storage) !== undefined;
+}
+
+export function beginArchiveRestoreGuard(
+  storage: DurableObjectStorage,
+  input: {
+    expectedSourceCursor?: number;
+    guardToken: string;
+    schemaKey: string;
+    storageIdentity: string;
+  },
+): ArchiveRestoreGuardBeginResult {
+  return storage.transactionSync(() => {
+    const currentSourceCursor = getCurrentCursor(storage);
+    const existing = readArchiveRestoreGuard(storage);
+
+    if (existing) {
+      throw new ArchiveRestoreGuardConflictError({
+        currentSourceCursor,
+        ...(input.expectedSourceCursor === undefined
+          ? {}
+          : { expectedSourceCursor: input.expectedSourceCursor }),
+        reason: "guard-held",
+      });
+    }
+
+    if (
+      input.expectedSourceCursor !== undefined &&
+      currentSourceCursor !== input.expectedSourceCursor
+    ) {
+      throw new ArchiveRestoreGuardConflictError({
+        currentSourceCursor,
+        expectedSourceCursor: input.expectedSourceCursor,
+        reason: "source-cursor-changed",
+      });
+    }
+
+    const storedSchema = readStoredSchema(storage);
+    if (!storedSchema) {
+      throw new Error("Archive restore guard requires initialized Program storage.");
+    }
+
+    storage.sql.exec(
+      `
+        INSERT INTO ${archiveRestoreGuardTableName} (id, token, source_cursor, acquired_at)
+        VALUES (1, ?, ?, ?)
+      `,
+      input.guardToken,
+      currentSourceCursor,
+      nowIsoString(),
+    );
+
+    return {
+      guardToken: input.guardToken,
+      snapshot: storageSnapshotFromCurrentState(
+        storage,
+        storedSchema,
+        input.storageIdentity,
+        input.schemaKey,
+      ),
+    };
+  });
+}
+
+export function assertArchiveRestoreGuardAllowsWrite(
+  storage: DurableObjectStorage,
+  guardToken?: string,
+): void {
+  const currentSourceCursor = getCurrentCursor(storage);
+  const guard = readArchiveRestoreGuard(storage);
+
+  if (!guard) {
+    if (guardToken !== undefined) {
+      throw new ArchiveRestoreGuardConflictError({
+        currentSourceCursor,
+        reason: "guard-token-invalid",
+      });
+    }
+
+    return;
+  }
+
+  if (guardToken !== guard.token) {
+    throw new ArchiveRestoreGuardConflictError({
+      currentSourceCursor,
+      expectedSourceCursor: guard.source_cursor,
+      reason: guardToken === undefined ? "guard-held" : "guard-token-invalid",
+    });
+  }
+}
+
+export function releaseArchiveRestoreGuard(
+  storage: DurableObjectStorage,
+  guardToken: string,
+): void {
+  storage.transactionSync(() => {
+    assertArchiveRestoreGuardAllowsWrite(storage, guardToken);
+    storage.sql.exec(`DELETE FROM ${archiveRestoreGuardTableName} WHERE id = 1`);
+  });
 }
 
 export function initializeStorageFromSource(
@@ -757,18 +884,48 @@ export function exportStorageSnapshot(
       throw new Error("Cannot export storage snapshot before storage is initialized.");
     }
 
+    return storageSnapshotFromCurrentState(storage, storedSchema, storageIdentity, schemaKey);
+  });
+}
+
+export function exportStorageSnapshotSource(
+  storage: DurableObjectStorage,
+  storageIdentity: string,
+  schemaKey: string,
+): StorageSnapshotSource {
+  return storage.transactionSync(() => {
+    const storedSchema = readStoredSchema(storage);
+
+    if (!storedSchema) {
+      throw new Error("Cannot export storage snapshot source before storage is initialized.");
+    }
+
     return {
-      kind: STORAGE_SNAPSHOT_KIND,
-      version: STORAGE_SNAPSHOT_VERSION,
-      storageIdentity,
-      schemaKey,
-      exportedAt: nowIsoString(),
-      schemaUpdatedAt: storedSchema.updatedAt,
-      sourceCursor: getCurrentCursor(storage),
-      schema: storedSchema.schema,
-      records: formatStoredRecordsForArtifact(storedSchema.schema, getBootstrapRecords(storage)),
+      ...(storedSchema.schemaProvenance?.kind !== "program"
+        ? {}
+        : { schemaProvenance: storedSchema.schemaProvenance }),
+      snapshot: storageSnapshotFromCurrentState(storage, storedSchema, storageIdentity, schemaKey),
     };
   });
+}
+
+function storageSnapshotFromCurrentState(
+  storage: DurableObjectStorage,
+  storedSchema: StoredSchema,
+  storageIdentity: string,
+  schemaKey: string,
+): StorageSnapshot {
+  return {
+    kind: STORAGE_SNAPSHOT_KIND,
+    version: STORAGE_SNAPSHOT_VERSION,
+    storageIdentity,
+    schemaKey,
+    exportedAt: nowIsoString(),
+    schemaUpdatedAt: storedSchema.updatedAt,
+    sourceCursor: getCurrentCursor(storage),
+    schema: storedSchema.schema,
+    records: formatStoredRecordsForArtifact(storedSchema.schema, getBootstrapRecords(storage)),
+  };
 }
 
 export function restoreStorageSnapshot(
@@ -822,6 +979,7 @@ function clearStorageForReplacement(storage: DurableObjectStorage) {
   storage.sql.exec("DELETE FROM records");
   storage.sql.exec("DELETE FROM command_executions");
   storage.sql.exec(`DELETE FROM ${operationInvocationsTableName}`);
+  storage.sql.exec(`DELETE FROM ${archiveRestoreGuardTableName}`);
   storage.sql.exec("DELETE FROM app_schema");
   storage.sql.exec("DELETE FROM sqlite_sequence WHERE name = 'changes'");
 }
@@ -2569,6 +2727,20 @@ function readStoredSchema(storage: DurableObjectStorage): StoredSchema | undefin
     ...(schemaProvenance === undefined ? {} : { schemaProvenance }),
     updatedAt: row.value.updated_at,
   };
+}
+
+function readArchiveRestoreGuard(
+  storage: DurableObjectStorage,
+): ArchiveRestoreGuardRow | undefined {
+  return storage.sql
+    .exec<ArchiveRestoreGuardRow>(
+      `
+        SELECT token, source_cursor, acquired_at
+        FROM ${archiveRestoreGuardTableName}
+        WHERE id = 1
+      `,
+    )
+    .toArray()[0];
 }
 
 function parseStoredSchemaProvenance(value: string | null): ProgramSchemaProvenance | undefined {

@@ -44,11 +44,13 @@ export type ArchiveRestoreMediaAdapter = {
 };
 
 export type ArchiveRestoreTransaction = {
+  commit: () => Promise<void>;
   rollback: () => Promise<void>;
 };
 
 export type ArchiveRestoreApplyTarget = {
   beginRestore: () => Promise<ArchiveRestoreTransaction>;
+  expectedSourceCursor?: number;
   media?: ArchiveRestoreMediaAdapter;
   programArtifact?: FormlessProgramArtifact;
   programSchema?: AppSchema;
@@ -65,11 +67,14 @@ export type ArchiveRestoreExecutionErrorCode =
   | "media-read-failed"
   | "media-restore-failed"
   | "missing-media-adapter"
-  | "program-restore-failed";
+  | "program-restore-failed"
+  | "target-source-conflict";
 
 export type ArchiveRestoreExecutionError = {
   archivePath?: string;
   code: ArchiveRestoreExecutionErrorCode;
+  currentSourceCursor?: number;
+  expectedSourceCursor?: number;
   message: string;
   storageKey?: string;
 };
@@ -106,6 +111,20 @@ export type ArchiveRestoreExecutionResult =
       ok: false;
       plan?: ArchiveRestorePlan;
     };
+
+export class ArchiveRestoreSourceConflictError extends Error {
+  readonly currentSourceCursor: number;
+  readonly expectedSourceCursor: number;
+
+  constructor(expectedSourceCursor: number, currentSourceCursor: number) {
+    super(
+      `Archive restore expected Program source cursor ${expectedSourceCursor}, but current cursor is ${currentSourceCursor}.`,
+    );
+    this.name = "ArchiveRestoreSourceConflictError";
+    this.currentSourceCursor = currentSourceCursor;
+    this.expectedSourceCursor = expectedSourceCursor;
+  }
+}
 
 export async function dryRunInstanceArchiveRestore(
   value: unknown,
@@ -156,7 +175,11 @@ export async function applyInstanceArchiveRestore(
   try {
     transaction = await target.beginRestore();
   } catch (error) {
-    return restoreFailure("atomic-restore-failed", error, prepared.plan);
+    return restoreFailure(
+      isArchiveRestoreSourceConflict(error) ? "target-source-conflict" : "atomic-restore-failed",
+      error,
+      prepared.plan,
+    );
   }
 
   const reports: ArchiveRestoreStepReport[] = [];
@@ -217,6 +240,7 @@ export async function applyInstanceArchiveRestore(
     await target.replaceMedia?.(
       new Set(prepared.archive.media.objects.map((object) => object.storageKey)),
     );
+    await transaction.commit();
   } catch (error) {
     const executionError = asExecutionFailure(error);
 
@@ -375,6 +399,9 @@ async function prepareArchiveRestore(
 
   const mediaFiles = target.media ? await target.media.listFiles() : undefined;
   const planResult = planInstanceArchiveRestore(archive, {
+    ...(target.expectedSourceCursor === undefined
+      ? {}
+      : { expectedSourceCursor: target.expectedSourceCursor }),
     mediaFiles,
     programSnapshotContract: formlessProgramArchiveSnapshotContract({
       artifact: target.programArtifact,
@@ -663,11 +690,30 @@ function restoreFailure(
   error: unknown,
   plan: ArchiveRestorePlan,
 ): ArchiveRestoreExecutionResult {
+  const sourceConflict = isArchiveRestoreSourceConflict(error)
+    ? {
+        currentSourceCursor: error.currentSourceCursor,
+        expectedSourceCursor: error.expectedSourceCursor,
+      }
+    : {};
+
   return {
-    errors: [{ code, message: errorMessage(error) }],
+    errors: [{ code, message: errorMessage(error), ...sourceConflict }],
     ok: false,
     plan,
   };
+}
+
+function isArchiveRestoreSourceConflict(
+  error: unknown,
+): error is ArchiveRestoreSourceConflictError {
+  return (
+    error instanceof ArchiveRestoreSourceConflictError ||
+    (error instanceof Error &&
+      error.name === "ArchiveRestoreSourceConflictError" &&
+      "currentSourceCursor" in error &&
+      "expectedSourceCursor" in error)
+  );
 }
 
 function errorMessage(error: unknown): string {

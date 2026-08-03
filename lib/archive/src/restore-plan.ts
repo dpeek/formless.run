@@ -32,6 +32,7 @@ export type ArchiveRestoreMediaFile = {
 };
 
 export type ArchiveRestoreTargetState = ArchiveProgramValidationOptions & {
+  expectedSourceCursor?: number;
   mediaFiles?: readonly ArchiveRestoreMediaFile[];
 };
 
@@ -86,6 +87,7 @@ export type ArchiveRestorePlanSummary = {
 
 export type ArchiveRestorePlan = {
   dryRun: boolean;
+  expectedSourceCursor?: number;
   policy: ArchiveRestorePolicy;
   steps: ArchiveRestorePlanStep[];
   summary: ArchiveRestorePlanSummary;
@@ -153,6 +155,9 @@ function planParsedArchiveRestore(
     ok: true,
     plan: {
       dryRun: archive.restorePolicy.dryRun,
+      ...(target.expectedSourceCursor === undefined
+        ? {}
+        : { expectedSourceCursor: target.expectedSourceCursor }),
       policy: { dryRun: archive.restorePolicy.dryRun },
       steps,
       summary: {

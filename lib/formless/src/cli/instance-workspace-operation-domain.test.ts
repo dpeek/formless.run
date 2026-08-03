@@ -1,10 +1,10 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import type { DocumentMediaAsset } from "@dpeek/formless-media";
-import { defineAppSchemaModule, type AppSchema } from "@dpeek/formless-schema";
+import { composeAppSchema, defineAppSchemaModule, type AppSchema } from "@dpeek/formless-schema";
 import {
   formlessProgramSchema,
   formlessProgramSchemaProvenance,
@@ -17,6 +17,7 @@ import {
 import {
   materializeFormlessProgramSourceArtifact,
   parseFormlessProgramArtifact,
+  type FormlessProgramArtifact,
 } from "../program/artifact.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
@@ -44,6 +45,7 @@ import {
   FORMLESS_RUNTIME_PROTOCOL_VERSION,
   FORMLESS_STORAGE_MIGRATION_SET_ID,
 } from "../shared/deploy-metadata.ts";
+import { FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER } from "../shared/protocol.ts";
 import { SITE_PUBLIC_RENDERER_RUNTIME_EXTENSION_KEY } from "../shared/workspace-runtime-extensions.ts";
 import {
   ALCHEMY_PASSWORD_ENV_NAME,
@@ -70,6 +72,10 @@ import {
   runPullWorkspaceSourceOperation,
   runPushWorkspaceSourceOperation,
 } from "./instance-workspace-source-sync-operation.ts";
+import {
+  WorkspacePushRemoteRestoreError,
+  WorkspacePushSchemaCompatibilityError,
+} from "./instance-workspace-source-sync.ts";
 
 const tempDirs: string[] = [];
 const programDocumentBytes = new TextEncoder().encode("%PDF-1.7\nProgram private document");
@@ -97,6 +103,83 @@ const programDocumentSchemaModule = defineAppSchemaModule({
     },
   ],
 });
+
+function schemaSafePushProgram(linked: boolean) {
+  const presentation = defineAppSchemaModule({
+    key: "schema-safe-push-presentation",
+    tableViews: [
+      {
+        key: "schemaSafePushBlockTable",
+        entity: "block",
+        links: linked
+          ? [
+              {
+                key: "openPublishedBlock",
+                label: "Open published block",
+                target: "newTab" as const,
+                destination: {
+                  type: "url" as const,
+                  base: "https://example.com/published",
+                  query: [],
+                },
+              },
+            ]
+          : [],
+        columns: [
+          { type: "field" as const, field: "label" },
+          ...(linked
+            ? [
+                {
+                  type: "linkControl" as const,
+                  link: "openPublishedBlock",
+                  label: "Open",
+                },
+              ]
+            : []),
+        ],
+      },
+    ],
+  });
+
+  return {
+    ...formlessProgramDefaultComposition,
+    modules: [...formlessProgramSchemaModules, presentation],
+  };
+}
+
+function schemaFieldRemovalProgram(includeLegacyField: boolean) {
+  const records = defineAppSchemaModule({
+    key: "schema-safe-push-records",
+    entities: [
+      {
+        id: "entity_5f23c709-aa23-4094-a9ff-47d4fce7d66f",
+        key: "schema-safe-record",
+        label: "Schema-safe record",
+        fields: [
+          {
+            key: "label",
+            required: true,
+            type: "text" as const,
+          },
+          ...(includeLegacyField
+            ? [
+                {
+                  key: "legacyNote",
+                  required: false,
+                  type: "text" as const,
+                },
+              ]
+            : []),
+        ],
+      },
+    ],
+  });
+
+  return {
+    ...formlessProgramDefaultComposition,
+    modules: [...formlessProgramSchemaModules, records],
+  };
+}
 afterEach(async () => {
   await Promise.all(
     tempDirs.splice(0).map((tempDir) => rm(tempDir, { force: true, recursive: true })),
@@ -138,6 +221,7 @@ describe("workspace source sync operation domain", () => {
     const pullFetch = sourceSyncFetch(pullRequests, {
       controlPlaneRecords: programRecords,
       controlPlaneSchema: programSchema,
+      controlPlaneSchemaProvenance: programArtifact.schemaProvenance,
       programDocument: {
         asset: programDocument,
         bytes: programDocumentBytes,
@@ -213,6 +297,7 @@ describe("workspace source sync operation domain", () => {
     const pushFetch = sourceSyncFetch(pushRequests, {
       controlPlaneRecords: deployControlPlaneRecords({ targetUrl }),
       controlPlaneSchema: programSchema,
+      controlPlaneSchemaProvenance: programArtifact.schemaProvenance,
       restoreResponses: [restorePlan()],
     });
 
@@ -1003,6 +1088,677 @@ describe("deployment runtime domain", () => {
     });
   });
 
+  it("defers target-runtime validation for storage-compatible schema push dry-run", async () => {
+    const tempDir = await makeTempDir();
+    const workspaceRoot = path.join(tempDir, "personal-sites");
+    const requests: CapturedRequest[] = [];
+    const targetProgram = schemaSafePushProgram(false);
+    const desiredProgram = schemaSafePushProgram(true);
+    const targetArtifact = await materializeFormlessProgramSourceArtifact(
+      composeAppSchema(targetProgram),
+    );
+    const desiredArtifact = await materializeFormlessProgramSourceArtifact(
+      composeAppSchema(desiredProgram),
+    );
+    const targetSchema = parseFormlessProgramSchemaArtifact(targetArtifact.sourceSchema);
+    const fetcher = sourceSyncFetch(requests, {
+      controlPlaneSchema: targetSchema,
+      controlPlaneSchemaProvenance: targetArtifact.schemaProvenance,
+    });
+
+    await writeWorkspaceConfig(workspaceRoot, {
+      program: desiredProgram,
+      runtime: {
+        composition: {
+          shared: DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
+          browser: DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE,
+          worker: DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
+        },
+      },
+    });
+    await writeDeployStorageSnapshot(workspaceRoot, { program: desiredProgram });
+    await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, ".formless/instance.env"),
+      "FORMLESS_ADMIN_TOKEN=local-token\n",
+    );
+
+    const result = await runPushWorkspaceSourceOperation(
+      {
+        dryRun: true,
+        force: false,
+        kind: "push",
+        workspacePath: workspaceRoot,
+      },
+      operationDepsWithAccessGuards(
+        operationDeps(tempDir, {
+          accountDiscovery: {
+            listAccounts: async () => [{ id: "account-123", workersDevSubdomain: "dpeek" }],
+          },
+          fetch: fetcher,
+          packageVersion: packageJson.version,
+        }),
+        [
+          "credentialSetup",
+          "deploymentAdapter",
+          "healthCheck",
+          "localSecretEnv",
+          "packageRoot",
+          "randomToken",
+          "setupCapability",
+        ],
+      ),
+    );
+
+    expect(result).toMatchObject({
+      details: {
+        dryRunRestore: null,
+        schemaChange: {
+          currentProgramProvenance: targetArtifact.schemaProvenance,
+          desiredProgramProvenance: desiredArtifact.schemaProvenance,
+          localArchiveValidation: "passed",
+          runtimeReconciliation: "required",
+          storageCompatibility: "storage-compatible",
+          targetRuntimeValidation: "deferred",
+        },
+      },
+      summary: {
+        fields: {
+          localArchiveValidation: "passed",
+          runtimeReconciliation: "required",
+          storageCompatibility: "storage-compatible",
+          targetRuntimeValidation: "deferred",
+        },
+      },
+    });
+    expect(
+      requests.filter(
+        (request) => new URL(request.url).pathname === "/api/formless/archive/restore",
+      ),
+    ).toEqual([]);
+    expect(requests.every((request) => request.method === "GET")).toBe(true);
+  });
+
+  it.each([false, true])(
+    "pushes target-owned schema drift without changing records, cursors, or media (force=%s)",
+    async (force) => {
+      const tempDir = await makeTempDir();
+      const workspaceRoot = path.join(tempDir, "personal-sites");
+      const requests: CapturedRequest[] = [];
+      const deployInputs: DeployFormlessInstanceInput[] = [];
+      const targetProgram = schemaSafePushProgram(false);
+      const desiredProgram = schemaSafePushProgram(true);
+      const targetArtifact = await materializeFormlessProgramSourceArtifact(
+        composeAppSchema(targetProgram),
+      );
+      const desiredArtifact = await materializeFormlessProgramSourceArtifact(
+        composeAppSchema(desiredProgram),
+      );
+      const targetSchema = parseFormlessProgramSchemaArtifact(targetArtifact.sourceSchema);
+      const records = [...deployControlPlaneRecords(), ...programSiteMediaRecords()];
+      const mediaBytes = Buffer.from([7, 8, 9]);
+      const fetcher = sourceSyncFetch(requests, {
+        controlPlaneRecords: records,
+        controlPlaneSchema: targetSchema,
+        controlPlaneSchemaProvenance: targetArtifact.schemaProvenance,
+        programMediaBytes: mediaBytes,
+        restoreResponses: [
+          restorePlan(),
+          { ok: true, report: { applied: true, summary: restoreSummary() } },
+        ],
+      });
+
+      await writeWorkspaceConfig(workspaceRoot, {
+        program: desiredProgram,
+        runtime: {
+          composition: {
+            shared: DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
+            browser: DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE,
+            worker: DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
+          },
+        },
+      });
+      await writeDeployStorageSnapshot(workspaceRoot, {
+        program: desiredProgram,
+        records,
+      });
+      await writeWorkspaceMediaFile(workspaceRoot, mediaBytes, {
+        assetId: "program-cover.png",
+        program: desiredProgram,
+      });
+      await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
+      await writeFile(
+        path.join(workspaceRoot, ".formless/instance.env"),
+        "FORMLESS_ADMIN_TOKEN=local-token\n",
+      );
+
+      const result = await pushFormlessInstanceWorkspace(
+        {
+          apply: true,
+          force,
+          workspacePath: workspaceRoot,
+        },
+        deploymentApplyOperationDeps(tempDir, {
+          deployInputs,
+          env: { CLOUDFLARE_API_TOKEN: "manual-provider-token" },
+          fetch: fetcher,
+        }),
+      );
+      const restoreRequests = requests.filter(
+        (request) => new URL(request.url).pathname === "/api/formless/archive/restore",
+      );
+      const restoreBody = capturedRequestJson<{
+        archive: {
+          media: { objects: Array<{ archivePath: string; storageKey: string }> };
+          program: {
+            schemaProvenance: { sourceSchemaHash: string };
+            snapshot: { records: StoredRecord[]; sourceCursor: number };
+          };
+        };
+        mediaFiles: Array<{ archivePath: string; bytesBase64: string }>;
+      }>(restoreRequests.at(-1)!);
+      const backup = JSON.parse(await readFile(result.backup!.archivePath, "utf8")) as {
+        media: { objects: Array<{ archivePath: string; storageKey: string }> };
+        program: {
+          schemaProvenance: { sourceSchemaHash: string };
+          snapshot: { records: StoredRecord[]; sourceCursor: number };
+        };
+      };
+      const comparableRecords = (source: readonly StoredRecord[]) =>
+        source
+          .map((record) => ({
+            entity: record.entity,
+            id: record.id,
+            values: record.values,
+          }))
+          .sort((left, right) =>
+            `${left.entity}:${left.id}`.localeCompare(`${right.entity}:${right.id}`),
+          );
+
+      expect(result.forcedRecovery).toBeUndefined();
+      expect(result.syncPlan).toMatchObject({
+        status: "changes",
+        source: { programProvenance: desiredArtifact.schemaProvenance },
+        target: { programProvenance: targetArtifact.schemaProvenance },
+      });
+      expect(result.schemaChange).toEqual({
+        currentProgramProvenance: targetArtifact.schemaProvenance,
+        desiredProgramProvenance: desiredArtifact.schemaProvenance,
+        localArchiveValidation: "passed",
+        runtimeReconciliation: "required",
+        storageCompatibility: "storage-compatible",
+        targetRuntimeValidation: "passed",
+      });
+      expect(deployInputs).toHaveLength(1);
+      expect(restoreRequests).toHaveLength(2);
+      expect(restoreBody.archive.program.schemaProvenance).toEqual(
+        desiredArtifact.schemaProvenance,
+      );
+      expect(comparableRecords(restoreBody.archive.program.snapshot.records)).toEqual(
+        comparableRecords(records),
+      );
+      expect(restoreBody.archive.program.snapshot.sourceCursor).toBe(records.length);
+      expect(restoreBody.archive.media.objects).toEqual([
+        expect.objectContaining({
+          archivePath: "media/program/media/images/program-cover.png",
+          storageKey: "media/images/program-cover.png",
+        }),
+      ]);
+      expect(restoreBody.mediaFiles).toEqual([
+        expect.objectContaining({
+          archivePath: "media/program/media/images/program-cover.png",
+        }),
+      ]);
+      expect(backup.program.schemaProvenance).toEqual(targetArtifact.schemaProvenance);
+      expect(comparableRecords(backup.program.snapshot.records)).toEqual(
+        comparableRecords(records),
+      );
+      expect(backup.program.snapshot.sourceCursor).toBe(records.length);
+      expect(backup.media.objects).toEqual(restoreBody.archive.media.objects);
+    },
+  );
+
+  it("requires a fresh target read and backup after guarded apply detects concurrent change", async () => {
+    const tempDir = await makeTempDir();
+    const workspaceRoot = path.join(tempDir, "personal-sites");
+    const requests: CapturedRequest[] = [];
+    const deployInputs: DeployFormlessInstanceInput[] = [];
+    const targetProgram = schemaSafePushProgram(false);
+    const desiredProgram = schemaSafePushProgram(true);
+    const targetArtifact = await materializeFormlessProgramSourceArtifact(
+      composeAppSchema(targetProgram),
+    );
+    const targetSchema = parseFormlessProgramSchemaArtifact(targetArtifact.sourceSchema);
+    const desiredRecords = [...deployControlPlaneRecords(), ...programSiteMediaRecords()];
+    const initialMediaBytes = new Uint8Array([7, 8, 9]);
+    const concurrentMediaBytes = new Uint8Array([10, 11, 12]);
+    const concurrentRecord = programNativeRecords()[0]!;
+    let remoteRecords = [...desiredRecords];
+    let remoteMediaBytes = initialMediaBytes;
+    let mutateBeforeFirstApply = true;
+    const fetcher = sourceSyncFetch(requests, {
+      controlPlaneSchema: targetSchema,
+      controlPlaneSchemaProvenance: targetArtifact.schemaProvenance,
+      programMediaBytes: () => remoteMediaBytes,
+      restoreResponse: ({ body, request }) => {
+        const dryRun = body.archive?.restorePolicy?.dryRun !== false;
+
+        if (dryRun) {
+          if (mutateBeforeFirstApply) {
+            remoteRecords = [...remoteRecords, concurrentRecord];
+            remoteMediaBytes = concurrentMediaBytes;
+            mutateBeforeFirstApply = false;
+          }
+
+          return restorePlan();
+        }
+
+        const currentSourceCursor = remoteRecords.length;
+        if (body.expectedSourceCursor !== currentSourceCursor) {
+          return Response.json(
+            {
+              errors: [
+                {
+                  code: "target-source-conflict",
+                  currentSourceCursor,
+                  expectedSourceCursor: body.expectedSourceCursor,
+                  message: "Target changed after backup.",
+                },
+              ],
+              ok: false,
+            },
+            { status: 409 },
+          );
+        }
+
+        const restore = capturedRequestJson<{
+          archive: { program: { snapshot: { records: StoredRecord[] } } };
+          mediaFiles: Array<{ bytesBase64: string }>;
+        }>(request);
+        remoteRecords = restore.archive.program.snapshot.records;
+        remoteMediaBytes = new Uint8Array(
+          Buffer.from(restore.mediaFiles[0]!.bytesBase64, "base64"),
+        );
+
+        return { ok: true, report: { applied: true, summary: restoreSummary() } };
+      },
+      snapshotResponseFactory: () => controlPlaneSnapshot(remoteRecords, targetSchema),
+    });
+
+    await writeWorkspaceConfig(workspaceRoot, {
+      program: desiredProgram,
+      runtime: {
+        composition: {
+          shared: DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
+          browser: DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE,
+          worker: DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
+        },
+      },
+    });
+    await writeDeployStorageSnapshot(workspaceRoot, {
+      program: desiredProgram,
+      records: desiredRecords,
+    });
+    await writeWorkspaceMediaFile(workspaceRoot, initialMediaBytes, {
+      assetId: "program-cover.png",
+      program: desiredProgram,
+    });
+    await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, ".formless/instance.env"),
+      "FORMLESS_ADMIN_TOKEN=local-token\n",
+    );
+    const dependencies = deploymentApplyOperationDeps(tempDir, {
+      deployInputs,
+      env: { CLOUDFLARE_API_TOKEN: "manual-provider-token" },
+      fetch: fetcher,
+    });
+    let clock = Date.parse("2026-08-03T00:00:00.000Z");
+    dependencies.now = () => new Date(clock++).toISOString();
+
+    let conflict: unknown;
+    try {
+      await pushFormlessInstanceWorkspace(
+        { apply: true, force: false, workspacePath: workspaceRoot },
+        dependencies,
+      );
+    } catch (error) {
+      conflict = error;
+    }
+
+    expect(conflict).toBeInstanceOf(WorkspacePushRemoteRestoreError);
+    expect(conflict).toMatchObject({
+      apply: true,
+      remote: {
+        errors: [
+          {
+            code: "target-source-conflict",
+            currentSourceCursor: desiredRecords.length + 1,
+            expectedSourceCursor: desiredRecords.length,
+          },
+        ],
+        ok: false,
+      },
+    });
+    expect(remoteRecords.map((record) => record.id)).toContain(concurrentRecord.id);
+    expect(remoteMediaBytes).toEqual(concurrentMediaBytes);
+    expect(
+      requests.filter(
+        (request) => new URL(request.url).pathname === "/api/formless/program/snapshot",
+      ),
+    ).toHaveLength(2);
+
+    const retry = await pushFormlessInstanceWorkspace(
+      { apply: true, force: false, workspacePath: workspaceRoot },
+      dependencies,
+    );
+    const applyRequests = requests.filter((request) => {
+      if (new URL(request.url).pathname !== "/api/formless/archive/restore") return false;
+      return (
+        capturedRequestJson<{ archive: { restorePolicy: { dryRun: boolean } } }>(request).archive
+          .restorePolicy.dryRun === false
+      );
+    });
+    const expectedCursors = applyRequests.map(
+      (request) =>
+        capturedRequestJson<{ expectedSourceCursor: number }>(request).expectedSourceCursor,
+    );
+    const retryBackup = JSON.parse(await readFile(retry.backup!.archivePath, "utf8")) as {
+      program: { snapshot: { records: StoredRecord[] } };
+    };
+    const retryBackupMedia = await readFile(
+      path.join(
+        path.dirname(retry.backup!.archivePath),
+        "media/program/media/images/program-cover.png",
+      ),
+    );
+
+    expect(
+      requests.filter(
+        (request) => new URL(request.url).pathname === "/api/formless/program/snapshot",
+      ),
+    ).toHaveLength(4);
+    expect(expectedCursors).toEqual([desiredRecords.length, desiredRecords.length + 1]);
+    expect(retryBackup.program.snapshot.records.map((record) => record.id)).toContain(
+      concurrentRecord.id,
+    );
+    expect(new Uint8Array(retryBackupMedia)).toEqual(concurrentMediaBytes);
+    expect(remoteRecords.map((record) => record.id)).not.toContain(concurrentRecord.id);
+    expect(remoteMediaBytes).toEqual(initialMediaBytes);
+  });
+
+  it("backs up remote data drift before reconciling the workspace source", async () => {
+    const tempDir = await makeTempDir();
+    const workspaceRoot = path.join(tempDir, "personal-sites");
+    const requests: CapturedRequest[] = [];
+    const deployInputs: DeployFormlessInstanceInput[] = [];
+    const remoteOnlyRecord = programNativeRecords()[0]!;
+    const remoteRecords = [...deployControlPlaneRecords(), remoteOnlyRecord];
+    const fetcher = sourceSyncFetch(requests, {
+      controlPlaneRecords: remoteRecords,
+      restoreResponses: [
+        restorePlan(),
+        { ok: true, report: { applied: true, summary: restoreSummary() } },
+      ],
+    });
+
+    await writeWorkspaceConfig(workspaceRoot);
+    await writeDeployStorageSnapshot(workspaceRoot);
+    await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, ".formless/instance.env"),
+      "FORMLESS_ADMIN_TOKEN=local-token\n",
+    );
+
+    const result = await pushFormlessInstanceWorkspace(
+      { apply: true, force: false, workspacePath: workspaceRoot },
+      deploymentApplyOperationDeps(tempDir, {
+        deployInputs,
+        env: { CLOUDFLARE_API_TOKEN: "manual-provider-token" },
+        fetch: fetcher,
+      }),
+    );
+    const backup = JSON.parse(await readFile(result.backup!.archivePath, "utf8")) as {
+      program: { snapshot: { records: StoredRecord[] } };
+    };
+    const restoreRequests = requests.filter(
+      (request) => new URL(request.url).pathname === "/api/formless/archive/restore",
+    );
+    const applied = capturedRequestJson<{
+      archive: { program: { snapshot: { records: StoredRecord[] } } };
+    }>(restoreRequests.at(-1)!);
+
+    expect(result.syncPlan.changedRecords).toContain(
+      `${remoteOnlyRecord.entity}:${remoteOnlyRecord.id}`,
+    );
+    expect(backup.program.snapshot.records.map((record) => record.id)).toContain(
+      remoteOnlyRecord.id,
+    );
+    expect(applied.archive.program.snapshot.records.map((record) => record.id)).not.toContain(
+      remoteOnlyRecord.id,
+    );
+    expect(deployInputs).toHaveLength(1);
+    expect(restoreRequests).toHaveLength(2);
+  });
+
+  it("rejects destructive field removal before backup or remote mutation", async () => {
+    const tempDir = await makeTempDir();
+    const workspaceRoot = path.join(tempDir, "personal-sites");
+    const requests: CapturedRequest[] = [];
+    const deployInputs: DeployFormlessInstanceInput[] = [];
+    const targetProgram = schemaFieldRemovalProgram(true);
+    const desiredProgram = schemaFieldRemovalProgram(false);
+    const targetArtifact = await materializeFormlessProgramSourceArtifact(
+      composeAppSchema(targetProgram),
+    );
+    const targetSchema = parseFormlessProgramSchemaArtifact(targetArtifact.sourceSchema);
+    const fetcher = sourceSyncFetch(requests, {
+      controlPlaneSchema: targetSchema,
+      controlPlaneSchemaProvenance: targetArtifact.schemaProvenance,
+    });
+
+    await writeWorkspaceConfig(workspaceRoot, {
+      program: desiredProgram,
+      runtime: {
+        composition: {
+          shared: DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
+          browser: DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE,
+          worker: DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
+        },
+      },
+    });
+    await writeDeployStorageSnapshot(workspaceRoot, { program: desiredProgram });
+    await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, ".formless/instance.env"),
+      "FORMLESS_ADMIN_TOKEN=local-token\n",
+    );
+
+    let thrown: unknown;
+    try {
+      await pushFormlessInstanceWorkspace(
+        { apply: true, force: false, workspacePath: workspaceRoot },
+        deploymentApplyOperationDeps(tempDir, {
+          deployInputs,
+          env: { CLOUDFLARE_API_TOKEN: "manual-provider-token" },
+          fetch: fetcher,
+        }),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(WorkspacePushSchemaCompatibilityError);
+    expect(thrown).toMatchObject({
+      decision: {
+        issues: [
+          expect.objectContaining({
+            code: "field-set-changed",
+            message: 'entity "schema-safe-record" stored fields were added or removed',
+          }),
+        ],
+        status: "migration-required",
+      },
+    });
+    expect(deployInputs).toEqual([]);
+    expect(
+      requests.filter(
+        (request) => new URL(request.url).pathname === "/api/formless/archive/restore",
+      ),
+    ).toEqual([]);
+    await expect(stat(path.join(workspaceRoot, ".formless/backups"))).rejects.toThrow();
+  });
+
+  it("forces unreadable target recovery through desired-runtime validation", async () => {
+    const tempDir = await makeTempDir();
+    const workspaceRoot = path.join(tempDir, "personal-sites");
+    const requests: CapturedRequest[] = [];
+    const deployInputs: DeployFormlessInstanceInput[] = [];
+    const fetcher = sourceSyncFetch(requests, {
+      restoreResponses: [
+        restorePlan(),
+        { ok: true, report: { applied: true, summary: restoreSummary() } },
+      ],
+      snapshotResponse: {},
+    });
+
+    await writeWorkspaceConfig(workspaceRoot);
+    await writeDeployStorageSnapshot(workspaceRoot);
+    await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, ".formless/instance.env"),
+      "FORMLESS_ADMIN_TOKEN=local-token\n",
+    );
+
+    const result = await pushFormlessInstanceWorkspace(
+      { apply: true, force: true, workspacePath: workspaceRoot },
+      deploymentApplyOperationDeps(tempDir, {
+        deployInputs,
+        env: { CLOUDFLARE_API_TOKEN: "manual-provider-token" },
+        fetch: fetcher,
+      }),
+    );
+    const restoreRequests = requests.filter(
+      (request) => new URL(request.url).pathname === "/api/formless/archive/restore",
+    );
+    const restorePolicies = restoreRequests.map(
+      (request) =>
+        capturedRequestJson<{ archive: { restorePolicy: { dryRun: boolean } } }>(request).archive
+          .restorePolicy.dryRun,
+    );
+
+    expect(result).toMatchObject({
+      forcedRecovery: {
+        remoteReadFailureType: "validation",
+        status: "applied",
+      },
+    });
+    expect(result.backup).toBeUndefined();
+    expect(deployInputs).toHaveLength(1);
+    expect(restorePolicies).toEqual([true, false]);
+  });
+
+  it("stops at backup failure before provider or restore mutation", async () => {
+    const tempDir = await makeTempDir();
+    const workspaceRoot = path.join(tempDir, "personal-sites");
+    const requests: CapturedRequest[] = [];
+    const deployInputs: DeployFormlessInstanceInput[] = [];
+    const remoteRecords = [...deployControlPlaneRecords(), programNativeRecords()[0]!];
+    const fetcher = sourceSyncFetch(requests, { controlPlaneRecords: remoteRecords });
+
+    await writeWorkspaceConfig(workspaceRoot);
+    await writeDeployStorageSnapshot(workspaceRoot);
+    await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, ".formless/instance.env"),
+      "FORMLESS_ADMIN_TOKEN=local-token\n",
+    );
+    await writeFile(path.join(workspaceRoot, ".formless/backups"), "blocked\n");
+
+    await expect(
+      pushFormlessInstanceWorkspace(
+        { apply: true, force: false, workspacePath: workspaceRoot },
+        deploymentApplyOperationDeps(tempDir, {
+          deployInputs,
+          env: { CLOUDFLARE_API_TOKEN: "manual-provider-token" },
+          fetch: fetcher,
+        }),
+      ),
+    ).rejects.toThrow();
+
+    expect(deployInputs).toEqual([]);
+    expect(
+      requests.filter(
+        (request) => new URL(request.url).pathname === "/api/formless/archive/restore",
+      ),
+    ).toEqual([]);
+    await expect(readFile(path.join(workspaceRoot, ".formless/backups"), "utf8")).resolves.toBe(
+      "blocked\n",
+    );
+  });
+
+  it("keeps the durable backup when desired-runtime restore dry-run fails", async () => {
+    const tempDir = await makeTempDir();
+    const workspaceRoot = path.join(tempDir, "personal-sites");
+    const requests: CapturedRequest[] = [];
+    const deployInputs: DeployFormlessInstanceInput[] = [];
+    const remoteRecords = [...deployControlPlaneRecords(), programNativeRecords()[0]!];
+    const fetcher = sourceSyncFetch(requests, {
+      controlPlaneRecords: remoteRecords,
+      restoreResponses: [
+        {
+          errors: [{ code: "invalid-record", message: "desired runtime rejected archive" }],
+          ok: false,
+        },
+      ],
+    });
+
+    await writeWorkspaceConfig(workspaceRoot);
+    await writeDeployStorageSnapshot(workspaceRoot);
+    await mkdir(path.join(workspaceRoot, ".formless"), { recursive: true });
+    await writeFile(
+      path.join(workspaceRoot, ".formless/instance.env"),
+      "FORMLESS_ADMIN_TOKEN=local-token\n",
+    );
+
+    let thrown: unknown;
+    try {
+      await pushFormlessInstanceWorkspace(
+        { apply: true, force: false, workspacePath: workspaceRoot },
+        deploymentApplyOperationDeps(tempDir, {
+          deployInputs,
+          env: { CLOUDFLARE_API_TOKEN: "manual-provider-token" },
+          fetch: fetcher,
+        }),
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(WorkspacePushRemoteRestoreError);
+    expect(thrown).toMatchObject({
+      apply: false,
+      remote: {
+        errors: [expect.objectContaining({ message: "desired runtime rejected archive" })],
+        ok: false,
+      },
+    });
+    const backups = await readdir(path.join(workspaceRoot, ".formless/backups"));
+    expect(backups).toHaveLength(1);
+    await expect(
+      stat(path.join(workspaceRoot, ".formless/backups", backups[0]!, "archive.json")),
+    ).resolves.toMatchObject({ isFile: expect.any(Function) });
+    expect(deployInputs).toHaveLength(1);
+    const restoreRequests = requests.filter(
+      (request) => new URL(request.url).pathname === "/api/formless/archive/restore",
+    );
+    expect(restoreRequests).toHaveLength(1);
+    expect(
+      capturedRequestJson<{ archive: { restorePolicy: { dryRun: boolean } } }>(restoreRequests[0]!)
+        .archive.restorePolicy.dryRun,
+    ).toBe(true);
+  });
+
   it("accepts current Program-only workspace source", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
@@ -1545,6 +2301,8 @@ function deploymentApplyOperationDeps(
     packageRoot?: string;
   } = {},
 ): PushFormlessInstanceWorkspaceDependencies {
+  let deployedProgramProvenance = formlessProgramSchemaProvenance;
+
   return {
     accountDiscovery: {
       listAccounts: async () => [{ id: "account-123", workersDevSubdomain: "dpeek" }],
@@ -1553,6 +2311,12 @@ function deploymentApplyOperationDeps(
     deploymentAdapter: {
       deploy: async (input) => {
         options.deployInputs?.push(input);
+        if (input.workspaceProgramArtifact === undefined) {
+          throw new Error("Push deployment requires a Program artifact.");
+        }
+        deployedProgramProvenance = (
+          await parseFormlessProgramArtifact(JSON.parse(input.workspaceProgramArtifact) as unknown)
+        ).schemaProvenance;
 
         return { resourceEvidence: [], url: input.plan.expectedUrl.url };
       },
@@ -1565,7 +2329,7 @@ function deploymentApplyOperationDeps(
         metadataUrl: new URL("/api/formless/deploy", `${input.url}/`).toString(),
         packageVersion: input.expectedVersion,
         runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
-        schemaProvenance: formlessProgramSchemaProvenance,
+        schemaProvenance: deployedProgramProvenance,
         storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
         url: input.url,
         version: input.expectedVersion,
@@ -1651,20 +2415,42 @@ async function writeDeployStorageSnapshot(
   });
 }
 
-async function writeWorkspaceMediaFile(workspaceRoot: string, bytes: Uint8Array) {
-  const manifest = resolveFormlessConfig({ name: "personal-sites" });
-  const storageKey = "media/images/cover.png";
+async function writeWorkspaceMediaFile(
+  workspaceRoot: string,
+  bytes: Uint8Array,
+  options: {
+    assetId?: string;
+    program?: Parameters<typeof resolveFormlessConfig>[0]["program"];
+  } = {},
+) {
+  const manifest = resolveFormlessConfig({
+    name: "personal-sites",
+    ...(options.program === undefined
+      ? {}
+      : {
+          program: options.program,
+          runtime: {
+            composition: {
+              shared: DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
+              browser: DEFAULT_FORMLESS_PROGRAM_BROWSER_RUNTIME_MODULE,
+              worker: DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
+            },
+          },
+        }),
+  });
+  const assetId = options.assetId ?? "cover.png";
+  const storageKey = `media/images/${assetId}`;
   const archivePath = `media/program/${storageKey}`;
-  const deliveryHref = "/api/formless/media/media/images/cover.png";
+  const deliveryHref = `/api/formless/media/${storageKey}`;
   const object = {
     archivePath,
     asset: {
       byteSize: bytes.byteLength,
       contentType: "image/png",
       deliveryHref,
-      id: "cover.png",
+      id: assetId,
       kind: "image",
-      label: "cover.png",
+      label: assetId,
       provider: "r2",
       status: "ready",
       storageKey,
@@ -1702,12 +2488,22 @@ function sourceSyncFetch(
   options: {
     controlPlaneRecords?: StoredRecord[];
     controlPlaneSchema?: AppSchema;
+    controlPlaneSchemaProvenance?: FormlessProgramArtifact["schemaProvenance"];
     programDocument?: {
       asset: DocumentMediaAsset;
       bytes: Uint8Array;
     };
-    programMediaBytes?: Uint8Array;
+    programMediaBytes?: Uint8Array | (() => Uint8Array | undefined);
+    restoreResponse?: (input: {
+      body: {
+        archive?: { restorePolicy?: { dryRun?: boolean } };
+        expectedSourceCursor?: number;
+      };
+      request: CapturedRequest;
+    }) => Response | Record<string, unknown>;
     restoreResponses?: unknown[];
+    snapshotResponse?: unknown;
+    snapshotResponseFactory?: () => unknown;
   } = {},
 ): typeof fetch {
   const restoreResponses = [...(options.restoreResponses ?? [])];
@@ -1743,12 +2539,51 @@ function sourceSyncFetch(
       });
     }
 
+    if (parsedUrl.pathname === "/api/formless/program/operations/deployment-config/update") {
+      const body = parseCapturedBody<{
+        input: Record<string, unknown>;
+        recordId: string;
+      }>(init);
+
+      return Response.json({
+        invocation: {},
+        output: {
+          affectedChangeIds: [],
+          changes: [],
+          cursor: 2,
+          record: {
+            createdAt: "2026-05-26T00:00:00.000Z",
+            entity: "deployment-config",
+            id: body.recordId,
+            updatedAt: "2026-05-26T00:00:00.000Z",
+            values: {
+              targetId: body.recordId,
+              enabled: true,
+              providerFamily: "cloudflare",
+              targetUrl: "https://personal.dpeek.workers.dev",
+              ...body.input,
+            },
+          },
+          type: "update",
+        },
+        status: "committed",
+      });
+    }
+
     if (parsedUrl.pathname === "/api/formless/program/snapshot") {
+      const schema = options.controlPlaneSchema ?? formlessProgramSchema;
+      const schemaProvenance =
+        options.controlPlaneSchemaProvenance ?? formlessProgramSchemaProvenance;
+
       return Response.json(
-        controlPlaneSnapshot(
-          options.controlPlaneRecords ?? deployControlPlaneRecords(),
-          options.controlPlaneSchema,
-        ),
+        options.snapshotResponseFactory?.() ??
+          options.snapshotResponse ??
+          controlPlaneSnapshot(options.controlPlaneRecords ?? deployControlPlaneRecords(), schema),
+        {
+          headers: {
+            [FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER]: schemaProvenance.sourceSchemaHash,
+          },
+        },
       );
     }
 
@@ -1771,7 +2606,10 @@ function sourceSyncFetch(
       parsedUrl.pathname === "/api/formless/media/media/images/cover.png" ||
       parsedUrl.pathname === "/api/formless/media/media/images/program-cover.png"
     ) {
-      const mediaBytes = options.programMediaBytes;
+      const mediaBytes =
+        typeof options.programMediaBytes === "function"
+          ? options.programMediaBytes()
+          : options.programMediaBytes;
 
       if (mediaBytes) {
         return new Response(Buffer.from(mediaBytes), {
@@ -1781,6 +2619,16 @@ function sourceSyncFetch(
     }
 
     if (parsedUrl.pathname === "/api/formless/archive/restore" && method === "POST") {
+      if (options.restoreResponse) {
+        const body = parseCapturedBody<{
+          archive?: { restorePolicy?: { dryRun?: boolean } };
+          expectedSourceCursor?: number;
+        }>(init);
+        const response = options.restoreResponse({ body, request: requests.at(-1)! });
+
+        return response instanceof Response ? response : Response.json(response);
+      }
+
       const response = restoreResponses.shift();
 
       if (!response) {
@@ -1832,6 +2680,8 @@ function deployFetch(
   requests: CapturedRequest[],
   options: {
     controlPlaneRecords?: StoredRecord[];
+    controlPlaneSchema?: AppSchema;
+    controlPlaneSchemaProvenance?: FormlessProgramArtifact["schemaProvenance"];
     restoreResponse?: (input: { dryRun: boolean; request: CapturedRequest }) => unknown;
   } = {},
 ): typeof fetch {
@@ -1867,8 +2717,17 @@ function deployFetch(
     }
 
     if (parsedUrl.pathname === "/api/formless/program/snapshot") {
+      const schema = options.controlPlaneSchema ?? formlessProgramSchema;
+      const schemaProvenance =
+        options.controlPlaneSchemaProvenance ?? formlessProgramSchemaProvenance;
+
       return Response.json(
-        controlPlaneSnapshot(options.controlPlaneRecords ?? deployControlPlaneRecords()),
+        controlPlaneSnapshot(options.controlPlaneRecords ?? deployControlPlaneRecords(), schema),
+        {
+          headers: {
+            [FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER]: schemaProvenance.sourceSchemaHash,
+          },
+        },
       );
     }
 

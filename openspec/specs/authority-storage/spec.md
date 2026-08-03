@@ -184,6 +184,18 @@ without serializing runtime definition indexes.
 - AND accepting a new parsed schema object causes runtime definition indexes to
   be rebuilt or selected for that object identity
 
+#### Scenario: Read active Program provenance with stored state
+
+- GIVEN a protected archive or workspace sync read selects current Program
+  storage
+- WHEN Authority returns the active schema and records
+- THEN it returns the active complete Program provenance and source schema hash
+  from the same durable source state
+- AND a caller can validate that source under its own active Program contract
+  without supplying a different desired Program artifact
+- AND a mismatch between the returned active schema, source schema hash, and
+  active provenance remains an integrity failure
+
 #### Scenario: Preserve active entity identity
 
 - GIVEN an active schema contains a stable entity id and current entity key
@@ -851,6 +863,15 @@ preserve Authority storage invariants.
 - AND sync cursors remain monotonic
 - AND operation invocations are cleared
 
+#### Scenario: Reject stale replacement plans
+
+- GIVEN a replacement request declares expected source cursor C
+- WHEN Authority's current source cursor no longer equals C
+- THEN Authority rejects the replacement with a conflict before changing schema,
+  records, changes, or operation invocations
+- AND the caller must read, compare, and back up the newer target state before
+  retrying
+
 ### Requirement: Authority Write Outcome Consumption
 
 The system SHALL make Authority operation adapters consume storage write
@@ -1078,6 +1099,17 @@ the source of schema truth.
 - AND committed records, source cursor, operation invocations, and change rows are
   not replaced
 
+#### Scenario: Refresh presentation-only Program metadata
+
+- GIVEN the complete Program source differs only in schema-authored presentation
+  metadata such as record links or link controls
+- AND stored entity identities, field identities, value shapes, constraints, and
+  every committed record remain valid without materialization
+- WHEN compatible source schema refresh runs
+- THEN Authority accepts the new complete Program schema and provenance
+- AND every committed record id, entity key, value, cursor, invocation, and
+  change row remains unchanged
+
 #### Scenario: Block incompatible Program refresh
 
 - GIVEN current active records admitted by the current Program cannot validate
@@ -1086,6 +1118,9 @@ the source of schema truth.
 - THEN Authority keeps the existing active schema and records unchanged
 - AND the caller receives a schema refresh blocker that identifies current and
   target Program provenance without package or module identity
+- AND removing or rebinding a stored entity or field, pruning a stored value, or
+  tightening a constraint that requires record changes remains blocked for an
+  explicit evolution or migration operation
 
 ### Requirement: Control-Plane Secret Boundary
 

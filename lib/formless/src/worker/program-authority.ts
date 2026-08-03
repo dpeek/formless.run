@@ -15,6 +15,7 @@ import {
   ensureStorageTables,
   getBootstrapRecords,
   initializeStorageFromSource,
+  isArchiveRestoreGuardHeld,
   reconcileRuntimeInvariantRecords,
   type RecordConstraintValidator,
   type StorageSource,
@@ -34,6 +35,11 @@ export function formlessProgramSource(): StorageSource {
 
 export function ensureFormlessProgramStorage(storage: DurableObjectStorage) {
   ensureStorageTables(storage);
+
+  if (isArchiveRestoreGuardHeld(storage)) {
+    return;
+  }
+
   const source = formlessProgramSource();
 
   initializeStorageFromSource(storage, source, {

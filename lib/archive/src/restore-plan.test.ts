@@ -75,6 +75,7 @@ describe("Program archive restore planning", () => {
   it("plans deterministic media-before-record dry-run steps", () => {
     const media = imageObject("hero");
     const result = planInstanceArchiveRestore(instanceArchive({ media: { objects: [media] } }), {
+      expectedSourceCursor: 7,
       mediaFiles: [
         {
           archivePath: media.archivePath,
@@ -89,6 +90,7 @@ describe("Program archive restore planning", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.plan.dryRun).toBe(true);
+    expect(result.plan.expectedSourceCursor).toBe(7);
     expect(result.plan.steps.map((step) => step.kind)).toEqual(["restoreMedia", "restoreProgram"]);
     expect(result.plan.summary).toEqual({
       mediaCount: 1,

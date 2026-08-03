@@ -174,6 +174,7 @@ export type FormlessProgramValidationOptions = {
   artifact?: FormlessProgramArtifact;
   candidateRecord?: StoredRecord;
   schema?: AppSchema;
+  schemaProvenance?: FormlessProgramArtifact["schemaProvenance"];
   sharedRuntime?: ProgramSharedRuntimeDefinition;
 };
 
@@ -182,13 +183,14 @@ export function formlessProgramArchiveSnapshotContract(
 ) {
   const artifact =
     options.artifact ?? (options.schema === undefined ? formlessProgramArtifact : undefined);
+  const schemaProvenance = options.schemaProvenance ?? artifact?.schemaProvenance;
 
   return {
     canonicalize: (snapshot: StorageSnapshot) =>
       canonicalizeFormlessProgramStorageSnapshot(snapshot, options),
     parse: (context: string, value: unknown) =>
       parseFormlessProgramStorageSnapshot(context, value, options),
-    ...(artifact === undefined ? {} : { schemaProvenance: artifact.schemaProvenance }),
+    ...(schemaProvenance === undefined ? {} : { schemaProvenance }),
   };
 }
 

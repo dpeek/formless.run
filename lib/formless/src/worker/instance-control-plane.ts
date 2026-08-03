@@ -39,7 +39,8 @@ import {
 import { selectPublicOperationRoute } from "./public-operations.ts";
 import { validateRecordValues } from "./authority-validation.ts";
 import { assertUniqueConstraints } from "./constraints.ts";
-import { BadRequestError } from "./errors.ts";
+import { ArchiveRestoreGuardConflictError, BadRequestError } from "./errors.ts";
+import { ARCHIVE_RESTORE_CONFLICT_CODE } from "./archive-restore-protocol.ts";
 import {
   createRecordSetForOperationOutcome,
   ActiveSchemaRefreshBlockedError,
@@ -252,7 +253,10 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
     const body = operation.metadata.mode === "write" ? await readJson(request) : undefined;
 
     if (operation.kind === "restoreSnapshot") {
-      parseFormlessProgramStorageSnapshot("Formless Program storage snapshot", body);
+      parseFormlessProgramStorageSnapshot(
+        "Formless Program storage snapshot",
+        guardedSnapshotRestoreValue(body),
+      );
     }
 
     ensureControlPlaneStorage(storage);
@@ -284,6 +288,21 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
 
     return jsonResponse(result.body, result.status, result.headers);
   } catch (error) {
+    if (isArchiveRestoreGuardConflict(error)) {
+      return jsonResponse(
+        {
+          code: ARCHIVE_RESTORE_CONFLICT_CODE,
+          currentSourceCursor: error.currentSourceCursor,
+          error: error.message,
+          ...(error.expectedSourceCursor === undefined
+            ? {}
+            : { expectedSourceCursor: error.expectedSourceCursor }),
+          reason: error.reason,
+        },
+        409,
+      );
+    }
+
     if (error instanceof ActiveSchemaRefreshBlockedError) {
       return jsonResponse({ error: error.message, blocker: error.blocker }, 409);
     }
@@ -294,6 +313,30 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
 
     return jsonResponse({ error: errorMessage(error) }, 400);
   }
+}
+
+function guardedSnapshotRestoreValue(value: unknown): unknown {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    "guardToken" in value &&
+    "snapshot" in value
+  ) {
+    return (value as { snapshot: unknown }).snapshot;
+  }
+
+  return value;
+}
+
+function isArchiveRestoreGuardConflict(error: unknown): error is ArchiveRestoreGuardConflictError {
+  return (
+    error instanceof ArchiveRestoreGuardConflictError ||
+    (error instanceof Error &&
+      error.name === "ArchiveRestoreGuardConflictError" &&
+      "currentSourceCursor" in error &&
+      "reason" in error)
+  );
 }
 
 function hostAuthSessionTargetForInstanceControlPlaneRequest(request: Request) {
@@ -1485,6 +1528,9 @@ function assertBrowserControlPlaneWriteActor(
 
 const noopWriteNotifier: AuthorityWriteNotifier = {
   apply(write) {
+    return write();
+  },
+  applyGuarded(_guardToken, write) {
     return write();
   },
 };

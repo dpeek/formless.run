@@ -10,6 +10,7 @@ import {
 } from "../program/archive.ts";
 import type { ArchiveDiskMediaFile } from "../program/archive-node.ts";
 import type { FormlessProgramArtifact } from "../program/artifact.ts";
+import type { AppSchema } from "@dpeek/formless-schema";
 import { formlessProgramArtifact, formlessProgramSchema } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
@@ -70,7 +71,11 @@ export function withoutControlPlaneLifecycleValues(values: RecordValues): Record
 
 export async function readArchiveDirectoryForCheck(
   archiveRoot: string,
-  options: { programArtifact?: FormlessProgramArtifact } = {},
+  options: {
+    programArtifact?: FormlessProgramArtifact;
+    programSchema?: AppSchema;
+    programSchemaProvenance?: FormlessProgramArtifact["schemaProvenance"];
+  } = {},
 ): Promise<WorkspaceArchiveDirectory | undefined> {
   const archivePath = path.join(archiveRoot, INSTANCE_ARCHIVE_MANIFEST_FILE);
   let contents: string;
@@ -87,7 +92,14 @@ export async function readArchiveDirectoryForCheck(
 
   const value = JSON.parse(contents) as unknown;
   const archive = parseInstanceArchive(value, {
-    programArtifact: options.programArtifact ?? formlessProgramArtifact,
+    ...(options.programArtifact === undefined && options.programSchema === undefined
+      ? { programArtifact: formlessProgramArtifact }
+      : {}),
+    ...(options.programArtifact === undefined ? {} : { programArtifact: options.programArtifact }),
+    ...(options.programSchema === undefined ? {} : { programSchema: options.programSchema }),
+    ...(options.programSchemaProvenance === undefined
+      ? {}
+      : { programSchemaProvenance: options.programSchemaProvenance }),
   });
   const mediaFiles: ArchiveDiskMediaFile[] = [];
   const missingMediaFiles: string[] = [];
@@ -175,12 +187,11 @@ export function controlPlaneSnapshotForArchive(
   controlPlane: WorkspaceControlPlaneRecords,
   exportedAt: string,
 ): StorageSnapshot {
-  return workspaceControlPlaneSnapshotFromRecords({
-    current: controlPlane,
+  return {
+    ...controlPlane,
     exportedAt,
     records: controlPlane.records,
-    schemaUpdatedAt: controlPlane.schemaUpdatedAt,
-  });
+  };
 }
 
 export function workspaceControlPlaneSnapshotFromRecords(input: {

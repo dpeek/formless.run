@@ -51,7 +51,8 @@ import {
   runtimeWorkspaceProgramRuntimeEnvValue,
 } from "./program-runtime-bundler.ts";
 import type { DomainProviderPlan } from "../shared/domain-provider-protocol.ts";
-import { exportInstanceArchive, type RestoreInstanceArchiveResult } from "./archive-workflows.ts";
+import type { RestoreInstanceArchiveResult } from "./archive-workflows.ts";
+import type { FormlessProgramArtifact } from "../program/artifact.ts";
 import {
   ALCHEMY_PASSWORD_ENV_NAME,
   FORMLESS_INSTANCE_LOCAL_ENV_FILE,
@@ -106,9 +107,11 @@ import {
   checkFormlessInstanceWorkspace,
   prepareWorkspacePushSourceSync,
   restoreWorkspacePushSourceArchive,
+  writeWorkspacePushTargetBackup,
   workspacePushBackupPath,
   type CheckFormlessInstanceWorkspaceResult,
   type FormlessInstanceWorkspaceSyncPlan,
+  type WorkspacePushSchemaCompatibilityDecision,
 } from "./instance-workspace-source-sync.ts";
 import {
   stringRecordValue,
@@ -158,9 +161,23 @@ export type PushFormlessInstanceWorkspaceRuntimeRebuild = {
   reason:
     | "force"
     | "program-artifact-configured"
+    | "program-schema-change"
     | "runtime-composition-configured"
     | "runtime-extensions-configured";
   status: "applied" | "available";
+};
+
+export type PushFormlessInstanceWorkspaceSchemaChange = {
+  currentProgramProvenance: NonNullable<
+    FormlessInstanceWorkspaceSyncPlan["target"]["programProvenance"]
+  >;
+  desiredProgramProvenance: NonNullable<
+    FormlessInstanceWorkspaceSyncPlan["source"]["programProvenance"]
+  >;
+  localArchiveValidation: "passed";
+  runtimeReconciliation: "required";
+  storageCompatibility: "storage-compatible";
+  targetRuntimeValidation: "deferred" | "passed";
 };
 
 export type PushFormlessInstanceWorkspaceForcedRecoveryPlan = {
@@ -198,6 +215,7 @@ export type PushFormlessInstanceWorkspaceResult = {
   ownerSetup?: DeployLocalFormlessWorkspaceOwnerSetup;
   plan?: FormlessInstanceDeploymentPlan;
   runtimeRebuild?: PushFormlessInstanceWorkspaceRuntimeRebuild;
+  schemaChange?: PushFormlessInstanceWorkspaceSchemaChange;
   secretPath?: string;
   selectedTarget: FormlessInstanceWorkspaceTarget;
   source: PushFormlessInstanceWorkspaceSource;
@@ -394,6 +412,23 @@ export class DeployLocalFormlessWorkspaceStepError extends Error {
   }
 }
 
+export class WorkspacePushDesiredProgramRuntimeError extends Error {
+  readonly actualProgramProvenance: CheckFormlessInstanceDeployMetadataResult["schemaProvenance"];
+  readonly desiredProgramProvenance: CheckFormlessInstanceDeployMetadataResult["schemaProvenance"];
+
+  constructor(input: {
+    actualProgramProvenance: CheckFormlessInstanceDeployMetadataResult["schemaProvenance"];
+    desiredProgramProvenance: CheckFormlessInstanceDeployMetadataResult["schemaProvenance"];
+  }) {
+    super(
+      `Formless instance push reconciled runtime Program provenance "${input.actualProgramProvenance.sourceSchemaHash}" does not match desired provenance "${input.desiredProgramProvenance.sourceSchemaHash}".`,
+    );
+    this.name = "WorkspacePushDesiredProgramRuntimeError";
+    this.actualProgramProvenance = input.actualProgramProvenance;
+    this.desiredProgramProvenance = input.desiredProgramProvenance;
+  }
+}
+
 export type DestroyFormlessInstanceWorkspaceRouteProviderResources = {
   enabledHosts: string[];
   resourceGraph: DeployResourceGraph;
@@ -484,11 +519,20 @@ export async function pushFormlessInstanceWorkspace(
       },
       dependencies,
     );
-    const { forcedRecovery, hasDataChanges, programArtifact, source, syncPlan } = sourceSync;
+    const {
+      currentTargetSource,
+      forcedRecovery,
+      hasDataChanges,
+      programArtifact,
+      schemaCompatibility,
+      source,
+      syncPlan,
+    } = sourceSync;
+    const schemaChange = workspacePushSchemaChange(schemaCompatibility, syncPlan);
     const runtimeCompositionConfigured = !isDefaultWorkspaceProgramRuntimeComposition(
       planned.config,
     );
-    const runtimeRebuild =
+    const configuredRuntimeRebuild =
       planned.config.programSource === undefined &&
       !runtimeCompositionConfigured &&
       planned.workspaceRuntimeExtensions === undefined &&
@@ -505,7 +549,16 @@ export async function pushFormlessInstanceWorkspace(
                     : ("runtime-extensions-configured" as const),
             status: (input.apply ? "applied" : "available") as "applied" | "available",
           };
+    const runtimeRebuild =
+      configuredRuntimeRebuild ??
+      (schemaChange === undefined
+        ? undefined
+        : {
+            reason: "program-schema-change" as const,
+            status: (input.apply ? "applied" : "available") as "applied" | "available",
+          });
     const forcedRecoveryActive = forcedRecovery !== undefined;
+    const expectedSourceCursor = currentTargetSource?.archive.archive.program.snapshot.sourceCursor;
 
     if (forcedRecovery !== undefined && !input.apply) {
       return {
@@ -514,6 +567,7 @@ export async function pushFormlessInstanceWorkspace(
         mode: "dry-run",
         noop: false,
         ...(runtimeRebuild === undefined ? {} : { runtimeRebuild }),
+        ...(schemaChange === undefined ? {} : { schemaChange }),
         selectedTarget,
         source,
         syncPlan,
@@ -539,6 +593,7 @@ export async function pushFormlessInstanceWorkspace(
         mode: "dry-run",
         noop: true,
         ...(runtimeRebuild === undefined ? {} : { runtimeRebuild }),
+        ...(schemaChange === undefined ? {} : { schemaChange }),
         selectedTarget,
         source,
         syncPlan,
@@ -550,26 +605,27 @@ export async function pushFormlessInstanceWorkspace(
       input.apply && hasDataChanges && !forcedRecoveryActive
         ? planned.existingSelectedTarget === undefined
           ? undefined
-          : await exportInstanceArchive(
-              {
-                adminToken: providerApply?.adminToken ?? adminToken,
+          : currentTargetSource === undefined
+            ? (() => {
+                throw new Error("Formless instance push backup requires current target source.");
+              })()
+            : await writeWorkspacePushTargetBackup({
                 outDir: workspacePushBackupPath(workspaceRoot, dependencies.now()),
-                programArtifact,
-                target: selectedTarget.url,
-              },
-              dependencies,
-            )
+                source: currentTargetSource,
+              })
         : undefined;
     const dryRun =
       hasDataChanges &&
       planned.existingSelectedTarget !== undefined &&
       !input.apply &&
-      !forcedRecoveryActive
+      !forcedRecoveryActive &&
+      schemaChange === undefined
         ? await restoreWorkspacePushSourceArchive(
             {
               adminToken: providerApply?.adminToken ?? adminToken,
               apply: false,
               archiveRoot: composedArchiveRoot,
+              ...(expectedSourceCursor === undefined ? {} : { expectedSourceCursor }),
               programArtifact,
               selectedTarget,
             },
@@ -581,13 +637,17 @@ export async function pushFormlessInstanceWorkspace(
       input.apply && providerApply === undefined
         ? await applyWorkspacePushProviderReconciliation(planned, applyDependencies!)
         : providerApply;
+    if (provider !== undefined) {
+      assertWorkspacePushDesiredProgramRuntime(provider.healthCheck, programArtifact);
+    }
     const applyDryRun =
-      hasDataChanges && input.apply && !forcedRecoveryActive
+      hasDataChanges && input.apply
         ? await restoreWorkspacePushSourceArchive(
             {
               adminToken: provider?.adminToken ?? adminToken,
               apply: false,
               archiveRoot: composedArchiveRoot,
+              ...(expectedSourceCursor === undefined ? {} : { expectedSourceCursor }),
               programArtifact,
               selectedTarget,
             },
@@ -595,10 +655,15 @@ export async function pushFormlessInstanceWorkspace(
           )
         : undefined;
     const restoreDryRun = dryRun ?? applyDryRun;
-
-    if (input.apply && restoreDryRun && !restoreDryRun.remote.ok) {
-      throw new Error("Formless instance push apply stopped because dry-run restore failed.");
-    }
+    const reportedSchemaChange =
+      schemaChange === undefined
+        ? undefined
+        : {
+            ...schemaChange,
+            targetRuntimeValidation: (applyDryRun === undefined ? "deferred" : "passed") as
+              | "deferred"
+              | "passed",
+          };
 
     const applyResult =
       input.apply && hasDataChanges
@@ -607,6 +672,7 @@ export async function pushFormlessInstanceWorkspace(
               adminToken: provider?.adminToken ?? adminToken,
               apply: true,
               archiveRoot: composedArchiveRoot,
+              ...(expectedSourceCursor === undefined ? {} : { expectedSourceCursor }),
               programArtifact,
               selectedTarget,
             },
@@ -653,6 +719,7 @@ export async function pushFormlessInstanceWorkspace(
       mode: input.apply ? "apply" : "dry-run",
       noop: !hasDataChanges && provider === undefined,
       ...(runtimeRebuild === undefined ? {} : { runtimeRebuild }),
+      ...(reportedSchemaChange === undefined ? {} : { schemaChange: reportedSchemaChange }),
       selectedTarget,
       source,
       syncPlan,
@@ -660,6 +727,48 @@ export async function pushFormlessInstanceWorkspace(
     };
   } finally {
     await rm(tempRoot, { force: true, recursive: true });
+  }
+}
+
+function workspacePushSchemaChange(
+  compatibility:
+    | Exclude<WorkspacePushSchemaCompatibilityDecision, { status: "migration-required" }>
+    | undefined,
+  syncPlan: FormlessInstanceWorkspaceSyncPlan,
+): PushFormlessInstanceWorkspaceSchemaChange | undefined {
+  if (compatibility?.status !== "storage-compatible") {
+    return undefined;
+  }
+
+  const desiredProgramProvenance = syncPlan.source.programProvenance;
+  const currentProgramProvenance = syncPlan.target.programProvenance;
+  if (desiredProgramProvenance === undefined || currentProgramProvenance === undefined) {
+    throw new Error("Schema-compatible push requires current and desired Program provenance.");
+  }
+
+  return {
+    currentProgramProvenance,
+    desiredProgramProvenance,
+    localArchiveValidation: "passed",
+    runtimeReconciliation: "required",
+    storageCompatibility: "storage-compatible",
+    targetRuntimeValidation: "deferred",
+  };
+}
+
+function assertWorkspacePushDesiredProgramRuntime(
+  healthCheck: CheckFormlessInstanceDeployMetadataResult,
+  programArtifact: FormlessProgramArtifact,
+): void {
+  if (
+    healthCheck.schemaProvenance.kind !== programArtifact.schemaProvenance.kind ||
+    healthCheck.schemaProvenance.sourceSchemaHash !==
+      programArtifact.schemaProvenance.sourceSchemaHash
+  ) {
+    throw new WorkspacePushDesiredProgramRuntimeError({
+      actualProgramProvenance: healthCheck.schemaProvenance,
+      desiredProgramProvenance: programArtifact.schemaProvenance,
+    });
   }
 }
 

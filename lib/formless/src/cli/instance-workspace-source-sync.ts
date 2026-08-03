@@ -15,7 +15,10 @@ import {
   type ArchiveMediaReference,
   type InstanceArchive,
 } from "../program/archive.ts";
-import { writeInstanceArchiveDirectory } from "../program/archive-node.ts";
+import {
+  writeInstanceArchiveDirectory,
+  type ArchiveDiskWriteResult,
+} from "../program/archive-node.ts";
 import {
   coreImageMediaDeliveryFactsForAssetId,
   documentMediaAssetIsCompatible,
@@ -32,8 +35,10 @@ import {
 import {
   canonicalizeFormlessProgramStorageSnapshot,
   formlessProgramSchemaProvenance,
+  parseFormlessProgramSchemaArtifact,
 } from "../program/runtime.ts";
 import type { FormlessProgramArtifact } from "../program/artifact.ts";
+import { canonicalJsonStringify, type AppSchema, type FieldSchema } from "@dpeek/formless-schema";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import {
   WORKSPACE_MEDIA_MANIFEST_FILE,
@@ -62,7 +67,8 @@ import {
   resolveFormlessCliWorkspaceTarget,
 } from "./instance-target-context.ts";
 import {
-  exportInstanceArchive,
+  CurrentTargetArchiveSourceValidationError,
+  exportCurrentTargetInstanceArchive,
   restoreWorkspacePushArchive,
   type RestoreInstanceArchiveResult,
 } from "./archive-workflows.ts";
@@ -175,6 +181,7 @@ export type FormlessInstanceWorkspaceSyncPlanEndpoint = {
   fingerprint: string;
   label: string;
   mediaCount: number;
+  programProvenance?: FormlessProgramArtifact["schemaProvenance"];
   recordCount: number;
 };
 
@@ -253,6 +260,68 @@ export type PushFormlessInstanceWorkspaceForcedRecoveryEvidence = {
   status: "unavailable";
 };
 
+export type WorkspacePushSchemaCompatibilityIssue = {
+  code:
+    | "current-record-materialization-required"
+    | "entity-identity-changed"
+    | "entity-set-changed"
+    | "field-set-changed"
+    | "field-storage-contract-changed"
+    | "stored-constraint-changed";
+  message: string;
+};
+
+export type WorkspacePushSchemaCompatibilityDecision =
+  | {
+      issues: [];
+      status: "storage-compatible" | "unchanged";
+    }
+  | {
+      issues: WorkspacePushSchemaCompatibilityIssue[];
+      status: "migration-required";
+    };
+
+export class WorkspacePushSchemaCompatibilityError extends Error {
+  readonly decision: Extract<
+    WorkspacePushSchemaCompatibilityDecision,
+    { status: "migration-required" }
+  >;
+
+  constructor(
+    decision: Extract<WorkspacePushSchemaCompatibilityDecision, { status: "migration-required" }>,
+  ) {
+    super(
+      `Formless instance push requires explicit schema evolution: ${decision.issues
+        .map((issue) => issue.message)
+        .join("; ")}.`,
+    );
+    this.name = "WorkspacePushSchemaCompatibilityError";
+    this.decision = decision;
+  }
+}
+
+export class WorkspacePushRemoteRestoreError extends Error {
+  readonly apply: boolean;
+  readonly remote: RestoreInstanceArchiveResult["remote"];
+  readonly target: string;
+
+  constructor(input: {
+    apply: boolean;
+    remote: RestoreInstanceArchiveResult["remote"];
+    target: string;
+  }) {
+    const details =
+      input.remote.errors?.map((error) => error.message).join("; ") ?? "unknown remote error";
+    super(
+      `Formless instance push remote restore ${input.apply ? "apply" : "dry-run"} failed: ${details}.`,
+    );
+    this.name = "WorkspacePushRemoteRestoreError";
+    this.apply = input.apply;
+    this.remote = input.remote;
+    this.target = input.target;
+  }
+}
+
 export type FormlessInstanceWorkspaceDomainDesiredDrift = {
   host: string;
   live?: FormlessInstanceWorkspaceDomainIntent;
@@ -280,17 +349,17 @@ export async function pullFormlessInstanceWorkspace(
   try {
     const instanceArchiveRoot = path.join(tempRoot, "instance");
 
-    await exportInstanceArchive(
+    const exportedTarget = await exportCurrentTargetInstanceArchive(
       {
         adminToken,
         outDir: instanceArchiveRoot,
-        programArtifact,
         target: selectedTarget.url,
       },
       dependencies,
     );
     const pulledInstanceArchive = await readArchiveDirectoryForCheck(instanceArchiveRoot, {
-      programArtifact,
+      programSchema: exportedTarget.programSchema,
+      programSchemaProvenance: exportedTarget.programSchemaProvenance,
     });
 
     if (!pulledInstanceArchive || pulledInstanceArchive.archive.kind !== INSTANCE_ARCHIVE_KIND) {
@@ -322,6 +391,7 @@ export async function pullFormlessInstanceWorkspace(
     const syncPlan = createWorkspaceSyncPlan({
       domainDesiredDrift,
       localControlPlane,
+      localProgramProvenance: programArtifact.schemaProvenance,
       localProgramMedia,
       localDomains: localDomainIntents,
       manifest: config,
@@ -409,18 +479,18 @@ export async function checkFormlessInstanceWorkspace(
   try {
     const remoteArchiveRoot = path.join(tempRoot, "instance");
 
-    await exportInstanceArchive(
+    const exportedTarget = await exportCurrentTargetInstanceArchive(
       {
         adminToken,
         outDir: remoteArchiveRoot,
-        programArtifact,
         target: selectedTarget.url,
       },
       dependencies,
     );
 
     const remoteArchive = await readArchiveDirectoryForCheck(remoteArchiveRoot, {
-      programArtifact,
+      programSchema: exportedTarget.programSchema,
+      programSchemaProvenance: exportedTarget.programSchemaProvenance,
     });
 
     if (!remoteArchive || remoteArchive.archive.kind !== INSTANCE_ARCHIVE_KIND) {
@@ -454,6 +524,7 @@ export async function checkFormlessInstanceWorkspace(
       syncPlan: createWorkspaceSyncPlan({
         domainDesiredDrift,
         localControlPlane,
+        localProgramProvenance: programArtifact.schemaProvenance,
         localProgramMedia,
         localDomains: localDomainIntents,
         manifest: config,
@@ -534,7 +605,6 @@ export async function saveLocalFormlessWorkspace(
     const exported = await exportWorkspaceSourceFromLocalAuthority(
       {
         adminToken,
-        programArtifact: await activeWorkspaceProgramArtifact(config),
         source,
         tempRoot,
       },
@@ -599,25 +669,24 @@ async function readRemoteWorkspaceArchiveForPush(
   input: {
     allowForcedRecovery: boolean;
     adminToken: string | null;
-    programArtifact: FormlessProgramArtifact;
     remoteArchiveRoot: string;
     selectedTarget: FormlessInstanceWorkspaceTarget;
   },
   dependencies: WorkspacePushSourceSyncDependencies,
 ): Promise<WorkspacePushRemoteArchiveReadResult> {
   try {
-    await exportInstanceArchive(
+    const exportedTarget = await exportCurrentTargetInstanceArchive(
       {
         adminToken: input.adminToken,
         outDir: input.remoteArchiveRoot,
-        programArtifact: input.programArtifact,
         target: input.selectedTarget.url,
       },
       dependencies,
     );
 
     const remoteArchive = await readArchiveDirectoryForCheck(input.remoteArchiveRoot, {
-      programArtifact: input.programArtifact,
+      programSchema: exportedTarget.programSchema,
+      programSchemaProvenance: exportedTarget.programSchemaProvenance,
     });
 
     if (!remoteArchive || remoteArchive.archive.kind !== INSTANCE_ARCHIVE_KIND) {
@@ -626,6 +695,8 @@ async function readRemoteWorkspaceArchiveForPush(
 
     return {
       archive: remoteArchive,
+      programSchema: exportedTarget.programSchema,
+      programSchemaProvenance: exportedTarget.programSchemaProvenance,
       status: "readable",
     };
   } catch (error) {
@@ -663,6 +734,8 @@ type WorkspacePushRemoteArchiveReadFailure = {
 type WorkspacePushRemoteArchiveReadResult =
   | {
       archive: WorkspaceArchiveDirectory;
+      programSchema?: AppSchema;
+      programSchemaProvenance?: FormlessProgramArtifact["schemaProvenance"];
       status: "readable";
     }
   | {
@@ -673,6 +746,13 @@ type WorkspacePushRemoteArchiveReadResult =
 function classifyForcedPushRemoteArchiveReadFailure(
   error: unknown,
 ): WorkspacePushRemoteArchiveReadFailure | undefined {
+  if (error instanceof CurrentTargetArchiveSourceValidationError) {
+    return {
+      message: error.message,
+      type: error.failureType,
+    };
+  }
+
   if (error instanceof SyntaxError) {
     return {
       message: error.message,
@@ -860,7 +940,6 @@ function workspaceLocalDevStatePath(
 async function exportWorkspaceSourceFromLocalAuthority(
   input: {
     adminToken?: string | null;
-    programArtifact: FormlessProgramArtifact;
     source: string;
     tempRoot: string;
   },
@@ -868,18 +947,18 @@ async function exportWorkspaceSourceFromLocalAuthority(
 ): Promise<WorkspaceArchiveDirectory> {
   const archiveRoot = path.join(input.tempRoot, "authority");
 
-  await exportInstanceArchive(
+  const exportedSource = await exportCurrentTargetInstanceArchive(
     {
       adminToken: input.adminToken,
       outDir: archiveRoot,
-      programArtifact: input.programArtifact,
       target: input.source,
     },
     dependencies,
   );
 
   const directory = await readArchiveDirectoryForCheck(archiveRoot, {
-    programArtifact: input.programArtifact,
+    programSchema: exportedSource.programSchema,
+    programSchemaProvenance: exportedSource.programSchemaProvenance,
   });
 
   if (!directory || directory.archive.kind !== INSTANCE_ARCHIVE_KIND) {
@@ -1202,6 +1281,7 @@ function createWorkspaceSyncPlan(input: {
   domainDesiredDrift: FormlessInstanceWorkspaceDomainDesiredDrift[];
   localControlPlane: WorkspaceControlPlaneRecords | undefined;
   localDomains: readonly FormlessInstanceWorkspaceDomainIntent[];
+  localProgramProvenance: FormlessProgramArtifact["schemaProvenance"];
   localProgramMedia: WorkspaceProgramMediaSource;
   manifest: FormlessResolvedConfig;
   remoteArchive: WorkspaceArchiveDirectory;
@@ -1258,6 +1338,7 @@ function createWorkspaceSyncPlan(input: {
     domains: input.localDomains,
     label: input.sourceSide === "local" ? input.sourceLabel : input.targetLabel,
     mediaCount: input.localProgramMedia.objects.length,
+    programProvenance: input.localProgramProvenance,
     programMediaJson: comparableMediaJson(input.localProgramMedia, input.localProgramMedia.objects),
     recordCount: input.localControlPlane?.records.length ?? 0,
   });
@@ -1266,6 +1347,7 @@ function createWorkspaceSyncPlan(input: {
     domains: input.remoteDomains,
     label: input.sourceSide === "remote" ? input.sourceLabel : input.targetLabel,
     mediaCount: remoteProgramMedia.objects.length,
+    programProvenance: input.remoteArchive.archive.program.schemaProvenance,
     programMediaJson: comparableMediaJson(remoteProgramMedia, remoteProgramMedia.objects),
     recordCount: remoteControlPlane.records.length,
   });
@@ -1290,6 +1372,7 @@ function createWorkspaceForcedRecoverySyncPlan(input: {
   failure: WorkspacePushRemoteArchiveReadFailure;
   localControlPlane: WorkspaceControlPlaneRecords | undefined;
   localDomains: readonly FormlessInstanceWorkspaceDomainIntent[];
+  localProgramProvenance: FormlessProgramArtifact["schemaProvenance"];
   localProgramMedia: WorkspaceProgramMediaSource;
   manifest: FormlessResolvedConfig;
   targetLabel: string;
@@ -1326,6 +1409,7 @@ function createWorkspaceForcedRecoverySyncPlan(input: {
     domains: input.localDomains,
     label: "workspace",
     mediaCount: input.localProgramMedia.objects.length,
+    programProvenance: input.localProgramProvenance,
     programMediaJson: comparableMediaJson(input.localProgramMedia, input.localProgramMedia.objects),
     recordCount: input.localControlPlane?.records.length ?? 0,
   });
@@ -1381,6 +1465,7 @@ function workspaceSyncPlanEndpoint(input: {
   domains: readonly FormlessInstanceWorkspaceDomainIntent[];
   label: string;
   mediaCount: number;
+  programProvenance: FormlessProgramArtifact["schemaProvenance"];
   programMediaJson: string;
   recordCount: number;
 }): FormlessInstanceWorkspaceSyncPlanEndpoint {
@@ -1388,11 +1473,13 @@ function workspaceSyncPlanEndpoint(input: {
     domainCount: input.domains.length,
     fingerprint: workspaceSyncFingerprint({
       program: comparableProgramRecordsJson(input.controlPlane),
+      programProvenance: input.programProvenance,
       domains: comparableWorkspaceDomainIntentsJson(input.domains),
       programMedia: input.programMediaJson,
     }),
     label: input.label,
     mediaCount: input.mediaCount,
+    programProvenance: input.programProvenance,
     recordCount: input.recordCount,
   };
 }
@@ -1538,11 +1625,22 @@ export type PrepareWorkspacePushSourceSyncInput = {
 
 export type PrepareWorkspacePushSourceSyncResult = {
   archiveRoot: string;
+  currentTargetSource?: WorkspacePushCurrentTargetSource;
   forcedRecovery?: PushFormlessInstanceWorkspaceForcedRecoveryPlan;
   hasDataChanges: boolean;
   programArtifact: FormlessProgramArtifact;
+  schemaCompatibility?: Exclude<
+    WorkspacePushSchemaCompatibilityDecision,
+    { status: "migration-required" }
+  >;
   source: PushFormlessInstanceWorkspaceSource;
   syncPlan: FormlessInstanceWorkspaceSyncPlan;
+};
+
+export type WorkspacePushCurrentTargetSource = {
+  archive: WorkspaceArchiveDirectory;
+  programSchema: AppSchema;
+  programSchemaProvenance: FormlessProgramArtifact["schemaProvenance"];
 };
 
 export async function prepareWorkspacePushSourceSync(
@@ -1598,7 +1696,6 @@ export async function prepareWorkspacePushSourceSync(
           {
             allowForcedRecovery: input.force === true,
             adminToken: input.adminToken,
-            programArtifact,
             remoteArchiveRoot: path.join(input.tempRoot, "remote-check"),
             selectedTarget: input.selectedTarget,
           },
@@ -1609,6 +1706,7 @@ export async function prepareWorkspacePushSourceSync(
       ? createWorkspaceSyncPlan({
           domainDesiredDrift,
           localControlPlane,
+          localProgramProvenance: programArtifact.schemaProvenance,
           localProgramMedia,
           localDomains: localDomainIntents,
           manifest: input.manifest,
@@ -1623,6 +1721,7 @@ export async function prepareWorkspacePushSourceSync(
           failure: remoteRead.failure,
           localControlPlane,
           localDomains: localDomainIntents,
+          localProgramProvenance: programArtifact.schemaProvenance,
           localProgramMedia,
           manifest: input.manifest,
           targetLabel: input.selectedTarget.alias,
@@ -1633,12 +1732,35 @@ export async function prepareWorkspacePushSourceSync(
           status: input.forcedRecoveryStatus,
         })
       : undefined;
+  const schemaCompatibility =
+    remoteRead.status === "readable" &&
+    remoteRead.programSchema !== undefined &&
+    remoteRead.programSchemaProvenance !== undefined
+      ? requireWorkspacePushSchemaCompatibility({
+          currentArchive: remoteRead.archive.archive,
+          currentSchema: remoteRead.programSchema,
+          currentSchemaProvenance: remoteRead.programSchemaProvenance,
+          desiredProgramArtifact: programArtifact,
+        })
+      : undefined;
 
   return {
     archiveRoot: input.archiveRoot,
+    ...(remoteRead.status !== "readable" ||
+    remoteRead.programSchema === undefined ||
+    remoteRead.programSchemaProvenance === undefined
+      ? {}
+      : {
+          currentTargetSource: {
+            archive: remoteRead.archive,
+            programSchema: remoteRead.programSchema,
+            programSchemaProvenance: remoteRead.programSchemaProvenance,
+          },
+        }),
     ...(forcedRecovery === undefined ? {} : { forcedRecovery }),
     hasDataChanges: syncPlan.status !== "up-to-date",
     programArtifact,
+    ...(schemaCompatibility === undefined ? {} : { schemaCompatibility }),
     source,
     syncPlan,
   };
@@ -1649,20 +1771,229 @@ export async function restoreWorkspacePushSourceArchive(
     adminToken: string | null;
     apply: boolean;
     archiveRoot: string;
+    expectedSourceCursor?: number;
     programArtifact: FormlessProgramArtifact;
     selectedTarget: FormlessInstanceWorkspaceTarget;
   },
   dependencies: WorkspacePushSourceSyncDependencies,
 ): Promise<RestoreInstanceArchiveResult> {
-  return restoreWorkspacePushArchive(
+  const result = await restoreWorkspacePushArchive(
     {
       adminToken: input.adminToken,
       apply: input.apply,
       archiveDir: input.archiveRoot,
+      ...(input.expectedSourceCursor === undefined
+        ? {}
+        : { expectedSourceCursor: input.expectedSourceCursor }),
       programArtifact: input.programArtifact,
       target: input.selectedTarget.url,
     },
     dependencies,
+  );
+
+  if (!result.remote.ok) {
+    throw new WorkspacePushRemoteRestoreError({
+      apply: input.apply,
+      remote: result.remote,
+      target: input.selectedTarget.url,
+    });
+  }
+
+  return result;
+}
+
+function requireWorkspacePushSchemaCompatibility(input: {
+  currentArchive: InstanceArchive;
+  currentSchema: AppSchema;
+  currentSchemaProvenance: FormlessProgramArtifact["schemaProvenance"];
+  desiredProgramArtifact: FormlessProgramArtifact;
+}): Exclude<WorkspacePushSchemaCompatibilityDecision, { status: "migration-required" }> {
+  if (
+    input.currentSchemaProvenance.sourceSchemaHash ===
+    input.desiredProgramArtifact.schemaProvenance.sourceSchemaHash
+  ) {
+    return { issues: [], status: "unchanged" };
+  }
+
+  const desiredSchema = parseFormlessProgramSchemaArtifact(
+    input.desiredProgramArtifact.sourceSchema,
+  );
+  const issues = compareWorkspacePushStoredSchemaContract(input.currentSchema, desiredSchema);
+
+  if (issues.length === 0) {
+    try {
+      const canonical = canonicalizeFormlessProgramStorageSnapshot(
+        {
+          ...input.currentArchive.program.snapshot,
+          schema: desiredSchema,
+        },
+        { artifact: input.desiredProgramArtifact },
+      );
+
+      if (
+        comparableStoredRecordsJson(canonical.records) !==
+        comparableStoredRecordsJson(input.currentArchive.program.snapshot.records)
+      ) {
+        issues.push({
+          code: "current-record-materialization-required",
+          message: "current target records require materialization under the desired schema",
+        });
+      }
+    } catch (error) {
+      issues.push({
+        code: "current-record-materialization-required",
+        message: `current target records do not validate unchanged under the desired schema (${error instanceof Error ? error.message : "unknown validation error"})`,
+      });
+    }
+  }
+
+  if (issues.length > 0) {
+    throw new WorkspacePushSchemaCompatibilityError({
+      issues,
+      status: "migration-required",
+    });
+  }
+
+  return { issues: [], status: "storage-compatible" };
+}
+
+function compareWorkspacePushStoredSchemaContract(
+  current: AppSchema,
+  desired: AppSchema,
+): WorkspacePushSchemaCompatibilityIssue[] {
+  const issues: WorkspacePushSchemaCompatibilityIssue[] = [];
+  const currentEntities = new Map(current.entities.map((entity) => [entity.key, entity]));
+  const desiredEntities = new Map(desired.entities.map((entity) => [entity.key, entity]));
+  const currentEntityKeys = [...currentEntities.keys()].sort();
+  const desiredEntityKeys = [...desiredEntities.keys()].sort();
+
+  if (canonicalJsonStringify(currentEntityKeys) !== canonicalJsonStringify(desiredEntityKeys)) {
+    issues.push({
+      code: "entity-set-changed",
+      message: "stored entity keys were added or removed",
+    });
+  }
+
+  for (const entityKey of currentEntityKeys.filter((key) => desiredEntities.has(key))) {
+    const currentEntity = currentEntities.get(entityKey)!;
+    const desiredEntity = desiredEntities.get(entityKey)!;
+
+    if (currentEntity.id !== desiredEntity.id) {
+      issues.push({
+        code: "entity-identity-changed",
+        message: `entity "${entityKey}" was rebound from "${currentEntity.id}" to "${desiredEntity.id}"`,
+      });
+    }
+
+    const currentFields = new Map(currentEntity.fields.map((field) => [field.key, field]));
+    const desiredFields = new Map(desiredEntity.fields.map((field) => [field.key, field]));
+    const currentFieldKeys = [...currentFields.keys()].sort();
+    const desiredFieldKeys = [...desiredFields.keys()].sort();
+
+    if (canonicalJsonStringify(currentFieldKeys) !== canonicalJsonStringify(desiredFieldKeys)) {
+      issues.push({
+        code: "field-set-changed",
+        message: `entity "${entityKey}" stored fields were added or removed`,
+      });
+    }
+
+    for (const fieldKey of currentFieldKeys.filter((key) => desiredFields.has(key))) {
+      if (
+        canonicalJsonStringify(storedFieldContract(currentFields.get(fieldKey)!)) !==
+        canonicalJsonStringify(storedFieldContract(desiredFields.get(fieldKey)!))
+      ) {
+        issues.push({
+          code: "field-storage-contract-changed",
+          message: `field "${entityKey}.${fieldKey}" changed stored value shape or constraints`,
+        });
+      }
+    }
+
+    if (
+      comparableConstraintsJson(currentEntity.constraints ?? []) !==
+      comparableConstraintsJson(desiredEntity.constraints ?? [])
+    ) {
+      issues.push({
+        code: "stored-constraint-changed",
+        message: `entity "${entityKey}" changed stored constraints`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+function storedFieldContract(field: FieldSchema & { key: string }): unknown {
+  const base = { key: field.key, required: field.required, type: field.type };
+
+  switch (field.type) {
+    case "text":
+      return {
+        ...base,
+        asset: field.asset ?? null,
+        format: field.format ?? null,
+      };
+    case "boolean":
+      return { ...base, default: field.default ?? null };
+    case "date":
+      return base;
+    case "number":
+      return {
+        ...base,
+        default: field.default ?? null,
+        integer: field.integer ?? null,
+        max: field.max ?? null,
+        min: field.min ?? null,
+      };
+    case "enum":
+      return {
+        ...base,
+        default: field.default ?? null,
+        values: field.values.map((value) => value.key).sort(),
+      };
+    case "reference":
+      return { ...base, to: field.to };
+  }
+}
+
+function comparableConstraintsJson(constraints: readonly unknown[]): string {
+  return canonicalJsonStringify(
+    [...constraints].sort((left, right) => constraintKey(left).localeCompare(constraintKey(right))),
+  );
+}
+
+function constraintKey(value: unknown): string {
+  return typeof value === "object" && value !== null && "key" in value
+    ? String(value.key)
+    : canonicalJsonStringify(value);
+}
+
+function comparableStoredRecordsJson(records: readonly StoredRecord[]): string {
+  return canonicalJsonStringify(
+    [...records].sort((left, right) => left.id.localeCompare(right.id)),
+  );
+}
+
+export async function writeWorkspacePushTargetBackup(input: {
+  outDir: string;
+  source: WorkspacePushCurrentTargetSource;
+}): Promise<ArchiveDiskWriteResult> {
+  if (input.source.archive.missingMediaFiles.length > 0) {
+    throw new CurrentTargetArchiveSourceValidationError(
+      "validation",
+      `Current target archive is missing media: ${input.source.archive.missingMediaFiles.join(", ")}.`,
+    );
+  }
+
+  return writeInstanceArchiveDirectory(
+    {
+      archive: input.source.archive.archive,
+      mediaFiles: input.source.archive.mediaFiles,
+      outDir: input.outDir,
+      programSchema: input.source.programSchema,
+      programSchemaProvenance: input.source.programSchemaProvenance,
+    },
+    { cwd: "/" },
   );
 }
 

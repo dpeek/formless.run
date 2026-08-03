@@ -72,6 +72,12 @@ workspace operations that are promoted to public CLI bindings.
   or runtime rebuild is requested, it reports `Everything up to date.`
 - **AND** the no-op message is the exact command output and is not accompanied
   by sync plan, drift, deploy, migration, retry, or warning text
+- **AND** when desired Program schema B is not deployed on target schema A, push
+  dry-run reports current and desired provenance, storage compatibility, required
+  runtime reconciliation, successful local archive validation, and deferred
+  target-runtime restore validation
+- **AND** dry-run does not submit the B archive to the A runtime merely to obtain
+  an expected schema-mismatch failure
 
 #### Scenario: Forced push deployment
 
@@ -96,13 +102,18 @@ workspace operations that are promoted to public CLI bindings.
 - **WHEN** a user runs `formless push --force`
 - **THEN** the command may bypass normal remote sync comparison for that target
   validation failure
+- **AND** a readable target that validates under its own active Program contract
+  is not classified as invalid solely because desired Program provenance differs
 - **AND** it reconciles the selected remote target as an exact replacement from
   the validated local workspace archive
 - **AND** invalid remote record values are not merged into, preserved in, or
   written back to local workspace source or the replacement archive
-- **AND** the command reports that ordinary remote comparison, restore dry-run,
-  or backup evidence was unavailable when target validation prevented producing
-  it
+- **AND** the command reports that ordinary remote comparison or backup evidence
+  was unavailable when target validation prevented producing it
+- **AND** after runtime reconciliation, the desired replacement archive must
+  still pass target restore dry-run before any replacement mutation
+- **AND** force does not ignore Program schema, provenance, archive, restore, or
+  concurrency validation failures
 - **AND** auth failures, network failures, provider failures, unsupported
   packages, invalid local workspace source, and invalid local archives still
   fail before target mutation
@@ -801,6 +812,8 @@ workspace and target state rather than running upgrade or migration policy.
   apply storage migrations
 - AND unsupported schema, runtime, or archive facts fail through the
   ordinary sync validation path
+- AND a storage-compatible active Program schema refresh that preserves records
+  without materialization is ordinary synchronization rather than a migration
 - AND migration and upgrade policy can be reintroduced later as a new explicit
   capability without preserving the removed push/deploy flags
 
@@ -954,10 +967,24 @@ intent lives in schema-owned storage snapshots.
 - **THEN** the command keeps the local workspace source as the selected desired
   state and does not reject solely because the target's current runtime cannot
   validate the replacement archive's Program provenance
+- **AND** it validates and canonicalizes the existing target under the target's
+  active Program schema and provenance, not the desired workspace artifact
+- **AND** it compares current and desired records, media, and Program provenance
+  before deciding that synchronization is up to date
+- **AND** it rejects a schema delta that changes the stored record contract or
+  requires record creation, patching, deletion, value pruning, or constraint
+  repair as requiring an explicit future evolution operation
+- **AND** it durably backs up the exact validated pre-reconciliation target
+  archive before provider, Program, or media mutation
 - **AND** it reconciles the runtime and provider graph needed for the local
   workspace source before treating target restore dry-run results as final
+- **AND** backup validation remains governed by the pre-reconciliation target
+  Program while replacement validation is governed by the reconciled desired
+  Program
 - **AND** it validates the composed archive restore against the selected target
   runtime before mutating remote Program records or media
+- **AND** it applies replacement with the source cursor captured during target
+  comparison and backup and fails on concurrent target change
 - **AND** restore validation failures that remain after runtime reconciliation
   fail before remote data mutation
 - **AND** invalid local workspace source, invalid local archives, auth failures,

@@ -98,6 +98,21 @@ browser replica state.
 - AND protected target reads use owner session or admin bearer authorization
   supplied by the caller
 
+#### Scenario: Export the target under its active Program contract
+
+- GIVEN a target stores Program schema and provenance A
+- AND a caller intends to compare, back up, or replace it with Program schema
+  and provenance B
+- WHEN the current target archive is exported
+- THEN the target's active schema, active provenance, storage snapshot, and
+  referenced media are read as one source state
+- AND the current target snapshot is canonicalized and validated under A rather
+  than under the caller's desired B artifact
+- AND A's canonical schema hash and provenance remain mandatory archive
+  integrity checks
+- AND comparison with B happens only after the current target archive is valid
+  under its own contract
+
 ### Requirement: Schema-Aware Record Formatting
 
 The system SHALL format stored-record output deterministically from App schema
@@ -160,6 +175,18 @@ state.
 - THEN validation and planning run as a dry-run
 - AND no remote Program or media data is mutated
 
+#### Scenario: Plan a schema-changing push before runtime reconciliation
+
+- GIVEN a desired archive validates under Program schema and provenance B
+- AND the selected target still runs Program schema and provenance A
+- WHEN push dry-run plans the replacement without reconciling the runtime
+- THEN it reports A and B, whether the schema delta is storage-compatible, and
+  that runtime reconciliation is required
+- AND it reports local archive validation as complete and target-runtime restore
+  validation as deferred until apply reconciles B
+- AND it does not submit the B archive to the A runtime or mutate provider,
+  Program, or media state
+
 #### Scenario: Validate before apply
 
 - GIVEN restore is requested with `--apply`
@@ -187,6 +214,19 @@ portable archives and restore media before Program records.
 - AND Program-native Site image references use existing instance core media
   identities without retargeting
 - AND a failed restore leaves existing Program and media state unchanged
+
+#### Scenario: Guard a planned replacement from concurrent writes
+
+- GIVEN restore planning and backup captured target source cursor C
+- WHEN replacement restore begins
+- THEN the restore acquires a target guard before its first media mutation and
+  supplies C as the expected Program source cursor
+- AND a target cursor other than C fails with a conflict before Program or
+  media mutation
+- AND ordinary Program writes cannot commit while the guard spans media restore,
+  Program replacement, and rollback
+- AND the guard is released after successful Program commit or after failed
+  restore rollback has preserved the prior Program and media state
 
 ### Requirement: Archive Package Boundary
 
@@ -483,6 +523,23 @@ instance state without storing instance intent or secrets in configuration.
 - **THEN** the workflow composes an instance archive from the Program record
   state file, complete materialized Program artifact, and referenced media
   payloads
+- **AND** it reads and validates the current target source under the target's
+  active Program schema and provenance before comparing it with the desired
+  workspace source
+- **AND** a schema delta is storage-compatible only when it changes no stored
+  entity or field identity, stored value shape, constraint, or required record
+  materialization and both current and replacement records validate unchanged
+  under the desired schema
+- **AND** schema-authored presentation links and link controls may differ without
+  making an otherwise unchanged Program record contract migration-required
+- **AND** it writes a durable backup of the validated current target archive
+  before runtime, Program, or media mutation
+- **AND** the backup remains governed by the target's pre-reconciliation Program
+  schema and provenance
+- **AND** it reconciles the runtime required by the desired workspace Program
+  before final target restore validation
+- **AND** it verifies the reconciled runtime identifies the desired Program and
+  validates the replacement archive through target restore dry-run
 - **AND** the workflow applies the composed instance archive restore through
   runtime APIs without requiring apply, replace, stale acknowledgement, or
   install collision flags
@@ -493,8 +550,10 @@ instance state without storing instance intent or secrets in configuration.
 - **AND** a schema-changing push apply validates the replacement archive against
   the selected target runtime after required runtime reconciliation and before
   mutating remote Program or media state
-- **AND** `formless push --dry-run` validates and reports the restore plan
-  without mutating the target
+- **AND** replacement applies only while the target still has the source cursor
+  captured for comparison and backup
+- **AND** `formless push --dry-run` validates and reports every locally
+  decidable part of the restore plan without mutating the target
 
 ### Requirement: Workspace Sync Planning
 

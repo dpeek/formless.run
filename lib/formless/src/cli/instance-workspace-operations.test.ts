@@ -13,6 +13,7 @@ import {
   FORMLESS_RUNTIME_PROTOCOL_VERSION,
   FORMLESS_STORAGE_MIGRATION_SET_ID,
 } from "../shared/deploy-metadata.ts";
+import { FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER } from "../shared/protocol.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import { formlessProgramSchema, formlessProgramSchemaProvenance } from "../program/runtime.ts";
@@ -1249,7 +1250,12 @@ function authorityExportFetch(): typeof fetch {
     }
 
     if (parsedUrl.pathname === "/api/formless/program/snapshot") {
-      return Response.json(controlPlaneSnapshot(controlPlaneRecords()));
+      return Response.json(controlPlaneSnapshot(controlPlaneRecords()), {
+        headers: {
+          [FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER]:
+            formlessProgramSchemaProvenance.sourceSchemaHash,
+        },
+      });
     }
 
     if (parsedUrl.pathname === "/api/formless/domain-mappings") {
@@ -1337,6 +1343,12 @@ function deployApplyFetch(
     if (parsedUrl.pathname === "/api/formless/program/snapshot") {
       return Response.json(
         controlPlaneSnapshot(options.controlPlaneRecords ?? deployControlPlaneRecords()),
+        {
+          headers: {
+            [FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER]:
+              formlessProgramSchemaProvenance.sourceSchemaHash,
+          },
+        },
       );
     }
 

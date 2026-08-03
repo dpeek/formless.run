@@ -14,6 +14,7 @@ type ReadArchiveDirectoryDependencies = Omit<
 > & {
   programArtifact?: FormlessProgramArtifact;
   programSchema?: AppSchema;
+  programSchemaProvenance?: FormlessProgramArtifact["schemaProvenance"];
 };
 type WriteArchiveDirectoryInput = Omit<
   Parameters<typeof writeArchiveDirectory>[0],
@@ -21,19 +22,23 @@ type WriteArchiveDirectoryInput = Omit<
 > & {
   programArtifact?: FormlessProgramArtifact;
   programSchema?: AppSchema;
+  programSchemaProvenance?: FormlessProgramArtifact["schemaProvenance"];
 };
 
 export async function readInstanceArchiveDirectory(
   archiveDirInput: string,
   dependencies: ReadArchiveDirectoryDependencies,
 ) {
-  const artifact = dependencies.programArtifact ?? formlessProgramArtifact;
+  const artifact =
+    dependencies.programArtifact ??
+    (dependencies.programSchema === undefined ? formlessProgramArtifact : undefined);
 
   return readArchiveDirectory(archiveDirInput, {
     cwd: dependencies.cwd,
     programSnapshotContract: formlessProgramArchiveSnapshotContract({
       artifact,
       schema: dependencies.programSchema,
+      schemaProvenance: dependencies.programSchemaProvenance,
     }),
   });
 }
@@ -42,7 +47,9 @@ export async function writeInstanceArchiveDirectory(
   input: WriteArchiveDirectoryInput,
   dependencies: Parameters<typeof writeArchiveDirectory>[1],
 ) {
-  const artifact = input.programArtifact ?? formlessProgramArtifact;
+  const artifact =
+    input.programArtifact ??
+    (input.programSchema === undefined ? formlessProgramArtifact : undefined);
 
   return writeArchiveDirectory(
     {
@@ -52,6 +59,7 @@ export async function writeInstanceArchiveDirectory(
       programSnapshotContract: formlessProgramArchiveSnapshotContract({
         artifact,
         schema: input.programSchema,
+        schemaProvenance: input.programSchemaProvenance,
       }),
     },
     dependencies,

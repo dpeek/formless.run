@@ -269,6 +269,14 @@ function summarizePushResult(
     fields.runtimeRebuild = result.runtimeRebuild.status;
   }
 
+  if (result.schemaChange !== undefined) {
+    details.schemaChange = result.schemaChange;
+    fields.localArchiveValidation = result.schemaChange.localArchiveValidation;
+    fields.runtimeReconciliation = result.schemaChange.runtimeReconciliation;
+    fields.storageCompatibility = result.schemaChange.storageCompatibility;
+    fields.targetRuntimeValidation = result.schemaChange.targetRuntimeValidation;
+  }
+
   const deployment = summarizePushDeployment(result);
 
   return {

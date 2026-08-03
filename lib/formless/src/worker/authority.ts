@@ -4,12 +4,17 @@ import { parseAuthorityApiRoute } from "../shared/program-storage-identity.ts";
 import { handleInstanceArchiveDurableObjectRequest } from "./archive-api.ts";
 import {
   ensureStorageTables,
+  assertArchiveRestoreGuardAllowsWrite,
   initializeStorageFromSource,
   resetStorageToEmpty,
   ActiveSchemaRefreshBlockedError,
   type WriteOutcome,
 } from "./storage.ts";
-import { BadRequestError, ReloadRequiredError } from "./errors.ts";
+import {
+  ArchiveRestoreGuardConflictError,
+  BadRequestError,
+  ReloadRequiredError,
+} from "./errors.ts";
 import type { Env } from "./index.ts";
 import {
   authorizeAuthorityOperation,
@@ -82,6 +87,7 @@ import {
   enforceProgramSyncSocketRenewal,
   randomizedProgramSyncSocketExpiry,
 } from "./program-sync-renewal.ts";
+import { ARCHIVE_RESTORE_CONFLICT_CODE } from "./archive-restore-protocol.ts";
 
 const COMMITTED_WRITE_BROADCAST_DELAY_MS = 100;
 
@@ -279,7 +285,7 @@ export class FormlessAuthority extends DurableObject<Env> {
       request,
       this.ctx.storage,
       this.bindings,
-      new AuthorityWriteModule(() => this.scheduleCommittedWriteBroadcast()),
+      new AuthorityWriteModule(this.ctx.storage, () => this.scheduleCommittedWriteBroadcast()),
     );
 
     if (instanceControlPlaneResponse) {
@@ -337,7 +343,9 @@ export class FormlessAuthority extends DurableObject<Env> {
         operation,
         source,
         storage: this.ctx.storage,
-        writes: new AuthorityWriteModule(() => this.scheduleCommittedWriteBroadcast()),
+        writes: new AuthorityWriteModule(this.ctx.storage, () =>
+          this.scheduleCommittedWriteBroadcast(),
+        ),
       });
 
       return jsonResponse(result.body, result.status, result.headers);
@@ -355,7 +363,9 @@ export class FormlessAuthority extends DurableObject<Env> {
       }
 
       const source = formlessProgramSource();
-      const writes = new AuthorityWriteModule(() => this.scheduleCommittedWriteBroadcast());
+      const writes = new AuthorityWriteModule(this.ctx.storage, () =>
+        this.scheduleCommittedWriteBroadcast(),
+      );
 
       if (request.method === "GET" && route.path === "/sync") {
         const cursor = url.searchParams.get("after");
@@ -465,6 +475,21 @@ export class FormlessAuthority extends DurableObject<Env> {
     } catch (error) {
       if (error instanceof PublicOperationError) {
         return jsonResponse({ error: error.message }, error.status, error.headers);
+      }
+
+      if (isArchiveRestoreGuardConflict(error)) {
+        return jsonResponse(
+          {
+            code: ARCHIVE_RESTORE_CONFLICT_CODE,
+            currentSourceCursor: error.currentSourceCursor,
+            error: error.message,
+            ...(error.expectedSourceCursor === undefined
+              ? {}
+              : { expectedSourceCursor: error.expectedSourceCursor }),
+            reason: error.reason,
+          },
+          409,
+        );
       }
 
       if (error instanceof BadRequestError) {
@@ -756,14 +781,36 @@ async function operationActorCandidatesForRequest(
   return candidates;
 }
 
+function isArchiveRestoreGuardConflict(error: unknown): error is ArchiveRestoreGuardConflictError {
+  return (
+    error instanceof ArchiveRestoreGuardConflictError ||
+    (error instanceof Error &&
+      error.name === "ArchiveRestoreGuardConflictError" &&
+      "currentSourceCursor" in error &&
+      "reason" in error)
+  );
+}
+
 class AuthorityWriteModule {
   private readonly notifyCommittedWrite: () => void;
+  private readonly storage: DurableObjectStorage;
 
-  constructor(notifyCommittedWrite: () => void) {
+  constructor(storage: DurableObjectStorage, notifyCommittedWrite: () => void) {
+    this.storage = storage;
     this.notifyCommittedWrite = notifyCommittedWrite;
   }
 
   apply<T>(write: () => WriteOutcome<T>): WriteOutcome<T> {
+    assertArchiveRestoreGuardAllowsWrite(this.storage);
+    return this.applyAllowed(write);
+  }
+
+  applyGuarded<T>(guardToken: string, write: () => WriteOutcome<T>): WriteOutcome<T> {
+    assertArchiveRestoreGuardAllowsWrite(this.storage, guardToken);
+    return this.applyAllowed(write);
+  }
+
+  private applyAllowed<T>(write: () => WriteOutcome<T>): WriteOutcome<T> {
     const outcome = write();
 
     if (outcome.kind === "committed") {

@@ -20,6 +20,7 @@ import {
   parseFormlessProgramStorageSnapshot,
 } from "../program/runtime.ts";
 import type { FormlessProgramArtifact } from "../program/artifact.ts";
+import { isSourceSchemaHash, type AppSchema } from "@dpeek/formless-schema";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import {
   CORE_IMAGE_KEY_PREFIX,
@@ -32,7 +33,8 @@ import {
   type DocumentMediaAsset,
   type MediaAsset,
 } from "@dpeek/formless-media";
-import type { StorageSnapshot } from "@dpeek/formless-storage";
+import { parseStorageSnapshot, type StorageSnapshot } from "@dpeek/formless-storage";
+import { FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER } from "../shared/protocol.ts";
 import {
   resolveFormlessCliAdminToken,
   formlessCliTargetFetchHeaders,
@@ -60,7 +62,12 @@ export type ArchiveRestoreRemoteResult = {
   ok: boolean;
   plan?: { summary: ArchiveRestoreSummary };
   report?: { applied: boolean; summary: ArchiveRestoreSummary };
-  errors?: { message: string }[];
+  errors?: {
+    code?: string;
+    currentSourceCursor?: number;
+    expectedSourceCursor?: number;
+    message: string;
+  }[];
 };
 
 export type RestoreInstanceArchiveResult = {
@@ -68,29 +75,65 @@ export type RestoreInstanceArchiveResult = {
   remote: ArchiveRestoreRemoteResult;
 };
 
+export class CurrentTargetArchiveSourceValidationError extends Error {
+  readonly failureType: "parse" | "validation";
+
+  constructor(failureType: "parse" | "validation", message: string) {
+    super(message);
+    this.name = "CurrentTargetArchiveSourceValidationError";
+    this.failureType = failureType;
+  }
+}
+
+export type ExportCurrentTargetInstanceArchiveResult = {
+  programSchema: AppSchema;
+  programSchemaProvenance: FormlessProgramArtifact["schemaProvenance"];
+  write: ArchiveDiskWriteResult;
+};
+
 export async function exportInstanceArchive(
   input: {
     adminToken?: string | null;
     outDir: string;
-    programArtifact?: FormlessProgramArtifact;
     target: string;
   },
   dependencies: ArchiveWorkflowDependencies,
 ): Promise<ArchiveDiskWriteResult> {
+  return (await exportCurrentTargetInstanceArchive(input, dependencies)).write;
+}
+
+export async function exportCurrentTargetInstanceArchive(
+  input: {
+    adminToken?: string | null;
+    outDir: string;
+    target: string;
+  },
+  dependencies: ArchiveWorkflowDependencies,
+): Promise<ExportCurrentTargetInstanceArchiveResult> {
   const target = normalizeTargetUrl(input.target);
   const exportedAt = dependencies.now();
   const auth = { adminToken: input.adminToken, env: dependencies.env };
-  const snapshot = await fetchRemoteProgramArchive({
+  const source = await fetchRemoteProgramArchiveSource({
     auth,
     fetcher: dependencies.fetch,
     target,
   });
-  const artifact = input.programArtifact ?? formlessProgramArtifact;
-  const program = parseFormlessProgramStorageSnapshot(
-    "Instance archive program snapshot",
-    canonicalizeFormlessProgramStorageSnapshot(snapshot, { artifact }),
-    { artifact },
-  );
+  let program: StorageSnapshot;
+
+  try {
+    program = parseFormlessProgramStorageSnapshot(
+      "Instance archive program snapshot",
+      canonicalizeFormlessProgramStorageSnapshot(source.snapshot, {
+        schema: source.programSchema,
+      }),
+      { schema: source.programSchema },
+    );
+  } catch (error) {
+    throw new CurrentTargetArchiveSourceValidationError(
+      "validation",
+      error instanceof Error ? error.message : "Current target Program snapshot is invalid.",
+    );
+  }
   const media = await exportRemoteProgramMedia({
     auth,
     fetcher: dependencies.fetch,
@@ -104,21 +147,26 @@ export async function exportInstanceArchive(
     capabilities: ["core-media-assets"],
     restorePolicy: { dryRun: true },
     program: {
-      schemaProvenance: artifact.schemaProvenance,
+      schemaProvenance: source.programSchemaProvenance,
       snapshot: program,
     },
     media: { objects: media.objects },
   };
 
-  return writeInstanceArchiveDirectory(
-    {
-      archive,
-      mediaFiles: media.files,
-      outDir: input.outDir,
-      programArtifact: artifact,
-    },
-    dependencies,
-  );
+  return {
+    programSchema: source.programSchema,
+    programSchemaProvenance: source.programSchemaProvenance,
+    write: await writeInstanceArchiveDirectory(
+      {
+        archive,
+        mediaFiles: media.files,
+        outDir: input.outDir,
+        programSchema: source.programSchema,
+        programSchemaProvenance: source.programSchemaProvenance,
+      },
+      dependencies,
+    ),
+  };
 }
 
 async function exportRemoteProgramMedia(input: {
@@ -252,16 +300,56 @@ async function fetchReferencedProgramDocumentAssets(
   return assetsByField;
 }
 
-async function fetchRemoteProgramArchive(input: {
+async function fetchRemoteProgramArchiveSource(input: {
   auth?: ArchiveExportAuth;
   fetcher: typeof fetch;
   target: string;
-}): Promise<StorageSnapshot> {
-  return fetchJson<StorageSnapshot>(
-    input.fetcher,
-    apiUrl(input.target, `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot?actorKind=cliDeployer`),
-    { headers: archiveExportRequestHeaders(input.auth, "application/json") },
+}): Promise<{
+  programSchema: AppSchema;
+  programSchemaProvenance: FormlessProgramArtifact["schemaProvenance"];
+  snapshot: StorageSnapshot;
+}> {
+  const url = apiUrl(
+    input.target,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot?actorKind=cliDeployer`,
   );
+  const response = await input.fetcher(url, {
+    headers: archiveExportRequestHeaders(input.auth, "application/json"),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed GET ${url}: HTTP ${response.status} ${await response.text()}`);
+  }
+
+  let value: unknown;
+
+  try {
+    value = JSON.parse(await response.text()) as unknown;
+  } catch (error) {
+    throw new CurrentTargetArchiveSourceValidationError(
+      "parse",
+      error instanceof Error ? error.message : "Current target snapshot JSON is invalid.",
+    );
+  }
+
+  try {
+    const snapshot = parseStorageSnapshot(value);
+    const sourceSchemaHash = response.headers.get(FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER);
+    if (!isSourceSchemaHash(sourceSchemaHash)) {
+      throw new Error("Current target snapshot source schema provenance is invalid.");
+    }
+
+    return {
+      programSchema: snapshot.schema,
+      programSchemaProvenance: { kind: "program", sourceSchemaHash },
+      snapshot,
+    };
+  } catch (error) {
+    throw new CurrentTargetArchiveSourceValidationError(
+      "validation",
+      error instanceof Error ? error.message : "Current target snapshot source is invalid.",
+    );
+  }
 }
 
 export async function restoreInstanceArchive(
@@ -269,6 +357,7 @@ export async function restoreInstanceArchive(
     adminToken?: string | null;
     apply: boolean;
     archiveDir: string;
+    expectedSourceCursor?: number;
     programArtifact?: FormlessProgramArtifact;
     target: string;
   },
@@ -282,6 +371,7 @@ export async function restoreWorkspacePushArchive(
     adminToken?: string | null;
     apply: boolean;
     archiveDir: string;
+    expectedSourceCursor?: number;
     programArtifact?: FormlessProgramArtifact;
     target: string;
   },
@@ -295,6 +385,7 @@ async function restoreArchive(
     adminToken?: string | null;
     apply: boolean;
     archiveDir: string;
+    expectedSourceCursor?: number;
     programArtifact?: FormlessProgramArtifact;
     target: string;
   },
@@ -313,6 +404,9 @@ async function restoreArchive(
     {
       adminToken: input.adminToken,
       archive,
+      ...(input.expectedSourceCursor === undefined
+        ? {}
+        : { expectedSourceCursor: input.expectedSourceCursor }),
       mediaFiles: diskArchive.mediaFiles,
       programArtifact,
       target: input.target,
@@ -457,6 +551,7 @@ async function postRemoteArchiveRestore(
   input: {
     adminToken?: string | null;
     archive: InstanceArchive;
+    expectedSourceCursor?: number;
     mediaFiles: readonly ArchiveDiskMediaFile[];
     programArtifact: FormlessProgramArtifact;
     target: string;
@@ -465,20 +560,55 @@ async function postRemoteArchiveRestore(
 ): Promise<ArchiveRestoreRemoteResult> {
   const target = normalizeTargetUrl(input.target);
 
-  return fetchJson<ArchiveRestoreRemoteResult>(
-    dependencies.fetch,
-    apiUrl(target, INSTANCE_ARCHIVE_RESTORE_API_PATH),
-    {
-      body: JSON.stringify({
-        archive: JSON.parse(
-          formatInstanceArchive(input.archive, { programArtifact: input.programArtifact }),
-        ) as unknown,
-        mediaFiles: input.mediaFiles.map(archiveRestoreRequestMediaFile),
-      }),
-      headers: archiveRestoreRequestHeaders(input.adminToken, dependencies.env),
-      method: "POST",
-    },
-  );
+  const url = apiUrl(target, INSTANCE_ARCHIVE_RESTORE_API_PATH);
+  const response = await dependencies.fetch(url, {
+    body: JSON.stringify({
+      archive: JSON.parse(
+        formatInstanceArchive(input.archive, { programArtifact: input.programArtifact }),
+      ) as unknown,
+      ...(input.expectedSourceCursor === undefined
+        ? {}
+        : { expectedSourceCursor: input.expectedSourceCursor }),
+      mediaFiles: input.mediaFiles.map(archiveRestoreRequestMediaFile),
+    }),
+    headers: archiveRestoreRequestHeaders(input.adminToken, dependencies.env),
+    method: "POST",
+  });
+  const text = await response.text();
+  const remote = parseArchiveRestoreRemoteResult(text);
+
+  if (remote !== undefined) {
+    return remote;
+  }
+
+  if (response.ok) {
+    try {
+      return JSON.parse(text) as ArchiveRestoreRemoteResult;
+    } catch {
+      throw new Error(`Failed POST ${url}: response was not JSON.`);
+    }
+  }
+
+  throw new Error(`Failed POST ${url}: HTTP ${response.status} ${text}`);
+}
+
+function parseArchiveRestoreRemoteResult(value: string): ArchiveRestoreRemoteResult | undefined {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !("ok" in parsed) ||
+      typeof (parsed as { ok?: unknown }).ok !== "boolean"
+    ) {
+      return undefined;
+    }
+
+    return parsed as ArchiveRestoreRemoteResult;
+  } catch {
+    return undefined;
+  }
 }
 
 function archiveRestoreRequestHeaders(

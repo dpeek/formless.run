@@ -20,6 +20,7 @@ import {
 } from "@dpeek/formless-storage";
 import {
   applyInstanceArchiveRestore,
+  ArchiveRestoreSourceConflictError,
   dryRunInstanceArchiveRestore,
   type ArchiveRestoreApplyTarget,
 } from "./archive-restore.ts";
@@ -54,6 +55,7 @@ describe("portable Program archive restore", () => {
       "media:media/images/hero.png",
       "program:formless-program",
       "replace-media:media/images/hero.png",
+      "commit",
     ]);
   });
 
@@ -132,13 +134,60 @@ describe("portable Program archive restore", () => {
       "media:media/images/hero.png",
       "program:task,route",
       "replace-media:media/images/hero.png",
+      "commit",
     ]);
+  });
+
+  it("returns a typed conflict before media mutation when the target cursor advanced", async () => {
+    const events: string[] = [];
+    const target = restoreTarget(events);
+    target.expectedSourceCursor = 4;
+    target.beginRestore = async () => {
+      events.push("begin:conflict");
+      throw new ArchiveRestoreSourceConflictError(4, 5);
+    };
+
+    const result = await applyInstanceArchiveRestore(instanceArchive({ dryRun: false }), target);
+
+    expect(result).toMatchObject({
+      errors: [
+        {
+          code: "target-source-conflict",
+          currentSourceCursor: 5,
+          expectedSourceCursor: 4,
+        },
+      ],
+      ok: false,
+      plan: { expectedSourceCursor: 4 },
+    });
+    expect(events).toEqual(["validate:media/images/hero.png", "begin:conflict"]);
   });
 
   it("rolls back media and Program mutations when Program restore fails", async () => {
     const events: string[] = [];
+    const state = { media: "original", program: "original" };
     const target = restoreTarget(events);
+    const restoreMedia = target.media!.restoreObject;
+    target.beginRestore = async () => {
+      const prior = { ...state };
+      events.push("begin");
+
+      return {
+        commit: async () => {
+          events.push("commit");
+        },
+        rollback: async () => {
+          Object.assign(state, prior);
+          events.push("rollback");
+        },
+      };
+    };
+    target.media!.restoreObject = async (input) => {
+      state.media = "replacement";
+      return restoreMedia(input);
+    };
     target.restoreProgram = async () => {
+      state.program = "replacement";
       events.push("program:failed");
       throw new Error("Program restore failed");
     };
@@ -156,6 +205,7 @@ describe("portable Program archive restore", () => {
       "program:failed",
       "rollback",
     ]);
+    expect(state).toEqual({ media: "original", program: "original" });
   });
 });
 
@@ -166,6 +216,9 @@ function restoreTarget(events: string[]): ArchiveRestoreApplyTarget {
     beginRestore: async () => {
       events.push("begin");
       return {
+        commit: async () => {
+          events.push("commit");
+        },
         rollback: async () => {
           events.push("rollback");
         },

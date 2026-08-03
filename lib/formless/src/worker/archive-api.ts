@@ -6,17 +6,25 @@ import {
 } from "../program/target.ts";
 import {
   applyInstanceArchiveRestore,
+  ArchiveRestoreSourceConflictError,
   dryRunInstanceArchiveRestore,
   restoreArchiveMediaObjectToStore,
   validateArchiveMediaObjectRestoreToStore,
   type ArchiveRestoreApplyTarget,
   type ArchiveRestoreMediaRead,
 } from "./archive-restore.ts";
+import {
+  ARCHIVE_RESTORE_CONFLICT_CODE,
+  ARCHIVE_RESTORE_GUARD_PATH,
+  ARCHIVE_RESTORE_GUARD_RELEASE_PATH,
+  type ArchiveRestoreConflictResponse,
+  type ArchiveRestoreGuardResponse,
+} from "./archive-restore-protocol.ts";
 import { authorizeInstanceWrite, type AuthorityAdminGuardEnv } from "./authority-admin-guard.ts";
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { mediaObjectStoreFromR2Bucket } from "@dpeek/formless-media/worker";
 import { CORE_IMAGE_KEY_PREFIX, PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX } from "@dpeek/formless-media";
-import type { StorageSnapshot } from "@dpeek/formless-storage";
+import { parseStorageSnapshot, type StorageSnapshot } from "@dpeek/formless-storage";
 
 export const INSTANCE_ARCHIVE_RESTORE_API_PATH = "/api/formless/archive/restore";
 
@@ -27,6 +35,7 @@ type InstanceArchiveApiEnv = AuthorityAdminGuardEnv & {
 
 type ArchiveRestoreRequest = {
   archive: unknown;
+  expectedSourceCursor?: number;
   mediaFiles: ArchiveRestoreMediaRead[];
 };
 
@@ -82,12 +91,24 @@ export async function handleInstanceArchiveDurableObjectRequest(
     const body = parseArchiveRestoreRequest(await readJson(request));
     const archive = parseInstanceArchive(body.archive, { programSharedRuntime });
     const mediaFilesByPath = new Map(body.mediaFiles.map((file) => [file.archivePath, file]));
-    const target = archiveRestoreApiTarget(request, env, mediaFilesByPath);
+    const target = archiveRestoreApiTarget(
+      request,
+      env,
+      mediaFilesByPath,
+      body.expectedSourceCursor,
+    );
     const result = archive.restorePolicy.dryRun
       ? await dryRunInstanceArchiveRestore(archive, target)
       : await applyInstanceArchiveRestore(archive, target);
 
-    return jsonResponse(result, result.ok ? 200 : 400);
+    return jsonResponse(
+      result,
+      result.ok
+        ? 200
+        : result.errors.some((error) => error.code === "target-source-conflict")
+          ? 409
+          : 400,
+    );
   } catch (error) {
     return jsonResponse({ error: errorMessage(error) }, 400);
   }
@@ -97,21 +118,47 @@ function archiveRestoreApiTarget(
   request: Request,
   env: InstanceArchiveApiEnv,
   mediaFilesByPath: Map<string, ArchiveRestoreMediaRead>,
+  expectedSourceCursor: number | undefined,
 ): ArchiveRestoreApplyTarget {
+  let activeGuardToken: string | undefined;
+  let programRestored = false;
+
   return {
     beginRestore: async () => {
-      const [program, media] = await Promise.all([
-        readProgramSnapshotViaAuthority(request, env),
-        readProgramMediaBackup(env.FORMLESS_MEDIA),
-      ]);
+      const guardToken = crypto.randomUUID();
+      const guard = await beginProgramArchiveRestoreGuard(request, env, {
+        ...(expectedSourceCursor === undefined ? {} : { expectedSourceCursor }),
+        guardToken,
+      });
+      activeGuardToken = guard.guardToken;
+      let media: ArchiveMediaBackupObject[];
+
+      try {
+        media = await readProgramMediaBackup(env.FORMLESS_MEDIA);
+      } catch (error) {
+        await releaseProgramArchiveRestoreGuard(request, env, guard.guardToken);
+        activeGuardToken = undefined;
+        throw error;
+      }
 
       return {
+        commit: async () => {
+          await releaseProgramArchiveRestoreGuard(request, env, guard.guardToken);
+          activeGuardToken = undefined;
+        },
         rollback: async () => {
           await restoreProgramMediaBackup(env.FORMLESS_MEDIA, media);
-          await restoreProgramViaAuthority(request, env, program);
+
+          if (programRestored) {
+            await restoreProgramViaAuthority(request, env, guard.snapshot, guard.guardToken);
+          }
+
+          await releaseProgramArchiveRestoreGuard(request, env, guard.guardToken);
+          activeGuardToken = undefined;
         },
       };
     },
+    ...(expectedSourceCursor === undefined ? {} : { expectedSourceCursor }),
     media: {
       listFiles: async () => [...mediaFilesByPath.values()],
       readFile: async (archivePath) => mediaFilesByPath.get(archivePath),
@@ -133,31 +180,60 @@ function archiveRestoreApiTarget(
     },
     programSharedRuntime,
     restoreProgram: async (program) => {
-      await restoreProgramViaAuthority(request, env, program);
+      if (activeGuardToken === undefined) {
+        throw new Error("Program archive restore guard is not active.");
+      }
+
+      await restoreProgramViaAuthority(request, env, program, activeGuardToken);
+      programRestored = true;
     },
   };
 }
 
-async function readProgramSnapshotViaAuthority(
+async function beginProgramArchiveRestoreGuard(
   request: Request,
   env: InstanceArchiveApiEnv,
-): Promise<StorageSnapshot> {
+  input: { expectedSourceCursor?: number; guardToken: string },
+): Promise<ArchiveRestoreGuardResponse> {
   const response = await programAuthorityFetch(
     request,
     env,
-    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot?actorKind=cliDeployer`,
-    { method: "GET" },
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${ARCHIVE_RESTORE_GUARD_PATH}`,
+    { body: JSON.stringify(input), method: "POST" },
   );
   const text = await response.text();
 
   if (!response.ok) {
-    throw new Error(`Failed Program snapshot read: HTTP ${response.status} ${text}`);
+    const conflict = parseArchiveRestoreConflictResponse(text);
+
+    if (
+      response.status === 409 &&
+      conflict?.reason === "source-cursor-changed" &&
+      conflict.expectedSourceCursor !== undefined
+    ) {
+      throw new ArchiveRestoreSourceConflictError(
+        conflict.expectedSourceCursor,
+        conflict.currentSourceCursor,
+      );
+    }
+
+    throw new Error(`Failed Program archive restore guard: HTTP ${response.status} ${text}`);
   }
 
   try {
-    return JSON.parse(text) as StorageSnapshot;
+    const value = JSON.parse(text) as unknown;
+    const object = parseObject("Program archive restore guard response", value);
+    assertExactKeys("Program archive restore guard response", object, ["guardToken", "snapshot"]);
+
+    return {
+      guardToken: parseNonEmptyString(
+        "Program archive restore guard response guardToken",
+        object.guardToken,
+      ),
+      snapshot: parseStorageSnapshot(object.snapshot),
+    };
   } catch {
-    throw new Error("Failed Program snapshot read: response was not JSON.");
+    throw new Error("Failed Program archive restore guard: response was invalid.");
   }
 }
 
@@ -165,12 +241,16 @@ async function restoreProgramViaAuthority(
   request: Request,
   env: InstanceArchiveApiEnv,
   program: StorageSnapshot,
+  guardToken: string,
 ): Promise<void> {
   const response = await programAuthorityFetch(
     request,
     env,
     `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
-    { body: JSON.stringify(program), method: "POST" },
+    {
+      body: JSON.stringify({ guardToken, snapshot: program }),
+      method: "POST",
+    },
   );
   const text = await response.text();
 
@@ -185,6 +265,36 @@ async function restoreProgramViaAuthority(
   }
 }
 
+async function releaseProgramArchiveRestoreGuard(
+  request: Request,
+  env: InstanceArchiveApiEnv,
+  guardToken: string,
+): Promise<void> {
+  const response = await programAuthorityFetch(
+    request,
+    env,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${ARCHIVE_RESTORE_GUARD_RELEASE_PATH}`,
+    { body: JSON.stringify({ guardToken }), method: "POST" },
+  );
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed Program archive restore guard release: HTTP ${response.status} ${text}`,
+    );
+  }
+
+  try {
+    const value = JSON.parse(text) as { released?: unknown };
+
+    if (value.released !== true) {
+      throw new Error();
+    }
+  } catch {
+    throw new Error("Failed Program archive restore guard release: response was invalid.");
+  }
+}
+
 function programAuthorityFetch(
   request: Request,
   env: InstanceArchiveApiEnv,
@@ -196,7 +306,7 @@ function programAuthorityFetch(
   return env.FORMLESS_AUTHORITY.get(id).fetch(
     new Request(new URL(path, request.url), {
       ...init,
-      headers: archiveRestoreForwardHeaders(request.headers),
+      headers: archiveRestoreForwardHeaders(request.headers, init.headers),
     }),
   );
 }
@@ -288,8 +398,11 @@ function mediaKeyPrefix(prefix: string): string {
   return prefix.endsWith("/") ? prefix : `${prefix}/`;
 }
 
-function archiveRestoreForwardHeaders(headers: Headers): Headers {
-  const forwarded = new Headers();
+function archiveRestoreForwardHeaders(
+  headers: Headers,
+  additionalHeaders: HeadersInit | undefined,
+): Headers {
+  const forwarded = new Headers(additionalHeaders);
   const authorization = headers.get("Authorization");
   const cookie = headers.get("Cookie");
 
@@ -309,10 +422,26 @@ function archiveRestoreForwardHeaders(headers: Headers): Headers {
 function parseArchiveRestoreRequest(value: unknown): ArchiveRestoreRequest {
   const object = parseObject("Archive restore request", value);
 
-  assertExactKeys("Archive restore request", object, ["archive", "mediaFiles"]);
+  assertExactKeys(
+    "Archive restore request",
+    object,
+    ["archive", "mediaFiles"],
+    ["expectedSourceCursor"],
+  );
+  const expectedSourceCursor = object.expectedSourceCursor;
+
+  if (
+    expectedSourceCursor !== undefined &&
+    (!Number.isInteger(expectedSourceCursor) || (expectedSourceCursor as number) < 0)
+  ) {
+    throw new Error("Archive restore request expectedSourceCursor must be a non-negative integer.");
+  }
 
   return {
     archive: object.archive,
+    ...(expectedSourceCursor === undefined
+      ? {}
+      : { expectedSourceCursor: expectedSourceCursor as number }),
     mediaFiles: parseArchiveRestoreMediaFiles(object.mediaFiles),
   };
 }
@@ -414,8 +543,13 @@ function parseObject(context: string, value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function assertExactKeys(context: string, value: Record<string, unknown>, requiredKeys: string[]) {
-  const expected = new Set(requiredKeys);
+function assertExactKeys(
+  context: string,
+  value: Record<string, unknown>,
+  requiredKeys: string[],
+  optionalKeys: string[] = [],
+) {
+  const expected = new Set([...requiredKeys, ...optionalKeys]);
 
   for (const key of Object.keys(value)) {
     if (!expected.has(key)) {
@@ -427,6 +561,30 @@ function assertExactKeys(context: string, value: Record<string, unknown>, requir
     if (!(key in value)) {
       throw new Error(`${context} must include "${key}".`);
     }
+  }
+}
+
+function parseArchiveRestoreConflictResponse(
+  value: string,
+): ArchiveRestoreConflictResponse | undefined {
+  try {
+    const parsed = JSON.parse(value) as Partial<ArchiveRestoreConflictResponse>;
+
+    if (
+      parsed.code !== ARCHIVE_RESTORE_CONFLICT_CODE ||
+      typeof parsed.error !== "string" ||
+      !Number.isInteger(parsed.currentSourceCursor) ||
+      (parsed.reason !== "guard-held" &&
+        parsed.reason !== "guard-token-invalid" &&
+        parsed.reason !== "source-cursor-changed") ||
+      (parsed.expectedSourceCursor !== undefined && !Number.isInteger(parsed.expectedSourceCursor))
+    ) {
+      return undefined;
+    }
+
+    return parsed as ArchiveRestoreConflictResponse;
+  } catch {
+    return undefined;
   }
 }
 

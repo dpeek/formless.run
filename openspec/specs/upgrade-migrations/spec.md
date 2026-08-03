@@ -43,6 +43,26 @@ pull synchronization.
   storage migrations, require backup evidence, or require manual approval
   evidence
 
+#### Scenario: Compatible Program refresh is not a migration
+
+- GIVEN current and desired Program schemas have the same stored record contract
+- AND every committed and replacement record validates without creation,
+  patching, deletion, value pruning, or constraint repair
+- WHEN ordinary push reconciles the desired runtime and active Program schema
+- THEN the compatible source refresh remains a synchronization operation
+- AND it does not invoke a migration registry, record transform, migration
+  approval, or migration evidence policy
+
+#### Scenario: Record-materializing evolution requires an explicit operation
+
+- GIVEN a Program schema change removes or rebinds stored entities or fields,
+  changes stored value shape, or requires record or constraint repair
+- WHEN ordinary push plans that schema change
+- THEN push fails without changing Program records or media
+- AND neither ordinary push nor force silently transforms or prunes records
+- AND a future explicit evolution or migration operation owns backup policy,
+  transforms, approval, validation, apply evidence, and rollback
+
 #### Scenario: Pull omits migration policy
 
 - WHEN `formless pull` or `formless pull --dry-run` runs

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { formlessProgramSchema } from "../program/runtime.ts";
+import { formlessProgramSchema, formlessProgramSchemaProvenance } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
@@ -18,6 +18,7 @@ import {
 } from "@dpeek/formless-workspace";
 import { formatTestFormlessConfigModule } from "./instance-workspace-config-test.ts";
 
+import { FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER } from "../shared/protocol.ts";
 import {
   createDefaultWorkspaceAutoSaveScheduler,
   createWorkspaceAutoSaveScheduler,
@@ -353,7 +354,12 @@ function workspaceSaveFetch(requests: CapturedRequest[]): typeof fetch {
     });
 
     if (parsedUrl.pathname === "/api/formless/program/snapshot") {
-      return Response.json(controlPlaneSnapshot([]));
+      return Response.json(controlPlaneSnapshot([]), {
+        headers: {
+          [FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER]:
+            formlessProgramSchemaProvenance.sourceSchemaHash,
+        },
+      });
     }
 
     return Response.json({ error: "not found" }, { status: 404 });

@@ -499,6 +499,9 @@ describe("instance control-plane API routes", () => {
     expect([...snapshot.body.records].sort(byRecordId)).toEqual(
       [...bootstrap.body.records].sort(byRecordId),
     );
+    expect(snapshot.response.headers.get(FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER)).toBe(
+      formlessProgramSchemaProvenance.sourceSchemaHash,
+    );
   });
 
   it("writes Program-native public Site routes without package resolution", async () => {
