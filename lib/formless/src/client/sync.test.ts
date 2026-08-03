@@ -1,7 +1,13 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 import { publishClientEvent } from "./broadcast.ts";
-import { deleteClientDb, mergeRecords, readLocalSnapshot, saveBootstrapResponse } from "./db.ts";
+import {
+  deleteClientDb,
+  mergeRecords,
+  prepareProgramReplicaPrincipalBoundary,
+  readLocalSnapshot,
+  saveBootstrapResponse,
+} from "./db.ts";
 import {
   applyBootstrapResponse,
   applyRecordMerge,
@@ -29,6 +35,7 @@ import {
   syncClient,
 } from "./sync.ts";
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
+import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
@@ -41,7 +48,6 @@ import type {
   ChangeRow,
   SchemaResponse,
   SchemaUpdateResponse,
-  SyncSocketClientMessage,
   SyncSocketServerMessage,
   SyncResponse,
 } from "../shared/protocol.ts";
@@ -330,7 +336,7 @@ describe("client sync", () => {
     expect(storeSnapshot.cursor).toBe(2);
   });
 
-  it("applies schema-only pushed sync responses", async () => {
+  it("applies schema-only HTTP sync responses", async () => {
     const nextSchema = schemaWithSummary();
 
     await saveBootstrapResponse({
@@ -358,160 +364,9 @@ describe("client sync", () => {
     expect(storeSnapshot.schemaUpdatedAt).toBe("2026-04-28T00:01:00.000Z");
   });
 
-  it("opens a keyed push sync socket and sends hello with local sync state", async () => {
+  it("opens a server-only invalidation socket and catches up through HTTP", async () => {
     const sockets = fakeSocketFactory();
-
-    await saveBootstrapResponse({
-      schema: appSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [record("record-1", "First")],
-      cursor: 1,
-    });
-
-    const stop = startPushSync({ socketFactory: sockets.create });
-
-    try {
-      expect(new URL(sockets.instances[0]?.url ?? "").pathname).toBe(
-        "/api/formless/program/sync/ws",
-      );
-
-      sockets.instances[0]?.open();
-
-      await waitFor(() => sockets.instances[0]?.sentMessages.length === 1);
-      expect(parseSocketClientMessage(sockets.instances[0]?.sentMessages[0])).toEqual({
-        type: "hello",
-        cursor: 1,
-        schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      });
-    } finally {
-      stop();
-    }
-  });
-
-  it("opens rate-card push sync on the CRM schema key", () => {
-    const sockets = fakeSocketFactory();
-    const stop = startPushSync({ socketFactory: sockets.create });
-
-    try {
-      expect(new URL(sockets.instances[0]?.url ?? "").pathname).toBe(
-        "/api/formless/program/sync/ws",
-      );
-    } finally {
-      stop();
-    }
-  });
-
-  it("opens Tasks push sync on the Program API path", () => {
-    const sockets = fakeSocketFactory();
-    const stop = startPushSync({
-      socketFactory: sockets.create,
-    });
-
-    try {
-      expect(new URL(sockets.instances[0]?.url ?? "").pathname).toBe(
-        "/api/formless/program/sync/ws",
-      );
-    } finally {
-      stop();
-    }
-  });
-
-  it("merges pushed sync messages into the selected local database", async () => {
-    const sockets = fakeSocketFactory();
-
-    await saveBootstrapResponse({
-      schema: appSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [record("record-1", "First")],
-      cursor: 1,
-    });
-    await refreshClientStoreFromDb();
-
-    const stop = startPushSync({ socketFactory: sockets.create });
-
-    try {
-      sockets.instances[0]?.open();
-
-      sockets.instances[0]?.receive({
-        type: "sync",
-        payload: {
-          changes: [writeLogChange(2, "record-2", "Second")],
-          cursor: 2,
-        },
-      });
-
-      await waitFor(() => getClientStoreSnapshot().cursor === 2);
-
-      const taskSnapshot = await readLocalSnapshot();
-
-      expect(taskSnapshot.records.map((storedRecord) => storedRecord.id)).toEqual([
-        "record-1",
-        "record-2",
-      ]);
-      expect(getClientStoreSnapshot().recordsById["record-2"]).toEqual(
-        record("record-2", "Second"),
-      );
-    } finally {
-      stop();
-    }
-  });
-
-  it("applies WebSocket hello catch-up payloads with schema timestamps", async () => {
-    const sockets = fakeSocketFactory();
-    const nextSchema = schemaWithSummary();
-
-    await saveBootstrapResponse({
-      schema: appSchema,
-      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      records: [record("record-1", "First")],
-      cursor: 1,
-    });
-    await refreshClientStoreFromDb();
-
-    const stop = startPushSync({ socketFactory: sockets.create });
-
-    try {
-      sockets.instances[0]?.open();
-
-      await waitFor(() => sockets.instances[0]?.sentMessages.length === 1);
-      expect(parseSocketClientMessage(sockets.instances[0]?.sentMessages[0])).toEqual({
-        type: "hello",
-        cursor: 1,
-        schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      });
-
-      sockets.instances[0]?.receive({
-        type: "sync",
-        payload: {
-          changes: [writeLogChange(2, "record-2", "Second")],
-          cursor: 2,
-          schema: nextSchema,
-          schemaUpdatedAt: "2026-04-28T00:01:00.000Z",
-        },
-      });
-
-      await waitFor(() => getClientStoreSnapshot().cursor === 2);
-
-      const snapshot = await readLocalSnapshot();
-      const storeSnapshot = getClientStoreSnapshot();
-
-      expect(snapshot.schema).toEqual(nextSchema);
-      expect(snapshot.schemaUpdatedAt).toBe("2026-04-28T00:01:00.000Z");
-      expect(snapshot.records.map((storedRecord) => storedRecord.id)).toEqual([
-        "record-1",
-        "record-2",
-      ]);
-      expect(snapshot.cursor).toBe(2);
-      expect(storeSnapshot.schema).toEqual(nextSchema);
-      expect(storeSnapshot.recordsById["record-2"]).toEqual(record("record-2", "Second"));
-      expect(storeSnapshot.cursor).toBe(2);
-    } finally {
-      stop();
-    }
-  });
-
-  it("notifies callers after pushed sync messages are applied", async () => {
-    const sockets = fakeSocketFactory();
+    const requests: string[] = [];
     let syncedCount = 0;
 
     await saveBootstrapResponse({
@@ -523,6 +378,15 @@ describe("client sync", () => {
     await refreshClientStoreFromDb();
 
     const stop = startPushSync({
+      fetcher: async (input) => {
+        requests.push(
+          typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url,
+        );
+        return Response.json({
+          changes: [writeLogChange(2, "record-2", "Second")],
+          cursor: 2,
+        } satisfies SyncResponse);
+      },
       onSynced: () => {
         syncedCount += 1;
       },
@@ -530,19 +394,19 @@ describe("client sync", () => {
     });
 
     try {
+      expect(new URL(sockets.instances[0]?.url ?? "").pathname).toBe(
+        "/api/formless/program/sync/ws",
+      );
+
       sockets.instances[0]?.open();
 
-      sockets.instances[0]?.receive({
-        type: "sync",
-        payload: {
-          changes: [writeLogChange(2, "record-2", "Second")],
-          cursor: 2,
-        },
-      });
-
-      await waitFor(() => syncedCount === 1);
-
-      expect(getClientStoreSnapshot().cursor).toBe(2);
+      await waitFor(() => getClientStoreSnapshot().cursor === 2);
+      const syncUrl = new URL(requests[0] ?? "", "http://localhost");
+      expect(syncUrl.pathname).toBe("/api/formless/program/sync");
+      expect(syncUrl.searchParams.get("after")).toBe("1");
+      expect(syncUrl.searchParams.get("schemaUpdatedAt")).toBe("2026-04-28T00:00:00.000Z");
+      expect(sockets.instances[0]?.sentMessages).toEqual([]);
+      expect(syncedCount).toBe(1);
       expect(getClientStoreSnapshot().recordsById["record-2"]).toEqual(
         record("record-2", "Second"),
       );
@@ -551,8 +415,10 @@ describe("client sync", () => {
     }
   });
 
-  it("sends sync-requested over an open push sync socket", async () => {
+  it("catches up changed notifications through HTTP, including schema", async () => {
     const sockets = fakeSocketFactory();
+    const nextSchema = schemaWithSummary();
+    let requestCount = 0;
 
     await saveBootstrapResponse({
       schema: appSchema,
@@ -560,29 +426,50 @@ describe("client sync", () => {
       records: [record("record-1", "First")],
       cursor: 1,
     });
+    await refreshClientStoreFromDb();
 
-    const stop = startPushSync({ socketFactory: sockets.create });
+    const stop = startPushSync({
+      fetcher: async () => {
+        requestCount += 1;
+        return requestCount === 1
+          ? Response.json({ changes: [], cursor: 1 } satisfies SyncResponse)
+          : Response.json({
+              changes: [writeLogChange(2, "record-2", "Second")],
+              cursor: 2,
+              schema: nextSchema,
+              schemaUpdatedAt: "2026-04-28T00:01:00.000Z",
+            } satisfies SyncResponse);
+      },
+      socketFactory: sockets.create,
+    });
 
     try {
       sockets.instances[0]?.open();
-      await waitFor(() => sockets.instances[0]?.sentMessages.length === 1);
+      await waitFor(() => requestCount === 1);
 
-      requestSync();
+      sockets.instances[0]?.receive({ type: "changed" });
 
-      await waitFor(() => sockets.instances[0]?.sentMessages.length === 2);
-      expect(parseSocketClientMessage(sockets.instances[0]?.sentMessages[1])).toEqual({
-        type: "sync-requested",
-        cursor: 1,
-        schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      });
+      await waitFor(() => getClientStoreSnapshot().cursor === 2);
+      const snapshot = await readLocalSnapshot();
+      expect(requestCount).toBe(2);
+      expect(sockets.instances[0]?.sentMessages).toEqual([]);
+      expect(snapshot.schema).toEqual(nextSchema);
+      expect(snapshot.schemaUpdatedAt).toBe("2026-04-28T00:01:00.000Z");
+      expect(snapshot.records.map((storedRecord) => storedRecord.id)).toEqual([
+        "record-1",
+        "record-2",
+      ]);
     } finally {
       stop();
     }
   });
 
-  it("uses operation output cursors for later push sync requests", async () => {
+  it("serializes in-flight notifications behind one trailing HTTP pull", async () => {
     const sockets = fakeSocketFactory();
-    const acceptedRecord = record("record-2", "Second");
+    const nextSchema = schemaWithSummary();
+    const pulls = [deferred<Response>(), deferred<Response>()];
+    const requests: string[] = [];
+    let syncedCount = 0;
 
     await saveBootstrapResponse({
       schema: appSchema,
@@ -590,43 +477,176 @@ describe("client sync", () => {
       records: [record("record-1", "First")],
       cursor: 1,
     });
+    await refreshClientStoreFromDb();
 
-    const stop = startPushSync({ socketFactory: sockets.create });
+    const stop = startPushSync({
+      fetcher: async (input) => {
+        const index = requests.length;
+        requests.push(requestUrl(input));
+        return pulls[index]!.promise;
+      },
+      onSynced: () => {
+        syncedCount += 1;
+      },
+      socketFactory: sockets.create,
+    });
 
     try {
       sockets.instances[0]?.open();
-      await waitFor(() => sockets.instances[0]?.sentMessages.length === 1);
+      await waitFor(() => requests.length === 1);
 
-      await submitOperation(
-        "task",
-        "create",
-        { input: { title: "Second", done: false } },
-        async (_input, init) => {
-          const operation = parseOperationRequestBody(init?.body);
-          const changes = [
-            materializedRecordChange(2, operation.idempotencyKey, acceptedRecord, "create"),
-          ];
+      sockets.instances[0]?.receive({ type: "changed" });
+      sockets.instances[0]?.receive({ type: "changed" });
+      expect(requests).toHaveLength(1);
 
-          return Response.json(
-            operationResponse({
-              type: "create",
-              affectedChangeIds: changes.map((change) => String(change.seq)),
-              changes,
-              cursor: 2,
-              record: acceptedRecord,
-            }),
-          );
-        },
+      pulls[0]!.resolve(
+        Response.json({
+          changes: [writeLogChange(2, "record-2", "Second")],
+          cursor: 2,
+          schema: nextSchema,
+          schemaUpdatedAt: "2026-04-28T00:01:00.000Z",
+        } satisfies SyncResponse),
       );
+
+      await waitFor(() => requests.length === 2);
+      const trailingUrl = new URL(requests[1]!, "http://localhost");
+      expect(trailingUrl.searchParams.get("after")).toBe("2");
+      expect(trailingUrl.searchParams.get("schemaUpdatedAt")).toBe("2026-04-28T00:01:00.000Z");
+
+      pulls[1]!.resolve(Response.json({ changes: [], cursor: 2 } satisfies SyncResponse));
+      await waitFor(() => syncedCount === 2);
+      expect(requests).toHaveLength(2);
+    } finally {
+      stop();
+    }
+  });
+
+  it("aborts a stopped runtime without applying a late record or schema response", async () => {
+    const sockets = fakeSocketFactory();
+    const pending = deferred<Response>();
+    const nextSchema = schemaWithSummary();
+    let requestSignal: AbortSignal | undefined;
+
+    await saveBootstrapResponse({
+      schema: appSchema,
+      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
+      records: [record("record-1", "First")],
+      cursor: 1,
+    });
+    await refreshClientStoreFromDb();
+
+    const stop = startPushSync({
+      fetcher: async (_input, init) => {
+        requestSignal = init?.signal ?? undefined;
+        return pending.promise;
+      },
+      socketFactory: sockets.create,
+    });
+    sockets.instances[0]?.open();
+    await waitFor(() => requestSignal !== undefined);
+
+    stop();
+    expect(requestSignal?.aborted).toBe(true);
+    pending.resolve(
+      Response.json({
+        changes: [writeLogChange(2, "record-2", "Late")],
+        cursor: 2,
+        schema: nextSchema,
+        schemaUpdatedAt: "2026-04-28T00:01:00.000Z",
+      } satisfies SyncResponse),
+    );
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 0));
+
+    expect(await readLocalSnapshot()).toMatchObject({
+      cursor: 1,
+      schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
+    });
+    expect(getClientStoreSnapshot().recordsById["record-2"]).toBeUndefined();
+  });
+
+  it("rejects an HTTP response after the replica principal changes", async () => {
+    const pending = deferred<Response>();
+    let requested = false;
+
+    await prepareProgramReplicaPrincipalBoundary(
+      "principal:first",
+      FORMLESS_PROGRAM_STORAGE_IDENTITY,
+    );
+    await saveBootstrapResponse(
+      {
+        schema: appSchema,
+        schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
+        records: [record("record-1", "First")],
+        cursor: 1,
+      },
+      { principalId: "principal:first" },
+    );
+
+    const sync = syncClient(
+      async () => {
+        requested = true;
+        return pending.promise;
+      },
+      { principalId: "principal:first" },
+    );
+    await waitFor(() => requested);
+    await prepareProgramReplicaPrincipalBoundary(
+      "principal:second",
+      FORMLESS_PROGRAM_STORAGE_IDENTITY,
+    );
+    pending.resolve(
+      Response.json({
+        changes: [writeLogChange(2, "record-2", "Wrong principal")],
+        cursor: 2,
+      } satisfies SyncResponse),
+    );
+
+    await expect(sync).rejects.toThrow("principal binding changed");
+    expect(await readLocalSnapshot()).toMatchObject({
+      cursor: 0,
+      principalId: "principal:second",
+      records: [],
+    });
+  });
+
+  it.each([401, 403])(
+    "invalidates authority rejected by HTTP sync with status %s",
+    async (status) => {
+      const reasons: string[] = [];
+      const stop = listenForProgramAuthorityInvalidation((reason) => reasons.push(reason));
+
+      try {
+        await expect(
+          syncClient(async () =>
+            Response.json({ error: "Current authority changed." }, { status }),
+          ),
+        ).rejects.toThrow("Current authority changed.");
+        expect(reasons).toEqual(["protected-rejection"]);
+      } finally {
+        stop();
+      }
+    },
+  );
+
+  it("routes explicit catch-up requests through HTTP without sending client frames", async () => {
+    const sockets = fakeSocketFactory();
+    let requestCount = 0;
+    const stop = startPushSync({
+      fetcher: async () => {
+        requestCount += 1;
+        return Response.json({ changes: [], cursor: 0 } satisfies SyncResponse);
+      },
+      socketFactory: sockets.create,
+    });
+
+    try {
+      sockets.instances[0]?.open();
+      await waitFor(() => requestCount === 1);
 
       requestSync();
 
-      await waitFor(() => sockets.instances[0]?.sentMessages.length === 2);
-      expect(parseSocketClientMessage(sockets.instances[0]?.sentMessages[1])).toEqual({
-        type: "sync-requested",
-        cursor: 2,
-        schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      });
+      await waitFor(() => requestCount === 2);
+      expect(sockets.instances[0]?.sentMessages).toEqual([]);
     } finally {
       stop();
     }
@@ -634,7 +654,12 @@ describe("client sync", () => {
 
   it("reconnects push sync after an opened socket closes", async () => {
     const sockets = fakeSocketFactory();
+    let requestCount = 0;
     const stop = startPushSync({
+      fetcher: async () => {
+        requestCount += 1;
+        return Response.json({ changes: [], cursor: 0 } satisfies SyncResponse);
+      },
       reconnectInitialDelayMs: 1,
       reconnectMaxDelayMs: 2,
       socketFactory: sockets.create,
@@ -642,13 +667,141 @@ describe("client sync", () => {
 
     try {
       sockets.instances[0]?.open();
-      await waitFor(() => sockets.instances[0]?.sentMessages.length === 1);
+      await waitFor(() => requestCount === 1);
       sockets.instances[0]?.closeFromServer();
 
       await waitFor(() => sockets.instances.length === 2);
       expect(new URL(sockets.instances[1]?.url ?? "").pathname).toBe(
         "/api/formless/program/sync/ws",
       );
+      sockets.instances[1]?.open();
+      await waitFor(() => requestCount === 2);
+      expect(sockets.instances.flatMap((socket) => socket.sentMessages)).toEqual([]);
+    } finally {
+      stop();
+    }
+  });
+
+  it("renews a planned socket close without probing authority before reconnection fails", async () => {
+    const sockets = fakeSocketFactory();
+    let requestCount = 0;
+    const stop = startPushSync({
+      fetcher: async () => {
+        requestCount += 1;
+        return Response.json({ changes: [], cursor: 0 } satisfies SyncResponse);
+      },
+      reconnectInitialDelayMs: 1,
+      reconnectMaxDelayMs: 2,
+      socketFactory: sockets.create,
+    });
+
+    try {
+      sockets.instances[0]?.open();
+      await waitFor(() => requestCount === 1);
+      sockets.instances[0]?.closeFromServer(4001);
+
+      await waitFor(() => sockets.instances.length === 2);
+      expect(requestCount).toBe(1);
+      sockets.instances[1]?.open();
+      await waitFor(() => requestCount === 2);
+    } finally {
+      stop();
+    }
+  });
+
+  it("checks current HTTP authority once after a planned renewal connection fails", async () => {
+    const sockets = fakeSocketFactory();
+    let requestCount = 0;
+    const stop = startPushSync({
+      fetcher: async () => {
+        requestCount += 1;
+        return Response.json({ changes: [], cursor: 0 } satisfies SyncResponse);
+      },
+      reconnectInitialDelayMs: 1,
+      reconnectMaxDelayMs: 2,
+      socketFactory: sockets.create,
+    });
+
+    try {
+      sockets.instances[0]?.open();
+      await waitFor(() => requestCount === 1);
+      sockets.instances[0]?.closeFromServer(4001);
+      await waitFor(() => sockets.instances.length === 2);
+      sockets.instances[1]?.failConnection();
+
+      await waitFor(() => requestCount === 2 && sockets.instances.length === 3);
+      sockets.instances[2]?.failConnection();
+      await waitFor(() => sockets.instances.length === 4);
+      expect(requestCount).toBe(2);
+    } finally {
+      stop();
+    }
+  });
+
+  it.each([401, 403])(
+    "invalidates current authority when failed planned renewal HTTP recovery returns %s",
+    async (status) => {
+      const sockets = fakeSocketFactory();
+      const invalidations: string[] = [];
+      let requestCount = 0;
+      const stopInvalidation = listenForProgramAuthorityInvalidation((reason) =>
+        invalidations.push(reason),
+      );
+      const stop = startPushSync({
+        fetcher: async () => {
+          requestCount += 1;
+          return requestCount === 1
+            ? Response.json({ changes: [], cursor: 0 } satisfies SyncResponse)
+            : Response.json({ error: "Current authority changed." }, { status });
+        },
+        reconnectInitialDelayMs: 1,
+        reconnectMaxDelayMs: 2,
+        socketFactory: sockets.create,
+      });
+
+      try {
+        sockets.instances[0]?.open();
+        await waitFor(() => requestCount === 1);
+        sockets.instances[0]?.closeFromServer(4001);
+        await waitFor(() => sockets.instances.length === 2);
+        sockets.instances[1]?.failConnection();
+
+        await waitFor(() => invalidations.length === 1);
+        expect(invalidations).toEqual(["protected-rejection"]);
+        expect(requestCount).toBe(2);
+      } finally {
+        stop();
+        stopInvalidation();
+      }
+    },
+  );
+
+  it("keeps bounded reconnect without polling after renewal recovery transport failure", async () => {
+    const sockets = fakeSocketFactory();
+    let requestCount = 0;
+    const stop = startPushSync({
+      fetcher: async () => {
+        requestCount += 1;
+        if (requestCount > 1) {
+          throw new Error("Network unavailable.");
+        }
+        return Response.json({ changes: [], cursor: 0 } satisfies SyncResponse);
+      },
+      reconnectInitialDelayMs: 1,
+      reconnectMaxDelayMs: 2,
+      socketFactory: sockets.create,
+    });
+
+    try {
+      sockets.instances[0]?.open();
+      await waitFor(() => requestCount === 1);
+      sockets.instances[0]?.closeFromServer(4001);
+      await waitFor(() => sockets.instances.length === 2);
+      sockets.instances[1]?.failConnection();
+
+      await waitFor(() => requestCount === 2 && sockets.instances.length === 3);
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 10));
+      expect(requestCount).toBe(2);
     } finally {
       stop();
     }
@@ -657,7 +810,12 @@ describe("client sync", () => {
   it("invalidates authority and suppresses reconnect after push policy violation", async () => {
     const sockets = fakeSocketFactory();
     let invalidations = 0;
+    let requestCount = 0;
     const stop = startPushSync({
+      fetcher: async () => {
+        requestCount += 1;
+        return Response.json({ changes: [], cursor: 0 } satisfies SyncResponse);
+      },
       onAuthorityInvalidated: () => {
         invalidations += 1;
       },
@@ -668,7 +826,7 @@ describe("client sync", () => {
 
     try {
       sockets.instances[0]?.open();
-      await waitFor(() => sockets.instances[0]?.sentMessages.length === 1);
+      await waitFor(() => requestCount === 1);
       sockets.instances[0]?.closeFromServer(1008);
 
       await waitFor(() => invalidations === 1);
@@ -681,10 +839,17 @@ describe("client sync", () => {
 
   it("closes the push sync socket when stopped", async () => {
     const sockets = fakeSocketFactory();
-    const stop = startPushSync({ socketFactory: sockets.create });
+    let requestCount = 0;
+    const stop = startPushSync({
+      fetcher: async () => {
+        requestCount += 1;
+        return Response.json({ changes: [], cursor: 0 } satisfies SyncResponse);
+      },
+      socketFactory: sockets.create,
+    });
 
     sockets.instances[0]?.open();
-    await waitFor(() => sockets.instances[0]?.sentMessages.length === 1);
+    await waitFor(() => requestCount === 1);
     stop();
 
     expect(sockets.instances[0]?.readyState).toBe(3);
@@ -1811,14 +1976,13 @@ class FakeSyncSocket {
   closeFromServer(code = 1000) {
     this.close(code);
   }
+
+  failConnection() {
+    this.onerror?.(new Event("error"));
+    this.close(1006);
+  }
 }
 
-function parseSocketClientMessage(data: string | undefined): SyncSocketClientMessage {
-  if (!data) {
-    throw new Error("Expected a socket client message.");
-  }
-  return JSON.parse(data) as SyncSocketClientMessage;
-}
 type AutoSaveInput = Parameters<LocalWorkspaceAutoSaveClient["enqueue"]>[0];
 function captureAutoSave(): LocalWorkspaceAutoSaveClient & {
   inputs: AutoSaveInput[];
@@ -1838,6 +2002,18 @@ function jsonFetcher(expectedPath: string, body: unknown): typeof fetch {
 
     return Response.json(body);
   };
+}
+
+function requestUrl(input: Parameters<typeof fetch>[0]): string {
+  return typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+}
+
+function deferred<Value>() {
+  let resolve!: (value: Value) => void;
+  const promise = new Promise<Value>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
 }
 
 function createUnsafeLegacyReplica(name: string): Promise<void> {

@@ -1,11 +1,15 @@
 import { listenForClientEvents, publishClientEvent } from "./broadcast.ts";
 import { invalidateProgramAuthorityForProtectedResponse } from "./program-authority.ts";
-import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
+import {
+  FORMLESS_PROGRAM_API_ROUTE_PREFIX,
+  FORMLESS_PROGRAM_STORAGE_IDENTITY,
+} from "../program/target.ts";
 import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
 import {
   deleteProgramReplicaDatabase,
   mergeChanges,
   readCursor,
+  readLocalSnapshot,
   readSchemaProvenance,
   readSchemaUpdatedAt,
   saveBootstrapResponse,
@@ -28,6 +32,7 @@ import type {
   OperationInvocationRequest,
   OperationInvocationResponse,
 } from "../shared/operation-invocation.ts";
+import type { ProgramSessionTargetBinding } from "../shared/instance-auth.ts";
 import type { StorageSnapshot } from "@dpeek/formless-storage";
 import {
   FORMLESS_CLIENT_RUNTIME_PROTOCOL_HEADER,
@@ -39,18 +44,17 @@ import {
   type SchemaResponse,
   type SchemaUpdateResponse,
   type SyncResponse,
-  type SyncSocketClientMessage,
   type SyncSocketServerMessage,
 } from "../shared/protocol.ts";
 import type { AppSchema } from "@dpeek/formless-schema";
 
 const DEFAULT_RECONNECT_INITIAL_DELAY_MS = 500;
 const DEFAULT_RECONNECT_MAX_DELAY_MS = 5000;
+const PLANNED_RENEWAL_CLOSE_CODE = 4001;
 const WEB_SOCKET_OPEN_READY_STATE = 1;
 
 type SyncWebSocket = {
   readyState: number;
-  send: (data: string) => void;
   close: () => void;
   onopen: ((event: Event) => void) | null;
   onmessage: ((event: MessageEvent) => void) | null;
@@ -60,11 +64,19 @@ type SyncWebSocket = {
 
 type StartPushSyncOptions = {
   canPublish?: () => boolean;
+  fetcher?: typeof fetch;
   onAuthorityInvalidated?: () => void;
   onSynced?: () => void;
   reconnectInitialDelayMs?: number;
   reconnectMaxDelayMs?: number;
+  principalId?: string;
+  runtimeTarget?: ProgramSessionTargetBinding;
+  signal?: AbortSignal;
   socketFactory?: (url: string) => SyncWebSocket;
+};
+
+export type PushSyncHandle = (() => void) & {
+  requestSync: () => void;
 };
 
 export type BrowserWriteOptions = LocalWorkspaceAutoSaveOptions;
@@ -76,6 +88,7 @@ export type SubmitOperationOptions = BrowserWriteOptions & {
 type ClientRuntimePublicationBoundary = {
   canPublish?: (() => boolean) | undefined;
   principalId?: string | undefined;
+  runtimeTarget?: ProgramSessionTargetBinding | undefined;
   signal?: AbortSignal | undefined;
 };
 
@@ -83,6 +96,7 @@ export async function bootstrapClient(
   fetcher: typeof fetch = fetch,
   options: ClientRuntimePublicationBoundary = {},
 ) {
+  assertClientRuntimePublicationCurrent(options);
   const response = await fetchJson<BootstrapResponse>(
     fetcher,
     apiPath("bootstrap"),
@@ -104,33 +118,41 @@ export async function resetLocalBrowserReplicaState(): Promise<void> {
   resetClientStore();
 }
 
-export async function syncClient(fetcher: typeof fetch = fetch) {
-  const cursor = await readCursor();
-  const schemaUpdatedAt = await readSchemaUpdatedAt();
-  const url = syncUrl(cursor, schemaUpdatedAt);
-  const response = await fetchJson<SyncResponse>(fetcher, url);
+export async function syncClient(
+  fetcher: typeof fetch = fetch,
+  options: ClientRuntimePublicationBoundary = {},
+) {
+  assertClientRuntimePublicationCurrent(options);
+  const snapshot = await readLocalSnapshot();
+  assertClientRuntimeReplicaBinding(snapshot.principalId, options);
+  assertClientRuntimePublicationCurrent(options);
+  const url = syncUrl(snapshot.cursor, snapshot.schemaUpdatedAt);
+  const response = await fetchJson<SyncResponse>(fetcher, url, options.signal);
 
-  await applySyncResponse(response, { currentCursor: cursor });
+  assertClientRuntimePublicationCurrent(options);
+  await applySyncResponse(response, { ...options, currentCursor: snapshot.cursor });
 
   return response;
 }
 
 export async function applySyncResponse(
   response: SyncResponse,
-  options: { canPublish?: () => boolean; currentCursor?: number } = {},
+  options: ClientRuntimePublicationBoundary & { currentCursor?: number } = {},
 ) {
   assertClientRuntimePublicationCurrent(options);
   const cursor = options.currentCursor ?? (await readCursor());
   const schemaChanged = Boolean(response.schema && response.schemaUpdatedAt);
 
   if (response.schema && response.schemaUpdatedAt) {
-    await saveSchema(response.schema, response.schemaUpdatedAt, response.schemaProvenance);
+    await saveSchema(response.schema, response.schemaUpdatedAt, response.schemaProvenance, {
+      principalId: options.principalId,
+    });
     assertClientRuntimePublicationCurrent(options);
     applySchemaSave(response.schema, response.schemaUpdatedAt);
   }
 
   if (response.changes.length > 0 || response.cursor !== cursor) {
-    await mergeChanges(response.changes, response.cursor);
+    await mergeChanges(response.changes, response.cursor, { principalId: options.principalId });
     assertClientRuntimePublicationCurrent(options);
     applyChanges(response.changes, response.cursor);
   }
@@ -258,17 +280,27 @@ export async function resetSourceSchema(
   return response;
 }
 
-export function startPushSync(options: StartPushSyncOptions = {}) {
+export function startPushSync(options: StartPushSyncOptions = {}): PushSyncHandle {
   const onSynced = options.onSynced;
   const reconnectInitialDelayMs =
     options.reconnectInitialDelayMs ?? DEFAULT_RECONNECT_INITIAL_DELAY_MS;
   const reconnectMaxDelayMs = options.reconnectMaxDelayMs ?? DEFAULT_RECONNECT_MAX_DELAY_MS;
   const socketFactory = options.socketFactory ?? createWebSocket;
+  const fetcher = options.fetcher ?? fetch;
+  const syncController = new AbortController();
   let stopped = false;
   let socket: SyncWebSocket | undefined;
+  let pullDirty = false;
+  let pullInFlight: Promise<void> | undefined;
   let reconnectTimerId: ReturnType<typeof setTimeout> | undefined;
   let reconnectDelayMs = reconnectInitialDelayMs;
+  let renewalAuthorityCheckPending = false;
   let stopListening = () => {};
+  const onBoundaryAbort = () => stop();
+
+  if (!options.signal?.aborted) {
+    options.signal?.addEventListener("abort", onBoundaryAbort, { once: true });
+  }
 
   function connect() {
     if (stopped) {
@@ -282,7 +314,7 @@ export function startPushSync(options: StartPushSyncOptions = {}) {
     try {
       nextSocket = socketFactory(syncWebSocketUrl());
     } catch {
-      setSyncStatus({ state: "error", message: "Push sync unavailable." });
+      handleFailedConnection();
       return;
     }
 
@@ -295,13 +327,9 @@ export function startPushSync(options: StartPushSyncOptions = {}) {
       }
 
       opened = true;
+      renewalAuthorityCheckPending = false;
       reconnectDelayMs = reconnectInitialDelayMs;
-      setSyncStatus({ state: "idle", message: "Push sync connected." });
-      void sendSyncSocketClientMessage(nextSocket, "hello").catch(() => {
-        if (!stopped && socket === nextSocket) {
-          nextSocket.close();
-        }
-      });
+      requestHttpSync();
     };
 
     nextSocket.onmessage = (event) => {
@@ -309,22 +337,12 @@ export function startPushSync(options: StartPushSyncOptions = {}) {
         return;
       }
 
-      void handleSyncSocketMessage(event, {
-        canPublish: () => !stopped && socket === nextSocket && (options.canPublish?.() ?? true),
-      })
-        .then((didApplySync) => {
-          if (didApplySync && !stopped && socket === nextSocket) {
-            onSynced?.();
-          }
-        })
-        .catch((error: unknown) => {
-          if (!stopped && socket === nextSocket && (options.canPublish?.() ?? true)) {
-            setSyncStatus({
-              state: "error",
-              message: error instanceof Error ? error.message : "Push sync failed.",
-            });
-          }
-        });
+      if (!parseSyncSocketServerMessage(event.data)) {
+        setSyncStatus({ state: "error", message: "Malformed invalidation message." });
+        return;
+      }
+
+      requestHttpSync();
     };
 
     nextSocket.onerror = () => {
@@ -333,7 +351,6 @@ export function startPushSync(options: StartPushSyncOptions = {}) {
       }
 
       if (!opened) {
-        socket = undefined;
         setSyncStatus({ state: "error", message: "Push sync connection failed." });
         return;
       }
@@ -349,26 +366,45 @@ export function startPushSync(options: StartPushSyncOptions = {}) {
       socket = undefined;
 
       if (event.code === 1008) {
-        stopped = true;
-        stopListening();
-        clearReconnectTimer();
+        stop();
         setSyncStatus({ state: "error", message: "Push sync authorization changed." });
         options.onAuthorityInvalidated?.();
         return;
       }
 
+      if (event.code === PLANNED_RENEWAL_CLOSE_CODE) {
+        renewalAuthorityCheckPending = true;
+      }
+
       if (!opened) {
-        setSyncStatus({ state: "error", message: "Push sync connection failed." });
+        handleFailedConnection();
         return;
       }
 
-      setSyncStatus({ state: "syncing", message: "Push sync reconnecting..." });
+      setSyncStatus({
+        state: "syncing",
+        message:
+          event.code === PLANNED_RENEWAL_CLOSE_CODE
+            ? "Renewing push sync connection..."
+            : "Push sync reconnecting...",
+      });
       scheduleReconnect();
     };
   }
 
+  function handleFailedConnection() {
+    setSyncStatus({ state: "error", message: "Push sync connection failed." });
+
+    if (renewalAuthorityCheckPending) {
+      renewalAuthorityCheckPending = false;
+      requestHttpSync();
+    }
+
+    scheduleReconnect();
+  }
+
   function scheduleReconnect() {
-    if (stopped) {
+    if (stopped || reconnectTimerId !== undefined) {
       return;
     }
 
@@ -380,33 +416,94 @@ export function startPushSync(options: StartPushSyncOptions = {}) {
     }, delayMs);
   }
 
-  function requestSocketSync() {
+  function requestHttpSync() {
+    if (!clientRuntimePublicationIsCurrent()) {
+      return;
+    }
+
+    if (pullInFlight) {
+      pullDirty = true;
+      return;
+    }
+
+    pullDirty = false;
+    setSyncStatus({ state: "syncing", message: "Catching up Program changes..." });
+
+    const pull = syncClient(fetcher, {
+      canPublish: clientRuntimePublicationIsCurrent,
+      principalId: options.principalId,
+      runtimeTarget: options.runtimeTarget,
+      signal: syncController.signal,
+    })
+      .then(() => {
+        if (clientRuntimePublicationIsCurrent()) {
+          setSyncStatus({ state: "idle", message: "Program changes caught up." });
+          onSynced?.();
+        }
+      })
+      .catch((error: unknown) => {
+        pullDirty = false;
+        if (clientRuntimePublicationIsCurrent()) {
+          setSyncStatus({
+            state: "error",
+            message: error instanceof Error ? error.message : "Program sync failed.",
+          });
+        }
+      })
+      .finally(() => {
+        if (pullInFlight !== pull) {
+          return;
+        }
+
+        pullInFlight = undefined;
+        if (pullDirty && clientRuntimePublicationIsCurrent()) {
+          requestHttpSync();
+        }
+      });
+    pullInFlight = pull;
+  }
+
+  function requestCurrentHttpSync() {
     const currentSocket = socket;
 
     if (currentSocket && currentSocket.readyState === WEB_SOCKET_OPEN_READY_STATE) {
-      void sendSyncSocketClientMessage(currentSocket, "sync-requested").catch(() => {
-        if (!stopped && socket === currentSocket) {
-          currentSocket.close();
-        }
-      });
+      requestHttpSync();
     }
   }
 
   stopListening = listenForClientEvents((event) => {
     if (event.type === "sync-requested") {
-      requestSocketSync();
+      requestCurrentHttpSync();
     }
   });
 
-  connect();
+  if (options.signal?.aborted) {
+    stop();
+  } else {
+    connect();
+  }
 
-  return () => {
+  const handle = Object.assign(stop, { requestSync: requestCurrentHttpSync });
+  return handle;
+
+  function stop() {
+    if (stopped) {
+      return;
+    }
+
     stopped = true;
+    pullDirty = false;
+    syncController.abort();
+    options.signal?.removeEventListener("abort", onBoundaryAbort);
     stopListening();
     clearReconnectTimer();
     socket?.close();
     socket = undefined;
-  };
+  }
+
+  function clientRuntimePublicationIsCurrent() {
+    return !stopped && !syncController.signal.aborted && (options.canPublish?.() ?? true);
+  }
 
   function clearReconnectTimer() {
     if (reconnectTimerId !== undefined) {
@@ -422,40 +519,6 @@ export function requestSync() {
 
 function createWebSocket(url: string): SyncWebSocket {
   return new WebSocket(url);
-}
-
-async function sendSyncSocketClientMessage(
-  socket: SyncWebSocket,
-  type: SyncSocketClientMessage["type"],
-) {
-  const message = {
-    type,
-    cursor: await readCursor(),
-    schemaUpdatedAt: await readSchemaUpdatedAt(),
-  } satisfies SyncSocketClientMessage;
-
-  socket.send(JSON.stringify(message));
-}
-
-async function handleSyncSocketMessage(
-  event: MessageEvent,
-  options: { canPublish?: () => boolean } = {},
-) {
-  const message = parseSyncSocketServerMessage(event.data);
-
-  if (!message) {
-    throw new Error("Malformed sync socket message.");
-  }
-
-  if (message.type === "error") {
-    setSyncStatus({ state: "error", message: message.message });
-    return false;
-  }
-
-  await applySyncResponse(message.payload, options);
-  assertClientRuntimePublicationCurrent(options);
-  setSyncStatus({ state: "idle", message: "Pushed sync received." });
-  return true;
 }
 
 function parseSyncSocketServerMessage(data: unknown): SyncSocketServerMessage | undefined {
@@ -589,10 +652,27 @@ function isErrorResponse(value: unknown): value is { error: string } {
 
 function assertClientRuntimePublicationCurrent(options: {
   canPublish?: (() => boolean) | undefined;
+  runtimeTarget?: ProgramSessionTargetBinding | undefined;
   signal?: AbortSignal | undefined;
 }): void {
   if (options.signal?.aborted || options.canPublish?.() === false) {
     throw new Error("Program client runtime ended before publication.");
+  }
+
+  if (
+    options.runtimeTarget !== undefined &&
+    options.runtimeTarget.storageIdentity !== FORMLESS_PROGRAM_STORAGE_IDENTITY
+  ) {
+    throw new Error("Program client runtime target changed before publication.");
+  }
+}
+
+function assertClientRuntimeReplicaBinding(
+  principalId: string | null,
+  options: ClientRuntimePublicationBoundary,
+): void {
+  if (options.principalId !== undefined && principalId !== options.principalId) {
+    throw new Error("Local Program browser replica principal binding changed.");
   }
 }
 

@@ -241,7 +241,7 @@ The system MUST commit writes only when Authority validation succeeds.
 - WHEN the same write is replayed
 - THEN the stored response is returned
 - AND duplicate changes are not inserted
-- AND no push notification is emitted for the replay
+- AND no content-free changed notification is emitted for the replay
 
 #### Scenario: Committed write classification
 
@@ -860,7 +860,7 @@ outcomes instead of deriving write mode from protocol response shapes.
 
 - WHEN an Authority write operation receives a committed storage outcome
 - THEN the operation returns the protocol response from that outcome
-- AND the committed outcome is available for push sync notification policy
+- AND the committed outcome is available for content-free invalidation policy
 
 #### Scenario: Replay outcome consumed
 
@@ -965,7 +965,8 @@ separate from private authentication state.
 
 #### Scenario: Program replica authorization
 
-- GIVEN a browser requests Program bootstrap, schema, HTTP sync, or push sync
+- GIVEN a browser requests Program bootstrap, schema, HTTP sync, or invalidation
+  socket admission
 - WHEN the request is authorized
 - THEN the runtime evaluates the schema-defined `member` role
   requirement against current active principal, protected owner, and
@@ -984,8 +985,9 @@ separate from private authentication state.
   session bootstrap rather than an open management fallback
 - AND owner-only identity, recovery, policy, and security operations recheck
   active `instance.owner` authority independently of replica access
-- AND current authority and session state are rechecked before later push
-  catch-up or broadcast data is returned
+- AND current authority and session state are rechecked for every HTTP sync and
+  bounded invalidation socket renewal
+- AND an established invalidation socket returns no Program data
 
 #### Scenario: Program operations enforce schema access
 

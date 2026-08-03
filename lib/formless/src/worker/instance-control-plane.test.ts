@@ -103,12 +103,10 @@ describe("instance control-plane API routes", () => {
     const administratorSession = await principalSessionHeaders(administrator.id);
     const ownerSession = await ownerSessionHeaders();
     const memberSocket = await openProgramSyncSocket(memberSession);
-
-    memberSocket.send(JSON.stringify({ type: "hello", cursor: 0, schemaUpdatedAt: null }));
-    await expect(readProgramSyncSocketMessage(memberSocket)).resolves.toMatchObject({
-      type: "sync",
-      payload: { cursor: expect.any(Number) },
-    });
+    const clientFrameSocket = await openProgramSyncSocket(editorSession);
+    const clientFrameSocketClosed = expectProgramSyncSocketClosedWithoutMessage(clientFrameSocket);
+    clientFrameSocket.send(JSON.stringify({ type: "hello", cursor: 0 }));
+    await expect(clientFrameSocketClosed).resolves.toBe(1008);
 
     const replicaBodiesByPath = new Map<string, unknown>();
     for (const headers of [memberSession, editorSession, administratorSession, ownerSession]) {
@@ -171,9 +169,46 @@ describe("instance control-plane API routes", () => {
       method: "POST",
     });
     expect(memberTaskWrite.status).toBe(401);
+    await expectNoProgramSyncSocketMessage(memberSocket);
 
-    const pushedTaskChange = readProgramSyncSocketMessage(memberSocket);
-    const editorTaskWrite = await harness.fetch(`${controlPlaneApi}/operations/task/create`, {
+    const pushedProgramChange = readProgramSyncSocketMessage(memberSocket);
+    const [editorTaskWrite, editorSiteWrite] = await Promise.all([
+      harness.fetch(`${controlPlaneApi}/operations/task/create`, {
+        body: JSON.stringify({
+          idempotencyKey: "editor-creates-program-task",
+          input: {
+            done: false,
+            priority: "high",
+            title: "Program-native task",
+          },
+        }),
+        headers: {
+          ...editorSession,
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      }),
+      harness.fetch(`${controlPlaneApi}/operations/block/create`, {
+        body: JSON.stringify({
+          idempotencyKey: "editor-creates-program-site-page",
+          input: {
+            href: "/replica-site",
+            label: "Program-native Site page",
+            type: "page",
+          },
+        }),
+        headers: {
+          ...editorSession,
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      }),
+    ]);
+    const editorTaskBody = (await editorTaskWrite.json()) as OperationInvocationResponse;
+    const editorSiteBody = (await editorSiteWrite.json()) as OperationInvocationResponse;
+    const pushedProgramBody = await pushedProgramChange;
+    await expectNoProgramSyncSocketMessage(memberSocket);
+    const replayedTaskWrite = await harness.fetch(`${controlPlaneApi}/operations/task/create`, {
       body: JSON.stringify({
         idempotencyKey: "editor-creates-program-task",
         input: {
@@ -188,26 +223,8 @@ describe("instance control-plane API routes", () => {
       },
       method: "POST",
     });
-    const editorTaskBody = (await editorTaskWrite.json()) as OperationInvocationResponse;
-    const pushedTaskBody = await pushedTaskChange;
-    const pushedSiteChange = readProgramSyncSocketMessage(memberSocket);
-    const editorSiteWrite = await harness.fetch(`${controlPlaneApi}/operations/block/create`, {
-      body: JSON.stringify({
-        idempotencyKey: "editor-creates-program-site-page",
-        input: {
-          href: "/replica-site",
-          label: "Program-native Site page",
-          type: "page",
-        },
-      }),
-      headers: {
-        ...editorSession,
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-    });
-    const editorSiteBody = (await editorSiteWrite.json()) as OperationInvocationResponse;
-    const pushedSiteBody = await pushedSiteChange;
+    const replayedTaskBody = (await replayedTaskWrite.json()) as OperationInvocationResponse;
+    await expectNoProgramSyncSocketMessage(memberSocket);
     const memberBootstrap = await harness.fetch(`${controlPlaneApi}/bootstrap`, {
       headers: memberSession,
     });
@@ -219,26 +236,15 @@ describe("instance control-plane API routes", () => {
       cursor: expect.any(Number),
       type: "create",
     });
-    expect(pushedTaskBody).toMatchObject({
-      type: "sync",
-      payload: {
-        changes: [expect.objectContaining({ entity: "task" })],
-        cursor: expect.any(Number),
-      },
-    });
+    expect(pushedProgramBody).toEqual({ type: "changed" });
     expect(editorSiteWrite.status).toBe(200);
     expect(editorSiteBody.output).toMatchObject({
       changes: [expect.objectContaining({ entity: "block" })],
       cursor: expect.any(Number),
       type: "create",
     });
-    expect(pushedSiteBody).toMatchObject({
-      type: "sync",
-      payload: {
-        changes: [expect.objectContaining({ entity: "block" })],
-        cursor: expect.any(Number),
-      },
-    });
+    expect(replayedTaskWrite.status).toBe(200);
+    expect(replayedTaskBody.status).toBe("replayed");
     expect(memberBootstrapBody.schema.entities).toEqual(
       expect.arrayContaining([expect.objectContaining({ key: "task" })]),
     );
@@ -261,14 +267,14 @@ describe("instance control-plane API routes", () => {
     );
     expect(administratorManagement.status).toBe(200);
 
-    const memberSocketClosed = expectProgramSyncSocketClosedWithoutMessage(memberSocket);
+    const revokedProgramChange = readProgramSyncSocketMessage(memberSocket);
     await postIdentityRecordOperation({
       entity: "program-role-assignment",
       idempotencyKey: "revoke-replica-member",
       operationName: "delete",
       recordId: memberAssignment.id,
     });
-    await memberSocketClosed;
+    await expect(revokedProgramChange).resolves.toEqual({ type: "changed" });
     const revokedRead = await harness.fetch(`${controlPlaneApi}/bootstrap`, {
       headers: memberSession,
     });
@@ -1084,10 +1090,43 @@ function readProgramSyncSocketMessage(socket: Awaited<ReturnType<typeof openProg
   });
 }
 
-function expectProgramSyncSocketClosedWithoutMessage(
+function expectNoProgramSyncSocketMessage(
   socket: Awaited<ReturnType<typeof openProgramSyncSocket>>,
 ) {
   return new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, 150);
+    const cleanup = () => {
+      clearTimeout(timeout);
+      socket.removeEventListener("close", onClose);
+      socket.removeEventListener("message", onMessage);
+      socket.removeEventListener("error", onError);
+    };
+    const onClose = () => {
+      cleanup();
+      reject(new Error("Program invalidation socket closed unexpectedly."));
+    };
+    const onMessage = () => {
+      cleanup();
+      reject(new Error("Program invalidation socket received an unexpected message."));
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error("Program invalidation socket emitted an error."));
+    };
+
+    socket.addEventListener("close", onClose);
+    socket.addEventListener("message", onMessage);
+    socket.addEventListener("error", onError);
+  });
+}
+
+function expectProgramSyncSocketClosedWithoutMessage(
+  socket: Awaited<ReturnType<typeof openProgramSyncSocket>>,
+) {
+  return new Promise<number>((resolve, reject) => {
     const timeout = setTimeout(() => {
       cleanup();
       reject(new Error("Timed out waiting for Program sync socket to close."));
@@ -1098,9 +1137,9 @@ function expectProgramSyncSocketClosedWithoutMessage(
       socket.removeEventListener("message", onMessage);
       socket.removeEventListener("error", onError);
     };
-    const onClose = () => {
+    const onClose = (event: WebSocketEventMap["close"]) => {
       cleanup();
-      resolve();
+      resolve(event.code);
     };
     const onMessage = () => {
       cleanup();

@@ -83,7 +83,7 @@ records are written directly to Program Authority from first use.
 - THEN all eight Site entities share storage identity
   `instance:control-plane`, schema key `formless-program`, the Program record-id
   namespace, cursor, change log, snapshot boundary, browser replica, and
-  WebSocket
+  content-free invalidation WebSocket
 - AND no composite record identity, Site reference field, built-in Site
   workspace identity, or second built-in Site storage identity is introduced
 - AND the runtime does not discover, import, merge, or migrate Site records,
@@ -1092,7 +1092,8 @@ rendering.
 - WHEN the browser requests `/pages` or `/pages/*`
 - THEN public rendering reads the Program-native Site tree
 - AND public links keep the `/pages` preview route base
-- AND preview change synchronization uses the authenticated Program WebSocket
+- AND preview change synchronization uses an authenticated content-free Program
+  WebSocket followed by authorized HTTP Program catch-up and Site tree refresh
 
 #### Scenario: Mapped public Site host
 

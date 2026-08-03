@@ -1,20 +1,12 @@
 import { DurableObject } from "cloudflare:workers";
-import type {
-  SyncResponse,
-  SyncSocketAttachment,
-  SyncSocketServerMessage,
-} from "../shared/protocol.ts";
-import { isSyncSocketAttachment, isSyncSocketClientMessage } from "../shared/protocol.ts";
+import type { SyncSocketAttachment, SyncSocketServerMessage } from "../shared/protocol.ts";
 import { parseAuthorityApiRoute } from "../shared/program-storage-identity.ts";
 import { handleInstanceArchiveDurableObjectRequest } from "./archive-api.ts";
 import {
   ensureStorageTables,
-  getChangesAfter,
-  getCurrentCursor,
   initializeStorageFromSource,
   resetStorageToEmpty,
   ActiveSchemaRefreshBlockedError,
-  type StorageSource,
   type WriteOutcome,
 } from "./storage.ts";
 import { BadRequestError, ReloadRequiredError } from "./errors.ts";
@@ -51,10 +43,8 @@ import { handleInstanceEmailRuntimeDurableObjectRequest } from "./email-runtime.
 import { ensureRuntimeInstanceAuthConfig } from "./instance-auth-runtime.ts";
 import {
   authenticatedOperationActorForSession,
-  bindInstanceAuthAccessSession,
   handleInstanceAuthHandoffDurableObjectRequest,
   hostAuthSessionTargetFromRequestHeaders,
-  validateBoundProgramAccessSession,
   validateCentralAuthSessionAuthority,
   validateCentralAuthSessionPrincipal,
   validateHostAuthSessionAuthority,
@@ -83,29 +73,22 @@ import {
 import {
   ensureFormlessProgramStorage,
   formlessProgramSource,
-  selectCurrentFormlessProgramChanges,
   validateFormlessProgramRecordConstraint,
 } from "./program-authority.ts";
 import { type FormlessProgramDefaultWorkerAfterCommitInput } from "../program/default/worker.ts";
 import { programSharedRuntime } from "../program/compiled/shared.ts";
 import { programWorkerRuntime } from "../program/compiled/worker.ts";
+import {
+  enforceProgramSyncSocketRenewal,
+  randomizedProgramSyncSocketExpiry,
+} from "./program-sync-renewal.ts";
 
-type ProgramSyncSocketAuthorization =
-  | {
-      access: unknown;
-      kind: "program-access";
-    }
-  | {
-      authorization: string;
-      kind: "program-admin-bearer";
-    };
-
-type AuthoritySyncSocketAttachment = SyncSocketAttachment & {
-  authorization?: ProgramSyncSocketAuthorization;
-};
+const COMMITTED_WRITE_BROADCAST_DELAY_MS = 100;
 
 export class FormlessAuthority extends DurableObject<Env> {
   private readonly bindings: Env;
+  private pendingCommittedWriteBroadcast: Promise<void> | undefined;
+  private readonly pendingCommittedWriteSockets = new Set<WebSocket>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -296,7 +279,7 @@ export class FormlessAuthority extends DurableObject<Env> {
       request,
       this.ctx.storage,
       this.bindings,
-      new AuthorityWriteModule(() => this.scheduleCommittedWriteBroadcast(formlessProgramSource())),
+      new AuthorityWriteModule(() => this.scheduleCommittedWriteBroadcast()),
     );
 
     if (instanceControlPlaneResponse) {
@@ -354,7 +337,7 @@ export class FormlessAuthority extends DurableObject<Env> {
         operation,
         source,
         storage: this.ctx.storage,
-        writes: new AuthorityWriteModule(() => this.scheduleCommittedWriteBroadcast(source)),
+        writes: new AuthorityWriteModule(() => this.scheduleCommittedWriteBroadcast()),
       });
 
       return jsonResponse(result.body, result.status, result.headers);
@@ -372,7 +355,7 @@ export class FormlessAuthority extends DurableObject<Env> {
       }
 
       const source = formlessProgramSource();
-      const writes = new AuthorityWriteModule(() => this.scheduleCommittedWriteBroadcast(source));
+      const writes = new AuthorityWriteModule(() => this.scheduleCommittedWriteBroadcast());
 
       if (request.method === "GET" && route.path === "/sync") {
         const cursor = url.searchParams.get("after");
@@ -500,30 +483,18 @@ export class FormlessAuthority extends DurableObject<Env> {
     }
   }
 
-  async webSocketMessage(socket: WebSocket, message: string | ArrayBuffer) {
-    const parsedMessage = parseSyncSocketMessage(message);
+  async webSocketMessage(socket: WebSocket, _message: string | ArrayBuffer) {
+    closePolicyViolationSyncSocket(socket);
+  }
 
-    if (!parsedMessage) {
-      closeMalformedSyncSocket(socket);
-      return;
+  async alarm() {
+    const nextExpiry = enforceProgramSyncSocketRenewal(
+      this.ctx.getWebSockets(FORMLESS_PROGRAM_SCHEMA_KEY),
+    );
+
+    if (nextExpiry !== undefined) {
+      await this.ctx.storage.setAlarm(nextExpiry);
     }
-
-    const currentAttachment = syncSocketAttachment(socket);
-
-    if (!(await this.syncSocketAuthorized(socket, currentAttachment))) {
-      closeUnauthorizedSyncSocket(socket);
-      return;
-    }
-
-    ensureStorageTables(this.ctx.storage);
-    const source = storageSourceFromSyncSocket(this.ctx, socket, this.bindings);
-    const attachment = {
-      ...currentAttachment,
-      cursor: parsedMessage.cursor,
-      schemaUpdatedAt: parsedMessage.schemaUpdatedAt,
-    } satisfies AuthoritySyncSocketAttachment;
-
-    sendSyncToSocket(this.ctx.storage, source, socket, attachment);
   }
 
   private async handleSyncWebSocketRequest(request: Request) {
@@ -537,9 +508,9 @@ export class FormlessAuthority extends DurableObject<Env> {
       });
     }
 
-    const authorization = await this.programSyncSocketAuthorization(request);
+    const authorized = await this.programSyncSocketIsAuthorized(request);
 
-    if (authorization === undefined) {
+    if (!authorized) {
       return jsonResponse(
         {
           error:
@@ -553,9 +524,11 @@ export class FormlessAuthority extends DurableObject<Env> {
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
+    const expiresAt = randomizedProgramSyncSocketExpiry();
 
-    server.serializeAttachment(initialSyncSocketAttachment(authorization));
+    server.serializeAttachment({ expiresAt } satisfies SyncSocketAttachment);
     this.ctx.acceptWebSocket(server, [FORMLESS_PROGRAM_SCHEMA_KEY]);
+    await this.scheduleProgramSyncSocketRenewal(expiresAt);
 
     return new Response(null, {
       status: 101,
@@ -563,9 +536,7 @@ export class FormlessAuthority extends DurableObject<Env> {
     });
   }
 
-  private async programSyncSocketAuthorization(
-    request: Request,
-  ): Promise<ProgramSyncSocketAuthorization | undefined> {
+  private async programSyncSocketIsAuthorized(request: Request): Promise<boolean> {
     const target = hostAuthSessionTargetForAuthorityRoute(request);
     const authorization = await authorizeProgramAccess(
       request,
@@ -579,84 +550,56 @@ export class FormlessAuthority extends DurableObject<Env> {
       },
     );
 
-    if (!authorization.authorized) {
-      return undefined;
+    return authorization.authorized;
+  }
+
+  private async scheduleProgramSyncSocketRenewal(expiresAt: number) {
+    await this.ctx.storage.transaction(async (transaction) => {
+      const scheduledAlarm = await transaction.getAlarm();
+
+      if (scheduledAlarm === null || expiresAt < scheduledAlarm) {
+        await transaction.setAlarm(expiresAt);
+      }
+    });
+  }
+
+  private scheduleCommittedWriteBroadcast() {
+    for (const socket of this.ctx.getWebSockets()) {
+      this.pendingCommittedWriteSockets.add(socket);
     }
 
-    if (authorization.via === "admin-bearer") {
-      const token = bearerTokenFromRequest(request);
-
-      return token
-        ? {
-            authorization: token,
-            kind: "program-admin-bearer",
-          }
-        : undefined;
+    if (this.pendingCommittedWriteSockets.size === 0) {
+      return;
     }
 
-    return authorization.session
-      ? {
-          access: bindInstanceAuthAccessSession({
-            ok: true,
-            ownerAuthorized:
-              authorization.callerFacts.kind === "principal" && authorization.callerFacts.owner,
-            principalId: authorization.session.principalId,
-            session: authorization.session,
-            via: authorization.via,
-          }),
-          kind: "program-access",
+    if (this.pendingCommittedWriteBroadcast) {
+      return;
+    }
+
+    const pendingBroadcast = delay(COMMITTED_WRITE_BROADCAST_DELAY_MS)
+      .then(() => this.broadcastCommittedWrite())
+      .finally(() => {
+        if (this.pendingCommittedWriteBroadcast === pendingBroadcast) {
+          this.pendingCommittedWriteBroadcast = undefined;
         }
-      : undefined;
+      });
+
+    this.pendingCommittedWriteBroadcast = pendingBroadcast;
+    this.ctx.waitUntil(pendingBroadcast);
   }
 
-  private async syncSocketAuthorized(
-    socket: WebSocket,
-    attachment: AuthoritySyncSocketAttachment,
-  ): Promise<boolean> {
-    const authorization = attachment.authorization;
+  private broadcastCommittedWrite() {
+    const message = JSON.stringify({ type: "changed" } satisfies SyncSocketServerMessage);
+    const sockets = [...this.pendingCommittedWriteSockets];
+    this.pendingCommittedWriteSockets.clear();
 
-    if (authorization === undefined) {
-      return false;
+    for (const socket of sockets) {
+      try {
+        socket.send(message);
+      } catch {
+        // One stale socket does not prevent later sockets from receiving invalidation.
+      }
     }
-
-    if (authorization.kind === "program-admin-bearer") {
-      return (
-        this.ctx.id.name === FORMLESS_PROGRAM_STORAGE_IDENTITY &&
-        authorization.authorization === this.bindings.FORMLESS_ADMIN_TOKEN?.trim()
-      );
-    }
-
-    if (authorization.kind === "program-access") {
-      return (
-        this.ctx.id.name === FORMLESS_PROGRAM_STORAGE_IDENTITY &&
-        this.ctx.getTags(socket)[0] === FORMLESS_PROGRAM_SCHEMA_KEY &&
-        (await validateBoundProgramAccessSession(authorization.access, this.bindings, {
-          access: FORMLESS_PROGRAM_REPLICA_ACCESS_REQUIREMENT,
-          schema: formlessProgramSchema,
-        }))
-      );
-    }
-
-    return false;
-  }
-
-  private scheduleCommittedWriteBroadcast(source: StorageSource) {
-    this.ctx.waitUntil(this.broadcastCommittedWrite(source));
-  }
-
-  private async broadcastCommittedWrite(source: StorageSource) {
-    await Promise.allSettled(
-      this.ctx.getWebSockets().map(async (socket) => {
-        const attachment = syncSocketAttachment(socket);
-
-        if (!(await this.syncSocketAuthorized(socket, attachment))) {
-          closeUnauthorizedSyncSocket(socket);
-          return;
-        }
-
-        sendSyncToSocket(this.ctx.storage, source, socket, attachment);
-      }),
-    );
   }
 }
 
@@ -668,13 +611,6 @@ function hostAuthSessionTargetForAuthorityRoute(request: Request) {
   }
 
   return target;
-}
-
-function bearerTokenFromRequest(request: Request): string | undefined {
-  const authorization = request.headers.get("Authorization");
-  const match = authorization ? /^Bearer\s+(.+)$/i.exec(authorization.trim()) : null;
-
-  return match?.[1];
 }
 
 async function authorizeEntityOperationRequest(
@@ -838,161 +774,16 @@ class AuthorityWriteModule {
   }
 }
 
-function storageSourceFromSyncSocket(
-  ctx: DurableObjectState,
-  _socket: WebSocket,
-  _env: Env,
-): StorageSource {
-  if (ctx.id.name !== FORMLESS_PROGRAM_STORAGE_IDENTITY) {
-    throw new Error("Push sync is available only for the Program Authority.");
-  }
-
-  return formlessProgramSource();
-}
-
-function initialSyncSocketAttachment(
-  authorization?: ProgramSyncSocketAuthorization,
-): AuthoritySyncSocketAttachment {
-  return {
-    ...(authorization === undefined ? {} : { authorization }),
-    cursor: 0,
-    schemaUpdatedAt: null,
-  };
-}
-
-function syncSocketAttachment(socket: WebSocket): AuthoritySyncSocketAttachment {
-  const attachment = socket.deserializeAttachment();
-
-  if (!isSyncSocketAttachment(attachment)) {
-    return initialSyncSocketAttachment();
-  }
-
-  const authorization =
-    isObjectRecord(attachment) && "authorization" in attachment
-      ? parseAuthoritySyncSocketAuthorization(attachment.authorization)
-      : undefined;
-
-  return {
-    ...(authorization === undefined ? {} : { authorization }),
-    cursor: attachment.cursor,
-    schemaUpdatedAt: attachment.schemaUpdatedAt,
-  };
-}
-
-function parseSyncSocketMessage(message: string | ArrayBuffer) {
-  if (typeof message !== "string") {
-    return undefined;
-  }
-
+function closePolicyViolationSyncSocket(socket: WebSocket) {
   try {
-    const parsed = JSON.parse(message) as unknown;
-
-    return isSyncSocketClientMessage(parsed) ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function sendSyncToSocket(
-  storage: DurableObjectStorage,
-  source: StorageSource,
-  socket: WebSocket,
-  attachment: AuthoritySyncSocketAttachment,
-) {
-  const response = syncResponseForAttachment(storage, source, attachment);
-  const message = {
-    type: "sync",
-    payload: response,
-  } satisfies SyncSocketServerMessage;
-
-  socket.send(JSON.stringify(message));
-  socket.serializeAttachment({
-    ...(attachment.authorization === undefined ? {} : { authorization: attachment.authorization }),
-    cursor: response.cursor,
-    schemaUpdatedAt: response.schemaUpdatedAt ?? attachment.schemaUpdatedAt,
-  } satisfies AuthoritySyncSocketAttachment);
-}
-
-function syncResponseForAttachment(
-  storage: DurableObjectStorage,
-  source: StorageSource,
-  attachment: SyncSocketAttachment,
-): SyncResponse {
-  const storedSchema = initializeStorageFromSource(storage, source);
-  const schemaFields =
-    attachment.schemaUpdatedAt === storedSchema.updatedAt
-      ? {}
-      : {
-          schema: storedSchema.schema,
-          ...(storedSchema.schemaProvenance === undefined
-            ? {}
-            : { schemaProvenance: storedSchema.schemaProvenance }),
-          schemaUpdatedAt: storedSchema.updatedAt,
-        };
-
-  return {
-    changes: selectCurrentFormlessProgramChanges(getChangesAfter(storage, attachment.cursor)),
-    cursor: getCurrentCursor(storage),
-    ...schemaFields,
-  };
-}
-
-function closeMalformedSyncSocket(socket: WebSocket) {
-  sendSyncSocketError(socket, "Malformed sync socket message.");
-  socket.close(1003, "Malformed sync message.");
-}
-
-function closeUnauthorizedSyncSocket(socket: WebSocket) {
-  try {
-    socket.close(1008, "Push sync authorization is no longer current.");
+    socket.close(1008, "Program invalidation sockets are server-to-client only.");
   } catch {
     // The socket is already closing or closed.
   }
 }
 
-function sendSyncSocketError(socket: WebSocket, message: string) {
-  const response = {
-    type: "error",
-    message,
-  } satisfies SyncSocketServerMessage;
-
-  try {
-    socket.send(JSON.stringify(response));
-  } catch {
-    // The socket is already closing or closed.
-  }
-}
-
-function parseAuthoritySyncSocketAuthorization(
-  value: unknown,
-): ProgramSyncSocketAuthorization | undefined {
-  if (!isObjectRecord(value)) {
-    return undefined;
-  }
-
-  if (value.kind === "program-access" && "access" in value) {
-    return {
-      access: value.access,
-      kind: "program-access",
-    };
-  }
-
-  if (
-    value.kind === "program-admin-bearer" &&
-    typeof value.authorization === "string" &&
-    value.authorization !== ""
-  ) {
-    return {
-      authorization: value.authorization,
-      kind: "program-admin-bearer",
-    };
-  }
-
-  return undefined;
-}
-
-function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function delay(delayMs: number): Promise<void> {
+  return new Promise((resolve) => globalThis.setTimeout(resolve, delayMs));
 }
 
 async function readJson(request: Request): Promise<unknown> {

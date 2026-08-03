@@ -1,5 +1,5 @@
 import type { AppSchema } from "@dpeek/formless-schema";
-import { isStoredRecord, type RecordValues, type StoredRecord } from "@dpeek/formless-storage";
+import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import type { SourceSchemaHash } from "@dpeek/formless-schema";
 
 export type EntityName = string;
@@ -119,31 +119,12 @@ export type SyncResponse = {
   schemaUpdatedAt?: string;
 };
 
-export type SyncSocketClientMessage =
-  | {
-      type: "hello";
-      cursor: number;
-      schemaUpdatedAt: string | null;
-    }
-  | {
-      type: "sync-requested";
-      cursor: number;
-      schemaUpdatedAt: string | null;
-    };
-
-export type SyncSocketServerMessage =
-  | {
-      type: "sync";
-      payload: SyncResponse;
-    }
-  | {
-      type: "error";
-      message: string;
-    };
+export type SyncSocketServerMessage = {
+  type: "changed";
+};
 
 export type SyncSocketAttachment = {
-  cursor: number;
-  schemaUpdatedAt: string | null;
+  expiresAt: number;
 };
 
 export const FORMLESS_CLIENT_RUNTIME_PROTOCOL_HEADER = "x-formless-runtime-protocol-version";
@@ -203,29 +184,18 @@ export type SchemaUpdateResponse = {
   updatedAt: string;
 };
 
-export function isSyncSocketClientMessage(value: unknown): value is SyncSocketClientMessage {
-  return (
-    isRecord(value) &&
-    (value.type === "hello" || value.type === "sync-requested") &&
-    isCursor(value.cursor) &&
-    isNullableString(value.schemaUpdatedAt)
-  );
-}
-
 export function isSyncSocketServerMessage(value: unknown): value is SyncSocketServerMessage {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  if (value.type === "error") {
-    return typeof value.message === "string";
-  }
-
-  return value.type === "sync" && isSyncResponse(value.payload);
+  return isRecord(value) && Object.keys(value).length === 1 && value.type === "changed";
 }
 
 export function isSyncSocketAttachment(value: unknown): value is SyncSocketAttachment {
-  return isRecord(value) && isCursor(value.cursor) && isNullableString(value.schemaUpdatedAt);
+  return (
+    isRecord(value) &&
+    Object.keys(value).length === 1 &&
+    typeof value.expiresAt === "number" &&
+    Number.isSafeInteger(value.expiresAt) &&
+    value.expiresAt > 0
+  );
 }
 
 export function parseOwnerSetupToken(value: unknown): string {
@@ -252,66 +222,6 @@ export function parseOwnerSetupToken(value: unknown): string {
   }
 
   return token;
-}
-
-function isSyncResponse(value: unknown): value is SyncResponse {
-  if (!isRecord(value) || !Array.isArray(value.changes) || !isCursor(value.cursor)) {
-    return false;
-  }
-
-  if (!value.changes.every(isChangeRow)) {
-    return false;
-  }
-
-  if ("schema" in value && !isRecord(value.schema)) {
-    return false;
-  }
-
-  if ("schemaUpdatedAt" in value && typeof value.schemaUpdatedAt !== "string") {
-    return false;
-  }
-
-  if ("schemaProvenance" in value && !isBrowserReplicaSchemaProvenance(value.schemaProvenance)) {
-    return false;
-  }
-
-  return true;
-}
-
-function isBrowserReplicaSchemaProvenance(value: unknown): value is BrowserReplicaSchemaProvenance {
-  if (!isRecord(value) || !isSha256SourceSchemaHash(value.sourceSchemaHash)) {
-    return false;
-  }
-
-  return value.kind === "program";
-}
-
-function isChangeRow(value: unknown): value is ChangeRow {
-  return (
-    isRecord(value) &&
-    isCursor(value.seq) &&
-    typeof value.writeId === "string" &&
-    (value.operationKind === "create" ||
-      value.operationKind === "update" ||
-      value.operationKind === "delete" ||
-      value.operationKind === "command") &&
-    typeof value.entity === "string" &&
-    typeof value.recordId === "string" &&
-    isStoredRecord(value.payload) &&
-    typeof value.createdAt === "string"
-  );
-}
-
-function isCursor(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0;
-}
-
-function isNullableString(value: unknown): value is string | null {
-  return typeof value === "string" || value === null;
-}
-
-function isSha256SourceSchemaHash(value: unknown): value is SourceSchemaHash {
-  return typeof value === "string" && /^sha256:[a-f0-9]{64}$/.test(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

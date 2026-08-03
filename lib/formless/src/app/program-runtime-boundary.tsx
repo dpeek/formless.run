@@ -35,7 +35,12 @@ type ProgramRuntimePublicationBoundary = {
   onAuthorityInvalidated: () => void;
   onReplicaReset: () => void;
   principalId: string;
+  runtimeTarget: ProgramSessionTargetBinding;
   signal: AbortSignal;
+};
+
+type ProgramRuntimePushSyncHandle = (() => void) & {
+  requestSync?: (() => void) | undefined;
 };
 
 export type ProgramRuntimeDependencies = {
@@ -62,7 +67,7 @@ export type ProgramRuntimeDependencies = {
   publishInvalidation: (reason: ProgramAuthorityInvalidationReason) => void;
   resetMemory: () => void;
   scheduleRefresh: (listener: () => void, delayMs: number) => () => void;
-  startPush: (boundary: ProgramRuntimePublicationBoundary) => () => void;
+  startPush: (boundary: ProgramRuntimePublicationBoundary) => ProgramRuntimePushSyncHandle;
   subscribeAuthorityChanges: (principalId: string, listener: () => void) => () => void;
 };
 
@@ -85,6 +90,7 @@ type ProgramRuntimeState = Omit<ProgramRuntimeSnapshot, "logout" | "logoutState"
 type ActiveProgramRuntime = {
   canPublish: () => boolean;
   end: () => void;
+  requestSync: () => void;
 };
 
 export const PROGRAM_SESSION_FRESHNESS_MS = 60_000;
@@ -162,6 +168,7 @@ export function ProgramRuntimeBoundary({
       let stopAuthorityChanges: () => void = () => undefined;
       let stopBroadcast: () => void = () => undefined;
       let stopPush: () => void = () => undefined;
+      let requestSync: () => void = () => undefined;
       const canPublish = () => active && mountedRef.current && !controller.signal.aborted;
       const end = () => {
         if (!active) {
@@ -176,7 +183,7 @@ export function ProgramRuntimeBoundary({
         stopPush();
         resolvedDependencies.resetMemory();
       };
-      const runtime = { canPublish, end };
+      const runtime = { canPublish, end, requestSync: () => requestSync() };
       activeRuntimeRef.current = runtime;
       let replicaCleared = false;
 
@@ -254,6 +261,7 @@ export function ProgramRuntimeBoundary({
             void requestRefresh("cross-tab");
           },
           principalId,
+          runtimeTarget: session.target,
           signal: controller.signal,
         };
         stopBroadcast = resolvedDependencies.connectBroadcast(boundary);
@@ -276,7 +284,9 @@ export function ProgramRuntimeBoundary({
           }
         });
         setSyncStatus({ state: "idle", message: "Synced." });
-        stopPush = resolvedDependencies.startPush(boundary);
+        const push = resolvedDependencies.startPush(boundary);
+        stopPush = push;
+        requestSync = push.requestSync ?? (() => undefined);
         setState({ session, status: "ready" });
       } catch (error) {
         if (!canPublish()) {
@@ -307,8 +317,10 @@ export function ProgramRuntimeBoundary({
       const stale = resolvedDependencies.now() - lastSnapshotAt >= PROGRAM_SESSION_FRESHNESS_MS;
       const expired = expiresAt !== undefined && resolvedDependencies.now() >= expiresAt;
 
-      if (suspended || stale || expired) {
+      if (stale || expired) {
         void invalidate("focus-recovery");
+      } else if (suspended) {
+        activeRuntimeRef.current?.requestSync();
       }
     });
 
@@ -457,6 +469,9 @@ function resolveProgramRuntimeDependencies(
         startPushSync({
           canPublish: boundary.canPublish,
           onAuthorityInvalidated: boundary.onAuthorityInvalidated,
+          principalId: boundary.principalId,
+          runtimeTarget: boundary.runtimeTarget,
+          signal: boundary.signal,
         })),
     subscribeAuthorityChanges:
       overrides?.subscribeAuthorityChanges ?? subscribeToProgramAuthorityChanges,

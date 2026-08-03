@@ -589,12 +589,12 @@ sessions, local-dev owner sessions, and mapped host-local sessions.
 
 - GIVEN a persistent Program runtime holds a ready session snapshot
 - WHEN its session expires, logout completes, current principal or authority
-  changes, an authority-staleness `401` or `403` is received, the Program push
-  socket closes as unauthorized, a suspended tab regains focus after its
-  freshness boundary, or another same-origin tab announces invalidation
+  changes, an authority-staleness `401` or `403` is received, bounded Program
+  socket renewal fails current authority, a suspended tab regains focus after
+  its freshness boundary, or another same-origin tab announces invalidation
 - THEN the client invalidates the snapshot, fails closed for later Program route
   projection, and coalesces concurrent causes into one current snapshot refresh
-- AND replica hydration, screen admission, and push reconnection resume only from
+- AND replica hydration, screen admission, and invalidation reconnection resume only from
   a new ready snapshot bound to the same principal and runtime target
 - AND a failed read or write is not treated as authorized and a failed write is
   not replayed automatically after refresh
@@ -1142,8 +1142,8 @@ without treating read access as operation or route authority.
 - AND the principal has one active `program-role-assignment` whose stable role
   id resolves to `member`, `editor`, or `administrator` in the ordered Program
   role catalog
-- THEN Program bootstrap, schema, HTTP sync, and push sync accept the request
-  through the shared `{ role: "member" }` requirement
+- THEN Program bootstrap, schema, HTTP sync, and invalidation socket admission
+  accept the request through the shared `{ role: "member" }` requirement
 - AND the complete reviewable Program replica may include identity,
   control-plane, and migrated domain records
 - AND the member requirement does not authorize a management browser route,
@@ -1156,7 +1156,9 @@ without treating read access as operation or route authority.
 - WHEN the principal is disabled, its active Program role assignment is
   removed or changed below the required role, its session is revoked, or its
   host target no longer matches
-- THEN later Program HTTP reads and push delivery reject the session
+- THEN later Program HTTP reads and socket renewal reject the session
+- AND an already admitted socket returns no Program data
+- AND it can expose only content-free changed timing until its bounded renewal
 - AND signed session role facts do not retain stale replica authority
 
 ### Requirement: Principal-Backed Program Administrator Authorization
@@ -1260,8 +1262,9 @@ identity, or module identity into route authority.
   ready browser-safe Program session snapshot within its bound runtime-route
   floor
 - AND relevant replica authority changes, session expiry, logout, protected
-  request rejection, unauthorized push closure, focus recovery, and cross-tab
-  notices invalidate that snapshot before later client route admission
+  request rejection, failed bounded invalidation renewal, policy closure, focus
+  recovery, and cross-tab notices invalidate that snapshot before later client
+  route admission
 - AND signed cookie facts, cached Program caller facts, schema screen keys,
   module keys, navigation membership, and prior presentation do not retain
   server authorization

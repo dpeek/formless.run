@@ -157,12 +157,22 @@ export async function saveSchema(
   schema: AppSchema,
   updatedAt: string,
   schemaProvenance?: BrowserReplicaSchemaProvenance,
+  options: { principalId?: string } = {},
 ) {
   const db = await openClientDb();
 
   try {
     const transaction = db.transaction(META_STORE, "readwrite");
     const meta = transaction.objectStore(META_STORE);
+
+    if (options.principalId !== undefined) {
+      const principalId = await requestToPromise<string | undefined>(meta.get(PRINCIPAL_ID_KEY));
+
+      if (principalId !== options.principalId) {
+        await transactionDone(transaction);
+        throw new FormlessProgramReplicaPrincipalBindingError();
+      }
+    }
 
     meta.put(schema, SCHEMA_KEY);
     putOrDeleteMeta(meta, schemaProvenance, SCHEMA_PROVENANCE_KEY);
@@ -175,20 +185,38 @@ export async function saveSchema(
   }
 }
 
-export async function mergeChanges(changes: ChangeRow[], cursor: number) {
+export async function mergeChanges(
+  changes: ChangeRow[],
+  cursor: number,
+  options: { principalId?: string } = {},
+) {
   await mergeRecords(
     changes.map((change) => change.payload),
     cursor,
+    options,
   );
 }
 
-export async function mergeRecords(recordsToMerge: StoredRecord[], cursor?: number) {
+export async function mergeRecords(
+  recordsToMerge: StoredRecord[],
+  cursor?: number,
+  options: { principalId?: string } = {},
+) {
   const db = await openClientDb();
 
   try {
     const transaction = db.transaction([META_STORE, RECORDS_STORE], "readwrite");
     const meta = transaction.objectStore(META_STORE);
     const records = transaction.objectStore(RECORDS_STORE);
+
+    if (options.principalId !== undefined) {
+      const principalId = await requestToPromise<string | undefined>(meta.get(PRINCIPAL_ID_KEY));
+
+      if (principalId !== options.principalId) {
+        await transactionDone(transaction);
+        throw new FormlessProgramReplicaPrincipalBindingError();
+      }
+    }
 
     for (const record of recordsToMerge) {
       records.put(record);

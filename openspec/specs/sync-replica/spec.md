@@ -3,10 +3,10 @@
 ## Purpose
 
 Sync replica keeps browser state aligned with the Program Authority. It stores
-one local IndexedDB replica, advances one cursor through HTTP or push sync,
-merges committed changes, and derives local projections for generated UI
-surfaces. Program storage remains the source of truth; the browser replica
-remains a cache.
+one local IndexedDB replica, advances one cursor through HTTP sync, uses a
+content-free WebSocket to invalidate stale replicas, merges committed changes,
+and derives local projections for generated UI surfaces. Program storage
+remains the source of truth; the browser replica remains a cache.
 
 ## Requirements
 
@@ -29,8 +29,9 @@ identity.
 
 - GIVEN an authenticated principal has a role in a workspace-composed Program
 - WHEN the browser bootstraps or synchronizes that Program
-- THEN its one Program replica, cursor, broadcast channel, HTTP sync route, and
-  WebSocket carry the complete active Program schema and records
+- THEN its one Program replica, cursor, broadcast channel, and HTTP sync route
+  carry the complete active Program schema and records
+- AND its one Program WebSocket carries only content-free invalidation
 - AND workspace-owned module membership does not create a package replica,
   package cursor, selective sync admission, or separate socket
 
@@ -179,62 +180,65 @@ the matching storage identity.
 - AND the response cursor advances to the latest committed Program cursor
 - AND write-log change fields use `writeId` and `operationKind`
 
-#### Scenario: Push catch-up reads write-log changes
+### Requirement: Program Invalidation Connection
 
-- WHEN a browser replica opens a push sync socket and sends a cursor
-- THEN the Authority reads committed write-log changes after that cursor
-- AND the socket catch-up omits duplicate changes already covered by the
-  client's cursor
-- AND push catch-up preserves operation-named change fields used by HTTP sync
+The system SHALL support content-free invalidation over one hibernatable
+WebSocket for the Program identity.
 
-### Requirement: Push Sync Connection
-
-The system SHALL support push sync over one hibernatable WebSocket for the
-Program identity.
-
-#### Scenario: Program push sync route
+#### Scenario: Program invalidation route
 
 - GIVEN a management browser uses the Program storage identity
 - WHEN it connects to `/api/formless/program/sync/ws`
-- THEN the surviving Program Authority catches up from its one write-log cursor
-- AND the socket receives instance, identity, Task, Site, and CRM record changes
-  through the same connection
+- THEN the Authority authorizes the upgrade through the shared Program `member`
+  access requirement
+- AND the accepted socket is server-to-client only
+- AND the socket carries no Program cursor, schema, record identity, change
+  count, stored record, or other Program data
 
-#### Scenario: Program push authorization remains current
+#### Scenario: Program invalidation authorization is checked at admission
 
-- GIVEN a Program push socket was accepted for an active protected owner or a
-  principal satisfying the schema-defined Program `member` role requirement
-- WHEN the socket sends catch-up messages or becomes eligible for a committed
-  change broadcast
-- THEN the runtime rechecks current principal status, protected owner or
-  Program role-assignment facts, session version, route target, and
-  instance through the shared access evaluator
-- AND current editor and administrator assignments satisfy the ordered member
-  requirement
-- AND a disabled principal, removed matching assignment, unassigned
-  authenticated principal, changed session, or session for another target
-  receives no later Program changes
-- AND an unauthorized socket is closed or suppressed
+- GIVEN a browser requests a Program invalidation WebSocket upgrade
+- WHEN its current protected owner, Program role, principal, session version,
+  route target, instance, or admin-bearer facts are evaluated
+- THEN the runtime admits only a caller satisfying the shared Program `member`
+  access requirement
+- AND current editors and administrators satisfy the ordered member requirement
+- AND accepted authority is not serialized with Program cursor or schema state
+- AND later broadcasts do not reauthorize the socket
+- AND every HTTP sync triggered by the socket performs normal current Program
+  authorization before returning data
 
-#### Scenario: Recover from unauthorized Program push closure
+#### Scenario: Bound established socket authority
 
-- GIVEN a persistent Program runtime has one active push-sync connection
-- WHEN the server closes it with WebSocket policy-violation code `1008` because
-  its session or Program authority is no longer current
-- THEN the client invalidates its Program session snapshot and stops reconnecting
-  with the rejected authority
-- AND it opens at most one replacement socket only after a new ready snapshot is
-  resolved for the same principal and runtime target
-- AND repeated unauthorized closure does not create a reconnect loop
+- GIVEN a Program invalidation socket was admitted with current authority
+- WHEN that authority later expires or is revoked without a Program write
+- THEN the socket sends no Program data
+- AND server-enforced renewal schedules a randomized reconnect and closes every
+  accepted socket with application code `4001` within five minutes of admission
+- AND renewal state retained across hibernation contains only its expiry facts
+- AND a failed renewal causes one current HTTP or Program-session authority check
+- AND `401` or `403` invalidates the Program session snapshot while a transport
+  failure follows bounded reconnect behavior without becoming polling
+- AND close code `1008` remains a fail-closed policy or authority signal rather
+  than the normal renewal path
 
-#### Scenario: Public Site visitors do not receive Program push sync
+#### Scenario: Reject client socket messages
+
+- GIVEN an accepted Program invalidation socket is server-to-client only
+- WHEN a client sends a WebSocket message
+- THEN the Authority closes it as a policy violation
+- AND it does not parse a sync cursor, read Program storage, or return an error
+  payload through the socket
+
+#### Scenario: Public Site visitors do not receive Program invalidation
 
 - GIVEN a visitor opens a Program-native Site document on a mapped or published
   host
 - WHEN public browser interactivity starts
 - THEN it does not bootstrap or synchronize the authenticated Program replica
 - AND it does not open `/api/formless/program/sync/ws`
-- AND authenticated `/pages` preview may use the existing Program socket
+- AND authenticated `/pages` preview may use an authenticated Program
+  invalidation socket
   because it is a Program member surface
 
 ### Requirement: Persistent Program Client Runtime
@@ -249,7 +253,7 @@ client runtime lifetime that persists across ordinary Program screen routes.
 - THEN it resolves one Program session snapshot before publishing cached Program
   data
 - AND a ready snapshot starts one principal-bound IndexedDB hydration, one
-  Program bootstrap, one broadcast subscription, and one push-sync connection
+  Program bootstrap, one broadcast subscription, and one invalidation connection
 - AND loading, blocked, forbidden, and failed states retain the runtime boundary
   while withholding the protected route workspace as applicable
 
@@ -259,9 +263,9 @@ client runtime lifetime that persists across ordinary Program screen routes.
   mounted
 - WHEN client routing selects another Program screen on the same runtime target
 - THEN the session snapshot, hydrated replica, broadcast subscription, bootstrap
-  state, and push-sync connection remain mounted
+  state, and invalidation connection remain mounted
 - AND no session or per-screen authorization request, IndexedDB rehydration,
-  Program bootstrap, broadcast resubscription, or push reconnection is caused by
+  Program bootstrap, broadcast resubscription, or invalidation reconnection is caused by
   that route change
 - AND only the selected route workspace and its route-local state may change
 
@@ -270,51 +274,86 @@ client runtime lifetime that persists across ordinary Program screen routes.
 - GIVEN a persistent Program runtime is mounted
 - WHEN navigation leaves its Program shell scope, logout completes, the principal
   changes, or its bound runtime target changes
-- THEN it aborts pending client work, closes its broadcast subscription and push
-  connection, and clears protected in-memory projections
+- THEN it aborts pending client work, closes its broadcast subscription and
+  invalidation connection, and clears protected in-memory projections
 - AND cleanup from the ended lifetime cannot publish session, bootstrap, sync, or
   route state into a later lifetime
 
-### Requirement: Push Sync Messages
+### Requirement: Program Invalidation Messages
 
-The system SHALL use push sync messages to catch up clients and deliver committed writes.
+The system SHALL use one content-free server message to invalidate connected
+browser replicas after committed writes.
 
-#### Scenario: Hello catch-up
+#### Scenario: Content-free changed message
 
-- GIVEN a browser replica opens a push sync socket with a cursor
-- WHEN it sends `hello`
-- THEN the Authority catches the socket up from that cursor
-- AND schema data is omitted when the client's schema timestamp is current
+- GIVEN a Program invalidation socket is connected
+- WHEN the Authority notifies it of committed Program state
+- THEN the server message is exactly `{ type: "changed" }`
+- AND no client message is required to initialize or catch up the connection
 
 #### Scenario: Committed write broadcast
 
 - GIVEN an operation, schema write, or reset schema write commits
-- WHEN push sync sockets are connected
-- THEN the Authority broadcasts a sync message for the committed write
+- WHEN Program invalidation sockets are connected
+- THEN the Authority broadcasts a content-free changed message
 - AND one stale socket does not prevent later sockets from receiving the broadcast
-- AND the broadcast tells clients to catch up from the write-log cursor rather
-  than from inline write responses
+- AND concurrent committed notifications are coalesced into one changed message
+  per socket no later than 100 milliseconds after the first pending notification
+- AND connected clients catch up through HTTP from their stored cursor
 
-### Requirement: Write Outcome Push Notifications
+### Requirement: HTTP Sync Trigger Coalescing
 
-The system SHALL use Authority storage write outcomes as the source of push
-sync notification policy.
+The system SHALL serialize HTTP catch-up triggers without losing an
+invalidation that races an in-flight pull.
+
+#### Scenario: Pull after connection boundaries
+
+- WHEN a Program invalidation socket first opens or reconnects
+- THEN the browser requests HTTP Program sync from its stored cursor and schema
+  timestamp
+- AND a write committed between bootstrap and socket connection is included
+- AND no cursor or schema timestamp is sent through the socket
+
+#### Scenario: Coalesce changed messages
+
+- GIVEN an HTTP Program sync is scheduled or in flight
+- WHEN one or more changed messages arrive
+- THEN the browser coalesces them behind one in-flight pull
+- AND a changed message received during that pull schedules exactly one trailing
+  pull after the response is applied
+- AND a changed message received after the pull completes starts a later pull
+- AND response application remains bound to the current principal, runtime
+  target, abort signal, and publication lifetime
+
+#### Scenario: Catch up after focus recovery
+
+- GIVEN a persistent Program runtime regains focus after actual suspension
+- WHEN its Program session snapshot remains fresh and unexpired
+- THEN it requests one coalesced HTTP Program sync
+- AND a stale or expired snapshot follows the normal current-authority refresh
+  before replica synchronization resumes
+
+### Requirement: Write Outcome Invalidation Notifications
+
+The system SHALL use Authority storage write outcomes as the source of
+content-free invalidation policy.
 
 #### Scenario: Committed write notifies
 
 - WHEN an operation, schema write, reset schema, or snapshot restore write
   returns a committed storage outcome
-- THEN the Authority broadcasts a push sync message for that committed write
+- THEN the Authority schedules a content-free changed message for that committed
+  write
 - AND connected browser replicas can catch up from their stored cursors
 
 #### Scenario: Replay or failed write does not notify
 
 - WHEN an operation write returns a replayed storage outcome
-- THEN the Authority does not broadcast a committed-write push notification
+- THEN the Authority does not broadcast a committed-write changed notification
 - AND no duplicate local replica merge is caused by that replay
 
 - WHEN a write fails validation before storage commit
-- THEN the Authority does not broadcast a committed-write push notification
+- THEN the Authority does not broadcast a committed-write changed notification
 
 ### Requirement: Local Workspace Dirty Signals
 
@@ -338,27 +377,28 @@ outcomes, not browser replica cache writes.
 
 #### Scenario: Replica-only updates do not mark workspace dirty
 
-- GIVEN a browser replica catches up from bootstrap, HTTP sync, push sync,
-  broadcast sync request, or local IndexedDB migration
+- GIVEN a browser replica catches up from bootstrap, HTTP sync triggered by an
+  invalidation, cross-tab refresh, or local IndexedDB migration
 - WHEN records or schema are merged into IndexedDB from Authority
 - THEN no workspace dirty signal is emitted
 - AND failed or replayed writes do not mark workspace source dirty
 
-### Requirement: Push Sync Limits
+### Requirement: Program Invalidation Limits
 
-The system MUST NOT depend on push sync for validation or replay behavior.
+The system MUST NOT depend on Program invalidation for validation or replay
+behavior.
 
 #### Scenario: Failed or replayed write
 
 - GIVEN a write fails validation or replays an already committed operation
-- WHEN push sync sockets are connected
-- THEN no committed-write push notification is broadcast for that request
+- WHEN Program invalidation sockets are connected
+- THEN no committed-write changed notification is broadcast for that request
 - AND local replicas must wait for a later committed write or explicit sync request to change state
 
 #### Scenario: No polling fallback
 
-- GIVEN browser push sync is enabled for the Program storage identity
-- WHEN the push sync connection is unavailable
+- GIVEN browser invalidation is enabled for the Program storage identity
+- WHEN the invalidation connection is unavailable
 - THEN the browser does not switch to a polling fallback
 - AND no automatic polling catch-up runs as a fallback
 

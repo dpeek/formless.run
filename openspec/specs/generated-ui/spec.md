@@ -108,9 +108,10 @@ shell.
   action, or runtime navigation intent selects another authorized Program screen
 - **THEN** client routing changes only the selected route workspace
 - **AND** the Program session, shell, hydrated replica, broadcast subscription,
-  bootstrap state, and push-sync connection retain their mounted lifetime
+  bootstrap state, and invalidation connection retain their mounted lifetime
 - **AND** the transition sends no document, session-status, route-authorization,
-  bootstrap, or IndexedDB hydration request and opens no replacement push socket
+  bootstrap, HTTP sync, or IndexedDB hydration request and opens no replacement
+  invalidation socket
 - **AND** loading or forbidden presentation replaces the selected workspace
   outlet without tearing down the persistent Program runtime or shell
 - **AND** semantic anchor hrefs, modified activation, explicit targets, downloads,
@@ -377,7 +378,7 @@ The system SHALL render generated screens from screen models and collection sect
 - AND an unauthenticated browser enters the runtime account continuation while
   an authenticated but insufficient browser receives a display-safe forbidden
   outcome without restarting sign-in
-- AND app record sync, push connection, or protected screen data loading does
+- AND app record sync, invalidation connection, or protected screen data loading does
   not start before the exact route access check resolves
 - AND initial Worker entry, mapped-host entry, direct browser entry, and
   client-side navigation use the same current instance-auth route decision

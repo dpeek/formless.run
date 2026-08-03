@@ -16,6 +16,7 @@ import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 export type PublicSiteRouteInputProps = {
   browserRuntime?: ProgramBrowserRuntimeDefinition;
   linkMode?: SitePageLinkMode;
+  programSyncManaged?: boolean;
   routeBase?: `/${string}`;
   slug: string;
   workspaceRenderer?: SitePublicRendererComponent;
@@ -31,6 +32,7 @@ export function CoreSitePageRoute({
   builtInSystemStateRenderer,
   browserRuntime = programBrowserRuntime,
   linkMode = "preview",
+  programSyncManaged = false,
   routeBase,
   slug,
   workspaceRenderer,
@@ -52,7 +54,7 @@ export function CoreSitePageRoute({
       listenForPreviewChanges={listenForSitePreviewChanges}
       routeBase={routeBase}
       slug={slug}
-      startPreviewSync={startSitePreviewSync}
+      startPreviewSync={programSyncManaged ? undefined : startSitePreviewSync}
       workspaceRenderer={workspaceRenderer}
     />
   );

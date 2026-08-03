@@ -36,7 +36,6 @@ import {
   type InstanceAuthAccessResult,
   type InstanceAuthAuthorityRequirement,
   type InstanceAuthSession,
-  type InstanceAuthSessionKind,
 } from "./instance-auth-access.ts";
 import {
   consumeHandoffGrant,
@@ -62,7 +61,6 @@ import {
   type OwnerSessionEnv,
 } from "./owner-session.ts";
 import {
-  validateCentralAuthSessionBinding,
   validateCentralAuthSessionState,
   type CentralAuthSession,
   type CentralAuthSessionValidationFailureReason,
@@ -72,12 +70,7 @@ import {
   type InstanceRuntimeMountRouteResolution,
   type InstanceRuntimeRouteResolution,
 } from "./instance-runtime-routes.ts";
-import {
-  evaluateAccessRequirement,
-  type AccessRequirement,
-  type AppSchema,
-  type ScreenAccessRequirement,
-} from "@dpeek/formless-schema";
+import type { AppSchema, ScreenAccessRequirement } from "@dpeek/formless-schema";
 import {
   isLocalOwnerSessionRuntime,
   type LocalSessionBootstrapEnv,
@@ -96,7 +89,6 @@ export const HOST_AUTH_SESSION_COOKIE_NAME = "formless_host_session";
 
 const instanceAuthHostSessionValidatePath = "/formless/auth/host-session/validate";
 const instanceAuthCentralSessionValidatePath = "/formless/auth/central-session/validate";
-const internalBoundCentralSessionValidatePath = "/_internal/instance-auth/central-session/validate";
 const handoffGrantTtlMs = 5 * 60 * 1000;
 const hostNonceMaxAgeSeconds = 5 * 60;
 const hostSessionMaxAgeSeconds = 12 * 60 * 60;
@@ -528,10 +520,6 @@ export async function handleInstanceAuthHandoffDurableObjectRequest(
 
   if (url.pathname === instanceAuthCentralSessionValidatePath) {
     return handleCentralAuthSessionValidationDurableObjectRequest(request, storage, env);
-  }
-
-  if (url.pathname === internalBoundCentralSessionValidatePath) {
-    return handleBoundCentralAuthSessionValidationDurableObjectRequest(request, storage);
   }
 
   if (url.pathname === INSTANCE_AUTH_HANDOFF_CALLBACK_PATH) {
@@ -1058,183 +1046,6 @@ export async function validateInstanceAuthAccessSession(
   );
 }
 
-export type InstanceAuthAccessBinding = {
-  principalId: string;
-  session: InstanceAuthSession;
-  via: InstanceAuthSessionKind;
-};
-
-export function bindInstanceAuthAccessSession(
-  access: Extract<RouteAccessSessionValidationResult, { ok: true }>,
-): InstanceAuthAccessBinding {
-  return {
-    principalId: access.principalId,
-    session: access.session,
-    via: access.via,
-  };
-}
-
-export async function validateBoundInstanceAuthAccessSession(
-  value: unknown,
-  env: InstanceAuthAccessEnv,
-  options: {
-    now?: string;
-  },
-): Promise<boolean> {
-  return validateBoundInstanceAuthAuthoritySession(value, env, {
-    now: options.now,
-    requiredAuthority: "owner",
-  });
-}
-
-export async function validateBoundInstanceManagementAccessSession(
-  value: unknown,
-  env: InstanceAuthAccessEnv,
-  options: {
-    now?: string;
-  },
-): Promise<boolean> {
-  return validateBoundInstanceAuthAuthoritySession(value, env, {
-    now: options.now,
-    requiredAuthority: "management",
-  });
-}
-
-export async function validateBoundProgramAccessSession(
-  value: unknown,
-  env: InstanceAuthAccessEnv,
-  options: {
-    access: AccessRequirement;
-    now?: string;
-    schema: AppSchema;
-  },
-): Promise<boolean> {
-  const binding = parseInstanceAuthAccessBinding(value);
-
-  if (
-    !binding ||
-    !(await validateBoundInstanceAuthAuthoritySession(binding, env, {
-      now: options.now,
-      requiredAuthority: "authenticated",
-    }))
-  ) {
-    return false;
-  }
-
-  const authority = await readInternalIdentityAuthorityForPrincipal(env, binding.principalId);
-
-  return (
-    authority?.id === binding.principalId &&
-    evaluateAccessRequirement(options.access, authority.callerFacts, options.schema)
-  );
-}
-
-async function validateBoundInstanceAuthAuthoritySession(
-  value: unknown,
-  env: InstanceAuthAccessEnv,
-  options: {
-    now?: string;
-    requiredAuthority: "authenticated" | "management" | "owner";
-  },
-): Promise<boolean> {
-  const binding = parseInstanceAuthAccessBinding(value);
-
-  if (!binding) {
-    return false;
-  }
-
-  const target =
-    binding.via === "host-session"
-      ? hostAuthSessionTargetFromSession(binding.session as HostAuthSession)
-      : undefined;
-
-  if (target !== undefined && !boundTargetMatchesAuthority(target, options.requiredAuthority)) {
-    return false;
-  }
-
-  const readers: InstanceAuthAccessReaders = {
-    readAccountCompletion: () =>
-      Promise.reject(new Error("Bound push sessions do not resolve account completion.")),
-    readActivePrincipal: (session) => readInternalActiveIdentityPrincipal(env, session.principalId),
-    readCentralSession: async () => {
-      if (binding.via !== "central-session") {
-        return {
-          ok: false,
-          ownerSessionFallbackAllowed: binding.via === "owner-session",
-          reason: "missing-session",
-        };
-      }
-
-      const session = await readBoundCentralSessionFromRuntime(
-        env,
-        binding.session as CentralAuthSession,
-        options.now,
-      );
-
-      return session
-        ? { ok: true, ownerSessionFallbackAllowed: false, session }
-        : {
-            ok: false,
-            ownerSessionFallbackAllowed: false,
-            reason: "revoked-session",
-          };
-    },
-    readHostSession: async (expectedTarget) => {
-      if (
-        binding.via !== "host-session" ||
-        target === undefined ||
-        !hostAuthSessionTargetBindingsEqual(target, expectedTarget) ||
-        !sessionIsCurrent(binding.session, options.now)
-      ) {
-        return { ok: false, reason: "wrong-target" };
-      }
-
-      return { ok: true, session: binding.session as HostAuthSession };
-    },
-    readHostSessionVersion: (session) =>
-      env.FORMLESS_AUTHORITY === undefined
-        ? Promise.reject(new Error("Instance auth storage is unavailable."))
-        : readHostSessionVersionFromRuntime(
-            new Request("http://internal"),
-            env as InstanceAuthHandoffEnv,
-            session,
-          ),
-    readLocalOwnerSession: async () =>
-      binding.via === "owner-session" && sessionIsCurrent(binding.session, options.now)
-        ? { ok: true, session: binding.session as OwnerSession }
-        : { ok: false, reason: "expired" },
-    readManagementAuthority: (session) =>
-      readInternalIdentityAuthorityForPrincipal(env, session.principalId),
-    readOwnerAuthority: (session) =>
-      readInternalIdentityOwnerForPrincipal(env, session.principalId),
-  };
-  const result = await resolveInstanceAuthAccess(
-    {
-      localOwnerSessionFallbackAllowed: binding.via === "owner-session",
-      requiredAuthority: options.requiredAuthority,
-      ...(target === undefined ? {} : { target }),
-    },
-    readers,
-  );
-
-  return result.ok && result.principalId === binding.principalId && result.via === binding.via;
-}
-
-function boundTargetMatchesAuthority(
-  target: InstanceAuthSessionTargetBinding,
-  requiredAuthority: "authenticated" | "management" | "owner",
-): boolean {
-  if (target.targetProfile !== "instance") {
-    return false;
-  }
-
-  return (
-    requiredAuthority === "authenticated" ||
-    target.access === "management" ||
-    target.access === "owner"
-  );
-}
-
 export async function validateRouteAccessSession(
   request: Request,
   env: InstanceAuthHandoffEnv,
@@ -1663,28 +1474,6 @@ async function handleCentralAuthSessionValidationDurableObjectRequest(
       },
       400,
     );
-  }
-}
-
-async function handleBoundCentralAuthSessionValidationDurableObjectRequest(
-  request: Request,
-  storage: DurableObjectStorage,
-): Promise<Response> {
-  if (request.method !== "POST") {
-    return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
-  }
-
-  try {
-    const body = (await request.json()) as { now?: unknown; session?: unknown };
-    const result = validateCentralAuthSessionBinding(storage, body.session, {
-      now: typeof body.now === "string" ? body.now : undefined,
-    });
-
-    return result.ok
-      ? jsonResponse({ session: result.session, validated: true })
-      : jsonResponse({ reason: result.reason }, 401);
-  } catch {
-    return jsonResponse({ reason: "malformed-payload" }, 400);
   }
 }
 
@@ -2137,110 +1926,6 @@ function parseCentralAuthSessionBody(value: unknown): CentralAuthSession {
     principalId: value.principalId.trim(),
     sessionIdHash: value.sessionIdHash.trim(),
   };
-}
-
-function parseInstanceAuthAccessBinding(value: unknown): InstanceAuthAccessBinding | undefined {
-  if (
-    !isRecord(value) ||
-    typeof value.principalId !== "string" ||
-    value.principalId.trim() === "" ||
-    (value.via !== "central-session" &&
-      value.via !== "host-session" &&
-      value.via !== "owner-session")
-  ) {
-    return undefined;
-  }
-
-  try {
-    const session =
-      value.via === "central-session"
-        ? parseCentralAuthSessionBody(value.session)
-        : value.via === "host-session"
-          ? parseHostAuthSession(value.session)
-          : parseBoundOwnerSession(value.session);
-
-    if (!session || session.principalId !== value.principalId.trim()) {
-      return undefined;
-    }
-
-    return {
-      principalId: session.principalId,
-      session,
-      via: value.via,
-    };
-  } catch {
-    return undefined;
-  }
-}
-
-function parseBoundOwnerSession(value: unknown): OwnerSession | undefined {
-  if (
-    !isRecord(value) ||
-    typeof value.instanceId !== "string" ||
-    value.instanceId.trim() === "" ||
-    typeof value.principalId !== "string" ||
-    value.principalId.trim() === "" ||
-    typeof value.issuedAt !== "string" ||
-    typeof value.expiresAt !== "string" ||
-    !isTimestamp(value.issuedAt) ||
-    !isTimestamp(value.expiresAt)
-  ) {
-    return undefined;
-  }
-
-  return {
-    expiresAt: value.expiresAt,
-    instanceId: value.instanceId.trim(),
-    issuedAt: value.issuedAt,
-    principalId: value.principalId.trim(),
-  };
-}
-
-function hostAuthSessionTargetFromSession(
-  session: HostAuthSession,
-): InstanceAuthSessionTargetBinding {
-  return {
-    access: session.access,
-    routeId: session.routeId,
-    targetOrigin: session.targetOrigin,
-    targetProfile: session.targetProfile,
-  };
-}
-
-function sessionIsCurrent(session: InstanceAuthSession, now?: string): boolean {
-  return (
-    parseTimestampMs("Bound auth session expiresAt", session.expiresAt) >
-    parseTimestampMs("Bound auth session validation time", now ?? nowIsoString())
-  );
-}
-
-async function readBoundCentralSessionFromRuntime(
-  env: InstanceAuthAccessEnv,
-  session: CentralAuthSession,
-  now?: string,
-): Promise<CentralAuthSession | null> {
-  if (env.FORMLESS_AUTHORITY === undefined) {
-    return null;
-  }
-
-  const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_INSTANCE_AUTHORITY_NAME);
-  const response = await env.FORMLESS_AUTHORITY.get(id).fetch(
-    new Request(`http://internal${internalBoundCentralSessionValidatePath}`, {
-      body: JSON.stringify({
-        ...(now === undefined ? {} : { now }),
-        session,
-      }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    }),
-  );
-  const body = (await response.json()) as { session?: unknown; validated?: boolean };
-
-  if (!response.ok || body.validated !== true || body.session === undefined) {
-    return null;
-  }
-
-  return parseCentralAuthSessionBody(body.session);
 }
 
 function hostAuthSessionTargetBindingsEqual(

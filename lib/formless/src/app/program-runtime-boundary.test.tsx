@@ -312,9 +312,10 @@ describe("persistent Program runtime boundary", () => {
     renderer.unmount();
   });
 
-  it("recovers authority after stale or suspended focus", async () => {
+  it("pulls after fresh suspension and refreshes authority after stale focus", async () => {
     let focus: ((event: { suspended: boolean }) => void) | undefined;
     let now = 1_000;
+    let pullRequests = 0;
     let sessionCalls = 0;
     const dependencies = runtimeDependencies({
       fetchSession: async () => {
@@ -326,6 +327,12 @@ describe("persistent Program runtime boundary", () => {
         return () => undefined;
       },
       now: () => now,
+      startPush: () =>
+        Object.assign(() => undefined, {
+          requestSync: () => {
+            pullRequests += 1;
+          },
+        }),
     });
     const renderer = render(
       <ProgramRuntimeBoundary currentPath="/tasks" dependencies={dependencies}>
@@ -336,6 +343,11 @@ describe("persistent Program runtime boundary", () => {
 
     act(() => focus?.({ suspended: false }));
     expect(sessionCalls).toBe(1);
+    expect(pullRequests).toBe(0);
+
+    act(() => focus?.({ suspended: true }));
+    expect(sessionCalls).toBe(1);
+    expect(pullRequests).toBe(1);
 
     now += 60_000;
     act(() => focus?.({ suspended: false }));
@@ -344,11 +356,7 @@ describe("persistent Program runtime boundary", () => {
       expect(runtimeStatus(renderer)).toBe("ready");
     });
 
-    act(() => focus?.({ suspended: true }));
-    await waitFor(() => {
-      expect(sessionCalls).toBe(3);
-      expect(runtimeStatus(renderer)).toBe("ready");
-    });
+    expect(pullRequests).toBe(1);
     renderer.unmount();
   });
 

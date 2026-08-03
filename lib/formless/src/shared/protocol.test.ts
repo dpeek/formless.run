@@ -1,121 +1,25 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
   isSyncSocketAttachment,
-  isSyncSocketClientMessage,
   isSyncSocketServerMessage,
   parseOwnerSetupToken,
-  type ChangeRow,
-  type SyncResponse,
 } from "./protocol.ts";
-import type { StoredRecord } from "@dpeek/formless-storage";
-import { taskSourceSchema as appSchema } from "../test/schema-apps.ts";
 
 describe("push sync protocol", () => {
-  it("validates client socket messages", () => {
-    expect(
-      isSyncSocketClientMessage({
-        type: "hello",
-        cursor: 1,
-        schemaUpdatedAt: null,
-      }),
-    ).toBe(true);
-    expect(
-      isSyncSocketClientMessage({
-        type: "sync-requested",
-        cursor: 2,
-        schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      }),
-    ).toBe(true);
-
-    expect(
-      isSyncSocketClientMessage({
-        type: "hello",
-        cursor: -1,
-        schemaUpdatedAt: null,
-      }),
-    ).toBe(false);
-    expect(
-      isSyncSocketClientMessage({
-        type: "schema-updated",
-        cursor: 1,
-        schemaUpdatedAt: null,
-      }),
-    ).toBe(false);
-  });
-
-  it("validates server socket messages", () => {
-    expect(
-      isSyncSocketServerMessage({
-        type: "sync",
-        payload: {
-          changes: [change(1, record("record-1"))],
-          cursor: 1,
-          schema: appSchema,
-          schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-        } satisfies SyncResponse,
-      }),
-    ).toBe(true);
-    expect(
-      isSyncSocketServerMessage({
-        type: "sync",
-        payload: {
-          changes: [
-            change(2, { ...record("record-2"), deletedAt: "2026-04-28T00:00:02.000Z" }, "delete"),
-          ],
-          cursor: 2,
-        } satisfies SyncResponse,
-      }),
-    ).toBe(true);
-    expect(
-      isSyncSocketServerMessage({
-        type: "error",
-        message: "Malformed sync message.",
-      }),
-    ).toBe(true);
-
-    expect(
-      isSyncSocketServerMessage({
-        type: "sync",
-        payload: {
-          changes: [],
-          cursor: Number.NaN,
-        },
-      }),
-    ).toBe(false);
-    expect(
-      isSyncSocketServerMessage({
-        type: "error",
-        message: 400,
-      }),
-    ).toBe(false);
+  it("accepts only the exact content-free server notification", () => {
+    expect(isSyncSocketServerMessage({ type: "changed" })).toBe(true);
+    expect(isSyncSocketServerMessage({ type: "changed", cursor: 1 })).toBe(false);
+    expect(isSyncSocketServerMessage({ type: "sync", payload: { changes: [], cursor: 0 } })).toBe(
+      false,
+    );
+    expect(isSyncSocketServerMessage({ type: "error", message: "Sync failed." })).toBe(false);
   });
 
   it("validates hibernation socket attachments", () => {
-    expect(
-      isSyncSocketAttachment({
-        cursor: 1,
-        schemaUpdatedAt: "2026-04-28T00:00:00.000Z",
-      }),
-    ).toBe(true);
-    expect(
-      isSyncSocketAttachment({
-        cursor: 0,
-        schemaUpdatedAt: null,
-      }),
-    ).toBe(true);
-
-    expect(
-      isSyncSocketAttachment({
-        cursor: 1.5,
-        schemaUpdatedAt: null,
-      }),
-    ).toBe(false);
-    expect(
-      isSyncSocketAttachment({
-        cursor: 1,
-        schemaUpdatedAt: 123,
-      }),
-    ).toBe(false);
+    expect(isSyncSocketAttachment({ expiresAt: 1_777_777_777_777 })).toBe(true);
+    expect(isSyncSocketAttachment({ expiresAt: 1.5 })).toBe(false);
+    expect(isSyncSocketAttachment({ expiresAt: 0 })).toBe(false);
+    expect(isSyncSocketAttachment({ expiresAt: 1_777_777_777_777, cursor: 1 })).toBe(false);
   });
 });
 
@@ -139,29 +43,3 @@ describe("owner setup protocol", () => {
     );
   });
 });
-
-function record(id: string): StoredRecord {
-  return {
-    id,
-    entity: "task",
-    values: { title: "First", done: false },
-    createdAt: "2026-04-28T00:00:01.000Z",
-    updatedAt: "2026-04-28T00:00:01.000Z",
-  };
-}
-
-function change(
-  seq: number,
-  payload: StoredRecord,
-  operationKind: ChangeRow["operationKind"] = "create",
-): ChangeRow {
-  return {
-    seq,
-    writeId: `write-${seq}`,
-    operationKind,
-    entity: payload.entity,
-    recordId: payload.id,
-    payload,
-    createdAt: `2026-04-28T00:00:0${seq}.000Z`,
-  };
-}

@@ -157,6 +157,10 @@ export function App({
   const normalizedLocation = normalizeRuntimeBrowserPath(location);
   const programScreen = resolveFormlessProgramScreenRouteTarget(normalizedLocation, programSchema);
   const browserRoutes = runtimeBrowserRoutePatterns(runtimeProfile);
+  const programRuntimeSelected =
+    (browserRoutes.instanceShellRoute !== undefined && programScreen !== undefined) ||
+    (resolveSitePublicBrowserRuntimeSurface(browserRuntime) !== undefined &&
+      isPublicSitePreviewPath(normalizedLocation, runtimeProfile));
   const runtime = (programRuntime?: ProgramRuntimeSnapshot) => (
     <AppRuntime
       browserRuntime={browserRuntime}
@@ -169,7 +173,7 @@ export function App({
     />
   );
 
-  return browserRoutes.instanceShellRoute && programScreen !== undefined ? (
+  return programRuntimeSelected ? (
     <ProgramRuntimeBoundary
       currentPath={protectedRouteTarget(location)}
       dependencies={programRuntimeDependencies}
@@ -228,6 +232,7 @@ function AppRuntime({
         browserRuntime={browserRuntime}
         localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
         programSchema={programSchema}
+        programSyncManaged={programRuntime !== undefined}
         routeComponents={routeComponents}
         runtimeProfile={runtimeProfile}
       />
@@ -240,6 +245,7 @@ function AppRuntime({
       browserRuntime={browserRuntime}
       localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
       programSchema={programSchema}
+      programSyncManaged={programRuntime !== undefined}
       routeComponents={routeComponents}
       runtimeProfile={runtimeProfile}
     />
@@ -407,12 +413,14 @@ function AppRoutes({
   browserRuntime,
   localWorkspaceGatewayAvailable,
   programSchema,
+  programSyncManaged,
   routeComponents,
   runtimeProfile,
 }: {
   browserRuntime: ProgramBrowserRuntimeDefinition;
   localWorkspaceGatewayAvailable: boolean;
   programSchema: AppSchema;
+  programSyncManaged: boolean;
   routeComponents: AppRouteComponents;
   runtimeProfile: RuntimeProfile;
 }) {
@@ -526,6 +534,7 @@ function AppRoutes({
               routeProps={{
                 browserRuntime,
                 linkMode: publicSitePreview.linkMode,
+                programSyncManaged,
                 slug: publicSitePreview.homeSlug,
               }}
             />
@@ -540,6 +549,7 @@ function AppRoutes({
               routeProps={{
                 browserRuntime,
                 linkMode: publicSitePreview.linkMode,
+                programSyncManaged,
                 slug: runtimeWildcardSiteSlug(params),
               }}
             />
@@ -754,6 +764,12 @@ function protectedRouteTarget(location: string): AccountRedirectTarget {
   }
 
   return protectedRouteTargetFromLocation(`${window.location.pathname}${window.location.search}`);
+}
+
+function isPublicSitePreviewPath(path: string, runtimeProfile: RuntimeProfile): boolean {
+  const rootRoute = runtimeProfile.publicSitePreview?.rootRoute;
+
+  return rootRoute !== undefined && (path === rootRoute || path.startsWith(`${rootRoute}/`));
 }
 
 function protectedRouteTargetFromLocation(location: string): AccountRedirectTarget {
