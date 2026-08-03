@@ -237,7 +237,7 @@ function parseRecordLinkValueSource(
   }
 
   if (value.kind === "referenceField") {
-    assertExactKeys(context, value, ["kind", "referenceField", "field"]);
+    assertExactKeys(context, value, ["kind", "referenceField", "field"], ["targetEntity"]);
     const referenceFieldName = parseRequiredNonEmptyString(
       `${context} referenceField`,
       value.referenceField,
@@ -263,6 +263,11 @@ function parseRecordLinkValueSource(
     if (!targetEntity) {
       throw new Error(
         `${context} referenceField "${entityName}.${referenceFieldName}" targets unknown entity "${referenceField.to}".`,
+      );
+    }
+    if (value.targetEntity !== undefined && value.targetEntity !== referenceField.to) {
+      throw new Error(
+        `${context} targetEntity must match reference target "${referenceField.to}".`,
       );
     }
     const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);

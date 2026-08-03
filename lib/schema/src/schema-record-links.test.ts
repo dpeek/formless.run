@@ -3,11 +3,18 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   parseAppSchema,
   resolveRecordLink,
+  stringifySchema,
   type RecordLinkSchema,
   type StoredRecord,
 } from "./index.ts";
 
 describe("schema record links", () => {
+  it("round-trips parsed reference-field sources through stored schema serialization", () => {
+    const schema = parseAppSchema(recordLinkSource());
+
+    expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+  });
+
   it("parses ordered links, structured destinations, source fields, defaults, and placement", () => {
     const schema = parseAppSchema(recordLinkSource());
 
@@ -108,6 +115,16 @@ describe("schema record links", () => {
       "cross-schema reference",
       { kind: "referenceField", referenceField: "principal", field: "name" },
       "must target a local entity",
+    ],
+    [
+      "mismatched parsed reference target",
+      {
+        kind: "referenceField",
+        referenceField: "organization",
+        targetEntity: "task",
+        field: "externalCode",
+      },
+      'targetEntity must match reference target "organization"',
     ],
   ])("rejects $0 sources", (_case, sourceValue, message) => {
     const source = recordLinkSource();
