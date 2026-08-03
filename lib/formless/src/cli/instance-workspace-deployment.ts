@@ -2,22 +2,18 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
-  deployDeploymentAppliedSummary,
   deployDeploymentObservationPatch,
   deployDeploymentObservationPatchFromLatestStatus,
   deployDesiredStateProjectionInputFromControlPlaneRecords,
-  deployDisplaySafeFailureSummary,
-  deployLatestStatusDisplaySummary,
   deployResourceCountsByKind,
   materializeDeployDesiredStateVersion,
   projectDeployControlPlaneDesiredState,
   type DeployDesiredStateProjectionInput,
   type DeployDesiredStateResponse,
   type DeployDesiredStateVersionRef,
+  type DeployDeploymentObservationFailureCode,
   type DeployEvidenceSummary,
-  type DeployFailureSummary,
   type DeployLatestStatus,
-  type DeployLatestStatusDisplaySummary,
   type DeployResourceGraph,
   type DeployResourceKind,
 } from "@dpeek/formless-deploy";
@@ -103,6 +99,10 @@ import {
   resolveFormlessInstanceWorkspaceRoot,
   workspaceRootForInput,
 } from "./instance-workspace-foundation.ts";
+import {
+  formatCliDeploymentStatus,
+  type CliDeploymentStatusDisplay,
+} from "./cli-deployment-status-formatter.ts";
 import {
   checkFormlessInstanceWorkspace,
   prepareWorkspacePushSourceSync,
@@ -251,7 +251,7 @@ export type RefreshFormlessInstanceDeploymentObservationDependencies = {
 };
 
 export type RefreshFormlessInstanceDeploymentObservationResult = {
-  deploymentStatus: DeployLatestStatusDisplaySummary;
+  deploymentStatus: CliDeploymentStatusDisplay;
   observation: DeployLocalFormlessWorkspaceObservation;
   selectedTarget: FormlessInstanceWorkspaceTarget;
   workspaceRoot: string;
@@ -357,19 +357,30 @@ export type DeployLocalFormlessWorkspaceEvidenceSummary = {
   resourcesByKind: Record<string, number>;
 };
 
-export type DeployLocalFormlessWorkspaceObservation = {
+type DeployLocalFormlessWorkspaceObservationBase = {
   desiredState: DeployDesiredStateVersionRef;
   evidence: DeployLocalFormlessWorkspaceEvidenceSummary;
   evidenceCount: number;
   observedAt: string;
-  observedError?: string;
-  observedStatus: FormlessInstanceDeploymentObservationPatch["observedStatus"];
-  observedSummary: string;
   resourceCount: number;
   resourcesByKind: Record<DeployResourceKind, number>;
-  runnerId: string;
   targetId: string;
 };
+
+export type DeployLocalFormlessWorkspaceObservation = DeployLocalFormlessWorkspaceObservationBase &
+  (
+    | {
+        observedFailureCode: DeployDeploymentObservationFailureCode;
+        observedStatus: "failed";
+      }
+    | {
+        observedFailureCode?: never;
+        observedStatus: Exclude<
+          FormlessInstanceDeploymentObservationPatch["observedStatus"],
+          "failed"
+        >;
+      }
+  );
 
 export type DeployFormlessInstanceWorkspaceResult = {
   deployment: DeployFormlessInstanceResult;
@@ -688,10 +699,6 @@ export async function pushFormlessInstanceWorkspace(
               desiredState: planned.desiredState,
               observedStatus: "deployed",
               resourceEvidence: provider.deployment.resourceEvidence ?? [],
-              summary: deployDeploymentAppliedSummary({
-                resourceCount: planned.desiredState.resourceCount,
-                sourceLabel: "workspace source",
-              }),
               targetUrl: provider.deployment.url,
             },
             dependencies,
@@ -1021,7 +1028,7 @@ export async function refreshFormlessInstanceDeploymentObservation(
   );
 
   return {
-    deploymentStatus: deployLatestStatusDisplaySummary(statusResponse.status),
+    deploymentStatus: formatCliDeploymentStatus(statusResponse.status),
     observation,
     selectedTarget,
     workspaceRoot,
@@ -1133,10 +1140,6 @@ export async function deployLocalFormlessWorkspace(
         desiredState: planned.desiredState,
         observedStatus: "deployed",
         resourceEvidence: deployment.resourceEvidence ?? [],
-        summary: deployDeploymentAppliedSummary({
-          resourceCount: planned.desiredState.resourceCount,
-          sourceLabel: "workspace source",
-        }),
         targetUrl: deploymentUrl,
       },
       dependencies,
@@ -1172,16 +1175,27 @@ export async function deployLocalFormlessWorkspace(
   }
 }
 
+type WriteLocalWorkspaceDeploymentObservationInput = {
+  adminToken: string;
+  desiredState: LocalWorkspaceDeploymentDesiredState;
+  resourceEvidence: DeployEvidenceSummary[];
+  targetUrl: string;
+} & (
+  | {
+      observedFailureCode: DeployDeploymentObservationFailureCode;
+      observedStatus: "failed";
+    }
+  | {
+      observedFailureCode?: never;
+      observedStatus: Exclude<
+        FormlessInstanceDeploymentObservationPatch["observedStatus"],
+        "failed"
+      >;
+    }
+);
+
 async function writeLocalWorkspaceDeploymentObservation(
-  input: {
-    adminToken: string;
-    desiredState: LocalWorkspaceDeploymentDesiredState;
-    observedError?: string;
-    observedStatus: FormlessInstanceDeploymentObservationPatch["observedStatus"];
-    resourceEvidence: DeployEvidenceSummary[];
-    summary: string;
-    targetUrl: string;
-  },
+  input: WriteLocalWorkspaceDeploymentObservationInput,
   dependencies: Pick<DeployLocalFormlessWorkspaceDependencies, "fetch" | "now">,
 ): Promise<DeployLocalFormlessWorkspaceObservation> {
   const observedAt = dependencies.now();
@@ -1195,17 +1209,19 @@ async function writeLocalWorkspaceDeploymentObservation(
     targetId: input.desiredState.targetId,
   });
   const desiredState = deployDesiredStateVersionRef(desiredStateVersion);
-  const runnerId = "local-gateway";
-  const observation = deployDeploymentObservationPatch({
-    desiredState,
-    observedAt,
-    observedError: input.observedError,
-    observedStatus: input.observedStatus,
-    observedSummary: input.summary,
-    runnerId,
-  });
-  const observedError =
-    typeof observation.observedError === "string" ? observation.observedError : undefined;
+  const observation =
+    input.observedStatus === "failed"
+      ? deployDeploymentObservationPatch({
+          desiredState,
+          observedAt,
+          observedFailureCode: input.observedFailureCode,
+          observedStatus: input.observedStatus,
+        })
+      : deployDeploymentObservationPatch({
+          desiredState,
+          observedAt,
+          observedStatus: input.observedStatus,
+        });
 
   await patchFormlessInstanceDeploymentConfigObservation(
     {
@@ -1217,19 +1233,23 @@ async function writeLocalWorkspaceDeploymentObservation(
     dependencies,
   );
 
-  return {
+  const result = {
     desiredState,
     evidence: summarizeLocalWorkspaceDeploymentEvidence(input.resourceEvidence),
     evidenceCount: input.resourceEvidence.length,
     observedAt: observation.observedAt,
-    ...(observedError === undefined ? {} : { observedError }),
-    observedStatus: observation.observedStatus,
-    observedSummary: observation.observedSummary ?? "",
     resourceCount: desiredStateVersion.display.resourceCount,
     resourcesByKind: desiredStateVersion.display.resourcesByKind,
-    runnerId,
     targetId: desiredState.targetId,
   };
+
+  return observation.observedStatus === "failed"
+    ? {
+        ...result,
+        observedFailureCode: observation.observedFailureCode,
+        observedStatus: observation.observedStatus,
+      }
+    : { ...result, observedStatus: observation.observedStatus };
 }
 
 async function tryWriteLocalWorkspaceDeploymentFailureObservation(
@@ -1241,17 +1261,16 @@ async function tryWriteLocalWorkspaceDeploymentFailureObservation(
   },
   dependencies: Pick<DeployLocalFormlessWorkspaceDependencies, "fetch" | "now">,
 ): Promise<void> {
-  const failure = localWorkspaceDeployFailureSummary(input.error);
+  void input.error;
 
   try {
     await writeLocalWorkspaceDeploymentObservation(
       {
         adminToken: input.adminToken,
         desiredState: input.desiredState,
-        observedError: failure.displayMessage,
+        observedFailureCode: "provider-reconciliation-failed",
         observedStatus: "failed",
         resourceEvidence: [],
-        summary: failure.displayMessage,
         targetUrl: input.targetUrl,
       },
       dependencies,
@@ -1308,12 +1327,8 @@ async function patchDeploymentStatusObservation(
   );
   const observation = deployDeploymentObservationPatchFromLatestStatus({
     desiredState,
-    fallbackRunnerId: "local-gateway",
     status: input.status,
   });
-  const observedError =
-    typeof observation.observedError === "string" ? observation.observedError : undefined;
-  const runnerId = observation.observedRunnerId ?? "local-gateway";
 
   await patchFormlessInstanceDeploymentConfigObservation(
     {
@@ -1325,19 +1340,23 @@ async function patchDeploymentStatusObservation(
     dependencies,
   );
 
-  return {
+  const result = {
     desiredState,
     evidence: summarizeLocalWorkspaceDeploymentEvidence([]),
     evidenceCount: 0,
     observedAt: observation.observedAt,
-    ...(observedError === undefined ? {} : { observedError }),
-    observedStatus: observation.observedStatus,
-    observedSummary: observation.observedSummary ?? "",
     resourceCount: input.desiredState.display.resourceCount,
     resourcesByKind: input.desiredState.display.resourcesByKind,
-    runnerId,
     targetId: desiredState.targetId,
   };
+
+  return observation.observedStatus === "failed"
+    ? {
+        ...result,
+        observedFailureCode: observation.observedFailureCode,
+        observedStatus: observation.observedStatus,
+      }
+    : { ...result, observedStatus: observation.observedStatus };
 }
 
 function summarizeLocalWorkspaceDeploymentEvidence(
@@ -1360,13 +1379,6 @@ function countBy<T>(items: readonly T[], selectKey: (item: T) => string): Record
   }
 
   return counts;
-}
-
-function localWorkspaceDeployFailureSummary(_error: unknown): DeployFailureSummary {
-  return deployDisplaySafeFailureSummary({
-    code: "local-gateway-deploy-apply-failed",
-    displayMessage: "Local workspace push provider reconciliation failed.",
-  });
 }
 
 export async function planDeployLocalFormlessWorkspace(

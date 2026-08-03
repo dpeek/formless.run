@@ -462,9 +462,7 @@ describe("instance deployment runtime API routes", () => {
     await patchControlPlaneRecord("deployment-config", deploymentConfig.body.record.id, {
       observedAt: "2026-05-28T00:01:00.000Z",
       observedDesiredStateHash: desired.body.desiredState.hash,
-      observedRunnerId: "runner.primary",
       observedStatus: "deployed",
-      observedSummary: "Deployed current state.",
     });
     const deployed = await getJson<InstanceDeploymentStatusResponse>(
       INSTANCE_DEPLOYMENT_STATUS_API_PATH,
@@ -472,15 +470,13 @@ describe("instance deployment runtime API routes", () => {
 
     expect(deployed.body.status).toMatchObject({
       deployedAt: "2026-05-28T00:01:00.000Z",
-      runnerId: "runner.primary",
       state: "deployed",
-      summary: "Deployed current state.",
     });
 
     await patchControlPlaneRecord("deployment-config", deploymentConfig.body.record.id, {
       observedAt: "2026-05-28T00:02:00.000Z",
       observedDesiredStateHash: desired.body.desiredState.hash,
-      observedError: "Provider apply failed.",
+      observedFailureCode: "provider-reconciliation-failed",
       observedStatus: "failed",
     });
     const failed = await getJson<InstanceDeploymentStatusResponse>(
@@ -489,11 +485,8 @@ describe("instance deployment runtime API routes", () => {
 
     expect(failed.body.status).toMatchObject({
       failedAt: "2026-05-28T00:02:00.000Z",
+      failureCode: "provider-reconciliation-failed",
       state: "failed-current-version",
-      summary: {
-        code: "observed-failure",
-        displayMessage: "Provider apply failed.",
-      },
     });
 
     await patchControlPlaneRecord("deployment-config", deploymentConfig.body.record.id, {

@@ -3,10 +3,10 @@
 ## Purpose
 
 Deployment runtime projects Formless deployment intent for supported instance
-targets and derives display status from schema-owned deployment config
+targets and derives semantic status from a schema-owned deployment config
 observation cache. Push-owned deployers declare tracked Alchemy desired state,
 Alchemy owns provider reconciliation and provider resource state, and
-`deployment-config` records store only the latest display-safe observation.
+`deployment-config` records store only the latest exact observation.
 Email sending domain onboarding and Worker email bindings follow the same
 projected provider-resource boundary as HTTP route resources. Cloudflare Email
 Sending DNS records are provider-owned after Email Sending onboarding and are
@@ -27,7 +27,7 @@ mutation input without storing deployment attempts in runtime SQL tables.
 - **AND** provider mutation is performed by declaring the desired resource graph
   in tracked Alchemy state or an equivalent provider reconciler
 - **AND** successful or failed results may patch the target deployment config's
-  latest display-safe observation cache
+  latest semantic observation cache
 
 #### Scenario: Route-derived resources share projected deploy graph
 
@@ -62,8 +62,8 @@ mutation input without storing deployment attempts in runtime SQL tables.
   tracked Alchemy app, stage, and state scope
 - **AND** Alchemy destroys the omitted tracked provider resources during push
   provider reconciliation
-- **AND** deployment observation records only display-safe latest status and
-  summary fields on the deployment config
+- **AND** deployment observation records only exact latest status, time,
+  desired-state hash, and applicable failure code on the deployment config
 
 #### Scenario: Repair cleanup can remain explicit
 
@@ -260,7 +260,7 @@ configuration for deployed public action forms that require Turnstile.
 
 ### Requirement: Deployment Observation Cache
 
-The system SHALL store latest display-safe deployment observation on the target
+The system SHALL store the latest semantic deployment observation on the target
 `deployment-config` record instead of runtime attempt, lease, evidence, or
 provider-difference tables.
 
@@ -268,7 +268,7 @@ provider-difference tables.
 
 - WHEN a deployer successfully applies deployment intent
 - THEN it may patch the target deployment config with latest status, observed
-  time, desired-state hash, summary, and runner
+  time, and desired-state hash
 - AND Alchemy remains the owner of canonical provider resource state
 - AND full provider current state is not stored in the observation cache
 
@@ -276,22 +276,33 @@ provider-difference tables.
 
 - WHEN a deployer fails while applying deployment intent
 - THEN it may patch the target deployment config with failed status,
-  desired-state hash, observed time, display-safe error, and runner
+  desired-state hash, observed time, and the closed
+  `provider-reconciliation-failed` failure code
 - AND provider credentials, raw provider state, raw operation tokens, and full
   execution logs are not stored
+
+#### Scenario: Observation field invariants
+
+- WHEN an observation patch is composed or parsed
+- THEN `observedStatus` is one of `deployed`, `drifted`, `failed`, `in-sync`, or
+  `unknown`
+- AND `observedFailureCode` is present only when `observedStatus` is `failed`
+- AND summaries, error messages, runner ids, provider output, paths, commands,
+  logs, and generic result objects are not observation fields
 
 #### Scenario: Observation replacement
 
 - WHEN a newer push provider reconciliation or explicit refresh writes an
   observation
 - THEN it replaces the previous observation fields on the deployment config
+- AND a non-failed replacement clears any prior failure code
 - AND the runtime does not append deployment history records
 
 #### Scenario: Deploy package owns observation patch payloads
 
 - WHEN a CLI deployer, workspace gateway, or trusted deploy node records latest
   deployment observation
-- THEN it composes display-safe observation patch payloads through Deploy
+- THEN it composes exact semantic observation patch payloads through Deploy
   package helpers
 - AND the payload references the desired-state version or hash being observed
 - AND the payload does not include provider credentials, raw provider state, raw
@@ -300,7 +311,7 @@ provider-difference tables.
 
 ### Requirement: Deployment Status
 
-The system SHALL derive display-friendly deployment status from the current
+The system SHALL derive semantic deployment status from the current
 desired-state projection and the target deployment config's latest observation
 cache.
 
@@ -331,15 +342,16 @@ cache.
 - WHEN the deployment config's last observed successful hash matches the current
   desired-state hash
 - THEN latest deployment status reports the target deployed
-- AND the deployed status includes the latest observed time and runner when
-  available
+- AND the deployed status includes the latest observed time
 
 #### Scenario: Failed current version
 
 - WHEN the deployment config's latest failed observation hash matches the
   current desired-state hash
 - THEN latest deployment status reports that the current desired state failed
-- AND the last error details are available for display
+- AND the status includes the exact observation failure code
+- AND it does not include a stored error message, summary, runner id, provider
+  output, or presentation copy
 
 #### Scenario: Stale failure
 
@@ -358,7 +370,7 @@ cache.
 ### Requirement: Deployer Protocol Boundary
 
 The system SHALL keep deployer execution outside the runtime while exposing
-read-only deployment projection and display status.
+read-only deployment projection and semantic status.
 
 #### Scenario: External deployer apply
 
@@ -391,7 +403,8 @@ read-only deployment projection and display status.
 - WHEN a CLI, workspace gateway, browser client, or trusted deploy node reads
   desired state, reads status, or patches observation cache fields
 - THEN route constants, response refs, desired-state version refs, and
-  observation patch request payload contracts come from the Deploy package
+  exact status, failure-code, and observation patch request payload contracts
+  come from the Deploy package
   client boundary
 - AND callers may provide transport, auth, storage, and gateway-specific
   adapters outside that package boundary
@@ -518,7 +531,7 @@ credential boundaries.
 ### Requirement: Workspace Deploy Source Boundary
 
 The deployment runtime SHALL keep deployment intent reviewable as schema-owned
-storage snapshot records and deployment observation cache display-safe but
+storage snapshot records and the exact semantic deployment observation cache
 outside reviewable source.
 
 #### Scenario: Save deployment intent

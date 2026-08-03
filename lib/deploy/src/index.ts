@@ -11,6 +11,7 @@ import {
   type ControlPlaneRouteProjectionRecord,
   type DeriveDeployLatestStatusInput,
   type DeployControlPlaneRecordsProjectionInput,
+  type DeployDeploymentObservationFailureCode,
   type DeployDeploymentObservationPatch,
   type DeployDesiredStateDisplaySummary,
   type DeployDesiredStateHash,
@@ -25,12 +26,10 @@ import {
   type DeployFailureSummary,
   type DeployJsonValue,
   type DeployLatestStatus,
-  type DeployLatestStatusDisplaySummary,
   type DeployProjectionHashInput,
   type DeployResource,
   type DeployResourceGraph,
   type DeployResourceKind,
-  type DeployRunnerId,
   type DeployTargetId,
   type MaterializeDeployDesiredStateVersionInput,
 } from "./types.ts";
@@ -39,6 +38,7 @@ export {
   CONTROL_PLANE_DEPLOYMENT_CONFIG_OBSERVED_FIELDS,
   DEPLOY_ACTOR_KINDS,
   DEPLOY_CONTROL_PLANE_ACTION_IDS,
+  DEPLOY_DEPLOYMENT_OBSERVATION_FAILURE_CODES,
   DEPLOY_PUBLIC_CONTRACT_VERSION,
 } from "./types.ts";
 export type {
@@ -65,6 +65,7 @@ export type {
   DeployControlPlaneRecordsProjectionInput,
   DeployControlPlaneActionId,
   DeployDeployedStatus,
+  DeployDeploymentObservationFailureCode,
   DeployDeploymentObservationPatch,
   DeployDeploymentObservationPatchRequest,
   DeployDesiredStateDisplaySummary,
@@ -88,8 +89,6 @@ export type {
   DeployJsonPrimitive,
   DeployJsonValue,
   DeployLatestStatus,
-  DeployLatestStatusDisplaySummary,
-  DeployLatestStatusDisplayTone,
   DeployLatestStatusResponse,
   DeployNoTargetStatus,
   DeployPendingChangesStatus,
@@ -330,36 +329,53 @@ export function deployDisplaySafeFailureSummary(input: {
   };
 }
 
-export function deployDeploymentObservationPatch(input: {
-  desiredState: DeployDesiredStateVersionRef;
-  observedAt: string;
-  observedError?: string | null;
-  observedStatus: ControlPlaneDeploymentConfigObservedStatus;
-  observedSummary?: string | null;
-  runnerId?: DeployRunnerId | null;
-}): DeployDeploymentObservationPatch {
-  const observedError = textRecordValue(input.observedError);
-  const observedSummary = textRecordValue(input.observedSummary);
-  const observedRunnerId = deployRunnerId(input.runnerId);
+export function deployDeploymentObservationPatch(
+  input: {
+    desiredState: DeployDesiredStateVersionRef;
+    observedAt: string;
+  } & (
+    | {
+        observedFailureCode: DeployDeploymentObservationFailureCode;
+        observedStatus: "failed";
+      }
+    | {
+        observedFailureCode?: never;
+        observedStatus: Exclude<ControlPlaneDeploymentConfigObservedStatus, "failed">;
+      }
+  ),
+): DeployDeploymentObservationPatch {
+  const observedFailureCode = deployDeploymentObservationFailureCode(input.observedFailureCode);
+
+  if (input.observedStatus === "failed") {
+    if (observedFailureCode === undefined) {
+      throw new Error(
+        'Failed deployment observations require observedFailureCode "provider-reconciliation-failed".',
+      );
+    }
+
+    return {
+      observedAt: input.observedAt,
+      observedDesiredStateHash: input.desiredState.hash,
+      observedFailureCode,
+      observedStatus: input.observedStatus,
+    };
+  }
+
+  if (input.observedFailureCode !== undefined) {
+    throw new Error("Non-failed deployment observations cannot include observedFailureCode.");
+  }
 
   return {
     observedAt: input.observedAt,
     observedDesiredStateHash: input.desiredState.hash,
-    ...(observedError === undefined ? {} : { observedError }),
-    ...(observedRunnerId === undefined ? {} : { observedRunnerId }),
     observedStatus: input.observedStatus,
-    ...(observedSummary === undefined ? {} : { observedSummary }),
   };
 }
 
 export function deployDeploymentObservationPatchFromLatestStatus(input: {
   desiredState: DeployDesiredStateVersionRef;
-  fallbackRunnerId?: DeployRunnerId;
   status: DeployLatestStatus;
-  summary?: DeployLatestStatusDisplaySummary;
 }): DeployDeploymentObservationPatch {
-  const summary = input.summary ?? deployLatestStatusDisplaySummary(input.status);
-
   switch (input.status.state) {
     case "deployed":
       if (deployStatusDesiredStateMatches(input.status.latestDesiredState, input.desiredState)) {
@@ -367,8 +383,6 @@ export function deployDeploymentObservationPatchFromLatestStatus(input: {
           desiredState: input.desiredState,
           observedAt: input.status.deployedAt,
           observedStatus: "deployed",
-          observedSummary: input.status.summary ?? summary.detail,
-          runnerId: input.status.runnerId ?? input.fallbackRunnerId,
         });
       }
       break;
@@ -377,10 +391,8 @@ export function deployDeploymentObservationPatchFromLatestStatus(input: {
         return deployDeploymentObservationPatch({
           desiredState: input.desiredState,
           observedAt: input.status.failedAt,
-          observedError: input.status.summary.displayMessage,
+          observedFailureCode: input.status.failureCode,
           observedStatus: "failed",
-          observedSummary: input.status.summary.displayMessage,
-          runnerId: input.status.runnerId ?? input.fallbackRunnerId,
         });
       }
       break;
@@ -390,8 +402,6 @@ export function deployDeploymentObservationPatchFromLatestStatus(input: {
           desiredState: input.desiredState,
           observedAt: input.status.checkedAt,
           observedStatus: "drifted",
-          observedSummary: input.status.summary ?? summary.detail,
-          runnerId: input.status.runnerId ?? input.fallbackRunnerId,
         });
       }
       break;
@@ -404,8 +414,6 @@ export function deployDeploymentObservationPatchFromLatestStatus(input: {
     desiredState: input.desiredState,
     observedAt: input.status.checkedAt,
     observedStatus: "unknown",
-    observedSummary: summary.detail,
-    runnerId: input.fallbackRunnerId,
   });
 }
 
@@ -445,29 +453,37 @@ export function deriveDeployLatestStatus(input: DeriveDeployLatestStatusInput): 
   }
 
   const observedAt = textRecordValue(input.deploymentConfig.values.observedAt) ?? input.now;
-  const runnerId = deployRunnerId(input.deploymentConfig.values.observedRunnerId);
-  const summary = textRecordValue(input.deploymentConfig.values.observedSummary);
 
   if (observedStatus === "deployed" || observedStatus === "in-sync") {
     return {
       checkedAt: input.now,
       deployedAt: observedAt,
       latestDesiredState,
-      ...(runnerId === undefined ? {} : { runnerId }),
       state: "deployed",
-      ...(summary === undefined ? {} : { summary }),
       targetId: input.targetId,
     };
   }
 
   if (observedStatus === "failed") {
+    const failureCode = deployDeploymentObservationFailureCode(
+      input.deploymentConfig.values.observedFailureCode,
+    );
+
+    if (failureCode === undefined) {
+      return {
+        checkedAt: input.now,
+        latestDesiredState,
+        state: "pending-changes",
+        targetId: input.targetId,
+      };
+    }
+
     return {
       checkedAt: input.now,
       failedAt: observedAt,
+      failureCode,
       latestDesiredState,
-      ...(runnerId === undefined ? {} : { runnerId }),
       state: "failed-current-version",
-      summary: deployObservedFailureSummary(input.deploymentConfig),
       targetId: input.targetId,
     };
   }
@@ -476,9 +492,7 @@ export function deriveDeployLatestStatus(input: DeriveDeployLatestStatusInput): 
     return {
       checkedAt: input.now,
       latestDesiredState,
-      ...(runnerId === undefined ? {} : { runnerId }),
       state: "drift",
-      ...(summary === undefined ? {} : { summary }),
       targetId: input.targetId,
     };
   }
@@ -489,50 +503,6 @@ export function deriveDeployLatestStatus(input: DeriveDeployLatestStatusInput): 
     state: "pending-changes",
     targetId: input.targetId,
   };
-}
-
-export function deployLatestStatusDisplaySummary(
-  status: DeployLatestStatus,
-): DeployLatestStatusDisplaySummary {
-  switch (status.state) {
-    case "no-target":
-      return {
-        detail: "No desired-state version has been recorded",
-        label: "No deployment state",
-        state: status.state,
-        tone: "neutral",
-      };
-    case "pending-changes":
-      return {
-        detail: status.latestSuccessfulDesiredState
-          ? `Desired revision ${status.latestDesiredState.revision} pending; deployed revision ${status.latestSuccessfulDesiredState.revision}`
-          : `Desired revision ${status.latestDesiredState.revision} pending`,
-        label: "Pending changes",
-        state: status.state,
-        tone: "warning",
-      };
-    case "deployed":
-      return {
-        detail: `Revision ${status.latestDesiredState.revision} deployed at ${status.deployedAt}`,
-        label: "Deployed",
-        state: status.state,
-        tone: "success",
-      };
-    case "failed-current-version":
-      return {
-        detail: `Revision ${status.latestDesiredState.revision}: ${deployFailureLabel(status.summary)}`,
-        label: "Failed current version",
-        state: status.state,
-        tone: "danger",
-      };
-    case "drift":
-      return {
-        detail: status.summary ?? "Latest observation reports drift",
-        label: "Drift detected",
-        state: status.state,
-        tone: "warning",
-      };
-  }
 }
 
 export function deployProjectionCanonicalJson(projection: DeployDesiredStateProjection): string {
@@ -1267,6 +1237,7 @@ function deployStatusDesiredStateMatches(
 ): boolean {
   return (
     observed.hash === desiredState.hash &&
+    observed.revision === desiredState.revision &&
     observed.targetId === desiredState.targetId &&
     observed.versionId === desiredState.versionId
   );
@@ -1290,30 +1261,14 @@ function deployObservedDesiredStateHash(value: unknown): DeployDesiredStateHash 
   return hash?.startsWith("sha256:") ? hash : undefined;
 }
 
-function deployObservedFailureSummary(
-  record: ControlPlaneDeploymentConfigObservationRecord,
-): DeployFailureSummary {
-  const displayMessage =
-    textRecordValue(record.values.observedError) ??
-    textRecordValue(record.values.observedSummary) ??
-    "Deployment failed.";
-
-  return {
-    code: "observed-failure",
-    displayMessage,
-  };
-}
-
-function deployRunnerId(value: unknown): DeployRunnerId | undefined {
-  return textRecordValue(value);
+function deployDeploymentObservationFailureCode(
+  value: unknown,
+): DeployDeploymentObservationFailureCode | undefined {
+  return value === "provider-reconciliation-failed" ? value : undefined;
 }
 
 function textRecordValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
-}
-
-function deployFailureLabel(summary: DeployFailureSummary): string {
-  return summary.code ? `${summary.displayMessage} (${summary.code})` : summary.displayMessage;
 }
 
 function canonicalizeDeployProjection(

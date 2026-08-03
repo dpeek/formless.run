@@ -470,24 +470,16 @@
           "type": "text"
         },
         {
-          "format": "longText",
-          "key": "observedSummary",
-          "label": "Observed summary",
+          "key": "observedFailureCode",
+          "label": "Observed failure code",
           "required": false,
-          "type": "text"
-        },
-        {
-          "format": "longText",
-          "key": "observedError",
-          "label": "Observed error",
-          "required": false,
-          "type": "text"
-        },
-        {
-          "key": "observedRunnerId",
-          "label": "Observed runner",
-          "required": false,
-          "type": "text"
+          "type": "enum",
+          "values": [
+            {
+              "key": "provider-reconciliation-failed",
+              "label": "Provider reconciliation failed"
+            }
+          ]
         }
       ],
       "id": "entity_726ab70a-10a0-404b-8489-757a7b6c7aca",
@@ -625,16 +617,8 @@
                 "key": "observedDesiredStateHash"
               },
               {
-                "field": "observedSummary",
-                "key": "observedSummary"
-              },
-              {
-                "field": "observedError",
-                "key": "observedError"
-              },
-              {
-                "field": "observedRunnerId",
-                "key": "observedRunnerId"
+                "field": "observedFailureCode",
+                "key": "observedFailureCode"
               }
             ]
           },
@@ -8258,9 +8242,7 @@
             "observedStatus",
             "observedAt",
             "observedDesiredStateHash",
-            "observedSummary",
-            "observedError",
-            "observedRunnerId"
+            "observedFailureCode"
           ],
           "secretReferenceFields": ["credentialRef"]
         },

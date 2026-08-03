@@ -1,6 +1,7 @@
 import {
   CONTROL_PLANE_DEPLOYMENT_CONFIG_OBSERVED_FIELDS,
   type ControlPlaneDeploymentConfigObservedStatus,
+  type DeployDeploymentObservationFailureCode,
 } from "@dpeek/formless-deploy";
 import {
   composeAppSchema,
@@ -134,9 +135,7 @@ export type InstanceControlPlaneDeploymentConfigValues = {
   observedStatus?: InstanceControlPlaneDeploymentConfigObservedStatus;
   observedAt?: string;
   observedDesiredStateHash?: string;
-  observedSummary?: string;
-  observedError?: string;
-  observedRunnerId?: string;
+  observedFailureCode?: DeployDeploymentObservationFailureCode;
 };
 
 export type InstanceControlPlaneProductionIdentityStatus = "configured" | "unconfigured";
@@ -451,16 +450,10 @@ export const instanceControlPlaneRecordSchemaModule = defineAppSchemaModule({
           ...optionalTextField("Observed desired-state hash"),
         },
         {
-          key: "observedSummary",
-          ...optionalTextField("Observed summary", "longText"),
-        },
-        {
-          key: "observedError",
-          ...optionalTextField("Observed error", "longText"),
-        },
-        {
-          key: "observedRunnerId",
-          ...optionalTextField("Observed runner"),
+          key: "observedFailureCode",
+          ...optionalEnumField("Observed failure code", {
+            "provider-reconciliation-failed": "Provider reconciliation failed",
+          }),
         },
       ],
       operations: writeOperations(
@@ -488,9 +481,7 @@ export const instanceControlPlaneRecordSchemaModule = defineAppSchemaModule({
             "observedStatus",
             "observedAt",
             "observedDesiredStateHash",
-            "observedSummary",
-            "observedError",
-            "observedRunnerId",
+            "observedFailureCode",
           ],
         },
       ),
@@ -3035,6 +3026,7 @@ function editorForField(field: string): FieldEditor {
     field === "targetProfile" ||
     field === "providerFamily" ||
     field === "observedStatus" ||
+    field === "observedFailureCode" ||
     field === "dnsStatus" ||
     field === "productionIdentityStatus" ||
     field === "purpose" ||

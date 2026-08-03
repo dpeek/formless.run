@@ -3,10 +3,6 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
-  deployLatestStatusDisplaySummary,
-  type DeployLatestStatusDisplaySummary,
-} from "@dpeek/formless-deploy";
-import {
   ARCHIVE_VERSION,
   InstanceArchiveValidationError,
   INSTANCE_ARCHIVE_KIND,
@@ -57,6 +53,10 @@ import {
   resolveInstanceWorkspaceAdminToken as resolveFormlessInstanceWorkspaceAdminToken,
   writeInstanceWorkspaceProgramStorageSnapshot,
 } from "../program/workspace.ts";
+import {
+  formatCliDeploymentStatus,
+  type CliDeploymentStatusDisplay,
+} from "./cli-deployment-status-formatter.ts";
 import {
   readFormlessInstanceControlPlaneRecords,
   readFormlessInstanceDeploymentStatus,
@@ -198,7 +198,7 @@ export type FormlessInstanceWorkspaceSyncPlan = {
 };
 
 export type CheckFormlessInstanceWorkspaceResult = {
-  deploymentStatus?: DeployLatestStatusDisplaySummary;
+  deploymentStatus?: CliDeploymentStatusDisplay;
   selectedTarget: FormlessInstanceWorkspaceTarget;
   syncPlan: FormlessInstanceWorkspaceSyncPlan;
   workspaceRoot: string;
@@ -520,7 +520,7 @@ export async function checkFormlessInstanceWorkspace(
     });
 
     return {
-      deploymentStatus: deployLatestStatusDisplaySummary(deploymentStatus.status),
+      deploymentStatus: formatCliDeploymentStatus(deploymentStatus.status),
       syncPlan: createWorkspaceSyncPlan({
         domainDesiredDrift,
         localControlPlane,

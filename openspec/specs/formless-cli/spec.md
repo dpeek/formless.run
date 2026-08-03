@@ -1071,7 +1071,8 @@ workspace-controlled deployment intent.
   Alchemy desired state
 - **AND** Alchemy removes the omitted tracked provider resources
 - **AND** push may patch the target deployment config's latest observation
-  cache with the exact desired-state hash and display-safe result summary
+  cache with the exact status, desired-state hash, observed time, and applicable
+  closed failure code
 
 #### Scenario: Workspace destroy
 
@@ -1140,10 +1141,10 @@ intent records.
 - **AND** deployment config credential references remain display-safe pointers
   to CLI, local gateway, or runner-held Formless credential secret locations
 - **AND** provider credentials remain in those secret locations
-- **AND** deployment observation, evidence, cleanup, sync, and status summaries
-  are read through read-only deployment runtime projection or local gateway
-  operation responses rather than control-plane storage snapshots
-- **AND** latest persisted deployment status is read from display-safe
+- **AND** deployment evidence, cleanup, sync, and exact semantic observation and
+  status results are read through read-only deployment runtime projection or
+  local gateway operation responses rather than control-plane storage snapshots
+- **AND** latest persisted deployment status is read from exact semantic
   deployment config observation cache fields
 
 #### Scenario: CLI push writes latest observation
@@ -1154,7 +1155,7 @@ intent records.
 - **AND** the local deployment adapter receives a fresh Formless-refreshed
   Cloudflare OAuth access token rather than resolving an Alchemy OAuth profile
 - **AND** after provider reconciliation or failure it patches the target
-  deployment config's display-safe latest observation cache
+  deployment config's exact semantic latest observation cache
 - **AND** runner-held credentials remain outside browser, archive, record
   source, and workspace configuration responses
 

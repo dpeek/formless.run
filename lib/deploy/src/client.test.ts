@@ -12,6 +12,7 @@ import {
   deployDeploymentObservationPatchValues,
   deployDesiredStateVersionRef,
   parseDeployDesiredStateResponse,
+  parseDeployDeploymentObservationPatch,
   parseDeployDesiredStateVersionRef,
   parseDeployLatestStatusResponse,
   type DeployControlPlaneRecord,
@@ -104,26 +105,80 @@ describe("Deploy control-plane client helpers", () => {
         "GET /api/formless/deployments/status",
       ).status.state,
     ).toBe("no-target");
+    expect(
+      parseDeployLatestStatusResponse(
+        {
+          status: {
+            checkedAt: "2026-06-01T00:01:00.000Z",
+            failedAt: "2026-06-01T00:00:30.000Z",
+            failureCode: "provider-reconciliation-failed",
+            latestDesiredState: versionRef,
+            state: "failed-current-version",
+            targetId: "instance.primary",
+          },
+          target: { targetId: "instance.primary" },
+        },
+        "GET /api/formless/deployments/status",
+      ).status,
+    ).toMatchObject({
+      failureCode: "provider-reconciliation-failed",
+      state: "failed-current-version",
+    });
+    expect(() =>
+      parseDeployLatestStatusResponse(
+        {
+          status: {
+            checkedAt: "2026-06-01T00:01:00.000Z",
+            failedAt: "2026-06-01T00:00:30.000Z",
+            latestDesiredState: versionRef,
+            state: "failed-current-version",
+            summary: "Provider failed.",
+            targetId: "instance.primary",
+          },
+          target: { targetId: "instance.primary" },
+        },
+        "GET /api/formless/deployments/status",
+      ),
+    ).toThrow('status has unsupported key "summary"');
   });
 
-  it("builds display-safe observation patch values", () => {
+  it("parses and serializes exact observation replacement values", () => {
     const observation = {
       observedAt: "2026-06-11T01:00:00.000Z",
       observedDesiredStateHash: `sha256:${"b".repeat(64)}`,
-      observedError: null,
-      observedRunnerId: "local-gateway",
       observedStatus: "deployed",
-      observedSummary: null,
     } satisfies DeployDeploymentObservationPatch;
 
+    expect(parseDeployDeploymentObservationPatch(observation, "Observation")).toEqual(observation);
     expect(deployDeploymentObservationPatchValues(observation)).toEqual({
       observedAt: "2026-06-11T01:00:00.000Z",
       observedDesiredStateHash: `sha256:${"b".repeat(64)}`,
-      observedError: "",
-      observedRunnerId: "local-gateway",
+      observedFailureCode: "",
       observedStatus: "deployed",
-      observedSummary: "",
     });
+    expect(
+      deployDeploymentObservationPatchValues({
+        observedAt: "2026-06-11T01:01:00.000Z",
+        observedDesiredStateHash: `sha256:${"b".repeat(64)}`,
+        observedFailureCode: "provider-reconciliation-failed",
+        observedStatus: "failed",
+      }),
+    ).toEqual({
+      observedAt: "2026-06-11T01:01:00.000Z",
+      observedDesiredStateHash: `sha256:${"b".repeat(64)}`,
+      observedFailureCode: "provider-reconciliation-failed",
+      observedStatus: "failed",
+    });
+    expect(() =>
+      parseDeployDeploymentObservationPatch(
+        {
+          observedAt: "2026-06-11T01:01:00.000Z",
+          observedDesiredStateHash: `sha256:${"b".repeat(64)}`,
+          observedStatus: "failed",
+        },
+        "Observation",
+      ),
+    ).toThrow('observedFailureCode must be "provider-reconciliation-failed"');
     expect(
       deployDeploymentObservationPatchIdempotencyKey({
         observation,

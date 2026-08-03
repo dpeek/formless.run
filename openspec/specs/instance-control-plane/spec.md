@@ -5,7 +5,7 @@
 Instance control plane models Formless instance management data as runtime-owned
 schema records. It keeps unified Program route intent, deployment configuration,
 production identity settings, and email deployment intent in flat Authority
-records. Deployment config records may include a display-safe latest deployment
+records. Deployment config records may include an exact latest deployment
 observation cache while provider secrets, raw operation tokens, projected
 deployment resource graphs, deployment history, and provider resource truth
 stay outside those records.
@@ -29,9 +29,9 @@ outside reviewable control-plane storage snapshots.
 - **AND** each deployment config stores the target id, display-safe
   `targetUrl` origin facts, provider family, provider account, worker name, and
   optional display-safe credential reference used for that deployment target
-- **AND** each deployment config may store display-safe latest deployment
-  observation fields such as status, observed time, desired-state hash, summary,
-  error, and runner
+- **AND** each deployment config may store exact latest deployment observation
+  fields for status, observed time, desired-state hash, and an applicable closed
+  failure code
 - **AND** deployment execution history, raw operation tokens, and provider
   resource truth stay at the deployment runtime and provider boundaries
 
@@ -288,17 +288,19 @@ schema-owned control-plane intent records.
 ### Requirement: Deployment Observation Boundary
 
 The system SHALL keep provider execution and deployment history outside
-reviewable source while storing only the latest display-safe deployment
+reviewable source while storing only the latest exact semantic deployment
 observation cache on `deployment-config` records.
 
-#### Scenario: Display-safe latest observation
+#### Scenario: Exact latest observation
 
 - **GIVEN** a CLI deployer, local workspace gateway, or explicit refresh
   observes deployment state
 - **WHEN** the observation is persisted
 - **THEN** the observation patches the matching `deployment-config` record with
-  display-safe latest state such as status, observed time, desired-state hash,
-  summary, error, and runner
+  status, observed time, desired-state hash, and a failure code only for failed
+  observations
+- **AND** the record has no observation summary, error-message, runner-id,
+  provider-output, path, command, log, or generic-result field
 - **AND** the observation does not store provider credentials, raw provider
   state, raw operation tokens, or full execution logs
 - **AND** previous observations are replaced rather than appended as
@@ -337,9 +339,11 @@ a deploy package slice.
   desired-state version, latest status, or observation patch behavior
 - WHEN control-plane route and deployment-config records are interpreted for a
   supported deployment target
-- THEN desired-state response refs, canonical graph hashes, display summaries,
-  latest status interpretation, and display-safe observation patch payloads
-  derive from Deploy package helpers
+- THEN desired-state response refs, canonical graph hashes, semantic latest
+  status interpretation, closed failure codes, and exact observation patch
+  payloads derive from Deploy package helpers
+- AND CLI and presentation owners derive their own fixed copy from those exact
+  semantic contracts
 - AND Worker runtime adapts schema-owned control-plane records into Deploy
   package inputs instead of redefining compatible deployment state, status, or
   observation payload shapes locally
@@ -515,7 +519,8 @@ The system SHALL represent deploy target and provider selection as one
 - **THEN** each record stores camelCase fields for target id, display label,
   enabled state, display-safe target URL, provider family,
   provider account id, worker name, optional display-safe credential reference,
-  and optional latest deployment observation fields
+  and optional latest deployment observation status, time, desired-state hash,
+  and failure code fields
 - **AND** created and updated timestamps come from record system fields rather
   than deployment-config value fields
 - **AND** the target id and provider family are immutable after creation

@@ -258,9 +258,16 @@ describe("instance control-plane schema contracts", () => {
       },
       observedAt: { type: "text", required: false },
       observedDesiredStateHash: { type: "text", required: false },
-      observedSummary: { type: "text", required: false, format: "longText" },
-      observedError: { type: "text", required: false, format: "longText" },
-      observedRunnerId: { type: "text", required: false },
+      observedFailureCode: {
+        type: "enum",
+        required: false,
+        values: [
+          {
+            key: "provider-reconciliation-failed",
+            label: "Provider reconciliation failed",
+          },
+        ],
+      },
     });
     expect(Object.keys(deploymentFields ?? {})).toEqual([
       "targetId",
@@ -855,7 +862,13 @@ describe("instance control-plane schema contracts", () => {
       reviewableInstanceControlPlaneRecords(controlPlaneRecords({ observedCache: true })).find(
         (record) => record.entity === "deployment-config",
       )?.values,
-    ).not.toHaveProperty("observedStatus");
+    ).toEqual({
+      enabled: true,
+      label: "instance.primary",
+      providerFamily: "cloudflare",
+      targetId: "instance.primary",
+      targetUrl: "https://personal.dpeek.workers.dev",
+    });
 
     expect(() =>
       reviewableInstanceControlPlaneRecords(controlPlaneRecords({ accountId: "CF_API_TOKEN" })),
@@ -1050,10 +1063,8 @@ function controlPlaneRecords(
               observedAt: now,
               observedDesiredStateHash:
                 "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-              observedError: "none",
-              observedRunnerId: "local-gateway",
-              observedStatus: "deployed",
-              observedSummary: "Deployed revision 2",
+              observedFailureCode: "provider-reconciliation-failed",
+              observedStatus: "failed",
             }
           : {}),
       },

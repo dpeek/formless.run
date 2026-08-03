@@ -91,7 +91,6 @@ describe("Formless instance target client", () => {
           if (pathname === "/api/formless/deployments/status") {
             return Response.json({
               status: {
-                attemptId: "attempt.11111111-1111-4111-8111-111111111111",
                 checkedAt: "2026-05-28T00:00:00.000Z",
                 deployedAt: "2026-05-28T00:00:00.000Z",
                 latestDesiredState: {
@@ -202,7 +201,6 @@ describe("Formless instance target control-plane client", () => {
               status: {
                 checkedAt: "2026-06-01T00:00:00.000Z",
                 state: "no-target",
-                targetId: desiredStateRef.targetId,
               },
               target: { targetId: desiredStateRef.targetId },
             });
@@ -244,10 +242,7 @@ describe("Formless instance target control-plane client", () => {
         observation: {
           observedAt: "2026-06-11T01:00:00.000Z",
           observedDesiredStateHash: `sha256:${"b".repeat(64)}`,
-          observedError: "",
-          observedRunnerId: "local-gateway",
           observedStatus: "deployed",
-          observedSummary: "1 deployment resource applied from workspace source.",
         },
         targetId: "instance.primary",
         targetUrl: "https://instance.example",
@@ -312,10 +307,8 @@ describe("Formless instance target control-plane client", () => {
       input: {
         observedAt: "2026-06-11T01:00:00.000Z",
         observedDesiredStateHash: `sha256:${"b".repeat(64)}`,
-        observedError: "",
-        observedRunnerId: "local-gateway",
+        observedFailureCode: "",
         observedStatus: "deployed",
-        observedSummary: "1 deployment resource applied from workspace source.",
       },
     });
     expect(patched.output.type).toBe("update");

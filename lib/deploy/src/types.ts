@@ -220,13 +220,18 @@ export type ControlPlaneDeploymentConfigObservedStatus =
   | "in-sync"
   | "unknown";
 
+export const DEPLOY_DEPLOYMENT_OBSERVATION_FAILURE_CODES = [
+  "provider-reconciliation-failed",
+] as const;
+
+export type DeployDeploymentObservationFailureCode =
+  (typeof DEPLOY_DEPLOYMENT_OBSERVATION_FAILURE_CODES)[number];
+
 export const CONTROL_PLANE_DEPLOYMENT_CONFIG_OBSERVED_FIELDS = [
   "observedStatus",
   "observedAt",
   "observedDesiredStateHash",
-  "observedSummary",
-  "observedError",
-  "observedRunnerId",
+  "observedFailureCode",
 ] as const;
 
 export type ControlPlaneDeploymentConfigObservedField =
@@ -243,14 +248,22 @@ export type ControlPlaneDeploymentConfigObservationRecord = {
   values: Readonly<Record<string, unknown>>;
 };
 
-export type DeployDeploymentObservationPatch = {
+type DeployDeploymentObservationPatchBase = {
   observedAt: string;
   observedDesiredStateHash: DeployDesiredStateHash;
-  observedError?: string | null;
-  observedRunnerId?: DeployRunnerId | null;
-  observedStatus: ControlPlaneDeploymentConfigObservedStatus;
-  observedSummary?: string | null;
 };
+
+export type DeployDeploymentObservationPatch = DeployDeploymentObservationPatchBase &
+  (
+    | {
+        observedFailureCode: DeployDeploymentObservationFailureCode;
+        observedStatus: "failed";
+      }
+    | {
+        observedFailureCode?: never;
+        observedStatus: Exclude<ControlPlaneDeploymentConfigObservedStatus, "failed">;
+      }
+  );
 
 export type DeployDeploymentObservationPatchRequest = {
   desiredState?: DeployDesiredStateVersionRef;
@@ -334,19 +347,16 @@ export type DeployDeployedStatus = {
   checkedAt: string;
   deployedAt: string;
   latestDesiredState: DeployDesiredStateVersionRef;
-  runnerId?: DeployRunnerId;
   state: "deployed";
-  summary?: string;
   targetId: DeployTargetId;
 };
 
 export type DeployFailedCurrentVersionStatus = {
   checkedAt: string;
   failedAt: string;
+  failureCode: DeployDeploymentObservationFailureCode;
   latestDesiredState: DeployDesiredStateVersionRef;
-  runnerId?: DeployRunnerId;
   state: "failed-current-version";
-  summary: DeployFailureSummary;
   targetId: DeployTargetId;
 };
 
@@ -354,29 +364,13 @@ export type DeployDriftedStatus = {
   checkedAt: string;
   latestDesiredState: DeployDesiredStateVersionRef;
   latestSuccessfulDesiredState?: DeployDesiredStateVersionRef;
-  runnerId?: DeployRunnerId;
   state: "drift";
-  summary?: string;
   targetId: DeployTargetId;
 };
 
 export type DeployLatestStatusResponse = {
   status: DeployLatestStatus;
   target: DeployTargetRef;
-};
-
-export type DeployLatestStatusDisplayTone =
-  | "danger"
-  | "neutral"
-  | "progress"
-  | "success"
-  | "warning";
-
-export type DeployLatestStatusDisplaySummary = {
-  detail: string;
-  label: string;
-  state: DeployLatestStatus["state"];
-  tone: DeployLatestStatusDisplayTone;
 };
 
 export type DeployProjectionHashInput = {

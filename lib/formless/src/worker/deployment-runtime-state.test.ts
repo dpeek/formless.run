@@ -143,9 +143,7 @@ describe("instance deployment runtime state", () => {
       deploymentConfig: deploymentConfigRecord({
         ...baseConfig.values,
         observedAt: "2026-05-28T00:02:00.000Z",
-        observedRunnerId: "runner.primary",
         observedStatus: "deployed",
-        observedSummary: "Deployed 2 resources.",
       }),
       desiredState,
       now: "2026-05-28T00:03:00.000Z",
@@ -156,9 +154,7 @@ describe("instance deployment runtime state", () => {
     );
     expect(readLatestDeploymentStatus(deployedInput)).toMatchObject({
       deployedAt: "2026-05-28T00:02:00.000Z",
-      runnerId: "runner.primary",
       state: "deployed",
-      summary: "Deployed 2 resources.",
       targetId,
     });
     expect(
@@ -166,7 +162,7 @@ describe("instance deployment runtime state", () => {
         deploymentConfig: deploymentConfigRecord({
           ...baseConfig.values,
           observedAt: "2026-05-28T00:04:00.000Z",
-          observedError: "Provider apply failed.",
+          observedFailureCode: "provider-reconciliation-failed",
           observedStatus: "failed",
         }),
         desiredState,
@@ -175,11 +171,8 @@ describe("instance deployment runtime state", () => {
       }),
     ).toMatchObject({
       failedAt: "2026-05-28T00:04:00.000Z",
+      failureCode: "provider-reconciliation-failed",
       state: "failed-current-version",
-      summary: {
-        code: "observed-failure",
-        displayMessage: "Provider apply failed.",
-      },
       targetId,
     });
     expect(
@@ -187,7 +180,6 @@ describe("instance deployment runtime state", () => {
         deploymentConfig: deploymentConfigRecord({
           ...baseConfig.values,
           observedStatus: "drifted",
-          observedSummary: "1 resource drifted.",
         }),
         desiredState,
         now: "2026-05-28T00:05:00.000Z",
@@ -195,7 +187,6 @@ describe("instance deployment runtime state", () => {
       }),
     ).toMatchObject({
       state: "drift",
-      summary: "1 resource drifted.",
       targetId,
     });
   });

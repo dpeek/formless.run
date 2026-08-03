@@ -966,12 +966,15 @@ deployment schema, projection, protocol, and adapter contracts.
 The Deploy package SHALL own reusable contracts and helpers without owning
 provider secrets or canonical provider state.
 
-#### Scenario: Package owns schema contracts
+#### Scenario: Package owns semantic deploy contracts
 
-- GIVEN deployment entity shapes, action ids, projection helpers, display
-  summaries, or protocol request shapes are needed
+- GIVEN deployment entity shapes, action ids, projection helpers, desired-state
+  display summaries, exact latest status, closed observation failure codes, or
+  protocol request shapes are needed
 - WHEN runtime-neutral contracts are consumed
 - THEN they come from `lib/deploy`
+- AND CLI and presentation packages own fixed latest-status copy derived from
+  those contracts
 - AND provider SDK execution and Alchemy state remain outside the package's
   runtime-neutral contract
 - AND deployment targets are identified by target id while schema-owned route

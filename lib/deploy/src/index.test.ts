@@ -12,7 +12,6 @@ import {
   deployDesiredStateSourceRevision,
   deployDisplaySafeFailureSummary,
   deployDesiredStateProjectionInputFromControlPlaneRecords,
-  deployLatestStatusDisplaySummary,
   deployProjectionCanonicalJson,
   deployResourceCountsByKind,
   deriveDeployLatestStatus,
@@ -37,9 +36,7 @@ describe("Deploy control-plane projection helpers", () => {
       "observedStatus",
       "observedAt",
       "observedDesiredStateHash",
-      "observedSummary",
-      "observedError",
-      "observedRunnerId",
+      "observedFailureCode",
     ]);
   });
 
@@ -199,7 +196,7 @@ describe("Deploy control-plane projection helpers", () => {
             credentialRef: "secret:cloudflare:rotated",
             observedAt: "2026-06-14T00:05:00.000Z",
             observedDesiredStateHash: "sha256:changed",
-            observedError: "secret-cloudflare-token",
+            observedFailureCode: "provider-reconciliation-failed",
             observedStatus: "failed",
           },
         } satisfies ControlPlaneProjectionSourceRecord;
@@ -561,7 +558,7 @@ describe("Deploy desired-state version helpers", () => {
     expect(deployDesiredStateSourceRevision({ fingerprint: "bad", intentRevision: -1 })).toBe(0);
   });
 
-  it("derives latest deployment status from display-safe observation fields", async () => {
+  it("derives exact latest deployment status from semantic observation fields", async () => {
     const targetId = "instance.primary" as DeployTargetId;
     const desiredState = await materializeDeployDesiredStateVersion({
       now: "2026-06-14T00:00:00.000Z",
@@ -582,7 +579,6 @@ describe("Deploy desired-state version helpers", () => {
       deploymentConfig: deploymentConfigRecord({
         ...baseConfig.values,
         observedStatus: "drifted",
-        observedSummary: "1 resource drifted.",
       }),
       desiredState,
       now: "2026-06-14T00:05:00.000Z",
@@ -613,7 +609,7 @@ describe("Deploy desired-state version helpers", () => {
       deriveDeployLatestStatus({
         deploymentConfig: deploymentConfigRecord({
           observedDesiredStateHash: `sha256:${"b".repeat(64)}`,
-          observedError: "Old deploy failed.",
+          observedFailureCode: "provider-reconciliation-failed",
           observedStatus: "failed",
         }),
         desiredState,
@@ -629,9 +625,7 @@ describe("Deploy desired-state version helpers", () => {
         deploymentConfig: deploymentConfigRecord({
           ...baseConfig.values,
           observedAt: "2026-06-14T00:02:00.000Z",
-          observedRunnerId: "runner.primary",
           observedStatus: "deployed",
-          observedSummary: "Deployed 2 resources.",
         }),
         desiredState,
         now: "2026-06-14T00:03:00.000Z",
@@ -639,9 +633,7 @@ describe("Deploy desired-state version helpers", () => {
       }),
     ).toMatchObject({
       deployedAt: "2026-06-14T00:02:00.000Z",
-      runnerId: "runner.primary",
       state: "deployed",
-      summary: "Deployed 2 resources.",
       targetId,
     });
     expect(
@@ -649,7 +641,7 @@ describe("Deploy desired-state version helpers", () => {
         deploymentConfig: deploymentConfigRecord({
           ...baseConfig.values,
           observedAt: "2026-06-14T00:04:00.000Z",
-          observedError: "Provider apply failed.",
+          observedFailureCode: "provider-reconciliation-failed",
           observedStatus: "failed",
         }),
         desiredState,
@@ -658,33 +650,31 @@ describe("Deploy desired-state version helpers", () => {
       }),
     ).toMatchObject({
       failedAt: "2026-06-14T00:04:00.000Z",
+      failureCode: "provider-reconciliation-failed",
       state: "failed-current-version",
-      summary: {
-        code: "observed-failure",
-        displayMessage: "Provider apply failed.",
-      },
+      targetId,
+    });
+    expect(
+      deriveDeployLatestStatus({
+        deploymentConfig: deploymentConfigRecord({
+          ...baseConfig.values,
+          observedStatus: "failed",
+        }),
+        desiredState,
+        now: "2026-06-14T00:05:00.000Z",
+        targetId,
+      }),
+    ).toMatchObject({
+      state: "pending-changes",
       targetId,
     });
     expect(drift).toMatchObject({
       state: "drift",
-      summary: "1 resource drifted.",
       targetId,
-    });
-    expect(deployLatestStatusDisplaySummary(pending)).toEqual({
-      detail: "Desired revision 0 pending",
-      label: "Pending changes",
-      state: "pending-changes",
-      tone: "warning",
-    });
-    expect(deployLatestStatusDisplaySummary(drift)).toEqual({
-      detail: "1 resource drifted.",
-      label: "Drift detected",
-      state: "drift",
-      tone: "warning",
     });
   });
 
-  it("composes display-safe observation patches and summaries", async () => {
+  it("composes exact observation patches and clears failure codes on replacement", async () => {
     const targetId = "instance.primary" as DeployTargetId;
     const desiredState = await materializeDeployDesiredStateVersion({
       now: "2026-06-14T00:00:00.000Z",
@@ -706,9 +696,7 @@ describe("Deploy desired-state version helpers", () => {
       deploymentConfig: deploymentConfigRecord({
         observedAt: "2026-06-14T00:02:00.000Z",
         observedDesiredStateHash: desiredState.hash,
-        observedRunnerId: "runner.primary",
         observedStatus: "deployed",
-        observedSummary: "Deployed 1 resource.",
       }),
       desiredState,
       now: "2026-06-14T00:03:00.000Z",
@@ -727,46 +715,51 @@ describe("Deploy desired-state version helpers", () => {
     expect(
       deployDeploymentObservationPatchFromLatestStatus({
         desiredState,
-        fallbackRunnerId: "local-gateway",
         status: deployed,
       }),
     ).toEqual({
       observedAt: "2026-06-14T00:02:00.000Z",
       observedDesiredStateHash: desiredState.hash,
-      observedRunnerId: "runner.primary",
       observedStatus: "deployed",
-      observedSummary: "Deployed 1 resource.",
     });
     expect(
       deployDeploymentObservationPatchFromLatestStatus({
         desiredState,
-        fallbackRunnerId: "local-gateway",
         status: pending,
       }),
     ).toEqual({
       observedAt: "2026-06-14T00:04:00.000Z",
       observedDesiredStateHash: desiredState.hash,
-      observedRunnerId: "local-gateway",
       observedStatus: "unknown",
-      observedSummary: "Desired revision 4 pending",
     });
     expect(
       deployDeploymentObservationPatch({
         desiredState,
         observedAt: "2026-06-14T00:05:00.000Z",
-        observedError: "Provider failed.",
+        observedFailureCode: "provider-reconciliation-failed",
         observedStatus: "failed",
-        observedSummary: "Provider failed.",
-        runnerId: "local-gateway",
       }),
     ).toEqual({
       observedAt: "2026-06-14T00:05:00.000Z",
       observedDesiredStateHash: desiredState.hash,
-      observedError: "Provider failed.",
-      observedRunnerId: "local-gateway",
+      observedFailureCode: "provider-reconciliation-failed",
       observedStatus: "failed",
-      observedSummary: "Provider failed.",
     });
+    expect(() =>
+      deployDeploymentObservationPatch({
+        desiredState,
+        observedAt: "2026-06-14T00:06:00.000Z",
+        observedStatus: "failed",
+      } as never),
+    ).toThrow("Failed deployment observations require observedFailureCode");
+    expect(() =>
+      deployDeploymentObservationPatch({
+        desiredState,
+        observedAt: "2026-06-14T00:06:00.000Z",
+        observedFailureCode: "provider-reconciliation-failed",
+        observedStatus: "deployed",
+      } as never),
+    ).toThrow("Non-failed deployment observations cannot include observedFailureCode");
     expect(
       deployDisplaySafeFailureSummary({
         code: "local-gateway-deploy-apply-failed",

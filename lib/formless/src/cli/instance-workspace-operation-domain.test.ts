@@ -827,13 +827,23 @@ describe("deployment refresh operation domain", () => {
         workspacePath: workspaceRoot,
       },
       operationDeps(tempDir, {
-        fetch: deployFetch(requests),
+        fetch: deployFetch(requests, {
+          deploymentStatus: {
+            checkedAt: "2026-06-02T00:04:02.000Z",
+            failedAt: "2026-06-02T00:04:01.000Z",
+            failureCode: "provider-reconciliation-failed",
+            latestDesiredState: deploymentDesiredStateRef(),
+            state: "failed-current-version",
+            targetId: "instance.primary",
+          },
+        }),
       }),
     );
     const desiredState = deploymentDesiredStateRef();
     const observation = capturedRequestJson<{
       input: {
         observedDesiredStateHash: string;
+        observedFailureCode: string;
         observedStatus: string;
       };
       recordId: string;
@@ -843,19 +853,20 @@ describe("deployment refresh operation domain", () => {
       deployment: {
         observation: {
           desiredState,
-          observedStatus: "unknown",
+          observedFailureCode: "provider-reconciliation-failed",
+          observedStatus: "failed",
           targetId: "instance.primary",
         },
         status: {
-          state: "pending-changes",
+          state: "failed-current-version",
         },
         targetAlias: "instance.primary",
       },
       summary: {
         fields: {
           desiredStateVersion: "desired.instance.primary.3",
-          observedStatus: "unknown",
-          status: "pending-changes",
+          observedStatus: "failed",
+          status: "failed-current-version",
           target: "instance.primary",
         },
         title: "Deployment observation refreshed",
@@ -884,7 +895,8 @@ describe("deployment refresh operation domain", () => {
     expect(observation).toMatchObject({
       input: {
         observedDesiredStateHash: desiredState.hash,
-        observedStatus: "unknown",
+        observedFailureCode: "provider-reconciliation-failed",
+        observedStatus: "failed",
       },
       recordId: "instance.primary",
     });
@@ -1909,9 +1921,8 @@ describe("deployment runtime domain", () => {
 
     const observation = capturedRequestJson<{
       input: {
-        observedError: string;
+        observedFailureCode: string;
         observedStatus: string;
-        observedSummary: string;
       };
       recordId: string;
     }>(requestByPath(requests, "/api/formless/program/operations/deployment-config/update"));
@@ -1927,9 +1938,8 @@ describe("deployment runtime domain", () => {
     });
     expect(observation).toMatchObject({
       input: {
-        observedError: "Local workspace push provider reconciliation failed.",
+        observedFailureCode: "provider-reconciliation-failed",
         observedStatus: "failed",
-        observedSummary: "Local workspace push provider reconciliation failed.",
       },
       recordId: "instance.primary",
     });
@@ -2682,6 +2692,7 @@ function deployFetch(
     controlPlaneRecords?: StoredRecord[];
     controlPlaneSchema?: AppSchema;
     controlPlaneSchemaProvenance?: FormlessProgramArtifact["schemaProvenance"];
+    deploymentStatus?: Record<string, unknown>;
     restoreResponse?: (input: { dryRun: boolean; request: CapturedRequest }) => unknown;
   } = {},
 ): typeof fetch {
@@ -2781,7 +2792,7 @@ function deployFetch(
       const desiredState = deploymentDesiredStateRef();
 
       return Response.json({
-        status: {
+        status: options.deploymentStatus ?? {
           checkedAt: "2026-06-02T00:04:02.000Z",
           latestDesiredState: desiredState,
           state: "pending-changes",

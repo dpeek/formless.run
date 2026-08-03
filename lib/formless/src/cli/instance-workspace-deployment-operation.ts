@@ -33,14 +33,12 @@ function summarizeDeploymentRefreshResult(
       observation: {
         desiredState: result.observation.desiredState,
         observedAt: result.observation.observedAt,
-        ...(result.observation.observedError === undefined
+        ...(result.observation.observedFailureCode === undefined
           ? {}
-          : { observedError: result.observation.observedError }),
+          : { observedFailureCode: result.observation.observedFailureCode }),
         observedStatus: result.observation.observedStatus,
-        observedSummary: result.observation.observedSummary,
         resourceCount: result.observation.resourceCount,
         resourcesByKind: result.observation.resourcesByKind,
-        runnerId: result.observation.runnerId,
         targetId: result.observation.targetId,
       },
       status: result.deploymentStatus,

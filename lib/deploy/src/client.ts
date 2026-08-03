@@ -4,20 +4,28 @@ import type {
   DeployControlPlaneActionId,
   DeployDeploymentObservationPatch,
   DeployDeploymentObservationPatchRequest,
+  DeployDeploymentObservationFailureCode,
   DeployDesiredStateHash,
   DeployDesiredStateResponse,
   DeployDesiredStateVersionId,
   DeployDesiredStateVersionRef,
+  DeployLatestStatus,
   DeployLatestStatusResponse,
+  DeployTargetRef,
   DeployTargetId,
 } from "./types.ts";
 
-export { DEPLOY_CONTROL_PLANE_ACTION_IDS, DEPLOY_PUBLIC_CONTRACT_VERSION } from "./types.ts";
+export {
+  DEPLOY_CONTROL_PLANE_ACTION_IDS,
+  DEPLOY_DEPLOYMENT_OBSERVATION_FAILURE_CODES,
+  DEPLOY_PUBLIC_CONTRACT_VERSION,
+} from "./types.ts";
 export type {
   DeployActor,
   DeployActorKind,
   DeployAttemptSummary,
   DeployControlPlaneActionId,
+  DeployDeploymentObservationFailureCode,
   DeployDeploymentObservationPatch,
   DeployDeploymentObservationPatchRequest,
   DeployDesiredStateProjection,
@@ -46,6 +54,12 @@ const deployDesiredStateVersionRefKeys = new Set<keyof DeployDesiredStateVersion
   "revision",
   "targetId",
   "versionId",
+]);
+const deployDeploymentObservationPatchKeys = new Set([
+  "observedAt",
+  "observedDesiredStateHash",
+  "observedFailureCode",
+  "observedStatus",
 ]);
 
 export type DeployControlPlaneProtocolActorKind = Extract<
@@ -169,23 +183,72 @@ export function parseDeployLatestStatusResponse(
   value: unknown,
   context: string,
 ): DeployLatestStatusResponse {
-  if (!isRecord(value) || !isRecord(value.status) || !isRecord(value.target)) {
+  if (!isRecord(value)) {
     throw new Error(`${context} failed: deployment status response is invalid.`);
   }
 
-  return value as DeployLatestStatusResponse;
+  assertExactKeys(context, value, new Set(["status", "target"]));
+
+  return {
+    status: parseDeployLatestStatus(`${context}.status`, value.status),
+    target: parseDeployTargetRef(`${context}.target`, value.target),
+  };
+}
+
+export function parseDeployDeploymentObservationPatch(
+  value: unknown,
+  context: string,
+): DeployDeploymentObservationPatch {
+  if (!isRecord(value)) {
+    throw new Error(`${context} must be an object.`);
+  }
+
+  assertExactKeys(context, value, deployDeploymentObservationPatchKeys, {
+    optional: ["observedFailureCode"],
+  });
+  const observedAt = parseDeployText(`${context}.observedAt`, value.observedAt);
+  const observedDesiredStateHash = parseDeployDesiredStateHash(
+    `${context}.observedDesiredStateHash`,
+    value.observedDesiredStateHash,
+  );
+  const observedStatus = parseDeployObservedStatus(
+    `${context}.observedStatus`,
+    value.observedStatus,
+  );
+
+  if (observedStatus === "failed") {
+    return {
+      observedAt,
+      observedDesiredStateHash,
+      observedFailureCode: parseDeployDeploymentObservationFailureCode(
+        `${context}.observedFailureCode`,
+        value.observedFailureCode,
+      ),
+      observedStatus,
+    };
+  }
+
+  if (value.observedFailureCode !== undefined) {
+    throw new Error(`${context}.observedFailureCode is only valid for failed observations.`);
+  }
+
+  return {
+    observedAt,
+    observedDesiredStateHash,
+    observedStatus,
+  };
 }
 
 export function deployDeploymentObservationPatchValues(
   observation: DeployDeploymentObservationPatch,
 ): DeployDeploymentObservationPatchValues {
+  const parsed = parseDeployDeploymentObservationPatch(observation, "Deployment observation");
+
   return {
-    observedAt: observation.observedAt,
-    observedDesiredStateHash: observation.observedDesiredStateHash,
-    observedError: observation.observedError ?? "",
-    observedRunnerId: observation.observedRunnerId ?? "",
-    observedStatus: observation.observedStatus,
-    observedSummary: observation.observedSummary ?? "",
+    observedAt: parsed.observedAt,
+    observedDesiredStateHash: parsed.observedDesiredStateHash,
+    observedFailureCode: parsed.observedStatus === "failed" ? parsed.observedFailureCode : "",
+    observedStatus: parsed.observedStatus,
   };
 }
 
@@ -203,6 +266,201 @@ export function isDeployControlPlaneActionId(value: string): value is DeployCont
 
 function parseDeployTargetId(context: string, value: unknown): DeployTargetId {
   return parseDeployIdentifier(context, value);
+}
+
+function parseDeployLatestStatus(context: string, value: unknown): DeployLatestStatus {
+  if (!isRecord(value)) {
+    throw new Error(`${context} must be an object.`);
+  }
+
+  const checkedAt = parseDeployText(`${context}.checkedAt`, value.checkedAt);
+
+  switch (value.state) {
+    case "no-target":
+      assertExactKeys(context, value, new Set(["checkedAt", "state"]));
+      return { checkedAt, state: value.state };
+    case "pending-changes": {
+      assertExactKeys(
+        context,
+        value,
+        new Set([
+          "checkedAt",
+          "latestDesiredState",
+          "latestSuccessfulDesiredState",
+          "state",
+          "targetId",
+        ]),
+        { optional: ["latestSuccessfulDesiredState"] },
+      );
+      const latestSuccessfulDesiredState =
+        value.latestSuccessfulDesiredState === undefined
+          ? undefined
+          : parseDeployDesiredStateVersionRef(
+              `${context}.latestSuccessfulDesiredState`,
+              value.latestSuccessfulDesiredState,
+            );
+
+      return {
+        checkedAt,
+        latestDesiredState: parseDeployDesiredStateVersionRef(
+          `${context}.latestDesiredState`,
+          value.latestDesiredState,
+        ),
+        ...(latestSuccessfulDesiredState === undefined ? {} : { latestSuccessfulDesiredState }),
+        state: value.state,
+        targetId: parseDeployTargetId(`${context}.targetId`, value.targetId),
+      };
+    }
+    case "deployed":
+      assertExactKeys(
+        context,
+        value,
+        new Set(["checkedAt", "deployedAt", "latestDesiredState", "state", "targetId"]),
+      );
+      return {
+        checkedAt,
+        deployedAt: parseDeployText(`${context}.deployedAt`, value.deployedAt),
+        latestDesiredState: parseDeployDesiredStateVersionRef(
+          `${context}.latestDesiredState`,
+          value.latestDesiredState,
+        ),
+        state: value.state,
+        targetId: parseDeployTargetId(`${context}.targetId`, value.targetId),
+      };
+    case "failed-current-version":
+      assertExactKeys(
+        context,
+        value,
+        new Set([
+          "checkedAt",
+          "failedAt",
+          "failureCode",
+          "latestDesiredState",
+          "state",
+          "targetId",
+        ]),
+      );
+      return {
+        checkedAt,
+        failedAt: parseDeployText(`${context}.failedAt`, value.failedAt),
+        failureCode: parseDeployDeploymentObservationFailureCode(
+          `${context}.failureCode`,
+          value.failureCode,
+        ),
+        latestDesiredState: parseDeployDesiredStateVersionRef(
+          `${context}.latestDesiredState`,
+          value.latestDesiredState,
+        ),
+        state: value.state,
+        targetId: parseDeployTargetId(`${context}.targetId`, value.targetId),
+      };
+    case "drift": {
+      assertExactKeys(
+        context,
+        value,
+        new Set([
+          "checkedAt",
+          "latestDesiredState",
+          "latestSuccessfulDesiredState",
+          "state",
+          "targetId",
+        ]),
+        { optional: ["latestSuccessfulDesiredState"] },
+      );
+      const latestSuccessfulDesiredState =
+        value.latestSuccessfulDesiredState === undefined
+          ? undefined
+          : parseDeployDesiredStateVersionRef(
+              `${context}.latestSuccessfulDesiredState`,
+              value.latestSuccessfulDesiredState,
+            );
+
+      return {
+        checkedAt,
+        latestDesiredState: parseDeployDesiredStateVersionRef(
+          `${context}.latestDesiredState`,
+          value.latestDesiredState,
+        ),
+        ...(latestSuccessfulDesiredState === undefined ? {} : { latestSuccessfulDesiredState }),
+        state: value.state,
+        targetId: parseDeployTargetId(`${context}.targetId`, value.targetId),
+      };
+    }
+    default:
+      throw new Error(`${context}.state is invalid.`);
+  }
+}
+
+function parseDeployTargetRef(context: string, value: unknown): DeployTargetRef {
+  if (!isRecord(value)) {
+    throw new Error(`${context} must be an object.`);
+  }
+
+  assertExactKeys(context, value, new Set(["label", "targetId"]), { optional: ["label"] });
+  const label =
+    value.label === undefined ? undefined : parseDeployText(`${context}.label`, value.label);
+
+  return {
+    ...(label === undefined ? {} : { label }),
+    targetId: parseDeployTargetId(`${context}.targetId`, value.targetId),
+  };
+}
+
+function parseDeployObservedStatus(
+  context: string,
+  value: unknown,
+): DeployDeploymentObservationPatch["observedStatus"] {
+  if (
+    value !== "deployed" &&
+    value !== "drifted" &&
+    value !== "failed" &&
+    value !== "in-sync" &&
+    value !== "unknown"
+  ) {
+    throw new Error(`${context} is invalid.`);
+  }
+
+  return value;
+}
+
+function parseDeployDeploymentObservationFailureCode(
+  context: string,
+  value: unknown,
+): DeployDeploymentObservationFailureCode {
+  if (value !== "provider-reconciliation-failed") {
+    throw new Error(`${context} must be "provider-reconciliation-failed".`);
+  }
+
+  return value;
+}
+
+function parseDeployText(context: string, value: unknown): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(`${context} must be a non-empty string.`);
+  }
+
+  return value;
+}
+
+function assertExactKeys(
+  context: string,
+  value: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+  options: { optional?: readonly string[] } = {},
+): void {
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) {
+      throw new Error(`${context} has unsupported key "${key}".`);
+    }
+  }
+
+  const optional = new Set(options.optional ?? []);
+
+  for (const key of allowed) {
+    if (!optional.has(key) && !(key in value)) {
+      throw new Error(`${context} must include "${key}".`);
+    }
+  }
 }
 
 function parseDeployDesiredStateVersionId(

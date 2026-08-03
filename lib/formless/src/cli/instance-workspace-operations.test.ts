@@ -338,10 +338,8 @@ describe("Formless workspace operations", () => {
       input: {
         observedAt: string;
         observedDesiredStateHash: string;
-        observedError: string;
-        observedRunnerId: string;
+        observedFailureCode: string;
         observedStatus: string;
-        observedSummary: string;
       };
       recordId: string;
     }>(requestByPath(requests, "/api/formless/program/operations/deployment-config/update"));
@@ -384,10 +382,8 @@ describe("Formless workspace operations", () => {
       input: {
         observedAt: expect.any(String),
         observedDesiredStateHash: desiredState.hash,
-        observedError: "",
-        observedRunnerId: "local-gateway",
+        observedFailureCode: "",
         observedStatus: "unknown",
-        observedSummary: expect.any(String),
       },
     });
   });
@@ -888,7 +884,7 @@ describe("Formless workspace operations", () => {
     );
   });
 
-  it("persists display-safe deployment observation and cleanup summaries with secret redaction", async () => {
+  it("persists exact deployment observation and cleanup summaries with secret redaction", async () => {
     const workspaceRoot = await makeTempDir();
     const state = await createWorkspaceOperationState({
       id: "op_deploy_00000001",
@@ -915,8 +911,6 @@ describe("Formless workspace operations", () => {
               targetId: "instance.primary",
               versionId: "desired.instance.primary.4",
             },
-            observedSummary: "lease:raw-token",
-            runnerId: "runner-local",
             observedStatus: "deployed",
           },
           cleanup: {
@@ -969,7 +963,6 @@ describe("Formless workspace operations", () => {
     expect(persisted.result?.deployment).toMatchObject({
       observation: {
         observedStatus: "deployed",
-        observedSummary: "[redacted]",
       },
       cleanup: {
         customDomains: 1,
