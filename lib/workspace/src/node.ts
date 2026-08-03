@@ -13,20 +13,16 @@ import {
 } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
 import {
-  DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT,
-  WORKSPACE_AUTO_SAVE_STATE_FILE,
   WORKSPACE_MEDIA_MANIFEST_FILE,
   WORKSPACE_MEDIA_MANIFEST_KIND,
   WORKSPACE_MEDIA_MANIFEST_VERSION,
   WORKSPACE_RECORD_STATE_FILE_KIND,
   WORKSPACE_RECORD_STATE_FILE_VERSION,
   WORKSPACE_OPERATION_STATE_ROOT,
-  formatWorkspaceAutoSaveState,
   formatWorkspaceRecordStateFile,
   formatWorkspaceOperationState,
   initialWorkspaceOperationState,
   nextWorkspaceOperationState,
-  parseWorkspaceAutoSaveStateJson,
   parseInstanceWorkspaceRelativePath,
   parseWorkspaceRecordStateFile,
   parseWorkspaceOperationStateJson,
@@ -36,7 +32,6 @@ import type {
   InitialWorkspaceOperationStateInput,
   ResolvedFormlessConfig,
   UpdateWorkspaceOperationStateInput,
-  WorkspaceAutoSaveState,
   WorkspaceOperationState,
   WorkspaceRecordStateFile,
   WorkspaceSchemaProvenance,
@@ -49,8 +44,6 @@ export const INSTANCE_WORKSPACE_SECRET_STATE_FILE = "instance.env";
 export const INSTANCE_WORKSPACE_SECRET_STATE_PATH = ".formless/instance.env";
 export const INSTANCE_WORKSPACE_LOCAL_DEV_SECRET_STATE_FILE = "dev.env";
 export const INSTANCE_WORKSPACE_LOCAL_DEV_SECRET_STATE_PATH = ".formless/local/dev.env";
-export const INSTANCE_WORKSPACE_AUTO_SAVE_STATE_FILE = WORKSPACE_AUTO_SAVE_STATE_FILE;
-export const INSTANCE_WORKSPACE_AUTO_SAVE_STATE_PATH = `${DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT}/${WORKSPACE_AUTO_SAVE_STATE_FILE}`;
 export const INSTANCE_WORKSPACE_GITIGNORE_ENTRY = ".formless/";
 export const INSTANCE_WORKSPACE_ADMIN_TOKEN_ENV_NAME = "FORMLESS_ADMIN_TOKEN";
 export const INSTANCE_WORKSPACE_OWNER_SESSION_SECRET_ENV_NAME = "FORMLESS_OWNER_SESSION_SECRET";
@@ -72,11 +65,6 @@ export type WriteInstanceWorkspaceSecretStateResult = {
 export type WriteInstanceWorkspaceLocalDevSecretStateResult = {
   path: string;
   state: InstanceWorkspaceLocalDevSecretState;
-};
-
-export type WriteInstanceWorkspaceAutoSaveStateResult = {
-  path: string;
-  state: WorkspaceAutoSaveState;
 };
 
 export type CreateWorkspaceOperationStateInput = Omit<
@@ -126,10 +114,6 @@ export function instanceWorkspaceSecretStatePath(workspaceRoot: string): string 
 
 export function instanceWorkspaceLocalDevSecretStatePath(localStateRoot: string): string {
   return path.join(localStateRoot, INSTANCE_WORKSPACE_LOCAL_DEV_SECRET_STATE_FILE);
-}
-
-export function instanceWorkspaceAutoSaveStatePath(localStateRoot: string): string {
-  return path.join(localStateRoot, INSTANCE_WORKSPACE_AUTO_SAVE_STATE_FILE);
 }
 
 export function workspaceOperationStateRoot(workspaceRoot: string): string {
@@ -527,39 +511,6 @@ export async function ensureInstanceWorkspaceLocalDevSecretState(
   await ensureInstanceWorkspaceSecretStateIgnored(workspaceRoot);
 
   return write;
-}
-
-export async function readInstanceWorkspaceAutoSaveState(
-  localStateRoot: string,
-): Promise<WorkspaceAutoSaveState | undefined> {
-  const filePath = instanceWorkspaceAutoSaveStatePath(localStateRoot);
-
-  try {
-    return parseWorkspaceAutoSaveStateJson(await readFile(filePath, "utf8"));
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return undefined;
-    }
-
-    throw error;
-  }
-}
-
-export async function writeInstanceWorkspaceAutoSaveState(input: {
-  localStateRoot: string;
-  state: WorkspaceAutoSaveState;
-  workspaceRoot: string;
-}): Promise<WriteInstanceWorkspaceAutoSaveStateResult> {
-  const filePath = instanceWorkspaceAutoSaveStatePath(input.localStateRoot);
-
-  await ensureInstanceWorkspaceSecretStateIgnored(input.workspaceRoot);
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFileAtomically(filePath, formatWorkspaceAutoSaveState(input.state));
-
-  return {
-    path: filePath,
-    state: input.state,
-  };
 }
 
 async function writeFileAtomically(filePath: string, contents: string): Promise<void> {

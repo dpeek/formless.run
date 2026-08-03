@@ -11,7 +11,6 @@ import {
 } from "@dpeek/formless-workspace";
 import type {
   WorkspaceAutoSaveEnqueueInput,
-  WorkspaceAutoSaveState,
   WorkspaceAutoSaveWriteSource,
   WorkspaceGatewayOperationKind as WorkspaceDefinitionGatewayOperationKind,
   WorkspaceOperationCheckOrPullStartInput,
@@ -104,8 +103,6 @@ export type WorkspaceGatewayOperationResult = WorkspaceOperationResult;
 
 export type WorkspaceGatewayOperationStep = WorkspaceOperationStep;
 
-export type WorkspaceGatewayAutoSaveState = WorkspaceAutoSaveState;
-
 export type WorkspaceGatewayAutoSaveWriteSource = WorkspaceAutoSaveWriteSource;
 
 export type WorkspaceGatewayAutoSaveEnqueueInput = WorkspaceAutoSaveEnqueueInput;
@@ -132,11 +129,6 @@ export type WorkspaceGatewayStartInput = WorkspaceOperationStartInput;
 export type WorkspaceGatewayResponse = {
   csrfToken?: string;
   operation: WorkspaceGatewayOperation;
-};
-
-export type WorkspaceGatewayAutoSaveResponse = {
-  autoSave: WorkspaceGatewayAutoSaveState;
-  csrfToken?: string;
 };
 
 export type WorkspaceGatewayApiErrorBody = {

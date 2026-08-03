@@ -18,7 +18,6 @@ import {
   parseWorkspaceGatewayAutoSaveEnqueueInput,
   workspaceGatewayAutoSaveApiPath,
   workspaceGatewayAutoSaveEnqueueIntent,
-  workspaceGatewayAutoSaveStatusIntent,
   parseWorkspaceGatewayStartInput,
   workspaceGatewayOperationPath,
   workspaceGatewayReadOperationIntent,
@@ -266,13 +265,6 @@ describe("Gateway runtime-neutral contracts", () => {
       ],
     });
     expect(workspaceGatewayReadOperationIntent("status")).toEqual({
-      bootstrapAllowed: true,
-      executionRequirements: ["local-filesystem", "workspace-source-read"],
-      mutating: false,
-      operation: "status",
-      requiredCapability: "workspace-read",
-    });
-    expect(workspaceGatewayAutoSaveStatusIntent()).toEqual({
       bootstrapAllowed: true,
       executionRequirements: ["local-filesystem", "workspace-source-read"],
       mutating: false,

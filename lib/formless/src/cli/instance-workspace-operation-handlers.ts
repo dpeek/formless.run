@@ -28,12 +28,9 @@ import {
 import { runDeploymentRefreshWorkspaceOperation } from "./instance-workspace-deployment-operation.ts";
 import {
   setupCloudflareCredentialsWithFormlessOAuth,
-  type AlchemyCloudflareCredentialSetupResult,
+  type FormlessCloudflareCredentialSetupResult,
 } from "./instance-workspace-credential-setup.ts";
-import type {
-  RunFormlessWorkspaceOperationDependencies,
-  WorkspaceCredentialSetupOperationAdapterResult,
-} from "./instance-workspace-operations.ts";
+import type { RunFormlessWorkspaceOperationDependencies } from "./instance-workspace-operations.ts";
 import {
   runCheckWorkspaceSourceOperation,
   runPullWorkspaceSourceOperation,
@@ -69,9 +66,7 @@ const workspaceOperationDomainHandlers = {
       "credentialSetup",
       async (input, dependencies, context) =>
         credentialSetupOperationHandlerResult(
-          input,
           await runCredentialSetupWorkspaceOperation(input, dependencies, context),
-          "start",
         ),
     ),
   "deployment.refresh": workspaceOperationDomainHandler<DeploymentRefreshWorkspaceOperationInput>(
@@ -165,7 +160,7 @@ async function runCredentialSetupWorkspaceOperation(
   input: CredentialSetupWorkspaceOperationInput,
   dependencies: RunFormlessWorkspaceOperationDependencies,
   context: WorkspaceOperationDomainHandlerContext,
-): Promise<WorkspaceCredentialSetupOperationAdapterResult> {
+): Promise<FormlessCloudflareCredentialSetupResult> {
   const adapter =
     dependencies.credentialSetup ??
     ((setupInput) =>
@@ -189,37 +184,88 @@ async function runCredentialSetupWorkspaceOperation(
 }
 
 function credentialSetupOperationHandlerResult(
-  input: CredentialSetupWorkspaceOperationInput,
-  setup: WorkspaceCredentialSetupOperationAdapterResult | AlchemyCloudflareCredentialSetupResult,
-  phase: "continue" | "start",
+  setup: FormlessCloudflareCredentialSetupResult,
 ): WorkspaceOperationDomainExecutionResult {
-  const status = setup.status ?? "succeeded";
-  const fallbackSummary: WorkspaceOperationResult["summary"] =
-    phase === "start"
-      ? {
-          fields: { provider: input.provider },
-          title: "Credential setup started",
-        }
-      : {
-          fields: {},
-          title: "Credential setup completed",
-        };
-
-  return {
-    ...(setup.continue === undefined
-      ? {}
-      : {
-          continue: async () =>
-            credentialSetupOperationHandlerResult(input, await setup.continue!(), "continue"),
-        }),
-    ...(setup.events === undefined ? {} : { events: setup.events }),
-    logMessage:
-      status === "running"
-        ? "credentialSetup awaiting authorization."
-        : "credentialSetup completed.",
-    result: setup.result ?? { summary: fallbackSummary },
-    status,
-  };
+  switch (setup.kind) {
+    case "authorization-waiting":
+      return {
+        continue: async () => credentialSetupOperationHandlerResult(await setup.continue()),
+        events: [
+          {
+            at: setup.at,
+            profileLabel: setup.profileLabel,
+            provider: setup.provider,
+            status: "waiting",
+            type: "externalAuthorizationUrl",
+            url: setup.authorizationUrl,
+          },
+        ],
+        logMessage: "credentialSetup awaiting authorization.",
+        result: {
+          details: {
+            clientId: setup.clientId,
+            credentialRef: setup.credentialRef,
+            requestedScopes: [...setup.requestedScopes],
+            scopeSet: setup.scopeSet,
+          },
+          summary: {
+            fields: {
+              credentialRef: setup.credentialRef,
+              provider: setup.provider,
+              status: "waiting-for-authorization",
+            },
+            title: "Cloudflare authorization required",
+          },
+        },
+        status: "running",
+      };
+    case "account-selection-required":
+      return {
+        logMessage: "credentialSetup completed.",
+        result: {
+          details: {
+            accounts: setup.accounts.map((account) => ({ ...account })),
+            credentialRef: setup.credentialRef,
+          },
+          summary: {
+            fields: {
+              accountCount: setup.accounts.length,
+              credentialRef: setup.credentialRef,
+              provider: setup.provider,
+              status: "account-selection-required",
+            },
+            title: "Cloudflare account selection required",
+          },
+        },
+        status: "succeeded",
+      };
+    case "ready":
+      return {
+        logMessage: "credentialSetup completed.",
+        result: {
+          details: {
+            account: { ...setup.account },
+            accountCount: setup.accountCount,
+            credentialRef: setup.credentialRef,
+            deploymentConfig: setup.deploymentConfig,
+            source: setup.source,
+          },
+          summary: {
+            fields: {
+              accountCount: setup.accountCount,
+              credentialRef: setup.credentialRef,
+              provider: setup.provider,
+              selectedAccountId: setup.account.id,
+              status: "validated",
+              targetUrl: setup.deploymentConfig.targetUrl,
+              workerName: setup.deploymentConfig.workerName,
+            },
+            title: "Cloudflare credentials ready",
+          },
+        },
+        status: "succeeded",
+      };
+  }
 }
 
 async function readWorkspaceStatus(

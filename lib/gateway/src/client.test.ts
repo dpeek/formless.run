@@ -3,7 +3,6 @@ import {
   WorkspaceGatewayApiError,
   enqueueWorkspaceGatewayAutoSave,
   fetchWorkspaceGatewayOperation,
-  fetchWorkspaceGatewayAutoSaveStatus,
   fetchWorkspaceGatewayStatus,
   startWorkspaceGatewayOperation,
   workspaceGatewayBrowserConfig,
@@ -97,28 +96,13 @@ describe("gateway package client helpers", () => {
     expect(response?.operation.operation).toBe("save");
   });
 
-  it("reads and enqueues auto-save state through the local gateway API", async () => {
+  it("enqueues auto-save with CSRF and accepts an empty success response", async () => {
     const calls: Array<{
       body?: unknown;
       headers: Headers;
       method?: string;
       path: string;
     }> = [];
-    const status = await fetchWorkspaceGatewayAutoSaveStatus({
-      config,
-      fetcher: async (input, init) => {
-        calls.push({
-          headers: new Headers(init?.headers),
-          method: init?.method,
-          path: requestUrl(input),
-        });
-
-        return Response.json({
-          autoSave: autoSaveState({ displayState: "clean" }),
-          csrfToken: "csrf-token",
-        });
-      },
-    });
     const enqueued = await enqueueWorkspaceGatewayAutoSave(
       { source: "schema-save" },
       {
@@ -132,32 +116,17 @@ describe("gateway package client helpers", () => {
             path: requestUrl(input),
           });
 
-          return Response.json({
-            autoSave: autoSaveState({
-              dirtyGeneration: 1,
-              displayState: "queued",
-              writeSources: ["schema-save"],
-            }),
-          });
+          return new Response(null, { status: 204 });
         },
       },
     );
 
-    expect(status?.autoSave.displayState).toBe("clean");
-    expect(enqueued?.autoSave).toMatchObject({
-      dirtyGeneration: 1,
-      displayState: "queued",
-      writeSources: ["schema-save"],
-    });
-    expect(calls.map((call) => call.path)).toEqual([
-      "/api/formless/workspace/auto-save",
-      "/api/formless/workspace/auto-save",
-    ]);
-    expect(calls[0]?.headers.get("x-formless-workspace-bootstrap")).toBe("bootstrap-token");
-    expect(calls[1]?.headers.get("x-formless-workspace-bootstrap")).toBeNull();
-    expect(calls[1]?.headers.get("x-formless-csrf")).toBe("csrf-token");
-    expect(calls[1]?.method).toBe("POST");
-    expect(calls[1]?.body).toEqual({
+    expect(enqueued).toBeUndefined();
+    expect(calls.map((call) => call.path)).toEqual(["/api/formless/workspace/auto-save"]);
+    expect(calls[0]?.headers.get("x-formless-workspace-bootstrap")).toBeNull();
+    expect(calls[0]?.headers.get("x-formless-csrf")).toBe("csrf-token");
+    expect(calls[0]?.method).toBe("POST");
+    expect(calls[0]?.body).toEqual({
       source: "schema-save",
     });
   });
@@ -262,20 +231,6 @@ function operation(overrides: Partial<WorkspaceGatewayOperation> = {}): Workspac
     updatedAt: "2026-06-02T00:00:01.000Z",
     version: 1,
     workspace: { label: "workspace" },
-    ...overrides,
-  };
-}
-
-function autoSaveState(overrides: Record<string, unknown> = {}) {
-  return {
-    dirtyGeneration: 0,
-    displayState: "clean",
-    kind: "formless.workspaceAutoSaveState",
-    retryCount: 0,
-    savedGeneration: 0,
-    updatedAt: "2026-06-02T00:00:00.000Z",
-    version: 1,
-    writeSources: [],
     ...overrides,
   };
 }

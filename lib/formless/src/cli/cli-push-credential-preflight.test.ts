@@ -9,8 +9,9 @@ import {
 } from "./cli-push-credential-preflight.ts";
 import type {
   AlchemyCloudflareCredentialSetupInput,
-  AlchemyCloudflareCredentialSetupResult,
   FormlessCloudflareCredentialSetupDependencies,
+  FormlessCloudflareCredentialSetupCompletedResult,
+  FormlessCloudflareCredentialSetupResult,
 } from "./instance-workspace-credential-setup.ts";
 import type { PushFormlessInstanceWorkspaceCloudflareOAuthPreflightResult } from "./instance-workspace-deployment.ts";
 
@@ -266,85 +267,54 @@ function credentialPreflight(
 
 function authorizationSetup(
   authorizationUrl: string,
-  continued: AlchemyCloudflareCredentialSetupResult,
-): AlchemyCloudflareCredentialSetupResult {
+  continued: FormlessCloudflareCredentialSetupCompletedResult,
+): FormlessCloudflareCredentialSetupResult {
   return {
+    at: "2026-06-25T00:00:00.000Z",
+    authorizationUrl,
+    clientId: "formless-client-id",
     continue: async () => continued,
-    events: [
-      {
-        at: "2026-06-25T00:00:00.000Z",
-        profileLabel: "default",
-        provider: "cloudflare",
-        status: "waiting",
-        type: "externalAuthorizationUrl",
-        url: authorizationUrl,
-      },
-    ],
-    result: {
-      details: {
-        credentialRef: "formless-cloudflare-oauth:default",
-      },
-      summary: {
-        fields: {
-          credentialRef: "formless-cloudflare-oauth:default",
-          provider: "cloudflare",
-          status: "waiting-for-authorization",
-        },
-        title: "Cloudflare authorization required",
-      },
-    },
-    status: "running",
+    credentialRef: "formless-cloudflare-oauth:default",
+    kind: "authorization-waiting",
+    profileLabel: "default",
+    provider: "cloudflare",
+    requestedScopes: ["account.read"],
+    scopeSet: "formless-cloudflare-deploy-oauth",
   };
 }
 function readySetup(
   input: {
     selectedAccountId?: string;
   } = {},
-): AlchemyCloudflareCredentialSetupResult {
+): FormlessCloudflareCredentialSetupCompletedResult {
   return {
-    result: {
-      details: {
-        account: {
-          id: input.selectedAccountId ?? "acct_personal",
-          workersDevSubdomain: "personal",
-        },
-        credentialRef: "formless-cloudflare-oauth:default",
-      },
-      summary: {
-        fields: {
-          credentialRef: "formless-cloudflare-oauth:default",
-          provider: "cloudflare",
-          selectedAccountId: input.selectedAccountId ?? "acct_personal",
-          status: "validated",
-        },
-        title: "Cloudflare credentials ready",
-      },
+    account: {
+      id: input.selectedAccountId ?? "acct_personal",
+      workersDevSubdomain: "personal",
     },
-    status: "succeeded",
+    accountCount: 1,
+    credentialRef: "formless-cloudflare-oauth:default",
+    deploymentConfig: {
+      accountId: input.selectedAccountId ?? "acct_personal",
+      targetId: "instance.primary",
+      targetUrl: "https://personal.example.test",
+      workerName: "personal",
+    },
+    kind: "ready",
+    provider: "cloudflare",
+    source: "stored-credential",
   };
 }
 
 function accountSelectionSetup(
   accounts: readonly FormlessCloudflareOAuthAccount[],
   credentialRef: string,
-): AlchemyCloudflareCredentialSetupResult {
+): FormlessCloudflareCredentialSetupCompletedResult {
   return {
-    result: {
-      details: {
-        accounts: accounts.map((account) => ({ ...account })),
-        credentialRef,
-      },
-      summary: {
-        fields: {
-          accountCount: accounts.length,
-          credentialRef,
-          provider: "cloudflare",
-          status: "account-selection-required",
-        },
-        title: "Cloudflare account selection required",
-      },
-    },
-    status: "succeeded",
+    accounts: accounts.map((account) => ({ ...account })),
+    credentialRef,
+    kind: "account-selection-required",
+    provider: "cloudflare",
   };
 }
 

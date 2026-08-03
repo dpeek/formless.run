@@ -16,7 +16,6 @@ import {
 
 import {
   INSTANCE_WORKSPACE_ADMIN_TOKEN_ENV_NAME,
-  INSTANCE_WORKSPACE_AUTO_SAVE_STATE_PATH,
   INSTANCE_WORKSPACE_GITIGNORE_ENTRY,
   INSTANCE_WORKSPACE_LOCAL_DEV_SECRET_STATE_PATH,
   INSTANCE_WORKSPACE_OWNER_SESSION_SECRET_ENV_NAME,
@@ -29,16 +28,12 @@ import {
   ensureInstanceWorkspaceSecretStateIgnored,
   formatInstanceWorkspaceLocalDevSecretState,
   formatInstanceWorkspaceSecretState,
-  initialWorkspaceAutoSaveState,
-  instanceWorkspaceAutoSaveStatePath,
   instanceWorkspaceMediaFilePath,
   instanceWorkspaceMediaManifestPath,
   instanceWorkspaceLocalDevSecretStatePath,
   instanceWorkspaceSecretStatePath,
-  nextWorkspaceAutoSaveEnqueuedState,
   parseInstanceWorkspaceLocalDevSecretState,
   parseInstanceWorkspaceSecretState,
-  readInstanceWorkspaceAutoSaveState,
   readInstanceWorkspaceProgramStorageSnapshot as readWorkspaceProgramSnapshot,
   readWorkspaceOperationState,
   readInstanceWorkspaceLocalDevSecretState,
@@ -50,7 +45,6 @@ import {
   updateWorkspaceOperationState,
   workspaceOperationStatePath,
   workspaceOperationStateRoot,
-  writeInstanceWorkspaceAutoSaveState,
   writeInstanceWorkspaceProgramStorageSnapshot as writeWorkspaceProgramSnapshot,
   writeInstanceWorkspaceLocalDevSecretState,
   writeInstanceWorkspaceSecretState,
@@ -182,16 +176,12 @@ describe("Formless instance workspace secret state", () => {
   it("defines the ignored workspace secret path", () => {
     expect(INSTANCE_WORKSPACE_SECRET_STATE_PATH).toBe(".formless/instance.env");
     expect(INSTANCE_WORKSPACE_LOCAL_DEV_SECRET_STATE_PATH).toBe(".formless/local/dev.env");
-    expect(INSTANCE_WORKSPACE_AUTO_SAVE_STATE_PATH).toBe(".formless/local/auto-save.json");
     expect(INSTANCE_WORKSPACE_GITIGNORE_ENTRY).toBe(".formless/");
     expect(instanceWorkspaceSecretStatePath("/workspace")).toBe(
       path.join("/workspace", ".formless/instance.env"),
     );
     expect(instanceWorkspaceLocalDevSecretStatePath("/workspace/.formless/local")).toBe(
       path.join("/workspace/.formless/local", "dev.env"),
-    );
-    expect(instanceWorkspaceAutoSaveStatePath("/workspace/.formless/local")).toBe(
-      path.join("/workspace/.formless/local", "auto-save.json"),
     );
   });
 
@@ -660,45 +650,6 @@ describe("workspace operation node state", () => {
     expect(() => workspaceOperationStatePath("/workspace", "../secret")).toThrow(
       "Workspace operation id is invalid.",
     );
-  });
-});
-
-describe("workspace auto-save node state", () => {
-  it("reads and writes ignored local auto-save state files", async () => {
-    const workspaceRoot = await makeTempDir();
-    const localStateRoot = path.join(workspaceRoot, ".formless/local");
-    const state = nextWorkspaceAutoSaveEnqueuedState(
-      initialWorkspaceAutoSaveState({
-        now: () => "2026-06-02T00:00:00.000Z",
-      }),
-      {
-        now: () => "2026-06-02T00:00:01.000Z",
-        source: "control-plane-write",
-      },
-    );
-
-    await expect(readInstanceWorkspaceAutoSaveState(localStateRoot)).resolves.toBeUndefined();
-
-    const write = await writeInstanceWorkspaceAutoSaveState({
-      localStateRoot,
-      state,
-      workspaceRoot,
-    });
-    const persistedText = await readFile(
-      instanceWorkspaceAutoSaveStatePath(localStateRoot),
-      "utf8",
-    );
-
-    expect(write).toEqual({
-      path: path.join(localStateRoot, "auto-save.json"),
-      state,
-    });
-    await expect(readFile(path.join(workspaceRoot, ".gitignore"), "utf8")).resolves.toBe(
-      ".formless/\n",
-    );
-    await expect(readInstanceWorkspaceAutoSaveState(localStateRoot)).resolves.toEqual(state);
-    expect(persistedText).toBe(`${JSON.stringify(JSON.parse(persistedText), null, 2)}\n`);
-    expect(persistedText).not.toContain(workspaceRoot);
   });
 });
 

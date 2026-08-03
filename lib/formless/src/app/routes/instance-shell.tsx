@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   WorkspaceGatewayApiError,
-  fetchWorkspaceGatewayAutoSaveStatus,
   fetchWorkspaceGatewayOperation,
   fetchWorkspaceGatewayStatus,
   workspaceGatewayBrowserConfig,
   startWorkspaceGatewayOperation,
-  type WorkspaceGatewayAutoSaveState,
   type WorkspaceGatewayConfig,
   type WorkspaceGatewayOperation,
   type WorkspaceGatewayOperationKind,
@@ -32,8 +30,6 @@ export type WorkspaceGatewayRouteState =
   | { status: "failed"; message: string }
   | {
       activeOperationId?: string;
-      autoSave?: WorkspaceGatewayAutoSaveState;
-      autoSaveError?: string;
       csrfToken?: string;
       currentOperation?: WorkspaceGatewayOperation;
       error?: string;
@@ -191,17 +187,8 @@ export function InstanceShellRoute({
       }
 
       if (workspaceGatewayResponse) {
-        const autoSaveUpdate = await loadWorkspaceGatewayAutoSaveState({
-          config: workspaceGatewayConfig,
-          signal: controller.signal,
-        });
-
-        if (stopped) {
-          return;
-        }
-
         setWorkspaceGatewayState((current) =>
-          workspaceGatewayReadyStateFromResponse(workspaceGatewayResponse, current, autoSaveUpdate),
+          workspaceGatewayReadyStateFromResponse(workspaceGatewayResponse, current),
         );
       } else if (!workspaceGatewayFailed) {
         setWorkspaceGatewayState({ status: "unavailable" });
@@ -242,26 +229,6 @@ export function InstanceShellRoute({
     return () => window.clearInterval(intervalId);
   }, [workspaceGatewayConfig, workspaceGatewayState]);
 
-  const autoSaveDisplayState =
-    workspaceGatewayState.status === "ready"
-      ? workspaceGatewayState.autoSave?.displayState
-      : undefined;
-
-  useEffect(() => {
-    if (autoSaveDisplayState !== "queued" && autoSaveDisplayState !== "saving") {
-      return;
-    }
-
-    const intervalId = window.setInterval(() => {
-      void refreshWorkspaceGatewayAutoSave({
-        config: workspaceGatewayConfig,
-        setWorkspaceGatewayState,
-      });
-    }, 1500);
-
-    return () => window.clearInterval(intervalId);
-  }, [autoSaveDisplayState, workspaceGatewayConfig]);
-
   async function startWorkspaceOperation(input: WorkspaceGatewayStartInput) {
     if (
       workspaceGatewayState.status !== "ready" ||
@@ -294,12 +261,6 @@ export function InstanceShellRoute({
           currentOperation: response.operation,
         }),
       );
-      if (!operationPollsAutomatically(response.operation)) {
-        await refreshWorkspaceGatewayAutoSave({
-          config: workspaceGatewayConfig,
-          setWorkspaceGatewayState,
-        });
-      }
     } catch (error) {
       const message =
         error instanceof WorkspaceGatewayApiError || error instanceof Error
@@ -371,68 +332,6 @@ async function loadInitialWorkspaceGatewayStatus({
   }
 }
 
-async function loadWorkspaceGatewayAutoSaveState({
-  config,
-  signal,
-}: {
-  config?: WorkspaceGatewayConfig;
-  signal?: AbortSignal;
-}): Promise<Partial<Extract<WorkspaceGatewayRouteState, { status: "ready" }>>> {
-  if (!config) {
-    return {};
-  }
-
-  try {
-    const response = await fetchWorkspaceGatewayAutoSaveStatus({ config, signal });
-
-    if (!response) {
-      return {};
-    }
-
-    return {
-      autoSave: response.autoSave,
-      autoSaveError: undefined,
-      ...(response.csrfToken === undefined ? {} : { csrfToken: response.csrfToken }),
-    };
-  } catch (error) {
-    if (error instanceof WorkspaceGatewayApiError && error.status === 404) {
-      return {};
-    }
-
-    const message =
-      error instanceof WorkspaceGatewayApiError || error instanceof Error
-        ? error.message
-        : "Workspace auto-save status could not load.";
-
-    return {
-      autoSaveError: displaySafeText(message),
-    };
-  }
-}
-
-async function refreshWorkspaceGatewayAutoSave({
-  config,
-  setWorkspaceGatewayState,
-}: {
-  config?: WorkspaceGatewayConfig;
-  setWorkspaceGatewayState: Dispatch<SetStateAction<WorkspaceGatewayRouteState>>;
-}): Promise<void> {
-  const update = await loadWorkspaceGatewayAutoSaveState({ config });
-
-  if (Object.keys(update).length === 0) {
-    return;
-  }
-
-  setWorkspaceGatewayState((current) =>
-    current.status === "ready"
-      ? {
-          ...current,
-          ...update,
-        }
-      : current,
-  );
-}
-
 async function refreshWorkspaceGatewayOperation({
   config,
   operationId,
@@ -464,9 +363,6 @@ async function refreshWorkspaceGatewayOperation({
         currentOperation: response.operation,
       }),
     );
-    if (!operationPollsAutomatically(response.operation)) {
-      await refreshWorkspaceGatewayAutoSave({ config, setWorkspaceGatewayState });
-    }
   } catch (error) {
     const message =
       error instanceof WorkspaceGatewayApiError || error instanceof Error
@@ -493,8 +389,6 @@ function workspaceGatewayReadyStateFromResponse(
 
   return {
     activeOperationId: currentReady?.activeOperationId,
-    autoSave: currentReady?.autoSave,
-    autoSaveError: currentReady?.autoSaveError,
     csrfToken: response.csrfToken ?? currentReady?.csrfToken,
     currentOperation: currentReady?.currentOperation ?? response.operation,
     status: "ready",

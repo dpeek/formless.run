@@ -20,7 +20,7 @@ import {
   captureSidecarAutoSaveCalls,
   captureSidecarOperationCalls,
   csrfToken,
-  expectGatewayAutoSaveResponse,
+  expectGatewayAutoSaveEnqueueResponse,
   expectGatewayError,
   expectGatewayOperationResponse,
   expectNoSidecarCalls,
@@ -35,7 +35,6 @@ import {
   proxyToken,
   sidecarEndpoint,
   validateOwnerSession,
-  workspaceGatewayAutoSaveState,
   workspaceGatewayOperation,
   type CapturedSidecarCall,
 } from "./proxy-rules.contract-fixtures.ts";
@@ -77,7 +76,7 @@ describe("shared workspace gateway proxy rules", () => {
         request: new Request(`https://example.com${WORKSPACE_GATEWAY_OPERATIONS_API_PATH}`),
       },
       {
-        expectedAllow: "GET, POST",
+        expectedAllow: "POST",
         expectedError: "Method not allowed.",
         expectedStatus: 405,
         request: gatewayAutoSaveStatusRequest({ method: "PUT" }),
@@ -208,26 +207,8 @@ describe("shared workspace gateway proxy rules", () => {
     expect(calls[0]?.headers.get(WORKSPACE_GATEWAY_CSRF_HEADER)).toBeNull();
   });
 
-  it("proxies auto-save status and enqueue with bootstrap, owner-session, CSRF, and capability checks", async () => {
+  it("proxies auto-save enqueue with owner-session, CSRF, and capability checks", async () => {
     const calls: CapturedSidecarCall[] = [];
-    const status = await handleWorkspaceGatewayProxyRulesRequest(
-      gatewayAutoSaveStatusRequest({
-        headers: {
-          [WORKSPACE_GATEWAY_BOOTSTRAP_HEADER]: bootstrapToken,
-          Origin: "https://example.com",
-        },
-      }),
-      baseProxyRulesEnv,
-      proxyRulesDependencies({
-        fetch: captureSidecarAutoSaveCalls(calls, workspaceGatewayAutoSaveState("clean"), {
-          headers: {
-            "Set-Cookie": "sidecar-secret=value",
-            "X-Secret": "hidden",
-          },
-        }),
-        readOwnerSetupStatus: async () => ({ setupComplete: false }),
-      }),
-    );
     const enqueued = await handleWorkspaceGatewayProxyRulesRequest(
       gatewayAutoSaveEnqueueRequest(
         { source: "control-plane-write" },
@@ -237,7 +218,7 @@ describe("shared workspace gateway proxy rules", () => {
       ),
       baseProxyRulesEnv,
       proxyRulesDependencies({
-        fetch: captureSidecarAutoSaveCalls(calls, workspaceGatewayAutoSaveState("queued")),
+        fetch: captureSidecarAutoSaveCalls(calls),
         validateOwnerSession,
       }),
     );
@@ -251,21 +232,12 @@ describe("shared workspace gateway proxy rules", () => {
       baseProxyRulesEnv,
       proxyRulesDependencies({
         capabilities: ["workspace-read"],
-        fetch: captureSidecarAutoSaveCalls(calls, workspaceGatewayAutoSaveState("queued")),
+        fetch: captureSidecarAutoSaveCalls(calls),
         validateOwnerSession,
       }),
     );
 
-    await expectGatewayAutoSaveResponse({
-      autoSave: { displayState: "clean" },
-      response: status,
-    });
-    expectGatewayPassthroughResponseHeaders({ contentType: "application/json", response: status });
-    await expectGatewayAutoSaveResponse({
-      autoSave: { displayState: "queued" },
-      csrfToken,
-      response: enqueued,
-    });
+    await expectGatewayAutoSaveEnqueueResponse({ response: enqueued });
     await expectGatewayError({
       error: 'Workspace operation "save" requires execution capability "workspace-source-write".',
       response: gated,
@@ -273,13 +245,10 @@ describe("shared workspace gateway proxy rules", () => {
     });
     expect(calls.map((call) => call.url)).toEqual([
       `${sidecarEndpoint}${WORKSPACE_GATEWAY_AUTO_SAVE_API_PATH}`,
-      `${sidecarEndpoint}${WORKSPACE_GATEWAY_AUTO_SAVE_API_PATH}`,
     ]);
-    expect(calls[0]?.headers.get(WORKSPACE_GATEWAY_AUTHORIZATION_VIA_HEADER)).toBe("bootstrap");
-    expect(calls[0]?.headers.get(WORKSPACE_GATEWAY_OPERATION_KIND_HEADER)).toBe("status");
-    expect(calls[1]?.headers.get(WORKSPACE_GATEWAY_AUTHORIZATION_VIA_HEADER)).toBe("owner-session");
-    expect(calls[1]?.headers.get(WORKSPACE_GATEWAY_OPERATION_KIND_HEADER)).toBe("save");
-    expect(calls[1]?.body).toBe(JSON.stringify({ source: "control-plane-write" }));
+    expect(calls[0]?.headers.get(WORKSPACE_GATEWAY_AUTHORIZATION_VIA_HEADER)).toBe("owner-session");
+    expect(calls[0]?.headers.get(WORKSPACE_GATEWAY_OPERATION_KIND_HEADER)).toBe("save");
+    expect(calls[0]?.body).toBe(JSON.stringify({ source: "control-plane-write" }));
   });
 
   it("authorizes browser mutations against the forwarded browser-facing origin", async () => {
@@ -297,16 +266,12 @@ describe("shared workspace gateway proxy rules", () => {
       }),
       baseProxyRulesEnv,
       proxyRulesDependencies({
-        fetch: captureSidecarAutoSaveCalls(calls, workspaceGatewayAutoSaveState("queued")),
+        fetch: captureSidecarAutoSaveCalls(calls),
         validateOwnerSession,
       }),
     );
 
-    await expectGatewayAutoSaveResponse({
-      autoSave: { displayState: "queued" },
-      csrfToken,
-      response,
-    });
+    await expectGatewayAutoSaveEnqueueResponse({ response });
     expect(calls).toHaveLength(1);
     expect(calls[0]?.headers.get(WORKSPACE_GATEWAY_AUTHORIZATION_VIA_HEADER)).toBe("owner-session");
     expect(calls[0]?.headers.get(WORKSPACE_GATEWAY_OPERATION_KIND_HEADER)).toBe("save");
@@ -315,7 +280,7 @@ describe("shared workspace gateway proxy rules", () => {
   it("prefers owner-session authorization over an expired bootstrap header", async () => {
     const calls: CapturedSidecarCall[] = [];
     const response = await handleWorkspaceGatewayProxyRulesRequest(
-      gatewayAutoSaveStatusRequest({
+      gatewayStatusRequest({
         headers: {
           Cookie: ownerSessionCookie,
           [WORKSPACE_GATEWAY_BOOTSTRAP_HEADER]: bootstrapToken,
@@ -324,14 +289,14 @@ describe("shared workspace gateway proxy rules", () => {
       }),
       baseProxyRulesEnv,
       proxyRulesDependencies({
-        fetch: captureSidecarAutoSaveCalls(calls, workspaceGatewayAutoSaveState("clean")),
+        fetch: captureSidecarOperationCalls(calls, workspaceGatewayOperation("status")),
         readOwnerSetupStatus: async () => ({ setupComplete: true }),
         validateOwnerSession,
       }),
     );
 
-    await expectGatewayAutoSaveResponse({
-      autoSave: { displayState: "clean" },
+    await expectGatewayOperationResponse({
+      operation: { operation: "status" },
       csrfToken,
       response,
     });

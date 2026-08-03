@@ -16,7 +16,6 @@ import {
 
 export {
   createWorkspaceAutoSaveScheduler,
-  workspaceAutoSaveLocalStateRoot,
   type WorkspaceAutoSaveScheduler,
   type WorkspaceAutoSaveSchedulerDependencies,
   type WorkspaceAutoSaveSchedulerSaveInput,

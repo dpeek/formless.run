@@ -2,13 +2,20 @@ import path from "node:path";
 
 import type { AppSchema } from "@dpeek/formless-schema";
 import { formatStoredRecordsForArtifact, type StoredRecord } from "@dpeek/formless-storage";
-import type {
-  WorkspaceOperationDisplayObject,
-  WorkspaceOperationDisplayValue,
-  WorkspaceOperationState,
-} from "@dpeek/formless-workspace";
 
 export type CliOutputLine = false | null | string | undefined;
+
+export type CliDisplayValue =
+  | boolean
+  | null
+  | number
+  | string
+  | CliDisplayValue[]
+  | { [key: string]: CliDisplayValue };
+
+export type CliDisplayObject = {
+  [key: string]: CliDisplayValue;
+};
 
 export type CliSelectedTargetDisplay = {
   alias: string;
@@ -48,26 +55,13 @@ export function formatCliStoredRecords(
   return `${JSON.stringify(formatStoredRecordsForArtifact(schema, records), null, 2)}\n`;
 }
 
-export function formatCliWorkspaceOperationLabel(
-  operation: WorkspaceOperationState["operation"],
-): string {
-  switch (operation) {
-    case "credentialSetup":
-      return "credential setup";
-    case "deploymentRefresh":
-      return "deployment refresh";
-    default:
-      return operation;
-  }
-}
-
-export function formatCliDisplayFields(fields: WorkspaceOperationDisplayObject): string[] {
+export function formatCliDisplayFields(fields: CliDisplayObject): string[] {
   return Object.entries(fields)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, value]) => `${key}: ${formatCliDisplayValue(value)}.`);
 }
 
-export function formatCliDisplayValue(value: WorkspaceOperationDisplayValue): string {
+export function formatCliDisplayValue(value: CliDisplayValue): string {
   if (value === null) {
     return "none";
   }

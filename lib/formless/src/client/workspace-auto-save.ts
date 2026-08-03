@@ -1,6 +1,6 @@
 import {
   enqueueWorkspaceGatewayAutoSave,
-  fetchWorkspaceGatewayAutoSaveStatus,
+  fetchWorkspaceGatewayStatus,
   workspaceGatewayBrowserConfig,
   type WorkspaceGatewayAutoSaveEnqueueInput,
   type WorkspaceGatewayConfig,
@@ -15,6 +15,22 @@ export type LocalWorkspaceAutoSaveOptions = {
 };
 
 export type LocalWorkspaceAutoSaveWriteSource = WorkspaceGatewayAutoSaveEnqueueInput["source"];
+
+export function createLocalWorkspaceAutoSaveClient(
+  config: WorkspaceGatewayConfig,
+  fetcher: typeof fetch = fetch,
+): LocalWorkspaceAutoSaveClient {
+  return {
+    enqueue: async (input) => {
+      const status = await fetchWorkspaceGatewayStatus({ config, fetcher });
+      await enqueueWorkspaceGatewayAutoSave(input, {
+        config,
+        csrfToken: status?.csrfToken,
+        fetcher,
+      });
+    },
+  };
+}
 
 export async function enqueueLocalWorkspaceAutoSave(
   input: WorkspaceGatewayAutoSaveEnqueueInput,
@@ -46,9 +62,5 @@ async function enqueueWithGatewayClient(
   input: WorkspaceGatewayAutoSaveEnqueueInput,
   config: WorkspaceGatewayConfig,
 ): Promise<void> {
-  const status = await fetchWorkspaceGatewayAutoSaveStatus({ config });
-  await enqueueWorkspaceGatewayAutoSave(input, {
-    config,
-    csrfToken: status?.csrfToken,
-  });
+  await createLocalWorkspaceAutoSaveClient(config).enqueue(input);
 }

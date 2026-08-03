@@ -176,65 +176,37 @@ describe("Formless Cloudflare OAuth credentials", () => {
     );
 
     expect(start).toMatchObject({
-      events: [
-        {
-          profileLabel: "default",
-          provider: "cloudflare",
-          status: "waiting",
-          type: "externalAuthorizationUrl",
-          url: "https://dash.cloudflare.com/oauth2/auth?client_id=formless",
-        },
-      ],
-      result: {
-        details: {
-          credentialRef: "formless-cloudflare-oauth:default",
-          scopeSet: "formless-cloudflare-deploy-oauth",
-        },
-        summary: {
-          fields: {
-            credentialRef: "formless-cloudflare-oauth:default",
-            provider: "cloudflare",
-            status: "waiting-for-authorization",
-          },
-          title: "Cloudflare authorization required",
-        },
-      },
-      status: "running",
+      authorizationUrl: "https://dash.cloudflare.com/oauth2/auth?client_id=formless",
+      credentialRef: "formless-cloudflare-oauth:default",
+      kind: "authorization-waiting",
+      profileLabel: "default",
+      provider: "cloudflare",
+      scopeSet: "formless-cloudflare-deploy-oauth",
     });
-    expect(start.result?.details?.requestedScopes).toContain("email-sending.write");
+    expect(start.kind === "authorization-waiting" ? start.requestedScopes : []).toContain(
+      "email-sending.write",
+    );
     expect(JSON.stringify(start)).not.toContain("formless-access-token");
     expect(JSON.stringify(start)).not.toContain("formless-refresh-token");
-    expect(start.continue).toBeDefined();
 
-    const final = await start.continue!();
+    if (start.kind !== "authorization-waiting") {
+      throw new Error("Expected Cloudflare authorization to be required.");
+    }
+
+    const final = await start.continue();
 
     expect(listedTokens).toEqual(["formless-access-token"]);
     expect(final).toMatchObject({
-      result: {
-        details: {
-          account: personalCloudflareAccount,
-          credentialRef: "formless-cloudflare-oauth:default",
-          deploymentConfig: {
-            accountId: "acct_personal",
-            targetId: "instance.primary",
-            targetUrl: "https://personal-sites.personal.workers.dev",
-            workerName: "personal-sites",
-          },
-          source: "oauth",
-        },
-        summary: {
-          fields: {
-            credentialRef: "formless-cloudflare-oauth:default",
-            provider: "cloudflare",
-            selectedAccountId: "acct_personal",
-            status: "validated",
-            targetUrl: "https://personal-sites.personal.workers.dev",
-            workerName: "personal-sites",
-          },
-          title: "Cloudflare credentials ready",
-        },
+      account: personalCloudflareAccount,
+      credentialRef: "formless-cloudflare-oauth:default",
+      deploymentConfig: {
+        accountId: "acct_personal",
+        targetId: "instance.primary",
+        targetUrl: "https://personal-sites.personal.workers.dev",
+        workerName: "personal-sites",
       },
-      status: "succeeded",
+      kind: "ready",
+      source: "oauth",
     });
     expect(JSON.stringify(final)).not.toContain("formless-access-token");
     expect(JSON.stringify(final)).not.toContain("formless-refresh-token");
@@ -270,6 +242,50 @@ describe("Formless Cloudflare OAuth credentials", () => {
     });
     expect(JSON.stringify(snapshot)).not.toContain("formless-access-token");
     expect(JSON.stringify(snapshot)).not.toContain("formless-refresh-token");
+  });
+
+  it("validates an explicit account selection against credential-visible accounts", async () => {
+    const workspaceRoot = await makeTempDir();
+
+    await writeWorkspaceConfig(workspaceRoot);
+    await writeFormlessCloudflareOAuthCredential({
+      credential: createFormlessCloudflareOAuthCredential({
+        id: "default",
+        selectedAccount: personalCloudflareAccount,
+        token: formlessOAuthToken,
+        updatedAt: now(),
+      }),
+      workspaceRoot,
+    });
+
+    const oauth = {
+      createAuthorization: () => {
+        throw new Error("Stored credentials should not start authorization.");
+      },
+      exchangeCode: async () => {
+        throw new Error("Stored credentials should not exchange authorization codes.");
+      },
+      listAccounts: async () => [personalCloudflareAccount, teamCloudflareAccount],
+      refresh: async () => {
+        throw new Error("Unexpired credentials should not refresh.");
+      },
+      waitForToken: async () => {
+        throw new Error("Stored credentials should not wait for new tokens.");
+      },
+    } satisfies FormlessCloudflareOAuthAdapter;
+
+    await expect(
+      setupCloudflareCredentialsWithFormlessOAuth(
+        {
+          accountId: "acct_missing",
+          provider: "cloudflare",
+          workspaceRoot,
+        },
+        { now, oauth },
+      ),
+    ).rejects.toThrow(
+      "Cloudflare account acct_missing was not found for the Formless OAuth credential.",
+    );
   });
 
   it("refreshes stored credentials before account discovery and deployment-config writeback", async () => {
@@ -317,21 +333,13 @@ describe("Formless Cloudflare OAuth credentials", () => {
     expect(refreshTokens).toEqual(["formless-refresh-token"]);
     expect(listedTokens).toEqual(["formless-refreshed-access-token"]);
     expect(result).toMatchObject({
-      result: {
-        details: {
-          credentialRef: "formless-cloudflare-oauth:personal",
-          source: "stored-credential",
-        },
-        summary: {
-          fields: {
-            credentialRef: "formless-cloudflare-oauth:personal",
-            selectedAccountId: "acct_team",
-            status: "validated",
-            targetUrl: "https://personal-sites.team.workers.dev",
-          },
-        },
+      account: teamCloudflareAccount,
+      credentialRef: "formless-cloudflare-oauth:personal",
+      deploymentConfig: {
+        targetUrl: "https://personal-sites.team.workers.dev",
       },
-      status: "succeeded",
+      kind: "ready",
+      source: "stored-credential",
     });
     expect(JSON.stringify(result)).not.toContain("formless-refreshed-access-token");
     expect(JSON.stringify(result)).not.toContain("formless-refreshed-refresh-token");
@@ -416,29 +424,23 @@ describe("Formless Cloudflare OAuth credentials", () => {
       },
       { now, oauth },
     );
-    const final = await start.continue!();
+
+    if (start.kind !== "authorization-waiting") {
+      throw new Error("Expected Cloudflare authorization to be required.");
+    }
+
+    const final = await start.continue();
 
     expect(final).toMatchObject({
-      result: {
-        details: {
-          credentialRef: "formless-cloudflare-oauth:default",
-          deploymentConfig: {
-            accountId: "acct_team",
-            targetId: "staging",
-            targetUrl: "https://staging-sites.team.workers.dev",
-            workerName: "staging-sites",
-          },
-        },
-        summary: {
-          fields: {
-            credentialRef: "formless-cloudflare-oauth:default",
-            selectedAccountId: "acct_team",
-            targetUrl: "https://staging-sites.team.workers.dev",
-            workerName: "staging-sites",
-          },
-        },
+      account: teamCloudflareAccount,
+      credentialRef: "formless-cloudflare-oauth:default",
+      deploymentConfig: {
+        accountId: "acct_team",
+        targetId: "staging",
+        targetUrl: "https://staging-sites.team.workers.dev",
+        workerName: "staging-sites",
       },
-      status: "succeeded",
+      kind: "ready",
     });
 
     const snapshot = await readInstanceWorkspaceProgramStorageSnapshot({
@@ -488,29 +490,17 @@ describe("Alchemy Cloudflare credential setup", () => {
     );
 
     expect(result).toMatchObject({
-      result: {
-        details: {
-          account: {
-            id: "acct_personal",
-            name: "Personal",
-            workersDevSubdomain: "personal",
-          },
-          profileRef: "alchemy-profile:personal",
-          source: "existing-profile",
-        },
-        summary: {
-          fields: {
-            profile: "personal",
-            provider: "cloudflare",
-            selectedAccountId: "acct_personal",
-            status: "validated",
-          },
-          title: "Cloudflare credentials ready",
-        },
+      account: {
+        id: "acct_personal",
+        name: "Personal",
+        workersDevSubdomain: "personal",
       },
-      status: "succeeded",
+      kind: "ready",
+      profile: "personal",
+      profileRef: "alchemy-profile:personal",
+      provider: "cloudflare",
+      source: "existing-profile",
     });
-    expect(result.events).toBeUndefined();
     expect(JSON.stringify(result)).not.toContain("oauth-access-token");
     expect(JSON.stringify(result)).not.toContain("oauth-refresh-token");
   });
@@ -546,30 +536,19 @@ describe("Alchemy Cloudflare credential setup", () => {
     );
 
     expect(result).toMatchObject({
-      events: [
-        {
-          profileLabel: "default",
-          provider: "cloudflare",
-          status: "waiting",
-          type: "externalAuthorizationUrl",
-          url: "https://dash.cloudflare.com/oauth2/authorize?client_id=formless",
-        },
-      ],
-      result: {
-        summary: {
-          fields: {
-            profile: "default",
-            provider: "cloudflare",
-            status: "waiting-for-authorization",
-          },
-          title: "Cloudflare authorization required",
-        },
-      },
-      status: "running",
+      authorizationUrl: "https://dash.cloudflare.com/oauth2/authorize?client_id=formless",
+      kind: "authorization-waiting",
+      profile: "default",
+      profileRef: "alchemy-profile:default",
+      provider: "cloudflare",
     });
     expect(JSON.stringify(result)).not.toContain("oauth-access-token");
 
-    const final = await result.continue?.();
+    if (result.kind !== "authorization-waiting") {
+      throw new Error("Expected Cloudflare authorization to be required.");
+    }
+
+    const final = await result.continue();
 
     expect(profileStore.writtenCredentials).toEqual([
       { credentials: oauthCredentials, profile: "default" },
@@ -582,17 +561,10 @@ describe("Alchemy Cloudflare credential setup", () => {
       },
     ]);
     expect(final).toMatchObject({
-      result: {
-        summary: {
-          fields: {
-            profile: "default",
-            selectedAccountId: "acct_personal",
-            status: "validated",
-          },
-          title: "Cloudflare credentials ready",
-        },
-      },
-      status: "succeeded",
+      account: personalAccount,
+      kind: "ready",
+      profile: "default",
+      profileRef: "alchemy-profile:default",
     });
     expect(JSON.stringify(final)).not.toContain("oauth-access-token");
     expect(JSON.stringify(final)).not.toContain("oauth-refresh-token");
@@ -617,24 +589,13 @@ describe("Alchemy Cloudflare credential setup", () => {
     );
 
     expect(selection).toMatchObject({
-      result: {
-        details: {
-          accounts: [
-            { id: "acct_personal", name: "Personal", workersDevSubdomain: "personal" },
-            { id: "acct_team", name: "Team", workersDevSubdomain: "team" },
-          ],
-        },
-        summary: {
-          fields: {
-            accountCount: 2,
-            profile: "personal",
-            provider: "cloudflare",
-            status: "account-selection-required",
-          },
-          title: "Cloudflare account selection required",
-        },
-      },
-      status: "succeeded",
+      accounts: [
+        { id: "acct_personal", name: "Personal", workersDevSubdomain: "personal" },
+        { id: "acct_team", name: "Team", workersDevSubdomain: "team" },
+      ],
+      kind: "account-selection-required",
+      profile: "personal",
+      profileRef: "alchemy-profile:personal",
     });
     expect(profileStore.writtenProviders).toEqual([]);
 
@@ -660,9 +621,9 @@ describe("Alchemy Cloudflare credential setup", () => {
       account: teamAccount,
       profile: "personal",
     });
-    expect(selected.result?.summary.fields).toMatchObject({
-      selectedAccountId: "acct_team",
-      status: "validated",
+    expect(selected).toMatchObject({
+      account: teamAccount,
+      kind: "ready",
     });
     expect(JSON.stringify(selected)).not.toContain("oauth-access-token");
   });

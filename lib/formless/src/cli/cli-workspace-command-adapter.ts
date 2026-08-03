@@ -1,244 +1,197 @@
 import {
-  WORKSPACE_OPERATION_CAPABILITIES,
-  workspaceOperationDefinitionForKind,
-  workspaceOperationInputDefaults,
-  type PullWorkspaceOperationInput,
-  type PushWorkspaceOperationInput,
-  type WorkspaceOperationState,
-} from "@dpeek/formless-workspace";
-
-import {
-  FORMLESS_CLI_WORKSPACE_OPERATION_BINDINGS,
+  formlessCliWorkspaceOperationBindingForKind,
   type FormlessCliCommand,
-  type FormlessCliWorkspaceOperationBinding,
-  type FormlessCliWorkspaceOperationCommandName,
 } from "./cli-command.ts";
 import {
-  runFormlessWorkspaceOperation,
-  type RunFormlessWorkspaceOperationDependencies,
-} from "./instance-workspace-operations.ts";
-import { formatCliWorkspaceOperationOutput } from "./cli-workspace-operation-formatter.ts";
+  formatCliWorkspacePullOutput,
+  formatCliWorkspacePushOutput,
+} from "./cli-direct-workspace-command-formatter.ts";
+import {
+  pushFormlessInstanceWorkspace,
+  type PushFormlessInstanceWorkspaceDependencies,
+  type PushFormlessInstanceWorkspaceDryRunDependencies,
+  type PushFormlessInstanceWorkspaceExecutionDependencies,
+  type PushFormlessInstanceWorkspaceInput,
+  type PushFormlessInstanceWorkspaceResult,
+} from "./instance-workspace-deployment.ts";
+import {
+  pullFormlessInstanceWorkspace,
+  type PullFormlessInstanceWorkspaceDependencies,
+  type PullFormlessInstanceWorkspaceInput,
+  type PullFormlessInstanceWorkspaceResult,
+} from "./instance-workspace-source-sync.ts";
 
-export type FormlessCliParsedWorkspaceOperationCommand = Extract<
+export type FormlessCliParsedWorkspacePullCommand = Extract<
   FormlessCliCommand,
-  { kind: "workspacePull" | "workspacePush" }
+  { kind: "workspacePull" }
 >;
 
-export type FormlessCliWorkspaceOperationAdapterInput =
-  | PullWorkspaceOperationInput
-  | PushWorkspaceOperationInput;
+export type FormlessCliParsedWorkspacePushCommand = Extract<
+  FormlessCliCommand,
+  { kind: "workspacePush" }
+>;
 
-export type FormlessCliWorkspaceOperationAdapterResult = {
-  commandName: FormlessCliWorkspaceOperationCommandName;
-  input: FormlessCliWorkspaceOperationAdapterInput;
-};
+export type FormlessCliParsedWorkspaceSourceSyncCommand =
+  | FormlessCliParsedWorkspacePullCommand
+  | FormlessCliParsedWorkspacePushCommand;
 
-export type FormlessCliWorkspaceOperationRunner = typeof runFormlessWorkspaceOperation;
+export type FormlessCliWorkspaceSourceSyncAdapterResult =
+  | {
+      commandName: "formless pull";
+      input: PullFormlessInstanceWorkspaceInput;
+      operationKind: "pull";
+    }
+  | {
+      commandName: "formless push";
+      input: PushFormlessInstanceWorkspaceInput;
+      operationKind: "push";
+    };
 
-export type FormlessCliWorkspaceOperationExecutionDependencies =
-  RunFormlessWorkspaceOperationDependencies & {
-    packageVersion: string;
-    runWorkspaceOperation?: FormlessCliWorkspaceOperationRunner;
+type FormlessCliWorkspacePullRunner = (
+  input: PullFormlessInstanceWorkspaceInput,
+  dependencies: PullFormlessInstanceWorkspaceDependencies,
+) => Promise<PullFormlessInstanceWorkspaceResult>;
+
+type FormlessCliWorkspacePushRunner = (
+  input: PushFormlessInstanceWorkspaceInput,
+  dependencies: PushFormlessInstanceWorkspaceExecutionDependencies,
+) => Promise<PushFormlessInstanceWorkspaceResult>;
+
+export type FormlessCliWorkspacePullExecutionDependencies =
+  PullFormlessInstanceWorkspaceDependencies & {
+    pullWorkspace?: FormlessCliWorkspacePullRunner;
   };
 
-export function formlessCliWorkspaceOperationInputForParsedCommand(
-  command: FormlessCliParsedWorkspaceOperationCommand,
-): FormlessCliWorkspaceOperationAdapterResult {
-  return formlessCliWorkspaceOperationInputForBinding(
-    command,
-    formlessCliWorkspaceOperationBindingForParsedCommandKind(command.kind),
-  );
+type FormlessCliWorkspacePushApplyDependencyKey = Exclude<
+  keyof PushFormlessInstanceWorkspaceDependencies,
+  keyof PushFormlessInstanceWorkspaceDryRunDependencies
+>;
+
+export type FormlessCliWorkspacePushExecutionDependencies =
+  PushFormlessInstanceWorkspaceDryRunDependencies &
+    Partial<
+      Pick<PushFormlessInstanceWorkspaceDependencies, FormlessCliWorkspacePushApplyDependencyKey>
+    > & {
+      pushWorkspace?: FormlessCliWorkspacePushRunner;
+    };
+
+export function formlessCliWorkspaceSourceSyncInputForParsedCommand(
+  command: FormlessCliParsedWorkspaceSourceSyncCommand,
+): FormlessCliWorkspaceSourceSyncAdapterResult {
+  switch (command.kind) {
+    case "workspacePull": {
+      const binding = formlessCliWorkspaceOperationBindingForKind("pull");
+
+      return {
+        commandName: binding.command,
+        input: binding.translateInput(command),
+        operationKind: binding.operationKind,
+      };
+    }
+    case "workspacePush": {
+      const binding = formlessCliWorkspaceOperationBindingForKind("push");
+
+      return {
+        commandName: binding.command,
+        input: binding.translateInput(command),
+        operationKind: binding.operationKind,
+      };
+    }
+  }
 }
 
-export function formlessCliWorkspaceOperationInputForBinding(
-  command: FormlessCliParsedWorkspaceOperationCommand,
-  binding: FormlessCliWorkspaceOperationBinding,
-): FormlessCliWorkspaceOperationAdapterResult {
-  assertSupportedWorkspaceOperationKind(binding);
-  assertBindingMatchesParsedCommand(command, binding);
+export async function runFormlessCliWorkspacePullCommand(
+  command: FormlessCliParsedWorkspacePullCommand,
+  dependencies: FormlessCliWorkspacePullExecutionDependencies,
+): Promise<string> {
+  const binding = formlessCliWorkspaceOperationBindingForKind("pull");
+  const { pullWorkspace = pullFormlessInstanceWorkspace } = dependencies;
+  const result = await pullWorkspace(binding.translateInput(command), {
+    cwd: dependencies.cwd,
+    ...(dependencies.env === undefined ? {} : { env: dependencies.env }),
+    fetch: dependencies.fetch,
+    now: dependencies.now,
+  });
 
-  const fieldKeys = workspaceOperationInputFieldKeysForBinding(binding);
-  const input = workspaceOperationInputDefaultsForBoundFields(binding, fieldKeys);
+  return formatCliWorkspacePullOutput(result, dependencies.cwd);
+}
 
-  for (const [fieldKey, value] of Object.entries(parsedCommandInputFields(command))) {
-    if (!fieldKeys.has(fieldKey)) {
-      throw new Error(
-        `Formless CLI command "${binding.command}" received unbound public input field "${fieldKey}".`,
-      );
-    }
+export async function runFormlessCliWorkspacePushCommand(
+  command: FormlessCliParsedWorkspacePushCommand,
+  dependencies: FormlessCliWorkspacePushExecutionDependencies,
+): Promise<string> {
+  const binding = formlessCliWorkspaceOperationBindingForKind("push");
+  const { pushWorkspace = pushFormlessInstanceWorkspace } = dependencies;
+  const result = await pushWorkspace(
+    binding.translateInput(command),
+    command.dryRun
+      ? pushDryRunDependencies(dependencies)
+      : requirePushApplyDependencies(dependencies),
+  );
 
-    input[fieldKey] = value;
+  return formatCliWorkspacePushOutput(result);
+}
+
+function pushDryRunDependencies(
+  dependencies: FormlessCliWorkspacePushExecutionDependencies,
+): PushFormlessInstanceWorkspaceDryRunDependencies {
+  return {
+    accountDiscovery: dependencies.accountDiscovery,
+    cwd: dependencies.cwd,
+    ...(dependencies.env === undefined ? {} : { env: dependencies.env }),
+    fetch: dependencies.fetch,
+    now: dependencies.now,
+    packageVersion: dependencies.packageVersion,
+  };
+}
+
+function requirePushApplyDependencies(
+  dependencies: FormlessCliWorkspacePushExecutionDependencies,
+): PushFormlessInstanceWorkspaceDependencies {
+  const {
+    deploymentAdapter,
+    healthCheck,
+    localSecretEnv,
+    packageRoot,
+    randomToken,
+    setupCapability,
+  } = dependencies;
+  const missing: string[] = [];
+
+  if (deploymentAdapter === undefined) missing.push("deploymentAdapter");
+  if (healthCheck === undefined) missing.push("healthCheck");
+  if (localSecretEnv === undefined) missing.push("localSecretEnv");
+  if (packageRoot === undefined) missing.push("packageRoot");
+  if (randomToken === undefined) missing.push("randomToken");
+  if (setupCapability === undefined) missing.push("setupCapability");
+
+  if (missing.length > 0) {
+    throw new Error(`Formless CLI push requires dependencies: ${missing.join(", ")}.`);
+  }
+
+  if (
+    deploymentAdapter === undefined ||
+    healthCheck === undefined ||
+    localSecretEnv === undefined ||
+    packageRoot === undefined ||
+    randomToken === undefined ||
+    setupCapability === undefined
+  ) {
+    throw new Error("Formless CLI push dependencies are incomplete.");
   }
 
   return {
-    commandName: binding.command,
-    input: input as FormlessCliWorkspaceOperationAdapterInput,
+    accountDiscovery: dependencies.accountDiscovery,
+    cwd: dependencies.cwd,
+    deploymentAdapter,
+    ...(dependencies.env === undefined ? {} : { env: dependencies.env }),
+    fetch: dependencies.fetch,
+    healthCheck,
+    localSecretEnv,
+    now: dependencies.now,
+    packageRoot,
+    packageVersion: dependencies.packageVersion,
+    randomToken,
+    setupCapability,
   };
-}
-
-export async function runFormlessCliWorkspaceOperationCommand(
-  command: FormlessCliParsedWorkspaceOperationCommand,
-  dependencies: FormlessCliWorkspaceOperationExecutionDependencies,
-): Promise<string> {
-  const operation = formlessCliWorkspaceOperationInputForParsedCommand(command);
-  const state = await runFormlessCliWorkspaceOperationInput(operation.input, dependencies);
-
-  return formatCliWorkspaceOperationOutput(state);
-}
-
-async function runFormlessCliWorkspaceOperationInput(
-  input: FormlessCliWorkspaceOperationAdapterInput,
-  dependencies: FormlessCliWorkspaceOperationExecutionDependencies,
-): Promise<WorkspaceOperationState> {
-  const { runWorkspaceOperation = runFormlessWorkspaceOperation, ...operationDependencies } =
-    dependencies;
-  const state = await runWorkspaceOperation(input, operationDependencies, {
-    actor: "cli",
-    capabilities: WORKSPACE_OPERATION_CAPABILITIES,
-  });
-
-  if (state.status === "failed") {
-    throw new Error(state.errors[0]?.message ?? "Workspace operation failed.");
-  }
-
-  return state;
-}
-
-function formlessCliWorkspaceOperationBindingForParsedCommandKind(
-  kind: string,
-): FormlessCliWorkspaceOperationBinding {
-  const binding = FORMLESS_CLI_WORKSPACE_OPERATION_BINDINGS.find(
-    (candidate) => candidate.dispatchKind === kind,
-  );
-
-  if (!binding) {
-    throw new Error(`Formless CLI command kind "${kind}" is not bound to a workspace operation.`);
-  }
-
-  return binding;
-}
-
-function assertBindingMatchesParsedCommand(
-  command: FormlessCliParsedWorkspaceOperationCommand,
-  binding: FormlessCliWorkspaceOperationBinding,
-): void {
-  if (binding.dispatchKind !== command.kind) {
-    throw new Error(
-      `Formless CLI command "${binding.command}" dispatches "${binding.dispatchKind}", ` +
-        `expected parsed command "${command.kind}".`,
-    );
-  }
-
-  const expectedOperationKind = workspaceOperationKindForParsedCommand(command);
-
-  if (binding.operationKind !== expectedOperationKind) {
-    throw new Error(
-      `Formless CLI command "${binding.command}" is bound to operation ` +
-        `"${binding.operationKind}", expected "${expectedOperationKind}".`,
-    );
-  }
-}
-
-function assertSupportedWorkspaceOperationKind(
-  binding: FormlessCliWorkspaceOperationBinding,
-): void {
-  const operationKind: string = binding.operationKind;
-
-  switch (operationKind) {
-    case "pull":
-    case "push":
-      return;
-    default:
-      throw new Error(`Workspace CLI operation "${operationKind}" is not supported.`);
-  }
-}
-
-function workspaceOperationKindForParsedCommand(
-  command: FormlessCliParsedWorkspaceOperationCommand,
-): "pull" | "push" {
-  switch (command.kind) {
-    case "workspacePull":
-      return "pull";
-    case "workspacePush":
-      return "push";
-    default: {
-      const commandKind = (command as { kind: string }).kind;
-
-      throw new Error(
-        `Formless CLI command kind "${commandKind}" is not bound to a workspace operation.`,
-      );
-    }
-  }
-}
-
-function workspaceOperationInputFieldKeysForBinding(
-  binding: FormlessCliWorkspaceOperationBinding,
-): Set<string> {
-  const definition = workspaceOperationDefinitionForKind(binding.operationKind);
-  const definitionFieldKeys = new Set(definition.input.fields.map((field) => field.key));
-  const boundFieldKeys = new Set<string>();
-
-  for (const option of binding.options) {
-    if (!definitionFieldKeys.has(option.fieldKey)) {
-      throw new Error(
-        `Formless CLI command "${binding.command}" binds unknown public input field ` +
-          `"${option.fieldKey}" for workspace operation "${binding.operationKind}".`,
-      );
-    }
-
-    boundFieldKeys.add(option.fieldKey);
-  }
-
-  for (const field of definition.input.fields) {
-    if (!boundFieldKeys.has(field.key)) {
-      throw new Error(
-        `Formless CLI command "${binding.command}" does not bind public input field "${field.key}".`,
-      );
-    }
-  }
-
-  return definitionFieldKeys;
-}
-
-function workspaceOperationInputDefaultsForBoundFields(
-  binding: FormlessCliWorkspaceOperationBinding,
-  fieldKeys: Set<string>,
-): Record<string, unknown> {
-  const defaults = workspaceOperationInputDefaults(binding.operationKind);
-  const input: Record<string, unknown> = { kind: binding.operationKind };
-
-  for (const fieldKey of fieldKeys) {
-    if (Object.prototype.hasOwnProperty.call(defaults, fieldKey)) {
-      input[fieldKey] = defaults[fieldKey];
-    }
-  }
-
-  return input;
-}
-
-function parsedCommandInputFields(
-  command: FormlessCliParsedWorkspaceOperationCommand,
-): Record<string, boolean | string | null> {
-  switch (command.kind) {
-    case "workspacePull":
-      return {
-        dryRun: command.dryRun,
-        targetAlias: command.targetAlias,
-        workspacePath: command.workspacePath,
-      };
-    case "workspacePush":
-      return {
-        dryRun: command.dryRun,
-        ...(command.force ? { force: true } : {}),
-        targetAlias: command.targetAlias,
-        workspacePath: command.workspacePath,
-      };
-    default: {
-      const commandKind = (command as { kind: string }).kind;
-
-      throw new Error(
-        `Formless CLI command kind "${commandKind}" is not bound to a workspace operation.`,
-      );
-    }
-  }
 }

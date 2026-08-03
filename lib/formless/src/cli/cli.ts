@@ -28,7 +28,10 @@ import {
   formatCliInstanceWorkspaceTokenAdoptOutput,
   formatCliInstanceWorkspaceTokenRotateOutput,
 } from "./cli-direct-workspace-command-formatter.ts";
-import { runFormlessCliWorkspaceOperationCommand } from "./cli-workspace-command-adapter.ts";
+import {
+  runFormlessCliWorkspacePullCommand,
+  runFormlessCliWorkspacePushCommand,
+} from "./cli-workspace-command-adapter.ts";
 import type {
   InstanceDomainProviderManualCleanupResponse,
   InstanceDomainProviderPlanResponse,
@@ -427,9 +430,11 @@ export async function runFormlessCli(
       return;
     }
     case "workspacePull": {
-      const output = await runFormlessCliWorkspaceOperationCommand(command, {
-        ...dependencies,
-        packageVersion: packageJson.version,
+      const output = await runFormlessCliWorkspacePullCommand(command, {
+        cwd: dependencies.cwd,
+        env: dependencies.env,
+        fetch: dependencies.fetch,
+        now: dependencies.now,
       });
       dependencies.log(output);
       return;
@@ -437,9 +442,19 @@ export async function runFormlessCli(
     case "workspacePush": {
       await runFormlessCliWorkspacePushCredentialPreflight(command, dependencies);
 
-      const output = await runFormlessCliWorkspaceOperationCommand(command, {
-        ...dependencies,
+      const output = await runFormlessCliWorkspacePushCommand(command, {
+        accountDiscovery: dependencies.accountDiscovery,
+        cwd: dependencies.cwd,
+        deploymentAdapter: dependencies.deploymentAdapter,
+        env: dependencies.env,
+        fetch: dependencies.fetch,
+        healthCheck: dependencies.healthCheck,
+        localSecretEnv: dependencies.localSecretEnv,
+        now: dependencies.now,
+        packageRoot: dependencies.packageRoot,
         packageVersion: packageJson.version,
+        randomToken: dependencies.randomToken,
+        setupCapability: dependencies.setupCapability,
       });
       dependencies.log(output);
       return;

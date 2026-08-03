@@ -1273,46 +1273,32 @@ describe("credential setup operation domain", () => {
           setupInputs.push(input);
 
           return {
+            at: "2026-06-02T00:07:00.000Z",
+            authorizationUrl: "https://dash.cloudflare.com/oauth2/authorize?client_id=formless",
+            clientId: "formless-client-id",
             continue: async () => ({
-              result: {
-                details: {
-                  accountId: "account-123",
-                  credentialRef: "formless-cloudflare-oauth:default",
-                },
-                summary: {
-                  fields: {
-                    credentialRef: "formless-cloudflare-oauth:default",
-                    provider: "cloudflare",
-                    status: "ready",
-                  },
-                  title: "Cloudflare credentials ready",
-                },
+              account: {
+                id: "account-123",
+                workersDevSubdomain: "personal",
               },
-              status: "succeeded",
+              accountCount: 1,
+              credentialRef: "formless-cloudflare-oauth:default",
+              deploymentConfig: {
+                accountId: "account-123",
+                targetId: "instance.primary",
+                targetUrl: "https://personal.personal.workers.dev",
+                workerName: "personal",
+              },
+              kind: "ready",
+              provider: "cloudflare",
+              source: "oauth",
             }),
-            events: [
-              {
-                at: "2026-06-02T00:07:00.000Z",
-                profileLabel: "Default",
-                provider: "cloudflare",
-                status: "waiting",
-                type: "externalAuthorizationUrl",
-                url: "https://dash.cloudflare.com/oauth2/authorize?client_id=formless",
-              },
-            ],
-            result: {
-              details: {
-                credentialRef: "formless-cloudflare-oauth:default",
-              },
-              summary: {
-                fields: {
-                  provider: "cloudflare",
-                  status: "waiting-for-authorization",
-                },
-                title: "Cloudflare authorization required",
-              },
-            },
-            status: "running",
+            credentialRef: "formless-cloudflare-oauth:default",
+            kind: "authorization-waiting",
+            profileLabel: "Default",
+            provider: "cloudflare",
+            requestedScopes: ["account.read"],
+            scopeSet: "formless-cloudflare-deploy-oauth",
           };
         },
       }),
@@ -1356,16 +1342,70 @@ describe("credential setup operation domain", () => {
       logMessage: "credentialSetup completed.",
       result: {
         details: {
-          accountId: "account-123",
+          account: {
+            id: "account-123",
+          },
           credentialRef: "formless-cloudflare-oauth:default",
         },
         summary: {
           fields: {
             credentialRef: "formless-cloudflare-oauth:default",
             provider: "cloudflare",
-            status: "ready",
+            status: "validated",
           },
           title: "Cloudflare credentials ready",
+        },
+      },
+      status: "succeeded",
+    });
+  });
+
+  it("projects typed account-selection outcomes into Gateway operation state", async () => {
+    const result = (await runWorkspaceOperationDomainHandler(
+      {
+        kind: "credentialSetup",
+        provider: "cloudflare",
+      },
+      operationDeps("/workspace", {
+        credentialSetup: async () => ({
+          accounts: [
+            {
+              id: "acct_personal",
+              name: "Personal",
+              workersDevSubdomain: "personal",
+            },
+            {
+              id: "acct_team",
+              name: "Team",
+              workersDevSubdomain: "team",
+            },
+          ],
+          credentialRef: "formless-cloudflare-oauth:default",
+          kind: "account-selection-required",
+          provider: "cloudflare",
+        }),
+      }),
+      { workspaceRoot: "/workspace/personal-sites" },
+    )) as WorkspaceOperationDomainExecutionResult;
+
+    expect(result).toMatchObject({
+      logMessage: "credentialSetup completed.",
+      result: {
+        details: {
+          accounts: [
+            { id: "acct_personal", workersDevSubdomain: "personal" },
+            { id: "acct_team", workersDevSubdomain: "team" },
+          ],
+          credentialRef: "formless-cloudflare-oauth:default",
+        },
+        summary: {
+          fields: {
+            accountCount: 2,
+            credentialRef: "formless-cloudflare-oauth:default",
+            provider: "cloudflare",
+            status: "account-selection-required",
+          },
+          title: "Cloudflare account selection required",
         },
       },
       status: "succeeded",

@@ -455,42 +455,36 @@ describe("Formless workspace operations", () => {
       },
       operationDeps(tempDir, {
         credentialSetup: async (input) => ({
+          at: "2026-06-02T00:06:12.000Z",
+          authorizationUrl: "https://dash.cloudflare.com/oauth2/authorize?client_id=formless",
+          clientId: "formless-client-id",
           continue: async () => {
             continuationCalls += 1;
 
             return {
-              result: {
-                summary: {
-                  fields: {
-                    provider: input.provider,
-                    status: "validated",
-                  },
-                  title: "Cloudflare credentials ready",
-                },
+              account: {
+                id: "account-123",
+                workersDevSubdomain: "dpeek",
               },
-              status: "succeeded",
+              accountCount: 1,
+              credentialRef: "formless-cloudflare-oauth:default",
+              deploymentConfig: {
+                accountId: "account-123",
+                targetId: "instance.primary",
+                targetUrl: "https://project.dpeek.workers.dev",
+                workerName: "project",
+              },
+              kind: "ready",
+              provider: input.provider,
+              source: "oauth",
             };
           },
-          events: [
-            {
-              at: "2026-06-02T00:06:12.000Z",
-              profileLabel: "Default",
-              provider: "cloudflare",
-              status: "waiting",
-              type: "externalAuthorizationUrl",
-              url: "https://dash.cloudflare.com/oauth2/authorize?client_id=formless",
-            },
-          ],
-          result: {
-            summary: {
-              fields: {
-                provider: input.provider,
-                status: "waiting-for-authorization",
-              },
-              title: "Cloudflare authorization required",
-            },
-          },
-          status: "running",
+          credentialRef: "formless-cloudflare-oauth:default",
+          kind: "authorization-waiting",
+          profileLabel: "Default",
+          provider: input.provider,
+          requestedScopes: ["account.read"],
+          scopeSet: "formless-cloudflare-deploy-oauth",
         }),
         operationIds: [operationId],
         timestamps: [

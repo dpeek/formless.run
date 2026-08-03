@@ -1,46 +1,30 @@
-import path from "node:path";
-
 import type { WorkspaceGatewayStartInput } from "@dpeek/formless-gateway";
-import {
-  DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT,
-  initialWorkspaceAutoSaveState,
-  nextWorkspaceAutoSaveEnqueuedState,
-  nextWorkspaceAutoSaveFailedState,
-  nextWorkspaceAutoSaveSavedState,
-  nextWorkspaceAutoSaveSavingState,
-  nextWorkspaceAutoSaveSuppressedState,
-  type WorkspaceAutoSaveEnqueueInput,
-  type WorkspaceAutoSaveState,
-  type WorkspaceAutoSaveSuppressionReason,
-  type WorkspaceAutoSaveWriteSource,
-  type WorkspaceOperationRequiredCapability,
+import type {
+  WorkspaceAutoSaveEnqueueInput,
+  WorkspaceAutoSaveWriteSource,
 } from "@dpeek/formless-workspace";
-import {
-  readInstanceWorkspaceAutoSaveState,
-  writeInstanceWorkspaceAutoSaveState,
-} from "@dpeek/formless-workspace/node";
 
 import {
-  runFormlessWorkspaceOperation,
-  type RunFormlessWorkspaceOperationDependencies,
-} from "./instance-workspace-operations.ts";
-import {
-  projectWorkspaceGatewayOperationDependencies,
-  workspaceGatewayRuntimeCapabilities,
-} from "./workspace-gateway-operation-adapter.ts";
+  saveLocalFormlessWorkspace,
+  type SaveLocalFormlessWorkspaceDependencies,
+} from "./instance-workspace-source-sync.ts";
+
+export type WorkspaceAutoSaveSuppressionReason =
+  | "auto-save"
+  | "gateway-operation-state"
+  | "manual-save"
+  | "push-deploy-remote-apply"
+  | "workspace-check-status"
+  | "workspace-pull";
 
 export type WorkspaceGatewayOperationAutoSaveScheduler = {
-  enqueue: (
-    input: WorkspaceAutoSaveEnqueueInput & { workspaceRoot: string },
-  ) => Promise<WorkspaceAutoSaveState>;
-  recordGatewayOperationStateSuppressed: (input: {
-    workspaceRoot: string;
-  }) => Promise<WorkspaceAutoSaveState>;
+  enqueue: (input: WorkspaceAutoSaveEnqueueInput & { workspaceRoot: string }) => Promise<void>;
+  recordGatewayOperationStateSuppressed: (input: { workspaceRoot: string }) => Promise<void>;
+  recordSaved: (input: { throughGeneration: number; workspaceRoot: string }) => Promise<void>;
   recordWorkspaceOperationSuppressed: (input: {
     operationInput: WorkspaceGatewayStartInput;
     workspaceRoot: string;
-  }) => Promise<WorkspaceAutoSaveState | undefined>;
-  status: (input: { workspaceRoot: string }) => Promise<WorkspaceAutoSaveState>;
+  }) => Promise<number | undefined>;
 };
 
 export type WorkspaceAutoSaveSchedulerSaveInput = {
@@ -49,41 +33,55 @@ export type WorkspaceAutoSaveSchedulerSaveInput = {
   writeSources: readonly WorkspaceAutoSaveWriteSource[];
 };
 
+export type WorkspaceAutoSaveSchedulerFailure = WorkspaceAutoSaveSchedulerSaveInput & {
+  retryCount: number;
+};
+
 export type WorkspaceAutoSaveScheduler = {
-  recordSuppressed: (input: {
-    reason: WorkspaceAutoSaveSuppressionReason;
-    workspaceRoot: string;
-  }) => Promise<WorkspaceAutoSaveState>;
-  runNow: (workspaceRoot: string) => Promise<WorkspaceAutoSaveState>;
+  runNow: (workspaceRoot: string) => Promise<void>;
 } & WorkspaceGatewayOperationAutoSaveScheduler;
 
 export type WorkspaceAutoSaveSchedulerDependencies = {
   clearTimeout?: (timer: WorkspaceAutoSaveTimer) => void;
   debounceMs?: number;
   maxRetries?: number;
-  now: () => string;
+  reportFailure: (error: unknown, input: WorkspaceAutoSaveSchedulerFailure) => void;
   retryBackoffMs?: (retryCount: number) => number;
   save: (input: WorkspaceAutoSaveSchedulerSaveInput) => Promise<void>;
   setTimeout?: (callback: () => void, delayMs: number) => WorkspaceAutoSaveTimer;
 };
 
 export type WorkspaceDefaultAutoSaveSchedulerDependencies =
-  RunFormlessWorkspaceOperationDependencies & {
+  SaveLocalFormlessWorkspaceDependencies & {
     autoSaveDebounceMs?: number;
     autoSaveMaxRetries?: number;
+    autoSaveReportFailure?: WorkspaceAutoSaveSchedulerDependencies["reportFailure"];
     autoSaveRetryBackoffMs?: (retryCount: number) => number;
-    operationCapabilities?: readonly WorkspaceOperationRequiredCapability[];
   };
 
 type WorkspaceAutoSaveTimer = unknown;
 
+type WorkspaceAutoSavePendingWrite = {
+  generation: number;
+  source: WorkspaceAutoSaveWriteSource;
+};
+
+type WorkspaceAutoSaveSchedulerEntry = {
+  dirtyGeneration: number;
+  inFlightGeneration?: number;
+  lastSuppression?: WorkspaceAutoSaveSuppressionReason;
+  pendingWrites: WorkspaceAutoSavePendingWrite[];
+  retryCount: number;
+  runAfterCurrent?: boolean;
+  running?: Promise<void>;
+  savedGeneration: number;
+  timer?: WorkspaceAutoSaveTimer;
+};
+
 export function createWorkspaceAutoSaveScheduler(
   dependencies: WorkspaceAutoSaveSchedulerDependencies,
 ): WorkspaceAutoSaveScheduler {
-  const entries = new Map<
-    string,
-    { running?: Promise<void>; runAfterCurrent?: boolean; timer?: WorkspaceAutoSaveTimer }
-  >();
+  const entries = new Map<string, WorkspaceAutoSaveSchedulerEntry>();
   const debounceMs = dependencies.debounceMs ?? 250;
   const maxRetries = dependencies.maxRetries ?? 2;
   const retryBackoffMs = dependencies.retryBackoffMs ?? ((retryCount: number) => retryCount * 1000);
@@ -97,30 +95,8 @@ export function createWorkspaceAutoSaveScheduler(
       clearTimeout(timer as ReturnType<typeof setTimeout>);
     });
 
-  const status = async (input: { workspaceRoot: string }) => readAutoSaveState(input.workspaceRoot);
-
-  const writeState = (workspaceRoot: string, state: WorkspaceAutoSaveState) =>
-    writeInstanceWorkspaceAutoSaveState({
-      localStateRoot: workspaceAutoSaveLocalStateRoot(workspaceRoot),
-      state,
-      workspaceRoot,
-    });
-
-  const recordSuppressed = async (input: {
-    reason: WorkspaceAutoSaveSuppressionReason;
-    workspaceRoot: string;
-  }) => {
-    const state = nextWorkspaceAutoSaveSuppressedState(
-      await readAutoSaveState(input.workspaceRoot),
-      {
-        now: dependencies.now,
-        reason: input.reason,
-      },
-    );
-
-    await writeState(input.workspaceRoot, state);
-
-    return state;
+  const recordSuppressed = (workspaceRoot: string, reason: WorkspaceAutoSaveSuppressionReason) => {
+    schedulerEntry(entries, workspaceRoot).lastSuppression = reason;
   };
 
   const schedule = (workspaceRoot: string, delayMs: number) => {
@@ -132,7 +108,7 @@ export function createWorkspaceAutoSaveScheduler(
 
     entry.timer = setTimer(() => {
       entry.timer = undefined;
-      void runAutoSave(workspaceRoot).catch(() => undefined);
+      void runAutoSave(workspaceRoot);
     }, delayMs);
   };
 
@@ -158,88 +134,81 @@ export function createWorkspaceAutoSaveScheduler(
     await running;
   };
 
-  const runAutoSaveOnce = async (workspaceRoot: string) => {
-    let state = await readAutoSaveState(workspaceRoot);
+  const runAutoSaveOnce = async (workspaceRoot: string): Promise<void> => {
+    const entry = schedulerEntry(entries, workspaceRoot);
 
-    if (state.dirtyGeneration <= state.savedGeneration) {
+    if (entry.dirtyGeneration <= entry.savedGeneration) {
       return;
     }
 
-    state = nextWorkspaceAutoSaveSuppressedState(
-      nextWorkspaceAutoSaveSavingState(state, dependencies),
-      {
-        now: dependencies.now,
-        reason: "auto-save",
-      },
-    );
-    await writeState(workspaceRoot, state);
+    const dirtyGeneration = entry.dirtyGeneration;
+    const saveInput: WorkspaceAutoSaveSchedulerSaveInput = {
+      dirtyGeneration,
+      workspaceRoot,
+      writeSources: sortedUnique(
+        entry.pendingWrites
+          .filter((write) => write.generation <= dirtyGeneration)
+          .map((write) => write.source),
+      ),
+    };
+
+    entry.inFlightGeneration = dirtyGeneration;
+    recordSuppressed(workspaceRoot, "auto-save");
 
     try {
-      await dependencies.save({
-        dirtyGeneration: state.inFlightGeneration ?? state.dirtyGeneration,
-        workspaceRoot,
-        writeSources: state.writeSources,
-      });
-
-      state = nextWorkspaceAutoSaveSavedState(await readAutoSaveState(workspaceRoot), dependencies);
-      await writeState(workspaceRoot, state);
+      await dependencies.save(saveInput);
+      recordSavedThrough(entry, dirtyGeneration);
     } catch (error) {
-      state = nextWorkspaceAutoSaveFailedState(await readAutoSaveState(workspaceRoot), {
-        error,
-        now: dependencies.now,
-        workspaceRoot,
+      entry.inFlightGeneration = undefined;
+      entry.retryCount += 1;
+      reportFailure(dependencies.reportFailure, error, {
+        ...saveInput,
+        retryCount: entry.retryCount,
       });
-      await writeState(workspaceRoot, state);
 
-      if (state.retryCount <= maxRetries) {
-        schedule(workspaceRoot, retryBackoffMs(state.retryCount));
+      if (entry.retryCount <= maxRetries) {
+        schedule(workspaceRoot, retryBackoffMs(entry.retryCount));
       }
     }
   };
 
-  const readAutoSaveState = async (workspaceRoot: string): Promise<WorkspaceAutoSaveState> =>
-    (await readInstanceWorkspaceAutoSaveState(workspaceAutoSaveLocalStateRoot(workspaceRoot))) ??
-    initialWorkspaceAutoSaveState(dependencies);
-
   return {
     enqueue: async (input) => {
-      const state = nextWorkspaceAutoSaveEnqueuedState(
-        await readAutoSaveState(input.workspaceRoot),
-        {
-          now: dependencies.now,
-          source: input.source,
-        },
-      );
+      const entry = schedulerEntry(entries, input.workspaceRoot);
 
-      await writeState(input.workspaceRoot, state);
+      entry.dirtyGeneration += 1;
+      entry.pendingWrites.push({ generation: entry.dirtyGeneration, source: input.source });
+      entry.retryCount = 0;
       schedule(input.workspaceRoot, debounceMs);
-
-      return state;
     },
-    recordGatewayOperationStateSuppressed: async (input) =>
-      recordSuppressed({
-        reason: "gateway-operation-state",
-        workspaceRoot: input.workspaceRoot,
-      }),
-    recordSuppressed,
-    recordWorkspaceOperationSuppressed: async (input) => {
-      const reason = autoSaveSuppressionReasonForWorkspaceOperation(input.operationInput);
+    recordGatewayOperationStateSuppressed: async ({ workspaceRoot }) => {
+      recordSuppressed(workspaceRoot, "gateway-operation-state");
+    },
+    recordSaved: async ({ throughGeneration, workspaceRoot }) => {
+      recordSavedThrough(schedulerEntry(entries, workspaceRoot), throughGeneration);
+    },
+    recordWorkspaceOperationSuppressed: async ({ operationInput, workspaceRoot }) => {
+      const reason = autoSaveSuppressionReasonForWorkspaceOperation(operationInput);
 
       if (reason === undefined) {
         return undefined;
       }
 
-      return recordSuppressed({
-        reason,
-        workspaceRoot: input.workspaceRoot,
-      });
+      const entry = schedulerEntry(entries, workspaceRoot);
+
+      recordSuppressed(workspaceRoot, reason);
+      return reason === "manual-save" ? entry.dirtyGeneration : undefined;
     },
     runNow: async (workspaceRoot) => {
-      await runAutoSave(workspaceRoot);
+      const entry = schedulerEntry(entries, workspaceRoot);
 
-      return readAutoSaveState(workspaceRoot);
+      if (!entry.running && entry.timer !== undefined) {
+        clearTimer(entry.timer);
+        entry.timer = undefined;
+      }
+
+      await runAutoSave(workspaceRoot);
     },
-    status,
   };
 }
 
@@ -249,48 +218,69 @@ export function createDefaultWorkspaceAutoSaveScheduler(
   return createWorkspaceAutoSaveScheduler({
     debounceMs: dependencies.autoSaveDebounceMs,
     maxRetries: dependencies.autoSaveMaxRetries,
-    now: dependencies.now,
+    reportFailure:
+      dependencies.autoSaveReportFailure ??
+      ((error) => {
+        console.error("Workspace auto-save failed.", error);
+      }),
     retryBackoffMs: dependencies.autoSaveRetryBackoffMs,
     save: async ({ workspaceRoot }) => {
-      const operationInput = {
-        kind: "save",
-        workspacePath: workspaceRoot,
-      } as const;
-      const operation = await runFormlessWorkspaceOperation(
-        operationInput,
-        projectWorkspaceGatewayOperationDependencies(dependencies, operationInput, workspaceRoot),
+      await saveLocalFormlessWorkspace(
+        { workspacePath: workspaceRoot },
         {
-          actor: "system",
-          capabilities: workspaceGatewayRuntimeCapabilities(dependencies),
+          cwd: workspaceRoot,
+          ...(dependencies.env === undefined ? {} : { env: dependencies.env }),
+          fetch: dependencies.fetch,
+          now: dependencies.now,
         },
       );
-
-      if (operation.status === "failed") {
-        throw new Error(operation.errors[0]?.message ?? "Workspace auto-save failed.");
-      }
     },
   });
 }
 
-export function workspaceAutoSaveLocalStateRoot(workspaceRoot: string): string {
-  return path.join(workspaceRoot, DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT);
-}
-
 function schedulerEntry(
-  entries: Map<
-    string,
-    { running?: Promise<void>; runAfterCurrent?: boolean; timer?: WorkspaceAutoSaveTimer }
-  >,
+  entries: Map<string, WorkspaceAutoSaveSchedulerEntry>,
   workspaceRoot: string,
-) {
+): WorkspaceAutoSaveSchedulerEntry {
   let entry = entries.get(workspaceRoot);
 
   if (!entry) {
-    entry = {};
+    entry = {
+      dirtyGeneration: 0,
+      pendingWrites: [],
+      retryCount: 0,
+      savedGeneration: 0,
+    };
     entries.set(workspaceRoot, entry);
   }
 
   return entry;
+}
+
+function recordSavedThrough(
+  entry: WorkspaceAutoSaveSchedulerEntry,
+  throughGeneration: number,
+): void {
+  const savedGeneration = Math.min(throughGeneration, entry.dirtyGeneration);
+
+  entry.savedGeneration = Math.max(entry.savedGeneration, savedGeneration);
+  entry.pendingWrites = entry.pendingWrites.filter(
+    (write) => write.generation > entry.savedGeneration,
+  );
+  entry.inFlightGeneration = undefined;
+  entry.retryCount = 0;
+}
+
+function reportFailure(
+  report: WorkspaceAutoSaveSchedulerDependencies["reportFailure"],
+  error: unknown,
+  input: WorkspaceAutoSaveSchedulerFailure,
+): void {
+  try {
+    report(error, input);
+  } catch {
+    // Diagnostics must not change scheduler behavior.
+  }
 }
 
 function autoSaveSuppressionReasonForWorkspaceOperation(
@@ -309,4 +299,8 @@ function autoSaveSuppressionReasonForWorkspaceOperation(
     case "credentialSetup":
       return undefined;
   }
+}
+
+function sortedUnique<T extends string>(values: readonly T[]): T[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right));
 }

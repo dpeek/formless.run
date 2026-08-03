@@ -24,7 +24,6 @@ import {
 import { FORMLESS_CONFIG_FILE, resolveFormlessConfig } from "@dpeek/formless-workspace";
 import { formatTestFormlessConfigModule } from "./instance-workspace-config-test.ts";
 import { createOwnerSessionCookie } from "../worker/owner-session.ts";
-import { readInstanceWorkspaceAutoSaveState } from "@dpeek/formless-workspace/node";
 import {
   createWorkspaceAutoSaveScheduler,
   createWorkspaceGatewayOperationHandlers,
@@ -86,20 +85,22 @@ describe("local workspace gateway", () => {
       workspaceRoot,
       gatewayDeps(workspaceRoot, {
         credentialSetup: async () => ({
-          result: {
-            details: {
-              providerToken: "secret-token",
-              rawAdapterOutput: "raw adapter output CF_API_TOKEN=secret-token",
-            },
-            summary: {
-              fields: {
-                provider: "cloudflare",
-                token: "secret-token",
-              },
-              title: "Cloudflare credentials ready",
-            },
+          account: {
+            id: "account-123",
+            name: "CF_API_TOKEN=secret-token",
+            workersDevSubdomain: "dpeek",
           },
-          status: "succeeded",
+          accountCount: 1,
+          credentialRef: "formless-cloudflare-oauth:default",
+          deploymentConfig: {
+            accountId: "account-123",
+            targetId: "instance.primary",
+            targetUrl: "https://project.dpeek.workers.dev",
+            workerName: "project",
+          },
+          kind: "ready",
+          provider: "cloudflare",
+          source: "stored-credential",
         }),
         operationIds: ["op_sidecar_progress_00000001"],
       }),
@@ -200,13 +201,20 @@ describe("local workspace gateway", () => {
       actor: "browser",
       id: "op_credential_00000001",
       operation: "credentialSetup",
-      status: "succeeded",
+      status: "running",
+      summary: {
+        fields: {
+          credentialRef: "formless-cloudflare-oauth:default",
+          status: "waiting-for-authorization",
+        },
+        title: "Cloudflare authorization required",
+      },
     });
     expect(JSON.stringify(accepted.body)).not.toContain("secret-token");
     expect(JSON.stringify(accepted.body)).not.toContain("raw adapter");
   });
 
-  it("exposes auto-save status and enqueue through the local gateway", async () => {
+  it("exposes enqueue-only auto-save with an empty response", async () => {
     const workspaceRoot = await makeTempDir();
     const cookie = await ownerCookie();
     const scheduled: Array<{
@@ -216,11 +224,7 @@ describe("local workspace gateway", () => {
     const scheduler = createWorkspaceAutoSaveScheduler({
       clearTimeout: () => undefined,
       debounceMs: 25,
-      now: timestampSequence(
-        "2026-06-02T01:00:00.000Z",
-        "2026-06-02T01:00:01.000Z",
-        "2026-06-02T01:00:02.000Z",
-      ),
+      reportFailure: () => undefined,
       save: async () => undefined,
       setTimeout: (callback, delayMs) => {
         scheduled.push({ callback, delayMs });
@@ -245,31 +249,15 @@ describe("local workspace gateway", () => {
       }),
       { deps },
     );
-    const persisted = await readInstanceWorkspaceAutoSaveState(
-      path.join(workspaceRoot, ".formless/local"),
-    );
-
-    expect(status.response.status).toBe(200);
-    expect(status.body.autoSave).toMatchObject({
-      displayState: "clean",
-      dirtyGeneration: 0,
-    });
-    expect(enqueued.response.status).toBe(200);
-    expect(enqueued.body).toMatchObject({
-      autoSave: {
-        dirtyGeneration: 1,
-        displayState: "queued",
-        writeSources: ["schema-save"],
-      },
-      csrfToken,
-    });
-    expect(persisted).toMatchObject({
-      dirtyGeneration: 1,
-      displayState: "queued",
-      writeSources: ["schema-save"],
-    });
+    expect(status.response.status).toBe(405);
+    expect(status.response.headers.get("Allow")).toBe("POST");
+    expect(status.body).toEqual({ error: "Method not allowed." });
+    expect(enqueued.response.status).toBe(204);
+    expect(enqueued.body).toEqual({});
     expect(scheduled.map((entry) => entry.delayMs)).toEqual([25]);
-    expect(JSON.stringify(enqueued.body)).not.toContain(workspaceRoot);
+    await expect(
+      stat(path.join(workspaceRoot, ".formless/local/auto-save.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("proxies Cloudflare credential setup through the sidecar without exposing local secrets", async () => {
@@ -288,32 +276,16 @@ describe("local workspace gateway", () => {
         deps: gatewayDeps(workspaceRoot, {
           credentialSetup: async (input) => {
             return {
-              events: [
-                {
-                  at: "2026-06-02T01:00:02.000Z",
-                  profileLabel: input.profileLabel ?? "Default",
-                  provider: "cloudflare",
-                  status: "waiting",
-                  type: "externalAuthorizationUrl",
-                  url: "https://dash.cloudflare.com/oauth2/authorize?client_id=formless",
-                },
-              ],
-              result: {
-                details: {
-                  alchemyPassword: "alchemy-password",
-                  providerToken: "cloudflare-provider-token",
-                  rawAdapterOutput: "CLOUDFLARE_API_TOKEN=cloudflare-provider-token",
-                },
-                summary: {
-                  fields: {
-                    localSecretPassword: "local-secret-value",
-                    profile: input.profileLabel ?? "default",
-                    provider: input.provider,
-                  },
-                  title: "Cloudflare credential setup waiting",
-                },
-              },
-              status: "running",
+              at: "2026-06-02T01:00:02.000Z",
+              authorizationUrl: "https://dash.cloudflare.com/oauth2/authorize?client_id=formless",
+              clientId: "formless-client-id",
+              continue: () => new Promise<never>(() => {}),
+              credentialRef: "formless-cloudflare-oauth:personal",
+              kind: "authorization-waiting",
+              profileLabel: input.profileLabel ?? "Default",
+              provider: input.provider,
+              requestedScopes: ["account.read"],
+              scopeSet: "formless-cloudflare-deploy-oauth",
             };
           },
           operationIds: ["op_credential_sidecar_00000001"],
@@ -420,8 +392,10 @@ async function gatewayJson(
     throw new Error("Expected local workspace gateway response.");
   }
 
+  const text = await response.text();
+
   return {
-    body: (await response.json()) as Record<string, unknown>,
+    body: text === "" ? {} : (JSON.parse(text) as Record<string, unknown>),
     response,
     sidecar,
   };
@@ -543,27 +517,16 @@ function gatewayDeps(
       (options.credentialSetupUrl === undefined
         ? undefined
         : async (input) => ({
-            events: [
-              {
-                at: "2026-06-02T01:00:02.000Z",
-                profileLabel: input.profileLabel ?? "Default",
-                provider: "cloudflare",
-                status: "waiting",
-                type: "externalAuthorizationUrl",
-                url: options.credentialSetupUrl ?? "",
-              },
-            ],
-            result: {
-              details: {
-                rawAdapterOutput: "raw adapter output CF_API_TOKEN=secret-token",
-              },
-              summary: {
-                fields: {
-                  provider: "cloudflare",
-                },
-                title: "Credential setup started",
-              },
-            },
+            at: "2026-06-02T01:00:02.000Z",
+            authorizationUrl: options.credentialSetupUrl ?? "",
+            clientId: "formless-client-id",
+            continue: () => new Promise<never>(() => {}),
+            credentialRef: "formless-cloudflare-oauth:default",
+            kind: "authorization-waiting",
+            profileLabel: input.profileLabel ?? "Default",
+            provider: "cloudflare",
+            requestedScopes: ["account.read"],
+            scopeSet: "formless-cloudflare-deploy-oauth",
           })),
     cwd: workspaceRoot,
     fetch: async () => Response.json({ setupComplete: false }),

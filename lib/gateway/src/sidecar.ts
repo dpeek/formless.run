@@ -16,12 +16,10 @@ import {
   parseWorkspaceGatewayOperationId,
   parseWorkspaceGatewayStartInput,
   workspaceGatewayAutoSaveEnqueueIntent,
-  workspaceGatewayAutoSaveStatusIntent,
   workspaceGatewayOperationPath,
   workspaceGatewayStartOperationIntent,
   workspaceGatewayStatusIntent,
   type WorkspaceGatewayAutoSaveEnqueueInput,
-  type WorkspaceGatewayAutoSaveState,
   type WorkspaceGatewayOperation,
   type WorkspaceGatewayStartInput,
   type WorkspaceGatewayStartInputParseResult,
@@ -34,7 +32,7 @@ import {
   type WorkspaceGatewayProxyRulesTarget,
 } from "./proxy-rules.ts";
 import {
-  workspaceGatewayAutoSaveResponse,
+  workspaceGatewayEmptySuccessResponse,
   workspaceGatewayErrorResponse,
   workspaceGatewayMethodNotAllowedResponse,
   workspaceGatewayNotFoundResponse,
@@ -77,8 +75,6 @@ export type {
   WorkspaceGatewayActor,
   WorkspaceGatewayActorFacts,
   WorkspaceGatewayAutoSaveEnqueueInput,
-  WorkspaceGatewayAutoSaveResponse,
-  WorkspaceGatewayAutoSaveState,
   WorkspaceGatewayAuthorizationVia,
   WorkspaceGatewayOperation,
   WorkspaceGatewayOperationKind,
@@ -112,17 +108,12 @@ export type WorkspaceGatewaySidecar = {
 export type WorkspaceGatewaySidecarAuthorization = WorkspaceGatewaySidecarExecutionAuthorization;
 
 export type WorkspaceGatewaySidecarOperationHandlers = {
-  autoSaveStatus: (input: {
-    authorization: WorkspaceGatewaySidecarAuthorization;
-    request: Request;
-    workspaceRoot: string;
-  }) => Promise<WorkspaceGatewayAutoSaveState>;
   enqueueAutoSave: (input: {
     authorization: WorkspaceGatewaySidecarAuthorization;
     enqueue: WorkspaceGatewayAutoSaveEnqueueInput;
     request: Request;
     workspaceRoot: string;
-  }) => Promise<WorkspaceGatewayAutoSaveState>;
+  }) => Promise<void>;
   readOperation: (input: {
     authorization: WorkspaceGatewaySidecarAuthorization;
     operationId: string;
@@ -219,25 +210,6 @@ export async function handleWorkspaceGatewaySidecarRequest(
   }
 
   if (url.pathname === WORKSPACE_GATEWAY_AUTO_SAVE_API_PATH) {
-    if (request.method === "GET") {
-      const authorization = authorizeSidecarGatewayRequest(
-        request,
-        env,
-        workspaceGatewayAutoSaveStatusIntent(),
-        { mutating: false },
-      );
-
-      if ("error" in authorization) {
-        return workspaceGatewayErrorResponse(authorization.error, authorization.status);
-      }
-
-      return sidecarAutoSaveResponse({
-        authorization,
-        autoSave: await handlers.autoSaveStatus({ authorization, request, workspaceRoot }),
-        request,
-      });
-    }
-
     if (request.method === "POST") {
       const parsed = await parseGatewayAutoSaveEnqueueInput(request);
 
@@ -256,19 +228,17 @@ export async function handleWorkspaceGatewaySidecarRequest(
         return workspaceGatewayErrorResponse(authorization.error, authorization.status);
       }
 
-      return sidecarAutoSaveResponse({
+      await handlers.enqueueAutoSave({
         authorization,
-        autoSave: await handlers.enqueueAutoSave({
-          authorization,
-          enqueue: parsed.input,
-          request,
-          workspaceRoot,
-        }),
+        enqueue: parsed.input,
         request,
+        workspaceRoot,
       });
+
+      return workspaceGatewayEmptySuccessResponse();
     }
 
-    return workspaceGatewayMethodNotAllowedResponse(["GET", "POST"]);
+    return workspaceGatewayMethodNotAllowedResponse(["POST"]);
   }
 
   if (url.pathname === WORKSPACE_GATEWAY_OPERATIONS_API_PATH) {
@@ -517,19 +487,6 @@ function sidecarOperationResponse(input: {
     authorization: input.authorization,
     env: {},
     operation: input.operation,
-    request: input.request,
-  });
-}
-
-function sidecarAutoSaveResponse(input: {
-  authorization: WorkspaceGatewaySidecarExecutionAuthorization;
-  autoSave: unknown;
-  request: Request;
-}): Response {
-  return workspaceGatewayAutoSaveResponse({
-    authorization: input.authorization,
-    autoSave: input.autoSave,
-    env: {},
     request: input.request,
   });
 }

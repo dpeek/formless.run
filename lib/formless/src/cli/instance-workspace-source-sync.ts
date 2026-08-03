@@ -36,9 +36,7 @@ import {
 import type { FormlessProgramArtifact } from "../program/artifact.ts";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import {
-  DEFAULT_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT as DEFAULT_FORMLESS_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT,
   WORKSPACE_MEDIA_MANIFEST_FILE,
-  nextWorkspaceAutoSaveSavedState,
   normalizeInstanceWorkspaceTargetUrl as normalizeFormlessInstanceWorkspaceTargetUrl,
   type InstanceWorkspaceDomainIntent as FormlessInstanceWorkspaceDomainIntent,
   type ResolvedFormlessConfig as FormlessResolvedConfig,
@@ -46,14 +44,12 @@ import {
 } from "@dpeek/formless-workspace";
 import {
   instanceWorkspaceInstanceStateRelativePath,
-  readInstanceWorkspaceAutoSaveState,
   readInstanceWorkspaceProgramStorageSnapshot,
   readInstanceWorkspaceLocalDevSecretState as readFormlessInstanceWorkspaceLocalDevSecretState,
   readInstanceWorkspaceMediaFiles,
   readInstanceWorkspaceSecretState as readFormlessInstanceWorkspaceSecretState,
   replaceInstanceWorkspaceMediaFiles,
   resolveInstanceWorkspaceAdminToken as resolveFormlessInstanceWorkspaceAdminToken,
-  writeInstanceWorkspaceAutoSaveState,
   writeInstanceWorkspaceProgramStorageSnapshot,
 } from "../program/workspace.ts";
 import {
@@ -592,10 +588,6 @@ export async function saveLocalFormlessWorkspace(
       sourceControlPlane,
       workspaceRoot,
     });
-    await markWorkspaceAutoSaveSavedAfterWorkspaceSourceWrite({
-      now: dependencies.now,
-      workspaceRoot,
-    });
 
     return result;
   } finally {
@@ -996,27 +988,6 @@ async function writeSavedWorkspaceSource(input: {
   await replaceInstanceWorkspaceMediaFiles({
     manifest: input.config,
     mediaFiles: workspaceProgramMediaFiles(programMedia),
-    workspaceRoot: input.workspaceRoot,
-  });
-}
-
-async function markWorkspaceAutoSaveSavedAfterWorkspaceSourceWrite(input: {
-  now: () => string;
-  workspaceRoot: string;
-}) {
-  const localStateRoot = path.join(
-    input.workspaceRoot,
-    DEFAULT_FORMLESS_INSTANCE_WORKSPACE_LOCAL_STATE_ROOT,
-  );
-  const current = await readInstanceWorkspaceAutoSaveState(localStateRoot);
-
-  if (current === undefined || current.dirtyGeneration <= current.savedGeneration) {
-    return;
-  }
-
-  await writeInstanceWorkspaceAutoSaveState({
-    localStateRoot,
-    state: nextWorkspaceAutoSaveSavedState(current, { now: input.now }),
     workspaceRoot: input.workspaceRoot,
   });
 }

@@ -3,8 +3,10 @@ import { createInterface } from "node:readline/promises";
 import type { FormlessCliCommand } from "./cli-command.ts";
 import type {
   AlchemyCloudflareCredentialSetupInput,
-  AlchemyCloudflareCredentialSetupResult,
   FormlessCloudflareCredentialSetupDependencies,
+  FormlessCloudflareCredentialSetupCompletedResult,
+  FormlessCloudflareCredentialSetupResult,
+  FormlessCloudflareCredentialAccountSelectionRequiredResult,
 } from "./instance-workspace-credential-setup.ts";
 import { setupCloudflareCredentialsWithFormlessOAuth as setupCloudflareCredentialsWithFormlessOAuthCommand } from "./instance-workspace-credential-setup.ts";
 import {
@@ -45,7 +47,7 @@ export type FormlessCliWorkspacePushCredentialPreflightDependencies = {
   setupCloudflareCredentialsWithFormlessOAuth?: (
     input: AlchemyCloudflareCredentialSetupInput,
     dependencies: FormlessCloudflareCredentialSetupDependencies,
-  ) => Promise<AlchemyCloudflareCredentialSetupResult>;
+  ) => Promise<FormlessCloudflareCredentialSetupResult>;
 };
 
 export async function runFormlessCliWorkspacePushCredentialPreflight(
@@ -88,7 +90,7 @@ async function completeFormlessCliWorkspacePushCredentialPreflight(
   const setup = await runFormlessCliCloudflareOAuthCredentialSetup(setupInput, dependencies);
   const completed = await completeCliCloudflareOAuthSetup(setup, dependencies);
 
-  if (cliCloudflareOAuthSetupRequiresAccountSelection(completed)) {
+  if (completed.kind === "account-selection-required") {
     const selection = cliCloudflareOAuthAccountSelectionInput(
       completed,
       preflight.selectedTarget.alias,
@@ -115,7 +117,7 @@ async function completeFormlessCliWorkspacePushCredentialPreflight(
 function runFormlessCliCloudflareOAuthCredentialSetup(
   input: AlchemyCloudflareCredentialSetupInput,
   dependencies: FormlessCliWorkspacePushCredentialPreflightDependencies,
-): Promise<AlchemyCloudflareCredentialSetupResult> {
+): Promise<FormlessCloudflareCredentialSetupResult> {
   const setupCredential =
     dependencies.setupCloudflareCredentialsWithFormlessOAuth ??
     setupCloudflareCredentialsWithFormlessOAuthCommand;
@@ -128,71 +130,39 @@ function runFormlessCliCloudflareOAuthCredentialSetup(
 }
 
 async function completeCliCloudflareOAuthSetup(
-  setup: AlchemyCloudflareCredentialSetupResult,
+  setup: FormlessCloudflareCredentialSetupResult,
   dependencies: Pick<
     FormlessCliWorkspacePushCredentialPreflightDependencies,
     "log" | "openBrowser"
   >,
-): Promise<AlchemyCloudflareCredentialSetupResult> {
-  await openCliCloudflareOAuthAuthorizationUrls(setup, dependencies);
+): Promise<FormlessCloudflareCredentialSetupCompletedResult> {
+  if (setup.kind === "authorization-waiting") {
+    dependencies.log(`Cloudflare authorization URL: ${setup.authorizationUrl}`);
+    await dependencies.openBrowser(setup.authorizationUrl);
 
-  return setup.continue === undefined ? setup : setup.continue();
-}
-
-async function openCliCloudflareOAuthAuthorizationUrls(
-  setup: AlchemyCloudflareCredentialSetupResult,
-  dependencies: Pick<
-    FormlessCliWorkspacePushCredentialPreflightDependencies,
-    "log" | "openBrowser"
-  >,
-): Promise<void> {
-  for (const event of setup.events ?? []) {
-    if (event.type !== "externalAuthorizationUrl") {
-      continue;
-    }
-
-    dependencies.log(`Cloudflare authorization URL: ${event.url}`);
-    await dependencies.openBrowser(event.url);
+    return setup.continue();
   }
+
+  return setup;
 }
 
 function assertCliCloudflareOAuthSetupCompleted(
-  setup: AlchemyCloudflareCredentialSetupResult,
+  setup: FormlessCloudflareCredentialSetupCompletedResult,
 ): void {
-  if (setup.status !== "succeeded" || setup.result?.summary.fields.status !== "validated") {
+  if (setup.kind !== "ready") {
     throw new Error("Cloudflare credential setup requires a selected account before push.");
   }
 }
 
-function cliCloudflareOAuthSetupRequiresAccountSelection(
-  setup: AlchemyCloudflareCredentialSetupResult,
-): boolean {
-  return (
-    setup.status === "succeeded" &&
-    setup.result?.summary.fields.status === "account-selection-required"
-  );
-}
-
 function cliCloudflareOAuthAccountSelectionInput(
-  setup: AlchemyCloudflareCredentialSetupResult,
+  setup: FormlessCloudflareCredentialAccountSelectionRequiredResult,
   targetAlias: string,
 ): FormlessCliCloudflareOAuthAccountSelectionInput {
-  const details = setup.result?.details;
-
-  if (!isPlainCliObject(details)) {
-    throw new Error("Cloudflare account selection details were missing from credential setup.");
-  }
-
-  const credentialRef = stringCliField(details.credentialRef);
-  const accounts = Array.isArray(details.accounts)
-    ? details.accounts.map(parseDisplaySafeCliCloudflareOAuthAccount)
-    : undefined;
-
-  if (credentialRef === undefined || accounts === undefined) {
-    throw new Error("Cloudflare account selection details were incomplete.");
-  }
-
-  return { accounts, credentialRef, targetAlias };
+  return {
+    accounts: setup.accounts,
+    credentialRef: setup.credentialRef,
+    targetAlias,
+  };
 }
 
 async function selectCliCloudflareOAuthAccount(
@@ -281,32 +251,4 @@ function formatCliCloudflareOAuthAccount(account: FormlessCloudflareOAuthAccount
     ...(account.name === undefined ? [] : [`name=${account.name}`]),
     `workers.dev=${account.workersDevSubdomain}.workers.dev`,
   ].join(" ");
-}
-
-function parseDisplaySafeCliCloudflareOAuthAccount(value: unknown): FormlessCloudflareOAuthAccount {
-  if (!isPlainCliObject(value)) {
-    throw new Error("Cloudflare account selection details included an invalid account.");
-  }
-
-  const id = stringCliField(value.id);
-  const name = stringCliField(value.name);
-  const workersDevSubdomain = stringCliField(value.workersDevSubdomain);
-
-  if (id === undefined || workersDevSubdomain === undefined) {
-    throw new Error("Cloudflare account selection details included an incomplete account.");
-  }
-
-  return {
-    id,
-    ...(name === undefined ? {} : { name }),
-    workersDevSubdomain,
-  };
-}
-
-function isPlainCliObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function stringCliField(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
 }

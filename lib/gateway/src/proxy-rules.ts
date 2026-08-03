@@ -15,7 +15,6 @@ import {
   parseWorkspaceGatewayOperationId,
   parseWorkspaceGatewayStartInput,
   workspaceGatewayAutoSaveEnqueueIntent,
-  workspaceGatewayAutoSaveStatusIntent,
   workspaceGatewayOperationExecutionDecision,
   workspaceGatewayOperationPath,
   workspaceGatewayReadOperationIntent,
@@ -114,21 +113,6 @@ export async function handleWorkspaceGatewayProxyRulesRequest(
   }
 
   if (url.pathname === WORKSPACE_GATEWAY_AUTO_SAVE_API_PATH) {
-    if (request.method === "GET") {
-      const intent = workspaceGatewayAutoSaveStatusIntent();
-      const authorization = await authorizeGatewayRequest(request, env, dependencies, intent, {
-        mutating: false,
-      });
-
-      if ("error" in authorization) {
-        return workspaceGatewayErrorResponse(authorization.error, authorization.status);
-      }
-
-      return proxyWorkspaceGatewayRequest(request, env, dependencies, proxyTarget, authorization, {
-        intent,
-      });
-    }
-
     if (request.method === "POST") {
       const parsed = await parseGatewayAutoSaveEnqueueInput(request.clone());
 
@@ -150,7 +134,7 @@ export async function handleWorkspaceGatewayProxyRulesRequest(
       });
     }
 
-    return workspaceGatewayMethodNotAllowedResponse(["GET", "POST"]);
+    return workspaceGatewayMethodNotAllowedResponse(["POST"]);
   }
 
   if (url.pathname === WORKSPACE_GATEWAY_OPERATIONS_API_PATH) {

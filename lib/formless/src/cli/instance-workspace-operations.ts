@@ -21,6 +21,7 @@ import {
 } from "@dpeek/formless-workspace/node";
 
 import type { DeployLocalFormlessWorkspaceDependencies } from "./instance-workspace-deployment.ts";
+import type { FormlessCloudflareCredentialSetupResult } from "./instance-workspace-credential-setup.ts";
 import { resolveFormlessInstanceWorkspaceRoot } from "./instance-workspace-foundation.ts";
 import {
   runWorkspaceOperationDomainHandler,
@@ -34,13 +35,6 @@ export type WorkspaceCredentialSetupOperationAdapterInput = {
   workspaceRoot: string;
 };
 
-export type WorkspaceCredentialSetupOperationAdapterResult = {
-  continue?: () => Promise<WorkspaceCredentialSetupOperationAdapterResult>;
-  events?: readonly Omit<WorkspaceOperationEvent, "id">[];
-  result?: WorkspaceOperationResult;
-  status?: WorkspaceOperationStatus;
-};
-
 export type RunFormlessWorkspaceOperationDependencies = Pick<
   DeployLocalFormlessWorkspaceDependencies,
   "cwd" | "fetch" | "now"
@@ -49,7 +43,7 @@ export type RunFormlessWorkspaceOperationDependencies = Pick<
     createOperationId?: () => string;
     credentialSetup?: (
       input: WorkspaceCredentialSetupOperationAdapterInput,
-    ) => Promise<WorkspaceCredentialSetupOperationAdapterResult>;
+    ) => Promise<FormlessCloudflareCredentialSetupResult>;
   };
 
 export async function runFormlessWorkspaceOperation(

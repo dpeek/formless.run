@@ -11,7 +11,6 @@ import {
   formatCliRelativePath,
   formatCliSelectedTarget,
   formatCliStoredRecords,
-  formatCliWorkspaceOperationLabel,
 } from "./cli-formatter-helpers.ts";
 
 describe("CLI formatter helpers", () => {
@@ -90,12 +89,5 @@ describe("CLI formatter helpers", () => {
         noop: false,
       }),
     ).toEqual(["mode: dry-run.", "noop: false.", "target: instance.primary."]);
-  });
-
-  it("renders workspace operation labels for command and non-command operation kinds", () => {
-    expect(formatCliWorkspaceOperationLabel("pull")).toBe("pull");
-    expect(formatCliWorkspaceOperationLabel("push")).toBe("push");
-    expect(formatCliWorkspaceOperationLabel("credentialSetup")).toBe("credential setup");
-    expect(formatCliWorkspaceOperationLabel("deploymentRefresh")).toBe("deployment refresh");
   });
 });

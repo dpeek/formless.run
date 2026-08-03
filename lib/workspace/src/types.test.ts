@@ -16,18 +16,11 @@ import {
   WORKSPACE_OPERATION_KEYS,
   WORKSPACE_OPERATION_STATE_FILE_KIND,
   WORKSPACE_OPERATION_STATE_FILE_VERSION,
-  WORKSPACE_AUTO_SAVE_STATE_FILE,
-  WORKSPACE_AUTO_SAVE_STATE_FILE_KIND,
-  WORKSPACE_AUTO_SAVE_STATE_FILE_VERSION,
-  WORKSPACE_AUTO_SAVE_SUPPRESSION_REASONS,
   WORKSPACE_AUTO_SAVE_WRITE_SOURCES,
-  formatWorkspaceAutoSaveState,
   formatWorkspaceRecordStateFile,
   formatWorkspaceOperationState,
   assertWorkspaceOperationExecutionRequirements,
-  initialWorkspaceAutoSaveState,
   initialWorkspaceOperationState,
-  isWorkspaceAutoSaveSuppressionReason,
   isWorkspaceAutoSaveWriteSource,
   workspaceOperationActorAllowed,
   workspaceOperationActorPolicy,
@@ -49,12 +42,6 @@ import {
   isWorkspaceOperationExecutionRequirement,
   isWorkspaceOperationKind,
   nextWorkspaceOperationState,
-  nextWorkspaceAutoSaveEnqueuedState,
-  nextWorkspaceAutoSaveFailedState,
-  nextWorkspaceAutoSaveSavedState,
-  nextWorkspaceAutoSaveSavingState,
-  nextWorkspaceAutoSaveSuppressedState,
-  parseWorkspaceAutoSaveStateJson,
   parseWorkspaceRecordStateFile,
   parseWorkspaceRecordStateFileJson,
   parseWorkspaceOperationId,
@@ -806,108 +793,11 @@ describe("workspace operation contracts", () => {
   });
 });
 
-describe("workspace auto-save state contracts", () => {
-  it("tracks dirty, in-flight, saved, failed, and suppressed generations", () => {
-    const now = timestampSequence(
-      "2026-06-02T00:00:00.000Z",
-      "2026-06-02T00:00:01.000Z",
-      "2026-06-02T00:00:02.000Z",
-      "2026-06-02T00:00:03.000Z",
-      "2026-06-02T00:00:04.000Z",
-      "2026-06-02T00:00:05.000Z",
-      "2026-06-02T00:00:06.000Z",
-    );
-
-    const initial = initialWorkspaceAutoSaveState({ now });
-    const queued = nextWorkspaceAutoSaveEnqueuedState(initial, {
-      now,
-      source: "control-plane-write",
-    });
-    const saving = nextWorkspaceAutoSaveSavingState(queued, { now });
-    const coalesced = nextWorkspaceAutoSaveEnqueuedState(saving, {
-      now,
-      source: "schema-save",
-    });
-    const stillQueued = nextWorkspaceAutoSaveSavedState(coalesced, { now });
-    const failed = nextWorkspaceAutoSaveFailedState(stillQueued, {
-      error: new Error("/workspace/state failed TOKEN=secret"),
-      now,
-      workspaceRoot: "/workspace",
-    });
-    const suppressed = nextWorkspaceAutoSaveSuppressedState(failed, {
-      now,
-      reason: "manual-save",
-    });
-
-    expect(initial).toEqual({
-      dirtyGeneration: 0,
-      displayState: "clean",
-      kind: WORKSPACE_AUTO_SAVE_STATE_FILE_KIND,
-      retryCount: 0,
-      savedGeneration: 0,
-      updatedAt: "2026-06-02T00:00:00.000Z",
-      version: WORKSPACE_AUTO_SAVE_STATE_FILE_VERSION,
-      writeSources: [],
-    });
-    expect(queued).toMatchObject({
-      dirtyGeneration: 1,
-      displayState: "queued",
-      lastEnqueueAt: "2026-06-02T00:00:01.000Z",
-      writeSources: ["control-plane-write"],
-    });
-    expect(coalesced).toMatchObject({
-      dirtyGeneration: 2,
-      displayState: "saving",
-      inFlightGeneration: 1,
-      writeSources: ["control-plane-write", "schema-save"],
-    });
-    expect(stillQueued).toMatchObject({
-      dirtyGeneration: 2,
-      displayState: "queued",
-      savedGeneration: 1,
-      writeSources: ["control-plane-write", "schema-save"],
-    });
-    expect(failed).toMatchObject({
-      displayState: "failed",
-      dirtyGeneration: 2,
-      retryCount: 1,
-    });
-    expect(failed.error?.message).toBe("<workspace>/state failed TOKEN=[redacted]");
-    expect(suppressed.suppressed).toEqual({
-      at: "2026-06-02T00:00:06.000Z",
-      reason: "manual-save",
-    });
-  });
-
-  it("parses and formats display-safe auto-save state", () => {
-    const state = nextWorkspaceAutoSaveSavedState(
-      nextWorkspaceAutoSaveSavingState(
-        nextWorkspaceAutoSaveEnqueuedState(
-          initialWorkspaceAutoSaveState({
-            now: () => "2026-06-02T00:00:00.000Z",
-          }),
-          {
-            now: () => "2026-06-02T00:00:01.000Z",
-            source: "deployment-intent",
-          },
-        ),
-        { now: () => "2026-06-02T00:00:02.000Z" },
-      ),
-      { now: () => "2026-06-02T00:00:03.000Z" },
-    );
-    const formatted = formatWorkspaceAutoSaveState(state);
-
-    expect(WORKSPACE_AUTO_SAVE_STATE_FILE).toBe("auto-save.json");
+describe("workspace auto-save enqueue contracts", () => {
+  it("recognizes only declared write sources", () => {
     expect(WORKSPACE_AUTO_SAVE_WRITE_SOURCES).toContain("deployment-intent");
-    expect(WORKSPACE_AUTO_SAVE_SUPPRESSION_REASONS).toContain("workspace-pull");
     expect(isWorkspaceAutoSaveWriteSource("media-reference")).toBe(true);
     expect(isWorkspaceAutoSaveWriteSource("raw-upload")).toBe(false);
-    expect(isWorkspaceAutoSaveSuppressionReason("auto-save")).toBe(true);
-    expect(formatted).toBe(`${JSON.stringify(JSON.parse(formatted), null, 2)}\n`);
-    expect(parseWorkspaceAutoSaveStateJson(formatted)).toEqual(state);
-    expect(() =>
-      parseWorkspaceAutoSaveStateJson(JSON.stringify({ ...state, writeSources: ["raw-upload"] })),
-    ).toThrow("Workspace auto-save state file is invalid.");
   });
 });
 
@@ -941,11 +831,4 @@ function workspaceRecord(
     createdAt,
     updatedAt: createdAt,
   };
-}
-
-function timestampSequence(...timestamps: string[]): () => string {
-  let index = 0;
-
-  return () =>
-    timestamps[index++ % timestamps.length] ?? timestamps.at(-1) ?? new Date(0).toISOString();
 }

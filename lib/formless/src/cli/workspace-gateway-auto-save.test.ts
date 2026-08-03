@@ -3,8 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import packageJson from "../../package.json";
-import { formlessProgramSchema, formlessProgramSchemaProvenance } from "../program/runtime.ts";
+import { formlessProgramSchema } from "../program/runtime.ts";
 import {
   FORMLESS_PROGRAM_SCHEMA_KEY,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
@@ -16,24 +15,15 @@ import {
   FORMLESS_CONFIG_FILE,
   WORKSPACE_RECORD_STATE_FILE_KIND,
   resolveFormlessConfig,
-  initialWorkspaceAutoSaveState,
-  nextWorkspaceAutoSaveEnqueuedState,
-  nextWorkspaceAutoSaveFailedState,
 } from "@dpeek/formless-workspace";
 import { formatTestFormlessConfigModule } from "./instance-workspace-config-test.ts";
-import {
-  readInstanceWorkspaceAutoSaveState,
-  writeInstanceWorkspaceAutoSaveState,
-} from "@dpeek/formless-workspace/node";
 
-import { FORMLESS_RUNTIME_PROTOCOL_VERSION } from "../shared/deploy-metadata.ts";
 import {
   createDefaultWorkspaceAutoSaveScheduler,
   createWorkspaceAutoSaveScheduler,
-  workspaceAutoSaveLocalStateRoot,
+  type WorkspaceAutoSaveSchedulerFailure,
   type WorkspaceDefaultAutoSaveSchedulerDependencies,
 } from "./workspace-gateway-auto-save.ts";
-import { createWorkspaceGatewayOperationHandlers } from "./workspace-gateway-operation-adapter.ts";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -47,205 +37,70 @@ afterEach(async () => {
 });
 
 describe("workspace gateway auto-save", () => {
-  it("reads clean and dirty status from ignored local state", async () => {
-    const workspaceRoot = await makeTempDir();
-    const scheduler = createWorkspaceAutoSaveScheduler({
-      now: timestampSequence("2026-06-02T02:00:00.000Z", "2026-06-02T02:00:01.000Z"),
-      save: async () => undefined,
-    });
-
-    await expect(scheduler.status({ workspaceRoot })).resolves.toMatchObject({
-      dirtyGeneration: 0,
-      displayState: "clean",
-      savedGeneration: 0,
-    });
-
-    await writeInstanceWorkspaceAutoSaveState({
-      localStateRoot: workspaceAutoSaveLocalStateRoot(workspaceRoot),
-      state: {
-        ...initialWorkspaceAutoSaveState({
-          now: () => "2026-06-02T02:00:02.000Z",
-        }),
-        dirtyGeneration: 1,
-        displayState: "dirty",
-        lastEnqueueAt: "2026-06-02T02:00:03.000Z",
-        writeSources: ["schema-save"],
-      },
-      workspaceRoot,
-    });
-
-    await expect(scheduler.status({ workspaceRoot })).resolves.toMatchObject({
-      dirtyGeneration: 1,
-      displayState: "dirty",
-      savedGeneration: 0,
-      writeSources: ["schema-save"],
-    });
-  });
-  it("enqueues dirty work and records gateway-owned suppression reasons", async () => {
-    const workspaceRoot = await makeTempDir();
-    const scheduled: Array<{
-      callback: () => void;
-      delayMs: number;
-    }> = [];
-    const scheduler = createWorkspaceAutoSaveScheduler({
-      clearTimeout: () => undefined,
-      debounceMs: 25,
-      now: timestampSequence(
-        "2026-06-02T02:10:00.000Z",
-        "2026-06-02T02:10:01.000Z",
-        "2026-06-02T02:10:02.000Z",
-        "2026-06-02T02:10:03.000Z",
-        "2026-06-02T02:10:04.000Z",
-        "2026-06-02T02:10:05.000Z",
-        "2026-06-02T02:10:06.000Z",
-      ),
-      save: async () => undefined,
-      setTimeout: (callback, delayMs) => {
-        scheduled.push({ callback, delayMs });
-        return callback;
-      },
-    });
-
-    await expect(
-      scheduler.enqueue({
-        source: "control-plane-write",
-        workspaceRoot,
-      }),
-    ).resolves.toMatchObject({
-      dirtyGeneration: 1,
-      displayState: "queued",
-      writeSources: ["control-plane-write"],
-    });
-    await expect(
-      scheduler.recordGatewayOperationStateSuppressed({ workspaceRoot }),
-    ).resolves.toMatchObject({
-      suppressed: { reason: "gateway-operation-state" },
-    });
-    await expect(
-      scheduler.recordWorkspaceOperationSuppressed({
-        operationInput: { kind: "save" },
-        workspaceRoot,
-      }),
-    ).resolves.toMatchObject({ suppressed: { reason: "manual-save" } });
-    await expect(
-      scheduler.recordWorkspaceOperationSuppressed({
-        operationInput: { check: true, kind: "save" },
-        workspaceRoot,
-      }),
-    ).resolves.toMatchObject({ suppressed: { reason: "workspace-check-status" } });
-    await expect(
-      scheduler.recordWorkspaceOperationSuppressed({
-        operationInput: { kind: "pull" },
-        workspaceRoot,
-      }),
-    ).resolves.toMatchObject({ suppressed: { reason: "workspace-pull" } });
-    await expect(
-      scheduler.recordWorkspaceOperationSuppressed({
-        operationInput: { kind: "push" },
-        workspaceRoot,
-      }),
-    ).resolves.toMatchObject({ suppressed: { reason: "push-deploy-remote-apply" } });
-    await expect(
-      scheduler.recordWorkspaceOperationSuppressed({
-        operationInput: { kind: "status" },
-        workspaceRoot,
-      }),
-    ).resolves.toMatchObject({ suppressed: { reason: "workspace-check-status" } });
-    await expect(
-      scheduler.recordWorkspaceOperationSuppressed({
-        operationInput: { kind: "credentialSetup", provider: "cloudflare" },
-        workspaceRoot,
-      }),
-    ).resolves.toBeUndefined();
-    expect(scheduled.map((entry) => entry.delayMs)).toEqual([25]);
-  });
-  it("coalesces dirty generations while a save is running", async () => {
+  it("coalesces generations and clears only writes included in a successful save", async () => {
     const workspaceRoot = await makeTempDir();
     const saves: Array<{
       dirtyGeneration: number;
-      sources: readonly string[];
+      writeSources: readonly string[];
     }> = [];
     const saving = deferred<void>();
     const scheduler = createWorkspaceAutoSaveScheduler({
       clearTimeout: () => undefined,
       debounceMs: 50,
-      now: timestampSequence(
-        "2026-06-02T02:20:00.000Z",
-        "2026-06-02T02:20:01.000Z",
-        "2026-06-02T02:20:02.000Z",
-        "2026-06-02T02:20:03.000Z",
-        "2026-06-02T02:20:04.000Z",
-        "2026-06-02T02:20:05.000Z",
-        "2026-06-02T02:20:06.000Z",
-      ),
+      reportFailure: () => undefined,
       save: async (input) => {
         saves.push({
           dirtyGeneration: input.dirtyGeneration,
-          sources: input.writeSources,
+          writeSources: input.writeSources,
         });
-        await saving.promise;
+        if (saves.length === 1) {
+          await saving.promise;
+        }
       },
       setTimeout: (callback) => callback,
     });
 
-    await scheduler.enqueue({
-      source: "control-plane-write",
-      workspaceRoot,
-    });
-    await scheduler.enqueue({
-      source: "deployment-intent",
-      workspaceRoot,
-    });
+    await scheduler.enqueue({ source: "control-plane-write", workspaceRoot });
+    await scheduler.enqueue({ source: "deployment-intent", workspaceRoot });
 
     const running = scheduler.runNow(workspaceRoot);
     await waitUntil(() => Promise.resolve(saves.length === 1));
-    await expect(scheduler.status({ workspaceRoot })).resolves.toMatchObject({
-      dirtyGeneration: 2,
-      displayState: "saving",
-      inFlightGeneration: 2,
-      savedGeneration: 0,
-    });
-
-    await scheduler.enqueue({
-      source: "schema-save",
-      workspaceRoot,
-    });
+    await scheduler.enqueue({ source: "schema-save", workspaceRoot });
     saving.resolve(undefined);
     await running;
+    await scheduler.runNow(workspaceRoot);
 
-    await expect(scheduler.status({ workspaceRoot })).resolves.toMatchObject({
-      dirtyGeneration: 3,
-      displayState: "queued",
-      savedGeneration: 2,
-      writeSources: ["control-plane-write", "deployment-intent", "schema-save"],
-    });
+    expect(saves).toEqual([
+      {
+        dirtyGeneration: 2,
+        writeSources: ["control-plane-write", "deployment-intent"],
+      },
+      {
+        dirtyGeneration: 3,
+        writeSources: ["schema-save"],
+      },
+    ]);
   });
-  it("records retryable failed state with display-safe errors and explicit run-now recovery", async () => {
+
+  it("bounds automatic retries and reports original failures only to local diagnostics", async () => {
     const workspaceRoot = await makeTempDir();
-    const scheduled: Array<{
-      callback: () => void;
-      delayMs: number;
-    }> = [];
-    let failNextSave = true;
+    const diagnostics: Array<{ error: unknown; failure: WorkspaceAutoSaveSchedulerFailure }> = [];
+    const scheduled: Array<{ callback: () => void; delayMs: number }> = [];
+    const originalError = new Error(
+      `${workspaceRoot}/state failed FORMLESS_TOKEN=secret Bearer local-secret-token`,
+    );
+    let fail = true;
+    let saveCount = 0;
     const scheduler = createWorkspaceAutoSaveScheduler({
       clearTimeout: () => undefined,
       debounceMs: 50,
       maxRetries: 1,
-      now: timestampSequence(
-        "2026-06-02T02:30:00.000Z",
-        "2026-06-02T02:30:01.000Z",
-        "2026-06-02T02:30:02.000Z",
-        "2026-06-02T02:30:03.000Z",
-        "2026-06-02T02:30:04.000Z",
-        "2026-06-02T02:30:05.000Z",
-      ),
+      reportFailure: (error, failure) => diagnostics.push({ error, failure }),
       retryBackoffMs: (retryCount) => retryCount * 100,
       save: async () => {
-        if (failNextSave) {
-          failNextSave = false;
-          throw new Error(
-            `${workspaceRoot}/state failed FORMLESS_TOKEN=secret Bearer local-secret-token`,
-          );
+        saveCount += 1;
+        if (fail) {
+          throw originalError;
         }
       },
       setTimeout: (callback, delayMs) => {
@@ -254,94 +109,142 @@ describe("workspace gateway auto-save", () => {
       },
     });
 
-    await scheduler.enqueue({
-      source: "control-plane-write",
-      workspaceRoot,
-    });
+    await scheduler.enqueue({ source: "control-plane-write", workspaceRoot });
+    await scheduler.runNow(workspaceRoot);
+    scheduled.at(-1)?.callback();
+    await waitUntil(() => Promise.resolve(diagnostics.length === 2));
 
-    const failed = await scheduler.runNow(workspaceRoot);
+    expect(saveCount).toBe(2);
+    expect(scheduled.map(({ delayMs }) => delayMs)).toEqual([50, 100]);
+    expect(diagnostics.map(({ error }) => error)).toEqual([originalError, originalError]);
+    expect(diagnostics.map(({ failure }) => failure.retryCount)).toEqual([1, 2]);
 
-    expect(failed).toMatchObject({
-      dirtyGeneration: 1,
-      displayState: "failed",
-      retryCount: 1,
-      savedGeneration: 0,
-    });
-    expect(failed.error?.message).toContain("<workspace>");
-    expect(failed.error?.message).toContain("FORMLESS_TOKEN=[redacted]");
-    expect(failed.error?.message).toContain("Bearer [redacted]");
-    expect(failed.error?.message).not.toContain(workspaceRoot);
-    expect(failed.error?.message).not.toContain("local-secret-token");
-    expect(scheduled.map((entry) => entry.delayMs)).toEqual([50, 100]);
-
-    await expect(scheduler.runNow(workspaceRoot)).resolves.toMatchObject({
-      dirtyGeneration: 1,
-      displayState: "saved",
-      retryCount: 0,
-      savedGeneration: 1,
-      writeSources: [],
-    });
+    fail = false;
+    await scheduler.enqueue({ source: "schema-save", workspaceRoot });
+    await scheduler.runNow(workspaceRoot);
+    expect(saveCount).toBe(3);
   });
 
-  it("executes default auto-save through the workspace operation runner", async () => {
+  it("lets manual save completion clear only the generation it started with", async () => {
+    const workspaceRoot = await makeTempDir();
+    const saves: Array<{ dirtyGeneration: number; writeSources: readonly string[] }> = [];
+    const scheduler = createWorkspaceAutoSaveScheduler({
+      clearTimeout: () => undefined,
+      reportFailure: () => undefined,
+      save: async (input) => {
+        saves.push({
+          dirtyGeneration: input.dirtyGeneration,
+          writeSources: input.writeSources,
+        });
+      },
+      setTimeout: (callback) => callback,
+    });
+
+    await scheduler.enqueue({ source: "control-plane-write", workspaceRoot });
+    const manualSaveGeneration = await scheduler.recordWorkspaceOperationSuppressed({
+      operationInput: { kind: "save" },
+      workspaceRoot,
+    });
+    await scheduler.enqueue({ source: "schema-save", workspaceRoot });
+
+    if (manualSaveGeneration === undefined) {
+      throw new Error("Expected manual save generation.");
+    }
+
+    await scheduler.recordSaved({
+      throughGeneration: manualSaveGeneration,
+      workspaceRoot,
+    });
+    await scheduler.runNow(workspaceRoot);
+
+    expect(saves).toEqual([{ dirtyGeneration: 2, writeSources: ["schema-save"] }]);
+  });
+
+  it("records operation suppression without scheduling save work", async () => {
+    const workspaceRoot = await makeTempDir();
+    const scheduled: number[] = [];
+    let saveCount = 0;
+    const scheduler = createWorkspaceAutoSaveScheduler({
+      reportFailure: () => undefined,
+      save: async () => {
+        saveCount += 1;
+      },
+      setTimeout: (_callback, delayMs) => {
+        scheduled.push(delayMs);
+        return delayMs;
+      },
+    });
+
+    await scheduler.recordGatewayOperationStateSuppressed({ workspaceRoot });
+    await expect(
+      scheduler.recordWorkspaceOperationSuppressed({
+        operationInput: { kind: "save" },
+        workspaceRoot,
+      }),
+    ).resolves.toBe(0);
+    await expect(
+      scheduler.recordWorkspaceOperationSuppressed({
+        operationInput: { kind: "pull" },
+        workspaceRoot,
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      scheduler.recordWorkspaceOperationSuppressed({
+        operationInput: { kind: "credentialSetup", provider: "cloudflare" },
+        workspaceRoot,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(saveCount).toBe(0);
+    expect(scheduled).toEqual([]);
+  });
+
+  it("starts clean after sidecar restart and leaves old state files inert", async () => {
+    const workspaceRoot = await makeTempDir();
+    const oldStatePath = path.join(workspaceRoot, ".formless/local/auto-save.json");
+    let restartedSaveCount = 0;
+    const firstScheduler = createWorkspaceAutoSaveScheduler({
+      reportFailure: () => undefined,
+      save: async () => undefined,
+      setTimeout: (callback) => callback,
+    });
+
+    await firstScheduler.enqueue({ source: "snapshot-restore", workspaceRoot });
+    await mkdir(path.dirname(oldStatePath), { recursive: true });
+    await writeFile(oldStatePath, '{"displayState":"queued","dirtyGeneration":9}\n');
+
+    const restartedScheduler = createWorkspaceAutoSaveScheduler({
+      reportFailure: () => undefined,
+      save: async () => {
+        restartedSaveCount += 1;
+      },
+    });
+    await restartedScheduler.runNow(workspaceRoot);
+
+    expect(restartedSaveCount).toBe(0);
+    await expect(readFile(oldStatePath, "utf8")).resolves.toBe(
+      '{"displayState":"queued","dirtyGeneration":9}\n',
+    );
+  });
+
+  it("executes typed workspace save directly without operation or auto-save state files", async () => {
     const workspaceRoot = await makeTempDir();
     const requests: CapturedRequest[] = [];
     const scheduler = createDefaultWorkspaceAutoSaveScheduler(
-      autoSaveDeps(workspaceRoot, {
-        fetch: workspaceSaveFetch(requests),
-        operationIds: ["op_auto_save_00000001"],
-        timestamps: [
-          "2026-06-02T02:40:00.000Z",
-          "2026-06-02T02:40:01.000Z",
-          "2026-06-02T02:40:02.000Z",
-          "2026-06-02T02:40:03.000Z",
-          "2026-06-02T02:40:04.000Z",
-          "2026-06-02T02:40:05.000Z",
-          "2026-06-02T02:40:06.000Z",
-        ],
-      }),
+      autoSaveDeps(workspaceRoot, { fetch: workspaceSaveFetch(requests) }),
     );
 
-    await writeWorkspaceConfig(workspaceRoot, {
-      "site.publicRenderer": {
-        browser: "renderers/site.browser.tsx",
-        worker: "renderers/site.worker.tsx",
-      },
-    });
-    const configBytes = await readFile(path.join(workspaceRoot, FORMLESS_CONFIG_FILE), "utf8");
+    await writeWorkspaceConfig(workspaceRoot);
     await writeLocalDevEnv(workspaceRoot);
-    await writeInstanceWorkspaceAutoSaveState({
-      localStateRoot: workspaceAutoSaveLocalStateRoot(workspaceRoot),
-      state: nextWorkspaceAutoSaveEnqueuedState(
-        initialWorkspaceAutoSaveState({
-          now: () => "2026-06-02T02:39:59.000Z",
-        }),
-        {
-          now: () => "2026-06-02T02:40:00.000Z",
-          source: "control-plane-write",
-        },
-      ),
-      workspaceRoot,
-    });
-    await expect(scheduler.runNow(workspaceRoot)).resolves.toMatchObject({
-      dirtyGeneration: 1,
-      displayState: "saved",
-      savedGeneration: 1,
-      suppressed: { reason: "auto-save" },
-      writeSources: [],
-    });
-    await expect(readFile(path.join(workspaceRoot, FORMLESS_CONFIG_FILE), "utf8")).resolves.toBe(
-      configBytes,
-    );
+    await scheduler.enqueue({ source: "control-plane-write", workspaceRoot });
+    await scheduler.runNow(workspaceRoot);
 
     const instanceState = JSON.parse(
       await readFile(path.join(workspaceRoot, "state/instance.json"), "utf8"),
     ) as {
       kind: string;
       schema?: unknown;
-      schemaProvenance?: {
-        kind: string;
-      };
+      schemaProvenance?: { kind: string };
       storageIdentity: string;
     };
     expect(instanceState).toMatchObject({
@@ -350,12 +253,12 @@ describe("workspace gateway auto-save", () => {
       storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
     });
     expect(instanceState.schema).toBeUndefined();
-    await expect(stat(path.join(workspaceRoot, "archives"))).rejects.toMatchObject({
+    await expect(stat(path.join(workspaceRoot, ".formless/operations"))).rejects.toMatchObject({
       code: "ENOENT",
     });
-    await expect(stat(path.join(workspaceRoot, "state/media"))).rejects.toMatchObject({
-      code: "ENOENT",
-    });
+    await expect(
+      stat(path.join(workspaceRoot, ".formless/local/auto-save.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
     expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
       "GET http://localhost:5173/api/formless/program/snapshot?actorKind=cliDeployer",
     ]);
@@ -363,103 +266,17 @@ describe("workspace gateway auto-save", () => {
       "Bearer local-save-token",
     ]);
   });
-
-  it("lets manual gateway save flush failed dirty auto-save state", async () => {
-    const workspaceRoot = await makeTempDir();
-    const requests: CapturedRequest[] = [];
-    const localStateRoot = workspaceAutoSaveLocalStateRoot(workspaceRoot);
-    const failedState = nextWorkspaceAutoSaveFailedState(
-      nextWorkspaceAutoSaveEnqueuedState(
-        initialWorkspaceAutoSaveState({
-          now: () => "2026-06-02T02:50:00.000Z",
-        }),
-        {
-          now: () => "2026-06-02T02:50:01.000Z",
-          source: "control-plane-write",
-        },
-      ),
-      {
-        error: new Error(`${workspaceRoot}/state failed FORMLESS_TOKEN=secret`),
-        now: () => "2026-06-02T02:50:02.000Z",
-        workspaceRoot,
-      },
-    );
-    const deps = autoSaveDeps(workspaceRoot, {
-      fetch: workspaceSaveFetch(requests),
-      operationIds: ["op_manual_save_00000001"],
-      timestamps: [
-        "2026-06-02T02:50:03.000Z",
-        "2026-06-02T02:50:04.000Z",
-        "2026-06-02T02:50:05.000Z",
-        "2026-06-02T02:50:06.000Z",
-        "2026-06-02T02:50:07.000Z",
-      ],
-    });
-    const handlers = createWorkspaceGatewayOperationHandlers({
-      ...deps,
-      autoSaveScheduler: createDefaultWorkspaceAutoSaveScheduler(deps),
-    });
-
-    await writeWorkspaceConfig(workspaceRoot);
-    await writeInstanceWorkspaceAutoSaveState({
-      localStateRoot,
-      state: failedState,
-      workspaceRoot,
-    });
-    await writeLocalDevEnv(workspaceRoot);
-
-    await expect(
-      handlers.startOperation({
-        authorization: { actor: "browser", via: "owner-session" },
-        operationInput: { kind: "save" },
-        request: new Request("http://local.test/api/formless/workspace-gateway/operations"),
-        workspaceRoot,
-      }),
-    ).resolves.toMatchObject({
-      operation: "save",
-      status: "succeeded",
-    });
-    await expect(readInstanceWorkspaceAutoSaveState(localStateRoot)).resolves.toMatchObject({
-      dirtyGeneration: 1,
-      displayState: "saved",
-      retryCount: 0,
-      savedGeneration: 1,
-      suppressed: { reason: "manual-save" },
-      writeSources: [],
-    });
-  });
 });
 
 function autoSaveDeps(
   workspaceRoot: string,
-  options: {
-    fetch?: typeof fetch;
-    operationIds?: string[];
-    timestamps?: string[];
-  } = {},
-): WorkspaceDefaultAutoSaveSchedulerDependencies & {
-  createOperationId: () => string;
-} {
-  const operationIds = [...(options.operationIds ?? [])];
+  options: { fetch?: typeof fetch } = {},
+): WorkspaceDefaultAutoSaveSchedulerDependencies {
   return {
-    createOperationId: () => operationIds.shift() ?? "op_auto_save_test_00000001",
     cwd: workspaceRoot,
     env: { FORMLESS_ADMIN_TOKEN: "local-save-token" },
     fetch: options.fetch ?? (async () => Response.json({ error: "not found" }, { status: 404 })),
-    healthCheck: {
-      check: async (input: { expectedVersion: string; url: string }) => ({
-        cacheControl: "no-store",
-        metadataUrl: new URL("/api/formless/deploy", `${input.url}/`).toString(),
-        packageVersion: input.expectedVersion,
-        runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
-        schemaProvenance: formlessProgramSchemaProvenance,
-        storageMigrationSet: "formless-storage-migrations:v1",
-        url: input.url,
-        version: input.expectedVersion,
-      }),
-    },
-    now: timestampSequence(...(options.timestamps ?? ["2026-06-02T02:00:00.000Z"])),
-    packageVersion: packageJson.version,
+    now: () => "2026-06-02T02:00:00.000Z",
   };
 }
 
@@ -470,14 +287,8 @@ async function makeTempDir(): Promise<string> {
   return tempDir;
 }
 
-async function writeWorkspaceConfig(
-  workspaceRoot: string,
-  extensions?: ReturnType<typeof resolveFormlessConfig>["runtime"]["extensions"],
-) {
-  const config = resolveFormlessConfig({
-    name: "personal-sites",
-    ...(extensions === undefined ? {} : { runtime: { extensions } }),
-  });
+async function writeWorkspaceConfig(workspaceRoot: string) {
+  const config = resolveFormlessConfig({ name: "personal-sites" });
 
   await writeFile(
     path.join(workspaceRoot, FORMLESS_CONFIG_FILE),
@@ -495,12 +306,6 @@ async function writeLocalDevEnv(workspaceRoot: string) {
   );
 }
 
-function timestampSequence(...timestamps: string[]): () => string {
-  let index = 0;
-
-  return () =>
-    timestamps[index++ % timestamps.length] ?? timestamps.at(-1) ?? new Date(0).toISOString();
-}
 function deferred<T>(): {
   promise: Promise<T>;
   resolve: (value: T) => void;

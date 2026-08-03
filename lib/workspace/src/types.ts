@@ -34,9 +34,6 @@ export const INSTANCE_WORKSPACE_PROGRAM_SCHEMA_KEY = "formless-program";
 export const WORKSPACE_OPERATION_STATE_FILE_KIND = "formless.workspaceOperation";
 export const WORKSPACE_OPERATION_STATE_FILE_VERSION = 1;
 export const WORKSPACE_OPERATION_STATE_ROOT = ".formless/operations";
-export const WORKSPACE_AUTO_SAVE_STATE_FILE = "auto-save.json";
-export const WORKSPACE_AUTO_SAVE_STATE_FILE_KIND = "formless.workspaceAutoSaveState";
-export const WORKSPACE_AUTO_SAVE_STATE_FILE_VERSION = 1;
 
 export type WorkspaceOperationActor = "automation" | "browser" | "cli" | "system";
 
@@ -538,59 +535,6 @@ export const WORKSPACE_AUTO_SAVE_WRITE_SOURCES = [
 ] as const;
 
 export type WorkspaceAutoSaveWriteSource = (typeof WORKSPACE_AUTO_SAVE_WRITE_SOURCES)[number];
-
-export const WORKSPACE_AUTO_SAVE_SUPPRESSION_REASONS = [
-  "auto-save",
-  "browser-bootstrap",
-  "broadcast-indexeddb-merge",
-  "gateway-operation-state",
-  "http-sync",
-  "local-bootstrap",
-  "manual-save",
-  "push-deploy-remote-apply",
-  "push-sync",
-  "workspace-check-status",
-  "workspace-pull",
-  "workspace-restore-import",
-] as const;
-
-export type WorkspaceAutoSaveSuppressionReason =
-  (typeof WORKSPACE_AUTO_SAVE_SUPPRESSION_REASONS)[number];
-
-export type WorkspaceAutoSaveDisplayState =
-  | "clean"
-  | "dirty"
-  | "failed"
-  | "queued"
-  | "saved"
-  | "saving";
-
-export type WorkspaceAutoSaveDisplayError = {
-  at: string;
-  message: string;
-};
-
-export type WorkspaceAutoSaveSuppression = {
-  at: string;
-  reason: WorkspaceAutoSaveSuppressionReason;
-};
-
-export type WorkspaceAutoSaveState = {
-  dirtyGeneration: number;
-  displayState: WorkspaceAutoSaveDisplayState;
-  error?: WorkspaceAutoSaveDisplayError;
-  inFlightGeneration?: number;
-  kind: typeof WORKSPACE_AUTO_SAVE_STATE_FILE_KIND;
-  lastAttemptAt?: string;
-  lastEnqueueAt?: string;
-  lastSavedAt?: string;
-  retryCount: number;
-  savedGeneration: number;
-  suppressed?: WorkspaceAutoSaveSuppression;
-  updatedAt: string;
-  version: typeof WORKSPACE_AUTO_SAVE_STATE_FILE_VERSION;
-  writeSources: WorkspaceAutoSaveWriteSource[];
-};
 
 export type WorkspaceAutoSaveEnqueueInput = {
   source: WorkspaceAutoSaveWriteSource;

@@ -3,13 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import {
-  initialWorkspaceAutoSaveState,
-  nextWorkspaceAutoSaveSuppressedState,
-  type WorkspaceAutoSaveState,
-  type WorkspaceAutoSaveSuppressionReason,
-  type WorkspaceOperationRequiredCapability,
-} from "@dpeek/formless-workspace";
+import { type WorkspaceOperationRequiredCapability } from "@dpeek/formless-workspace";
 import {
   createWorkspaceOperationState,
   updateWorkspaceOperationState,
@@ -20,7 +14,10 @@ import {
   projectWorkspaceGatewayOperationDependencies,
   type WorkspaceGatewayOperationAdapterDependencies,
 } from "./workspace-gateway-operation-adapter.ts";
-import type { WorkspaceGatewayOperationAutoSaveScheduler } from "./workspace-gateway-auto-save.ts";
+import type {
+  WorkspaceAutoSaveSuppressionReason,
+  WorkspaceGatewayOperationAutoSaveScheduler,
+} from "./workspace-gateway-auto-save.ts";
 import { formlessProgramSchemaProvenance } from "../program/runtime.ts";
 
 const tempDirs: string[] = [];
@@ -107,21 +104,22 @@ describe("workspace gateway operation adapter", () => {
           });
 
           return {
-            result: {
-              details: {
-                raw: `FORMLESS_TOKEN=secret ${workspaceRoot}/state`,
-              },
-              summary: {
-                fields: {
-                  provider: input.provider,
-                  selectedAccountId: input.accountId ?? "",
-                  token: "FORMLESS_TOKEN=secret",
-                  workspaceRoot: input.workspaceRoot,
-                },
-                title: "Credential setup ready",
-              },
+            account: {
+              id: input.accountId ?? "acct_personal",
+              name: `FORMLESS_TOKEN=secret ${workspaceRoot}/state`,
+              workersDevSubdomain: "personal",
             },
-            status: "succeeded",
+            accountCount: 1,
+            credentialRef: "formless-cloudflare-oauth:personal",
+            deploymentConfig: {
+              accountId: input.accountId ?? "acct_personal",
+              targetId: "instance.primary",
+              targetUrl: "https://personal.example.test",
+              workerName: "personal",
+            },
+            kind: "ready",
+            provider: "cloudflare",
+            source: "stored-credential",
           };
         },
         operationCapabilities: ["credential-setup"],
@@ -289,13 +287,21 @@ function adapterDeps(
     credentialSetup:
       options.credentialSetup ??
       (async (input) => ({
-        result: {
-          summary: {
-            fields: { provider: input.provider },
-            title: "Credential setup ready",
-          },
+        account: {
+          id: input.accountId ?? "account-123",
+          workersDevSubdomain: "dpeek",
         },
-        status: "succeeded",
+        accountCount: 1,
+        credentialRef: "formless-cloudflare-oauth:default",
+        deploymentConfig: {
+          accountId: input.accountId ?? "account-123",
+          targetId: "instance.primary",
+          targetUrl: "https://project.dpeek.workers.dev",
+          workerName: "project",
+        },
+        kind: "ready",
+        provider: input.provider,
+        source: "stored-credential",
       })),
     cwd: workspaceRoot,
     deploymentAdapter: {
@@ -357,50 +363,47 @@ function autoSaveScheduler(): {
   scheduler: WorkspaceGatewayOperationAutoSaveScheduler;
   suppressed: WorkspaceAutoSaveSuppressionReason[];
 } {
-  const now = () => "2026-06-02T01:00:00.000Z";
-  let state: WorkspaceAutoSaveState = initialWorkspaceAutoSaveState({ now });
   const suppressed: WorkspaceAutoSaveSuppressionReason[] = [];
 
   return {
     scheduler: {
-      enqueue: async () => state,
-      recordGatewayOperationStateSuppressed: async (input) =>
-        recordSuppressed(input.workspaceRoot, "gateway-operation-state"),
+      enqueue: async () => undefined,
+      recordGatewayOperationStateSuppressed: async (input) => {
+        recordSuppressed(input.workspaceRoot, "gateway-operation-state");
+      },
+      recordSaved: async () => undefined,
       recordWorkspaceOperationSuppressed: async (input) => {
         switch (input.operationInput.kind) {
           case "check":
           case "status":
-            return recordSuppressed(input.workspaceRoot, "workspace-check-status");
+            recordSuppressed(input.workspaceRoot, "workspace-check-status");
+            return undefined;
           case "push":
-            return recordSuppressed(input.workspaceRoot, "push-deploy-remote-apply");
+            recordSuppressed(input.workspaceRoot, "push-deploy-remote-apply");
+            return undefined;
           case "pull":
-            return recordSuppressed(input.workspaceRoot, "workspace-pull");
+            recordSuppressed(input.workspaceRoot, "workspace-pull");
+            return undefined;
           case "save":
-            return recordSuppressed(
+            recordSuppressed(
               input.workspaceRoot,
               input.operationInput.check ? "workspace-check-status" : "manual-save",
             );
+            return input.operationInput.check ? undefined : 0;
           case "credentialSetup":
             return undefined;
         }
       },
-      status: async () => state,
     },
     suppressed,
   };
 
-  async function recordSuppressed(
+  function recordSuppressed(
     workspaceRoot: string,
     reason: WorkspaceAutoSaveSuppressionReason,
-  ): Promise<WorkspaceAutoSaveState> {
+  ): void {
     expect(workspaceRoot).toBeTruthy();
     suppressed.push(reason);
-    state = nextWorkspaceAutoSaveSuppressedState(state, {
-      now,
-      reason,
-    });
-
-    return state;
   }
 }
 

@@ -18,15 +18,14 @@ import {
   runFormlessWorkspaceOperation,
   type RunFormlessWorkspaceOperationDependencies,
   type WorkspaceCredentialSetupOperationAdapterInput,
-  type WorkspaceCredentialSetupOperationAdapterResult,
 } from "./instance-workspace-operations.ts";
+import type { FormlessCloudflareCredentialSetupResult } from "./instance-workspace-credential-setup.ts";
 import type { WorkspaceGatewayOperationAutoSaveScheduler } from "./workspace-gateway-auto-save.ts";
 
 export type WorkspaceGatewayCredentialSetupAdapterInput =
   WorkspaceCredentialSetupOperationAdapterInput;
 
-export type WorkspaceGatewayCredentialSetupAdapterResult =
-  WorkspaceCredentialSetupOperationAdapterResult;
+export type WorkspaceGatewayCredentialSetupAdapterResult = FormlessCloudflareCredentialSetupResult;
 
 export type WorkspaceGatewayOperationAdapterDependencies =
   RunFormlessWorkspaceOperationDependencies & {
@@ -40,9 +39,9 @@ export function createWorkspaceGatewayOperationHandlers(
   const autoSaveScheduler = dependencies.autoSaveScheduler;
 
   return {
-    autoSaveStatus: async ({ workspaceRoot }) => autoSaveScheduler.status({ workspaceRoot }),
-    enqueueAutoSave: async ({ enqueue, workspaceRoot }) =>
-      autoSaveScheduler.enqueue({ ...enqueue, workspaceRoot }),
+    enqueueAutoSave: async ({ enqueue, workspaceRoot }) => {
+      await autoSaveScheduler.enqueue({ ...enqueue, workspaceRoot });
+    },
     readOperation: async ({ operationId, workspaceRoot }) => {
       await autoSaveScheduler.recordGatewayOperationStateSuppressed({ workspaceRoot });
 
@@ -63,7 +62,7 @@ export function createWorkspaceGatewayOperationHandlers(
     },
     startOperation: async ({ authorization, operationInput, workspaceRoot }) => {
       await autoSaveScheduler.recordGatewayOperationStateSuppressed({ workspaceRoot });
-      await autoSaveScheduler.recordWorkspaceOperationSuppressed({
+      const manualSaveGeneration = await autoSaveScheduler.recordWorkspaceOperationSuppressed({
         operationInput,
         workspaceRoot,
       });
@@ -73,7 +72,7 @@ export function createWorkspaceGatewayOperationHandlers(
         workspaceRoot,
       );
 
-      return requireWorkspaceGatewayOperation(
+      const operation = requireWorkspaceGatewayOperation(
         await runFormlessWorkspaceOperation(
           scopedInput,
           projectWorkspaceGatewayOperationDependencies(dependencies, scopedInput, workspaceRoot),
@@ -83,6 +82,15 @@ export function createWorkspaceGatewayOperationHandlers(
           },
         ),
       );
+
+      if (manualSaveGeneration !== undefined && operation.status === "succeeded") {
+        await autoSaveScheduler.recordSaved({
+          throughGeneration: manualSaveGeneration,
+          workspaceRoot,
+        });
+      }
+
+      return operation;
     },
     status: async ({ authorization, workspaceRoot }) => {
       const operationStartInput = {

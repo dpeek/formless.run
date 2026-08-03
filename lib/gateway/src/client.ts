@@ -4,7 +4,6 @@ import {
   WORKSPACE_GATEWAY_OPERATION_KIND_HEADER,
   workspaceGatewayAutoSaveApiPath,
   workspaceGatewayAutoSaveEnqueueIntent,
-  workspaceGatewayAutoSaveStatusIntent,
   workspaceGatewayOperationApiPath,
   workspaceGatewayOperationsApiPath,
   workspaceGatewayReadOperationIntent,
@@ -12,7 +11,6 @@ import {
   workspaceGatewayStatusApiPath,
   type WorkspaceGatewayApiErrorBody,
   type WorkspaceGatewayAutoSaveEnqueueInput,
-  type WorkspaceGatewayAutoSaveResponse,
   type WorkspaceGatewayOperationKind,
   type WorkspaceGatewayResponse,
   type WorkspaceGatewayStartInput,
@@ -22,8 +20,6 @@ export { WORKSPACE_GATEWAY_BOOTSTRAP_HEADER, WORKSPACE_GATEWAY_CSRF_HEADER } fro
 export type {
   WorkspaceGatewayApiErrorBody,
   WorkspaceGatewayAutoSaveEnqueueInput,
-  WorkspaceGatewayAutoSaveResponse,
-  WorkspaceGatewayAutoSaveState,
   WorkspaceGatewayAutoSaveWriteSource,
   WorkspaceGatewayDisplayObject,
   WorkspaceGatewayDisplayValue,
@@ -105,37 +101,6 @@ export async function fetchWorkspaceGatewayStatus({
   );
 }
 
-export async function fetchWorkspaceGatewayAutoSaveStatus({
-  config = workspaceGatewayBrowserConfig(),
-  fetcher = fetch,
-  signal,
-}: {
-  config?: WorkspaceGatewayConfig;
-  fetcher?: typeof fetch;
-  signal?: AbortSignal;
-} = {}): Promise<WorkspaceGatewayAutoSaveResponse | undefined> {
-  if (!config) {
-    return undefined;
-  }
-
-  const { bootstrapAllowed } = workspaceGatewayAutoSaveStatusIntent();
-
-  return gatewayRequestWithBootstrapRetry<WorkspaceGatewayAutoSaveResponse>(
-    () =>
-      fetcher(workspaceGatewayAutoSaveApiPath(config.apiBasePath), {
-        credentials: "same-origin",
-        headers: gatewayHeaders(config, { allowBootstrap: bootstrapAllowed }),
-        signal,
-      }),
-    () =>
-      fetcher(workspaceGatewayAutoSaveApiPath(config.apiBasePath), {
-        credentials: "same-origin",
-        headers: gatewayHeaders(config, { allowBootstrap: false }),
-        signal,
-      }),
-  );
-}
-
 export async function startWorkspaceGatewayOperation(
   input: WorkspaceGatewayStartInput,
   {
@@ -197,14 +162,14 @@ export async function enqueueWorkspaceGatewayAutoSave(
     fetcher?: typeof fetch;
     signal?: AbortSignal;
   } = {},
-): Promise<WorkspaceGatewayAutoSaveResponse | undefined> {
+): Promise<void> {
   if (!config) {
-    return undefined;
+    return;
   }
 
   const { bootstrapAllowed } = workspaceGatewayAutoSaveEnqueueIntent();
 
-  return gatewayRequestWithBootstrapRetry<WorkspaceGatewayAutoSaveResponse>(
+  await gatewayRequestWithBootstrapRetry<void>(
     () =>
       fetcher(workspaceGatewayAutoSaveApiPath(config.apiBasePath), {
         body: JSON.stringify(input),

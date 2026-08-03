@@ -1,9 +1,18 @@
 import {
+  formatCliDisplayFields,
   formatCliOutputLines,
   formatCliRelativePath,
   formatCliSelectedTarget,
+  type CliDisplayObject,
   type CliSelectedTargetDisplay,
 } from "./cli-formatter-helpers.ts";
+import type { PushFormlessInstanceWorkspaceResult } from "./instance-workspace-deployment.ts";
+import type {
+  FormlessInstanceWorkspaceSyncPlan,
+  PullFormlessInstanceWorkspaceResult,
+} from "./instance-workspace-source-sync.ts";
+
+const CLI_WORKSPACE_SOURCE_SYNC_NOOP_OUTPUT = "Everything up to date.";
 
 export type CliInstanceWorkspaceTokenAdoptResult = {
   secretPath: string;
@@ -75,6 +84,79 @@ export type CliInstanceWorkspaceDestroyResult = {
   selectedTarget: CliSelectedTargetDisplay;
   workspaceRoot: string;
 };
+
+export function formatCliWorkspacePullOutput(
+  result: PullFormlessInstanceWorkspaceResult,
+  cwd: string,
+): string {
+  if (result.noop) {
+    return CLI_WORKSPACE_SOURCE_SYNC_NOOP_OUTPUT;
+  }
+
+  const details: CliDisplayObject = {
+    domainCount: result.domains.length,
+    statePath: formatCliRelativePath(cwd, result.instanceState.statePath),
+    syncPlan: cliWorkspaceSyncPlanDisplay(result.syncPlan),
+    target: result.selectedTarget.alias,
+  };
+
+  if (result.mode === "dry-run") {
+    details.changedStatePaths = result.replacement.changedStatePaths;
+    details.prunedStatePaths = result.replacement.prunedStatePaths;
+  }
+
+  return formatCliWorkspaceSourceSyncOutput({
+    details,
+    fields: {
+      mediaCount: result.instanceState.mediaCount,
+      mode: result.mode,
+      noop: result.noop,
+      recordCount: result.instanceState.recordCount,
+    },
+    operation: "pull",
+    title: "Workspace pulled",
+  });
+}
+
+export function formatCliWorkspacePushOutput(result: PushFormlessInstanceWorkspaceResult): string {
+  if (result.noop && result.runtimeRebuild === undefined) {
+    return CLI_WORKSPACE_SOURCE_SYNC_NOOP_OUTPUT;
+  }
+
+  const details: CliDisplayObject = {
+    applyRestore: result.applyResult ? cliWorkspaceRestoreDisplay(result.applyResult) : null,
+    dryRunRestore: result.dryRun ? cliWorkspaceRestoreDisplay(result.dryRun) : null,
+    forcedRecovery: result.forcedRecovery ?? null,
+    syncPlan: cliWorkspaceSyncPlanDisplay(result.syncPlan),
+    target: result.selectedTarget.alias,
+  };
+  const fields: CliDisplayObject = {
+    applyRestoreOk: result.applyResult?.remote.ok ?? null,
+    backupEvidence: result.forcedRecovery?.evidence.backup.status ?? null,
+    dryRunRestoreOk: result.dryRun?.remote.ok ?? null,
+    forcedRecovery: result.forcedRecovery?.status ?? null,
+    mode: result.mode,
+    noop: result.noop,
+    remoteComparisonEvidence: result.forcedRecovery?.evidence.remoteComparison.status ?? null,
+    restoreDryRunEvidence: result.forcedRecovery?.evidence.restoreDryRun.status ?? null,
+    sourceMedia: result.source.mediaCount,
+    sourceRecords: result.source.recordCount,
+    sync: result.syncPlan.status,
+  };
+
+  if (result.runtimeRebuild !== undefined) {
+    details.runtimeRebuild = result.runtimeRebuild;
+    fields.runtimeRebuild = result.runtimeRebuild.status;
+  }
+
+  return formatCliWorkspaceSourceSyncOutput({
+    deployment: cliWorkspacePushDeploymentDisplay(result),
+    details,
+    fields,
+    operation: "push",
+    title: result.mode === "apply" ? "Workspace push applied" : "Workspace push planned",
+  });
+}
 
 export function formatCliInstanceWorkspaceTokenAdoptOutput(
   result: CliInstanceWorkspaceTokenAdoptResult,
@@ -189,4 +271,83 @@ function formatCliOwnerSetupAdminUrl(adminOrigin: string): string {
   } catch {
     return adminOrigin;
   }
+}
+
+function formatCliWorkspaceSourceSyncOutput(input: {
+  deployment?: CliDisplayObject;
+  details: CliDisplayObject;
+  fields: CliDisplayObject;
+  operation: "pull" | "push";
+  title: string;
+}): string {
+  return formatCliOutputLines([
+    `Workspace operation: ${input.operation} (succeeded).`,
+    "Workspace source: layout-only manifest, storage snapshots, media payloads.",
+    `Summary: ${input.title}.`,
+    ...formatCliDisplayFields(input.fields),
+    "Details:",
+    ...formatCliDisplayFields(input.details),
+    ...(input.deployment === undefined
+      ? []
+      : ["Deployment execution summary:", ...formatCliDisplayFields(input.deployment)]),
+  ]);
+}
+
+function cliWorkspacePushDeploymentDisplay(
+  result: PushFormlessInstanceWorkspaceResult,
+): CliDisplayObject {
+  const display = result.deploymentDisplay;
+
+  return {
+    accountId: display.accountId,
+    ...(display.accountName === undefined ? {} : { accountName: display.accountName }),
+    ...(display.credentialRef === undefined ? {} : { credentialRef: display.credentialRef }),
+    deploymentUrl: result.deployment?.url ?? display.targetUrl,
+    desiredStateVersion: result.deploymentObservation?.desiredState.versionId ?? null,
+    evidenceCount: result.deploymentObservation?.evidenceCount ?? null,
+    healthCheckVersion: result.healthCheck?.version ?? null,
+    observedStatus: result.deploymentObservation?.observedStatus ?? null,
+    ...(display.profile === undefined ? {} : { profile: display.profile }),
+    ...(display.profileRef === undefined ? {} : { profileRef: display.profileRef }),
+    providerFamily: display.providerFamily,
+    resourceCount: result.deploymentObservation?.resourceCount ?? null,
+    target: display.target,
+    targetUrl: display.targetUrl,
+    workerName: display.workerName,
+    workersDevSubdomain: display.workersDevSubdomain,
+  };
+}
+
+function cliWorkspaceRestoreDisplay(
+  result: NonNullable<PushFormlessInstanceWorkspaceResult["dryRun"]>,
+): CliDisplayObject {
+  const summary = result.remote.report?.summary ?? result.remote.plan?.summary;
+
+  return {
+    errorCount: result.remote.errors?.length ?? 0,
+    mediaCount: summary?.mediaCount ?? 0,
+    ok: result.remote.ok,
+    recordCount: summary?.recordCounts.total ?? 0,
+  };
+}
+
+function cliWorkspaceSyncPlanDisplay(plan: FormlessInstanceWorkspaceSyncPlan): CliDisplayObject {
+  return {
+    changedAreas: plan.changedAreas,
+    changedDomainCount: plan.changedDomainCount,
+    changedMediaCount: plan.changedMedia.length,
+    changedRecordCount: plan.changedRecords.length,
+    changedStatePathCount: plan.changedStatePaths.length,
+    source: plan.source.label,
+    sourceDomainCount: plan.source.domainCount,
+    sourceFingerprint: plan.source.fingerprint,
+    sourceMediaCount: plan.source.mediaCount,
+    sourceRecordCount: plan.source.recordCount,
+    status: plan.status,
+    target: plan.target.label,
+    targetDomainCount: plan.target.domainCount,
+    targetFingerprint: plan.target.fingerprint,
+    targetMediaCount: plan.target.mediaCount,
+    targetRecordCount: plan.target.recordCount,
+  };
 }

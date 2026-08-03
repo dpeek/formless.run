@@ -56,32 +56,32 @@ runtime profiles through a filesystem-capable local gateway sidecar process.
   or credential setup
 - **THEN** Gateway transport and sidecar adapters authorize, parse, and forward
   operation intent
-- **AND** CLI runtime execution adapters use the workspace operation runner for
-  operation state lifecycle, display-safe input, errors, logs, results, and
-  redaction
+- **AND** local runtime execution adapters use a Gateway-specific operation
+  runner for operation state lifecycle, display-safe input, errors, logs,
+  results, and redaction
 - **AND** credential setup may surface external authorization events and
   continue asynchronously while using the same display-safe operation state
   contract
 - **AND** Gateway adapters do not duplicate operation lifecycle transitions,
   operation body dispatch, or provider-specific step vocabulary
 
-#### Scenario: CLI runtime operation adapter
+#### Scenario: Local runtime operation adapter
 
 - **WHEN** the local gateway sidecar invokes runtime-supplied workspace
   operation handlers
-- **THEN** CLI runtime operation adapters bind gateway actor facts to the
-  workspace operation runner, scope operation ids and workspace paths to the
+- **THEN** local runtime operation adapters bind gateway actor facts to the
+  Gateway operation runner, scope operation ids and workspace paths to the
   configured workspace root, project only the dependencies required by the
   operation's effective execution requirements, and return display-safe
   Workspace package operation state
-- **AND** auto-save status, enqueue, suppression, retry, and explicit run-now
-  behavior are owned by a CLI runtime adapter module rather than by Gateway
-  transport adapters or source-sync operation bodies
+- **AND** auto-save enqueue, suppression, retry, and explicit run-now behavior
+  are owned by a local runtime adapter module rather than by Gateway transport
+  adapters or source-sync operation bodies
 - **AND** Gateway package code does not read or write workspace files,
   operation state files, ignored secret state, Authority snapshots, provider
   credentials, or deployment provider state while forwarding operation requests
 - **AND** local gateway runtime adapter tests can cover operation forwarding,
-  workspace root scoping, auto-save state behavior, capability forwarding, and
+  workspace root scoping, auto-save scheduling, capability forwarding, and
   display-safe response boundaries without duplicating Gateway package proxy
   route and authorization contract tests
 
@@ -99,16 +99,18 @@ reviewable workspace source when a local workspace gateway is available.
   record
 - **THEN** the browser or runtime enqueues workspace auto-save through the
   same-origin local gateway
-- **AND** the enqueue records a dirty generation and write source without
-  writing workspace files from browser code
+- **AND** the sidecar records a process-local dirty generation and write source
+  without writing workspace files from browser code
 - **AND** failed writes, replayed writes, read-only requests, bootstrap reads,
   sync catch-up, and browser replica merges do not enqueue auto-save
 
 #### Scenario: Auto-save executes through sidecar
 
 - **WHEN** queued auto-save work runs
-- **THEN** the gateway sidecar executes the existing workspace save behavior
+- **THEN** the gateway sidecar invokes the typed workspace save function
   against local Authority-backed storage snapshots and referenced media payloads
+- **AND** auto-save consumes the typed save result directly without creating or
+  persisting generic workspace operation state
 - **AND** browser IndexedDB is not read as source
 - **AND** deployed instance, mapped-host, site-authoring, and published Site
   profiles do not expose auto-save enqueue or execution
@@ -121,20 +123,21 @@ reviewable workspace source when a local workspace gateway is available.
   serializes save execution
 - **AND** a successful save clears dirty state only through the generation it
   persisted
-- **AND** a failed save leaves workspace state dirty, records display-safe
-  failure state, and retries only through bounded retry/backoff, the next
-  committed local write, or an explicit manual save
+- **AND** a failed save leaves process-local scheduler state dirty, reports the
+  original failure only to local diagnostics, and retries only through bounded
+  retry/backoff, the next committed local write, or an explicit manual save
 
-#### Scenario: Display auto-save status
+#### Scenario: Auto-save state is process local
 
-- **WHEN** the local instance shell reads workspace auto-save status through the
-  same-origin gateway
-- **THEN** the gateway returns display-safe clean, dirty, queued, saving, saved,
-  or failed state for the current workspace
-- **AND** the shell can offer explicit save or retry controls through the
-  existing workspace save operation
-- **AND** raw filesystem paths, provider credentials, admin tokens, owner setup
-  tokens, and ignored secret state are not exposed
+- **WHEN** the local sidecar starts, enqueues, retries, completes, or fails
+  auto-save work
+- **THEN** dirty generations, write sources, timers, retry count, and in-flight
+  state exist only in the sidecar process
+- **AND** no auto-save state file is written under ignored workspace state
+- **AND** sidecar restart begins with no queued or resumed auto-save work
+- **AND** the browser can enqueue auto-save but cannot read scheduler state,
+  diagnostics, paths, commands, or errors through Gateway
+- **AND** successful auto-save enqueue returns no generic result or status object
 
 #### Scenario: Suppress auto-save loops
 
@@ -249,7 +252,8 @@ through the Gateway package slice.
 - **THEN** one package-owned response safety Module defines transport-level JSON
   envelopes, allowed passthrough headers, method/error responses, sidecar
   unavailable responses, owner-session CSRF response wrapping, non-JSON sidecar
-  passthrough safety, and display-safe operation or auto-save response wrapping
+  passthrough safety, display-safe operation response wrapping, and empty
+  auto-save enqueue success responses
 - **AND** Worker proxy, local Node proxy, and sidecar adapters use that Module
   instead of each owning separate response header filtering or JSON wrapper logic
 - **AND** the Module only wraps and filters transport output; semantic operation

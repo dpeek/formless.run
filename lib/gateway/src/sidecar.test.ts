@@ -19,7 +19,6 @@ import {
   handleWorkspaceGatewaySidecarRequest,
   startWorkspaceGatewaySidecar,
   workspaceGatewayProxyTargetFromEnv,
-  type WorkspaceGatewayAutoSaveState,
   type WorkspaceGatewayOperation,
   type WorkspaceGatewaySidecar,
   type WorkspaceGatewaySidecarOperationHandlers,
@@ -198,11 +197,12 @@ describe("sidecar workspace gateway adapter", () => {
     });
   });
 
-  it("wraps operation and auto-save handler results with safe sidecar response headers", async () => {
+  it("wraps operations and returns empty auto-save enqueue success", async () => {
+    const autoSaveInputs: unknown[] = [];
     const handlers = operationHandlers({
-      autoSaveStatus: async () => autoSaveState({ displayState: "saving" }),
-      enqueueAutoSave: async () =>
-        autoSaveState({ displayState: "queued", writeSources: ["schema-save"] }),
+      enqueueAutoSave: async (input) => {
+        autoSaveInputs.push(input.enqueue);
+      },
       status: async ({ authorization }) => operation("status", { actor: authorization.actor }),
     });
     const operationResponse = await handleWorkspaceGatewaySidecarRequest(
@@ -244,36 +244,24 @@ describe("sidecar workspace gateway adapter", () => {
       },
     });
 
-    expect(autoSaveStatusResponse?.status).toBe(200);
+    expect(autoSaveStatusResponse?.status).toBe(405);
+    expect(autoSaveStatusResponse?.headers.get("Allow")).toBe("POST");
     expect(autoSaveStatusResponse?.headers.get("Content-Type")).toBe("application/json");
     expect(autoSaveStatusResponse?.headers.get("Set-Cookie")).toBeNull();
-    await expect(autoSaveStatusResponse?.json()).resolves.toMatchObject({
-      autoSave: {
-        displayState: "saving",
-      },
-    });
+    await expect(autoSaveStatusResponse?.json()).resolves.toEqual({ error: "Method not allowed." });
 
-    expect(autoSaveEnqueueResponse?.status).toBe(200);
-    expect(autoSaveEnqueueResponse?.headers.get("Content-Type")).toBe("application/json");
+    expect(autoSaveEnqueueResponse?.status).toBe(204);
+    expect(autoSaveEnqueueResponse?.headers.get("Content-Type")).toBeNull();
     expect(autoSaveEnqueueResponse?.headers.get("Set-Cookie")).toBeNull();
-    await expect(autoSaveEnqueueResponse?.json()).resolves.toMatchObject({
-      autoSave: {
-        displayState: "queued",
-        writeSources: ["schema-save"],
-      },
-    });
+    await expect(autoSaveEnqueueResponse?.text()).resolves.toBe("");
+    expect(autoSaveInputs).toEqual([{ source: "schema-save" }]);
   });
 
   it("rejects sidecar execution authorization failures before operation handlers run", async () => {
     const calls: string[] = [];
     const handlers = operationHandlers({
-      autoSaveStatus: async () => {
-        calls.push("autoSaveStatus");
-        return autoSaveState();
-      },
       enqueueAutoSave: async () => {
         calls.push("enqueueAutoSave");
-        return autoSaveState({ displayState: "queued" });
       },
       readOperation: async () => {
         calls.push("readOperation");
@@ -487,28 +475,11 @@ function operationHandlers(
   overrides: Partial<WorkspaceGatewaySidecarOperationHandlers> = {},
 ): WorkspaceGatewaySidecarOperationHandlers {
   return {
-    autoSaveStatus: async () => autoSaveState(),
-    enqueueAutoSave: async () => autoSaveState({ displayState: "queued" }),
+    enqueueAutoSave: async () => undefined,
     readOperation: async ({ authorization }) => operation("status", { actor: authorization.actor }),
     startOperation: async ({ authorization, operationInput }) =>
       operation(operationInput.kind, { actor: authorization.actor }),
     status: async ({ authorization }) => operation("status", { actor: authorization.actor }),
-    ...overrides,
-  };
-}
-
-function autoSaveState(
-  overrides: Partial<WorkspaceGatewayAutoSaveState> = {},
-): WorkspaceGatewayAutoSaveState {
-  return {
-    dirtyGeneration: 0,
-    displayState: "clean",
-    kind: "formless.workspaceAutoSaveState",
-    retryCount: 0,
-    savedGeneration: 0,
-    updatedAt: "2026-06-02T01:00:00.000Z",
-    version: 1,
-    writeSources: [],
     ...overrides,
   };
 }

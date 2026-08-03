@@ -58,9 +58,7 @@ import {
   DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
   DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
   FORMLESS_CONFIG_FILE,
-  WORKSPACE_OPERATION_KINDS,
   resolveFormlessConfig,
-  workspaceOperationDefinitionForKind,
 } from "@dpeek/formless-workspace";
 import {
   activeWorkspaceProgramArtifact,
@@ -154,6 +152,7 @@ describe("Formless CLI", () => {
     expect(
       FORMLESS_CLI_WORKSPACE_OPERATION_BINDINGS.map((binding) => ({
         command: binding.command,
+        defaults: binding.defaults,
         dispatchKind: binding.dispatchKind,
         operationKind: binding.operationKind,
         optionFields: binding.options.map((option) => option.fieldKey),
@@ -164,6 +163,11 @@ describe("Formless CLI", () => {
     ).toEqual([
       {
         command: "formless pull",
+        defaults: {
+          dryRun: false,
+          targetAlias: null,
+          workspacePath: null,
+        },
         dispatchKind: "workspacePull",
         operationKind: "pull",
         optionFields: ["workspacePath", "targetAlias", "dryRun"],
@@ -173,6 +177,12 @@ describe("Formless CLI", () => {
       },
       {
         command: "formless push",
+        defaults: {
+          dryRun: false,
+          force: false,
+          targetAlias: null,
+          workspacePath: null,
+        },
         dispatchKind: "workspacePush",
         operationKind: "push",
         optionFields: ["workspacePath", "targetAlias", "dryRun", "force"],
@@ -186,25 +196,6 @@ describe("Formless CLI", () => {
     expect(
       FORMLESS_CLI_WORKSPACE_OPERATION_BINDINGS.map((binding) => binding.operationKind),
     ).toEqual(["pull", "push"]);
-    expect(
-      FORMLESS_CLI_WORKSPACE_OPERATION_BINDINGS.every((binding) =>
-        WORKSPACE_OPERATION_KINDS.includes(binding.operationKind),
-      ),
-    ).toBe(true);
-
-    for (const binding of FORMLESS_CLI_WORKSPACE_OPERATION_BINDINGS) {
-      const definition = workspaceOperationDefinitionForKind(binding.operationKind);
-      const definitionFieldKeys = new Set(definition.input.fields.map((field) => field.key));
-
-      expect(binding.options.map((option) => option.fieldKey)).toEqual(
-        binding.operationKind === "push"
-          ? ["workspacePath", "targetAlias", "dryRun", "force"]
-          : ["workspacePath", "targetAlias", "dryRun"],
-      );
-      expect(binding.options.every((option) => definitionFieldKeys.has(option.fieldKey))).toBe(
-        true,
-      );
-    }
 
     expect(
       FORMLESS_CLI_WORKSPACE_OPERATION_BINDINGS.map((binding) => binding.command),

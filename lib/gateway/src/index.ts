@@ -63,8 +63,6 @@ export type {
   WorkspaceGatewayApiErrorBody,
   WorkspaceGatewayAutoSaveEnqueueInput,
   WorkspaceGatewayAutoSaveEnqueueInputParseResult,
-  WorkspaceGatewayAutoSaveResponse,
-  WorkspaceGatewayAutoSaveState,
   WorkspaceGatewayAutoSaveWriteSource,
   WorkspaceGatewayAuthorizationVia,
   WorkspaceGatewayCheckOrPullStartInput,
@@ -202,10 +200,6 @@ export function workspaceGatewayReadOperationIntent(
     operation,
     requiredCapability: workspaceOperationRequiredCapability(operation),
   };
-}
-
-export function workspaceGatewayAutoSaveStatusIntent(): WorkspaceGatewayOperationIntent {
-  return workspaceGatewayReadOperationIntent("status");
 }
 
 export function workspaceGatewayAutoSaveEnqueueIntent(): WorkspaceGatewayOperationIntent {

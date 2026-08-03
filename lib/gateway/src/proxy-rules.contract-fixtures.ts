@@ -7,7 +7,6 @@ import {
   WORKSPACE_GATEWAY_CSRF_HEADER,
   WORKSPACE_GATEWAY_OPERATIONS_API_PATH,
   WORKSPACE_GATEWAY_STATUS_API_PATH,
-  type WorkspaceGatewayAutoSaveState,
   type WorkspaceGatewayOperation,
   type WorkspaceGatewayOperationKind,
 } from "./index.ts";
@@ -67,13 +66,12 @@ export function captureSidecarOperationCalls(
 
 export function captureSidecarAutoSaveCalls(
   calls: CapturedSidecarCall[],
-  autoSave: WorkspaceGatewayAutoSaveState,
-  responseInit: ResponseInit = {},
+  responseInit: ResponseInit = { status: 204 },
 ): typeof fetch {
   return async (input, init) => {
     calls.push(await capturedSidecarCall(input, init));
 
-    return sidecarJsonResponse({ autoSave }, responseInit);
+    return new Response(null, responseInit);
   };
 }
 
@@ -179,22 +177,11 @@ export async function expectGatewayOperationResponse(input: {
   return body;
 }
 
-export async function expectGatewayAutoSaveResponse(input: {
-  autoSave?: Partial<WorkspaceGatewayAutoSaveState>;
-  csrfToken?: string;
+export async function expectGatewayAutoSaveEnqueueResponse(input: {
   response: Response | undefined;
-}): Promise<Record<string, unknown>> {
-  const body = await expectJsonBody(input.response);
-
-  expect(input.response?.status).toBe(200);
-  if (input.csrfToken !== undefined) {
-    expect(body.csrfToken).toBe(input.csrfToken);
-  }
-  if (input.autoSave !== undefined) {
-    expect(body.autoSave).toMatchObject(input.autoSave);
-  }
-
-  return body;
+}): Promise<void> {
+  expect(input.response?.status).toBe(204);
+  await expect(input.response?.text()).resolves.toBe("");
 }
 
 export function expectNoSidecarCalls(calls: CapturedSidecarCall[], label?: string): void {
@@ -223,23 +210,6 @@ export function workspaceGatewayOperation(
     updatedAt: "2026-06-03T00:00:01.000Z",
     version: 1,
     workspace: { label: "workspace" },
-    ...overrides,
-  };
-}
-
-export function workspaceGatewayAutoSaveState(
-  displayState: WorkspaceGatewayAutoSaveState["displayState"] = "clean",
-  overrides: Partial<WorkspaceGatewayAutoSaveState> = {},
-): WorkspaceGatewayAutoSaveState {
-  return {
-    dirtyGeneration: displayState === "queued" ? 1 : 0,
-    displayState,
-    kind: "formless.workspaceAutoSaveState",
-    retryCount: 0,
-    savedGeneration: 0,
-    updatedAt: "2026-06-03T00:00:01.000Z",
-    version: 1,
-    writeSources: displayState === "queued" ? ["control-plane-write"] : [],
     ...overrides,
   };
 }

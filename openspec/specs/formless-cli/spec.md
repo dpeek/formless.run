@@ -223,7 +223,8 @@ local execution binding handles it.
 
 - **WHEN** the workspace package declares a workspace operation
 - **THEN** the definition includes a target-prefixed canonical key, label, input
-  fields, defaults, actor policy, read or write mode, bootstrap availability,
+  fields, Gateway input defaults, actor policy, read or write mode, bootstrap
+  availability,
   display-safe input summary, gateway binding, required execution capability,
   and semantic execution requirements
 - **AND** the definition includes a stable execution handler key that may match
@@ -286,8 +287,11 @@ local execution binding handles it.
 - **AND** operation handler implementations remain grouped by execution domain
   such as workspace status, workspace source sync, credential setup, and
   deployment
-- **AND** the first implementation does not require moving all operation bodies
-  into one shared operation module
+- **AND** operation-specific typed result contracts stay with those execution
+  domains
+- **AND** CLI and auto-save may invoke those typed domain functions directly
+  while Gateway execution continues to adapt them through the definition's
+  handler key and display-safe operation state
 
 #### Scenario: CLI workspace implementation domains
 
@@ -316,45 +320,37 @@ local execution binding handles it.
   CLI and gateway integration tests cover binding, authorization, routing, and
   display-safe progress boundaries
 
-#### Scenario: CLI workspace operation runner boundary
+#### Scenario: Typed local execution boundary
 
-- **WHEN** Formless CLI, local gateway, auto-save, or CLI runtime adapter code
-  starts a workspace operation
-- **THEN** the CLI workspace operation runner owns actor, capability, and
-  execution requirement checks, workspace root resolution, operation id
-  creation, display-safe input capture, queued/running/succeeded/failed
-  operation state transitions, log and error persistence, result persistence,
-  and result redaction
-- **AND** operation body selection is delegated to operation-domain
-  implementations keyed by the workspace operation definition's handler key
-- **AND** the runner interface does not require deployment provider, credential
-  setup, health check, owner setup, package build, local secret environment, or
-  token-generation dependencies for operations whose effective execution
-  requirements do not need them
-- **AND** push dry-runs that do not perform apply, provider reconciliation, or
-  local writeback are not required to provide provider mutation dependencies
-- **AND** deployment step ids, deployment step labels, and domain-specific
-  operation summaries are emitted by deployment or source-sync handlers rather
-  than by the generic runner
+- **WHEN** Formless CLI or local auto-save executes pull, push, credential
+  setup, or save behavior
+- **THEN** it invokes the operation-specific domain function and consumes its
+  typed result directly
+- **AND** CLI execution does not create operation ids, capture display input,
+  persist queued or running state, persist generic logs or errors, redact
+  recursive result objects, or summarize a typed result into a generic
+  Workspace operation result
+- **AND** each caller assembles only the dependencies required by the selected
+  typed operation
+- **AND** push dry-runs do not require provider mutation dependencies
+- **AND** original exceptions, paths, commands, provider diagnostics, and local
+  tool output remain CLI or sidecar-local diagnostics rather than reusable
+  Workspace result contracts
+- **AND** Gateway operation state execution and persistence remain a separate
+  Gateway runtime adapter concern and are not used by CLI commands or auto-save
 
-#### Scenario: Formless CLI binding from operation definition
+#### Scenario: Formless CLI typed operation binding
 
 - **WHEN** the CLI exposes a workspace command for a defined operation
 - **THEN** command names, option spellings, option ordering, terminal help
   labels, terminal descriptions, and dispatch behavior are declared in a Formless
   CLI-owned binding table keyed by workspace operation kind or canonical key
-- **AND** command arguments and defaults are selected from the operation input
-  contract and the Formless CLI binding table
+- **AND** command arguments and defaults are owned by the Formless CLI binding
+  and produce the operation-specific typed input
 - **AND** each workspace operation promoted to the public CLI has one CLI
   binding name
-- **AND** the command invokes the same workspace operation contract with actor
-  `cli`, either through direct local execution or through a gateway, API,
-  sidecar, or runtime endpoint selected by Formless CLI from available execution
-  context
-- **AND** execution may continue to dispatch to existing local workspace
-  functions while the operation definition remains the source of semantic input,
-  actor policy, mode, required capability, execution requirements, and
-  display-safe input facts
+- **AND** the command invokes the operation-specific local function directly
+  with CLI-owned dependency assembly
 - **AND** the first public CLI operation bindings are `formless pull` and
   `formless push`
 - **AND** public pull bindings expose only `--workspace`, `--target`, and
@@ -374,12 +370,11 @@ local execution binding handles it.
   the command family without owning workspace operation input translation,
   operation execution, terminal preflight prompts, or workspace operation
   result formatting
-- **AND** CLI command adapter modules translate parsed command values into
-  workspace operation inputs selected from the operation definition and CLI
-  binding table
-- **AND** CLI command adapter modules invoke workspace operations with actor
-  `cli`, CLI execution capabilities, and CLI-owned dependency assembly without
-  bypassing the workspace operation runner
+- **AND** CLI command adapter modules translate parsed command values into the
+  typed pull or push input selected by the CLI binding table
+- **AND** CLI command adapter modules invoke the typed source-sync functions
+  with CLI-owned dependency assembly and pass their typed results to
+  command-specific formatters
 - **AND** CLI terminal preflight for provider credentials, browser opening,
   account selection, and non-interactive guidance stays in CLI command adapter
   modules before provider mutation begins
@@ -387,32 +382,28 @@ local execution binding handles it.
   token refresh, selected-account facts, and provider bearer resolution behind
   narrow interfaces
 - **AND** CLI terminal formatters own command output strings, no-op output,
-  operation summaries, display-safe field rendering, path rendering, and
-  command-specific result text
-- **AND** operation-domain modules emit display-safe operation results and
-  summaries but do not own public CLI command spelling, terminal prompts, or
-  terminal output layout
+  path rendering, selected typed result fields, and command-specific result text
+- **AND** operation-domain modules emit typed domain results but do not own
+  public CLI command spelling, terminal prompts, or terminal output layout
 - **AND** Gateway adapters and local runtime proxy code do not own CLI command
   parsing, terminal preflight prompts, terminal output layout, or direct CLI
   dependency assembly
 
 #### Scenario: Operation output formatting boundary
 
-- **WHEN** Formless CLI reports workspace operation output, direct workspace
-  command results, owner setup results, token command results, destroy results,
-  paths, selected targets, display-safe fields, or no-op output
+- **WHEN** Formless CLI reports typed workspace command results, owner setup
+  results, token command results, destroy results, paths, selected targets, or
+  no-op output
 - **THEN** CLI formatter modules own the terminal strings, line ordering,
   display-safe value rendering, path rendering, selected-target rendering,
   command-specific result text, and exact no-op output
 - **AND** top-level CLI dispatch logs formatted output without constructing
   command result strings inline
-- **AND** operation-domain modules return display-safe summaries, details,
-  steps, deployment facts, cleanup facts, target facts, and result objects but
+- **AND** operation-domain modules return operation-specific typed results but
   do not own terminal layout, punctuation, path relativity, or public command
   output wording
-- **AND** direct command formatters use the same shared CLI formatting helpers
-  as workspace operation formatters for display-safe values, selected targets,
-  relative paths, and optional fields
+- **AND** command formatters use shared CLI formatting helpers for selected
+  targets, relative paths, and optional typed fields
 - **AND** formatter tests own exact terminal string rendering while CLI command
   integration tests cover dispatch, dependency wiring, behavior, and secret
   redaction without duplicating every formatter case
@@ -422,19 +413,19 @@ local execution binding handles it.
 - **WHEN** local workspace operation behavior is covered by tests
 - **THEN** operation-domain suites own source sync, deployment refresh,
   deployment planning, provider reconciliation, destroy, credential setup,
-  target/context resolution, and display-safe operation result construction at
-  operation-body level
+  target/context resolution, and typed result construction at operation-body
+  level
 - **AND** CLI command integration suites keep representative coverage for
   command parsing and binding, dependency assembly, terminal preflight,
-  account selection, runner invocation, no-op behavior, redaction boundaries,
-  and public command behavior without duplicating each domain branch
+  account selection, typed function invocation, no-op behavior, diagnostic
+  boundaries, and public command behavior without duplicating each domain branch
 - **AND** Gateway runtime integration suites own transport authorization,
-  proxy and sidecar routing, operation id scoping, browser-visible state
-  redaction, and auto-save enqueue/read behavior without asserting source sync
+  proxy and sidecar routing, operation id scoping, browser-visible operation
+  state redaction, and auto-save enqueue behavior without asserting source sync
   or deployment execution internals
 - **AND** formatter suites own exact terminal strings, line ordering, labels,
   path rendering, and display-safe value rendering for direct command and
-  workspace operation output
+  typed workspace command output
 - **AND** shared operation fixtures may be composed from domain-level helpers
   only when dependencies remain explicit and CLI or Gateway suites do not become
   the owner of operation-body behavior
@@ -481,17 +472,18 @@ local execution binding handles it.
 
 - **WHEN** Formless CLI supplies operation handlers to the local workspace
   gateway sidecar
-- **THEN** CLI runtime operation adapter modules own workspace root scoping,
+- **THEN** local runtime adapter modules own workspace root scoping, Gateway
   operation runner invocation, actor and capability forwarding, operation state
   reads, auto-save scheduling, and auto-save suppression decisions
 - **AND** Gateway package adapters continue to own transport authorization,
   route parsing, sidecar proxy request and response shape, and browser-visible
   response wrapping without owning local workspace operation execution
 - **AND** local gateway lifecycle code may start sidecars and assemble process
-  environment facts without owning operation handler dependency projection,
-  operation body dispatch, operation state persistence, or auto-save execution
-- **AND** operation-domain modules continue to own source sync, credential setup,
-  deployment, provider reconciliation, and summary vocabulary behind the runner
+  environment facts without owning operation body execution, operation state
+  persistence, or auto-save execution
+- **AND** operation-domain modules continue to own typed source sync,
+  credential setup, deployment, and provider reconciliation behavior behind the
+  Gateway runtime adapter
 - **AND** runtime operation adapters do not own public CLI command parsing,
   terminal formatting, OAuth browser flows, provider secret storage, runtime
   topology definitions, or owner session cookie validation logic

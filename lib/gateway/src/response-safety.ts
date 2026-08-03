@@ -74,15 +74,6 @@ export async function workspaceGatewaySafeSidecarResponse(input: {
     });
   }
 
-  if (input.response.status === 200 && responseObjectHas(body, "autoSave")) {
-    return workspaceGatewayAutoSaveResponse({
-      authorization: input.authorization,
-      autoSave: body.autoSave,
-      env: input.env,
-      request: input.request,
-    });
-  }
-
   return workspaceGatewayJsonResponse(
     body,
     input.response.status,
@@ -108,22 +99,8 @@ export function workspaceGatewayOperationResponse(input: {
   );
 }
 
-export function workspaceGatewayAutoSaveResponse(input: {
-  authorization: WorkspaceGatewayResponseSafetyAuthorization;
-  autoSave: unknown;
-  env: WorkspaceGatewayResponseSafetyEnv;
-  request: Request;
-}): Response {
-  const browserResponse = workspaceGatewayBrowserResponseHeaders(input);
-
-  return workspaceGatewayJsonResponse(
-    {
-      ...(browserResponse.csrfToken === undefined ? {} : { csrfToken: browserResponse.csrfToken }),
-      autoSave: input.autoSave,
-    },
-    200,
-    browserResponse.headers,
-  );
+export function workspaceGatewayEmptySuccessResponse(): Response {
+  return new Response(null, { status: 204 });
 }
 
 export function workspaceGatewayAllowedPassthroughResponseHeaders(headers: Headers): Headers {
@@ -141,6 +118,13 @@ export function workspaceGatewayAllowedPassthroughResponseHeaders(headers: Heade
 }
 
 async function workspaceGatewayNonJsonSidecarPassthroughResponse(response: Response) {
+  if (response.status === 204) {
+    return new Response(null, {
+      headers: workspaceGatewayAllowedPassthroughResponseHeaders(response.headers),
+      status: response.status,
+    });
+  }
+
   return new Response(await response.arrayBuffer(), {
     headers: workspaceGatewayAllowedPassthroughResponseHeaders(response.headers),
     status: response.status,
