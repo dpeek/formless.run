@@ -245,6 +245,15 @@ function summarizePushResult(
 ): WorkspaceOperationResult {
   const details: WorkspaceOperationDisplayObject = {
     applyRestore: result.applyResult ? summarizeRestore(result.applyResult) : null,
+    ...(result.backup === undefined
+      ? {}
+      : {
+          backup: {
+            archivePath: result.backup.archivePath,
+            mediaCount: result.backup.mediaCount,
+            recordCount: result.backup.recordCount,
+          },
+        }),
     dryRunRestore: result.dryRun ? summarizeRestore(result.dryRun) : null,
     forcedRecovery: result.forcedRecovery ?? null,
     syncPlan: summarizeSyncPlan(result.syncPlan),
@@ -252,7 +261,10 @@ function summarizePushResult(
   };
   const fields: WorkspaceOperationDisplayObject = {
     applyRestoreOk: result.applyResult?.remote.ok ?? null,
-    backupEvidence: result.forcedRecovery?.evidence.backup.status ?? null,
+    backupEvidence:
+      result.backup === undefined
+        ? (result.forcedRecovery?.evidence.backup.status ?? null)
+        : "written",
     dryRunRestoreOk: result.dryRun?.remote.ok ?? null,
     forcedRecovery: result.forcedRecovery?.status ?? null,
     mode: result.mode,

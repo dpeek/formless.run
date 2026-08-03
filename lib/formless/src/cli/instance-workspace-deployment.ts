@@ -440,6 +440,10 @@ export class WorkspacePushDesiredProgramRuntimeError extends Error {
   }
 }
 
+const WORKSPACE_PUSH_PROGRAM_PROVENANCE_RETRY_DELAYS_MS = [
+  250, 500, 1_000, 2_000, 4_000, 8_000, 16_000,
+];
+
 export type DestroyFormlessInstanceWorkspaceRouteProviderResources = {
   enabledHosts: string[];
   resourceGraph: DeployResourceGraph;
@@ -644,13 +648,24 @@ export async function pushFormlessInstanceWorkspace(
           )
         : undefined;
 
-    const provider =
+    const reconciledProvider =
       input.apply && providerApply === undefined
         ? await applyWorkspacePushProviderReconciliation(planned, applyDependencies!)
         : providerApply;
-    if (provider !== undefined) {
-      assertWorkspacePushDesiredProgramRuntime(provider.healthCheck, programArtifact);
-    }
+    const provider =
+      reconciledProvider === undefined
+        ? undefined
+        : {
+            ...reconciledProvider,
+            healthCheck: await waitForWorkspacePushDesiredProgramRuntime({
+              dependencies: applyDependencies!,
+              healthCheck: reconciledProvider.healthCheck,
+              plan: planned.plan,
+              programArtifact,
+              providerBearer: planned.providerBearer,
+              selectedTarget: planned.selectedTarget,
+            }),
+          };
     const applyDryRun =
       hasDataChanges && input.apply
         ? await restoreWorkspacePushSourceArchive(
@@ -777,6 +792,50 @@ function assertWorkspacePushDesiredProgramRuntime(
       desiredProgramProvenance: programArtifact.schemaProvenance,
     });
   }
+}
+
+async function waitForWorkspacePushDesiredProgramRuntime(input: {
+  dependencies: PushFormlessInstanceWorkspaceDependencies;
+  healthCheck: CheckFormlessInstanceDeployMetadataResult;
+  plan: FormlessInstanceDeploymentPlan;
+  programArtifact: FormlessProgramArtifact;
+  providerBearer?: FormlessCliProviderBearerMaterial;
+  selectedTarget: FormlessInstanceWorkspaceTarget;
+}): Promise<CheckFormlessInstanceDeployMetadataResult> {
+  let healthCheck = input.healthCheck;
+
+  for (const delayMs of WORKSPACE_PUSH_PROGRAM_PROVENANCE_RETRY_DELAYS_MS) {
+    if (workspacePushProgramRuntimeMatches(healthCheck, input.programArtifact)) {
+      return healthCheck;
+    }
+
+    await waitForWorkspacePushHealthRetry(delayMs);
+    healthCheck = await checkLocalWorkspaceDeploymentHealth({
+      dependencies: input.dependencies,
+      deploymentUrl: healthCheck.url,
+      plan: input.plan,
+      ...(input.providerBearer === undefined ? {} : { providerBearer: input.providerBearer }),
+      selectedTarget: input.selectedTarget,
+    });
+  }
+
+  assertWorkspacePushDesiredProgramRuntime(healthCheck, input.programArtifact);
+  return healthCheck;
+}
+
+function workspacePushProgramRuntimeMatches(
+  healthCheck: CheckFormlessInstanceDeployMetadataResult,
+  programArtifact: FormlessProgramArtifact,
+): boolean {
+  return (
+    healthCheck.schemaProvenance.kind === programArtifact.schemaProvenance.kind &&
+    healthCheck.schemaProvenance.sourceSchemaHash ===
+      programArtifact.schemaProvenance.sourceSchemaHash
+  );
+}
+
+async function waitForWorkspacePushHealthRetry(delayMs: number): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
 }
 
 function requireWorkspacePushApplyDependencies(

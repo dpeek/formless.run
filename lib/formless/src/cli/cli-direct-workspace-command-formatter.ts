@@ -125,6 +125,15 @@ export function formatCliWorkspacePushOutput(result: PushFormlessInstanceWorkspa
 
   const details: CliDisplayObject = {
     applyRestore: result.applyResult ? cliWorkspaceRestoreDisplay(result.applyResult) : null,
+    ...(result.backup === undefined
+      ? {}
+      : {
+          backup: {
+            archivePath: result.backup.archivePath,
+            mediaCount: result.backup.mediaCount,
+            recordCount: result.backup.recordCount,
+          },
+        }),
     dryRunRestore: result.dryRun ? cliWorkspaceRestoreDisplay(result.dryRun) : null,
     forcedRecovery: result.forcedRecovery ?? null,
     syncPlan: cliWorkspaceSyncPlanDisplay(result.syncPlan),
@@ -132,7 +141,10 @@ export function formatCliWorkspacePushOutput(result: PushFormlessInstanceWorkspa
   };
   const fields: CliDisplayObject = {
     applyRestoreOk: result.applyResult?.remote.ok ?? null,
-    backupEvidence: result.forcedRecovery?.evidence.backup.status ?? null,
+    backupEvidence:
+      result.backup === undefined
+        ? (result.forcedRecovery?.evidence.backup.status ?? null)
+        : "written",
     dryRunRestoreOk: result.dryRun?.remote.ok ?? null,
     forcedRecovery: result.forcedRecovery?.status ?? null,
     mode: result.mode,
@@ -147,6 +159,14 @@ export function formatCliWorkspacePushOutput(result: PushFormlessInstanceWorkspa
   if (result.runtimeRebuild !== undefined) {
     details.runtimeRebuild = result.runtimeRebuild;
     fields.runtimeRebuild = result.runtimeRebuild.status;
+  }
+
+  if (result.schemaChange !== undefined) {
+    details.schemaChange = result.schemaChange;
+    fields.localArchiveValidation = result.schemaChange.localArchiveValidation;
+    fields.runtimeReconciliation = result.schemaChange.runtimeReconciliation;
+    fields.storageCompatibility = result.schemaChange.storageCompatibility;
+    fields.targetRuntimeValidation = result.schemaChange.targetRuntimeValidation;
   }
 
   return formatCliWorkspaceSourceSyncOutput({

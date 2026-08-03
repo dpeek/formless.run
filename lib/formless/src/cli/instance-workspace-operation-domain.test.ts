@@ -1198,6 +1198,7 @@ describe("deployment runtime domain", () => {
       const workspaceRoot = path.join(tempDir, "personal-sites");
       const requests: CapturedRequest[] = [];
       const deployInputs: DeployFormlessInstanceInput[] = [];
+      let healthCheckCount = 0;
       const targetProgram = schemaSafePushProgram(false);
       const desiredProgram = schemaSafePushProgram(true);
       const targetArtifact = await materializeFormlessProgramSourceArtifact(
@@ -1254,6 +1255,21 @@ describe("deployment runtime domain", () => {
           deployInputs,
           env: { CLOUDFLARE_API_TOKEN: "manual-provider-token" },
           fetch: fetcher,
+          healthCheck: {
+            check: async (input) => ({
+              cacheControl: "no-store",
+              metadataUrl: new URL("/api/formless/deploy", `${input.url}/`).toString(),
+              packageVersion: input.expectedVersion,
+              runtimeProtocolVersion: FORMLESS_RUNTIME_PROTOCOL_VERSION,
+              schemaProvenance:
+                healthCheckCount++ === 0
+                  ? targetArtifact.schemaProvenance
+                  : desiredArtifact.schemaProvenance,
+              storageMigrationSet: FORMLESS_STORAGE_MIGRATION_SET_ID,
+              url: input.url,
+              version: input.expectedVersion,
+            }),
+          },
         }),
       );
       const restoreRequests = requests.filter(
@@ -1301,6 +1317,7 @@ describe("deployment runtime domain", () => {
         storageCompatibility: "storage-compatible",
         targetRuntimeValidation: "passed",
       });
+      expect(healthCheckCount).toBe(2);
       expect(deployInputs).toHaveLength(1);
       expect(restoreRequests).toHaveLength(2);
       expect(restoreBody.archive.program.schemaProvenance).toEqual(
@@ -2308,6 +2325,7 @@ function deploymentApplyOperationDeps(
     deployInputs?: DeployFormlessInstanceInput[];
     env?: NodeJS.ProcessEnv;
     fetch?: typeof fetch;
+    healthCheck?: PushFormlessInstanceWorkspaceDependencies["healthCheck"];
     packageRoot?: string;
   } = {},
 ): PushFormlessInstanceWorkspaceDependencies {
@@ -2333,7 +2351,7 @@ function deploymentApplyOperationDeps(
     },
     ...(options.env === undefined ? {} : { env: options.env }),
     fetch: options.fetch ?? fetch,
-    healthCheck: {
+    healthCheck: options.healthCheck ?? {
       check: async (input) => ({
         cacheControl: "no-store",
         metadataUrl: new URL("/api/formless/deploy", `${input.url}/`).toString(),

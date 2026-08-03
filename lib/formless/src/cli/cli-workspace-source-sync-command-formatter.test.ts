@@ -108,6 +108,40 @@ describe("workspace source-sync CLI formatter", () => {
       ].join("\n"),
     );
   });
+
+  it("reports an ordinary push backup and schema-change validation", () => {
+    const output = formatCliWorkspacePushOutput(
+      pushResult({
+        backup: {
+          archivePath: "/workspace/.formless/backups/instance.json",
+          mediaCount: 2,
+          recordCount: 4,
+        },
+        mode: "apply",
+        schemaChange: {
+          currentProgramProvenance: {
+            kind: "program",
+            sourceSchemaHash: `sha256:${"a".repeat(64)}`,
+          },
+          desiredProgramProvenance: {
+            kind: "program",
+            sourceSchemaHash: `sha256:${"b".repeat(64)}`,
+          },
+          localArchiveValidation: "passed",
+          runtimeReconciliation: "required",
+          storageCompatibility: "storage-compatible",
+          targetRuntimeValidation: "passed",
+        },
+      }),
+    );
+
+    expect(output).toContain("backupEvidence: written.");
+    expect(output).toContain(
+      'backup: {"archivePath":"/workspace/.formless/backups/instance.json","mediaCount":2,"recordCount":4}.',
+    );
+    expect(output).toContain("storageCompatibility: storage-compatible.");
+    expect(output).toContain("targetRuntimeValidation: passed.");
+  });
 });
 
 function pullResult(

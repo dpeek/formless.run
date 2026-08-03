@@ -976,8 +976,13 @@ intent lives in schema-owned storage snapshots.
   repair as requiring an explicit future evolution operation
 - **AND** it durably backs up the exact validated pre-reconciliation target
   archive before provider, Program, or media mutation
+- **AND** successful apply output reports the durable backup archive path and its
+  record and media counts
 - **AND** it reconciles the runtime and provider graph needed for the local
   workspace source before treating target restore dry-run results as final
+- **AND** when a healthy provider response temporarily identifies the previous
+  Program during propagation, it boundedly rechecks deploy metadata before
+  reporting a provenance mismatch
 - **AND** backup validation remains governed by the pre-reconciliation target
   Program while replacement validation is governed by the reconciled desired
   Program
