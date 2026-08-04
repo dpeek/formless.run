@@ -45,15 +45,13 @@ export type {
 export type WorkspaceGatewayConfig = { apiBasePath: string; bootstrapToken?: string };
 
 export class WorkspaceGatewayApiError extends Error {
-  readonly body: WorkspaceGatewayApiErrorBody;
   readonly code: WorkspaceGatewayErrorCode;
   readonly status: number;
 
-  constructor(body: WorkspaceGatewayApiErrorBody, status: number) {
-    super(workspaceGatewayErrorMessage(body.code));
+  constructor(code: WorkspaceGatewayErrorCode, status: number) {
+    super();
     this.name = "WorkspaceGatewayApiError";
-    this.body = body;
-    this.code = body.code;
+    this.code = code;
     this.status = status;
   }
 }
@@ -194,26 +192,32 @@ async function requestWithBootstrapRetry<T>(
   const first = await request(true);
   if (first.status !== 403) return parse(first);
   const body = await readGatewayErrorBody(first);
-  if (body.code !== "bootstrap-expired") throw new WorkspaceGatewayApiError(body, first.status);
+  if (body.code !== "bootstrap-expired") {
+    throw new WorkspaceGatewayApiError(body.code, first.status);
+  }
   return parse(await request(false));
 }
 
 async function readStatusResponse(response: Response): Promise<WorkspaceGatewayStatusResponse> {
   const body = await readResponseJson(response);
-  if (!response.ok) throw new WorkspaceGatewayApiError(gatewayErrorBody(body), response.status);
+  if (!response.ok) {
+    throw new WorkspaceGatewayApiError(gatewayErrorBody(body).code, response.status);
+  }
   if (!isWorkspaceGatewayStatusResponse(body)) throw invalidResponseError();
   return body;
 }
 
 async function readPushResponse(response: Response): Promise<WorkspaceGatewayPushResponse> {
   const body = await readResponseJson(response);
-  if (!response.ok) throw new WorkspaceGatewayApiError(gatewayErrorBody(body), response.status);
+  if (!response.ok) {
+    throw new WorkspaceGatewayApiError(gatewayErrorBody(body).code, response.status);
+  }
   if (!isWorkspaceGatewayPushResponse(body)) throw invalidResponseError();
   return body;
 }
 
 async function throwGatewayError(response: Response): Promise<never> {
-  throw new WorkspaceGatewayApiError(await readGatewayErrorBody(response), response.status);
+  throw new WorkspaceGatewayApiError((await readGatewayErrorBody(response)).code, response.status);
 }
 
 async function readGatewayErrorBody(response: Response): Promise<WorkspaceGatewayApiErrorBody> {
@@ -225,7 +229,7 @@ function gatewayErrorBody(body: unknown): WorkspaceGatewayApiErrorBody {
 }
 
 function invalidResponseError(): WorkspaceGatewayApiError {
-  return new WorkspaceGatewayApiError({ code: "invalid-sidecar-response" }, 502);
+  return new WorkspaceGatewayApiError("invalid-sidecar-response", 502);
 }
 
 async function readResponseJson(response: Response): Promise<unknown> {
@@ -251,37 +255,6 @@ function gatewayHeaders(
   }
   if (options.csrfToken) headers.set(WORKSPACE_GATEWAY_CSRF_HEADER, options.csrfToken);
   return headers;
-}
-
-function workspaceGatewayErrorMessage(code: WorkspaceGatewayErrorCode): string {
-  switch (code) {
-    case "push-active":
-      return "A workspace push is already running.";
-    case "push-not-found":
-      return "Workspace push was not found.";
-    case "interaction-not-found":
-      return "Workspace push interaction was not found.";
-    case "interaction-invalid":
-      return "The selected Cloudflare account is unavailable.";
-    case "interaction-expired":
-      return "Workspace push interaction expired.";
-    case "csrf-invalid":
-      return "Workspace authorization expired. Refresh and try again.";
-    case "unauthorized":
-    case "bootstrap-expired":
-      return "Workspace authorization is required.";
-    case "forbidden":
-      return "Workspace push is not allowed.";
-    case "gateway-unavailable":
-      return "Workspace gateway is unavailable.";
-    case "invalid-sidecar-response":
-      return "Workspace gateway returned an invalid response.";
-    case "invalid-request":
-      return "Workspace push request is invalid.";
-    case "method-not-allowed":
-    case "not-found":
-      return "Workspace gateway route is unavailable.";
-  }
 }
 
 function stringConfigValue(value: unknown): string | undefined {

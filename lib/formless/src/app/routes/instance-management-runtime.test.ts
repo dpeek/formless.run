@@ -35,10 +35,9 @@ describe("instance management projection", () => {
     });
 
     expect(
-      projectInstanceManagement(input({ controlPlaneLoadError: "Control-plane bootstrap failed." }))
-        .manifest,
+      projectInstanceManagement(input({ controlPlaneLoadFailure: "program-sync-failed" })).manifest,
     ).toMatchObject({
-      feedback: { detail: "Control-plane bootstrap failed." },
+      feedback: { detail: "Program routes could not be loaded. Try again." },
       state: "failed",
     });
 
@@ -62,7 +61,29 @@ describe("instance management projection", () => {
     });
   });
 
-  it("projects, resolves, and dispatches only a current account-selection choice", async () => {
+  it("maps workspace route failure codes to fixed management copy", () => {
+    const unavailable = readyManifest(
+      projectInstanceManagement(
+        input({ workspaceGatewayState: { code: "network-failure", status: "failed" } }),
+      ),
+    );
+    const failedPush = readyManifest(
+      projectInstanceManagement(
+        input({ workspaceGatewayState: gatewayReady({ error: "push-active" }) }),
+      ),
+    );
+
+    expect(unavailable.workspaceFeedback).toMatchObject({
+      detail: "Workspace gateway request failed. Try again.",
+    });
+    expect(failedPush.workspaceOperation?.control.status).toMatchObject({
+      detail: "A workspace push is already running.",
+      status: "failed",
+    });
+    expect(JSON.stringify({ failedPush, unavailable })).not.toContain("push-active");
+  });
+
+  it("projects direct account names and dispatches only a current account-selection choice", async () => {
     const currentPush = accountSelectionPush();
     const projection = projectInstanceManagement(
       input({ workspaceGatewayState: gatewayReady({ currentPush }) }),
@@ -70,6 +91,10 @@ describe("instance management projection", () => {
     const prompt = required(readyManifest(projection).workspaceOperation?.accountSelectionPrompt);
     const intent = prompt.choices[0]!.intent as ManagementAccountSelectionIntent;
 
+    expect(prompt.choices[0]).toMatchObject({
+      action: { content: { label: "Production / Australia" } },
+      label: "Production / Australia",
+    });
     expect(resolveInstanceManagementIntent(projection, intent)).toEqual({
       accountId: "account-a",
       interactionId: "interaction_1234567890abcdef",
@@ -94,6 +119,36 @@ describe("instance management projection", () => {
         pushId: currentPush.id,
       },
     ]);
+  });
+
+  it("uses the Gateway-validated authorization URL for the current interaction", async () => {
+    const currentPush = externalAuthorizationPush();
+    const projection = projectInstanceManagement(
+      input({ workspaceGatewayState: gatewayReady({ currentPush }) }),
+    );
+    const operation = required(readyManifest(projection).workspaceOperation);
+    const prompt = required(operation.authorizationPrompt);
+    const authorization = required(projection.authorization);
+
+    expect(authorization.url).toBe(currentPush.interaction.url);
+    expect(resolveInstanceManagementIntent(projection, prompt.intent)).toEqual({
+      authorization,
+      kind: "authorizationOpen",
+    });
+
+    const opened: string[] = [];
+    const polled: string[] = [];
+    await dispatchInstanceManagementIntent(projection, prompt.intent, {
+      ...actions(),
+      openAuthorization: (url) => {
+        opened.push(url);
+      },
+      pollWorkspacePush: (pushId) => {
+        polled.push(pushId);
+      },
+    });
+    expect(opened).toEqual([currentPush.interaction.url]);
+    expect(polled).toEqual([currentPush.id]);
   });
 });
 
@@ -169,7 +224,7 @@ function accountSelectionPush(): WorkspaceGatewayPush {
     createdAt: "2026-08-04T00:00:00.000Z",
     id: "push_1234567890abcdef",
     interaction: {
-      choices: [{ id: "account-a", name: "Account A" }],
+      choices: [{ id: "account-a", name: "Production / Australia" }],
       expiresAt: "2026-08-04T00:05:00.000Z",
       id: "interaction_1234567890abcdef",
       kind: "account-selection",
@@ -180,6 +235,41 @@ function accountSelectionPush(): WorkspaceGatewayPush {
     phases: [
       { id: "credentials", status: "succeeded" },
       { id: "account-selection", status: "running" },
+      { id: "desired-state-plan", status: "pending" },
+      { id: "provider-reconciliation", status: "pending" },
+      { id: "health-check", status: "pending" },
+      { id: "owner-setup", status: "pending" },
+      { id: "workspace-push-writeback", status: "pending" },
+      { id: "observation-refresh", status: "pending" },
+    ],
+    updatedAt: "2026-08-04T00:00:01.000Z",
+  };
+}
+
+function externalAuthorizationPush(): Extract<
+  WorkspaceGatewayPush,
+  { lifecycle: "waiting-for-interaction" }
+> & {
+  interaction: Extract<
+    Extract<WorkspaceGatewayPush, { lifecycle: "waiting-for-interaction" }>["interaction"],
+    { kind: "external-authorization" }
+  >;
+} {
+  return {
+    createdAt: "2026-08-04T00:00:00.000Z",
+    id: "push_1234567890abcdef",
+    interaction: {
+      expiresAt: "2026-08-04T00:05:00.000Z",
+      id: "interaction_1234567890abcdef",
+      kind: "external-authorization",
+      provider: "cloudflare",
+      url: "https://dash.cloudflare.com/oauth2/auth?client_id=formless&state=opaque",
+    },
+    lifecycle: "waiting-for-interaction",
+    mode: "apply",
+    phases: [
+      { id: "credentials", status: "running" },
+      { id: "account-selection", status: "pending" },
       { id: "desired-state-plan", status: "pending" },
       { id: "provider-reconciliation", status: "pending" },
       { id: "health-check", status: "pending" },

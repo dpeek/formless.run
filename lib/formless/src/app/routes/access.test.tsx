@@ -36,17 +36,31 @@ describe("access route runtime", () => {
 
     const unauthorized = await mountAccessRoute({
       fetchSummary: async () => {
-        throw new IdentityAccessManagementApiError("Administrator authority is required.", {
-          body: { error: "Administrator authority is required." },
-          status: 403,
-        });
+        throw new IdentityAccessManagementApiError(
+          { code: "forbidden", kind: "transport" },
+          { status: 403 },
+        );
       },
     });
     expect(unauthorized.manifest()).toMatchObject({
-      feedback: { detail: "Administrator authority is required." },
+      feedback: { detail: "Your account does not have permission to manage access." },
       state: "unauthorized",
     });
     await unauthorized.unmount();
+
+    const networkFailure = await mountAccessRoute({
+      fetchSummary: async () => {
+        throw new Error("Injected fetch failure at /Users/ada/formless");
+      },
+    });
+    expect(networkFailure.manifest()).toMatchObject({
+      feedback: {
+        detail: "Access management could not be reached. Check your connection and try again.",
+      },
+      state: "failed",
+    });
+    expect(JSON.stringify(networkFailure.manifest())).not.toContain("/Users/ada/formless");
+    await networkFailure.unmount();
   });
 
   it("keeps invitation role selection atomic, refreshes, and deduplicates pending submit", async () => {
@@ -214,6 +228,31 @@ describe("access route runtime", () => {
     await runtime.dispatch(required(runtime.readyManifest().confirmation).action.intent);
     expect(deletions).toEqual([{ invitationId: "invitation:lin" }]);
     expect(runtime.readyManifest().feedback).toMatchObject({ title: "Invitation deleted" });
+    await runtime.unmount();
+  });
+
+  it("retains domain reasons in route state and publishes fixed mutation copy", async () => {
+    const runtime = await mountAccessRoute({
+      fetchSummary: async () => summary(),
+      replacePersonRoles: async () => {
+        throw new IdentityAccessManagementApiError(
+          { kind: "person-mutation", reason: "protected-assignment" },
+          { status: 403 },
+        );
+      },
+    });
+    const person = required(runtime.readyManifest().people[1]);
+    if (person.roleAuthoring.availability !== "available") {
+      throw new Error("Expected role authoring.");
+    }
+
+    await runtime.dispatch(person.roleAuthoring.action.intent);
+    await runtime.dispatch(runtime.personAuthoring("principal:bo").save.intent);
+
+    expect(runtime.personAuthoring("principal:bo").feedback).toMatchObject({
+      detail: "Your account cannot change one or more of this person's roles.",
+      title: "Roles could not be saved",
+    });
     await runtime.unmount();
   });
 });

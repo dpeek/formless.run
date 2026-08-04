@@ -3,6 +3,7 @@ import { FORMLESS_PROGRAM_STORAGE_IDENTITY } from "../program/target.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 
 import {
+  instanceAuthError,
   parseAccountCompletionGate,
   parseAccountCompletionGateResolutionResult,
   parseAccountCompletionGateTarget,
@@ -110,7 +111,7 @@ export async function handleInstanceAuthAccountCompletionDurableObjectRequest(
 
   if (url.pathname === INSTANCE_AUTH_TERMS_ACCEPTANCE_GATE_COMPLETE_PATH) {
     if (request.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
+      return jsonResponse(instanceAuthError("method-not-allowed"), 405, { Allow: "POST" });
     }
 
     try {
@@ -120,8 +121,8 @@ export async function handleInstanceAuthAccountCompletionDurableObjectRequest(
         request,
         storage,
       });
-    } catch (error) {
-      return jsonResponse({ error: errorMessage(error) }, 400);
+    } catch {
+      return jsonResponse(instanceAuthError("invalid-request"), 400);
     }
   }
 
@@ -130,7 +131,7 @@ export async function handleInstanceAuthAccountCompletionDurableObjectRequest(
   }
 
   if (request.method !== "POST") {
-    return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
+    return jsonResponse(instanceAuthError("method-not-allowed"), 405, { Allow: "POST" });
   }
 
   try {
@@ -141,8 +142,8 @@ export async function handleInstanceAuthAccountCompletionDurableObjectRequest(
     });
 
     return jsonResponse(parseAccountCompletionGateResolutionResult(result));
-  } catch (error) {
-    return jsonResponse({ error: errorMessage(error) }, 400);
+  } catch {
+    return jsonResponse(instanceAuthError("invalid-request"), 400);
   }
 }
 
@@ -224,7 +225,7 @@ async function completeTermsAcceptanceGate(input: {
   const session = await validateCentralAuthSessionCookie(input.request, input.storage, input.env);
 
   if (!session.ok) {
-    return jsonResponse({ error: "Authenticated account session is required." }, 401);
+    return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 
   assertAuthOriginRequest(input.request, input.storage);
@@ -248,7 +249,6 @@ async function completeTermsAcceptanceGate(input: {
     return jsonResponse(
       {
         accountCompletion: parseAccountCompletionGateResolutionResult(before),
-        error: "Terms acceptance gate is not current.",
       },
       409,
     );
@@ -263,7 +263,6 @@ async function completeTermsAcceptanceGate(input: {
     return jsonResponse(
       {
         accountCompletion: parseAccountCompletionGateResolutionResult(before),
-        error: "Terms acceptance request does not include every current policy.",
       },
       409,
     );
@@ -283,7 +282,7 @@ async function completeTermsAcceptanceGate(input: {
   });
 
   if (!committed.ok) {
-    return jsonResponse({ error: committed.error }, 409);
+    return jsonResponse(instanceAuthError("conflict"), 409);
   }
 
   const accountCompletion = await resolveAccountCompletionGate({
@@ -715,8 +714,4 @@ function jsonResponse(body: unknown, status = 200, headers: HeadersInit = {}) {
     headers: responseHeaders,
     status,
   });
-}
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Unknown error.";
 }

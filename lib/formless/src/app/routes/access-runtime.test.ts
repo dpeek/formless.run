@@ -23,7 +23,7 @@ import {
 } from "./access-contract.ts";
 
 describe("access projection", () => {
-  it("projects display-safe states and exact flat role choices", () => {
+  it("projects fixed failure copy and exact flat role choices", () => {
     expect(projectAccess(input({ state: { status: "loading" } })).manifest).toMatchObject({
       state: "loading",
       title: "Access",
@@ -32,14 +32,29 @@ describe("access projection", () => {
       projectAccess(
         input({
           state: {
-            message: "Denied with owner-setup-token raw-owner-secret",
+            failure: { code: "forbidden", kind: "transport" },
             status: "unauthorized",
           },
         }),
       ).manifest,
     ).toMatchObject({
-      feedback: { detail: "Denied with owner-setup-token [redacted]" },
+      feedback: { detail: "Your account does not have permission to manage access." },
       state: "unauthorized",
+    });
+    expect(
+      projectAccess(
+        input({
+          state: {
+            failure: { code: "network-failure", kind: "transport" },
+            status: "failed",
+          },
+        }),
+      ).manifest,
+    ).toMatchObject({
+      feedback: {
+        detail: "Access management could not be reached. Check your connection and try again.",
+      },
+      state: "failed",
     });
 
     const authoring = required(projectAccess(input()).authoring);
@@ -68,6 +83,89 @@ describe("access projection", () => {
       "Program — Administrator",
     ]);
     expect(selected.fields.acceptanceTarget).toBeUndefined();
+  });
+
+  it("projects semantic mutation outcomes and direct validated identity data", () => {
+    const summary = populatedSummary();
+    summary.people[0] = {
+      ...required(summary.people[0]),
+      displayName: "Ada /Users/ada",
+      primaryEmail: {
+        displayEmail: "ada+SQLITE_ERROR@example.com",
+        normalizedEmail: "ada+sqlite_error@example.com",
+        principalEmailId: "principal-email:ada",
+        verificationStatus: "verified",
+      },
+    };
+    summary.invitations[0] = {
+      ...required(summary.invitations[0]),
+      targetEmail: "lin+provider-output@example.com",
+    };
+    summary.invitationGrantOptions.roles[0] = {
+      ...required(summary.invitationGrantOptions.roles[0]),
+      displayLabel: "Instance — Owner /var/log",
+    };
+
+    const direct = readyManifest(projectAccess(input({ summary })));
+    expect(direct.people[0]).toMatchObject({
+      displayName: "Ada /Users/ada",
+      primaryEmail: "ada+SQLITE_ERROR@example.com",
+    });
+    expect(direct.invitations[0]?.targetEmail).toBe("lin+provider-output@example.com");
+    expect(
+      required(projectAccess(input({ summary })).authoring).roleSelection.options[0]?.label,
+    ).toBe("Instance — Owner /var/log");
+
+    const personDraft = createInitialAccessPersonRoleDraft(summary, "principal:ada");
+    const roleFailure = required(
+      projectAccess(
+        input({
+          personAuthoringDraft: personDraft,
+          personRoleSubmission: {
+            failure: { kind: "person-mutation", reason: "protected-assignment" },
+            personId: "principal:ada",
+            status: "failed",
+          },
+          summary,
+        }),
+      ).personAuthoring,
+    );
+    expect(roleFailure.feedback?.detail).toBe(
+      "Your account cannot change one or more of this person's roles.",
+    );
+
+    const deletionFailure = readyManifest(
+      projectAccess(
+        input({
+          invitationDeletion: {
+            failure: { kind: "invitation-revocation", reason: "revoked-invitation" },
+            invitationId: "invitation:lin",
+            status: "failed",
+          },
+          summary,
+        }),
+      ),
+    );
+    expect(deletionFailure.feedback?.detail).toBe("This invitation has already been deleted.");
+
+    const invalidResponse = required(
+      projectAccess(
+        input({
+          authoringOpen: true,
+          submission: {
+            failure: { code: "invalid-response", kind: "transport" },
+            status: "failed",
+          },
+          summary,
+        }),
+      ).authoring,
+    );
+    expect(invalidResponse.feedback?.detail).toBe(
+      "Access management returned an invalid response. Try again.",
+    );
+    expect(JSON.stringify([roleFailure, deletionFailure, invalidResponse])).not.toContain(
+      "raw-owner-secret",
+    );
   });
 
   it("projects multi-surface acceptance target, people controls, and pending feedback", () => {
@@ -108,7 +206,6 @@ describe("access projection", () => {
       action: { control: { disabled: true } },
       availability: "available",
     });
-    expect(JSON.stringify(projection)).not.toContain("raw-owner-secret");
   });
 
   it("projects person role authoring from currently editable exact selections", () => {

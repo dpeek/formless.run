@@ -5,10 +5,12 @@ import {
 
 import {
   accountPasskeyLoginContinuationTarget,
+  instanceAuthError,
   parseAccountPasskeyLoginOptionsRequest,
   parseAccountPasskeyLoginVerifyRequest,
   type AccountPasskeyLoginOptionsResponse,
   type AccountPasskeyLoginVerifyResponse,
+  type InstanceAuthErrorCode,
 } from "../shared/instance-auth.ts";
 import { nowIsoString } from "../shared/clock.ts";
 import { type AuthorityAdminGuardEnv } from "./authority-admin-guard.ts";
@@ -34,7 +36,17 @@ const loginVerifyPath = `${ACCOUNT_PASSKEY_API_PATH}/login/verify`;
 const passkeyChallengeTtlMs = 5 * 60 * 1000;
 const base64UrlPattern = /^[A-Za-z0-9_-]+$/;
 
-class DisplaySafeAccountPasskeyError extends Error {}
+class AccountPasskeyResponseError extends Error {
+  readonly code: InstanceAuthErrorCode;
+  readonly status: number;
+
+  constructor(code: InstanceAuthErrorCode, status: number) {
+    super("Account passkey request failed.");
+    this.name = "AccountPasskeyResponseError";
+    this.code = code;
+    this.status = status;
+  }
+}
 
 type AccountPasskeyApiEnv = AuthorityAdminGuardEnv & {
   FORMLESS_AUTHORITY: DurableObjectNamespace;
@@ -73,9 +85,11 @@ export async function handleAccountPasskeyDurableObjectRequest(
       return await handleLoginVerifyRequest(request, storage, env);
     }
 
-    return jsonResponse({ error: "Not found." }, 404);
+    return jsonResponse(instanceAuthError("not-found"), 404);
   } catch (error) {
-    return jsonResponse({ error: displaySafeAccountPasskeyError(error) }, 400);
+    return error instanceof AccountPasskeyResponseError
+      ? jsonResponse(instanceAuthError(error.code), error.status)
+      : jsonResponse(instanceAuthError("internal-failure"), 500);
   }
 }
 
@@ -96,14 +110,14 @@ async function handleLoginOptionsRequest(
 
   const requestBody = await readJson(request);
 
-  parseDisplaySafeRequest(() => parseAccountPasskeyLoginOptionsRequest(requestBody));
+  parseAccountPasskeyRequest(() => parseAccountPasskeyLoginOptionsRequest(requestBody));
 
   const config = requireInstanceAuthConfig(storage);
   const owner = await readIdentityOwner(env);
   const state = readInstanceSetupState(storage, owner);
 
   if (!state.owner) {
-    return jsonResponse({ error: "Owner setup must be complete before passkey login." }, 409);
+    return jsonResponse(instanceAuthError("conflict"), 409);
   }
 
   const options = await generateAuthenticationOptions({
@@ -118,7 +132,7 @@ async function handleLoginOptionsRequest(
   });
 
   if (!created.ok) {
-    return jsonResponse({ error: "Passkey challenge already exists." }, 409);
+    return jsonResponse(instanceAuthError("conflict"), 409);
   }
 
   const response: AccountPasskeyLoginOptionsResponse = { options };
@@ -136,19 +150,16 @@ async function handleLoginVerifyRequest(
   }
 
   const requestBody = await readJson(request);
-  const body = parseDisplaySafeRequest(() => parseAccountPasskeyLoginVerifyRequest(requestBody));
+  const body = parseAccountPasskeyRequest(() => parseAccountPasskeyLoginVerifyRequest(requestBody));
   const config = requireInstanceAuthConfig(storage);
   const owner = await readIdentityOwner(env);
   const state = readInstanceSetupState(storage, owner);
 
   if (!state.owner) {
-    return jsonResponse(
-      { authenticated: false, error: "Owner setup must be complete before passkey login." },
-      409,
-    );
+    return jsonResponse(instanceAuthError("conflict"), 409);
   }
 
-  const challengeValue = parseDisplaySafeRequest(() =>
+  const challengeValue = parseAccountPasskeyRequest(() =>
     clientDataChallenge("Passkey login response", body.response.response.clientDataJSON),
   );
   const challenge = consumePasskeyChallenge(storage, {
@@ -162,16 +173,13 @@ async function handleLoginVerifyRequest(
   }
 
   if (challenge.challenge.kind !== "login") {
-    return jsonResponse(
-      { authenticated: false, error: "Passkey login challenge is invalid." },
-      401,
-    );
+    return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 
   const credential = readPasskeyCredential(storage, body.response.id);
 
   if (!credential) {
-    return jsonResponse({ authenticated: false, error: "Passkey credential is invalid." }, 401);
+    return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 
   const resolvedPrincipal = await readInternalActiveIdentityPrincipal(env, credential.principalId);
@@ -181,7 +189,7 @@ async function handleLoginVerifyRequest(
     resolvedPrincipal.id !== credential.principalId ||
     !passkeyUserHandleMatchesPrincipal(body.response.response.userHandle, credential.principalId)
   ) {
-    return jsonResponse({ authenticated: false, error: "Passkey credential is invalid." }, 401);
+    return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 
   let verified: Awaited<ReturnType<typeof verifyAuthenticationResponse>>;
@@ -196,17 +204,17 @@ async function handleLoginVerifyRequest(
       requireUserVerification: true,
     });
   } catch {
-    return jsonResponse({ authenticated: false, error: "Passkey login verification failed." }, 401);
+    return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 
   if (!verified.verified) {
-    return jsonResponse({ authenticated: false, error: "Passkey login verification failed." }, 401);
+    return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 
   const principal = await readInternalActiveIdentityPrincipal(env, credential.principalId);
 
   if (!principal || principal.id !== credential.principalId) {
-    return jsonResponse({ authenticated: false, error: "Passkey credential is invalid." }, 401);
+    return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 
   const updated = updatePasskeyCredentialVerification(storage, {
@@ -221,7 +229,7 @@ async function handleLoginVerifyRequest(
   });
 
   if (!updated.ok) {
-    return jsonResponse({ authenticated: false, error: "Passkey login verification failed." }, 401);
+    return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 
   const session = await createCentralAuthSessionCookie(storage, {
@@ -276,7 +284,7 @@ function requireInstanceAuthConfig(storage: DurableObjectStorage): StoredInstanc
   const config = readInstanceAuthConfig(storage);
 
   if (!config) {
-    throw new DisplaySafeAccountPasskeyError("Instance auth configuration is missing.");
+    throw new AccountPasskeyResponseError("unavailable", 503);
   }
 
   return config;
@@ -289,9 +297,9 @@ function passkeyChallengeFailureResponse(
     case "already-consumed":
     case "missing-challenge":
     case "wrong-kind":
-      return jsonResponse({ error: "Passkey challenge is invalid." }, 401);
+      return jsonResponse(instanceAuthError("unauthorized"), 401);
     case "expired-challenge":
-      return jsonResponse({ error: "Passkey challenge has expired." }, 410);
+      return jsonResponse(instanceAuthError("expired"), 410);
   }
 }
 
@@ -315,7 +323,7 @@ async function readJson(request: Request): Promise<unknown> {
   try {
     return await request.json();
   } catch {
-    throw new DisplaySafeAccountPasskeyError("Request body must be valid JSON.");
+    throw new AccountPasskeyResponseError("invalid-request", 400);
   }
 }
 
@@ -324,7 +332,7 @@ function challengeExpiresAt() {
 }
 
 function methodNotAllowedResponse(allow: string): Response {
-  return jsonResponse({ error: "Method not allowed." }, 405, { Allow: allow });
+  return jsonResponse(instanceAuthError("method-not-allowed"), 405, { Allow: allow });
 }
 
 function jsonResponse(body: unknown, status = 200, headers: HeadersInit = {}): Response {
@@ -340,20 +348,12 @@ function jsonResponse(body: unknown, status = 200, headers: HeadersInit = {}): R
   });
 }
 
-function parseDisplaySafeRequest<T>(parse: () => T): T {
+function parseAccountPasskeyRequest<T>(parse: () => T): T {
   try {
     return parse();
-  } catch (error) {
-    throw new DisplaySafeAccountPasskeyError(
-      error instanceof Error ? error.message : "Bad request.",
-    );
+  } catch {
+    throw new AccountPasskeyResponseError("invalid-request", 400);
   }
-}
-
-function displaySafeAccountPasskeyError(error: unknown): string {
-  return error instanceof DisplaySafeAccountPasskeyError
-    ? error.message
-    : "Account sign in failed.";
 }
 
 function parseBase64UrlString(context: string, value: unknown): string {

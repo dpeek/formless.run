@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  instanceAuthErrorCodes,
   parseAccountCompletionContinuationResult,
   parseAccountCompletionGate,
   parseAccountCompletionGateResolutionResult,
@@ -88,7 +89,7 @@ describe("instance auth origin policy", () => {
 });
 
 describe("collaborator invitation acceptance protocol", () => {
-  it("parses invitation acceptance requests, passkey requests, and display-safe responses", () => {
+  it("parses invitation acceptance requests, passkey requests, and public responses", () => {
     expect(
       parseCollaboratorInvitationAcceptanceRequest({
         invitationId: " invitation:ada ",
@@ -124,12 +125,10 @@ describe("collaborator invitation acceptance protocol", () => {
     expect(
       parseCollaboratorInvitationAcceptanceStatusResponse({
         eligible: false,
-        error: "Invitation link is invalid.",
         reason: "wrong-target",
       }),
     ).toEqual({
       eligible: false,
-      error: "Invitation link is invalid.",
       reason: "wrong-target",
     });
     expect(
@@ -263,7 +262,6 @@ describe("collaborator invitation acceptance protocol", () => {
     expect(() =>
       parseCollaboratorInvitationAcceptanceStatusResponse({
         eligible: false,
-        error: "Invitation link is invalid.",
         reason: "wrong-token",
         tokenHash: "private",
       }),
@@ -703,16 +701,25 @@ describe("account passkey protocol", () => {
     ).toThrow('Account session status response has unsupported key "owner".');
   });
 
-  it("parses public-safe error shapes without accepting private details", () => {
-    expect(parseInstanceAuthErrorResponse({ error: "Passkey challenge is invalid." })).toEqual({
-      error: "Passkey challenge is invalid.",
-    });
+  it("parses every closed error code without accepting arbitrary details", () => {
+    expect(instanceAuthErrorCodes.map((code) => parseInstanceAuthErrorResponse({ code }))).toEqual(
+      instanceAuthErrorCodes.map((code) => ({ code })),
+    );
     expect(() =>
       parseInstanceAuthErrorResponse({
-        error: "Passkey challenge is invalid.",
+        code: "unauthorized",
         stack: "private stack trace",
       }),
     ).toThrow('Instance auth error response has unsupported key "stack".');
+    expect(() =>
+      parseInstanceAuthErrorResponse({
+        code: "unauthorized",
+        error: "SQLITE_ERROR at /Users/ada/formless",
+      }),
+    ).toThrow('Instance auth error response has unsupported key "error".');
+    expect(() => parseInstanceAuthErrorResponse({ code: "diagnostic" })).toThrow(
+      "Instance auth error response code is unsupported.",
+    );
   });
 });
 

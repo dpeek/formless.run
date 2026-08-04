@@ -13,6 +13,7 @@ import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import type {
   AccountPasskeyLoginOptionsResponse,
   AccountPasskeyLoginVerifyResponse,
+  InstanceAuthErrorResponse,
 } from "../shared/instance-auth.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import { CENTRAL_AUTH_SESSION_COOKIE_NAME } from "./central-auth-session.ts";
@@ -106,7 +107,7 @@ describe("account passkey login API routes", () => {
     });
     expect(replay.response.status).toBe(401);
     expect(replay.response.headers.get("Set-Cookie")).toBeNull();
-    expect(replay.body).toEqual({ error: "Passkey challenge is invalid." });
+    expect(replay.body).toEqual({ code: "unauthorized" });
 
     const wrongUserHandleOptions = await loginOptions();
     const wrongUserHandle = await verifyLogin(
@@ -119,10 +120,7 @@ describe("account passkey login API routes", () => {
     );
 
     expect(wrongUserHandle.response.status).toBe(401);
-    expect(wrongUserHandle.body).toEqual({
-      authenticated: false,
-      error: "Passkey credential is invalid.",
-    });
+    expect(wrongUserHandle.body).toEqual({ code: "unauthorized" });
 
     const wrongOriginOptions = await loginOptions();
     const wrongOrigin = await verifyLogin(
@@ -134,10 +132,7 @@ describe("account passkey login API routes", () => {
     );
 
     expect(wrongOrigin.response.status).toBe(401);
-    expect(wrongOrigin.body).toEqual({
-      authenticated: false,
-      error: "Passkey login verification failed.",
-    });
+    expect(wrongOrigin.body).toEqual({ code: "unauthorized" });
 
     const wrongRpOptions = await loginOptions();
     const wrongRp = await verifyLogin(
@@ -149,10 +144,7 @@ describe("account passkey login API routes", () => {
     );
 
     expect(wrongRp.response.status).toBe(401);
-    expect(wrongRp.body).toEqual({
-      authenticated: false,
-      error: "Passkey login verification failed.",
-    });
+    expect(wrongRp.body).toEqual({ code: "unauthorized" });
 
     const counterRegressionOptions = await loginOptions();
     const counterRegression = await verifyLogin(
@@ -164,10 +156,7 @@ describe("account passkey login API routes", () => {
     );
 
     expect(counterRegression.response.status).toBe(401);
-    expect(counterRegression.body).toEqual({
-      authenticated: false,
-      error: "Passkey login verification failed.",
-    });
+    expect(counterRegression.body).toEqual({ code: "unauthorized" });
   });
 
   it("authenticates an active Program administrator without preselecting a role", async () => {
@@ -234,10 +223,7 @@ describe("account passkey login API routes", () => {
 
     expect(rejected.response.status).toBe(401);
     expect(rejected.response.headers.get("Set-Cookie")).toBeNull();
-    expect(rejected.body).toEqual({
-      authenticated: false,
-      error: "Passkey credential is invalid.",
-    });
+    expect(rejected.body).toEqual({ code: "unauthorized" });
 
     await updateIdentityPrincipalStatus(principal.principalId, "active");
 
@@ -268,9 +254,7 @@ describe("account passkey login API routes", () => {
 
     expect(rejected.response.status).toBe(400);
     expect(rejected.response.headers.get("Set-Cookie")).toBeNull();
-    expect(rejected.body).toEqual({
-      error: 'Passkey login verify request has unsupported key "redirectTo".',
-    });
+    expect(rejected.body).toEqual({ code: "invalid-request" });
     expect(accepted.response.status).toBe(200);
     expect(accepted.body).toEqual({
       authenticated: true,
@@ -286,19 +270,17 @@ describe("account passkey login API routes", () => {
     const rejected = await postJson("/api/formless/passkeys/login/options", {});
 
     expect(rejected.response.status).toBe(409);
-    expect(rejected.body).toEqual({
-      error: "Owner setup must be complete before passkey login.",
-    });
+    expect(rejected.body).toEqual({ code: "conflict" });
   });
 
-  it("returns a display-safe error when challenge storage rejects login insertion", async () => {
+  it("returns only an internal failure code when challenge storage rejects login insertion", async () => {
     await seedOwnerPasskey(new VirtualPasskey(credentialId));
     await postJson("/harness/reject-login-challenge-storage", {});
 
     const rejected = await postJson("/api/formless/passkeys/login/options", {});
 
-    expect(rejected.response.status).toBe(400);
-    expect(rejected.body).toEqual({ error: "Account sign in failed." });
+    expect(rejected.response.status).toBe(500);
+    expect(rejected.body).toEqual({ code: "internal-failure" });
   });
 });
 
@@ -457,13 +439,10 @@ async function verifyLogin(
     redirectTo?: unknown;
   } = {},
 ) {
-  return postJson<
-    | AccountPasskeyLoginVerifyResponse
-    | {
-        authenticated?: false;
-        error: string;
-      }
-  >("/api/formless/passkeys/login/verify", { ...input, response });
+  return postJson<AccountPasskeyLoginVerifyResponse | InstanceAuthErrorResponse>(
+    "/api/formless/passkeys/login/verify",
+    { ...input, response },
+  );
 }
 async function postJson<T = unknown>(path: string, body: unknown, init: HarnessFetchInit = {}) {
   const response = await harness.fetch(path, {

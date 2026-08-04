@@ -6,19 +6,26 @@ import {
   accountDefaultRedirectTarget,
   parseAccountRedirectTarget,
   type AccountRedirectTarget,
+  type InstanceAuthErrorCode,
 } from "../../shared/instance-auth.ts";
 import { runtimeTopologyRoutes } from "../../shared/runtime-topology.ts";
-import { fetchAccountSessionStatus } from "./account-sign-in.tsx";
+import { AccountSignInApiError, fetchAccountSessionStatus } from "./account-sign-in.tsx";
 import type { ApplicationSystemStateContract } from "@dpeek/formless-presentation/contract";
 import { projectApplicationSystemState } from "./application-system-state-projection.ts";
 import { ApplicationSystemStateRuntime } from "./application-system-state-runtime.tsx";
 
 export type LocalSessionRouteState =
-  | { status: "blocked"; message: string }
+  | { code: "replica-reset-blocked"; status: "blocked" }
   | { status: "checking" }
   | { status: "complete" }
-  | { status: "failed"; message: string }
+  | { code: LocalSessionFailureCode; status: "failed" }
   | { status: "resetting" };
+
+export type LocalSessionFailureCode =
+  | InstanceAuthErrorCode
+  | "invalid-response"
+  | "network-failure"
+  | "replica-reset-failed";
 
 type StartLocalSessionRouteSessionOptions = {
   fetcher?: typeof fetch;
@@ -59,7 +66,8 @@ export function projectLocalSessionRouteSystemState(
     ...(state.status === "blocked"
       ? {
           feedback: {
-            detail: state.message,
+            detail:
+              "Local Program browser replica reset was blocked. Close other tabs using this local runtime and try again.",
             id: "feedback:local-session-blocked",
             intent: "warning" as const,
             title: "Browser cache reset blocked",
@@ -68,7 +76,7 @@ export function projectLocalSessionRouteSystemState(
       : state.status === "failed"
         ? {
             feedback: {
-              detail: state.message,
+              detail: localSessionFailureMessage(state.code),
               id: "feedback:local-session-failed",
               intent: "danger" as const,
               title: "Local session failed",
@@ -96,6 +104,8 @@ export function startLocalSessionRouteSession({
   onState({ status: "checking" });
 
   async function startSession() {
+    let resettingReplica = false;
+
     try {
       const session = await fetchAccountSessionStatus({ fetcher, signal: controller.signal });
 
@@ -105,13 +115,14 @@ export function startLocalSessionRouteSession({
 
       if (!session.authenticated) {
         onState({
+          code: "unauthorized",
           status: "failed",
-          message: "Local owner session is not authenticated.",
         });
         return;
       }
 
       if (resetBrowserStateRequested) {
+        resettingReplica = true;
         onState({ status: "resetting" });
         await resetBrowserState();
       }
@@ -129,15 +140,20 @@ export function startLocalSessionRouteSession({
 
       if (error instanceof FormlessProgramReplicaDeleteBlockedError) {
         onState({
+          code: "replica-reset-blocked",
           status: "blocked",
-          message: error.message,
         });
         return;
       }
 
       onState({
+        code:
+          error instanceof AccountSignInApiError
+            ? error.code
+            : resettingReplica
+              ? "replica-reset-failed"
+              : "network-failure",
         status: "failed",
-        message: error instanceof Error ? error.message : "Local session failed.",
       });
     }
   }
@@ -195,8 +211,9 @@ function localSessionRouteHeading(state: LocalSessionRouteState): string {
 function localSessionRouteMessage(state: LocalSessionRouteState): string {
   switch (state.status) {
     case "blocked":
+      return "Close other tabs using this local runtime, then try again.";
     case "failed":
-      return state.message;
+      return localSessionFailureMessage(state.code);
     case "checking":
       return "Verifying owner access.";
     case "complete":
@@ -204,4 +221,27 @@ function localSessionRouteMessage(state: LocalSessionRouteState): string {
     case "resetting":
       return "Clearing same-origin Formless replicas.";
   }
+}
+
+function localSessionFailureMessage(code: LocalSessionFailureCode): string {
+  if (code === "network-failure") {
+    return "The local session service could not be reached. Check your connection and try again.";
+  }
+  if (code === "invalid-response") {
+    return "The local session service returned an invalid response. Try again.";
+  }
+  if (code === "replica-reset-failed") {
+    return "The local browser cache could not be reset. Try again.";
+  }
+  if (code === "unauthorized") return "Local owner session is not authenticated.";
+  if (code === "forbidden") return "Local owner session access is not allowed.";
+  if (code === "expired") return "The local owner session has expired. Start it again.";
+  if (code === "conflict") return "Local session state changed. Try again.";
+  if (code === "unavailable" || code === "internal-failure") {
+    return "The local session service is unavailable. Try again.";
+  }
+  if (code === "not-found" || code === "method-not-allowed") {
+    return "The local session service is unavailable at this address.";
+  }
+  return "The local session request was invalid. Try again.";
 }

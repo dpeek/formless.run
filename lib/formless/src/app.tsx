@@ -310,7 +310,7 @@ function ProgramRuntimeOutlet({
     case "forbidden":
       return <ProtectedRouteForbidden />;
     case "failed":
-      return <ProgramRuntimeFailed message={runtime.message} />;
+      return <ProgramRuntimeFailed />;
     case "loading":
       return <ProgramRuntimeLoading />;
   }
@@ -329,7 +329,7 @@ function ProgramRuntimeLoading() {
   );
 }
 
-function ProgramRuntimeFailed({ message }: { message?: string | undefined }) {
+function ProgramRuntimeFailed() {
   return (
     <ApplicationSystemStateRuntime
       snapshot={projectApplicationSystemState({
@@ -340,7 +340,7 @@ function ProgramRuntimeFailed({ message }: { message?: string | undefined }) {
         },
         heading: "Program unavailable",
         id: "application-system-state:program-runtime-failed",
-        message: message ?? "Program runtime could not be started.",
+        message: "Program runtime could not be started.",
         state: "failure",
       })}
     />

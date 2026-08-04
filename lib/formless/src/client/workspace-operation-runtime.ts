@@ -85,7 +85,6 @@ export function workspaceGatewayPushGeneratedRuntimeAdapterResponse(
   }
   return {
     displayMessage: workspaceGatewayPushOutcomeMessage(push.outcome),
-    output: { outcome: push.outcome, pushId: push.id },
     progress,
     status: push.outcome === "up-to-date" ? "replayed" : "committed",
   };
@@ -218,7 +217,40 @@ function workspaceGatewayPushOutcomeMessage(
 }
 
 function gatewayAdapterErrorMessage(error: unknown): string {
-  return error instanceof WorkspaceGatewayApiError ? error.message : "Workspace Push failed.";
+  return error instanceof WorkspaceGatewayApiError
+    ? workspaceGatewayErrorMessage(error.code)
+    : "Workspace Push failed.";
+}
+
+export function workspaceGatewayErrorMessage(code: WorkspaceGatewayApiError["code"]): string {
+  switch (code) {
+    case "push-active":
+      return "A workspace push is already running.";
+    case "push-not-found":
+      return "Workspace push was not found.";
+    case "interaction-not-found":
+      return "Workspace push interaction was not found.";
+    case "interaction-invalid":
+      return "The selected Cloudflare account is unavailable.";
+    case "interaction-expired":
+      return "Workspace push interaction expired.";
+    case "csrf-invalid":
+      return "Workspace authorization expired. Refresh and try again.";
+    case "unauthorized":
+    case "bootstrap-expired":
+      return "Workspace authorization is required.";
+    case "forbidden":
+      return "Workspace push is not allowed.";
+    case "gateway-unavailable":
+      return "Workspace gateway is unavailable.";
+    case "invalid-sidecar-response":
+      return "Workspace gateway returned an invalid response.";
+    case "invalid-request":
+      return "Workspace push request is invalid.";
+    case "method-not-allowed":
+    case "not-found":
+      return "Workspace gateway route is unavailable.";
+  }
 }
 
 function failed(displayError: string): GeneratedOperationRuntimeAdapterResponse {

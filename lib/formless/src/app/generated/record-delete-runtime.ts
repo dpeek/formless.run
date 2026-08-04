@@ -63,14 +63,8 @@ export async function executeRecordDeleteOperation({
       source,
     },
     controller,
-    feedback: {
-      committedMessage: `Deleted ${recordLabel}.`,
-      failedMessage: (result) =>
-        result.type === "failed" ? result.displayError : "Delete failed.",
-      progressMessage: `Deleting ${recordLabel}...`,
-      replayedMessage: `Deleted ${recordLabel}.`,
-    },
     setStatus,
+    statusLabel: `Delete ${recordLabel}`,
   });
 }
 

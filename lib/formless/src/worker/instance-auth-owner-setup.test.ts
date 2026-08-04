@@ -11,6 +11,7 @@ import type {
   RegistrationResponseJSON,
 } from "@simplewebauthn/server";
 import type { EmailDeliveryRecord, EmailDeliveryRenderedMessage } from "../shared/email-runtime.ts";
+import type { InstanceAuthErrorResponse } from "../shared/instance-auth.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import type {
   StoredOwnerSetupCompletion,
@@ -199,7 +200,7 @@ describe("production owner setup email proof API", () => {
     });
 
     expect(missingDelivery).toEqual({
-      body: { error: "Owner setup email delivery is not configured." },
+      body: { code: "unavailable" },
       status: 503,
     });
     expect(await ownerSetupProofs()).toEqual([]);
@@ -216,7 +217,7 @@ describe("production owner setup email proof API", () => {
     });
 
     expect(wrongCapability).toEqual({
-      body: { error: "Owner setup link is invalid." },
+      body: { code: "unauthorized" },
       status: 401,
     });
     expect(await ownerSetupProofs()).toEqual([]);
@@ -230,7 +231,7 @@ describe("production owner setup email proof API", () => {
     });
 
     expect(wrongInstance).toEqual({
-      body: { error: "Owner setup link is invalid." },
+      body: { code: "unauthorized" },
       status: 401,
     });
     expect(await ownerSetupProofs()).toEqual([]);
@@ -254,7 +255,7 @@ describe("production owner setup email proof API", () => {
     });
 
     expect(expired).toEqual({
-      body: { error: "Owner setup email link has expired." },
+      body: { code: "expired" },
       status: 410,
     });
 
@@ -270,7 +271,7 @@ describe("production owner setup email proof API", () => {
     const pending = await ownerSetupProof(validStart.ownerSetup.challengeId);
 
     expect(wrongCapability).toEqual({
-      body: { error: "Owner setup link is invalid." },
+      body: { code: "unauthorized" },
       status: 401,
     });
     expect(pending).not.toHaveProperty("verifiedAt");
@@ -289,7 +290,7 @@ describe("production owner setup email proof API", () => {
     });
 
     expect(replay).toEqual({
-      body: { error: "Owner setup email link is no longer available." },
+      body: { code: "conflict" },
       status: 409,
     });
   });
@@ -414,7 +415,7 @@ describe("production owner setup email proof API", () => {
     });
 
     expect(unverified).toEqual({
-      body: { error: "Owner setup email must be verified before passkey setup." },
+      body: { code: "conflict" },
       status: 409,
     });
     expect(await ownerSetupPasskeyChallenges()).toEqual([]);
@@ -441,11 +442,11 @@ describe("production owner setup email proof API", () => {
     );
 
     expect(wrongEmail).toEqual({
-      body: { error: "Owner setup email proof is invalid." },
+      body: { code: "unauthorized" },
       status: 401,
     });
     expect(wrongCapability).toEqual({
-      body: { error: "Owner setup link is invalid." },
+      body: { code: "unauthorized" },
       status: 401,
     });
     expect(await ownerSetupPasskeyChallenges()).toEqual([]);
@@ -474,7 +475,7 @@ describe("production owner setup email proof API", () => {
     });
 
     expect(wrongOrigin).toEqual({
-      body: { error: "Passkey registration verification failed." },
+      body: { code: "unauthorized" },
       status: 401,
     });
     expect(await ownerSetupPasskeyPreparations()).toEqual([]);
@@ -495,7 +496,7 @@ describe("production owner setup email proof API", () => {
     });
 
     expect(wrongRp).toEqual({
-      body: { error: "Passkey registration verification failed." },
+      body: { code: "unauthorized" },
       status: 401,
     });
     expect(await ownerSetupPasskeyPreparations()).toEqual([]);
@@ -517,7 +518,7 @@ describe("production owner setup email proof API", () => {
     });
 
     expect(unverified).toEqual({
-      body: { error: "Passkey registration verification failed." },
+      body: { code: "unauthorized" },
       status: 401,
     });
     expect(await ownerSetupPasskeyPreparations()).toEqual([]);
@@ -547,7 +548,7 @@ describe("production owner setup email proof API", () => {
 
     expect(prepared).toMatchObject({ completionId: validOptions.completionId, prepared: true });
     expect(replay).toEqual({
-      body: { error: "Passkey challenge is invalid." },
+      body: { code: "unauthorized" },
       status: 401,
     });
     expect(await ownerSetupPasskeyPreparations()).toHaveLength(1);
@@ -578,7 +579,7 @@ describe("production owner setup email proof API", () => {
     });
 
     expect(duplicate).toEqual({
-      body: { error: "Passkey registration could not be prepared." },
+      body: { code: "conflict" },
       status: 409,
     });
     expect(await ownerSetupPasskeyPreparations()).toEqual([]);
@@ -684,7 +685,7 @@ describe("production owner setup email proof API", () => {
     const missingSession = await postAuthJsonFailure("/formless/auth/setup/complete", request);
 
     expect(missingSession).toEqual({
-      body: { error: "Owner setup completion must be retried." },
+      body: { code: "unavailable" },
       status: 503,
     });
     expect(authorizingIdentityRecords(await identityRecords())).toEqual([]);
@@ -696,7 +697,7 @@ describe("production owner setup email proof API", () => {
     const interruptedIdentity = await postAuthJsonFailure("/formless/auth/setup/complete", request);
 
     expect(interruptedIdentity).toEqual({
-      body: { error: "Owner setup completion must be retried." },
+      body: { code: "unavailable" },
       status: 503,
     });
     expect(authorizingIdentityRecords(await identityRecords())).toEqual([]);
@@ -730,7 +731,7 @@ describe("production owner setup email proof API", () => {
     const identityAfterCommit = authorizingIdentityRecords(await identityRecords());
 
     expect(interrupted).toEqual({
-      body: { error: "Owner setup completion must be retried." },
+      body: { code: "unavailable" },
       status: 503,
     });
     expect(identityAfterCommit.filter((record) => record.entity === "principal")).toHaveLength(1);
@@ -771,7 +772,7 @@ describe("production owner setup email proof API", () => {
     );
 
     expect(conflict).toEqual({
-      body: { error: "Owner setup completion could not be committed." },
+      body: { code: "conflict" },
       status: 409,
     });
     expect(await identityRecords()).toEqual(identityBefore);
@@ -797,7 +798,7 @@ describe("production owner setup email proof API", () => {
     );
 
     expect(conflict).toEqual({
-      body: { error: "Owner setup completion could not be committed." },
+      body: { code: "conflict" },
       status: 409,
     });
     expect(authorizingIdentityRecords(await identityRecords())).toEqual([]);
@@ -1104,9 +1105,7 @@ async function postAuthJsonFailure(path: string, body: unknown) {
     method: "POST",
   });
   return {
-    body: (await response.json()) as {
-      error: string;
-    },
+    body: (await response.json()) as InstanceAuthErrorResponse,
     status: response.status,
   };
 }

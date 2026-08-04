@@ -29,11 +29,8 @@ export async function executeHomeCommandOperation({
       source,
     },
     controller,
-    feedback: {
-      committedMessage: (result) => homeCommandOperationCommittedMessage(operation, result),
-      replayedMessage: binding.feedback?.replayLabel ?? `${operation.label} replayed.`,
-    },
     setStatus,
+    statusLabel: operation.label,
   });
 }
 

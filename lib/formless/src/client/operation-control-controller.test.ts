@@ -220,7 +220,6 @@ describe("generated operation control controller", () => {
           return {
             status: "committed",
             displayMessage: "Push started.",
-            output: { operationId: "workspace-op-1" },
           };
         },
       },
@@ -240,7 +239,6 @@ describe("generated operation control controller", () => {
     expect(result).toEqual({
       type: "committed",
       displayMessage: "Push started.",
-      output: { operationId: "workspace-op-1" },
     });
   });
 
@@ -417,13 +415,11 @@ describe("generated operation control controller", () => {
     resolveAdapter({
       status: "committed",
       displayMessage: "Push committed.",
-      output: { operationId: "workspace-op-1" },
     });
 
     await expect(first).resolves.toEqual({
       type: "committed",
       displayMessage: "Push committed.",
-      output: { operationId: "workspace-op-1" },
     });
     expect(controller.getState("push-menu")).toMatchObject({
       status: "committed",

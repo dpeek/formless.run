@@ -29,6 +29,7 @@ import {
   type AccessPersonRoleDraft,
   type AccessPersonRoleSubmissionState,
   type ProjectAccessOptions,
+  type AccessRequestFailure,
 } from "./access-projection.ts";
 import { createAccessRuntimePublicationController } from "./access-runtime.ts";
 
@@ -97,14 +98,15 @@ export function AccessRoute({ dependencies = {} }: { dependencies?: AccessRouteD
         if (stopped || controller.signal.aborted) {
           return;
         }
+        const failure = accessRequestFailure(error);
         if (
-          error instanceof IdentityAccessManagementApiError &&
-          (error.status === 401 || error.status === 403)
+          failure.kind === "transport" &&
+          (failure.code === "unauthorized" || failure.code === "forbidden")
         ) {
-          setState({ message: error.message, status: "unauthorized" });
+          setState({ failure, status: "unauthorized" });
           return;
         }
-        setState({ message: accessRequestError(error), status: "failed" });
+        setState({ failure, status: "failed" });
       });
 
     return () => {
@@ -173,10 +175,10 @@ export function AccessRoute({ dependencies = {} }: { dependencies?: AccessRouteD
         }
         setDraft(createInitialAccessInvitationDraft());
         setAuthoringOpen(false);
-        setSubmission({ message: "Invitation created.", status: "succeeded" });
+        setSubmission({ status: "succeeded" });
       } catch (error) {
         if (mounted.current) {
-          setSubmission({ message: accessRequestError(error), status: "failed" });
+          setSubmission({ failure: accessRequestFailure(error), status: "failed" });
         }
       } finally {
         createPending.current = false;
@@ -201,14 +203,13 @@ export function AccessRoute({ dependencies = {} }: { dependencies?: AccessRouteD
         setConfirmation(undefined);
         setInvitationDeletion({
           invitationId: input.invitationId,
-          message: "Invitation deleted.",
           status: "succeeded",
         });
       } catch (error) {
         if (mounted.current) {
           setInvitationDeletion({
+            failure: accessRequestFailure(error),
             invitationId: input.invitationId,
-            message: accessRequestError(error),
             status: "failed",
           });
         }
@@ -234,14 +235,13 @@ export function AccessRoute({ dependencies = {} }: { dependencies?: AccessRouteD
         }
         setPersonAuthoringDraft(undefined);
         setPersonRoleSubmission({
-          message: "Roles saved.",
           personId: input.principalId,
           status: "succeeded",
         });
       } catch (error) {
         if (mounted.current) {
           setPersonRoleSubmission({
-            message: accessRequestError(error),
+            failure: accessRequestFailure(error),
             personId: input.principalId,
             status: "failed",
           });
@@ -271,14 +271,13 @@ export function AccessRoute({ dependencies = {} }: { dependencies?: AccessRouteD
           current?.personId === input.principalId ? undefined : current,
         );
         setPersonRemoval({
-          message: "Person removed.",
           personId: input.principalId,
           status: "succeeded",
         });
       } catch (error) {
         if (mounted.current) {
           setPersonRemoval({
-            message: accessRequestError(error),
+            failure: accessRequestFailure(error),
             personId: input.principalId,
             status: "failed",
           });
@@ -361,10 +360,10 @@ export function AccessRoute({ dependencies = {} }: { dependencies?: AccessRouteD
   );
 }
 
-function accessRequestError(error: unknown): string {
-  return error instanceof IdentityAccessManagementApiError || error instanceof Error
-    ? error.message
-    : "Access management request failed.";
+function accessRequestFailure(error: unknown): AccessRequestFailure {
+  return error instanceof IdentityAccessManagementApiError
+    ? error.failure
+    : { code: "network-failure", kind: "transport" };
 }
 
 function createAccessIdempotencyKey(

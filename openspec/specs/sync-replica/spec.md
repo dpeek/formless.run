@@ -149,6 +149,35 @@ truth migrations.
   reports the blocked local cache reset instead of treating browser cache state
   as source of truth
 
+### Requirement: Browser Sync Status Boundary
+
+The browser client SHALL retain semantic synchronization state while Formless
+browser presentation code owns its user-visible copy.
+
+#### Scenario: Publish semantic sync status
+
+- GIVEN Program startup, replica catch-up, invalidation reconnect, generated
+  record writes, or media writes update browser sync status
+- WHEN the status is retained for shell presentation
+- THEN it carries a closed browser-owned status code and only the bounded
+  semantic data required by that code, such as an intentional schema field or
+  entity label
+- AND caught exception messages, response bodies, diagnostics, storage paths,
+  commands, provider output, and generic result objects are not retained in
+  sync status
+- AND the shell projection maps each status code to fixed presentation copy
+  before publishing its renderer-neutral contract
+
+#### Scenario: Report local replica reset failure
+
+- GIVEN local-session bootstrap optionally resets the same-origin Program
+  replica
+- WHEN reset is blocked or session verification fails
+- THEN route state retains `replica-reset-blocked`, `session-required`,
+  `request-unavailable`, or `invalid-response` as applicable
+- AND the system-state projection publishes fixed browser-owned copy without
+  forwarding an IndexedDB, fetch, parser, or exception message
+
 ### Requirement: HTTP Cursor Sync
 
 The system SHALL use a sync cursor to catch up a browser replica from Authority storage.

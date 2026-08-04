@@ -107,7 +107,6 @@ import {
 } from "./record-field-authoring.ts";
 import { shouldUseAppReplicaReferenceOptions } from "./reference-field-options.ts";
 import { executeTransitionStateOperation } from "./state-machine-operation-runtime.ts";
-import type { OperationCommandOutput } from "../../shared/operation-invocation.ts";
 import { selectRecordFieldsForActiveUnion } from "./union-presentation.ts";
 import {
   collectCreatePresentationFields,
@@ -118,11 +117,18 @@ import {
   type GeneratedMediaAssetOptionsByFieldKey,
   type GeneratedMediaField,
 } from "./media-field-model.ts";
-import { loadGeneratedMediaAssetOptions, uploadGeneratedMediaFile } from "./media-field-runtime.ts";
+import {
+  generatedMediaUploadFailure,
+  generatedMediaUploadFailureMessage,
+  loadGeneratedMediaAssetOptions,
+  uploadGeneratedMediaFile,
+} from "./media-field-runtime.ts";
+import {
+  generatedRecordWriteFailure,
+  generatedRecordWriteFailureMessage,
+} from "./generated-write-failure.ts";
 
 const GENERATED_TREE_CREATE_FAILURE_MESSAGE = "Create failed. Try again.";
-const GENERATED_TREE_MOVE_FAILURE_MESSAGE = "Move failed. Try again.";
-const GENERATED_TREE_REMOVE_FAILURE_MESSAGE = "Remove failed. Try again.";
 
 export type GeneratedWorkspaceSectionExternalAction = {
   action: ActionTriggerContract;
@@ -565,12 +571,9 @@ export function useGeneratedWorkspaceRuntimeController({
       await executeGeneratedOrderingMoveOperation({
         binding: runtime.binding,
         controller,
-        failedMessage: GENERATED_TREE_MOVE_FAILURE_MESSAGE,
         orderingContext: runtime.orderingContext,
         plan: runtime.item.plan,
         source: "menuItem",
-        successMessage: "Placement moved and synced.",
-        syncingMessage: "Moving placement...",
       });
       return;
     }
@@ -593,12 +596,6 @@ export function useGeneratedWorkspaceRuntimeController({
               source: invokeIntent.invocationSource,
             },
             controller,
-            feedback: {
-              committedMessage: "Placement removed and synced.",
-              failedMessage: GENERATED_TREE_REMOVE_FAILURE_MESSAGE,
-              progressMessage: "Removing placement...",
-              replayedMessage: "Placement removed and synced.",
-            },
           }),
         onConfirmationOpenChange: (open) =>
           setConfirmationOpenByControlId((current) => ({
@@ -739,7 +736,7 @@ export function useGeneratedWorkspaceRuntimeController({
     const result = await executeCreateSubmitOperation({
       binding: runtime.binding,
       controller,
-      progressMessage: `Saving ${runtime.operation.entity.label.toLowerCase()}...`,
+      entityLabel: runtime.operation.entity.label,
       values: session.values,
     });
     if (result.type === "failed") {
@@ -817,12 +814,7 @@ export function useGeneratedWorkspaceRuntimeController({
         source: "submitButton",
       },
       controller,
-      feedback: {
-        committedMessage: "Child created and synced.",
-        failedMessage: GENERATED_TREE_CREATE_FAILURE_MESSAGE,
-        progressMessage: `Saving ${runtime.operation.entity.label.toLowerCase()}...`,
-        replayedMessage: "Child created and synced.",
-      },
+      statusLabel: runtime.operation.entity.label,
     });
     if (result.type === "failed") {
       setTreeCreateErrorBySurfaceId((errors) => ({
@@ -904,7 +896,7 @@ export function useGeneratedWorkspaceRuntimeController({
         { error: undefined, pending: true },
       ),
     }));
-    setSyncStatus({ state: "syncing", message: "Uploading media..." });
+    setSyncStatus({ code: "media-uploading", state: "syncing" });
 
     try {
       const { option } = await uploadAndStoreGeneratedMediaFile(
@@ -925,9 +917,9 @@ export function useGeneratedWorkspaceRuntimeController({
           },
         ).state,
       }));
-      setSyncStatus({ state: "idle", message: "Media uploaded." });
+      setSyncStatus({ code: "media-uploaded", state: "idle" });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Media upload failed.";
+      const message = generatedMediaUploadFailureMessage(generatedMediaUploadFailure(error));
       setCreateFieldStateBySurfaceId((states) => ({
         ...states,
         [runtime.surfaceId]: updateGeneratedTreeCreateFieldState(
@@ -936,7 +928,7 @@ export function useGeneratedWorkspaceRuntimeController({
           { error: message, pending: false },
         ),
       }));
-      setSyncStatus({ state: "error", message });
+      setSyncStatus({ code: "media-upload-failed", state: "error" });
       return;
     }
 
@@ -971,12 +963,9 @@ export function useGeneratedWorkspaceRuntimeController({
           await executeGeneratedOrderingMoveOperation({
             binding: runtime.binding,
             controller,
-            failedMessage: "Move failed.",
             orderingContext: runtime.orderingContext,
             plan: runtime.item.plan,
             source: "menuItem",
-            successMessage: "List item moved and synced.",
-            syncingMessage: `${runtime.item.label}...`,
           });
         }
         return;
@@ -1220,7 +1209,7 @@ export function useGeneratedWorkspaceRuntimeController({
         },
       },
     }));
-    setSyncStatus({ state: "syncing", message: "Uploading media..." });
+    setSyncStatus({ code: "media-uploading", state: "syncing" });
 
     try {
       const { upload } = await uploadAndStoreGeneratedMediaFile(record.entity, fieldConfig, file);
@@ -1259,7 +1248,7 @@ export function useGeneratedWorkspaceRuntimeController({
         updateOperation,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Media upload failed.";
+      const message = generatedMediaUploadFailureMessage(generatedMediaUploadFailure(error));
       setRecordStateByResultId((states) => ({
         ...states,
         [resultId]: {
@@ -1274,7 +1263,7 @@ export function useGeneratedWorkspaceRuntimeController({
           },
         },
       }));
-      setSyncStatus({ state: "error", message });
+      setSyncStatus({ code: "media-upload-failed", state: "error" });
     }
   }
 
@@ -1311,7 +1300,7 @@ export function useGeneratedWorkspaceRuntimeController({
         },
       }));
       if (autoSaveSource === "media-reference") {
-        setSyncStatus({ state: "idle", message: "Image uploaded." });
+        setSyncStatus({ code: "media-uploaded", state: "idle" });
       }
       return;
     }
@@ -1326,7 +1315,7 @@ export function useGeneratedWorkspaceRuntimeController({
         },
       },
     }));
-    setSyncStatus({ state: "syncing", message: `Updating ${fieldName}...` });
+    setSyncStatus({ code: "record-updating", label: fieldName, state: "syncing" });
     try {
       await submitOperation(
         record.entity,
@@ -1349,9 +1338,9 @@ export function useGeneratedWorkspaceRuntimeController({
           },
         },
       }));
-      setSyncStatus({ state: "idle", message: "Updated and synced." });
+      setSyncStatus({ code: "record-updated", state: "idle" });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Update failed.";
+      const message = generatedRecordWriteFailureMessage(generatedRecordWriteFailure(error));
       setRecordStateByResultId((states) => ({
         ...states,
         [resultId]: {
@@ -1366,7 +1355,7 @@ export function useGeneratedWorkspaceRuntimeController({
           },
         },
       }));
-      setSyncStatus({ state: "error", message });
+      setSyncStatus({ code: "record-update-failed", state: "error" });
     }
   }
 
@@ -1413,7 +1402,7 @@ export function useGeneratedWorkspaceRuntimeController({
           ),
         },
       }));
-      setSyncStatus({ state: "syncing", message: "Uploading media..." });
+      setSyncStatus({ code: "media-uploading", state: "syncing" });
 
       try {
         const { upload } = await uploadAndStoreGeneratedMediaFile(record.entity, fieldConfig, file);
@@ -1459,9 +1448,9 @@ export function useGeneratedWorkspaceRuntimeController({
             ),
           },
         }));
-        setSyncStatus({ state: "idle", message: "Media uploaded and synced." });
+        setSyncStatus({ code: "media-uploaded-and-synced", state: "idle" });
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Media upload failed.";
+        const message = generatedMediaUploadFailureMessage(generatedMediaUploadFailure(error));
         setListStateByResultId((states) => ({
           ...states,
           [result.contract.id]: {
@@ -1474,7 +1463,7 @@ export function useGeneratedWorkspaceRuntimeController({
             ),
           },
         }));
-        setSyncStatus({ state: "error", message });
+        setSyncStatus({ code: "media-upload-failed", state: "error" });
       }
       return;
     }
@@ -1555,7 +1544,7 @@ export function useGeneratedWorkspaceRuntimeController({
         },
       }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Update failed.";
+      const message = generatedRecordWriteFailureMessage(generatedRecordWriteFailure(error));
       setListStateByResultId((states) => ({
         ...states,
         [result.contract.id]: {
@@ -1573,7 +1562,7 @@ export function useGeneratedWorkspaceRuntimeController({
           },
         },
       }));
-      setSyncStatus({ state: "error", message });
+      setSyncStatus({ code: "record-update-failed", state: "error" });
     }
   }
 
@@ -1639,7 +1628,7 @@ export function useGeneratedWorkspaceRuntimeController({
           ),
         },
       }));
-      setSyncStatus({ state: "syncing", message: "Uploading media..." });
+      setSyncStatus({ code: "media-uploading", state: "syncing" });
 
       try {
         const { upload } = await uploadAndStoreGeneratedMediaFile(
@@ -1689,9 +1678,9 @@ export function useGeneratedWorkspaceRuntimeController({
             ),
           },
         }));
-        setSyncStatus({ state: "idle", message: "Media uploaded and synced." });
+        setSyncStatus({ code: "media-uploaded-and-synced", state: "idle" });
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Media upload failed.";
+        const message = generatedMediaUploadFailureMessage(generatedMediaUploadFailure(error));
         setTableStateByResultId((states) => ({
           ...states,
           [result.contract.id]: {
@@ -1704,7 +1693,7 @@ export function useGeneratedWorkspaceRuntimeController({
             ),
           },
         }));
-        setSyncStatus({ state: "error", message });
+        setSyncStatus({ code: "media-upload-failed", state: "error" });
       }
       return;
     }
@@ -1766,7 +1755,7 @@ export function useGeneratedWorkspaceRuntimeController({
         },
       }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Update failed.";
+      const message = generatedRecordWriteFailureMessage(generatedRecordWriteFailure(error));
       setTableStateByResultId((states) => ({
         ...states,
         [result.contract.id]: {
@@ -1784,7 +1773,7 @@ export function useGeneratedWorkspaceRuntimeController({
           },
         },
       }));
-      setSyncStatus({ state: "error", message });
+      setSyncStatus({ code: "record-update-failed", state: "error" });
     }
   }
 
@@ -2661,7 +2650,7 @@ function selectCreatedTreePlacementId(
   childEntityName: string,
   placementEntityName: string,
 ): string | undefined {
-  if (result.type === "failed" || !isOperationCommandOutput(result.output)) {
+  if (result.type === "failed" || result.output?.type !== "command") {
     return undefined;
   }
 
@@ -2679,10 +2668,4 @@ function selectCreatedTreePlacementId(
   const childStep = steps.find((step) => step.entity === childEntityName);
   const placementStep = steps.find((step) => step.entity === placementEntityName);
   return childStep === undefined ? undefined : placementStep?.recordId;
-}
-
-function isOperationCommandOutput(output: unknown): output is OperationCommandOutput {
-  return (
-    typeof output === "object" && output !== null && "type" in output && output.type === "command"
-  );
 }

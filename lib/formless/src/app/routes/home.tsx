@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useHydrated, useSchema } from "../../client/store.ts";
-import { useSyncStatus } from "../../client/sync-status.ts";
+import { useSyncStatus, type SyncStatusErrorCode } from "../../client/sync-status.ts";
 import { selectScreenModelByPath } from "../../client/views.ts";
 import { todayDateString } from "../../shared/date.ts";
 import { FORMLESS_PROGRAM_SCHEMA_KEY } from "../../program/target.ts";
@@ -35,7 +35,7 @@ export {
 } from "./home-selection.tsx";
 
 export type HomeRouteClientLoadState =
-  | { state: "failed"; message: string }
+  | { code: SyncStatusErrorCode; state: "failed" }
   | { state: "loading" }
   | { state: "ready" };
 
@@ -80,7 +80,7 @@ export function HomeRoute({
 
     onClientLoadStateChange(
       syncStatus.state === "error"
-        ? { message: syncStatus.message, state: "failed" }
+        ? { code: syncStatus.code, state: "failed" }
         : hydrated
           ? { state: "ready" }
           : { state: "loading" },

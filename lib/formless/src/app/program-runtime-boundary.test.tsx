@@ -200,13 +200,16 @@ describe("persistent Program runtime boundary", () => {
     const renderer = render(
       <ProgramRuntimeBoundary currentPath="/tasks" dependencies={dependencies}>
         {(runtime) => (
-          <output data-runtime-message={runtime.message} data-runtime-status={runtime.status} />
+          <output data-runtime-failure={runtime.failureCode} data-runtime-status={runtime.status} />
         )}
       </ProgramRuntimeBoundary>,
     );
 
     await waitFor(() => expect(runtimeStatus(renderer)).toBe("failed"));
-    expect(renderer.container.querySelector("output")?.getAttribute("data-runtime-message")).toBe(
+    expect(renderer.container.querySelector("output")?.getAttribute("data-runtime-failure")).toBe(
+      "runtime-start-failed",
+    );
+    expect(renderer.container.innerHTML).not.toContain(
       "Local Program browser replica reset was blocked.",
     );
     expect(calls).toEqual([]);

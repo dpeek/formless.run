@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { AuthIntent } from "@dpeek/formless-presentation/contract";
 
-import type { CollaboratorInvitationAcceptanceInvitationSummary } from "../../shared/instance-auth.ts";
+import type {
+  CollaboratorInvitationAcceptanceFailureReason,
+  CollaboratorInvitationAcceptanceInvitationSummary,
+} from "../../shared/instance-auth.ts";
 import {
   authIntentIsCurrent,
   createAuthPendingGuard,
@@ -52,9 +55,8 @@ describe("collaborator invitation auth projection", () => {
   it("projects every invitation acceptance runtime state", () => {
     const states: CollaboratorInvitationAcceptanceRouteState[] = [
       { status: "loading" },
-      { message: "Invitation link is invalid.", status: "invalid-link" },
+      { status: "invalid-link" },
       {
-        message: "Invitation acceptance is unavailable.",
         reason: "configuration-unavailable",
         status: "unavailable",
       },
@@ -62,10 +64,9 @@ describe("collaborator invitation auth projection", () => {
       { invitation, status: "submitting" },
       {
         invitation,
-        message: "This browser does not support passkeys.",
         status: "passkey-unavailable",
       },
-      { message: "Invitation acceptance failed.", status: "failed" },
+      { code: "unavailable", status: "failed" },
       acceptedState,
       continuingState,
     ];
@@ -85,7 +86,7 @@ describe("collaborator invitation auth projection", () => {
     ]);
   });
 
-  it("projects only display-safe eligibility facts and one passkey action", () => {
+  it("projects only intentional eligibility facts and one passkey action", () => {
     const state = Object.assign(
       { invitation, status: "eligible" } satisfies CollaboratorInvitationAcceptanceRouteState,
       {
@@ -120,7 +121,6 @@ describe("collaborator invitation auth projection", () => {
     const unavailable = projectCollaboratorInvitationAuthSurface({
       state: {
         invitation,
-        message: "Passkeys unavailable with API_TOKEN=passkey-secret",
         status: "passkey-unavailable",
       },
     });
@@ -130,7 +130,7 @@ describe("collaborator invitation auth projection", () => {
 
     expect(unavailable.passkey).toMatchObject({
       availability: "unavailable",
-      unavailableReason: "Passkeys unavailable with API_TOKEN=[redacted]",
+      unavailableReason: "This browser does not support passkeys.",
     });
     expect(accepted.facts.map(({ label, value }) => [label, value])).toEqual([
       ["Signed in as", "Ada Collaborator"],
@@ -152,10 +152,9 @@ describe("collaborator invitation auth projection", () => {
     expect(serialized).not.toContain(handoffSecret);
   });
 
-  it("keeps inaccessible links and failures display-safe without invented actions", () => {
+  it("maps reasons and failures to fixed copy without invented actions", () => {
     const unavailableState = Object.assign(
       {
-        message: "Invitation link is invalid.",
         reason: "wrong-token",
         status: "unavailable",
       } satisfies CollaboratorInvitationAcceptanceRouteState,
@@ -164,7 +163,7 @@ describe("collaborator invitation auth projection", () => {
     const unavailable = projectCollaboratorInvitationAuthSurface({ state: unavailableState });
     const failed = projectCollaboratorInvitationAuthSurface({
       state: {
-        message: "Failed with API_TOKEN=invitation-secret at /Users/ada/formless",
+        code: "invalid-response",
         status: "failed",
       },
     });
@@ -172,13 +171,39 @@ describe("collaborator invitation auth projection", () => {
 
     expect(unavailable.message?.title).toBe("Invitation link is invalid.");
     expect(unavailable.facts).toEqual([]);
-    expect(failed.feedback?.detail).toBe("Failed with API_TOKEN=[redacted] at <path>");
+    expect(failed.feedback?.detail).toBe(
+      "The invitation service returned an invalid response. Try again.",
+    );
     expect(serialized).not.toContain("wrong-token");
     expect(serialized).not.toContain(rawToken);
     expect(serialized).not.toContain(tokenHash);
     expect(serialized).not.toContain("decline");
     expect(serialized).not.toContain("contact-owner");
     expect(serialized).not.toContain("target-selection");
+  });
+
+  it("maps every invitation reason to fixed browser copy", () => {
+    const cases = [
+      ["accepted-invitation", "Invitation has already been accepted."],
+      ["configuration-unavailable", "Invitation acceptance is unavailable."],
+      ["consumed-invitation", "Invitation link has already been used."],
+      ["expired-invitation", "Invitation link has expired."],
+      ["missing-invitation", "Invitation link is invalid."],
+      ["revoked-invitation", "Invitation link is no longer available."],
+      ["wrong-email", "Invitation link is invalid."],
+      ["wrong-origin", "Invitation must be accepted on the configured auth origin."],
+      ["wrong-target", "Invitation link is invalid."],
+      ["wrong-token", "Invitation link is invalid."],
+    ] as const satisfies ReadonlyArray<[CollaboratorInvitationAcceptanceFailureReason, string]>;
+
+    expect(
+      cases.map(
+        ([reason]) =>
+          projectCollaboratorInvitationAuthSurface({
+            state: { reason, status: "unavailable" },
+          }).message?.title,
+      ),
+    ).toEqual(cases.map(([, message]) => message));
   });
 
   it("projects accessible invitation presentation without private identity state", () => {

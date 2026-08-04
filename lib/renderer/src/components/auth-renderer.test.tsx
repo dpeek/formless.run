@@ -100,6 +100,30 @@ describe("Astryx auth renderer", () => {
     expect(html).not.toContain("principal:other");
   });
 
+  it("renders fixed failure copy and direct validated account identity", () => {
+    const html = renderAuth(
+      ownerSetupSurface("failed", undefined, {
+        facts: [
+          authFact("owner", "Account owner", "Ada Byron-Lovelace"),
+          authFact("email", "Primary email", "ada+platform@example.com"),
+        ],
+        feedback: {
+          detail: "The account service is unavailable. Try again.",
+          id: "feedback:account-service",
+          kind: "authFeedback",
+          severity: "danger",
+          title: "Owner setup unavailable",
+        },
+        step: "completion",
+      }),
+    );
+
+    expect(html).toContain("The account service is unavailable. Try again.");
+    expect(html).toContain("Account owner");
+    expect(html).toContain("Ada Byron-Lovelace");
+    expect(html).toContain("ada+platform@example.com");
+  });
+
   it("composes controlled opaque-token, policy, fact, feedback, action, and passkey primitives", () => {
     const tokenSurface = signupSurface("ready", authMessage("Enter the token", "info"), {
       actions: [authAction("auth:test:signup", "submit", "Verify")],

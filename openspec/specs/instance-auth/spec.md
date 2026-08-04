@@ -890,8 +890,8 @@ ceremonies, sessions, route policy, operations, and navigation.
   verification-token fields plus the action available for its current account
   step
 - AND account sign-in carries no candidate principal identity before
-  authentication and carries only the passkey action, authenticated
-  display-safe principal identity, logout action, and runtime-approved
+  authentication and carries only the passkey action, authenticated validated
+  principal identity, logout action, and runtime-approved
   continuation presentation applicable to the current state
 - AND successful setup and sign-in remain transient continuation states rather
   than becoming a durable account dashboard
@@ -905,7 +905,7 @@ ceremonies, sessions, route policy, operations, and navigation.
 - WHEN runtime returns a blocking gate, failure, completion, or continuation
 - THEN the auth contract can represent `email-verification`, `credential`,
   `invitation`, `profile-completion`, and `terms-acceptance` gates with only
-  their display-safe target and policy facts
+  their validated target and policy presentation facts
 - AND ordinary auth drafts compose canonical submit-bound field contracts
 - AND verification-token presentation remains controlled and supports browser
   one-time-code autocomplete without assuming a fixed-length numeric code when
@@ -925,10 +925,10 @@ ceremonies, sessions, route policy, operations, and navigation.
 - THEN the auth contract represents loading, invalid-link, unavailable,
   eligible, submitting, passkey-unavailable, failed, accepted, and continuing
   states as applicable
-- AND eligible presentation includes only display-safe target email, target
+- AND eligible presentation includes only validated target email, target
   surface, expiry, invited principal display name, and one passkey-backed
   acceptance action
-- AND accepted presentation may include display-safe accepted principal,
+- AND accepted presentation may include validated accepted principal,
   session-expiry, target-origin, and continuation facts returned by runtime
 - AND the renderer does not invent invitation decline, contact-owner, or target
   selection behavior
@@ -943,12 +943,52 @@ ceremonies, sessions, route policy, operations, and navigation.
   WebAuthn options and responses, credential ids and material, central session
   ids, session cookies, handoff grants and secrets, storage identities, provider
   responses, recovery material, and app-private profile values are absent
-- AND display-safe session expiry, principal display identity, invitation facts,
+- AND validated session expiry, principal display identity, invitation facts,
   target labels, safe policy destinations, and runtime-approved continuation
   facts may be projected when the active state needs them
-- AND runtime failures are reduced to concise display-safe messages before
-  publication without exposing private values through nested error objects,
-  serialized host nodes, or fixture data
+- AND runtime failures are reduced to closed semantic codes and then fixed
+  browser-owned copy before publication without exposing private values through
+  nested error objects, serialized host nodes, or fixture data
+
+### Requirement: Instance Auth Browser Failure Protocol
+
+Instance auth SHALL expose closed browser failure contracts while route runtime
+owns local browser-effect codes and presentation copy.
+
+#### Scenario: Return a closed auth API error
+
+- GIVEN an instance-auth browser API cannot return its typed success, session,
+  gate, or invitation result
+- WHEN it returns an error response
+- THEN the body contains only `code` selected from `invalid-request`,
+  `unauthorized`, `forbidden`, `not-found`, `method-not-allowed`, `conflict`,
+  `expired`, `unavailable`, or `internal-failure`
+- AND exception messages, parser output, storage diagnostics, SQL, credential
+  material, response bodies, paths, commands, logs, and provider output remain
+  server-local
+- AND collaborator invitation ineligibility retains its existing exact reason
+  without an additional arbitrary error string
+
+#### Scenario: Record auth route failures semantically
+
+- GIVEN account setup, sign-in, logout, account gates, email verification,
+  invitation acceptance, or a passkey browser ceremony fails
+- WHEN the auth route records a retryable or terminal state
+- THEN it retains the recognized API code or invitation reason plus a
+  route-local `network-failure`, `invalid-response`, `passkey-unavailable`, or
+  `passkey-failed` code as applicable
+- AND the auth projection selects fixed copy from the action and code
+- AND browser credential exceptions and arbitrary API messages do not enter the
+  auth Presentation contract
+
+#### Scenario: Present intentional auth data directly
+
+- GIVEN instance-auth parsers have accepted a principal name, email address,
+  invitation label, policy label, policy version, expiry, continuation, or
+  approved destination
+- WHEN auth runtime projects that value
+- THEN it remains direct intentional presentation data
+- AND auth projection does not apply a generic regex text sanitizer
 
 #### Scenario: Formless Renderer consumes auth contracts
 

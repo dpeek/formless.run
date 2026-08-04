@@ -1479,12 +1479,9 @@ export async function executeGeneratedTableRuntimeOperation(
     return executeGeneratedOrderingMoveOperation({
       binding: runtime.binding,
       controller,
-      failedMessage: "Move failed.",
       orderingContext: runtime.orderingContext,
       plan: runtime.item.plan,
       source,
-      successMessage: "Row moved and synced.",
-      syncingMessage: `${runtime.item.label}...`,
     });
   }
 

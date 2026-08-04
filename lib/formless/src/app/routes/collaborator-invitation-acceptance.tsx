@@ -8,6 +8,7 @@ import {
   parseCollaboratorInvitationAcceptanceStatusResponse,
   parseCollaboratorInvitationPasskeyRegistrationOptionsResponse,
   parseCollaboratorInvitationPasskeyRegistrationVerifyResponse,
+  parseInstanceAuthErrorResponse,
   type CollaboratorInvitationAcceptanceHandoffSummary,
   type CollaboratorInvitationAcceptanceFailureReason,
   type CollaboratorInvitationAcceptanceInvitationSummary,
@@ -17,6 +18,7 @@ import {
   type CollaboratorInvitationPasskeyRegistrationOptionsResponse,
   type CollaboratorInvitationPasskeyRegistrationVerifyRequest,
   type CollaboratorInvitationPasskeyRegistrationVerifyResponse,
+  type InstanceAuthErrorCode,
 } from "../../shared/instance-auth.ts";
 import { ApplicationPresentation } from "../application-presentation.tsx";
 import {
@@ -31,7 +33,6 @@ import {
 import {
   browserSupportsPasskeys,
   createBrowserPasskeyRegistrationResponse,
-  passkeyUnavailableMessage,
   type CreatePasskeyRegistrationResponse,
 } from "./passkey-browser.ts";
 
@@ -55,20 +56,24 @@ export type CollaboratorInvitationAcceptanceRouteState =
       session: CollaboratorInvitationPasskeyRegistrationVerifyResponse["session"];
     }
   | { status: "eligible"; invitation: CollaboratorInvitationAcceptanceInvitationSummary }
-  | { status: "failed"; message: string }
-  | { status: "invalid-link"; message: string }
+  | { code: CollaboratorInvitationFailureCode; status: "failed" }
+  | { status: "invalid-link" }
   | { status: "loading" }
   | {
       status: "passkey-unavailable";
       invitation: CollaboratorInvitationAcceptanceInvitationSummary;
-      message: string;
     }
   | { status: "submitting"; invitation: CollaboratorInvitationAcceptanceInvitationSummary }
   | {
       status: "unavailable";
-      message: string;
       reason: CollaboratorInvitationAcceptanceFailureReason;
     };
+
+export type CollaboratorInvitationFailureCode =
+  | InstanceAuthErrorCode
+  | "invalid-response"
+  | "network-failure"
+  | "passkey-failed";
 
 type StartCollaboratorInvitationAcceptanceRouteSessionOptions = {
   fetcher?: typeof fetch;
@@ -114,7 +119,7 @@ export function CollaboratorInvitationAcceptanceRoute() {
     const routeRequest = collaboratorInvitationAcceptanceRequestFromSearch(locationSearch);
 
     if (!routeRequest.ok) {
-      setState({ status: "invalid-link", message: routeRequest.message });
+      setState({ status: "invalid-link" });
       return;
     }
 
@@ -122,7 +127,6 @@ export function CollaboratorInvitationAcceptanceRoute() {
       setState({
         status: "passkey-unavailable",
         invitation: state.invitation,
-        message: passkeyUnavailableMessage,
       });
       return;
     }
@@ -160,8 +164,8 @@ export function CollaboratorInvitationAcceptanceRoute() {
         });
       } catch (error) {
         setState({
+          code: collaboratorInvitationFailureCode(error),
           status: "failed",
-          message: error instanceof Error ? error.message : "Invitation acceptance failed.",
         });
       }
     });
@@ -211,7 +215,7 @@ export function startCollaboratorInvitationAcceptanceRouteSession({
   onState({ status: "loading" });
 
   if (!routeRequest.ok) {
-    onState({ status: "invalid-link", message: routeRequest.message });
+    onState({ status: "invalid-link" });
 
     return () => {
       stopped = true;
@@ -240,20 +244,17 @@ export function startCollaboratorInvitationAcceptanceRouteSession({
             : {
                 status: "passkey-unavailable",
                 invitation: status.invitation,
-                message: passkeyUnavailableMessage,
               }
           : {
               status: "unavailable",
-              message: status.error,
               reason: status.reason,
             },
       );
     } catch (error) {
       if (!stopped && !controller.signal.aborted) {
         onState({
+          code: collaboratorInvitationFailureCode(error),
           status: "failed",
-          message:
-            error instanceof Error ? error.message : "Invitation status could not be loaded.",
         });
       }
     }
@@ -278,7 +279,13 @@ export async function completeCollaboratorInvitationAcceptance({
     request,
     signal,
   });
-  const response = await createRegistrationResponse(options.options);
+  let response: CollaboratorInvitationPasskeyRegistrationVerifyRequest["response"];
+
+  try {
+    response = await createRegistrationResponse(options.options);
+  } catch {
+    throw new CollaboratorInvitationPasskeyError();
+  }
 
   return await verifyCollaboratorInvitationPasskeyRegistration({
     fetcher,
@@ -309,16 +316,11 @@ export async function fetchCollaboratorInvitationAcceptanceStatus({
 
   try {
     return parseCollaboratorInvitationAcceptanceStatusResponse(body);
-  } catch (error) {
-    const parseErrorMessage =
-      error instanceof Error ? error.message : "Invitation status response was invalid.";
-
-    throw new CollaboratorInvitationAcceptanceApiError(
-      response.ok
-        ? parseErrorMessage
-        : collaboratorInvitationAcceptanceErrorMessage(body, parseErrorMessage),
-      { status: response.status },
-    );
+  } catch {
+    if (!response.ok) throw collaboratorInvitationApiError(body, response.status);
+    throw new CollaboratorInvitationAcceptanceApiError("invalid-response", {
+      status: response.status,
+    });
   }
 }
 
@@ -342,19 +344,15 @@ export async function fetchCollaboratorInvitationPasskeyRegistrationOptions({
   });
 
   if (!response.ok) {
-    throw new CollaboratorInvitationAcceptanceApiError(
-      collaboratorInvitationAcceptanceErrorMessage(body, "Passkey registration options failed."),
-      { status: response.status },
-    );
+    throw collaboratorInvitationApiError(body, response.status);
   }
 
   try {
     return parseCollaboratorInvitationPasskeyRegistrationOptionsResponse(body);
-  } catch (error) {
-    throw new CollaboratorInvitationAcceptanceApiError(
-      error instanceof Error ? error.message : "Passkey registration options response was invalid.",
-      { status: response.status },
-    );
+  } catch {
+    throw new CollaboratorInvitationAcceptanceApiError("invalid-response", {
+      status: response.status,
+    });
   }
 }
 
@@ -385,22 +383,15 @@ export async function verifyCollaboratorInvitationPasskeyRegistration({
   });
 
   if (!response.ok) {
-    throw new CollaboratorInvitationAcceptanceApiError(
-      collaboratorInvitationAcceptanceErrorMessage(
-        body,
-        "Passkey registration verification failed.",
-      ),
-      { status: response.status },
-    );
+    throw collaboratorInvitationApiError(body, response.status);
   }
 
   try {
     return parseCollaboratorInvitationPasskeyRegistrationVerifyResponse(body);
-  } catch (error) {
-    throw new CollaboratorInvitationAcceptanceApiError(
-      error instanceof Error ? error.message : "Passkey registration verify response was invalid.",
-      { status: response.status },
-    );
+  } catch {
+    throw new CollaboratorInvitationAcceptanceApiError("invalid-response", {
+      status: response.status,
+    });
   }
 }
 
@@ -417,18 +408,27 @@ export function collaboratorInvitationAcceptanceContinuationUrl(
 }
 
 export class CollaboratorInvitationAcceptanceApiError extends Error {
+  readonly code: InstanceAuthErrorCode | "invalid-response";
   status: number | undefined;
 
-  constructor(message: string, options: { status?: number } = {}) {
-    super(message);
+  constructor(code: InstanceAuthErrorCode | "invalid-response", options: { status?: number } = {}) {
+    super("Collaborator invitation API request failed.");
     this.name = "CollaboratorInvitationAcceptanceApiError";
+    this.code = code;
     this.status = options.status;
+  }
+}
+
+class CollaboratorInvitationPasskeyError extends Error {
+  constructor() {
+    super("Collaborator invitation passkey ceremony failed.");
+    this.name = "CollaboratorInvitationPasskeyError";
   }
 }
 
 function collaboratorInvitationAcceptanceRequestFromSearch(
   locationSearch: string,
-): { ok: true; request: CollaboratorInvitationAcceptanceRequest } | { ok: false; message: string } {
+): { ok: true; request: CollaboratorInvitationAcceptanceRequest } | { ok: false } {
   const searchParams = new URLSearchParams(trimSearchPrefix(locationSearch));
 
   try {
@@ -440,10 +440,7 @@ function collaboratorInvitationAcceptanceRequestFromSearch(
       }),
     };
   } catch {
-    return {
-      ok: false,
-      message: "Invitation link is invalid.",
-    };
+    return { ok: false };
   }
 }
 
@@ -454,22 +451,33 @@ async function readCollaboratorInvitationAcceptanceJson(
   try {
     return await response.json();
   } catch {
-    throw new CollaboratorInvitationAcceptanceApiError(`${options.context} was not JSON.`, {
+    void options;
+    throw new CollaboratorInvitationAcceptanceApiError("invalid-response", {
       status: response.status,
     });
   }
 }
 
-function collaboratorInvitationAcceptanceErrorMessage(value: unknown, fallback: string): string {
-  return isRecord(value) && typeof value.error === "string" && value.error.trim() !== ""
-    ? value.error
-    : fallback;
+function collaboratorInvitationApiError(
+  value: unknown,
+  status: number,
+): CollaboratorInvitationAcceptanceApiError {
+  try {
+    return new CollaboratorInvitationAcceptanceApiError(
+      parseInstanceAuthErrorResponse(value).code,
+      { status },
+    );
+  } catch {
+    return new CollaboratorInvitationAcceptanceApiError("invalid-response", { status });
+  }
+}
+
+function collaboratorInvitationFailureCode(error: unknown): CollaboratorInvitationFailureCode {
+  if (error instanceof CollaboratorInvitationAcceptanceApiError) return error.code;
+  if (error instanceof CollaboratorInvitationPasskeyError) return "passkey-failed";
+  return "network-failure";
 }
 
 function trimSearchPrefix(search: string): string {
   return search.startsWith("?") ? search.slice(1) : search;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

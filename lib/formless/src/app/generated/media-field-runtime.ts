@@ -20,6 +20,19 @@ export type GeneratedMediaFileUpload = {
   upload: DocumentMediaUploadResponse | UploadedImageMedia;
 };
 
+export type GeneratedMediaUploadFailure = { code: "upload-failed" };
+
+export function generatedMediaUploadFailure(_error: unknown): GeneratedMediaUploadFailure {
+  return { code: "upload-failed" };
+}
+
+export function generatedMediaUploadFailureMessage(failure: GeneratedMediaUploadFailure): string {
+  switch (failure.code) {
+    case "upload-failed":
+      return "Media upload failed. Try again.";
+  }
+}
+
 export async function loadGeneratedMediaAssetOptions(
   fields: readonly GeneratedMediaField[],
 ): Promise<Record<string, MediaAssetOption[]>> {

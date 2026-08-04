@@ -91,6 +91,43 @@ describe("auth account projection", () => {
     expect(JSON.stringify(ownerSurface)).not.toContain("owner-setup-private");
     expect(completeSurface).toMatchObject({ state: "complete", surfaceKind: "account-gate" });
   });
+
+  it("maps semantic failures to fixed copy and preserves intentional auth data", () => {
+    const setupState: AuthAccountRouteState = {
+      challengeId: "challenge:owner",
+      displayName: "Ada API_TOKEN=kept /Users/profile",
+      email: "Ada.Owner@example.com",
+      expiresAt: "2026-08-05T00:00:00.000Z",
+      failureCode: "invalid-response",
+      setupToken: "owner-setup-private",
+      status: "owner-setup-email-sent",
+    };
+    const setupSurface = projectAuthAccountSurface({
+      session: initialAuthAccountDraftSession(setupState),
+      state: setupState,
+    });
+    const failedState = Object.assign(
+      { code: "internal-failure", status: "failed" } satisfies AuthAccountRouteState,
+      { diagnostic: "SQLITE_ERROR at /Users/ada/formless" },
+    );
+    const failedSurface = projectAuthAccountSurface({
+      session: initialAuthAccountDraftSession(failedState),
+      state: failedState,
+    });
+
+    expect(setupSurface.facts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ value: "Ada API_TOKEN=kept /Users/profile" }),
+        expect.objectContaining({ value: "Ada.Owner@example.com" }),
+      ]),
+    );
+    expect(setupSurface.feedback?.detail).toBe(
+      "The account service returned an invalid response. Try again.",
+    );
+    expect(failedSurface.feedback?.detail).toBe("The account service is unavailable. Try again.");
+    expect(JSON.stringify({ failedSurface, setupSurface })).not.toContain("SQLITE_ERROR");
+    expect(JSON.stringify(setupSurface)).not.toContain("owner-setup-private");
+  });
 });
 
 function target(): AccountCompletionGateTarget {

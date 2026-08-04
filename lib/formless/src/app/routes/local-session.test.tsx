@@ -3,6 +3,7 @@ import { FormlessProgramReplicaDeleteBlockedError } from "../../client/db.ts";
 import {
   localSessionBrowserResetRequestedFromSearch,
   localSessionRedirectTargetFromSearch,
+  projectLocalSessionRouteSystemState,
   startLocalSessionRouteSession,
   type LocalSessionRouteState,
 } from "./local-session.tsx";
@@ -100,9 +101,8 @@ describe("local session route data flow", () => {
       { status: "checking" },
       { status: "resetting" },
       {
+        code: "replica-reset-blocked",
         status: "blocked",
-        message:
-          "Local Program browser replica reset was blocked. Close other tabs using this local runtime and try again.",
       },
     ]);
     expect(events).toEqual([]);
@@ -127,10 +127,7 @@ describe("local session route data flow", () => {
       stop();
     }
 
-    expect(states).toEqual([
-      { status: "checking" },
-      { status: "failed", message: "Local owner session is not authenticated." },
-    ]);
+    expect(states).toEqual([{ status: "checking" }, { code: "unauthorized", status: "failed" }]);
     expect(events).toEqual([]);
   });
 
@@ -149,6 +146,17 @@ describe("local session route data flow", () => {
     expect(localSessionBrowserResetRequestedFromSearch("?reset=1")).toBe(true);
     expect(localSessionBrowserResetRequestedFromSearch("?reset=0")).toBe(false);
     expect(localSessionBrowserResetRequestedFromSearch("")).toBe(false);
+  });
+
+  it("projects fixed local-session failure copy without diagnostic fields", () => {
+    const state = Object.assign(
+      { code: "internal-failure", status: "failed" } satisfies LocalSessionRouteState,
+      { diagnostic: "SQLITE_ERROR at /Users/ada/formless" },
+    );
+    const surface = projectLocalSessionRouteSystemState(state);
+
+    expect(surface.feedback?.detail).toBe("The local session service is unavailable. Try again.");
+    expect(JSON.stringify(surface)).not.toContain("SQLITE_ERROR");
   });
 });
 

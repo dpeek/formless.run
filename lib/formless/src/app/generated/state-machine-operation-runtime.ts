@@ -31,11 +31,7 @@ export async function executeTransitionStateOperation({
       source,
     },
     controller,
-    feedback: {
-      committedMessage: `${operation.label} synced.`,
-      progressMessage: `${operation.label}...`,
-      replayedMessage: `${operation.label} synced.`,
-    },
     setStatus,
+    statusLabel: operation.label,
   });
 }

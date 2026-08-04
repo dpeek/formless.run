@@ -14,19 +14,12 @@ import { setSyncStatus, type SyncStatus } from "../../client/sync-status.ts";
 import type { OrderingMovePatchPlan } from "../../shared/result-ordering.ts";
 import type { ResultOrderingContext } from "./ordering-ui.ts";
 
-type GeneratedOperationFeedbackOptions = {
-  committedMessage?: string | ((result: GeneratedOperationExecutionResult) => string);
-  failedMessage?: string | ((result: GeneratedOperationExecutionResult) => string);
-  progressMessage?: string;
-  replayedMessage?: string | ((result: GeneratedOperationExecutionResult) => string);
-};
-
 export type ExecuteGeneratedOperationControlOptions = {
   binding: GeneratedOperationControlBinding;
   callerInput: GeneratedOperationCallerInput;
   controller: GeneratedOperationController;
-  feedback?: GeneratedOperationFeedbackOptions;
   setStatus?: (status: SyncStatus) => void;
+  statusLabel?: string;
 };
 
 export type GeneratedOperationControlTriggerDecision =
@@ -144,16 +137,17 @@ export async function executeGeneratedOperationControl({
   binding,
   callerInput,
   controller,
-  feedback,
   setStatus = setSyncStatus,
+  statusLabel = binding.label,
 }: ExecuteGeneratedOperationControlOptions): Promise<GeneratedOperationExecutionResult> {
   setStatus({
+    code: "operation-running",
+    label: statusLabel,
     state: "syncing",
-    message: generatedOperationProgressMessage(binding, feedback),
   });
 
   const result = await controller.execute(callerInput);
-  setStatus(generatedOperationResultStatus(binding, result, feedback));
+  setStatus(generatedOperationResultStatus(statusLabel, result));
 
   return result;
 }
@@ -164,20 +158,14 @@ export async function executeGeneratedOrderingMoveOperation({
   orderingContext,
   plan,
   source,
-  failedMessage,
   setStatus,
-  successMessage,
-  syncingMessage,
 }: {
   binding: GeneratedOperationControlBinding;
   controller: GeneratedOperationController;
   orderingContext: ResultOrderingContext;
   plan: OrderingMovePatchPlan;
   source: GeneratedOperationCallerInput["source"];
-  failedMessage?: string;
   setStatus?: (status: SyncStatus) => void;
-  successMessage: string;
-  syncingMessage: string;
 }): Promise<GeneratedOperationExecutionResult> {
   return executeGeneratedOperationControl({
     binding,
@@ -190,64 +178,33 @@ export async function executeGeneratedOrderingMoveOperation({
       source,
     },
     controller,
-    feedback: {
-      committedMessage: successMessage,
-      failedMessage,
-      progressMessage: syncingMessage,
-      replayedMessage: successMessage,
-    },
     setStatus,
   });
 }
 
-export function generatedOperationProgressMessage(
-  binding: GeneratedOperationControlBinding,
-  feedback?: GeneratedOperationFeedbackOptions,
-): string {
-  return feedback?.progressMessage ?? binding.feedback?.progressLabel ?? `${binding.label}...`;
-}
-
 export function generatedOperationResultStatus(
-  binding: GeneratedOperationControlBinding,
+  label: string,
   result: GeneratedOperationExecutionResult,
-  feedback?: GeneratedOperationFeedbackOptions,
 ): SyncStatus {
   if (result.type === "failed") {
     return {
+      code: "operation-failed",
+      label,
       state: "error",
-      message:
-        resolveFeedbackMessage(feedback?.failedMessage, result) ??
-        result.displayError ??
-        binding.feedback?.failureLabel ??
-        "Operation failed.",
     };
   }
 
   if (result.type === "replayed") {
     return {
+      code: "operation-replayed",
+      label,
       state: "idle",
-      message:
-        result.displayMessage ??
-        resolveFeedbackMessage(feedback?.replayedMessage, result) ??
-        binding.feedback?.replayLabel ??
-        binding.feedback?.successLabel ??
-        `${binding.label} replayed.`,
     };
   }
 
   return {
+    code: "operation-committed",
+    label,
     state: "idle",
-    message:
-      result.displayMessage ??
-      resolveFeedbackMessage(feedback?.committedMessage, result) ??
-      binding.feedback?.successLabel ??
-      `${binding.label} synced.`,
   };
-}
-
-function resolveFeedbackMessage(
-  message: string | ((result: GeneratedOperationExecutionResult) => string) | undefined,
-  result: GeneratedOperationExecutionResult,
-): string | undefined {
-  return typeof message === "function" ? message(result) : message;
 }

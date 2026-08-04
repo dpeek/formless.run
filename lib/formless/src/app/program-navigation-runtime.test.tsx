@@ -16,8 +16,8 @@ import { createDevRuntimeProfile, createInstanceRuntimeProfile } from "./runtime
 import type { ProgramRuntimeDependencies } from "./program-runtime-boundary.tsx";
 
 vi.mock("./routes/application-system-state-runtime.tsx", () => ({
-  ApplicationSystemStateRuntime: ({ snapshot }: { snapshot: { id: string } }) => (
-    <output data-system-state={snapshot.id} />
+  ApplicationSystemStateRuntime: ({ snapshot }: { snapshot: { id: string; message: string } }) => (
+    <output data-system-message={snapshot.message} data-system-state={snapshot.id} />
   ),
 }));
 
@@ -263,6 +263,40 @@ describe("Program navigation runtime", () => {
       ).not.toBeNull(),
     );
     expect(workspaceMounts).toEqual([]);
+    renderer.unmount();
+  });
+
+  it("projects fixed system-state copy when Program startup throws diagnostics", async () => {
+    const dependencies = {
+      ...runtimeDependencies([], readySession("administrator", "management")),
+      fetchSession: async () => {
+        throw new Error("storage path diagnostic alchemy-secret-value");
+      },
+    };
+    const renderer = render(
+      <BrowserHarness>
+        <App
+          localWorkspaceGatewayAvailable={false}
+          programRuntimeDependencies={dependencies}
+          routeComponents={programRouteComponents()}
+          runtimeProfile={createInstanceRuntimeProfile()}
+        />
+      </BrowserHarness>,
+    );
+
+    await waitFor(() =>
+      expect(
+        renderer.container.querySelector(
+          '[data-system-state="application-system-state:program-runtime-failed"]',
+        ),
+      ).not.toBeNull(),
+    );
+    expect(
+      renderer.container
+        .querySelector('[data-system-state="application-system-state:program-runtime-failed"]')
+        ?.getAttribute("data-system-message"),
+    ).toBe("Program runtime could not be started.");
+    expect(renderer.container.innerHTML).not.toContain("alchemy-secret-value");
     renderer.unmount();
   });
 });

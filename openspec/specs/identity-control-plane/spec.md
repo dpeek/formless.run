@@ -465,9 +465,9 @@ identity-control-plane record editor to normal administrators.
   reads `GET /api/formless/identity/access-summary`
 - THEN the surface reads identity data through purpose-built access management
   behavior
-- AND the response includes only display-safe people, primary email, role,
+- AND the response includes only validated people, primary email, role,
   organization, group, and invitation summary facts needed by the surface
-- AND the response includes display-safe collaborator invitation grant choices
+- AND the response includes validated collaborator invitation grant choices
   derived from the current actor's active owner or Program administrator
   authority and exact available Program and organization surfaces
 - AND revoked invitations and disabled principals may remain reviewable
@@ -623,10 +623,10 @@ revocation, refresh, validation, and private auth state.
 - WHEN runtime prepares the current access management presentation
 - THEN one typed `AccessManifestReference` resolves one loading, unauthorized,
   failed, or ready access snapshot
-- AND a ready access snapshot carries the `Access` title, display-safe people
+- AND a ready access snapshot carries the `Access` title, validated people
   with primary email, status, role labels, role-edit availability, and
   person-removal availability
-- AND it carries display-safe invitations with target, scope, status, expiry,
+- AND it carries validated invitations with target, scope, status, expiry,
   inviter, and explicit deletion availability, page feedback, one
   invitation-authoring reference, and current person-role authoring when open
 - AND the invitation-authoring snapshot carries dialog visibility, controlled
@@ -689,7 +689,7 @@ revocation, refresh, validation, and private auth state.
 - AND each role selector change is one atomic selected-set intent rather than
   concurrent per-option intents that can overwrite one another
 - AND successful invitation creation resets and closes authoring, refreshes the
-  display-safe summary, and publishes success feedback without exposing private
+  validated summary, and publishes success feedback without exposing private
   delivery state
 - AND successful person-role replacement refreshes the person and role summary
   before publishing success feedback
@@ -699,6 +699,23 @@ revocation, refresh, validation, and private auth state.
   identity APIs, construct role replacement or person removal requests, create
   or deliver tokens, revoke private token state, refresh summaries, redact
   errors, or navigate directly
+
+#### Scenario: Return semantic access-management failures
+
+- GIVEN an access-summary, invitation, person-role replacement, invitation
+  revocation, or person-removal request fails
+- WHEN the identity access API returns a browser response
+- THEN generic transport failure contains only `code` selected from
+  `invalid-request`, `unauthorized`, `forbidden`, `not-found`,
+  `method-not-allowed`, `conflict`, `unavailable`, or `internal-failure`
+- AND person mutation and invitation revocation failures retain their existing
+  closed `reason` without an arbitrary `error` field
+- AND browser client failures add only `network-failure` or `invalid-response`
+  when no valid server code or domain reason is available
+- AND access route state records semantic failure or success outcomes while the
+  access projection owns fixed feedback copy
+- AND validated names, email addresses, role labels, organization labels, and
+  invitation facts remain direct presentation data without regex sanitization
 
 #### Scenario: Formless Renderer consumes access contracts
 

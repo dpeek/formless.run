@@ -7,21 +7,23 @@ import {
   submitWorkspaceGatewayAccountSelection,
   workspaceGatewayBrowserConfig,
   type WorkspaceGatewayConfig,
+  type WorkspaceGatewayErrorCode,
   type WorkspaceGatewayPush,
   type WorkspaceGatewayPushResponse,
   type WorkspaceGatewayStatusResponse,
 } from "@dpeek/formless-gateway/client";
 import { InstanceManagementRuntime } from "./instance-management-runtime.tsx";
-import { displaySafeText } from "./instance-management-display-safety.ts";
+
+export type WorkspaceGatewayRouteFailureCode = WorkspaceGatewayErrorCode | "network-failure";
 
 export type WorkspaceGatewayRouteState =
   | { status: "unavailable" }
   | { status: "loading" }
-  | { status: "failed"; message: string }
+  | { code: WorkspaceGatewayRouteFailureCode; status: "failed" }
   | {
       csrfToken?: string;
       currentPush?: WorkspaceGatewayPush;
-      error?: string;
+      error?: WorkspaceGatewayRouteFailureCode;
       latestPush?: WorkspaceGatewayPush;
       status: "ready";
     };
@@ -54,9 +56,7 @@ export function InstanceShellRoute({
       .catch((error) => {
         if (controller.signal.aborted) return;
         setState({
-          message: displaySafeText(
-            error instanceof Error ? error.message : "Workspace gateway status could not load.",
-          ),
+          code: workspaceGatewayRouteFailureCode(error),
           status: "failed",
         });
       });
@@ -92,9 +92,7 @@ export function InstanceShellRoute({
     } catch (error) {
       setState({
         ...state,
-        error: displaySafeText(
-          error instanceof Error ? error.message : "Workspace Push failed to start.",
-        ),
+        error: workspaceGatewayRouteFailureCode(error),
       });
     } finally {
       startPending.current = false;
@@ -118,9 +116,7 @@ export function InstanceShellRoute({
         current.status === "ready"
           ? {
               ...current,
-              error: displaySafeText(
-                error instanceof Error ? error.message : "Cloudflare account selection failed.",
-              ),
+              error: workspaceGatewayRouteFailureCode(error),
             }
           : current,
       );
@@ -180,9 +176,7 @@ async function refreshWorkspaceGatewayPush({
       current.status === "ready"
         ? {
             ...current,
-            error: displaySafeText(
-              error instanceof Error ? error.message : "Workspace Push refresh failed.",
-            ),
+            error: workspaceGatewayRouteFailureCode(error),
           }
         : current,
     );
@@ -216,4 +210,8 @@ export function workspaceGatewayPushPolls(push: WorkspaceGatewayPush): boolean {
     push.lifecycle === "running" ||
     push.lifecycle === "waiting-for-interaction"
   );
+}
+
+export function workspaceGatewayRouteFailureCode(error: unknown): WorkspaceGatewayRouteFailureCode {
+  return error instanceof WorkspaceGatewayApiError ? error.code : "network-failure";
 }

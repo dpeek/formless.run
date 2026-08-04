@@ -72,9 +72,9 @@ export type ProgramRuntimeDependencies = {
 };
 
 export type ProgramRuntimeSnapshot = {
+  failureCode?: "runtime-start-failed" | undefined;
   logout: () => Promise<void>;
   logoutState: "error" | "idle" | "pending";
-  message?: string | undefined;
   session?: ProgramSessionResponse | undefined;
   status: "anonymous" | "blocked" | "failed" | "forbidden" | "loading" | "ready" | "server";
 };
@@ -265,7 +265,7 @@ export function ProgramRuntimeBoundary({
           signal: controller.signal,
         };
         stopBroadcast = resolvedDependencies.connectBroadcast(boundary);
-        setSyncStatus({ state: "syncing", message: "Syncing Formless Program..." });
+        setSyncStatus({ code: "program-syncing", state: "syncing" });
         await resolvedDependencies.hydrate(boundary);
 
         if (!canPublish()) {
@@ -283,12 +283,12 @@ export function ProgramRuntimeBoundary({
             void invalidate("replica-authority-change");
           }
         });
-        setSyncStatus({ state: "idle", message: "Synced." });
+        setSyncStatus({ code: "program-synced", state: "idle" });
         const push = resolvedDependencies.startPush(boundary);
         stopPush = push;
         requestSync = push.requestSync ?? (() => undefined);
         setState({ session, status: "ready" });
-      } catch (error) {
+      } catch {
         if (!canPublish()) {
           return;
         }
@@ -297,8 +297,9 @@ export function ProgramRuntimeBoundary({
         if (activeRuntimeRef.current === runtime) {
           activeRuntimeRef.current = undefined;
         }
+        setSyncStatus({ code: "program-sync-failed", state: "error" });
         setState({
-          message: error instanceof Error ? error.message : "Program runtime failed.",
+          failureCode: "runtime-start-failed",
           status: "failed",
         });
       }

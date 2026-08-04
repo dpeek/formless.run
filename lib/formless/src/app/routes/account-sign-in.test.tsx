@@ -134,13 +134,7 @@ describe("account sign-in route data flow", () => {
       stop();
     }
 
-    expect(states).toEqual([
-      { status: "loading" },
-      {
-        status: "passkey-unavailable",
-        message: "This browser does not support passkeys.",
-      },
-    ]);
+    expect(states).toEqual([{ status: "loading" }, { status: "passkey-unavailable" }]);
   });
 
   it("loads complete state with the authenticated principal identity", async () => {
@@ -242,18 +236,28 @@ describe("account sign-in route data flow", () => {
     ]);
   });
 
-  it("keeps account sign-in failure details", async () => {
+  it("keeps recognized account failure codes without supplied details", async () => {
+    await expect(
+      loginWithPasskey({
+        createAuthenticationResponse: async () => authenticationResponse,
+        fetcher: jsonFetcher({ code: "unavailable" }, { status: 503 }),
+      }),
+    ).rejects.toMatchObject({
+      code: "unavailable",
+      status: 503,
+    } satisfies Partial<AccountSignInApiError>);
+
     await expect(
       loginWithPasskey({
         createAuthenticationResponse: async () => authenticationResponse,
         fetcher: jsonFetcher(
-          { authenticated: false, error: "Instance auth configuration is missing." },
-          { status: 400 },
+          { code: "unavailable", error: "SQLITE_ERROR at /Users/ada/formless" },
+          { status: 503 },
         ),
       }),
     ).rejects.toMatchObject({
-      message: "Instance auth configuration is missing.",
-      status: 400,
+      code: "invalid-response",
+      status: 503,
     } satisfies Partial<AccountSignInApiError>);
   });
 

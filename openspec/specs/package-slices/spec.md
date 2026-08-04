@@ -660,6 +660,13 @@ and reactive Presentation Host behavior.
 - AND it does not own renderer components, styling, provider themes, routing,
   storage, browser replica reads, auth effects, operation execution, or Site
   projection
+- AND it carries only runtime-projected presentation copy and intentional
+  display data, not transport or domain failure codes, caught exceptions,
+  diagnostics, logs, paths, commands, provider output, or generic execution
+  results
+- AND browser runtime owns semantic-code-to-copy projection while validated
+  user-authored names, labels, and email addresses may remain direct
+  presentation data without a regex sanitizer at the Presentation boundary
 - AND public Site renderer contracts remain owned by
   `@dpeek/formless-site-app`
 
@@ -760,6 +767,9 @@ retaining Astryx as an internal component and build dependency.
   ceremonies, identity authority, Site projection, public form execution,
   operation execution, navigation effects, theme persistence, or document
   bootstrap
+- AND it renders presentation-ready copy and intentional display data without
+  receiving or translating transport codes, domain failure codes, exceptions,
+  diagnostics, or generic result objects
 - AND reusable source SVG parsing comes from
   `@dpeek/formless-source-svg`
 - AND application media presentation uses renderer-neutral Media contracts
@@ -1052,6 +1062,8 @@ execution, or app records.
   contract
 - AND Gateway does not alias Workspace generic state, results, summaries, logs,
   errors, display objects, events, or persistence contracts
+- AND Gateway browser adapters preserve exact transport codes and status without
+  owning browser presentation copy for those codes
 
 ### Requirement: Public Operations Package Slice
 

@@ -31,44 +31,17 @@ const eligibleInvitation = {
 } satisfies CollaboratorInvitationAcceptanceInvitationSummary;
 
 const failureCases = [
-  {
-    error: "Invitation link is invalid.",
-    reason: "missing-invitation",
-  },
-  {
-    error: "Invitation link has expired.",
-    reason: "expired-invitation",
-  },
-  {
-    error: "Invitation link is no longer available.",
-    reason: "revoked-invitation",
-  },
-  {
-    error: "Invitation link has already been used.",
-    reason: "consumed-invitation",
-  },
-  {
-    error: "Invitation has already been accepted.",
-    reason: "accepted-invitation",
-  },
-  {
-    error: "Invitation link is invalid.",
-    reason: "wrong-token",
-  },
-  {
-    error: "Invitation link is invalid.",
-    reason: "wrong-target",
-  },
-  {
-    error: "Invitation must be accepted on the configured auth origin.",
-    reason: "wrong-origin",
-  },
-  {
-    error: "Invitation acceptance is unavailable.",
-    reason: "configuration-unavailable",
-  },
+  { reason: "missing-invitation" },
+  { reason: "expired-invitation" },
+  { reason: "revoked-invitation" },
+  { reason: "consumed-invitation" },
+  { reason: "accepted-invitation" },
+  { reason: "wrong-token" },
+  { reason: "wrong-email" },
+  { reason: "wrong-target" },
+  { reason: "wrong-origin" },
+  { reason: "configuration-unavailable" },
 ] as const satisfies ReadonlyArray<{
-  error: string;
   reason: CollaboratorInvitationAcceptanceFailureReason;
 }>;
 
@@ -130,7 +103,6 @@ describe("collaborator invitation acceptance route data flow", () => {
       { status: "loading" },
       {
         invitation: eligibleInvitation,
-        message: "This browser does not support passkeys.",
         status: "passkey-unavailable",
       },
     ]);
@@ -147,7 +119,6 @@ describe("collaborator invitation acceptance route data flow", () => {
           calls,
           {
             eligible: false,
-            error: testCase.error,
             reason: testCase.reason,
           },
           { status: testCase.reason === "configuration-unavailable" ? 503 : 401 },
@@ -170,7 +141,6 @@ describe("collaborator invitation acceptance route data flow", () => {
         { status: "loading" },
         {
           status: "unavailable",
-          message: testCase.error,
           reason: testCase.reason,
         },
       ]);
@@ -180,7 +150,7 @@ describe("collaborator invitation acceptance route data flow", () => {
     }
   });
 
-  it("keeps malformed invitation links local and display-safe", () => {
+  it("keeps malformed invitation links local", () => {
     const calls: FetchCall[] = [];
     const states: CollaboratorInvitationAcceptanceRouteState[] = [];
     const stop = startCollaboratorInvitationAcceptanceRouteSession({
@@ -192,10 +162,7 @@ describe("collaborator invitation acceptance route data flow", () => {
     stop();
 
     expect(calls).toEqual([]);
-    expect(states).toEqual([
-      { status: "loading" },
-      { status: "invalid-link", message: "Invitation link is invalid." },
-    ]);
+    expect(states).toEqual([{ status: "loading" }, { status: "invalid-link" }]);
     expect(JSON.stringify(states)).not.toContain("not a token");
   });
 
@@ -204,7 +171,6 @@ describe("collaborator invitation acceptance route data flow", () => {
       fetchCollaboratorInvitationAcceptanceStatus({
         fetcher: recordingJsonFetcher([], {
           eligible: false,
-          error: "Invitation link is invalid.",
           reason: "wrong-token",
           tokenHash,
         }),
@@ -213,10 +179,7 @@ describe("collaborator invitation acceptance route data flow", () => {
           token: rawToken,
         },
       }),
-    ).rejects.toMatchObject({
-      message:
-        'Collaborator invitation acceptance status response has unsupported key "tokenHash".',
-    });
+    ).rejects.toMatchObject({ code: "invalid-response", status: 200 });
   });
 
   it("requests invitation-bound passkey options and verifies registration", async () => {
@@ -287,10 +250,7 @@ describe("collaborator invitation acceptance route data flow", () => {
           token: rawToken,
         },
       }),
-    ).rejects.toMatchObject({
-      message:
-        'Collaborator invitation passkey registration verify response has unsupported key "sessionId".',
-    });
+    ).rejects.toMatchObject({ code: "invalid-response", status: 200 });
     expect(calls).toHaveLength(2);
   });
 

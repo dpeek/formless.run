@@ -1,10 +1,12 @@
 import type { AppSchema } from "@dpeek/formless-schema";
 
 import {
+  instanceAuthError,
   parseProgramSessionRequest,
   parseProgramSessionResponse,
   PROGRAM_SESSION_API_PATH,
   type AccountPrincipalIdentity,
+  type InstanceAuthErrorCode,
   type ProgramSessionResponse,
   type ProgramSessionTargetBinding,
 } from "../shared/instance-auth.ts";
@@ -62,10 +64,7 @@ export async function handleProgramSessionRequest(
   }
 
   if (request.method !== "GET") {
-    return new Response(null, {
-      headers: { Allow: "GET", "Cache-Control": "no-store" },
-      status: 405,
-    });
+    return programSessionErrorResponse("method-not-allowed", 405, { Allow: "GET" });
   }
 
   try {
@@ -90,10 +89,7 @@ export async function handleProgramSessionRequest(
     });
 
     if (!route) {
-      return programSessionErrorResponse(
-        "Program session return target must select a protected Program screen.",
-        400,
-      );
+      return programSessionErrorResponse("invalid-request", 400);
     }
 
     const current: {
@@ -160,10 +156,7 @@ export async function handleProgramSessionRequest(
     const authority = current.authority;
 
     if (!principal || principal.id !== access.principalId || authority?.id !== access.principalId) {
-      return programSessionErrorResponse(
-        "Program session authority changed during resolution.",
-        401,
-      );
+      return programSessionErrorResponse("unauthorized", 401);
     }
 
     return programSessionResponse({
@@ -173,8 +166,8 @@ export async function handleProgramSessionRequest(
       status: "ready",
       target: route.target,
     });
-  } catch (error) {
-    return programSessionErrorResponse(errorMessage(error), 400);
+  } catch {
+    return programSessionErrorResponse("invalid-request", 400);
   }
 }
 
@@ -280,16 +273,17 @@ function programSessionResponse(result: ProgramSessionResponse): Response {
   });
 }
 
-function programSessionErrorResponse(error: string, status: number): Response {
-  return Response.json(
-    { error },
-    {
-      headers: { "Cache-Control": "no-store" },
-      status,
-    },
-  );
-}
+function programSessionErrorResponse(
+  code: InstanceAuthErrorCode,
+  status: number,
+  headers: HeadersInit = {},
+): Response {
+  const responseHeaders = new Headers(headers);
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Unknown error.";
+  responseHeaders.set("Cache-Control", "no-store");
+
+  return Response.json(instanceAuthError(code), {
+    headers: responseHeaders,
+    status,
+  });
 }

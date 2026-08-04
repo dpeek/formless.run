@@ -1,6 +1,7 @@
 import { generateRegistrationOptions, verifyRegistrationResponse } from "@simplewebauthn/server";
 
 import {
+  instanceAuthError,
   parseCollaboratorInvitationAcceptanceRequest,
   parseCollaboratorInvitationPasskeyRegistrationOptionsRequest,
   parseCollaboratorInvitationPasskeyRegistrationVerifyRequest,
@@ -133,9 +134,9 @@ export async function handleCollaboratorInvitationAcceptanceDurableObjectRequest
       return await handlePasskeyRegistrationVerifyRequest(request, storage, env);
     }
 
-    return jsonResponse({ error: "Not found." }, 404);
-  } catch (error) {
-    return jsonResponse({ error: errorMessage(error) }, 400);
+    return jsonResponse(instanceAuthError("not-found"), 404);
+  } catch {
+    return jsonResponse(instanceAuthError("invalid-request"), 400);
   }
 }
 
@@ -225,7 +226,7 @@ async function handlePasskeyRegistrationOptionsRequest(
   });
 
   if (!created.ok) {
-    return jsonResponse({ error: "Passkey challenge already exists." }, 409);
+    return jsonResponse(instanceAuthError("conflict"), 409);
   }
 
   const response: CollaboratorInvitationPasskeyRegistrationOptionsResponse = { options };
@@ -274,7 +275,7 @@ async function handlePasskeyRegistrationVerifyRequest(
     challenge.challenge.canonicalOrigin !== candidate.config.canonicalOrigin ||
     challenge.challenge.relyingPartyId !== candidate.config.relyingPartyId
   ) {
-    return jsonResponse({ error: "Passkey registration challenge is invalid." }, 401);
+    return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 
   let verified: Awaited<ReturnType<typeof verifyRegistrationResponse>>;
@@ -288,15 +289,15 @@ async function handlePasskeyRegistrationVerifyRequest(
       requireUserVerification: true,
     });
   } catch {
-    return jsonResponse({ error: "Passkey registration verification failed." }, 401);
+    return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 
   if (!verified.verified) {
-    return jsonResponse({ error: "Passkey registration verification failed." }, 401);
+    return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 
   if (readPasskeyCredential(storage, verified.registrationInfo.credential.id)) {
-    return jsonResponse({ error: "Passkey credential already exists." }, 409);
+    return jsonResponse(instanceAuthError("conflict"), 409);
   }
 
   const completedAt = nowIsoString();
@@ -356,7 +357,7 @@ async function handlePasskeyRegistrationVerifyRequest(
     }
 
     if (error instanceof DuplicatePasskeyCredentialError) {
-      return jsonResponse({ error: "Passkey credential already exists." }, 409);
+      return jsonResponse(instanceAuthError("conflict"), 409);
     }
 
     throw error;
@@ -722,42 +723,16 @@ function acceptanceFailureResponse(
   return jsonResponse(
     {
       eligible: false,
-      ...acceptanceFailure(reason),
+      reason,
     },
     acceptanceFailureStatus(reason),
   );
 }
 
 function acceptanceFailure(reason: CollaboratorInvitationAcceptanceFailureReason): {
-  error: string;
   reason: CollaboratorInvitationAcceptanceFailureReason;
 } {
-  return {
-    reason,
-    error: acceptanceFailureMessage(reason),
-  };
-}
-
-function acceptanceFailureMessage(reason: CollaboratorInvitationAcceptanceFailureReason): string {
-  switch (reason) {
-    case "accepted-invitation":
-      return "Invitation has already been accepted.";
-    case "configuration-unavailable":
-      return "Invitation acceptance is unavailable.";
-    case "consumed-invitation":
-      return "Invitation link has already been used.";
-    case "expired-invitation":
-      return "Invitation link has expired.";
-    case "missing-invitation":
-    case "wrong-email":
-    case "wrong-target":
-    case "wrong-token":
-      return "Invitation link is invalid.";
-    case "revoked-invitation":
-      return "Invitation link is no longer available.";
-    case "wrong-origin":
-      return "Invitation must be accepted on the configured auth origin.";
-  }
+  return { reason };
 }
 
 function acceptanceFailureStatus(reason: CollaboratorInvitationAcceptanceFailureReason): number {
@@ -795,7 +770,7 @@ function identityAcceptanceFailureResponse(
     case "wrong-principal":
       return acceptanceFailureResponse("wrong-target");
     case "identity-validation-failed":
-      return jsonResponse({ error: "Invitation acceptance could not be committed." }, 409);
+      return jsonResponse(instanceAuthError("conflict"), 409);
   }
 }
 
@@ -821,7 +796,7 @@ function invitationTokenCommitFailureResponse(
 }
 
 function methodNotAllowedResponse(allow: string): Response {
-  return jsonResponse({ error: "Method not allowed." }, 405, { Allow: allow });
+  return jsonResponse(instanceAuthError("method-not-allowed"), 405, { Allow: allow });
 }
 
 function jsonResponse(body: unknown, status = 200, headers: HeadersInit = {}) {
@@ -835,10 +810,6 @@ function jsonResponse(body: unknown, status = 200, headers: HeadersInit = {}) {
   });
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Unknown error.";
-}
-
 function passkeyChallengeFailureResponse(
   reason: "already-consumed" | "expired-challenge" | "missing-challenge" | "wrong-kind",
 ) {
@@ -846,9 +817,9 @@ function passkeyChallengeFailureResponse(
     case "already-consumed":
     case "missing-challenge":
     case "wrong-kind":
-      return jsonResponse({ error: "Passkey challenge is invalid." }, 401);
+      return jsonResponse(instanceAuthError("unauthorized"), 401);
     case "expired-challenge":
-      return jsonResponse({ error: "Passkey challenge has expired." }, 410);
+      return jsonResponse(instanceAuthError("expired"), 410);
   }
 }
 

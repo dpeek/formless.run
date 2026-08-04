@@ -5,13 +5,19 @@ import {
   IDENTITY_ACCESS_PERSON_REMOVAL_API_PATH,
   IDENTITY_ACCESS_PERSON_ROLE_REPLACEMENT_API_PATH,
   IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX,
+  parseIdentityAccessErrorResponse,
+  parseIdentityAccessPersonMutationErrorResponse,
+  parseIdentityCollaboratorInvitationRevokeErrorResponse,
+  type IdentityAccessErrorCode,
   type IdentityControlPlaneRoleKey,
   type IdentityAccessManagementSummary,
+  type IdentityAccessPersonMutationFailureReason,
   type IdentityAccessPersonRemovalRequest,
   type IdentityAccessPersonRemovalResponse,
   type IdentityAccessPersonRoleReplacementRequest,
   type IdentityAccessPersonRoleReplacementResponse,
   type IdentityCollaboratorInvitationRevokeRequest,
+  type IdentityCollaboratorInvitationRevokeFailureReason,
   type IdentityCollaboratorInvitationRevokeResponse,
   type IdentityInvitationTargetSurface,
   type IdentityMembershipTargetKind,
@@ -79,22 +85,30 @@ export type RevokeIdentityAccessManagementInvitationInput =
 export type IdentityAccessManagementInvitationRevokeResponse =
   IdentityCollaboratorInvitationRevokeResponse;
 
-export type IdentityAccessManagementApiErrorBody = {
-  error: string;
-  reason?: string;
+export type IdentityAccessManagementTransportFailure = {
+  code: IdentityAccessErrorCode | "invalid-response";
+  kind: "transport";
 };
 
+export type IdentityAccessManagementFailure =
+  | IdentityAccessManagementTransportFailure
+  | {
+      kind: "person-mutation";
+      reason: IdentityAccessPersonMutationFailureReason;
+    }
+  | {
+      kind: "invitation-revocation";
+      reason: IdentityCollaboratorInvitationRevokeFailureReason;
+    };
+
 export class IdentityAccessManagementApiError extends Error {
-  readonly body: IdentityAccessManagementApiErrorBody;
+  readonly failure: IdentityAccessManagementFailure;
   readonly status: number;
 
-  constructor(
-    message: string,
-    options: { body: IdentityAccessManagementApiErrorBody; status: number },
-  ) {
-    super(message);
+  constructor(failure: IdentityAccessManagementFailure, options: { status: number }) {
+    super("Identity access management request failed.");
     this.name = "IdentityAccessManagementApiError";
-    this.body = options.body;
+    this.failure = failure;
     this.status = options.status;
   }
 }
@@ -112,7 +126,7 @@ export async function fetchIdentityAccessManagementSummary({
     signal,
   });
 
-  return readJsonResponse<IdentityAccessManagementSummary>(response);
+  return readJsonResponse(response, "transport", identityAccessManagementSummary);
 }
 
 export async function createIdentityAccessManagementInvitation(
@@ -140,7 +154,7 @@ export async function createIdentityAccessManagementInvitation(
     signal,
   });
 
-  return readJsonResponse<IdentityAccessManagementInvitationResponse>(response);
+  return readJsonResponse(response, "transport", identityAccessManagementInvitationResponse);
 }
 
 export async function replaceIdentityAccessManagementPersonRoles(
@@ -157,6 +171,8 @@ export async function replaceIdentityAccessManagementPersonRoles(
     IDENTITY_ACCESS_PERSON_ROLE_REPLACEMENT_API_ROUTE,
     input,
     { fetcher, signal },
+    "person-mutation",
+    identityAccessPersonRoleReplacementResponse,
   );
 }
 
@@ -170,10 +186,13 @@ export async function removeIdentityAccessManagementPerson(
     signal?: AbortSignal;
   } = {},
 ): Promise<IdentityAccessPersonRemovalResponse> {
-  return postIdentityAccessManagementRequest(IDENTITY_ACCESS_PERSON_REMOVAL_API_ROUTE, input, {
-    fetcher,
-    signal,
-  });
+  return postIdentityAccessManagementRequest(
+    IDENTITY_ACCESS_PERSON_REMOVAL_API_ROUTE,
+    input,
+    { fetcher, signal },
+    "person-mutation",
+    identityAccessPersonRemovalResponse,
+  );
 }
 
 export async function revokeIdentityAccessManagementInvitation(
@@ -197,7 +216,11 @@ export async function revokeIdentityAccessManagementInvitation(
     signal,
   });
 
-  return readJsonResponse<IdentityAccessManagementInvitationRevokeResponse>(response);
+  return readJsonResponse(
+    response,
+    "invitation-revocation",
+    identityAccessManagementInvitationRevokeResponse,
+  );
 }
 
 async function postIdentityAccessManagementRequest<T>(
@@ -210,6 +233,8 @@ async function postIdentityAccessManagementRequest<T>(
     fetcher: typeof fetch;
     signal?: AbortSignal;
   },
+  failureKind: IdentityAccessManagementFailureKind,
+  parseSuccess: (value: unknown) => T | undefined,
 ): Promise<T> {
   const response = await fetcher(route, {
     body: JSON.stringify(input),
@@ -222,36 +247,148 @@ async function postIdentityAccessManagementRequest<T>(
     signal,
   });
 
-  return readJsonResponse<T>(response);
+  return readJsonResponse(response, failureKind, parseSuccess);
 }
 
-async function readJsonResponse<T>(response: Response): Promise<T> {
+type IdentityAccessManagementFailureKind =
+  | "invitation-revocation"
+  | "person-mutation"
+  | "transport";
+
+async function readJsonResponse<T>(
+  response: Response,
+  failureKind: IdentityAccessManagementFailureKind,
+  parseSuccess: (value: unknown) => T | undefined,
+): Promise<T> {
   invalidateProgramAuthorityForProtectedResponse(response);
-  const body = (await response.json()) as unknown;
+  let body: unknown;
+
+  try {
+    body = (await response.json()) as unknown;
+  } catch {
+    throw invalidIdentityAccessManagementResponse(response.status);
+  }
 
   if (!response.ok) {
-    const errorBody = identityAccessManagementErrorBody(body);
-
-    throw new IdentityAccessManagementApiError(errorBody.error, {
-      body: errorBody,
+    throw new IdentityAccessManagementApiError(identityAccessManagementFailure(body, failureKind), {
       status: response.status,
     });
   }
 
-  return body as T;
-}
-
-function identityAccessManagementErrorBody(value: unknown): IdentityAccessManagementApiErrorBody {
-  if (!isRecord(value)) {
-    return { error: "Access management request failed." };
+  const parsed = parseSuccess(body);
+  if (parsed === undefined) {
+    throw invalidIdentityAccessManagementResponse(response.status);
   }
 
-  const error = typeof value.error === "string" ? value.error : "Access management request failed.";
+  return parsed;
+}
 
-  return {
-    error,
-    ...(typeof value.reason === "string" ? { reason: value.reason } : {}),
-  };
+function identityAccessManagementFailure(
+  value: unknown,
+  failureKind: IdentityAccessManagementFailureKind,
+): IdentityAccessManagementFailure {
+  if (failureKind === "person-mutation") {
+    try {
+      return {
+        kind: "person-mutation",
+        ...parseIdentityAccessPersonMutationErrorResponse(value),
+      };
+    } catch {
+      // Fall through to the generic transport contract.
+    }
+  }
+
+  if (failureKind === "invitation-revocation") {
+    try {
+      return {
+        kind: "invitation-revocation",
+        ...parseIdentityCollaboratorInvitationRevokeErrorResponse(value),
+      };
+    } catch {
+      // Fall through to the generic transport contract.
+    }
+  }
+
+  try {
+    return { kind: "transport", ...parseIdentityAccessErrorResponse(value) };
+  } catch {
+    return { code: "invalid-response", kind: "transport" };
+  }
+}
+
+function invalidIdentityAccessManagementResponse(status: number) {
+  return new IdentityAccessManagementApiError(
+    { code: "invalid-response", kind: "transport" },
+    { status },
+  );
+}
+
+function identityAccessManagementSummary(
+  value: unknown,
+): IdentityAccessManagementSummary | undefined {
+  if (
+    !isRecord(value) ||
+    !isRecord(value.invitationGrantOptions) ||
+    !isRecord(value.invitationGrantOptions.authority) ||
+    !Array.isArray(value.invitationGrantOptions.memberships) ||
+    !Array.isArray(value.invitationGrantOptions.roles)
+  ) {
+    return undefined;
+  }
+
+  const arrayKeys = [
+    "groups",
+    "invitations",
+    "memberships",
+    "organizations",
+    "people",
+    "programRoles",
+    "roles",
+  ] as const;
+
+  return arrayKeys.every((key) => Array.isArray(value[key]))
+    ? (value as IdentityAccessManagementSummary)
+    : undefined;
+}
+
+function identityAccessManagementInvitationResponse(
+  value: unknown,
+): IdentityAccessManagementInvitationResponse | undefined {
+  return isRecord(value) ? (value as IdentityAccessManagementInvitationResponse) : undefined;
+}
+
+function identityAccessPersonRoleReplacementResponse(
+  value: unknown,
+): IdentityAccessPersonRoleReplacementResponse | undefined {
+  return isRecord(value) &&
+    typeof value.principalId === "string" &&
+    Array.isArray(value.programRoles) &&
+    Array.isArray(value.roles) &&
+    (value.status === "committed" || value.status === "replayed")
+    ? (value as IdentityAccessPersonRoleReplacementResponse)
+    : undefined;
+}
+
+function identityAccessPersonRemovalResponse(
+  value: unknown,
+): IdentityAccessPersonRemovalResponse | undefined {
+  return isRecord(value) &&
+    isRecord(value.person) &&
+    typeof value.removedAt === "string" &&
+    value.status === "disabled"
+    ? (value as IdentityAccessPersonRemovalResponse)
+    : undefined;
+}
+
+function identityAccessManagementInvitationRevokeResponse(
+  value: unknown,
+): IdentityAccessManagementInvitationRevokeResponse | undefined {
+  return isRecord(value) &&
+    isRecord(value.invitation) &&
+    typeof value.revokedAt === "string" &&
+    value.status === "revoked"
+    ? (value as IdentityAccessManagementInvitationRevokeResponse)
+    : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

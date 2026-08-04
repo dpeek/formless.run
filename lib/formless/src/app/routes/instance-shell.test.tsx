@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { WorkspaceGatewayPush } from "@dpeek/formless-gateway/client";
-import { workspaceGatewayPushPolls } from "./instance-shell.tsx";
+import { workspaceGatewayPushPolls, workspaceGatewayRouteFailureCode } from "./instance-shell.tsx";
 
 describe("instance shell Push hydration", () => {
+  it("reduces caught diagnostics to a route-owned failure code", () => {
+    const code = workspaceGatewayRouteFailureCode(
+      new Error("provider diagnostic alchemy-secret-value"),
+    );
+
+    expect(code).toBe("network-failure");
+    expect(JSON.stringify(code)).not.toContain("alchemy-secret-value");
+  });
+
   it("polls queued, running, and interaction-waiting Pushes only", () => {
     expect(workspaceGatewayPushPolls(push({ lifecycle: "queued" }))).toBe(true);
     expect(workspaceGatewayPushPolls(push({ lifecycle: "running" }))).toBe(true);

@@ -64,6 +64,36 @@ describe("Astryx access renderer", () => {
     expect(html).not.toContain("raw-invitation-token");
   });
 
+  it("renders direct validated people, role labels, and email addresses", () => {
+    const populated = ready(fixtureManifest("populated-owner"));
+    const person = required(populated.people[0]);
+    const role = required(person.roles[0]);
+    const invitation = required(populated.invitations[0]);
+    const manifest: AccessReadyContract = {
+      ...populated,
+      invitations: [
+        {
+          ...invitation,
+          targetEmail: "lin+platform@example.com",
+        },
+      ],
+      people: [
+        {
+          ...person,
+          displayName: "Ada Byron-Lovelace",
+          primaryEmail: "ada+platform@example.com",
+          roles: [{ ...role, label: "Production workspace owner" }],
+        },
+      ],
+    };
+    const html = renderAccess(manifest);
+
+    expect(html).toContain("Ada Byron-Lovelace");
+    expect(html).toContain("ada+platform@example.com");
+    expect(html).toContain("Production workspace owner");
+    expect(html).toContain("lin+platform@example.com");
+  });
+
   it("renders unavailable person removal as a disabled button with its reason as a tooltip", () => {
     const populated = ready(fixtureManifest("populated-owner"));
     const person = required(populated.people[0]);

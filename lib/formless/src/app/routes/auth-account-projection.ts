@@ -41,8 +41,7 @@ import {
   projectGeneratedCreateFields,
   projectGeneratedOperationFields,
 } from "../generated/field-projection.ts";
-import { displaySafeText } from "./instance-management-display-safety.ts";
-import type { AuthAccountRouteState } from "./auth-account.tsx";
+import type { AuthAccountFailureCode, AuthAccountRouteState } from "./auth-account.tsx";
 
 type AuthAccountGateRouteState = Exclude<
   AuthAccountRouteState,
@@ -292,11 +291,14 @@ function projectOwnerSetupSurface({
 }): OwnerSetupAuthSurfaceContract {
   const pending = ownerSetupIsPending(state);
   const feedback =
-    "message" in state &&
-    state.message &&
-    state.status !== "owner-setup-invalid" &&
+    "failureCode" in state &&
+    state.failureCode &&
     state.status !== "owner-setup-passkey-unavailable"
-      ? authFeedback("owner-setup-failure", "Owner setup failed", state.message)
+      ? authFeedback(
+          "owner-setup-failure",
+          "Owner setup failed",
+          authAccountFailureMessage(state.failureCode, "owner-setup"),
+        )
       : undefined;
   const message = ownerSetupMessage(state);
   const passkey = ownerSetupPasskey(state);
@@ -492,9 +494,7 @@ function ownerSetupPasskey(
       id: `${AUTH_ACCOUNT_OWNER_SETUP_SURFACE_ID}:passkey:create`,
       kind: "authPasskey",
       purpose: "create",
-      unavailableReason: displaySafeText(
-        state.message ?? "This browser does not support passkeys.",
-      ),
+      unavailableReason: "This browser does not support passkeys.",
     };
   }
   if (
@@ -595,10 +595,10 @@ function accountGatePolicies(
     return {
       accepted,
       ...(destination ? { destination } : {}),
-      description: `Version ${displaySafeText(policy.version)}`,
+      description: `Version ${policy.version}`,
       id: policy.accountPolicyId,
       kind: "authPolicy",
-      label: displaySafeText(policy.displayName),
+      label: policy.displayName,
       required: true,
       selectionIntent: {
         accepted: !accepted,
@@ -716,7 +716,7 @@ function ownerSetupContractState(
   if (state.status === "owner-setup-loading") return "loading";
   if (state.status === "owner-setup-passkey-unavailable") return "passkey-unavailable";
   if (ownerSetupIsPending(state)) return "submitting";
-  if ("message" in state && state.message) return "failed";
+  if ("failureCode" in state && state.failureCode) return "failed";
   return "ready";
 }
 
@@ -785,7 +785,7 @@ function ownerSetupDescription(
 ): string | undefined {
   if (state.status === "owner-setup-already-complete") {
     return state.owner
-      ? `${displaySafeText(state.owner.name)} owns this Formless instance.`
+      ? `${state.owner.name} owns this Formless instance.`
       : "This instance has an owner.";
   }
   if (state.status === "owner-setup-complete") return "Your owner account is ready.";
@@ -793,7 +793,7 @@ function ownerSetupDescription(
   if (isOwnerSetupIdentityState(state))
     return "Verify your primary email before creating an owner passkey.";
   if (isOwnerSetupEmailVerificationState(state))
-    return `A verification email was sent to ${displaySafeText(state.email)}.`;
+    return `A verification email was sent to ${state.email}.`;
   if (
     state.status === "owner-setup-credential-ready" ||
     state.status === "owner-setup-credential-submitting" ||
@@ -816,13 +816,13 @@ function ownerSetupMessage(
   if (state.status === "owner-setup-loading")
     return authMessage("owner-setup-loading", "Loading owner setup.");
   if (state.status === "owner-setup-invalid")
-    return authMessage("owner-setup-invalid", state.message, "danger");
-  if (state.status === "owner-setup-passkey-unavailable")
     return authMessage(
-      "owner-setup-passkey",
-      state.message ?? "This browser does not support passkeys.",
-      "warning",
+      "owner-setup-invalid",
+      authAccountFailureMessage(state.code, "setup-link"),
+      "danger",
     );
+  if (state.status === "owner-setup-passkey-unavailable")
+    return authMessage("owner-setup-passkey", "This browser does not support passkeys.", "warning");
   if (state.status === "owner-setup-continuing")
     return authMessage("owner-setup-continuing", "Continuing...", "success");
   return undefined;
@@ -884,8 +884,7 @@ function accountGateHeading(state: AuthAccountGateRouteState): string {
 function accountGateDescription(state: AuthAccountGateRouteState): string | undefined {
   if (state.status === "complete") return "Your account is ready to continue.";
   if (state.status === "continuing") return "Opening your approved destination.";
-  if (state.status === "forbidden")
-    return `Signed in as ${displaySafeText(state.result.principal.displayName)}.`;
+  if (state.status === "forbidden") return `Signed in as ${state.result.principal.displayName}.`;
   if (state.status === "blocked") return gateCopy(state.result.gate).message;
   return undefined;
 }
@@ -909,17 +908,33 @@ function accountGateFeedback(
   session: AuthAccountDraftSession,
 ): AuthFeedbackContract | undefined {
   if (state.status === "failed")
-    return authFeedback("account-failure", "Account unavailable", state.message);
+    return authFeedback(
+      "account-failure",
+      "Account unavailable",
+      authAccountFailureMessage(state.code, "account-status"),
+    );
   if (state.status === "forbidden" && state.action?.kind === "logout-failed")
-    return authFeedback("logout-failure", "Sign out failed", state.action.message);
+    return authFeedback(
+      "logout-failure",
+      "Sign out failed",
+      authAccountFailureMessage(state.action.code, "logout"),
+    );
   if (state.status === "blocked" && state.action?.kind === "gate-unavailable")
-    return authFeedback("gate-failure", "Account step failed", state.action.message);
+    return authFeedback(
+      "gate-failure",
+      "Account step failed",
+      authAccountFailureMessage(state.action.code, "account-step"),
+    );
   if (
     state.status === "blocked" &&
     state.action?.kind === "email-verification-sent" &&
-    state.action.message
+    state.action.failureCode
   )
-    return authFeedback("verification-failure", "Email verification failed", state.action.message);
+    return authFeedback(
+      "verification-failure",
+      "Email verification failed",
+      authAccountFailureMessage(state.action.failureCode, "email-verification"),
+    );
   if (
     state.status === "blocked" &&
     state.result.gate.kind === "terms-acceptance" &&
@@ -1101,7 +1116,7 @@ function authContinuation(
   return {
     control,
     destination: {
-      detail: displaySafeText(continueTo),
+      detail: continueTo,
       id: destinationId,
       kind: "authContinuationDestination",
       label: "Continue",
@@ -1151,13 +1166,13 @@ function authMessage(
     id: `auth:account:message:${id}`,
     kind: "authMessage",
     severity,
-    title: displaySafeText(title),
+    title,
   };
 }
 
 function authFeedback(id: string, title: string, detail: string): AuthFeedbackContract {
   return {
-    detail: displaySafeText(detail),
+    detail,
     id: `auth:account:feedback:${id}`,
     kind: "authFeedback",
     severity: "danger",
@@ -1170,9 +1185,7 @@ function authFact(
   label: string,
   value: string | undefined,
 ): AuthFactContract | undefined {
-  return value
-    ? { id: `auth:account:fact:${id}`, kind: "authFact", label, value: displaySafeText(value) }
-    : undefined;
+  return value ? { id: `auth:account:fact:${id}`, kind: "authFact", label, value } : undefined;
 }
 
 function compactFacts(...facts: Array<AuthFactContract | undefined>): AuthFactContract[] {
@@ -1191,7 +1204,7 @@ function safePolicyDestination(href: string | undefined, label: string) {
     return {
       href: url.toString(),
       kind: "authPolicyDestination" as const,
-      label: `Open ${displaySafeText(label)}`,
+      label: `Open ${label}`,
     };
   } catch {
     return undefined;
@@ -1210,6 +1223,55 @@ function safeHttpOrigin(value: string | undefined): string | undefined {
 
 function operationLabel(operation: AccountCompletionGate["operation"]): string | undefined {
   return operation?.label ?? operation?.operationName ?? operation?.operationKey;
+}
+
+function authAccountFailureMessage(
+  code: AuthAccountFailureCode,
+  context:
+    | "account-status"
+    | "account-step"
+    | "email-verification"
+    | "logout"
+    | "owner-setup"
+    | "setup-link",
+): string {
+  if (code === "network-failure") {
+    return "The account service could not be reached. Check your connection and try again.";
+  }
+  if (code === "invalid-response") {
+    return context === "setup-link"
+      ? "The owner setup link is invalid."
+      : "The account service returned an invalid response. Try again.";
+  }
+  if (code === "passkey-failed") return "Passkey creation did not complete. Try again.";
+  if (code === "expired") {
+    return context === "setup-link"
+      ? "The owner setup link has expired."
+      : "The account request expired. Try again.";
+  }
+  if (code === "conflict") return "The account state changed. Reload and try again.";
+  if (code === "unavailable" || code === "internal-failure") {
+    return "The account service is unavailable. Try again.";
+  }
+  if (code === "unauthorized") {
+    return context === "setup-link"
+      ? "The owner setup link is invalid."
+      : "The account request was not authorized. Try again.";
+  }
+  if (code === "forbidden") return "This account action is not allowed.";
+  if (code === "not-found") {
+    return context === "setup-link"
+      ? "The owner setup link is invalid."
+      : "This account action is unavailable.";
+  }
+  if (code === "method-not-allowed") return "This account action is unavailable.";
+  if (context === "email-verification") return "The verification request was invalid. Try again.";
+  if (context === "logout") return "The sign-out request was invalid. Try again.";
+  if (context === "owner-setup" || context === "setup-link") {
+    return "The owner setup request was invalid. Try again.";
+  }
+  if (context === "account-step") return "The account step request was invalid. Try again.";
+  return "The account request was invalid. Try again.";
 }
 
 function gateCopy(gate: AccountCompletionGate): { heading: string; message: string } {

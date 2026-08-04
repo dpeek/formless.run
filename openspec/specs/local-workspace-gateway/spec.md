@@ -251,6 +251,11 @@ through the Gateway package slice.
 - **AND** error bodies contain only a Gateway-owned code and never exception
   messages, response bodies, diagnostics, paths, commands, logs, or provider
   output
+- **AND** the Gateway browser client preserves only the recognized code and HTTP
+  status on request failures and does not translate those codes into display
+  copy
+- **AND** Formless browser runtime maps Gateway codes to fixed presentation copy
+  before publishing renderer-neutral contracts
 - **AND** non-JSON or structurally invalid sidecar responses become a closed
   `invalid-sidecar-response` error rather than passing through
 

@@ -74,8 +74,8 @@ describe("generated operation controls", () => {
       "Clear completed synced. 2 affected.",
     );
     expect(statuses).toEqual([
-      { state: "syncing", message: "Clear completed..." },
-      { state: "idle", message: "Clear completed synced. 2 affected." },
+      { code: "operation-running", label: "Clear completed", state: "syncing" },
+      { code: "operation-committed", label: "Clear completed", state: "idle" },
     ]);
     expect(
       projectGeneratedOperationControl({
@@ -115,8 +115,8 @@ describe("generated operation controls", () => {
       }),
     ).resolves.toMatchObject({ type: "replayed", affectedCount: 1 });
     expect(replayStatuses).toEqual([
-      { state: "syncing", message: "Clear completed..." },
-      { state: "idle", message: "Clear completed replayed." },
+      { code: "operation-running", label: "Clear completed", state: "syncing" },
+      { code: "operation-replayed", label: "Clear completed", state: "idle" },
     ]);
 
     const failureStatuses: SyncStatus[] = [];
@@ -136,11 +136,11 @@ describe("generated operation controls", () => {
       }),
     ).resolves.toEqual({
       type: "failed",
-      displayError: "Operation endpoint unavailable.",
+      displayError: "Operation failed.",
     });
     expect(failureStatuses).toEqual([
-      { state: "syncing", message: "Clear completed..." },
-      { state: "error", message: "Operation endpoint unavailable." },
+      { code: "operation-running", label: "Clear completed", state: "syncing" },
+      { code: "operation-failed", label: "Clear completed", state: "error" },
     ]);
     expect(
       projectGeneratedOperationControl({
@@ -154,7 +154,7 @@ describe("generated operation controls", () => {
         state: failureController.getStateByExecutionKey(binding.executionKey),
       }).feedback,
     ).toMatchObject({
-      detail: "Operation endpoint unavailable.",
+      detail: "Operation failed.",
       status: "failed",
       title: "Clear completed failed.",
     });
@@ -268,8 +268,8 @@ describe("generated operation controls", () => {
       },
     ]);
     expect(statuses).toEqual([
-      { state: "syncing", message: "Deleting Hero block..." },
-      { state: "idle", message: "Deleted Hero block." },
+      { code: "operation-running", label: "Delete Hero block", state: "syncing" },
+      { code: "operation-committed", label: "Delete Hero block", state: "idle" },
     ]);
   });
 
@@ -463,8 +463,8 @@ describe("generated operation controls", () => {
       },
     ]);
     expect(statuses).toEqual([
-      { state: "syncing", message: "Archive..." },
-      { state: "idle", message: "Archive synced." },
+      { code: "operation-running", label: "Archive", state: "syncing" },
+      { code: "operation-committed", label: "Archive", state: "idle" },
     ]);
   });
 
@@ -604,8 +604,6 @@ describe("generated operation controls", () => {
         plan: { kind: "patch", recordId: "placement-1", rank: 500 },
         source: "button",
         setStatus: (status) => statuses.push(status),
-        successMessage: "Placement moved and synced.",
-        syncingMessage: "Moving placement...",
       }),
     ).resolves.toMatchObject({ type: "committed", affectedCount: 1 });
 
@@ -622,8 +620,8 @@ describe("generated operation controls", () => {
       },
     ]);
     expect(statuses).toEqual([
-      { state: "syncing", message: "Moving placement..." },
-      { state: "idle", message: "Placement moved and synced." },
+      { code: "operation-running", label: "Move up", state: "syncing" },
+      { code: "operation-committed", label: "Move up", state: "idle" },
     ]);
   });
 });

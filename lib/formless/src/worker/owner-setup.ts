@@ -1,3 +1,4 @@
+import { instanceAuthError, type InstanceAuthErrorCode } from "../shared/instance-auth.ts";
 import { parseOwnerSetupToken, type OwnerSetupStatusResponse } from "../shared/protocol.ts";
 import { runtimeTopologyRoutes } from "../shared/runtime-topology.ts";
 import { nowIsoString } from "../shared/clock.ts";
@@ -103,9 +104,9 @@ export async function handleOwnerSetupDurableObjectRequest(
       return await handleOwnerSetupCapabilityRequest(request, storage, env);
     }
 
-    return jsonResponse({ error: "Not found." }, 404);
-  } catch (error) {
-    return jsonResponse({ error: errorMessage(error) }, 400);
+    return jsonResponse(instanceAuthError("not-found"), 404);
+  } catch {
+    return jsonResponse(instanceAuthError("invalid-request"), 400);
   }
 }
 
@@ -191,20 +192,12 @@ async function handleAccountLoginRequest(
   const state = readInstanceSetupState(storage, owner);
 
   if (!state.owner) {
-    return jsonResponse(
-      { authenticated: false, error: "Owner setup must be complete before login." },
-      409,
-    );
+    return jsonResponse(instanceAuthError("conflict"), 409);
   }
 
-  return jsonResponse(
-    {
-      authenticated: false,
-      error: "Account passkey login is required.",
-    },
-    401,
-    { "WWW-Authenticate": 'Bearer realm="formless-passkey"' },
-  );
+  return jsonResponse(instanceAuthError("unauthorized"), 401, {
+    "WWW-Authenticate": 'Bearer realm="formless-passkey"',
+  });
 }
 
 async function handleAccountLogoutRequest(
@@ -321,7 +314,7 @@ async function handleOwnerSetupCapabilityRequest(
 
   if (!authorization.authorized) {
     return jsonResponse(
-      { error: authorization.error },
+      instanceAuthError(instanceAuthCodeForStatus(authorization.status)),
       authorization.status,
       authorization.headers,
     );
@@ -373,7 +366,6 @@ function ownerSetupCapabilityResponse(result: WriteOwnerSetupCapabilityResult): 
   if (!result.ok) {
     return jsonResponse(
       {
-        error: "Owner setup is already complete.",
         owner: result.owner,
         reason: result.reason,
         setupComplete: true,
@@ -442,7 +434,7 @@ function requestHasCookie(request: Request, name: string): boolean {
 }
 
 function methodNotAllowedResponse(allow: string): Response {
-  return jsonResponse({ error: "Method not allowed." }, 405, { Allow: allow });
+  return jsonResponse(instanceAuthError("method-not-allowed"), 405, { Allow: allow });
 }
 
 function jsonResponse(body: unknown, status = 200, headers: HeadersInit = {}): Response {
@@ -458,8 +450,15 @@ function jsonResponse(body: unknown, status = 200, headers: HeadersInit = {}): R
   });
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Bad request.";
+function instanceAuthCodeForStatus(status: number): InstanceAuthErrorCode {
+  if (status === 401) return "unauthorized";
+  if (status === 403) return "forbidden";
+  if (status === 404) return "not-found";
+  if (status === 405) return "method-not-allowed";
+  if (status === 409) return "conflict";
+  if (status === 410) return "expired";
+  if (status === 503) return "unavailable";
+  return status >= 500 ? "internal-failure" : "invalid-request";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

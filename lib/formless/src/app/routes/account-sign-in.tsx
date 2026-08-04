@@ -8,18 +8,19 @@ import {
   parseAccountPasskeyLoginOptionsResponse,
   parseAccountPasskeyLoginVerifyResponse,
   parseAccountSessionStatusResponse,
+  parseInstanceAuthErrorResponse,
   type AccountLogoutResponse,
   type AccountPasskeyLoginOptionsResponse,
   type AccountPasskeyLoginVerifyRequest,
   type AccountPasskeyLoginVerifyResponse,
   type AccountPrincipalIdentity,
   type AccountSessionStatusResponse,
+  type InstanceAuthErrorCode,
 } from "../../shared/instance-auth.ts";
 import { runtimeTopologyRoutes } from "../../shared/runtime-topology.ts";
 import {
   browserSupportsPasskeys,
   createBrowserPasskeyAuthenticationResponse,
-  passkeyUnavailableMessage,
   type CreatePasskeyAuthenticationResponse,
 } from "./passkey-browser.ts";
 import { ApplicationPresentation } from "../application-presentation.tsx";
@@ -41,17 +42,23 @@ export type AccountSignInRouteState =
       status: "continuing";
     }
   | {
-      message: string;
+      code: AccountSignInFailureCode;
       principal?: AccountPrincipalIdentity;
       retry: "load" | "sign-in";
       status: "failed";
     }
   | { status: "logging-out"; principal: AccountPrincipalIdentity }
   | { status: "loading" }
-  | { status: "passkey-unavailable"; message: string }
+  | { status: "passkey-unavailable" }
   | { status: "ready" }
   | { status: "setup-incomplete" }
   | { status: "submitting" };
+
+export type AccountSignInFailureCode =
+  | InstanceAuthErrorCode
+  | "invalid-response"
+  | "network-failure"
+  | "passkey-failed";
 
 type StartAccountSignInRouteSessionOptions = {
   fetcher?: typeof fetch;
@@ -110,8 +117,8 @@ export function AccountSignInRoute() {
         navigateAfterAccountSignIn(continueTo, { setLocation });
       } catch (error) {
         setState({
+          code: accountSignInFailureCode(error),
           status: "failed",
-          message: error instanceof Error ? error.message : "Account sign in failed.",
           retry: "sign-in",
         });
       }
@@ -140,8 +147,8 @@ export function AccountSignInRoute() {
         setState({ status: "ready" });
       } catch (error) {
         setState({
+          code: accountSignInFailureCode(error),
           status: "failed",
-          message: error instanceof Error ? error.message : "Account logout failed.",
           principal: loggedOutPrincipal,
           retry: "load",
         });
@@ -263,10 +270,7 @@ export function startAccountSignInRouteSession({
 
       if (status.setupComplete) {
         if (!passkeysSupported()) {
-          onState({
-            status: "passkey-unavailable",
-            message: passkeyUnavailableMessage,
-          });
+          onState({ status: "passkey-unavailable" });
           return;
         }
 
@@ -278,8 +282,8 @@ export function startAccountSignInRouteSession({
     } catch (error) {
       if (!stopped && !controller.signal.aborted) {
         onState({
+          code: accountSignInFailureCode(error),
           status: "failed",
-          message: error instanceof Error ? error.message : "Account sign-in state could not load.",
           retry: "load",
         });
       }
@@ -306,15 +310,10 @@ export async function fetchAccountSessionStatus({
   const body = await readAccountSignInJson(response);
 
   if (!response.ok) {
-    throw new AccountSignInApiError(
-      accountSignInErrorMessage(body, "Account session status failed."),
-      {
-        status: response.status,
-      },
-    );
+    throw accountSignInApiError(body, response.status);
   }
 
-  return parseAccountSessionStatusResponse(body);
+  return parseAccountSignInResponse(() => parseAccountSessionStatusResponse(body), response.status);
 }
 
 export async function loginWithPasskey({
@@ -325,7 +324,13 @@ export async function loginWithPasskey({
   createAuthenticationResponse?: CreatePasskeyAuthenticationResponse;
 } = {}): Promise<AccountPasskeyLoginVerifyResponse> {
   const options = await fetchAccountPasskeyLoginOptions({ fetcher, signal });
-  const response = await createAuthenticationResponse(options.options);
+  let response: AccountPasskeyLoginVerifyRequest["response"];
+
+  try {
+    response = await createAuthenticationResponse(options.options);
+  } catch {
+    throw new AccountSignInPasskeyError();
+  }
 
   return await verifyAccountPasskeyLogin({ fetcher, response, signal });
 }
@@ -347,15 +352,13 @@ export async function fetchAccountPasskeyLoginOptions({
   const body = await readAccountSignInJson(response);
 
   if (!response.ok) {
-    throw new AccountSignInApiError(
-      accountSignInErrorMessage(body, "Passkey login options failed."),
-      {
-        status: response.status,
-      },
-    );
+    throw accountSignInApiError(body, response.status);
   }
 
-  return parseAccountPasskeyLoginOptionsResponse(body);
+  return parseAccountSignInResponse(
+    () => parseAccountPasskeyLoginOptionsResponse(body),
+    response.status,
+  );
 }
 
 async function verifyAccountPasskeyLogin({
@@ -380,12 +383,13 @@ async function verifyAccountPasskeyLogin({
   const body = await readAccountSignInJson(response);
 
   if (!response.ok) {
-    throw new AccountSignInApiError(accountSignInErrorMessage(body, "Account sign in failed."), {
-      status: response.status,
-    });
+    throw accountSignInApiError(body, response.status);
   }
 
-  return parseAccountPasskeyLoginVerifyResponse(body);
+  return parseAccountSignInResponse(
+    () => parseAccountPasskeyLoginVerifyResponse(body),
+    response.status,
+  );
 }
 
 export async function logoutAccountSession({
@@ -401,21 +405,28 @@ export async function logoutAccountSession({
   const body = await readAccountSignInJson(response);
 
   if (!response.ok) {
-    throw new AccountSignInApiError(accountSignInErrorMessage(body, "Account logout failed."), {
-      status: response.status,
-    });
+    throw accountSignInApiError(body, response.status);
   }
 
-  return parseAccountLogoutResponse(body);
+  return parseAccountSignInResponse(() => parseAccountLogoutResponse(body), response.status);
 }
 
 export class AccountSignInApiError extends Error {
+  readonly code: InstanceAuthErrorCode | "invalid-response";
   status: number | undefined;
 
-  constructor(message: string, options: { status?: number } = {}) {
-    super(message);
+  constructor(code: InstanceAuthErrorCode | "invalid-response", options: { status?: number } = {}) {
+    super("Account sign-in API request failed.");
     this.name = "AccountSignInApiError";
+    this.code = code;
     this.status = options.status;
+  }
+}
+
+class AccountSignInPasskeyError extends Error {
+  constructor() {
+    super("Account sign-in passkey ceremony failed.");
+    this.name = "AccountSignInPasskeyError";
   }
 }
 
@@ -423,16 +434,32 @@ async function readAccountSignInJson(response: Response): Promise<unknown> {
   try {
     return await response.json();
   } catch {
-    throw new AccountSignInApiError("Account sign-in response was not JSON.", {
+    throw new AccountSignInApiError("invalid-response", {
       status: response.status,
     });
   }
 }
 
-function accountSignInErrorMessage(value: unknown, fallback: string): string {
-  return isRecord(value) && typeof value.error === "string" && value.error.trim() !== ""
-    ? value.error
-    : fallback;
+function accountSignInApiError(value: unknown, status: number): AccountSignInApiError {
+  try {
+    return new AccountSignInApiError(parseInstanceAuthErrorResponse(value).code, { status });
+  } catch {
+    return new AccountSignInApiError("invalid-response", { status });
+  }
+}
+
+function parseAccountSignInResponse<T>(parse: () => T, status: number): T {
+  try {
+    return parse();
+  } catch {
+    throw new AccountSignInApiError("invalid-response", { status });
+  }
+}
+
+function accountSignInFailureCode(error: unknown): AccountSignInFailureCode {
+  if (error instanceof AccountSignInApiError) return error.code;
+  if (error instanceof AccountSignInPasskeyError) return "passkey-failed";
+  return "network-failure";
 }
 
 function accountSignInSearchFromRouteLocation(location: string): string {
@@ -443,8 +470,4 @@ function accountSignInSearchFromRouteLocation(location: string): string {
   }
 
   return typeof window === "undefined" ? "" : window.location.search;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

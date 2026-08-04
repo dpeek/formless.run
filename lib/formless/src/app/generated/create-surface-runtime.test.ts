@@ -117,13 +117,13 @@ describe("generated create surface submission", () => {
       resetState,
       state,
       submitValues: async () => {
-        throw new Error("Create failed.");
+        throw new Error("storage diagnostic alchemy-secret-value");
       },
       values: session.values,
     });
 
     expect(result).toMatchObject({
-      displayError: "Create failed.",
+      code: "submission-failed",
       state: {
         draft: { values: { title: { kind: "input", value: "Retry this" } } },
         submitAttempted: true,
@@ -131,5 +131,6 @@ describe("generated create surface submission", () => {
       type: "failed",
     });
     expect(result.state).toBe(state);
+    expect(JSON.stringify(result)).not.toContain("alchemy-secret-value");
   });
 });

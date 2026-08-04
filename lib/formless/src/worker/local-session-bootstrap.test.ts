@@ -231,13 +231,9 @@ describe("local session bootstrap API routes", () => {
       const nonLocalBody = await nonLocal.json();
 
       expect(invalid.status).toBe(401);
-      expect(invalidBody).toEqual({
-        error: "Local session bootstrap token is invalid.",
-      });
+      expect(invalidBody).toEqual({ code: "unauthorized" });
       expect(crossOrigin.status).toBe(403);
-      expect(crossOriginBody).toEqual({
-        error: "Local session bootstrap requests must be same-origin.",
-      });
+      expect(crossOriginBody).toEqual({ code: "forbidden" });
       expect(setupAfterRejected.body).toEqual({
         authOrigin: "https://example.com",
         setupComplete: false,
@@ -245,11 +241,9 @@ describe("local session bootstrap API routes", () => {
       expect(accepted.status).toBe(302);
       expect(accepted.headers.get("Location")).toBe("http://example.com/");
       expect(replay.status).toBe(401);
-      expect(replayBody).toEqual({
-        error: "Local session bootstrap token is invalid.",
-      });
+      expect(replayBody).toEqual({ code: "unauthorized" });
       expect(nonLocal.status).toBe(404);
-      expect(nonLocalBody).toEqual({ error: "Not found." });
+      expect(nonLocalBody).toEqual({ code: "not-found" });
       expect(nonLocal.headers.get("Set-Cookie")).toBeNull();
     } finally {
       await nonLocalHarness.dispose();

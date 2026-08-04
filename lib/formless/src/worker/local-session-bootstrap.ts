@@ -7,8 +7,10 @@ import {
 import { nowIsoString } from "../shared/clock.ts";
 import {
   accountDefaultRedirectTarget,
+  instanceAuthError,
   parseAccountRedirectTarget,
   type AccountRedirectTarget,
+  type InstanceAuthErrorCode,
 } from "../shared/instance-auth.ts";
 import { resolveRuntimeProfileKind, runtimeTopologyRoutes } from "../shared/runtime-topology.ts";
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
@@ -35,7 +37,7 @@ export type LocalSessionBootstrapEnv = OwnerSessionEnv & {
 
 type BootstrapValidation =
   | { ok: true; token: string }
-  | { ok: false; error: string; status: number };
+  | { ok: false; code: InstanceAuthErrorCode; status: number };
 
 type BootstrapExchangeResult =
   | {
@@ -73,7 +75,7 @@ export async function handleLocalSessionBootstrapDurableObjectRequest(
   const validation = validateLocalSessionBootstrapRequest(request, env);
 
   if (!validation.ok) {
-    return jsonResponse({ error: validation.error }, validation.status);
+    return jsonResponse(instanceAuthError(validation.code), validation.status);
   }
 
   const tokenHash = await hashLocalSessionBootstrapToken(validation.token);
@@ -83,7 +85,7 @@ export async function handleLocalSessionBootstrapDurableObjectRequest(
   });
 
   if (!exchanged.ok) {
-    return jsonResponse({ error: "Local session bootstrap token is invalid." }, 401);
+    return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 
   const session = await createOwnerSessionCookie({
@@ -118,13 +120,13 @@ function validateLocalSessionBootstrapRequest(
   env: LocalSessionBootstrapEnv,
 ): BootstrapValidation {
   if (!isLocalOwnerSessionRuntime(request, env)) {
-    return { ok: false, error: "Not found.", status: 404 };
+    return { ok: false, code: "not-found", status: 404 };
   }
 
   if (!isSameOriginOrNoOrigin(request)) {
     return {
       ok: false,
-      error: "Local session bootstrap requests must be same-origin.",
+      code: "forbidden",
       status: 403,
     };
   }
@@ -133,7 +135,7 @@ function validateLocalSessionBootstrapRequest(
   const actual = normalizedSecret(new URL(request.url).searchParams.get("token") ?? undefined);
 
   if (!expected || !actual || actual !== expected) {
-    return { ok: false, error: "Local session bootstrap token is invalid.", status: 401 };
+    return { ok: false, code: "unauthorized", status: 401 };
   }
 
   return { ok: true, token: actual };
@@ -304,7 +306,7 @@ function normalizedSecret(value: string | undefined): string | undefined {
 }
 
 function methodNotAllowedResponse(allow: string): Response {
-  return jsonResponse({ error: "Method not allowed." }, 405, { Allow: allow });
+  return jsonResponse(instanceAuthError("method-not-allowed"), 405, { Allow: allow });
 }
 
 function jsonResponse(body: unknown, status = 200, headers: HeadersInit = {}): Response {

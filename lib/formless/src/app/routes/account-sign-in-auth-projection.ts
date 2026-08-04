@@ -8,8 +8,7 @@ import type {
   AccountSignInAuthSurfaceContract,
 } from "@dpeek/formless-presentation/contract";
 import { authSurfaceReference } from "@dpeek/formless-presentation/host";
-import { displaySafeText } from "./instance-management-display-safety.ts";
-import type { AccountSignInRouteState } from "./account-sign-in.tsx";
+import type { AccountSignInFailureCode, AccountSignInRouteState } from "./account-sign-in.tsx";
 
 export const ACCOUNT_SIGN_IN_AUTH_SURFACE_ID = "auth:account-sign-in";
 
@@ -35,7 +34,11 @@ export function projectAccountSignInAuthSurface({
     facts: accountSignInFacts(state),
     ...(state.status === "failed"
       ? {
-          feedback: authFeedback("sign-in-failure", "Account sign in failed", state.message),
+          feedback: authFeedback(
+            "sign-in-failure",
+            "Account sign in failed",
+            accountSignInFailureMessage(state.code, state.retry),
+          ),
         }
       : {}),
     fields: [],
@@ -58,7 +61,7 @@ function accountSignInPasskey(state: AccountSignInRouteState): AuthPasskeyContra
       id: `${ACCOUNT_SIGN_IN_AUTH_SURFACE_ID}:passkey:sign-in`,
       kind: "authPasskey",
       purpose: "sign-in",
-      unavailableReason: displaySafeText(state.message),
+      unavailableReason: "This browser does not support passkeys.",
     };
   }
   if (
@@ -156,7 +159,7 @@ function accountSignInFacts(state: AccountSignInRouteState) {
           id: "auth:fact:principal",
           kind: "authFact" as const,
           label: "Account",
-          value: displaySafeText(state.principal.displayName),
+          value: state.principal.displayName,
         },
       ]
     : [];
@@ -193,17 +196,17 @@ function accountSignInHeading(state: AccountSignInRouteState): string {
 function accountSignInDescription(state: AccountSignInRouteState): string | undefined {
   switch (state.status) {
     case "complete":
-      return `Signed in as ${displaySafeText(state.principal.displayName)}.`;
+      return `Signed in as ${state.principal.displayName}.`;
     case "continuing":
       return "Opening your approved destination.";
     case "logging-out":
-      return `Signed in as ${displaySafeText(state.principal.displayName)}.`;
+      return `Signed in as ${state.principal.displayName}.`;
     case "ready":
     case "submitting":
       return "Use a passkey for your Formless account.";
     case "failed":
       return state.principal
-        ? `Signed in as ${displaySafeText(state.principal.displayName)}.`
+        ? `Signed in as ${state.principal.displayName}.`
         : "Sign in to this Formless instance.";
     case "setup-incomplete":
       return "Create the first owner before signing in.";
@@ -215,7 +218,7 @@ function accountSignInDescription(state: AccountSignInRouteState): string | unde
 function accountSignInMessage(state: AccountSignInRouteState): AuthMessageContract | undefined {
   if (state.status === "loading") return authMessage("loading", "Loading sign-in state.");
   if (state.status === "passkey-unavailable")
-    return authMessage("passkey", state.message, "warning");
+    return authMessage("passkey", "This browser does not support passkeys.", "warning");
   if (state.status === "setup-incomplete")
     return authMessage("incomplete", "Owner setup must be completed first.", "warning");
   if (state.status === "logging-out") return authMessage("logout", "Signing out...");
@@ -245,18 +248,54 @@ function authMessage(
     id: `auth:message:${id}`,
     kind: "authMessage",
     severity,
-    title: displaySafeText(title),
+    title,
   };
 }
 
 function authFeedback(id: string, title: string, detail: string): AuthFeedbackContract {
   return {
-    detail: displaySafeText(detail),
+    detail,
     id: `auth:feedback:${id}`,
     kind: "authFeedback",
     severity: "danger",
     title,
   };
+}
+
+function accountSignInFailureMessage(
+  code: AccountSignInFailureCode,
+  retry: "load" | "sign-in",
+): string {
+  if (code === "network-failure") {
+    return "The account service could not be reached. Check your connection and try again.";
+  }
+  if (code === "invalid-response") {
+    return "The account service returned an invalid response. Try again.";
+  }
+  if (code === "passkey-failed") {
+    return "Passkey sign in did not complete. Try again.";
+  }
+  if (code === "expired") {
+    return "The account request expired. Try again.";
+  }
+  if (code === "conflict") {
+    return "The account state changed. Try again.";
+  }
+  if (code === "unavailable" || code === "internal-failure") {
+    return "The account service is unavailable. Try again.";
+  }
+  if (code === "unauthorized") {
+    return retry === "sign-in"
+      ? "Passkey sign in was not accepted. Try again."
+      : "The account session is no longer authenticated. Try again.";
+  }
+  if (code === "forbidden") {
+    return "This account cannot perform the requested action.";
+  }
+  if (code === "not-found" || code === "method-not-allowed") {
+    return "This account action is unavailable. Try again.";
+  }
+  return "The account request was invalid. Try again.";
 }
 
 function authButton(

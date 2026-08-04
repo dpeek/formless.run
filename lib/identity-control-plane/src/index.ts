@@ -8,8 +8,14 @@ import { type RecordValues, type StoredRecord } from "@dpeek/formless-storage";
 import { identityControlPlaneSourceSchema } from "./schema.ts";
 import {
   IDENTITY_CONTROL_PLANE_BOUNDARY_SCHEMA_KEY,
+  identityAccessErrorCodes,
+  identityAccessPersonMutationFailureReasons,
+  identityCollaboratorInvitationRevokeFailureReasons,
   identityControlPlaneEntityNames,
   identityControlPlaneRoleKeys,
+  type IdentityAccessErrorResponse,
+  type IdentityAccessPersonMutationErrorResponse,
+  type IdentityCollaboratorInvitationRevokeErrorResponse,
   type IdentityControlPlaneEntityName,
   type IdentityControlPlaneRecordValuesByEntity,
   type IdentityControlPlaneRoleKey,
@@ -66,6 +72,69 @@ export type IdentityCollaboratorInvitationGrantValidationInput = {
   inviterPrincipalId: string;
   records: readonly StoredRecord[];
 };
+
+export function parseIdentityAccessErrorResponse(value: unknown): IdentityAccessErrorResponse {
+  const object = parseIdentityAccessResponseObject("Identity access error response", value);
+
+  assertExactKeys("Identity access error response", object, ["code"]);
+
+  if (
+    typeof object.code !== "string" ||
+    !identityAccessErrorCodes.includes(object.code as (typeof identityAccessErrorCodes)[number])
+  ) {
+    throw new Error("Identity access error response code is unsupported.");
+  }
+
+  return { code: object.code as IdentityAccessErrorResponse["code"] };
+}
+
+export function parseIdentityAccessPersonMutationErrorResponse(
+  value: unknown,
+): IdentityAccessPersonMutationErrorResponse {
+  const object = parseIdentityAccessResponseObject(
+    "Identity access person mutation error response",
+    value,
+  );
+
+  assertExactKeys("Identity access person mutation error response", object, ["reason"]);
+
+  if (
+    typeof object.reason !== "string" ||
+    !identityAccessPersonMutationFailureReasons.includes(
+      object.reason as (typeof identityAccessPersonMutationFailureReasons)[number],
+    )
+  ) {
+    throw new Error("Identity access person mutation error response reason is unsupported.");
+  }
+
+  return { reason: object.reason as IdentityAccessPersonMutationErrorResponse["reason"] };
+}
+
+export function parseIdentityCollaboratorInvitationRevokeErrorResponse(
+  value: unknown,
+): IdentityCollaboratorInvitationRevokeErrorResponse {
+  const object = parseIdentityAccessResponseObject(
+    "Identity collaborator invitation revoke error response",
+    value,
+  );
+
+  assertExactKeys("Identity collaborator invitation revoke error response", object, ["reason"]);
+
+  if (
+    typeof object.reason !== "string" ||
+    !identityCollaboratorInvitationRevokeFailureReasons.includes(
+      object.reason as (typeof identityCollaboratorInvitationRevokeFailureReasons)[number],
+    )
+  ) {
+    throw new Error(
+      "Identity collaborator invitation revoke error response reason is unsupported.",
+    );
+  }
+
+  return {
+    reason: object.reason as IdentityCollaboratorInvitationRevokeErrorResponse["reason"],
+  };
+}
 
 export function resolveIdentityProgramCallerFacts(
   records: readonly StoredRecord[],
@@ -1179,6 +1248,17 @@ function parseIsoTimestamp(context: string, value: unknown): string {
 function parseNonEmptyString(context: string, value: unknown): string {
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(`${context} must be a non-empty string.`);
+  }
+
+  return value;
+}
+
+function parseIdentityAccessResponseObject(
+  context: string,
+  value: unknown,
+): Record<string, unknown> {
+  if (!isPlainRecord(value)) {
+    throw new Error(`${context} must be an object.`);
   }
 
   return value;

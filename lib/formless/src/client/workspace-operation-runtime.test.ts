@@ -64,9 +64,30 @@ describe("workspace Push generated runtime adapter", () => {
     expect(reported).toHaveLength(2);
     expect(response).toMatchObject({
       displayMessage: "Workspace Push applied.",
-      output: { outcome: "applied", pushId: "push_1234567890abcdef" },
       status: "committed",
     });
+  });
+
+  it("maps transport codes and caught failures to fixed Formless copy", async () => {
+    await expect(
+      executeWorkspaceGatewayGeneratedOperation(request({}), {
+        config: { apiBasePath: "/api/formless/workspace" },
+        fetcher: async () => Response.json({ code: "push-active" }, { status: 409 }),
+      }),
+    ).resolves.toEqual({
+      displayError: "A workspace push is already running.",
+      status: "failed",
+    });
+
+    const response = await executeWorkspaceGatewayGeneratedOperation(request({}), {
+      config: { apiBasePath: "/api/formless/workspace" },
+      fetcher: async () => {
+        throw new Error("provider diagnostic alchemy-secret-value");
+      },
+    });
+
+    expect(response).toEqual({ displayError: "Workspace Push failed.", status: "failed" });
+    expect(JSON.stringify(response)).not.toContain("alchemy-secret-value");
   });
 
   it("submits only a listed account through the current interaction", async () => {

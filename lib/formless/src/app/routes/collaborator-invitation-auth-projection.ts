@@ -9,9 +9,14 @@ import type {
 } from "@dpeek/formless-presentation/contract";
 import { authSurfaceReference } from "@dpeek/formless-presentation/host";
 
-import type { CollaboratorInvitationAcceptanceInvitationSummary } from "../../shared/instance-auth.ts";
-import { displaySafeText } from "./instance-management-display-safety.ts";
-import type { CollaboratorInvitationAcceptanceRouteState } from "./collaborator-invitation-acceptance.tsx";
+import type {
+  CollaboratorInvitationAcceptanceFailureReason,
+  CollaboratorInvitationAcceptanceInvitationSummary,
+} from "../../shared/instance-auth.ts";
+import type {
+  CollaboratorInvitationAcceptanceRouteState,
+  CollaboratorInvitationFailureCode,
+} from "./collaborator-invitation-acceptance.tsx";
 
 export const COLLABORATOR_INVITATION_AUTH_SURFACE_ID = "auth:collaborator-invitation-acceptance";
 
@@ -37,7 +42,7 @@ export function projectCollaboratorInvitationAuthSurface({
           feedback: authFeedback(
             "acceptance-failure",
             "Invitation acceptance failed",
-            state.message,
+            invitationFailureMessage(state.code),
           ),
         }
       : {}),
@@ -65,7 +70,7 @@ function invitationPasskey(
       id: passkeyId,
       kind: "authPasskey",
       purpose: "accept-invitation",
-      unavailableReason: displaySafeText(state.message),
+      unavailableReason: "This browser does not support passkeys.",
     };
   }
 
@@ -188,11 +193,11 @@ function invitationDescription(
     state.status === "passkey-unavailable"
   ) {
     return state.invitation.invitedPrincipalDisplayName
-      ? `${displaySafeText(state.invitation.invitedPrincipalDisplayName)} has been invited.`
+      ? `${state.invitation.invitedPrincipalDisplayName} has been invited.`
       : "This invitation is ready.";
   }
   if (state.status === "accepted") {
-    return `Signed in as ${displaySafeText(state.acceptedPrincipal.displayName)}.`;
+    return `Signed in as ${state.acceptedPrincipal.displayName}.`;
   }
   if (state.status === "continuing") {
     return "Opening your approved destination.";
@@ -207,13 +212,13 @@ function invitationMessage(
     return authMessage("loading", "Loading invitation status.");
   }
   if (state.status === "invalid-link") {
-    return authMessage("invalid-link", state.message, "danger");
+    return authMessage("invalid-link", "Invitation link is invalid.", "danger");
   }
   if (state.status === "unavailable") {
-    return authMessage("unavailable", state.message, "danger");
+    return authMessage("unavailable", invitationReasonMessage(state.reason), "danger");
   }
   if (state.status === "passkey-unavailable") {
-    return authMessage("passkey-unavailable", state.message, "warning");
+    return authMessage("passkey-unavailable", "This browser does not support passkeys.", "warning");
   }
   if (state.status === "continuing") {
     return authMessage("continuing", "Continuing...", "success");
@@ -243,13 +248,13 @@ function authMessage(
     id: `${COLLABORATOR_INVITATION_AUTH_SURFACE_ID}:message:${id}`,
     kind: "authMessage",
     severity,
-    title: displaySafeText(title),
+    title,
   };
 }
 
 function authFeedback(id: string, title: string, detail: string): AuthFeedbackContract {
   return {
-    detail: displaySafeText(detail),
+    detail,
     id: `${COLLABORATOR_INVITATION_AUTH_SURFACE_ID}:feedback:${id}`,
     kind: "authFeedback",
     severity: "danger",
@@ -267,9 +272,53 @@ function authFact(
         id: `${COLLABORATOR_INVITATION_AUTH_SURFACE_ID}:fact:${id}`,
         kind: "authFact",
         label,
-        value: displaySafeText(value),
+        value,
       }
     : undefined;
+}
+
+function invitationReasonMessage(reason: CollaboratorInvitationAcceptanceFailureReason): string {
+  switch (reason) {
+    case "accepted-invitation":
+      return "Invitation has already been accepted.";
+    case "configuration-unavailable":
+      return "Invitation acceptance is unavailable.";
+    case "consumed-invitation":
+      return "Invitation link has already been used.";
+    case "expired-invitation":
+      return "Invitation link has expired.";
+    case "missing-invitation":
+    case "wrong-email":
+    case "wrong-target":
+    case "wrong-token":
+      return "Invitation link is invalid.";
+    case "revoked-invitation":
+      return "Invitation link is no longer available.";
+    case "wrong-origin":
+      return "Invitation must be accepted on the configured auth origin.";
+  }
+}
+
+function invitationFailureMessage(code: CollaboratorInvitationFailureCode): string {
+  if (code === "network-failure") {
+    return "The invitation service could not be reached. Check your connection and try again.";
+  }
+  if (code === "invalid-response") {
+    return "The invitation service returned an invalid response. Try again.";
+  }
+  if (code === "passkey-failed") {
+    return "Passkey creation did not complete. Try again.";
+  }
+  if (code === "expired") return "The invitation request expired. Reload the invitation link.";
+  if (code === "conflict") return "The invitation state changed. Reload the invitation link.";
+  if (code === "unavailable" || code === "internal-failure") {
+    return "Invitation acceptance is unavailable. Try again.";
+  }
+  if (code === "not-found") return "Invitation acceptance is unavailable at this address.";
+  if (code === "method-not-allowed") return "This invitation action is unavailable.";
+  if (code === "forbidden") return "This invitation action is not allowed.";
+  if (code === "unauthorized") return "The invitation or passkey response was not accepted.";
+  return "The invitation request was invalid.";
 }
 
 function compactFacts(...facts: Array<AuthFactContract | undefined>): AuthFactContract[] {

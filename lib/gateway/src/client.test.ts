@@ -80,7 +80,7 @@ describe("Gateway browser client", () => {
     );
   });
 
-  it("uses browser-owned copy for code-only failures", async () => {
+  it("preserves only code and status for code-only failures", async () => {
     await expect(
       startWorkspaceGatewayPush(
         { mode: "apply" },
@@ -90,9 +90,8 @@ describe("Gateway browser client", () => {
         },
       ),
     ).rejects.toMatchObject({
-      body: { code: "push-active" },
       code: "push-active",
-      message: "A workspace push is already running.",
+      message: "",
       status: 409,
     } satisfies Partial<WorkspaceGatewayApiError>);
   });

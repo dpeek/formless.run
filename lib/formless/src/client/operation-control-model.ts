@@ -4,6 +4,7 @@ import type {
   FieldVisibilityValue,
 } from "@dpeek/formless-schema";
 import type { CommandOperationUiConfig, HomeOperationConfig } from "./collection-shell-model.ts";
+import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import type { EntityOperationPresentationConfig } from "./operation-presentation-model.ts";
 import type { ResultOrderingConfig } from "./result-ordering-model.ts";
 import type {
@@ -153,14 +154,14 @@ export type GeneratedOperationExecutionResult =
       affectedCount?: number;
       createdRecordIds?: readonly string[];
       displayMessage?: string;
-      output?: unknown;
+      output?: OperationInvocationResponse["output"];
     }
   | {
       type: "replayed";
       affectedCount?: number;
       createdRecordIds?: readonly string[];
       displayMessage?: string;
-      output?: unknown;
+      output?: OperationInvocationResponse["output"];
     }
   | {
       type: "failed";

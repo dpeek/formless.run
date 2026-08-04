@@ -6,6 +6,8 @@ import {
   IDENTITY_COLLABORATOR_INVITATION_REVOKE_API_PATH,
   IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX,
   identityControlPlaneRoleKeys,
+  type IdentityAccessErrorCode,
+  type IdentityAccessErrorResponse,
   type IdentityCollaboratorInvitationRevokeErrorResponse,
   type IdentityCollaboratorInvitationRevokeResponse,
   type IdentityAccessManagementSummary,
@@ -73,7 +75,7 @@ type CollaboratorInvitationTestResponse = {
         reason: string;
         status: "skipped";
       };
-  error?: string;
+  code?: IdentityAccessErrorCode;
   invitation: StoredRecord;
   records: StoredRecord[];
   status: "committed" | "replayed";
@@ -510,7 +512,6 @@ describe("identity control-plane API routes", () => {
     expect(publicAcceptance.response.status).toBe(409);
     expect(publicAcceptance.body).toEqual({
       eligible: false,
-      error: "Invitation link is no longer available.",
       reason: "revoked-invitation",
     });
     for (const forbidden of ["challenge", "credential", "secret", "session", "token"]) {
@@ -580,7 +581,6 @@ describe("identity control-plane API routes", () => {
     expect(publicAcceptance.response.status).toBe(409);
     expect(publicAcceptance.body).toEqual({
       eligible: false,
-      error: "Invitation link is no longer available.",
       reason: "revoked-invitation",
     });
   });
@@ -609,10 +609,7 @@ describe("identity control-plane API routes", () => {
     expect(created.response.status).toBe(200);
     expect(rejected.response.status).toBe(401);
     expect(rejected.response.headers.get("WWW-Authenticate")).toBe('Bearer realm="formless-admin"');
-    expect(rejected.body).toEqual({
-      error:
-        "Owner session, Program administrator session, or admin authorization is required for this endpoint.",
-    });
+    expect(rejected.body).toEqual({ code: "unauthorized" });
     expect(summary.body.invitations).toContainEqual(
       expect.objectContaining({
         invitationId: "invitation:revoke-unauthorized",
@@ -679,20 +676,11 @@ describe("identity control-plane API routes", () => {
     expect(accepted.response.status).toBe(200);
     expect(expired.response.status).toBe(200);
     expect(missingRevoke.response.status).toBe(404);
-    expect(missingRevoke.body).toEqual({
-      error: "Invitation could not be found.",
-      reason: "missing-invitation",
-    });
+    expect(missingRevoke.body).toEqual({ reason: "missing-invitation" });
     expect(acceptedRevoke.response.status).toBe(409);
-    expect(acceptedRevoke.body).toEqual({
-      error: "Invitation has already been accepted.",
-      reason: "accepted-invitation",
-    });
+    expect(acceptedRevoke.body).toEqual({ reason: "accepted-invitation" });
     expect(expiredRevoke.response.status).toBe(410);
-    expect(expiredRevoke.body).toEqual({
-      error: "Invitation has expired.",
-      reason: "expired-invitation",
-    });
+    expect(expiredRevoke.body).toEqual({ reason: "expired-invitation" });
 
     const firstRevoke = await postRevokeCollaboratorInvitationResponse(
       {
@@ -711,10 +699,7 @@ describe("identity control-plane API routes", () => {
 
     expect(firstRevoke.response.status).toBe(200);
     expect(secondRevoke.response.status).toBe(409);
-    expect(secondRevoke.body).toEqual({
-      error: "Invitation has already been revoked.",
-      reason: "revoked-invitation",
-    });
+    expect(secondRevoke.body).toEqual({ reason: "revoked-invitation" });
   });
 
   it("atomically replaces owner-authorized person roles and immediately narrows authority", async () => {
@@ -770,10 +755,7 @@ describe("identity control-plane API routes", () => {
     );
 
     expect(conflicting.response.status).toBe(400);
-    expect(conflicting.body).toEqual({
-      error: "A person may have only one active role level for each access surface.",
-      reason: "invalid-role-selection",
-    });
+    expect(conflicting.body).toEqual({ reason: "invalid-role-selection" });
     expect(await readPrincipalAuthority(principal.id)).toEqual({
       callerFacts: {
         active: true,
@@ -821,10 +803,7 @@ describe("identity control-plane API routes", () => {
     );
 
     expect(rejected.response.status).toBe(409);
-    expect(rejected.body).toEqual({
-      error: "The last active instance owner cannot be removed.",
-      reason: "last-active-owner",
-    });
+    expect(rejected.body).toEqual({ reason: "last-active-owner" });
 
     const secondOwner = await createIdentityOwnerAuthority("Second Access Owner");
     const secondOwnerHeaders = {
@@ -990,10 +969,7 @@ describe("identity control-plane API routes", () => {
     for (const result of [anonymous, missingAuthority, staleAuthority]) {
       expect(result.response.status).toBe(401);
       expect(result.response.headers.get("WWW-Authenticate")).toBe('Bearer realm="formless-admin"');
-      expect(result.body).toEqual({
-        error:
-          "Owner session, Program administrator session, or admin authorization is required for this endpoint.",
-      });
+      expect(result.body).toEqual({ code: "unauthorized" });
     }
   });
 
@@ -1077,9 +1053,8 @@ describe("identity control-plane API routes", () => {
     const created = await postCollaboratorInvitationResponse(input, adminHeaders());
 
     expect(rejected.response.status).toBe(400);
-    expect(rejected.body).toEqual({
-      error: expect.stringContaining("cannot grant instance.owner"),
-    });
+    expect(rejected.body).toEqual({ code: "invalid-request" });
+    expect(JSON.stringify(rejected.body)).not.toContain("cannot grant instance.owner");
     expect(JSON.stringify(rejected.body)).not.toContain("token");
     expect(JSON.stringify(rejected.body)).not.toContain("/formless/auth/invitations/accept");
     expect(afterRejected.body.records.some((record) => record.id === input.invitationId)).toBe(
@@ -1228,9 +1203,7 @@ async function getAccessSummaryResponse(headers: Record<string, string> = {}) {
   );
   const body = (await response.json()) as
     | IdentityAccessManagementSummary
-    | {
-        error: string;
-      };
+    | IdentityAccessErrorResponse;
   return {
     body,
     response,
@@ -1479,9 +1452,7 @@ async function postRevokeCollaboratorInvitationResponse(
   );
   const body = (await response.json()) as
     | CollaboratorInvitationRevokeTestResponse
-    | {
-        error: string;
-      };
+    | IdentityAccessErrorResponse;
 
   return {
     body,

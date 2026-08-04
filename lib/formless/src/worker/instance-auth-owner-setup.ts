@@ -8,7 +8,7 @@ import type { StoredRecord } from "@dpeek/formless-storage";
 
 import type { EmailDeliveryScheduleRequest } from "../shared/email-runtime.ts";
 import { normalizeEmailDeliveryAddress } from "../shared/email-runtime.ts";
-import { type AuthSuccessContinuationTarget } from "../shared/instance-auth.ts";
+import { instanceAuthError, type AuthSuccessContinuationTarget } from "../shared/instance-auth.ts";
 import { parseOwnerSetupToken } from "../shared/protocol.ts";
 import { nowIsoString } from "../shared/clock.ts";
 import { runtimeTopologyRoutes } from "../shared/runtime-topology.ts";
@@ -166,8 +166,8 @@ export async function handleInstanceAuthOwnerSetupDurableObjectRequest(
     }
 
     return await handleOwnerSetupComplete(request, storage, env);
-  } catch (error) {
-    return jsonResponse({ error: errorMessage(error) }, 400);
+  } catch {
+    return jsonResponse(instanceAuthError("invalid-request"), 400);
   }
 }
 
@@ -249,12 +249,12 @@ async function handleOwnerSetupStart(
     }
 
     if (created.reason !== "duplicate-token-hash") {
-      return jsonResponse({ error: "Owner setup email challenge already exists." }, 409);
+      return jsonResponse(instanceAuthError("conflict"), 409);
     }
   }
 
   if (!created?.ok) {
-    return jsonResponse({ error: "Owner setup email challenge could not be created." }, 409);
+    return jsonResponse(instanceAuthError("conflict"), 409);
   }
 
   let delivery: Awaited<ReturnType<typeof scheduleEmailDelivery>>;
@@ -283,7 +283,7 @@ async function handleOwnerSetupStart(
       targetAuthorityName: FORMLESS_INSTANCE_AUTHORITY_NAME,
     });
   } catch {
-    return jsonResponse({ error: "Owner setup email delivery is not configured." }, 503);
+    return jsonResponse(instanceAuthError("unavailable"), 503);
   }
 
   return jsonResponse({
@@ -400,7 +400,7 @@ async function handleOwnerSetupPasskeyRegistrationOptions(
   });
 
   if (!created.ok) {
-    return jsonResponse({ error: "Passkey challenge already exists." }, 409);
+    return jsonResponse(instanceAuthError("conflict"), 409);
   }
 
   return jsonResponse({
@@ -452,7 +452,7 @@ async function handleOwnerSetupPasskeyRegistrationVerify(
   });
 
   if (input.completionId !== expectedCompletionId) {
-    return jsonResponse({ error: "Passkey registration challenge is invalid." }, 401);
+    return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 
   const challengeValue = clientDataChallenge(
@@ -478,7 +478,7 @@ async function handleOwnerSetupPasskeyRegistrationVerify(
       setupTokenHash,
     })
   ) {
-    return jsonResponse({ error: "Passkey registration challenge is invalid." }, 401);
+    return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 
   let verified: Awaited<ReturnType<typeof verifyRegistrationResponse>>;
@@ -492,17 +492,17 @@ async function handleOwnerSetupPasskeyRegistrationVerify(
       requireUserVerification: true,
     });
   } catch {
-    return jsonResponse({ error: "Passkey registration verification failed." }, 401);
+    return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 
   if (!verified.verified) {
-    return jsonResponse({ error: "Passkey registration verification failed." }, 401);
+    return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 
   const credentialId = verified.registrationInfo.credential.id;
 
   if (readPasskeyCredential(storage, credentialId)) {
-    return jsonResponse({ error: "Passkey registration could not be prepared." }, 409);
+    return jsonResponse(instanceAuthError("conflict"), 409);
   }
 
   const prepared = createOwnerSetupPasskeyPreparation(storage, {
@@ -522,7 +522,7 @@ async function handleOwnerSetupPasskeyRegistrationVerify(
   });
 
   if (!prepared.ok) {
-    return jsonResponse({ error: "Passkey registration could not be prepared." }, 409);
+    return jsonResponse(instanceAuthError("conflict"), 409);
   }
 
   return jsonResponse({
@@ -560,7 +560,7 @@ async function handleOwnerSetupComplete(
         setupTokenHash,
       })
     ) {
-      return jsonResponse({ error: "Owner setup completion is invalid." }, 401);
+      return jsonResponse(instanceAuthError("unauthorized"), 401);
     }
   } else {
     const capability = await validatedOwnerSetupCapability(request, storage, env, setupTokenHash);
@@ -592,7 +592,7 @@ async function handleOwnerSetupComplete(
       preparation.relyingPartyId !== config.relyingPartyId ||
       preparation.setupTokenHash !== setupTokenHash
     ) {
-      return jsonResponse({ error: "Owner setup completion is invalid." }, 409);
+      return jsonResponse(instanceAuthError("conflict"), 409);
     }
 
     const createdAt = nowIsoString();
@@ -640,7 +640,7 @@ async function handleOwnerSetupComplete(
       });
     } catch (error) {
       if (error instanceof OwnerSetupCompletionConflictError) {
-        return jsonResponse({ error: "Owner setup completion could not be committed." }, 409);
+        return jsonResponse(instanceAuthError("conflict"), 409);
       }
 
       throw error;
@@ -669,7 +669,7 @@ async function handleOwnerSetupComplete(
       }),
     );
   } catch {
-    return jsonResponse({ error: "Owner setup completion must be retried." }, 503);
+    return jsonResponse(instanceAuthError("unavailable"), 503);
   }
 
   if (currentCompletion.completedAt === undefined) {
@@ -685,7 +685,7 @@ async function handleOwnerSetupComplete(
         principalId: currentCompletion.principalId,
       });
     } catch {
-      return jsonResponse({ error: "Owner setup completion must be retried." }, 503);
+      return jsonResponse(instanceAuthError("unavailable"), 503);
     }
 
     if (!activation.ok) {
@@ -701,7 +701,7 @@ async function handleOwnerSetupComplete(
         deleteOwnerSetupCompletionInCurrentTransaction(storage, currentCompletion.completionId);
       });
 
-      return jsonResponse({ error: "Owner setup completion could not be committed." }, 409);
+      return jsonResponse(instanceAuthError("conflict"), 409);
     }
 
     const completedAt = nowIsoString();
@@ -725,7 +725,7 @@ async function handleOwnerSetupComplete(
         });
       });
     } catch {
-      return jsonResponse({ error: "Owner setup completion must be retried." }, 503);
+      return jsonResponse(instanceAuthError("unavailable"), 503);
     }
   }
 
@@ -814,12 +814,12 @@ function ownerSetupAuthConfiguration(
   const requestOrigin = new URL(request.url).origin;
 
   if (!config) {
-    return { response: jsonResponse({ error: "Owner setup is unavailable." }, 503) };
+    return { response: jsonResponse(instanceAuthError("unavailable"), 503) };
   }
 
   if (requestOrigin !== config.canonicalOrigin) {
     return {
-      response: jsonResponse({ error: "Owner setup must use the configured auth origin." }, 404),
+      response: jsonResponse(instanceAuthError("not-found"), 404),
     };
   }
 
@@ -838,7 +838,7 @@ async function ownerSetupDeliveryConfiguration(
 ): Promise<OwnerSetupDeliveryConfiguration> {
   if (!env.FORMLESS_EMAIL_DELIVERY_QUEUE) {
     return {
-      response: jsonResponse({ error: "Owner setup email delivery is not configured." }, 503),
+      response: jsonResponse(instanceAuthError("unavailable"), 503),
     };
   }
 
@@ -848,7 +848,7 @@ async function ownerSetupDeliveryConfiguration(
     controlPlaneRecords = await readControlPlaneRecords({ env, requestUrl: request.url });
   } catch {
     return {
-      response: jsonResponse({ error: "Owner setup email delivery is not configured." }, 503),
+      response: jsonResponse(instanceAuthError("unavailable"), 503),
     };
   }
 
@@ -856,7 +856,7 @@ async function ownerSetupDeliveryConfiguration(
 
   if (!sender) {
     return {
-      response: jsonResponse({ error: "Owner setup email delivery is not configured." }, 503),
+      response: jsonResponse(instanceAuthError("unavailable"), 503),
     };
   }
 
@@ -864,7 +864,7 @@ async function ownerSetupDeliveryConfiguration(
     resolveConfiguredDefaultCloudflareSender(controlPlaneRecords ?? [], "auth");
   } catch {
     return {
-      response: jsonResponse({ error: "Owner setup email delivery is not configured." }, 503),
+      response: jsonResponse(instanceAuthError("unavailable"), 503),
     };
   }
 
@@ -1171,13 +1171,13 @@ function ownerSetupCapabilityFailureResponse(
 ): Response {
   switch (result.reason) {
     case "already-complete":
-      return jsonResponse({ error: "Owner setup is already complete." }, 409);
+      return jsonResponse(instanceAuthError("conflict"), 409);
     case "expired-token":
-      return jsonResponse({ error: "Owner setup link has expired." }, 410);
+      return jsonResponse(instanceAuthError("expired"), 410);
     case "invalid-token":
     case "missing-capability":
     case "wrong-instance":
-      return jsonResponse({ error: "Owner setup link is invalid." }, 401);
+      return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 }
 
@@ -1187,17 +1187,17 @@ function ownerSetupEmailChallengeFailureResponse(
   switch (result.reason) {
     case "already-verified":
     case "revoked-challenge":
-      return jsonResponse({ error: "Owner setup email link is no longer available." }, 409);
+      return jsonResponse(instanceAuthError("conflict"), 409);
     case "expired-challenge":
-      return jsonResponse({ error: "Owner setup email link has expired." }, 410);
+      return jsonResponse(instanceAuthError("expired"), 410);
     case "missing-challenge":
-      return jsonResponse({ error: "Owner setup email link is invalid." }, 404);
+      return jsonResponse(instanceAuthError("not-found"), 404);
     case "wrong-auth-origin":
     case "wrong-capability":
     case "wrong-email":
     case "wrong-instance":
     case "wrong-token":
-      return jsonResponse({ error: "Owner setup email link is invalid." }, 401);
+      return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 }
 
@@ -1217,22 +1217,19 @@ function currentOwnerSetupEmailProofFailureResponse(
     case "consumed-proof":
     case "expired-proof":
       return reason === "expired-proof"
-        ? jsonResponse({ error: "Owner setup email proof has expired." }, 410)
-        : jsonResponse({ error: "Owner setup email proof is no longer available." }, 409);
+        ? jsonResponse(instanceAuthError("expired"), 410)
+        : jsonResponse(instanceAuthError("conflict"), 409);
     case "revoked-proof":
-      return jsonResponse({ error: "Owner setup email proof is no longer available." }, 409);
+      return jsonResponse(instanceAuthError("conflict"), 409);
     case "unverified-email":
-      return jsonResponse(
-        { error: "Owner setup email must be verified before passkey setup." },
-        409,
-      );
+      return jsonResponse(instanceAuthError("conflict"), 409);
     case "missing-proof":
-      return jsonResponse({ error: "Owner setup email proof is invalid." }, 404);
+      return jsonResponse(instanceAuthError("not-found"), 404);
     case "wrong-auth-origin":
     case "wrong-capability":
     case "wrong-email":
     case "wrong-instance":
-      return jsonResponse({ error: "Owner setup email proof is invalid." }, 401);
+      return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 }
 
@@ -1242,9 +1239,9 @@ function ownerSetupPasskeyChallengeFailureResponse(
   switch (reason) {
     case "already-consumed":
     case "missing-challenge":
-      return jsonResponse({ error: "Passkey challenge is invalid." }, 401);
+      return jsonResponse(instanceAuthError("unauthorized"), 401);
     case "expired-challenge":
-      return jsonResponse({ error: "Passkey challenge has expired." }, 410);
+      return jsonResponse(instanceAuthError("expired"), 410);
   }
 }
 
@@ -1407,7 +1404,7 @@ async function readJson(request: Request): Promise<unknown> {
 }
 
 function methodNotAllowedResponse(allow: string): Response {
-  return jsonResponse({ error: "Method not allowed." }, 405, { Allow: allow });
+  return jsonResponse(instanceAuthError("method-not-allowed"), 405, { Allow: allow });
 }
 
 function jsonResponse(body: unknown, status = 200, headers: HeadersInit = {}) {
@@ -1459,8 +1456,4 @@ function parseBase64UrlString(context: string, value: unknown): string {
   }
 
   return parsed;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Bad request.";
 }

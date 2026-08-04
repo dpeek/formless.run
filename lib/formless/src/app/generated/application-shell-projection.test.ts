@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 import type { AppSchema } from "@dpeek/formless-schema";
 import { createMemoryPresentationHost } from "@dpeek/formless-presentation/host";
 import { selectGeneratedRootNavigationFacts } from "../../client/generated-authoring.ts";
+import type { SyncStatus } from "../../client/sync-status.ts";
 import { selectPrimaryScreenModels } from "../../client/views.ts";
 import { FORMLESS_PROGRAM_SCREEN_PATHS, formlessProgramSchema } from "../../program/runtime.ts";
 import { testSiteRecords } from "../../test/site-records.ts";
@@ -211,19 +212,26 @@ describe("generated application shell projection", () => {
     const cases = [
       {
         expectedLabel: "Synced",
-        status: { message: "All changes are synced.", state: "idle" as const },
+        expectedMessage: "Synced.",
+        status: { code: "program-synced", state: "idle" as const },
       },
       {
         expectedLabel: "Syncing",
-        status: { message: "Syncing local changes.", state: "syncing" as const },
+        expectedMessage: "Syncing Formless Program...",
+        status: { code: "program-syncing", state: "syncing" as const },
       },
       {
         expectedLabel: "Sync issue",
-        status: { message: "raw-provider-error", state: "error" as const },
+        expectedMessage: "Sync failed. Check the Program and try again.",
+        status: { code: "program-sync-failed", state: "error" as const },
       },
-    ];
+    ] satisfies readonly {
+      expectedLabel: string;
+      expectedMessage: string;
+      status: SyncStatus;
+    }[];
 
-    for (const { expectedLabel, status } of cases) {
+    for (const { expectedLabel, expectedMessage, status } of cases) {
       const projection = required(
         projectGeneratedApplicationShell({
           authorizedProgramScreenPaths: ["/settings/routes"],
@@ -247,9 +255,7 @@ describe("generated application shell projection", () => {
       ]);
       expect(shellStatus).toMatchObject({ destinations: [], role: "status" });
       expect(shellStatus.status?.sync).toMatchObject({ label: expectedLabel, state: status.state });
-      expect(shellStatus.status?.sync?.message).toBe(
-        status.state === "error" ? "Sync failed. Check the Program and try again." : status.message,
-      );
+      expect(shellStatus.status?.sync?.message).toBe(expectedMessage);
     }
   });
 
@@ -598,7 +604,7 @@ function completeProjection(): GeneratedApplicationShellProjection {
         cursor: 27,
         lastSyncedAt: "2026-07-16T01:00:00.000Z",
         schemaVersion: siteSourceSchema.version,
-        status: { state: "error", message: "alchemy-secret-value" },
+        status: { code: "program-sync-failed", state: "error" },
       },
       workspaceSave: {
         id: "application-shell:workspace-save:formless-program",

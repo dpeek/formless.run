@@ -40,9 +40,10 @@ import type {
 } from "@dpeek/formless-identity-control-plane";
 import type {
   CreateIdentityAccessManagementInvitationInput,
+  IdentityAccessManagementFailure,
   RevokeIdentityAccessManagementInvitationInput,
 } from "../../client/identity-access-management.ts";
-import { displaySafeText, fieldKeyLabel } from "./instance-management-display-safety.ts";
+import { fieldKeyLabel } from "../presentation-vocabulary.ts";
 import {
   INSTANCE_ACCESS_ID,
   instanceAccessInvitationAuthoringReference,
@@ -61,10 +62,14 @@ const ACCESS_MEMBERSHIP_SELECTION_ID = `${INSTANCE_ACCESS_ID}:membership-grants`
 const ACCESS_CONFIRMATION_ID = `${INSTANCE_ACCESS_ID}:destructive-confirmation`;
 
 export type AccessManagementPresentationState =
-  | { message: string; status: "failed" }
+  | { failure: AccessRequestFailure; status: "failed" }
   | { status: "loading" }
   | { status: "ready"; summary: IdentityAccessManagementSummary }
-  | { message: string; status: "unauthorized" };
+  | { failure: AccessRequestFailure; status: "unauthorized" };
+
+export type AccessRequestFailure =
+  | IdentityAccessManagementFailure
+  | { code: "network-failure"; kind: "transport" };
 
 export type AccessInvitationDraft = {
   acceptanceTargetId: string;
@@ -80,27 +85,27 @@ export type AccessPersonRoleDraft = {
 };
 
 export type AccessInvitationSubmissionState =
-  | { message: string; status: "failed" }
+  | { failure: AccessRequestFailure; status: "failed" }
   | { status: "idle" }
-  | { message: string; status: "succeeded" }
+  | { status: "succeeded" }
   | { status: "submitting" };
 
 export type AccessInvitationDeletionState =
-  | { invitationId: string; message: string; status: "failed" }
+  | { failure: AccessRequestFailure; invitationId: string; status: "failed" }
   | { status: "idle" }
-  | { invitationId: string; message: string; status: "succeeded" }
+  | { invitationId: string; status: "succeeded" }
   | { invitationId: string; status: "submitting" };
 
 export type AccessPersonRoleSubmissionState =
-  | { message: string; personId: string; status: "failed" }
+  | { failure: AccessRequestFailure; personId: string; status: "failed" }
   | { status: "idle" }
-  | { message: string; personId: string; status: "succeeded" }
+  | { personId: string; status: "succeeded" }
   | { personId: string; status: "submitting" };
 
 export type AccessPersonRemovalState =
-  | { message: string; personId: string; status: "failed" }
+  | { failure: AccessRequestFailure; personId: string; status: "failed" }
   | { status: "idle" }
-  | { message: string; personId: string; status: "succeeded" }
+  | { personId: string; status: "succeeded" }
   | { personId: string; status: "submitting" };
 
 export type AccessConfirmationTarget =
@@ -220,7 +225,12 @@ export function projectAccess(options: ProjectAccessOptions): AccessProjection {
     return {
       manifest: {
         ...base,
-        feedback: accessFeedback("unauthorized", "Access denied", options.state.message, "danger"),
+        feedback: accessFeedback(
+          "unauthorized",
+          "Access denied",
+          accessFailureDetail(options.state.failure),
+          "danger",
+        ),
         state: "unauthorized",
       },
     };
@@ -232,7 +242,7 @@ export function projectAccess(options: ProjectAccessOptions): AccessProjection {
         feedback: accessFeedback(
           "load-failed",
           "Access unavailable",
-          options.state.message,
+          accessFailureDetail(options.state.failure),
           "danger",
         ),
         state: "failed",
@@ -652,7 +662,7 @@ function projectAccessInvitationAuthoring(
             feedback: accessFeedback(
               "invitation-failed",
               "Invitation could not be created",
-              options.submission.message,
+              accessFailureDetail(options.submission.failure),
               "danger",
             ),
           }
@@ -941,12 +951,10 @@ function projectAccessPeople(
     const canEdit = canManage && choices.length > 0;
 
     return {
-      displayName: safeLabel(person.displayName, "Unnamed person"),
+      displayName: intentionalLabel(person.displayName, "Unnamed person"),
       id: person.principalId,
       kind: "accessPerson",
-      ...(person.primaryEmail
-        ? { primaryEmail: displaySafeText(person.primaryEmail.displayEmail) }
-        : {}),
+      ...(person.primaryEmail ? { primaryEmail: person.primaryEmail.displayEmail } : {}),
       removal: removalReason
         ? {
             availability: "unavailable",
@@ -1087,8 +1095,8 @@ function projectAccessPersonRoleAuthoring(
       kind: "accessAction",
       purpose: "person-role-authoring-cancel",
     },
-    description: `Choose the exact role levels managed for ${safeLabel(person.displayName, "this person")}.`,
-    displayName: safeLabel(person.displayName, "Unnamed person"),
+    description: `Choose the exact role levels managed for ${intentionalLabel(person.displayName, "this person")}.`,
+    displayName: intentionalLabel(person.displayName, "Unnamed person"),
     errors: roleSelection.errors,
     ...(options.personRoleSubmission.status === "failed" &&
     options.personRoleSubmission.personId === person.principalId
@@ -1096,7 +1104,7 @@ function projectAccessPersonRoleAuthoring(
           feedback: accessFeedback(
             "person-role-failed",
             "Roles could not be saved",
-            options.personRoleSubmission.message,
+            accessFailureDetail(options.personRoleSubmission.failure),
             "danger",
           ),
         }
@@ -1121,7 +1129,7 @@ function projectAccessPersonRoleAuthoring(
       kind: "accessAction",
       purpose: "person-role-save",
     },
-    title: `Edit roles for ${safeLabel(person.displayName, "person")}`,
+    title: `Edit roles for ${intentionalLabel(person.displayName, "person")}`,
   };
 }
 
@@ -1206,7 +1214,7 @@ function projectAccessInvitations(
         "Target",
         fieldKeyLabel(invitation.targetSurface),
       ),
-      targetEmail: displaySafeText(invitation.targetEmail),
+      targetEmail: invitation.targetEmail,
     };
   });
 }
@@ -1447,7 +1455,7 @@ function projectRoleChoices(
     const surface = accessRoleSurface(role, labels);
     return {
       id: accessRoleOptionId(role),
-      label: safeLabel(role.displayLabel, `${surface.label} — Unnamed role`),
+      label: intentionalLabel(role.displayLabel, `${surface.label} — Unnamed role`),
       role,
       selected: false,
       surfaceId: surface.id,
@@ -1518,18 +1526,21 @@ function rolesByPrincipal(summary: IdentityAccessManagementSummary) {
 function accessLabels(summary: IdentityAccessManagementSummary): AccessLabels {
   return {
     groups: new Map(
-      summary.groups.map((group) => [group.groupId, safeLabel(group.displayName, "Unnamed group")]),
+      summary.groups.map((group) => [
+        group.groupId,
+        intentionalLabel(group.displayName, "Unnamed group"),
+      ]),
     ),
     organizations: new Map(
       summary.organizations.map((organization) => [
         organization.organizationId,
-        safeLabel(organization.displayName, "Unnamed organization"),
+        intentionalLabel(organization.displayName, "Unnamed organization"),
       ]),
     ),
     people: new Map(
       summary.people.map((person) => [
         person.principalId,
-        safeLabel(person.displayName, "Unnamed person"),
+        intentionalLabel(person.displayName, "Unnamed person"),
       ]),
     ),
   };
@@ -1661,7 +1672,7 @@ function readyFeedback(options: ProjectAccessOptions): AccessFeedbackContract | 
     return accessFeedback(
       "person-removal-failed",
       "Person could not be removed",
-      options.personRemoval.message,
+      accessFailureDetail(options.personRemoval.failure),
       "danger",
     );
   }
@@ -1669,7 +1680,7 @@ function readyFeedback(options: ProjectAccessOptions): AccessFeedbackContract | 
     return accessFeedback(
       "person-removal-succeeded",
       "Person removed",
-      options.personRemoval.message,
+      "The person no longer has access.",
       "success",
     );
   }
@@ -1677,7 +1688,7 @@ function readyFeedback(options: ProjectAccessOptions): AccessFeedbackContract | 
     return accessFeedback(
       "person-role-succeeded",
       "Roles saved",
-      options.personRoleSubmission.message,
+      "The selected roles were saved.",
       "success",
     );
   }
@@ -1685,7 +1696,7 @@ function readyFeedback(options: ProjectAccessOptions): AccessFeedbackContract | 
     return accessFeedback(
       "invitation-deletion-failed",
       "Invitation could not be deleted",
-      options.invitationDeletion.message,
+      accessFailureDetail(options.invitationDeletion.failure),
       "danger",
     );
   }
@@ -1693,7 +1704,7 @@ function readyFeedback(options: ProjectAccessOptions): AccessFeedbackContract | 
     return accessFeedback(
       "invitation-deletion-succeeded",
       "Invitation deleted",
-      options.invitationDeletion.message,
+      "The invitation can no longer be accepted.",
       "success",
     );
   }
@@ -1701,11 +1712,65 @@ function readyFeedback(options: ProjectAccessOptions): AccessFeedbackContract | 
     return accessFeedback(
       "invitation-succeeded",
       "Invitation created",
-      options.submission.message,
+      "The invitation was created.",
       "success",
     );
   }
   return undefined;
+}
+
+function accessFailureDetail(failure: AccessRequestFailure): string {
+  if (failure.kind === "person-mutation") {
+    switch (failure.reason) {
+      case "inactive-principal":
+        return "This person is no longer active.";
+      case "invalid-role-selection":
+        return "The selected roles are not valid.";
+      case "last-active-owner":
+        return "The last active owner cannot be removed.";
+      case "missing-principal":
+        return "This person could not be found.";
+      case "protected-assignment":
+        return "Your account cannot change one or more of this person's roles.";
+    }
+  }
+
+  if (failure.kind === "invitation-revocation") {
+    switch (failure.reason) {
+      case "accepted-invitation":
+        return "This invitation has already been accepted.";
+      case "expired-invitation":
+        return "This invitation has expired.";
+      case "missing-invitation":
+      case "tombstoned-invitation":
+        return "This invitation could not be found.";
+      case "revoked-invitation":
+        return "This invitation has already been deleted.";
+    }
+  }
+
+  switch (failure.code) {
+    case "invalid-request":
+      return "The access request was invalid. Review the details and try again.";
+    case "unauthorized":
+      return "Sign in with an authorized account and try again.";
+    case "forbidden":
+      return "Your account does not have permission to manage access.";
+    case "not-found":
+      return "The requested access resource could not be found.";
+    case "method-not-allowed":
+      return "This access action is not available.";
+    case "conflict":
+      return "Access changed before the request completed. Refresh and try again.";
+    case "unavailable":
+      return "Access management is temporarily unavailable. Try again.";
+    case "internal-failure":
+      return "Access management could not complete the request. Try again.";
+    case "invalid-response":
+      return "Access management returned an invalid response. Try again.";
+    case "network-failure":
+      return "Access management could not be reached. Check your connection and try again.";
+  }
 }
 
 function accessFeedback(
@@ -1715,7 +1780,7 @@ function accessFeedback(
   intent: CompactStatusIntent,
 ): AccessFeedbackContract {
   return {
-    detail: displaySafeText(detail),
+    detail,
     id: `${INSTANCE_ACCESS_ID}:feedback:${id}`,
     intent,
     kind: "accessFeedback",
@@ -1785,7 +1850,7 @@ function accessFact(
     kind: "accessDisplayFact",
     label,
     presentation,
-    value: displaySafeText(value),
+    value,
   };
 }
 
@@ -1914,9 +1979,8 @@ function emailErrors(value: string): readonly string[] {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()) ? [] : ["Email must be valid."];
 }
 
-function safeLabel(value: string, fallback: string): string {
-  const safe = displaySafeText(value).trim();
-  return safe === "" ? fallback : safe;
+function intentionalLabel(value: string, fallback: string): string {
+  return value.trim() === "" ? fallback : value;
 }
 
 function correlationSegment(value: string): string {

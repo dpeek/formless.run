@@ -4,6 +4,7 @@ import { nowIsoString } from "../shared/clock.ts";
 import {
   FORMLESS_INSTANCE_AUTH_ORIGIN_ENV_NAME,
   accountRedirectLocationForRoute,
+  instanceAuthError,
   parseAccountCompletionGateResolutionResult,
   parseAuthAccountStatusResult,
   parseInstanceAuthCanonicalOrigin,
@@ -286,7 +287,7 @@ async function startProtectedRouteAuthRedirect(
   }
 
   if (plan.kind === "invalid-return-target") {
-    return jsonResponse({ error: plan.error }, 400);
+    return jsonResponse(instanceAuthError("invalid-request"), 400);
   }
 
   if (plan.kind === "account") {
@@ -334,11 +335,13 @@ export async function handleInstanceAuthHandoffRequest(
 
   if (callback.kind === "reserved") {
     if (!callback.target) {
-      return jsonResponse({ error: "Handoff callback is invalid." }, 400);
+      return jsonResponse(instanceAuthError("invalid-request"), 400);
     }
 
     if (request.method !== "GET" && request.method !== "HEAD") {
-      return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "GET, HEAD" });
+      return jsonResponse(instanceAuthError("method-not-allowed"), 405, {
+        Allow: "GET, HEAD",
+      });
     }
 
     const id = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_INSTANCE_AUTHORITY_NAME);
@@ -355,7 +358,7 @@ export async function handleInstanceAuthHandoffRequest(
   const authOrigin = await configuredInstanceAuthOrigin(request, env);
 
   if (!authOrigin) {
-    return jsonResponse({ error: "Instance auth configuration is missing." }, 400);
+    return jsonResponse(instanceAuthError("unavailable"), 503);
   }
 
   if (authOrigin !== requestOriginForAuth(request)) {
@@ -429,10 +432,10 @@ export async function handleAuthAccountHandoffBrowserContinuation(
       kind: "response",
       response: redirectResponse(resolution.accountCompletion.continueTo, 302),
     };
-  } catch (error) {
+  } catch {
     return {
       kind: "response",
-      response: jsonResponse({ error: errorMessage(error) }, 400),
+      response: jsonResponse(instanceAuthError("invalid-request"), 400),
     };
   }
 }
@@ -531,7 +534,7 @@ export async function handleInstanceAuthHandoffDurableObjectRequest(
   }
 
   if (request.method !== "GET" && request.method !== "HEAD") {
-    return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "GET, HEAD" });
+    return jsonResponse(instanceAuthError("method-not-allowed"), 405, { Allow: "GET, HEAD" });
   }
 
   try {
@@ -567,7 +570,7 @@ export async function handleInstanceAuthHandoffDurableObjectRequest(
       }
 
       if (!acceptsRuntimeHtml(request.headers.get("Accept"))) {
-        return jsonResponse({ error: "Authenticated account session is required." }, 401);
+        return jsonResponse(instanceAuthError("unauthorized"), 401);
       }
 
       return redirectResponse(authAccountRedirectTargetForRequest(request), 302);
@@ -597,8 +600,8 @@ export async function handleInstanceAuthHandoffDurableObjectRequest(
       instanceId: session.session.instanceId,
       principalId: session.session.principalId,
     });
-  } catch (error) {
-    return jsonResponse({ error: errorMessage(error) }, 400);
+  } catch {
+    return jsonResponse(instanceAuthError("invalid-request"), 400);
   }
 }
 
@@ -1368,7 +1371,7 @@ async function handleHandoffCallbackDurableObjectRequest(
   env: InstanceAuthHandoffEnv,
 ): Promise<Response> {
   if (request.method !== "GET" && request.method !== "HEAD") {
-    return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "GET, HEAD" });
+    return jsonResponse(instanceAuthError("method-not-allowed"), 405, { Allow: "GET, HEAD" });
   }
 
   try {
@@ -1377,7 +1380,7 @@ async function handleHandoffCallbackDurableObjectRequest(
     const nonce = requestCookie(request, HOST_AUTH_NONCE_COOKIE_NAME);
 
     if (!nonce) {
-      return jsonResponse({ error: "Handoff callback is invalid." }, 400);
+      return jsonResponse(instanceAuthError("invalid-request"), 400);
     }
 
     const consumed = consumeHandoffGrant(storage, {
@@ -1389,7 +1392,7 @@ async function handleHandoffCallbackDurableObjectRequest(
     });
 
     if (!consumed.ok) {
-      return jsonResponse({ error: "Handoff callback is invalid." }, 400);
+      return jsonResponse(instanceAuthError("invalid-request"), 400);
     }
 
     const hostSession = await createHostAuthSessionCookie(storage, env, consumed.grant);
@@ -1404,8 +1407,8 @@ async function handleHandoffCallbackDurableObjectRequest(
       headers: responseHeaders,
       status: 302,
     });
-  } catch (error) {
-    return jsonResponse({ error: errorMessage(error) }, 400);
+  } catch {
+    return jsonResponse(instanceAuthError("invalid-request"), 400);
   }
 }
 
@@ -1415,7 +1418,7 @@ async function handleHostAuthSessionValidationDurableObjectRequest(
   _env: InstanceAuthHandoffEnv,
 ): Promise<Response> {
   if (request.method !== "POST") {
-    return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
+    return jsonResponse(instanceAuthError("method-not-allowed"), 405, { Allow: "POST" });
   }
 
   try {
@@ -1423,14 +1426,14 @@ async function handleHostAuthSessionValidationDurableObjectRequest(
     const session = parseHostAuthSession(body.session);
 
     if (!session) {
-      return jsonResponse({ error: "Host session payload is malformed." }, 400);
+      return jsonResponse(instanceAuthError("invalid-request"), 400);
     }
 
     const currentVersion = readHostSessionRevocationVersion(storage, session);
 
     return jsonResponse({ sessionVersion: currentVersion?.sessionVersion ?? 0 });
   } catch {
-    return jsonResponse({ error: "Host session payload is malformed." }, 400);
+    return jsonResponse(instanceAuthError("invalid-request"), 400);
   }
 }
 
@@ -1440,7 +1443,7 @@ async function handleCentralAuthSessionValidationDurableObjectRequest(
   env: InstanceAuthHandoffEnv,
 ): Promise<Response> {
   if (request.method !== "POST") {
-    return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
+    return jsonResponse(instanceAuthError("method-not-allowed"), 405, { Allow: "POST" });
   }
 
   const ownerSessionFallbackAllowed = readInstanceAuthConfig(storage) === undefined;
@@ -1678,7 +1681,7 @@ async function issueHandoffGrantRedirect(
     }
   }
 
-  return jsonResponse({ error: "Handoff grant could not be issued." }, 409);
+  return jsonResponse(instanceAuthError("conflict"), 409);
 }
 
 async function createHostAuthSessionCookie(
@@ -2233,8 +2236,4 @@ function parseNonNegativeIntegerValue(value: unknown): number | undefined {
 
 function isLocalhost(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Bad request.";
 }

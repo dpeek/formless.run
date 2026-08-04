@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { EmailDeliveryRecord, EmailDeliveryRenderedMessage } from "../shared/email-runtime.ts";
+import type { InstanceAuthErrorResponse } from "../shared/instance-auth.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import type { StoredEmailVerificationChallenge } from "./instance-auth-state.ts";
 
@@ -128,7 +129,7 @@ describe("instance auth email verification API", () => {
     expect(JSON.stringify(records.records)).not.toContain(token);
     expect(JSON.stringify(records.records)).not.toContain(tokenHash);
     expect(replay.status).toBe(409);
-    expect(replay.body).toEqual({ error: "Email verification link is no longer available." });
+    expect(replay.body).toEqual({ code: "conflict" });
   });
 
   it("rejects wrong token, wrong email, and wrong target without consuming or writing identity email", async () => {
@@ -202,9 +203,7 @@ describe("instance auth email verification API", () => {
       challenges: StoredEmailVerificationChallenge[];
     }>("/harness/challenges");
     expect(rejected.status).toBe(503);
-    expect(rejected.body).toEqual({
-      error: "Email verification delivery is not configured.",
-    });
+    expect(rejected.body).toEqual({ code: "unavailable" });
     expect(deliveries.deliveries).toEqual([]);
     expect(challenges.challenges).toEqual([]);
   });
@@ -237,7 +236,7 @@ describe("instance auth email verification API", () => {
     const records = await identityRecords();
 
     expect(rejected.status).toBe(409);
-    expect(rejected.body).toEqual({ error: "Email verification could not be committed." });
+    expect(rejected.body).toEqual({ code: "conflict" });
     expect(challenge.challenge).not.toHaveProperty("consumedAt");
     expect(
       records.records.find(
@@ -351,9 +350,7 @@ async function postAuthJsonFailure(path: string, body: unknown, cookie: string) 
     method: "POST",
   });
   return {
-    body: (await response.json()) as {
-      error: string;
-    },
+    body: (await response.json()) as InstanceAuthErrorResponse,
     status: response.status,
   };
 }

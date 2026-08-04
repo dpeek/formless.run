@@ -169,9 +169,9 @@ shell.
 - **GIVEN** shell-eligible sync, workspace-save, or owner session state is
   available
 - **WHEN** runtime projects shell controls
-- **THEN** sync status, workspace-save status where supported, display-safe
-  authenticated identity, and logout availability are explicit presentation
-  facts
+- **THEN** browser runtime maps semantic sync status and workspace-save status
+  where supported to explicit presentation facts, and validated authenticated
+  identity plus logout availability are explicit presentation facts
 - **AND** shell status remains separate from schema-declared Program Settings
   destinations and does not synthesize a settings navigation item
 - **AND** logout interactions dispatch canonical shell intents while runtime
@@ -2000,9 +2000,11 @@ entity operations and view operation bindings.
   failed result
 - AND pending, success, replay, and failure state is shared across all controls
   that use the same execution key
-- AND created record ids, affected counts, replay status, and display-safe error
-  messages come from the normalized operation result rather than from view
-  component-specific response parsing
+- AND created record ids, affected counts, and replay status come from the typed
+  normalized operation result while capability adapters or the controller map
+  closed failure state to fixed browser-owned copy
+- AND caught exceptions and arbitrary transport messages do not become an
+  operation result's presentation error
 
 #### Scenario: Operation progress is generic execution state
 
@@ -2813,12 +2815,55 @@ while route and runtime foundations retain state selection and effects.
 - WHEN runtime selects its top-level loading, empty, missing, unavailable,
   blocked, or failure state
 - THEN it publishes one complete immutable system-state snapshot with stable
-  identity, state kind, display-safe heading, message, ordered facts, feedback,
-  and available retry, continuation, or navigation intents
+  identity, state kind, presentation-ready heading, message, ordered facts,
+  feedback, and available retry, continuation, or navigation intents
 - AND runtime owns route matching, owner and session checks, schema loading,
-  package capability checks, retry effects, navigation, and error redaction
+  package capability checks, retry effects, navigation, and semantic failure
+  projection
 - AND the snapshot contains no storage clients, route callbacks, raw errors,
   React nodes, presentation class names, or renderer-specific props
+
+#### Scenario: Keep system-state projection renderer neutral
+
+- GIVEN browser runtime has selected fixed copy or intentional display data for
+  an application state
+- WHEN it projects the application system-state contract
+- THEN the projection composes those values without inspecting, rewriting, or
+  regex-redacting their text
+- AND transport and route boundaries must reduce failures to closed semantic
+  codes before projection
+- AND validated user-authored names, labels, and email addresses remain direct
+  presentation data while arbitrary exception, parser, storage, provider, path,
+  command, and log text remains unavailable
+
+### Requirement: Browser-Owned Failure Presentation
+
+Formless browser runtime SHALL convert semantic transport, domain, and local
+effect failures into fixed presentation copy before publishing Presentation
+contracts.
+
+#### Scenario: Project browser failures
+
+- GIVEN Gateway, instance auth, identity access, Program runtime, generated
+  operation, media, or replica behavior fails
+- WHEN browser route or controller state records the failure
+- THEN it records a closed capability- or route-owned failure code and bounded
+  semantic data rather than an arbitrary message
+- AND the owning browser projection selects fixed title, detail, status, retry,
+  and action copy for that code
+- AND Presentation and Renderer contracts receive only the resulting copy and
+  intentional display data, not the code, exception, response body, diagnostic,
+  path, command, log, provider output, or generic result
+
+#### Scenario: Preserve typed operation output internally
+
+- GIVEN a generated Authority operation commits or replays
+- WHEN generated runtime needs affected counts, created record ids, record-plan
+  steps, or typed materialized changes for browser behavior
+- THEN it consumes the typed operation invocation output internally
+- AND runtime adapters do not add unrelated generic output objects to browser
+  operation results
+- AND no operation output object enters a Presentation or Renderer contract
 
 #### Scenario: Formless Renderer covers every selected application state
 

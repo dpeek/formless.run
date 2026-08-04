@@ -14,43 +14,89 @@ describe("application system-state projection", () => {
     "missing",
     "unavailable",
   ] as const satisfies readonly ApplicationSystemStateKind[])(
-    "projects display-safe %s state without renderer or runtime values",
+    "projects complete %s state from presentation-ready input",
     (state) => {
       const snapshot = projectApplicationSystemState({
-        facts: [
-          {
-            id: "route",
-            label: "Route",
-            value: "/Users/ada/project with API_TOKEN=secret-value",
-          },
-        ],
+        facts: [{ id: "route", label: "Route", value: "Program" }],
         feedback: {
-          detail: "Bearer raw-session-token failed at /tmp/formless/error.log",
+          detail: "Check the current connection and try again.",
           id: "feedback:test",
           intent: state === "failure" ? "danger" : "info",
           title: "Runtime status",
         },
         heading: "Formless",
         id: `application-system-state:${state}`,
-        message: "owner-setup-token secret-value is unavailable",
+        message: "The application could not start. Try again.",
         state,
       });
 
       expect(snapshot).toMatchObject({
         actions: [],
+        facts: [{ id: "route", label: "Route", value: "Program" }],
+        feedback: {
+          detail: "Check the current connection and try again.",
+          title: "Runtime status",
+        },
         heading: "Formless",
         id: `application-system-state:${state}`,
         kind: "applicationSystemState",
+        message: "The application could not start. Try again.",
         state,
       });
-      expect(JSON.stringify(snapshot)).not.toContain("secret-value");
-      expect(JSON.stringify(snapshot)).not.toContain("raw-session-token");
-      expect(JSON.stringify(snapshot)).not.toContain("/Users/ada");
-      expect(JSON.stringify(snapshot)).not.toContain("/tmp/formless");
-      expect(JSON.stringify(snapshot)).toContain("[redacted]");
-      expect(JSON.stringify(snapshot)).toContain("<path>");
     },
   );
+
+  it("composes intentional display data without rewriting it", () => {
+    const snapshot = projectApplicationSystemState({
+      accessibilityLabel: "Ada Lovelace account status",
+      actions: [
+        {
+          accessibilityLabel: "Open Ada Lovelace account",
+          id: "continue",
+          label: "Continue to Ada Lovelace",
+          purpose: "navigate",
+        },
+      ],
+      facts: [
+        {
+          id: "primary-email",
+          label: "Primary email",
+          value: "ada+platform@example.com",
+        },
+      ],
+      feedback: {
+        detail: "Workspace label: Production / Australia",
+        id: "feedback:identity",
+        intent: "info",
+        title: "Ada Lovelace",
+      },
+      heading: "Ada Lovelace",
+      id: "application-system-state:identity",
+      message: "Account ready for review",
+      state: "blocked",
+    });
+
+    expect(snapshot).toMatchObject({
+      accessibilityLabel: "Ada Lovelace account status",
+      actions: [
+        {
+          control: {
+            accessibilityLabel: "Open Ada Lovelace account",
+            content: { label: "Continue to Ada Lovelace" },
+          },
+        },
+      ],
+      facts: [
+        {
+          label: "Primary email",
+          value: "ada+platform@example.com",
+        },
+      ],
+      feedback: { detail: "Workspace label: Production / Australia", title: "Ada Lovelace" },
+      heading: "Ada Lovelace",
+      message: "Account ready for review",
+    });
+  });
 
   it("resolves only the current enabled semantic action intent", () => {
     const snapshot = projectApplicationSystemState({

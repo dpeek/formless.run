@@ -59,6 +59,7 @@ export {
 export {
   createWorkspaceGatewayGeneratedOperationRuntimeAdapter,
   executeWorkspaceGatewayGeneratedOperation,
+  workspaceGatewayErrorMessage,
   workspaceGatewayPushGeneratedProgress,
   workspaceGatewayPushGeneratedProgressSteps,
   workspaceGatewayPushGeneratedRuntimeAdapterResponse,

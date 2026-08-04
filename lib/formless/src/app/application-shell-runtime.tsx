@@ -355,7 +355,6 @@ function RegisteredRootCreateRuntime({
   const [open, setOpen] = useState(false);
   const runtime = useGeneratedCreateRuntime({
     closeOnSuccess: true,
-    displaySafeErrors: true,
     onOpenChange: setOpen,
     onSuccess,
     open,

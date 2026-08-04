@@ -6,6 +6,7 @@ import {
   parseAccountCompletionGateResolutionResult,
   parseAuthAccountStatusResult,
   parseInstanceAuthCanonicalOrigin,
+  parseInstanceAuthErrorResponse,
   parseAccountRedirectTarget,
   type AccountAuthorizationForbiddenResult,
   type AccountCompletionContinuationResult,
@@ -14,6 +15,7 @@ import {
   type AccountCompletionGateTarget,
   type AccountCompletionProfileCompletionGate,
   type AuthAccountStatusResult,
+  type InstanceAuthErrorCode,
 } from "../../shared/instance-auth.ts";
 import {
   parseOwnerSetupToken,
@@ -42,7 +44,6 @@ import {
 import {
   browserSupportsPasskeys,
   createBrowserPasskeyRegistrationResponse,
-  passkeyUnavailableMessage,
   type CreatePasskeyRegistrationResponse,
 } from "./passkey-browser.ts";
 import { logoutAccountSession } from "./account-sign-in.tsx";
@@ -64,8 +65,8 @@ type AuthAccountGateActionState =
       challengeId: string;
       email: string;
       expiresAt: string;
+      failureCode?: AuthAccountFailureCode;
       kind: "email-verification-sent";
-      message?: string;
     }
   | { kind: "email-verification-requesting" }
   | {
@@ -75,19 +76,19 @@ type AuthAccountGateActionState =
       kind: "email-verification-verifying";
     }
   | { kind: "gate-submitting" }
-  | { kind: "gate-unavailable"; message: string }
+  | { code: AuthAccountFailureCode; kind: "gate-unavailable" }
   | { kind: "profile-completion-submitting" };
 
 type AuthAccountForbiddenActionState =
   | { kind: "logout-pending" }
-  | { kind: "logout-failed"; message: string };
+  | { code: AuthAccountFailureCode; kind: "logout-failed" };
 
 type AuthAccountOwnerSetupChallengeState = {
   challengeId: string;
   displayName: string;
   email: string;
   expiresAt: string;
-  message?: string;
+  failureCode?: AuthAccountFailureCode;
   setupToken: string;
 };
 
@@ -116,7 +117,7 @@ export type AuthAccountRouteState =
       result: AccountAuthorizationForbiddenResult;
       status: "forbidden";
     }
-  | { message: string; status: "failed" }
+  | { code: AuthAccountFailureCode; status: "failed" }
   | { status: "loading" }
   | { owner?: OwnerIdentity; status: "owner-setup-already-complete" }
   | (AuthAccountOwnerSetupCompletionState & {
@@ -146,11 +147,11 @@ export type AuthAccountRouteState =
   | {
       displayName: string;
       email: string;
-      message?: string;
+      failureCode?: AuthAccountFailureCode;
       setupToken: string;
       status: "owner-setup-email-sending";
     }
-  | { message: string; status: "owner-setup-invalid" }
+  | { code: AuthAccountFailureCode; status: "owner-setup-invalid" }
   | { status: "owner-setup-loading" }
   | (AuthAccountOwnerSetupChallengeState & {
       status: "owner-setup-passkey-unavailable";
@@ -162,10 +163,16 @@ export type AuthAccountRouteState =
       status: "owner-setup-continuing";
     }
   | {
-      message?: string;
+      failureCode?: AuthAccountFailureCode;
       setupToken: string;
       status: "owner-setup-ready";
     };
+
+export type AuthAccountFailureCode =
+  | InstanceAuthErrorCode
+  | "invalid-response"
+  | "network-failure"
+  | "passkey-failed";
 
 type StartAuthAccountRouteSessionOptions = {
   currentOrigin?: string;
@@ -355,8 +362,8 @@ export function AuthAccountRoute() {
     } catch (error) {
       publishState({
         action: {
+          code: authAccountFailureCode(error),
           kind: "gate-unavailable",
-          message: error instanceof Error ? error.message : "Email verification request failed.",
         },
         result: state.result,
         status: "blocked",
@@ -398,8 +405,8 @@ export function AuthAccountRoute() {
       publishState({
         action: {
           ...action,
+          failureCode: authAccountFailureCode(error),
           kind: "email-verification-sent",
-          message: error instanceof Error ? error.message : "Email verification failed.",
         },
         result: state.result,
         status: "blocked",
@@ -425,8 +432,8 @@ export function AuthAccountRoute() {
     } catch (error) {
       publishState({
         action: {
+          code: authAccountFailureCode(error),
           kind: "gate-unavailable",
-          message: error instanceof Error ? error.message : "Terms acceptance failed.",
         },
         result: state.result,
         status: "blocked",
@@ -444,8 +451,8 @@ export function AuthAccountRoute() {
     if (gate.operation === undefined || gate.inputContract === undefined) {
       publishState({
         action: {
+          code: "unavailable",
           kind: "gate-unavailable",
-          message: "Profile completion operation is unavailable.",
         },
         result: state.result,
         status: "blocked",
@@ -471,8 +478,8 @@ export function AuthAccountRoute() {
     } catch (error) {
       publishState({
         action: {
+          code: authAccountFailureCode(error),
           kind: "gate-unavailable",
-          message: error instanceof Error ? error.message : "Profile completion failed.",
         },
         result: state.result,
         status: "blocked",
@@ -509,7 +516,7 @@ export function AuthAccountRoute() {
       });
     } catch (error) {
       publishState({
-        message: error instanceof Error ? error.message : "Owner setup email delivery failed.",
+        failureCode: authAccountFailureCode(error),
         setupToken: state.setupToken,
         status: "owner-setup-ready",
       });
@@ -544,7 +551,7 @@ export function AuthAccountRoute() {
     } catch (error) {
       publishState({
         ...challengeState,
-        message: error instanceof Error ? error.message : "Owner setup email verification failed.",
+        failureCode: authAccountFailureCode(error),
         status: "owner-setup-email-sent",
       });
     }
@@ -558,7 +565,6 @@ export function AuthAccountRoute() {
     if (!browserSupportsPasskeys()) {
       publishState({
         ...state,
-        message: passkeyUnavailableMessage,
         status: "owner-setup-passkey-unavailable",
       });
       return;
@@ -597,14 +603,14 @@ export function AuthAccountRoute() {
       } catch (error) {
         publishState({
           ...completionState,
-          message: error instanceof Error ? error.message : "Owner setup completion failed.",
+          failureCode: authAccountFailureCode(error),
           status: "owner-setup-completion-ready",
         });
       }
     } catch (error) {
       publishState({
         ...challengeState,
-        message: error instanceof Error ? error.message : "Owner passkey setup failed.",
+        failureCode: authAccountFailureCode(error),
         status: "owner-setup-credential-ready",
       });
     }
@@ -631,7 +637,7 @@ export function AuthAccountRoute() {
     } catch (error) {
       publishState({
         ...completionState,
-        message: error instanceof Error ? error.message : "Owner setup completion failed.",
+        failureCode: authAccountFailureCode(error),
         status: "owner-setup-completion-ready",
       });
     }
@@ -690,8 +696,8 @@ export function AuthAccountRoute() {
     } catch (error) {
       publishState({
         action: {
+          code: authAccountFailureCode(error),
           kind: "logout-failed",
-          message: error instanceof Error ? error.message : "Account logout failed.",
         },
         result,
         status: "forbidden",
@@ -708,8 +714,8 @@ export function AuthAccountRoute() {
       setSessionRevision((revision) => revision + 1);
       return;
     }
-    if (state.status.startsWith("owner-setup-") && "message" in state && state.message) {
-      publishState({ ...state, message: undefined } as AuthAccountRouteState);
+    if (state.status.startsWith("owner-setup-") && "failureCode" in state && state.failureCode) {
+      publishState({ ...state, failureCode: undefined } as AuthAccountRouteState);
       return;
     }
     if (state.status === "failed") {
@@ -786,7 +792,7 @@ export function startAuthAccountRouteSession({
 
   if (!searchHasContinuationTarget(normalizedSearch(locationSearch))) {
     onState({
-      message: "Account continuation target is missing.",
+      code: "invalid-response",
       status: "failed",
     });
 
@@ -830,7 +836,7 @@ export function startAuthAccountRouteSession({
     } catch (error) {
       if (!stopped && !controller.signal.aborted) {
         onState({
-          message: error instanceof Error ? error.message : "Account status could not be loaded.",
+          code: authAccountFailureCode(error),
           status: "failed",
         });
       }
@@ -861,7 +867,7 @@ function startOwnerSetupAccountRouteSession({
   onState({ status: "owner-setup-loading" });
 
   if (!routeRequest.ok) {
-    onState({ message: routeRequest.message, status: "owner-setup-invalid" });
+    onState({ code: "invalid-response", status: "owner-setup-invalid" });
 
     return () => {
       stopped = true;
@@ -919,7 +925,7 @@ function startOwnerSetupAccountRouteSession({
     } catch (error) {
       if (!stopped && !controller.signal.aborted) {
         onState({
-          message: error instanceof Error ? error.message : "Owner setup could not be loaded.",
+          code: authAccountFailureCode(error),
           status: "owner-setup-invalid",
         });
       }
@@ -946,12 +952,10 @@ export async function fetchProductionOwnerSetupStatus({
   const body = await readAuthAccountJson(response);
 
   if (!response.ok) {
-    throw new AuthAccountApiError(authAccountErrorMessage(body, "Owner setup status failed."), {
-      status: response.status,
-    });
+    throw authAccountApiError(body, response.status);
   }
 
-  return parseOwnerSetupStatusResponse(body);
+  return parseAuthAccountResponse(() => parseOwnerSetupStatusResponse(body), response.status);
 }
 
 export async function startProductionOwnerSetup({
@@ -973,13 +977,13 @@ export async function startProductionOwnerSetup({
   });
 
   if (!response.ok) {
-    throw new AuthAccountApiError(
-      authAccountErrorMessage(response.body, "Owner setup email delivery failed."),
-      { status: response.status },
-    );
+    throw authAccountApiError(response.body, response.status);
   }
 
-  return parseOwnerSetupChallengeResponse(response.body);
+  return parseAuthAccountResponse(
+    () => parseOwnerSetupChallengeResponse(response.body),
+    response.status,
+  );
 }
 
 export async function verifyProductionOwnerSetupEmail({
@@ -1003,22 +1007,19 @@ export async function verifyProductionOwnerSetupEmail({
   });
 
   if (!response.ok) {
-    throw new AuthAccountApiError(
-      authAccountErrorMessage(response.body, "Owner setup email verification failed."),
-      { status: response.status },
-    );
+    throw authAccountApiError(response.body, response.status);
   }
 
-  const parsed = parseRecord("Owner setup email verification response", response.body);
+  return parseAuthAccountResponse(() => {
+    const parsed = parseRecord("Owner setup email verification response", response.body);
 
-  if (parsed.verified !== true) {
-    throw new AuthAccountApiError("Owner setup email verification response was invalid.");
-  }
+    if (parsed.verified !== true) throw new AuthAccountApiError("invalid-response");
 
-  return {
-    ownerSetup: parseOwnerSetupChallengeSummary(parsed.ownerSetup),
-    verified: true,
-  };
+    return {
+      ownerSetup: parseOwnerSetupChallengeSummary(parsed.ownerSetup),
+      verified: true as const,
+    };
+  }, response.status);
 }
 
 export async function prepareProductionOwnerSetupPasskey({
@@ -1043,14 +1044,20 @@ export async function prepareProductionOwnerSetupPasskey({
   });
 
   if (!optionsResponse.ok) {
-    throw new AuthAccountApiError(
-      authAccountErrorMessage(optionsResponse.body, "Owner passkey options failed."),
-      { status: optionsResponse.status },
-    );
+    throw authAccountApiError(optionsResponse.body, optionsResponse.status);
   }
 
-  const options = parseOwnerSetupPasskeyOptionsResponse(optionsResponse.body);
-  const registrationResponse = await createRegistrationResponse(options.options);
+  const options = parseAuthAccountResponse(
+    () => parseOwnerSetupPasskeyOptionsResponse(optionsResponse.body),
+    optionsResponse.status,
+  );
+  let registrationResponse: Awaited<ReturnType<CreatePasskeyRegistrationResponse>>;
+
+  try {
+    registrationResponse = await createRegistrationResponse(options.options);
+  } catch {
+    throw new AuthAccountPasskeyError();
+  }
   const verifyResponse = await postAuthAccountJson({
     body: {
       ...request,
@@ -1063,13 +1070,13 @@ export async function prepareProductionOwnerSetupPasskey({
   });
 
   if (!verifyResponse.ok) {
-    throw new AuthAccountApiError(
-      authAccountErrorMessage(verifyResponse.body, "Owner passkey verification failed."),
-      { status: verifyResponse.status },
-    );
+    throw authAccountApiError(verifyResponse.body, verifyResponse.status);
   }
 
-  return parseOwnerSetupPasskeyPreparation(verifyResponse.body);
+  return parseAuthAccountResponse(
+    () => parseOwnerSetupPasskeyPreparation(verifyResponse.body),
+    verifyResponse.status,
+  );
 }
 
 export async function completeProductionOwnerSetup({
@@ -1093,13 +1100,13 @@ export async function completeProductionOwnerSetup({
   });
 
   if (!response.ok) {
-    throw new AuthAccountApiError(
-      authAccountErrorMessage(response.body, "Owner setup completion failed."),
-      { status: response.status },
-    );
+    throw authAccountApiError(response.body, response.status);
   }
 
-  return parseOwnerSetupCompletionResponse(response.body);
+  return parseAuthAccountResponse(
+    () => parseOwnerSetupCompletionResponse(response.body),
+    response.status,
+  );
 }
 
 export async function fetchAuthAccountStatus({
@@ -1115,24 +1122,30 @@ export async function fetchAuthAccountStatus({
   const body = await readAuthAccountJson(response);
 
   if (response.status === 403) {
-    const result = parseAuthAccountStatusResult(body);
+    try {
+      const result = parseAuthAccountStatusResult(body);
 
-    if (result.status === "forbidden") return result;
+      if (result.status === "forbidden") return result;
+    } catch {
+      // Fall through to the closed API error parser.
+    }
   }
 
   if (response.status === 409) {
-    const result = parseAuthAccountStatusResult(body);
+    try {
+      const result = parseAuthAccountStatusResult(body);
 
-    if (result.status === "blocked") return result;
+      if (result.status === "blocked") return result;
+    } catch {
+      // Fall through to the closed API error parser.
+    }
   }
 
   if (!response.ok) {
-    throw new AuthAccountApiError(authAccountErrorMessage(body, "Account status failed."), {
-      status: response.status,
-    });
+    throw authAccountApiError(body, response.status);
   }
 
-  return parseAuthAccountStatusResult(body);
+  return parseAuthAccountResponse(() => parseAuthAccountStatusResult(body), response.status);
 }
 
 export async function requestAuthAccountEmailVerification({
@@ -1152,13 +1165,13 @@ export async function requestAuthAccountEmailVerification({
   });
 
   if (!response.ok) {
-    throw new AuthAccountApiError(
-      authAccountErrorMessage(response.body, "Email verification request failed."),
-      { status: response.status },
-    );
+    throw authAccountApiError(response.body, response.status);
   }
 
-  return parseEmailVerificationRequestResponse(response.body);
+  return parseAuthAccountResponse(
+    () => parseEmailVerificationRequestResponse(response.body),
+    response.status,
+  );
 }
 
 export async function verifyAuthAccountEmailVerification({
@@ -1182,10 +1195,7 @@ export async function verifyAuthAccountEmailVerification({
   });
 
   if (!response.ok) {
-    throw new AuthAccountApiError(
-      authAccountErrorMessage(response.body, "Email verification failed."),
-      { status: response.status },
-    );
+    throw authAccountApiError(response.body, response.status);
   }
 }
 
@@ -1292,12 +1302,21 @@ export function authAccountHandoffContinuationTarget(
 }
 
 export class AuthAccountApiError extends Error {
+  readonly code: InstanceAuthErrorCode | "invalid-response";
   status: number | undefined;
 
-  constructor(message: string, options: { status?: number } = {}) {
-    super(message);
+  constructor(code: InstanceAuthErrorCode | "invalid-response", options: { status?: number } = {}) {
+    super("Auth account API request failed.");
     this.name = "AuthAccountApiError";
+    this.code = code;
     this.status = options.status;
+  }
+}
+
+class AuthAccountPasskeyError extends Error {
+  constructor() {
+    super("Auth account passkey ceremony failed.");
+    this.name = "AuthAccountPasskeyError";
   }
 }
 
@@ -1360,18 +1379,29 @@ function parseGateCompletionResponse(
   response: { body: unknown; ok: boolean; status: number },
   context: string,
 ): AuthAccountCompletionApiResult {
-  const parsed = parseAuthAccountCompletionApiResult(response.body, {
-    completedRequired: true,
-    context,
-  });
+  if (!response.ok) {
+    try {
+      const object = parseRecord(context, response.body);
+      const accountCompletion = parseAccountCompletionGateResolutionResult(
+        object.accountCompletion,
+      );
 
-  if (response.ok || parsed.accountCompletion.status === "blocked") {
-    return parsed;
+      if (accountCompletion.status === "blocked") return { accountCompletion };
+    } catch {
+      // Fall through to the closed API error parser.
+    }
+
+    throw authAccountApiError(response.body, response.status);
   }
 
-  throw new AuthAccountApiError(authAccountErrorMessage(response.body, `${context} failed.`), {
-    status: response.status,
-  });
+  return parseAuthAccountResponse(
+    () =>
+      parseAuthAccountCompletionApiResult(response.body, {
+        completedRequired: true,
+        context,
+      }),
+    response.status,
+  );
 }
 
 function profileCompletionIdempotencyKey(): string {
@@ -1391,7 +1421,7 @@ function parseAuthAccountCompletionApiResult(
   const object = parseRecord(options.context, value);
 
   if (options.completedRequired && object.completed !== true) {
-    throw new AuthAccountApiError(authAccountErrorMessage(object, `${options.context} failed.`));
+    throw new AuthAccountApiError("invalid-response");
   }
 
   return {
@@ -1409,7 +1439,7 @@ function parseOptionalPathOnlyContinueTo(value: unknown): { continueTo?: `/${str
   const continueTo = parseAccountRedirectTarget(value);
 
   if (!continueTo) {
-    throw new AuthAccountApiError("Account completion continueTo must be path-only.");
+    throw new AuthAccountApiError("invalid-response");
   }
 
   return { continueTo };
@@ -1426,7 +1456,7 @@ function parseOptionalAuthAccountCompletionHandoff(value: unknown): {
   const returnTo = parseAccountRedirectTarget(object.returnTo);
 
   if (!returnTo) {
-    throw new AuthAccountApiError("Account completion handoff returnTo must be path-only.");
+    throw new AuthAccountApiError("invalid-response");
   }
 
   return {
@@ -1439,7 +1469,7 @@ function parseOptionalAuthAccountCompletionHandoff(value: unknown): {
 
 function ownerSetupRouteRequestFromSearch(
   locationSearch: string,
-): { ok: true; request: OwnerSetupRouteRequest } | { message: string; ok: false } {
+): { ok: true; request: OwnerSetupRouteRequest } | { ok: false } {
   const params = new URLSearchParams(normalizedSearch(locationSearch));
   const challengeId = optionalSearchParam(params, "challengeId");
   const email = optionalSearchParam(params, "email");
@@ -1471,7 +1501,7 @@ function ownerSetupRouteRequestFromSearch(
       },
     };
   } catch {
-    return { message: "Owner setup link is invalid.", ok: false };
+    return { ok: false };
   }
 }
 
@@ -1479,7 +1509,7 @@ function parseOwnerSetupStatusResponse(value: unknown): OwnerSetupStatusResponse
   const object = parseRecord("Owner setup status response", value);
 
   if (typeof object.setupComplete !== "boolean") {
-    throw new AuthAccountApiError("Owner setup status response was invalid.");
+    throw new AuthAccountApiError("invalid-response");
   }
 
   return {
@@ -1503,7 +1533,7 @@ function parseOwnerSetupChallengeSummary(value: unknown): OwnerSetupChallengeSum
   const status = requiredString(object.status, "Owner setup challenge status");
 
   if (status !== "email-sent" && status !== "email-verified" && status !== "passkey-prepared") {
-    throw new AuthAccountApiError("Owner setup challenge status was invalid.");
+    throw new AuthAccountApiError("invalid-response");
   }
 
   return {
@@ -1522,7 +1552,7 @@ function parseOwnerSetupPasskeyOptionsResponse(value: unknown): {
   const object = parseRecord("Owner setup passkey options response", value);
 
   if (!isRecord(object.options)) {
-    throw new AuthAccountApiError("Owner setup passkey options response was invalid.");
+    throw new AuthAccountApiError("invalid-response");
   }
 
   return {
@@ -1535,7 +1565,7 @@ function parseOwnerSetupPasskeyPreparation(value: unknown): OwnerSetupPasskeyPre
   const object = parseRecord("Owner setup passkey verification response", value);
 
   if (object.prepared !== true) {
-    throw new AuthAccountApiError("Owner setup passkey verification response was invalid.");
+    throw new AuthAccountApiError("invalid-response");
   }
 
   return {
@@ -1549,7 +1579,7 @@ function parseOwnerSetupCompletionResponse(value: unknown): OwnerSetupCompletion
   const object = parseRecord("Owner setup completion response", value);
 
   if (object.completed !== true || object.setupComplete !== true) {
-    throw new AuthAccountApiError("Owner setup completion response was invalid.");
+    throw new AuthAccountApiError("invalid-response");
   }
 
   const session = parseRecord("Owner setup session", object.session);
@@ -1573,7 +1603,7 @@ function parseOptionalOwnerSetupContinueTo(value: unknown): { continueTo?: strin
   }
 
   if (typeof value !== "string") {
-    throw new AuthAccountApiError("Owner setup continuation was invalid.");
+    throw new AuthAccountApiError("invalid-response");
   }
 
   const path = parseAccountRedirectTarget(value);
@@ -1596,7 +1626,7 @@ function parseOptionalOwnerSetupContinueTo(value: unknown): { continueTo?: strin
 
     return { continueTo: `${url.origin}${url.pathname}${url.search}` };
   } catch {
-    throw new AuthAccountApiError("Owner setup continuation was invalid.");
+    throw new AuthAccountApiError("invalid-response");
   }
 }
 
@@ -1635,17 +1665,17 @@ function parseEmailVerificationChallengeSummary(value: unknown): EmailVerificati
   };
 }
 
-function parseRecord(context: string, value: unknown): Record<string, unknown> {
+function parseRecord(_context: string, value: unknown): Record<string, unknown> {
   if (!isRecord(value)) {
-    throw new AuthAccountApiError(`${context} was invalid.`);
+    throw new AuthAccountApiError("invalid-response");
   }
 
   return value;
 }
 
-function requiredString(value: unknown, context: string): string {
+function requiredString(value: unknown, _context: string): string {
   if (typeof value !== "string" || value === "") {
-    throw new AuthAccountApiError(`${context} is required.`);
+    throw new AuthAccountApiError("invalid-response");
   }
 
   return value;
@@ -1661,14 +1691,33 @@ async function readAuthAccountJson(response: Response): Promise<unknown> {
   try {
     return await response.json();
   } catch {
-    throw new AuthAccountApiError("Account status response was invalid.", {
+    throw new AuthAccountApiError("invalid-response", {
       status: response.status,
     });
   }
 }
 
-function authAccountErrorMessage(value: unknown, fallback: string): string {
-  return isRecord(value) && typeof value.error === "string" ? value.error : fallback;
+function authAccountApiError(value: unknown, status: number): AuthAccountApiError {
+  try {
+    return new AuthAccountApiError(parseInstanceAuthErrorResponse(value).code, { status });
+  } catch {
+    return new AuthAccountApiError("invalid-response", { status });
+  }
+}
+
+function parseAuthAccountResponse<T>(parse: () => T, status?: number): T {
+  try {
+    return parse();
+  } catch (error) {
+    if (error instanceof AuthAccountApiError) throw error;
+    throw new AuthAccountApiError("invalid-response", status === undefined ? {} : { status });
+  }
+}
+
+function authAccountFailureCode(error: unknown): AuthAccountFailureCode {
+  if (error instanceof AuthAccountApiError) return error.code;
+  if (error instanceof AuthAccountPasskeyError) return "passkey-failed";
+  return "network-failure";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

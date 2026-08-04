@@ -138,9 +138,27 @@ export type AccountLogoutResponse = {
   continueTo?: AccountRedirectTarget;
 };
 
+export const instanceAuthErrorCodes = [
+  "invalid-request",
+  "unauthorized",
+  "forbidden",
+  "not-found",
+  "method-not-allowed",
+  "conflict",
+  "expired",
+  "unavailable",
+  "internal-failure",
+] as const;
+
+export type InstanceAuthErrorCode = (typeof instanceAuthErrorCodes)[number];
+
 export type InstanceAuthErrorResponse = {
-  error: string;
+  code: InstanceAuthErrorCode;
 };
+
+export function instanceAuthError(code: InstanceAuthErrorCode): InstanceAuthErrorResponse {
+  return { code };
+}
 
 export type CollaboratorInvitationAcceptanceFailureReason =
   | "accepted-invitation"
@@ -186,7 +204,6 @@ export type CollaboratorInvitationAcceptanceStatusResponse =
     }
   | {
       eligible: false;
-      error: string;
       reason: CollaboratorInvitationAcceptanceFailureReason;
     };
 
@@ -774,10 +791,14 @@ export function parseAccountLogoutResponse(value: unknown): AccountLogoutRespons
 export function parseInstanceAuthErrorResponse(value: unknown): InstanceAuthErrorResponse {
   const object = parseObject("Instance auth error response", value);
 
-  assertKeys("Instance auth error response", object, ["error"]);
+  assertKeys("Instance auth error response", object, ["code"]);
 
   return {
-    error: parseTrimmedNonEmptyString("Instance auth error response error", object.error),
+    code: parseStringLiteral(
+      "Instance auth error response code",
+      object.code,
+      instanceAuthErrorCodes,
+    ),
   };
 }
 
@@ -1064,18 +1085,10 @@ export function parseCollaboratorInvitationAcceptanceStatusResponse(
     throw new Error("Collaborator invitation acceptance status response eligible must be boolean.");
   }
 
-  assertKeys("Collaborator invitation acceptance status response", object, [
-    "eligible",
-    "error",
-    "reason",
-  ]);
+  assertKeys("Collaborator invitation acceptance status response", object, ["eligible", "reason"]);
 
   return {
     eligible: false,
-    error: parseTrimmedNonEmptyString(
-      "Collaborator invitation acceptance status response error",
-      object.error,
-    ),
     reason: parseStringLiteral(
       "Collaborator invitation acceptance status response reason",
       object.reason,

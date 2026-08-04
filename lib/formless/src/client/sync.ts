@@ -307,7 +307,7 @@ export function startPushSync(options: StartPushSyncOptions = {}): PushSyncHandl
       return;
     }
 
-    setSyncStatus({ state: "syncing", message: "Connecting push sync..." });
+    setSyncStatus({ code: "push-connecting", state: "syncing" });
 
     let nextSocket: SyncWebSocket;
 
@@ -338,7 +338,7 @@ export function startPushSync(options: StartPushSyncOptions = {}): PushSyncHandl
       }
 
       if (!parseSyncSocketServerMessage(event.data)) {
-        setSyncStatus({ state: "error", message: "Malformed invalidation message." });
+        setSyncStatus({ code: "push-invalid-message", state: "error" });
         return;
       }
 
@@ -351,11 +351,11 @@ export function startPushSync(options: StartPushSyncOptions = {}): PushSyncHandl
       }
 
       if (!opened) {
-        setSyncStatus({ state: "error", message: "Push sync connection failed." });
+        setSyncStatus({ code: "push-connection-failed", state: "error" });
         return;
       }
 
-      setSyncStatus({ state: "syncing", message: "Push sync connection issue." });
+      setSyncStatus({ code: "push-connection-issue", state: "syncing" });
     };
 
     nextSocket.onclose = (event) => {
@@ -367,7 +367,7 @@ export function startPushSync(options: StartPushSyncOptions = {}): PushSyncHandl
 
       if (event.code === 1008) {
         stop();
-        setSyncStatus({ state: "error", message: "Push sync authorization changed." });
+        setSyncStatus({ code: "push-authorization-changed", state: "error" });
         options.onAuthorityInvalidated?.();
         return;
       }
@@ -382,18 +382,15 @@ export function startPushSync(options: StartPushSyncOptions = {}): PushSyncHandl
       }
 
       setSyncStatus({
+        code: event.code === PLANNED_RENEWAL_CLOSE_CODE ? "push-renewing" : "push-reconnecting",
         state: "syncing",
-        message:
-          event.code === PLANNED_RENEWAL_CLOSE_CODE
-            ? "Renewing push sync connection..."
-            : "Push sync reconnecting...",
       });
       scheduleReconnect();
     };
   }
 
   function handleFailedConnection() {
-    setSyncStatus({ state: "error", message: "Push sync connection failed." });
+    setSyncStatus({ code: "push-connection-failed", state: "error" });
 
     if (renewalAuthorityCheckPending) {
       renewalAuthorityCheckPending = false;
@@ -427,7 +424,7 @@ export function startPushSync(options: StartPushSyncOptions = {}): PushSyncHandl
     }
 
     pullDirty = false;
-    setSyncStatus({ state: "syncing", message: "Catching up Program changes..." });
+    setSyncStatus({ code: "program-catching-up", state: "syncing" });
 
     const pull = syncClient(fetcher, {
       canPublish: clientRuntimePublicationIsCurrent,
@@ -437,17 +434,14 @@ export function startPushSync(options: StartPushSyncOptions = {}): PushSyncHandl
     })
       .then(() => {
         if (clientRuntimePublicationIsCurrent()) {
-          setSyncStatus({ state: "idle", message: "Program changes caught up." });
+          setSyncStatus({ code: "program-changes-caught-up", state: "idle" });
           onSynced?.();
         }
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         pullDirty = false;
         if (clientRuntimePublicationIsCurrent()) {
-          setSyncStatus({
-            state: "error",
-            message: error instanceof Error ? error.message : "Program sync failed.",
-          });
+          setSyncStatus({ code: "program-sync-failed", state: "error" });
         }
       })
       .finally(() => {

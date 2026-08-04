@@ -279,7 +279,9 @@ describe("generated workspace tree selection runtime", () => {
       ),
     );
     const onSelectContext = vi.fn();
-    submitOperationMock.mockRejectedValueOnce(new Error("Commit refused."));
+    submitOperationMock.mockRejectedValueOnce(
+      new Error("storage path diagnostic alchemy-secret-value"),
+    );
     let controller: GeneratedWorkspaceRuntimeController | undefined;
     let renderer: RenderResult | undefined;
 
@@ -375,11 +377,14 @@ describe("generated workspace tree selection runtime", () => {
       undefined,
       {},
     );
-    expect(
-      currentTree(required(controller)).selectedEditor?.childFields?.fields.find(
-        (field) => field.fieldName === "label",
-      ),
-    ).toMatchObject({ errors: [{ message: "Commit refused." }], pending: undefined });
+    const failedField = currentTree(required(controller)).selectedEditor?.childFields?.fields.find(
+      (field) => field.fieldName === "label",
+    );
+    expect(failedField).toMatchObject({
+      errors: [{ message: "Update failed. Try again." }],
+      pending: undefined,
+    });
+    expect(JSON.stringify(failedField)).not.toContain("alchemy-secret-value");
 
     await act(async () => {
       required(renderer).unmount();

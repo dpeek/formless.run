@@ -158,7 +158,8 @@ export function InstanceManagementRuntime({
   const [publicationController] = useState(() =>
     createInstanceManagementRuntimePublicationController(application),
   );
-  const [controlPlaneLoadError, setControlPlaneLoadError] = useState<string>();
+  const [controlPlaneLoadFailure, setControlPlaneLoadFailure] =
+    useState<Extract<HomeRouteClientLoadState, { state: "failed" }>["code"]>();
   const actions = useMemo<InstanceManagementIntentActions>(
     () => ({
       openAuthorization: onOpenWorkspaceAuthorization,
@@ -179,18 +180,18 @@ export function InstanceManagementRuntime({
     [publicationController],
   );
   const updateControlPlaneLoadState = useCallback((loadState: HomeRouteClientLoadState) => {
-    setControlPlaneLoadError(loadState.state === "failed" ? loadState.message : undefined);
+    setControlPlaneLoadFailure(loadState.state === "failed" ? loadState.code : undefined);
   }, []);
 
   useLayoutEffect(() => {
     publicationController.updateRuntime(
       {
-        ...(controlPlaneLoadError === undefined ? {} : { controlPlaneLoadError }),
+        ...(controlPlaneLoadFailure === undefined ? {} : { controlPlaneLoadFailure }),
         workspaceGatewayState,
       },
       actions,
     );
-  }, [actions, screenPath, controlPlaneLoadError, publicationController, workspaceGatewayState]);
+  }, [actions, screenPath, controlPlaneLoadFailure, publicationController, workspaceGatewayState]);
 
   useLayoutEffect(() => {
     publicationController.activate();

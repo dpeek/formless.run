@@ -12,16 +12,15 @@ import type { WorkspaceGatewayPush } from "@dpeek/formless-gateway/client";
 import {
   normalizeGeneratedOperationRuntimeAdapterResponse,
   projectWorkspaceOperationControlBinding,
+  workspaceGatewayErrorMessage,
   workspaceGatewayPushGeneratedProgress,
   workspaceGatewayPushGeneratedRuntimeAdapterResponse,
   type GeneratedOperationExecutionState,
 } from "../../client/views.ts";
 import { projectGeneratedOperationControl } from "../generated/operation-projection.ts";
 import type { WorkspaceGatewayRouteState } from "./instance-shell.tsx";
-import {
-  displaySafeAuthorizationUrl,
-  displaySafeText,
-} from "./instance-management-display-safety.ts";
+import type { WorkspaceGatewayRouteFailureCode } from "./instance-shell.tsx";
+import type { SyncStatusErrorCode } from "../../client/sync-status.ts";
 import {
   INSTANCE_MANAGEMENT_ID,
   INSTANCE_MANAGEMENT_PUSH_CONTROL_ID,
@@ -41,7 +40,7 @@ export type InstanceManagementWorkspaceReferences = {
 };
 
 export type ProjectInstanceManagementOptions = {
-  controlPlaneLoadError?: string;
+  controlPlaneLoadFailure?: SyncStatusErrorCode;
   workspaceGatewayState: WorkspaceGatewayRouteState;
   workspaces?: InstanceManagementWorkspaceReferences;
 };
@@ -90,14 +89,14 @@ export function projectInstanceManagement(
     title: "Instance Settings",
   };
 
-  if (options.controlPlaneLoadError) {
+  if (options.controlPlaneLoadFailure) {
     return {
       manifest: {
         ...base,
         feedback: managementFeedback(
           "control-plane-load",
           "Instance management unavailable",
-          options.controlPlaneLoadError,
+          "Program routes could not be loaded. Try again.",
           "danger",
         ),
         state: "failed",
@@ -224,7 +223,7 @@ export function workspacePushOperationExecutionState({
   error,
   push,
 }: {
-  error?: string;
+  error?: WorkspaceGatewayRouteFailureCode;
   push?: WorkspaceGatewayPush;
 }): GeneratedOperationExecutionState {
   if (!push && !error) {
@@ -237,27 +236,14 @@ export function workspacePushOperationExecutionState({
   const base = {
     executionKey: INSTANCE_MANAGEMENT_PUSH_OPERATION_ID,
     ...(startedAt === undefined ? {} : { startedAt }),
-    ...(progress === undefined
-      ? {}
-      : {
-          progress: {
-            ...progress,
-            ...(progress.detail === undefined ? {} : { detail: displaySafeText(progress.detail) }),
-            steps: progress.steps.map((step) => ({
-              ...step,
-              ...(step.detail === undefined ? {} : { detail: displaySafeText(step.detail) }),
-              label: displaySafeText(step.label),
-            })),
-            title: displaySafeText(progress.title),
-          },
-        }),
+    ...(progress === undefined ? {} : { progress }),
   };
 
   if (error) {
     return {
       ...base,
       status: "failed",
-      result: { displayError: displaySafeText(error), type: "failed" },
+      result: { displayError: workspaceGatewayRouteFailureMessage(error), type: "failed" },
       ...(completedAt === undefined ? {} : { completedAt }),
     };
   }
@@ -277,21 +263,11 @@ export function workspacePushOperationExecutionState({
   const result = normalizeGeneratedOperationRuntimeAdapterResponse(
     workspaceGatewayPushGeneratedRuntimeAdapterResponse(push),
   );
-  const displaySafeResult =
-    result.type === "failed"
-      ? { ...result, displayError: displaySafeText(result.displayError) }
-      : {
-          ...result,
-          ...(result.displayMessage === undefined
-            ? {}
-            : { displayMessage: displaySafeText(result.displayMessage) }),
-          output: undefined,
-        };
 
   return {
     ...base,
-    status: displaySafeResult.type,
-    result: displaySafeResult,
+    status: result.type,
+    result,
     ...(completedAt === undefined ? {} : { completedAt }),
   };
 }
@@ -307,7 +283,7 @@ function projectWorkspaceOperation(state: WorkspaceGatewayRouteState): {
       feedback: managementFeedback(
         "workspace-gateway",
         "Push unavailable",
-        state.message,
+        workspaceGatewayRouteFailureMessage(state.code),
         "danger",
       ),
     };
@@ -411,13 +387,11 @@ function selectAuthorizationRuntime(push: WorkspaceGatewayPush | undefined) {
   if (!interaction) {
     return undefined;
   }
-  const url = displaySafeAuthorizationUrl(interaction.url, interaction.provider);
-  if (url === "") return undefined;
   return {
     detail: "Connect Cloudflare to continue Workspace Push.",
     promptId: `instance-management:workspace:push:authorization:${interaction.id}`,
     title: "Cloudflare authorization",
-    url,
+    url: interaction.url,
   };
 }
 
@@ -468,12 +442,20 @@ function managementFeedback(
   intent: "danger" | "info" | "neutral" | "success" | "warning",
 ) {
   return {
-    detail: displaySafeText(detail),
+    detail,
     id: `instance-management:feedback:${id}`,
     intent,
     kind: "managementFeedback" as const,
     title,
   };
+}
+
+export function workspaceGatewayRouteFailureMessage(
+  code: WorkspaceGatewayRouteFailureCode,
+): string {
+  return code === "network-failure"
+    ? "Workspace gateway request failed. Try again."
+    : workspaceGatewayErrorMessage(code);
 }
 
 function button(

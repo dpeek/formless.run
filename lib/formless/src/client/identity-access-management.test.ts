@@ -13,7 +13,7 @@ import {
   revokeIdentityAccessManagementInvitation,
 } from "./identity-access-management.ts";
 describe("identity access management client", () => {
-  it("fetches the display-safe access summary contract", async () => {
+  it("fetches the validated access summary contract", async () => {
     const requests: Array<{
       input: RequestInfo | URL;
       init?: RequestInit;
@@ -57,16 +57,28 @@ describe("identity access management client", () => {
     ]);
   });
 
-  it("raises response status and safe error text for rejected summary reads", async () => {
+  it("retains recognized transport codes without response detail", async () => {
+    await expect(
+      fetchIdentityAccessManagementSummary({
+        fetcher: async () => Response.json({ code: "forbidden" }, { status: 403 }),
+      }),
+    ).rejects.toMatchObject({
+      failure: { code: "forbidden", kind: "transport" },
+      message: "Identity access management request failed.",
+      name: "IdentityAccessManagementApiError",
+      status: 403,
+    });
+
     await expect(
       fetchIdentityAccessManagementSummary({
         fetcher: async () =>
-          Response.json({ error: "Current principal lacks access authority." }, { status: 403 }),
+          Response.json(
+            { code: "forbidden", error: "SQLITE_ERROR at /Users/ada/formless" },
+            { status: 403 },
+          ),
       }),
     ).rejects.toMatchObject({
-      body: { error: "Current principal lacks access authority." },
-      message: "Current principal lacks access authority.",
-      name: "IdentityAccessManagementApiError",
+      failure: { code: "invalid-response", kind: "transport" },
       status: 403,
     });
   });
@@ -296,26 +308,58 @@ describe("identity access management client", () => {
     });
   });
 
-  it("raises response status and safe error text for rejected invitation revokes", async () => {
+  it("retains exact reason-only mutation and invitation failures", async () => {
+    await expect(
+      replaceIdentityAccessManagementPersonRoles(
+        {
+          idempotencyKey: "replace-missing-roles",
+          principalId: "principal:missing",
+          roles: [],
+        },
+        {
+          fetcher: async () => Response.json({ reason: "missing-principal" }, { status: 404 }),
+        },
+      ),
+    ).rejects.toMatchObject({
+      failure: { kind: "person-mutation", reason: "missing-principal" },
+      status: 404,
+    });
+
     await expect(
       revokeIdentityAccessManagementInvitation(
         { invitationId: "invitation:ada" },
         {
-          fetcher: async () =>
-            Response.json(
-              { error: "Collaborator invitation is not pending.", reason: "revoked-invitation" },
-              { status: 409 },
-            ),
+          fetcher: async () => Response.json({ reason: "revoked-invitation" }, { status: 409 }),
         },
       ),
     ).rejects.toMatchObject({
-      body: {
-        error: "Collaborator invitation is not pending.",
-        reason: "revoked-invitation",
-      },
-      message: "Collaborator invitation is not pending.",
+      failure: { kind: "invitation-revocation", reason: "revoked-invitation" },
+      message: "Identity access management request failed.",
       name: "IdentityAccessManagementApiError",
       status: 409,
+    });
+  });
+
+  it("classifies malformed success and failure bodies as invalid responses", async () => {
+    await expect(
+      fetchIdentityAccessManagementSummary({
+        fetcher: async () => Response.json({ people: [] }),
+      }),
+    ).rejects.toMatchObject({
+      failure: { code: "invalid-response", kind: "transport" },
+      status: 200,
+    });
+
+    await expect(
+      revokeIdentityAccessManagementInvitation(
+        { invitationId: "invitation:ada" },
+        {
+          fetcher: async () => new Response("private provider output", { status: 502 }),
+        },
+      ),
+    ).rejects.toMatchObject({
+      failure: { code: "invalid-response", kind: "transport" },
+      status: 502,
     });
   });
 });

@@ -361,15 +361,39 @@ export type IdentityAccessPersonRemovalResponse = {
   status: "disabled";
 };
 
+export const identityAccessErrorCodes = [
+  "invalid-request",
+  "unauthorized",
+  "forbidden",
+  "not-found",
+  "method-not-allowed",
+  "conflict",
+  "unavailable",
+  "internal-failure",
+] as const;
+
+export type IdentityAccessErrorCode = (typeof identityAccessErrorCodes)[number];
+
+export type IdentityAccessErrorResponse = {
+  code: IdentityAccessErrorCode;
+};
+
+export function identityAccessError(code: IdentityAccessErrorCode): IdentityAccessErrorResponse {
+  return { code };
+}
+
+export const identityAccessPersonMutationFailureReasons = [
+  "inactive-principal",
+  "invalid-role-selection",
+  "last-active-owner",
+  "missing-principal",
+  "protected-assignment",
+] as const;
+
 export type IdentityAccessPersonMutationFailureReason =
-  | "inactive-principal"
-  | "invalid-role-selection"
-  | "last-active-owner"
-  | "missing-principal"
-  | "protected-assignment";
+  (typeof identityAccessPersonMutationFailureReasons)[number];
 
 export type IdentityAccessPersonMutationErrorResponse = {
-  error: string;
   reason: IdentityAccessPersonMutationFailureReason;
 };
 
@@ -378,15 +402,18 @@ export type IdentityCollaboratorInvitationRevokeRequest = {
   now?: string;
 };
 
+export const identityCollaboratorInvitationRevokeFailureReasons = [
+  "accepted-invitation",
+  "expired-invitation",
+  "missing-invitation",
+  "revoked-invitation",
+  "tombstoned-invitation",
+] as const;
+
 export type IdentityCollaboratorInvitationRevokeFailureReason =
-  | "accepted-invitation"
-  | "expired-invitation"
-  | "missing-invitation"
-  | "revoked-invitation"
-  | "tombstoned-invitation";
+  (typeof identityCollaboratorInvitationRevokeFailureReasons)[number];
 
 export type IdentityCollaboratorInvitationRevokeErrorResponse = {
-  error: string;
   reason: IdentityCollaboratorInvitationRevokeFailureReason;
 };
 

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { AuthIntent } from "@dpeek/formless-presentation/contract";
-import type { AccountPrincipalIdentity } from "../../shared/instance-auth.ts";
+import {
+  instanceAuthErrorCodes,
+  type AccountPrincipalIdentity,
+} from "../../shared/instance-auth.ts";
 import {
   authIntentIsCurrent,
   createAuthPendingGuard,
@@ -25,8 +28,8 @@ describe("account sign-in auth projection", () => {
       [{ status: "setup-incomplete" }, "incomplete"],
       [{ status: "ready" }, "ready"],
       [{ status: "submitting" }, "submitting"],
-      [{ message: "Unavailable.", status: "passkey-unavailable" }, "passkey-unavailable"],
-      [{ message: "Failed.", retry: "sign-in", status: "failed" }, "failed"],
+      [{ status: "passkey-unavailable" }, "passkey-unavailable"],
+      [{ code: "unavailable", retry: "sign-in", status: "failed" }, "failed"],
       [{ principal, status: "complete" }, "complete"],
       [{ principal, status: "logging-out" }, "logout-pending"],
       [{ continueTo: "/apps", principal, status: "continuing" }, "continuing"],
@@ -37,12 +40,9 @@ describe("account sign-in auth projection", () => {
     );
   });
 
-  it("projects passkey, logout, continuation, and display-safe failures", () => {
+  it("projects passkey, logout, continuation, and fixed failures", () => {
     const unavailable = projectAccountSignInAuthSurface({
-      state: {
-        message: "Passkeys unavailable with owner-setup-token secret-value",
-        status: "passkey-unavailable",
-      },
+      state: { status: "passkey-unavailable" },
     });
     const ready = projectAccountSignInAuthSurface({ state: { status: "ready" } });
     const complete = projectAccountSignInAuthSurface({
@@ -51,7 +51,7 @@ describe("account sign-in auth projection", () => {
 
     expect(unavailable.passkey).toMatchObject({
       availability: "unavailable",
-      unavailableReason: "Passkeys unavailable with owner-setup-token [redacted]",
+      unavailableReason: "This browser does not support passkeys.",
     });
     expect(ready.facts).toEqual([]);
     expect(ready.frame.heading.description).not.toContain(principal.displayName);
@@ -60,6 +60,31 @@ describe("account sign-in auth projection", () => {
       expect.objectContaining({ label: "Account", value: principal.displayName }),
     ]);
     expect(complete.continuation?.destination.label).toBe("Continue");
+
+    const failed = projectAccountSignInAuthSurface({
+      state: { code: "invalid-response", retry: "load", status: "failed" },
+    });
+    expect(failed.feedback?.detail).toBe(
+      "The account service returned an invalid response. Try again.",
+    );
+  });
+
+  it("maps every API and local sign-in failure code to fixed retry copy", () => {
+    const codes = [
+      ...instanceAuthErrorCodes,
+      "network-failure",
+      "invalid-response",
+      "passkey-failed",
+    ] as const;
+
+    for (const code of codes) {
+      const surface = projectAccountSignInAuthSurface({
+        state: { code, retry: "sign-in", status: "failed" },
+      });
+
+      expect(surface.feedback?.detail, code).toBeTruthy();
+      expect(surface.feedback?.detail, code).not.toBe(code);
+    }
   });
 
   it("keeps the no-shell host stable and deduplicates pending operations", async () => {

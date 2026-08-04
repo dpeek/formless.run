@@ -24,7 +24,7 @@ const managementReference = managementManifestReference("instance-management");
 const routesReference = workspaceManifestReference("instance-management:routes");
 
 describe("Astryx management renderer", () => {
-  it("renders accessible loading and display-safe failure snapshots", () => {
+  it("renders accessible loading and fixed failure snapshots", () => {
     const loadingHtml = renderToStaticMarkup(
       <AstryxManagementRenderer
         manifest={managementManifest("loading")}
@@ -43,8 +43,7 @@ describe("Astryx management renderer", () => {
     expect(loadingHtml).toContain('data-formless-astryx-management-state="loading"');
     expect(loadingHtml).toContain("Loading Instance control plane...");
     expect(failedHtml).toContain('data-formless-astryx-management-state="failed"');
-    expect(failedHtml).toContain("Could not read &lt;path&gt; with TOKEN=[redacted].");
-    expect(failedHtml).not.toContain("owner-secret");
+    expect(failedHtml).toContain("Program routes could not be loaded. Try again.");
   });
 
   it("composes the routes workspace, Push progress, and authorization", () => {
@@ -78,7 +77,7 @@ describe("Astryx management renderer", () => {
               choices: [
                 {
                   accountId: "account-a",
-                  action: button(controlId, "Account A"),
+                  action: button(controlId, "Production / Australia"),
                   id: controlId,
                   intent: {
                     accountId: "account-a",
@@ -90,7 +89,7 @@ describe("Astryx management renderer", () => {
                     pushId: "push_1234567890abcdef",
                     type: "managementAccountSelection",
                   },
-                  label: "Account A",
+                  label: "Production / Australia",
                 },
               ],
               id: promptId,
@@ -107,7 +106,7 @@ describe("Astryx management renderer", () => {
 
     expect(html).toContain(`data-formless-astryx-management-account-selection="${promptId}"`);
     expect(html).toContain("Select Cloudflare account");
-    expect(html).toContain("Account A");
+    expect(html).toContain("Production / Australia");
   });
 
   it("subscribes to management and routes through one host", () => {
@@ -171,7 +170,7 @@ function managementManifest(state: "failed" | "loading"): ManagementManifestCont
     : {
         ...base,
         feedback: {
-          detail: "Could not read <path> with TOKEN=[redacted].",
+          detail: "Program routes could not be loaded. Try again.",
           id: "instance-management:feedback:load",
           intent: "danger",
           kind: "managementFeedback",

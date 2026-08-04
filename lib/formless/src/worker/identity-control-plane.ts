@@ -5,6 +5,7 @@ import {
   IDENTITY_COLLABORATOR_INVITATION_REVOKE_API_PATH,
   IDENTITY_COLLABORATOR_INVITATIONS_API_PATH,
   IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX,
+  identityAccessError,
   identityControlPlaneRecordSourceEntityName,
   identityControlPlaneRoleKeys,
   resolveIdentityProgramCallerFacts,
@@ -16,6 +17,7 @@ import {
   type IdentityAccessInvitationMembershipGrantOption,
   type IdentityAccessInvitationRoleGrantOption,
   type IdentityAccessManagementSummary,
+  type IdentityAccessErrorCode,
   type IdentityAccessPersonMutationErrorResponse,
   type IdentityAccessPersonMutationFailureReason,
   type IdentityAccessPersonRemovalRequest,
@@ -219,7 +221,7 @@ class IdentityAccessPersonMutationError extends Error {
   }
 
   body(): IdentityAccessPersonMutationErrorResponse {
-    return { error: this.message, reason: this.reason };
+    return { reason: this.reason };
   }
 }
 
@@ -504,7 +506,7 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
 
     if (route.path === IDENTITY_ACCESS_MANAGEMENT_SUMMARY_API_PATH) {
       if (request.method !== "GET") {
-        return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "GET" });
+        return jsonResponse(identityAccessError("method-not-allowed"), 405, { Allow: "GET" });
       }
 
       const authorization = await authorizeOperationalManagement(request, env, {
@@ -514,7 +516,7 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
 
       if (!authorization.authorized) {
         return jsonResponse(
-          { error: authorization.error },
+          identityAccessError(identityAccessErrorCodeForStatus(authorization.status)),
           authorization.status,
           authorization.headers,
         );
@@ -530,7 +532,7 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
 
     if (route.path === IDENTITY_ACCESS_PERSON_ROLE_REPLACEMENT_API_PATH) {
       if (request.method !== "POST") {
-        return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
+        return jsonResponse(identityAccessError("method-not-allowed"), 405, { Allow: "POST" });
       }
 
       const authorization = await authorizeOperationalManagement(request, env, {
@@ -540,7 +542,7 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
 
       if (!authorization.authorized) {
         return jsonResponse(
-          { error: authorization.error },
+          identityAccessError(identityAccessErrorCodeForStatus(authorization.status)),
           authorization.status,
           authorization.headers,
         );
@@ -559,7 +561,7 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
 
     if (route.path === IDENTITY_ACCESS_PERSON_REMOVAL_API_PATH) {
       if (request.method !== "POST") {
-        return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
+        return jsonResponse(identityAccessError("method-not-allowed"), 405, { Allow: "POST" });
       }
 
       const authorization = await authorizeOperationalManagement(request, env, {
@@ -569,7 +571,7 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
 
       if (!authorization.authorized) {
         return jsonResponse(
-          { error: authorization.error },
+          identityAccessError(identityAccessErrorCodeForStatus(authorization.status)),
           authorization.status,
           authorization.headers,
         );
@@ -589,7 +591,7 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
 
     if (route.path === IDENTITY_COLLABORATOR_INVITATIONS_API_PATH) {
       if (request.method !== "POST") {
-        return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
+        return jsonResponse(identityAccessError("method-not-allowed"), 405, { Allow: "POST" });
       }
 
       const authorization = await authorizeOperationalManagement(request, env, {
@@ -599,7 +601,7 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
 
       if (!authorization.authorized) {
         return jsonResponse(
-          { error: authorization.error },
+          identityAccessError(identityAccessErrorCodeForStatus(authorization.status)),
           authorization.status,
           authorization.headers,
         );
@@ -629,7 +631,7 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
 
     if (route.path === IDENTITY_COLLABORATOR_INVITATION_REVOKE_API_PATH) {
       if (request.method !== "POST") {
-        return jsonResponse({ error: "Method not allowed." }, 405, { Allow: "POST" });
+        return jsonResponse(identityAccessError("method-not-allowed"), 405, { Allow: "POST" });
       }
 
       const authorization = await authorizeOperationalManagement(request, env, {
@@ -639,7 +641,7 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
 
       if (!authorization.authorized) {
         return jsonResponse(
-          { error: authorization.error },
+          identityAccessError(identityAccessErrorCodeForStatus(authorization.status)),
           authorization.status,
           authorization.headers,
         );
@@ -659,21 +661,40 @@ export async function handleIdentityControlPlaneDurableObjectRequest(
       return jsonResponse(revoked.body, revoked.ok ? 200 : revoked.status);
     }
 
-    return jsonResponse({ error: "Not found." }, 404);
+    return jsonResponse(identityAccessError("not-found"), 404);
   } catch (error) {
     if (error instanceof ActiveSchemaRefreshBlockedError) {
-      return jsonResponse({ error: error.message, blocker: error.blocker }, 409);
+      return jsonResponse(identityAccessError("conflict"), 409);
     }
 
     if (error instanceof BadRequestError) {
-      return jsonResponse({ error: error.message }, 400);
+      return jsonResponse(identityAccessError("invalid-request"), 400);
     }
 
     if (error instanceof IdentityAccessPersonMutationError) {
       return jsonResponse(error.body(), error.status);
     }
 
-    return jsonResponse({ error: errorMessage(error) }, 400);
+    return jsonResponse(identityAccessError("internal-failure"), 500);
+  }
+}
+
+function identityAccessErrorCodeForStatus(status: number): IdentityAccessErrorCode {
+  switch (status) {
+    case 401:
+      return "unauthorized";
+    case 403:
+      return "forbidden";
+    case 404:
+      return "not-found";
+    case 405:
+      return "method-not-allowed";
+    case 409:
+      return "conflict";
+    case 503:
+      return "unavailable";
+    default:
+      return status >= 500 ? "internal-failure" : "invalid-request";
   }
 }
 
@@ -2720,14 +2741,6 @@ function identityCollaboratorInvitationRevokeFailure(
 > {
   return {
     body: {
-      error:
-        reason === "accepted-invitation"
-          ? "Invitation has already been accepted."
-          : reason === "expired-invitation"
-            ? "Invitation has expired."
-            : reason === "revoked-invitation"
-              ? "Invitation has already been revoked."
-              : "Invitation could not be found.",
       reason,
     },
     ok: false,
@@ -2777,12 +2790,16 @@ function validateCollaboratorInvitationGrantAuthority(
     });
   }
 
-  validateIdentityCollaboratorInvitationGrants("Collaborator invitation grants", {
-    authorizationRoles: formlessProgramSchema.authorization?.roles ?? [],
-    grantRecords,
-    inviterPrincipalId,
-    records: getBootstrapRecords(storage),
-  });
+  try {
+    validateIdentityCollaboratorInvitationGrants("Collaborator invitation grants", {
+      authorizationRoles: formlessProgramSchema.authorization?.roles ?? [],
+      grantRecords,
+      inviterPrincipalId,
+      records: getBootstrapRecords(storage),
+    });
+  } catch (error) {
+    throw new BadRequestError(errorMessage(error));
+  }
 }
 
 function readCollaboratorInvitationAcceptanceStatus(

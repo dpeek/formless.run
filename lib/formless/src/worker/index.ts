@@ -52,6 +52,7 @@ import { sameOriginAccountCompletionTargetForRuntimeRouteFacts } from "./instanc
 import { handleAccountPasskeyApiRequest } from "./account-passkeys.ts";
 import {
   accountRedirectLocationForRoute,
+  instanceAuthError,
   parseAccountRedirectTarget,
   type AccountAuthorizationForbiddenResult,
   type AccountCompletionContinuationResult,
@@ -582,17 +583,14 @@ async function handleAuthAccountStatusRequest(
   const authOrigin = await configuredInstanceAuthOrigin(request, env);
 
   if (!authOrigin || authOrigin !== requestOriginForAuth(request)) {
-    return Response.json({ error: "Not found." }, { status: 404 });
+    return Response.json(instanceAuthError("not-found"), { status: 404 });
   }
 
   try {
     const handoffContinuation = await resolveAuthAccountHandoffContinuation(request, env);
 
     if (handoffContinuation?.kind === "login-required") {
-      return Response.json(
-        { error: "Authenticated account session is required." },
-        { status: 401 },
-      );
+      return Response.json(instanceAuthError("unauthorized"), { status: 401 });
     }
 
     if (handoffContinuation?.kind === "blocked") {
@@ -608,8 +606,8 @@ async function handleAuthAccountStatusRequest(
     }
 
     return await handleAuthAccountReturnTargetStatusRequest(request, env);
-  } catch (error) {
-    return Response.json({ error: errorMessage(error) }, { status: 400 });
+  } catch {
+    return Response.json(instanceAuthError("invalid-request"), { status: 400 });
   }
 }
 
@@ -690,7 +688,7 @@ async function handleAuthAccountReturnTargetBrowserRequest(
     case "invalid":
       return {
         kind: "response",
-        response: Response.json({ error: resolution.error }, { status: 400 }),
+        response: Response.json(instanceAuthError("invalid-request"), { status: 400 }),
       };
     case "login-required":
       return {
@@ -722,10 +720,10 @@ async function handleAuthAccountReturnTargetStatusRequest(
   }
 
   if (resolution.kind === "invalid") {
-    return Response.json({ error: resolution.error }, { status: 400 });
+    return Response.json(instanceAuthError("invalid-request"), { status: 400 });
   }
 
-  return Response.json({ error: "Authenticated account session is required." }, { status: 401 });
+  return Response.json(instanceAuthError("unauthorized"), { status: 401 });
 }
 
 type AuthAccountReturnTargetContinuation =
@@ -1003,10 +1001,6 @@ function requestHasCookie(request: Request, name: string): boolean {
   }
 
   return header.split(";").some((part) => part.split("=", 1)[0]?.trim() === name);
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Unknown error.";
 }
 
 const FORMLESS_ORIGINAL_REQUEST_HOST_HEADER = "x-formless-original-request-host";

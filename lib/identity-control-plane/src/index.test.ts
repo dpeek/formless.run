@@ -24,6 +24,12 @@ import {
   identityControlPlaneSchema,
   identityControlPlaneSourceSchema,
   isIdentityControlPlaneEntityName,
+  identityAccessErrorCodes,
+  identityAccessPersonMutationFailureReasons,
+  identityCollaboratorInvitationRevokeFailureReasons,
+  parseIdentityAccessErrorResponse,
+  parseIdentityAccessPersonMutationErrorResponse,
+  parseIdentityCollaboratorInvitationRevokeErrorResponse,
   parseIdentityControlPlaneBoundaryEntityName,
   resolveIdentityCollaboratorInvitationGrantAuthority,
   validateIdentityCollaboratorInvitationGrants,
@@ -224,6 +230,38 @@ describe("identity control-plane schema contracts", () => {
     );
     expect(isIdentityControlPlaneEntityName("program-role-assignment")).toBe(true);
     expect(isIdentityControlPlaneEntityName("auth-session")).toBe(false);
+  });
+
+  it("parses closed access failure contracts without arbitrary detail", () => {
+    expect(
+      identityAccessErrorCodes.map((code) => parseIdentityAccessErrorResponse({ code })),
+    ).toEqual(identityAccessErrorCodes.map((code) => ({ code })));
+    expect(
+      identityAccessPersonMutationFailureReasons.map((reason) =>
+        parseIdentityAccessPersonMutationErrorResponse({ reason }),
+      ),
+    ).toEqual(identityAccessPersonMutationFailureReasons.map((reason) => ({ reason })));
+    expect(
+      identityCollaboratorInvitationRevokeFailureReasons.map((reason) =>
+        parseIdentityCollaboratorInvitationRevokeErrorResponse({ reason }),
+      ),
+    ).toEqual(identityCollaboratorInvitationRevokeFailureReasons.map((reason) => ({ reason })));
+
+    expect(() =>
+      parseIdentityAccessErrorResponse({
+        code: "forbidden",
+        error: "SQLITE_ERROR at /Users/ada/formless",
+      }),
+    ).toThrow('Identity access error response has unsupported key "error".');
+    expect(() =>
+      parseIdentityAccessPersonMutationErrorResponse({
+        error: "private diagnostic",
+        reason: "missing-principal",
+      }),
+    ).toThrow('Identity access person mutation error response has unsupported key "error".');
+    expect(() =>
+      parseIdentityCollaboratorInvitationRevokeErrorResponse({ reason: "provider-failure" }),
+    ).toThrow("Identity collaborator invitation revoke error response reason is unsupported.");
   });
 
   it("validates current owner, Program role, invitation, and policy records", () => {

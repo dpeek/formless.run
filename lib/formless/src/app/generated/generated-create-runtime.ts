@@ -47,7 +47,12 @@ import {
   type GeneratedMediaAssetOptionsByFieldKey,
   type GeneratedMediaField,
 } from "./media-field-model.ts";
-import { loadGeneratedMediaAssetOptions, uploadGeneratedMediaFile } from "./media-field-runtime.ts";
+import {
+  generatedMediaUploadFailure,
+  generatedMediaUploadFailureMessage,
+  loadGeneratedMediaAssetOptions,
+  uploadGeneratedMediaFile,
+} from "./media-field-runtime.ts";
 import { upsertMediaAssetOption } from "./record-field-authoring.ts";
 
 export type CreateHomeOperationConfig = Extract<HomeOperationConfig, { type: "create" }>;
@@ -65,7 +70,7 @@ export type GeneratedCreateSubmissionResult =
       type: "created";
     }
   | {
-      displayError: string;
+      code: "submission-failed";
       state: GeneratedCreateDraftSessionState;
       type: "failed";
     };
@@ -74,7 +79,6 @@ const GENERATED_CREATE_FAILURE_MESSAGE = "Create failed. Try again.";
 
 export type GeneratedCreateRuntimeOptions = {
   closeOnSuccess: boolean;
-  displaySafeErrors?: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: (recordId: string) => void;
   open: boolean;
@@ -93,7 +97,6 @@ export type GeneratedCreateRuntime = {
 
 export function useGeneratedCreateRuntime({
   closeOnSuccess,
-  displaySafeErrors = false,
   onOpenChange,
   onSuccess,
   open,
@@ -206,7 +209,7 @@ export function useGeneratedCreateRuntime({
       }
 
       setMediaFieldState((current) => updateCreateMediaFieldState(current, intent.fieldName, true));
-      setSyncStatus({ state: "syncing", message: "Uploading media..." });
+      setSyncStatus({ code: "media-uploading", state: "syncing" });
 
       try {
         const result = await uploadGeneratedMediaFile({
@@ -237,13 +240,13 @@ export function useGeneratedCreateRuntime({
         setMediaFieldState((current) =>
           updateCreateMediaFieldState(current, intent.fieldName, false),
         );
-        setSyncStatus({ state: "idle", message: "Media uploaded." });
+        setSyncStatus({ code: "media-uploaded", state: "idle" });
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Media upload failed.";
+        const message = generatedMediaUploadFailureMessage(generatedMediaUploadFailure(error));
         setMediaFieldState((current) =>
           updateCreateMediaFieldState(current, intent.fieldName, false, message),
         );
-        setSyncStatus({ state: "error", message });
+        setSyncStatus({ code: "media-upload-failed", state: "error" });
       }
       return;
     }
@@ -299,13 +302,8 @@ export function useGeneratedCreateRuntime({
       setDraftSessionState(result.state);
 
       if (result.type === "failed") {
-        if (displaySafeErrors) {
-          setSubmissionError(GENERATED_CREATE_FAILURE_MESSAGE);
-        }
-        setSyncStatus({
-          state: "error",
-          message: displaySafeErrors ? GENERATED_CREATE_FAILURE_MESSAGE : result.displayError,
-        });
+        setSubmissionError(GENERATED_CREATE_FAILURE_MESSAGE);
+        setSyncStatus({ code: "record-save-failed", state: "error" });
         return;
       }
 
@@ -510,9 +508,9 @@ export async function executeGeneratedCreateSubmission({
       state: resetState,
       type: "created",
     };
-  } catch (error) {
+  } catch {
     return {
-      displayError: error instanceof Error ? error.message : "Save failed.",
+      code: "submission-failed",
       state,
       type: "failed",
     };
@@ -534,11 +532,12 @@ async function submitCreateValues({
 }): Promise<{ recordId: string }> {
   if (submitValues !== undefined) {
     setSyncStatus({
+      code: "record-saving",
+      label: operation.entity.label,
       state: "syncing",
-      message: `Saving ${operation.entity.label.toLowerCase()}...`,
     });
     const response = await submitValues(values);
-    setSyncStatus({ state: "idle", message: "Saved and synced." });
+    setSyncStatus({ code: "record-saved", state: "idle" });
     return response;
   }
 
@@ -549,12 +548,12 @@ async function submitCreateValues({
   const result = await executeCreateSubmitOperation({
     binding,
     controller,
-    progressMessage: `Saving ${operation.entity.label.toLowerCase()}...`,
+    entityLabel: operation.entity.label,
     values,
   });
 
   if (result.type === "failed") {
-    throw new Error(result.displayError);
+    throw new Error("Create operation failed.");
   }
 
   return { recordId: selectCreatedOperationRecordId(result) };
@@ -570,12 +569,12 @@ export function projectCreateSubmitBinding(
 export async function executeCreateSubmitOperation({
   binding,
   controller,
-  progressMessage,
+  entityLabel,
   values,
 }: {
   binding: GeneratedOperationControlBinding;
   controller: GeneratedOperationController;
-  progressMessage: string;
+  entityLabel: string;
   values: RecordValues;
 }): Promise<GeneratedOperationExecutionResult> {
   return executeGeneratedOperationControl({
@@ -586,17 +585,13 @@ export async function executeCreateSubmitOperation({
       source: "submitButton",
     },
     controller,
-    feedback: {
-      committedMessage: "Saved and synced.",
-      progressMessage,
-      replayedMessage: "Saved and synced.",
-    },
+    statusLabel: entityLabel,
   });
 }
 
 function selectCreatedOperationRecordId(result: GeneratedOperationExecutionResult) {
   if (result.type === "failed") {
-    throw new Error(result.displayError);
+    throw new Error("Create operation failed.");
   }
 
   const recordId = result.createdRecordIds?.[0];

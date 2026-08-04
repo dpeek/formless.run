@@ -170,9 +170,7 @@ describe("owner setup status and capability API routes", () => {
 
     expect(rejected.status).toBe(401);
     expect(rejected.headers.get("WWW-Authenticate")).toBe('Bearer realm="formless-admin"');
-    expect(await rejected.json()).toEqual({
-      error: "Admin authorization is required for this write endpoint.",
-    });
+    expect(await rejected.json()).toEqual({ code: "unauthorized" });
     expect(accepted.response.status).toBe(200);
   });
 
@@ -183,10 +181,7 @@ describe("owner setup status and capability API routes", () => {
     });
 
     expect(rejected.status).toBe(409);
-    expect(await rejected.json()).toEqual({
-      authenticated: false,
-      error: "Owner setup must be complete before login.",
-    });
+    expect(await rejected.json()).toEqual({ code: "conflict" });
   });
 
   it("returns method errors for retained setup API paths", async () => {
@@ -196,10 +191,13 @@ describe("owner setup status and capability API routes", () => {
 
     expect(status.status).toBe(405);
     expect(status.headers.get("Allow")).toBe("GET");
+    expect(await status.json()).toEqual({ code: "method-not-allowed" });
     expect(session.status).toBe(405);
     expect(session.headers.get("Allow")).toBe("GET, POST");
+    expect(await session.json()).toEqual({ code: "method-not-allowed" });
     expect(logout.status).toBe(405);
     expect(logout.headers.get("Allow")).toBe("POST");
+    expect(await logout.json()).toEqual({ code: "method-not-allowed" });
   });
 });
 

@@ -6,7 +6,6 @@ import type {
   ApplicationSystemStateKind,
   CompactStatusIntent,
 } from "@dpeek/formless-presentation/contract";
-import { displaySafeText } from "./instance-management-display-safety.ts";
 
 export type ApplicationSystemStateProjectionInput = {
   accessibilityLabel?: string;
@@ -38,31 +37,29 @@ export function projectApplicationSystemState(
   input: ApplicationSystemStateProjectionInput,
 ): ApplicationSystemStateContract {
   return {
-    accessibilityLabel: displaySafeText(input.accessibilityLabel ?? input.heading),
+    accessibilityLabel: input.accessibilityLabel ?? input.heading,
     actions: (input.actions ?? []).map((action) => applicationSystemStateAction(input.id, action)),
     facts: (input.facts ?? []).map((fact) => ({
       id: fact.id,
       kind: "applicationSystemStateFact" as const,
-      label: displaySafeText(fact.label),
-      value: displaySafeText(fact.value),
+      label: fact.label,
+      value: fact.value,
     })),
     ...(input.feedback
       ? {
           feedback: {
-            ...(input.feedback.detail === undefined
-              ? {}
-              : { detail: displaySafeText(input.feedback.detail) }),
+            ...(input.feedback.detail === undefined ? {} : { detail: input.feedback.detail }),
             id: input.feedback.id,
             intent: input.feedback.intent,
             kind: "applicationSystemStateFeedback" as const,
-            title: displaySafeText(input.feedback.title),
+            title: input.feedback.title,
           },
         }
       : {}),
-    heading: displaySafeText(input.heading),
+    heading: input.heading,
     id: input.id,
     kind: "applicationSystemState",
-    message: displaySafeText(input.message),
+    message: input.message,
     state: input.state,
   };
 }
@@ -97,8 +94,8 @@ function applicationSystemStateAction(
 
   return {
     control: {
-      accessibilityLabel: displaySafeText(input.accessibilityLabel ?? input.label),
-      content: { kind: "label", label: displaySafeText(input.label) },
+      accessibilityLabel: input.accessibilityLabel ?? input.label,
+      content: { kind: "label", label: input.label },
       density: "default",
       id: controlId,
       kind: "button",

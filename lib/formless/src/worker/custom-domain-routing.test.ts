@@ -379,6 +379,7 @@ describe("instance custom-domain Worker routing", () => {
     const blockedBody = (await blocked.json()) as Record<string, unknown>;
     const forbiddenBody = (await forbidden.json()) as Record<string, unknown>;
     const readyBody = (await ready.json()) as Record<string, unknown>;
+    const unsafeBody = (await unsafe.json()) as Record<string, unknown>;
     const routeId = routeRecordIds.get("route:primary-production");
 
     expect(anonymous.status).toBe(200);
@@ -429,6 +430,7 @@ describe("instance custom-domain Worker routing", () => {
     expect(JSON.stringify(readyBody)).not.toContain("sessionId");
     expect(JSON.stringify(readyBody)).not.toContain("sessionVersion");
     expect(unsafe.status).toBe(400);
+    expect(unsafeBody).toEqual({ code: "invalid-request" });
     expect(directForbidden.status).toBe(403);
     expect(directReady.status).toBe(200);
   });
@@ -764,7 +766,7 @@ describe("instance custom-domain Worker routing", () => {
       },
     );
     const unsafeAccountReturnBody = (await unsafeAccountReturn.json()) as {
-      error?: string;
+      code?: string;
     };
     const setupCapability = await fetchHost(mappedInstanceHost, "/api/formless/setup/capability", {
       body: JSON.stringify({ setupToken }),
@@ -802,7 +804,7 @@ describe("instance custom-domain Worker routing", () => {
       ),
     );
     expect(unsafeAccountReturn.status).toBe(400);
-    expect(unsafeAccountReturnBody.error).toBe("Account return target must be path-only.");
+    expect(unsafeAccountReturnBody.code).toBe("invalid-request");
     expect(authenticatedAccountReturn.status).toBe(302);
     expect(authenticatedAccountReturn.headers.get("Location")).toBe("/settings/routes");
     expect(setupCapability.status).toBe(200);
@@ -992,10 +994,10 @@ describe("instance custom-domain Worker routing", () => {
       redirect: "manual",
     });
     const body = (await callback.json()) as {
-      error: string;
+      code: string;
     };
     expect(callback.status).toBe(400);
-    expect(body.error).toBe("Handoff callback is invalid.");
+    expect(body.code).toBe("invalid-request");
     expect(assetRequests).toEqual([]);
   });
 

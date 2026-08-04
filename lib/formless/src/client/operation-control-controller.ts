@@ -49,7 +49,6 @@ export type GeneratedOperationRuntimeAdapterResponse =
       affectedCount?: number;
       createdRecordIds?: readonly string[];
       displayMessage?: string;
-      output?: unknown;
       progress?: GeneratedOperationProgress;
     }
   | {
@@ -154,8 +153,8 @@ export function createGeneratedOperationController(
     try {
       const result = await executeBinding(binding, callerInput);
       return complete(binding, startedAt, result);
-    } catch (error) {
-      return complete(binding, startedAt, failedResult(displaySafeErrorMessage(error)));
+    } catch {
+      return complete(binding, startedAt, failedResult("Operation failed."));
     }
   }
 
@@ -357,7 +356,6 @@ export function normalizeGeneratedOperationRuntimeAdapterResponse(
       ? {}
       : { createdRecordIds: response.createdRecordIds }),
     ...(response.displayMessage === undefined ? {} : { displayMessage: response.displayMessage }),
-    ...(response.output === undefined ? {} : { output: response.output }),
   };
 }
 
@@ -509,10 +507,6 @@ function failedResult(displayError: string): GeneratedOperationExecutionResult {
 }
 
 function noopProgressReporter(_progress: GeneratedOperationProgress) {}
-
-function displaySafeErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Operation failed.";
-}
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

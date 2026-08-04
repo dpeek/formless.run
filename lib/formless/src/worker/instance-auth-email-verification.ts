@@ -1,6 +1,7 @@
 import type { EmailDeliveryScheduleRequest } from "../shared/email-runtime.ts";
 import { normalizeEmailDeliveryAddress } from "../shared/email-runtime.ts";
 import {
+  instanceAuthError,
   parseAccountCompletionGateTarget,
   type AccountCompletionGateTarget,
 } from "../shared/instance-auth.ts";
@@ -108,7 +109,7 @@ export async function handleInstanceAuthEmailVerificationDurableObjectRequest(
     const session = await validateCentralAuthSessionCookie(request, storage, env);
 
     if (!session.ok) {
-      return jsonResponse({ error: "Authenticated account session is required." }, 401);
+      return jsonResponse(instanceAuthError("unauthorized"), 401);
     }
 
     if (url.pathname === INSTANCE_AUTH_EMAIL_VERIFICATION_REQUEST_PATH) {
@@ -120,8 +121,8 @@ export async function handleInstanceAuthEmailVerificationDurableObjectRequest(
     return await handleEmailVerificationVerify(request, storage, env, config, {
       principalId: session.session.principalId,
     });
-  } catch (error) {
-    return jsonResponse({ error: errorMessage(error) }, 400);
+  } catch {
+    return jsonResponse(instanceAuthError("invalid-request"), 400);
   }
 }
 
@@ -179,12 +180,12 @@ async function handleEmailVerificationRequestChallenge(
     }
 
     if (created.reason !== "duplicate-token-hash") {
-      return jsonResponse({ error: "Email verification challenge already exists." }, 409);
+      return jsonResponse(instanceAuthError("conflict"), 409);
     }
   }
 
   if (!created?.ok) {
-    return jsonResponse({ error: "Email verification challenge could not be created." }, 409);
+    return jsonResponse(instanceAuthError("conflict"), 409);
   }
 
   let delivery: Awaited<ReturnType<typeof scheduleEmailDelivery>>;
@@ -211,7 +212,7 @@ async function handleEmailVerificationRequestChallenge(
       targetAuthorityName: FORMLESS_INSTANCE_AUTHORITY_NAME,
     });
   } catch {
-    return jsonResponse({ error: "Email verification delivery is not configured." }, 503);
+    return jsonResponse(instanceAuthError("unavailable"), 503);
   }
 
   return jsonResponse({
@@ -260,7 +261,7 @@ async function handleEmailVerificationVerify(
   });
 
   if (!identityCommit.ok) {
-    return jsonResponse({ error: "Email verification could not be committed." }, 409);
+    return jsonResponse(instanceAuthError("conflict"), 409);
   }
 
   const consumed = consumeEmailVerificationChallenge(storage, {
@@ -292,21 +293,18 @@ async function emailVerificationDeliveryConfiguration(
   const requestOrigin = new URL(request.url).origin;
 
   if (!config) {
-    return { response: jsonResponse({ error: "Email verification is unavailable." }, 503) };
+    return { response: jsonResponse(instanceAuthError("unavailable"), 503) };
   }
 
   if (requestOrigin !== config.canonicalOrigin) {
     return {
-      response: jsonResponse(
-        { error: "Email verification must use the configured auth origin." },
-        404,
-      ),
+      response: jsonResponse(instanceAuthError("not-found"), 404),
     };
   }
 
   if (!env.FORMLESS_EMAIL_DELIVERY_QUEUE) {
     return {
-      response: jsonResponse({ error: "Email verification delivery is not configured." }, 503),
+      response: jsonResponse(instanceAuthError("unavailable"), 503),
     };
   }
 
@@ -316,7 +314,7 @@ async function emailVerificationDeliveryConfiguration(
     controlPlaneRecords = await readControlPlaneRecords({ env, requestUrl: request.url });
   } catch {
     return {
-      response: jsonResponse({ error: "Email verification delivery is not configured." }, 503),
+      response: jsonResponse(instanceAuthError("unavailable"), 503),
     };
   }
 
@@ -324,7 +322,7 @@ async function emailVerificationDeliveryConfiguration(
 
   if (!sender) {
     return {
-      response: jsonResponse({ error: "Email verification delivery is not configured." }, 503),
+      response: jsonResponse(instanceAuthError("unavailable"), 503),
     };
   }
 
@@ -332,7 +330,7 @@ async function emailVerificationDeliveryConfiguration(
     resolveConfiguredDefaultCloudflareSender(controlPlaneRecords ?? [], "auth");
   } catch {
     return {
-      response: jsonResponse({ error: "Email verification delivery is not configured." }, 503),
+      response: jsonResponse(instanceAuthError("unavailable"), 503),
     };
   }
 
@@ -448,16 +446,16 @@ function emailVerificationChallengeFailureResponse(
   switch (result.reason) {
     case "already-consumed":
     case "revoked-challenge":
-      return jsonResponse({ error: "Email verification link is no longer available." }, 409);
+      return jsonResponse(instanceAuthError("conflict"), 409);
     case "expired-challenge":
-      return jsonResponse({ error: "Email verification link has expired." }, 410);
+      return jsonResponse(instanceAuthError("expired"), 410);
     case "missing-challenge":
-      return jsonResponse({ error: "Email verification link is invalid." }, 404);
+      return jsonResponse(instanceAuthError("not-found"), 404);
     case "wrong-email":
     case "wrong-purpose":
     case "wrong-target":
     case "wrong-token":
-      return jsonResponse({ error: "Email verification link is invalid." }, 401);
+      return jsonResponse(instanceAuthError("unauthorized"), 401);
   }
 }
 
@@ -494,7 +492,7 @@ async function readJson(request: Request): Promise<unknown> {
 }
 
 function methodNotAllowedResponse(allow: string): Response {
-  return jsonResponse({ error: "Method not allowed." }, 405, { Allow: allow });
+  return jsonResponse(instanceAuthError("method-not-allowed"), 405, { Allow: allow });
 }
 
 function jsonResponse(body: unknown, status = 200, headers: HeadersInit = {}) {
@@ -573,8 +571,4 @@ async function sha256Base64Url(value: string): Promise<string> {
   }
 
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

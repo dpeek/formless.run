@@ -215,10 +215,68 @@ export function selectGeneratedShellSyncStatus({
     kind: "shellSyncStatus",
     label:
       status.state === "error" ? "Sync issue" : status.state === "syncing" ? "Syncing" : "Synced",
-    message:
-      status.state === "error" ? "Sync failed. Check the Program and try again." : status.message,
+    message: selectGeneratedShellSyncMessage(status),
     state: status.state,
   };
+}
+
+export function selectGeneratedShellSyncMessage(status: SyncStatus): string {
+  switch (status.code) {
+    case "local-cache-ready":
+      return "Local cache ready.";
+    case "media-uploaded":
+      return "Media uploaded.";
+    case "media-uploaded-and-synced":
+      return "Media uploaded and synced.";
+    case "program-changes-caught-up":
+      return "Program changes caught up.";
+    case "program-synced":
+      return "Synced.";
+    case "record-saved":
+      return "Saved and synced.";
+    case "record-updated":
+      return "Updated and synced.";
+    case "operation-committed":
+      return `${status.label} synced.`;
+    case "operation-replayed":
+      return `${status.label} replayed.`;
+    case "media-uploading":
+      return "Uploading media...";
+    case "program-catching-up":
+      return "Catching up Program changes...";
+    case "program-syncing":
+      return "Syncing Formless Program...";
+    case "push-connecting":
+      return "Connecting push sync...";
+    case "push-connection-issue":
+      return "Push sync connection issue.";
+    case "push-reconnecting":
+      return "Push sync reconnecting...";
+    case "push-renewing":
+      return "Renewing push sync connection...";
+    case "operation-running":
+      return `${status.label}...`;
+    case "record-saving":
+      return `Saving ${status.label}...`;
+    case "record-updating":
+      return `Updating ${status.label}...`;
+    case "media-upload-failed":
+      return "Media upload failed. Try again.";
+    case "program-sync-failed":
+      return "Sync failed. Check the Program and try again.";
+    case "push-authorization-changed":
+      return "Push sync authorization changed. Sign in again.";
+    case "push-connection-failed":
+      return "Push sync connection failed. Try again.";
+    case "push-invalid-message":
+      return "Push sync received an invalid update. Try again.";
+    case "record-save-failed":
+      return "Save failed. Try again.";
+    case "record-update-failed":
+      return "Update failed. Try again.";
+    case "operation-failed":
+      return `${status.label} failed. Try again.`;
+  }
 }
 
 export function selectGeneratedShellSession(
